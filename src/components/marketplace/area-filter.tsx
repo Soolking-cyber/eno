@@ -21,6 +21,12 @@ import type { DimensionCounts } from '@/lib/facet-counts'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
+/** The District field's "All districts" row (`withDistrict`). */
+const ALL_DISTRICTS = '*'
+
+/** A district's name without the list's note in brackets: "Quận 7 (Phú Mỹ Hưng)" → "Quận 7". */
+export const plainDistrict = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, '').trim()
+
 /** `group`/`groupEn`: the heading an HCMC ward sits under (its old district — /api/geo, src/lib/hcmc-ward-groups.ts). */
 type Unit = { code: string; name: string; nameEn: string; group?: string; groupEn?: string }
 
@@ -72,7 +78,7 @@ function DisabledField({ label }: { label: string }) {
  */
 export function AreaFilter({
   open, anchorRef, onClose, province, ward, district = 'all', onPickDistrict, nearby, onApply, onReset, mode = 'search', hideLocate = false,
-  districtCounts, provinceCounts, title,
+  districtCounts, provinceCounts, title, withDistrict = false, districtValue = null,
 }: {
   /**
    * What the panel is called — its phone sheet's title and its popover's name. Omitted: "Area". The teachers browse
@@ -98,7 +104,18 @@ export function AreaFilter({
    */
   onPickDistrict?: (slug: string) => void
   nearby: Nearby | null
-  onApply: (r: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => void
+  onApply: (r: { province: Geo | null; ward: Geo | null; nearby: Nearby | null; district?: Geo | null }) => void
+  /**
+   * PICK MODE: A DISTRICT FIELD BETWEEN THE CITY AND THE WARD (owner, 2026-11-12, the Facebook import: "select from dropdown
+   * city ward or district"). Drawn for a province whose wards come grouped under their old district (HCMC: /api/geo
+   * `grouped=1`, src/lib/hcmc-ward-groups.ts) — Vietnam's 2025 reform removed the level, but sellers and buyers still say
+   * "Quận 7" and "Thảo Điền, Thủ Đức". Picking one narrows the ward list to it; picking a ward sets its district. A
+   * district ALONE is a valid pick (`district` on Apply, ward null) when it is one of the curated districts (DISTRICTS) —
+   * never a "Former Bình Dương" heading. Only the import picker asks for it; the post form keeps city and ward.
+   */
+  withDistrict?: boolean
+  /** The district applied with no ward (`withDistrict`), shown when the panel opens again. */
+  districtValue?: Geo | null
   onReset: () => void
   // 'search' = explorer filter (radius slider). 'pick' = post wizard location
   // picker — choose/auto-fetch a place, NO search-range slider or search wording.
@@ -129,6 +146,8 @@ export function AreaFilter({
   const [loadingWards, setLoadingWards] = useState(false)
   const [provCode, setProvCode] = useState(province?.code || HCMC)
   const [wardCode, setWardCode] = useState(ward?.code || '')
+  // The picked district's heading (its Vietnamese name, as /api/geo groups the wards), '' = none (`withDistrict`).
+  const [districtDraft, setDistrictDraft] = useState(districtValue?.name ?? '')
   const [loc, setLoc] = useState<{ lat: number; lng: number } | null>(nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
   const [radiusKm, setRadiusKm] = useState(nearby?.radiusKm ?? 5)
   const [address, setAddress] = useState<string | null>(null)
@@ -165,10 +184,11 @@ export function AreaFilter({
     if (!open) return
     setProvCode(province?.code || (mode === 'pick' && (province || ward) ? '' : HCMC))
     setWardCode(ward?.code || '')
+    setDistrictDraft(districtValue?.name ?? '')
     setLoc(nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
     setRadiusKm(nearby?.radiusKm ?? 5)
     setAddress(null)
-  }, [open, province, ward, nearby, mode])
+  }, [open, province, ward, nearby, mode, districtValue])
 
   // Wards for the selected province — ONLY while the popover is open (perf Phase 1:
   // a persisted/geolocated province made every cold load fetch that province's wards
@@ -251,16 +271,45 @@ export function AreaFilter({
   // another province or ward (or a located position does). Likewise a seeded place whose list has not loaded yet.
   const keptProvince = province && province.code === provCode ? province : null
   const keptWard = ward && ward.code === wardCode && (province?.code ?? '') === provCode ? ward : null
+  // `withDistrict`: the districts are the headings the wards came under, in their order; the one shown is the one picked,
+  // else the picked ward's. A ward picked under one district and the district then changed is dropped (`pickDistrict`).
+  // Only the curated districts (DISTRICTS): a "Former Bình Dương" heading is not a district to pick, and Apply would drop it
+  // (commit gate, opus) — its wards stay in the full list under that heading.
+  const districts = withDistrict && mode === 'pick'
+    ? wards.reduce<{ vi: string; en: string }[]>((acc, w) => (w.group && DISTRICTS.some((x) => x.name === w.group) && !acc.some((d) => d.vi === w.group) ? [...acc, { vi: w.group, en: w.groupEn || w.group }] : acc), [])
+    : []
+  // ⛔ A district comes back by its PLAIN name ("Quận 7", what Apply files) and is found again under its heading ("Quận 7 (Phú
+  // Mỹ Hưng)") — matched only on the raw draft, reopening and pressing Apply emptied it (commit gate, codex + opus).
+  const draftHeading = districtDraft && districtDraft !== ALL_DISTRICTS ? districts.find((d) => d.vi === districtDraft || plainDistrict(d.vi) === districtDraft)?.vi : undefined
+  const wardGroup = wards.find((w) => w.code === wardCode)?.group
+  // "All districts" (ALL_DISTRICTS) is a way back out of a picked one: the whole ward list again (commit gate, opus).
+  const districtShown = districtDraft === ALL_DISTRICTS ? '' : draftHeading || (wardGroup && districts.some((d) => d.vi === wardGroup) ? wardGroup : '')
+  const shownWards = districtShown ? wards.filter((w) => w.group === districtShown) : wards
+  const pickDistrict = (vi: string) => {
+    setDistrictDraft(vi)
+    // "All districts" widens the list and keeps a picked ward (commit gate, opus); a district drops a ward outside it.
+    if (vi !== ALL_DISTRICTS && wardCode && wards.find((w) => w.code === wardCode)?.group !== vi) setWardCode('')
+  }
+  const pickWard = (code: string) => {
+    setWardCode(code)
+    const g = wards.find((w) => w.code === code)?.group
+    if (g && districts.some((d) => d.vi === g)) setDistrictDraft(g)
+  }
   const apply = () => {
+    const d = districts.find((x) => x.vi === districtShown)
     onApply({
       province: toGeo(provinces.find((p) => p.code === provCode)) ?? keptProvince,
       ward: toGeo(wards.find((w) => w.code === wardCode)) ?? keptWard,
       nearby: loc ? { ...loc, radiusKm } : null,
+      // Filed by its plain name — "Quận 7", not the list's "Quận 7 (Phú Mỹ Hưng)" note (commit gate, opus) — which is also what
+      // the district filter matches (DISTRICTS `match`) and what the pin search finds. Applied before the wards have loaded
+      // (or when they failed to), the saved district stays as it was (commit gate, codex).
+      ...(withDistrict ? { district: d ? { code: '', name: plainDistrict(d.vi), nameEn: plainDistrict(d.en) } : !districts.length && districtValue && districtDraft === districtValue.name ? districtValue : null } : {}),
     })
     onClose()
   }
 
-  const reset = () => { setProvCode(HCMC); setWardCode(''); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
+  const reset = () => { setProvCode(HCMC); setWardCode(''); setDistrictDraft(''); setLoc(null); setAddress(null); setRadiusKm(5); onReset(); onClose() }
 
   /**
    * Places worth offering (offeredKeys). Provinces drop only when EMPTY — the select is also the
@@ -306,7 +355,7 @@ export function AreaFilter({
           <Label className="text-xs font-bold text-foreground leading-normal">{tr('Province / City', 'Tỉnh / Thành phố')}</Label>
           <CustomSelect
             value={provCode}
-            onChange={(c) => { setProvCode(c); setWardCode('') }}
+            onChange={(c) => { setProvCode(c); setWardCode(''); setDistrictDraft('') }}
             options={shownProvinces.map((p) => ({ value: p.code, label: label(p) }))}
             label={tr('Province / City', 'Tỉnh / Thành phố')}
             // "Choose…", not "Select Province/City": the label above already names the field,
@@ -317,17 +366,34 @@ export function AreaFilter({
             activeClassName={FIELD}
           />
         </div>
-        <div className="min-w-0 space-y-1.5">
+        {/* `withDistrict` (the Facebook import): City | District on the first row, the ward under them across both. */}
+        {districts.length > 0 && (
+          <div className="min-w-0 space-y-1.5">
+            <Label className="text-xs font-bold text-foreground leading-normal">{tr('District', 'Quận / Huyện')}</Label>
+            <CustomSelect
+              value={districtShown || (districtDraft === ALL_DISTRICTS ? ALL_DISTRICTS : '')}
+              onChange={pickDistrict}
+              // i18n-invariant: each district's own Vietnamese and English name (hcmc-ward-groups.ts, DISTRICTS).
+              options={[{ value: ALL_DISTRICTS, label: tr('All districts', 'Tất cả quận') }, ...districts.map((d) => ({ value: d.vi, label: lang === 'vi' ? d.vi : d.en }))]}
+              label={tr('District', 'Quận / Huyện')}
+              placeholder={tr('Choose…', 'Chọn…')}
+              className={FIELD}
+              activeClassName={FIELD}
+            />
+          </div>
+        )}
+        <div className={cn('min-w-0 space-y-1.5', districts.length > 0 && 'col-span-2')}>
           <Label className="text-xs font-bold text-foreground leading-normal">{tr('Ward / Commune', 'Phường / Xã')}</Label>
           {loadingWards ? (
             <DisabledField label={tr('Loading wards…', 'Đang tải phường/xã…')} />
           ) : wards.length ? (
             <CustomSelect
               value={wardCode}
-              onChange={setWardCode}
+              onChange={pickWard}
               // HCMC's wards under the old district each grew out of — "Thu Duc City" holds its twelve (owner, 2026-10-29:
               // "divide thu duc city into wards so we can select specific area"); typing keeps every matching heading.
-              options={wards.map((w) => ({ value: w.code, label: label(w), group: (lang === 'vi' ? w.group : w.groupEn) || undefined }))}
+              // With a district picked (`withDistrict`), that district's wards only.
+              options={shownWards.map((w) => ({ value: w.code, label: label(w), group: (lang === 'vi' ? w.group : w.groupEn) || undefined }))}
               label={tr('Ward / Commune', 'Phường / Xã')}
               placeholder={keptWard && !wardCode ? label(keptWard) : tr('Choose…', 'Chọn…')}
               className={FIELD}

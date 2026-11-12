@@ -1,0 +1,11 @@
+[Unit]
+Description=eno-photon: rebuild the Vietnam place-search index from this week's OpenStreetMap data
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# The repo copy, updated by every deploy (the script skips while one runs).
+ExecStart=/bin/bash /opt/eno/app/infra/vn-node/photon/photon-refresh.sh
+StandardOutput=journal
+StandardError=journal

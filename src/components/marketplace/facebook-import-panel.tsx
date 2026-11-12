@@ -127,14 +127,16 @@ export function FacebookImportPanel() {
   // The tick confirms the city and ward: a new pin inside the same ones (the ward's own search, a nudge) leaves it ticked (commit gate, opus).
   const setPlace = (next: ImportPlace) => {
     touched.current = true
-    if (place.province?.name !== next.province?.name || place.ward?.name !== next.ward?.name) setAreaOk(false)
+    if (place.province?.name !== next.province?.name || place.ward?.name !== next.ward?.name || place.district?.name !== next.district?.name) setAreaOk(false)
     setPlaceRaw(next)
   }
   const [areaOk, setAreaOk] = useState(false)
   // Read by the default pin's late answer: it never moves a place the seller has already confirmed.
   const areaOkRef = useRef(false)
   useEffect(() => { areaOkRef.current = areaOk }, [areaOk])
-  const placeReady = !!place.province?.name && !!place.ward?.name
+  // A ward, or a district picked with no ward (owner, 2026-11-12: "city ward or district"): either is where the listings say they are.
+  const placeArea = place.ward?.name || place.district?.name || ''
+  const placeReady = !!place.province?.name && !!placeArea
   // ⛔ ONCE PER IMPORT, when its drafts are there: a seller's own correction and tick are never put back by a later poll or the job finishing (commit gate, opus).
   const areaFor = useRef<string | null>(null)
   // A new import is never published on the last one's tick (commit gate, codex + opus).
@@ -215,7 +217,7 @@ export function FacebookImportPanel() {
     }
     const out: Record<string, string> = {}
     for (const { id } of chosen) {
-      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone, place: { province: place.province?.name ?? '', ward: place.ward?.name ?? '', lat: place.lat, lng: place.lng } }) }).catch(() => null)
+      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone, place: { province: place.province?.name ?? '', ward: placeArea, lat: place.lat, lng: place.lng } }) }).catch(() => null)
       const d = (await r?.json().catch(() => null)) as { ok?: boolean; code?: string; error?: string } | null
       out[id] = d?.ok ? 'ok' : d?.code ?? d?.error ?? 'publish_failed'
       setResults({ ...out })

@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# eno · eno-photon — OpenStreetMap place search as you type, on eno's own box
+#
+# The Facebook import's address field asks it through /api/geocode/suggest (src/lib/geo-suggest.ts). Owner, 2026-11-12:
+# "show suggestions like macdonalds thao dien show exact address … like grab"; chose "Free OpenStreetMap" on our own server.
+# Install and refresh: README.md here — ⛔ through install.sh / photon-refresh.sh, never a bare `up -d` before the first index
+# exists (Docker would make `data` a plain directory where the symlink to the index belongs).
+#
+# ⛔ NO PUBLISHED PORT. Docker bypasses ufw (a `ports:` line would put the search on the internet); the app reaches it by
+# name on supabase_default, like eno-laya and eno-mt. The typed text never leaves the box.
+services:
+  eno-photon:
+    image: eclipse-temurin:21-jre-noble
+    container_name: eno-photon
+    # `always`, not `unless-stopped`: the refresh stops it for a minute each week, and a reboot in that minute must still
+    # bring it back with the Docker daemon (commit gate, codex).
+    restart: always
+    networks: [supabase_default]
+    # Vietnam's index is small (OpenStreetMap's Vietnam extract, ~71 MB packed): a 1 GB heap answers in milliseconds.
+    mem_limit: 2g
+    environment:
+      JAVA_TOOL_OPTIONS: '-Xmx1g'
+    volumes:
+      - /opt/eno/photon/photon.jar:/photon/photon.jar:ro
+      - /opt/eno/photon/data:/photon/data
+    command: ['java', '-jar', '/photon/photon.jar', 'serve', '-data-dir', '/photon/data', '-listen-ip', '0.0.0.0', '-listen-port', '2322', '-max-results', '10', '-max-reverse-results', '1']
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/2322']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  supabase_default:
+    external: true

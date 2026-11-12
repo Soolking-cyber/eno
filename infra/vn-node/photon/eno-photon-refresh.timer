@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly eno-photon index refresh
+
+[Timer]
+# Sunday 05:15 ICT (the box runs local time — eno-docker-prune.timer): after the nightly prune (04:30), before people wake.
+# GraphHopper's Vietnam dump is rebuilt weekly; a week-old index is the freshest there is.
+OnCalendar=Sun *-*-* 05:15:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

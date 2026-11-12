@@ -3,18 +3,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Info, Loader2, LocateFixed, MapPin } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList } from '@/components/ui/combobox'
 import { IconButton } from '@/components/ui/icon-button'
-import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import { basemapTileUrl } from '@/lib/basemap'
+import type { PlaceSuggestion } from '@/lib/geo-suggest'
 import { loadLeaflet } from '@/lib/leaflet-loader'
 import { CARTO_CREDIT, OSM_CREDIT } from '@/lib/map-credit'
 import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
 import { AreaFilter, findUnit, type Geo } from './area-filter'
 
-/** Where an import's listings are: the city and ward the post form stores, and the pin. */
-export type ImportPlace = { province: Geo | null; ward: Geo | null; lat: number | null; lng: number | null }
+/**
+ * Where an import's listings are: the city and ward the post form stores, and the pin. `district`: a district picked with
+ * no ward (owner, 2026-11-12: "city ward or district") — published where the ward would be; set only by the area picker.
+ */
+export type ImportPlace = { province: Geo | null; ward: Geo | null; district?: Geo | null; lat: number | null; lng: number | null }
 
 const HCMC_CENTRE: [number, number] = [10.7769, 106.7009]
 
@@ -41,6 +45,21 @@ export async function areaAt(lat: number, lng: number, lang: string): Promise<{ 
 export function ImportLocationPicker({ value, onChange }: { value: ImportPlace; onChange: (next: ImportPlace) => void }) {
   const { tr, lang } = useLanguage()
   const [query, setQuery] = useState('')
+  // PLACES AS YOU TYPE (owner, 2026-11-12: "macdonalds thao dien show exact address … like grab"): eno's own OpenStreetMap
+  // search (api/geocode/suggest, src/lib/geo-suggest.ts), a quarter second after the last key. `suggestOff`: that server is
+  // missing or down — Enter then searches the old way (Nominatim) and the field says so.
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
+  const [suggestOff, setSuggestOff] = useState(false)
+  // The text the last suggestions answered: with none for it, the field says Enter searches further.
+  const [answered, setAnswered] = useState('')
+  // The list opens when rows arrive for what the seller typed (they are typing: it is for them), and Escape or a click
+  // away closes it until the next answer.
+  const [listOpen, setListOpen] = useState(false)
+  const suggestGen = useRef(0)
+  // The text a pick put in the field: it is the answer, not a new search.
+  const picked = useRef('')
+  // The picked row is the combobox's value: with none, Base UI empties the field to match it right after the pick.
+  const [chosen, setChosen] = useState<PlaceSuggestion | null>(null)
   const [results, setResults] = useState<{ label: string; lat: number; lng: number }[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchFailed, setSearchFailed] = useState(false)
@@ -61,15 +80,58 @@ export function ImportLocationPicker({ value, onChange }: { value: ImportPlace; 
   // If the map can't name the spot, they stay empty and the seller picks them; Publish waits either way.
   const pinTo = async (lat: number, lng: number) => {
     const mine = ++gen.current
-    latest.current.onChange({ ...latest.current.value, lat, lng, province: null, ward: null })
+    latest.current.onChange({ ...latest.current.value, lat, lng, province: null, ward: null, district: null })
     const area = await areaAt(lat, lng, lang)
     if (mine !== gen.current || !area.province) return
-    latest.current.onChange({ ...latest.current.value, lat, lng, province: area.province, ward: area.ward })
+    latest.current.onChange({ ...latest.current.value, lat, lng, province: area.province, ward: area.ward, district: null })
+  }
+
+  useEffect(() => {
+    const q = query.trim()
+    const mine = ++suggestGen.current
+    // ⛔ ROWS ARE FOR THE TEXT THEY ANSWERED (commit gate, codex + opus): the last query's rows go the moment the text
+    // changes, or Enter would pick a highlighted row for words the seller has since typed past.
+    setSuggestions([])
+    setListOpen(false)
+    if (q === picked.current) return
+    // Typed past the pick: the same words typed again later are a new search (commit gate, opus).
+    picked.current = ''
+    if (q.length < 3) return
+    const t = setTimeout(async () => {
+      const { lat, lng } = latest.current.value
+      // i18n-invariant: the answer language and the bias point, not copy.
+      const near = lat != null && lng != null ? `&lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}` : ''
+      const r = await fetch(`/api/geocode/suggest?q=${encodeURIComponent(q)}&lang=${lang === 'vi' ? 'vi' : 'en'}${near}`).catch(() => null)
+      const d = (r?.ok ? await r.json().catch(() => null) : null) as { results?: PlaceSuggestion[]; available?: boolean } | null
+      if (mine !== suggestGen.current) return
+      setSuggestOff(!d?.available)
+      setAnswered(q)
+      setSuggestions(d?.results ?? [])
+      setListOpen((d?.results ?? []).length > 0)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query, lang])
+
+  const pickSuggestion = (s: PlaceSuggestion) => {
+    const text = [s.title, s.detail].filter(Boolean).join(', ')
+    picked.current = text
+    // An Enter search still on its way must not bring its list back over this pick (commit gate, codex).
+    searchGen.current++
+    setSearching(false)
+    setSearchFailed(false)
+    setChosen(s)
+    setQuery(text)
+    setSuggestions([])
+    setListOpen(false)
+    setResults(null)
+    void pinTo(s.lat, s.lng)
   }
 
   const search = async () => {
     const q = query.trim()
     if (q.length < 3) return
+    // An Enter during the pause: the suggestions on their way would open over these results (commit gate, opus).
+    suggestGen.current++
     const mine = ++searchGen.current
     setSearching(true)
     // i18n-invariant: the geocoder's answer language, not copy.
@@ -129,13 +191,60 @@ export function ImportLocationPicker({ value, onChange }: { value: ImportPlace; 
   useEffect(syncPin, [value.lat, value.lng])
 
   // i18n-invariant: place names from /api/geo, each unit's own Vietnamese and English name (AreaFilter labels them the same way).
-  const areaLabel = [value.ward, value.province].filter(Boolean).map((g) => (lang === 'vi' ? g!.name : g!.nameEn || g!.name)).join(', ')
+  const areaLabel = [value.ward ?? value.district, value.province].filter(Boolean).map((g) => (lang === 'vi' ? g!.name : g!.nameEn || g!.name)).join(', ')
 
   return (
     <div className="space-y-3">
-      <form role="search" onSubmit={(e) => { e.preventDefault(); void search() }}>
-        <Input aria-label={tr('Search an address', 'Tìm địa chỉ')} enterKeyHint="search" placeholder={tr('Type an address, then press Enter', 'Nhập địa chỉ rồi nhấn Enter')} maxLength={160} value={query} onChange={(e) => setQuery(e.target.value)} />
-      </form>
+      {/* ⛔ `sheet={false}`: the phone sheet turns the page field read-only once it has rows, and these rows arrive WHILE the
+          seller types — the list stays anchored under the field instead. `filter={null}`: the server already matched. */}
+      <Combobox<PlaceSuggestion>
+        sheet={false}
+        items={suggestions}
+        filter={null}
+        open={listOpen && suggestions.length > 0}
+        onOpenChange={(next) => setListOpen(next && suggestions.length > 0)}
+        value={chosen}
+        inputValue={query}
+        onInputValueChange={(v) => setQuery(v.slice(0, 160))}
+        onValueChange={(s) => { if (s) pickSuggestion(s) }}
+        itemToStringLabel={(s) => [s.title, s.detail].filter(Boolean).join(', ')}
+        // ⛔ NO ROW IS EVER "ALREADY PICKED" (commit gate, opus): the same row picked again after the pin moved elsewhere must
+        // move it back, and Base UI sends no change for an item equal to the value.
+        isItemEqualToValue={() => false}
+        autoHighlight
+      >
+        <ComboboxInputGroup className="border-0 bg-tint">
+          <ComboboxInput
+            aria-label={tr('Search an address', 'Tìm địa chỉ')}
+            autoComplete="off"
+            enterKeyHint="search"
+            maxLength={160}
+            placeholder={suggestOff ? tr('Type an address, then press Enter', 'Nhập địa chỉ rồi nhấn Enter') : tr('Search a place or address', 'Tìm địa điểm hoặc địa chỉ')}
+            className="px-4 placeholder:text-ink-4"
+            // With no open list to pick from (the server is down, nothing yet, or the list was closed), Enter searches the old way.
+            // ⛔ Not while an input method is composing (Telex/VNI): that Enter commits the word (commit gate, opus).
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && !(listOpen && suggestions.length > 0)) { e.preventDefault(); void search() } }}
+          />
+        </ComboboxInputGroup>
+        <ComboboxContent>
+          <ComboboxList>
+            {(s: PlaceSuggestion) => (
+              <ComboboxItem key={`${s.lat},${s.lng},${s.title},${s.detail}`} value={s}>
+                <span className="flex items-start gap-2">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-accent-foreground" />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-foreground">{s.title}</span>
+                    {s.detail && <span className="block text-xs text-ink-4">{s.detail}</span>}
+                  </span>
+                </span>
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      {/* No suggestions for this text (none found, or the server is down): the placeholder is hidden under the text, so the
+          Enter way is said under the field (commit gate, opus). */}
+      {answered === query.trim() && answered.length >= 3 && suggestions.length === 0 && !searching && !results && !searchFailed && <p className="text-xs text-ink-4">{tr('Press Enter to search.', 'Nhấn Enter để tìm.')}</p>}
       {searching && <p className="flex items-center gap-2 text-xs text-ink-4"><Loader2 className="size-4 animate-spin" />{tr('Searching…', 'Đang tìm…')}</p>}
       {!searching && searchFailed && <p role="alert" className="text-xs text-body">{tr('The search is busy. Press Enter again in a moment, or pick the city and ward below.', 'Tìm kiếm đang bận. Hãy nhấn Enter lại sau giây lát, hoặc chọn thành phố và phường bên dưới.')}</p>}
       {!searching && results && (results.length === 0
@@ -185,23 +294,28 @@ export function ImportLocationPicker({ value, onChange }: { value: ImportPlace; 
         onClose={() => setAreaOpen(false)}
         province={value.province}
         ward={value.ward}
+        withDistrict
+        districtValue={value.ward ? null : value.district ?? null}
         // ⛔ NO PIN INTO THE POPOVER: it seeds its own from `nearby` and hands it back on Apply, so a new ward came back with the old pin (commit gate, opus).
         // This picker owns the pin; the popover's locate button is hidden.
         nearby={null}
-        onApply={({ province, ward }) => {
+        onApply={({ province, ward, district }) => {
           gen.current++
+          // A district counts only without a ward: with one, the ward is the place (and its district is implied).
+          const alone = ward ? null : district ?? null
           // ⛔ A hand-picked ward drops the old pin (commit gate, codex): the search below puts one in that ward, or none if it finds nothing.
-          onChange({ ...value, province, ward, lat: null, lng: null })
-          // A hand-picked ward moves the pin there: one search for that ward, not a stream (Nominatim's rules).
-          if (ward && province) {
+          onChange({ ...value, province, ward, district: alone, lat: null, lng: null })
+          // A hand-picked ward (or district) moves the pin there: one search for it, not a stream (Nominatim's rules).
+          const spot = ward ?? alone
+          if (spot && province) {
             const mine = gen.current
-            void fetch(`/api/geocode/search?q=${encodeURIComponent(`${ward.name}, ${province.name}`)}&lang=vi`).then((r) => (r.ok ? r.json() : null)).then((d: { results?: { lat: number; lng: number }[] } | null) => {
+            void fetch(`/api/geocode/search?q=${encodeURIComponent(`${spot.name}, ${province.name}`)}&lang=vi`).then((r) => (r.ok ? r.json() : null)).then((d: { results?: { lat: number; lng: number }[] } | null) => {
               const p = d?.results?.[0]
               if (p && mine === gen.current) latest.current.onChange({ ...latest.current.value, lat: p.lat, lng: p.lng })
             }).catch(() => {})
           }
         }}
-        onReset={() => { gen.current++; onChange({ province: null, ward: null, lat: null, lng: null }) }}
+        onReset={() => { gen.current++; onChange({ province: null, ward: null, district: null, lat: null, lng: null }) }}
       />
     </div>
   )

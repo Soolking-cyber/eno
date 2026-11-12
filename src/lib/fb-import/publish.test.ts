@@ -167,6 +167,10 @@ describe('publishImportItem', () => {
       await call({ province: 'Hồ Chí Minh', ward: 'Phường An Khánh', lat: 10.8016, lng: 106.7371 })
       expect(h.create.mock.calls[0][0].body).toMatchObject({ district: 'Phường An Khánh', city: 'Hồ Chí Minh', location: 'Phường An Khánh', lat: 10.8016, lng: 106.7371 })
     })
+    it('a district picked with no ward (owner, 2026-11-12: "city ward or district") is stored where the ward would be', async () => {
+      await call({ province: 'Thành phố Hồ Chí Minh', ward: 'Quận 7', lat: 10.734, lng: 106.722 })
+      expect(h.create.mock.calls[0][0].body).toMatchObject({ district: 'Quận 7', city: 'Thành phố Hồ Chí Minh', location: 'Quận 7', lat: 10.734, lng: 106.722 })
+    })
     it('a pin outside Vietnam is dropped, the city and ward kept', async () => {
       await call({ province: 'Hồ Chí Minh', ward: 'Phường An Khánh', lat: 48.85, lng: 2.35 })
       const body = h.create.mock.calls[0][0].body
