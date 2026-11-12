@@ -375,7 +375,7 @@
   /* ============================================================
      PALETTE (minimal, proven — 60/30/10)
      60% canvas    : #ffffff
-     30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #737373 · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
+     30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #595959 (#737373 until 2026-11-12) · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
      10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — actions,
                      links, active, verified
      commerce      : 58-STYLE ORANGE #d64000 (ink #c73c00 · tint #fff4ee), and ONLY where money is
@@ -437,11 +437,14 @@
    * The home page's wash — see `.home-wash`. ⛔ BLUE, NOT THE WARM TINT IT WAS BUILT AS (owner,
    * 2026-09-18: "make background gradient our blue"). The first version came from the all-orange
    * pass; with the brand back to blue the warm wash was the odd one out on the page.
-   * ⚠️ THE STOPS ARE SET BY CONTRAST, NOT BY EYE. Muted (#737373) is the weakest ink this app puts
-   * on a page background and needs 4.5:1 — it is 4.16:1 on the strongest stop, 4.49:1 on the mid and
-   * 4.57:1 on the soft one. So the strong end is confined to the first 140px, which is the search and
-   * rail band where the only text is ink-weight or sits inside a white field, and everything from
-   * 280px down clears AA. The feed's own text rides on white cards either way.
+   * ⚠️ THE STOPS WERE SET BY CONTRAST, NOT BY EYE. Muted, then #737373, was the weakest ink this app
+   * put on a page background and needs 4.5:1 — it was 4.16:1 on the strongest stop, 4.49:1 on the mid
+   * and 4.57:1 on the soft one. So the strong end was confined to the first 140px, which is the search
+   * and rail band where the only text is ink-weight or sits inside a white field, and everything from
+   * 280px down cleared AA. The feed's own text rides on white cards either way.
+   * ⚠️ THAT CONSTRAINT IS GONE SINCE 2026-11-12 (owner, "go all": darker grey for secondary text).
+   * Muted is #595959 — 6.14 strong / 6.63 mid / 6.74 soft — and the quietest light text is now ink-4
+   * #616161 — 5.43 / 5.86 / 5.96 — so every ink clears AA on every stop. The stops were not moved.
    * ⚠️ THESE WERE LOST ONCE, in the revert from the all-orange pass, and the page went back to flat
    * white without anything failing: an undefined `var()` makes the whole `background-image` invalid,
    * so the gradient simply stops existing. Measured after restoring, and again after this change:
@@ -478,10 +481,12 @@
    * depth and no surface at which blue runs out.
    * ⚠️ `--wash-tail` IS WHAT EVERY NON-GRADIENT SURFACE PAINTS so it meets the gradient exactly where
    * they touch. Change the two together or the seam comes back.
-   * ⚠️ AND IT IS THE SOFT STOP RATHER THAN SOMETHING BLUER BECAUSE OF CONTRAST: muted (#737373) is
-   * the weakest ink this app puts on a page and needs 4.5:1 — it clears on soft (4.57:1) and FAILS on
-   * mid (4.49:1). The floor is the one stop every page is guaranteed to use, so it cannot be the
-   * marginal one.
+   * ⚠️ AND IT WAS THE SOFT STOP RATHER THAN SOMETHING BLUER BECAUSE OF CONTRAST: muted, then #737373,
+   * was the weakest ink this app put on a page and needs 4.5:1 — it cleared on soft (4.57:1) and FAILED
+   * on mid (4.49:1). The floor is the one stop every page is guaranteed to use, so it could not be the
+   * marginal one. Since 2026-11-12 muted is #595959 (soft 6.74, mid 6.63) and the quietest light text
+   * is ink-4 #616161 (soft 5.96, mid 5.86), so contrast no longer pins the floor to soft; it stays
+   * there because nothing asked for a bluer one. Re-measure ink-4 before moving it.
    */
   --wash-tail: var(--home-wash-soft);
   /**
@@ -529,9 +534,10 @@
    * canvas stays flat (owner 2026-07-24, "background color as uniform as possible almost no boxes").
    * Tinting one and not the other would make ~112 card surfaces pop as panels — the exact look that
    * rule exists to prevent.
-   * ⚠️ CONTRAST IS UNCHANGED IN PRACTICE: muted (#737373), the weakest ink this app puts on a page,
-   * measures 4.57:1 here against 4.61:1 on the old #fafafa — both clear AA, and the wash's own stops
-   * were already chosen against that same threshold.
+   * ⚠️ CONTRAST IS UNCHANGED IN PRACTICE: the quietest light text, ink-4 #616161, measures 5.96:1 here
+   * against 5.93:1 on the old #fafafa, and muted #595959 (since 2026-11-12) 6.74:1 against 6.71:1 —
+   * all clear AA. (When muted was #737373 and the quietest ink it measured 4.57:1 here, 4.54:1 on
+   * #fafafa, and the wash's own stops were chosen against that same threshold.)
    */
   --background: var(--wash-tail);
   --foreground: #171717;
@@ -562,7 +568,7 @@
   --secondary: #e5e5e5;
   --secondary-foreground: #171717;
   --muted: #f5f5f5;
-  --muted-foreground: #737373;
+  --muted-foreground: #595959; /* owner, 2026-11-12: "go all" — darker grey for secondary text; was #737373. Between body and ink-4: canvas 6.74 / white 7.00 / tint 6.42 */
   --accent: #e8f1fb;
   --accent-foreground: #0a66c2;
   /* red-700, not red-600 (#dc2626) and certainly not red-500 (#ef4444, only 3.6:1 as
@@ -596,8 +602,11 @@
   --ring: #0a66c2;
 
   /* Ink scale — ⚠️ MONOTONIC IN LIGHTNESS, IN BOTH THEMES (D-GREYS, owner 2026-09-30: "do what's
-     recommended"). One order, darkest ink first: ink > ink-2 > ink-3 > body > ink-4 >
-     muted-foreground (Tailwind neutral 900/800/700/600/~550/500). ink-3 was #737373 — LIGHTER
+     recommended"). One order, darkest ink first: ink > ink-2 > ink-3 > body > muted-foreground >
+     ink-4 (Tailwind neutral 900/800/700/600/~580/~550). Until 2026-11-12 muted-foreground (#737373,
+     neutral-500) was the quietest stop, after ink-4; the owner darkened it to #595959 ("go all":
+     darker grey for secondary text), so ink-4 — placeholder, disabled and icon ink — is now the
+     quietest light text, and light matches the order dark already had. ink-3 was #737373 — LIGHTER
      than ink-4 and identical to muted-foreground — and only 4.35:1 on --tint, where it sits as an
      icon ink (mark-sold-sheet, trip-map close). #404040: canvas 9.98, white 10.37, tint 9.51,
      secondary 8.23. Keep the order when a stop moves; docs/design-language.md §3 has the table. */
@@ -946,8 +955,9 @@
      ink-3 was #b8b8b8 — BELOW body (#cccccc) here while light put it above, so one token swapped
      places with the theme. ink-2 #e0e0e0 (canvas 12.78 · tint 11.46 · popover 10.87) and ink-3
      #d4d4d4 (11.38 · 10.21 · 9.68) open room above body (10.50 · 9.42 · 8.94).
-     ⚠️ muted-foreground (#b8b8b8) still sits ABOVE ink-4 (#a0a0a0) in dark, the reverse of light;
-     left as-is (418 call sites, semantic token) and recorded in the canon. */
+     ⚠️ muted-foreground (#b8b8b8) sits ABOVE ink-4 (#a0a0a0) here. It was the reverse of light
+     until 2026-11-12, when light muted went #737373 → #595959 (owner, "go all"); now both themes
+     run ink > ink-2 > ink-3 > body > muted-foreground > ink-4, and this value did not move. */
   --ink: #f0f0f0;
   --ink-2: #e0e0e0;
   --ink-3: #d4d4d4;
@@ -1205,10 +1215,12 @@
  * every storefront; the instruction is about the home page, and a wash on a shop's storefront would
  * put eno's brand colour under someone else's shopfront.
  * ⚠️ THE STOPS ARE SET BY CONTRAST, NOT BY EYE, and these are the BLUE stops' numbers (the warm ones
- * this shipped with for one preview are gone). Muted text (#737373, the weakest ink this app puts on
- * a page background) needs 4.5:1: it is 4.16:1 on the strong stop, 4.49:1 on the mid and 4.57:1 on
- * the soft one — so the strong end is confined to the header band, where the only text is ink-weight
- * or sits inside a white field, and everything below 340px clears AA. The feed rides on white cards.
+ * this shipped with for one preview are gone). Muted text (then #737373, the weakest ink this app put
+ * on a page background) needs 4.5:1: it was 4.16:1 on the strong stop, 4.49:1 on the mid and 4.57:1 on
+ * the soft one — so the strong end was confined to the header band, where the only text is ink-weight
+ * or sits inside a white field, and everything below 340px cleared AA. The feed rides on white cards.
+ * (Since 2026-11-12 muted is #595959 — 6.14 / 6.63 / 6.74 — and the quietest light text is ink-4
+ * #616161 — 5.43 / 5.86 / 5.96 — so every stop clears AA for every ink.)
  * ⚠️ `background-attachment` stays default: a fixed wash would slide under the content on scroll and
  * re-tint the whole page rather than staying with the top of it.
  */

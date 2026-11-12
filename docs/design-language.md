@@ -149,10 +149,14 @@ A colour class must name a real token: Tailwind emits nothing for an unknown one
   (placeholder/meta — AA on tint) · `body` (neutral-600 secondary text) ·
   `tint` (neutral-100 surfaces/chips) · `line-strong` (neutral-300 borders)
 - **D-GREYS — the text greys are ONE monotonic ramp, in the same order in both themes** (owner,
-  2026-09-30: "do what's recommended", plan row O-39). Strongest to quietest:
-  **`ink` > `ink-2` > `ink-3` > `body` > `ink-4` > `muted-foreground`**. A higher number is
-  always quieter; `body` sits between `ink-3` and `ink-4` because it is running text, and
-  placeholder/meta must never out-shout it. Measured contrast (WCAG):
+  2026-09-30: "do what's recommended", plan row O-39; muted moved by the owner 2026-11-12, "go
+  all": darker grey for secondary text). Strongest to quietest:
+  **`ink` > `ink-2` > `ink-3` > `body` > `muted-foreground` > `ink-4`**. A higher `ink-N` number
+  is always quieter; `body` sits between `ink-3` and `ink-4` because it is running text, and
+  `muted-foreground` (secondary text) sits between `body` and `ink-4`. `ink-4` — placeholder,
+  disabled and icon ink — is the quietest text stop, so a placeholder never out-shouts real
+  text. This replaced the 09-30 order, where light `muted-foreground` (`#737373`) was the
+  quietest stop, after `ink-4`; dark already ran in the new order. Measured contrast (WCAG):
 
   | Token | Light | canvas / white / tint | Dark | canvas / tint / popover |
   |---|---|---|---|---|
@@ -160,17 +164,20 @@ A colour class must name a real token: Tailwind emits nothing for an unknown one
   | `ink-2` | `#262626` | 14.57 / 15.13 / 13.88 | `#e0e0e0` | 12.78 / 11.46 / 10.87 |
   | `ink-3` | `#404040` | 9.98 / 10.37 / 9.51 | `#d4d4d4` | 11.38 / 10.21 / 9.68 |
   | `body` | `#525252` | 7.52 / 7.81 / 7.17 | `#cccccc` | 10.50 / 9.42 / 8.94 |
+  | `muted-foreground` | `#595959` | 6.74 / 7.00 / 6.42 | `#b8b8b8` | 8.50 / 7.63 / 7.24 |
   | `ink-4` | `#616161` | 5.96 / 6.19 / 5.68 | `#a0a0a0` | 6.45 / 5.79 / 5.49 |
-  | `muted-foreground` | `#737373` | 4.57 / 4.74 / 4.35 | `#b8b8b8` | 8.50 / 7.63 / 7.24 |
 
-  What moved: light `ink-3` `#737373` → `#404040` (it was LIGHTER than `ink-4`, identical to
+  What moved on 2026-11-12: light `muted-foreground` `#737373` → `#595959` (it was 4.57 / 4.74 /
+  4.35, under AA on tint); dark unchanged.
+  What moved on 2026-09-30: light `ink-3` `#737373` → `#404040` (it was LIGHTER than `ink-4`, identical to
   `muted-foreground`, and 4.35:1 on tint where it inks icons — under AA); dark `ink-2` `#d6d6d6`
   → `#e0e0e0` and `ink-3` `#b8b8b8` → `#d4d4d4` (dark `ink-3` sat BELOW `body` while light put it
-  above). Every stop from `ink-4` up clears AA 4.5:1 on canvas, white/popover and tint.
-  ⚠️ Two known exceptions, recorded rather than hidden: light `muted-foreground` is 4.35:1 on
-  `tint` (use `ink-4` for text on a tint well); and in dark `muted-foreground` (#b8b8b8) is
-  brighter than `ink-4` (#a0a0a0), the one inversion left — 418 call sites, not moved in this
-  change. Move a stop and you re-measure and keep the order.
+  above). Today every stop clears AA 4.5:1 on canvas, white/popover and tint in both themes.
+  No known exceptions since 2026-11-12: the two this section recorded are gone. Light
+  `muted-foreground` was 4.35:1 on `tint` (the rule was "use `ink-4` for text on a tint well");
+  it is 6.42:1 now, so either ink passes there. Dark `muted-foreground` (#b8b8b8) brighter than
+  `ink-4` (#a0a0a0) was the one inversion; it is the order in both themes now. Move a stop and
+  you re-measure and keep the order.
 - Money: `price` — prices, and only prices, wear it. It is NOT the palette's only red:
   `destructive` is red in both themes and globals.css spends a paragraph keeping the two
   apart (OKLab dE 0.076 in light). Never let hue alone carry that distinction — an error

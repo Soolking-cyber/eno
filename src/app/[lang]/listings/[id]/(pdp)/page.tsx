@@ -1468,7 +1468,8 @@ export default async function ListingPage({ params }: Props) {
                     +0.15 Opus, trust +0.2 / +0.3): below md the warning, the reports-and-disputes row, the guide link and Report /
                     Block sit in one `tint` well (canon §3b allows a tint well for content that must sit apart) instead of loose
                     lines; its PLACE is unchanged — after the details, above the map (order-9). md and up keep the flat buy-box line
-                    (the 2026-11-05 rule beside the CTA). Block reads in ink-4 there: muted-foreground is 4.35:1 on tint, under AA.
+                    (the 2026-11-05 rule beside the CTA). Block reads in ink-4 there, chosen when muted-foreground was 4.35:1 on tint;
+                    since 2026-11-12 muted is #595959, 6.42:1 on tint, and ink-4 (5.68:1) stays as the quieter of the two.
                     Measured in a browser (2026-11-12): on the well, light — line 16.4, guide 5.2, Report 5.9, Block 5.7:1; dark —
                     13.3, 6.8, 5.5, 5.8:1. */}
                 <SafetyStrip

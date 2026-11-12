@@ -464,8 +464,8 @@ export function ContactComposer({
         <span className="text-xs font-semibold text-body">{tr('Your offer', 'Giá đề nghị')}</span>
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-2xl font-bold text-price tabular-nums">{formatMoneyFull(offerPrice, currency, locale)}</span>
-          {/* text-body, not muted-foreground: the latter is ~3.5:1 on the bg-accent
-              tint → a serious WCAG AA contrast failure (axe caught it on the PDP). */}
+          {/* text-body, not muted-foreground: muted was under AA on the bg-accent tint (4.16:1 at #737373 —
+              axe caught it on the PDP). Since 2026-11-12 muted (#595959) is 6.14:1 there; body stays the louder ink. */}
           <span className="text-xs font-semibold text-body">−{discount}%</span>
         </div>
         <EnoSlider
