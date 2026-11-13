@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BLVCK_BIKES, BLVCK_CACHED_LANGS, BLVCK_COPY, BLVCK_EMAIL, blvckDescription, blvckFeedProblem, blvckMoney, blvckSellerRefusal,
-  blvckTitle, blvckTranslations, stageBlvckBike, type BlvckBike, type BlvckLang, type BlvckSeller,
+  BLVCK_BIKES, BLVCK_CACHED_LANGS, BLVCK_COPY, BLVCK_EMAIL, blvckDescription, blvckFeedProblem, blvckIntroSentences, blvckMoney,
+  blvckSellerRefusal, blvckTitle, blvckTranslations, stageBlvckBike, type BlvckBike, type BlvckLang, type BlvckSeller,
 } from './blvck-listing'
 import { assertCleanTexts } from './publish-guard'
 import { richTextGroups } from './rich-text-blocks'
+import { withoutLeadParagraph } from './lead-paragraph'
 
 const ALL_LANGS = Object.keys(BLVCK_COPY) as BlvckLang[]
 const bike = (slug: string) => BLVCK_BIKES.find((b) => b.slug === slug) as BlvckBike
@@ -148,5 +149,75 @@ describe('blvckSellerRefusal', () => {
     expect(blvckSellerRefusal({ ...seller, ownerId: null })).toMatch(/no owning account/)
     expect(blvckSellerRefusal({ ...seller, ownerEmail: 'someone@else.vn' })).toMatch(/owned by/)
     expect(blvckSellerRefusal({ ...seller, officialPartner: false })).toMatch(/official partner/)
+  })
+})
+
+/**
+ * UI climb batch 90 (2026-11-14): the listing page does not print eno's own intro sentence — by construction. The sentences are
+ * rebuilt from the listing's own titles (blvckIntroSentences), and the first paragraph goes only when it IS one of them
+ * (withoutLeadParagraph). Everything after it stays exactly as written.
+ */
+describe('batch 90 — the intro sentence, rebuilt from the titles', () => {
+  const sh = stageBlvckBike(bike('honda-sh-mode'))
+  const introsOf = (r: { title: string; titleVi?: string | null }) => blvckIntroSentences(r)
+  const EN_INTRO = 'Honda SH Mode (automatic scooter) from Blvck Motorbike in District 1, Ho Chi Minh City. Message the shop here on eno to check availability and book.'
+  const VI_INTRO = 'Honda SH Mode (xe ga) của Blvck Motorbike tại Quận 1, TP. Hồ Chí Minh. Nhắn tin cho cửa hàng ngay trên eno để hỏi xe trống và đặt xe.'
+
+  it('exact English: the first paragraph goes, the price table leads, nothing else changes', () => {
+    expect(sh.description.startsWith(`${EN_INTRO}\n\n`)).toBe(true)
+    const out = withoutLeadParagraph(sh.description, introsOf(sh))
+    expect(out).toBe(sh.description.slice(EN_INTRO.length + 2))
+    expect(out.startsWith('# Price by rental length\n')).toBe(true)
+    for (const kept of ['# To rent', '# Included', '# Delivery', `Rent 1-2 days: ${blvckMoney(300_000, 'en')}/day`]) expect(out).toContain(kept)
+  })
+
+  it('exact Vietnamese: the Vietnamese column loses its own intro, rebuilt from titleVi', () => {
+    expect(sh.descriptionVi.startsWith(`${VI_INTRO}\n\n`)).toBe(true)
+    const out = withoutLeadParagraph(sh.descriptionVi, introsOf(sh))
+    expect(out).toBe(sh.descriptionVi.slice(VI_INTRO.length + 2))
+    expect(out.startsWith('# Giá theo thời gian thuê\n')).toBe(true)
+  })
+
+  it('every bike, every language (the nine cached ones from the English title): exactly the intro goes', () => {
+    for (const b of BLVCK_BIKES) {
+      const row = stageBlvckBike(b)
+      const intros = introsOf(row)
+      for (const lang of ALL_LANGS) {
+        const desc = blvckDescription(b, lang)
+        const intro = BLVCK_COPY[lang].intro(b.name, BLVCK_COPY[lang].types[b.kind])
+        expect(withoutLeadParagraph(desc, intros), `${b.slug} ${lang}`).toBe(desc.slice(intro.length + 2))
+      }
+    }
+  })
+
+  it('a partner-edited first paragraph, one word apart, is kept whole', () => {
+    const edited = sh.description.replace('to check availability and book.', 'to check availability and reserve.')
+    expect(edited).not.toBe(sh.description)
+    expect(withoutLeadParagraph(edited, introsOf(sh))).toBe(edited)
+    const editedVi = sh.descriptionVi.replace('để hỏi xe trống', 'để hỏi xe còn trống')
+    expect(withoutLeadParagraph(editedVi, introsOf(sh))).toBe(editedVi)
+    // …and an intro the partner merged into the next paragraph (one line break, not a blank line) is not a paragraph of its own.
+    const merged = sh.description.replace(`${EN_INTRO}\n\n`, `${EN_INTRO}\n`)
+    expect(withoutLeadParagraph(merged, introsOf(sh))).toBe(merged)
+  })
+
+  it('a missing field keeps it: no titleVi → no Vietnamese intro; a title off the template\'s shape → none at all', () => {
+    expect(withoutLeadParagraph(sh.descriptionVi, introsOf({ title: sh.title, titleVi: null }))).toBe(sh.descriptionVi)
+    expect(withoutLeadParagraph(sh.description, introsOf({ title: sh.title, titleVi: null }))).not.toBe(sh.description)
+    expect(introsOf({ title: 'Honda SH Mode · automatic scooter', titleVi: sh.titleVi }).some((s) => s === EN_INTRO)).toBe(false)
+    expect(withoutLeadParagraph(sh.description, introsOf({ title: 'Honda SH Mode · automatic scooter' }))).toBe(sh.description)
+    // A partner who renamed the bike in its title no longer has a title the intro restates: the intro stays.
+    expect(withoutLeadParagraph(sh.description, introsOf({ title: 'Honda SH Mode 2024 for rent · automatic scooter' }))).toBe(sh.description)
+    expect(introsOf({ title: '', titleVi: '' })).toEqual([])
+    expect(withoutLeadParagraph(sh.description, [])).toBe(sh.description)
+  })
+
+  it('never another listing\'s text: a description that does not open on the sentence is returned as is', () => {
+    const other = 'Spacious studio in District 3.\n\n# Price\n- 5,000,000 ₫'
+    expect(withoutLeadParagraph(other, introsOf(sh))).toBe(other)
+    // ⛔ never empties a text: the intro alone, or the intro over blank lines, comes back unchanged (codex, 2026-11-14)
+    expect(withoutLeadParagraph(EN_INTRO, introsOf(sh))).toBe(EN_INTRO)
+    expect(withoutLeadParagraph(`${EN_INTRO}\n\n\n`, introsOf(sh))).toBe(`${EN_INTRO}\n\n\n`)
+    expect(withoutLeadParagraph(`${EN_INTRO}\n\n  \n `, introsOf(sh))).toBe(`${EN_INTRO}\n\n  \n `)
   })
 })

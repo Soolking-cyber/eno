@@ -6,6 +6,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
 import { trCache, translateText, waitForTranslation } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
+import { withoutLeadParagraph } from '@/lib/lead-paragraph'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -361,7 +362,18 @@ function sharedWordShare(text: string, other: string): number {
 }
 
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
-export function ListingDescription({ text, vi, i18n, className }: { text: string; vi?: string | null; i18n?: Record<string, string> | null; className?: string }) {
+export function ListingDescription({ text, vi, i18n, className, dropLead }: {
+  text: string
+  vi?: string | null
+  i18n?: Record<string, string> | null
+  className?: string
+  /**
+   * Exact first paragraphs not to print, in any of the languages this text can be shown in (UI climb batch 90: a Blvck bike's
+   * intro, blvck-listing.ts blvckIntroSentences). Applied to the text SHOWN — the source, its Vietnamese column, a cached
+   * translation or the original — so the translation is still asked for, and cached under, the full stored text.
+   */
+  dropLead?: readonly string[]
+}) {
   const { lang, tr } = useLanguage()
   // ⚠️ `vi` WAS HARDCODED null HERE while the heading passed titleVi through the same hook — so a
   // listing stored in two languages showed its title correctly and its description always in the
@@ -372,7 +384,7 @@ export function ListingDescription({ text, vi, i18n, className }: { text: string
   const [expanded, setExpanded] = useState(false)
   const id = useId()
   const showOriginal = machine && original
-  const shown = showOriginal ? text : out
+  const shown = withoutLeadParagraph(showOriginal ? text : out, dropLead ?? [])
   const cl = showOriginal ? originalLang(text, lang) : detectContentLang(shown)
   /**
    * ⛔ A LONG DESCRIPTION IS CLAMPED TO 8 LINES BELOW md, WITH "See more" (pdp-04 part A). A 2,000-character

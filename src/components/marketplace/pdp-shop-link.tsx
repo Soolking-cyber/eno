@@ -22,7 +22,7 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
 
 /** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
  *  It carries the full seller identity + trust (name, Business badge, trust score, Joined · rating ·
- *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
+ *  reviews — "Joined" not below md when another item holds the line, batch 90) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
 export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false }: {
@@ -81,8 +81,11 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
 
   // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
   const strip: React.ReactNode[] = []
-  // First in the strip: for a partner it is the fact that sizes the claim the P plate makes.
-  if (officialPartner && typeof partnerListingCount === 'number' && partnerListingCount > 0) strip.push(<PartnerListingCount key="partner-count" n={partnerListingCount} />)
+  // First in the strip: for a partner it is the fact that sizes the claim the P plate makes. ⛔ Never the item a phone drops
+  // (K-TRUST-BADGE option D, owner 2026-09-30) — see `joinedAt` below.
+  // Whether the partner's count heads the line — the one case a phone drops "Joined" (see `joinedAt` below).
+  let partnerCountShown = false
+  if (officialPartner && typeof partnerListingCount === 'number' && partnerListingCount > 0) { strip.push(<PartnerListingCount key="partner-count" n={partnerListingCount} />); partnerCountShown = true }
   // ⚠️ "VERIFIED", NOT "VETTED" / "KIỂM DUYỆT" (2026-10-01). "eno.vn chưa kiểm duyệt" read as the platform
   // admitting it had not done its statutory pre-display moderation; what is true, and what this line
   // means, is that eno.vn has not VERIFIED the source's ad or the business behind it.
@@ -99,6 +102,17 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
     : tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
+  /**
+   * ⛔ A PHONE DROPS "Joined <year>" ONLY FOR AN OFFICIAL PARTNER WHOSE LISTING COUNT HEADS THE LINE (UI climb batch 90,
+   * 2026-11-14; owner 2026-11-13: "reduce lines … super clean, minimal wording, only what's necessary"; blind A/B on live
+   * eno.vn — measured on the GoPlus and Blvck pages — Opus +0.14/+0.12, GPT +0.17, trust ±0). There "5,379 listings on eno.vn"
+   * already sizes the shop (K-TRUST-BADGE option D, owner 2026-09-30) and the account's year adds nothing, so below md the
+   * strip keeps one line, as Airbnb's host row does. ⛔ NEVER FOR A PERSON: a private seller's "Joined" is the one item that
+   * tells a buyer the account is new — codex and Opus both refused hiding it (2026-11-14). The count is server-rendered, so
+   * the line is held in the server HTML and nothing shifts when the client-only "Active …" arrives. Order unchanged (as
+   * seller-card.tsx); md and up print it as before.
+   */
+  const joinedAt = !linked && partnerCountShown ? strip.length : -1
   if (!linked) strip.push(fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) }))
   if (!linked && reviewCount > 0) {
     strip.push(
@@ -181,7 +195,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
                 grey a desktop read who it is dealing with as fine print. A phone keeps 12px. The dot geometry above is size-free. */}
             <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body">
               {strip.map((node, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5">
+                <span key={i} className={cn('inline-flex items-center gap-1.5', i === joinedAt && 'max-md:hidden')}>
                   <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
                   {node}
                 </span>

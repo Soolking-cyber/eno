@@ -87,6 +87,7 @@ import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/a
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
+import { blvckIntroSentences } from '@/lib/blvck-listing'
 import { factSeparators, headingNamesEmployer, periodRestatedByUnit } from '@/lib/pdp-repeat-rows'
 import { hostOf, importProvenance } from '@/lib/import-provenance'
 import { adminPlaceEn, bracketNamedIn, cardArea } from '@/lib/city-short'
@@ -737,6 +738,17 @@ export default async function ListingPage({ params }: Props) {
   // on the column that variant shows: the English page (and the nine languages translated from its text) tests the English
   // column, which never carries the staff extras; the Vietnamese page also requires its own column to have none ("Tiện ích
   // khác:" appears nowhere else). The metadata still reads the text.
+  // ⛔ AND A BLVCK BIKE'S DESCRIPTION OPENS ON ITS PRICE TABLE, NOT ON ENO'S INTRO (UI climb batch 90, 2026-11-14; owner
+  // 2026-11-13: "reduce lines … super clean, minimal wording, only what's necessary"; blind A/B on live eno.vn, Opus
+  // +0.14/+0.12, GPT +0.17, trust ±0). Not batch 83's whole-section rule: Blvck's text holds the tiers, "To rent", Included
+  // and Delivery, which stay as written (blvck-listing.ts, owner 2026-11-04). Only its first paragraph goes, and only when it
+  // is EXACTLY the intro rebuilt from this listing's own titles (blvckIntroSentences: by construction, never a text match);
+  // ListingDescription applies it to whichever language it shows. Every width (it repeats the first screen everywhere).
+  // Same gate shape as goplusRoom: an official partner's storefront and the importer's `blvck:` externalId. The metadata and
+  // JSON-LD still read the full stored text.
+  const blvckIntros = rawListing.seller.officialPartner === true && (rawListing.externalId ?? '').startsWith('blvck:')
+    ? blvckIntroSentences({ title: listing.title, titleVi: listing.titleVi })
+    : []
   const showDescription = !isJob && descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
     && !(goplusRoom && isGoplusTemplateDescription({ description: listing.description, title: listing.title, ...(lang === 'vi' ? { descriptionVi: listing.descriptionVi ?? '', titleVi: listing.titleVi } : {}) }))
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
@@ -1085,8 +1097,9 @@ export default async function ListingPage({ params }: Props) {
               10/10"; blind A/B on live eno.vn, GPT 7.56 → 7.71, Opus 7.61 → 7.74, trust ±0): one hairline over the row and 16px
               to it, the canon's §3b section line (owner, 2026-07-24: "lines between elements … almost no boxes"), as Airbnb
               frames its host row. ⛔ ONE LINE, OVER IT ONLY: the band closes on the next section's own line (Costs or
-              Description), with the breadcrumb inside it — a second line under the row put the crumb between two hairlines
-              ~60px apart, which read as noise (the mock's first round). Below md only (`max-md:`); nothing moves. */}
+              Description) — a second line under the row put the breadcrumb between two hairlines ~60px apart, which read as noise
+              (the mock's first round). Since batch 90 the crumb is not drawn below md, so the band holds the host row alone; the
+              rule stands: still no line under it. Below md only (`max-md:`); nothing moves. */}
           <div className="order-7 md:hidden max-md:border-t max-md:border-border max-md:pt-4">
             <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
           </div>
@@ -1120,7 +1133,15 @@ export default async function ListingPage({ params }: Props) {
               the negative margin hands the space straight back, so nothing on the page moves. */}
           {/* The landmark's name follows the visitor's language (ui/localized-nav); `data-crumb-trail` is what
               globals.css hides in the native app — never the label, which is no longer English everywhere. */}
-          <LocalizedNav label="Breadcrumb" labelVi="Đường dẫn" data-crumb-trail="" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 md:col-span-12">
+          {/* ⛔ NOT BELOW md AT ALL SINCE UI CLIMB BATCH 90 (2026-11-14; owner 2026-11-13: "reduce lines … super clean, minimal
+              wording, only what's necessary"; blind A/B on live eno.vn, Opus +0.14/+0.12, GPT +0.17, trust ±0). On a phone it
+              painted mid-page, under the seller and over Costs/Description ("nobody navigates a phone by breadcrumb", above; the
+              judge: "the breadcrumb sits in odd places"). `max-md:hidden`, as batch 64 hid /c's crumb (`max-sm:hidden`) and the
+              native app already hides this one. What it served stays: the BreadcrumbList JSON-LD (Google gets every level), Back's
+              category fallback (pdp-back-button.tsx, which never read this nav), and md and up, where it is row 1 as before. Hidden,
+              it is out of the phone's tab order too, so the `order-7` focus-order note above has nothing left to protect there;
+              `order-7` stays only so md+ markup is byte-for-byte what it was. */}
+          <LocalizedNav label="Breadcrumb" labelVi="Đường dẫn" data-crumb-trail="" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground max-md:hidden md:order-1 md:col-span-12">
             {/* prefetch={false} on every crumb: they sit above the fold on every PDP, so auto
                 prefetch fires extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
@@ -1661,7 +1682,7 @@ export default async function ListingPage({ params }: Props) {
               <div className="space-y-2 max-md:border-t max-md:border-border max-md:pt-6">
                 <h2 className={SECTION_TITLE}><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
-                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
+                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} dropLead={blvckIntros} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
               </div>
               )}
 

@@ -88,17 +88,21 @@ test.describe('Guest · mobile PDP fold', () => {
    * above the gallery to below `#contact`. Nothing in tsc, unit tests or the a11y scan can see an
    * `order-*` value, and a future reorder would silently push the CTA back under the tab bar.
    */
-  test('the CTA is painted BEFORE the shop row and the breadcrumb', async ({ page }, testInfo) => {
+  test('the CTA is painted BEFORE the shop row, and a phone has no breadcrumb', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'guest-mobile', 'mobile paint order only')
     await openAListing(page)
-    const [gallery, contact, shop, crumb] = await Promise.all([
-      topOf(page, '[data-protected]'), topOf(page, '#contact'),
-      topOf(page, 'main .order-7.md\\:hidden'), topOf(page, 'nav[aria-label="Breadcrumb"]'),
+    const [gallery, contact, shop] = await Promise.all([
+      topOf(page, '[data-protected]'), topOf(page, '#contact'), topOf(page, 'main .order-7.md\\:hidden'),
     ])
     expect(gallery, 'the gallery leads the page').toBeLessThan(contact)
     expect(contact, 'the CTA must come before the seller row — moving it after is what buys the fold')
       .toBeLessThan(shop)
-    expect(contact, 'the CTA must come before the breadcrumb').toBeLessThan(crumb)
+    // UI climb batch 90 (2026-11-14): below md the listing page's breadcrumb trail is not shown (max-md:hidden; the
+    // BreadcrumbList JSON-LD and md+ are unchanged) — so it can never sit above the CTA on a phone.
+    // Selected by its own marker, and counted first: toBeHidden() alone also passes when nothing matches (codex, 2026-11-14).
+    const crumb = page.locator('main nav[data-crumb-trail]')
+    await expect(crumb).toHaveCount(1)
+    await expect(crumb).toBeHidden()
   })
 
   /**

@@ -446,6 +446,41 @@ export function blvckDescription(bike: BlvckBike, lang: BlvckLang): string {
   ].join('\n\n')
 }
 
+/** (name, kind) when `title` is EXACTLY BLVCK_COPY[lang].title(name, types[kind]) for a non-empty one-line name; every reading. */
+function blvckTitleParts(title: string, lang: 'en' | 'vi'): { name: string; kind: Kind }[] {
+  const c = BLVCK_COPY[lang]
+  const out: { name: string; kind: Kind }[] = []
+  for (const kind of Object.keys(c.types) as Kind[]) {
+    const [pre, post] = c.title('\u0000', c.types[kind]).split('\u0000')
+    if (title.length <= pre.length + post.length || !title.startsWith(pre) || !title.endsWith(post)) continue
+    const name = title.slice(pre.length, title.length - post.length)
+    if (name.trim() === name && !/\n/.test(name)) out.push({ name, kind })
+  }
+  return out
+}
+
+/**
+ * ⛔ ENO'S OWN INTRO SENTENCE, REBUILT — NEVER MATCHED BY LOOKS (UI climb batch 90, 2026-11-14; blind A/B on live eno.vn,
+ * Opus +0.14/+0.12, GPT +0.17, trust ±0). blvckDescription opens every bike on BLVCK_COPY.intro ("Honda SH Mode (automatic
+ * scooter) from Blvck Motorbike in District 1, Ho Chi Minh City. Message the shop here on eno to check availability and
+ * book."), which says again what the page's first screen says: the title, the type, the shop, its place and Chat now. These
+ * are the sentences that intro would be for the bike this listing's OWN titles name: the English title gives the name and
+ * type for English and the nine cached languages (blvckTranslations writes them from the same name and kind), the
+ * Vietnamese title for Vietnamese. A title that is not the template's exact shape gives none, and a missing titleVi gives no
+ * Vietnamese one, so that text is kept. The listing page drops a description's first paragraph only when it IS one of
+ * these, character for character (lead-paragraph.ts): a partner's edited sentence, one word apart, stays. Display only —
+ * the stored text, metadata and JSON-LD keep it; the price table, "To rent", Included and Delivery are untouched (owner,
+ * 2026-11-04: "should look minimal sleek"; the hand-written languages and tier-label shape above do not change).
+ */
+export function blvckIntroSentences(row: { title: string; titleVi?: string | null }): string[] {
+  const out: string[] = []
+  for (const { name, kind } of blvckTitleParts(row.title, 'en')) {
+    for (const lang of ['en', ...BLVCK_CACHED_LANGS] as BlvckLang[]) out.push(BLVCK_COPY[lang].intro(name, BLVCK_COPY[lang].types[kind]))
+  }
+  if (row.titleVi) for (const { name, kind } of blvckTitleParts(row.titleVi, 'vi')) out.push(BLVCK_COPY.vi.intro(name, BLVCK_COPY.vi.types[kind]))
+  return out
+}
+
 export type BlvckRow = {
   externalId: string
   title: string
