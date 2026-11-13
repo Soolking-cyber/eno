@@ -2,31 +2,27 @@
 // Validated at module load by src/lib/guides/content.ts (src/lib/teach-guides/schema.ts).
 
 import g0 from '@/content/guides/bang-lai-xe-quoc-te-lai-xe-o-viet-nam.json'
-import g1 from '@/content/guides/car-rental-with-driver-ho-chi-minh-city.json'
-import g2 from '@/content/guides/cho-nguoi-nuoc-ngoai-thue-nha-tphcm.json'
-import g3 from '@/content/guides/hire-a-foreign-english-teacher-in-vietnam.json'
-import g4 from '@/content/guides/international-driving-permit-vietnam.json'
-import g5 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
-import g6 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
-import g7 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
-import g8 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g9 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
-import g10 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
-import g11 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
-import g12 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
+import g1 from '@/content/guides/cho-nguoi-nuoc-ngoai-thue-nha-tphcm.json'
+import g2 from '@/content/guides/hire-a-foreign-english-teacher-in-vietnam.json'
+import g3 from '@/content/guides/international-driving-permit-vietnam.json'
+import g4 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
+import g5 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
+import g6 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
+import g7 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g8 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g9 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
+import g10 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'bang-lai-xe-quoc-te-lai-xe-o-viet-nam': g0,
-  'car-rental-with-driver-ho-chi-minh-city': g1,
-  'cho-nguoi-nuoc-ngoai-thue-nha-tphcm': g2,
-  'hire-a-foreign-english-teacher-in-vietnam': g3,
-  'international-driving-permit-vietnam': g4,
-  'kinh-nghiem-thue-xe-may-viet-nam': g5,
-  'renting-a-motorbike-in-vietnam': g6,
-  'renting-to-foreigners-ho-chi-minh-city': g7,
-  'thue-xe-dien-vinfast-tphcm': g8,
-  'thue-xe-may-sai-gon-kinh-nghiem': g9,
-  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g10,
-  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g11,
-  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g12,
+  'cho-nguoi-nuoc-ngoai-thue-nha-tphcm': g1,
+  'hire-a-foreign-english-teacher-in-vietnam': g2,
+  'international-driving-permit-vietnam': g3,
+  'kinh-nghiem-thue-xe-may-viet-nam': g4,
+  'renting-a-motorbike-in-vietnam': g5,
+  'renting-to-foreigners-ho-chi-minh-city': g6,
+  'thue-xe-dien-vinfast-tphcm': g7,
+  'thue-xe-may-sai-gon-kinh-nghiem': g8,
+  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g9,
+  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g10,
 }
