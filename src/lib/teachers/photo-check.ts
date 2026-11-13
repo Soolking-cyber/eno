@@ -1,7 +1,7 @@
 import 'server-only'
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { GEMINI_MODEL } from '@/lib/gemini'
-import { IMPORT_MODEL_FALLBACK } from '@/lib/teachers/import-ai'
+import { FLASH_LITE_MODEL } from '@/lib/gemini-model'
 import { getSharp } from '@/lib/sharp-lazy'
 
 /**
@@ -76,7 +76,7 @@ export async function photoForCheck(bytes: Buffer): Promise<Buffer> {
 }
 
 /** Flash-Lite first: as accurate as 3.8 Flash on this job, and ~2.5x faster (eval, 2026-10-16: both 122/122 answered). */
-export const PHOTO_MODEL = IMPORT_MODEL_FALLBACK
+export const PHOTO_MODEL = FLASH_LITE_MODEL
 const PRIMARY_TIMEOUT_MS = 10_000
 const BACKUP_TIMEOUT_MS = 15_000
 /** No answer from the first model by then (its p95 was ~6 s): the second starts beside it, and the first answer wins. */

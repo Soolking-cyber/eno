@@ -22,13 +22,17 @@ import { ThinkingLevel, type ThinkingConfig } from '@google/genai'
 // on 2026-07-06 when GEMINI_LOCATION was us-central1. GEMINI_LOCATION MUST be `global`.
 export const GEMINI_MODEL = 'gemini-4-hydrogen'
 
-// Region-robust (works on global AND regional endpoints) — used for high-stakes retries (admin
-// review) and as the safe manual downgrade if 4 Hydrogen has an incident.
-// ⚠️ DELIBERATELY NOT ALSO HYDROGEN — a fallback identical to the primary is not a fallback. It stays on
-// the older, region-robust line precisely so it survives an incident that takes the primary out.
-// Measured 2026-11-13: it answers on global AND us-central1 (comments calling 2.5 Flash "retired on Vertex" are out of
-// date; the teacher paths chose 3.5 Flash-Lite as their fallback anyway).
-export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
+// The fallback when 4 Hydrogen fails: Gemini 3.8 Flash since 2026-11-13 (owner: "fallback 3.8 flash now"), the model the
+// whole app ran on until that day. Used by admin review, the itinerary and visa-extract routes, and (as
+// IMPORT_MODEL_FALLBACK) the teacher and classroom paths.
+// ⚠️ DELIBERATELY NOT ALSO HYDROGEN — a fallback identical to the primary is not a fallback.
+// ⚠️ GLOBAL-ONLY, LIKE THE PRIMARY: the fallback before it (gemini-2.5-flash) also answered on regional endpoints, so it
+// survived an incident on Vertex's `global` endpoint; this one does not. Both take a thinking LEVEL (quickThinking).
+export const GEMINI_MODEL_FALLBACK = 'gemini-3.8-flash'
+
+/** Gemini 3.5 Flash-Lite — NOT a fallback any more: the teacher photo check's fast first seat and the second judge of a
+ * classroom background (photo-check.ts, backgrounds-upload.ts). */
+export const FLASH_LITE_MODEL = 'gemini-3.5-flash-lite'
 
 /**
  * ⛔ 4 HYDROGEN REFUSES `thinkingBudget`: Vertex answers 400 "Thinking budget is not supported for this model. Use

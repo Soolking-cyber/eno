@@ -2,7 +2,7 @@ import 'server-only'
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL } from '@/lib/gemini'
-import { IMPORT_MODEL_FALLBACK } from '@/lib/teachers/import-ai'
+import { FLASH_LITE_MODEL } from '@/lib/gemini-model'
 import { getSharp } from '@/lib/sharp-lazy'
 import { backgroundImage, backgroundThumb, uploadedRoomUrl, type Background } from './backgrounds'
 import { parseTraits } from './persona'
@@ -120,7 +120,7 @@ export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerd
     if (!verdict) throw new SyntaxError('room_check_unreadable_answer')
     return verdict
   }
-  return bothAgree(await Promise.all([ask(IMPORT_MODEL_FALLBACK), ask(GEMINI_MODEL)]))
+  return bothAgree(await Promise.all([ask(FLASH_LITE_MODEL), ask(GEMINI_MODEL)]))
 }
 
 /** Two verdicts → one: ok only when both are; else the stricter refusal (unsafe, then person, then personal details). Pure. */

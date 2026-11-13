@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { ThinkingLevel, type GoogleGenAI, type Schema } from '@google/genai'
 import { isRetryableAiError } from '@/lib/ai-retry'
 import { GEMINI_MODEL } from '@/lib/gemini'
-import { IMPORT_MODEL_FALLBACK } from '@/lib/teachers/import-ai'
+import { GEMINI_MODEL_FALLBACK } from '@/lib/gemini-model'
 
 /**
  * eno Classroom's Gemini calls — the persona writer, the tutor's turns and the session report all go through here. Vertex
@@ -17,8 +17,8 @@ import { IMPORT_MODEL_FALLBACK } from '@/lib/teachers/import-ai'
  */
 
 export const PRIMARY_MODEL = GEMINI_MODEL
-/** Flash-Lite: the teacher paths' fallback when 4 Hydrogen failed on Google's side (chosen when 2.5 Flash was thought retired on Vertex; it still answered 2026-11-13). */
-export const FALLBACK_MODEL = IMPORT_MODEL_FALLBACK
+/** 3.8 Flash: the fallback when 4 Hydrogen failed on Google's side (owner, 2026-11-13: "fallback 3.8 flash now"; Flash-Lite before). */
+export const FALLBACK_MODEL = GEMINI_MODEL_FALLBACK
 
 /** A part holding data between unguessable marks, with a one-line label of what it is. */
 export function dataPart(label: string, body: string): { text: string } {
@@ -84,7 +84,7 @@ export type Seat = (model: string, timeout: number, signal: AbortSignal) => Prom
 /**
  * The first readable answer (teachers/bio-ai.ts firstAnswer, generalised): 4 Hydrogen, and a second Hydrogen beside it
  * once the first has not answered in `hedgeMs` (or failed on Google's side) — 3.8 Flash, before it, on `global` was measured to hang
- * ~7% of calls; only when both failed on Google's side, Flash-Lite once. ⛔ The seat that lost is cancelled the moment one
+ * ~7% of calls; only when both failed on Google's side, the 3.8 Flash fallback once. ⛔ The seat that lost is cancelled the moment one
  * answers, so nothing keeps running — or holding anyone's words — after the caller has its answer.
  */
 export async function hedgedAnswer(seat: Seat, h: Hedge, outer?: AbortSignal): Promise<{ value: Record<string, unknown>; model: string; calls: number }> {
@@ -115,7 +115,7 @@ export async function hedgedAnswer(seat: Seat, h: Hedge, outer?: AbortSignal): P
   } catch (e) {
     const errors = e instanceof AggregateError ? e.errors : [e]
     // The fallback only when EVERY primary failure was transient (2a round 10, codex + opus): a request one seat refused
-    // outright (malformed, too long, blocked) would fail on Flash-Lite too — no third paid call for it. Stricter than the
+    // outright (malformed, too long, blocked) would fail on the fallback too — no third paid call for it. Stricter than the
     // bio route's `some` on purpose: a learner is waiting on this, and a hopeless call only adds delay.
     if (!errors.every(isRetryableAiError) || outer?.aborted) throw errors[0]
     const fresh = new AbortController()

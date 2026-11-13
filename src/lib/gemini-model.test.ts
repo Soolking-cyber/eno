@@ -14,8 +14,12 @@ describe('quickThinking', () => {
       expect(quickThinking(m, 10).thinkingConfig).not.toHaveProperty('thinkingBudget')
     }
   })
-  it('the 2.x fallback gets a zero budget and no level (a 2.5 model refuses the field)', () => {
-    expect(takesThinkingLevel(GEMINI_MODEL_FALLBACK)).toBe(false)
-    expect(quickThinking(GEMINI_MODEL_FALLBACK, 768)).toEqual({ thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 768 })
+  it('the fallback is 3.8 Flash (owner, 2026-11-13) and takes a level too', () => {
+    expect(GEMINI_MODEL_FALLBACK).toBe('gemini-3.8-flash')
+    expect(quickThinking(GEMINI_MODEL_FALLBACK, 768)).toEqual({ thinkingConfig: { thinkingLevel: 'LOW' }, maxOutputTokens: 768 + THINKING_ROOM })
+  })
+  it('a 2.x model gets a zero budget and no level (a 2.5 model refuses the field)', () => {
+    expect(takesThinkingLevel('gemini-2.5-flash')).toBe(false)
+    expect(quickThinking('gemini-2.5-flash', 768)).toEqual({ thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 768 })
   })
 })

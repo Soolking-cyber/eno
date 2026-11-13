@@ -122,7 +122,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
     // otherwise spend the whole feature's day. Said as "not available right now", never "your limit": a school's or a
     // carrier's shared network can reach it first.
     if (!(await rateLimit('teacher-bio-ip', clientIp(req), PER_IP_PER_DAY, '1 d', { strict: true })).success) throw new ApiError('ai_unavailable', 503)
-    // The day's shared caps. One unit per TAP: the hedge's second Hydrogen call, the Flash-Lite fallback and the one retry
+    // The day's shared caps. One unit per TAP: the hedge's second Hydrogen call, the 3.8 Flash fallback and the one retry
     // after a refused answer all ride on it (bio-ai.ts) — the feature's own 1,000 a day is the bound that matters here.
     if (!(await rateLimit('teacher-bio-global', 'all', FEATURE_PER_DAY, '1 d', { strict: true })).success) throw new ApiError('ai_unavailable', 503)
     // Teacher onboarding's RESERVED budget, not the shared pool (security review item 19): a busy day for the other AI

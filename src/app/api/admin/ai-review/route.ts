@@ -3,6 +3,7 @@ import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { db } from '@/lib/db'
 import { getGemini, GEMINI_MODEL, GEMINI_MODEL_FALLBACK } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { ApiError, route } from '@/lib/api/handler'
 import { getSupabaseAdmin, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
 import { safeFetch } from '@/lib/ssrf'
@@ -376,7 +377,7 @@ ${sections.join('\n\n')}`
   const attempts = [
     // 8k: 4 Hydrogen's default thinking is HIGH (2026-11-13), and thinking tokens count against the cap.
     { model: GEMINI_MODEL, config: { maxOutputTokens: 8192 } },
-    { model: GEMINI_MODEL_FALLBACK, config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 768 } },
+    { model: GEMINI_MODEL_FALLBACK, config: quickThinking(GEMINI_MODEL_FALLBACK, 768) },
   ]
   let parsed: Parsed = {}
   let ok = false

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { isRetryableAiError, withAiRetry } from '@/lib/ai-retry'
 import { GEMINI_MODEL } from '@/lib/gemini'
+import { GEMINI_MODEL_FALLBACK } from '@/lib/gemini-model'
 import { IMPORT_AGE_GROUPS, IMPORT_CERT_TYPES, IMPORT_DEGREE_LEVELS, IMPORT_SUBJECTS } from '@/lib/teachers/import-map'
 import type { ImportFile } from '@/lib/teachers/import-file'
 
@@ -19,11 +20,11 @@ import type { ImportFile } from '@/lib/teachers/import-file'
  * ⛔ NOTHING OF THE FILE OR THE ANSWER IS EVER LOGGED, and no error carries it: a JSON.parse failure's message quotes
  * the text it choked on, so it is replaced by a bare SyntaxError here (still retryable — ai-retry.ts).
  *
- * Models: GEMINI_MODEL (4 Hydrogen, the app's model), then 3.5 Flash-Lite — NOT the app's GEMINI_MODEL_FALLBACK
- * (gemini-2.5-flash), which Google retires on Vertex on 2026-10-20 (model lifecycle page; research 2026-10-15).
- * Gemini 3 keeps its default temperature (Google: lower values can loop or degrade on 3.x) and thinks at LOW.
+ * Models: GEMINI_MODEL (4 Hydrogen, the app's model), then the app's GEMINI_MODEL_FALLBACK, 3.8 Flash (owner, 2026-11-13:
+ * "fallback 3.8 flash now"; 3.5 Flash-Lite until then, chosen when 2.5 Flash was due to retire on Vertex).
+ * Gemini 3+ keeps its default temperature (Google: lower values can loop or degrade on 3.x) and thinks at LOW.
  */
-export const IMPORT_MODEL_FALLBACK = 'gemini-3.5-flash-lite'
+export const IMPORT_MODEL_FALLBACK = GEMINI_MODEL_FALLBACK
 
 const S = { type: Type.STRING }
 const I = { type: Type.INTEGER }
