@@ -173,7 +173,7 @@ describe('teaching details', () => {
     expect(p.text).toContain('HCMC · 9/2020 – nay')
     expect(p.text).toContain('Ngôn ngữTiếng Pháp') // the JSON-LD's knowsLanguage keeps the stored English name
     expect(p.text).toContain('Bằng cấp và chứng chỉTiến sĩ')
-    expect(p.text).toContain('Bằng cấp và chứng chỉ do giáo viên tự khai.')
+    expect(p.text).toContain('Do giáo viên tự khai · hãy đề nghị xem giấy tờ') // batch 88: the short note
     expect(p.text).toContain('Giảng dạy')
     expect(p.row('Ngôn ngữ')).toEqual([])
     expect(p.text).toContain('/ tháng')
@@ -220,6 +220,20 @@ describe('cover lessons — "Can travel to" is the DERIVED reach', () => {
     const after = p.text.slice(p.text.indexOf('Can travel to'))
     expect(after).toMatch(/^Can travel to\s*District 4\s*District 7 \(Phu My Hung\)/)
     expect(after).not.toMatch(/^Can travel to[^T]*District 1/)
+  })
+  it('batch 88: the usual week is a compact grid — 3 parts × 7 days, each cell labelled for a screen reader — with one short note', async () => {
+    const p = await page('en', { ...coverOn, coverSlots: ['mon-am', 'wed-eve', 'sun-pm'] })
+    const sec = p.el.querySelector('section[aria-labelledby="t-cover"]')!
+    expect(sec.className).not.toMatch(/bg-tint|rounded-2xl/) // flat on the page, no box
+    const rows = [...sec.querySelectorAll('tbody tr')]
+    expect(rows).toHaveLength(3)
+    for (const r of rows) expect(r.querySelectorAll('td')).toHaveLength(7)
+    expect(sec.querySelectorAll('[data-cover-slot="open"]')).toHaveLength(3)
+    expect(sec.querySelectorAll('td .sr-only')).toHaveLength(21)
+    expect(sec.textContent).toContain('Not available')
+    expect(sec.querySelector('svg')).toBeNull() // no ✓ glyphs
+    expect(sec.textContent).toMatch(/Usual week · confirmed /)
+    expect(sec.textContent).not.toContain("This is the teacher's usual week")
   })
   it('no reach near home (abroad) → no cover section at all', async () => {
     const p = await page('en', { ...coverOn, livesIn: 'abroad', currentCity: '', currentDistrictKey: null, teachAreas: ['online'] })
@@ -346,10 +360,10 @@ describe('the "Identity verified" line', () => {
       const p = await page('en', over)
       const l = line(p.el)!
       expect(l.textContent).toBe('Identity verifiedeno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
-      expect((p.el.textContent?.match(/ask to see documents before hiring/gi) || []).length).toBe(1)
+      expect((p.el.textContent?.match(/ask to see documents/gi) || []).length).toBe(1)
       const v = await page('vi', over)
       expect(line(v.el)!.textContent).toContain('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
-      expect((v.el.textContent?.match(/hãy đề nghị xem giấy tờ trước khi tuyển dụng/gi) || []).length).toBe(1)
+      expect((v.el.textContent?.match(/hãy đề nghị xem giấy tờ/gi) || []).length).toBe(1)
     }
   })
   it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from and the card cache', async () => {

@@ -43,7 +43,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { BadgeCheck, Check, Lock } from '@/components/ui/icons'
+import { BadgeCheck, Lock } from '@/components/ui/icons'
 import { identityMarkShownOnCard } from '@/lib/teachers/identity-mark'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
@@ -409,35 +409,41 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 school arriving from the cover filter came for exactly this; the rate is already at the button above. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain
                 calendar day (formatCalendarDay): this page is ISR-cached, so nothing here may read the clock. */}
             {cover && (
-              <section aria-labelledby="t-cover" className="space-y-3 rounded-2xl bg-tint p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 id="t-cover" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
-                                  </div>
-                <Table className="table-fixed">
+              <section aria-labelledby="t-cover" className="space-y-3">
+                <h2 id="t-cover" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
+                {/* ⛔ THE USUAL WEEK AS A COMPACT GRID (UI climb batch 88, 2026-11-13 — round 13 "every fact once", part d2c4; blind
+                    A/B, Opus 7.07 → 7.59; owner, 2026-11-13: "reduce lines … super clean"). It was a 7-row table of ✓ and ·, about
+                    560px on a phone, in a tinted box: now three rows (morning, afternoon, evening) by seven days of filled squares,
+                    about 200px, flat on the page ("lines between elements … almost no boxes", owner 07-24). Still a real table:
+                    every cell keeps a screen-reader label — the open slot's own words, "Not available" for the rest — and the
+                    hours stay under each part of the day. */}
+                <Table className="table-fixed border-separate border-spacing-1">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      {/* Narrower below 360px, and the part labels a size down there: "Afternoon" is one word and cannot wrap,
-                          and at 320px it overran its column into "Evening" (preview check, 2026-10-07). */}
-                      <TableHead className="w-12 min-[360px]:w-16"><span className="sr-only"><Bilingual en="Day of the week" vi="Ngày trong tuần" /></span></TableHead>
-                      {COVER_PARTS.map((p) => (
-                        <TableHead key={p} className="whitespace-normal px-1 text-center">
-                          <span className="text-xs min-[360px]:text-sm"><Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} /></span>
-                          <span className="block text-xs font-normal text-muted-foreground">{COVER_PART_LABELS[p].hours}</span>
-                        </TableHead>
+                      <TableHead className="h-auto w-20 px-0"><span className="sr-only"><Bilingual en="Part of the day" vi="Buổi" /></span></TableHead>
+                      {COVER_DAYS.map((d) => (
+                        <TableHead key={d} className="h-auto px-0 text-center text-xs font-normal text-ink-4"><CoverDayShort day={d} /></TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {COVER_DAYS.map((d) => (
-                      <TableRow key={d} className="hover:bg-transparent">
-                        <TableHead scope="row" className="font-semibold"><CoverDayShort day={d} /></TableHead>
-                        {COVER_PARTS.map((p) => {
+                    {COVER_PARTS.map((p) => (
+                      <TableRow key={p} className="border-0 hover:bg-transparent">
+                        <TableHead scope="row" className="h-auto px-0 text-left align-middle text-xs font-normal text-body">
+                          <Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} />
+                          <span className="block text-2xs text-ink-4">{COVER_PART_LABELS[p].hours}</span>
+                        </TableHead>
+                        {COVER_DAYS.map((d) => {
                           const slot = `${d}-${p}`
+                          const open = cover.slots.has(slot)
                           return (
-                            <TableCell key={p} className="text-center">
-                              {cover.slots.has(slot)
-                                ? <><Check aria-hidden className="mx-auto size-4 text-brand" /><span className="sr-only"><Bilingual en={coverSlotLabel(slot, 'en')} vi={coverSlotLabel(slot, 'vi')} /></span></>
-                                : <span aria-hidden className="text-muted-foreground">·</span>}
+                            <TableCell key={d} className="p-0">
+                              <span aria-hidden data-cover-slot={open ? 'open' : ''} className={`block h-6 rounded-lg ${open ? 'bg-brand' : 'bg-tint'}`} />
+                              <span className="sr-only">
+                                {open
+                                  ? <Bilingual en={coverSlotLabel(slot, 'en')} vi={coverSlotLabel(slot, 'vi')} />
+                                  : <Bilingual en="Not available" vi="Không nhận" />}
+                              </span>
                             </TableCell>
                           )
                         })}
@@ -449,12 +455,13 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   <p className="text-sm text-muted-foreground"><Bilingual en="Can travel to" vi="Có thể đến dạy tại" /></p>
                   {/* Place names in the page's language, never machine-translated (PlaceName's rule). */}
                   <ul className="flex flex-wrap gap-2">
-                    {cover.areas.map((a) => <li key={a} className="rounded-full bg-background px-3 py-1 text-sm text-body">{coverAreaLabel(a, lang)}</li>)}
+                    {cover.areas.map((a) => <li key={a} className="rounded-full bg-tint px-3 py-1 text-sm text-body">{coverAreaLabel(a, lang)}</li>)}
                   </ul>
                 </div>
+                {/* One short note (batch 88): the week is the teacher's usual one, and when they confirmed it. */}
                 <p className="text-xs text-muted-foreground">
-                  <Bilingual en="This is the teacher's usual week. Message them to agree a date, time and place." vi="Đây là lịch thường lệ của giáo viên. Hãy nhắn tin để thống nhất ngày, giờ và địa điểm." />
-                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Đã xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: vnIsoDay(cover.confirmedAt) }} /></>}
+                  <Bilingual en="Usual week" vi="Lịch thường lệ" />
+                  {cover.confirmedAt && <>{' · '}<Bilingual en="confirmed {date}" vi="xác nhận ngày {date}" values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: vnIsoDay(cover.confirmedAt) }} /></>}
                 </p>
               </section>
             )}
@@ -495,7 +502,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-muted-foreground"><Bilingual en="Qualifications are as stated by the teacher. Ask to see documents before hiring." vi="Bằng cấp và chứng chỉ do giáo viên tự khai. Hãy đề nghị xem giấy tờ trước khi tuyển dụng." /></p>
+                <p className="mt-2 text-xs text-muted-foreground"><Bilingual en="Self-stated · ask to see documents" vi="Do giáo viên tự khai · hãy đề nghị xem giấy tờ" /></p>
               </section>
             )}
           </div>
