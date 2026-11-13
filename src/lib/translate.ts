@@ -8,6 +8,7 @@ import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-
 import { numberPlaceholders, restorePlaceholders, templateIntact } from './i18n/placeholders'
 import { adminPlaceEn } from './city-short'
 import { placeOnlyTranslation } from './i18n/place-names'
+import { geminiTranslate, geminiTranslateConfigured } from './i18n/gemini-translate'
 
 // Supported-language roster: canonical definition lives in the isomorphic
 // @/lib/i18n/langs; re-exported here so existing importers keep working.
@@ -36,10 +37,27 @@ const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
  * `azureUsable()` instead of the bare key. A fixed key is picked up when the bench expires.
  */
 const AZURE_AUTH_BENCH_MS = 60 * 60 * 1000
+const AZURE_QUOTA_BENCH_MS = 60 * 60 * 1000
+/**
+ * Gemini's wait (gemini-translate.ts), by who is waiting: a chat or concierge line (the route has 8s in all, and Azure has had
+ * its try first) 4s; a page's first view (/api/translate, up to a 100-string chunk) 15s; a background batch 45s. Each is
+ * for the WHOLE call — Gemini sends one string per request, up to twenty at a time, inside it (gemini-translate.ts).
+ */
+const GEMINI_CHAT_TIMEOUT_MS = 4_000
+const GEMINI_PAGE_TIMEOUT_MS = 15_000
+const GEMINI_BATCH_TIMEOUT_MS = 45_000
+const geminiWait = (latencyCritical?: boolean, lane?: boolean): number =>
+  lane ? GEMINI_CHAT_TIMEOUT_MS : latencyCritical ? GEMINI_PAGE_TIMEOUT_MS : GEMINI_BATCH_TIMEOUT_MS
 let azureBenchedUntil = 0
 export function azureUsable(now = Date.now()): boolean {
   return !!AZURE_KEY && now >= azureBenchedUntil
 }
+/** A paid provider can be asked: Azure (unbenched), or Gemini behind it (payFor). Every "is anyone left to ask?" decision reads this. */
+export function paidUsable(now = Date.now()): boolean {
+  return azureUsable(now) || geminiTranslateConfigured()
+}
+/** Tests only: lift a bench a previous case set (a 403 now benches Azure for an hour, and module state outlives a case). */
+export function resetAzureBenchForTests(): void { azureBenchedUntil = 0 }
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
 const AZURE_ENDPOINT = process.env.AZURE_TRANSLATOR_ENDPOINT || 'https://api.cognitive.microsofttranslator.com'
 
@@ -233,11 +251,16 @@ async function azureTranslate(chunk: string[], target: Lang): Promise<string[] |
       }
       if (!res.ok) {
         console.error('[translate] azure error', res.status, await res.text().catch(() => ''))
-        // 401 only: the KEY itself is wrong. A 403 is quota or a disabled subscription (F0's 403001) — left exactly
-        // as it was, retried on the next call.
-        if (res.status === 401) {
-          azureBenchedUntil = Date.now() + AZURE_AUTH_BENCH_MS
-          console.warn(`[translate] azure key refused (401) — Azure treated as not configured for ${AZURE_AUTH_BENCH_MS / 60000} min`)
+        // 401: the KEY itself is wrong. 403: the free quota is used up (F0's 403001) or the subscription is disabled.
+        // Either way Gemini answers instead (payFor) — so a 403 benches Azure for an hour too, rather than costing every
+        // request a round trip to a quota that resets only with the month (owner, 2026-11-13: "use azure free quota and
+        // gemini as fallback if quota ends"). The hour ends the bench, so a new month or a fixed key is picked up again.
+        // ⚠️ A 403 benches only when Gemini can stand in: with no Vertex credentials a bench would leave no paid provider for
+        // the hour (paidUsable false: refusals final, undetected strings served untranslated) — the old retry-next-call stands.
+        if (res.status === 401 || (res.status === 403 && geminiTranslateConfigured())) {
+          const ms = res.status === 401 ? AZURE_AUTH_BENCH_MS : AZURE_QUOTA_BENCH_MS
+          azureBenchedUntil = Date.now() + ms
+          console.warn(`[translate] azure refused (${res.status}) — benched for ${ms / 60000} min${geminiTranslateConfigured() ? '; Gemini answers' : ''}`)
         }
         return null
       }
@@ -376,11 +399,16 @@ async function payFor(
   texts: string[],
   target: Lang,
   billed?: { chars: number; strings: number },
+  opts?: { geminiTimeoutMs?: number },
 ): Promise<string[] | null> {
   if (texts.length === 0) return []
   const usable = (r: string[] | null): r is string[] => Array.isArray(r) && r.length === texts.length
   let paid: string[] | null = null
+  // Azure's free quota first, Gemini on Vertex when Azure cannot answer (owner, 2026-11-13: "use azure free quota and gemini as
+  // fallback if quota ends" — src/lib/i18n/gemini-translate.ts), the box model behind both (translateChunk). A person waiting
+  // gets Gemini's short timeout; a background batch may wait longer.
   if (azureUsable()) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
+  if (!paid) { const g = await geminiTranslate(texts, target, { timeoutMs: opts?.geminiTimeoutMs ?? GEMINI_BATCH_TIMEOUT_MS }); if (usable(g)) paid = g }
   if (paid && billed) {
     billed.chars += texts.reduce((n, t) => n + t.length, 0)
     billed.strings += texts.length
@@ -402,11 +430,11 @@ async function translateChunk(
    * which reads unaccented Vietnamese that detectContentLang cannot) — it wins over sourceLangFor and counts
    * as a positive detection. shortOk: the caller caches nothing (see gateTranslation).
    */
-  extra?: { hintFor?: (text: string) => string | undefined; shortOk?: boolean; lane?: boolean },
+  extra?: { hintFor?: (text: string) => string | undefined; shortOk?: boolean; lane?: boolean; waiting?: boolean },
 ): Promise<ChunkResult | null> {
-  // A caller that asks the paid provider first is by definition latency-critical, so it must
-  // also not wait out a batch on the local side when it falls back.
-  const localTimeout = paidFirst ? INTERACTIVE_TIMEOUT_MS : undefined
+  // The box model's short wait is for a PERSON waiting (chat, a page) — not for English and Vietnamese background work, which
+  // is paid-first too since 2026-11-13 and may wait out a batch when Azure and Gemini both fail (commit review).
+  const localTimeout = extra?.waiting || extra?.lane ? INTERACTIVE_TIMEOUT_MS : undefined
   const out: (string | null)[] = new Array(chunk.length).fill(null)
   const passthrough: boolean[] = new Array(chunk.length).fill(false)
   // ChunkResult.refused, while it is being decided: the box model answered this string and its gate said no.
@@ -418,8 +446,12 @@ async function translateChunk(
   // broken on the local-only box this change exists to enable, and broken again on any Google
   // outage or quota exhaustion (found by codex, astra and agy across two rounds). Slow beats
   // silent, so local always remains reachable as the fallback.
+  // Set when the paid-first try already failed: the paid providers are not asked a second time after the box model — for a
+  // chat line that would be Gemini's wait twice, past the route's 8s (commit review, 2026-11-13).
+  let paidTried = false
   if (paidFirst) {
-    const paidUp = await payFor(pending.map((p) => p.text), target, billed)
+    const paidUp = await payFor(pending.map((p) => p.text), target, billed, { geminiTimeoutMs: geminiWait(extra?.waiting, extra?.lane) })
+    paidTried = true
     if (paidUp) {
       pending.forEach((p, n) => { out[p.i] = paidUp[n] })
       return { values: out, passthrough }
@@ -442,7 +474,7 @@ async function translateChunk(
         // ⚠️ An UNDETECTED source is only left for the paid provider when there IS one. With no
         // paid key the string has nowhere else to go, and marking it failed would re-run the
         // same losing inference on every render forever (codex). Serve it, cache nothing.
-        if (detected || !azureUsable()) { passthrough[item.i] = true }
+        if (detected || !paidUsable()) { passthrough[item.i] = true }
         continue
       }
       const group = bySource.get(source)
@@ -470,7 +502,7 @@ async function translateChunk(
 
   // Whatever the box model could not translate (or refused) still deserves a good answer.
   const remaining = pending.map((p) => p.text)
-  const paid = await payFor(remaining, target, billed)
+  const paid = paidTried ? null : await payFor(remaining, target, billed, { geminiTimeoutMs: geminiWait(extra?.waiting, extra?.lane) })
 
   if (!paid || paid.length !== remaining.length) {
     // No paid answer. Keep whatever the box model DID translate; the rest stay null and the
@@ -480,7 +512,7 @@ async function translateChunk(
     // ⚠️ FINAL ONLY WITH NO PAID PROVIDER LEFT: a usable key that failed this time is the retry's first stop. Asked
     // AFTER payFor, on purpose — a 401 in this very request benched the key, and then the refusal is final.
     return out.some((v) => v != null) || passthrough.some(Boolean) || gateRefused.some(Boolean)
-      ? { values: out, passthrough, refused: azureUsable() ? undefined : gateRefused }
+      ? { values: out, passthrough, refused: paidUsable() ? undefined : gateRefused }
       : null
   }
   pending.forEach((p, n) => { out[p.i] = paid![n] })
@@ -595,7 +627,7 @@ export async function translateBatch(
     // serve the free cache hits, pass misses through as source, call NO provider.
     if (opts?.cachedOnly) {
       for (const t of misses) out.set(t, t)
-    } else if (!azureUsable() && !localMtConfigured()) {
+    } else if (!paidUsable() && !localMtConfigured()) {
       // ⚠️ localMtConfigured() BELONGS IN THIS GUARD. Without it a box running ONLY the
       // self-hosted model — the whole point of MT_LOCAL_URL — takes this branch and passes
       // every string through untranslated, silently, because the check only ever asked
@@ -627,13 +659,17 @@ export async function translateBatch(
         const sendable = chunk.map(numberPlaceholders)
         const hints = opts?.sourceHint
         const hintBySent = hints ? new Map(sendable.map((sent, k) => [sent.text, hints.get(chunk[k])])) : null
-        const translated = await translateChunk(sendable.map((s) => s.text), target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''), {
+        // English and Vietnamese are the site's two languages, so their every string goes to Gemini first too (owner, 2026-11-13:
+        // "proper vietnamese english translations"); the other nine keep the box model first for bulk until its nightly replacement.
+        const translated = await translateChunk(sendable.map((s) => s.text), target, billed, LATENCY_CRITICAL.has(opts?.source ?? '') || target === 'en' || target === 'vi', {
           hintFor: hintBySent ? (t) => hintBySent.get(t) : undefined,
           // Live chat only: its sole cache is a private 24-hour entry, never the shared table (see gateTranslation).
           shortOk: opts?.source === 'chat' && !!opts?.skipWrite,
           // The chat lane is for a person waiting on a short line — chat and the concierge — not a listing's first
           // view, whose hundreds of strings would queue chat behind them all over again.
           lane: opts?.source === 'chat' || opts?.source === 'concierge',
+          // A person is waiting (LATENCY_CRITICAL): Gemini's page wait, not the background one.
+          waiting: LATENCY_CRITICAL.has(opts?.source ?? ''),
         })
         // A response with a DIFFERENT length than the request is misaligned — pairing
         // translated[i] with chunk[i] would cache wrong translations forever (audit).
@@ -750,7 +786,7 @@ const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[])
  */
 export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
-  if (clean.length === 0 || (!azureUsable() && !localMtConfigured())) return
+  if (clean.length === 0 || (!paidUsable() && !localMtConfigured())) return
   // ⚠️ A GLOBAL, FAIL-CLOSED CEILING ON THE ONLY UNCAPPED PAID CALL IN THE PUBLISH PATH.
   // This runs from `after()` on EVERY listing create and bulk-import row, and it calls Google/Azure
   // translate once per language — six of them. Until now nothing bounded it: chargeCharBudget()

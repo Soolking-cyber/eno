@@ -197,8 +197,12 @@
  * advertised in a LinkedIn job-alert email for a role open to foreign teachers — its title, employer, city and link, listed like
  * a job-board job and kept as job listings are. No new personal data, no new recipient. ⛔ THE PLANNED DAY, like the rest:
  * re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-13, translation providers (owner, 2026-11-13: "use azure free quota and gemini as fallback if quota ends", "wording
+ * microsoft and google"): the translation recipients row names Google (Gemini on Vertex AI) beside Microsoft, used when Microsoft
+ * cannot answer, and says Google does not train on the text. ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy
+ * that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-12'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-13'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -207,4 +211,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-12'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'dfebd114d6707346'
+export const PRIVACY_TEXT_FINGERPRINT = 'c12c73079cb94c89'

@@ -17,8 +17,9 @@ import { useLanguage } from '@/context/language-context'
  * and replying need no answer, only translating does.
  * ⚠️ BOTH ANSWERS CARRY EQUAL WEIGHT (two outline buttons, as the cookie banner does): this is a
  * permission request, and a primary-coloured OK beside a ghost "off" would be a nudge.
- * ⚠️ NAMES THE PROVIDER. "Microsoft (Azure AI Translator)" is the paid provider chat asks first
- * (src/lib/translate.ts); the same name is on /privacy's recipients table. Change all three together.
+ * ⚠️ NAMES THE PROVIDERS. "Microsoft (Azure AI Translator)" is the provider chat asks first and "Google (Gemini on Vertex AI)"
+ * the one it asks when Microsoft cannot answer (src/lib/translate.ts payFor; owner, 2026-11-13: "wording microsoft and google");
+ * the same names are on /privacy's recipients table. Change all three together.
  * ⚠️ AND SAYS WHAT THE ANSWER COVERS, both ways round (codex + opus, review of this change): it is ONE answer for every
  * chat IN THIS APP (this account on this device — the web and another phone do not know it), and it governs the requests
  * THIS person's app makes — the messages they receive.
@@ -42,8 +43,8 @@ export function ChatTranslationNotice({ onAnswer }: { onAnswer: (value: 'on' | '
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
         {tr(
-          'To translate your chats, messages are sent to Microsoft (Azure AI Translator). Your answer applies to all your chats in this app: turning it off stops this for the messages you receive; the other person decides for the messages you send them. You can change it any time in Settings → Preferences.',
-          'Để dịch các cuộc trò chuyện của bạn, tin nhắn được gửi đến Microsoft (Azure AI Translator). Lựa chọn của bạn áp dụng cho mọi cuộc trò chuyện trong ứng dụng này: tắt dịch sẽ ngừng việc này đối với tin nhắn bạn nhận; với tin nhắn bạn gửi, người kia tự quyết định. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt → Tùy chọn.',
+          'To translate your chats, messages are sent to Microsoft (Azure AI Translator), or to Google (Gemini on Vertex AI) when Microsoft is unavailable. Your answer applies to all your chats in this app: turning it off stops this for the messages you receive; the other person decides for the messages you send them. You can change it any time in Settings → Preferences.',
+          'Để dịch các cuộc trò chuyện của bạn, tin nhắn được gửi đến Microsoft (Azure AI Translator), hoặc đến Google (Gemini trên Vertex AI) khi Microsoft không khả dụng. Lựa chọn của bạn áp dụng cho mọi cuộc trò chuyện trong ứng dụng này: tắt dịch sẽ ngừng việc này đối với tin nhắn bạn nhận; với tin nhắn bạn gửi, người kia tự quyết định. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt → Tùy chọn.',
         )}
       </p>
       <div className="mt-2 flex flex-wrap justify-end gap-2">

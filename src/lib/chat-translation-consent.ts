@@ -29,8 +29,16 @@ import { nativeAppGate } from './app-review-gates'
 /** 'on' = the person said OK (in the notice or in Settings); 'off' = turned off; null = not asked yet. */
 export type ChatTranslationConsent = 'on' | 'off' | null
 
-/** `chat-tr:consent:<profileId>` — never collides with `chat-tr:<profileId>:<conversationId>` (a uuid is never "consent"). */
-export const chatTranslationConsentKey = (userId: string): string => `chat-tr:consent:${userId}`
+/**
+ * `chat-tr:consent2:<profileId>` — never collides with `chat-tr:<profileId>:<conversationId>` (a uuid is never "consent2").
+ * ⛔ consent2, NOT consent (2026-11-13): the first answer was given to a notice that named Microsoft alone; Google (Gemini on
+ * Vertex AI) now answers when Microsoft cannot (owner: "use azure free quota and gemini as fallback if quota ends", "wording
+ * microsoft and google"), so an "OK" to Microsoft is not an OK to Google and the apps ask again. A "Turn off translation"
+ * under the old key still holds (readChatTranslationConsent): an answer that sent nothing never needs asking twice.
+ */
+export const chatTranslationConsentKey = (userId: string): string => `chat-tr:consent2:${userId}`
+/** The key the Microsoft-only notice wrote (until 2026-11-13). Read only for its "off". */
+const legacyConsentKey = (userId: string): string => `chat-tr:consent:${userId}`
 
 /**
  * Client: must chat translation ask first? The gate is on AND this is either native app. "Both apps",
@@ -47,7 +55,9 @@ export function readChatTranslationConsent(userId: string | null | undefined): C
   if (!userId) return null
   try {
     const v = localStorage.getItem(chatTranslationConsentKey(userId))
-    return v === 'on' || v === 'off' ? v : null
+    if (v === 'on' || v === 'off') return v
+    // An "off" given to the Microsoft-only notice stays off; its "on" covered Microsoft alone, so it asks again.
+    return localStorage.getItem(legacyConsentKey(userId)) === 'off' ? 'off' : null
   } catch {
     return null // storage blocked — treated as "not asked yet", so nothing is sent without an answer
   }

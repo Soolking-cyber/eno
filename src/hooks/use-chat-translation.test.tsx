@@ -83,13 +83,13 @@ describe('gate OFF (the shipped default) — unchanged everywhere', () => {
     expect(result.current.showToggle).toBe(true)
     await waitFor(() => expect(result.current.translationFor('m1')).toBe('Hello, is the flat still free?'))
     // Nothing about the gate is written to the device.
-    expect(localStorage.getItem(`chat-tr:consent:${ME}`)).toBeNull()
+    expect(localStorage.getItem(`chat-tr:consent2:${ME}`)).toBeNull()
   })
 
   it('ignores a stored "off" answer while the gate is off', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     as(IOS_APP)
-    localStorage.setItem(`chat-tr:consent:${ME}`, 'off')
+    localStorage.setItem(`chat-tr:consent2:${ME}`, 'off')
     mount()
     await waitFor(() => expect(translateCalls()).toHaveLength(1))
   })
@@ -134,7 +134,7 @@ describe.each([['iOS app', IOS_APP], ['Android app', ANDROID_APP]])('gate ON, in
     act(() => result.current.answerNotice('on'))
     await waitFor(() => expect(translateCalls()).toHaveLength(1))
     expect(result.current.needsNotice).toBe(false)
-    expect(localStorage.getItem(`chat-tr:consent:${ME}`)).toBe('on')
+    expect(localStorage.getItem(`chat-tr:consent2:${ME}`)).toBe('on')
     await waitFor(() => expect(result.current.translationFor('m1')).toBe('Hello, is the flat still free?'))
   })
 
@@ -146,7 +146,7 @@ describe.each([['iOS app', IOS_APP], ['Android app', ANDROID_APP]])('gate ON, in
     expect(translateCalls()).toHaveLength(0)
     expect(first.result.current.available).toBe(false)
     expect(first.result.current.needsNotice).toBe(false)
-    expect(localStorage.getItem(`chat-tr:consent:${ME}`)).toBe('off')
+    expect(localStorage.getItem(`chat-tr:consent2:${ME}`)).toBe('off')
     first.unmount()
 
     const again = mount()
@@ -157,14 +157,14 @@ describe.each([['iOS app', IOS_APP], ['Android app', ANDROID_APP]])('gate ON, in
   })
 
   it('a stored "on" (OK earlier, or Settings) translates without asking', async () => {
-    localStorage.setItem(`chat-tr:consent:${ME}`, 'on')
+    localStorage.setItem(`chat-tr:consent2:${ME}`, 'on')
     const { result } = mount()
     await waitFor(() => expect(translateCalls()).toHaveLength(1))
     expect(result.current.needsNotice).toBe(false)
   })
 
   it('the answer belongs to ONE account — another account on the device is asked', async () => {
-    localStorage.setItem(`chat-tr:consent:${OTHER_USER}`, 'on')
+    localStorage.setItem(`chat-tr:consent2:${OTHER_USER}`, 'on')
     const { result } = mount()
     await settle()
     expect(result.current.needsNotice).toBe(true)

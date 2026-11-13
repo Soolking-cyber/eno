@@ -18,6 +18,12 @@ type Row = { hash: string; target: string; value: string }
 const state = { rows: [] as Row[], upserts: [] as Row[], sent: [] as string[] }
 const sha1 = (t: string) => crypto.createHash('sha1').update(t).digest('hex')
 
+// Gemini is Azure's fallback (src/lib/i18n/gemini-translate.ts). Mocked so a machine with Vertex credentials never calls it from a test;
+// a case that wants it answering sets geminiMock.
+const geminiMock = vi.hoisted(() => vi.fn(async (_texts: string[], _target: string, _opts?: unknown): Promise<string[] | null> => null))
+const geminiConfigured = vi.hoisted(() => vi.fn(() => false))
+vi.mock('./i18n/gemini-translate', () => ({ geminiTranslate: geminiMock, geminiTranslateConfigured: geminiConfigured }))
+
 vi.mock('./db', () => ({
   db: {
     translation: {

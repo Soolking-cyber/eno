@@ -37,6 +37,12 @@ const state = {
   fetches: [] as string[],
 }
 
+// Gemini is Azure's fallback (src/lib/i18n/gemini-translate.ts). Mocked so a machine with Vertex credentials never calls it from a test;
+// a case that wants it answering sets geminiMock.
+const geminiMock = vi.hoisted(() => vi.fn(async (_texts: string[], _target: string, _opts?: unknown): Promise<string[] | null> => null))
+const geminiConfigured = vi.hoisted(() => vi.fn(() => false))
+vi.mock('./i18n/gemini-translate', () => ({ geminiTranslate: geminiMock, geminiTranslateConfigured: geminiConfigured }))
+
 vi.mock('./db', () => ({
   db: {
     translation: {
@@ -77,7 +83,7 @@ const fetchMock = vi.fn(async (url: string, init?: { body?: string }) => {
 })
 vi.stubGlobal('fetch', fetchMock)
 
-const { translateBatch, uncachedStats } = await import('./translate')
+const { translateBatch, uncachedStats, resetAzureBenchForTests, azureUsable } = await import('./translate')
 
 // Vietnamese-exclusive diacritics (Đ, ạ) — detectContentLang reports 'vi'.
 const VI = 'Điện thoại cũ đã qua sử dụng'
@@ -94,6 +100,10 @@ beforeEach(() => {
   state.upserts = []
   state.fetches = []
   fetchMock.mockClear()
+  geminiMock.mockReset()
+  geminiMock.mockImplementation(async () => null)
+  resetAzureBenchForTests()
+  geminiConfigured.mockReturnValue(false)
 })
 
 describe('translateBatch · same-language is free', () => {
@@ -148,6 +158,53 @@ describe('translateBatch · same-language is free', () => {
     // string up for the session after an outage (mt-client noteMiss; gate review, 2026-10-07).
     expect(stats.providerFailed).toBe(true)
     expect(state.upserts).toEqual([])
+  })
+
+  // Owner, 2026-11-13: "use azure free quota and gemini as fallback if quota ends".
+  it('asks Gemini when Azure\'s quota is used up (403), caches its answer, and leaves Azure benched for the hour', async () => {
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({}), text: async () => '{"error":{"code":403001}}' }) as never)
+    geminiConfigured.mockReturnValue(true)
+    geminiMock.mockImplementation(async (texts: string[]) => texts.map((t) => `[gemini]${t}`))
+    expect(await translateBatch([EN], 'ko', { source: 'test' })).toEqual([`[gemini]${EN}`])
+    expect(geminiMock).toHaveBeenCalledTimes(1)
+    expect(state.upserts).toEqual([expect.objectContaining({ target: 'ko', value: `[gemini]${EN}` })])
+    expect(azureUsable()).toBe(false)
+    expect(azureUsable(Date.now() + 61 * 60 * 1000)).toBe(true)
+    // The next string goes straight to Gemini: no round trip to a quota that resets only with the month.
+    fetchMock.mockClear()
+    expect(await translateBatch([`${EN} again`], 'ko', { source: 'test' })).toEqual([`[gemini]${EN} again`])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('without Gemini (no Vertex credentials) a 403 does NOT bench Azure: the next call tries it again, as before', async () => {
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({}), text: async () => 'quota' }) as never)
+    expect(await translateBatch([EN], 'ko', { source: 'test' })).toEqual([EN])
+    expect(azureUsable()).toBe(true)
+    expect(await translateBatch([`${EN} again`], 'ko', { source: 'test' })).toEqual([`${PREFIX}${EN} again`])
+  })
+
+  it('gives Gemini the wait of whoever is waiting: chat 4s, a page 15s, a background batch 45s', async () => {
+    geminiConfigured.mockReturnValue(true)
+    const waits: Record<string, number> = {}
+    geminiMock.mockImplementation(async (texts: string[], _t: string, o?: unknown) => { waits[texts[0]] = (o as { timeoutMs: number }).timeoutMs; return texts.map((x) => `[gemini]${x}`) })
+    // Azure's quota is used up: the first call benches it (Gemini is configured), so all three reach Gemini.
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({}), text: async () => 'quota' }) as never)
+    await translateBatch(['chat line'], 'ko', { source: 'chat', skipWrite: true })
+    await translateBatch(['page string'], 'ko', { source: 'api' })
+    await translateBatch(['warm string'], 'vi', { source: 'warm-cron' })
+    expect(waits).toEqual({ 'chat line': 4_000, 'page string': 15_000, 'warm string': 45_000 })
+  })
+
+  it('a chat line asks the paid providers ONCE: a failed Gemini is not asked again after the box model', async () => {
+    geminiConfigured.mockReturnValue(true)
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({}), text: async () => 'quota' }) as never)
+    await translateBatch(['a chat line'], 'ko', { source: 'chat', skipWrite: true })
+    expect(geminiMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('never asks Gemini while Azure answers', async () => {
+    expect(await translateBatch([EN], 'ko', { source: 'test' })).toEqual([`${PREFIX}${EN}`])
+    expect(geminiMock).not.toHaveBeenCalled()
   })
 
   it('still translates the strings that are NOT in the target, in the same batch', async () => {

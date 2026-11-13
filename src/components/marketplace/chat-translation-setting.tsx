@@ -49,8 +49,8 @@ export function ChatTranslationSetting() {
           <p className="text-sm font-bold text-foreground">{label}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {tr(
-              'When the other person writes in another language, their messages are sent to Microsoft (Azure AI Translator) to show them in yours. Turned off, this app sends nothing to translate for you; whether your messages are translated for the other person is their choice.',
-              'Khi người kia viết bằng ngôn ngữ khác, tin nhắn của họ được gửi đến Microsoft (Azure AI Translator) để hiển thị bằng ngôn ngữ của bạn. Khi tắt, ứng dụng này không gửi gì đi để dịch cho bạn; việc tin nhắn của bạn có được dịch cho người kia hay không là do họ chọn.',
+              'When the other person writes in another language, their messages are sent to Microsoft (Azure AI Translator), or to Google (Gemini on Vertex AI) when Microsoft is unavailable, to show them in yours. Turned off, this app sends nothing to translate for you; whether your messages are translated for the other person is their choice.',
+              'Khi người kia viết bằng ngôn ngữ khác, tin nhắn của họ được gửi đến Microsoft (Azure AI Translator), hoặc đến Google (Gemini trên Vertex AI) khi Microsoft không khả dụng, để hiển thị bằng ngôn ngữ của bạn. Khi tắt, ứng dụng này không gửi gì đi để dịch cho bạn; việc tin nhắn của bạn có được dịch cho người kia hay không là do họ chọn.',
             )}
           </p>
           {consent === null && (

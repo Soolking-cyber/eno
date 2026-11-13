@@ -9,6 +9,12 @@ process.env.MT_LOCAL_URL = 'http://eno-mt:8088'
 
 // Every write to the shared Translation table.
 const dbWrites = vi.hoisted(() => [] as unknown[])
+// Gemini is Azure's fallback (src/lib/i18n/gemini-translate.ts). Mocked so a machine with Vertex credentials never calls it from a test;
+// a case that wants it answering sets geminiMock.
+const geminiMock = vi.hoisted(() => vi.fn(async (_texts: string[], _target: string, _opts?: unknown): Promise<string[] | null> => null))
+const geminiConfigured = vi.hoisted(() => vi.fn(() => false))
+vi.mock('./i18n/gemini-translate', () => ({ geminiTranslate: geminiMock, geminiTranslateConfigured: geminiConfigured }))
+
 vi.mock('./db', () => ({
   db: {
     translation: { findMany: async () => [], upsert: async (args: unknown) => { dbWrites.push(args); return {} } },

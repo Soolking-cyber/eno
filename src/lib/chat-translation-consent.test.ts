@@ -21,8 +21,9 @@ afterEach(() => {
 })
 
 describe('the stored answer', () => {
-  it('is per account, under chat-tr:consent:<profile>', () => {
+  it('is per account, under chat-tr:consent2:<profile>', () => {
     writeChatTranslationConsent(ME, 'off')
+    expect(store.get(`chat-tr:consent2:${ME}`)).toBe('off')
     expect(store.get(chatTranslationConsentKey(ME))).toBe('off')
     expect(readChatTranslationConsent(ME)).toBe('off')
     expect(readChatTranslationConsent('someone-else')).toBeNull()
@@ -33,5 +34,15 @@ describe('the stored answer', () => {
     expect(readChatTranslationConsent(undefined)).toBeNull()
     writeChatTranslationConsent(undefined, 'on')
     expect(store.size).toBe(1)
+  })
+  // 2026-11-13: Google (Gemini on Vertex AI) answers when Microsoft cannot, so the notice names both and asks again.
+  it('asks again after an OK given to the Microsoft-only notice, but keeps its "Turn off translation"', () => {
+    store.set(`chat-tr:consent:${ME}`, 'on')
+    expect(readChatTranslationConsent(ME)).toBeNull()
+    store.set(`chat-tr:consent:${ME}`, 'off')
+    expect(readChatTranslationConsent(ME)).toBe('off')
+    // A new answer wins over the old one either way.
+    writeChatTranslationConsent(ME, 'on')
+    expect(readChatTranslationConsent(ME)).toBe('on')
   })
 })
