@@ -94,6 +94,29 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     }
   })
 
+  it('tools/list describes every argument and carries read/write hints that match the scopes', async () => {
+    // Directories (mcptry, 2026-11-13) score both, and an agent picks a tool and fills its arguments from this text
+    // alone. Every property at every depth (the listing rows of bulk/sync too) needs a description.
+    const { POST } = await import('./route')
+    const { TOOLS } = await import('@/lib/mcp/tools')
+    const res = await POST(post({ jsonrpc: '2.0', id: 4, method: 'tools/list' }))
+    const { result } = await res.json()
+    type Schema = { properties?: Record<string, Schema & { description?: string }>; items?: Schema; anyOf?: Schema[]; oneOf?: Schema[]; allOf?: Schema[] }
+    const undescribed = (s: Schema | undefined, at: string): string[] => !s ? [] : [
+      ...Object.entries(s.properties ?? {}).flatMap(([k, p]) => [...(p.description ? [] : [`${at}.${k}`]), ...undescribed(p, `${at}.${k}`)]),
+      ...undescribed(s.items, `${at}[]`),
+      ...[...(s.anyOf ?? []), ...(s.oneOf ?? []), ...(s.allOf ?? [])].flatMap((x) => undescribed(x, at)),
+    ]
+    expect(result.tools.flatMap((t: { name: string; inputSchema: Schema }) => undescribed(t.inputSchema, t.name))).toEqual([])
+    for (const t of result.tools) {
+      const scope = TOOLS.find((x) => x.name === t.name)!.scope
+      // A hint is not enforcement (the key's scopes are), but a read hint on a write tool would let a client skip asking.
+      expect(t.annotations?.readOnlyHint, `${t.name}: readOnlyHint must say what its scope says`).toBe(scope.endsWith(':read'))
+      expect(typeof t.annotations?.openWorldHint, `${t.name} needs openWorldHint`).toBe('boolean')
+      if (!t.annotations.readOnlyHint) expect(typeof t.annotations.destructiveHint, `${t.name} needs destructiveHint`).toBe('boolean')
+    }
+  })
+
   it('⛔ tools/list never advertises a services surface — the licensing pin', async () => {
     // codex's catch, and it is the right one to make: opening tools/list means the tool registry
     // is now published to every ANONYMOUS caller on BOTH editions. The blanket 401 used to hide
