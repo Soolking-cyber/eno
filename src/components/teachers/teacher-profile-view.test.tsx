@@ -81,7 +81,7 @@ async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, live 
     /** the "label → chips" of one row of the Teaching list */
     row: (label: string) => {
       const dt = [...el.querySelectorAll('dt')].find((d) => d.textContent?.trim() === label)
-      return dt ? [...(dt.nextElementSibling?.querySelectorAll('li') ?? [])].map((li) => li.textContent?.trim()) : null
+      return dt ? [...(dt.nextElementSibling?.querySelectorAll('li, [data-fact]') ?? [])].map((li) => li.textContent?.trim()) : null
     },
     ld: ldText ? JSON.parse(ldText) : null,
   }

@@ -92,9 +92,21 @@ function Chips({ items }: { items: Chip[] }) {
   )
 }
 
+/**
+ * The same facts as one plain line — "Kids, Teens, Adults", "Online, Ho Chi Minh City" (UI climb batch 82, 2026-11-13; blind
+ * A/B Opus 7.02 → 7.41): ages, job types and places were each a column of pills that a phone stacked one or two to a line.
+ * Subjects keep their chips — the one list a school scans for a specialty. Each item renders exactly as its chip did (a place
+ * name never machine-translated, a taxonomy option in its own Vietnamese).
+ */
+function Plain({ items }: { items: Chip[] }) {
+  // `data-fact` marks each item, so a test reads the items the way it reads a chip list's <li>s.
+  return <>{items.map((x, i) => <Fragment key={x.key}>{i > 0 && ', '}<span data-fact="">{x.node ?? <Tr text={x.text} />}</span></Fragment>)}</>
+}
+
+/** A fact row. On a phone the label column is 7.5rem (batch 82): at 10rem the values had 186px of a 390px screen. */
 function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-2 text-sm sm:grid-cols-[10rem_1fr]">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-foreground">{children}</dd>
     </div>
@@ -360,12 +372,12 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 <dl className="divide-y divide-border">
                   {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
                   <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
-                  <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Chips items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
-                  {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Chips items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
+                  <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Plain items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
+                  {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Plain items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
                   {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and
                       Online), and where they would move. A school's "Can teach in" filter matches the whole list. */}
-                  {places.canTeachIn.length > 0 && <Row label={<Bilingual en="Can teach in" vi="Có thể dạy tại" />}><Chips items={places.canTeachIn.map(placeChip)} /></Row>}
-                  {places.wouldMoveTo.length > 0 && <Row label={<Bilingual en="Would move to" vi="Sẵn sàng chuyển đến" />}><Chips items={places.wouldMoveTo.map(placeChip)} /></Row>}
+                  {places.canTeachIn.length > 0 && <Row label={<Bilingual en="Can teach in" vi="Có thể dạy tại" />}><Plain items={places.canTeachIn.map(placeChip)} /></Row>}
+                  {places.wouldMoveTo.length > 0 && <Row label={<Bilingual en="Would move to" vi="Sẵn sàng chuyển đến" />}><Plain items={places.wouldMoveTo.map(placeChip)} /></Row>}
                   {/* "Available: From November 2026", or "Now" once the start has come — decided after mount, on the
                       reader's clock (TeacherAvailableFrom): no clock in this ISR-cached HTML. */}
                   {startDay && <Row label={<Bilingual en="Available" vi="Có thể bắt đầu" />}><TeacherAvailableFrom from={startDay} /></Row>}
