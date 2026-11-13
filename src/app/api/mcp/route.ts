@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { NextRequest } from 'next/server'
 import { resolveApiKey } from '@/lib/api/auth'
 import { rateLimit } from '@/lib/ratelimit'
@@ -60,7 +61,16 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
         // card said "eno.forum Partner API" while the server it describes said "eno.vn Partner
         // API". The MCP Server Card spec's "Consistency with Runtime Behavior" makes that
         // contradiction a SHOULD NOT, so the card cannot be trusted while this line is a literal.
-        serverInfo: { name: `${SITE_NAME} Partner API`, version: '1.0.0' },
+        // title / description / websiteUrl / icons: what directories and clients show for the server (MCP 2025-11-25
+        // Implementation fields; older clients ignore them). Derived from the edition, like the name — never a literal host.
+        serverInfo: {
+          name: `${SITE_NAME} Partner API`,
+          title: `${SITE_NAME} Partner API`,
+          version: '1.0.1',
+          description: `Manage one ${SITE_NAME} storefront: listings, bulk catalogue sync, analytics and webhooks.`,
+          websiteUrl: `${OAUTH_ISSUER}/developers/mcp`,
+          icons: [{ src: `${OAUTH_ISSUER}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] }],
+        },
         instructions:
           `Manage a ${SITE_NAME} storefront: list/create/update/delete listings, bulk-import, sync a catalogue by your own externalId, read analytics, and manage webhooks. Every action is scoped to the one shop behind the API key.`,
       })
@@ -94,7 +104,8 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       if (!callBudget.success) return toolErr(msg.id, 'rate_limited', 'Too many tool calls for this key. Slow down or back off.')
       try {
         const result = await tool.handler(auth, parsed.data as Record<string, unknown>)
-        return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }] })
+        // The same object twice: `structuredContent` for clients that read the tool's outputSchema, the JSON text for the rest.
+        return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result })
       } catch (e) {
         if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message, e.detail)
         // ⚖️ AN IDENTITY REFUSAL IS AN ANSWER, NOT A CRASH: the code goes back verbatim with the same
@@ -236,10 +247,17 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS })
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // A person who opens the server's URL in a browser gets the setup page. An MCP client's GET asks for a stream
+  // (`Accept: text/event-stream`, required by the transport spec) and keeps the 405 below.
+  const accept = req.headers.get('accept') ?? ''
+  if (!accept.includes('text/event-stream') && accept.includes('text/html')) {
+    return new Response(null, { status: 302, headers: { Location: `${OAUTH_ISSUER}/developers/mcp`, Vary: 'Accept', ...CORS } })
+  }
   // No server-initiated stream — this server is request/response only.
   return new Response(JSON.stringify(rpcError(null, -32601, 'GET not supported; use POST.')), {
     status: 405,
-    headers: { 'content-type': 'application/json', Allow: 'POST, OPTIONS', ...CORS },
+    // Vary: the answer depends on Accept (the browser redirect above), so no cache may hand one to the other.
+    headers: { 'content-type': 'application/json', Allow: 'POST, OPTIONS', Vary: 'Accept', ...CORS },
   })
 }

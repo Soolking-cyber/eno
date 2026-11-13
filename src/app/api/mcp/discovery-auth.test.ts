@@ -77,6 +77,16 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     // say eno.forum and must not contain the marketplace's domain anywhere.
     const { SITE_NAME } = await import('@/lib/edition')
     expect(body.result.serverInfo.name).toBe(`${SITE_NAME} Partner API`)
+    // What directories show for the server (Manufact, mcptry, 2026-11-13): title, description, website and an icon of at
+    // least 128px — the website and icon on THIS deployment's origin, never another edition's.
+    const info = body.result.serverInfo
+    expect(info.title).toBe(`${SITE_NAME} Partner API`)
+    expect(info.description.length).toBeGreaterThan(40)
+    expect(new URL(info.websiteUrl).host).toBe(new URL(info.icons[0].src).host)
+    // …and that origin is THIS edition's own host (apex or www) — eno.vn's server must never point at eno.forum.
+    expect([SITE_NAME, `www.${SITE_NAME}`]).toContain(new URL(info.websiteUrl).host)
+    expect(info.websiteUrl).toMatch(/\/developers\/mcp$/)
+    expect(info.icons[0]).toMatchObject({ mimeType: 'image/png', sizes: ['512x512'] })
     if (SITE_NAME !== 'eno.vn') {
       expect(JSON.stringify(body.result)).not.toContain('eno.vn')
     }
@@ -112,8 +122,18 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       const scope = TOOLS.find((x) => x.name === t.name)!.scope
       // A hint is not enforcement (the key's scopes are), but a read hint on a write tool would let a client skip asking.
       expect(t.annotations?.readOnlyHint, `${t.name}: readOnlyHint must say what its scope says`).toBe(scope.endsWith(':read'))
-      expect(typeof t.annotations?.openWorldHint, `${t.name} needs openWorldHint`).toBe('boolean')
-      if (!t.annotations.readOnlyHint) expect(typeof t.annotations.destructiveHint, `${t.name} needs destructiveHint`).toBe('boolean')
+      // ChatGPT's review wants all three hints as booleans on EVERY tool, a read included; Claude's directory wants a title.
+      for (const hint of ['openWorldHint', 'destructiveHint', 'idempotentHint']) {
+        expect(typeof t.annotations?.[hint], `${t.name} needs ${hint}`).toBe('boolean')
+      }
+      if (t.annotations.readOnlyHint) expect(t.annotations.destructiveHint, `${t.name}: a read cannot be destructive`).toBe(false)
+      expect(t.title, `${t.name} needs a title`).toBeTruthy()
+      // structuredContent MUST conform to the outputSchema: a closed object (additionalProperties:false) anywhere in it
+      // would make a validating client reject the day a result gains a field.
+      expect(t.outputSchema?.type, `${t.name} needs an outputSchema`).toBe('object')
+      expect(JSON.stringify(t.outputSchema), `${t.name}: output objects stay open`).not.toContain('"additionalProperties":false')
+      expect(t.outputSchema.$schema, `${t.name}: no meta-schema URI for a client validator to choke on`).toBeUndefined()
+      expect(t.title.length, `${t.name}: a title is a short label`).toBeLessThanOrEqual(40)
     }
   })
 
@@ -131,6 +151,23 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     for (const word of ['visa', 'itinerary', 'paypal', 'e-visa', 'evisa']) {
       expect(blob, `tools/list must never name "${word}" — eno.vn may not describe that surface`).not.toContain(word)
     }
+  })
+
+  it('a browser opening the server URL is sent to the setup page; an MCP client GET still gets 405', async () => {
+    const { GET } = await import('./route')
+    const { OAUTH_ISSUER } = await import('@/lib/api/oauth')
+    const get = (accept: string) => GET(new Request('https://eno.vn/api/mcp', { headers: { accept } }) as never)
+    const browser = await get('text/html,application/xhtml+xml,*/*;q=0.8')
+    expect(browser.status).toBe(302)
+    expect(browser.headers.get('location')).toBe(`${OAUTH_ISSUER}/developers/mcp`)
+    const { SITE_NAME } = await import('@/lib/edition')
+    expect([SITE_NAME, `www.${SITE_NAME}`]).toContain(new URL(browser.headers.get('location')!).host)
+    expect(browser.headers.get('vary')).toBe('Accept')
+    expect((await get('text/event-stream')).headers.get('vary')).toBe('Accept')
+    // The transport spec has a client's GET ask for a stream; this server has none, so that stays a 405.
+    expect((await get('text/event-stream')).status).toBe(405)
+    expect((await get('application/json, text/event-stream')).status).toBe(405)
+    expect((await get('')).status).toBe(405)
   })
 
   it('ping answers without a credential', async () => {

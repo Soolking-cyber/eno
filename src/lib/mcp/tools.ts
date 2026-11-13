@@ -78,24 +78,54 @@ const listingItem = z.object({
  *  from the caller that eno will reach (image URLs it fetches, a webhook endpoint it will post to). The webhooks every
  *  listing write already notifies do not count — those endpoints were named by register_webhook. Hints only — the
  *  scopes are what enforce. */
-export type ToolAnnotations = { readOnlyHint: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint: boolean }
-const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false }
+export type ToolAnnotations = { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }
+// All four on every tool: ChatGPT's review requires readOnlyHint, destructiveHint and openWorldHint as booleans even on a read.
+const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+
+// ── Output schemas (MCP `Tool.outputSchema`) ──────────────────────────────────────────
+// What each tool answers, so a client can read the fields without guessing. tools/call sends the same object as
+// `structuredContent` beside the JSON text, and MCP says it MUST conform — so every object here is LOOSE (z.looseObject:
+// extra keys pass, in zod AND in the published JSON Schema — a plain z.object publishes additionalProperties:false
+// while zod's own parse merely strips, so a test could pass a result a strict client rejects) and `required` names only
+// keys the handler always writes. A field added to a result never breaks a client;
+// only removing a required key would, and the conformance test in src/lib/mcp/output-schemas.test.ts runs the handlers.
+const OK = z.boolean().describe('true when the change was applied')
+const CURSOR_OUT = z.string().nullable().describe('Pass to the next call as `cursor` for the next page; null on the last page')
+const LISTING_OUT = z.looseObject({ id: z.string().describe('Listing id') })
+  .describe('A listing as the Partner API serializes it: id, title, price (VND), status, category, images and the other fields of GET /api/v1/listings/{id}')
+const ROW_RESULTS = z.array(z.looseObject({
+  id: z.string().nullable().optional().describe('The listing id, when the row succeeded'),
+  external_id: z.string().nullable().optional().describe('Your own id for the row, echoed back'),
+  error: z.string().nullable().optional().describe('Why the row failed; absent on success'),
+})).describe('One entry per row sent, in order')
+const WEBHOOK_OUT = z.looseObject({
+  id: z.string().describe('Webhook id'),
+  url: z.string().describe('The HTTPS endpoint events are posted to'),
+  events: z.array(z.string()).describe('Event names it receives; ["*"] = all'),
+  enabled: z.boolean().describe('false once deliveries kept failing'),
+}).describe('A registered webhook endpoint')
 
 export type McpTool = {
   name: string
+  /** Short display label (MCP `Tool.title`): Claude's directory requires one on every tool. */
+  title: string
   description: string
   scope: 'listings:read' | 'listings:write' | 'analytics:read' | 'media:write'
   annotations: ToolAnnotations
   input: z.ZodType
+  /** The result object's shape (see OUTPUT SCHEMAS above). */
+  output: z.ZodType
   handler: (auth: ApiAuth, args: Record<string, unknown>) => Promise<unknown>
 }
 
 export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
+    title: 'Get shop profile',
     description: "Get the authenticated shop's storefront profile, trust score, and live listing count.",
     scope: 'listings:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ shop: z.looseObject({ id: z.string().describe('Shop id') }).describe('The storefront: id, name, bio, location, phone, avatar_url, trust_score, trust_tier, response_rate, member_since, active_listings') }),
     input: z.object({}),
     handler: async (auth) => {
       const s = await db.seller.findUnique({
@@ -109,9 +139,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_shop',
+    title: 'Update shop profile',
     description: 'Edit the storefront profile. Sparse — only the fields you send change.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    output: z.looseObject({ ok: OK }),
     input: z.object({
       name: z.string().optional().describe('Shop name, 2–120 characters'),
       bio: z.string().optional().describe('About the shop, up to 1000 characters. An empty string clears it.'),
@@ -127,9 +159,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'list_listings',
+    title: 'List listings',
     description: 'List the shop\'s listings (all statuses). Keyset-paginated — pass the returned next_cursor to page.',
     scope: 'listings:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ listings: z.array(LISTING_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }),
     input: z.object({ limit: z.number().int().min(1).max(100).optional().describe('Page size, 1–100 (default 50)'), cursor: z.string().optional().describe('The `next_cursor` from the previous page; omit it for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Only listings with this status; omit it for all') }),
     handler: async (auth, args) => {
       const sp = new URLSearchParams()
@@ -148,9 +182,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'get_listing',
+    title: 'Get listing',
     description: 'Get one of the shop\'s listings by id (any status).',
     scope: 'listings:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ listing: LISTING_OUT.nullable() }),
     input: z.object({ id: z.string().describe('Listing id, as returned by list_listings or create_listing') }),
     handler: async (auth, args) => {
       await ownedListing(String(args.id), auth.sellerId)
@@ -160,9 +196,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'create_listing',
+    title: 'Create listing',
     description: 'Create a listing. Image URLs may be public — they are re-hosted to first-party storage automatically.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    output: z.looseObject({ listing: z.looseObject({ id: z.string().describe('The new listing\'s id'), verified: z.boolean().describe('false while it waits for eno\'s check and is not yet public'), held: z.boolean().optional().describe('true when the listing is held for eno\'s licence check') }) }),
     input: listingItem.omit({ externalId: true }).extend({
       // Optional HERE because a job needs none; every other listing still has to send one (checked below).
       price: z.number().nonnegative().optional().describe('Price in VND — required, except for a job (category "jobs"), whose pay is `salaryM`. A job sent with only a price has it read as the monthly salary in VND.'),
@@ -220,11 +258,13 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_listing',
+    title: 'Update listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
     description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. An edit of a listing that is waiting for eno\'s licence check answers `held: true`: the listing stays unpublished until eno approves it (this tool cannot change a subcategory or the licence values).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    output: z.looseObject({ ok: OK, held: z.boolean().optional().describe('true when the edit left the listing waiting for eno\'s licence check, unpublished') }),
     input: z.object({
       id: z.string().describe('Id of the listing to edit'),
       title: z.string().optional().describe('New title (≥3 chars, no phone numbers)'),
@@ -257,9 +297,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'set_listing_status',
+    title: 'Set listing status',
     description: 'Set a listing\'s availability: active | sold | hidden. Re-activating a listing that is waiting for eno\'s licence check is refused with `licence_check_required` until eno approves it.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    output: z.looseObject({ ok: OK, status: z.string().describe('The listing\'s status after the call') }),
     input: z.object({ id: z.string().describe('Id of the listing'), status: z.enum(['active', 'sold', 'hidden']).describe('active = on sale, sold = marked sold, hidden = taken off the site') }),
     handler: async (auth, args) => {
       const id = String(args.id)
@@ -283,9 +325,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'delete_listing',
+    title: 'Delete listing',
     description: 'Delete one of the shop\'s listings. While the shop or the listing is under investigation (an open report, or the account is held/suspended) it is hidden instead — the result then says `deleted: false, hidden: true` and why.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    output: z.looseObject({ ok: OK, deleted: z.boolean().optional().describe('false when the listing was hidden instead of deleted'), hidden: z.boolean().optional().describe('true when it was hidden because the shop or listing is under review'), reason: z.string().optional().describe('Why it was hidden instead'), message: z.string().optional().describe('A sentence to show the seller') }),
     input: z.object({ id: z.string().describe('Id of the listing to delete') }),
     handler: async (auth, args) => {
       const id = String(args.id)
@@ -299,9 +343,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'bulk_create_listings',
+    title: 'Create listings in bulk',
     description: `Create up to ${BULK_MAX_ROWS} listings in one call. Each is independent; image URLs are re-hosted.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    output: z.looseObject({ created: z.number().describe('Listings created'), failed: z.number().describe('Rows that failed'), results: ROW_RESULTS }),
     input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The listings to create. Each succeeds or fails on its own; `results` says which.') }),
     handler: async (auth, args) => {
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
@@ -321,9 +367,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'sync_catalogue',
+    title: 'Sync catalogue',
     description: `Upsert the catalogue by your own externalId. mode "partial" only touches sent rows; "full" also retires listings absent from the payload. Up to ${SYNC_MAX_ROWS} rows.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    output: z.looseObject({ created: z.number().describe('Rows created'), updated: z.number().describe('Rows updated'), retired: z.number().describe('Listings hidden by a full sync; 0 in partial mode'), failed: z.number().describe('Rows that failed'), results: ROW_RESULTS, publish_blocked: z.looseObject({ code: z.string(), message: z.string() }).optional().describe('Present when the account may not publish new listings right now: creates were refused, edits still applied') }),
     input: z.object({
       mode: z.enum(['partial', 'full']).optional().describe('"partial" (the default) touches only the rows sent; "full" also hides every active listing whose externalId is not in this payload (listings without an externalId, such as ones posted on the website, are left alone)'),
       listings: z.array(listingItem.extend({
@@ -344,9 +392,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'analytics_summary',
+    title: 'Shop analytics summary',
     description: 'Shop-level totals: views, leads, and listing counts by status.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ summary: z.looseObject({ total_listings: z.number(), total_views: z.number(), total_leads: z.number(), active: z.number(), sold: z.number(), hidden: z.number(), held: z.number().describe('Active listings still waiting for eno\'s check') }).describe('Shop totals over all its listings') }),
     input: z.object({}),
     handler: async (auth) => {
       const where = { sellerId: auth.sellerId, ...NOT_REMOVED } // tombstones are not the shop's listings
@@ -361,9 +411,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'analytics_listings',
+    title: 'Listing analytics',
     description: 'Per-listing daily views + leads (deltas) over a date range, plus totals. Keyset-paginated.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ range: z.looseObject({ from: z.string(), to: z.string() }).describe('The date range actually used (YYYY-MM-DD)'), listings: z.array(z.looseObject({ id: z.string(), daily: z.array(z.looseObject({ day: z.string(), views: z.number(), leads: z.number() })).describe('Per-day views and leads in the range') }).describe('One listing: id, external_id, title, status, views_total, leads_total and its daily series')), next_cursor: CURSOR_OUT }),
     input: z.object({
       from: z.string().optional().describe('Inclusive start date, YYYY-MM-DD (UTC). Defaults to 30 days before `to`; a range longer than 92 days is cut to the last 92.'),
       to: z.string().optional().describe('Inclusive end date, YYYY-MM-DD (UTC). Defaults to today.'),
@@ -378,9 +430,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'list_webhooks',
+    title: 'List webhooks',
     description: 'List the shop\'s registered webhook endpoints (secrets are never returned) with delivery health.',
     scope: 'listings:read',
     annotations: READ_ONLY,
+    output: z.looseObject({ webhooks: z.array(WEBHOOK_OUT).describe('Newest first, with failure_count, last_error and last_delivery_at; secrets are never returned') }),
     input: z.object({}),
     handler: async (auth) => {
       const hooks = await db.webhookEndpoint.findMany({ where: { sellerId: auth.sellerId }, orderBy: { createdAt: 'desc' }, select: { id: true, url: true, events: true, enabled: true, failureCount: true, lastError: true, lastDeliveryAt: true, createdAt: true } })
@@ -389,9 +443,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'register_webhook',
+    title: 'Register webhook',
     description: 'Register an HTTPS endpoint for signed listing events. The signing secret is returned ONCE — store it.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    output: z.looseObject({ webhook: WEBHOOK_OUT.extend({ secret: z.string().describe('The signing secret. Shown ONCE: store it now.') }) }),
     input: z.object({ url: z.string().describe('Public HTTPS endpoint'), events: z.array(z.enum(['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'])).optional().describe('Omit for all events') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
@@ -406,9 +462,11 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'delete_webhook',
+    title: 'Delete webhook',
     description: 'Unregister a webhook endpoint by id.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    output: z.looseObject({ ok: OK }),
     input: z.object({ id: z.string().describe('Webhook id, as returned by list_webhooks or register_webhook') }),
     handler: async (auth, args) => {
       const hook = await db.webhookEndpoint.findUnique({ where: { id: String(args.id) }, select: { sellerId: true } })
@@ -423,5 +481,15 @@ export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 // JSON-Schema list for tools/list (zod v4 → JSON Schema), with each tool's read/write hints.
 export function toolDescriptors() {
-  return TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: z.toJSONSchema(t.input), annotations: t.annotations }))
+  // `annotations.title` repeats the title for clients that only read the older spot (MCP 2025-03-26).
+  return TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations } }))
+}
+
+/** An outputSchema WITHOUT `$schema`: MCP client SDKs COMPILE output schemas to validate structuredContent, and a validator
+ *  built for the default draft throws on the 2020-12 meta-schema URI zod writes. The keywords used here (type, properties,
+ *  required, items, anyOf, const) mean the same in every draft, so dropping the URI changes nothing a client checks. */
+function outputJsonSchema(schema: z.ZodType) {
+  const { $schema: _dialect, ...rest } = z.toJSONSchema(schema) as Record<string, unknown>
+  void _dialect
+  return rest
 }

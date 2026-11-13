@@ -94,7 +94,7 @@ const RDNS = SITE_NAME.split('.').reverse().join('.')
  * route module, and Next rejects non-handler exports), so route.test.ts asserts the two agree by
  * reading route.ts's source. Bump both together or the test fails.
  */
-const SERVER_VERSION = '1.0.0'
+const SERVER_VERSION = '1.0.1'
 
 /**
  * ⛔ THE THREE VALUES IN `SUPPORTED` IN route.ts, IN ITS ORDER, NEWEST FIRST. `initialize` echoes
