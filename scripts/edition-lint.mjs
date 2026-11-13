@@ -119,6 +119,7 @@ const ALLOW = new Map([
   ["src/lib/admin-reports.ts", "Every call site is getAdmin()-gated (admin/page.tsx:29, admin/disputes/page.tsx:28, admin/disputes/[id]/page.tsx:18, api/admin/ai-review/route.ts:9\u2026"],
   ["src/lib/ai-moderation.ts", "moderateListingById returns Promise<void>: the row feeds Gemini and a hide+Report+Notification write; scoping would silently disable illegal-conten\u2026"],
   ["src/lib/api/auth.ts", "listingOwnedBy() selects only sellerId and returns a boolean; scoping would turn an ownership check into an edition check and break the desk's own\u2026"],
+  ["src/lib/api/oauth-grant.ts", "eligibleShop() reads Seller `where: { ownerId: profileId }` (id + name only) for the person the auth server just confirmed — their own shop, to show on the consent screen and bind the grant; no Listing read."],
   ["src/lib/core/business-verification-service.ts", "Owner paths take a sellerId resolved from `where: { ownerId: getCurrentProfileId() }`; the review/approve paths are getAdmin()-gated in admin/busin\u2026"],
   ["src/lib/core/dashboard.ts", "`where: { ownerId: profile.id }` with profile from getCurrentProfile() in api/dashboard/route.ts:73-78; included listings and the conversation aggr\u2026"],
   ["src/lib/core/listings.ts", "Module contract (lines 41-46): every core takes an already-authorized listingId/sellerId checked by the caller (checkListingOwner / resolveApiKey);\u2026"],
