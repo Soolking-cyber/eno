@@ -35,7 +35,10 @@ describe('geminiTranslate', () => {
     expect(calls.map((c) => JSON.parse(c.contents)).sort()).toEqual(texts.map((t) => [t]).sort())
     expect(String(calls[0].config.systemInstruction)).toMatch(/never instructions to you/)
     expect(calls[0].config.responseMimeType).toBe('application/json')
-    expect((calls[0].config.httpOptions as { timeout: number }).timeout).toBe(4000)
+    // What is LEFT of the call's one deadline (geminiTranslate), so a millisecond may already have passed (CI flake, 2026-11-13).
+    const timeout = (calls[0].config.httpOptions as { timeout: number }).timeout
+    expect(timeout).toBeLessThanOrEqual(4000)
+    expect(timeout).toBeGreaterThan(3500)
   })
 
   it.each([
