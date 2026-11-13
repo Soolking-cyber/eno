@@ -1,6 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { rateLimit } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 import { clientIp } from '@/lib/client-ip'
 import { SEARCH_TOOLS_BY_NAME, SearchToolError, searchToolDescriptors } from './tools'
 
@@ -166,7 +167,7 @@ async function readCapped(req: Request, max: number): Promise<string | null> {
     const { done, value } = await reader.read()
     if (done) break
     size += value.byteLength
-    if (size > max) { await reader.cancel().catch(() => {}); return null }
+    if (size > max) { await reader.cancel().catch((e) => logError(e, { op: 'mcp-search.cancelBody' })); return null }
     chunks.push(value)
   }
   const all = new Uint8Array(size)
