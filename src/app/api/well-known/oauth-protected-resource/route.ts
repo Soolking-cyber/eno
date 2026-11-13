@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
 
 // ── RFC 9728 · OAuth 2.0 Protected Resource Metadata ──────────────────────────────
 // Served at /.well-known/oauth-protected-resource via a rewrite in next.config.ts (see the
@@ -22,13 +23,21 @@ import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+/**
+ * ⛔ ONE DOCUMENT PER RESOURCE (2026-11-13, "Sign in with eno"). RFC 9728 §3.3: the `resource` a client fetched metadata
+ * for must be the one it is told about. The MCP server's challenge points at
+ * /.well-known/oauth-protected-resource/api/mcp; next.config passes that suffix as `?path=`, and it answers the MCP
+ * server's resource. Any other suffix keeps the REST API's document, as before (the note above).
+ */
+export async function GET(req: Request) {
+  const path = new URL(req.url).searchParams.get('path') || ''
+  const mcp = path.replace(/^\/+|\/+$/g, '') === 'api/mcp'
   return NextResponse.json(
     {
       // Imported, never rebuilt — issuer and resource must agree with the `iss` we mint and with
       // the `servers[0].url` the OpenAPI spec publishes. Per edition:
       // https://eno.vn/api/v1 (marketplace) / https://www.eno.forum/api/v1 (services).
-      resource: `${OAUTH_ISSUER}/api/v1`,
+      resource: mcp ? MCP_RESOURCE : `${OAUTH_ISSUER}/api/v1`,
       // One authorization server: ourselves. Its metadata is the sibling document at
       // /.well-known/oauth-authorization-server on this same origin.
       authorization_servers: [OAUTH_ISSUER],

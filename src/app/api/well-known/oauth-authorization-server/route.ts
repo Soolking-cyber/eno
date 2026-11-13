@@ -56,18 +56,26 @@ export async function GET() {
       // not weakening the issuer.
       issuer: OAUTH_ISSUER,
       token_endpoint: `${OAUTH_ISSUER}/api/v1/oauth/token`,
-      // RFC 6749 §4.4 is the ONLY grant implemented; the route rejects anything else with
-      // `unsupported_grant_type` before it looks at credentials.
-      grant_types_supported: ['client_credentials'],
+      // client_credentials (RFC 6749 §4.4) for API keys, and since 2026-11-13 "Sign in with eno"
+      // (src/lib/api/oauth-grant.ts): authorization_code + PKCE S256 and rotating refresh tokens, for
+      // PUBLIC clients identified by a Client ID Metadata Document (an https client_id). The two CIMD
+      // values below are the pair Claude reads to prefer CIMD; no dynamic registration is offered.
+      authorization_endpoint: `${OAUTH_ISSUER}/oauth/authorize`,
+      grant_types_supported: ['client_credentials', 'authorization_code', 'refresh_token'],
+      code_challenge_methods_supported: ['S256'],
+      client_id_metadata_document_supported: true,
+      authorization_response_iss_parameter_supported: true,
+      response_modes_supported: ['query'],
       // readCredentials() tries HTTP Basic first and falls back to client_id/client_secret in the
       // form or JSON body — so BOTH methods are genuinely accepted, in that order of preference.
       // (client_id is optional in either method; when present it is compared to the key prefix in
       // constant time. There is no client_secret_jwt or private_key_jwt.)
-      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+      // `none`: the sign-in's public clients prove themselves with PKCE and their client_id binding.
+      token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
       // The scopes resolveApiKey actually enforces. A `scope` parameter on the token request may
       // NARROW a token to a subset of its key's scopes; it can never escalate (invalid_scope).
       scopes_supported: [...OAUTH_SCOPES],
-      response_types_supported: [],
+      response_types_supported: ['code'],
       // The tokens are HS256 JWTs, but they are OPAQUE to clients by contract — there is no JWKS
       // and no public key, because the signing key is symmetric and derived from a server secret.
       // Listing the alg here is informational only; do not add a `jwks_uri`, there is nothing

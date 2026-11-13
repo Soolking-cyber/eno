@@ -54,6 +54,8 @@ const RESERVED = new Set([
   'signin', 'signup', 'sitemap', 'sitemaps', 'teachers', 'terms', 'trust',
   // teacher.eno.vn is the teacher sign-up form (2026-09-30); a seller holding `teacher` would own that host.
   'teacher',
+  // /oauth/authorize is "Sign in with eno" (2026-11-13): a shop holding `oauth` would sit beside the consent screen.
+  'oauth',
   // The MCP servers live at /api/mcp and /api/mcp/search; `/mcp` is the address an assistant or a person guesses first,
   // and a shop holding it would answer there instead (plan review, 2026-11-13).
   'mcp',

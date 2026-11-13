@@ -1,4 +1,5 @@
 import 'server-only'
+import { eligibleShop, GRANT_MAX_AGE_SECONDS } from '@/lib/api/oauth-grant'
 import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
@@ -104,7 +105,7 @@ export type AuthChallenge = { error?: 'invalid_token' | 'insufficient_scope'; sc
  * partner; abuse stays bounded by revocability + the global breakers). Best-effort touches
  * lastUsedAt. NEVER throws.
  */
-export async function resolveApiKey(req: Request, requiredScope?: string): Promise<ApiAuthResult> {
+export async function resolveApiKey(req: Request, requiredScope?: string, opts: { resource?: string } = {}): Promise<ApiAuthResult> {
   const m = /^Bearer\s+(.+)$/i.exec((req.headers.get('authorization') || '').trim())
   const raw = (m?.[1] || '').trim()
 
@@ -113,6 +114,30 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   if (raw && looksLikeAccessToken(raw)) {
     const tok = verifyAccessToken(raw, Math.floor(Date.now() / 1000))
     if (!tok) return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or expired access token.', challenge: { error: 'invalid_token' } }
+    // ⛔ AUDIENCE (RFC 8707, MCP authorization): a token issued for one resource is refused at any other — a sign-in
+    // token minted for the MCP server is not a REST token. Tokens without `aud` (client_credentials) are unchanged.
+    if (tok.aud && tok.aud !== opts.resource) {
+      return { ok: false, status: 401, code: 'unauthorized', message: 'This access token was issued for another resource.', challenge: { error: 'invalid_token' } }
+    }
+    // A SIGN-IN token (it carries `aud`) is checked against its grant on EVERY call — not only when it is refreshed — so
+    // Disconnect in Dashboard › Developers, the 180-day limit, a suspension, leaving the business tier or losing the
+    // shop all end access at once rather than within the token's hour (review 2026-11-13).
+    if (tok.aud) {
+      let live = false
+      try {
+        const grant = await db.apiKey.findUnique({ where: { id: tok.keyId }, select: { revokedAt: true, createdAt: true, profileId: true, sellerId: true } })
+        if (grant && !grant.revokedAt && grant.createdAt.getTime() / 1000 + GRANT_MAX_AGE_SECONDS > Date.now() / 1000) {
+          const elig = await eligibleShop(grant.profileId)
+          live = elig.ok && elig.shop.id === grant.sellerId
+          // Revoked when a call sees it, not merely refused: restoring the account afterwards does not revive it (review).
+          // (A change nobody's call or refresh sees in between is caught at the next one, which then revokes.)
+          if (!live) await db.apiKey.updateMany({ where: { id: tok.keyId, revokedAt: null }, data: { revokedAt: new Date() } })
+        }
+      } catch {
+        return { ok: false, status: 503, code: 'unavailable', message: 'Authentication is temporarily unavailable.' }
+      }
+      if (!live) return { ok: false, status: 401, code: 'unauthorized', message: 'This connection has ended. Sign in again.', challenge: { error: 'invalid_token' } }
+    }
     if (requiredScope && !tok.scopes.has(requiredScope)) {
       return { ok: false, status: 403, code: 'insufficient_scope', message: `This token is missing the "${requiredScope}" scope.`, challenge: { error: 'insufficient_scope', scope: requiredScope } }
     }

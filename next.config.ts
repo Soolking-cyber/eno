@@ -1178,6 +1178,9 @@ const nextConfig: NextConfig = {
         { source: "/.well-known/oauth-authorization-server", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource" },
+        // The MCP server's own document (RFC 9728 §3.3: its resource is …/api/mcp), by an EXPLICIT rule with a fixed query
+        // — first, so it wins over the catch-all below, and no parameter substitution has to be trusted (review 2026-11-13).
+        { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/well-known/oauth-protected-resource?path=api/mcp" },
         { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/well-known/oauth-protected-resource" },
         /**
          * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PENDING_AT } from '@/lib/api/oauth-grant'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { generateApiKey } from '@/lib/api/auth'
@@ -71,7 +72,10 @@ export async function GET() {
   const who = await callerShop()
   if (!who) return NextResponse.json({ error: 'business_only', keys: [] }, { status: 403 })
   const keys = await db.apiKey.findMany({
-    where: { sellerId: who.sellerId },
+    // A "Sign in with eno" grant still waiting for its code (oauth-grant.ts PENDING_AT) is not a key yet: not listed.
+    // ⛔ OR-ed with `null` on purpose: SQL's NOT (revokedAt = epoch) is NULL — false — for a live key, so a bare NOT
+    // would hide every active key (review 2026-11-13).
+    where: { sellerId: who.sellerId, OR: [{ revokedAt: null }, { revokedAt: { not: PENDING_AT } }] },
     orderBy: { createdAt: 'desc' },
     select: { id: true, name: true, prefix: true, scopes: true, lastUsedAt: true, revokedAt: true, createdAt: true },
   })

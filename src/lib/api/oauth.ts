@@ -147,7 +147,15 @@ function sign(input: string, key: Buffer): string {
   return crypto.createHmac('sha256', key).update(input).digest('base64url')
 }
 
-export type AccessClaims = { keyId: string; sellerId: string; profileId: string; scopes: string[] }
+/** `aud`: set on tokens from the sign-in grant (oauth-grant.ts) — the one resource they were issued for (RFC 8707). A
+ *  client_credentials token has none and keeps working wherever it did. */
+export type AccessClaims = { keyId: string; sellerId: string; profileId: string; scopes: string[]; aud?: string }
+
+/** Whether access tokens can be signed right now — checked BEFORE a sign-in grant consumes a code or rotates a refresh
+ *  token, so a missing key never burns a credential it cannot replace (review 2026-11-13). */
+export function canSignAccessTokens(): boolean {
+  return signingKey() !== null
+}
 
 // Mint a signed access token for the resolved client. `now` is injected (seconds) so the
 // caller controls the clock. Returns null if no signing key is available.
@@ -159,12 +167,13 @@ export function issueAccessToken(c: AccessClaims, now: number): string | null {
     // ⚠️ MINT ONE ISSUER, ACCEPT TWO. Never widen this side to the legacy value.
     iss: OAUTH_ISSUER, sub: c.keyId, sid: c.sellerId, pid: c.profileId,
     scope: c.scopes.join(' '), iat: now, exp: now + TOKEN_TTL_SECONDS, jti: crypto.randomUUID(),
+    ...(c.aud ? { aud: c.aud } : {}),
   }))
   const data = `${header}.${payload}`
   return `${data}.${sign(data, key)}`
 }
 
-export type VerifiedToken = { keyId: string; sellerId: string; profileId: string; scopes: Set<string> }
+export type VerifiedToken = { keyId: string; sellerId: string; profileId: string; scopes: Set<string>; aud: string | null }
 
 // Verify an access token: shape, HMAC signature (constant-time), issuer, and expiry against
 // `now` (seconds). Returns the claims or null. Never throws.
@@ -191,6 +200,7 @@ export function verifyAccessToken(token: string, now: number): VerifiedToken | n
   return {
     keyId: claims.sub, sellerId: claims.sid, profileId: claims.pid,
     scopes: new Set(String(claims.scope || '').split(/\s+/).filter(Boolean)),
+    aud: typeof claims.aud === 'string' ? claims.aud : null,
   }
 }
 

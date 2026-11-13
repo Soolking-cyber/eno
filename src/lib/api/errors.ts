@@ -49,6 +49,7 @@ export type SharedApiErrorCode =
   | 'not_found'                         // 73
   | 'lease_lost'                        // 1
   | 'rate_limited'                      // 63
+  | 'access_denied'                     // "Sign in with eno": the person pressed Cancel (OAuth 2.1 §4.1.2.1), sent back to the app
   | 'reason_required'                  // admin Users console: revoke / erase need a written reason for the audit row
   | 'bad_request'                       // 25
   | 'forbidden'                         // 21
@@ -1106,6 +1107,7 @@ const ALL = [
   'engine_rejected',
   'guard_tripped',
   'source_failure',
+  'access_denied',
 ] as const satisfies readonly ApiErrorCode[]
 
 /**

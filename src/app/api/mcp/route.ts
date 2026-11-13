@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
+import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
 import { NextRequest } from 'next/server'
 import { resolveApiKey } from '@/lib/api/auth'
 import { rateLimit } from '@/lib/ratelimit'
@@ -11,6 +12,14 @@ import type { ApiAuth } from '@/lib/api/auth'
 
 /** Tool calls per key per minute, counted per call — not per HTTP request (security review item 13). */
 const MCP_TOOL_CALLS_PER_MIN = 120
+
+/**
+ * ⛔ THE CHALLENGE NOW POINTS AT THE SIGN-IN (2026-11-13). It was a bare `Bearer` on purpose while the only flow was
+ * client_credentials: `resource_metadata` makes an MCP client start an authorization-code sign-in, which nothing here
+ * could finish. With "Sign in with eno" (src/lib/api/oauth-grant.ts) it can, and Claude's and ChatGPT's connectors
+ * discover the authorization server only through this header (RFC 9728 §5.1, MCP authorization). An API key still works.
+ */
+const CHALLENGE = `Bearer resource_metadata="${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp", scope="listings:read listings:write analytics:read"`
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,6 +39,8 @@ const CORS = {
   'Access-Control-Allow-Origin': '*', // token-auth (no cookies) → safe to allow any origin for web MCP clients
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version',
+  // A browser-based MCP client must be able to READ the challenge to find the sign-in.
+  'Access-Control-Expose-Headers': 'WWW-Authenticate',
   'Access-Control-Max-Age': '86400',
 }
 
@@ -179,7 +190,8 @@ export async function POST(req: NextRequest) {
   let rateHeaders: Record<string, string> = {}
 
   if (hasCredential) {
-    const r = await resolveApiKey(req)
+    // `resource`: a sign-in token (aud = this server) is accepted here and nowhere else.
+    const r = await resolveApiKey(req, undefined, { resource: MCP_RESOURCE })
     if (!r.ok) {
       // ⛔ A BAD CREDENTIAL FALLS BACK TO THE IP LIMITER, AND IT HAS TO. `hasCredential` is mere
       // header presence, so without this `Authorization: Bearer junk` would skip the anonymous
@@ -191,7 +203,7 @@ export async function POST(req: NextRequest) {
         status: rl.success ? r.status : 429,
         headers: {
           'content-type': 'application/json',
-          'WWW-Authenticate': 'Bearer',
+          'WWW-Authenticate': CHALLENGE,
           ...(rl.success ? {} : { 'Retry-After': String(rl.resetSec) }),
           ...CORS,
         },
@@ -229,9 +241,9 @@ export async function POST(req: NextRequest) {
     // ⚠️ The caller's id is preserved when there is exactly one message, so a client can still
     // correlate the failure — `id: null` on a single request violates JSON-RPC 2.0. codex's catch.
     const id = !batch && messages[0] && typeof messages[0] === 'object' ? (messages[0].id ?? null) : null
-    return new Response(JSON.stringify(rpcError(id, -32001, 'This tool needs an API key. Send it as `Authorization: Bearer eno_live_…`.')), {
+    return new Response(JSON.stringify(rpcError(id, -32001, 'This tool needs you to sign in with your eno shop, or an API key sent as `Authorization: Bearer eno_live_…`.')), {
       status: 401,
-      headers: { 'content-type': 'application/json', 'WWW-Authenticate': 'Bearer', ...rateHeaders, ...CORS },
+      headers: { 'content-type': 'application/json', 'WWW-Authenticate': CHALLENGE, ...rateHeaders, ...CORS },
     })
   }
 

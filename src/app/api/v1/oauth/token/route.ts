@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
-import { issueAccessToken, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT } from '@/lib/api/oauth'
+import { canSignAccessTokens, issueAccessToken, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT } from '@/lib/api/oauth'
+import { GRANT_PREFIX, MCP_RESOURCE, redeemCode, rotateRefresh, type GrantResult } from '@/lib/api/oauth-grant'
 import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { rateLimitHeaders, tightestRate } from '@/lib/api/respond'
 import { clientIp } from '@/lib/client-ip'
@@ -66,8 +67,10 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* empty/invalid body → handled by missing-field checks below */ }
 
-  if (String(body.grant_type || '') !== 'client_credentials') {
-    return oauthError(400, 'unsupported_grant_type', 'Only grant_type=client_credentials is supported.')
+  const grantType = String(body.grant_type || '')
+  if (grantType === 'authorization_code' || grantType === 'refresh_token') return signInGrant(req, body, grantType)
+  if (grantType !== 'client_credentials') {
+    return oauthError(400, 'unsupported_grant_type', 'grant_type must be client_credentials, authorization_code or refresh_token.')
   }
 
   const { id: clientId, secret: clientSecret } = readCredentials(req, body)
@@ -106,6 +109,9 @@ export async function POST(req: NextRequest) {
     return oauthError(503, 'temporarily_unavailable', 'Authentication is temporarily unavailable.')
   }
   if (!key || key.revokedAt) return oauthError(401, 'invalid_client', 'Invalid or revoked client credentials.')
+  // A sign-in grant row is never a client_credentials client (its hash is a refresh token's, under another label —
+  // oauth-grant.ts): refused by name too, so no future hashing change can turn a refresh token into a key.
+  if (key.prefix.startsWith(GRANT_PREFIX)) return oauthError(401, 'invalid_client', 'Invalid or revoked client credentials.')
   // If a client_id is supplied it must match the key's prefix (constant-time).
   if (clientId) {
     const a = Buffer.from(clientId), b = Buffer.from(key.prefix)
@@ -131,6 +137,40 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(
     { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: granted.join(' ') },
+    { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache', ...rateLimitHeaders(tokenRate) } },
+  )
+}
+
+/**
+ * The sign-in grants (oauth-grant.ts): a PUBLIC client (token_endpoint_auth_method "none") proves itself with PKCE and its
+ * client_id binding, never a secret. Rate-limited per IP and per client like client_credentials. The access token is
+ * the same 1-hour HS256 token, with `aud` = the MCP server; the refresh token rotates on every use.
+ */
+async function signInGrant(req: NextRequest, body: Record<string, string>, grantType: 'authorization_code' | 'refresh_token'): Promise<NextResponse> {
+  const clientId = String(body.client_id || '')
+  if (!clientId) return oauthError(400, 'invalid_request', 'client_id is required.')
+  // Per IP only: a public client's id is published in its metadata document, so a per-client bucket could be drained
+  // by strangers to lock that app's real users out (review 2026-11-13). Every credential here is single-use anyway.
+  const tokenRate = await rateLimit('oauth-token', clientIp(req), TOKEN_RATE_PER_IP, '1 m')
+  if (!tokenRate.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.', tokenRate)
+  const now = Math.floor(Date.now() / 1000)
+  // Before any credential is consumed: a code or refresh token is spent only if the answer can actually be signed.
+  if (!canSignAccessTokens()) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.', tokenRate)
+  let result: GrantResult
+  try {
+    result = grantType === 'authorization_code'
+      ? await redeemCode({ code: String(body.code || ''), verifier: String(body.code_verifier || ''), redirectUri: String(body.redirect_uri || ''), clientId, resource: body.resource ? String(body.resource) : undefined }, now)
+      : await rotateRefresh({ refreshToken: String(body.refresh_token || ''), clientId, scope: body.scope ? String(body.scope) : undefined, resource: body.resource ? String(body.resource) : undefined }, now)
+  } catch (e) {
+    logError(e, { op: `oauth.${grantType}` })
+    return oauthError(503, 'temporarily_unavailable', 'The sign-in service is temporarily unavailable.', tokenRate)
+  }
+  if (!result.ok) return oauthError(400, result.error, result.description, tokenRate)
+  const g = result.grant
+  const token = issueAccessToken({ keyId: g.keyId, sellerId: g.sellerId, profileId: g.profileId, scopes: g.scopes, aud: MCP_RESOURCE }, now)
+  if (!token) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.', tokenRate)
+  return NextResponse.json(
+    { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: g.scopes.join(' '), refresh_token: g.refreshToken },
     { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache', ...rateLimitHeaders(tokenRate) } },
   )
 }
