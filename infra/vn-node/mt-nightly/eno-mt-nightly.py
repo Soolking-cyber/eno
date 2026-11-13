@@ -21,6 +21,12 @@ WHAT A RUN DOES (eno-mt-nightly.timer starts it at 01:00 ICT; eno.vn's quietest 
      (cache-handler.cjs next_cache_tag, `eno:isrtag:_N_T_/{en,vi}/listings/<id>`);
   5. stops at the deadline (07:00 ICT), stops the container, logs the night's numbers.
 
+⛔ IT PAUSES WHILE THE BOX BUILDS (2026-11-14 01:10-01:30, reported by mk1e3-26 and mk1e3-71): a deploy build on top of
+eno-gemma filled RAM and swap (4095/4095 MB, load 270), and uncached eno.vn answers took ~90 s until the build was aborted.
+While a deploy or a docker build runs, or memory runs low, the run stops the container at once (its ~5 GB back), puts the
+strings in flight back in the queue (no strike, no error), and starts the model again once no build has been seen for a
+minute and 8.5 GB is available. It stops for the night at the deadline or the hold file, as before.
+
 ⚠️ A refused answer (empty, still in the wrong script, far too long or short) is not written: the old row stays and the
 next night asks again. A name returned unchanged IS written (a teacher's name is not translated).
 ⚠️ Rollback: `delete from "Translation" where id like 'gemma1_%'` removes this model's rows; the pages then translate
@@ -28,7 +34,7 @@ the strings again on their next view through the live chain.
 
 Usage: eno-mt-nightly.py [--until HH:MM] [--limit N] [--dry-run] [--targets ko,ja] [--no-container] [--llama-url URL] [--cpus N]
 """
-import argparse, concurrent.futures as cf, datetime as dt, hashlib, json, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, collections, concurrent.futures as cf, datetime as dt, hashlib, json, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 MODEL_FILE = '/opt/eno/models/gemma-4-E4B-it-Q4_0.gguf'
 IMAGE = 'ghcr.io/ggml-org/llama.cpp:server'
@@ -41,6 +47,25 @@ ID_PREFIX = 'gemma1_'
 STATE = '/var/lib/eno-mt-nightly/refused.json'
 # The unit will not start while it exists, and a running night stops at its next batch (a maintenance window needs the memory).
 HOLD = '/opt/eno/mt-nightly.hold'
+# A build the model must not run beside (module docstring), matched against full command lines (pgrep -f, which never
+# matches itself):
+#  - a SHELL RUNNING eno-deploy.sh / eno-build.sh (not `less eno-deploy.sh` or `tail -f …`, which would hold the night);
+#  - docker's BUILD SUBCOMMANDS, after any global options: `docker build`, `docker --context y build`, `docker buildx build`,
+#    `docker image build`, `docker compose -f x build`, `docker compose up --build`, `docker buildx bake`
+#    (not `docker builder prune`, not `docker logs -f build`);
+#  - next/npm/pnpm/yarn building, on the host or in a container (pgrep sees both).
+BUILD_RE = (r'^([^ ]*/)?(ba)?sh( -[^ ]+)* [^ ]*eno-(deploy|build)\.sh'
+            r'|^([^ ]*/)?docker( -[^ ]+( [^ -][^ ]*)?)* (buildx( -[^ ]+( [^ -][^ ]*)?)* |image |compose( -[^ ]+( [^ -][^ ]*)?)* )?build( |$)'
+            r'|^([^ ]*/)?docker( -[^ ]+( [^ -][^ ]*)?)* (compose( [^ ]+)* up( [^ ]+)* --build( |$)|buildx( [^ ]+)* bake( |$))'
+            r'|(^|/)(next|npm|pnpm|yarn)( [^ ]+)* build( |$)')
+# Measured on the box 2026-11-14 01:40: eno-gemma holds 6.1 GB, and 3.75 GB stayed available beside it (~9.9 GB without it).
+PAUSE_BELOW_GB = 1.5   # available while the model runs: below this the night pauses, whatever the cause
+# Before the model starts or starts again: its 6.1 GB + PAUSE_BELOW_GB + a margin — at less, loading it would cross the pause
+# line at once and the night would stop and start forever (commit review, 2026-11-14).
+RESUME_AT_GB = 8.5
+MEMORY_PAUSES_PER_NIGHT = 3  # memory itself ran low this often (no build to wait out): the night ends, the box needs it
+BUILD_PAUSES_PER_NIGHT = 6   # each pause reloads a 6 GB model: past this (a build loop, a false match) the night ends
+CHECK_EVERY_S = 15     # the build/memory check runs at least this often, finished requests or not
 # Most-read first (src/lib/translate.ts EAGER_WARM_LANGS: zh-Hans, ko, ja, ru), then the rest.
 TARGETS = ['zh-Hans', 'ko', 'ja', 'ru', 'fr', 'th', 'ms', 'km', 'hi']
 NAME = {'zh-Hans': 'Simplified Chinese', 'ko': 'Korean', 'ja': 'Japanese', 'ru': 'Russian', 'fr': 'French', 'th': 'Thai',
@@ -163,7 +188,54 @@ def start_container(cpus='8'):
 
 
 def stop_container():
-    subprocess.run(['docker', 'stop', CONTAINER], capture_output=True)
+    # Bounded, and a stop that failed (a daemon error under load) must not leave the model holding its memory: whatever is
+    # left of the container is removed outright (start_container always runs a fresh one).
+    for cmd in (['docker', 'stop', '-t', '10', CONTAINER], ['docker', 'rm', '-f', CONTAINER]):
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            log(f'{" ".join(cmd[:2])} timed out after 60 s')
+
+
+def building():
+    # pgrep: 0 = a match, 1 = none; anything else (a pattern it rejects, no pgrep) must not read as "no build" — fail closed.
+    try:
+        rc = subprocess.run(['pgrep', '-f', BUILD_RE], capture_output=True).returncode
+    except OSError as e:
+        rc = f'not run ({e})'
+    if rc not in (0, 1) and not PGREP_BROKEN:
+        PGREP_BROKEN.append(rc)
+        log(f'pgrep {rc}: every check now reads as a build running (logged once)')
+    return rc != 1
+
+
+PGREP_BROKEN = []
+
+
+def available_gb():
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    return int(line.split()[1]) / 1048576
+    except OSError:
+        pass
+    # On the box an unreadable /proc/meminfo must not read as plenty (fail closed); elsewhere (a local test) there is no signal.
+    return 0.0 if sys.platform.startswith('linux') else float('inf')
+
+
+def wait_until_clear(deadline):
+    """Paused: True once no build has been seen for a minute and RESUME_AT_GB is available; False at the deadline or the hold."""
+    clear_since = None
+    while dt.datetime.now(ICT) < deadline and not os.path.exists(HOLD):
+        if building() or available_gb() < RESUME_AT_GB:
+            clear_since = None
+        elif clear_since is None:
+            clear_since = time.time()
+        elif time.time() - clear_since >= 60:
+            return True
+        time.sleep(15)
+    return False
 
 
 def q(s):
@@ -287,88 +359,136 @@ def main():
     if not todo:
         return
     if not a.no_container:
+        if building() or available_gb() < RESUME_AT_GB:
+            log(f'a build is running or memory is low ({available_gb():.1f} GB available): waiting before the model starts')
+            if not wait_until_clear(deadline):
+                log('deadline or hold reached while waiting: nothing done tonight')
+                return
         start_container(a.cpus)
         log('llama.cpp server up')
     ok, bad, tokens, t0, pending = 0, 0, 0, time.time(), []
     errors_in_row = 0
+    pauses = memory_pauses = 0
     try:
         with cf.ThreadPoolExecutor(WORKERS) as ex:
-            it = iter(todo)
+            queue = collections.deque(todo)
             futures = {}
+            state = {'paused': False, 'why': ''}
+            def pause_if_needed():
+                """True when paused. Stops the model NOW: its memory is what the build needs; the requests in flight fail at
+                once and go back in the queue (below)."""
+                if not state['paused'] and not a.no_container:
+                    # The hold and the deadline stop the model at once too, not when stalled requests finally end.
+                    why = ('hold' if os.path.exists(HOLD) else 'deadline' if dt.datetime.now(ICT) >= deadline
+                           else 'build' if building() else 'memory' if available_gb() < PAUSE_BELOW_GB else '')
+                    if why:
+                        state['paused'], state['why'] = True, why
+                        stop_container()
+                        log(f'pausing ({why}: {available_gb():.1f} GB available); model stopped')
+                return state['paused']
             def submit():
-                if dt.datetime.now(ICT) >= deadline or os.path.exists(HOLD):
+                if pause_if_needed() or dt.datetime.now(ICT) >= deadline or os.path.exists(HOLD):
                     return False
-                nxt = next(it, None)
-                if nxt is None:
+                if not queue:
                     return False
-                h, t = nxt
+                h, t = queue.popleft()
                 futures[ex.submit(ask, a.llama_url, sources[h].get('pivot', sources[h]['text']), t, 600, a.model)] = (h, t)
                 return True
-            for _ in range(WORKERS * 2):
-                if not submit():
-                    break
-            while futures:
-                fin, _ = cf.wait(list(futures), return_when=cf.FIRST_COMPLETED)
-                for f in fin:
-                    h, t = futures.pop(f)
-                    try:
-                        out, ntok, finish = f.result()
-                        tokens += ntok
-                        why = refused(sources[h].get('pivot', sources[h]['text']), out, t, finish)
-                        errors_in_row = 0
-                    except urllib.error.HTTPError as e:
-                        body = ''
-                        try:
-                            body = e.read().decode('utf-8', 'replace').lower()
-                        except Exception:
-                            pass
-                        if e.code == 400 and 'context' in body:
-                            # The STRING's failure (too long for a slot's context): a strike. Any other 4xx (a newer image refusing a
-                            # field, say) is the server's, and counts toward the outage stop like a 5xx.
-                            why = 'too long for the context'
-                            errors_in_row = 0
-                        else:
-                            errors_in_row += 1
-                            bad += 1
-                            if errors_in_row >= 10:
-                                raise RuntimeError(f'10 requests in a row failed (HTTP {e.code}): the model server is down')
-                            submit()
+            while True:
+                for _ in range(WORKERS * 2):
+                    if not submit():
+                        break
+                while futures:
+                    # A timed wait, so a build that starts while every request is slow (a long Khmer description on a starved
+                    # CPU) is seen within CHECK_EVERY_S, not when a request finally ends (commit review, 2026-11-14).
+                    fin, _ = cf.wait(list(futures), timeout=CHECK_EVERY_S, return_when=cf.FIRST_COMPLETED)
+                    pause_if_needed()  # every pass, finished requests or not
+                    for f in fin:
+                        h, t = futures.pop(f)
+                        if state['paused'] and f.exception() is not None:
+                            # It failed because the pause stopped the model: its turn comes again, nothing counted.
+                            queue.appendleft((h, t))
                             continue
-                    except (TimeoutError, OSError) as e:
-                        if isinstance(e, TimeoutError) or 'timed out' in str(e):
-                            # A string that outlasts its request (a long description into Khmer on CPU): the string's, a strike.
-                            why = 'timed out'
+                        try:
+                            out, ntok, finish = f.result()
+                            tokens += ntok
+                            why = refused(sources[h].get('pivot', sources[h]['text']), out, t, finish)
                             errors_in_row = 0
-                        else:
-                            # Connection refused / reset: the SERVER's failure, no strike (a dead container would otherwise strike every
-                            # string in seconds, and two such nights would skip the whole catalogue for good).
+                        except urllib.error.HTTPError as e:
+                            body = ''
+                            try:
+                                body = e.read().decode('utf-8', 'replace').lower()
+                            except Exception:
+                                pass
+                            if e.code == 400 and 'context' in body:
+                                # The STRING's failure (too long for a slot's context): a strike. Any other 4xx (a newer image refusing a
+                                # field, say) is the server's, and counts toward the outage stop like a 5xx.
+                                why = 'too long for the context'
+                                errors_in_row = 0
+                            else:
+                                errors_in_row += 1
+                                bad += 1
+                                if errors_in_row >= 10:
+                                    raise RuntimeError(f'10 requests in a row failed (HTTP {e.code}): the model server is down')
+                                submit()
+                                continue
+                        except (TimeoutError, OSError) as e:
+                            if isinstance(e, TimeoutError) or 'timed out' in str(e):
+                                # A string that outlasts its request (a long description into Khmer on CPU): the string's, a strike.
+                                why = 'timed out'
+                                errors_in_row = 0
+                            else:
+                                # Connection refused / reset: the SERVER's failure, no strike (a dead container would otherwise strike every
+                                # string in seconds, and two such nights would skip the whole catalogue for good).
+                                errors_in_row += 1
+                                bad += 1
+                                if errors_in_row >= 10:
+                                    raise RuntimeError(f'10 requests in a row failed ({type(e).__name__}): the model server is down')
+                                submit()
+                                continue
+                        except Exception as e:
                             errors_in_row += 1
                             bad += 1
                             if errors_in_row >= 10:
                                 raise RuntimeError(f'10 requests in a row failed ({type(e).__name__}): the model server is down')
                             submit()
                             continue
-                    except Exception as e:
-                        errors_in_row += 1
-                        bad += 1
-                        if errors_in_row >= 10:
-                            raise RuntimeError(f'10 requests in a row failed ({type(e).__name__}): the model server is down')
+                        if why:
+                            bad += 1
+                            strikes[f'{h}|{t}'] = strikes.get(f'{h}|{t}', 0) + 1
+                            if bad <= 20 or a.dry_run:
+                                log(f'  refused [{t}] {why}: {locals().get("out", "")[:120]!r}')
+                        else:
+                            ok += 1
+                            pending.append((h, t, out, sources[h]['listings']))
+                        if len(pending) >= 25:
+                            batch, pending = pending, []
+                            safe_write(batch, a.dry_run)
+                        if (ok + bad) % 100 == 0:
+                            log(f'{ok} written, {bad} refused, {tokens / max(time.time() - t0, 1):.1f} tok/s')
                         submit()
-                        continue
-                    if why:
-                        bad += 1
-                        strikes[f'{h}|{t}'] = strikes.get(f'{h}|{t}', 0) + 1
-                        if bad <= 20 or a.dry_run:
-                            log(f'  refused [{t}] {why}: {locals().get("out", "")[:120]!r}')
-                    else:
-                        ok += 1
-                        pending.append((h, t, out, sources[h]['listings']))
-                    if len(pending) >= 25:
-                        batch, pending = pending, []
-                        safe_write(batch, a.dry_run)
-                    if (ok + bad) % 100 == 0:
-                        log(f'{ok} written, {bad} refused, {tokens / max(time.time() - t0, 1):.1f} tok/s')
-                    submit()
+                if not state['paused'] or state['why'] in ('hold', 'deadline'):
+                    break
+                if not queue:
+                    break  # nothing left to translate: no reason to load the model again
+                # What is done is written before a wait that can last hours.
+                batch, pending = pending, []
+                safe_write(batch, a.dry_run)
+                pauses += 1
+                if state['why'] == 'memory':
+                    memory_pauses += 1
+                    if memory_pauses >= MEMORY_PAUSES_PER_NIGHT:
+                        log(f'memory ran low {memory_pauses} times tonight with no build running: stopping for the night')
+                        break
+                elif pauses - memory_pauses >= BUILD_PAUSES_PER_NIGHT:
+                    log(f'{pauses - memory_pauses} build pauses tonight: stopping for the night (a build loop, or a false match?)')
+                    break
+                if not wait_until_clear(deadline):
+                    log('deadline or hold reached while paused')
+                    break
+                start_container(a.cpus)
+                log('resumed: no build for a minute and memory is back; llama.cpp server up')
+                state['paused'] = False
     finally:
         batch, pending = pending, []
         safe_write(batch, a.dry_run)
@@ -380,7 +500,7 @@ def main():
                 log(f'could not save {STATE}: {e}')
         if not a.no_container:
             stop_container()
-    log(f'DONE {ok} written, {bad} refused, {len(todo) - ok - bad} left for tomorrow, {tokens} tokens in {time.time() - t0:.0f}s ({tokens / max(time.time() - t0, 1):.1f} tok/s)')
+    log(f'DONE {ok} written, {bad} refused, {pauses} pause(s) ({memory_pauses} for memory), {len(todo) - ok - bad} left for tomorrow, {tokens} tokens in {time.time() - t0:.0f}s ({tokens / max(time.time() - t0, 1):.1f} tok/s)')
 
 
 if __name__ == '__main__':
