@@ -38,8 +38,6 @@ function mockProofOf(t: { b: string | null; d: string | null; c: readonly string
   const CERT_RANK = ['delta', 'celta', 'pgce', 'tefl', 'tesol', 'teaching-license', 'tkt']
   const BAND_SHORT: Record<string, string> = isVi ? { '1-3-years': '1–3 năm', '3-5-years': '3–5 năm', '5-10-years': '5–10 năm', 'over-10-years': '10 năm trở lên' }
     : { '1-3-years': '1–3 yrs', '3-5-years': '3–5 yrs', '5-10-years': '5–10 yrs', 'over-10-years': '10+ yrs' }
-  const BAND_ALONE: Record<string, string> = isVi ? { '1-3-years': 'Dạy 1–3 năm', '3-5-years': 'Dạy 3–5 năm', '5-10-years': 'Dạy 5–10 năm', 'over-10-years': 'Dạy 10 năm trở lên' }
-    : { '1-3-years': '1–3 years teaching', '3-5-years': '3–5 years teaching', '5-10-years': '5–10 years teaching', 'over-10-years': '10+ years teaching' }
   const DEGREE: Record<string, string> = isVi ? { phd: 'Tiến sĩ', master: 'Thạc sĩ', bachelor: 'Cử nhân' } : { phd: 'PhD', master: "Master's", bachelor: "Bachelor's" }
   const MAX = 22
   const certs = CERT_RANK.filter((c) => t.c.includes(c))
@@ -51,9 +49,10 @@ function mockProofOf(t: { b: string | null; d: string | null; c: readonly string
   if (certs[1]) facts.push(CERT[certs[1]])
   if (t.d === 'bachelor') facts.push(DEGREE[t.d])
   if (!facts.length) return null
-  if (facts.length === 1) return band ? BAND_ALONE[band] : facts[0]
+  // Batch 86 (2026-11-13): a band alone reads short too, as beside a certificate — the one change from the tested mock.
+  if (facts.length === 1) return facts[0]
   const pair = `${facts[0]} · ${facts[1]}`
-  return pair.length <= MAX ? pair : band && facts[0] === BAND_SHORT[band] ? BAND_ALONE[band] : facts[0]
+  return pair.length <= MAX ? pair : facts[0]
 }
 
 describe('the vocabulary is complete, and its labels are the taxonomy\'s own', () => {
@@ -86,14 +85,16 @@ describe('the vocabulary is complete, and its labels are the taxonomy\'s own', (
     for (const o of TEACHER_OPTIONS.cert) if (/^[A-Z]+$/.test(o.label)) expect(o.labelVi, o.value).toBe(o.label)
   })
 
-  it('a band beside another fact prints the experience facet\'s label ("5–10 yrs"); alone, the profile\'s phrase', () => {
+  it('a band prints the experience facet\'s label ("5–10 yrs"), beside another fact or alone (batch 86)', () => {
     for (const o of TEACHER_OPTIONS.experience) {
       if (teacherProofLine([o.value], en) === null) continue
       // TKT is the shortest certificate name, so the pair always fits and the band's own label is readable.
       expect(teacherProofLine(['tkt', o.value], en), o.value).toBe(`TKT · ${o.label}`)
       expect(teacherProofLine(['tkt', o.value], vi), o.value).toBe(`TKT · ${o.labelVi}`)
-      expect(teacherProofLine([o.value], en), o.value).toBe(EXPERIENCE_BAND_PHRASE[o.value].en)
-      expect(teacherProofLine([o.value], vi), o.value).toBe(EXPERIENCE_BAND_PHRASE[o.value].vi)
+      expect(teacherProofLine([o.value], en), o.value).toBe(o.label)
+      expect(teacherProofLine([o.value], vi), o.value).toBe(o.labelVi)
+      // …while the profile keeps its phrase ("5–10 years teaching"), which this module still exports for it.
+      expect(EXPERIENCE_BAND_PHRASE[o.value].en).toMatch(/years teaching$/)
     }
   })
 })
@@ -142,13 +143,13 @@ describe('teacherProofFacts — the server projection', () => {
   })
 })
 
-describe('parity with the tested mock (variants6/teacher-proof.js proofOf)', () => {
+describe('parity with the tested mock (variants6/teacher-proof.js proofOf; a lone band short since batch 86)', () => {
   // band / degree / certs → en | vi. The first 34 are every distinct shape among the mock's 49 teachers; the last 10 are
   // edge cases. `tl` = teaching-license, `other` = other-cert, `–` = not answered.
   const TABLE = `
-1-3 / – / –                              → 1–3 years teaching | Dạy 1–3 năm
+1-3 / – / –                              → 1–3 yrs | 1–3 năm
 over-10 / bachelor / tesol               → TESOL · 10+ yrs | TESOL · 10 năm trở lên
-3-5 / – / –                              → 3–5 years teaching | Dạy 3–5 năm
+3-5 / – / –                              → 3–5 yrs | 3–5 năm
 over-10 / master / tefl,tesol            → TEFL · 10+ yrs | TEFL · 10 năm trở lên
 5-10 / bachelor / tefl                   → TEFL · 5–10 yrs | TEFL · 5–10 năm
 over-10 / bachelor / tefl                → TEFL · 10+ yrs | TEFL · 10 năm trở lên
@@ -157,11 +158,11 @@ over-10 / master / tefl                  → TEFL · 10+ yrs | TEFL · 10 năm t
 3-5 / bachelor / tesol                   → TESOL · 3–5 yrs | TESOL · 3–5 năm
 5-10 / master / tefl                     → TEFL · 5–10 yrs | TEFL · 5–10 năm
 under-1 / no-degree / –                  → null | null
-1-3 / associate / other                  → 1–3 years teaching | Dạy 1–3 năm
+1-3 / associate / other                  → 1–3 yrs | 1–3 năm
 under-1 / associate / –                  → null | null
 1-3 / bachelor / tesol                   → TESOL · 1–3 yrs | TESOL · 1–3 năm
 under-1 / no-degree / tefl               → TEFL | TEFL
-over-10 / – / –                          → 10+ years teaching | Dạy 10 năm trở lên
+over-10 / – / –                          → 10+ yrs | 10 năm trở lên
 under-1 / master / tesol                 → TESOL · Master's | TESOL · Thạc sĩ
 1-3 / bachelor / pgce,tefl               → PGCE · 1–3 yrs | PGCE · 1–3 năm
 1-3 / bachelor / tefl                    → TEFL · 1–3 yrs | TEFL · 1–3 năm
@@ -178,9 +179,9 @@ over-10 / no-degree / tefl               → TEFL · 10+ yrs | TEFL · 10 năm t
 over-10 / bachelor / tefl,tesol          → TEFL · 10+ yrs | TEFL · 10 năm trở lên
 3-5 / bachelor / other,tl,tefl,tesol     → TEFL · 3–5 yrs | TEFL · 3–5 năm
 1-3 / – / tefl,tesol                     → TEFL · 1–3 yrs | TEFL · 1–3 năm
-5-10 / – / –                             → 5–10 years teaching | Dạy 5–10 năm
+5-10 / – / –                             → 5–10 yrs | 5–10 năm
 5-10 / bachelor / pgce,tesol             → PGCE · 5–10 yrs | PGCE · 5–10 năm
-over-10 / master / –                     → 10+ yrs · Master's | Dạy 10 năm trở lên
+over-10 / master / –                     → 10+ yrs · Master's | 10 năm trở lên
 5-10 / phd / –                           → 5–10 yrs · PhD | 5–10 năm · Tiến sĩ
 – / bachelor / tkt                       → TKT · Bachelor's | TKT · Cử nhân
 3-5 / bachelor / –                       → 3–5 yrs · Bachelor's | 3–5 năm · Cử nhân
@@ -259,12 +260,12 @@ describe('exhaustive: 6 bands × 6 degrees × 256 certificate sets, en and vi', 
 })
 
 describe('teacherProofLine — what reaches the card', () => {
-  it('a machine-translated language whose words run long: the pair falls back to the first fact, or the band phrase', () => {
+  it('a machine-translated language whose words run long: the pair falls back to the first fact', () => {
     const long = (e: string) => `${e} (a much longer translation)`
     // A certificate leads: its name is never translated, and it stands alone.
     expect(teacherProofLine(['tefl', '5-10-years'], long)).toBe('TEFL')
-    // A band leads: the profile's phrase, translated — the card's `truncate` cuts it if it must.
-    expect(teacherProofLine(['5-10-years', 'master'], long)).toBe(long('5–10 years teaching'))
+    // A band leads: its short label, translated (batch 86) — the card's `truncate` cuts it if it must.
+    expect(teacherProofLine(['5-10-years', 'master'], long)).toBe(long('5–10 yrs'))
     expect(teacherProofLine(['teaching-license', 'tkt'], long)).toBe(long('Teaching licence'))
   })
 

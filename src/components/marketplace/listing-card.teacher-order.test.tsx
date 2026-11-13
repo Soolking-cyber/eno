@@ -219,8 +219,8 @@ describe('ListingCard — a TEACHER card\'s proof line (owner, 2026-11-12, "buil
     expect(p.textContent).toBe('CELTA · 5–10 năm')
   })
 
-  it('a band alone reads as the profile\'s phrase', () => {
-    expect(proofOf(card({ teacherProof: ['5-10-years'] }))[0].textContent).toBe('5–10 years teaching')
+  it('a band alone reads short, like the card beside it (batch 86)', () => {
+    expect(proofOf(card({ teacherProof: ['5-10-years'] }))[0].textContent).toBe('5–10 yrs')
   })
 
   it('⛔ RESERVED when there is nothing to say — an old cached payload (no key): a real U+00A0, aria-hidden, same place', () => {

@@ -4,7 +4,7 @@
  * strongest facts the teacher states about themselves, at most PROOF_MAX_CHARS: the best certificate (DELTA > CELTA >
  * PGCE > TEFL > TESOL > Teaching licence > TKT; "Other" never), the experience band from one year up (the experience
  * facet's own labels, "5–10 yrs"), a PhD or Master's, a second certificate, a Bachelor's — in that order. A band alone
- * reads as the profile's own phrase ("5–10 years teaching", EXPERIENCE_BAND_PHRASE). Under a year, no degree and an
+ * reads the same short label since batch 86 ("5–10 yrs"; the profile keeps its phrase, EXPERIENCE_BAND_PHRASE). Under a year, no degree and an
  * associate degree are not proof (NOT_PROOF) and are never printed.
  * ⛔ SELF-STATED: no document is ever uploaded (profile.ts — "QUALIFICATIONS ARE DATA, NEVER DOCUMENTS"), so the line
  * carries no tick and never says "verified".
@@ -106,10 +106,12 @@ export function teacherProofLine(facts: unknown, tr: (en: string, vi?: string) =
     })
     .slice(0, 2)
   if (!known.length) return null
-  // A band standing alone reads as the profile's phrase ("5–10 years teaching"), never the bare facet label.
-  const alone = (b: string) => tr(EXPERIENCE_BAND_PHRASE[b].en, EXPERIENCE_BAND_PHRASE[b].vi)
+  // ⛔ A BAND STANDING ALONE READS SHORT TOO — "1–3 yrs" / "1–3 năm", as beside a certificate (UI climb batch 86, 2026-11-13;
+  // blind A/B, Opus 7.20 → 7.26; owner, 2026-11-13: "minimal wording only whats necessary"). It read the profile's phrase
+  // ("1–3 years teaching" / "Dạy 1–3 năm"), so one card in a row said it the long way and its neighbour the short way. The
+  // profile keeps the phrase (EXPERIENCE_BAND_PHRASE, teacher-profile-view.tsx), where it stands in a sentence of facts.
   const first = known[0]
-  if (known.length === 1) return has(BAND_SHORT, first.slug) ? alone(first.slug) : first.text
+  if (known.length === 1) return first.text
   const pair = `${first.text} · ${known[1].text}`
-  return pair.length <= PROOF_MAX_CHARS ? pair : has(BAND_SHORT, first.slug) ? alone(first.slug) : first.text
+  return pair.length <= PROOF_MAX_CHARS ? pair : first.text
 }

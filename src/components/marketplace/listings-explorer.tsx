@@ -4174,7 +4174,11 @@ export function ListingsExplorer({
      * phrase in the box (which re-infers the same district).
      */
     for (const c of queryChips(debouncedQuery, serverInferredDistrict, lang)) {
-      if (c.kind === 'text') chips.push({ label: `"${c.text}"`, onClear: () => setQuery(c.clearTo) })
+      // ⛔ THE WORDS' CHIP IS NOT DRAWN (UI climb batch 85, 2026-11-13; blind A/B, Opus 6.77 → 6.87; owner, 2026-11-13: "reduce
+      // lines … only whats necessary"): the header's search box already shows them and clears them, so `"iphone" ✕` was the
+      // same fact twice, and on a phone it pushed Price and Area off the row. `pill: true` is this list's "on screen
+      // elsewhere" (O-14, above): Clear all, the empty state's relax list and the save-search count still see it.
+      if (c.kind === 'text') chips.push({ label: `"${c.text}"`, onClear: () => setQuery(c.clearTo), pill: true })
       else {
         const d = DISTRICTS.find((x) => x.slug === c.slug)
         if (d) { const label = lang === 'vi' ? d.name : d.nameEn; chips.push({ label, onClear: () => setQuery(c.clearTo), pill: label === areaPillLabel }) }

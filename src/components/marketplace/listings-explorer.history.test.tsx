@@ -249,14 +249,16 @@ describe('a committed view change is a history entry Back undoes (NAV-1)', () =>
     await waitFor(() => expect(cardIds()).toEqual(HONDA.map((l) => l.id)))
   })
 
-  it('removing a chip is a step: Back puts the filter back instead of landing on a twin of the same URL', async () => {
+  it('clearing the words is a step: Back puts them back instead of landing on a twin of the same URL', async () => {
     freshTop('/')
     mount(client(), ALL.slice(0, 12))
     await waitFor(() => expect(cardIds()).toHaveLength(12))
     act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: 'honda' } })) })
     await waitFor(() => expect(cardIds()).toEqual(HONDA.map((l) => l.id)))
+    // Batch 85 (2026-11-13): the words' chip is not drawn — the header's search box shows and clears them.
+    expect(screen.queryByRole('button', { name: 'Remove "honda"' })).toBeNull()
     const before = window.history.length
-    act(() => { screen.getByRole('button', { name: 'Remove "honda"' }).click() })
+    act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: '' } })) })
     await waitFor(() => expect(window.location.search).toBe(''))
     expect(window.history.length).toBe(before + 1)
     back()
