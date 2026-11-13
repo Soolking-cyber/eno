@@ -3,6 +3,10 @@ Description=eno · re-translate live listings into the nine other languages with
 Wants=docker.service
 After=docker.service
 
+# ⛔ HOLD: `touch /opt/eno/mt-nightly.hold` skips the night (a maintenance window that needs the box's memory — mk1e3-71's
+# key rotation, 2026-11-13); a run already going stops at its next batch. `rm` it to resume.
+ConditionPathExists=!/opt/eno/mt-nightly.hold
+
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 /opt/eno/bin/eno-mt-nightly.py --until 07:00

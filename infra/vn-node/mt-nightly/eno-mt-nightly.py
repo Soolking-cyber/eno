@@ -28,7 +28,7 @@ the strings again on their next view through the live chain.
 
 Usage: eno-mt-nightly.py [--until HH:MM] [--limit N] [--dry-run] [--targets ko,ja] [--no-container] [--llama-url URL] [--cpus N]
 """
-import argparse, concurrent.futures as cf, datetime as dt, hashlib, json, re, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, concurrent.futures as cf, datetime as dt, hashlib, json, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 MODEL_FILE = '/opt/eno/models/gemma-4-E4B-it-Q4_0.gguf'
 IMAGE = 'ghcr.io/ggml-org/llama.cpp:server'
@@ -39,6 +39,8 @@ ID_PREFIX = 'gemma1_'
 # Strings refused twice are skipped from then on (a description too long for a slot's context would otherwise be retried,
 # and refused, every night ahead of older listings). Delete the file to retry them all.
 STATE = '/var/lib/eno-mt-nightly/refused.json'
+# The unit will not start while it exists, and a running night stops at its next batch (a maintenance window needs the memory).
+HOLD = '/opt/eno/mt-nightly.hold'
 # Most-read first (src/lib/translate.ts EAGER_WARM_LANGS: zh-Hans, ko, ja, ru), then the rest.
 TARGETS = ['zh-Hans', 'ko', 'ja', 'ru', 'fr', 'th', 'ms', 'km', 'hi']
 NAME = {'zh-Hans': 'Simplified Chinese', 'ko': 'Korean', 'ja': 'Japanese', 'ru': 'Russian', 'fr': 'French', 'th': 'Thai',
@@ -219,6 +221,9 @@ def main():
     ap.add_argument('--cpus', default='8', help='a daytime test runs on fewer')
     ap.add_argument('--model', default=None, help='model name for a server that needs one (a local Ollama test)')
     a = ap.parse_args()
+    if os.path.exists(HOLD):
+        log(f'held ({HOLD} exists): nothing to do tonight')
+        return
     targets = [t for t in a.targets.split(',') if t in NAME]
     now = dt.datetime.now(ICT)
     hh, mm = map(int, a.until.split(':'))
@@ -291,7 +296,7 @@ def main():
             it = iter(todo)
             futures = {}
             def submit():
-                if dt.datetime.now(ICT) >= deadline:
+                if dt.datetime.now(ICT) >= deadline or os.path.exists(HOLD):
                     return False
                 nxt = next(it, None)
                 if nxt is None:
@@ -369,7 +374,6 @@ def main():
         safe_write(batch, a.dry_run)
         if not a.dry_run:
             try:
-                import os
                 os.makedirs(os.path.dirname(STATE), exist_ok=True)
                 json.dump(strikes, open(STATE, 'w'))
             except Exception as e:
