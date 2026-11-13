@@ -374,7 +374,8 @@ ${sections.join('\n\n')}`
   // output); if the model fails, fall back to the previous flash so the button
   // degrades instead of erroring.
   const attempts = [
-    { model: GEMINI_MODEL, config: { maxOutputTokens: 4096 } },
+    // 8k: 4 Hydrogen's default thinking is HIGH (2026-11-13), and thinking tokens count against the cap.
+    { model: GEMINI_MODEL, config: { maxOutputTokens: 8192 } },
     { model: GEMINI_MODEL_FALLBACK, config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 768 } },
   ]
   let parsed: Parsed = {}

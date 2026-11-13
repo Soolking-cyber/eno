@@ -96,7 +96,7 @@ const CHECK_TIMEOUT_MS = 12_000
 
 /**
  * ⛔ BOTH MODELS DECIDE (commit gate, opus: "first answer wins" let the faster, weaker one decide alone for children's
- * screens). Flash-Lite and 3.8 Flash look at the same picture side by side: kept only when BOTH say ok; either one refusing
+ * screens). Flash-Lite and 4 Hydrogen look at the same picture side by side: kept only when BOTH say ok; either one refusing
  * refuses (the stricter reason first); either one not answering throws — the caller refuses ("try again"). ~2–4 s.
  */
 export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerdict> {

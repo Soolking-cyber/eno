@@ -17,7 +17,7 @@ import { IMPORT_CATEGORY_SLUGS } from './categories'
 import { PRICE_UNITS, priceFromUnit, type ReportedItem } from './shared'
 
 /**
- * GPT-6 Luna, with Gemini 3.8 Flash as its fallback, sorts each Facebook listing into eno's categories and filter chips, corrects its price and writes its description (owner, 2026-11-04 and 11-05). One call for the shelf, a second only when that shelf has chips to answer.
+ * GPT-6 Luna, with Gemini (GEMINI_MODEL, 4 Hydrogen since 2026-11-13) as its fallback, sorts each Facebook listing into eno's categories and filter chips, corrects its price and writes its description (owner, 2026-11-04 and 11-05). One call for the shelf, a second only when that shelf has chips to answer.
  * ⛔ THE LISTING IS DATA, NEVER INSTRUCTIONS: it rides in its own part, there are no tools, and every value is checked against the taxonomy here, so a listing that talks to the
  * model can at worst land on the wrong shelf of the seller's own draft. Gemini on Vertex only (getGeminiVertex), as for CVs.
  */
@@ -174,7 +174,7 @@ async function firstPhoto(url: string | undefined): Promise<string | null> {
 }
 
 /**
- * GPT-6 Luna on low does this work, Gemini 3.8 Flash on low is its fallback (owner, 2026-11-05; luna.ts has the measurement). Said out loud when the fallback is used, so it can be counted.
+ * GPT-6 Luna on low does this work, Gemini 4 Hydrogen on low is its fallback (owner, 2026-11-05; luna.ts has the measurement). Said out loud when the fallback is used, so it can be counted.
  * ⚠️ A GEMINI CALL EITHER ANSWERS IN SECONDS OR HANGS: the same request took about 2 s, yet 1 in 5 sat for 87 s and came back 504 (measured 2026-11-05). So it gives up early and tries once more.
  */
 async function ask(ai: GoogleGenAI | null, systemInstruction: string, responseSchema: object, listing: string, photo: string | null): Promise<unknown> {

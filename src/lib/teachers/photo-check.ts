@@ -83,7 +83,7 @@ const BACKUP_TIMEOUT_MS = 15_000
 const HEDGE_MS = 4_000
 
 /**
- * One check, HEDGED: Flash-Lite, and 3.8 Flash as soon as Flash-Lite fails or has not answered within 4 s — the first
+ * One check, HEDGED: Flash-Lite, and GEMINI_MODEL (4 Hydrogen) as soon as Flash-Lite fails or has not answered within 4 s — the first
  * readable answer wins, so the worst case is ~19 s, not the sum of two timeouts, and a check fails only when BOTH models
  * do. Returns the verdict and the model that gave it, or throws (an AggregateError of both failures) — the caller says
  * "try again", never "your photo is wrong".

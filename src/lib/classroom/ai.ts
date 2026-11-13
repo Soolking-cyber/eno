@@ -17,7 +17,7 @@ import { IMPORT_MODEL_FALLBACK } from '@/lib/teachers/import-ai'
  */
 
 export const PRIMARY_MODEL = GEMINI_MODEL
-/** Flash-Lite: the teacher paths' fallback when 3.8 Flash failed on Google's side (2.5 Flash is retired on Vertex). */
+/** Flash-Lite: the teacher paths' fallback when 4 Hydrogen failed on Google's side (chosen when 2.5 Flash was thought retired on Vertex; it still answered 2026-11-13). */
 export const FALLBACK_MODEL = IMPORT_MODEL_FALLBACK
 
 /** A part holding data between unguessable marks, with a one-line label of what it is. */
@@ -82,8 +82,8 @@ export type Hedge = { primaryMs: number; hedgeMs: number; backupMs: number; fall
 export type Seat = (model: string, timeout: number, signal: AbortSignal) => Promise<Record<string, unknown>>
 
 /**
- * The first readable answer (teachers/bio-ai.ts firstAnswer, generalised): 3.8 Flash, and a second 3.8 Flash beside it
- * once the first has not answered in `hedgeMs` (or failed on Google's side) — 3.8 Flash on `global` was measured to hang
+ * The first readable answer (teachers/bio-ai.ts firstAnswer, generalised): 4 Hydrogen, and a second Hydrogen beside it
+ * once the first has not answered in `hedgeMs` (or failed on Google's side) — 3.8 Flash, before it, on `global` was measured to hang
  * ~7% of calls; only when both failed on Google's side, Flash-Lite once. ⛔ The seat that lost is cancelled the moment one
  * answers, so nothing keeps running — or holding anyone's words — after the caller has its answer.
  */

@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { insertMessage } from '@/lib/messages'
 import { getTripAssistanceListingId, getTripDesk } from '@/lib/trips/dm-thread'
 
@@ -117,7 +118,9 @@ async function generateTripConciergeAnswer(prompt: string): Promise<string | nul
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         temperature: 0.3,
-        maxOutputTokens: 600,
+        // ⛔ The least thinking, with room for it: left at its default, 4 Hydrogen thought 597 tokens of a 600 cap and
+        // answered NOTHING (MAX_TOKENS, measured 2026-11-13).
+        ...quickThinking(GEMINI_MODEL, 600),
         httpOptions: { timeout: 15_000, retryOptions: { attempts: 1 } },
       },
     })

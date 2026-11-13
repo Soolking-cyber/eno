@@ -3,6 +3,7 @@ import { aiGuard } from '@/lib/ai-guard'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
@@ -84,8 +85,7 @@ Return ONLY JSON.`
       config: {
         // Low temperature → deterministic, certain wording (no creative over-specifying).
         temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 128,
+        ...quickThinking(GEMINI_MODEL, 128),
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

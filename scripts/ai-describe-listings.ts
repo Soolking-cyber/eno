@@ -30,7 +30,7 @@ import { db } from '../src/lib/db'
 import { resolveImportSeller, sellerIdArg } from '../src/lib/script-seller-arg'
 import { liveRowsOnly } from '../src/lib/partner-import-rules'
 import { buildSearchText } from '../src/lib/fold'
-import { GEMINI_MODEL } from '../src/lib/gemini-model'
+import { GEMINI_MODEL, quickThinking } from '../src/lib/gemini-model'
 import { extractSpecsFromTitles, isLegalSpec, specsFor, type SpecKey } from '../src/lib/electronics-specs'
 import { accentlessVietnamese, guardDescription, isGroundedInTitle, reconcileSpecs } from '../src/lib/ai-describe-guard'
 
@@ -160,12 +160,12 @@ async function describeBatch(ai: GoogleGenAI, sub: string, rows: Row[]): Promise
     contents: buildPrompt(sub, rows),
     config: {
       responseMimeType: 'application/json',
-      // ⚠️ THINKING OFF. Left at its default this model spends ~1,000 extra tokens per call that
+      // ⚠️ THINKING AT ITS LEAST. Left at its default this model spends ~1,000 extra tokens per call that
       // bill at the OUTPUT rate — the single knob that could multiply this job's cost several
-      // times over. Measured: with thinkingBudget 0 the answers were unchanged on 60 rows.
-      thinkingConfig: { thinkingBudget: 0 },
+      // times over. Measured on 3.8 Flash: with thinkingBudget 0 the answers were unchanged on 60 rows
+      // (4 Hydrogen refuses a budget; quickThinking gives it LOW).
+      ...quickThinking(GEMINI_MODEL, 30000),
       temperature: 0.3,
-      maxOutputTokens: 30000,
       responseSchema: {
         type: Type.ARRAY,
         items: {

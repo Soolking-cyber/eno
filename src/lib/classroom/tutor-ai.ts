@@ -12,9 +12,9 @@ import type { PaceChange, VoicePace } from './pace'
 import { vietnameseSentence } from './language'
 
 /**
- * THE TUTOR'S TURN — Gemini 3.8 Flash plays the teacher's avatar for one reply (plan "How one turn works"). LOW
+ * THE TUTOR'S TURN — Gemini 4 Hydrogen plays the teacher's avatar for one reply (plan "How one turn works"). LOW
  * thinking: this sits between the learner's last word and the avatar's first, and it is a short conversational reply.
- * ⛔ NOT MINIMAL: Vertex answers gemini-3.8-flash with 400 "Thinking level is unsupported: THINKING_LEVEL_MINIMAL"
+ * ⛔ NOT MINIMAL: Vertex answers gemini-3.8-flash and gemini-4-hydrogen (2026-11-13) with 400 "Thinking level is unsupported: THINKING_LEVEL_MINIMAL"
  * (measured 2026-10-26, the first real call) — every turn failed; the flow tests stub the model and never saw it.
  */
 
@@ -161,7 +161,8 @@ export function tutorAsk(c: TutorContext): JsonAsk {
       ],
     }],
     schema: SCHEMA,
-    maxOutputTokens: 1_024,
+    // Room for LOW's thinking too: 4 Hydrogen still thinks at LOW (up to ~600 tokens measured 2026-11-13; gemini-model.ts).
+    maxOutputTokens: 2_048,
     thinking: ThinkingLevel.LOW,
   }
 }

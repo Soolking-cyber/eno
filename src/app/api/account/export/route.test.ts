@@ -157,13 +157,13 @@ describe('GET /api/account/export — the consent records', () => {
     const at = new Date('2026-10-21T08:00:00.000Z')
     h.consentRows = [
       { action: 'teacher.bio.consent', occurredAt: at, detail: { readId: 'r1', notice: '2026-10-21', noticeSha: '0123456789abcdef', facts: 9, ownText: true } },
-      { action: 'teacher.bio.result', occurredAt: at, detail: { readId: 'r1', outcome: 'ok', model: 'gemini-3.8-flash', calls: 1, words: 72 } },
+      { action: 'teacher.bio.result', occurredAt: at, detail: { readId: 'r1', outcome: 'ok', model: 'gemini-4-hydrogen', calls: 1, words: 72 } },
     ]
     const body = await (await GET()).json()
     expect(h.consentQuery?.orderBy).toEqual({ occurredAt: 'asc' })
     expect(body.consentRecords).toEqual([
       { action: 'teacher.bio.consent', at: at.toISOString(), detail: { readId: 'r1', notice: '2026-10-21', noticeSha: '0123456789abcdef', facts: 9, ownText: true } },
-      { action: 'teacher.bio.result', at: at.toISOString(), detail: { readId: 'r1', outcome: 'ok', model: 'gemini-3.8-flash', calls: 1, words: 72 } },
+      { action: 'teacher.bio.result', at: at.toISOString(), detail: { readId: 'r1', outcome: 'ok', model: 'gemini-4-hydrogen', calls: 1, words: 72 } },
     ])
   })
 

@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { cityForDay } from '@/lib/itinerary-day-city'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { takesThinkingLevel, THINKING_ROOM } from '@/lib/gemini-model'
 import { BUDGETS, CITIES, CITY_MAP, type CityId } from '@/lib/itinerary-data'
 import { geocodePlace } from '@/lib/itinerary-geocode'
 import { resolvePlaceName } from '@/lib/itinerary-places'
@@ -288,8 +289,9 @@ Return only the JSON.`
         config: {
           // No googleSearch: grounding is what makes generation the most expensive call in the app,
           // and naming three alternatives in a city does not need it.
-          maxOutputTokens: 3_000,
-          ...(attempt.model.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          // + room for thinking: 4 Hydrogen still thinks at LOW (up to ~600 tokens, 2026-11-13; gemini-model.ts).
+          maxOutputTokens: 3_000 + THINKING_ROOM,
+          ...(takesThinkingLevel(attempt.model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
           responseMimeType: 'application/json',
           responseSchema,
           httpOptions: { timeout: index === 0 ? 25_000 : 15_000, retryOptions: { attempts: 1 } },

@@ -41,7 +41,7 @@ vi.mock('@/lib/compliance/audit', () => ({
     h.audits.push({ action: input.action, detail: input.detail })
   },
 }))
-vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => (h.vertex ? {} : null), GEMINI_MODEL: 'gemini-3.8-flash' }))
+vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => (h.vertex ? {} : null), GEMINI_MODEL: 'gemini-4-hydrogen' }))
 vi.mock('@/lib/teachers/import-ai', () => ({
   documentContents: (input: { kind: string }) => [{ kind: input.kind }],
   countDocumentTokens: async () => { h.calls.push('count'); return h.tokens },
@@ -49,7 +49,7 @@ vi.mock('@/lib/teachers/import-ai', () => ({
     h.calls.push('model')
     h.onModel?.()
     if (h.modelError) throw h.modelError
-    return { raw: h.answer, model: 'gemini-3.8-flash' }
+    return { raw: h.answer, model: 'gemini-4-hydrogen' }
   },
 }))
 vi.mock('@/lib/log', () => ({ logWarn: (...a: unknown[]) => { h.logs.push(a) }, logError: (...a: unknown[]) => { h.logs.push(a) }, logInfo: () => {} }))
@@ -110,7 +110,7 @@ describe('POST /api/teachers/me/import', () => {
     const consent = h.audits[0].detail
     expect(consent).toMatchObject({ notice: TEACHER_IMPORT_NOTICE_VERSION, kind: 'pdf', lang: 'en', host: 'eno.vn', recipient: 'Google Cloud (Vertex AI, Gemini)' })
     expect(consent.noticeSha).toMatch(/^[0-9a-f]{16}$/)
-    expect(h.audits[1].detail).toMatchObject({ outcome: 'filled', model: 'gemini-3.8-flash', readId: consent.readId })
+    expect(h.audits[1].detail).toMatchObject({ outcome: 'filled', model: 'gemini-4-hydrogen', readId: consent.readId })
     // Field NAMES only — never a value from the CV.
     expect(JSON.stringify(h.audits)).not.toMatch(/Jane|ILA|Leeds|7700/)
   })
@@ -217,7 +217,7 @@ describe('POST /api/teachers/me/import', () => {
     let release: () => void = () => {}
     const gate = new Promise<void>((r) => { release = r })
     // Six readings held inside the model call.
-    const slow = vi.fn(async () => { await gate; return { raw: ANSWER, model: 'gemini-3.8-flash' } })
+    const slow = vi.fn(async () => { await gate; return { raw: ANSWER, model: 'gemini-4-hydrogen' } })
     const ai = await import('@/lib/teachers/import-ai')
     const spy = vi.spyOn(ai, 'readTeacherDocument').mockImplementation(slow)
     const held = Array.from({ length: 6 }, () => post())

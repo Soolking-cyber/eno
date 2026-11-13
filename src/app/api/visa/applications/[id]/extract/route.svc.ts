@@ -5,6 +5,7 @@ import { route } from '@/lib/api/handler'
 import { chargeAiGlobal } from '@/lib/ai-guard'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { takesThinkingLevel, THINKING_ROOM } from '@/lib/gemini-model'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
@@ -110,7 +111,8 @@ async function analyzeImage(
         contents,
         config: {
           temperature: 0,
-          maxOutputTokens: responseSchema === passportSchema ? 2_048 : 1_024,
+          // + room for thinking: 4 Hydrogen still thinks at LOW (up to ~600 tokens, 2026-11-13; gemini-model.ts).
+          maxOutputTokens: (responseSchema === passportSchema ? 2_048 : 1_024) + THINKING_ROOM,
           responseMimeType: 'application/json',
           responseSchema,
           /**
@@ -128,12 +130,12 @@ async function analyzeImage(
            * of bug: the message blames the user's input for a server-side misconfiguration.
            *
            * ⚠️ THE GUARD IS COPIED FROM THE THREE ITINERARY ROUTES, WHICH HAVE ALWAYS HAD IT RIGHT:
-           * `attempt.model.startsWith('gemini-3') ? { thinkingLevel: LOW } : {}`. Those call the
+           * `takesThinkingLevel(attempt.model) ? { thinkingLevel: LOW } : {}` (a startsWith('gemini-3') test until 4 Hydrogen). Those call the
            * same API with the same fallback pair and never hit this, which is what made the
            * difference findable. `LOW` is the level proven in production there; the fallback gets no
            * thinkingConfig at all, because a 2.5 model rejects the field rather than ignoring it.
            */
-          ...(attempt.model.startsWith('gemini-3')
+          ...(takesThinkingLevel(attempt.model)
             ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
             : {}),
           httpOptions: { timeout: 12_000, retryOptions: { attempts: 1 } },

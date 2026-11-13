@@ -1,4 +1,5 @@
 import { getGemini, getGeminiVertex, geminiDiag, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { documentContents, readTeacherDocument } from '@/lib/teachers/import-ai'
 import { route } from '@/lib/api/handler'
 
@@ -71,7 +72,7 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
     const r = await ai.models.generateContent({
       model: probeModel,
       contents: 'Reply with the single word OK.',
-      config: { maxOutputTokens: 12, thinkingConfig: { thinkingBudget: 0 } },
+      config: quickThinking(probeModel, 12),
     })
     return { ...diag, probe: { ok: true, ms: Date.now() - t0, model: probeModel, text: (r.text || '').trim().slice(0, 40) } }
   } catch (e) {

@@ -1,5 +1,6 @@
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { iconForBrand, iconPathForSlug } from '@/lib/brand-icons'
 import { ApiError, route } from '@/lib/api/handler'
@@ -62,8 +63,7 @@ Return ONLY JSON.`
       contents: prompt,
       config: {
         temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 256,
+        ...quickThinking(GEMINI_MODEL, 256),
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

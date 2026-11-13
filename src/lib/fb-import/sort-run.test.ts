@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: { facebookImportItem: h.items, $executeRaw: h.execute } }))
 vi.mock('@/lib/ai-guard', () => ({ chargeAiGlobal: h.charge }))
-vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => null, GEMINI_MODEL: 'gemini-3.8-flash' }))
+vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => null, GEMINI_MODEL: 'gemini-4-hydrogen' }))
 vi.mock('@/lib/ssrf', () => ({ safeFetch: vi.fn() }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn(), logWarn: vi.fn() }))
 vi.mock('@/lib/classroom/llm-openai', () => ({ openAiConfig: () => (h.key ? { key: h.key, url: 'https://api.openai.com' } : null) }))

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { aiGuard } from '@/lib/ai-guard'
 import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -104,11 +105,9 @@ Return ONLY JSON.`
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: prompt }] }],
       config: {
         temperature: 0.2,
-        // 2.5-flash is a THINKING model — leave thinking on and its tokens eat the
-        // budget, truncating the JSON (MAX_TOKENS → partial "{" → parse error).
-        // Disable thinking for this structured task; all tokens go to the answer.
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 768,
+        // A THINKING model — left at its default, its tokens eat the budget and truncate the JSON
+        // (MAX_TOKENS → partial "{" → parse error). The least thinking the model allows, with room for it.
+        ...quickThinking(GEMINI_MODEL, 768),
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

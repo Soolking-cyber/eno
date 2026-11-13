@@ -25,7 +25,7 @@ const PER_DAY = 30
 const FEATURE_PER_DAY = 500
 
 /**
- * POST /api/classroom/avatar/persona-ai — WRITE WITH AI: a persona + greeting drafted by Gemini 3.8 Flash from the teacher's
+ * POST /api/classroom/avatar/persona-ai — WRITE WITH AI: a persona + greeting drafted by Gemini (GEMINI_MODEL, 4 Hydrogen) from the teacher's
  * own profile (notices.ts says what is sent). The answer is a DRAFT the teacher reads and edits; nothing is saved here.
  * The bio route's shape (src/app/api/teachers/me/bio-rewrite): one at a time per account, the account's limits before the
  * shared ones, the teacher reserve, and the consent record BEFORE anything leaves.

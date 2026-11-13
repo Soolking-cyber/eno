@@ -8,7 +8,7 @@ import { teacherBioRequest } from '@/lib/teachers/bio-context'
 
 // "Improve with AI" on the About text (owner, 2026-10-21: "use gemini 3.8 flash as in other places") — the call: its
 // config (the CV reader's measured pattern), the data in its own part between marks it cannot know, a reply that cannot
-// be read is a bare error that quotes nothing, and the budget — the first answer hedged on 3.8 Flash, Flash-Lite only
+// be read is a bare error that quotes nothing, and the budget — the first answer hedged on GEMINI_MODEL, Flash-Lite only
 // after both failed on Google's side, one more try after a refused answer while the deadline allows it. No network:
 // a fake client for one call, an injected `ask` (and fake timers) for the rewrite.
 
@@ -193,7 +193,7 @@ describe('rewriteTeacherBio — the budget', () => {
     expect(p.calls.map((c) => c.model)).toEqual([GEMINI_MODEL])
   })
 
-  it('no answer by 9 s: a second 3.8 Flash beside it — the first readable answer wins, and both calls count', async () => {
+  it('no answer by 9 s: a second Hydrogen beside it — the first readable answer wins, and both calls count', async () => {
     const p = plan({ after: 12_000, text: GOOD }, { after: 5_000, text: GOOD_B })
     const out = rewriteTeacherBio(AI, REQ, { fallback: 'English', ask: p.ask })
     await vi.advanceTimersByTimeAsync(8_999)
@@ -260,7 +260,7 @@ describe('rewriteTeacherBio — the budget', () => {
     expect(settledAt).toBeLessThanOrEqual(REWRITE_DEADLINE_MS)
   })
 
-  it('⛔ an answer the gate refuses: ONE more 3.8 Flash call, told why — never shown its previous answer — and that verdict decides', async () => {
+  it('⛔ an answer the gate refuses: ONE more Hydrogen call, told why — never shown its previous answer — and that verdict decides', async () => {
     const p = plan({ after: 1_000, text: THIN }, { after: 1_000, text: GOOD })
     const { out } = await run(p.ask)
     expect(out).toEqual({ ok: true, bio: GOOD, model: GEMINI_MODEL, calls: 2 })
@@ -302,12 +302,12 @@ describe('rewriteTeacherBio — the budget', () => {
     const { out } = await run(p.ask, () => late.shift() ?? REWRITE_DEADLINE_MS)
     expect(out).toEqual({ ok: false, failure: 'rejected', reason: 'thin', calls: 1 })
     expect(p.calls).toHaveLength(1)
-    // Time for the 3.8 Flash try, then none left for Flash-Lite after it fails.
+    // Time for the Hydrogen try, then none left for Flash-Lite after it fails.
     const tight = [0, 1_000, REWRITE_DEADLINE_MS - 1]
     const q = plan({ after: 0, text: THIN }, { after: 0, error: unavailable() }, { after: 0, text: GOOD })
     expect((await run(q.ask, () => tight.shift() ?? REWRITE_DEADLINE_MS)).out).toEqual({ ok: false, failure: 'rejected', reason: 'thin', calls: 2 })
     expect(q.calls).toHaveLength(2)
-    // 3.8 Flash's try no longer fits, Flash-Lite's shorter one does: that one is made (gate review, 2026-10-22).
+    // Hydrogen's try no longer fits, Flash-Lite's shorter one does: that one is made (gate review, 2026-10-22).
     const short = [0, REWRITE_DEADLINE_MS - 13_000, REWRITE_DEADLINE_MS - 13_000]
     const s = plan({ after: 0, text: THIN }, { after: 0, text: GOOD })
     expect((await run(s.ask, () => short.shift() ?? REWRITE_DEADLINE_MS)).out).toEqual({ ok: true, bio: GOOD, model: IMPORT_MODEL_FALLBACK, calls: 2 })

@@ -68,7 +68,7 @@ const NEVER = [
 
 let calls: Call[] = []
 let me: Record<string, unknown> = {}
-let bioReply: (body: unknown) => { status?: number; json: unknown } = () => ({ json: { bio: AI, model: 'gemini-3.8-flash' } })
+let bioReply: (body: unknown) => { status?: number; json: unknown } = () => ({ json: { bio: AI, model: 'gemini-4-hydrogen' } })
 let bioThrows = false
 // A request held open until the test lets it answer (teacher-form.draft.test.tsx's pending-fetch pattern) — by default
 // the rewrite; recorded when sent, answered on `open()`.
@@ -85,7 +85,7 @@ beforeEach(() => {
   auth.user = { id: 'u1' }
   history.replaceState(null, '', '/teachers/join')
   me = { teacher: null, publishGate: { ok: true, code: null }, prefill: null, bioAi: true }
-  bioReply = () => ({ json: { bio: AI, model: 'gemini-3.8-flash' } })
+  bioReply = () => ({ json: { bio: AI, model: 'gemini-4-hydrogen' } })
   bioThrows = false
   held.clear()
   let rev = 0
@@ -353,7 +353,7 @@ describe('"Improve with AI" — a tap', () => {
     await user.click(await improve())
     await waitFor(() => expect(box().value).toBe(AI))
     const AI2 = 'I teach IELTS speaking to adults in small groups. My classes give every student lots of practice, and I give clear feedback after each one.'
-    bioReply = () => ({ json: { bio: AI2, model: 'gemini-3.8-flash' } })
+    bioReply = () => ({ json: { bio: AI2, model: 'gemini-4-hydrogen' } })
     await user.click(await improve())
     await waitFor(() => expect(box().value).toBe(AI2))
     await user.click(screen.getByRole('button', { name: 'Undo the AI rewrite' }))
@@ -380,9 +380,9 @@ describe('"Improve with AI" — refusals, each as the teacher’s next step', ()
     [400, { error: 'too_short' }, 'Write a little more first.'],
     [400, { error: 'bad_request' }, FAILED_LINE],
     [502, { error: 'ai_failed' }, FAILED_LINE],
-    [200, { model: 'gemini-3.8-flash' }, FAILED_LINE],
+    [200, { model: 'gemini-4-hydrogen' }, FAILED_LINE],
     // ⛔ The teacher's own text handed back is no rewrite: never "Rewritten with AI" with an Undo that changes nothing.
-    [200, { bio: OWN, model: 'gemini-3.8-flash' }, FAILED_LINE],
+    [200, { bio: OWN, model: 'gemini-4-hydrogen' }, FAILED_LINE],
   ])('%i %j → its line, as a status (never an alert or a field error), and the text stays the teacher’s', async (status, json, line) => {
     bioReply = () => ({ status, json })
     putDraft({ ...COMPLETE, bio: OWN }, 'about')

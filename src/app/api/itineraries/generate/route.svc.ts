@@ -10,6 +10,7 @@ import { fillMissingStopCoordinates } from '@/lib/itinerary-geocode'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { takesThinkingLevel } from '@/lib/gemini-model'
 import { buildItinerarySavePayload } from '@/lib/itinerary-save'
 import { MAX_ROUTE_CITIES, itineraryRequestSchema, type ItineraryRequest } from '@/lib/trips/itinerary-wizard'
 import { BUDGETS } from '@/lib/itinerary-data'
@@ -656,7 +657,7 @@ Planning rules:
           // thinkingLevel (it budgets thinking in tokens), so only send the knob
           // to 3.x models.
           maxOutputTokens: Math.min(24_000, Math.max(6_000, 4_000 + input.days * 650)),
-          ...(attempt.model.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          ...(takesThinkingLevel(attempt.model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
           tools: [{ googleSearch: {} }],
           responseMimeType: 'application/json',
           responseSchema,

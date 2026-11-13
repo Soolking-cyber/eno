@@ -8,7 +8,7 @@ import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 
 /**
- * THE REPORT AFTER A SESSION — Gemini 3.8 Flash reads the transcript and writes what the learner (or their parent) and the
+ * THE REPORT AFTER A SESSION — Gemini 4 Hydrogen reads the transcript and writes what the learner (or their parent) and the
  * teacher read, and drafts the next session's plan (owner: "get feedback after every session on what their student got
  * wrong … so ai can adjust next practice"). ⛔ It never scores pronunciation: the scores are Azure's, computed in
  * feedback.ts; the model only explains the words Azure flagged. ⛔ A mistake it reports must quote what the learner

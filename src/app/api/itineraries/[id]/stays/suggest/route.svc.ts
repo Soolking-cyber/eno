@@ -7,6 +7,7 @@ import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
+import { takesThinkingLevel, THINKING_ROOM } from '@/lib/gemini-model'
 import { BUDGETS, CITY_MAP, type CityId } from '@/lib/itinerary-data'
 import { REFINE_HOURLY_LIMIT, refundRefinement, spendRefinement } from '@/lib/itinerary-refine'
 import { stripToPlainText } from '../../stops/reorder'
@@ -257,8 +258,9 @@ Return only the JSON.`
         config: {
           // No googleSearch: grounding is what makes generation the most expensive call in the app,
           // and naming three hotels in a city does not need it.
-          maxOutputTokens: 2_000,
-          ...(attempt.model.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+          // + room for thinking: 4 Hydrogen still thinks at LOW (up to ~600 tokens, 2026-11-13; gemini-model.ts).
+          maxOutputTokens: 2_000 + THINKING_ROOM,
+          ...(takesThinkingLevel(attempt.model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
           responseMimeType: 'application/json',
           responseSchema,
           httpOptions: { timeout: index === 0 ? 25_000 : 15_000, retryOptions: { attempts: 1 } },

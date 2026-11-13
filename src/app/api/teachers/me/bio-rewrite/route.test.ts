@@ -73,7 +73,7 @@ vi.mock('@/lib/compliance/audit', () => ({
     h.audits.push(input)
   },
 }))
-vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => (h.vertex ? h.client : null), GEMINI_MODEL: 'gemini-3.8-flash' }))
+vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => (h.vertex ? h.client : null), GEMINI_MODEL: 'gemini-4-hydrogen' }))
 vi.mock('@/lib/teachers/bio-ai', () => ({
   rewriteTeacherBio: async (ai: unknown, request: TeacherBioRequest, opts: { fallback: string }) => {
     h.calls.push('model')
@@ -110,7 +110,7 @@ const T = {
   certificates: [{ type: 'tefl', hours: 120, provider: '', year: null }],
   nationality: 'GB', englishLevel: 'native', languages: [], headline: 'TEFL-certified teacher for kids', bio: OWN,
 }
-const OK = { ok: true, bio: BIO, model: 'gemini-3.8-flash', calls: 1 }
+const OK = { ok: true, bio: BIO, model: 'gemini-4-hydrogen', calls: 1 }
 // The last is teacher onboarding's RESERVED AI budget, not the shared pool (security review 2026-10-22, item 19).
 const ALL_LIMITS = ['teacher-bio', 'teacher-bio-day', 'teacher-bio-ip', 'teacher-bio-global', 'ai-global-teachers']
 const NOTICE_SHA = createHash('sha256').update(bioNoticeBody()).digest('hex').slice(0, 16)
@@ -391,8 +391,8 @@ describe('POST /api/teachers/me/bio-rewrite — the answer', () => {
     const res = await post()
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('private, no-store')
-    expect(await res.json()).toEqual({ bio: BIO, model: 'gemini-3.8-flash' })
-    expect(outcome()?.detail).toEqual({ readId: consent()?.detail.readId, outcome: 'ok', model: 'gemini-3.8-flash', calls: 2, words: wordCount(BIO) })
+    expect(await res.json()).toEqual({ bio: BIO, model: 'gemini-4-hydrogen' })
+    expect(outcome()?.detail).toEqual({ readId: consent()?.detail.readId, outcome: 'ok', model: 'gemini-4-hydrogen', calls: 2, words: wordCount(BIO) })
     expect(wordCount(BIO)).toBe(41) // words, not characters
     expect(h.audits.map((a) => a.action)).toEqual(['teacher.bio.consent', 'teacher.bio.result']) // and nothing else is written
   })

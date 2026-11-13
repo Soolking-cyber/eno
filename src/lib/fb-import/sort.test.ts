@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/ai-guard', () => ({ chargeAiGlobal: vi.fn() }))
-vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => null, GEMINI_MODEL: 'gemini-3.8-flash' }))
+vi.mock('@/lib/gemini', () => ({ getGeminiVertex: () => null, GEMINI_MODEL: 'gemini-4-hydrogen' }))
 vi.mock('@/lib/ssrf', () => ({ safeFetch: vi.fn() }))
 
 const { chipSchema, IMPORT_CATEGORIES, textProblem, validChips, validShelf } = await import('./sort')
@@ -14,7 +14,7 @@ const color = { key: 'color', label: 'Colour', labelVi: 'Màu', options: [{ valu
 const amenities = { key: 'amenities', label: 'A', labelVi: 'A', multi: true, options: [{ value: 'pool', label: 'Pool', labelVi: 'Bể' }, { value: 'gym', label: 'Gym', labelVi: 'Gym' }] }
 const year = { key: 'year', label: 'Year', labelVi: 'Năm', kind: 'range' as const, options: [], range: { min: 1980, max: 2030, step: 1, column: 'year' as const } }
 
-describe('the model is Gemini 3.8 Flash, the app’s own', () => it('names it', () => expect(GEMINI_MODEL).toBe('gemini-3.8-flash')))
+describe('the model is Gemini 4 Hydrogen, the app’s own', () => it('names it', () => expect(GEMINI_MODEL).toBe('gemini-4-hydrogen')))
 
 describe('validChips: only what the taxonomy has', () => {
   it('keeps real answers, multi ones as lists', () => {

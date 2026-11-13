@@ -21,8 +21,8 @@ export const PRICE = {
   tutorPerCall: 560,
   /** The brain warmed at each start (tutor-ai.ts warmTutorBrain: ~1,050 tokens in, ~40 out). */
   warmUpPerSession: 250,
-  /** One report: Gemini 3.8 Flash on Vertex (~5k tokens in, ~1.5k out with its thinking; introductory price to 2026-12-31). */
-  reportPerCall: 9_000,
+  /** One report: Gemini 4 Hydrogen on Vertex (~5k tokens in at $1.50/M, ~1.5k out with its thinking at $7.50/M; 2026-11-13). */
+  reportPerCall: 18_750,
 } as const
 
 /**

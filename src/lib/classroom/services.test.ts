@@ -88,13 +88,13 @@ describe('budget and cost', () => {
     // the face: 100 six-second credits at $0.0009
     expect(estimateCostMicroUsd({ ...base, mode: 'avatar' }) - estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(90_000)
     // listening 10 min open ($0.01) + 2 min of speech ($0.002); voice 400 s ($0.0777…) + 6,000 chars of text ($0.0072);
-    // drills 36 s at $1.30/h ($0.013); 20 tutor calls ($0.0112) + the warm-up ($0.00025) + one report ($0.009)
-    expect(estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(Math.round(10_000 + 2_000 + 77_777.78 + 7_200 + 13_000 + 11_200 + 250 + 9_000))
+    // drills 36 s at $1.30/h ($0.013); 20 tutor calls ($0.0112) + the warm-up ($0.00025) + one report ($0.01875)
+    expect(estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(Math.round(10_000 + 2_000 + 77_777.78 + 7_200 + 13_000 + 11_200 + 250 + 18_750))
   })
-  it('the real session of 2026-10-27 (175 s, 11 turns, 1,130 characters spoken): about six cents', () => {
+  it('the real session of 2026-10-27 (175 s, 11 turns, 1,130 characters spoken): about seven cents (six before the report moved to 4 Hydrogen)', () => {
     const c = estimateCostMicroUsd({ mode: 'avatar', usedSeconds: 175, assessedMs: 0, aiCalls: 11, reportCalls: 1, learnerSpeechMs: 22_860, avatarChars: 1_130 })
-    expect(c).toBeGreaterThan(55_000)
-    expect(c).toBeLessThan(65_000)
+    expect(c).toBeGreaterThan(65_000)
+    expect(c).toBeLessThan(75_000)
   })
 })
 

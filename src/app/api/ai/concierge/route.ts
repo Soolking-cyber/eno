@@ -15,6 +15,7 @@ import { extractSpecs } from '@/lib/electronics-specs'
 const NUMERIC_SPEC_KEYS = new Set(['ram', 'storage', 'caseSize', 'screenSize', 'laptopSize', 'refreshRate', 'wattage', 'capacity'])
 import { conciergeSearch, vertexConfigured } from '@/lib/vertex-search'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { matchBrand } from '@/lib/brand'
 import { safeTemplate } from '@/lib/i18n/placeholders'
 import { translateBatch } from '@/lib/translate'
@@ -166,7 +167,7 @@ ${transcript}`
     const res = await ai.models.generateContent({
       model: GEMINI_MODEL,
       contents: prompt,
-      config: { temperature: 0.4, maxOutputTokens: 220, thinkingConfig: { thinkingBudget: 0 }, responseMimeType: 'application/json' },
+      config: { temperature: 0.4, ...quickThinking(GEMINI_MODEL, 220), responseMimeType: 'application/json' },
     })
     const j = JSON.parse((res.text || '').trim().replace(/^```json\s*/i, '').replace(/```$/, '')) as Partial<Record<keyof Understood, unknown>>
     const num = (v: unknown) => (typeof v === 'number' && v > 0 ? Math.round(v) : null)

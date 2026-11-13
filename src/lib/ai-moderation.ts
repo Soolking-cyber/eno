@@ -5,6 +5,7 @@ import { getSharp } from '@/lib/sharp-lazy'
 import { Type } from '@google/genai'
 import { Prisma } from '@/generated/prisma/client'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
+import { quickThinking } from '@/lib/gemini-model'
 import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
@@ -90,8 +91,7 @@ Listing description: ${JSON.stringify(input.description).slice(0, 2000)}`
       contents: [{ role: 'user', parts }],
       config: {
         temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 256,
+        ...quickThinking(GEMINI_MODEL, 256),
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

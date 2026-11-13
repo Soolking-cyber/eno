@@ -77,10 +77,10 @@ describe('teacherPhotoVerdict', () => {
     expect(h.checks).toBe(0)
   })
   it('no cache: the check runs and its verdict is cached for 180 days', async () => {
-    h.check = { verdict: { ok: false, reason: 'no_face' }, model: 'gemini-3.8-flash' }
+    h.check = { verdict: { ok: false, reason: 'no_face' }, model: 'gemini-4-hydrogen' }
     await expect(teacherPhotoVerdict('p1', URL_OK, 'check')).resolves.toEqual({ ok: false, reason: 'no_face' })
     expect(h.checks).toBe(1)
-    expect(h.sets).toEqual([{ key: `teacher-photo:v1:${KEY}`, value: expect.objectContaining({ ok: false, reason: 'no_face', model: 'gemini-3.8-flash' }), ex: 180 * 24 * 3600 }])
+    expect(h.sets).toEqual([{ key: `teacher-photo:v1:${KEY}`, value: expect.objectContaining({ ok: false, reason: 'no_face', model: 'gemini-4-hydrogen' }), ex: 180 * 24 * 3600 }])
   })
   it('a kv that cannot be read is a cache miss — the check runs, never a guess', async () => {
     h.kvThrows = true

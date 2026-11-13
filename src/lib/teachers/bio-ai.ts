@@ -114,11 +114,11 @@ export async function askBioOnce(ai: GoogleGenAI, contents: ReturnType<typeof bi
 
 /**
  * ⏱ THE BUDGET (plan review, codex + opus 2026-10-21 — the route's maxDuration is 60 s, and 3.8 Flash on `global` was
- * measured to hang ~7% of calls until Vertex's own 504 at 117 s): the first answer is HEDGED — 3.8 Flash, and a second
- * 3.8 Flash beside it once the first has not answered in HEDGE_MS (or failed), first readable answer wins (the photo
+ * measured to hang ~7% of calls until Vertex's own 504 at 117 s): the first answer is HEDGED — GEMINI_MODEL (4 Hydrogen since 2026-11-13), and a second
+ * beside it once the first has not answered in HEDGE_MS (or failed), first readable answer wins (the photo
  * check's shape, photo-check.ts, with the owner's model on both seats) — worst ~24 s; only when both failed on Google's
  * side, Flash-Lite once (the CV reader's fallback; 2.5 Flash is retired on Vertex since 2026-10-20); an answer the gate
- * refuses gets ONE more try, told why (3.8 Flash; Flash-Lite after a failure on Google's side) — and only while
+ * refuses gets ONE more try, told why (Hydrogen; Flash-Lite after a failure on Google's side) — and only while
  * REWRITE_DEADLINE_MS leaves room for the call's whole timeout.
  */
 const PRIMARY_TIMEOUT_MS = 20_000
@@ -190,7 +190,7 @@ export async function rewriteTeacherBio(
   }
   const verdict = acceptTeacherBio(first.text, req)
   if (verdict.ok) return { ok: true, bio: verdict.bio, model: first.model, calls }
-  // ONE more try, told why — 3.8 Flash, then Flash-Lite: after a failure on Google's side (measured 2026-10-21: a 500
+  // ONE more try, told why — Hydrogen, then Flash-Lite: after a failure on Google's side (measured 2026-10-21: a 500
   // INTERNAL on the retry lost a usable profile), or when only its shorter call still fits (gate review, codex + opus
   // 2026-10-22: 12–15 s left skipped both) — each only while the deadline leaves room for its whole timeout.
   const retry = bioContents(req, opts.fallback, verdict.reason)

@@ -15,7 +15,7 @@ import { NO_ACTION, type ConciergeAction } from './types'
  * One request, two jobs: the action moves the app while the first sentence is voiced. The model never writes a URL — the
  * action is validated and turned into one by the caller (actions.ts).
  *
- * Brains, in order: OpenAI (the classroom's kept-open client, priority tier) → Gemini 3.8 Flash STREAMED with the 2.5 s
+ * Brains, in order: OpenAI (the classroom's kept-open client, priority tier) → Gemini 4 Hydrogen STREAMED with the 2.5 s
  * first-word hedge. ⛔ HAND-OVER ONLY BEFORE ANY OUTPUT: once an action or a sentence went out, a second brain could move the
  * app somewhere else or contradict what was said — the turn fails instead, and the caller says one canned line.
  * ⛔ NO SENTENCE BEFORE THE ACTION: Gemini's key order is best-effort, so a `say` written first is HELD until the action has
@@ -87,8 +87,9 @@ async function* geminiDeltas(ai: GoogleGenAI, input: string, signal: AbortSignal
       systemInstruction: conciergeInstructions(),
       responseMimeType: 'application/json',
       responseJsonSchema: GEMINI_CONCIERGE_SCHEMA,
-      maxOutputTokens: 1_024,
-      // ⛔ Never MINIMAL on 3.8 Flash (Vertex answers 400 — ai.ts).
+      // Room for LOW's thinking too: 4 Hydrogen still thinks at LOW (up to ~600 tokens measured 2026-11-13; gemini-model.ts).
+      maxOutputTokens: 2_048,
+      // ⛔ Never MINIMAL on 4 Hydrogen or 3.8 Flash (Vertex answers 400 — ai.ts).
       thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       httpOptions: { timeout: 15_000, retryOptions: { attempts: 1 } },
       abortSignal: signal,

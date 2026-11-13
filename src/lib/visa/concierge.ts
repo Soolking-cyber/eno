@@ -4,6 +4,7 @@ import 'server-only'
 // are mocked by the same specifier the source uses. Same modules either way.
 import { db } from '../db'
 import { getGemini, GEMINI_MODEL } from '../gemini'
+import { quickThinking } from '../gemini-model'
 import { insertMessage } from '../messages'
 import { rateLimit } from '../ratelimit'
 import { resolveVisaProduct, getVisaShopSeller, type VisaShopProduct } from '../visa-shop'
@@ -344,8 +345,8 @@ async function generateVisaConciergeAnswer(prompt: string): Promise<string | nul
       model: GEMINI_MODEL,
       contents: prompt,
       // Low temperature: this answers questions about a government form, where invention is
-      // the failure mode. thinkingBudget 0 keeps a chat reply chat-fast.
-      config: { temperature: 0.2, maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 } },
+      // the failure mode. The least thinking the model allows keeps a chat reply chat-fast.
+      config: { temperature: 0.2, ...quickThinking(GEMINI_MODEL, 400) },
     })
     const text = (res.text || '')
       .trim()

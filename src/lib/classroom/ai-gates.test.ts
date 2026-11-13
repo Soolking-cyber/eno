@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/gemini', () => ({ GEMINI_MODEL: 'gemini-3.8-flash' }))
+vi.mock('@/lib/gemini', () => ({ GEMINI_MODEL: 'gemini-4-hydrogen' }))
 vi.mock('@/lib/teachers/import-ai', () => ({ IMPORT_MODEL_FALLBACK: 'gemini-3.5-flash-lite' }))
 
 const { acceptTutorReply, tutorAsk } = await import('./tutor-ai')

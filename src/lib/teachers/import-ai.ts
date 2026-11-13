@@ -19,7 +19,7 @@ import type { ImportFile } from '@/lib/teachers/import-file'
  * ⛔ NOTHING OF THE FILE OR THE ANSWER IS EVER LOGGED, and no error carries it: a JSON.parse failure's message quotes
  * the text it choked on, so it is replaced by a bare SyntaxError here (still retryable — ai-retry.ts).
  *
- * Models: GEMINI_MODEL (3.8 Flash, the app's model), then 3.5 Flash-Lite — NOT the app's GEMINI_MODEL_FALLBACK
+ * Models: GEMINI_MODEL (4 Hydrogen, the app's model), then 3.5 Flash-Lite — NOT the app's GEMINI_MODEL_FALLBACK
  * (gemini-2.5-flash), which Google retires on Vertex on 2026-10-20 (model lifecycle page; research 2026-10-15).
  * Gemini 3 keeps its default temperature (Google: lower values can loop or degrade on 3.x) and thinks at LOW.
  */

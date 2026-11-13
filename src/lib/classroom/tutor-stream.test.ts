@@ -128,7 +128,7 @@ describe('tutorTurnStream — Gemini streamed, sentence by sentence', () => {
     const ev = await events(gemini(answer({ reply: 'Good job! We say: I went to the market. What did you buy?' })))
     expect(ev[0]).toEqual({ kind: 'safety', harm: false })
     expect(said(ev)).toEqual(['Good job!', 'We say: I went to the market.', 'What did you buy?'])
-    expect(ev.at(-1)).toMatchObject({ kind: 'final', model: 'gemini-3.8-flash', reply: { reply: 'Good job! We say: I went to the market. What did you buy?' } })
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', model: 'gemini-4-hydrogen', reply: { reply: 'Good job! We say: I went to the market. What did you buy?' } })
   })
   it('OpenAI fails before a word: Gemini takes the turn, and the calls count both', async () => {
     vi.stubEnv('OPENAI_API_KEY', `sk-${'a'.repeat(40)}`)
