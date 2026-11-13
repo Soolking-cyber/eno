@@ -1381,6 +1381,8 @@ function ListingCardImpl({
             compact
             compactAbove={pairCompactAbove}
             fabAvoid
+            // Batch 81 (2026-11-13): English prints "3.79M đ/mo", so a rent's "≈ $" stays on its line at 360px (price.tsx `shortUnit`).
+            shortUnit
             // 2026-11-07 audit: the "≈ $" estimate in body ink from lg, where it read as faint beside the 18px price; a phone
             // keeps the quieter grey. A colour only, never a hiding class (owner, 2026-09-13).
             approxClassName="lg:text-body"

@@ -52,6 +52,20 @@ type Props = {
    * wrapper is an inline span, so the line breaks exactly as before; without the prop nothing renders.
    */
   fabAvoid?: boolean
+  /**
+   * CARD ONLY, ENGLISH ONLY (UI climb batch 81, 2026-11-13): the unit prints short and glued to the mark — "3.79M đ/mo",
+   * "400,000 đ/hr" — so a rent keeps its "≈ $" on the same line on a 360px phone. Measured on live /c/rentals (48 rents):
+   * the spaced "/ month" wrapped 40 at 360 and 47 at 320; the short form wraps 0 and 1. Blind A/B at 360, Opus 6.31 → 7.00.
+   * ⛔ NEVER A HIDDEN UNIT (the `unit` note above): the short word is still on screen, a screen reader hears the full
+   * "/ month" (the short run is aria-hidden, the long one sr-only), and an unknown unit keeps its long form.
+   * Vietnamese and the nine MT languages are untouched ("/ tháng" — the owner's 10-18 "triệu" form, vnd.ts). The listing
+   * page never passes it: its price has room for the whole word.
+   * ⚠️ KNOWN TRADE — A MACHINE-TRANSLATED READER: their page is the English variant and their language is adopted after
+   * mount (language-context.tsx), so a card first paints "đ/mo" and then swaps to the long translated unit. Where that
+   * unit then needs a second line (a rent at 360px) the row grows once on that swap; the state it ends in is exactly
+   * today's. English and Vietnamese never swap.
+   */
+  shortUnit?: boolean
   currency: string
   priceUnit: string
   /** NARROW SURFACES ONLY (cards, dashboard rows, the chat strip): an amount of HUGE_VND or more shows
@@ -125,12 +139,16 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
+/** The English units a card prints short (`shortUnit`, batch 81). A Map, so a stored 'VND/toString' finds nothing; any unit
+ *  missing here keeps its long "/ <unit>". */
+const SHORT_UNIT_EN: ReadonlyMap<string, string> = new Map([['month', 'mo'], ['week', 'wk'], ['day', 'day'], ['hour', 'hr']])
+
 /** `fabAvoid`'s wrapper — a fragment without it, so every other surface renders exactly as before. */
 function FigureRun({ fabAvoid, children }: { fabAvoid?: boolean; children: React.ReactNode }) {
   return fabAvoid ? <span data-fab-avoid="">{children}</span> : <>{children}</>
 }
 
-export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid, shortUnit = false }: Props) {
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
   const locale = moneyLocale(lang)
@@ -192,6 +210,15 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
   // price line has. See the suffix markup below.
   const suffix = !isFree && unitRaw && showUnit !== false ? `/ ${unit}` : null
+  // `shortUnit` (batch 81): English glues the short unit to the mark INSIDE the amount's last nowrap run — "đ/mo" can never
+  // split, and the line can still break before the "≈ $" (the <wbr> below). An 'sm'-only unit (a row) keeps its long form.
+  const shortWord = suffix && shortUnit && lang === 'en' && showUnit === true && unitRaw ? SHORT_UNIT_EN.get(unitRaw) : undefined
+  const glued = shortWord ? (
+    <>
+      <span aria-hidden="true">/{shortWord}</span>
+      <span className="sr-only"> {suffix}</span>
+    </>
+  ) : null
 
   // Approximation: USD unless the display already IS USD (then VND). Rendered only
   // once rates exist (prefetched + cached 12h by the provider) and for real prices.
@@ -370,11 +397,11 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
       <FigureRun fabAvoid={fabAvoid}>
       {(() => {
         const cut = amount.lastIndexOf(' ')
-        if (cut < 0) return <span className="whitespace-nowrap">{amount}</span>
+        if (cut < 0) return <span className="whitespace-nowrap">{amount}{glued}</span>
         return (
           <>
             <span className="whitespace-nowrap">{amount.slice(0, cut)}</span>{' '}
-            <span className="whitespace-nowrap">{amount.slice(cut + 1)}</span>
+            <span className="whitespace-nowrap">{amount.slice(cut + 1)}{glued}</span>
           </>
         )
       })()}
@@ -395,7 +422,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
           opportunity, and two adjacent nowrap inlines with nothing between them cannot break at all
           (the `<wbr>` lesson below). For the 'sm' variant the space is inside the hidden wrapper so
           the compact row's one-line width is unchanged below sm. */}
-      {suffix && (
+      {suffix && !glued && (
         <span className={showUnit === 'sm' ? 'hidden sm:inline' : undefined}>
           {' '}
           <span className="whitespace-nowrap">{suffix}</span>
