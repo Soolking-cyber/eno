@@ -86,9 +86,9 @@ const WATER_PER: Readonly<Record<string, LabelPair>> = {
   m3: { label: 'm³', labelVi: 'm³' },
 }
 
-/** The heading row: the rent itself, so the block reads as the whole monthly bill. */
-export const RENT_ROW: LabelPair = { label: 'Rent', labelVi: 'Tiền thuê' }
-export const RENT_PER: LabelPair = { label: 'month', labelVi: 'tháng' }
+/* ⛔ NO "Rent" ROW (UI climb batch 89, 2026-11-13; blind A/B, Opus +0.24; owner: "reduce lines … super clean, minimal wording,
+ * only what's necessary"): the headline price states the rent and its unit a few lines above Costs, so the block opens on the
+ * deposit. */
 
 /** Section and row labels the page prints — authored pairs, harvested like every other. */
 export const RENTAL_FACT_LABELS = {
@@ -102,10 +102,15 @@ export const RENTAL_FACT_LABELS = {
   mezzanineFloor: { label: 'Mezzanine', labelVi: 'Tầng lửng' },
   // A guessed amount (CostRow.estimated): the word printed after its unit, in plain sight (rental-facts.tsx).
   estimate: { label: 'estimate', labelVi: 'ước tính' },
-  // The deposit chip beside the price (depositSummary).
-  depositMonth: { label: 'Deposit: 1 month', labelVi: 'Cọc 1 tháng' },
-  depositMonths: { label: 'Deposit: {n} months', labelVi: 'Cọc {n} tháng' },
-  depositAmount: { label: 'Deposit:', labelVi: 'Cọc' },
+  // The deposit fact in the facts line under the title (depositSummary; batch 89 — it was a chip beside the price): no colon,
+  // the line reads "Fixed price · 1 bedroom · Floor 2 · Deposit 1 month".
+  depositMonth: { label: 'Deposit 1 month', labelVi: 'Cọc 1 tháng' },
+  depositMonths: { label: 'Deposit {n} months', labelVi: 'Cọc {n} tháng' },
+  depositAmount: { label: 'Deposit', labelVi: 'Cọc' },
+  // The bedroom count in the facts line (bedroomsOf): the facet's own short options ("2 BR" / "2 PN") are filter-chip words.
+  studio: { label: 'Studio', labelVi: 'Studio' },
+  bedroomOne: { label: '1 bedroom', labelVi: '1 phòng ngủ' },
+  bedroomsN: { label: '{n} bedrooms', labelVi: '{n} phòng ngủ' },
 } as const satisfies Record<string, LabelPair>
 
 /**
@@ -184,6 +189,19 @@ function calendarDay(v: unknown): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
   const t = Date.parse(`${s}T00:00:00Z`)
   return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s ? s : null
+}
+
+/**
+ * The bedroom count the facts line prints (batch 89), from the `bedrooms` attribute — the taxonomy facet's values: '0' is a
+ * studio, '1'…'5' that many, '6' the facet's "6+" option; a larger whole number an importer wrote is printed as written.
+ * Anything else (a range, a word, a negative) is null and keeps its Details row. Call only where rentalFactsApply holds.
+ */
+export function bedroomsOf(attributes: Record<string, unknown> | null | undefined): { studio: true } | { n: string } | null {
+  const v = attributes?.bedrooms
+  const s = typeof v === 'number' ? String(v) : typeof v === 'string' ? v.trim() : ''
+  if (!/^\d{1,2}$/.test(s)) return null
+  const n = Number(s)
+  return n === 0 ? { studio: true } : { n: n === 6 ? '6+' : String(n) }
 }
 
 /** The floor as this module prints it — '0' ground, 'mezzanine', a whole number — else null. */

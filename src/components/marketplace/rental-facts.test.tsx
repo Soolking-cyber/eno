@@ -31,15 +31,14 @@ function text(lang: 'en' | 'vi', ui: React.ReactNode): string {
 
 describe('<RentalCosts>', () => {
   it('prints the monthly bill, each amount grouped for the reader with its unit', () => {
-    const en = text('en', <RentalCosts rent={3_500_000} rows={rentalCostRows(ATTRS)} />)
+    const en = text('en', <RentalCosts rows={rentalCostRows(ATTRS)} />)
     expect(en).toContain('Costs')
-    expect(en).toContain('Rent3,500,000 đ / month')
     expect(en).toContain('Deposit3,500,000 đ')
     expect(en).toContain('Electricity3,800 đ / kWh')
     expect(en).toContain('Water100,000 đ / person per month')
     expect(en).toContain('Service / management fee150,000 đ / month')
     expect(en).toContain('Parking100,000 đ / vehicle per month')
-    const vi = text('vi', <RentalCosts rent={3_500_000} rows={rentalCostRows(ATTRS)} />)
+    const vi = text('vi', <RentalCosts rows={rentalCostRows(ATTRS)} />)
     expect(vi).toContain('Chi phí')
     expect(vi).toContain('Tiền điện3.800 đ / kWh')
     expect(vi).toContain('Tiền nước100.000 đ / người / tháng')
@@ -47,8 +46,23 @@ describe('<RentalCosts>', () => {
     expect(vi).toContain('Phí giữ xe100.000 đ / xe / tháng')
   })
 
-  it('draws no rent row when the price is not quoted per month', () => {
-    expect(text('en', <RentalCosts rent={null} rows={rentalCostRows(ATTRS)} />)).not.toContain('Rent')
+  // ⛔ Batch 89 (2026-11-13; owner: "reduce lines … only what's necessary"): the headline price states the rent and its unit.
+  it('draws no Rent row: the headline price says it', () => {
+    expect(text('en', <RentalCosts rows={rentalCostRows(ATTRS)} />)).not.toMatch(/\bRent\b/)
+    expect(text('vi', <RentalCosts rows={rentalCostRows(ATTRS)} />)).not.toContain('Tiền thuê')
+  })
+
+  // Batch 89: the facts line prints the deposit on a phone, so Costs hides its Deposit row BELOW md ONLY — from md the line
+  // has no deposit and this row is where it is.
+  it('hides a phoneHidden row below md only, and every other row on every width', () => {
+    const html = renderToString(<LanguageProvider initialLang="en" initialViDict={VI_OVERRIDES}><RentalCosts rows={rentalCostRows(ATTRS)} phoneHidden={['deposit']} /></LanguageProvider>).replaceAll('<!-- -->', '')
+    const div = document.createElement('div')
+    div.innerHTML = html
+    const rows = [...div.querySelectorAll('dl > div')]
+    const dep = rows.find((r) => r.querySelector('dt')?.textContent === 'Deposit')!
+    expect(dep.className.split(' ')).toContain('max-md:hidden')
+    expect(dep.className).not.toMatch(/(^|\s)(hidden|md:hidden|md:block)(\s|$)/)
+    for (const r of rows.filter((x) => x !== dep)) expect(r.className).not.toContain('hidden')
   })
 
   /**
@@ -59,7 +73,7 @@ describe('<RentalCosts>', () => {
   it('prints a guessed rate as "≈ … estimate" in both languages, the word as plain text', () => {
     const rows = rentalCostRows({ ...ATTRS, electricityPrice: '4000', electricityEstimated: '4000' })
     const dd = (lang: 'en' | 'vi') => {
-      const html = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}><RentalCosts rent={3_500_000} rows={rows} /></LanguageProvider>).replaceAll('<!-- -->', '')
+      const html = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}><RentalCosts rows={rows} /></LanguageProvider>).replaceAll('<!-- -->', '')
       const div = document.createElement('div')
       div.innerHTML = html
       const row = [...div.querySelectorAll('dl > div')].find((r) => /Electricity|Tiền điện/.test(r.querySelector('dt')?.textContent ?? ''))!
@@ -74,14 +88,14 @@ describe('<RentalCosts>', () => {
     expect(en.querySelector('[title], .sr-only, [aria-hidden]')).toBeNull()
     expect(shown(dd('vi'))).toBe('≈ 4.000 đ / kWh ước tính')
     // Only the guessed row: every stated amount prints as before, with no "≈" and no "estimate".
-    const all = text('en', <RentalCosts rent={3_500_000} rows={rows} />)
+    const all = text('en', <RentalCosts rows={rows} />)
     expect(all.match(/≈/g)).toHaveLength(1)
     expect(all.match(/estimate/g)).toHaveLength(1)
     expect(all).toContain('Water100,000 đ / person per month')
   })
 
   it('a stated rate prints no "≈" and no "estimate"', () => {
-    const en = text('en', <RentalCosts rent={3_500_000} rows={rentalCostRows(ATTRS)} />)
+    const en = text('en', <RentalCosts rows={rentalCostRows(ATTRS)} />)
     expect(en).not.toContain('≈')
     expect(en).not.toMatch(/estimate/i)
   })
@@ -117,8 +131,9 @@ describe('<RentalAmenities>', () => {
 describe('the listing page wires the facts in', () => {
   it('hides the well-formed raw keys, only where the facts apply, and renders the three sections', () => {
     expect(PAGE).toContain('if (factsApply) for (const k of rentalFactHiddenKeys(listing.attributes)) hiddenAttrs.add(k)')
-    expect(PAGE).toContain('<RentalCosts rent={monthlyRent} rows={costRows} />')
+    expect(PAGE).toContain('<RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} />')
     expect(PAGE).toContain('<RentalAmenities items={amenities} />')
-    expect(PAGE).toContain('<RentalFactRows rows={factRows} />')
+    // Batch 89: without the floor where the facts line prints it (facts-line.test.ts).
+    expect(PAGE).toContain('<RentalFactRows rows={detailFactRows} />')
   })
 })

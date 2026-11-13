@@ -9,7 +9,7 @@ import {
   Wifi, Zap, type IconComponent,
 } from '@/components/ui/icons'
 import { ICON_SIZE } from '@/lib/icon-tokens'
-import { RENTAL_FACT_LABELS, RENT_PER, RENT_ROW, type CostRow, type FactRow, type LabelPair } from '@/lib/rental-facts'
+import { RENTAL_FACT_LABELS, type CostRow, type FactRow, type LabelPair } from '@/lib/rental-facts'
 import { cn } from '@/lib/utils'
 
 /**
@@ -28,10 +28,10 @@ function Per({ per }: { per: LabelPair | null }) {
   return <span className="font-normal text-muted-foreground"> / <Bilingual en={per.label} vi={per.labelVi} /></span>
 }
 
-/** One row in the Details idiom. */
-function Row({ name, children }: { name: LabelPair; children: ReactNode }) {
+/** One row in the Details idiom. `className` only hides a row at a width (RentalCosts' `phoneHidden`). */
+function Row({ name, children, className }: { name: LabelPair; children: ReactNode; className?: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5">
+    <div className={cn('flex items-start justify-between gap-4 py-2.5', className)}>
       <dt className="text-muted-foreground"><Bilingual en={name.label} vi={name.labelVi} /></dt>
       <dd data-fab-avoid className="min-w-0 text-right font-medium text-foreground [overflow-wrap:anywhere]">{children}</dd>
     </div>
@@ -39,23 +39,25 @@ function Row({ name, children }: { name: LabelPair; children: ReactNode }) {
 }
 
 /**
- * "Costs": the rent, then deposit, electricity, water, service/management fee and parking — what a renter adds
- * up before messaging. Rendered only when the listing states at least one cost beyond the rent (the caller checks).
- * `rent` is the monthly price, or null when the listing is not priced per month (then no rent row — a number without
- * its period would be a guess).
+ * "Costs": deposit, electricity, water, service/management fee and parking — what a renter adds up before messaging.
+ * Rendered only when the listing states at least one of them (the caller checks).
+ * ⛔ NO RENT ROW (UI climb batch 89, 2026-11-13; blind A/B, Opus +0.24; owner: "reduce lines … super clean, minimal wording,
+ * only what's necessary"): the headline price states the rent with its unit. `phoneHidden`: the keys whose row is hidden
+ * BELOW md only — the deposit, when the facts line under the title already prints it on a phone (the line's deposit is
+ * phone-only, so from md this row is where the deposit is). ⚠️ The caller hides the whole block below md when no other row
+ * is left there, so a phone never gets an empty "Costs" heading or its hairline.
  * ⛔ A GUESSED AMOUNT IS NEVER PRINTED AS FACT (owner, 2026-10-20: "fix error electricity prices with closest guess" —
  * CostRow.estimated, an impossible GoPlus electricity rate read as its closest plausible typo): "≈ 4,000 đ / kWh estimate",
  * the "≈" bound to the figure by a no-break space. ⚠️ THE WORD IS PLAIN TEXT, never a hover title (a reviewer's catch,
  * 2026-10-20): a tooltip reaches no touch or keyboard reader, so everyone reads the same "estimate".
  */
-export function RentalCosts({ rent, rows }: { rent: number | null; rows: readonly CostRow[] }) {
+export function RentalCosts({ rows, phoneHidden }: { rows: readonly CostRow[]; phoneHidden?: readonly string[] }) {
   return (
     <div className="space-y-2">
       <h2 className={SECTION_TITLE}><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
       <dl className="divide-y divide-border text-sm">
-        {rent != null && rent > 0 && <Row name={RENT_ROW}><VndValue value={rent} /><Per per={RENT_PER} /></Row>}
         {rows.map((r) => (
-          <Row key={r.key} name={r.name}>
+          <Row key={r.key} name={r.name} className={phoneHidden?.includes(r.key) ? 'max-md:hidden' : undefined}>
             {r.estimated && <>≈&nbsp;</>}
             <VndValue value={r.amount} /><Per per={r.per} />
             {r.estimated && <> <span className="text-xs font-normal text-muted-foreground"><Bilingual en={RENTAL_FACT_LABELS.estimate.label} vi={RENTAL_FACT_LABELS.estimate.labelVi} /></span></>}

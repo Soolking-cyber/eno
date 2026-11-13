@@ -22,7 +22,7 @@ import { EVisaSellerNote } from '@/components/marketplace/evisa-seller-note'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
-import { type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull, dropPercent, cardCompactAbove } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
@@ -36,16 +36,13 @@ import { SECTION_TITLE } from '@/components/marketplace/section-title'
 import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
 import { Badge } from '@/components/ui/badge'
 import { Footer } from '@/components/marketplace/footer'
-import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { CountValue, SavedCount } from '@/components/marketplace/rating-value'
-import { brandIconPath } from '@/lib/brand-icons'
 import {
   MapPin,
   AlertTriangle,
   Clock,
   Heart,
   Eye,
-  Tag,
   Zap,
 } from '@/components/ui/icons'
 import { RelatedListings } from '@/components/marketplace/related-listings'
@@ -55,7 +52,7 @@ import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { FacetValue, facetValueStartsRaw } from './facet-value'
 import { RentalAmenities, RentalCosts, RentalFactRows } from '@/components/marketplace/rental-facts'
-import { RENTAL_FACT_LABELS, amenityOptions, depositSummary, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply } from '@/lib/rental-facts'
+import { RENTAL_FACT_LABELS, amenityOptions, bedroomsOf, depositSummary, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply, type FactRow } from '@/lib/rental-facts'
 import { VndValue } from '@/components/marketplace/rating-value'
 import { LocalizedNav } from '@/components/ui/localized-nav'
 import { minPhotosFor } from '@/lib/publish-guard'
@@ -90,7 +87,7 @@ import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/a
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
-import { headingNamesEmployer } from '@/lib/pdp-repeat-rows'
+import { factSeparators, headingNamesEmployer, periodRestatedByUnit } from '@/lib/pdp-repeat-rows'
 import { hostOf, importProvenance } from '@/lib/import-provenance'
 import { adminPlaceEn, bracketNamedIn, cardArea } from '@/lib/city-short'
 import { PlaceName } from '@/components/marketplace/place-name'
@@ -128,6 +125,10 @@ import { isBusinessVerified } from '@/lib/business-verification'
 type Props = {
   params: Promise<{ id: string; lang?: string }>
 }
+
+/** The facts line's separator (batch 89): a no-break space ties the dot to the fact before it, so the only break is after it —
+ *  see the note at the line. A constant, not a JSX literal (jsx-no-literals). */
+const FACT_SEP = '\u00a0· '
 
 // ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
 // served ~globally in tens of ms instead of a function+DB hit in Singapore per
@@ -674,12 +675,48 @@ export default async function ListingPage({ params }: Props) {
   // The deposit chip beside the price (depositSummary): months when exact, else the amount. A place rental in đồng only:
   // factsApply is rentalFactsApply, which requires the listing's currency to be ₫/VND, so rent and deposit share a unit.
   const deposit = factsApply ? depositSummary(costRows, monthlyRent) : null
+  /**
+   * ⛔ ONE FACTS LINE UNDER THE TITLE, AND NOTHING SAID TWICE BELOW IT (UI climb batch 89, 2026-11-13; blind A/B on live eno.vn,
+   * Opus +0.24, trust −0.1; owner: "reduce lines … super clean, minimal wording, only what's necessary"). On every listing but
+   * a job (a teacher's page returned above), the price row's chips and the meta row under the H1 are one grey line — its
+   * render says what it holds. Below it, Details drops the rows that line or the price's unit already state, BY KEY
+   * through hiddenAttrs, like batch 84's job rows (the attributes stay for every other reader), and Costs drops its Rent row
+   * (rental-facts.tsx) and, below md only, its Deposit row when the line prints the deposit. An emptied section renders
+   * nothing: showDetails and the Costs wrapper read the rows that REMAIN. The dropped keys still name the description's
+   * repeats (restatedAttrs → repeatedFacts), so its own fact rows stay hidden as before.
+   *   · bedrooms and floor go to the line only where the rental facts apply (a place rental in đồng), from the attribute keys;
+   *   · "Rental period" goes when the headline price's unit is that period (pdp-repeat-rows.ts periodRestatedByUnit).
+   * The numeric specs (Year, Mileage, Engine) are printed in the line, so there Details renders none of them (detailSpecs).
+   * ⛔ NO ROW GOES BECAUSE THE TITLE CONTAINS ITS VALUE (the A/B mock's rule, built and withdrawn the same night — codex and
+   * Opus both refuted it): a word in a title is not the fact. "Not automatic" hid "Transmission: Automatic", "Phòng không chung
+   * chủ" hid every row answered "Không", "Studio · Nha Be" hid "Apartment type: Studio" — and a heading the browser translates
+   * cannot be read here at all. Only rows the facts line or the price's unit print, by key, are dropped.
+   */
+  const factsLine = listing.listingType !== 'job' && rawListing.category.slug !== 'jobs'
+  const bedrooms = factsLine && factsApply ? bedroomsOf(listing.attributes) : null
+  const floorFact = factsLine ? factRows.find((r): r is Extract<FactRow, { key: 'floor' }> => r.key === 'floor') ?? null : null
+  const restatedAttrs: string[] = []
+  let attrRowsBefore89: number | null = null
+  if (factsLine) {
+    if (bedrooms) restatedAttrs.push('bedrooms')
+    if (periodRestatedByUnit(listing.attributes?.rentalPeriod, listing.price > 0 ? listing.priceUnit : null)) restatedAttrs.push('rentalPeriod')
+    // The partner repeat-CTA's "8+ Details rows" (below) keeps counting what Details held before this batch: it is a money
+    // surface, and a rental whose rows moved into the facts line is no shorter for the buyer deciding to follow the link.
+    attrRowsBefore89 = attrs.filter(([k]) => !hiddenAttrs.has(k)).length
+    for (const k of restatedAttrs) hiddenAttrs.add(k)
+  }
   const detailAttrs = attrs.filter(([k]) => !hiddenAttrs.has(k))
-  const showDetails = !!providerValues || detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0 || factRows.length > 0
+  const detailSpecs = factsLine ? [] : numericSpecs
+  const detailFactRows = floorFact ? factRows.filter((r) => r !== floorFact) : factRows
+  // Costs' rows hidden below md: the deposit, which the facts line prints on a phone (its `deposit` fact is phone-only).
+  const costsPhoneHidden = factsLine && deposit ? ['deposit'] : []
+  const showDetails = !!providerValues || detailAttrs.length > 0 || detailSpecs.length > 0 || detailOnlySpecs.length > 0 || detailFactRows.length > 0
   // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
   // the attribute key as stored): the description hides its own row for any of them, so an imported
-  // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other.
-  const repeatedFacts = hideRepeatedFacts([...numericSpecs, ...detailOnlySpecs].map((s) => s.label.toLowerCase()).concat(detailAttrs.map(([k]) => k)))
+  // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other. ⚠️ From the FULL spec list and with
+  // the keys batch 89 moved to the facts line or the price's unit states (restatedAttrs): it is a hide-in-description list, and
+  // those facts are still on the page.
+  const repeatedFacts = hideRepeatedFacts([...numericSpecs, ...detailOnlySpecs].map((s) => s.label.toLowerCase()).concat(detailAttrs.map(([k]) => k), restatedAttrs))
   // ⚠️ A DESCRIPTION THAT ONLY REPEATS THE TITLE IS NOT SHOWN. Importers copy the title into the body
   // when the feed has none ('iPhone 18 Pro 256GB' under an H1 saying 'iPhone 18 Pro 256GB'), which
   // spent a section heading and a line on nothing. Compared on letters and digits only, so case,
@@ -702,9 +739,6 @@ export default async function ListingPage({ params }: Props) {
   // khác:" appears nowhere else). The metadata still reads the text.
   const showDescription = !isJob && descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
     && !(goplusRoom && isGoplusTemplateDescription({ description: listing.description, title: listing.title, ...(lang === 'vi' ? { descriptionVi: listing.descriptionVi ?? '', titleVi: listing.titleVi } : {}) }))
-  // Brand chip (when the listing carries a canonical brand) — links into the
-  // brand-filtered feed (resolved in the parallel batch above).
-  const brandLogoPath = brand ? brandIconPath(brand) : null
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const canonicalUrl = `${hostUrl}/listings/${listing.id}`
 
@@ -876,7 +910,9 @@ export default async function ListingPage({ params }: Props) {
   // P-CTA part B (owner, 2026-09-30): repeat the partner CTA once, after the description, on a LONG
   // partner PDP — one where the buy box is well out of sight by the end of the text. "Long" = a
   // description of 600+ characters or 8+ Details rows (the eSIM and rental imports carry both).
-  const detailRowCount = numericSpecs.length + detailOnlySpecs.length + detailAttrs.length
+  // ⚠️ Counted as before batch 89 (codex/Opus, 2026-11-13: an unannounced change to a money surface): the full spec list and
+  // the attribute rows before the facts-line de-dup, so the repeat CTA appears on exactly the pages it did.
+  const detailRowCount = numericSpecs.length + detailOnlySpecs.length + (attrRowsBefore89 ?? detailAttrs.length)
   const repeatCta = !!affiliateUrl && ((showDescription && descNorm.length >= 600) || detailRowCount >= 8)
   const socialProof = (
     <>
@@ -892,6 +928,86 @@ export default async function ListingPage({ params }: Props) {
       )}
     </>
   )
+  // ⛔ The place, in ONE expression for both of its homes (the facts line; a job's meta row). A wholly administrative location
+  // is never machine-translated (city-short.ts adminPlaceEn): "Huyện Nhà Bè (Xã Nhà Bè)" printed "The House of Bee" here for
+  // every English reader. Anything else keeps its translation. In the card's form where the title already names the ward
+  // (cardArea: the bracket off), so the line still fits beside "Posted": the full "Nha Be District (Nha Be Commune)" wrapped it
+  // and pushed the seller off the first screen (judge, 2026-11-10). ⛔ Never split on its commas (the A/B mock did, in the
+  // browser): that cuts a translated or bracketed name.
+  const placeName = locationEn ? <PlaceName en={collapseRepeatedName(pinShortEn ? cardArea(locationEn) : locationEn)} vi={collapseRepeatedName(pinShortVi ? cardArea(listing.location) : listing.location)} /> : <LocalizedText text={collapseRepeatedName(listing.location)} vi={mayBeVietnamese(listing.location) ? collapseRepeatedName(listing.location) : null} i18n={collapseRepeatedNames(i18n[listing.location])} />
+  /**
+   * THE FACTS LINE (batch 89 — the note at `factsLine` above has the record). In the A/B winner's order: Fixed price,
+   * condition, brand, the numeric specs, bedrooms, floor, the place, the deposit — then the social proof and "Posted <ago>"
+   * LAST, which the mock dropped and this keeps (freshness and the saved/views proof were functions of the old meta row).
+   * Every fact keeps the gate it had as a chip or a meta item; only where it prints moved. Nothing on a job (`factsLine`).
+   */
+  const facts: { key: string; node: ReactNode; phoneOnly?: boolean }[] = []
+  if (factsLine) {
+    // "Fixed price" is a P2P seller's statement that they won't haggle, so it is shown only where one could: a seller's own
+    // sale (retail or wholesale) or rental with a real price. Not on a job (a salary line is not an offer), not on a partner
+    // row (the partner prices it at its own checkout, and on a ticket the figure is only "from"), not on a service (in the
+    // services category the server forces every price to fixed, so there it says nothing), and not on a Free (0) item,
+    // where it read "Free · Fixed price".
+    // ⚠️ WHOLESALE IS A SALE: the post wizard offers its seller the same Negotiable/Fixed choice (fixedPriceOnly is services +
+    // wanted only), and 16 live wholesale posts chose Fixed (2026-09-29) — dropping it there would lose their answer.
+    if (!listing.negotiable && !affiliateUrl && listing.price > 0 && (listing.listingType === 'sell' || listing.listingType === 'rent' || listing.listingType === 'wholesale')) {
+      facts.push({ key: 'fixed', node: <Tr text="Fixed price" /> })
+    }
+    // The condition is free text up to 60 characters (core/listings.ts) — the seller's own words, with the warranty in them, so
+    // they are never truncated: the line WRAPS (break-ui, 2026-10-05: "Như mới 99%, đã thay pin chính hãng, còn bảo hành 6
+    // tháng" was 369px wide as a nowrap pill on a 320px phone). ⛔ NEVER ON A JOB (2026-10-19): a job has no condition —
+    // every write path stores null for Jobs (taxonomy.ts storesCondition) — and free text printed here would be words the
+    // job-text screen never read; a row written before that rule prints none either. (The line itself is never on a job; the
+    // gate stays, so moving the line can never print one.)
+    if (listing.condition && rawListing.category.slug !== 'jobs') {
+      facts.push({ key: 'condition', node: <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} /> })
+    }
+    // The brand links into the brand-filtered feed (resolved in the parallel batch above), in the reader's language
+    // (localizedHref, disc-missed) — an inline link now, in ink and medium weight (colour alone is under 3:1 against the line's
+    // grey, WCAG 1.4.1 — Opus 2026-11-13), underlined on hover. ⛔ NO tap-44: a link inside a line of
+    // text is the target-size rule's inline exception (WCAG 2.5.8), and its 44px ::before reached ~10px above the line, over
+    // the "See original" button of the machine-translation note right above it — later in the DOM, so it took those taps
+    // (review, 2026-11-13; globals.css tap-44's tap-stealing note). The chip it replaces had no tap floor either.
+    if (brand) {
+      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="font-medium text-foreground underline-offset-4 hover:underline">{brand.name}</Link> })
+    }
+    for (const s of numericSpecs) facts.push({ key: `spec-${s.label}`, node: <><Tr text={s.label} /> {s.value}</> })
+    if (bedrooms) {
+      facts.push({ key: 'bedrooms', node: 'studio' in bedrooms
+        ? <Bilingual en={RENTAL_FACT_LABELS.studio.label} vi={RENTAL_FACT_LABELS.studio.labelVi} />
+        : bedrooms.n === '1'
+          ? <Bilingual en={RENTAL_FACT_LABELS.bedroomOne.label} vi={RENTAL_FACT_LABELS.bedroomOne.labelVi} />
+          : <Bilingual en={RENTAL_FACT_LABELS.bedroomsN.label} vi={RENTAL_FACT_LABELS.bedroomsN.labelVi} values={{ n: bedrooms.n }} /> })
+    }
+    if (floorFact) {
+      facts.push({ key: 'floor', node: typeof floorFact.floor === 'number'
+        ? <><Bilingual en={RENTAL_FACT_LABELS.floor.label} vi={RENTAL_FACT_LABELS.floor.labelVi} /> <CountValue value={floorFact.floor} /></>
+        : <Bilingual en={floorFact.floor.label} vi={floorFact.floor.labelVi} /> })
+    }
+    // The place, always — ⛔ never left out because the title mentions it (built and withdrawn 2026-11-13: codex refuted it —
+    // "Phòng gần Quận 7", a room NEAR District 7, would have hidden "District 7"; and the English HTML is also what the nine
+    // machine-translated languages read, whose H1 the browser translates while the place is never translated).
+    if (listing.location?.trim()) facts.push({ key: 'place', node: placeName })
+    // The deposit beside the rent (best-practice gap 2026-11-10; rental-facts.ts depositSummary): on a phone it sat in Costs a
+    // scroll below. ⚠️ PHONES ONLY: from md the buy box shows Costs beside the price, with its Deposit row — which below md
+    // is hidden instead (the Costs wrapper). The service fee stays in Costs. Server-rendered in the page's language.
+    if (deposit) {
+      facts.push({ key: 'deposit', phoneOnly: true, node: 'months' in deposit
+        ? (deposit.months === 1
+          ? <Bilingual en={RENTAL_FACT_LABELS.depositMonth.label} vi={RENTAL_FACT_LABELS.depositMonth.labelVi} />
+          : <Bilingual en={RENTAL_FACT_LABELS.depositMonths.label} vi={RENTAL_FACT_LABELS.depositMonths.labelVi} values={{ n: String(deposit.months) }} />)
+        : <><Bilingual en={RENTAL_FACT_LABELS.depositAmount.label} vi={RENTAL_FACT_LABELS.depositAmount.labelVi} />&nbsp;<VndValue value={deposit.amount} /></> })
+    }
+    // Quiet social proof, above the same credibility floor as `showProof`.
+    // Behind showProof itself (codex, 2026-11-13), and each count above its own floor — exactly the old socialProof element.
+    if (showProof) {
+      if (listing.savedCount >= 3) facts.push({ key: 'saved', node: <><SavedCount base={listing.savedCount} id={listing.id} /> <Tr text="saved" /></> })
+      if (listing.views >= 20) facts.push({ key: 'views', node: <><CountValue value={listing.views} /> <Tr text="views" /></> })
+    }
+    // Freshness, last (showPosted says where it is true).
+    if (showPosted) facts.push({ key: 'posted', node: <><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></> })
+  }
+  const factSeps = factSeparators(facts.map((f) => !!f.phoneOnly))
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -1201,35 +1317,7 @@ export default async function ListingPage({ params }: Props) {
                         </Badge>
                       </LiveUntil>
                     )}
-                    {/* "Fixed price" is a P2P seller's statement that they won't haggle, so it is shown only
-                        where one could: a seller's own sale (retail or wholesale) or rental with a real
-                        price. Not on a job (a salary line is not an offer), not on a partner row (the
-                        partner prices it at its own checkout, and on a ticket the figure is only "from"),
-                        not on a service (in the services category the server forces every price to fixed,
-                        so there the chip says nothing),
-                        and not on a Free (0) item, where it read "Free · Fixed price".
-                        ⚠️ WHOLESALE IS A SALE: the post wizard offers its seller the same Negotiable/Fixed
-                        choice (fixedPriceOnly is services + wanted only), and 16 live wholesale posts
-                        chose Fixed (2026-09-29) — dropping the chip there would lose their answer. */}
-                    {!listing.negotiable && !affiliateUrl && listing.price > 0 && (listing.listingType === 'sell' || listing.listingType === 'rent' || listing.listingType === 'wholesale') && (
-                      <Badge size="md" className="text-2xs text-body">
-                        <Tag className="h-3 w-3" /><Tr text="Fixed price" />
-                      </Badge>
-                    )}
-                    {/* The deposit beside the rent (best-practice gap 2026-11-10; rental-facts.ts depositSummary): on a phone it sat
-                        in Costs a scroll below. One chip in this row, never a new one — the service fee stays in Costs (two chips
-                        wrapped a 390px phone onto a third line). ⚠️ PHONES ONLY (`md:hidden`): from md the buy box already shows
-                        Costs beside the price, and in its narrower column the chip wrapped onto an orphan line under the price
-                        (blind judge). Server-rendered in the page's language: nothing moves. */}
-                    {deposit && (
-                      <Badge size="md" className="text-2xs text-body md:hidden">
-                        {'months' in deposit
-                          ? (deposit.months === 1
-                            ? <Bilingual en={RENTAL_FACT_LABELS.depositMonth.label} vi={RENTAL_FACT_LABELS.depositMonth.labelVi} />
-                            : <Bilingual en={RENTAL_FACT_LABELS.depositMonths.label} vi={RENTAL_FACT_LABELS.depositMonths.labelVi} values={{ n: String(deposit.months) }} />)
-                          : <><Bilingual en={RENTAL_FACT_LABELS.depositAmount.label} vi={RENTAL_FACT_LABELS.depositAmount.labelVi} />&nbsp;<VndValue value={deposit.amount} /></>}
-                      </Badge>
-                    )}
+                    {/* "Fixed price" and the phone's deposit are facts in the line under the title now (batch 89 — `facts`). */}
                   </div>
                   {/* ⛔ NO INLINE SEAL LINE HERE (owner, 2026-08-08: "remove this line excessive").
                       A "Trust scores you can check" echo sat under the price from the 2026-08-06
@@ -1245,60 +1333,55 @@ export default async function ListingPage({ params }: Props) {
                 {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
                     body copy under the price and the page had no heading. Bold at 18px it is a heading
                     and still sits far below the 30px price, so price-first holds.
-                    `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on every meta item below: the
+                    `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on the facts line below: the
                     support bubble rests over the end of the title and the posted time on first paint (si-11,
                     real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
                     never risen above). A machine-translated title gets "Translated · See original" under it. */}
                 {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
                 <LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
 
-                {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
-                    posted · social proof; flex-wrap spills to a second row only when it must.
-                    ⚠️ NO LITERAL '·' SEPARATORS. They were flex items of their own, so a wrap could strand
-                    one at the end of a line ('Apple · New · Hồ Chí Minh ·') or the start of the next.
-                    Every item now leads with its own glyph (MapPin, Clock, Heart, Eye) or is a chip, and
-                    the column gap is what separates them — nothing is left to strand. */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-                  {brand && (
-                    <Badge size="md" interactive render={<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} />} className="w-fit gap-1.5 font-semibold text-foreground">
-                      <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
-                      {brand.name}
-                    </Badge>
-                  )}
-                  {/* `max-w-full whitespace-normal` (break-ui, 2026-10-05): the condition is free text up to 60
-                      characters (core/listings.ts), and as a nowrap pill "Như mới 99%, đã thay pin chính hãng, còn
-                      bảo hành 6 tháng" was 369px wide on a 320px phone. It wraps inside the row now — the words
-                      are the seller's own and the warranty is in them, so they are not truncated.
-                      ⛔ NEVER ON A JOB (2026-10-19): a job has no condition — every write path stores null for Jobs
-                      (taxonomy.ts storesCondition) — and free text printed here would be words the job-text screen
-                      never read; a row written before that rule prints none either. */}
-                  {listing.condition && rawListing.category.slug !== 'jobs' && (
-                    <Badge data-fab-avoid size="md" className="max-w-full whitespace-normal font-semibold text-foreground [overflow-wrap:anywhere]">
-                      <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
-                    </Badge>
-                  )}
-                  {numericSpecs.map((s) => (
-                    <Badge key={s.label} data-fab-avoid size="md" className="font-semibold text-foreground">
-                      <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
-                    </Badge>
-                  ))}
-                  <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
-                    <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                    {/* ⛔ A wholly administrative location is never machine-translated (city-short.ts adminPlaceEn): "Huyện Nhà Bè
-                        (Xã Nhà Bè)" printed "The House of Bee" here for every English reader. Anything else keeps its translation.
-                        In the card's form where the title already names the ward (cardArea: the bracket off), so the line still fits
-                        beside "Posted": the full "Nha Be District (Nha Be Commune)" wrapped it and pushed the seller off the first
-                        screen (judge, 2026-11-10). */}
-                    <span className="truncate">{locationEn ? <PlaceName en={collapseRepeatedName(pinShortEn ? cardArea(locationEn) : locationEn)} vi={collapseRepeatedName(pinShortVi ? cardArea(listing.location) : listing.location)} /> : <LocalizedText text={collapseRepeatedName(listing.location)} vi={mayBeVietnamese(listing.location) ? collapseRepeatedName(listing.location) : null} i18n={collapseRepeatedNames(i18n[listing.location])} />}</span>
-                  </span>
-                  {showPosted && (
-                    <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
-                      <Clock className="h-4 w-4 shrink-0 text-ink-4" />
-                      <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+                {/* THE FACTS LINE (UI climb batch 89, 2026-11-13; blind A/B on live eno.vn, Opus +0.24, trust −0.1; owner: "reduce
+                    lines … super clean, minimal wording, only what's necessary"): ONE grey 16px line under the H1 — "Fixed price ·
+                    1 bedroom · Floor 2 · Deposit 1 month" — in place of the price row's chips and the meta row of chips and glyphs.
+                    What it holds and each fact's gate: `facts` above. Server-rendered, nothing measured in the browser.
+                    ⛔ IT WRAPS, NEVER TRUNCATES (`[overflow-wrap:anywhere]`, no `truncate`): the seller's condition text and the
+                    phone's deposit must never be cut off its end, as the mock's one-line ellipsis did.
+                    ⚠️ THE '·' SEPARATORS COME FROM THE DATA, IN ONE TEXT RUN (factSeparators). The old meta row banned literal
+                    separators because they were FLEX ITEMS of their own, so a wrap could strand one alone at a line's end
+                    ('Apple · New · Hồ Chí Minh ·') or start. Here the facts and their dots are one run of inline text: a no-break
+                    space ties each dot to the fact before it (FACT_SEP — the H1's own rule, LocalizedTitleHeading, 2026-11-06
+                    audit), so a line can end on "fact ·" but never open on a dot, and no dot is ever alone; a dot is only ever
+                    printed BETWEEN two facts the reader sees, at every width — the phone-only deposit carries its own, and the
+                    fact before it loses its dot from md when nothing visible follows.
+                    `data-fab-avoid`: the support bubble yields over it (back-to-top.tsx — a wide value is yielded to, never
+                    risen above; si-11). Not on a job: its meta row below is as it was. */}
+                {factsLine ? facts.length > 0 && (
+                  <div data-facts-line="" data-fab-avoid className={cn('text-base text-muted-foreground [overflow-wrap:anywhere]', facts.every((f) => f.phoneOnly) && 'md:hidden')}>
+                    {facts.map((f, i) => {
+                      const tail = factSeps[i] === 'all' ? FACT_SEP : factSeps[i] === 'phone' ? <span className="md:hidden">{FACT_SEP}</span> : null
+                      return f.phoneOnly
+                        ? <span key={f.key} className="md:hidden">{f.node}{tail}</span>
+                        : <Fragment key={f.key}>{f.node}{tail}</Fragment>
+                    })}
+                  </div>
+                ) : (
+                  /* A JOB'S META ROW, as it was before batch 89 (the facts line is not the job page's): its place, "Posted" and the
+                     social proof, each with its glyph — the column gap separates them, no literal '·' (a wrap would strand one).
+                     A job never had a brand, a condition (⛔ 2026-10-19) or a vehicle spec to print here. */
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+                    <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
+                      <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
+                      <span className="truncate">{placeName}</span>
                     </span>
-                  )}
-                  {showProof && <span data-fab-avoid className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
-                </div>
+                    {showPosted && (
+                      <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
+                        <Clock className="h-4 w-4 shrink-0 text-ink-4" />
+                        <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+                      </span>
+                    )}
+                    {showProof && <span data-fab-avoid className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
+                  </div>
+                )}
               </div>
 
               {/* 4 — Enforcement caution (rare: throttled/held sellers) — before any contact action */}
@@ -1478,10 +1561,12 @@ export default async function ListingPage({ params }: Props) {
               </div>
 
               {/* A RENTAL'S COSTS SIT WITH THE ACTION, as a booking card's fee lines do (Airbnb; 2026-11-05): the deposit and the monthly
-                  fees decide a rental, and they were a screen below Chat now while the column beside it stood empty. */}
+                  fees decide a rental, and they were a screen below Chat now while the column beside it stood empty.
+                  Batch 89: no Rent row (the headline price says it) and, below md only, no Deposit row when the facts line prints
+                  the deposit (`phoneHidden`); a block left with no row below md is hidden there whole — no heading, no hairline. */}
               {/* Below md it opens on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
                   Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
-              {costRows.length > 0 && <div className="order-7 max-md:border-t max-md:border-border max-md:pt-6"><RentalCosts rent={monthlyRent} rows={costRows} /></div>}
+              {costRows.length > 0 && <div className={cn('order-7 max-md:border-t max-md:border-border max-md:pt-6', costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} /></div>}
               <div data-safety-block="" className="order-9 md:order-7">
                 {/*
                   * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
@@ -1601,14 +1686,14 @@ export default async function ListingPage({ params }: Props) {
                   <dl className="divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                     {/* First: who holds the licence (e-Visa, Legal & permits) — verbatim, never translated. */}
                     {providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}
-                    {[...numericSpecs, ...detailOnlySpecs].map((s) => (
+                    {[...detailSpecs, ...detailOnlySpecs].map((s) => (
                       <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
                         <dd data-fab-avoid className="text-right font-medium text-foreground">{s.value}</dd>
                       </div>
                     ))}
                     {/* A rental's occupancy rows — max occupants, floor, available from (rental-facts.tsx). */}
-                    {factRows.length > 0 && <RentalFactRows rows={factRows} />}
+                    {detailFactRows.length > 0 && <RentalFactRows rows={detailFactRows} />}
                     {detailAttrs.map(([k, v]) => {
                       // ⛔ ONE LABEL FUNCTION (taxonomy.ts detailRowLabel): this row's label is what the job-text screen reads
                       // beside a hiring post's value ("label: value"), so the two cannot drift. A job's text facts carry their
@@ -1676,7 +1761,7 @@ export default async function ListingPage({ params }: Props) {
             {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
                 pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
                 place — an eSIM or a shop's phone 'in District 1'. When there is no map, render NOTHING:
-                the meta row under the title already shows the location beside its pin glyph, so a
+                the facts line under the title already names the place (or the title does), so a
                 text-only Location section would only repeat it. A seller's own listing keeps its map
                 as before, district-level or not. Below md it opens on the section hairline (batch 79; owner, 2026-11-12:
                 "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements …

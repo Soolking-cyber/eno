@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ELECTRICITY_ESTIMATED, RENTAL_FACT_KEYS, RENTAL_FACT_LABELS, amenityOptions, depositSummary, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply, type CostRow } from './rental-facts'
+import { ELECTRICITY_ESTIMATED, RENTAL_FACT_KEYS, RENTAL_FACT_LABELS, amenityOptions, bedroomsOf, depositSummary, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply, type CostRow } from './rental-facts'
 
 /**
  * A rental's structured facts for the listing page (GoPlus partnership, 2026-10-19). The importer writes every value as
@@ -207,5 +207,30 @@ describe('depositSummary — the deposit beside the price (best-practice gap 202
   it('no deposit row, no chip', () => {
     expect(depositSummary([], 4_000_000)).toBeNull()
     expect(depositSummary(rentalCostRows({ deposit: '2 tháng' }), 4_000_000)).toBeNull() // free text keeps its own row
+  })
+})
+
+/**
+ * Batch 89 (2026-11-13): the facts line under the title prints the bedroom count — from the `bedrooms` attribute's facet
+ * values, in authored words ("1 bedroom", "2 phòng ngủ"), never the filter chip's "2 BR".
+ */
+describe('bedroomsOf — the facts line\'s bedroom count (batch 89)', () => {
+  it("reads the facet's values: 0 a studio, 1–5 that many, 6 the facet's 6+", () => {
+    expect(bedroomsOf({ bedrooms: '0' })).toEqual({ studio: true })
+    expect(bedroomsOf({ bedrooms: '1' })).toEqual({ n: '1' })
+    expect(bedroomsOf({ bedrooms: ' 3 ' })).toEqual({ n: '3' })
+    expect(bedroomsOf({ bedrooms: '6' })).toEqual({ n: '6+' })
+    expect(bedroomsOf({ bedrooms: 2 })).toEqual({ n: '2' })
+    // A larger whole number an importer wrote is printed as written.
+    expect(bedroomsOf({ bedrooms: '8' })).toEqual({ n: '8' })
+  })
+  it('anything else is no fact (the Details row keeps it)', () => {
+    for (const v of ['', '2-3', 'two', '-1', '1.5', '100', null, undefined, ['2']]) expect(bedroomsOf({ bedrooms: v }), JSON.stringify(v)).toBeNull()
+    expect(bedroomsOf(null)).toBeNull()
+  })
+  it('its words are authored pairs, and the deposit fact has no colon', () => {
+    expect(RENTAL_FACT_LABELS.bedroomOne).toEqual({ label: '1 bedroom', labelVi: '1 phòng ngủ' })
+    expect(RENTAL_FACT_LABELS.bedroomsN).toEqual({ label: '{n} bedrooms', labelVi: '{n} phòng ngủ' })
+    expect(RENTAL_FACT_LABELS.depositMonth).toEqual({ label: 'Deposit 1 month', labelVi: 'Cọc 1 tháng' })
   })
 })

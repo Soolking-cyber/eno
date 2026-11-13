@@ -106,8 +106,10 @@ describe('PDP safety note — one copy per edition', () => {
  * (rich-text.facts.test.tsx pins the tagging and the classes).
  */
 describe('PDP description — rows Details already shows are hidden', () => {
-  it('names the spec rows AND the attribute rows Details renders', () => {
-    expect(PAGE).toContain('hideRepeatedFacts([...numericSpecs, ...detailOnlySpecs].map((s) => s.label.toLowerCase()).concat(detailAttrs.map(([k]) => k)))')
+  it('names the spec rows AND the attribute rows Details renders — and the ones batch 89 moved to the facts line or found in the H1', () => {
+    // From the FULL spec list (the facts line prints the numeric specs now, Details none of them) and with restatedAttrs: those
+    // facts are still on the page, so the description must not print its own rows for them again.
+    expect(PAGE).toContain('hideRepeatedFacts([...numericSpecs, ...detailOnlySpecs].map((s) => s.label.toLowerCase()).concat(detailAttrs.map(([k]) => k), restatedAttrs))')
     // The spec labels lower-case to the keys rich-text.tsx uses.
     for (const label of ["label: 'Area'", "label: 'Year'", "label: 'Mileage'", "label: 'Engine'"]) expect(PAGE).toContain(label)
   })
@@ -150,8 +152,23 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     expect(PAGE).toMatch(/if \(listing\.mileageKm != null && listing\.mileageKm > 0 && rawListing\.subcategorySlug !== 'parts-gear'\) numericSpecs\.push\(\{ label: 'Mileage'/)
   })
 
-  it('the brand chip goes through localizedHref, like the breadcrumb (disc-missed)', () => {
-    expect(PAGE).toContain('render={<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} />}')
+  it('the brand link goes through localizedHref, like the breadcrumb (disc-missed) — an inline link in the facts line since batch 89', () => {
+    expect(PAGE).toContain('<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="font-medium text-foreground ')
+    // The old chip is gone: one brand link on the page.
+    expect(PAGE.match(/\?brand=\$\{encodeURIComponent/g)).toHaveLength(1)
+  })
+
+  it('⛔ the inline brand link has no tap-44: its 44px hit area covered "See original" right above the line (review, 2026-11-13)', () => {
+    const link = PAGE.match(/<Link href=\{localizedHref\(`\/\?brand=[^\n]*/)?.[0] ?? ''
+    expect(link).not.toBe('')
+    expect(link).not.toMatch(/tap-44/)
+  })
+
+  it('⛔ the place is never dropped from the facts line for the title (built and withdrawn 2026-11-13)', () => {
+    // "Phòng gần Quận 7" (a room NEAR District 7) would have hidden "District 7"; the English HTML's H1 is also translated in
+    // the browser for nine languages, while the place never is.
+    expect(PAGE).toContain("if (listing.location?.trim()) facts.push({ key: 'place', node: placeName })")
+    expect(PAGE).not.toMatch(/headingRestatesValue|placeHeading/)
   })
 
   it('the H1, the market price and every meta item opt into the support bubble’s yield (pdp-01, si-11)', () => {
@@ -160,10 +177,13 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     // The one H1 is LocalizedTitleHeading's (the only `<h1` left in the page is the layout comment).
     expect(PAGE.match(/<h1[\s>]/g) ?? []).toHaveLength(1)
     expect(PAGE.match(/<LocalizedTitleHeading className=/g)).toHaveLength(1)
+    // Batch 89: the facts line opts in as one wide value (yield-only); a job's meta row keeps its items' own opt-ins.
+    expect(PAGE).toMatch(/<div data-facts-line="" data-fab-avoid className=\{cn\('text-base text-muted-foreground \[overflow-wrap:anywhere\]'/)
     expect(PAGE).toContain('<span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">')
     expect(PAGE).toContain('<span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">')
-    // The condition badge wraps now (break-ui, 2026-10-05: a 60-char free-text condition overflowed 320px).
-    expect(PAGE).toContain('<Badge data-fab-avoid size="md" className="max-w-full whitespace-normal font-semibold text-foreground [overflow-wrap:anywhere]">')
+    // The condition wraps with the line, never cut (break-ui, 2026-10-05: a 60-char free-text condition overflowed 320px).
+    const line = PAGE.slice(PAGE.indexOf('<div data-facts-line'), PAGE.indexOf('</div>', PAGE.indexOf('<div data-facts-line')))
+    expect(line).not.toMatch(/truncate|line-clamp|text-ellipsis|whitespace-nowrap/)
     const MARKET = readFileSync(join(process.cwd(), 'src/components/marketplace/market-price.tsx'), 'utf8')
     expect(MARKET.match(/(?<!`)data-fab-avoid(?!`)/g)).toHaveLength(2) // the verdict and the range (not the comment)
     const CONTENT = readFileSync(join(process.cwd(), 'src/components/marketplace/listing-content.tsx'), 'utf8')

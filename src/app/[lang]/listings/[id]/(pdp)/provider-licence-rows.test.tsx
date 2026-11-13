@@ -107,7 +107,9 @@ describe('the PDP wires them in', () => {
   it('prints them as the FIRST rows of the Details table, which shows for them alone', () => {
     const dl = PAGE.slice(PAGE.indexOf('<dl className="divide-y divide-border'), PAGE.indexOf('</dl>'))
     expect(dl).toContain('{providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}')
-    expect(dl.indexOf('<ProviderLicenceRows')).toBeLessThan(dl.indexOf('numericSpecs'))
+    // (The spec rows are `detailSpecs` since batch 89: the facts line prints the numeric specs, Details none of them there.)
+    expect(dl.indexOf('<ProviderLicenceRows')).toBeLessThan(dl.indexOf('detailSpecs'))
+    expect(dl.indexOf('detailSpecs')).toBeGreaterThan(0)
     expect(PAGE).toMatch(/const showDetails = !!providerValues \|\|/)
   })
 

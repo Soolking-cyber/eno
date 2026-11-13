@@ -32,7 +32,8 @@ const fromMd = (classes: string[]) => classes.filter((c) => !c.startsWith('max-m
 
 /** Each section's wrapper, found by what it holds; `before` is its class list before batch 79 (md and up must still read so). */
 const SECTIONS: { name: string; re: RegExp; before: string[] }[] = [
-  { name: 'Costs', re: /<div className="([^"]*)"><RentalCosts rent=\{monthlyRent\} rows=\{costRows\} \/><\/div>/, before: ['order-7'] },
+  // Batch 89: cn() adds `max-md:hidden` when the facts line holds every row Costs has below md (the next test).
+  { name: 'Costs', re: /<div className=\{cn\('([^']*)', costsPhoneHidden\.length === costRows\.length && 'max-md:hidden'\)\}><RentalCosts rows=\{costRows\} phoneHidden=\{costsPhoneHidden\} \/><\/div>/, before: ['order-7'] },
   { name: 'Description', re: /<div className="([^"]*)">\s*<h2 className=\{SECTION_TITLE\}><Tr text="Description" \/><\/h2>/, before: ['space-y-2'] },
   { name: 'Amenities', re: /<div className="([^"]*)"><RentalAmenities items=\{amenities\} \/><\/div>/, before: [] },
   { name: 'Details', re: /<div className="([^"]*)">\s*<h2 className=\{SECTION_TITLE\}><Tr text="Details" \/><\/h2>/, before: ['space-y-2'] },
@@ -45,6 +46,15 @@ describe('batch 79: one hairline over each listing-page section, below md only',
     const classes = classesAt(re)
     for (const c of SECTION_LINE) expect(classes).toContain(c)
     expect(fromMd(classes)).toEqual(before)
+  })
+
+  it('batch 89: a section left with no row renders nothing — no heading, no stray line', () => {
+    // Costs: hidden whole below md when its only rows there are the ones the facts line prints (the deposit); the line's
+    // deposit is phone-only, so from md the block and its Deposit row are back.
+    expect(PAGE).toContain("const costsPhoneHidden = factsLine && deposit ? ['deposit'] : []")
+    // Details: decided on the rows that REMAIN after the facts line, the H1 and the price unit took theirs.
+    expect(PAGE).toContain('const showDetails = !!providerValues || detailAttrs.length > 0 || detailSpecs.length > 0 || detailOnlySpecs.length > 0 || detailFactRows.length > 0')
+    expect(PAGE).toMatch(/\{showDetails && \(\s*<div className="space-y-2 max-md:border-t/)
   })
 
   it('every SECTION_TITLE h2 the page draws itself sits directly in a wrapper that carries the line (none missed)', () => {
@@ -63,7 +73,8 @@ describe('batch 79: one hairline over each listing-page section, below md only',
   })
 
   it('nothing else on the page takes the line: seven class lists in all (six sections, one band), no md/lg border added', () => {
-    const lists = [...PAGE.matchAll(/className="([^"]*)"/g)].map((m) => m[1])
+    // Literal class lists, and the literal first argument of a cn() (Costs since batch 89).
+    const lists = [...PAGE.matchAll(/className="([^"]*)"/g), ...PAGE.matchAll(/className=\{cn\('([^']*)'/g)].map((m) => m[1])
     expect(lists.filter((l) => /(^|\s)max-md:border-t(\s|$)/.test(l))).toHaveLength(7)
     expect(lists.filter((l) => SECTION_LINE.every((c) => l.split(' ').includes(c)))).toHaveLength(6)
     expect(lists.filter((l) => BAND_LINE.every((c) => l.split(' ').includes(c)))).toHaveLength(1)
