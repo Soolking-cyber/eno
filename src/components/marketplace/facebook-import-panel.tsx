@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -33,12 +34,32 @@ type State = { on: boolean; connected: boolean; phone: string | null; job: { id:
  * My listings › Import from Facebook (owner, 2026-11-04): connect if needed, read, review, publish. How it works and why it runs from a worker on the box: src/lib/fb-import/shared.ts.
  * A browser, or the iOS app through its in-app browser sheet (facebookIosApp), like Connect: Meta's dialog doesn't run in a webview. Nothing goes public until Publish.
  */
+/** Sign up or sign in, then back to this tab (safeNextPath keeps the query). */
+const GUEST_SIGNIN = `/signin?next=${encodeURIComponent('/dashboard/listings?tab=facebook')}`
+/** How long a signed-out visitor waits for "is the import on" before the tab says it isn't available. */
+const GUEST_CHECK_MS = 8_000
+
+/**
+ * ⛔ ONE PANEL PER ACCOUNT (commit gates 2026-11-13): keyed by who is signed in, so signing in, out or as someone else mounts a FRESH
+ * panel — no state, ref, status poll or late answer of the last account (its phone, drafts, job, picks, a spinner, a guest's on/off)
+ * reaches the next one; React drops the writes of an unmounted panel. Resetting each piece by hand kept missing one.
+ */
 export function FacebookImportPanel() {
+  const { user, loading } = useAuth()
+  // Nothing until sign-in is known, so ONE panel mounts, for the right account: a panel mounted while it loads would consume a seller's
+  // Connect return (?fbi=…, read once and stripped) before their own panel exists (opus commit gate 2026-11-13).
+  if (loading) return null
+  return <ImportPanel key={user?.id ?? 'guest'} />
+}
+
+function ImportPanel() {
   const { tr, lang } = useLanguage()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
   const [state, setState] = useState<State | null>(null)
+  // A visitor who is not signed in (the Facebook ads land here — owner, 2026-11-13): is the import on? null = not asked yet.
+  const [guestOn, setGuestOn] = useState<boolean | null>(null)
   const [canRunHere, setCanRunHere] = useState(false)
   const [starting, setStarting] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -80,6 +101,18 @@ export function FacebookImportPanel() {
   }, [])
 
   useEffect(() => { setCanRunHere(facebookAvailableHere() || facebookIosApp()); if (user) void load() }, [user, load])
+  // Never left hanging: an answer that doesn't come in 8 s, an error or
+  // a refusal all settle on "isn't available" (codex + opus commit gate, 2026-11-13: a pending request kept the tab empty for good).
+  useEffect(() => {
+    if (authLoading || user) return
+    let live = true
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), GUEST_CHECK_MS)
+    void fetch('/api/fb-import/available', { cache: 'no-store', signal: ctl.signal }).then((r) => (r.ok ? r.json() : null))
+      .then((d: { on?: boolean } | null) => { if (live) setGuestOn(!!d?.on) }).catch(() => { if (live) setGuestOn(false) })
+      .finally(() => clearTimeout(timer))
+    return () => { live = false; clearTimeout(timer); ctl.abort() }
+  }, [authLoading, user])
 
   // While a job is moving, look again. A person is watching this; a closed tab asks nothing.
   const status = state?.job?.status
@@ -230,6 +263,33 @@ export function FacebookImportPanel() {
     await load()
   }
 
+  // The import's intro: what it reads and where the text goes, then one button — Connect / Import for a signed-in seller, sign in for
+  // a visitor (owner, 2026-11-13: "users should see how it looks upon landing there" from the Facebook ads).
+  const intro = (cta: ReactNode) => (
+    <section className="space-y-3">
+        <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
+        <p className="text-sm text-body">
+          {tr(
+            'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI, or Google’s if it doesn’t answer, to sort them, read the price and write the description. You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
+            'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI, hoặc của Google nếu OpenAI không phản hồi, để phân loại, đọc giá và viết mô tả. Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
+          )}
+        </p>
+        <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>
+      {cta}
+    </section>
+  )
+  // ⛔ NOT SIGNED IN: the intro as a signed-in seller sees it, the button sends them to sign up or sign in and back here; nothing
+  // else of the import is reachable. Waits for auth and for the import's on flag, so a signed-in seller never sees this flash.
+  if (!user) {
+    if (authLoading || guestOn === null) return null
+    if (!canRunHere) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Open eno.vn in your browser to import from Facebook.', 'Hãy mở eno.vn trong trình duyệt để nhập từ Facebook.')}</p>
+    if (!guestOn) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Import from Facebook isn’t available right now.', 'Hiện chưa thể nhập từ Facebook.')}</p>
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        {intro(<Button variant="cta" asChild><Link href={GUEST_SIGNIN}>{tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Link></Button>)}
+      </div>
+    )
+  }
   if (!user || !state) return null
   if (!canRunHere) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Open eno.vn in your browser to import from Facebook.', 'Hãy mở eno.vn trong trình duyệt để nhập từ Facebook.')}</p>
   if (!state.on) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Import from Facebook isn’t available right now.', 'Hiện chưa thể nhập từ Facebook.')}</p>
@@ -250,17 +310,7 @@ export function FacebookImportPanel() {
     <div className="mx-auto max-w-3xl space-y-6">
       {!moving && drafts.length > 0 && <Button variant="outline" size="sm" loading={starting} onClick={() => void start()}>{tr('Import again', 'Nhập lại')}</Button>}
       {!moving && drafts.length === 0 && (
-        <section className="space-y-3">
-          <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
-          <p className="text-sm text-body">
-            {tr(
-              'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI, or Google’s if it doesn’t answer, to sort them, read the price and write the description. You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
-              'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI, hoặc của Google nếu OpenAI không phản hồi, để phân loại, đọc giá và viết mô tả. Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
-            )}
-          </p>
-          <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>
-          <Button variant="cta" loading={starting} onClick={() => void start()}>{state.connected ? tr('Import from Facebook', 'Nhập từ Facebook') : tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Button>
-        </section>
+        intro(<Button variant="cta" loading={starting} onClick={() => void start()}>{state.connected ? tr('Import from Facebook', 'Nhập từ Facebook') : tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Button>)
       )}
 
       {moving && <FacebookImportProgress status={job.status} startedAt={job.createdAt} items={job.items.filter((i) => i.fresh).map((i) => ({ id: i.id, status: i.status, photo: i.photo, fbTitle: i.fbTitle, categorySlug: i.categorySlug }))} />}

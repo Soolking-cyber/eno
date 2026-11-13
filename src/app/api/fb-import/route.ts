@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { facebookConnectConfigured, facebookConnectionState } from '@/lib/auth/facebook-connect'
-import { facebookSignInEnabled } from '@/lib/auth/facebook'
+import { facebookConnectionState } from '@/lib/auth/facebook-connect'
 import { getVerifiedPhone } from '@/lib/admin'
 import { logError } from '@/lib/log'
 import type { ReportedItem } from '@/lib/fb-import/shared'
+import { fbImportOn } from '@/lib/fb-import/available'
 
 export const dynamic = 'force-dynamic'
 
 // My listings › Import from Facebook: the latest import and its drafts.
 export const GET = route({ auth: 'userId' }, async ({ userId }) => {
-  const on = Boolean(process.env.FB_IMPORT_WORKER_TOKEN?.trim()) && facebookConnectConfigured() && (await facebookSignInEnabled().catch(() => false))
+  const on = await fbImportOn()
   const [job, olderDrafts, conn, seller, verifiedPhone] = await Promise.all([
     db.facebookImportJob.findFirst({ where: { profileId: userId }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, createdAt: true, items: { orderBy: { createdAt: 'asc' } } } }),
     // An import that found nothing must not hide what the seller already edited from the last one.
