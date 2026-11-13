@@ -96,9 +96,12 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // 08:00) — no outside lab left. Owner, asked (buy codex credits / wait): "continue withut reviews until 16th". So until
 // UNTIL_CODEX the panel is opus alone and one lab is enough (MIN_LABS). ⛔ IT EXPIRES BY ITSELF: from UNTIL_CODEX the minimum
 // is two labs again while the panel is still opus alone, so every commit is refused until codex is put back here.
-const UNTIL_CODEX = Date.parse('2026-11-16T23:42:00+07:00')
-const MIN_LABS = Date.now() < UNTIL_CODEX ? 1 : 2
-const REVIEWER_NAMES = ['opus']
+// ✅ codex BACK 2026-11-13 ~21:40 ICT — owner: "add codex review back and tell all other sessions to do so". Probed first:
+// gpt-6.1-sol at medium answered "VERDICT: CONFIRMED" (4,402 tokens), three days before its stated reset. The panel is
+// codex + opus again (as 2026-09-29..11-12) and the minimum is two labs, with no clock. agy stays skipped: its Google
+// quota resets ≈ 2026-11-17 08:00, and it comes back only on the owner's word.
+const MIN_LABS = 2
+const REVIEWER_NAMES = ['codex', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -747,7 +750,6 @@ if (independentLabs.length >= 2 && new Set(independent.map((r) => r.verdict)).si
  * the property this gate exists to guarantee against.
  */
 if (labsCounted < MIN_LABS) {
-  if (Date.now() >= UNTIL_CODEX && REVIEWER_NAMES.length === 1) console.error('⛔ The no-outside-review window (owner, 2026-11-12) ENDED 2026-11-16 23:42 ICT: put codex back in REVIEWER_NAMES.')
   console.error(`⚠️  Only ${labsCounted} lab(s) reviewed the FULL diff (${counted.length} seat(s)) — that is NOT a passed`)
   console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
   console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
