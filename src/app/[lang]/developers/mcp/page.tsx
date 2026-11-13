@@ -6,6 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
 import { TOOLS } from '@/lib/mcp/tools'
+import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
 import { C, Code } from '../doc-parts'
@@ -34,6 +35,8 @@ export const metadata: Metadata = withShare({
 })
 
 const ENDPOINT = `${SITE_ORIGIN}/api/mcp`
+/** The public listing-search server (src/app/api/mcp/search): no key, read-only. Its browser GET lands on #search. */
+const SEARCH_ENDPOINT = `${SITE_ORIGIN}/api/mcp/search`
 
 /** The client-side name in the examples: the site's first label, e.g. `eno`. */
 const CLIENT_NAME = SITE_NAME.split('.')[0]
@@ -98,6 +101,24 @@ Authorization: Bearer eno_live_…`}</Code></div>
                   <code className="font-mono text-sm font-semibold text-foreground">{t.name}</code>
                   <Badge variant="brand" size="sm" className="rounded-lg font-mono">{t.scope}</Badge>
                 </div>
+                <p className="mt-1 text-sm leading-relaxed text-body">{t.description}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="search" className="mt-8 scroll-mt-20">
+          <h2 className="h-section text-foreground">Listing search, no key</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            A second server, open to anyone: an AI assistant searches live listings for the person it is helping and links to each one. Read-only, no
+            sign-in, nothing to set up.
+          </p>
+          <div className="mt-3"><Code>{SEARCH_ENDPOINT}</Code></div>
+          <div className="mt-3"><Code whole>{`claude mcp add --transport http ${CLIENT_NAME}-search ${SEARCH_ENDPOINT}`}</Code></div>
+          <ul className="mt-4 space-y-3">
+            {SEARCH_TOOLS.map((t) => (
+              <li key={t.name} className="border-t border-border pt-3">
+                <code className="font-mono text-sm font-semibold text-foreground">{t.name}</code>
                 <p className="mt-1 text-sm leading-relaxed text-body">{t.description}</p>
               </li>
             ))}

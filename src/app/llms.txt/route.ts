@@ -84,6 +84,8 @@ const DEVELOPER_SECTION = `## For developers and agents
 - [Developer documentation](${SITE_ORIGIN}/developers) — authentication, scopes, endpoints, copy-pasteable requests.
 - [MCP server](${SITE_ORIGIN}/developers/mcp) — connect an AI agent (Claude Code, Cursor, any MCP client) to a
   storefront: the endpoint, the header, and every tool with the scope it needs.
+- [Listing search MCP server](${SITE_ORIGIN}/developers/mcp#search): \`${SITE_ORIGIN}/api/mcp/search\`, open to any MCP client with
+  no key: search the listings, read one listing's details, list the categories. Read-only; every result links to its page.
 - [eno-vn CLI](${SITE_ORIGIN}/developers/cli) — the command-line client on npm (${SITE_ORIGIN === 'https://eno.vn' ? '' : `\`export ENO_BASE_URL=${SITE_ORIGIN}\` then `}\`npx eno-vn status\`): listings,
   catalogue sync, photos, analytics and webhooks from a terminal or a script; one API call per command (--all
   follows every page).

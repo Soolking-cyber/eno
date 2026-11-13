@@ -284,7 +284,9 @@ export function GET(req: NextRequest) {
     ...card,
     url: remote.url,
     transport: remote.type,
-    mcpServers: { [card.name]: { url: remote.url, transport: remote.type } },
+    // The public listing-search server sits beside it in this Claude-Desktop-style map ONLY: it is a different server
+    // (no key, read-only), so it is never a `remotes` entry of this card, which describes the Partner API alone.
+    mcpServers: { [card.name]: { url: remote.url, transport: remote.type }, [`${RDNS}/search`]: { url: `${OAUTH_ISSUER}/api/mcp/search`, transport: 'streamable-http' } },
   }
 
   return NextResponse.json(body, {
