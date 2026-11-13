@@ -16,7 +16,7 @@ export function OfferServiceLink({ href, className }: { href: string; className?
   return (
     <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
       {tr('Offer a service — dog walking, babysitting, repairs, cleaning?', 'Bạn cung cấp dịch vụ — dắt chó, trông trẻ, sửa chữa, dọn dẹp?')}{' '}
-      <Link href={href} data-cross-link="offer-service" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+      <Link href={href} data-cross-link="offer-service" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
         {tr('Post your service', 'Đăng dịch vụ của bạn')} <ArrowRight className="h-4 w-4 shrink-0" />
       </Link>
     </p>

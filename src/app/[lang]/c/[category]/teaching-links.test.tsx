@@ -110,13 +110,72 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
     expect(page).toMatch(/teacherJoinHref = teacherSurfaceHref\(localizedHref\('\/teachers\/join', pageLang\(lang\)\)\)/)
   })
 
+  // /c/teachers' two lines, jobs then guide, built once as `teacherLines` (batch 91 places them, below).
+  const TEACHER_LINES = /const teacherLines = isTeachers && \(teachingJobs > 0 \|\| !IS_SERVICES\) \? \(\s*<>\s*<TeachingJobsLink count=\{teachingJobs\} href=\{teachingJobsHref\} \/>\s*\{!IS_SERVICES && <TeachGuideLink \/>\}\s*<\/>\s*\) : null/
+
   it('the jobs line is on /c/teachers, the profile line on /c/jobs', () => {
-    expect(page).toMatch(/\{isTeachers && <TeachingJobsLink count=\{teachingJobs\} href=\{teachingJobsHref\} \/>\}/)
+    expect(page).toMatch(TEACHER_LINES)
     expect(page).toMatch(/\{cat\.slug === TEACHING_JOBS\.category && <TeacherProfileLink href=\{teacherJoinHref\} \/>\}/)
   })
 
   it('the guide line is on both teaching pages, and only on the marketplace', () => {
-    expect(page).toMatch(/\{!IS_SERVICES && \(isTeachers \|\| cat\.slug === TEACHING_JOBS\.category\) && <TeachGuideLink \/>\}/)
+    expect(page).toMatch(TEACHER_LINES)
+    expect(page).toMatch(/\{!IS_SERVICES && cat\.slug === TEACHING_JOBS\.category && <TeachGuideLink \/>\}/)
+    expect(page.match(/<TeachGuideLink \/>/g)).toHaveLength(2)
+    expect(page.match(/<TeachingJobsLink\b/g)).toHaveLength(1)
+  })
+
+  /**
+   * ⛔ TEACHERS FIRST ON A PHONE (UI climb batch 91, 2026-11-14): below sm, /c/teachers' two teacher-side lines follow the grid;
+   * from sm, and on an empty page, they stay above it. Two server-rendered copies, CSS shows one per width — never a client move.
+   */
+  describe('batch 91: /c/teachers on a phone — the teacher lines after the grid', () => {
+    const at = (re: RegExp) => { const m = re.exec(page); expect(m, String(re)).not.toBeNull(); return m!.index }
+    const above = /\{teacherLines && \(listings\.length > 0 \? <div className="max-sm:hidden">\{teacherLines\}<\/div> : teacherLines\)\}/
+    const after = /\{teacherLines && <div className="mt-6 sm:hidden">\{teacherLines\}<\/div>\}/
+    it('above the grid from sm (hidden below it) — and unchanged, at every width, with no grid', () => {
+      expect(at(above)).toBeLessThan(at(/<div aria-hidden className="mt-4 border-t border-border sm:mt-5" \/>/))
+      expect(page.match(/\{teacherLines && /g)).toHaveLength(2)
+    })
+    it('after the grid below sm only: in the non-empty branch, right after the grid block, before anything else under it', () => {
+      const grid = at(/<CategoryListings\b/)
+      const branch = at(/\{listings\.length > 0 \? \(/)
+      const empty = at(/<EmptyState\b/)
+      const a = at(after)
+      expect(a).toBeGreaterThan(grid)
+      expect(a).toBeGreaterThan(branch)
+      expect(a).toBeLessThan(empty)
+      expect(a).toBeLessThan(at(/\{homes && <OtherRentalsLink\b/))
+      // Nothing but the grid's closing tags and a comment between the grid's end and the lines.
+      expect(page.slice(at(/sortable=\{\(homes\?\.total \?\? total\) > 1\}/), a)).toMatch(/^sortable=[^\n]*\n\s*\/>\s*<\/div>\s*\{\/\*[^]*?\*\/\}\s*$/)
+    })
+    it('the schools\' cover door stays above the grid at every width (layout, before the page)', () => {
+      const layout = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/layout.tsx'), 'utf8')
+      expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeGreaterThan(-1)
+      expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeLessThan(layout.search(/^\s*\{children\}$/m))
+      const block = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/category-lede-block.tsx'), 'utf8')
+      expect(block).toMatch(/\{cat\.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm text-body" \/>\}/)
+    })
+    it('every link on those lines is underlined at rest — a link in a run of text, never colour alone (WCAG 1.4.1)', () => {
+      for (const node of [<TeachingJobsLink key="j" count={3} href="/x" />, <TeachGuideLink key="g" />]) {
+        const cls = (anchor('en', node)?.getAttribute('class') ?? '').split(/\s+/)
+        expect(cls).toContain('underline')
+      }
+      const lede = readFileSync(join(process.cwd(), 'src/components/marketplace/category-lede.tsx'), 'utf8')
+      expect(lede).toMatch(/<LocalizedLink href="\/\?category=teachers&attr_cover=open"[^>]*className="[^"]*(?:^|\s)underline(?:\s|")/)
+    })
+    it('…and so is every other question line of this shape (/c/jobs, /c/services): never one odd line out of three', () => {
+      const links = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/teaching-links.tsx'), 'utf8')
+      const services = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/services-links.tsx'), 'utf8')
+      for (const id of ['teaching-jobs', 'teach-guide', 'teacher-profile', 'post-job']) {
+        expect(links, id).toMatch(new RegExp(`data-cross-link="${id}" className="[^"]*\\bunderline underline-offset-4\\b`))
+      }
+      expect(services).toMatch(/data-cross-link="offer-service" className="[^"]*\bunderline underline-offset-4\b/)
+      expect(links + services).not.toMatch(/data-cross-link="[a-z-]+" className="[^"]*hover:underline/)
+    })
+    it('no empty wrapper: the lines are built only when one will render (0 jobs on eno.forum = nothing)', () => {
+      expect(page).toContain('const teacherLines = isTeachers && (teachingJobs > 0 || !IS_SERVICES) ? (')
+    })
   })
 
   // guidesForCategory itself is edition-blind (its tests run as eno.forum); the PAGE keeps the Guides block — the teach
@@ -301,7 +360,7 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     expect(page).toMatch(new RegExp([
       String.raw`\{cat\.slug === TEACHING_JOBS\.category && <TeacherProfileLink href=\{teacherJoinHref\} />\}`,
       String.raw`\{/\*[^]*?\*/\}`,
-      String.raw`\{!IS_SERVICES && \(isTeachers \|\| cat\.slug === TEACHING_JOBS\.category\) && <TeachGuideLink />\}`,
+      String.raw`\{!IS_SERVICES && cat\.slug === TEACHING_JOBS\.category && <TeachGuideLink />\}`,
       String.raw`\{/\*[^]*?\*/\}`,
       String.raw`\{cat\.slug === TEACHING_JOBS\.category && <PostJobLink href=\{postHereHref\} />\}`,
     ].join(String.raw`\s*`)))

@@ -305,6 +305,23 @@ export default async function CategoryPage({ params }: Props) {
   // The post form with THIS category already picked (the wizard preselects a postable `?category=` when there is no
   // draft to resume) — /c/services' "Post your service" line and every empty page's "Post a listing".
   const postHereHref = localizedHref(`/post?${new URLSearchParams({ category: cat.slug }).toString()}`, pageLang(lang))
+  /**
+   * ⛔ TEACHERS FIRST ON A PHONE (UI climb batch 91, 2026-11-14; blind A/B on live eno.vn, Opus +0.18/+0.18, GPT +0.23; owner
+   * 2026-10-18 "products first on a phone's first screen", 2026-11-13 "only whats necessary"). /c/teachers serves the schools and
+   * parents who hire; these two lines speak to TEACHERS ("Looking for a teaching job?", "New to teaching in Vietnam?"), so below
+   * sm they render right AFTER the grid, and the schools' "Need a cover teacher?" door (layout, CategoryLedeLinks) stays above it.
+   * From sm, and on an empty page (no grid to follow), they stay above, as before.
+   * ⚠️ RENDERED TWICE, CSS PICKS ONE (`max-sm:hidden` above, `sm:hidden` after): server HTML, no client DOM move and no shift,
+   * and display:none takes the hidden copy out of the accessibility tree and the tab order, so each width has ONE copy.
+   */
+  // Only when a line will render (TeachingJobsLink prints nothing at 0 jobs; eno.forum has no guide line): an empty wrapper
+  // would pass its margin on and leave a blank band under the grid (review, 2026-11-14).
+  const teacherLines = isTeachers && (teachingJobs > 0 || !IS_SERVICES) ? (
+    <>
+      <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />
+      {!IS_SERVICES && <TeachGuideLink />}
+    </>
+  ) : null
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -367,12 +384,13 @@ export default async function CategoryPage({ params }: Props) {
       {jobCities.length > 1 && <JobCityChips cities={jobCities} total={total} />}
 
       {/* N8 (nav audit): a teacher who came looking for WORK is pointed at the jobs, and a teacher browsing
-          jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx). */}
-      {isTeachers && <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />}
+          jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx).
+          /c/teachers' two lines (`teacherLines`, below): above the grid from sm, after it on a phone (batch 91). */}
+      {teacherLines && (listings.length > 0 ? <div className="max-sm:hidden">{teacherLines}</div> : teacherLines)}
       {cat.slug === TEACHING_JOBS.category && <TeacherProfileLink href={teacherJoinHref} />}
       {/* …and both point at the teacher library's hub (teacher visibility plan, 2026-10-18). Marketplace only: eno.forum
           308s the library to eno.vn. */}
-      {!IS_SERVICES && (isTeachers || cat.slug === TEACHING_JOBS.category) && <TeachGuideLink />}
+      {!IS_SERVICES && cat.slug === TEACHING_JOBS.category && <TeachGuideLink />}
       {/* A school on /c/jobs gets its door AFTER the teacher lines, so those stay together (teacher visibility plan §4
           channel 6; copy approved in the plan, 2026-10-18): "Hiring? Post your job ad", to the post form with Jobs picked —
           postHereHref, as OfferServiceLink below. Both editions; on eno.forum, with no guide line, it follows the profile
@@ -427,6 +445,9 @@ export default async function CategoryPage({ params }: Props) {
               sortable={(homes?.total ?? total) > 1}
             />
           </div>
+          {/* /c/teachers on a phone: the teachers' two lines right after the grid (batch 91, above). `mt-6` collapses with
+              the first line's own `mt-3`, so 24px under the grid. */}
+          {teacherLines && <div className="mt-6 sm:hidden">{teacherLines}</div>}
           {homes && <OtherRentalsLink n={homes.offices} href={localizedHref('/?category=rentals&subcategory=office-rental', pageLang(lang))} />}
           {gridEndFilters && <div className="mt-8">
             {/* The strip's own Filters glyph at h-4, gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
