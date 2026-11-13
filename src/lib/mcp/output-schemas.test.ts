@@ -94,6 +94,8 @@ describe('every MCP tool answers in the shape its outputSchema declares', () => 
   for (const tool of TOOLS) {
     it(tool.name, async () => {
       const result = await tool.handler(AUTH, tool.input.parse(ARGS[tool.name]) as Record<string, unknown>)
+      // The raw object, not a JSON round-trip: a handler must hand back dates as ISO strings itself (tools.ts `iso`), so
+      // the result fits its schema for any client that validates before serializing too.
       const check = tool.output.safeParse(result)
       expect(check.success, JSON.stringify(check.error?.issues)).toBe(true)
       // structuredContent must be a JSON object.

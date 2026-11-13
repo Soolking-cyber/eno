@@ -39,6 +39,10 @@ export class ToolError extends Error {
 
 const LISTING_INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
 
+/** A date as the ISO string it becomes on the wire anyway, so a result already matches its outputSchema (`z.string()`)
+ *  before JSON — for any client or check that validates the object itself. */
+const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null)
+
 async function ownedListing(id: string, sellerId: string) {
   if (!(await listingOwnedBy(id, sellerId))) throw new ToolError('not_found', 'Listing not found.')
 }
@@ -61,14 +65,14 @@ async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<
 
 // One partner-supplied listing item → BulkRow (shared by bulk + sync mapping).
 const listingItem = z.object({
-  categorySlug: z.string().describe('Category slug, e.g. "electronics"'),
-  title: z.string().min(3).describe('Listing title (≥3 chars, no phone numbers)'),
-  price: z.number().nonnegative().describe('Price in VND'),
-  description: z.string().optional().describe('Listing text, up to 5000 characters. No phone numbers or other contact details.'),
-  district: z.string().optional().describe('District or area, free text, up to 80 characters'),
-  condition: z.string().optional().describe('e.g. "new", "used" — up to 60 characters; not stored for a job'),
-  images: z.array(z.string()).optional().describe('Public image URLs — auto re-hosted to first-party storage'),
-  externalId: z.string().optional().describe('Your own id for this listing (for sync/upsert)'),
+  categorySlug: z.string().describe('The category to file the listing under, by its slug, e.g. "electronics", "vehicles" or "rentals"'),
+  title: z.string().min(3).describe('The headline buyers see in search and on the listing page; phone numbers are not allowed in it'),
+  price: z.number().nonnegative().describe('The asking price in Vietnamese đồng (VND)'),
+  description: z.string().optional().describe('The text shown on the listing page; contact details (phone, e-mail, links) are not allowed in it'),
+  district: z.string().optional().describe('Where the item is: the district or area as free text, e.g. "Thảo Điền, Thủ Đức"'),
+  condition: z.string().optional().describe('The item\'s condition in words, e.g. "new", "like new" or "used"; ignored for a job'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies each one to its own storage'),
+  externalId: z.string().optional().describe('Your own id for this listing, echoed back in the results so you can match them'),
 })
 
 /** MCP tool annotations (spec 2025-06-18): hints a client uses to tell a read from a write before calling, e.g. to ask
@@ -89,21 +93,41 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // while zod's own parse merely strips, so a test could pass a result a strict client rejects) and `required` names only
 // keys the handler always writes. A field added to a result never breaks a client;
 // only removing a required key would, and the conformance test in src/lib/mcp/output-schemas.test.ts runs the handlers.
-const OK = z.boolean().describe('true when the change was applied')
-const CURSOR_OUT = z.string().nullable().describe('Pass to the next call as `cursor` for the next page; null on the last page')
-const LISTING_OUT = z.looseObject({ id: z.string().describe('Listing id') })
-  .describe('A listing as the Partner API serializes it: id, title, price (VND), status, category, images and the other fields of GET /api/v1/listings/{id}')
-const ROW_RESULTS = z.array(z.looseObject({
-  id: z.string().nullable().optional().describe('The listing id, when the row succeeded'),
-  external_id: z.string().nullable().optional().describe('Your own id for the row, echoed back'),
-  error: z.string().nullable().optional().describe('Why the row failed; absent on success'),
-})).describe('One entry per row sent, in order')
+const OK = z.boolean().describe('true when the change was saved')
+const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
+// The fields of serializeListing a caller acts on. Only `id` is required: the rest are documented, not promised, so a
+// field the serializer someday drops can never turn a successful call into a schema failure on the client.
+const LISTING_OUT = z.looseObject({
+  id: z.string().describe('The listing id, for get_listing, update_listing, set_listing_status and delete_listing'),
+  title: z.string().nullish().describe('The headline buyers see'),
+  description: z.string().nullish().describe('The text on the listing page'),
+  price: z.number().nullish().describe('The asking price in VND (for a job: its monthly salary in VND)'),
+  priceUnit: z.string().nullish().describe('What the price is for, e.g. "VND" or "VND/month"'),
+  negotiable: z.boolean().nullish().describe('Whether buyers may send offers below the price'),
+  status: z.string().nullish().describe('"active" (on sale), "sold" or "hidden"'),
+  verified: z.boolean().nullish().describe('false while the listing waits for eno\'s check; a verified listing is public only while its status is active or sold'),
+  listingType: z.string().nullish().describe('What it offers: "sell", "rent", "job" or "wanted"'),
+  condition: z.string().nullish().describe('The item\'s condition in words'),
+  location: z.string().nullish().describe('Where it is, as shown on the listing'),
+  district: z.string().nullish().describe('Its district or area'),
+  city: z.string().nullish().describe('Its city or province'),
+  images: z.array(z.string()).nullish().describe('Photo URLs on eno\'s storage, in display order'),
+  category: z.looseObject({ slug: z.string().nullish(), name: z.string().nullish() }).nullish().describe('The category it is filed under'),
+  subcategorySlug: z.string().nullish().describe('Its subcategory, when it has one'),
+  postedAt: z.string().nullish().describe('When it was listed (ISO 8601)'),
+  views: z.number().nullish().describe('How many times its page was viewed'),
+  contactCount: z.number().nullish().describe('Leads: how many times a buyer opened contact with the seller'),
+}).describe('One of this shop\'s listings, with the fields of GET /api/v1/listings/{id}')
 const WEBHOOK_OUT = z.looseObject({
-  id: z.string().describe('Webhook id'),
-  url: z.string().describe('The HTTPS endpoint events are posted to'),
-  events: z.array(z.string()).describe('Event names it receives; ["*"] = all'),
-  enabled: z.boolean().describe('false once deliveries kept failing'),
-}).describe('A registered webhook endpoint')
+  id: z.string().describe('The webhook id, for delete_webhook'),
+  url: z.string().describe('The HTTPS address the events are posted to'),
+  events: z.array(z.string()).describe('The events it receives; ["*"] means all of them'),
+  enabled: z.boolean().describe('Whether events are being delivered; false once deliveries kept failing'),
+  failure_count: z.number().nullish().describe('Failed deliveries in a row since the last success'),
+  last_error: z.string().nullish().describe('Why the last delivery failed, if it did'),
+  last_delivery_at: z.string().nullish().describe('When an event was last delivered (ISO 8601)'),
+  created_at: z.string().nullish().describe('When it was registered (ISO 8601)'),
+}).describe('A webhook endpoint registered for this shop')
 
 export type McpTool = {
   name: string
@@ -122,10 +146,22 @@ export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
     title: 'Get shop profile',
-    description: "Get the authenticated shop's storefront profile, trust score, and live listing count.",
+    description: "Read the storefront this API key acts for: its id, name, bio, location, phone, logo, trust score and tier, response rate, member-since date and how many listings are live now. Call it first to confirm which shop you are working on. Changes nothing.",
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.looseObject({ shop: z.looseObject({ id: z.string().describe('Shop id') }).describe('The storefront: id, name, bio, location, phone, avatar_url, trust_score, trust_tier, response_rate, member_since, active_listings') }),
+    output: z.looseObject({ shop: z.looseObject({
+      id: z.string().describe('The shop id'),
+      name: z.string().nullish().describe('The shop\'s public name'),
+      bio: z.string().nullish().describe('About the shop, as shown on its page'),
+      location: z.string().nullish().describe('Where the shop is'),
+      phone: z.string().nullish().describe('The shop\'s own contact phone number'),
+      avatar_url: z.string().nullish().describe('The shop\'s logo URL'),
+      trust_score: z.number().nullish().describe('eno\'s trust score for the shop'),
+      trust_tier: z.string().nullish().describe('The trust level that score falls in'),
+      response_rate: z.number().nullish().describe('How often the shop answers buyers\' messages'),
+      member_since: z.string().nullish().describe('When the shop joined eno (ISO 8601)'),
+      active_listings: z.number().nullish().describe('How many of its listings are live on the site now'),
+    }).describe('The storefront this key acts for') }),
     input: z.object({}),
     handler: async (auth) => {
       const s = await db.seller.findUnique({
@@ -134,22 +170,22 @@ export const TOOLS: McpTool[] = [
       })
       // Same rule as GET /api/v1/shop: a GONE storefront (src/lib/storefront-gone.ts) is not found.
       if (!s || await isStorefrontGone(s, s._count.listings)) throw new ToolError('not_found', 'Shop not found.')
-      return { shop: { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: s.avatarUrl, trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: s.memberSince, active_listings: s._count.listings } }
+      return { shop: { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: s.avatarUrl, trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: iso(s.memberSince), active_listings: s._count.listings } }
     },
   },
   {
     name: 'update_shop',
     title: 'Update shop profile',
-    description: 'Edit the storefront profile. Sparse — only the fields you send change.',
+    description: 'Change the public profile of this shop: its name, bio, location, logo or phone. Only the fields you send change and the rest stay as they are; longer text is cut to fit (name 120 characters, bio 1,000, location 120) and a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     output: z.looseObject({ ok: OK }),
     input: z.object({
-      name: z.string().optional().describe('Shop name, 2–120 characters'),
-      bio: z.string().optional().describe('About the shop, up to 1000 characters. An empty string clears it.'),
-      location: z.string().optional().describe('Where the shop is, free text up to 120 characters. An empty string clears it.'),
-      avatarUrl: z.string().optional().describe('Shop logo: an image URL already hosted on eno, such as one from a listing\'s `images`. An empty string clears it.'),
-      phone: z.string().optional().describe('Shop phone number, unique across shops'),
+      name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings'),
+      bio: z.string().optional().describe('About the shop, shown on its page; send an empty string to clear it'),
+      location: z.string().optional().describe('Where the shop is, shown on its page; send an empty string to clear it'),
+      avatarUrl: z.string().optional().describe('The shop\'s logo: an image URL already on eno\'s storage, such as one from a listing\'s images; send an empty string to remove it'),
+      phone: z.string().optional().describe('The shop\'s contact phone number'),
     }),
     handler: async (auth, args) => {
       const res = await updateSellerCore(auth.sellerId, auth.profileId, args)
@@ -160,11 +196,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'list_listings',
     title: 'List listings',
-    description: 'List the shop\'s listings (all statuses). Keyset-paginated — pass the returned next_cursor to page.',
+    description: 'List this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden. Each page returns the listings with price, status, category and photos, plus `next_cursor` to fetch the next page. Use get_listing to read one listing by id. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.looseObject({ listings: z.array(LISTING_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }),
-    input: z.object({ limit: z.number().int().min(1).max(100).optional().describe('Page size, 1–100 (default 50)'), cursor: z.string().optional().describe('The `next_cursor` from the previous page; omit it for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Only listings with this status; omit it for all') }),
+    input: z.object({ limit: z.number().int().min(1).max(100).optional().describe('How many listings this page holds (default 50)'), cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Only listings in this state: active (on sale), sold, or hidden; leave it out for all') }),
     handler: async (auth, args) => {
       const sp = new URLSearchParams()
       if (args.limit != null) sp.set('limit', String(args.limit))
@@ -183,11 +219,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'get_listing',
     title: 'Get listing',
-    description: 'Get one of the shop\'s listings by id (any status).',
+    description: 'Read one of this shop\'s listings by id, in any status, with all its fields: title, text, price, status, category, location, photos, views and leads. Use it to see the current values before update_listing. Fails with `not_found` when the id is not one of this shop\'s listings. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.looseObject({ listing: LISTING_OUT.nullable() }),
-    input: z.object({ id: z.string().describe('Listing id, as returned by list_listings or create_listing') }),
+    output: z.looseObject({ listing: LISTING_OUT.nullable().describe('The listing, or null if it was removed a moment ago') }),
+    input: z.object({ id: z.string().describe('The listing to read, by the id list_listings or create_listing gave') }),
     handler: async (auth, args) => {
       await ownedListing(String(args.id), auth.sellerId)
       const l = await db.listing.findUnique({ where: { id: String(args.id) }, include: LISTING_INCLUDE })
@@ -197,18 +233,18 @@ export const TOOLS: McpTool[] = [
   {
     name: 'create_listing',
     title: 'Create listing',
-    description: 'Create a listing. Image URLs may be public — they are re-hosted to first-party storage automatically.',
+    description: 'Post one new listing for this shop: a category, a title and a price in VND (a job gives its monthly salary in `salaryM` instead), with optional text, location, condition and photos as public image URLs that eno copies to its own storage (the first 8 are used). Longer text is cut to fit: title 140 characters, description 5,000, district 80, condition 60. The listing goes live at once unless eno must check it first (`verified: false` in the result). Refused with a reason, and nothing created, when the text holds a phone number, the category is unknown or the account may not post right now. This publishes to the public site: confirm with the seller first.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ listing: z.looseObject({ id: z.string().describe('The new listing\'s id'), verified: z.boolean().describe('false while it waits for eno\'s check and is not yet public'), held: z.boolean().optional().describe('true when the listing is held for eno\'s licence check') }) }),
+    output: z.looseObject({ listing: z.looseObject({ id: z.string().describe('The new listing\'s id, for update_listing and set_listing_status'), verified: z.boolean().describe('true when the new listing was published on creation; false while it waits for eno\'s check and is not public yet'), held: z.boolean().nullish().describe('true when it is held for eno\'s licence check') }).describe('The listing just created') }),
     input: listingItem.omit({ externalId: true }).extend({
       // Optional HERE because a job needs none; every other listing still has to send one (checked below).
-      price: z.number().nonnegative().optional().describe('Price in VND — required, except for a job (category "jobs"), whose pay is `salaryM`. A job sent with only a price has it read as the monthly salary in VND.'),
-      negotiable: z.boolean().optional().describe('Open to offers. Defaults to true; always false for services and jobs.'),
-      listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs). A value the category does not allow falls back to its default.'),
-      brand: z.string().optional().describe('Brand name, matched against the brand catalogue (typo-tolerant). Read only for categories that have brands.'),
-      model: z.string().optional().describe('Model name, up to 60 characters. Stored only when the brand resolved.'),
-      salaryM: z.number().int().nonnegative().optional().describe('A job (category "jobs"): the monthly salary in million VND; omit it when the pay is agreed with the candidate. A job\'s stored price is derived from it, and a job takes no offers.'),
+      price: z.number().nonnegative().optional().describe('The asking price in VND. Needed for everything except a job (category "jobs"), whose pay is `salaryM`; a job sent with only a price has it read as the monthly salary.'),
+      negotiable: z.boolean().optional().describe('Whether buyers may send offers below the price (yes unless you say no); services and jobs never take offers'),
+      listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs); otherwise the category\'s usual one is used'),
+      brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands'),
+      model: z.string().optional().describe('The model within that brand; kept only when the brand was recognised'),
+      salaryM: z.number().int().nonnegative().optional().describe('A job\'s monthly salary in millions of VND (category "jobs"); leave it out when the pay is agreed with the candidate'),
     }),
     handler: async (auth, args) => {
       const title = cutText(String(args.title || '').trim(), 140)
@@ -261,19 +297,19 @@ export const TOOLS: McpTool[] = [
     title: 'Update listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
-    description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. An edit of a listing that is waiting for eno\'s licence check answers `held: true`: the listing stays unpublished until eno approves it (this tool cannot change a subcategory or the licence values).',
+    description: 'Change one of this shop\'s listings: only the fields you send change. Photos you send replace the current set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. An edit of a listing waiting for eno\'s licence check is saved with the listing kept unpublished until eno approves it (the result says `held: true`); this tool cannot change a subcategory or the licence values.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ ok: OK, held: z.boolean().optional().describe('true when the edit left the listing waiting for eno\'s licence check, unpublished') }),
+    output: z.looseObject({ ok: OK, held: z.boolean().nullish().describe('true when the listing stays unpublished until eno\'s licence check approves it') }),
     input: z.object({
-      id: z.string().describe('Id of the listing to edit'),
-      title: z.string().optional().describe('New title (≥3 chars, no phone numbers)'),
-      description: z.string().optional().describe('New listing text, up to 5000 characters. No phone numbers or other contact details.'),
-      price: z.number().nonnegative().optional().describe('New price in VND (for a job: read as its monthly salary in VND)'),
-      district: z.string().optional().describe('District or area, up to 80 characters. An empty string clears it.'),
-      condition: z.string().optional().describe('e.g. "new", "used" — up to 60 characters. An empty string clears it.'),
-      images: z.array(z.string()).optional().describe('The new set of public image URLs, replacing the current ones (up to 8) — re-hosted automatically'),
-      salaryM: z.number().int().nonnegative().nullable().optional().describe('A job: the monthly salary in million VND; null clears it (pay agreed with the candidate). Wins over `price`.'),
+      id: z.string().describe('The listing to change, by the id list_listings or create_listing gave'),
+      title: z.string().optional().describe('The new headline; phone numbers are not allowed in it'),
+      description: z.string().optional().describe('The new text for the listing page; contact details are not allowed in it'),
+      price: z.number().nonnegative().optional().describe('The new asking price in VND (for a job: its monthly salary in VND)'),
+      district: z.string().optional().describe('Where the item is, as a district or area; send an empty string to clear it'),
+      condition: z.string().optional().describe('The item\'s condition in words; send an empty string to clear it'),
+      images: z.array(z.string()).optional().describe('The complete new set of photos as public image URLs, in display order; it replaces the current photos'),
+      salaryM: z.number().int().nonnegative().nullable().optional().describe('A job\'s monthly salary in millions of VND; null removes it (pay agreed with the candidate); it wins over `price`'),
     }),
     handler: async (auth, args) => {
       const id = String(args.id)
@@ -298,11 +334,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'set_listing_status',
     title: 'Set listing status',
-    description: 'Set a listing\'s availability: active | sold | hidden. Re-activating a listing that is waiting for eno\'s licence check is refused with `licence_check_required` until eno approves it.',
+    description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns the status the listing now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-    output: z.looseObject({ ok: OK, status: z.string().describe('The listing\'s status after the call') }),
-    input: z.object({ id: z.string().describe('Id of the listing'), status: z.enum(['active', 'sold', 'hidden']).describe('active = on sale, sold = marked sold, hidden = taken off the site') }),
+    output: z.looseObject({ ok: OK, status: z.string().describe('The status the listing has now: active, sold or hidden') }),
+    input: z.object({ id: z.string().describe('The listing to change, by its id'), status: z.enum(['active', 'sold', 'hidden']).describe('active puts it on sale, sold marks it sold, hidden takes it off the site without deleting it') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -326,11 +362,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'delete_listing',
     title: 'Delete listing',
-    description: 'Delete one of the shop\'s listings. While the shop or the listing is under investigation (an open report, or the account is held/suspended) it is hidden instead — the result then says `deleted: false, hidden: true` and why.',
+    description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). While the shop or the listing is under investigation (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false, hidden: true` and why.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-    output: z.looseObject({ ok: OK, deleted: z.boolean().optional().describe('false when the listing was hidden instead of deleted'), hidden: z.boolean().optional().describe('true when it was hidden because the shop or listing is under review'), reason: z.string().optional().describe('Why it was hidden instead'), message: z.string().optional().describe('A sentence to show the seller') }),
-    input: z.object({ id: z.string().describe('Id of the listing to delete') }),
+    output: z.looseObject({ ok: OK, deleted: z.boolean().nullish().describe('false when the listing was hidden instead of deleted'), hidden: z.boolean().nullish().describe('true when it was hidden because the shop or listing is under review'), reason: z.string().nullish().describe('Why it was hidden instead: account_held, account_suspended or open_report'), message: z.string().nullish().describe('A sentence explaining it, to show the seller') }),
+    input: z.object({ id: z.string().describe('The listing to delete, by its id') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -344,11 +380,20 @@ export const TOOLS: McpTool[] = [
   {
     name: 'bulk_create_listings',
     title: 'Create listings in bulk',
-    description: `Create up to ${BULK_MAX_ROWS} listings in one call. Each is independent; image URLs are re-hosted.`,
+    description: `Post up to ${BULK_MAX_ROWS} new listings in one call, one row each (category, title, price in VND, optional text and photos as public image URLs). Rows are independent: a bad row fails alone and the others are created. Returns how many were created and failed, and a result per row with the new id or the reason it failed. To keep eno matched to your own system by your own ids, use sync_catalogue instead.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ created: z.number().describe('Listings created'), failed: z.number().describe('Rows that failed'), results: ROW_RESULTS }),
-    input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The listings to create. Each succeeds or fails on its own; `results` says which.') }),
+    output: z.looseObject({
+      created: z.number().describe('How many listings were created'),
+      failed: z.number().describe('How many rows failed'),
+      results: z.array(z.looseObject({
+        row: z.number().nullish().describe('The row\'s position in your list, from 1'),
+        id: z.string().nullish().describe('The new listing\'s id, when the row succeeded'),
+        external_id: z.string().nullish().describe('Your own id for the row, echoed back'),
+        error: z.string().nullish().describe('Why the row failed; absent when it succeeded'),
+      })).describe('One result per row, in the order sent'),
+    }),
+    input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
     handler: async (auth, args) => {
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
@@ -368,16 +413,29 @@ export const TOOLS: McpTool[] = [
   {
     name: 'sync_catalogue',
     title: 'Sync catalogue',
-    description: `Upsert the catalogue by your own externalId. mode "partial" only touches sent rows; "full" also retires listings absent from the payload. Up to ${SYNC_MAX_ROWS} rows.`,
+    description: `Make this shop's listings match your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row's status can mark it sold or hidden. In mode "full", every active listing whose externalId is missing from this payload is also hidden (listings without an externalId, such as ones posted on the website, are never touched). Up to ${SYNC_MAX_ROWS} rows per call. Returns counts of created, updated, retired and failed rows and a result per row; when the account may not publish new listings, new rows are refused while edits still apply, and \`publish_blocked\` says why.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ created: z.number().describe('Rows created'), updated: z.number().describe('Rows updated'), retired: z.number().describe('Listings hidden by a full sync; 0 in partial mode'), failed: z.number().describe('Rows that failed'), results: ROW_RESULTS, publish_blocked: z.looseObject({ code: z.string(), message: z.string() }).optional().describe('Present when the account may not publish new listings right now: creates were refused, edits still applied') }),
+    output: z.looseObject({
+      created: z.number().describe('Rows that created a new listing'),
+      updated: z.number().describe('Rows that updated an existing listing'),
+      retired: z.number().describe('Listings hidden because a full sync did not include them; 0 in partial mode'),
+      failed: z.number().describe('Rows that failed'),
+      results: z.array(z.looseObject({
+        external_id: z.string().nullish().describe('Your own id for the row'),
+        id: z.string().nullish().describe('The listing it created or updated'),
+        action: z.string().nullish().describe('created, updated or failed'),
+        error: z.string().nullish().describe('Why the row failed; absent when it succeeded'),
+        detail: z.string().nullish().describe('More about the failure, when there is more'),
+      })).describe('One result per row, in the order sent'),
+      publish_blocked: z.looseObject({ code: z.string().describe('Why new listings may not be published'), message: z.string().describe('A sentence to show the seller') }).nullish().describe('Present when the account may not publish new listings right now: new rows were refused, edits still applied'),
+    }),
     input: z.object({
-      mode: z.enum(['partial', 'full']).optional().describe('"partial" (the default) touches only the rows sent; "full" also hides every active listing whose externalId is not in this payload (listings without an externalId, such as ones posted on the website, are left alone)'),
+      mode: z.enum(['partial', 'full']).optional().describe('"partial" (the default) changes only the rows you send; "full" also hides your active listings that are missing from this payload, so eno mirrors your catalogue (listings without an externalId are left alone)'),
       listings: z.array(listingItem.extend({
-        externalId: z.string().describe('Your own SKU: unique per shop, the upsert key. Required.'),
-        status: z.enum(['active', 'sold', 'hidden']).optional().describe('Sets availability on an existing row'),
-      })).min(1).max(SYNC_MAX_ROWS).describe('The rows to upsert, matched to your existing listings by externalId'),
+        externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
+        status: z.enum(['active', 'sold', 'hidden']).optional().describe('Puts an existing listing on sale (active), marks it sold, or hides it'),
+      })).min(1).max(SYNC_MAX_ROWS).describe('Your catalogue rows, each matched to its listing by externalId'),
     }),
     handler: async (auth, args) => {
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
@@ -393,10 +451,18 @@ export const TOOLS: McpTool[] = [
   {
     name: 'analytics_summary',
     title: 'Shop analytics summary',
-    description: 'Shop-level totals: views, leads, and listing counts by status.',
+    description: 'Read this shop\'s totals in one call: how many listings it has, how many are active, sold or hidden, how many still wait for eno\'s check, and the total views and leads (times a buyer opened contact) across all of them. For per-listing, per-day figures use analytics_listings. Changes nothing.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
-    output: z.looseObject({ summary: z.looseObject({ total_listings: z.number(), total_views: z.number(), total_leads: z.number(), active: z.number(), sold: z.number(), hidden: z.number(), held: z.number().describe('Active listings still waiting for eno\'s check') }).describe('Shop totals over all its listings') }),
+    output: z.looseObject({ summary: z.looseObject({
+      total_listings: z.number().describe('All of the shop\'s listings, in any status'),
+      total_views: z.number().describe('Views across all its listings'),
+      total_leads: z.number().describe('Leads across all its listings: times a buyer opened contact'),
+      active: z.number().describe('Listings on sale'),
+      sold: z.number().describe('Listings marked sold'),
+      hidden: z.number().describe('Listings hidden from the site'),
+      held: z.number().describe('Active listings still waiting for eno\'s check'),
+    }).describe('The shop\'s totals') }),
     input: z.object({}),
     handler: async (auth) => {
       const where = { sellerId: auth.sellerId, ...NOT_REMOVED } // tombstones are not the shop's listings
@@ -412,15 +478,27 @@ export const TOOLS: McpTool[] = [
   {
     name: 'analytics_listings',
     title: 'Listing analytics',
-    description: 'Per-listing daily views + leads (deltas) over a date range, plus totals. Keyset-paginated.',
+    description: 'Read views and leads (times a buyer opened contact) per listing per day over a date range, the last 30 days unless you choose one, with each listing\'s all-time totals. Answers a page of listings at a time with `next_cursor` for the next. Use analytics_summary for the shop\'s overall totals. Changes nothing.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
-    output: z.looseObject({ range: z.looseObject({ from: z.string(), to: z.string() }).describe('The date range actually used (YYYY-MM-DD)'), listings: z.array(z.looseObject({ id: z.string(), daily: z.array(z.looseObject({ day: z.string(), views: z.number(), leads: z.number() })).describe('Per-day views and leads in the range') }).describe('One listing: id, external_id, title, status, views_total, leads_total and its daily series')), next_cursor: CURSOR_OUT }),
+    output: z.looseObject({
+      range: z.looseObject({ from: z.string().describe('First day used (YYYY-MM-DD)'), to: z.string().describe('Last day used (YYYY-MM-DD)') }).describe('The date range actually used'),
+      listings: z.array(z.looseObject({
+        id: z.string().describe('The listing id'),
+        external_id: z.string().nullish().describe('Your own id for it, when it has one'),
+        title: z.string().nullish().describe('Its headline'),
+        status: z.string().nullish().describe('active, sold or hidden'),
+        views_total: z.number().nullish().describe('All-time views'),
+        leads_total: z.number().nullish().describe('All-time leads'),
+        daily: z.array(z.looseObject({ day: z.string().describe('YYYY-MM-DD'), views: z.number().describe('Views that day'), leads: z.number().describe('Leads that day') })).describe('One entry per day in the range'),
+      })).describe('This page of listings with their daily figures'),
+      next_cursor: CURSOR_OUT,
+    }),
     input: z.object({
-      from: z.string().optional().describe('Inclusive start date, YYYY-MM-DD (UTC). Defaults to 30 days before `to`; a range longer than 92 days is cut to the last 92.'),
-      to: z.string().optional().describe('Inclusive end date, YYYY-MM-DD (UTC). Defaults to today.'),
-      limit: z.number().int().min(1).max(100).optional().describe('Listings per page, 1–100 (default 50)'),
-      cursor: z.string().optional().describe('The `next_cursor` from the previous page; omit it for the first page'),
+      from: z.string().optional().describe('The first day to count, as YYYY-MM-DD in UTC (default: 30 days before `to`; at most 92 days are counted)'),
+      to: z.string().optional().describe('The last day to count, as YYYY-MM-DD in UTC (default: today)'),
+      limit: z.number().int().min(1).max(100).optional().describe('How many listings this page holds (default 50)'),
+      cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'),
     }),
     handler: async (auth, args) => {
       const out = await getListingAnalytics(auth.sellerId, { from: args.from as string, to: args.to as string, limit: args.limit as number, cursor: args.cursor as string })
@@ -431,24 +509,24 @@ export const TOOLS: McpTool[] = [
   {
     name: 'list_webhooks',
     title: 'List webhooks',
-    description: 'List the shop\'s registered webhook endpoints (secrets are never returned) with delivery health.',
+    description: 'List the webhook endpoints registered for this shop: where events are sent, which events, whether delivery is on, and recent failures. Signing secrets are never returned. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.looseObject({ webhooks: z.array(WEBHOOK_OUT).describe('Newest first, with failure_count, last_error and last_delivery_at; secrets are never returned') }),
+    output: z.looseObject({ webhooks: z.array(WEBHOOK_OUT).describe('Every webhook of this shop, newest first; secrets are never included') }),
     input: z.object({}),
     handler: async (auth) => {
       const hooks = await db.webhookEndpoint.findMany({ where: { sellerId: auth.sellerId }, orderBy: { createdAt: 'desc' }, select: { id: true, url: true, events: true, enabled: true, failureCount: true, lastError: true, lastDeliveryAt: true, createdAt: true } })
-      return { webhooks: hooks.map((h) => ({ id: h.id, url: h.url, events: h.events === '*' ? ['*'] : h.events.split(/\s+/).filter(Boolean), enabled: h.enabled, failure_count: h.failureCount, last_error: h.lastError, last_delivery_at: h.lastDeliveryAt, created_at: h.createdAt })) }
+      return { webhooks: hooks.map((h) => ({ id: h.id, url: h.url, events: h.events === '*' ? ['*'] : h.events.split(/\s+/).filter(Boolean), enabled: h.enabled, failure_count: h.failureCount, last_error: h.lastError, last_delivery_at: iso(h.lastDeliveryAt), created_at: iso(h.createdAt) })) }
     },
   },
   {
     name: 'register_webhook',
     title: 'Register webhook',
-    description: 'Register an HTTPS endpoint for signed listing events. The signing secret is returned ONCE — store it.',
+    description: 'Register an HTTPS endpoint of yours that eno will POST signed events to when this shop\'s listings are created, updated, change status or are deleted. Returns the webhook with its signing secret, shown only this once: store it to verify each event\'s signature. A shop can have up to 10 webhooks.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ webhook: WEBHOOK_OUT.extend({ secret: z.string().describe('The signing secret. Shown ONCE: store it now.') }) }),
-    input: z.object({ url: z.string().describe('Public HTTPS endpoint'), events: z.array(z.enum(['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'])).optional().describe('Omit for all events') }),
+    output: z.looseObject({ webhook: WEBHOOK_OUT.extend({ secret: z.string().describe('The signing secret, shown only this once: store it to verify each event\'s signature') }).describe('The webhook just registered') }),
+    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive the events'), events: z.array(z.enum(['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'])).optional().describe('Which events to receive; leave it out to receive all four') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
       try { await assertSafeUrl(url) } catch { throw new ToolError('invalid_input', 'url must be a public HTTPS endpoint.') }
@@ -457,17 +535,17 @@ export const TOOLS: McpTool[] = [
       const events = Array.isArray(args.events) && args.events.length ? (args.events as string[]).join(' ') : '*'
       const secret = generateWebhookSecret()
       const hook = await db.webhookEndpoint.create({ data: { sellerId: auth.sellerId, url, events, secret }, select: { id: true, url: true, events: true, enabled: true, createdAt: true } })
-      return { webhook: { id: hook.id, url: hook.url, events: hook.events === '*' ? ['*'] : hook.events.split(/\s+/).filter(Boolean), enabled: hook.enabled, created_at: hook.createdAt, secret } }
+      return { webhook: { id: hook.id, url: hook.url, events: hook.events === '*' ? ['*'] : hook.events.split(/\s+/).filter(Boolean), enabled: hook.enabled, created_at: iso(hook.createdAt), secret } }
     },
   },
   {
     name: 'delete_webhook',
     title: 'Delete webhook',
-    description: 'Unregister a webhook endpoint by id.',
+    description: 'Remove one of this shop\'s webhook endpoints; eno stops sending it events at once. It cannot be undone: registering the address again gives a new id and a new secret.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     output: z.looseObject({ ok: OK }),
-    input: z.object({ id: z.string().describe('Webhook id, as returned by list_webhooks or register_webhook') }),
+    input: z.object({ id: z.string().describe('The webhook to remove, by the id list_webhooks or register_webhook gave') }),
     handler: async (auth, args) => {
       const hook = await db.webhookEndpoint.findUnique({ where: { id: String(args.id) }, select: { sellerId: true } })
       if (!hook || hook.sellerId !== auth.sellerId) throw new ToolError('not_found', 'Webhook not found.')
