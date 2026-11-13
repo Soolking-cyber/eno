@@ -23,7 +23,7 @@ vi.mock('@/lib/core/listings', () => ({
 vi.mock('@/lib/db', () => ({
   db: {
     seller: {
-      findUnique: async () => ({ id: 's1', ownerId: 'p1', name: 'Shop', bio: null, location: null, phone: null, avatarUrl: null, trustScore: 50, trustTier: 'new', responseRate: null, memberSince: now, _count: { listings: 2 } }),
+      findUnique: async () => ({ id: 's1', ownerId: 'p1', name: 'Shop', bio: null, location: null, phone: null, avatarUrl: null, trustScore: 50, trustTier: 'standard', responseRate: 100, memberSince: now, _count: { listings: 2 } }),
     },
     category: { findUnique: async () => ({ id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }) },
     listing: {
