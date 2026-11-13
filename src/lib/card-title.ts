@@ -142,7 +142,144 @@ export type CardTitleInput = {
   employer?: string | null
 }
 
-export function cardTitle({ title, lang, sellerId, categorySlug, listingType, condition, location, employer }: CardTitleInput): string {
+/**
+ * ⛔ ONE SHORT DISPLAY GRAMMAR FOR EVERY CARD AND ROW TITLE (UI climb batch 87, 2026-11-13 — round 13 "every fact once",
+ * part d2a; blind A/B, Opus 7.03 → 7.29, trust +0.2; owner, 2026-11-13: "minimal wording only whats necessary"). Runs after
+ * the shortening below, on every card but a teacher's (a name is a name):
+ *   · a title SHOUTED in capitals (8+ letters, 70%+ upper case) reads in title case (unshout) — "NEKTAR LX25+ 25 KEY USB
+ *     CONTROLLER" → "Nektar LX25+ 25 Key USB Controller". A token with a digit keeps its form (PS5, LX25+, 25W), an acronym
+ *     stays (a known one, or 2–4 letters with no vowel: USB, LG, HCM), CASE_KEEP spells brands and model words (iPhone,
+ *     Pro Max); every word goes up, in either language, a contraction as one word ("Don't");
+ *   · a JOB drops its leading "[Job Opening]" / "[Tuyển dụng]" kind of tag and a "[Hanoi]" tag where the info line prints
+ *     that city — never "[Urgent]", and never text after a " | " (commit review: that is where pay and visa live);
+ *   · a trailing "." or "!" goes — never an ellipsis or an abbreviation's full stop.
+ * ⛔ DISPLAY ONLY, like the shortening: the stored title, the h3's `title`, the photo's alt and the listing page keep every
+ * character. Anything that would leave no word keeps the title as it was.
+ */
+export function cardTitle(input: CardTitleInput): string {
+  return lineGrammar(cardTitleBase(input), input)
+}
+
+/**
+ * The grammar ALONE, for a list ROW's title (compact-listing-row.tsx): a row keeps its stored title — none of the card's
+ * shortening above (commit review) — but reads in the same grammar as the card beside it (batch 87).
+ */
+export function rowTitle(input: CardTitleInput): string {
+  return lineGrammar(input.title, input)
+}
+
+function lineGrammar(base: string, input: CardTitleInput): string {
+  if (input.listingType === 'teacher' || input.categorySlug === 'teachers') return base
+  // NFC first (commit review, round 3): in a decomposed title the tone marks are not letters, so "BÁN" split into "BA" + "N".
+  const out = titleGrammar(base.normalize('NFC'), input)
+  return /[\p{L}\p{N}]/u.test(out) ? out : base
+}
+
+const CAPS_MIN_LETTERS = 8
+const CAPS_SHARE = 0.7
+/** Brands, exam names and model words a sentence-cased title spells as they are spelled. Matched on the lower-cased word. */
+const CASE_KEEP: Readonly<Record<string, string>> = {
+  iphone: 'iPhone', ipad: 'iPad', imac: 'iMac', macbook: 'MacBook', airpods: 'AirPods', playstation: 'PlayStation', youtube: 'YouTube',
+  samsung: 'Samsung', sony: 'Sony', dell: 'Dell', belkin: 'Belkin', yamaha: 'Yamaha', honda: 'Honda', apple: 'Apple', xiaomi: 'Xiaomi',
+  oppo: 'Oppo', vivo: 'Vivo', nikon: 'Nikon', canon: 'Canon', fujifilm: 'Fujifilm', lenovo: 'Lenovo', asus: 'Asus', acer: 'Acer',
+  nintendo: 'Nintendo', toyota: 'Toyota', vinfast: 'VinFast', vinhomes: 'Vinhomes', vinuni: 'VinUni', nektar: 'Nektar', ikea: 'IKEA',
+  english: 'English', vietnam: 'Vietnam', vietnamese: 'Vietnamese', hanoi: 'Hanoi', saigon: 'Saigon', korean: 'Korean',
+  japanese: 'Japanese', chinese: 'Chinese', french: 'French',
+  // model words, not acronyms: "PRO MAX" → "Pro Max"
+  pro: 'Pro', max: 'Max', plus: 'Plus', ultra: 'Ultra', lite: 'Lite', air: 'Air',
+}
+/**
+ * ⛔ AN ACRONYM IS KNOWN OR HAS NO VOWEL (commit review, 2026-11-13: a stop-word list guessed, and left "SOFA BED" shouting
+ * while lowering "LG" and "RAM" in a Vietnamese title). A capitals word stays as typed when it is in this list, or is 2–4
+ * letters (A–Z or Đ) with no vowel (LG, PD, TV, HCM, SSD, BĐS); every other shouted word goes to title case.
+ * ⚠️ KNOWN, ACCEPTED: an abbreviation with a vowel that is not listed reads in title case ("Ngo" for a shouted "NGO") — one
+ * word in ordinary case, nothing lost; add it here when one shows up.
+ */
+const ACRONYMS = new Set('USB RAM ROM CPU GPU HDMI LED LCD OLED UHD FHD HD AC DC ABS GPS SUV MPV BMW KTM ESL EFL IELTS TOEIC TOEFL TESOL TEFL CELTA DELTA STEM IGCSE IB IT HR PE VN VNA HCMC TPHCM IKEA NFC ANC USA UK EU VIP COD MBA SIM SEO MSI DJI AMD LTE CEO CFO CTO KOL KDC CHDV BĐS SĐT ĐH AB ATM VAT OK EV UBND'.split(' '))
+// Đ counts as a consonant letter (commit review, round 4): BĐS, SĐT, ĐH are Vietnamese abbreviations, not words.
+const isAcronym = (w: string) => ACRONYMS.has(w) || (/^[A-ZĐ]{2,4}$/.test(w) && !/[AEIOUY]/.test(w))
+/**
+ * ⛔ A SHORT WORD STAYS IN CAPITALS UNLESS IT IS KNOWN TO BE A WORD (commit review, round 5: "IOS", "API", "EV", "UX" read
+ * "Ios", "Api"…). A shouted word of 1–3 Latin letters that is neither an acronym above nor in these lists keeps its capitals:
+ * a missed word then stays loud, which is a matter of polish — a missed acronym would be misspelled, which is wrong. The
+ * list holds English short words. A VIETNAMESE title (accents, or two common words typed without them) treats every short
+ * word as a syllable unless it is a real acronym above — "Ai cần…" (who), "An Phú" — while an English one keeps "AI", "IOS".
+ */
+const SHORT_WORDS = new Set(('A AN THE AND OR FOR TO IN ON AT OF BY AS IS ARE BE WAS NEW OLD USE BIG BED CAR BOX SET KEY TOP HOT ONE TWO SIX TEN ' +
+  'DAY NOW GET BUY ALL ANY OUT OFF OUR YOU HIS HER ITS MY WE US NO NOT JOB FUN MAN MEN BOY KID PET DOG CAT LOT FEW YES WAY ' +
+  'AM IF UP GO HOW WHO WHY HAS HAD DID GOT LET SEE RUN OWN VIA PER FAR TOO TRY ASK AGE ART BAG BAR BUS CUP EYE FIT FIX GYM ' +
+  'HAT LEG MAP MIX NET OIL PAY PEN RED SUN TEA TOY VAN WEB WET ZOO MAX LOW ODD RAW DRY ICE APP ' +
+  'BAN XE NHA CHO CAN MOI CU GIA RE DEP TOT HO SO MAY DO TU BO QUA VE O CON MUA BAO CHI HAI BA BON NAM SAU TAM CHIN MUOI').split(' '))
+const VIETNAMESE_ACCENT = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/iu
+/** Words that mark a title typed in Vietnamese WITHOUT accents ("CHO THUE CAN HO AN PHU QUAN 2"): two of them make it Vietnamese. */
+// ⚠️ No word that is also English (CAN, MAY, BAN, HO — commit review, round 6): "YOU CAN BUY IN MAY" must stay an English title.
+const VIETNAMESE_PLAIN = new Set(('CHO THUE NHA PHONG XE QUAN PHUONG DUONG HUYEN GIA DEP MOI TIM VIEC LAM TUYEN DUNG GIAO VIEN TIENG CHINH CHU THANH PHO TRO MAT BANG DAT ' +
+  // place and family-name syllables that are never English words
+  'PHU THU DUC BINH TAN HOA NAM BAC TRUNG THAO DIEN NHUAN CHANH VAP KHANH NGUYEN TRAN PHAM HOANG HUYNH NGO QUOC VIET SAI GON HANOI').split(' '))
+// HALF THE WORDS OR MORE (commit review, round 7): an English title naming one accented district ("IOS DEVELOPER IN THẢO
+// ĐIỀN") stays English, so its acronyms stay.
+const isVietnameseTitle = (s: string) => {
+  const words = s.match(/\p{L}+/gu) ?? []
+  const vietnamese = words.filter((w) => VIETNAMESE_ACCENT.test(w) || VIETNAMESE_PLAIN.has(w.toUpperCase())).length
+  return words.length > 0 && vietnamese / words.length >= 0.5
+}
+/** In a Vietnamese title a short word is a syllable unless it is a real acronym; in an English one it is an acronym unless known. */
+const keepsCapitals = (w: string, vietnamese: boolean) =>
+  isAcronym(w) || (!vietnamese && /^[A-Z]{1,3}$/.test(w) && !SHORT_WORDS.has(w))
+const isUpperLetter = (c: string) => c !== c.toLowerCase() && c === c.toUpperCase()
+
+/**
+ * A SHOUTED title in TITLE CASE — "BÁN XE SUZUKI RAIDER" → "Bán Xe Suzuki Raider", "CHO THUÊ CĂN HỘ MASTERI THẢO ĐIỀN" →
+ * "Cho Thuê Căn Hộ Masteri Thảo Điền". ⛔ NOT SENTENCE CASE (commit review, two rounds): lowering every word cannot know a
+ * name, so brands, projects, streets and wards ("masteri thảo điền", "suzuki raider") and English "I" lost their capitals,
+ * and the card then spelled a name differently from its own page. Title case ends the shouting and never lowers a name.
+ */
+function unshout(s: string): string {
+  const letters = s.match(/\p{L}/gu) ?? []
+  if (letters.length < CAPS_MIN_LETTERS || letters.filter(isUpperLetter).length / letters.length < CAPS_SHARE) return s
+  // ⚠️ EVERY WORD UP, NO "small words" (commit review, round 3): Vietnamese typed without accents reads as English to any
+  // test, and "AN PHU" lost its capital to an English "an". A word runs through an apostrophe ("Don't", "I'm").
+  const vietnamese = isVietnameseTitle(s)
+  return s.split(/(\s+)/).map((tok) => {
+    if (!/\S/.test(tok)) return tok
+    if (/\d/.test(tok)) return tok // PS5, LX25+, 25W, 3.0
+    if (/^[A-Z]{1,4}(?:\/[A-Z]{1,4})+$/.test(tok)) return tok // VN/A, B/W
+    return tok.replace(/\p{L}+(?:['’]\p{L}+)*/gu, (w) => {
+      const keep = CASE_KEEP[w.toLowerCase()]
+      if (keep) return keep
+      if (w !== w.toUpperCase() || keepsCapitals(w, vietnamese)) return w
+      const lower = w.toLocaleLowerCase('vi')
+      return lower.charAt(0).toLocaleUpperCase('vi') + lower.slice(1)
+    })
+  }).join('')
+}
+
+/** A trailing "." or "!" goes — never an ellipsis, and never the full stop of an abbreviation ("Co., Ltd.", "etc."). */
+const KEPT_FULL_STOP = /(?:^|[\s,(])(?:co|ltd|inc|corp|jsc|etc|st|dr|mr|mrs|ms|no|vs|tp|p|q)\.$/iu
+function dropTrailingMark(s: string): string {
+  if (/(?:\.\.\.|…)$/u.test(s) || KEPT_FULL_STOP.test(s)) return s
+  return s.replace(/\s*[.!]+$/u, '')
+}
+
+/** A job title's leading kind-of-posting tag — never information the card lacks. ⛔ Not "[Urgent]" / "[Tuyển gấp]": for a
+ *  listing without the urgent flag the tag is the only place that says so (commit review). */
+const JOB_KIND_TAG = /^\[(?:job opening|job openings|hiring|we are hiring|we're hiring|tuyển dụng|tuyen dung|tuyển)\]\s*/iu
+
+function titleGrammar(title: string, { listingType, categorySlug, location }: CardTitleInput): string {
+  let s = title.replace(/\s+/g, ' ').trim()
+  if (listingType === 'job' || categorySlug === 'jobs') {
+    for (let i = 0; i < 3; i++) {
+      const kind = JOB_KIND_TAG.exec(s)
+      if (kind) { s = s.slice(kind[0].length); continue }
+      const tag = BRACKET.exec(s)
+      if (tag && repeatsInfoLine(tag[1], null, location)) { s = s.slice(tag[0].length); continue }
+      break
+    }
+  }
+  return dropTrailingMark(unshout(s)).trim()
+}
+
+function cardTitleBase({ title, lang, sellerId, categorySlug, listingType, condition, location, employer }: CardTitleInput): string {
   const src = title.normalize('NFC')
   let out = src
   if (employer && listingType === 'job') {
@@ -196,6 +333,14 @@ export function jobTypeLabel(jobType: string | null | undefined, tr: (en: string
     : jobType === 'temporary' ? tr('Temporary', 'Thời vụ')
     : jobType === 'remote' ? tr('Remote', 'Từ xa')
     : null
+}
+
+/**
+ * The job type a card or row prints (UI climb batch 87, 2026-11-13): every type but FULL-TIME, the default most jobs are,
+ * so "HCM · Full-time" on nearly every row said nothing — "Part-time", "Contract", "Remote"… still tell the reader something.
+ */
+export function cardJobType(jobType: string | null | undefined, tr: (en: string, vi: string) => string): string | null {
+  return jobType === 'fulltime' ? null : jobTypeLabel(jobType, tr)
 }
 
 /**

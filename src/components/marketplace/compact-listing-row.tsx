@@ -17,7 +17,7 @@ import { IdentityVerifiedMark } from './identity-verified-mark'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized, PostedAgo } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
-import { cardTitle, jobTypeLabel } from '@/lib/card-title'
+import { cardTitle, cardJobType, rowTitle } from '@/lib/card-title'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
@@ -114,11 +114,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // What every job row gets, linked or not, is no thumbnail, the type on its phone line and the role as the strongest line.
   const linkedJob = job && l.isPartnerBooking === true
   const jobMeta = linkedJob && l.price === 0 ? (l.jobEmployer || null) : undefined
-  // Only when the slot really prints an employer: every other row's title is the stored one, untouched (commit review).
-  const lineTitle = jobMeta
-    ? cardTitle({ title: displayTitle, lang, sellerId: l.sellerId, categorySlug: l.category?.slug, listingType: l.listingType, condition: l.condition, location: l.location, employer: jobMeta })
-    : displayTitle
-  const jobTypeText = job ? jobTypeLabel(l.jobType, tr) : null
+  // Only when the slot really prints an employer does the card's shortening run: every other row keeps its stored title (commit
+  // review) — in the card's display grammar since batch 87 (rowTitle: no shouting, no "[Job Opening]", no trailing ".").
+  const titleInput = { title: displayTitle, lang, sellerId: l.sellerId, categorySlug: l.category?.slug, listingType: l.listingType, condition: l.condition, location: l.location }
+  const lineTitle = jobMeta ? cardTitle({ ...titleInput, employer: jobMeta }) : rowTitle(titleInput)
+  const jobTypeText = job ? cardJobType(l.jobType, tr) : null
   // `null` is exactly a linked job at 0 with no employer stored, whose slot would say "Salary: see posting" (see above).
   const salaryLine = jobMeta !== null
   const drop = l.prevPrice != null ? dropPercent(l.prevPrice, l.price) : null
@@ -348,7 +348,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* A JOB's slot (batch 78): `text-sm` on its own 20px line; at 0 (the employer, "Salary: negotiable") regular weight
               in ink-3, a real salary keeps <Price>'s bold price ink. ⛔ Not drawn at all for a linked job with no pay and no
               employer (`salaryLine`; the note on `job`) — <Price>'s words stay as they are everywhere else. */}
-          {salaryLine && <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} className={job ? cn('text-sm leading-5 sm:shrink-0', l.price === 0 && 'font-normal text-ink-3') : 'text-base sm:shrink-0'} />}
+          {salaryLine && <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} cardWords className={job ? cn('text-sm leading-5 sm:shrink-0', l.price === 0 && 'font-normal text-ink-3') : 'text-base sm:shrink-0'} />}
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line

@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { usePlaceText } from './place-name'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
-import { cardTitle, hasImportDate, jobTypeLabel } from '@/lib/card-title'
+import { cardTitle, hasImportDate, cardJobType } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 // PostedAgo (not a bare timeAgo() call): the card's relative time is the SAME string the PDP prints, and it is safe on a cached page (relative-time.tsx).
@@ -296,10 +296,11 @@ function ListingCardImpl({
    */
   const canLocate = listing.lat != null && listing.lng != null && ['rentals', 'services', 'jobs'].includes(listing.category?.slug ?? '')
   /**
-   * The job type for the info line, after the place ("Full-time" / "Toàn thời gian"), on any job whose card payload carries
-   * the `jobType` projection (serializeListingCard); null otherwise, and the line reads as before.
+   * The job type for the info line, after the place ("Part-time" / "Bán thời gian"), on any job whose card payload carries
+   * the `jobType` projection (serializeListingCard) — every type but Full-time, the default (batch 87, cardJobType); null
+   * otherwise, and the line reads as before. A Full-time job and one of unknown type now read the same, by choice.
    */
-  const jobTypeText = listing.listingType === 'job' ? jobTypeLabel(listing.jobType, tr) : null
+  const jobTypeText = listing.listingType === 'job' ? cardJobType(listing.jobType, tr) : null
   // Video-on-card: <CardVideo> autoplays the clip (muted, looping, cover-first fade-in) once
   // the card settles in the viewport — mobile finally sees video without hover. The hover
   // flag just makes desktop start INSTANTLY instead of waiting for the settle beat.
@@ -1383,6 +1384,8 @@ function ListingCardImpl({
             fabAvoid
             // Batch 81 (2026-11-13): English prints "3.79M đ/mo", so a rent's "≈ $" stays on its line at 360px (price.tsx `shortUnit`).
             shortUnit
+            // Batch 87: an employer's own job with no figure reads "Negotiable" here (price.tsx `cardWords`).
+            cardWords
             // 2026-11-07 audit: the "≈ $" estimate in body ink from lg, where it read as faint beside the 18px price; a phone
             // keeps the quieter grey. A colour only, never a hiding class (owner, 2026-09-13).
             approxClassName="lg:text-body"

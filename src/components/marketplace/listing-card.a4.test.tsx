@@ -195,15 +195,16 @@ describe('ListingCard — the price row', () => {
 
   it('a price-0 linked job hands <Price> null — the slot holds pay only — and its type follows the place on the info line', () => {
     const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'eslboards-com-import-seller-0001' }
-    const inVi = card({ ...job, jobType: 'fulltime' })
+    const inVi = card({ ...job, jobType: 'parttime' })
     expect(inVi.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
     // The place first and the type after it (review r31, 2026-11-07): the newest fact is the one the ellipsis takes.
-    expect(inVi.textContent).toContain('TP.HCM · Toàn thời gian')
+    expect(inVi.textContent).toContain('TP.HCM · Bán thời gian') // any type but Full-time (batch 87)
     cleanup()
     lang.current = 'en'
-    const inEn = card({ ...job, jobType: 'fulltime' })
+    const inEn = card({ ...job, jobType: 'parttime' })
     expect(inEn.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
-    expect(inEn.textContent).toContain('HCM · Full-time')
+    expect(inEn.textContent).toContain('HCM · Part-time')
+    expect(card({ ...job, jobType: 'fulltime' }).textContent).not.toContain('Full-time')
     cleanup()
     const untyped = card({ ...job, jobType: null })
     expect(untyped.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
@@ -229,9 +230,9 @@ describe('ListingCard — the price row', () => {
 
   it("an employer's own job (not linked) never gets jobMeta — it keeps \"Lương: thỏa thuận\" — and its type follows the place on the info line too", () => {
     const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'cm-employer-seller', isPartnerBooking: false }
-    const c = card({ ...job, jobType: 'fulltime' })
+    const c = card({ ...job, jobType: 'parttime' })
     expect(c.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
-    expect(c.textContent).toContain('TP.HCM · Toàn thời gian')
+    expect(c.textContent).toContain('TP.HCM · Bán thời gian')
   })
 
   it('a job card from a payload without the projection (full listing, stored card) gets the same pay-only slot, and no type', () => {

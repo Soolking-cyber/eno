@@ -84,9 +84,9 @@ describe('the job row\'s slot line, through the real <Price>', () => {
   it('a linked job with no pay and no employer: no "Salary: see posting", nor any other salary words', () => {
     const t = text()
     expect(t).not.toMatch(/Salary/)
-    // The rest of the row is all there: the role, and the phone's place · time · type line.
+    // The rest of the row is all there: the role and the phone's place · time line (Full-time, the default, is not printed — batch 87).
     expect(t).toContain('Design, Engineering, Technology Teacher')
-    expect(t).toContain('Full-time')
+    expect(t).not.toContain('Full-time')
   })
 
   it('a linked job with an employer and no pay: the employer, not the salary words', () => {
@@ -102,10 +102,11 @@ describe('the job row\'s slot line, through the real <Price>', () => {
     expect(figure.textContent).toMatch(/25/)
   })
 
-  it('an employer\'s own job at 0 keeps "Salary: negotiable" (price.tsx\'s ⛔ rule), employer stored or not', () => {
-    expect(text({ isPartnerBooking: false })).toContain('Salary: negotiable')
+  it('an employer\'s own job at 0 keeps its pay word (price.tsx\'s ⛔ rule) — on a row "Negotiable" (batch 87), employer stored or not', () => {
+    expect(text({ isPartnerBooking: false })).toContain('Negotiable')
+    expect(text({ isPartnerBooking: false })).not.toContain('Salary: negotiable')
     cleanup()
-    expect(text({ isPartnerBooking: false, jobEmployer: 'Highlands Coffee' })).toContain('Salary: negotiable')
+    expect(text({ isPartnerBooking: false, jobEmployer: 'Highlands Coffee' })).toContain('Negotiable')
   })
 
   it('a payload with no linked flag keeps <Price>\'s neutral "Salary: see details" (one meaning of "linked": the flag)', () => {

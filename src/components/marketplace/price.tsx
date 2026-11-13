@@ -66,6 +66,11 @@ type Props = {
    * today's. English and Vietnamese never swap.
    */
   shortUnit?: boolean
+  /**
+   * CARDS AND ROWS ONLY (UI climb batch 87, 2026-11-13): an employer's own job with no figure reads "Negotiable" /
+   * "Thỏa thuận" — on a job card the word "Salary" says what the slot already is. The listing page keeps "Salary: negotiable".
+   */
+  cardWords?: boolean
   currency: string
   priceUnit: string
   /** NARROW SURFACES ONLY (cards, dashboard rows, the chat strip): an amount of HUGE_VND or more shows
@@ -148,7 +153,7 @@ function FigureRun({ fabAvoid, children }: { fabAvoid?: boolean; children: React
   return fabAvoid ? <span data-fab-avoid="">{children}</span> : <>{children}</>
 }
 
-export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid, shortUnit = false }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid, shortUnit = false, cardWords = false }: Props) {
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
   const locale = moneyLocale(lang)
@@ -190,7 +195,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
     // a school reading the card is not paying tuition (commit review).
     ? (listingType === 'teacher' ? tr('Rate on request', 'Thù lao: liên hệ')
       : jobSlot && jobMeta ? jobMeta
-      : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận')
+      : noFigure ? (linked === false ? (cardWords ? tr('Negotiable', 'Thỏa thuận') : tr('Salary: negotiable', 'Lương: thỏa thuận'))
         // A caller that knows the job links out says where the pay is (codex all13: "see details" promised a figure the job
         // page does not have; that page says "Salary: see the original posting"); one that does not keeps the neutral words. As short as
         // "see details" (t35, both blind judges: "see the posting" took two lines on a phone card and broke the row's line).

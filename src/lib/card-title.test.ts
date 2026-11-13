@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardTitle, cardCity, jobCardMeta, jobTypeLabel, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
+import { cardTitle, cardCity, cardJobType, rowTitle, jobCardMeta, jobTypeLabel, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
 import { VEHICLE_SELLERS } from './vehicle-rental-listing'
 import { TAXONOMY } from './taxonomy'
 
@@ -101,11 +101,14 @@ describe('cardTitle — goods bracket tags: only what the info line already says
     expect(goods('[Like New] Dell XPS 13', { listingType: 'wanted' })).toBe('[Like New] Dell XPS 13')
     expect(goods('[HCM] Sửa máy lạnh tại nhà', { listingType: 'service', categorySlug: 'services' })).toBe('[HCM] Sửa máy lạnh tại nhà')
     expect(goods('[Like New] Dell XPS 13', { listingType: undefined })).toBe('[Like New] Dell XPS 13')
-    expect(cardTitle({ title: '[HN] English teacher, full-time', lang: 'en', sellerId: 'x', categorySlug: 'jobs', listingType: 'job', location: 'Hà Nội' })).toBe('[HN] English teacher, full-time')
+    // A job is not a goods listing, but since batch 87 its grammar drops a city tag the info line prints (titleGrammar).
+    expect(cardTitle({ title: '[HN] English teacher, full-time', lang: 'en', sellerId: 'x', categorySlug: 'jobs', listingType: 'job', location: 'Hà Nội' })).toBe('English teacher, full-time')
   })
 
   it('exempts jobs and teachers by CATEGORY too — an older stored card carries no listingType', () => {
-    expect(goods('[HCM] English teacher, full-time', { categorySlug: 'jobs', listingType: 'sell' })).toBe('[HCM] English teacher, full-time')
+    // A jobs-category card drops a city tag its info line prints (batch 87, titleGrammar) — never by the goods rule.
+    expect(goods('[HCM] English teacher, full-time', { categorySlug: 'jobs', listingType: 'sell' })).toBe('English teacher, full-time')
+    expect(goods('[Hà Nội] English teacher, full-time', { categorySlug: 'jobs', listingType: 'sell' })).toBe('[Hà Nội] English teacher, full-time')
     expect(goods('[HCM] IELTS tutor, 8.0', { categorySlug: 'teachers', listingType: 'sell' })).toBe('[HCM] IELTS tutor, 8.0')
   })
 
@@ -244,5 +247,106 @@ describe('a no-pay linked job whose slot prints the employer (UI climb 2026-11-0
   })
   it('never applies to anything but a job', () => {
     expect(cardTitle({ title: 'Sofa — IKEA', lang: 'en', sellerId: 'm', categorySlug: 'furniture-appliances', listingType: 'sell', employer: 'IKEA' })).toBe('Sofa — IKEA')
+  })
+})
+
+describe('cardTitle — batch 87: one short display grammar on every card but a teacher\'s', () => {
+  const t = (title: string, over: Partial<Parameters<typeof cardTitle>[0]> = {}) => cardTitle({ title, lang: 'en', sellerId: 'x', categorySlug: 'electronics', listingType: 'sell', ...over })
+  it('a SHOUTED title reads in title case; digits, acronyms and brands keep their form', () => {
+    expect(t('NEKTAR LX25+ 25 KEY USB CONTROLLER KEYBOARD')).toBe('Nektar LX25+ 25 Key USB Controller Keyboard')
+    expect(t('USED IPHONE 16 PRO MAX 256GB')).toBe('Used iPhone 16 Pro Max 256GB')
+    // commit review: a title that OPENS on a lower-case brand keeps it; short words are words; acronyms stay in Vietnamese too
+    expect(t('IPHONE 15 PRO MAX 256GB LIKE NEW')).toBe('iPhone 15 Pro Max 256GB Like New')
+    expect(t('BRAND NEW SOFA BED FOR SALE')).toBe('Brand New Sofa Bed For Sale')
+    // commit review round 2: a name is never lowered, and English keeps its "I"
+    expect(t('SOFA FOR SALE, I AM MOVING')).toBe('Sofa For Sale, I Am Moving')
+    // commit review round 3: contractions, a decomposed title, Vietnamese typed without accents, "AI" (who)
+    expect(t("DON'T MISS THIS SOFA, I'M MOVING")).toBe("Don't Miss This Sofa, I'm Moving")
+    expect(t('BÁN XE MÁY HONDA CHÍNH CHỦ'.normalize('NFD'))).toBe('Bán Xe Máy Honda Chính Chủ')
+    expect(t('CHO THUE CAN HO AN PHU QUAN 2', { categorySlug: 'rentals', listingType: 'rent' })).toBe('Cho Thue Can Ho An Phu Quan 2')
+    expect(t('AI CẦN THANH LÝ TỦ LẠNH')).toBe('Ai Cần Thanh Lý Tủ Lạnh')
+    expect(t('GRADE A CONDITION MACBOOK')).toBe('Grade A Condition MacBook')
+    // round 4: Vietnamese abbreviations with Đ, and listed ones with a vowel, stay
+    expect(t('BÁN NHÀ BĐS QUẬN 7 LH SĐT CHÍNH CHỦ')).toBe('Bán Nhà BĐS Quận 7 LH SĐT Chính Chủ')
+    expect(t('VIP SIM SỐ ĐẸP COD TOÀN QUỐC')).toBe('VIP SIM Số Đẹp COD Toàn Quốc')
+    // round 5: an unknown short word keeps its capitals (never misspelled); "AI" is "who" only in a Vietnamese title
+    expect(t('IOS DEVELOPER WANTED, REMOTE OK', { categorySlug: 'jobs', listingType: 'job' })).toBe('IOS Developer Wanted, Remote OK')
+    expect(t('AI ENGINEER FOR A STARTUP', { categorySlug: 'jobs', listingType: 'job' })).toBe('AI Engineer For A Startup')
+    expect(t('VINFAST VF8 EV FOR SALE, LIKE NEW')).toBe('VinFast VF8 EV For Sale, Like New')
+    // round 6: English words that are also Vietnamese syllables do not make an English title Vietnamese
+    expect(t('YOU CAN BUY IN MAY, IOS APP INCLUDED')).toBe('You Can Buy In May, IOS App Included')
+    // round 7: an English title naming an accented district stays English; vehicle codes stay
+    expect(t('IOS DEVELOPER IN THẢO ĐIỀN', { categorySlug: 'jobs', listingType: 'job' })).toBe('IOS Developer In Thảo Điền')
+    expect(t('BÁN XE AB 2020 CHÍNH CHỦ')).toBe('Bán Xe AB 2020 Chính Chủ')
+    expect(t('VINFAST VF8 EV CHÍNH CHỦ GIÁ TỐT')).toBe('VinFast VF8 EV Chính Chủ Giá Tốt')
+    expect(t('NIKE AIR FORCE 1 SIZE 42')).toBe('Nike Air Force 1 Size 42')
+    expect(t('MATH TEACHER WANTED URGENTLY', { categorySlug: 'jobs', listingType: 'job' })).toBe('Math Teacher Wanted Urgently')
+    expect(t('BELKIN PD 3.0 25W FAST CHARGER')).toBe('Belkin PD 3.0 25W Fast Charger')
+  })
+  it('a Vietnamese shouted title capitalises every word, as the market writes it — names keep their capitals', () => {
+    expect(t('CHO THUÊ NHÀ BIỆT THỰ MINI MÁI THÁI QUẬN 7', { categorySlug: 'rentals', listingType: 'rent' })).toBe('Cho Thuê Nhà Biệt Thự Mini Mái Thái Quận 7')
+    expect(t('BÁN XE MÁY HONDA Ở BÌNH THẠNH')).toBe('Bán Xe Máy Honda Ở Bình Thạnh')
+    expect(t('BÁN XE SUZUKI RAIDER CHÍNH CHỦ')).toBe('Bán Xe Suzuki Raider Chính Chủ')
+    expect(t('CHO THUÊ CĂN HỘ MASTERI THẢO ĐIỀN', { categorySlug: 'rentals', listingType: 'rent' })).toBe('Cho Thuê Căn Hộ Masteri Thảo Điền')
+    expect(t('BÁN TIVI LG 55 INCH CÒN MỚI')).toBe('Bán Tivi LG 55 Inch Còn Mới')
+    expect(t('BÁN IPHONE 14 VN/A RAM 6GB HCM')).toBe('Bán iPhone 14 VN/A RAM 6GB HCM')
+  })
+  it('leaves a title alone that is not shouted, or too short to judge', () => {
+    expect(t('Used iPhone 16 128GB Ultramarine Blue')).toBe('Used iPhone 16 128GB Ultramarine Blue')
+    expect(t('PS5 SLIM')).toBe('PS5 SLIM')
+    expect(t('Sony WH-1000XM5 headphones, MINT')).toBe('Sony WH-1000XM5 headphones, MINT')
+  })
+  it('a trailing "." or "!" goes', () => {
+    expect(t('PS5 games for sale.')).toBe('PS5 games for sale')
+    expect(t('Indians out there in Hanoi, Zaika Is Calling You!')).toBe('Indians out there in Hanoi, Zaika Is Calling You')
+    // never an ellipsis or an abbreviation's full stop (commit review round 2)
+    expect(t('Moving sale, everything must go...')).toBe('Moving sale, everything must go...')
+    expect(t('Office cleaning by Sao Mai Co., Ltd.')).toBe('Office cleaning by Sao Mai Co., Ltd.')
+    expect(t('Books, pens, notebooks etc.')).toBe('Books, pens, notebooks etc.')
+  })
+  it('a job drops its kind-of-posting tag, never words that are information', () => {
+    const job = (title: string) => t(title, { categorySlug: 'jobs', listingType: 'job', location: 'Hà Nội' })
+    expect(job('[Job Opening] Interpreter Recruitment for K-Eyewear')).toBe('Interpreter Recruitment for K-Eyewear')
+    expect(job('[Tuyển dụng] Giáo viên tiếng Anh')).toBe('Giáo viên tiếng Anh')
+    // commit review: nothing after a " | " is dropped — that is where pay and visa live — and "[Urgent]" stays
+    expect(job('[Hanoi] Full-time ESL Teachers at Premium Schools | High Salary | Visa')).toBe('Full-time ESL Teachers at Premium Schools | High Salary | Visa')
+    expect(job('ESL Teacher | 35–45M VND | Hanoi')).toBe('ESL Teacher | 35–45M VND | Hanoi')
+    expect(job('[Urgent] Kindergarten teacher')).toBe('[Urgent] Kindergarten teacher')
+    expect(job('[Online] ESL tutor')).toBe('[Online] ESL tutor')
+    expect(job('PART-TIME ENGLISH & STEM TEACHER (NATIVE SPEAKERS PREFERRED)')).toBe('Part-Time English & STEM Teacher (Native Speakers Preferred)')
+  })
+  it('a teacher\'s card is a name, and keeps every letter', () => {
+    expect(t('NGUYEN VAN AN — IELTS 8.0.', { categorySlug: 'teachers', listingType: 'teacher' })).toBe('NGUYEN VAN AN — IELTS 8.0.')
+  })
+  it('the stored title is untouched — only the card line changes (the caller keeps `title` for the h3 and the alt)', () => {
+    const title = 'NEKTAR LX25+ 25 KEY USB CONTROLLER KEYBOARD'
+    t(title)
+    expect(title).toBe('NEKTAR LX25+ 25 KEY USB CONTROLLER KEYBOARD')
+  })
+})
+
+describe('cardJobType — batch 87: every type but Full-time', () => {
+  const tr = (en: string) => en
+  it('Full-time, the default, is not printed; the others are', () => {
+    expect(cardJobType('fulltime', tr)).toBeNull()
+    expect(cardJobType('parttime', tr)).toBe('Part-time')
+    expect(cardJobType('contract', tr)).toBe('Contract')
+    expect(cardJobType('remote', tr)).toBe('Remote')
+    expect(cardJobType(null, tr)).toBeNull()
+  })
+})
+
+describe('rowTitle — batch 87: a list row reads in the card\'s grammar, without the card\'s shortening', () => {
+  const r = (title: string, over: Partial<Parameters<typeof rowTitle>[0]> = {}) => rowTitle({ title, lang: 'vi', sellerId: 'x', categorySlug: 'jobs', listingType: 'job', location: 'Hà Nội', ...over })
+  it('drops a job\'s kind-of-posting tag and the shouting; keeps everything else as stored', () => {
+    expect(r('[Job Opening] Interpreter Recruitment for K-Eyewear')).toBe('Interpreter Recruitment for K-Eyewear')
+    expect(r('PART-TIME ENGLISH & STEM TEACHER (NATIVE SPEAKERS PREFERRED)')).toBe('Part-Time English & STEM Teacher (Native Speakers Preferred)')
+  })
+  it('never applies the card\'s rental shortening to a row', () => {
+    const title = 'Cho thuê Căn hộ / Chung cư 2PN 76m² — P. An Khánh mới, Quận 2'
+    expect(r(title, { categorySlug: 'rentals', listingType: 'rent', location: 'Hồ Chí Minh' })).toBe(title)
+  })
+  it('a teacher row keeps its name', () => {
+    expect(r('NGUYEN VAN AN', { categorySlug: 'teachers', listingType: 'teacher' })).toBe('NGUYEN VAN AN')
   })
 })

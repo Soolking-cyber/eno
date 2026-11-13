@@ -96,10 +96,12 @@ describe('a linked job with no figure', () => {
     expect(row().querySelector('a[data-row-link]')!.getAttribute('aria-label')).toBe('Primary PE Teacher — Nord Anglia Education')
   })
 
-  it('ends the phone line with the job type', () => {
-    const line = row().querySelector('p.sm\\:hidden')!.textContent!
+  it('ends the phone line with the job type — any type but Full-time, the default (batch 87, cardJobType)', () => {
+    const line = row({ jobType: 'parttime' }).querySelector('p.sm\\:hidden')!.textContent!
     expect(line.startsWith('Hà Nội · ')).toBe(true)
-    expect(line.endsWith(' · Full-time')).toBe(true)
+    expect(line.endsWith(' · Part-time')).toBe(true)
+    cleanup()
+    expect(row().querySelector('p.sm\\:hidden')!.textContent!).not.toMatch(/Full-time/)
   })
 
   it('says nothing about a type the posting did not give', () => {
@@ -129,7 +131,7 @@ describe('a linked job with no figure', () => {
     expect(metaLine(c).querySelector('.w-px')).toBeNull()
     expect(metaLine(c).textContent).toBe('Hà Nội')
     // The phone's place · time · type line is untouched.
-    expect(c.querySelector('p.sm\\:hidden')!.textContent!.endsWith(' · Full-time')).toBe(true)
+    expect(c.querySelector('p.sm\\:hidden')!.textContent!).not.toMatch(/Full-time/) // the default type is not printed (batch 87)
   })
 
   it('…and an urgent one keeps its line on a phone, for the bolt, with the divider before the place', () => {
@@ -193,7 +195,7 @@ describe('a row whose payload carries no linked flag', () => {
       expect(c.querySelector('img')).toBeNull()
       expect(c.querySelector('h4')!.className).toContain('font-semibold')
       expect(c.querySelector('h4')!.className).toContain('text-base')
-      expect(c.querySelector('p.sm\\:hidden')!.textContent!.endsWith(' · Full-time')).toBe(true)
+      expect(c.querySelector('p.sm\\:hidden')!.textContent!).not.toMatch(/Full-time/) // the default type is not printed (batch 87)
       cleanup()
     }
   })
