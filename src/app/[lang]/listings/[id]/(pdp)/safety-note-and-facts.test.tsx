@@ -153,7 +153,7 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
   })
 
   it('the brand link goes through localizedHref, like the breadcrumb (disc-missed) — an inline link in the facts line since batch 89', () => {
-    expect(PAGE).toContain('<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="font-medium text-foreground ')
+    expect(PAGE).toContain('<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="text-foreground underline underline-offset-4">{brand.name}</Link>')
     // The old chip is gone: one brand link on the page.
     expect(PAGE.match(/\?brand=\$\{encodeURIComponent/g)).toHaveLength(1)
   })
@@ -162,6 +162,9 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     const link = PAGE.match(/<Link href=\{localizedHref\(`\/\?brand=[^\n]*/)?.[0] ?? ''
     expect(link).not.toBe('')
     expect(link).not.toMatch(/tap-44/)
+    // ⛔ Always underlined, not only on hover: axe link-in-text-block (serious) failed on live branded listings (2026-11-14).
+    expect(link).toMatch(/className="[^"]*\bunderline\b(?!-)/)
+    expect(link).not.toMatch(/hover:underline/)
   })
 
   it('⛔ the place is never dropped from the facts line for the title (built and withdrawn 2026-11-13)', () => {

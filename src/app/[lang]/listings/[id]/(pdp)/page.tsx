@@ -963,13 +963,14 @@ export default async function ListingPage({ params }: Props) {
       facts.push({ key: 'condition', node: <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} /> })
     }
     // The brand links into the brand-filtered feed (resolved in the parallel batch above), in the reader's language
-    // (localizedHref, disc-missed) — an inline link now, in ink and medium weight (colour alone is under 3:1 against the line's
-    // grey, WCAG 1.4.1 — Opus 2026-11-13), underlined on hover. ⛔ NO tap-44: a link inside a line of
+    // (localizedHref, disc-missed) — an inline link now, in ink and ⛔ ALWAYS UNDERLINED: a link inside a run of text must not
+    // be told apart by colour alone (WCAG 1.4.1, axe link-in-text-block — ink on the line's grey is under 3:1). Weight did not
+    // count: the live prod a11y e2e failed on every branded listing with font-medium + hover:underline (2026-11-14, b89). ⛔ NO tap-44: a link inside a line of
     // text is the target-size rule's inline exception (WCAG 2.5.8), and its 44px ::before reached ~10px above the line, over
     // the "See original" button of the machine-translation note right above it — later in the DOM, so it took those taps
     // (review, 2026-11-13; globals.css tap-44's tap-stealing note). The chip it replaces had no tap floor either.
     if (brand) {
-      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="font-medium text-foreground underline-offset-4 hover:underline">{brand.name}</Link> })
+      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="text-foreground underline underline-offset-4">{brand.name}</Link> })
     }
     for (const s of numericSpecs) facts.push({ key: `spec-${s.label}`, node: <><Tr text={s.label} /> {s.value}</> })
     if (bedrooms) {
