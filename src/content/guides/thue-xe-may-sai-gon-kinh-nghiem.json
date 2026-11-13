@@ -11,7 +11,7 @@
     "Đặt cọc bằng tiền, không để lại căn cước: Luật Căn cước 2023 cấm cầm cố, nhận cầm cố thẻ căn cước và cấm giữ thẻ trái quy định.",
     "Xe đến 125 cm3 cần bằng **A1**, xe trên 125 cm3 cần bằng **A**. Chạy xe đến 125 cm3 mà không có bằng bị phạt {{vnd:2000000-4000000}}.",
     "Khi chạy xe phải mang theo giấy đăng ký xe và giấy bảo hiểm trách nhiệm dân sự bắt buộc, nên hãy xin tiệm hai giấy này trước khi rời đi.",
-    "Nếu va chạm: dừng xe, giữ nguyên hiện trường, cứu người bị nạn, ở lại cho tới khi công an có mặt (Điều 80 Luật Trật tự, an toàn giao thông đường bộ)."
+    "Nếu va chạm: dừng xe, giữ nguyên hiện trường, cứu người bị nạn, ở lại cho tới khi công an có mặt (Điều 80 Luật Trật tự, an toàn giao thông đường bộ). Luật chỉ cho rời đi khi chính bạn bị thương cần cấp cứu, khi phải đưa người bị nạn đi cấp cứu, hoặc khi tính mạng, sức khỏe của bạn bị đe dọa; khi đó phải báo ngay cho công an nơi gần nhất."
   ],
   "sections": [
     {
@@ -60,7 +60,11 @@
         },
         {
           "type": "p",
-          "text": "Cùng nguồn đó lưu ý rằng có tiệm tính thêm **phí giao xe tận nơi**, và tiền thuê áo mưa có thể tính riêng. Trước khi chốt, hãy hỏi giá đã gồm những gì, giờ trả xe trễ thì tính tiền ra sao, và tiệm muốn bạn trả xe với bao nhiêu xăng."
+          "text": "Cùng nguồn đó lưu ý rằng có tiệm tính thêm **phí giao xe tận nơi**, và tiền thuê áo mưa có thể tính riêng. Theo Vietnam Tourism (cập nhật 25/9/2026), phí giao xe trong thành phố ở những tiệm có tính là {{vnd:50000-100000}}, áo mưa thuê riêng khoảng {{vnd:10000-20000}}, còn mũ bảo hiểm thường đã gồm trong giá thuê. Trước khi chốt, hãy hỏi giá đã gồm những gì, giờ trả xe trễ thì tính tiền ra sao, và tiệm muốn bạn trả xe với bao nhiêu xăng."
+        },
+        {
+          "type": "p",
+          "text": "Trên eno.vn, xe máy cho thuê ở TP.HCM được tập hợp tại [trang thuê xe máy TP.HCM](/thue-xe-may-tphcm). Blvck Motorbike là đối tác chính thức của eno.vn, có gian hàng tại [/blvck](/blvck)."
         },
         {
           "type": "callout",
@@ -98,6 +102,10 @@
       "blocks": [
         {
           "type": "p",
+          "text": "Bạn cần bằng lái đúng hạng, cùng giấy đăng ký xe và giấy bảo hiểm bắt buộc của chính chiếc xe thuê. Phần này chỉ nêu những gì cần biết khi thuê xe ở Sài Gòn. Quy định chung về bằng lái, bảo hiểm và mức phạt trên cả nước có trong hướng dẫn kinh nghiệm thuê xe máy ở Việt Nam của eno.vn."
+        },
+        {
+          "type": "p",
           "text": "Luật Trật tự, an toàn giao thông đường bộ (Luật 36/2024/QH15, hiệu lực từ 1/1/2025) chia bằng xe máy hai bánh thành hai hạng. Theo [Điều 57](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/khoan-1-dieu-57), **hạng A1** dùng cho xe có dung tích xi-lanh đến 125 cm3 hoặc xe điện có công suất đến 11 kW. **Hạng A** dùng cho xe trên mức đó."
         },
         {
@@ -118,7 +126,7 @@
         },
         {
           "type": "table",
-          "caption": "Một số mức phạt với người lái xe máy theo Nghị định 168/2024/NĐ-CP, theo tổng hợp của Tạp chí Luật sư Việt Nam (đầu năm 2026)",
+          "caption": "Một số mức phạt với người lái xe máy theo Nghị định 168/2024/NĐ-CP, theo tổng hợp của Tạp chí Luật sư Việt Nam (đầu năm 2026) và toàn văn nghị định trên Cổng thông tin Chính phủ",
           "headers": [
             "Lỗi",
             "Mức phạt",
@@ -142,8 +150,8 @@
             ],
             [
               "Không có giấy đăng ký xe",
-              "{{vnd:2000000-3000000}}, bị tịch thu xe, bị trừ hai điểm bằng lái",
-              "Điểm a khoản 2 Điều 14"
+              "{{vnd:2000000-3000000}}, bị trừ hai điểm bằng lái, có thể bị tịch thu xe nếu không chứng minh được nguồn gốc hợp pháp",
+              "Điểm a khoản 2, điểm b khoản 5 Điều 14"
             ],
             [
               "Không mang hoặc không có bảo hiểm bắt buộc còn hiệu lực",
@@ -151,11 +159,6 @@
               "Điểm a, b khoản 2 Điều 18"
             ]
           ]
-        },
-        {
-          "type": "callout",
-          "tone": "note",
-          "text": "Nghị định 238/2026/NĐ-CP sửa một số điều của Nghị định 168, áp dụng từ ngày 15/8/2026. Theo [tin trên CafeF](https://cafef.vn/quy-dinh-moi-ve-xu-phat-vi-pham-giao-thong-ap-dung-tu-ngay-15-8-tat-ca-nguoi-dan-chu-y-188260730065435832.chn), điểm mới với xe máy là cách xác định lỗi khi người đã đủ 16 tuổi nhưng chưa đủ 18 tuổi lái mô tô. Bài báo không nói tới các lỗi trong bảng trên. Nếu bạn đang bị xử lý một lỗi cụ thể, quyết định xử phạt mới là căn cứ cuối cùng."
         },
         {
           "type": "p",
@@ -169,7 +172,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Tranh chấp lúc trả xe hầu hết xoay quanh vết trầy và hỏng hóc có từ trước. Mười phút kiểm tra lúc nhận xe giúp bạn khỏi bị trừ cọc vô lý."
+          "text": "Tranh chấp lúc trả xe hầu hết xoay quanh vết trầy và hỏng hóc có từ trước. Mười phút kiểm tra lúc nhận xe giúp bạn khỏi bị trừ cọc vô lý. Danh sách kiểm tra đầy đủ có trong hướng dẫn kinh nghiệm thuê xe máy ở Việt Nam của eno.vn. Dưới đây là những bước không được bỏ qua."
         },
         {
           "type": "steps",
@@ -183,20 +186,12 @@
               "text": "Biển số và số khung phải khớp với giấy đăng ký xe. Xem ngày hết hạn trên giấy bảo hiểm bắt buộc."
             },
             {
-              "title": "Thử phanh, đèn, còi",
-              "text": "Bóp từng phanh khi xe chạy chậm. Bật đèn pha, đèn cốt, xi-nhan hai bên, đèn phanh. Bấm còi."
+              "title": "Thử phanh, đèn, còi và xem lốp",
+              "text": "Bóp từng phanh khi xe chạy chậm, bật đèn và xi-nhan, bấm còi. Lốp mòn trơn, nứt hay non hơi là lý do để đổi xe, nhất là vào mùa mưa ở Sài Gòn."
             },
             {
-              "title": "Xem lốp và xích hoặc dây curoa",
-              "text": "Lốp mòn trơn, nứt hay non hơi là lý do để đổi xe. Mùa mưa ở Sài Gòn thì lốp và phanh càng quan trọng."
-            },
-            {
-              "title": "Kiểm tra gương, chân chống, khóa cổ",
-              "text": "Hai gương phải chắc, chân chống phải tự bật lên. Xin đủ chìa khóa, kể cả chìa khóa cốp nếu có."
-            },
-            {
-              "title": "Nhận mũ bảo hiểm và áo mưa",
-              "text": "Mũ phải vừa đầu và cài được quai. Hỏi xem áo mưa có tính tiền riêng không."
+              "title": "Nhận đủ chìa khóa, mũ và áo mưa",
+              "text": "Xin đủ chìa khóa, kể cả chìa khóa cốp nếu có. Mũ phải vừa đầu và cài được quai. Hỏi xem áo mưa có tính tiền riêng không."
             }
           ]
         },
@@ -237,7 +232,7 @@
             },
             {
               "title": "Ở lại hiện trường",
-              "text": "Luật yêu cầu bạn ở lại cho tới khi công an có mặt và cung cấp thông tin về danh tính của mình."
+              "text": "Luật yêu cầu bạn ở lại cho tới khi công an có mặt và cung cấp thông tin về danh tính của mình. Luật cũng cho phép rời hiện trường khi chính bạn bị thương cần đi cấp cứu, khi phải đưa người bị nạn đi cấp cứu, hoặc khi tính mạng, sức khỏe của bạn bị đe dọa. Ai rời đi trong những trường hợp đó phải báo ngay cho công an (hoặc Ủy ban nhân dân) nơi gần nhất."
             },
             {
               "title": "Chụp ảnh và ghi lại",
@@ -283,11 +278,15 @@
   "faqs": [
     {
       "q": "Không có bằng lái có thuê được xe máy ở Sài Gòn không?",
-      "a": "Một số tiệm vẫn cho thuê, nhưng người lái là người bị phạt. Lái xe mô tô có dung tích tới 125 cm3 mà không có bằng thì bị phạt tiền theo Điều 18 Nghị định 168/2024/NĐ-CP. Xe gắn máy dưới 50 cm3 thì không cần bằng, nhưng người lái phải từ đủ 16 tuổi."
+      "a": "Một số tiệm vẫn cho thuê, nhưng người lái là người bị phạt. Lái xe mô tô có dung tích tới 125 cm3 mà không có bằng thì bị phạt tiền theo Điều 18 Nghị định 168/2024/NĐ-CP. Chỉ xe gắn máy mới không cần bằng: xe gắn máy là xe có vận tốc thiết kế không quá 50 km/h, nếu chạy xăng thì dung tích xi-lanh không quá 50 cm3, nếu chạy điện thì công suất không quá 4 kW. Người lái xe gắn máy phải đủ 16 tuổi."
     },
     {
       "q": "Bằng A1 cũ có chạy được Air Blade 125 hay SH 150 không?",
       "a": "Được. Bằng A1 cấp trước 1/1/2025 mà chưa đổi vẫn được lái xe có dung tích xi-lanh từ 50 cm3 trở lên và dưới 175 cm3, theo Điều 89 Luật Trật tự, an toàn giao thông đường bộ. Bằng A1 cấp theo luật mới chỉ dùng cho xe có dung tích tới 125 cm3."
+    },
+    {
+      "q": "Thuê xe máy TP.HCM có giao xe tận nơi không?",
+      "a": "Nhiều tiệm cho thuê xe máy ở TP.HCM có giao xe tận nơi, nhưng không phải tiệm nào cũng giao miễn phí. Theo bảng giá của Vietnam Tourism cập nhật ngày 25/9/2026, có tiệm tính phí giao xe trong thành phố, có tiệm không tính; mức phí tham khảo nằm ở mục giá thuê phía trên. Khi đặt xe, hãy hỏi phí giao và phí nhận lại xe, và kiểm tra xe ngay lúc người giao còn ở đó."
     },
     {
       "q": "Chỉ có bản photo giấy đăng ký xe thì có bị phạt không?",
@@ -304,9 +303,19 @@
   ],
   "sources": [
     {
+      "title": "Toàn văn Nghị định 168/2024/NĐ-CP quy định xử phạt vi phạm hành chính về trật tự, an toàn giao thông đường bộ",
+      "publisher": "Cổng thông tin điện tử Chính phủ (Xây dựng chính sách, pháp luật)",
+      "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-atgt-duong-bo-119241231164556785.htm"
+    },
+    {
       "title": "Luật Trật tự, an toàn giao thông đường bộ số 36/2024/QH15 (toàn văn)",
       "publisher": "Kế toán An Phá (đăng lại văn bản luật)",
       "url": "https://ketoananpha.vn/luat-trat-tu-an-toan-giao-thong-duong-bo-so-36-2024-qh15"
+    },
+    {
+      "title": "Điều 34 Luật trật tự, an toàn giao thông đường bộ 2024",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-34"
     },
     {
       "title": "Điều 56 Luật trật tự, an toàn giao thông đường bộ 2024",
@@ -324,9 +333,9 @@
       "url": "https://lsvn.vn/mot-so-luu-y-ve-giay-to-xe-khi-tham-gia-giao-thong-dip-tet-nguyen-dan-2026-a169529.html"
     },
     {
-      "title": "Quy định mới về xử phạt vi phạm giao thông áp dụng từ ngày 15/8",
-      "publisher": "CafeF",
-      "url": "https://cafef.vn/quy-dinh-moi-ve-xu-phat-vi-pham-giao-thong-ap-dung-tu-ngay-15-8-tat-ca-nguoi-dan-chu-y-188260730065435832.chn"
+      "title": "Thuê xe máy theo tháng ở Sài Gòn: bảng giá mới nhất",
+      "publisher": "Vietnam Tourism",
+      "url": "https://www.vietnamtourism.com/vi/thue-xe-may-theo-thang-o-sai-gon-bang-gia-moi-nhat-va-cach-c"
     },
     {
       "title": "Tất cả người dân đang đi xe máy chú ý mức bồi thường bảo hiểm bắt buộc mới nhất 2026",
@@ -342,11 +351,6 @@
       "title": "112 trở thành số điện thoại khẩn cấp quốc gia",
       "publisher": "VOH",
       "url": "https://voh.com.vn/xa-hoi/112-tro-thanh-so-dien-thoai-khan-cap-quoc-gia-619717.html"
-    },
-    {
-      "title": "Thuê xe máy theo tháng ở Sài Gòn: bảng giá mới nhất",
-      "publisher": "Vietnam Tourism",
-      "url": "https://www.vietnamtourism.com/vi/thue-xe-may-theo-thang-o-sai-gon-bang-gia-moi-nhat-va-cach-c"
     }
   ],
   "related": [
@@ -356,5 +360,5 @@
     "is-ho-chi-minh-city-safe",
     "your-first-weeks-in-ho-chi-minh-city"
   ],
-  "lastChecked": "2026-11-06"
+  "lastChecked": "2026-11-13"
 }

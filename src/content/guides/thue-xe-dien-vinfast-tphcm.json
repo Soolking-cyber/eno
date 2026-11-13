@@ -382,6 +382,18 @@
         },
         {
           "type": "p",
+          "text": "Trước khi xem từng bên cho thuê yêu cầu gì, hãy biết luật Việt Nam yêu cầu gì. Để lái ô tô, người nước ngoài cần **bằng lái Việt Nam, hoặc giấy phép lái xe quốc tế do một nước tham gia Công ước Viên 1968 cấp, mang kèm bằng lái gốc cùng hạng xe** (khoản 6 và 8 [Điều 57 Luật 36/2024/QH15](https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html)). Cũng theo khoản 6, bằng lái của nước mà Việt Nam đã ký điều ước hoặc thỏa thuận công nhận giấy phép lái xe của nhau có giá trị cho hạng xe ghi trên bằng. Nếu bạn có bằng của một nước ASEAN, hãy hỏi cơ quan cảnh sát giao thông xem bằng của mình có thuộc diện này không."
+        },
+        {
+          "type": "p",
+          "text": "Mỹ, Canada và Úc là thành viên [Công ước Geneva 1949](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-1&chapter=11&Temp=mtdsg3&clang=_en) nhưng không có tên trong [danh sách các bên của Công ước Viên 1968](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en) do Liên Hợp Quốc lưu giữ, tra ngày 13/11/2026. Việt Nam gia nhập Công ước Viên ngày 20/8/2014. Vì vậy giấy phép lái xe quốc tế do Mỹ, Canada hay Úc cấp không phải loại mà Điều 57 công nhận, và **không có giá trị để lái xe ở Việt Nam**."
+        },
+        {
+          "type": "p",
+          "text": "Với mô tô điện (loại cần bằng), người nước ngoài cũng cần bằng Việt Nam đúng hạng (A1 cho xe đến 11 kW, A cho xe trên 11 kW), bằng của nước có điều ước công nhận lẫn nhau cho hạng xe đó, hoặc giấy phép quốc tế theo Công ước 1968 kèm bằng mô tô gốc. Xe gắn máy (tối đa 50 km/h và 4 kW) thì không cần bằng, người lái đủ 16 tuổi. **Bên cho thuê nhận bằng của bạn không có nghĩa là bạn được phép lái**: hãy tự đối chiếu giấy tờ mình có với các điều kiện trên."
+        },
+        {
+          "type": "p",
           "text": "[Green Future](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) yêu cầu hộ chiếu còn hiệu lực và bằng lái hợp lệ. BonbonCar yêu cầu bằng lái quốc tế, hộ chiếu còn hạn ít nhất 6 tháng và một công dân Việt Nam bảo lãnh. Bằng nào được chấp nhận còn tùy quốc tịch và loại bằng đang có, nên hãy hỏi rõ bên cho thuê trước khi đặt. Với xe máy, xem thêm [hướng dẫn về bằng lái cho người nước ngoài](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
         }
       ]
@@ -465,6 +477,10 @@
     {
       "q": "Chuyến đi Vũng Tàu có nên thuê VF 3 không?",
       "a": "Nhiều Xe xem VF 3 phù hợp cho chuyến cuối tuần gần Sài Gòn như Vũng Tàu, Hồ Tràm, nhưng ít phù hợp với chuyến liên tỉnh dài. Hãy tính cả lượt về, chọn trạm sạc từ trước và không dựa vào quãng đường tối đa do hãng công bố."
+    },
+    {
+      "q": "Người nước ngoài có thuê và tự lái xe VinFast ở TP.HCM được không?",
+      "a": "Người nước ngoài thuê được xe VinFast ở TP.HCM, nhưng chỉ được tự lái khi có giấy phép hợp lệ theo luật Việt Nam. Lái ô tô cần bằng Việt Nam, giấy phép quốc tế theo Công ước Viên 1968 kèm bằng gốc cùng hạng, hoặc bằng của nước có điều ước công nhận lẫn nhau với Việt Nam. Giấy phép quốc tế của Mỹ, Canada, Úc không có giá trị. Mô tô điện cần giấy tờ tương tự cho hạng A1 hoặc A; xe gắn máy (tối đa 50 km/h và 4 kW) không cần bằng. Bên cho thuê nhận bằng không có nghĩa là được phép lái."
     }
   ],
   "sources": [
@@ -479,9 +495,9 @@
       "url": "https://vgreen.net/vi/san-pham-dich-vu"
     },
     {
-      "title": "Charging Station for Electric Scooters",
-      "publisher": "V-Green",
-      "url": "https://vgreen.net/en/tram-sac-xe-may-dien"
+      "title": "TOÀN VĂN: Luật Trật tự, an toàn giao thông đường bộ",
+      "publisher": "Trung tâm Phục vụ Hành chính công tỉnh Nghệ An",
+      "url": "https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html"
     },
     {
       "title": "Toàn văn Nghị định 168/2024/NĐ-CP quy định xử phạt vi phạm hành chính về trật tự, an toàn giao thông đường bộ",
@@ -494,14 +510,19 @@
       "url": "https://xaydungchinhsach.chinhphu.vn/nghi-dinh-so-238-2026-nd-cp-sua-doi-quy-dinh-xu-phat-vi-pham-giao-thong-duong-bo-tru-diem-phuc-hoi-diem-giay-phep-lai-xe-119260630142033452.htm"
     },
     {
+      "title": "Convention on Road Traffic, Vienna, 8 November 1968: status",
+      "publisher": "United Nations Treaty Collection",
+      "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+    },
+    {
+      "title": "Convention on Road Traffic, Geneva, 19 September 1949: status",
+      "publisher": "United Nations Treaty Collection",
+      "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-1&chapter=11&Temp=mtdsg3&clang=_en"
+    },
+    {
       "title": "Nghị định 238/2026/NĐ-CP (bản đăng lại toàn văn)",
       "publisher": "ketoananpha.vn",
       "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
-    },
-    {
-      "title": "TOÀN VĂN: Luật Trật tự, an toàn giao thông đường bộ",
-      "publisher": "Trung tâm Phục vụ Hành chính công tỉnh Nghệ An",
-      "url": "https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html"
     },
     {
       "title": "Dịch vụ cho thuê xe ô tô điện tự lái, có tài xế",
@@ -587,11 +608,6 @@
       "title": "Cho thuê xe VinFast VF5 tự lái",
       "publisher": "Sigo",
       "url": "https://sigo.vn/news/thue-xe-vinfast-vf5-tu-lai"
-    },
-    {
-      "title": "Chính sách thuê sở hữu xe máy điện VinFast Evo và Feliz II cùng Xanh SM",
-      "publisher": "VinFast Việt Nam 3S (đại lý)",
-      "url": "https://vinfastvietnam3s.com.vn/chinh-sach-thue-so-huu-xe-may-dien-vinfast-cung-xanh-sm-gsm-moi/"
     }
   ],
   "related": [
@@ -599,5 +615,5 @@
     "motorbike-licence-in-vietnam-for-foreigners",
     "your-first-weeks-in-ho-chi-minh-city"
   ],
-  "lastChecked": "2026-11-05"
+  "lastChecked": "2026-11-13"
 }

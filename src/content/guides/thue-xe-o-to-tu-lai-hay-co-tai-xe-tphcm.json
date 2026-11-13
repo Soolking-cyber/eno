@@ -1,0 +1,540 @@
+{
+  "slug": "thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm",
+  "title": "Thuê xe ô tô ở HCM 2026: tự lái hay có tài xế?",
+  "description": "Thuê xe ô tô ở TP.HCM cho người nước ngoài: bằng lái nào hợp lệ, giá thuê theo ngày năm 2026, tiền cọc, bảo hiểm, đưa đón sân bay, tự lái hay có tài xế.",
+  "h1": "Thuê xe ô tô ở HCM: tự lái hay có tài xế, và mỗi cách cần những gì",
+  "eyebrow": "Đi lại ở Sài Gòn",
+  "intro": "Người nước ngoài thuê xe ô tô ở TP.HCM được cả tự lái lẫn có tài xế, nhưng chỉ được tự cầm lái khi có bằng lái quốc tế theo Công ước Viên 1968 kèm bằng lái gốc, bằng lái Việt Nam, hoặc bằng lái một nước ASEAN cho hạng xe ghi trên bằng. Thuê xe có tài xế thì người đi không cần bằng, và đi trong ngày thường không đắt hơn bao nhiêu. Xe tự lái còn phải đặt cọc lớn, có nơi giữ tới 30 ngày sau khi trả xe để trừ phạt nguội.",
+  "keyPoints": [
+    "Việt Nam chỉ công nhận bằng lái quốc tế (IDP) cấp theo **Công ước Viên 1968**, và phải mang theo cùng bằng lái gốc. Dùng IDP mà không có bằng gốc bị phạt {{vnd:8000000-10000000}} theo Nghị định 168/2024/NĐ-CP.",
+    "Lái ô tô không có giấy phép lái xe hợp lệ bị phạt {{vnd:18000000-20000000}}. Người lái không có bằng cũng đừng mong được bảo hiểm chi trả.",
+    "Theo Rocket Car Rentals, tính đến tháng 11/2026, tiền cọc xe tự lái là {{vnd:13250000-26500000}} tùy xe, hoàn lại chậm nhất 30 ngày sau khi trả xe.",
+    "Thuê xe có tài xế thường đã gồm xăng, phí cầu đường và gửi xe. Theo Saigon Car, tính đến tháng 11/2026, xe sedan chạy trọn ngày 10 tiếng có giá {{vnd:1500000}}, chưa gồm 8% VAT.",
+    "Từ Tân Sơn Nhất về Quận 1, xe công nghệ khoảng {{vnd:130000-170000}} và taxi đồng hồ khoảng {{vnd:150000-200000}}, theo Vietnam Airlines. Sân bay Long Thành dự kiến khai thác thương mại từ 0 giờ ngày 24/12/2026."
+  ],
+  "sections": [
+    {
+      "id": "thue-xe-o-to-o-hcm-tu-lai-hay-co-tai-xe",
+      "title": "Thuê xe ô tô ở HCM: tự lái hay có tài xế?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Với phần lớn người nước ngoài ở TP.HCM, thuê xe có tài xế là lựa chọn hợp lý hơn cho đưa đón sân bay, đi lại trong thành phố và các chuyến đi trong ngày. Tự lái chỉ đáng cân nhắc khi người thuê có đúng loại bằng, quen chạy giữa dòng xe máy dày đặc, và cần xe nhiều ngày để đi xa, chẳng hạn một chuyến ra biển cuối tuần hay đi chơi cả gia đình."
+        },
+        {
+          "type": "p",
+          "text": "Thuê xe có tài xế thì nhà xe lo hết chuyện bằng lái, gửi xe, phí cầu đường, xăng và chịu trách nhiệm về chiếc xe. Tự lái thì người thuê gánh tất cả những thứ đó, cộng thêm tiền cọc, đổ xăng trả lại và các khoản phạt nguội về sau khi đã trả xe. Nếu bạn đang đặt xe giúp đồng nghiệp hay người thân là người nước ngoài, hỏi bằng lái của họ trước rồi mới chọn."
+        },
+        {
+          "type": "table",
+          "caption": "Tự lái hay có tài xế ở TP.HCM: so sánh nhanh (điều khoản của các nhà xe, đọc tháng 11/2026)",
+          "headers": [
+            "",
+            "Tự lái",
+            "Có tài xế"
+          ],
+          "rows": [
+            [
+              "Bằng lái cần có",
+              "IDP theo Công ước 1968 kèm bằng gốc, bằng lái Việt Nam, hoặc bằng lái của một nước ASEAN (cho hạng xe ghi trên bằng)",
+              "Người đi không cần"
+            ],
+            [
+              "Tiền cọc",
+              "Lớn: {{vnd:13250000-26500000}} ở Rocket Car Rentals",
+              "Thường không cọc khi đặt chuyến hoặc thuê theo ngày"
+            ],
+            [
+              "Xăng, phí cầu đường, gửi xe",
+              "Người thuê tự trả",
+              "Đã gồm trong giá ở nhà xe chúng tôi đã đọc"
+            ],
+            [
+              "Hư hỏng xe",
+              "Người thuê chịu, tới toàn bộ giá trị xe nếu không mua gói miễn trừ",
+              "Nhà xe chịu"
+            ],
+            [
+              "Hợp nhất cho",
+              "Chuyến đi xa nhiều ngày",
+              "Sân bay, đi trong phố, đi nhóm, đi trong ngày"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu chỉ cần đi lại hằng ngày trong thành phố, thuê ô tô hiếm khi là cách tốt nhất. Xem [cách đi lại ở TP.HCM](/teach-in-vietnam/getting-around-ho-chi-minh-city) về xe công nghệ, xe buýt và Metro số 1, hoặc [thuê xe máy ở TP.HCM](/motorbike-rental-ho-chi-minh-city) nếu muốn đi hai bánh. Tin đăng cho thuê xe tự lái có ở trang [thuê xe tự lái TP.HCM](/thue-xe-tu-lai-tphcm) trên eno.vn."
+        }
+      ]
+    },
+    {
+      "id": "nguoi-nuoc-ngoai-co-duoc-tu-lai-xe-thue",
+      "title": "Người nước ngoài có được tự lái xe thuê ở TP.HCM không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Có, nhưng chỉ khi có một trong ba loại giấy tờ: giấy phép lái xe quốc tế (IDP) cấp theo Công ước Viên 1968, mang kèm bằng lái gốc còn hạn, bằng lái Việt Nam, hoặc bằng lái của một nước ASEAN, cho hạng xe ghi trên bằng. IDP là bản dịch của bằng lái, do cơ quan cấp bằng hoặc hiệp hội ô tô ở nước của người lái cấp. **Bản thân IDP không phải là bằng lái.**"
+        },
+        {
+          "type": "p",
+          "text": "Theo [Việt Nam News](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) ngày 21/5/2026, Việt Nam là thành viên Công ước Viên 1968, không tham gia Công ước Geneva 1949. Bài báo nêu Mỹ, Canada, Úc và New Zealand chỉ ký công ước 1949, nên IDP do các nước này cấp không có giá trị để lái xe ở Việt Nam. Bài báo còn xếp Nam Phi và Israel vào nhóm này, nhưng theo [hồ sơ điều ước của Liên Hợp Quốc](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en), Nam Phi gia nhập Công ước 1968 ngày 1/11/1977 và Israel phê chuẩn ngày 11/5/1971. Người có bằng lái của một nước ASEAN được lái bằng bằng trong nước, không cần IDP, nhưng chỉ với hạng xe ghi trên bằng."
+        },
+        {
+          "type": "p",
+          "text": "Quy định về bằng lái hiện nằm ở [Thông tư 108/2026/TT-BCA](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html) của Bộ Công an, có hiệu lực từ 1/7/2026 và thay Thông tư 12/2025/TT-BCA. Điều 30 nói IDP được công nhận theo điều ước mà Việt Nam là thành viên thì dùng theo điều ước đó. Cũng điều này nêu rõ IDP do Việt Nam cấp theo Công ước 1968 không có giá trị trên lãnh thổ Việt Nam, nên người Việt không thể dùng IDP Việt Nam thay cho bằng lái trong nước."
+        },
+        {
+          "type": "table",
+          "caption": "Giấy tờ đang có và việc lái xe thuê ở Việt Nam (Thông tư 108/2026/TT-BCA; Nghị định 168/2024/NĐ-CP theo Tạp chí Luật sư Việt Nam, 22/2/2026; Việt Nam News, 21/5/2026)",
+          "headers": [
+            "Giấy tờ đang có",
+            "Có được lái xe thuê?",
+            "Rủi ro khi bị dừng xe"
+          ],
+          "rows": [
+            [
+              "IDP theo Công ước 1968 kèm bằng gốc còn hạn",
+              "Được, theo hạng ghi trên bằng",
+              "Không, nếu mang đủ cả hai"
+            ],
+            [
+              "IDP nhưng không mang bằng gốc",
+              "Không",
+              "Phạt {{vnd:8000000-10000000}}"
+            ],
+            [
+              "IDP theo Công ước 1949 (ví dụ Mỹ, Úc, Canada)",
+              "Không",
+              "Coi như không có bằng"
+            ],
+            [
+              "Bằng lái của một nước ASEAN",
+              "Được, cho hạng xe ghi trên bằng, không cần IDP",
+              "Không, nếu lái đúng hạng xe ghi trên bằng"
+            ],
+            [
+              "Chỉ có bằng gốc (ngoài ASEAN)",
+              "Không",
+              "Coi như không có bằng"
+            ],
+            [
+              "Bằng lái ô tô Việt Nam (hạng B)",
+              "Được",
+              "Không"
+            ],
+            [
+              "Không có giấy tờ hợp lệ nào",
+              "Không",
+              "Phạt {{vnd:18000000-20000000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Mức phạt lấy từ Điều 18 Nghị định 168/2024/NĐ-CP. Theo [Tạp chí Luật sư Việt Nam](https://lsvn.vn/mot-so-luu-y-ve-giay-to-xe-khi-tham-gia-giao-thong-dip-tet-nguyen-dan-2026-a169529.html) ngày 22/2/2026, lái ô tô không có giấy phép lái xe bị phạt {{vnd:18000000-20000000}} (điểm b khoản 9). Dùng giấy phép lái xe quốc tế do nước tham gia Công ước 1968 cấp mà không mang theo giấy phép lái xe quốc gia bị phạt {{vnd:8000000-10000000}} (điểm b khoản 8)."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Nhà xe giao chìa khóa không có nghĩa là bạn được phép lái",
+          "text": "Một số nơi cho thuê chỉ cần hộ chiếu. Điều đó không biến người thuê thành người có bằng. Gây tai nạn khi không có bằng hợp lệ thì vừa bị phạt, vừa **dễ bị bảo hiểm từ chối bồi thường**, và người lái phải tự chịu thiệt hại cho xe lẫn bên thứ ba."
+        },
+        {
+          "type": "h3",
+          "text": "Đổi bằng lái nước ngoài sang bằng Việt Nam"
+        },
+        {
+          "type": "p",
+          "text": "Người nước ngoài sống, làm việc hoặc học tập ở Việt Nam có thể đổi bằng lái nước ngoài còn hạn sang bằng Việt Nam mà không phải thi sát hạch, theo Điều 24 Thông tư 108/2026/TT-BCA. Không đổi được IDP, bằng tạm thời, bằng hết hạn, hay bằng rách, tẩy xóa. Cùng điều này cũng cho phép công dân Việt Nam từng sống, học tập hoặc làm việc ở nước ngoài liên tục từ 3 tháng trở lên đổi bằng do nước ngoài cấp. Rocket Car Rentals khuyên người thuê ở Việt Nam quá 3 tháng nên đổi sang bằng Việt Nam."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Dịch bằng lái",
+              "text": "Dịch bằng lái nước ngoài sang tiếng Việt, bản dịch được công chứng ở Việt Nam hoặc chứng nhận bởi cơ quan đại diện Việt Nam ở nước ngoài, đóng dấu giáp lai với bản sao bằng lái."
+            },
+            {
+              "title": "Giấy khám sức khỏe và ảnh",
+              "text": "Chuẩn bị giấy khám sức khỏe cho người lái xe, trừ trường hợp được miễn theo Điều 24, và 2 ảnh 3x4 cm nền trắng theo hướng dẫn của Công ty Luật FDVN."
+            },
+            {
+              "title": "Giấy tờ còn lại",
+              "text": "Điều 24 còn yêu cầu giấy tờ tùy thân. Với người nước ngoài đi làm, công ty tuyển dụng lo phần giấy tờ còn lại sau khi giấy phép lao động được cấp; hãy hỏi rõ họ lo những gì và chi phí ra sao."
+            },
+            {
+              "title": "Nộp hồ sơ",
+              "text": "Nộp tại Phòng Cảnh sát giao thông Công an thành phố, tại công an cấp xã có điểm tiếp nhận, hoặc trực tuyến qua Cổng Dịch vụ công quốc gia. Thông tư quy định cấp bằng trong 1 ngày khi hồ sơ hợp lệ, và 2,5 ngày làm việc nếu cần in bằng và trả về."
+            },
+            {
+              "title": "Nộp lệ phí",
+              "text": "Theo [FDVN](https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/) năm 2026, lệ phí đổi bằng là {{vnd:115000}} mỗi lần cấp. Cán bộ tiếp nhận là người quyết định cuối cùng về hồ sơ."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Bằng lái xe máy là hạng riêng, xem [bằng lái xe máy cho người nước ngoài ở Việt Nam](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-xe-o-to-tphcm-2026",
+      "title": "Giá thuê xe ô tô ở TP.HCM năm 2026 là bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Xe tự lái cỡ nhỏ có giá từ {{vnd:1192500}} một ngày khi thuê ngắn, và từ {{vnd:795000}} một ngày khi thuê từ 26 ngày. Xe có tài xế chạy trọn ngày trong thành phố từ {{vnd:1500000}}, đã gồm xăng, phí cầu đường và gửi xe. Đây là giá niêm yết của một nhà xe cho mỗi loại, đọc tháng 11/2026; dịp Tết và lễ giá tăng, nên luôn xin báo giá bằng văn bản. Lưu ý cách tính thuế khác nhau: giá xe tự lái của Rocket Car Rentals đã gồm VAT, còn giá xe có tài xế của Saigon Car chưa gồm 8% VAT."
+        },
+        {
+          "type": "table",
+          "caption": "Giá xe tự lái ở TP.HCM theo trang đội xe của Rocket Car Rentals, niêm yết bằng đồng, đã gồm VAT, tính đến tháng 11/2026",
+          "headers": [
+            "Xe",
+            "Số chỗ",
+            "Thuê 1–5 ngày, mỗi ngày",
+            "Thuê từ 26 ngày, mỗi ngày từ"
+          ],
+          "rows": [
+            [
+              "VinFast VF3",
+              "4",
+              "{{vnd:1192500}}",
+              "{{vnd:795000}}"
+            ],
+            [
+              "Hyundai Grand i10",
+              "5",
+              "{{vnd:1192500}}",
+              "{{vnd:795000}}"
+            ],
+            [
+              "Hyundai Elantra",
+              "5",
+              "{{vnd:1722500}}",
+              "{{vnd:1060000}}"
+            ],
+            [
+              "Mitsubishi Xpander",
+              "7",
+              "{{vnd:1855000}}",
+              "{{vnd:1192500}}"
+            ],
+            [
+              "Kia Carnival",
+              "7",
+              "{{vnd:3312500}}",
+              "{{vnd:2650000}}"
+            ],
+            [
+              "Mercedes E Series",
+              "5",
+              "{{vnd:5830000}}",
+              "{{vnd:4505000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [Rocket Car Rentals](https://rocketcarrentalsvietnam.com/en/locations/ho-chi-minh-city), tính đến tháng 11/2026, giá niêm yết bằng đồng đã gồm VAT, hóa đơn VAT cấp khi khách yêu cầu. Thuê 1–7 ngày được 300 km mỗi ngày, vượt thì tính {{vnd:5000}} mỗi km. Thuê từ 8 ngày không giới hạn km. Xăng tính theo nguyên tắc nhận bao nhiêu trả bấy nhiêu, thiếu thì tính theo giá cây xăng có hóa đơn."
+        },
+        {
+          "type": "table",
+          "caption": "Thuê xe có tài xế ở TP.HCM, giá mỗi xe, chưa gồm 8% VAT, theo bảng giá của Saigon Car cập nhật tháng 11/2026",
+          "headers": [
+            "Loại xe",
+            "Trọn ngày (10 tiếng / 100 km)",
+            "Sân bay về Quận 1, một chiều"
+          ],
+          "rows": [
+            [
+              "Sedan",
+              "{{vnd:1500000}}",
+              "Không nhận"
+            ],
+            [
+              "SUV hoặc MPV 7 chỗ",
+              "{{vnd:1800000}}",
+              "Không nhận"
+            ],
+            [
+              "Kia Sedona",
+              "{{vnd:2000000}}",
+              "{{vnd:800000}}"
+            ],
+            [
+              "Kia Carnival",
+              "{{vnd:2500000}}",
+              "{{vnd:1000000}}"
+            ],
+            [
+              "Xe 16 chỗ",
+              "{{vnd:2200000}}",
+              "{{vnd:1000000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [Saigon Car](https://thuexesaigoncar.com/ho-chi-minh-city-private-car-rental/), tính đến tháng 11/2026, giá trên đã gồm xăng, phí cầu đường, gửi xe, tài xế và phí sân bay; đi nhiều ngày thì gồm cả ăn ở của tài xế. VAT 8% chỉ cộng khi cần hóa đơn. Mỗi giờ phát sinh {{vnd:100000-300000}}, mỗi km phát sinh {{vnd:10000-30000}}, tùy loại xe. Nhà xe này nhận Toyota Alphard đưa đón sân bay với giá {{vnd:4000000}}, còn thuê trọn ngày thì báo giá theo yêu cầu."
+        },
+        {
+          "type": "p",
+          "text": "Hãy so cùng một kiểu chuyến và cùng cách tính thuế. Một chiếc Xpander tự lái thuê 1–5 ngày là {{vnd:1855000}} mỗi ngày, đã gồm VAT. Xe 7 chỗ có tài xế của Saigon Car là {{vnd:1800000}} chưa VAT, tức {{vnd:1944000}} khi cộng 8% VAT để lấy hóa đơn. Cộng gói miễn trừ thiệt hại {{vnd:265000}} mỗi ngày, xe tự lái đã lên {{vnd:2120000}}, chưa tính xăng, phí cầu đường và gửi xe, trong khi giá xe có tài xế đã gồm cả ba. Tự lái chỉ rẻ hơn rõ khi thuê dài ngày."
+        }
+      ]
+    },
+    {
+      "id": "tien-coc-va-bao-hiem-khi-thue-xe-tu-lai",
+      "title": "Tiền cọc và bảo hiểm khi thuê xe tự lái",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thuê xe tự lái phải đặt cọc một khoản lớn và chờ nhiều tuần mới được hoàn. Bảo hiểm trách nhiệm dân sự bắt buộc đã có sẵn trên xe, nhưng hư hỏng của chính chiếc xe thuê thì người thuê chịu, trừ khi mua gói miễn trừ."
+        },
+        {
+          "type": "p",
+          "text": "Theo Rocket Car Rentals, tính đến tháng 11/2026, tiền cọc là {{vnd:13250000-26500000}} tùy xe, trả bằng chuyển khoản hoặc tiền mặt khi nhận xe (có biên nhận), và hoàn lại chậm nhất 30 ngày sau khi trả xe. Lý do giữ lâu là phạt nguội gửi về chủ xe đứng tên. Rocket gửi khách biên bản chính thức, cho 7 ngày để khiếu nại, rồi trừ tiền phạt vào khoản cọc hoặc gửi đường dẫn thanh toán."
+        },
+        {
+          "type": "table",
+          "caption": "Bảo hiểm khi thuê xe tự lái ở TP.HCM (Nghị định 67/2023/NĐ-CP theo Báo Pháp luật Việt Nam; điều khoản Rocket Car Rentals, tháng 11/2026)",
+          "headers": [
+            "Loại",
+            "Chi trả",
+            "Có sẵn không?"
+          ],
+          "rows": [
+            [
+              "Bảo hiểm TNDS bắt buộc",
+              "Tối đa {{vnd:150000000}} mỗi người bị thương hoặc tử vong trong một vụ; tối đa {{vnd:100000000}} thiệt hại tài sản mỗi vụ",
+              "Có, bắt buộc trên mọi xe"
+            ],
+            [
+              "Gói miễn trừ thiệt hại (CDW)",
+              "Giới hạn trách nhiệm của người thuê với xe thuê ở mức khấu trừ {{vnd:26500000}}, cộng khoản bồi thường hợp lý cho thời gian xe nằm sửa, không cho thuê được",
+              "Tùy chọn, {{vnd:265000}} mỗi ngày (Rocket)"
+            ],
+            [
+              "Không mua gói miễn trừ",
+              "Không chi trả gì",
+              "Người thuê chịu tới toàn bộ giá trị xe"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Hạn mức bảo hiểm bắt buộc do Nghị định 67/2023/NĐ-CP quy định, theo [Báo Pháp luật Việt Nam](https://baophapluat.vn/boi-thuong-toi-da-150-trieu-dongnguoimot-vu-tai-nan-giao-thong-duong-bo-post487348.html). Gói CDW của Rocket là cam kết theo hợp đồng, không phải hợp đồng bảo hiểm. Người nước ngoài nên kiểm tra bảo hiểm du lịch hoặc bảo hiểm thẻ của mình có loại trừ Việt Nam, hay đòi loại bằng mà họ không có hay không."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Trước khi lái xe đi",
+          "text": "Quay video hoặc chụp ảnh mọi mặt thân xe, đồng hồ xăng và số km khi có nhân viên đứng cạnh. Lấy biên nhận nếu cọc bằng tiền mặt. Hỏi bằng văn bản ngày hoàn cọc và cách xử lý phạt nguội."
+        },
+        {
+          "type": "p",
+          "text": "Không bao giờ để lại hộ chiếu làm tài sản cọc; nhà xe đàng hoàng chỉ cần bản sao. Nguyên tắc tương tự với cọc thuê nhà có ở bài [tiền cọc thuê nhà ở Việt Nam](/rental-deposit-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "dua-don-san-bay-tan-son-nhat-long-thanh",
+      "title": "Đưa đón sân bay Tân Sơn Nhất và Long Thành",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Đi một hai người với hành lý gọn, xe công nghệ hoặc taxi đồng hồ từ Tân Sơn Nhất là rẻ nhất. Đi gia đình, nhiều hành lý hoặc hạ cánh khuya thì nên đặt trước xe có tài xế. Theo Vietnam Airlines, Tân Sơn Nhất cách Quận 1 khoảng 6 km; taxi hoặc xe công nghệ mất khoảng 20 phút, chưa tính thời gian chờ."
+        },
+        {
+          "type": "table",
+          "caption": "Từ sân bay Tân Sơn Nhất về Quận 1 bằng ô tô, theo hướng dẫn của Vietnam Airlines (đọc tháng 11/2026) và Saigon Car (tháng 11/2026)",
+          "headers": [
+            "Cách đi",
+            "Giá",
+            "Lưu ý"
+          ],
+          "rows": [
+            [
+              "Xe công nghệ (Grab và ứng dụng tương tự)",
+              "{{vnd:130000-170000}}",
+              "Tăng giá khi nhu cầu cao; đón ở điểm quy định"
+            ],
+            [
+              "Taxi đồng hồ",
+              "{{vnd:150000-200000}} cộng khoảng {{vnd:10000}} phí cầu đường",
+              "Lên xe ở bến taxi chính thức, kiểm tra đồng hồ chạy"
+            ],
+            [
+              "Xe khách sạn đón",
+              "{{vnd:300000-500000}}",
+              "Đặt trước; một số khách sạn đón miễn phí"
+            ],
+            [
+              "Kia Sedona hoặc Kia Carnival có tài xế đặt trước (Saigon Car)",
+              "{{vnd:800000-1000000}}, chưa gồm 8% VAT",
+              "Giá trọn gói, cầm bảng tên, rộng chỗ hành lý; Saigon Car không nhận đưa đón sân bay bằng sedan hay xe 7 chỗ SUV/MPV"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [Vietnam Airlines](https://www.vietnamairlines.com/es/en/useful-information/travel-guide/airport-ho-chi-minh-to-city), taxi và xe công nghệ chỉ được dừng ở điểm đón tối đa 3 phút. Nếu đón khách nước ngoài, nhắc họ mở sẵn ứng dụng và có SIM chạy được trước khi ra khỏi sảnh; bài [eSIM ở Việt Nam](/esim-vietnam-guide) hướng dẫn phần này. Bỏ qua những người tự đến mời chào trong nhà ga."
+        },
+        {
+          "type": "p",
+          "text": "Với xe đặt trước, hỏi rõ tài xế chờ được bao lâu. Saigon Car cho chờ miễn phí khoảng 60–90 phút sau khi hạ cánh, quá thời gian đó tính như một giờ phát sinh."
+        },
+        {
+          "type": "h3",
+          "text": "Sân bay quốc tế Long Thành"
+        },
+        {
+          "type": "p",
+          "text": "Sân bay quốc tế Long Thành ở Đồng Nai dự kiến bắt đầu khai thác thương mại từ 0 giờ ngày 24/12/2026, theo [SGGP](https://en.sggp.org.vn/long-thanh-airport-set-to-begin-commercial-operations-on-december-24-post130656.html) ngày 30/10/2026, dẫn thông báo của Tổng công ty Cảng hàng không Việt Nam (ACV). Giai đoạn đầu dự kiến tối đa 366 chuyến mỗi tuần, gồm 322 chuyến nội địa và 44 chuyến quốc tế. Từ cuối tháng 12, hãy xem kỹ vé ghi sân bay nào trước khi đặt xe, và với nhóm đông thì xin báo giá cố định cho chặng Long Thành."
+        }
+      ]
+    },
+    {
+      "id": "cac-buoc-thue-xe-o-to-o-tphcm",
+      "title": "Các bước thuê xe ô tô ở TP.HCM",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giải quyết chuyện bằng lái trước, đặt xe bằng văn bản, rồi kiểm tra xe kỹ lúc nhận. Phần lớn rắc rối khi thuê xe ô tô ở TP.HCM đến từ thiếu bằng, tiền cọc không rõ ràng hoặc phạt nguội về sau."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chọn tự lái hay có tài xế",
+              "text": "Người có bằng lái của một nước ASEAN được lái hạng xe ghi trên bằng mà không cần IDP. Chỉ khi không có IDP theo Công ước 1968 kèm bằng gốc, không có bằng Việt Nam và cũng không có bằng ASEAN, thì thuê xe có tài xế. Vậy là xong."
+            },
+            {
+              "title": "Xin báo giá bằng văn bản",
+              "text": "Hỏi giá ngày, số km được tính, tiền cọc và ngày hoàn cọc, giá gói miễn trừ và mức người thuê phải chịu, và giá đã gồm VAT chưa."
+            },
+            {
+              "title": "Mang đủ giấy tờ",
+              "text": "Với xe tự lái, Rocket Car Rentals yêu cầu hộ chiếu, bằng lái gốc và IDP theo Công ước 1968 (người ASEAN được miễn IDP), tuổi tối thiểu 18. Giấy tờ bằng lái phải mang theo khi lái."
+            },
+            {
+              "title": "Kiểm tra xe lúc nhận",
+              "text": "Quay video thân xe, ghi mức xăng và số km, kiểm tra trong xe có đăng ký xe và giấy bảo hiểm."
+            },
+            {
+              "title": "Trả xe và theo dõi",
+              "text": "Đổ xăng lại đúng mức, lấy biên bản trả xe có chữ ký, ghi lại ngày dự kiến hoàn cọc."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Địa chỉ chính thức đã dùng tên phường mới thay cho quận kể từ 1/7/2025. Tuy vậy, tài xế và nhà xe vẫn quen nói Quận 1, Bình Thạnh hay Quận 7. Khi đặt xe, ghi cả tên quận cũ lẫn số nhà, tên đường."
+        },
+        {
+          "type": "p",
+          "text": "Trước khi đặt, tra tên doanh nghiệp của nhà xe và đọc đánh giá gần đây. Chỉ chuyển cọc vào tài khoản công ty hoặc khi có biên nhận."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Người nước ngoài có thuê xe ô tô tự lái ở HCM được không?",
+      "a": "Người nước ngoài thuê xe ô tô ở TP.HCM được, cả tự lái lẫn có tài xế. Để tự lái, người thuê cần giấy phép lái xe quốc tế cấp theo Công ước Viên 1968 kèm bằng lái gốc, hoặc bằng lái Việt Nam. Người có bằng của nước ASEAN lái được bằng bằng trong nước theo hạng ghi trên bằng. Thuê xe có tài xế thì người đi không cần bằng lái."
+    },
+    {
+      "q": "Bằng lái quốc tế của Mỹ, Úc có lái xe ở Việt Nam được không?",
+      "a": "Bằng lái quốc tế của Mỹ, Úc, Canada và New Zealand không có giá trị để lái xe ở Việt Nam, theo Việt Nam News tháng 5/2026. Các nước này chỉ ký Công ước Geneva 1949, còn Việt Nam chỉ công nhận giấy phép lái xe quốc tế theo Công ước Viên 1968. Người có bằng từ các nước này nên thuê xe có tài xế hoặc đổi sang bằng Việt Nam."
+    },
+    {
+      "q": "Thuê xe tự lái ở HCM cọc bao nhiêu?",
+      "a": "Tiền cọc thuê xe tự lái ở TP.HCM khá lớn và tùy loại xe. Ở Rocket Car Rentals, tính đến tháng 11/2026, tiền cọc trả bằng chuyển khoản hoặc tiền mặt có biên nhận, và được hoàn chậm nhất 30 ngày sau khi trả xe để nhà xe trừ phạt nguội nếu có. Mức cọc cụ thể xem ở phần tiền cọc và bảo hiểm bên trên. Không nên để lại hộ chiếu làm tài sản cọc."
+    },
+    {
+      "q": "Thuê xe có tài xế ở TP.HCM giá bao nhiêu một ngày?",
+      "a": "Giá thuê xe có tài xế ở TP.HCM tính theo loại xe, trọn ngày thường là 10 tiếng và 100 km. Theo Saigon Car, tính đến tháng 11/2026, giá đã gồm xăng, phí cầu đường, gửi xe, tài xế và phí sân bay, chưa gồm 8% VAT. Xe 7 chỗ, Carnival và xe 16 chỗ đắt hơn sedan. Bảng giá từng loại xe có ở phần giá thuê xe bên trên."
+    },
+    {
+      "q": "Thuê xe tự lái hay có tài xế ở HCM thì rẻ hơn?",
+      "a": "Thuê xe có tài xế ở TP.HCM thường lợi hơn khi đi sân bay, đi trong phố hoặc đi trong ngày, vì đã gồm xăng, phí cầu đường, gửi xe và nhà xe chịu rủi ro hư hỏng. Thuê xe tự lái chỉ rẻ hơn rõ khi thuê dài ngày, với điều kiện có bằng hợp lệ và chấp nhận khoản cọc lớn cùng rủi ro hư hỏng xe."
+    },
+    {
+      "q": "Từ sân bay Tân Sơn Nhất về Quận 1 đi xe gì?",
+      "a": "Theo Vietnam Airlines, sân bay Tân Sơn Nhất cách Quận 1 khoảng 6 km, đi taxi hoặc xe công nghệ mất khoảng 20 phút chưa tính thời gian chờ. Rẻ nhất là xe công nghệ hoặc taxi đồng hồ ở bến taxi chính thức. Xe khách sạn hoặc xe có tài xế đặt trước đắt hơn nhưng có người cầm bảng tên đón. Giá từng cách đi có ở bảng sân bay bên trên."
+    },
+    {
+      "q": "Bị phạt nguội khi lái xe thuê thì ai trả?",
+      "a": "Phạt nguội khi lái xe thuê ở Việt Nam gửi về chủ xe đứng tên, tức công ty cho thuê, nhưng người thuê là người trả. Rocket Car Rentals gửi người thuê biên bản chính thức, cho 7 ngày để khiếu nại, rồi trừ tiền phạt vào khoản cọc đang giữ hoặc gửi đường dẫn thanh toán. Đó là lý do tiền cọc xe tự lái được hoàn sau nhiều tuần."
+    },
+    {
+      "q": "Có thuê được xe sang hoặc Alphard ở TP.HCM không?",
+      "a": "Xe sang thuê được ở TP.HCM. Rocket Car Rentals niêm yết các mẫu Mercedes, BMW và Porsche Panamera cho thuê tự lái, với giá ngày cao hơn nhiều so với xe phổ thông. Toyota Alphard chủ yếu cho thuê kèm tài xế; Saigon Car nhận Alphard đưa đón sân bay, còn thuê trọn ngày thì báo giá theo yêu cầu. Quy định bằng lái với xe sang giống mọi xe tự lái khác."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Thông tư 108/2026/TT-BCA quy định sát hạch, cấp giấy phép lái xe và giấy phép lái xe quốc tế",
+      "publisher": "LuatVietnam (văn bản thông tư của Bộ Công an)",
+      "url": "https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html"
+    },
+    {
+      "title": "Convention on Road Traffic, Vienna, 8 November 1968",
+      "publisher": "United Nations Treaty Collection",
+      "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+    },
+    {
+      "title": "Một số lưu ý về giấy tờ xe khi tham gia giao thông dịp Tết Nguyên đán 2026",
+      "publisher": "Tạp chí điện tử Luật sư Việt Nam",
+      "url": "https://lsvn.vn/mot-so-luu-y-ve-giay-to-xe-khi-tham-gia-giao-thong-dip-tet-nguyen-dan-2026-a169529.html"
+    },
+    {
+      "title": "Car Rental Ho Chi Minh City 2026 — Self-Drive & With Driver",
+      "publisher": "Rocket Car Rentals Vietnam",
+      "url": "https://rocketcarrentalsvietnam.com/en/locations/ho-chi-minh-city"
+    },
+    {
+      "title": "Fleet: Ho Chi Minh City",
+      "publisher": "Rocket Car Rentals Vietnam",
+      "url": "https://rocketcarrentalsvietnam.com/en/fleet?location=hcm&sort=price_asc"
+    },
+    {
+      "title": "Ho Chi Minh City private car rental with driver",
+      "publisher": "Saigon Car (thuexesaigoncar.com)",
+      "url": "https://thuexesaigoncar.com/ho-chi-minh-city-private-car-rental/"
+    },
+    {
+      "title": "From Ho Chi Minh airport to the city",
+      "publisher": "Vietnam Airlines",
+      "url": "https://www.vietnamairlines.com/es/en/useful-information/travel-guide/airport-ho-chi-minh-to-city"
+    },
+    {
+      "title": "Long Thanh airport set to begin commercial operations on December 24",
+      "publisher": "SGGP",
+      "url": "https://en.sggp.org.vn/long-thanh-airport-set-to-begin-commercial-operations-on-december-24-post130656.html"
+    },
+    {
+      "title": "Using the roads in Việt Nam as a foreigner",
+      "publisher": "Việt Nam News",
+      "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
+    },
+    {
+      "title": "Bồi thường tối đa 150 triệu đồng/người/một vụ tai nạn giao thông đường bộ",
+      "publisher": "Báo Pháp luật Việt Nam",
+      "url": "https://baophapluat.vn/boi-thuong-toi-da-150-trieu-dongnguoimot-vu-tai-nan-giao-thong-duong-bo-post487348.html"
+    },
+    {
+      "title": "Thủ tục đổi bằng lái xe nước ngoài sang Việt Nam cho người nước ngoài 2026",
+      "publisher": "Công ty Luật FDVN",
+      "url": "https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/"
+    }
+  ],
+  "related": [
+    "getting-around-ho-chi-minh-city",
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "is-ho-chi-minh-city-safe"
+  ],
+  "lastChecked": "2026-11-13"
+}

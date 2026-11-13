@@ -1,0 +1,419 @@
+{
+  "slug": "bang-lai-xe-quoc-te-lai-xe-o-viet-nam",
+  "title": "Bằng lái xe quốc tế có được lái xe ở Việt Nam không?",
+  "description": "Việt Nam chỉ công nhận IDP theo Công ước Viên 1968. Nước nào được, xe máy và ô tô ra sao, bảo hiểm, mức phạt và cách đổi bằng nước ngoài sang bằng Việt Nam.",
+  "h1": "Bằng lái xe quốc tế có được lái xe ở Việt Nam không? Cách kiểm tra bằng của bạn",
+  "eyebrow": "Lái xe ở Việt Nam",
+  "intro": "Bằng lái xe quốc tế (IDP) chỉ có giá trị ở Việt Nam nếu do một nước tham gia Công ước Viên 1968 cấp, và người lái mang kèm bằng lái quốc gia đúng hạng xe. IDP của Mỹ, Canada, Úc hay Nhật không thuộc diện này, nên người cầm có thể bị coi là không có bằng và bảo hiểm có thể từ chối chi trả. IDP do chính Việt Nam cấp cũng không dùng được trong nước. IDP chỉ hợp với người ở ngắn ngày. Người sống, làm việc hay học tập lâu dài ở Việt Nam nên đổi bằng lái nước mình sang bằng Việt Nam.",
+  "keyPoints": [
+    "Việt Nam công nhận IDP do các nước tham gia **Công ước Viên 1968** cấp. Anh, Pháp, Đức, Nga, Nam Phi, Philippines và Thái Lan là thành viên. Mỹ, Canada, Úc, New Zealand, Nhật, Ấn Độ và Ireland thì không, theo hồ sơ điều ước của Liên Hợp Quốc đọc ngày 11/11/2026.",
+    "IDP hợp lệ vẫn phải đi kèm bằng lái quốc gia, và chỉ có giá trị cho những hạng xe ghi trên bằng đó. Người chỉ có bằng ô tô thì không được chạy xe máy.",
+    "Theo Nghị định 168/2024/NĐ-CP, chạy xe mô tô không có bằng hợp lệ bị phạt {{vnd:2000000-4000000}} (xe tới 125 cm3) hoặc {{vnd:6000000-8000000}} (xe trên 125 cm3). Lái ô tô bị phạt {{vnd:18000000-20000000}}. Với xe mô tô, mang IDP mà không mang bằng quốc gia cũng bị phạt ở các mức này. Với ô tô, lỗi mang IDP mà không mang bằng quốc gia bị phạt {{vnd:8000000-10000000}} (Điều 18 khoản 8 điểm b).",
+    "Nghị định 67/2023/NĐ-CP loại trừ trách nhiệm bảo hiểm bắt buộc khi người lái không có bằng hợp lệ. Nghị định này đã được Nghị định 220/2026/NĐ-CP sửa đổi, nên bạn cần đọc lại điều khoản loại trừ trên giấy chứng nhận của mình.",
+    "Người nước ngoài sống, làm việc hoặc học tập tại Việt Nam có thể đổi bằng lái quốc gia còn hạn sang bằng Việt Nam theo Thông tư 108/2026/TT-BCA, kể cả bằng của nước không tham gia Công ước. IDP thì không đổi được."
+  ],
+  "sections": [
+    {
+      "id": "hien-tai-bang-lai-quoc-te-nao-con-duoc-cong-nhan",
+      "title": "Hiện tại bằng lái quốc tế nào còn được công nhận ở Việt Nam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hiện tại, Việt Nam chỉ công nhận IDP do cơ quan có thẩm quyền của một nước tham gia Công ước Viên 1968 về giao thông đường bộ cấp. Người lái phải mang IDP **cùng với** bằng lái quốc gia còn hạn, đúng hạng xe đang điều khiển. Quy định này nằm ở [khoản 8 của Điều 57 Luật Trật tự, an toàn giao thông đường bộ 2024](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57). IDP có thời hạn tối đa 3 năm kể từ ngày cấp và không được dài hơn thời hạn còn lại của bằng quốc gia."
+        },
+        {
+          "type": "p",
+          "text": "IDP thực chất là bản dịch theo mẫu thống nhất của bằng lái quốc gia, do cơ quan có thẩm quyền ở nước cấp bằng phát hành. Vì vậy, điều cần kiểm tra là **nước nào cấp và cấp theo công ước nào**. Tên gọi trên cuốn sổ hay nơi bạn mua nó không quyết định giá trị. Theo [Bộ sưu tập Điều ước của Liên Hợp Quốc](https://treaties.un.org/pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en), Việt Nam gia nhập Công ước ngày 20/8/2014. Tại thời điểm đọc ngày 11/11/2026, Công ước có 91 thành viên."
+        },
+        {
+          "type": "table",
+          "caption": "Tình trạng của một số nước thường gặp với Công ước Viên 1968 (theo UN Treaty Collection, đọc ngày 11/11/2026)",
+          "headers": [
+            "Tình trạng",
+            "Nước",
+            "IDP do nước đó cấp"
+          ],
+          "rows": [
+            [
+              "Thành viên",
+              "Anh, Pháp, Đức, Ý, Hà Lan, Thụy Sĩ, Nga, Israel, Nam Phi, Philippines, Thái Lan",
+              "Có thể dùng được, nếu là bản theo Công ước 1968 và có mang kèm bằng quốc gia"
+            ],
+            [
+              "Chỉ ký, chưa phê chuẩn",
+              "Tây Ban Nha, Hàn Quốc, Indonesia, Mexico",
+              "Chỉ ký thì chưa thành thành viên, không nên dựa vào IDP này"
+            ],
+            [
+              "Không tham gia",
+              "Mỹ, Canada, Úc, New Zealand, Nhật Bản, Ấn Độ, Ireland, Malaysia, Singapore, Campuchia, Lào",
+              "Không được công nhận theo Công ước. Người có bằng của nước ASEAN xem phần bên dưới"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Xem công ước ghi trên cuốn IDP, đừng chỉ xem tên nước",
+          "text": "Có nước cấp nhiều loại IDP. [Chính phủ Anh](https://www.gov.uk/driving-abroad/international-driving-permit) có ba loại: 1926, 1949 và 1968, và ghi rõ Việt Nam cần loại 1968. Trước khi dựa vào IDP, hãy xem nó được cấp theo công ước nào."
+        },
+        {
+          "type": "h3",
+          "text": "Những loại giấy tờ không được tính"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**“Bằng lái quốc tế” mua trên mạng.** Theo [Vietcetera](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it), đây chỉ là bản dịch không có giá trị pháp lý.",
+            "**IDP do Việt Nam cấp.** Theo [khoản 1 của Điều 30 Thông tư 108/2026/TT-BCA](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html), IDP Việt Nam cấp không có giá trị sử dụng trong lãnh thổ Việt Nam. Người Việt lái xe trong nước dùng bằng lái Việt Nam.",
+            "**IDP hợp lệ nhưng không mang bằng quốc gia.** Luật yêu cầu mang cả hai. [Chính phủ Anh](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) cũng dặn công dân của họ như vậy, cho cả ô tô lẫn xe máy."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Khi các nguồn công bố mâu thuẫn"
+        },
+        {
+          "type": "p",
+          "text": "Một [bài của Viet Nam News tháng 5/2026](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) xếp Nam Phi và Israel vào nhóm không cấp được IDP hợp lệ. Hồ sơ của Liên Hợp Quốc lại ghi Nam Phi gia nhập ngày 1/11/1977 và Israel phê chuẩn ngày 11/5/1971, nên bài này theo hồ sơ của Liên Hợp Quốc. Nếu cầm IDP của hai nước này, bạn nên hỏi lại cảnh sát giao thông. Khoản 3 của Điều 36 Thông tư 108/2026 giao Cục Cảnh sát giao thông công bố và cập nhật danh sách nước tham gia Công ước hằng năm, theo thông báo chính thức của Liên Hợp Quốc. Chúng tôi chưa tìm thấy danh sách này trên mạng."
+        },
+        {
+          "type": "h3",
+          "text": "Bằng lái của các nước ASEAN"
+        },
+        {
+          "type": "p",
+          "text": "Viet Nam News cho biết Việt Nam tham gia Hiệp định ASEAN 1985 về bằng lái xe từ ngày 22/1/1997. Theo bài báo, hiệp định cho phép người có bằng lái của một nước thành viên lái xe ở nước thành viên khác mà không cần IDP. Bài báo nêu tên Philippines, Singapore, Malaysia và Thái Lan. Chúng tôi chưa mở được văn bản hiệp định, nên bạn hãy hỏi cảnh sát giao thông trước khi dựa vào quy định này, nhất là với hạng xe bạn định lái."
+        }
+      ]
+    },
+    {
+      "id": "xe-may-va-o-to",
+      "title": "Có bằng lái quốc tế thì được chạy xe máy hay ô tô?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn chỉ được chạy loại xe mà bằng lái quốc gia của bạn cho phép, vì IDP chỉ chép lại quyền lái của bằng gốc chứ không cấp thêm hạng nào. Viet Nam News viết rõ: phải có đúng bằng cho loại xe định lái, nên bằng chỉ có hạng ô tô thì không được chạy xe máy. Nhiều người có IDP theo Công ước 1968 hợp lệ vẫn vướng chỗ này."
+        },
+        {
+          "type": "table",
+          "caption": "Được lái gì với giấy tờ nào (theo Luật 36/2024/QH15 và Thông tư 108/2026/TT-BCA, đọc ngày 11/11/2026)",
+          "headers": [
+            "Giấy tờ đang có",
+            "Xe máy",
+            "Ô tô"
+          ],
+          "rows": [
+            [
+              "IDP 1968 + bằng quốc gia có hạng xe máy và ô tô",
+              "Được, trong phạm vi hạng ghi trên bằng, khi ở ngắn ngày",
+              "Được, khi ở ngắn ngày"
+            ],
+            [
+              "IDP 1968 + bằng quốc gia chỉ có hạng ô tô",
+              "Không",
+              "Được, khi ở ngắn ngày"
+            ],
+            [
+              "IDP của nước không tham gia Công ước + bằng quốc gia",
+              "Không được công nhận theo Công ước",
+              "Không được công nhận theo Công ước"
+            ],
+            [
+              "Chỉ có bằng quốc gia, không phải nước ASEAN",
+              "Không",
+              "Không"
+            ],
+            [
+              "Bằng lái Việt Nam đúng hạng",
+              "Được, nếu đúng hạng",
+              "Được, nếu là hạng B trở lên"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Hạng bằng ở Việt Nam chia theo dung tích xi-lanh. Theo [Điều 57](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57), hạng A1 dành cho mô tô hai bánh tới 125 cm3 (hoặc động cơ điện tới 11 kW), hạng A cho xe trên mức đó, và hạng B cho ô tô chở người tới 8 chỗ, không kể chỗ người lái. Về hạng bằng xe máy, xe gắn máy dưới 50 cc và cách thi bằng khi ở nước mình chưa có, xem [hướng dẫn bằng lái xe máy cho người nước ngoài](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        },
+        {
+          "type": "h3",
+          "text": "Thuê được xe không có nghĩa là lái hợp pháp"
+        },
+        {
+          "type": "p",
+          "text": "Cửa hàng giao chìa khóa không có nghĩa là bạn đủ điều kiện lái. Khi bị cảnh sát dừng xe hay khi đòi bảo hiểm, người phải xuất trình bằng là bạn. Hãy hỏi kỹ trước khi đặt xe qua [trang thuê xe máy TP.HCM](/thue-xe-may-tphcm) hoặc [thuê xe tự lái TP.HCM](/thue-xe-tu-lai-tphcm), vì mỗi nơi chấp nhận giấy tờ và có điều khoản bảo hiểm khác nhau. Chính phủ Anh cũng khuyên công dân của họ [không để lại hộ chiếu làm tiền cọc](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) khi thuê xe."
+        },
+        {
+          "type": "p",
+          "text": "Nếu giấy tờ chưa đủ, thuê xe có tài xế hoặc gọi xe công nghệ sẽ tránh được rủi ro. Xem thêm [cách đi lại ở TP.HCM](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+        }
+      ]
+    },
+    {
+      "id": "muc-phat-khong-co-bang-hop-le",
+      "title": "Lái xe không có bằng hợp lệ bị phạt bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo Nghị định 168/2024/NĐ-CP, đọc ngày 11/11/2026, mức phạt từ {{vnd:2000000-4000000}} với xe mô tô nhỏ tới {{vnd:18000000-20000000}} với ô tô. Với xe mô tô, lỗi chỉ mang IDP mà không mang bằng quốc gia bị phạt cùng khung với lỗi không có bằng. Với ô tô thì khác: lỗi này bị phạt {{vnd:8000000-10000000}} theo điểm b khoản 8 Điều 18, thấp hơn mức {{vnd:18000000-20000000}} của lỗi không có bằng ở khoản 9."
+        },
+        {
+          "type": "table",
+          "caption": "Mức phạt theo Điều 18 Nghị định 168/2024/NĐ-CP (đọc ngày 11/11/2026 trên trang của Chính phủ; dòng khoản 8 đọc lại ngày 13/11/2026)",
+          "headers": [
+            "Loại xe và lỗi",
+            "Mức phạt"
+          ],
+          "rows": [
+            [
+              "Mô tô hai bánh tới 125 cm3 hoặc 11 kW: không có bằng, bằng không hợp lệ, hoặc có IDP mà không mang bằng quốc gia (khoản 5)",
+              "{{vnd:2000000-4000000}}"
+            ],
+            [
+              "Mô tô hai bánh trên 125 cm3 hoặc 11 kW, mô tô ba bánh: không có bằng, bằng không hợp lệ hoặc không phù hợp loại xe, có IDP mà không mang bằng quốc gia (khoản 7)",
+              "{{vnd:6000000-8000000}}"
+            ],
+            [
+              "Ô tô: có IDP do nước tham gia Công ước 1968 cấp nhưng không mang bằng quốc gia phù hợp loại xe (khoản 8 điểm b)",
+              "{{vnd:8000000-10000000}}"
+            ],
+            [
+              "Ô tô: không có bằng, bằng không hợp lệ hoặc không phù hợp loại xe (khoản 9)",
+              "{{vnd:18000000-20000000}}"
+            ],
+            [
+              "Xe mô tô, xe gắn máy: không có giấy chứng nhận bảo hiểm bắt buộc còn hiệu lực (khoản 2)",
+              "{{vnd:200000-300000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Các mức trên lấy từ [toàn văn Nghị định 168/2024/NĐ-CP](https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm). [Nghị định 238/2026/NĐ-CP](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp) sửa đổi Nghị định 168 từ ngày 15/8/2026. Theo văn bản do Kế toán An Pha đăng lại, trong Điều 18 Nghị định 238 chỉ sửa điểm a khoản 4 (về người từ 16 tuổi tới dưới 18 tuổi) và một cụm từ ở điểm c khoản 3. Các khoản 2, 5, 7, 8 và 9 về bằng lái và bảo hiểm không thay đổi."
+        },
+        {
+          "type": "p",
+          "text": "Tiền phạt thường không phải hậu quả nặng nhất. [Chính phủ Anh cảnh báo](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) rằng sau tai nạn, người lái có thể bị truy cứu và có thể không được rời Việt Nam trong thời gian điều tra."
+        }
+      ]
+    },
+    {
+      "id": "bao-hiem-khi-bang-lai-khong-hop-le",
+      "title": "Bằng lái không hợp lệ thì bảo hiểm có chi trả không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thường là không, hoặc rất dễ bị từ chối. Bảo hiểm bắt buộc liệt kê việc người lái không có bằng hợp lệ là trường hợp loại trừ, và phần lớn bảo hiểm du lịch, y tế đòi bằng lái hợp lệ tại nơi xảy ra tai nạn."
+        },
+        {
+          "type": "h3",
+          "text": "Bảo hiểm trách nhiệm dân sự bắt buộc"
+        },
+        {
+          "type": "p",
+          "text": "Loại bảo hiểm này gắn với chiếc xe và bồi thường thiệt hại cho người khác, không chi trả thương tích của chính người lái. Theo [Nghị định 67/2023/NĐ-CP](https://luatvietnam.vn/xay-dung/nghi-dinh-67-2023-nd-cp-bao-hiem-bat-buoc-cua-chu-xe-co-gioi-bao-hiem-chay-no-266177-d1.html), mức trách nhiệm là {{vnd:150000000}} cho mỗi người, mỗi vụ, về sức khỏe và tính mạng. Mức trách nhiệm về tài sản là {{vnd:50000000}} cho mỗi vụ tai nạn do xe mô tô, xe gắn máy gây ra."
+        },
+        {
+          "type": "p",
+          "text": "**Điều 7 của Nghị định 67 (điểm c khoản 2) loại trừ trường hợp người lái không có bằng, dùng bằng không hợp lệ, bằng hết hạn hoặc bằng không phù hợp hạng xe.** Trang văn bản ghi Nghị định 67 đã được Nghị định 220/2026/NĐ-CP sửa đổi nhưng chúng tôi chưa đọc được bản hợp nhất. Vì vậy, hãy đọc phần loại trừ trên giấy chứng nhận bảo hiểm của chính bạn."
+        },
+        {
+          "type": "h3",
+          "text": "Bảo hiểm du lịch và y tế"
+        },
+        {
+          "type": "p",
+          "text": "Theo [Vietcetera](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it), phần lớn hợp đồng bảo hiểm du lịch và y tế đòi người được bảo hiểm có bằng lái hợp lệ tại nơi lái. Nếu lái trái luật Việt Nam, công ty bảo hiểm có thể từ chối chi trả tiền chữa trị, hư hỏng xe hoặc trách nhiệm với bên thứ ba. Viet Nam News cũng lưu ý bảo hiểm mất hiệu lực nếu lái xe khi say. Mỗi công ty có điều khoản riêng, và chúng tôi chưa xem từng hợp đồng."
+        },
+        {
+          "type": "p",
+          "text": "Trước khi lái, hãy gửi email hỏi công ty bảo hiểm và giữ lại thư trả lời:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "IDP và bằng quốc gia của tôi, cấp theo công ước nào và có những hạng nào, có được coi là hợp lệ ở Việt Nam không?",
+            "Tôi có được bảo hiểm khi là người lái và khi ngồi sau, với xe có dung tích như vậy không?",
+            "Tai nạn xe máy, chuyển viện cấp cứu và trách nhiệm với người khác có được chi trả không, hạn mức bao nhiêu?"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Với người sống lâu dài ở TP.HCM, xem thêm [khám chữa bệnh và bảo hiểm y tế ở TP.HCM](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+        }
+      ]
+    },
+    {
+      "id": "nguoi-nuoc-ngoai-song-o-viet-nam-co-phai-doi-bang",
+      "title": "Người nước ngoài sống ở Việt Nam có phải đổi bằng không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Có, nếu muốn yên tâm lâu dài. [Khoản 7 của Điều 18 Thông tư 108/2026/TT-BCA](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html) quy định người nước ngoài có bằng lái quốc gia, muốn lái xe ở Việt Nam thì phải đổi sang bằng tương ứng của Việt Nam, trừ khi điều ước quốc tế mà Việt Nam tham gia quy định khác."
+        },
+        {
+          "type": "p",
+          "text": "Một [bài giải đáp trên Báo Đại biểu Nhân dân tháng 2/2024](https://daibieunhandan.vn/nguoi-nuoc-ngoai-lai-xe-o-viet-nam-co-phai-chuyen-doi-giay-phep-lai-xe-khong-10330947.html) coi IDP hợp lệ của nước thành viên Công ước Viên là trường hợp ngoại lệ đó. Bài viết dựa trên các thông tư cũ. Chúng tôi chưa tìm thấy văn bản chính thức nào nói người sống tại Việt Nam được dùng IDP trong bao lâu. Vì vậy, nên coi IDP là giấy tờ cho thời gian ở ngắn, đổi bằng nếu ở lâu, và hỏi cảnh sát giao thông nếu trường hợp của bạn đặc biệt."
+        }
+      ]
+    },
+    {
+      "id": "thu-tuc-doi-bang-lai-nuoc-ngoai-sang-bang-viet-nam",
+      "title": "Thủ tục đổi bằng lái nước ngoài sang bằng Việt Nam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Người nước ngoài sống, làm việc hoặc học tập tại Việt Nam, có bằng lái quốc gia còn hạn, có thể nộp hồ sơ đổi tại cơ quan công an. Từ ngày 1/7/2026, thủ tục này nằm ở [Điều 24 Thông tư 108/2026/TT-BCA](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html). Căn cứ là [điểm đ khoản 2 của Điều 62 Luật 36/2024/QH15](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-62), cho phép đổi bằng lái nước ngoài còn giá trị do cơ quan có thẩm quyền của nước ngoài cấp."
+        },
+        {
+          "type": "p",
+          "text": "Điều 24 không giới hạn việc đổi bằng ở các nước tham gia Công ước. Vì vậy, bằng lái còn hạn của Mỹ hay Úc vẫn có thể được xem xét, dù IDP của các nước này không được công nhận. Thứ đem đi đổi là **bằng quốc gia**. Điều 24 không đổi bằng tạm thời của nước ngoài và không đổi IDP."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Kiểm tra bằng gốc",
+              "text": "Bằng phải còn hạn và có hạng xe bạn cần. Viet Nam News lưu ý muốn đổi sang hạng xe máy thì bằng gốc phải có hạng xe máy."
+            },
+            {
+              "title": "Dịch và chứng thực bản dịch",
+              "text": "Thông tư yêu cầu bản dịch bằng lái sang tiếng Việt, được bảo chứng chất lượng dịch thuật bởi tổ chức hành nghề công chứng ở Việt Nam hoặc cơ quan đại diện của Việt Nam ở nước ngoài, đóng dấu giáp lai với bản sao bằng lái."
+            },
+            {
+              "title": "Chuẩn bị phần còn lại của hồ sơ",
+              "text": "Theo [cách hiểu thông tư của Công ty Luật FDVN](https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/), hồ sơ gồm đơn đề nghị, hai ảnh 3x4 cm nền trắng, giấy khám sức khỏe và một số giấy tờ khác tùy trường hợp. Hãy hỏi nơi nộp hồ sơ xem cần thêm gì."
+            },
+            {
+              "title": "Nộp hồ sơ tại cơ quan công an",
+              "text": "Nộp trực tiếp tại Phòng Cảnh sát giao thông Công an cấp tỉnh hoặc Công an cấp xã có điểm tiếp nhận, hoặc nộp trực tuyến qua Cổng Dịch vụ công quốc gia. Mang theo bản gốc để đối chiếu. Nếu không đổi được, cơ quan tiếp nhận phải trả lời bằng văn bản và nêu rõ lý do."
+            },
+            {
+              "title": "Nộp lệ phí và nhận bằng",
+              "text": "Xem lệ phí trong khung bên dưới. Theo FDVN, dữ liệu bằng lái được cấp điện tử trong 1 ngày kể từ khi nhận đủ hồ sơ hợp lệ. Nếu cần bằng in, bằng được cấp trong 2,5 ngày làm việc. Hồ sơ cần xác minh có thể lâu hơn."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Lệ phí đổi bằng",
+          "text": "Nhiều trang cũ ghi {{vnd:135000}}, là mức theo Thông tư 37/2023/TT-BTC. Theo [CafeF (tháng 1/2026)](https://cafef.vn/tin-vui-cho-hang-trieu-nguoi-dan-lam-giay-phep-lai-xe-trong-nam-nay-188260110100936723.chn), biểu phí kèm Thông tư 154/2025/TT-BTC thu {{vnd:115000}} mỗi lần cấp, đổi hoặc cấp lại bằng lái. Chúng tôi chưa mở được biểu phí gốc, nên hãy xác nhận số tiền khi nộp hồ sơ."
+        },
+        {
+          "type": "p",
+          "text": "Hãy xem kỹ ngày hết hạn trên bằng mới. Theo FDVN, thời hạn bằng đổi không vượt quá thời hạn của bằng nước ngoài, nên có thể ngắn hơn bạn nghĩ. Công an là nơi quyết định cuối cùng với hồ sơ của bạn, vì vậy hãy hỏi rõ danh mục giấy tờ trước khi trả tiền dịch thuật."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Bằng lái quốc tế hiện tại còn dùng được ở Việt Nam không?",
+      "a": "Bằng lái quốc tế hiện tại vẫn dùng được ở Việt Nam nếu do một nước tham gia Công ước Viên 1968 cấp, còn hạn và được mang kèm bằng lái quốc gia đúng hạng xe. Bằng lái quốc tế của nước không tham gia Công ước, như Mỹ, Canada hay Úc, không được công nhận theo Công ước. Người sống lâu dài ở Việt Nam nên đổi bằng quốc gia sang bằng Việt Nam."
+    },
+    {
+      "q": "Bằng lái quốc tế Việt Nam cấp có lái xe trong nước được không?",
+      "a": "Không. Theo khoản 1 của Điều 30 Thông tư 108/2026/TT-BCA, giấy phép lái xe quốc tế do Việt Nam cấp không có giá trị sử dụng trong lãnh thổ Việt Nam. Bằng lái quốc tế Việt Nam cấp chỉ dùng khi lái xe ở nước ngoài. Khi lái xe trong nước, người Việt dùng bằng lái Việt Nam đúng hạng xe."
+    },
+    {
+      "q": "Người nước ngoài có bằng lái Mỹ có được lái xe ở Việt Nam không?",
+      "a": "Bằng lái Mỹ, hay IDP do Mỹ cấp, không đủ để lái xe hợp pháp ở Việt Nam, vì Mỹ không tham gia Công ước Viên 1968 theo hồ sơ của Liên Hợp Quốc. Người có bằng lái Mỹ còn hạn đang sống, làm việc hoặc học tập tại Việt Nam có thể nộp hồ sơ đổi sang bằng Việt Nam theo Điều 24 Thông tư 108/2026/TT-BCA."
+    },
+    {
+      "q": "Có bằng lái quốc tế hạng ô tô thì có được chạy xe máy không?",
+      "a": "Không. Bằng lái quốc tế chỉ chép lại các hạng xe ghi trên bằng lái quốc gia. Người chỉ có hạng ô tô thì không được chạy xe máy ở Việt Nam, kể cả khi bằng lái quốc tế cấp theo Công ước Viên 1968. Muốn chạy mô tô thì bằng gốc phải có hạng xe máy, và hạng đó phải hợp với dung tích xe."
+    },
+    {
+      "q": "Bằng lái quốc tế có thời hạn bao lâu ở Việt Nam?",
+      "a": "Theo Điều 57 Luật Trật tự, an toàn giao thông đường bộ 2024, bằng lái quốc tế có thời hạn tối đa 3 năm kể từ ngày cấp và không được vượt quá thời hạn còn lại của bằng lái quốc gia đi kèm. Vì vậy, hãy kiểm tra ngày hết hạn trên cả hai giấy tờ trước khi lái xe."
+    },
+    {
+      "q": "Có đổi bằng lái quốc tế sang bằng lái Việt Nam được không?",
+      "a": "Không. Điều 24 Thông tư 108/2026/TT-BCA không cho đổi giấy phép lái xe quốc tế hay bằng lái tạm thời của nước ngoài. Người nước ngoài sống, làm việc hoặc học tập tại Việt Nam phải đổi bằng lái quốc gia còn hạn do nước mình cấp, kèm bản dịch tiếng Việt đã được bảo chứng chất lượng dịch thuật."
+    },
+    {
+      "q": "Lái xe chỉ mang bằng lái quốc tế mà không mang bằng gốc có bị phạt không?",
+      "a": "Có. Theo Điều 18 Nghị định 168/2024/NĐ-CP, người chạy mô tô có bằng lái quốc tế nhưng không mang bằng lái quốc gia bị phạt cùng khung với lỗi không có bằng. Khung phạt này cao hơn với xe trên 125 cm3. Mức phạt cụ thể có trong bảng ở phần mức phạt của bài này."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Convention on Road Traffic, Vienna, 8 November 1968: status",
+      "publisher": "United Nations Treaty Collection",
+      "url": "https://treaties.un.org/pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+    },
+    {
+      "title": "Luật Trật tự, an toàn giao thông đường bộ 2024, Điều 57",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57"
+    },
+    {
+      "title": "Luật Trật tự, an toàn giao thông đường bộ 2024, Điều 62",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-62"
+    },
+    {
+      "title": "Thông tư 108/2026/TT-BCA quy định sát hạch, cấp giấy phép lái xe và giấy phép lái xe quốc tế",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html"
+    },
+    {
+      "title": "Toàn văn Nghị định 168/2024/NĐ-CP quy định xử phạt vi phạm hành chính về trật tự, an toàn giao thông đường bộ",
+      "publisher": "Xây dựng chính sách, Chính phủ",
+      "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm"
+    },
+    {
+      "title": "Nghị định 238/2026/NĐ-CP sửa đổi Nghị định 168/2024/NĐ-CP",
+      "publisher": "Kế toán An Pha",
+      "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
+    },
+    {
+      "title": "Nghị định 67/2023/NĐ-CP về bảo hiểm bắt buộc trách nhiệm dân sự của chủ xe cơ giới",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/xay-dung/nghi-dinh-67-2023-nd-cp-bao-hiem-bat-buoc-cua-chu-xe-co-gioi-bao-hiem-chay-no-266177-d1.html"
+    },
+    {
+      "title": "Vietnam travel advice: safety and security",
+      "publisher": "GOV.UK, Foreign, Commonwealth & Development Office",
+      "url": "https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security"
+    },
+    {
+      "title": "Driving abroad: international driving permits",
+      "publisher": "GOV.UK",
+      "url": "https://www.gov.uk/driving-abroad/international-driving-permit"
+    },
+    {
+      "title": "Using the roads in Việt Nam as a foreigner",
+      "publisher": "Viet Nam News",
+      "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
+    },
+    {
+      "title": "Why many foreigners ride illegally in Vietnam without realizing it",
+      "publisher": "Vietcetera",
+      "url": "https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it"
+    },
+    {
+      "title": "Thủ tục đổi bằng lái xe nước ngoài sang Việt Nam cho người nước ngoài 2026",
+      "publisher": "Công ty Luật FDVN",
+      "url": "https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/"
+    },
+    {
+      "title": "Tin vui cho hàng triệu người dân làm giấy phép lái xe trong năm nay",
+      "publisher": "CafeF",
+      "url": "https://cafef.vn/tin-vui-cho-hang-trieu-nguoi-dan-lam-giay-phep-lai-xe-trong-nam-nay-188260110100936723.chn"
+    },
+    {
+      "title": "Người nước ngoài lái xe ở Việt Nam có phải chuyển đổi giấy phép lái xe không?",
+      "publisher": "Báo Đại biểu Nhân dân",
+      "url": "https://daibieunhandan.vn/nguoi-nuoc-ngoai-lai-xe-o-viet-nam-co-phai-chuyen-doi-giay-phep-lai-xe-khong-10330947.html"
+    }
+  ],
+  "related": [
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "getting-around-ho-chi-minh-city",
+    "healthcare-and-health-insurance-in-ho-chi-minh-city",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-13"
+}
