@@ -8,7 +8,7 @@ import {
   goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
   stageGoplusRoom, type GoplusProject, type GoplusRoom, goplusElectricityGuess, GOPLUS_ELECTRICITY_TYPICAL,
   GOPLUS_ELECTRICITY_GUESS_MAX_OFF, GOPLUS_COMMERCIAL_SUBCAT, goplusRoomPageUrl,
-  GOPLUS_FORMER_PROVINCES, GOPLUS_HCMC_CODE, goplusCity, goplusProvince,
+  GOPLUS_FORMER_PROVINCES, GOPLUS_HCMC_CODE, goplusCity, goplusProvince, isGoplusTemplateDescription,
 } from './goplus-listing'
 import { VN_PROVINCES } from './vn-areas'
 import { matchesProvinceRow } from './province-match'
@@ -892,5 +892,47 @@ describe('mapGoplusRoom — the building point must be near HCMC', () => {
       // Củ Chi, Cần Giờ, Vũng Tàu, Thủ Dầu Một, Dầu Tiếng
       expect(mapped(room(), project({ geo: { lat, lng, approx: false } })).mutable, `${lat},${lng}`).toMatchObject({ lat, lng })
     }
+  })
+})
+
+describe('isGoplusTemplateDescription — the description the listing page does not show (batch 83)', () => {
+  const tpl = (r: ReturnType<typeof mapped>, vi = true) => isGoplusTemplateDescription({
+    description: r.mutable.description, title: r.mutable.title, ...(vi ? { descriptionVi: r.mutable.descriptionVi, titleVi: r.mutable.titleVi } : {}),
+  })
+  const hanoi = () => mapped(room(), stageGoplusProject({ ...RAW_PROJECT, region: 'Thành phố Hà Nội', district: 'Hà Đông', ward: 'Phường Hà Đông', street: null })!)
+  const noArea = () => mapped(room({ area: null } as Partial<GoplusRoom>))
+  it("the importer's own text is the template, in both columns, for every shape it writes", () => {
+    for (const r of [mapped(), mapped(room({ street: 'Đường Số 9' })), mapped(room({ street: null } as Partial<GoplusRoom>)), hanoi(), noArea()]) {
+      expect(tpl(r), r.mutable.description).toBe(true)
+      expect(tpl(r, false)).toBe(true)
+    }
+  })
+  it('⛔ a room whose staff typed extras keeps its Vietnamese Description — "Tiện ích khác:" appears nowhere else', () => {
+    const r = mapped(room({ amenities: ['Máy giặt riêng'] }))
+    expect(r.mutable.descriptionVi).toContain('Tiện ích khác:')
+    expect(tpl(r)).toBe(false)
+    expect(tpl(r, false)).toBe(true) // the English column never carries them
+  })
+  it('⛔ an edited sentence is not the template, even with our closing line kept (commit review)', () => {
+    const r = mapped()
+    const [sentence, outro] = r.mutable.description.split('\n\n')
+    const edit = (first: string) => isGoplusTemplateDescription({ description: `${first}\n\n${outro}`, title: r.mutable.title })
+    expect(edit(sentence)).toBe(true)
+    expect(edit(sentence.replace(/\.$/, ', newly renovated.'))).toBe(false)
+    expect(edit('Studio in District 7, newly renovated, pets allowed, balcony.')).toBe(false)
+    expect(edit(sentence.replace(/^Duplex/, 'Penthouse'))).toBe(false)
+    expect(edit(sentence.replace('20 m²', '25 m²'))).toBe(false)
+    expect(edit(sentence.replace(/ on [^,]+, /, ' on Pets welcome. Quiet, '))).toBe(false)
+    const [vSentence, vOutro] = r.mutable.descriptionVi.split('\n\n')
+    const editVi = (first: string) => isGoplusTemplateDescription({ description: r.mutable.description, title: r.mutable.title, descriptionVi: `${first}\n\n${vOutro}`, titleVi: r.mutable.titleVi })
+    expect(editVi(vSentence)).toBe(true)
+    expect(editVi(vSentence.replace(/\.$/, ', mới sửa.'))).toBe(false)
+  })
+  it('any other shape is not the template: a third paragraph, another closing line, an empty text', () => {
+    const r = mapped()
+    expect(isGoplusTemplateDescription({ description: `${r.mutable.description}\n\nPets welcome.`, title: r.mutable.title })).toBe(false)
+    expect(isGoplusTemplateDescription({ description: r.mutable.description.replace('book a viewing', 'visit'), title: r.mutable.title })).toBe(false)
+    expect(isGoplusTemplateDescription({ description: '', title: r.mutable.title })).toBe(false)
+    expect(isGoplusTemplateDescription({ description: r.mutable.description, title: 'Studio for rent' })).toBe(false)
   })
 })

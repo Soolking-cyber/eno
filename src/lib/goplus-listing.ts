@@ -742,6 +742,66 @@ export type GoplusMapOptions = { now: number; maxPhotos: number }
 export const GOPLUS_OUTRO_VI = 'Nhắn tin cho GoPlus để kiểm tra phòng trống và đặt lịch xem phòng.'
 export const GOPLUS_OUTRO_EN = 'Message GoPlus to check availability and book a viewing.'
 
+const GOPLUS_LABELS = { en: Object.values(UNIT_LABEL).map((l) => l.en), vi: Object.values(UNIT_LABEL).map((l) => l.vi) }
+const GOPLUS_CITY_NAMES = (() => {
+  const all = VN_PROVINCES.map(cityOfUnit)
+  return { en: [...new Set(all.map((c) => c.cityEn))], vi: [...new Set(all.map((c) => c.cityVi))] }
+})()
+
+/**
+ * One language's half of isGoplusTemplateDescription: is `sentence` exactly the one mapGoplusRoom writes for the room whose
+ * title is `title`? REBUILT FROM THE TITLE, NOT GUESSED — the title is "<label>[ <area> m²] · <ward, district>", and the
+ * sentence is that label and area ("of <area> m²" in English), then "in" (or "on" after a street) / "tại", then the place:
+ * an optional street, the title's ward and district, and optionally one of the 34 provinces' names, then a full stop. The
+ * only free text left is GoPlus's own street field; an edit anywhere else fails.
+ */
+function goplusSentenceOfTitle(sentence: string, title: string, lang: 'en' | 'vi'): boolean {
+  const cut = title.indexOf(' · ')
+  if (cut < 0 || !sentence.endsWith('.')) return false
+  const head = title.slice(0, cut)
+  const where = title.slice(cut + 3)
+  const label = GOPLUS_LABELS[lang].find((l) => head === l || head.startsWith(`${l} `))
+  if (!label) return false
+  const area = head.slice(label.length) // '' or ' <n> m²'
+  if (area && !/^ [\d.,]+ m²$/.test(area)) return false
+  const lead = lang === 'en' ? `${label}${area ? ` of${area}` : ''} ` : `${label}${area} tại `
+  if (!sentence.startsWith(lead)) return false
+  let rest = sentence.slice(lead.length, -1)
+  let street: boolean | null = null // English says which: "on" a street, "in" a ward
+  if (lang === 'en') {
+    if (rest.startsWith('on ')) street = true
+    else if (rest.startsWith('in ')) street = false
+    else return false
+    rest = rest.slice(3)
+  }
+  const city = GOPLUS_CITY_NAMES[lang].find((c) => rest === c || rest.endsWith(`, ${c}`))
+  if (city) rest = rest === city ? '' : rest.slice(0, -(city.length + 2))
+  if (rest === where && street !== true) return true
+  // a street before the ward and district: GoPlus's own field, one comma-free run with no full stop or line break
+  const lead2 = where ? rest.slice(0, rest.length - where.length) : rest
+  const tailOk = where ? rest.endsWith(where) && lead2.endsWith(', ') : true
+  const streetText = where ? lead2.slice(0, -2) : lead2
+  return street !== false && tailOk && streetText !== '' && !/[.,\n]/.test(streetText)
+}
+
+/**
+ * ⛔ THE DESCRIPTION mapGoplusRoom WRITES, UNCHANGED, IS NOT SHOWN ON THE LISTING PAGE (UI climb batch 83, 2026-11-13; blind
+ * A/B, Opus 7.40 → 7.64). Its place sentence repeats the title and the pin line, and its closing line repeats Chat now, so the
+ * section said nothing the page does not already say. EXACT SHAPE ONLY (commit review: a looser first cut would have hidden
+ * an edited sentence): the English column is the sentence goplusSentenceOfTitle rebuilds from the room's own English title +
+ * "\n\n" + GOPLUS_OUTRO_EN, nothing else; and, when the caller passes the Vietnamese column (the Vietnamese page, which shows
+ * it), that is the sentence rebuilt from the Vietnamese title + GOPLUS_OUTRO_VI — so it carries NO "Tiện ích khác:" extras,
+ * which GoPlus staff typed and which appear nowhere else: a Vietnamese reader of a room that has them keeps its Description.
+ * The English column never carries them. Display only: the stored text, the page's metadata and its JSON-LD still read it.
+ */
+export function isGoplusTemplateDescription(row: { description: string; title: string; descriptionVi?: string | null; titleVi?: string | null }): boolean {
+  const en = row.description.split('\n\n')
+  if (en.length !== 2 || en[1] !== GOPLUS_OUTRO_EN || !goplusSentenceOfTitle(en[0], row.title, 'en')) return false
+  if (row.descriptionVi == null) return true
+  const vi = row.descriptionVi.split('\n\n')
+  return vi.length === 2 && vi[1] === GOPLUS_OUTRO_VI && !!row.titleVi && goplusSentenceOfTitle(vi[0], row.titleVi, 'vi')
+}
+
 /**
  * One staged room (and its building) → the row as it would be stored, or the single reason it is not published.
  * `now` clamps the source date and judges `availableDate` (published only while it is still ahead).

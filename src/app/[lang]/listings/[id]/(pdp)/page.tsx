@@ -89,7 +89,8 @@ import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
-import { goplusRoomPageUrl } from '@/lib/goplus-listing'
+import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
+import { headingNamesEmployer } from '@/lib/pdp-repeat-rows'
 import { hostOf, importProvenance } from '@/lib/import-provenance'
 import { adminPlaceEn, bracketNamedIn, cardArea } from '@/lib/city-short'
 import { PlaceName } from '@/components/marketplace/place-name'
@@ -640,6 +641,20 @@ export default async function ListingPage({ params }: Props) {
   // A LinkedIn job's day is the ALERT's, not a posting day: the Details table never prints it as "Posted" (nor the header —
   // showPosted below; opus review 2026-11-11). The attribute stays (the job-ad history reads it).
   if (listing.sellerId === JOB_BOARDS.linkedin.sellerId) hiddenAttrs.add('postedOn')
+  // ⛔ A LINKED JOB'S DETAILS DO NOT REPEAT ITS HEADER (UI climb batch 84, 2026-11-13; blind A/B, Opus 7.16 → 7.33). A row goes
+  // only where the header states the same fact: "Employer" when the h1 this variant prints (the importer's "<role> —
+  // <employer>"; on the Vietnamese page the title viTitle picks, as the gallery does) names it in full, as whole words
+  // (pdp-repeat-rows.ts); "Posted" because the header prints "Posted <ago>" on every linked job (showPosted; LinkedIn's day is
+  // already hidden above); and "Apply by" when the buy box prints the deadline (JobApplyBy takes a YYYY-MM-DD date only). The
+  // attributes stay (the job-ad history and the job-text screen read them), and an employer's own job (isJob needs an
+  // affiliateUrl) keeps every row. ⚠️ The nine machine-translated languages translate the h1 on the client; a company name
+  // survives that as a rule, and the "More jobs from <employer>" rail names it too.
+  if (isJob) {
+    const heading = lang === 'vi' ? viTitle(listing.title, listing.titleVi, i18n[listing.title]) : listing.title
+    if (headingNamesEmployer(heading, listing.attributes?.employer)) hiddenAttrs.add('employer')
+    hiddenAttrs.add('postedOn')
+    if (jobApplyBy && /^\d{4}-\d{2}-\d{2}$/.test(jobApplyBy)) hiddenAttrs.add('applyBy')
+  }
   /**
    * A RENTAL'S STRUCTURED FACTS (GoPlus partnership, owner 2026-10-19 — src/lib/rental-facts.ts): its monthly costs
    * (deposit, electricity, water, service/management fee, parking), its occupancy rows (max occupants, floor, available
@@ -680,7 +695,13 @@ export default async function ListingPage({ params }: Props) {
   // Seller information say: it links to the posting, eno has not verified the employer, never pay a fee. It opened a desktop's
   // left column ahead of the role and said the strip's "never pay" a second time; Details now leads. The page is noindex
   // (isLinkedJobReference), metadata still reads the text, and an employer's own job (no affiliateUrl) keeps its words.
+  // ⛔ NOR A GOPLUS ROOM'S TEMPLATE (batch 83, 2026-11-13 — goplus-listing.ts isGoplusTemplateDescription): "Studio in Nha Be
+  // Commune, … Message GoPlus to check availability" repeats the title, the pin line and Chat now. Decided per server variant,
+  // on the column that variant shows: the English page (and the nine languages translated from its text) tests the English
+  // column, which never carries the staff extras; the Vietnamese page also requires its own column to have none ("Tiện ích
+  // khác:" appears nowhere else). The metadata still reads the text.
   const showDescription = !isJob && descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
+    && !(goplusRoom && isGoplusTemplateDescription({ description: listing.description, title: listing.title, ...(lang === 'vi' ? { descriptionVi: listing.descriptionVi ?? '', titleVi: listing.titleVi } : {}) }))
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed (resolved in the parallel batch above).
   const brandLogoPath = brand ? brandIconPath(brand) : null
