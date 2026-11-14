@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tag, Send, MessageCircle, Route, Loader2, Info } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
@@ -16,6 +16,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { stashCompose } from '@/lib/quick-contact'
 import { hapticTap, hapticConfirm } from '@/lib/haptics'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { contactLine } from '@/lib/contact-line'
 import {
   addressResumeKind,
   decideResume,
@@ -41,7 +42,7 @@ export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer
  */
 export function ContactComposer({
   listingId, listingTitle, listingTitleVi = null, listingTitleI18n = null, listingImage, sellerName, price, currency, negotiable = true,
-  intent = 'buy', sellerIsPartner = false, pinned = false,
+  intent = 'buy', sellerIsPartner = false, pinned = false, barPrice, lineInPage = false,
 }: {
   listingId: string
   listingTitle?: string
@@ -87,9 +88,28 @@ export function ContactComposer({
    * pinsAction): passed only where there is no offer panel (a fixed-price or unpriced listing), so the box is Chat now and
    * its one line. The column closes to 4px, the button is the shell's 48px with a 16px label and a 20px glyph, and the line
    * under it is balanced. Every class is `max-md:`; busy, resume and the opener are unchanged.
+   * ⛔ …ON THE GOODS SHEET THE BOX IS THE BUTTON ALONE (`lineInPage`, owner-approved 2026-11-15 (build 7), cook r07 "item"; it
+   * reverses there r06's "the box is Chat now and its one line").
    */
   pinned?: boolean
+  /**
+   * ⛔ THE GOODS SHEET'S PINNED TIER IS THE BUTTON ALONE, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "item"): the
+   * line under Chat now is not drawn there (`max-md:hidden`, and the column's 4px goes with it) because the page says it ONCE,
+   * as the seller band's last line (page.tsx `tierLine`, the same words from src/lib/contact-line.ts) — not under the pinned
+   * button on every screen. From md the line is under the button as it was. The rental sheet's tier keeps its line (no prop).
+   */
+  lineInPage?: boolean
+  /**
+   * ⛔ THE RENTAL SHEET'S PINNED TIER, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "rental"; src/lib/rental-sheet.ts
+   * pinsRentalAction): with `pinned`, the listing's price set BESIDE Chat now — the price on the left of one row, the button at
+   * its natural width (152 at the least, 22px sides) on the right — and the line under both, whole and visible (the partner's
+   * "No phone number is shared" is the tier's counsel). The price is a copy of the head's, so it is aria-hidden (nothing in it
+   * is focusable) and display:none from md, where the block is as it was. Ignored without `pinned`.
+   */
+  barPrice?: ReactNode
 }) {
+  // The rental sheet's tier: the price beside Chat now (the prop's note).
+  const besidePrice = pinned && barPrice != null
   const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
   const shownTitle = useLocalized(listingTitle ?? '', listingTitleVi, listingTitleI18n) || listingTitle
@@ -342,18 +362,15 @@ export function ContactComposer({
   // how contact works read as fine print under a desktop's CTA. A phone keeps 12px.
   // …13px on a phone since 2026-11-14 (owner-approved, cook r05 "rental-c" and "item": the meta role, nothing under 13);
   // md–lg keeps its 12px, lg its 14.
+  // The words live in src/lib/contact-line.ts (the desk's "what the tap does", a partner's "no number is shared", everyone
+  // else's "request their number"), shared with the goods sheet's in-page copy (`lineInPage`).
   const safetyLine = (
-    <p className={cn('text-center max-md:text-t-meta md:text-xs text-muted-foreground lg:text-sm lg:text-body', pinned && 'max-md:text-balance')}>
-      {planning
-        // The desk is eno's own, so stranger-safety advice is both irrelevant and slightly
-        // alarming here. Say what the tap actually does instead, including that it is free —
-        // that reassurance was the one thing worth keeping from the block this replaced.
-        ? tr('Free — you answer a few questions in the chat and get a day-by-day plan.', 'Miễn phí — bạn trả lời vài câu hỏi trong khung chat và nhận lịch trình theo từng ngày.')
-        : sellerIsPartner
-          ? tr('Partners answer in eno chat. No phone number is shared.', 'Đối tác trả lời qua chat trên eno. Không chia sẻ số điện thoại.')
-          : tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
+    <p className={cn('text-center max-md:text-t-meta md:text-xs text-muted-foreground lg:text-sm lg:text-body', pinned && 'max-md:text-balance', pinned && lineInPage && 'max-md:hidden')}>
+      {contactLine(planning ? 'plan' : sellerIsPartner ? 'partner' : 'person', tr)}
     </p>
   )
+  // The pinned column's 4px between the button and its line; none when the line is said in the page (`lineInPage`).
+  const pinnedGap = pinned ? (lineInPage ? 'max-md:space-y-0' : 'max-md:space-y-1') : undefined
   const chatButton = (
     <Button
       type="button"
@@ -379,7 +396,7 @@ export function ContactComposer({
       aria-disabled={busy}
       // `aria-disabled:cursor-wait` — a reviewer noted an inert control still offering a click-me
       // cursor. The button stays visually undimmed on purpose: it is not disabled, it is working.
-      className={cn('press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer aria-disabled:cursor-wait', pinned && 'max-md:min-h-12 max-md:gap-2 max-md:rounded-xl max-md:text-base max-md:[&_svg:not([class*=size-])]:size-5')}
+      className={cn('press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer aria-disabled:cursor-wait', pinned && 'max-md:min-h-12 max-md:gap-2 max-md:rounded-xl max-md:text-base max-md:[&_svg:not([class*=size-])]:size-5', besidePrice && 'max-md:w-auto max-md:min-w-38 max-md:shrink-0 max-md:px-5.5')}
     >
       {busy
         // ⚠️ THE LABEL CHANGES, NOT JUST THE ICON. A spinner beside an unchanged "Chat now" reads
@@ -430,8 +447,14 @@ export function ContactComposer({
     </Alert>
   ) : null
 
-  // Fixed-price listing: no offer → Chat now + the safety reminder.
-  if (!canOffer) return <div className={cn('space-y-2', pinned && 'max-md:space-y-1')}>{resumeChat}{chatButton}{safetyLine}</div>
+  // Fixed-price listing: no offer → Chat now + the safety reminder. The rental sheet's tier (`barPrice`): the price and Chat now
+  // share one row below md (a plain block from md, the price display:none there), the line under both.
+  if (!canOffer) {
+    const action = besidePrice
+      ? <div className="max-md:flex max-md:items-center max-md:gap-4"><div aria-hidden className="min-w-0 flex-1 md:hidden">{barPrice}</div>{chatButton}</div>
+      : chatButton
+    return <div className={cn('space-y-2', pinnedGap)}>{resumeChat}{action}{safetyLine}</div>
+  }
 
   // `data-auth-settled` only on the panel shown once auth has ANSWERED "no user" — the e2e contact gate waits for it:
   // the copy server-rendered for `no-session` (below) is on screen before React has attached a single handler.

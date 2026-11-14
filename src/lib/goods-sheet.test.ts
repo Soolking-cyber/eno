@@ -92,7 +92,7 @@ describe('the pinned tier', () => {
 })
 
 describe('the class contract: below md only', () => {
-  const PHONE_ONLY = ['GOODS_PHOTO', 'GOODS_PLATES_GAP', 'GOODS_HEAD', 'GOODS_PRICE_ROW', 'GOODS_FACTS', 'GOODS_FACT', 'GOODS_SECTION', 'GOODS_DESC_SECTION', 'GOODS_MAP_BOX', 'COUNSEL_INFO', 'COUNSEL_WELL_JOINED', 'COUNSEL_WELL_ALONE', 'COUNSEL_STRIP_JOINED', 'COUNSEL_STRIP_ALONE', 'GOODS_NOTE'] as const
+  const PHONE_ONLY = ['GOODS_PHOTO', 'GOODS_PLATES_GAP', 'GOODS_HEAD', 'GOODS_PRICE_ROW', 'GOODS_FACTS', 'GOODS_FACT', 'GOODS_SECTION', 'GOODS_DESC_SECTION', 'GOODS_MAP_BOX', 'COUNSEL_INFO', 'COUNSEL_WELL_JOINED', 'COUNSEL_WELL_ALONE', 'COUNSEL_STRIP', 'GOODS_NOTE'] as const
   it.each(PHONE_ONLY)('%s is max-md: (or a sheet-edge after: pseudo) only', (k) => {
     for (const c of (G[k] as string).split(' ')) expect(c, `${k}: ${c}`).toMatch(/^(max-md:|after:)/)
   })
@@ -101,14 +101,46 @@ describe('the class contract: below md only', () => {
     expect(G.GOODS_TITLE).toContain('md:text-2xl md:leading-tight')
     expect(G.GOODS_SECTION_TITLE).toBe('text-t-h3 text-foreground md:text-2xl md:font-semibold')
   })
-  it('⛔ the counsel well\'s pull-up is the column\'s gap: `-mt-6` against `gap-6`', () => {
-    expect(COUNSEL_WELL_JOINED.split(' ')).toContain('max-md:-mt-6')
+  it('⛔ the safety advice stands 16px under Seller information: `-mt-2` against the column\'s `gap-6`', () => {
+    expect(COUNSEL_WELL_JOINED.split(' ')).toContain('max-md:-mt-2')
     expect(PAGE).toContain("<div className={cn('flex flex-col gap-6 md:grid")
+  })
+  // ⛔ Build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item"): the counsel without the box — no tint, no radius, no
+  // padding, nothing on the 4px media edge; both sections on the 12px text edge.
+  it('⛔ no box: no tint, radius, padding or media-edge bleed in any counsel class', () => {
+    for (const k of ['COUNSEL_INFO', 'COUNSEL_WELL_JOINED', 'COUNSEL_WELL_ALONE', 'COUNSEL_STRIP'] as const) {
+      expect(G[k] as string, k).not.toMatch(/bg-tint|rounded|(^|\s)max-md:-mx-|(^|\s)max-md:p[xbt]?-[1-9]/)
+    }
+    expect(G.COUNSEL_STRIP).toBe('max-md:border-t-0 max-md:pt-0')
+    expect(PAGE).toContain('flow={goodsSheet}')
+    expect(PAGE).toContain('<ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} accent={goodsSheet} />')
+  })
+  it('⛔ Details\' rows are 10px (44 tall) since build 7', () => {
+    expect(G.GOODS_DETAILS_ROWS.split(' ')).toContain('[&>div]:py-2.5')
+    expect(G.GOODS_DETAILS_ROWS).not.toContain('py-4')
+  })
+  it('⛔ the tier\'s fade: a pseudo-element over its top edge, below md outside the apps, never a hit target; goods only', () => {
+    for (const c of G.GOODS_TIER_FADE.split(' ')) expect(c).toMatch(/^\[html:not\(\.native\)_&\]:max-md:before:/)
+    expect(G.GOODS_TIER_FADE).toContain('before:pointer-events-none')
+    expect(G.GOODS_TIER_FADE).toContain('before:bottom-[calc(100%+1px)]')
+    expect(PAGE).toContain('pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)')
+  })
+  it('⛔ the tier\'s line is said once in the page: the tier\'s copies hidden below md, the page\'s from the same facts', () => {
+    expect(PAGE).toContain('const tierLineInPage = pinned && goodsSheet')
+    expect(PAGE).toContain("className={tierLineInPage ? 'max-md:hidden' : undefined}")
+    expect(PAGE).toContain('lineInPage={tierLineInPage}')
+    expect(PAGE).toContain("contactLine(listing.seller.officialPartner ? 'partner' : 'person', tr)")
+    expect(PAGE).toContain("sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined}")
+    expect(PAGE).toContain('caption={tierLine}')
+    // One seller row, before "More like this", on every width (the r06 phone twin after it is gone).
+    expect(PAGE.match(/<SameSellerShelf\b/g)).toHaveLength(1)
+    expect(PAGE.indexOf('<SameSellerShelf ')).toBeLessThan(PAGE.indexOf('<RelatedListings'))
+    expect(PAGE).not.toContain('sellerShelfLast')
   })
   it('the Details twin is display:none from md; the section is display:none below it on the goods sheet', () => {
     expect(G.GOODS_DETAILS_TWIN).toBe('md:hidden')
     // A linked job steps the table down below md too (its tags stand under the head: (pdp)/job-phone-order.contract.test.ts).
-    expect(PAGE).toContain("goodsSheet || isJob ? 'max-md:hidden' : sectionLine(rentalSheet)")
+    expect(PAGE).toContain("goodsSheet || isJob || detailsPhoneHidden ? 'max-md:hidden' : sectionLine(rentalSheet)")
   })
 })
 

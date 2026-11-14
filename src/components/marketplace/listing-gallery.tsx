@@ -51,9 +51,20 @@ type Props = {
    * video, where bottom-left is the mute toggle's: there it stays bottom-centre, 28px up. The mute toggle lifts the same.
    * ⚠️ UNTOUCHED: the sharp photo keeps `priority` + fetchPriority=high (the LCP element, with no backdrop to compete), and
    * the cover video, its eager overlay and its no-`poster` rule are exactly as they were.
+   * ⛔ ON THE FIELD GREY SINCE BUILD 7 (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's "a plain white
+   * ground" here): the frame is the field (`bg-tint`, #f3f3f3) and the photo is multiplied onto it in light mode
+   * (PLAIN_FRAME, `isolate` so the blend sees only the frame), so a white packshot sits on the field as on the shelves'
+   * cards, and the 16px white sheet edge shows against it; a photo is a few percent darker at most. Dark mode keeps the
+   * page's ground and no blend. The ratio and the size of the frame are unchanged, and nothing waits on JavaScript.
+   * NOT BUILT: the mock's zoom to the object (item.js measured each packshot on a canvas after it loaded and scaled it up to
+   * 1.8x) — measured in the browser it can only land after the LCP photo has painted, so it would jump on every packshot
+   * page, and it upscales low-resolution photos; the object's box belongs to the photo's record, measured once when stored.
    */
   plain?: boolean
 }
+
+/** The goods sheet's photo frame (`plain`, the prop's note): the field grey, its own blend group; the page's ground in dark mode. */
+const PLAIN_FRAME = 'isolate bg-tint dark:bg-background'
 
 /** Autoplay is a cost + accessibility decision, not a given: skip it for reduced-motion
  *  users and metered/slow connections (Save-Data, 2g) — they get the poster + a play button.
@@ -365,7 +376,9 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, cover = false, 
            never the 64px backdrop above, which must not compete with it. */
         fetchPriority={priority ? 'high' : undefined}
         loading={eager && !priority ? 'eager' : undefined}
-        className={cn(cover ? 'object-cover' : 'object-contain', 'dark:brightness-[0.92]')}
+        // `plain` (the goods sheet, build 7): multiplied onto the frame's field grey in light mode — a packshot's white becomes
+        // the field (PLAIN_FRAME); never in dark mode, where it would black the photo.
+        className={cn(cover ? 'object-cover' : 'object-contain', 'dark:brightness-[0.92]', plain && 'mix-blend-multiply dark:mix-blend-normal')}
         onLoad={(e) => { if (isShowing(e.currentTarget, img)) { setSharpSrc(img); setFailedSrc((f) => (f === img ? null : f)) } }}
         onError={() => setFailedSrc(img)}
       />
@@ -690,7 +703,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               iOS/Android square. */}
           {/* Same desktop height cap as the mosaic below (P-GALLERY-DESKTOP, see there); `md:` only — the
               phone keeps its full square. */}
-          <div data-protected className={cn('relative aspect-square w-full overflow-hidden md:max-h-[max(24rem,calc(100dvh-19rem))]', plain ? 'bg-background' : 'bg-tint')}>
+          <div data-protected className={cn('relative aspect-square w-full overflow-hidden md:max-h-[max(24rem,calc(100dvh-19rem))]', plain ? PLAIN_FRAME : 'bg-tint')}>
             {/* `sheet` reaches this branch only from the phone mount (md:hidden), so the desktop single photo stays contained. */}
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority cover={sheet} plain={plain} />
           </div>
@@ -726,7 +739,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 </div>
               )}
               {images.map((img, i) => (
-                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className={cn('relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none cursor-pointer active:scale-100', plain ? 'bg-background' : 'bg-tint')}>
+                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className={cn('relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none cursor-pointer active:scale-100', plain ? PLAIN_FRAME : 'bg-tint')}>
                   <BlurFillImage img={img} alt={photoAlt(i + 1)} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} cover={sheet} plain={plain} />
                 </Button>
               ))}

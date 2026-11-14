@@ -61,7 +61,7 @@ const LINK_UNTIL_HYDRATED = {
   'aria-controls': undefined,
 } as const
 
-export function ProtectionsRow({ inline = false, shortLabel = false }: {
+export function ProtectionsRow({ inline = false, shortLabel = false, accent = false }: {
   /**
    * Render as the quiet second line INSIDE the safety strip rather than as a row of its own
    * (owner, 2026-08-11: combine the two PDP trust blocks).
@@ -80,6 +80,12 @@ export function ProtectionsRow({ inline = false, shortLabel = false }: {
    * text and in the accessible name, which the visible words begin (label in name). From md, every word shows as before.
    */
   shortLabel?: boolean
+  /**
+   * ⛔ THE GOODS SHEET'S COUNSEL, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "item"; with `shortLabel`): the row is
+   * an ACCENT LINK like "Safe trading guide" beside it — "Reports & disputes" and its chevron in the accent, 700 14. It reverses
+   * there r06's plain body-ink link row (the rental sheet's voice, which the rental sheet keeps). From md, as before.
+   */
+  accent?: boolean
 } = {}) {
   const { tr } = useLanguage()
   // false in the server render and in the hydration render, true in every render after those.
@@ -230,11 +236,11 @@ export function ProtectionsRow({ inline = false, shortLabel = false }: {
           {!inline && <Scale className={ICON_SIZE.lg} />}
           {/* 14px from lg, as the PDP's safety strip it rides in (2026-11-06 audit; the PDP is its one caller). */}
           <span className={cn('min-w-0 text-xs leading-snug text-body lg:text-sm', !inline && 'flex-1', shortLabel && 'max-md:text-sm max-md:leading-5')}>
-            <span className={cn('font-bold text-foreground', shortLabel && 'max-md:text-body')}>{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
+            <span className={cn('font-bold text-foreground', shortLabel && 'max-md:text-body', accent && 'max-md:text-accent-foreground')}>{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
             {/* `shortLabel`: the tail is screen-reader-only below md (the prop's note); an inline span either way. */}
             <span className={shortLabel ? 'max-md:sr-only' : undefined}>{' — '}{tr('how they work', 'cách xử lý')}</span>
           </span>
-          <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4', shortLabel && 'max-md:size-4 max-md:text-body')} aria-hidden />
+          <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4', shortLabel && 'max-md:size-4 max-md:text-body', accent && 'max-md:text-accent-foreground')} aria-hidden />
       </DialogTrigger>
 
       <DialogContent

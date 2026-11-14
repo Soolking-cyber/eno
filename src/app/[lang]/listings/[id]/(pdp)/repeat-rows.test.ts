@@ -86,7 +86,8 @@ describe('batch 95 — the job page says it once (owner-approved 2026-11-14, dec
     expect(calls[0]).toBe(calls[2].replace(' />', ' head className={JOB_EMPLOYER} />'))
     // The phone row also picks the rental sheet's host card (`variant`, cook r05 — never on a job); every other prop is the same.
     // …and the goods sheet's band (`variant` + its line, cook r06 "item" — never on a job: `goodsSheet` needs `factsLine`).
-    expect(calls[1].replace(" variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined}", '')).toBe(calls[2])
+    // …and, since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item"), the pinned tier's line as the band's last line.
+    expect(calls[1].replace(" variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined} caption={tierLine}", '')).toBe(calls[2])
     expect(calls[1]).toContain('linked={linkedSeller}')
   })
 })

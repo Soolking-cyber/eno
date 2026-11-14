@@ -14,7 +14,7 @@ const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant, job = false, quiet = false }: { categorySlug: string; /** A job listing, whatever its category: the PDP's bottom note left every listingType 'job', so the ID line keys on the same fact (2026-11-06 review). */ job?: boolean; /**
+export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant, job = false, quiet = false, flow = false }: { categorySlug: string; /** A job listing, whatever its category: the PDP's bottom note left every listingType 'job', so the ID line keys on the same fact (2026-11-06 review). */ job?: boolean; /**
    * The listing's subcategory. Only VEHICLE HIRE inside `rentals` reads it (2026-10-01): a car or a
    * motorbike is not a home, so the housing lines ("meet the landlord or agent", "hold a place") are
    * swapped for vehicle ones, and a car or motorbike adds the driving-licence line. And Vehicles › Parts
@@ -38,7 +38,14 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
    * (it reverses, there only, the "keeps its font-semibold" of the 2026-11-06 note below — it is still the FIRST line and
    * every word of it shows), 4px between lines, the guide link the one accent, and the actions row on its own 44px line
    * over a hairline. The page passes the well's box (SHEET_WELL) and quiet Report/Block. Every class is `max-md:`.
-   */ quiet?: boolean }) {
+   */ quiet?: boolean; /**
+   * ⛔ THE GOODS SHEET'S COUNSEL WITHOUT THE BOX, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "item"; with `quiet`;
+   * it reverses there r06's "one quiet tint panel" and the actions row's hairline). The page passes no well (COUNSEL_STRIP):
+   * the advice is an ordinary section on the 12px text edge. The shield hangs on that edge (20px, ink), the statements run
+   * 28px in (14/20 in body ink, 8px apart, every word), and the two link rows hang back out to the edge under the shield:
+   * "Reports & disputes ›" (ProtectionsRow, the accent link the guide is) and the guide / Report / Block row, flush with no
+   * line over it — each still its own 44px line, wrapping rather than cutting a word. Every class is `max-md:`.
+   */ flow?: boolean }) {
   const { tr } = useLanguage()
   // Vehicle hire inside the one rentals category (taxonomy.ts: vehicle hire is the tail of its list).
   const vehicleHire = categorySlug === 'rentals' && !!subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug)
@@ -172,7 +179,9 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // 14px FROM lg, WITH A STEP MORE AIR (2026-11-06 audit). In the desktop buy box the strip's 12px read as fine print under a
     // 24px title, for the lines that decide a payment or an application. The phone keeps 12px: its fold is the budget there.
     // The row it carries follows (protections-row.tsx inline, and the PDP's Report and Block get `lg:text-sm`).
-    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed lg:pt-4 lg:text-sm', quiet && 'max-md:gap-3 max-md:text-sm max-md:leading-5', className)}>
+    // `flow` (the goods sheet below md): no line over it and no padding — the page's section gap is its space — and 8px from the
+    // shield to the text, which the link rows' 28px hang (below) is measured from.
+    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed lg:pt-4 lg:text-sm', quiet && 'max-md:gap-3 max-md:text-sm max-md:leading-5', flow && 'max-md:gap-2 max-md:border-t-0 max-md:pt-0', className)}>
       {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
           solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
           SEAL_CHECK stroked by hand — purely so the chief could take the strip's amber ink instead
@@ -181,13 +190,14 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
           drifts from the icon set the rest of the app draws from.
           `shield-check` is the same idea in the shared vocabulary: it takes `currentColor`, so the
           amber comes for free, and it gains the outline/bold weights every other icon has. */}
-      <ShieldCheck aria-hidden className={cn('mt-0.5 h-5 w-5 shrink-0 text-body', quiet && 'max-md:mt-0')} />
+      <ShieldCheck aria-hidden className={cn('mt-0.5 h-5 w-5 shrink-0 text-body', quiet && 'max-md:mt-0', flow && 'max-md:text-foreground')} />
       {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
           protections, actions — sat at the same distance from each other as the words within
           them, so the block read as a pile of links rather than one statement with a footnote.
           `space-y-1.5` separates them enough to be read in order, which is the whole reason
           they are stacked in this order in the first place. */}
-      <div className={cn('min-w-0 flex-1 space-y-1.5 lg:space-y-2', quiet && 'max-md:space-y-1')}>
+      {/* `flow` (the goods sheet, below md): 8px between the statements, and the link rows flush with each other (below). */}
+      <div className={cn('min-w-0 flex-1 space-y-1.5 lg:space-y-2', quiet && 'max-md:space-y-1', flow && 'max-md:space-y-2')}>
         {/* Ink and weight, not amber (2026-11-06; see the note on the container): `font-semibold` in the darkest ink, over
             the quiet lines below it, is what makes it the warning. */}
         {/* `quiet` (the rental sheet, below md): regular, body ink — still first, still the whole sentence. */}
@@ -231,7 +241,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             It also drops a duplicate seal — one mark per block, and this block already has it.
             The result is one thing that says "here is the risk, and here is what we do about
             it", which is the sentence the two boxes were circling separately. */}
-        {protections}
+        {/* `flow`: the row hangs out to the 12px edge under the shield (its 20px + the 8px gap), flush on the actions row. */}
+        {flow && protections ? <div className="max-md:-ml-7 max-md:mb-0">{protections}</div> : protections}
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old
             standalone tips|report footer was a duplicate of this same link. */}
         {/* Guide left, Report right (user-picked 2026-07-14). `-mb-1` pulls the row back into
@@ -244,7 +255,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             clears it, so each of the three controls owns its full 44px. */}
         {/* `quiet`: its own 44px line over a hairline in the line-strong grey; it wraps (Report and Block go to a second 44px line
             at 320 in Vietnamese) rather than cut a word. */}
-        <div className={cn('-mb-1 mt-0.5 flex items-center justify-between gap-3', quiet && 'max-md:m-0 max-md:min-h-11 max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-0 max-md:border-t max-md:border-line-strong')}>
+        {/* `flow`: the same 44px line from the 12px edge, with no hairline over it. */}
+        <div className={cn('-mb-1 mt-0.5 flex items-center justify-between gap-3', quiet && 'max-md:m-0 max-md:min-h-11 max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-0 max-md:border-t max-md:border-line-strong', flow && 'max-md:-ml-7 max-md:border-t-0')}>
           <Link href="/safety" className={cn('relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60', quiet && 'max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:whitespace-nowrap max-md:font-bold')}>
             {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name — on a linked job too
                 (2026-11-06 audit: the `affiliate-job` strip still read "Safe trading guide"). */}

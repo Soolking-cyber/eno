@@ -7,7 +7,7 @@ import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { LanguageProvider } from '@/context/language-context'
 import { RentalAmenities, RentalCosts, RentalFactRows } from './rental-facts'
 import { amenityOptions, rentalCostRows, rentalFactRows } from '@/lib/rental-facts'
-import { SHEET_HEAD_GAP, SHEET_ROWS } from '@/lib/rental-sheet'
+import { SHEET_HEAD_GAP, SHEET_ROWS, amenityTakesRow } from '@/lib/rental-sheet'
 
 /**
  * THE LISTING PAGE'S RENTAL FACTS AS A READER GETS THEM (GoPlus partnership, 2026-10-19): grouped amounts in the reader's
@@ -142,10 +142,11 @@ describe('the listing page wires the facts in', () => {
 
 /**
  * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts): below md Costs drops its rules
- * (one row style, 16/24, body-ink label, value at 400, 12px apart) and Amenities is a three-column icon grid, glyph over name.
- * Same rows, same words, same order, in both languages; a phone-hidden row is still hidden below md.
+ * (one row style, 16/24, body-ink label, value at 400) — each row 44px at the least since owner-approved 2026-11-15 (build 7) —
+ * and Amenities is two columns of a 24px glyph BESIDE its name (build 7; it was three columns, glyph over name), a name too long
+ * for a column taking the row. Same rows, same words, same order, in both languages; a phone-hidden row is still hidden below md.
  */
-describe('`sheet` — the rental sheet\'s rows and icon grid, below md', () => {
+describe('`sheet` — the rental sheet\'s rows and amenity list, below md', () => {
   const dom = (lang: 'en' | 'vi', ui: React.ReactNode) => {
     const div = document.createElement('div')
     div.innerHTML = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}>{ui}</LanguageProvider>).replaceAll('<!-- -->', '')
@@ -167,22 +168,43 @@ describe('`sheet` — the rental sheet\'s rows and icon grid, below md', () => {
       expect(dom(lang, <RentalCosts rows={rentalCostRows(ATTRS)} sheet />).textContent).toBe(dom(lang, <RentalCosts rows={rentalCostRows(ATTRS)} />).textContent)
     }
   })
-  it('Amenities: three columns, the 28px ink glyph over a balanced name, below md only; the same names in EN and VI', () => {
+  it('Costs on the sheet: each row 44px at the least, its label and value centred on it (SHEET_ROWS, build 7)', () => {
+    expect(SHEET_ROWS.split(' ')).toEqual(expect.arrayContaining(['max-md:[&>div]:min-h-11', 'max-md:[&>div]:items-center', 'max-md:[&>div]:py-0']))
+    expect(SHEET_ROWS).not.toMatch(/gap-3/)
+  })
+  it('Amenities: two columns, the 24px ink glyph beside its name in 44px rows, below md only; the same names in EN and VI', () => {
     const items = amenityOptions(TOKENS, 'rentals', 'apartment-rental')
     expect(items.length).toBe(3)
     const div = dom('en', <RentalAmenities items={items} sheet />)
     const ul = div.querySelector('ul')!
-    expect(ul.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-2', 'sm:grid-cols-3', 'max-md:grid-cols-3', 'max-md:gap-x-3', 'max-md:gap-y-6', 'max-md:text-body']))
+    expect(ul.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-2', 'sm:grid-cols-3', 'max-md:grid-cols-2', 'max-md:gap-x-4', 'max-md:gap-y-1', 'max-md:text-base', 'max-md:text-body']))
     const li = ul.querySelector('li')!
-    expect(li.className.split(' ')).toEqual(expect.arrayContaining(['max-md:flex-col', 'max-md:items-start']))
+    expect(li.className.split(' ')).toEqual(expect.arrayContaining(['flex', 'items-center', 'max-md:min-h-11', 'max-md:gap-3']))
+    expect(li.className).not.toMatch(/flex-col/)
     const svg = li.querySelector('svg')!
-    expect(svg.getAttribute('class')!.split(' ')).toEqual(expect.arrayContaining(['max-md:h-7', 'max-md:w-7', 'max-md:text-foreground']))
+    expect(svg.getAttribute('class')!.split(' ')).toEqual(expect.arrayContaining(['max-md:h-6', 'max-md:w-6', 'max-md:text-foreground']))
     const label = li.querySelector('span')!
-    expect(label.className).toContain('max-md:text-balance')
-    expect(label.className).not.toMatch(/line-clamp|truncate/)
+    expect(label.className).toContain('max-md:text-pretty')
+    expect(label.className).not.toMatch(/line-clamp|truncate|nowrap/)
     for (const lang of ['en', 'vi'] as const) {
       const names = (sheet: boolean) => [...dom(lang, <RentalAmenities items={items} sheet={sheet} />).querySelectorAll('li')].map((x) => x.textContent?.trim())
       expect(names(true)).toEqual(names(false))
     }
+  })
+  it('Amenities: a name too long for a column, in either language, takes the row (decided from the words); the order is the taxonomy\'s', () => {
+    expect(amenityTakesRow({ label: 'Air conditioning', labelVi: 'Máy lạnh' })).toBe(false)
+    expect(amenityTakesRow({ label: 'Shared washing machine', labelVi: 'Máy giặt chung' })).toBe(true)
+    expect(amenityTakesRow({ label: 'Motorbike parking', labelVi: 'Chỗ để xe' })).toBe(true)
+    expect(amenityTakesRow({ label: 'Pets allowed', labelVi: 'Cho nuôi thú cưng' })).toBe(true)
+    const items = [
+      { value: 'aircon', label: 'Air conditioning', labelVi: 'Máy lạnh' },
+      { value: 'washer', label: 'Shared washing machine', labelVi: 'Máy giặt chung' },
+      { value: 'fridge', label: 'Fridge', labelVi: 'Tủ lạnh' },
+    ]
+    const lis = [...dom('en', <RentalAmenities items={items} sheet />).querySelectorAll('li')]
+    expect(lis.map((l) => l.textContent)).toEqual(['Air conditioning', 'Shared washing machine', 'Fridge'])
+    expect(lis.map((l) => l.className.split(' ').includes('max-md:col-span-2'))).toEqual([false, true, false])
+    // Without the sheet nothing spans.
+    expect(dom('en', <RentalAmenities items={items} />).innerHTML).not.toContain('col-span-2')
   })
 })

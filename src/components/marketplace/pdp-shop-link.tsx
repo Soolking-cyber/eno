@@ -30,7 +30,7 @@ const STRIP_TYPE = 'text-xs text-muted-foreground lg:text-sm lg:text-body'
  *  reviews — "Joined" not below md when another item holds the line, batch 90) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false, variant = 'row', head = false }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false, variant = 'row', head = false, caption }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -71,16 +71,16 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
    */
   linkedShop?: boolean
   /**
-   * ⛔ 'card': THE RENTAL LISTING PAGE'S HOST CARD, ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook
-   * round build all best options and deploy"; src/lib/rental-sheet.ts). It reverses, on that page only, batch 79's "Hosted by"
-   * band ("⛔ ONE LINE, OVER IT ONLY") and the canon's "almost no boxes" (owner 2026-07-24): the seller is ONE bordered, raised
-   * object — the app's one raised recipe, the header search pill's `shadow-raised` — the PDP's one approved box. Inside it,
-   * the same nodes and words as the row, in this order (DOM = paint): the avatar (56, aria-hidden), the name (the h3 role,
-   * ink) with its badge, the status line (14px muted: the strip minus the partner count, dots and all), and — only when the
-   * partner count is shown — a hairline and the count as the card's one figure (PartnerListingCount `stat`, the same words)
-   * with "Shop ›" at its end; without it "Shop ›" ends the first row. The status line always reserves one line (`min-h-5`):
-   * "Active …" is client-only (the clock) and arrives after mount. Batch 90's partner "Joined" hide and a linked listing's
-   * "not verified" counsel line are kept as they are. The page renders it only in its `md:hidden` phone slot.
+   * ⛔ 'card': THE RENTAL LISTING PAGE'S HOST ROW, ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts
+   * — and since owner-approved 2026-11-15 (build 7), cook r07 "rental", a FLAT ROW: it reverses there the r05 raised, bordered
+   * card with its hairline and the count as its figure; batch 79's "Hosted by" band line is still not drawn — the head's stat
+   * row closes on its own hairline right above). The same nodes and words as the row, in this order (DOM = paint): the avatar
+   * (56, a 1px hairline ring, aria-hidden) down the left of every line; the name (the h3 role, ink) with its badge; the status
+   * line (14/20 muted: the strip minus the partner count, dots and all); and — only when the partner count is shown — the count
+   * on its own line, its number bold in ink (PartnerListingCount `lead`, the same words); "Shop" at the row's end as the shell's
+   * outline pill, 40 drawn (44 to tap), no chevron. The status line always reserves one line (`min-h-5`): "Active …" is
+   * client-only (the clock) and arrives after mount. Batch 90's partner "Joined" hide and a linked listing's "not verified"
+   * counsel line are kept as they are. No border, no shadow, no fill. The page renders it only in its `md:hidden` phone slot.
    */
   /**
    * ⛔ 'band': THE GOODS LISTING PAGE'S SELLER BAND, ON A PHONE (owner-approved 2026-11-14, cook r06 "item": "after this cook
@@ -93,6 +93,14 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
    * below), on the phone band only; desktop keeps it. The page renders it only in its `md:hidden` phone slot.
    */
   variant?: 'row' | 'card' | 'band'
+  /**
+   * ⛔ THE GOODS SHEET'S PINNED-TIER LINE, AS THE BAND'S LAST LINE (owner-approved 2026-11-15 (build 7), cook r07 "item"; it
+   * reverses there r06's "the box is Chat now and its one line"): the pinned tier is the button alone, and the line it carried
+   * ("Partners answer in eno chat. No phone number is shared.", or a linked listing's source line where Seller information
+   * cannot hold it) is said once, here — a third row under the status strip, from the name's column to the band's end, 13/18
+   * muted, balanced, 2px under the strip. The page passes it only on the `md:hidden` phone band; only `variant="band"` reads it.
+   */
+  caption?: React.ReactNode
   /**
    * A linked JOB's employer line in the page's head, under the role (owner-approved 2026-11-14, cook r06 jobs; page.tsx renders
    * this copy `md:hidden` right after the H1 and draws no phone band for the job): the name at the sub-section role (17/24 bold
@@ -228,63 +236,57 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
             </div>
           </div>
         )}
+        {/* The pinned tier's line, said once (`caption`, the prop's note). A div: the source line arrives as its own <p>. */}
+        {caption != null && (
+          <div data-band-caption="" className="col-span-2 col-start-2 row-start-3 mt-0.5 text-t-meta text-muted-foreground text-balance">
+            {caption}
+          </div>
+        )}
       </div>
     )
   }
 
   if (variant === 'card') {
-    // The status line: the strip without the partner count, which is the card's figure below (the same words, never twice).
+    // The status line: the strip without the partner count, which has its own line below (the same words, never twice).
     const status = partnerCountShown ? strip.slice(1) : strip
     const statusJoinedAt = partnerCountShown ? joinedAt - 1 : joinedAt
-    // "Shop ›": 700 14 in the accent, a 44px-tall target (the row's pill is 28 and leans on tap-44).
-    const shop = (
-      <Link
-        href={href}
-        prefetch={false}
-        aria-label={tr('Visit shop', 'Vào gian hàng')}
-        className="group relative tap-44 flex min-h-11 shrink-0 items-center gap-0.5 text-sm font-bold text-accent-foreground hover:underline active:opacity-60"
-      >
-        {tr('Shop', 'Gian hàng')}
-        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
-      </Link>
-    )
+    // The avatar and "Shop" run down every line of the row (two, or three with the count), centred on it.
+    const allRows = partnerCountShown ? 'row-span-3' : 'row-span-2'
     return (
-      <div data-host-card="" className={cn('rounded-2xl border border-line-strong bg-background p-4 shadow-raised', className)}>
-        <div className="flex items-center gap-4">
-          {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the
-              row's note below. */}
-          <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
-            <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-14" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
-              <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-t-h3 text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
-              {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
-              {isBusiness && businessVerified && <BusinessVerifiedBadge />}
-              {badge}
-            </div>
-            {/* One line held from the server HTML (`min-h-5`), so the client-only "Active …" lands in a box that is there. The
-                dots and the clip are the row's (each item carries its dot; a line's first dot is cut). */}
-            <div className="mt-0.5 min-h-5 overflow-x-clip">
-              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-                {status.map((node, i) => (
-                  <span key={i} className={cn('inline-flex items-center gap-1.5', i === statusJoinedAt && 'max-md:hidden')}>
-                    <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
-                    {node}
-                  </span>
-                ))}
-              </div>
-            </div>
+      <div data-host-card="" className={cn('grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-x-3', className)}>
+        {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the
+            row's note below. */}
+        <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className={cn('col-start-1 row-start-1 shrink-0 self-center rounded-full active:opacity-60', allRows)} title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+          <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-14 ring-1 ring-border" />
+        </Link>
+        <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 self-end">
+          {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
+          <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-t-h3 text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
+          {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
+          {isBusiness && businessVerified && <BusinessVerifiedBadge />}
+          {badge}
+        </div>
+        {/* One line held from the server HTML (`min-h-5`), so the client-only "Active …" lands in a box that is there. The
+            dots and the clip are the row's (each item carries its dot; a line's first dot is cut). */}
+        <div className={cn('col-start-2 row-start-2 min-h-5 overflow-x-clip', partnerCountShown ? 'self-center' : 'self-start')}>
+          <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+            {status.map((node, i) => (
+              <span key={i} className={cn('inline-flex items-center gap-1.5', i === statusJoinedAt && 'max-md:hidden')}>
+                <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
+                {node}
+              </span>
+            ))}
           </div>
-          {!partnerCountShown && shop}
         </div>
         {partnerCountShown && (
-          <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-4">
-            <PartnerListingCount n={partnerListingCount as number} layout="stat" />
-            {shop}
+          <div className="col-start-2 row-start-3 self-start text-sm text-muted-foreground">
+            <PartnerListingCount n={partnerListingCount as number} layout="lead" />
           </div>
         )}
+        {/* The shell's outline pill at 40 (PILL_BOX's 36 raised by 4 and its 14px sides by 2; still tap-44). */}
+        <Link href={href} prefetch={false} aria-label={tr('Visit shop', 'Vào gian hàng')} className={cn(PILL_BOX, PILL_REST, 'col-start-3 row-start-1 flex min-h-10 shrink-0 items-center self-center px-4 transition-colors', allRows)}>
+          {tr('Shop', 'Gian hàng')}
+        </Link>
       </div>
     )
   }

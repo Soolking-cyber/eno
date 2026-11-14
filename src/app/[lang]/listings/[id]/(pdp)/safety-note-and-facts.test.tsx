@@ -153,7 +153,7 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     expect(PAGE).toContain("if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')")
     // …and SellerInfo itself still renders (the Decree 248 row stays).
     // (Its `max-md:` classes are batch 79's phone section hairline — ./section-hairline.test.tsx.)
-    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}")
+    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined} />}")
   })
 
   it('mileage is a vehicle fact: only above 0 km and never on Vehicles › Parts (pdp-08)', () => {

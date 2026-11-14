@@ -359,6 +359,23 @@ const UNIT_LABEL: Record<Exclude<GoplusUnit, 'unknown'>, { vi: string; en: strin
 }
 
 /**
+ * Whether a GoPlus room's title NAMES its `aptType`, BY CONSTRUCTION — never a text search (page.tsx's ⛔ "no row goes because
+ * the title contains its value" stands for every other page). mapGoplusRoom writes the title as "<unit label>[ <area> m²] ·
+ * <ward, district>" (titleVi the same from the Vietnamese label), and for a studio, a duplex and a penthouse that label IS the
+ * facet value the row stores ('studio' ↔ "Studio", in both languages). True only when the stored type is one of those three
+ * and the given title is still exactly that shape — its whole first run is that label, then " · " or the area. A serviced
+ * flat ("1-bedroom apartment" over aptType 'serviced') never matches: its title does not say "Serviced / mini".
+ * Read by the rental sheet's phone Details (owner-approved 2026-11-15 (build 7), cook r07 "rental"), which is not drawn when
+ * this is its only row.
+ */
+export function goplusTitleNamesAptType(aptType: unknown, title: string | null | undefined): boolean {
+  const unit = (Object.keys(UNIT_LABEL) as (keyof typeof UNIT_LABEL)[]).find((u) => (u === 'studio' || u === 'duplex' || u === 'penthouse') && UNIT_LABEL[u].aptType === aptType)
+  if (!unit || typeof title !== 'string') return false
+  const { en, vi } = UNIT_LABEL[unit]
+  return [en, vi].some((label) => title.startsWith(`${label} · `) || new RegExp(`^${label} \\d+(\\.\\d)? m² · `).test(title))
+}
+
+/**
  * The floor as the `floor` attribute stores it: '0' = ground floor, 'mezzanine', or the floor number as typed ('1' =
  * "Tầng 1", the first floor ABOVE the ground — GoPlus lists "Tầng Trệt" separately). 56 spellings measured
  * ("Tầng Trệt ", "Tầngg Trệt", "Tầng G`", "Tret", "lững", "Tầngv 4", "03"…). A number over 40 is a room number typed

@@ -39,7 +39,8 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
   /**
    * The goods sheet's two-column grid below sm (Shelf `phoneGrid`; owner-approved 2026-11-14, cook r06 "item"): at most six
    * cards there (three full rows; "See all" holds the rest), a six-card placeholder of the same rows while it loads (the two
-   * extra `sm:hidden`, so from sm the rail's four), and a 32px gap over it below md.
+   * extra `sm:hidden`, so from sm the rail's four), and a 32px gap over it below md. Its cards on the field tile with a plain
+   * "Ad" below sm (ListingCard `look="tile"`, owner-approved 2026-11-15 (build 7), cook r07 "item").
    */
   phoneGrid?: boolean
   /** The PDP section's own top gap, when the page sets it (a linked job: `mt-8 md:mt-12`, owner-approved 2026-11-14, cook r06 jobs). */
@@ -227,7 +228,8 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     >
       {items.map((l, i) => (
         <div key={l.id} data-sid={l.sellerId} className={`${RAIL_CARD_W} ${capped(i)}`.trim()}>
-          <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
+          {/* The goods sheet's calm grid (`phoneGrid`): the field tile and a plain "Ad" (ListingCard `look="tile"`, build 7). */}
+          <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} look={phoneGrid ? 'tile' : undefined} />
         </div>
       ))}
     </Shelf>

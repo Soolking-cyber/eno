@@ -25,7 +25,8 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
  * ⛔ …EXCEPT ON A GOODS PAGE THAT PINS ITS OWN ACTION (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts
  * pinsAction, globals.css the goods tier block): there, below md, the page's `#contact` is the bar from the first paint and
  * the tab bar starts retracted until the first scroll up — a listing page as a pushed screen. This bar stays away there
- * (`pinned`). Every other page keeps the rule above.
+ * (`pinned`). …AND ON A HOME TO RENT WHOSE ACTION IS CHAT NOW ALONE (owner-approved 2026-11-15 (build 7), cook r07 "rental";
+ * src/lib/rental-sheet.ts pinsRentalAction), the same tier with the price beside Chat now. Every other page keeps the rule above.
  *
  * ⛔ IT IS A REMOTE CONTROL FOR THE PAGE'S OWN BUTTON, NOT A SECOND ACTION. Everything that decides what a reader may do
  * here already lives in the control in the page: the sign-in gate and the opener (contact-composer), the daily limit and
@@ -191,7 +192,9 @@ export function PdpActionBar({
    * ⛔ 'md' — THE PAGE'S TITLE UNDER THE PRICE ONLY FROM md (owner-approved 2026-11-14, cook r05 "rental-c": a home to rent's
    * phone bar; src/lib/rental-sheet.ts). It reverses there "the page's title rides under it" (`price` above): below md the
    * price's own "≈ $" takes that line (the page passes it as a block). ⛔ ONLY THE TITLE: a 'buy' link's "Source: <shop>" and
-   * an 'apply' link's caption are never hidden — they name where the short action goes.
+   * an 'apply' link's caption are never hidden — they name where the short action goes. Since owner-approved 2026-11-15
+   * (build 7) a rental that pins its action never shows this bar below md (`pinned`): its tier carries the head's full price
+   * beside Chat now; this look stays for a rental that keeps the in-flow block (an offer panel, the availability check).
    */
   titleCaption?: 'always' | 'md'
   /**

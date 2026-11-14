@@ -80,12 +80,13 @@ describe('item 8: the safety block follows the facts on a phone', () => {
 
   it('sits after the description, the details and the seller information, before the reviews and the map', () => {
     // The slots those blocks hold on the phone's single column.
-    expect(PAGE).toContain("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>")
+    expect(PAGE).toContain("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, (order8PhoneEmpty || (detailsPhoneHidden && !showDescription && amenities.length === 0 && !(repeatCta && affiliateUrl))) && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>")
     // The `sectionLine` classes are batch 79's phone section line (./section-hairline.test.tsx); the slots are unchanged.
-    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}")
+    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined} />}")
     expect(PAGE).toContain('<div className="order-10 border-t border-border pt-4">')
-    // ⛔ The map is slot 11 — except on the rental sheet, where it is slot 8, before the well (owner-approved 2026-11-14, cook
-    // r05 "rental-c"); from md both paint in the same place (only order-12 items follow it in its column).
-    expect(PAGE).toContain("<div id=\"location-on-map\" className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>")
+    // ⛔ The map is slot 11 — except on the rental sheet below md, where it is slot 8, before the well (owner-approved 2026-11-14, cook
+    // r05 "rental-c") and, since build 7, its DOM leads the left column there (owner-approved 2026-11-15 (build 7)); from md slot 11
+    // on every page (only order-12 items follow it in its column).
+    expect(PAGE).toContain("<div id=\"location-on-map\" className={cn(rentalSheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>")
   })
 })

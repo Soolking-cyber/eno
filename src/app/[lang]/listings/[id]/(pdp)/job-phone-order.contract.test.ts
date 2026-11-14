@@ -68,7 +68,7 @@ describe('the head: role + Share → employer → pay → place → tags (DOM or
   })
   it('the tags are the Details rows themselves (no second label or value logic), and the table steps down below md', () => {
     expect(PAGE).toMatch(/const jobTags = isJob && showDetails \? \(\s*<div className=\{JOB_TAGS\}>\s*<h2 className="sr-only"><Tr text="Details" \/><\/h2>\s*<dl className=\{JOB_TAG_ROWS\}>\{detailsRows\}<\/dl>/)
-    expect(PAGE).toContain("<div className={cn('space-y-2', goodsSheet || isJob ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>")
+    expect(PAGE).toContain("<div className={cn('space-y-2', goodsSheet || isJob || detailsPhoneHidden ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>")
     expect(JOB.JOB_TAG_ROWS).toContain("[&_dt]:after:content-[':']")
   })
 })
@@ -87,7 +87,7 @@ describe('the action and the counsel', () => {
     const open = at("<div data-safety-block=\"\" className={cn('order-9 md:order-7', goodsSheet && (sellerInfoShown ? COUNSEL_WELL_JOINED : COUNSEL_WELL_ALONE), isJob && JOB_COUNSEL)}>")
     const info = at('{isJob && sellerInfo && <SellerInfo info={sellerInfo} labelId="seller-info-job" panel className={JOB_COUNSEL_INFO} />}', open)
     expect(info).toBeLessThan(at('<SafetyStrip', open))
-    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}")
+    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined} />}")
     expect(PAGE.split('data-safety-block=""').length - 1).toBe(1)
   })
   it('the slot-8 column below md: the repeat Apply after the panel (max-md:order-10), or nothing', () => {
@@ -97,7 +97,7 @@ describe('the action and the counsel', () => {
 
 describe('the end of the page', () => {
   it('the rails 32px apart below md, the page\'s employer handed to the seller rail', () => {
-    expect(PAGE).toContain("sectionClassName={goodsSheet ? cn(GOODS_SHELF_GAP, sellerShelfLast && 'max-sm:hidden') : isJob ? JOB_SHELF_GAP : undefined} hideEmployerNamed={isJob ? listing.seller.name : undefined} />")
+    expect(PAGE).toContain("sectionClassName={goodsSheet ? GOODS_SHELF_GAP : isJob ? JOB_SHELF_GAP : undefined} hideEmployerNamed={isJob ? listing.seller.name : undefined} />")
     expect(PAGE).toMatch(/<RelatedListings\b[^]*?sectionClassName=\{isJob \? JOB_SHELF_GAP : undefined\}\s*\/>/)
   })
   it('the question lines: max-md:hidden in their slot on a job, an md:hidden copy after the rails, before </main>', () => {

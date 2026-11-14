@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Info, Map as MapIcon } from '@/components/ui/icons'
 import { getListingCoordinates } from '@/lib/geo'
-import { basemapStyle } from '@/lib/basemap'
+import { basemapStyle, PREVIEW_STYLE } from '@/lib/basemap'
 import { useResolvedTheme } from '@/context/theme-context'
 import { metresPerPixel, staticMapTiles, STATIC_MAP_ZOOM, wantsRetinaTiles, zoomToFitRadius } from '@/lib/static-map'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
@@ -50,7 +50,14 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
    * reverses the brand-blue pin and area there; "Open map" top-right in the label voice; and the two credits as ONE quiet
    * text plate bottom-left, each link showing its own licence wording (OSM_CREDIT, CARTO_CREDIT — the same string as its
    * accessible name) in place of the ⓘ. The live map (desktop, and the full-screen sheet this opens) keeps the ⓘ form.
-   * The tiles are never filtered: the picture stays the live map's own cached tiles (the note at the top).
+   * The tiles are never filtered.
+   * ⛔ …AND SINCE BUILD 7 (owner-approved 2026-11-15 (build 7), cook r07 "rental"; it reverses there the top-right pill and the
+   * live map's own tiles in the picture): below md the box is a CARD (SHEET_MAP_BOX, src/lib/rental-sheet.ts) whose bottom
+   * 48px is "Open map" as a full-width footer row (a hairline over it, 700 16 ink, the map glyph at 20) — still inside the one
+   * button, still its name; the picture above it is CARTO Voyager one zoom step out (basemap.ts PREVIEW_STYLE; dark mode keeps
+   * `dark_all`), centred on the point in the space the row leaves (PHONE_FOOTER); the credits plate sits 8px over the row,
+   * without its blur. From md (a touch tablet) the r05 sheet look above is unchanged. The full-screen map it opens is the
+   * live map, as before.
    */
   look?: 'default' | 'sheet'
 }) {
@@ -60,6 +67,17 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<{ w: number; h: number } | null>(null)
   const [retina, setRetina] = useState(false)
+  // Below md on the sheet (the CSS's own breakpoint, globals.css): read after mount like the box's size, so the server HTML and
+  // the first client render are the same (no tiles yet in either).
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    if (!sheet || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(max-width: 767.98px)')
+    const read = () => setPhone(mq.matches)
+    read()
+    mq.addEventListener?.('change', read)
+    return () => mq.removeEventListener?.('change', read)
+  }, [sheet])
 
   useEffect(() => {
     setRetina(wantsRetinaTiles())
@@ -83,9 +101,13 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
   }, [])
 
   const { lat, lng } = approximate ?? getListingCoordinates(listing)
-  // An area is framed to fit its circle (the live map's fitBounds on the same shape); a pin keeps zoom 15.
-  const zoom = approximate && size ? zoomToFitRadius(lat, approximate.radiusM, size.w, size.h) : STATIC_MAP_ZOOM
-  const { tiles, pin } = size ? staticMapTiles({ lat, lng, width: size.w, height: size.h, retina, zoom, style: basemapStyle(dark) }) : { tiles: [], pin: { x: 0, y: 0 } }
+  // The sheet's phone card (build 7): the picture is the box less its "Open map" row, Voyager one step out in light mode.
+  const sheetPhone = sheet && phone
+  const voyager = sheetPhone && !dark
+  const picH = size ? size.h - (sheetPhone ? PHONE_FOOTER : 0) : 0
+  // An area is framed to fit its circle (the live map's fitBounds on the same shape); a pin keeps zoom 15 (14 on Voyager).
+  const zoom = approximate && size ? zoomToFitRadius(lat, approximate.radiusM, size.w, picH) : voyager ? STATIC_MAP_ZOOM - 1 : STATIC_MAP_ZOOM
+  const { tiles, pin } = size && picH > 0 ? staticMapTiles({ lat, lng, width: size.w, height: picH, retina, zoom, style: voyager ? PREVIEW_STYLE : basemapStyle(dark) }) : { tiles: [], pin: { x: 0, y: 0 } }
   const areaR = approximate ? approximate.radiusM / metresPerPixel(lat, zoom) : 0
 
   return (
@@ -158,12 +180,13 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
               />
             </svg>
           )}
-          {/* 'sheet' below md: top-right, 700 14, the chip's light lift. `.shadow-pop` is an UNLAYERED class and would beat any
-              utility, so that look carries the pop as a utility from md instead. */}
+          {/* 'sheet' below md (build 7): the card's 48px footer row — the full width, a hairline over it, 700 16 ink, a 20px glyph;
+              a press fills it the field grey. From md the r05 pill, bottom-right with the pop. `.shadow-pop` is an UNLAYERED class
+              and would beat any utility, so that look carries the pop as a utility from md instead. */}
           <span className={sheet
-            ? 'pointer-events-none absolute right-3 top-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-bold text-foreground shadow-chip transition-[scale] duration-150 group-active:scale-[0.97] motion-reduce:transition-none md:bottom-3 md:top-auto md:font-semibold md:shadow-[var(--shadow-pop)]'
+            ? 'pointer-events-none absolute bottom-0 left-0 right-0 flex h-12 items-center justify-center gap-2 border-t border-line-strong bg-background text-base font-bold text-foreground transition-[scale] duration-150 group-active:bg-muted motion-reduce:transition-none md:bottom-3 md:left-auto md:right-3 md:inline-flex md:h-9 md:gap-1.5 md:rounded-full md:border-t-0 md:bg-card md:px-3.5 md:text-sm md:font-semibold md:shadow-[var(--shadow-pop)] md:group-active:scale-[0.97] md:group-active:bg-card'
             : 'pointer-events-none absolute bottom-3 right-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-semibold text-foreground shadow-pop transition-[scale] duration-150 group-active:scale-[0.97] motion-reduce:transition-none'}>
-            <MapIcon className="size-4" aria-hidden />
+            <MapIcon className={cn('size-4', sheet && 'max-md:size-5')} aria-hidden />
             {tr('Open map', 'Mở bản đồ')}
           </span>
         </SheetTrigger>
@@ -188,6 +211,9 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
   )
 }
 
+/** The sheet's "Open map" row below md (`h-12`): the picture is centred in the box less this. */
+const PHONE_FOOTER = 48
+
 // The place line is the live map popup's own (place-name.tsx PopupPlace, 2026-11-10): one rule for both, which already drops
 // a district the location names ("Quận 2, P. Thảo Điền, Quận 2", measured here once) — by exact level, so "Quận 1" survives
 // beside "Quận 12" — and never mixes a stored "Quận 7" with a spelled "Tan Phong Ward".
@@ -200,13 +226,18 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
  * quiet plate (24 tall, the meta role, muted — 5.9:1 on the light tiles through the plate). The plate keeps its own material
  * tint and blur (`bg-card/70`, bare: the reduced-transparency block in globals.css can only reach a bare tint, design-lint),
  * so only its shape and type change. The words are the constants (never tr(), never shortened — map-credit.ts),
- * so the visible text and the accessible name are one string. The live map's `MapCredit` keeps the ⓘ form: this is no
+ * so the visible text and the accessible name are one string. Since build 7 (owner-approved 2026-11-15 (build 7)) the plate sits
+ * 8px over the card's "Open map" row (56 up) and draws without its 2px blur, which smeared a cyan map feature through the
+ * words; the tint stays. The live map's `MapCredit` keeps the ⓘ form: this is no
  * longer its twin on a rental phone, and listings-map.tsx says so.
+ * ⛔ …AND THE ⓘ PLATE ON EVERY OTHER LISTING PAGE, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "item": "the map's two
+ * attribution links on one plate; a cyan map feature had smeared through them"): the same two ⓘ links on one round plate,
+ * without the 2px blur — the tint stays. From md, and in the live map, the plate is as it was.
  */
 function PreviewCredit({ sheet = false }: { sheet?: boolean }) {
   const link = cn('pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body', sheet && 'max-md:h-6 max-md:w-auto max-md:whitespace-nowrap')
   return (
-    <p className={cn('pointer-events-none absolute bottom-1 left-2 z-10 flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px]', sheet && 'max-md:bottom-2 max-md:h-6 max-md:gap-2 max-md:rounded-full max-md:px-2.5 max-md:py-0 max-md:text-t-meta max-md:text-muted-foreground')}>
+    <p className={cn('pointer-events-none absolute bottom-1 left-2 z-10 flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px] max-md:rounded-full max-md:backdrop-blur-none', sheet && 'max-md:bottom-14 max-md:h-6 max-md:gap-2 max-md:px-2.5 max-md:py-0 max-md:text-t-meta max-md:text-muted-foreground')}>
       <a
         className={link}
         href="https://www.openstreetmap.org/copyright"

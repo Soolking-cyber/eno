@@ -208,19 +208,20 @@ describe('batch 95 — a linked job names its storefront once, as one link, over
 })
 
 /**
- * ⛔ THE RENTAL LISTING PAGE'S HOST CARD (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts): one bordered,
- * raised object with the row's own nodes and words, in DOM = paint order — avatar (aria-hidden), name, badge, status line, then
- * (a partner with a count only) a hairline and the count as the card's figure, "Shop ›" at its end. Batch 90's partner
+ * ⛔ THE RENTAL LISTING PAGE'S HOST ROW (owner-approved 2026-11-14, cook r05 "rental-c"; a flat row since owner-approved 2026-11-15
+ * (build 7), cook r07 "rental"; src/lib/rental-sheet.ts): no border, no shadow, no fill — the row's own nodes and words in DOM =
+ * paint order: avatar (aria-hidden, 56, a hairline ring) down the left, name, badge, status line, then (a partner with a count
+ * only) the count on its own line, its number bold, and "Shop" as the outline pill at the row's end. Batch 90's partner
  * "Joined" hide and the linked listing's counsel line are kept; the status line holds one line from the server HTML.
  */
-describe('PdpShopLink variant="card" — the rental sheet\'s host card', () => {
+describe('PdpShopLink variant="card" — the rental sheet\'s host row', () => {
   const card = (props: Record<string, unknown> = {}, m?: Partial<Record<string, unknown>>) => {
     const div = document.createElement('div')
     div.innerHTML = renderToString(<PdpShopLink name="GoPlus" href="/sellers/s1" metrics={metrics(m)} variant="card" {...props} />)
     return div.querySelector('[data-host-card]') as HTMLElement
   }
   const partner = { officialPartner: true, partnerListingCount: 5379 }
-  /** The text of the card's nodes in document order: the name link, the status line, the figure, Shop. */
+  /** The text of the row's nodes in document order: the name link, the status line, the count, Shop. */
   const order = (el: HTMLElement) => {
     const name = el.querySelector('a.text-t-h3')!
     const status = el.querySelector('div.min-h-5')!
@@ -230,33 +231,36 @@ describe('PdpShopLink variant="card" — the rental sheet\'s host card', () => {
     return { name: pos(name), status: pos(status), count: pos(count), shop: pos(shop) }
   }
 
-  it('one bordered, raised object (the line-strong edge, 16 radius, 16 padding, shadow-raised) with a 56px avatar', () => {
+  it('one flat row (no border, radius, padding or shadow) on a three-column grid, with a 56px ringed avatar', () => {
     const el = card(partner)
-    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['rounded-2xl', 'border', 'border-line-strong', 'bg-background', 'p-4', 'shadow-raised']))
+    const cls = el.className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['grid', 'grid-cols-[3.5rem_minmax(0,1fr)_auto]', 'items-center', 'gap-x-3']))
+    for (const c of cls) expect(c).not.toMatch(/^(border|rounded|p-|shadow|bg-)/)
     const avatarLink = el.querySelector('a[aria-hidden="true"]')!
     expect(avatarLink.getAttribute('tabindex')).toBe('-1')
-    expect(avatarLink.firstElementChild!.className).toContain('size-14')
-    expect(avatarLink.firstElementChild!.className).not.toMatch(/\bh-12\b|\bw-12\b/)
+    expect(avatarLink.className.split(' ')).toEqual(expect.arrayContaining(['col-start-1', 'row-span-3', 'self-center']))
+    expect(avatarLink.firstElementChild!.className.split(' ')).toEqual(expect.arrayContaining(['size-14', 'ring-1', 'ring-border']))
   })
 
-  it('a partner: the count is the card\'s figure under a hairline — number over words — and not in the status line; DOM order is name, status, count, Shop', () => {
+  it('a partner: the count on its own line, its number bold, not in the status line; DOM order is name, status, count, Shop', () => {
     const el = card(partner)
     const count = el.querySelector('[data-partner-listing-count]')!
-    expect(count.closest('div.border-t')).not.toBeNull()
+    expect(el.querySelector('div.border-t')).toBeNull()
     expect(el.querySelector('div.min-h-5 [data-partner-listing-count]')).toBeNull()
-    const [num, words] = [...count.querySelectorAll(':scope > span')]
+    expect(count.parentElement!.className.split(' ')).toEqual(expect.arrayContaining(['row-start-3', 'text-sm', 'text-muted-foreground']))
+    const num = count.querySelector(':scope > span')!
     expect(text(num)).toBe('5,379')
-    expect(num.className).toContain('text-t-h2')
-    expect(text(words)).toMatch(/^listings on /)
-    expect(words.className).toContain('text-t-meta')
-    // The element's text is still the one sentence (a real space between the two lines).
+    expect(num.className.split(' ')).toEqual(expect.arrayContaining(['font-bold', 'text-foreground']))
+    // The element's text is still the one sentence.
     expect(text(count)).toMatch(/^5,379 listings on /)
     const o = order(el)
     expect(o.name).toBeLessThan(o.status)
     expect(o.status).toBeLessThan(o.count)
     expect(o.count).toBeLessThan(o.shop)
-    // Shop › sits in the figure's row.
-    expect(el.querySelector('div.border-t a[aria-label="Visit shop"]')).not.toBeNull()
+    // Shop: the shell's outline pill at 40, down every line of the row, no chevron, still tap-44.
+    const shop = el.querySelector('a[aria-label="Visit shop"]')!
+    expect(shop.className.split(' ')).toEqual(expect.arrayContaining(['tap-44', 'rounded-full', 'border', 'border-line-strong', 'min-h-10', 'px-4', 'font-bold', 'text-foreground', 'col-start-3', 'row-span-3']))
+    expect(shop.querySelector('svg')).toBeNull()
   })
 
   it('a partner\'s "Joined" is the one hidden item (batch 90), and the status line holds one line before "Active …" arrives', () => {
@@ -277,17 +281,17 @@ describe('PdpShopLink variant="card" — the rental sheet\'s host card', () => {
     }
   })
 
-  it('a private seller: no figure row, "Shop ›" ends the first row, "Joined" stays visible, and the name is the h3 role', () => {
+  it('a private seller: no count line, two lines beside the avatar, "Joined" stays visible, and the name is the h3 role', () => {
     const el = card({}, { reviewCount: 3, rating: 4.7 })
     expect(el.querySelector('[data-partner-listing-count]')).toBeNull()
-    expect(el.querySelector('div.border-t')).toBeNull()
     const items = [...el.querySelectorAll('div.min-h-5 > div > span')]
     expect(items.some((i) => text(i).startsWith('Joined'))).toBe(true)
     expect(items.some((i) => i.className.includes('max-md:hidden'))).toBe(false)
     expect(el.querySelector('a.text-t-h3')!.textContent).toBe('GoPlus')
+    expect(el.querySelector('a[aria-hidden="true"]')!.className).toContain('row-span-2')
     const shop = el.querySelector('a[aria-label="Visit shop"]')!
-    expect(shop.className.split(' ')).toEqual(expect.arrayContaining(['min-h-11', 'text-sm', 'font-bold', 'text-accent-foreground']))
-    expect(shop.parentElement!.className).toContain('flex items-center gap-4')
+    expect(shop.className.split(' ')).toEqual(expect.arrayContaining(['min-h-10', 'text-sm', 'font-bold', 'row-span-2']))
+    expect(shop.parentElement).toBe(el)
   })
 
   it('a linked listing keeps its counsel line in the card, visible', () => {
@@ -296,7 +300,7 @@ describe('PdpShopLink variant="card" — the rental sheet\'s host card', () => {
     expect(el.innerHTML).toContain('data-linked-shop-chip')
   })
 
-  it('in Vietnamese: "5.379" over "tin đăng trên", "Gian hàng"', () => {
+  it('in Vietnamese: "5.379 tin đăng trên", "Gian hàng"', () => {
     LANG = 'vi'
     try {
       const el = card(partner)

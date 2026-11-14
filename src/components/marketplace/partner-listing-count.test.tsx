@@ -7,11 +7,12 @@ import { SITE_NAME } from '@/lib/edition'
 import { PartnerListingCount } from './partner-listing-count'
 
 /**
- * '{n} listings on <site>' — inline (the seller strip) and, since 2026-11-14, as a figure (`layout="stat"`, the rental listing
- * page's host card; owner-approved, cook r05 "rental-c"): the number in the h2 role over the same words in the meta role. The
- * words, the singular, the reader's grouping and the edition's own site name are the same in both layouts.
+ * '{n} listings on <site>' — inline (the seller strip) and, since 2026-11-15, with its number leading in bold ink
+ * (`layout="lead"`, the rental listing page's flat host row; owner-approved 2026-11-15 (build 7), cook r07 "rental" — it replaced
+ * the cook r05 `stat` figure). The words, the singular, the reader's grouping and the edition's own site name are the same in
+ * both layouts.
  */
-const dom = (lang: 'en' | 'vi', n: number, layout?: 'inline' | 'stat') => {
+const dom = (lang: 'en' | 'vi', n: number, layout?: 'inline' | 'lead') => {
   const div = document.createElement('div')
   div.innerHTML = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}><PartnerListingCount n={n} layout={layout} /></LanguageProvider>).replaceAll('<!-- -->', '')
   return div.querySelector('[data-partner-listing-count]') as HTMLElement
@@ -26,16 +27,16 @@ describe('PartnerListingCount', () => {
     ['vi', 1, `1 tin đăng trên ${SITE_NAME}`],
   ] as const)('%s %d: "%s" in both layouts', (lang, n, words) => {
     expect(text(dom(lang, n))).toBe(words)
-    expect(text(dom(lang, n, 'stat'))).toBe(words)
+    expect(text(dom(lang, n, 'lead'))).toBe(words)
   })
 
-  it('stat: the number on its own line in the h2 role, ink; the words under it in the meta role, muted', () => {
-    const el = dom('en', 5379, 'stat')
-    const [num, words] = [...el.querySelectorAll(':scope > span')]
-    expect(num.className.split(' ')).toEqual(expect.arrayContaining(['block', 'text-t-h2', 'text-foreground', 'tabular-nums']))
+  it('lead: one line — the number bold in ink, the words in the line\'s own ink, no blocks', () => {
+    const el = dom('en', 5379, 'lead')
+    const num = el.querySelector(':scope > span')!
+    expect(num.className.split(' ')).toEqual(expect.arrayContaining(['font-bold', 'text-foreground', 'tabular-nums']))
     expect(text(num)).toBe('5,379')
-    expect(words.className.split(' ')).toEqual(expect.arrayContaining(['block', 'text-t-meta', 'text-muted-foreground']))
-    expect(text(words)).toBe(`listings on ${SITE_NAME}`)
+    expect(el.querySelectorAll('span.block')).toHaveLength(0)
+    expect(el.querySelectorAll(':scope > span')).toHaveLength(1)
   })
 
   it('inline is what it was: one span, no blocks', () => {

@@ -35,12 +35,19 @@ export type { SellerInfoProps }
  * ⚠️ PROPS ARE PLAIN STRINGS picked on the server from the raw row — the serialized seller deliberately
  * carries none of the identity columns, and this component must not become the reason it starts to.
  */
-export function SellerInfo({ info, variant = 'pdp', className, sheet = false, panel = false, labelId }: { info: SellerInfoProps; variant?: 'pdp' | 'storefront'; className?: string; /** The heading's id, where a page renders a second copy (a linked job's phone panel, `md:hidden`): ids stay unique. */ labelId?: string; /** The rental sheet's rows and 16px heading step below md (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts) — the same rows as Costs and Details there. */ sheet?: boolean; /**
-   * ⛔ THE GOODS SHEET'S COUNSEL PANEL, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts): the top
-   * half of one tint panel the safety advice closes (the page passes the panel's box). Inside it, quieter: the heading in the
-   * sub-section role, each row inline as "Source: <shop>" (label muted with its colon, value ink and bold), the caption 14px
-   * in body ink, 4px apart. Every class is `max-md:`; from md the block is the table it was.
-   */ panel?: boolean }) {
+export function SellerInfo({ info, variant = 'pdp', className, sheet = false, panel = false, labelId, sourceLine }: { info: SellerInfoProps; variant?: 'pdp' | 'storefront'; className?: string; /** The heading's id, where a page renders a second copy (a linked job's phone panel, `md:hidden`): ids stay unique. */ labelId?: string; /** The rental sheet's rows and 16px heading step below md (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts) — the same rows as Costs and Details there. */ sheet?: boolean; /**
+   * ⛔ THE GOODS SHEET'S COUNSEL, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts). Quieter than
+   * the table: the heading in the sub-section role, 8px over the lines, each row inline as "Source: <shop>" (label muted with its
+   * colon, value ink and bold), the caption 14px in body ink, 4px apart. ⛔ NO LONGER A TINT PANEL (owner-approved 2026-11-15
+   * (build 7), cook r07 "item"; it reverses r06's "the top half of one tint panel the safety advice closes"): an ordinary
+   * section on the 12px text edge — the page passes no box. Every class is `max-md:`; from md the block is the table it was.
+   */ panel?: boolean; /**
+   * ⛔ THE GOODS SHEET'S SOURCE LINE IN PLACE OF THE "Source" ROW, BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "item"):
+   * the pinned tier's own line ("Source: <shop>'s website · original page", ImportProvenance `look="counsel"`) said once, here,
+   * right under the heading — the page passes it only on a linked shop whose row names the same shop, so the row is hidden
+   * below md (it says the same, shorter; no word is lost) and the line takes its place. The caller makes it `md:hidden`; from
+   * md the row and its table are as they were. Only the `source` shape reads it.
+   */ sourceLine?: React.ReactNode }) {
   const { tr } = useLanguage()
   const rows: { key: string; label: string; value: string }[] = []
   if (info.kind === 'business') {
@@ -58,16 +65,20 @@ export function SellerInfo({ info, variant = 'pdp', className, sheet = false, pa
   }
   // Nothing to say → render nothing (a heading over an empty list would itself be a claim).
   if (rows.length === 0) return null
+  // The goods sheet's source line takes the one "Source" row's place below md (`sourceLine`): a linked shop's section only.
+  const lineForRow = info.kind === 'source' && sourceLine != null
 
   return (
     <section aria-labelledby={labelId ?? `seller-info-${variant}`} data-seller-info={info.kind} className={cn('space-y-2', sheet && SHEET_HEAD_GAP, panel && 'max-md:space-y-1', className)}>
       {/* The PDP's section treatment (SECTION_TITLE, as "Description" / "Details" since 2026-11-09 — it was left at text-lg
           between them, pre-deploy review); the storefront's own `h-section`, as its "Reviews" / "Listings by" heads. */}
-      <h2 id={labelId ?? `seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : panel ? GOODS_SECTION_TITLE : SECTION_TITLE}>
+      <h2 id={labelId ?? `seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : panel ? cn(GOODS_SECTION_TITLE, 'max-md:mb-2') : SECTION_TITLE}>
         {tr('Seller information', 'Thông tin người bán')}
       </h2>
+      {/* The goods sheet's source line, in place of the row below md (`sourceLine`, the prop's note). */}
+      {lineForRow && sourceLine}
       {/* The Details table's row grammar: hairline dividers, muted label, strong value. */}
-      <dl className={cn('divide-y divide-border text-sm', sheet && SHEET_ROWS, panel && PANEL_ROWS)}>
+      <dl className={cn('divide-y divide-border text-sm', sheet && SHEET_ROWS, panel && PANEL_ROWS, lineForRow && 'max-md:hidden')}>
         {rows.map((r) => (
           <div key={r.key} className="flex items-start justify-between gap-4 py-2.5">
             {/* The panel's inline row: the colon is the label's own, below md only. */}

@@ -26,8 +26,11 @@ import { ListingDetailMap } from './listing-detail-map'
 afterEach(cleanup)
 
 let coarse = false
+/** A phone-width screen: the rental sheet's preview reads `(max-width: 767.98px)` (build 7). */
+let narrow = false
 beforeEach(() => {
-  vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('coarse') ? coarse : false, media: q, addEventListener() {}, removeEventListener() {} }))
+  narrow = false
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('coarse') ? coarse : q.includes('max-width') ? narrow : false, media: q, addEventListener() {}, removeEventListener() {} }))
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 366 })
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 260 })
 })
@@ -116,9 +119,11 @@ describe('ListingDetailMap — an approximate area has no pin (owner, 2026-09-30
 })
 
 /**
- * ⛔ look="sheet" — THE RENTAL LISTING PAGE ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c"): one ink pin placed by its
- * tip, an ink area, "Open map" top-right, and the credits as one text plate whose links SHOW their licence wording. Every class
- * it adds is max-md: (a touch tablet at md+ keeps today's look); the default look is unchanged (the suites above).
+ * ⛔ look="sheet" — THE RENTAL LISTING PAGE ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c"; the card since owner-approved
+ * 2026-11-15 (build 7), cook r07 "rental"): one ink pin placed by its tip, an ink area, "Open map" as the card's 48px footer row,
+ * the credits as one text plate whose links SHOW their licence wording, 8px over that row, and below md the picture drawn from
+ * CARTO Voyager one zoom step out in the space the row leaves. Every class it adds is max-md: or puts back from md the r05 look
+ * (a touch tablet at md+); the default look is unchanged (the suites above).
  */
 describe('ListingDetailMap look="sheet"', () => {
   it('the pin: ink and 40px below md, positioned by its tip (translate), brand and 36px from md', () => {
@@ -140,12 +145,40 @@ describe('ListingDetailMap look="sheet"', () => {
     expect(top(style) - top(defPin.getAttribute('style')!)).toBe(33)
   })
 
-  it('"Open map" is top-right in the label voice below md, bottom-right with the pop from md — and still the button\'s name', () => {
+  it('"Open map" is the card\'s 48px footer row below md, the pill bottom-right with the pop from md — and still the button\'s name', () => {
     coarse = true
     render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
     const pill = [...screen.getByRole('button', { name: 'Open map' }).querySelectorAll('span')].find((s) => s.textContent === 'Open map')!
-    expect(pill.className.split(' ')).toEqual(expect.arrayContaining(['top-3', 'right-3', 'font-bold', 'shadow-chip', 'md:bottom-3', 'md:top-auto', 'md:font-semibold']))
+    const cls = pill.className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['bottom-0', 'left-0', 'right-0', 'h-12', 'justify-center', 'border-t', 'border-line-strong', 'bg-background', 'text-base', 'font-bold']))
+    expect(cls).toEqual(expect.arrayContaining(['md:bottom-3', 'md:left-auto', 'md:right-3', 'md:h-9', 'md:rounded-full', 'md:border-t-0', 'md:bg-card', 'md:text-sm', 'md:font-semibold', 'md:shadow-[var(--shadow-pop)]']))
+    expect(cls).not.toContain('top-3')
     expect(pill.className).not.toMatch(/(^|\s)shadow-pop(\s|$)/)
+    expect(pill.querySelector('svg')!.getAttribute('class')).toContain('max-md:size-5')
+  })
+
+  it('below md: Voyager at z14 over the box less the 48px row, the pin centred in it; from md (or dark) the live map\'s own tiles', async () => {
+    coarse = true
+    narrow = true
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 382 })
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
+    const open = screen.getByRole('button', { name: 'Open map' })
+    const tiles = [...open.querySelectorAll('img')]
+    expect(tiles.length).toBeGreaterThanOrEqual(4)
+    for (const t of tiles) expect(t.getAttribute('src')).toMatch(/basemaps\.cartocdn\.com\/rastertiles\/voyager\/14\//)
+    const pin = open.querySelector('svg.size-9')!
+    expect(Number(pin.getAttribute('style')!.match(/top: (-?[\d.]+)px/)![1])).toBeCloseTo((382 - 48) / 2, 0)
+    cleanup()
+    narrow = false
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
+    for (const t of screen.getByRole('button', { name: 'Open map' }).querySelectorAll('img')) expect(t.getAttribute('src')).toMatch(/\/light_all\/15\//)
+  })
+
+  it('the default look never reads the phone query: the live map\'s own tiles at every width', () => {
+    coarse = true
+    narrow = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" />)
+    for (const t of screen.getByRole('button', { name: 'Open map' }).querySelectorAll('img')) expect(t.getAttribute('src')).toMatch(/\/light_all\/15\//)
   })
 
   it('the credits: one plate, each link SHOWING its licence wording below md (its ⓘ hidden there), the name unchanged, still outside the button', () => {
@@ -160,7 +193,9 @@ describe('ListingDetailMap look="sheet"', () => {
       expect(screen.getByRole('button', { name: 'Open map' }).contains(a)).toBe(false)
     }
     const plate = credits[0].parentElement!
-    expect(plate.className.split(' ')).toEqual(expect.arrayContaining(['max-md:h-6', 'max-md:rounded-full', 'max-md:text-t-meta', 'max-md:text-muted-foreground']))
+    expect(plate.className.split(' ')).toEqual(expect.arrayContaining(['max-md:h-6', 'max-md:rounded-full', 'max-md:text-t-meta', 'max-md:text-muted-foreground', 'max-md:bottom-14', 'max-md:backdrop-blur-none']))
+    // The material tint stays bare (design-lint: the reduced-transparency block reaches a bare tint only).
+    expect(plate.className.split(' ')).toContain('bg-card/70')
   })
 
   it('an approximate area is ink below md, brand from md', () => {

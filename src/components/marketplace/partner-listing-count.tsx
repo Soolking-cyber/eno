@@ -9,20 +9,18 @@ import { CountValue } from './rating-value'
  * through <CountValue> so a vi reader gets '1.234'. The site name is the edition's (SITE_NAME), never a
  * literal: eno.forum's partner rows must name eno.forum. Used by pdp-shop-link.tsx and seller-card.tsx.
  *
- * `layout="stat"` (owner-approved 2026-11-14, cook r05 "rental-c": the rental listing page's host card): the SAME words as a
- * figure — the number on its own line in the h2 role, ink, over the rest in the meta role, muted. Real markup, not text drawn
- * from attributes: the element's text stays "5,379 listings on eno.vn" for a screen reader and for copy (the space between the
- * two lines is a real text node).
+ * `layout="lead"` (owner-approved 2026-11-15 (build 7), cook r07 "rental": the rental listing page's flat host row; it replaces
+ * the 2026-11-14 cook r05 `stat` figure — the number in the h2 role over the words): ONE line of the SAME words, the number
+ * bold in ink and the rest in the line's own muted ink (the caller sets the size). Real markup, not text drawn from
+ * attributes: the element's text stays "5,379 listings on eno.vn" for a screen reader and for copy.
  */
-export function PartnerListingCount({ n, layout = 'inline' }: { n: number; layout?: 'inline' | 'stat' }) {
+export function PartnerListingCount({ n, layout = 'inline' }: { n: number; layout?: 'inline' | 'lead' }) {
   const { tr } = useLanguage()
   const words = n === 1 ? tr('listing on', 'tin đăng trên') : tr('listings on', 'tin đăng trên')
-  if (layout === 'stat') {
+  if (layout === 'lead') {
     return (
-      <span data-partner-listing-count className="block min-w-0">
-        <span className="block text-t-h2 tabular-nums text-foreground"><CountValue value={n} /></span>
-        {' '}
-        <span className="block text-t-meta text-muted-foreground">{words} {SITE_NAME}</span>
+      <span data-partner-listing-count className="min-w-0">
+        <span className="font-bold tabular-nums text-foreground"><CountValue value={n} /></span> {words} {SITE_NAME}
       </span>
     )
   }

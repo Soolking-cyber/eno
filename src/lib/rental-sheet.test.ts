@@ -2,12 +2,14 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_PHOTO, SHEET_PRICE, SHEET_PRICE_ROW, SHEET_ROWS,
-  SHEET_TITLE, isRentalSheet,
+  HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_FACTS, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE,
+  SHEET_PRICE_ROW, SHEET_ROWS, SHEET_STATS, SHEET_TIER_APPROX, SHEET_TITLE, isRentalSheet, pinsRentalAction, sheetStatCols,
 } from './rental-sheet'
 
 /**
- * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all best options and deploy").
+ * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all best options and deploy";
+ * reworked owner-approved 2026-11-15 (build 7), cook r07 "rental": the price as the display, the head's facts split, the host
+ * row, Costs then Location, the pinned tier).
  * The predicate, the "below md only" contract of its classes, and the DOM moves in page.tsx it needs (read as source, like the
  * other contracts in (pdp)/: the page is a server component with a database behind it). What the components render is pinned
  * in their own suites (pdp-shop-link, rental-facts, listing-gallery.sheet, listing-detail-map, pdp-action-bar, price, the
@@ -35,16 +37,50 @@ describe('isRentalSheet — every rentals listing that is a place, with a photo'
   })
 })
 
-describe('below md only — from md the page paints as before', () => {
-  it('the H1: the display role below md, and from md exactly what every other page paints there', () => {
-    // PAGE_TITLE at md+: 24px (sm:text-2xl), leading-tight, bold, foreground, no tracking.
-    expect(words(SHEET_TITLE)).toEqual(expect.arrayContaining(['text-t-title', 'font-bold', 'text-foreground', '[overflow-wrap:anywhere]', 'md:text-2xl', 'md:leading-tight', 'md:tracking-normal']))
-    expect(words(PAGE_TITLE)).toEqual(expect.arrayContaining(['sm:text-2xl', 'sm:leading-tight', 'font-bold', 'text-foreground']))
-    expect(words(SHEET_TITLE).filter((c) => !c.startsWith('max-md:') && !c.startsWith('md:'))).toEqual(['text-t-title', 'font-bold', 'text-foreground', '[overflow-wrap:anywhere]'])
+describe('pinsRentalAction — the tier only where #contact is Chat now and its one line', () => {
+  const chat = { rentalSheet: true, affiliate: false, price: 3_800_000, negotiable: false, visa: false, iosHide: false, tripDesk: false, rentalCheck: false }
+  it('a chat-only partner\'s fixed-price room pins; so does an unpriced one', () => {
+    expect(pinsRentalAction(chat)).toBe(true)
+    expect(pinsRentalAction({ ...chat, price: 0, negotiable: true })).toBe(true)
   })
-  it('the price: the h2 role below md, today\'s 30px and tracking from md; first again from md', () => {
-    expect(words(SHEET_PRICE)).toEqual(['text-t-h2', 'md:text-3xl', 'md:tracking-tight'])
+  it('never with a second control: the offer panel, the availability check, a partner link and its source line', () => {
+    expect(pinsRentalAction({ ...chat, negotiable: true })).toBe(false)
+    expect(pinsRentalAction({ ...chat, rentalCheck: true })).toBe(false)
+    expect(pinsRentalAction({ ...chat, affiliate: true })).toBe(false)
+  })
+  it('never off the sheet, on an e-visa page, iOS-hidden or on the trip desk', () => {
+    expect(pinsRentalAction({ ...chat, rentalSheet: false })).toBe(false)
+    expect(pinsRentalAction({ ...chat, visa: true })).toBe(false)
+    expect(pinsRentalAction({ ...chat, iosHide: true })).toBe(false)
+    expect(pinsRentalAction({ ...chat, tripDesk: true })).toBe(false)
+  })
+  it('the page ORs it with the goods sheet\'s pinsAction, from the same facts, once', () => {
+    expect(PAGE.match(/pinsRentalAction\(/g)).toHaveLength(1)
+    expect(PAGE).toMatch(/\}\) \|\| pinsRentalAction\(\{\n\s*rentalSheet,\n\s*affiliate: !!affiliateUrl,/)
+  })
+})
+
+describe('below md only — from md the page paints as before', () => {
+  it('the H1: the section role below md on a 312px measure, and from md exactly what every other page paints there', () => {
+    // PAGE_TITLE at md+: 24px (sm:text-2xl), leading-tight, bold, foreground, no tracking.
+    expect(words(SHEET_TITLE)).toEqual(expect.arrayContaining(['text-t-h2', 'font-bold', 'text-foreground', '[overflow-wrap:anywhere]', 'max-md:max-w-78', 'max-md:text-pretty', 'md:text-2xl', 'md:leading-tight', 'md:tracking-normal']))
+    expect(words(PAGE_TITLE)).toEqual(expect.arrayContaining(['sm:text-2xl', 'sm:leading-tight', 'font-bold', 'text-foreground']))
+    expect(words(SHEET_TITLE).filter((c) => !c.startsWith('max-md:') && !c.startsWith('md:'))).toEqual(['text-t-h2', 'font-bold', 'text-foreground', '[overflow-wrap:anywhere]'])
+  })
+  it('the price: the display figure below md (owner-approved 2026-11-15 (build 7)), today\'s 30px and tracking from md; first again from md', () => {
+    expect(words(SHEET_PRICE)).toEqual(['text-t-figure', 'md:text-3xl', 'md:tracking-tight'])
     expect(words(SHEET_PRICE_ROW)).toEqual(['max-md:mt-2', 'md:order-first'])
+  })
+  it('the head\'s phone facts, the place line and the map card: display:none from md, or max-md: only', () => {
+    for (const c of [SHEET_FACTS, SHEET_STATS, SHEET_PLACE]) expect(words(c)).toContain('md:hidden')
+    expect(words(SHEET_FACTS)).not.toEqual(expect.arrayContaining(['truncate']))
+    expect(SHEET_FACTS).not.toMatch(/nowrap|truncate|line-clamp/)
+    expect(words(SHEET_STATS)).toEqual(expect.arrayContaining(['grid', 'border-y', 'border-border', 'py-4']))
+    expect([sheetStatCols(2), sheetStatCols(3)]).toEqual(['grid-cols-2', 'grid-cols-3'])
+    for (const c of words(SHEET_MAP_BOX)) expect(c).toMatch(/^max-md:/)
+    expect(words(SHEET_MAP_BOX)).toEqual(expect.arrayContaining(['max-md:h-96', 'max-md:rounded-xl', 'max-md:border', 'max-md:border-line-strong']))
+    // The tier's ≈ under the figure: the meta role, its own line (the tier's price is md:hidden whole — ContactComposer).
+    expect(words(SHEET_TIER_APPROX)).toEqual(expect.arrayContaining(['block', 'text-t-meta']))
   })
   it('the bar: the ≈ under the figure below md only; from md the same row as `dual="sm"`', () => {
     expect(words(SHEET_BAR_PRICE).filter((c) => !c.startsWith('max-md:'))).toEqual(['text-lg', 'leading-6'])
@@ -52,6 +88,7 @@ describe('below md only — from md the page paints as before', () => {
   })
   it('the rows and the host slot: every class max-md:, or the slot that is display:none from md', () => {
     for (const c of words(SHEET_ROWS)) expect(c).toMatch(/^max-md:/)
+    expect(words(SHEET_ROWS)).toEqual(expect.arrayContaining(['max-md:[&>div]:min-h-11', 'max-md:[&>div]:items-center']))
     expect(words(HOST_CARD_SLOT)).toEqual(['order-7', 'md:hidden'])
     expect(words(HOST_BAND)).toContain('md:hidden')
   })
@@ -74,9 +111,20 @@ describe('page.tsx: DOM order is the phone\'s paint order', () => {
     const sheetHead = block.indexOf('{rentalSheet && headTitle}')
     const price = block.indexOf("{priceBlock && (\n                <div className={cn('flex flex-col gap-1.5', rentalSheet && SHEET_PRICE_ROW, goodsSheet && GOODS_PRICE_ROW, isJob && JOB_PRICE_ROW)}>")
     const pageHead = block.indexOf('{!rentalSheet && !isJob && headTitle}')
+    const quiet = block.indexOf('<p data-sheet-facts="" data-fab-avoid className={SHEET_FACTS}>')
+    const stats = block.indexOf('<ul data-sheet-stats="" className={cn(SHEET_STATS, sheetStatCols(sheetStats.length))}>')
     expect(sheetHead).toBeGreaterThan(-1)
     expect(price).toBeGreaterThan(sheetHead)
-    expect(pageHead).toBeGreaterThan(price)
+    // Build 7: the quiet line and the row of figures under the price, before every other page's head.
+    expect(quiet).toBeGreaterThan(price)
+    expect(stats).toBeGreaterThan(quiet)
+    expect(pageHead).toBeGreaterThan(stats)
+    // The facts line is not drawn below md on the sheet; its facts are each printed once on a phone.
+    expect(PAGE).toContain("rentalSheet && 'max-md:hidden', goodsSheet && GOODS_FACTS)}>")
+    expect(PAGE).toContain("const sheetQuiet = rentalSheet ? facts.filter((f) => !sheetStatKeys.has(f.key) && !(placeOnMap && f.key === 'place')) : []")
+    expect(PAGE).toContain("const placeOnMap = rentalSheet && showMap && facts.some((f) => f.key === 'place')")
+    expect(PAGE).toContain('if (sheetStats.length < 2) sheetStats.length = 0')
+    expect(PAGE).toContain('{placeOnMap && <p data-sheet-place="" className={SHEET_PLACE}>{placeName}</p>}')
     // One H1 on the page, rendered once on either branch.
     expect(PAGE.match(/<LocalizedTitleHeading /g)).toHaveLength(1)
     expect(PAGE.match(/headTitle\}/g)).toHaveLength(2)
@@ -84,7 +132,9 @@ describe('page.tsx: DOM order is the phone\'s paint order', () => {
 
   it('slot 8: on the sheet Details comes first, Description and Amenities go back before it from md (`md:-order-1`)', () => {
     // (The wrapper's linked-job arm, `isJob && …`, is pinned in (pdp)/job-phone-order.contract.test.ts.)
-    const wrap = PAGE.slice(PAGE.indexOf("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>"), PAGE.indexOf('{/* 8a — A GoPlus room'))
+    const open = "<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, (order8PhoneEmpty || (detailsPhoneHidden && !showDescription && amenities.length === 0 && !(repeatCta && affiliateUrl))) && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>"
+    expect(PAGE).toContain(open)
+    const wrap = PAGE.slice(PAGE.indexOf(open), PAGE.indexOf('{/* 8a — A GoPlus room'))
     const first = wrap.indexOf('{rentalSheet && detailsSection}')
     const desc = wrap.indexOf('<Tr text="Description" />')
     const amen = wrap.indexOf('<RentalAmenities ')
@@ -109,15 +159,31 @@ describe('page.tsx: DOM order is the phone\'s paint order', () => {
     expect(PAGE.slice(row, PAGE.indexOf('</div>', row))).toContain("variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'}")
   })
 
-  it('Location is slot 8 on the sheet only; the safety well keeps its one block', () => {
-    expect(PAGE).toContain("className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}")
+  it('Location is slot 8 below md on the sheet only, its DOM before the description wrapper there (build 7); one map mount; the safety well keeps its one block', () => {
+    expect(PAGE).toContain("className={cn(rentalSheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}")
+    expect(PAGE.match(/<ListingDetailMap /g)).toHaveLength(1)
+    // Rendered in one of two DOM places (the JSX lines themselves, not the notes that name them).
+    expect(PAGE.match(/^\s*\{rentalSheet && locationSection\}$/gm)).toHaveLength(1)
+    expect(PAGE.match(/^\s*\{!rentalSheet && locationSection\}$/gm)).toHaveLength(1)
+    const sheetLoc = PAGE.search(/^\s*\{rentalSheet && locationSection\}$/m)
+    expect(sheetLoc).toBeLessThan(PAGE.indexOf('{/* 8 — Description + Details'))
+    expect(PAGE.search(/^\s*\{!rentalSheet && locationSection\}$/m)).toBeGreaterThan(PAGE.indexOf('{sellerInfo && <SellerInfo '))
+    // Costs (in the buy box, before the left column in the DOM) comes before it; the host row before Costs.
+    expect(PAGE.indexOf('<RentalCosts ')).toBeLessThan(sheetLoc)
     expect(PAGE).toContain("look={rentalSheet ? 'sheet' : 'default'}")
     expect(PAGE.split('data-safety-block=""').length - 1).toBe(1)
-    expect(PAGE).toContain('<ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} />')
+    // (`accent` is the goods sheet's own, build 7 — goods-sheet.test.ts.)
+    expect(PAGE).toContain('<ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} accent={goodsSheet} />')
   })
 
-  it('the pinned bar: one Price, compact on the per-unit threshold, the title caption from md on the sheet', () => {
+  it('the mirror bar: one Price, compact on the per-unit threshold, the title caption from md on the sheet', () => {
     expect(PAGE).toContain("dual={rentalSheet ? true : 'sm'} className={rentalSheet ? SHEET_BAR_PRICE : 'text-lg leading-6'}")
     expect(PAGE).toContain("titleCaption={rentalSheet ? 'md' : 'always'}")
+  })
+
+  it('the pinned tier (build 7): the head\'s price beside Chat now, every digit; the in-flow step only when not pinned', () => {
+    expect(PAGE).toContain('barPrice={pinned && rentalSheet ? <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} className={SHEET_TIER_PRICE} unitClassName={SHEET_TIER_UNIT} approxClassName={SHEET_TIER_APPROX} /> : undefined}')
+    // (`tierLineInPage && GOODS_TIER_FADE` is the goods tier's fade, build 7 — never on the rental sheet: goods-sheet.test.ts.)
+    expect(PAGE).toContain("rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)}>")
   })
 })

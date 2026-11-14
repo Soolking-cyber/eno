@@ -87,7 +87,7 @@ import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/a
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { isEnoRunPartner } from '@/lib/eno-run-partners'
-import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
+import { goplusRoomPageUrl, goplusTitleNamesAptType, isGoplusTemplateDescription } from '@/lib/goplus-listing'
 import { blvckIntroSentences } from '@/lib/blvck-listing'
 import { factSeparators, headingNamesEmployer, periodRestatedByUnit, roleOnlyHeading } from '@/lib/pdp-repeat-rows'
 import { hostOf, importProvenance } from '@/lib/import-provenance'
@@ -123,13 +123,14 @@ import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
-import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP_ALONE, COUNSEL_STRIP_JOINED, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
+import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TIER_FADE, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
+import { contactLine } from '@/lib/contact-line'
 import { PinnedRegion, StickyActionBarSpacer } from '@/components/ui/sticky-action-bar'
 import { isCommissionLink } from '@/lib/affiliate-commission'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
-import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SECTION_LINE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_TITLE, SHEET_WELL, isRentalSheet, sectionLine } from '@/lib/rental-sheet'
+import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
 
 type Props = {
   params: Promise<{ id: string; lang?: string }>
@@ -470,7 +471,8 @@ export default async function ListingPage({ params }: Props) {
   const noGallery = isJob || (minPhotosFor(rawListing.category.slug) === 0 && listing.images.length === 0)
   /**
    * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all best options and
-   * deploy"; src/lib/rental-sheet.ts has the whole page): a home to rent, on a phone, is an editorial page with a host card.
+   * deploy"; reworked owner-approved 2026-11-15 (build 7), cook r07 "rental"; src/lib/rental-sheet.ts has the whole page): a home
+   * to rent, on a phone — the price as its display element, the key facts as figures, a flat host row, Costs then Location.
    * Decided here, from the listing alone, so the server HTML and the first client render agree. Below md only; from md the
    * page paints as before (each call site below says how).
    */
@@ -734,6 +736,11 @@ export default async function ListingPage({ params }: Props) {
    * Opus both refuted it): a word in a title is not the fact. "Not automatic" hid "Transmission: Automatic", "Phòng không chung
    * chủ" hid every row answered "Không", "Studio · Nha Be" hid "Apartment type: Studio" — and a heading the browser translates
    * cannot be read here at all. Only rows the facts line or the price's unit print, by key, are dropped.
+   * ⚠️ ONE EXCEPTION, BY CONSTRUCTION AND BELOW md ONLY (owner-approved 2026-11-15 (build 7), cook r07 "rental": "Details is hidden
+   * when it only repeats the title"): on the rental sheet a GoPlus room's Details is not DRAWN on a phone when its one row is the
+   * apartment type the importer built that title from (`detailsPhoneHidden` below; goplus-listing.ts goplusTitleNamesAptType —
+   * the stored type looked up in the importer's own label table, never a word searched in a title). No row is dropped: the
+   * table is whole from md, and any second row draws it whole on a phone too.
    */
   const factsLine = listing.listingType !== 'job' && rawListing.category.slug !== 'jobs'
   const bedrooms = factsLine && factsApply ? bedroomsOf(listing.attributes) : null
@@ -754,6 +761,11 @@ export default async function ListingPage({ params }: Props) {
   // Costs' rows hidden below md: the deposit, which the facts line prints on a phone (its `deposit` fact is phone-only).
   const costsPhoneHidden = factsLine && deposit ? ['deposit'] : []
   const showDetails = !!providerValues || detailAttrs.length > 0 || detailSpecs.length > 0 || detailOnlySpecs.length > 0 || detailFactRows.length > 0
+  // The rental sheet's phone Details, not drawn when its one row is the type a GoPlus title was built from (the ⚠️ above). Judged
+  // against the title this variant's H1 prints (the Vietnamese page shows titleVi; a rental is never a job, so it is the full title).
+  const detailsPhoneHidden = rentalSheet && goplusRoom && showDetails && !providerValues && detailSpecs.length === 0 && detailOnlySpecs.length === 0
+    && detailFactRows.length === 0 && detailAttrs.length === 1 && detailAttrs[0][0] === 'aptType'
+    && goplusTitleNamesAptType(detailAttrs[0][1], lang === 'vi' ? (listing.titleVi || listing.title) : listing.title)
   // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
   // the attribute key as stored): the description hides its own row for any of them, so an imported
   // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other. ⚠️ From the FULL spec list and with
@@ -979,6 +991,8 @@ export default async function ListingPage({ params }: Props) {
    * ⛔ …AND ITS ACTION PINNED FROM THE FIRST PAINT, WITH THE TAB BAR RETRACTED (owner-approved 2026-11-14, cook r06 "item"),
    * only where `#contact` is one control and one line (pinsAction has the list; every other page keeps the in-flow block and
    * PdpActionBar's mirror). The same facts the blocks below are rendered from.
+   * ⛔ …AND ON THE RENTAL SHEET WHERE THE ACTION IS CHAT NOW ALONE (owner-approved 2026-11-15 (build 7), cook r07 "rental";
+   * src/lib/rental-sheet.ts pinsRentalAction): the same tier, with the price beside Chat now (ContactComposer `barPrice`).
    */
   const pinned = pinsAction({
     goodsSheet,
@@ -994,6 +1008,15 @@ export default async function ListingPage({ params }: Props) {
     iosHide: iosHideContact,
     tripDesk: isTripProduct,
     rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',
+  }) || pinsRentalAction({
+    rentalSheet,
+    affiliate: !!affiliateUrl,
+    price: listing.price,
+    negotiable: listing.negotiable !== false,
+    visa: isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug),
+    iosHide: iosHideContact,
+    tripDesk: isTripProduct,
+    rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',
   })
   // Whether Seller information draws anything (it renders nothing with no row): the counsel panel joins it only then.
   const sellerInfoShown = !!sellerInfo && (sellerInfo.kind === 'business'
@@ -1002,8 +1025,26 @@ export default async function ListingPage({ params }: Props) {
   // The slot-8 wrapper below md on the goods sheet holds Description, and the partner CTA repeat where it is not pinned; Details
   // shows under the head there instead. With nothing left to show below md it is hidden whole (no empty item, no gap).
   const order8PhoneEmpty = goodsSheet && !showDescription && amenities.length === 0 && !(repeatCta && !!affiliateUrl && !pinned)
-  // A seller with exactly two other items: on a phone the goods sheet ends on their row, after "More like this" (the twin below).
-  const sellerShelfLast = goodsSheet && moreFromSeller.length === 2
+  /**
+   * ⛔ THE PINNED TIER IS THE BUTTON ALONE; ITS LINE IS SAID ONCE, IN THE PAGE (owner-approved 2026-11-15 (build 7), cook r07 "item";
+   * it reverses there r06's "the box is the button and its one line" — goods-sheet.ts pinsAction, ContactComposer and
+   * AffiliateBooking `pinned`): below md the tier draws only its control, and the one line that qualified it is rendered by the
+   * server where it belongs, from the same facts the tier's copy is (so the two never disagree, and nothing is cloned):
+   *   · a linked listing's source line ("Source: <shop>'s website · original page", ImportProvenance `look="counsel"`) in
+   *     Seller information in place of its "Source: <shop>" row — only where that row names the same shop (`provenanceInInfo`);
+   *     otherwise as the seller band's last line;
+   *   · Chat now's line (a partner's "No phone number is shared", src/lib/contact-line.ts) as the seller band's last line.
+   * Every copy outside the tier is `md:hidden` (the band is); from md the tier is the in-flow block with its line, as before.
+   */
+  const tierLineInPage = pinned && goodsSheet
+  const counselProvenance = (className: string) => tierLineInPage && affiliateUrl && provenance
+    ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} look="counsel" className={className} />
+    : null
+  const provenanceInInfo = tierLineInPage && !!affiliateUrl && !!provenance && sellerInfoShown && sellerInfo?.kind === 'source'
+    && sellerInfo.source.trim().normalize('NFC') === provenance.site.trim().normalize('NFC')
+  const tierLine = !tierLineInPage ? null
+    : affiliateUrl ? (provenanceInInfo ? null : counselProvenance(''))
+    : contactLine(listing.seller.officialPartner ? 'partner' : 'person', tr)
   const socialProof = (
     <>
       {listing.savedCount >= 3 && (
@@ -1100,6 +1141,29 @@ export default async function ListingPage({ params }: Props) {
     if (showPosted) facts.push({ key: 'posted', node: <><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></> })
   }
   const factSeps = factSeparators(facts.map((f) => !!f.phoneOnly))
+  /**
+   * ⛔ THE RENTAL SHEET'S HEAD FACTS BELOW md (owner-approved 2026-11-15 (build 7), cook r07 "rental"; it reverses there batch 89's
+   * ONE facts line — src/lib/rental-sheet.ts SHEET_FACTS has the whole rule): the SAME `facts`, each printed once, split three
+   * ways — the bedroom count, a numbered floor and a deposit in whole months as a row of figures (`sheetStats`, at least two of
+   * them, or none), the place on the Location line over the map (`placeOnMap`, wherever a map is drawn), the rest as one quiet
+   * line under the price (`sheetQuiet`). A studio, a ground or mezzanine floor and a deposit stated as an amount are words, not
+   * figures: they stay in the quiet line. From md the facts line is the one it was (display:none below md on the sheet).
+   */
+  const sheetStats: { key: string; value: ReactNode; label: ReactNode }[] = []
+  if (rentalSheet) {
+    if (bedrooms && 'n' in bedrooms) sheetStats.push({ key: 'bedrooms', value: bedrooms.n, label: bedrooms.n === '1'
+      ? <Bilingual en={RENTAL_FACT_LABELS.statBedroom.label} vi={RENTAL_FACT_LABELS.statBedroom.labelVi} />
+      : <Bilingual en={RENTAL_FACT_LABELS.statBedrooms.label} vi={RENTAL_FACT_LABELS.statBedrooms.labelVi} /> })
+    if (floorFact && typeof floorFact.floor === 'number') sheetStats.push({ key: 'floor', value: <CountValue value={floorFact.floor} />, label: <Bilingual en={RENTAL_FACT_LABELS.floor.label} vi={RENTAL_FACT_LABELS.floor.labelVi} /> })
+    if (deposit && 'months' in deposit) sheetStats.push({ key: 'deposit', label: <Bilingual en={RENTAL_FACT_LABELS.depositAmount.label} vi={RENTAL_FACT_LABELS.depositAmount.labelVi} />, value: deposit.months === 1
+      ? <Bilingual en={RENTAL_FACT_LABELS.statMonth.label} vi={RENTAL_FACT_LABELS.statMonth.labelVi} />
+      : <Bilingual en={RENTAL_FACT_LABELS.statMonths.label} vi={RENTAL_FACT_LABELS.statMonths.labelVi} values={{ n: String(deposit.months) }} /> })
+    // Never a row of one: a lone figure stays a fact in the quiet line.
+    if (sheetStats.length < 2) sheetStats.length = 0
+  }
+  const sheetStatKeys = new Set(sheetStats.map((st) => st.key))
+  const placeOnMap = rentalSheet && showMap && facts.some((f) => f.key === 'place')
+  const sheetQuiet = rentalSheet ? facts.filter((f) => !sheetStatKeys.has(f.key) && !(placeOnMap && f.key === 'place')) : []
 
   /**
    * THE H1 AND THE FACTS LINE, rendered in ONE of two places in the header block below: after the price (every listing page,
@@ -1115,8 +1179,10 @@ export default async function ListingPage({ params }: Props) {
           body copy under the price and the page had no heading. Bold at 18px it is a heading
           and still sits far below the 30px price, so price-first holds.
           ⛔ …EXCEPT ON THE RENTAL SHEET BELOW md (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses P-HIER there):
-          the TITLE leads and is the page's display element (`text-t-title` 26/32), the facts line under it, the price after
-          them at 22 (SHEET_TITLE / SHEET_PRICE, src/lib/rental-sheet.ts). From md: PAGE_TITLE's own 24px, the 30px price first.
+          the TITLE leads, then the price — since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "rental") the title in
+          the section role (`text-t-h2` 22/28) and the PRICE the page's one display element (`text-t-figure` 32/40) — then the
+          head's phone facts (SHEET_TITLE / SHEET_PRICE, src/lib/rental-sheet.ts). From md: PAGE_TITLE's own 24px, the 30px
+          price first.
           `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on the facts line below: the
           support bubble rests over the end of the title and the posted time on first paint (si-11,
           real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
@@ -1148,9 +1214,11 @@ export default async function ListingPage({ params }: Props) {
           ⛔ ON THE GOODS SHEET BELOW md (owner-approved 2026-11-14, cook r06 "item"; it reverses "ONE grey 16px line" there): 14px,
           and each fact but the seller's free-text condition is one box with its dot (GOODS_FACT), so the line breaks BETWEEN facts,
           never inside a short one ("Ho Chi / Minh"); the space after the dot stays outside the box, where the break is. It still
-          wraps and is never cut (the ⛔ above holds: no nowrap, no truncate). */}
+          wraps and is never cut (the ⛔ above holds: no nowrap, no truncate).
+          ⛔ NOT DRAWN BELOW md ON THE RENTAL SHEET (owner-approved 2026-11-15 (build 7), cook r07 "rental"): there the same facts are
+          split into the quiet line, the row of figures and the Location line (`sheetStats` above); from md this is the line. */}
       {factsLine ? facts.length > 0 && (
-        <div data-facts-line="" data-fab-avoid className={cn('text-base text-muted-foreground [overflow-wrap:anywhere]', facts.every((f) => f.phoneOnly) && 'md:hidden', rentalSheet && 'max-md:text-pretty', goodsSheet && GOODS_FACTS)}>
+        <div data-facts-line="" data-fab-avoid className={cn('text-base text-muted-foreground [overflow-wrap:anywhere]', facts.every((f) => f.phoneOnly) && 'md:hidden', rentalSheet && 'max-md:hidden', goodsSheet && GOODS_FACTS)}>
           {facts.map((f, i) => {
             const tail = factSeps[i] === 'all' ? FACT_SEP : factSeps[i] === 'phone' ? <span className="md:hidden">{FACT_SEP}</span> : null
             if (goodsSheet && f.key !== 'condition') {
@@ -1250,9 +1318,10 @@ export default async function ListingPage({ params }: Props) {
     <>
       {/* Details: the section hairline below md (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
           Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
-      {/* ⛔ On the goods sheet this section is not drawn below md: its phone twin (`detailsTwin`) stands under the head there. */}
+      {/* ⛔ On the goods sheet this section is not drawn below md: its phone twin (`detailsTwin`) stands under the head there. Nor on
+          the rental sheet when its one row is the type a GoPlus title was built from (`detailsPhoneHidden`, build 7). */}
       {showDetails && (
-        <div className={cn('space-y-2', goodsSheet || isJob ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>
+        <div className={cn('space-y-2', goodsSheet || isJob || detailsPhoneHidden ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>
           <h2 className={SECTION_TITLE}><Tr text="Details" /></h2>
           {/* ⛔ Not below md on a linked job either: its tags (`jobTags`) stand under the head there (owner-approved 2026-11-14, cook r06 jobs). */}
           {/* Spec table: hairline row dividers, muted label / strong value, even row height.
@@ -1313,6 +1382,50 @@ export default async function ListingPage({ params }: Props) {
     </>
   ) : null
 
+  /** The Location section (slot 11; slot 8 on the rental sheet): rendered in ONE of two DOM places below — the notes inside. */
+  const locationSection = showMap ? (
+    <>
+      {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
+          pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
+          place — an eSIM or a shop's phone 'in District 1'. When there is no map, render NOTHING:
+          the facts line under the title already names the place (or the title does), so a
+          text-only Location section would only repeat it. A seller's own listing keeps its map
+          as before, district-level or not. Below md it opens on the section hairline (batch 79; owner, 2026-11-12:
+          "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements …
+          almost no boxes"; the note at Description). */}
+      {/* ⛔ ON THE RENTAL SHEET, SLOT 8 (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses there the 2026-11-10 "slot 9
+          … before the reviews (10) and the map (11)"): below md the map comes BEFORE the safety well — and since build 7
+          (owner-approved 2026-11-15 (build 7), cook r07 "rental"; it reverses r05's "Costs, Details, Amenities and Location") right
+          after Costs: its DOM is the left column's first section on the sheet (`{rentalSheet && locationSection}`, before the
+          Description wrapper), so a phone's DOM order is its paint order there. From md it paints exactly as before (`md:order-11`:
+          after the Description wrapper and Seller information, before the `order-12` notes); a keyboard there now meets the map
+          before the description's controls. ⚠️ The safety block still lives in the buy box (it must exist once — the note there),
+          so below md "Open map" paints above the safety links it follows in the focus order, as before. Heading → content 16px;
+          under the heading the listing's place (`placeOnMap`, moved from the head's facts), 8 over the map; the box a 384px card
+          with "Open map" as its footer row (SHEET_MAP_BOX; ListingMapPreview `look="sheet"`). */}
+      {/* The goods sheet: no line, 32px over it, the 17px heading, the map on the media edge (GOODS_MAP_BOX). */}
+      <div id="location-on-map" className={cn(rentalSheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>
+        <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text="Location" /></h2>
+        {placeOnMap && <p data-sheet-place="" className={SHEET_PLACE}>{placeName}</p>}
+        {approxArea && (
+          <p data-map-approximate className={cn('text-xs text-muted-foreground', rentalSheet && 'max-md:text-sm', goodsSheet && GOODS_NOTE)}>
+            {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}
+          </p>
+        )}
+        {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
+            Leaflet's own `.leaflet-container` (tabIndex=0), which sits flush inside this
+            `overflow-hidden` box — so the global `outline-offset: 2px` ring was clipped
+            entirely: tabbing to the map changed 0 pixels. `has-[:focus-visible]` puts the
+            indicator on the clipper itself, where nothing can crop it.
+            ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
+            draw a keyboard ring, and Leaflet focuses its container on click. */}
+        <div className={cn("relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100", rentalSheet && SHEET_MAP_BOX, goodsSheet && GOODS_MAP_BOX)}>
+          <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} look={rentalSheet ? 'sheet' : 'default'} />
+        </div>
+      </div>
+    </>
+  ) : null
+
   // `#contact`'s element: the pinned tier (a client PinnedRegion, which publishes its height) or the plain block.
   const ContactBlock: ElementType = pinned ? PinnedRegion : 'div'
 
@@ -1370,7 +1483,8 @@ export default async function ListingPage({ params }: Props) {
             {affiliateUrl && isBooking ? <span className="text-sm font-medium text-body"><Tr text="from" /> </span> : null}
             {/* ⛔ The rental sheet's bar (owner-approved 2026-11-14, cook r05 "rental-c"): below md "≈ $" stands on its own line under
                 the figure, where the title caption is hidden (`titleCaption="md"`); from md it is the same inline ≈ `dual="sm"` prints
-                (SHEET_BAR_*, src/lib/rental-sheet.ts). */}
+                (SHEET_BAR_*, src/lib/rental-sheet.ts). Since build 7 (owner-approved 2026-11-15 (build 7)) a rental whose action is
+                pinned never shows this bar below md (`pinned`): its tier carries the full price beside Chat now instead. */}
             <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={rateCompactAbove(listing)} dual={rentalSheet ? true : 'sm'} className={rentalSheet ? SHEET_BAR_PRICE : 'text-lg leading-6'} unitClassName={rentalSheet ? SHEET_BAR_UNIT : undefined} approxClassName={rentalSheet ? SHEET_BAR_APPROX : undefined} />
           </>
         )} titleCaption={rentalSheet ? 'md' : 'always'} pinned={pinned} />
@@ -1503,8 +1617,9 @@ export default async function ListingPage({ params }: Props) {
           {/* ⛔ ON THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"): the photo fills its square (ListingGallery
               `sheet`) and a 16px white sheet edge rides over its bottom, the title 24px under it (SHEET_PHOTO,
               src/lib/rental-sheet.ts). The photo stays square-cornered (owner 2026-07-24, kept): only the sheet is rounded. */}
-          {/* ⛔ ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): the whole photo on a plain white ground (ListingGallery
-              `plain`) under the same 16px sheet edge, the price 16px under it (GOODS_PHOTO, src/lib/goods-sheet.ts). */}
+          {/* ⛔ ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): the whole photo (ListingGallery `plain`) under the same
+              16px sheet edge, the price 16px under it (GOODS_PHOTO, src/lib/goods-sheet.ts) — since build 7 on the field grey, not
+              a plain white ground (owner-approved 2026-11-15 (build 7), cook r07 "item"; the note at `plain`). */}
           {!noGallery && (
           <div data-photo-first="" className={cn('relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden', rentalSheet && SHEET_PHOTO, goodsSheet && GOODS_PHOTO)}>
             <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" sheet={rentalSheet} plain={goodsSheet} />
@@ -1671,6 +1786,26 @@ export default async function ListingPage({ params }: Props) {
                 </div>
                 )}
 
+                {/* The rental sheet's phone facts (build 7; `sheetStats` above, SHEET_FACTS in src/lib/rental-sheet.ts): the quiet line
+                    4px under the price, then the row of figures between hairlines. Each figure and its label are the picture of one
+                    fact; a screen reader hears that fact in the facts line's own words (the sr-only node). Display:none from md. */}
+                {sheetQuiet.length > 0 && (
+                  <p data-sheet-facts="" data-fab-avoid className={SHEET_FACTS}>
+                    {sheetQuiet.map((f, i) => <Fragment key={f.key}>{f.node}{i < sheetQuiet.length - 1 ? FACT_SEP : null}</Fragment>)}
+                  </p>
+                )}
+                {sheetStats.length > 0 && (
+                  <ul data-sheet-stats="" className={cn(SHEET_STATS, sheetStatCols(sheetStats.length))}>
+                    {sheetStats.map((st) => (
+                      <li key={st.key} className={SHEET_STAT}>
+                        <span aria-hidden className={SHEET_STAT_VALUE}>{st.value}</span>
+                        <span aria-hidden className={SHEET_STAT_LABEL}>{st.label}</span>
+                        <span className="sr-only">{facts.find((f) => f.key === st.key)?.node}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
                 {!rentalSheet && !isJob && headTitle}
                 {/* A linked job: place and posted, then the Details' phone tags (`jobTags`). */}
                 {isJob && headFacts}
@@ -1694,12 +1829,15 @@ export default async function ListingPage({ params }: Props) {
               {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
                   bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
               {/* `data-no-pin`: an e-visa listing's action follows its disclaimer and is never mirrored by the pinned bar (pdp-action-bar.tsx). */}
-              {/* The rental sheet: Chat now 16px under the price below md (SHEET_CONTACT). */}
+              {/* The rental sheet: Chat now 16px under the head below md (SHEET_CONTACT) — in flow only; pinned, it is the tier. */}
               {/* ⛔ THE GOODS SHEET'S PINNED TIER (owner-approved 2026-11-14, cook r06 "item"; `pinned`): the same block, the same DOM
                   place (after the facts line, before the seller — the reading and Tab order), rendered by PinnedRegion with
                   `data-pin-action` and PIN_TIER's classes, which fix it at the bottom edge below md outside the store apps; it
-                  publishes its height for the spacer after the footer. Every other page: the in-flow block, as before. */}
-              <ContactBlock id="contact" data-pin-action={pinned ? '' : undefined} data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className={cn('order-6 scroll-mt-24', rentalSheet && SHEET_CONTACT, pinned && PIN_TIER)}>
+                  publishes its height for the spacer after the footer. Every other page: the in-flow block, as before.
+                  ⛔ Since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item") the goods tier below md is the control ALONE —
+                  its line is said once in the page (`tierLine`) — under a 16px fade from the page into its top edge (GOODS_TIER_FADE:
+                  what scrolls under it dissolves instead of being sliced at the line). */}
+              <ContactBlock id="contact" data-pin-action={pinned ? '' : undefined} data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className={cn('order-6 scroll-mt-24', rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)}>
                 {/* ⚠️ A VISA PRODUCT DOES NOT OPEN AN EMPTY CHAT. The whole application happens
                     inside the thread (owner: "user click chat then selects available product from
                     admin shop and continues uploading images and filling up the form lastly checks
@@ -1735,7 +1873,8 @@ export default async function ListingPage({ params }: Props) {
                         applyByYear={applyByYear}
                         /* The site Apply opens, under the button (best-practice gap 2026-11-10), on the deadline's line (batch 95). */
                         host={isJob && affiliateUrl ? hostOf(affiliateUrl) : null}
-                        provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} inline={pinned} /> : null}
+                        /* The goods tier's own copy of the line is not drawn below md: the page says it once (`tierLine`, build 7). */
+                        provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} className={tierLineInPage ? 'max-md:hidden' : undefined} /> : null}
                         lang={pageVariant}
                         pinned={pinned}
                       />
@@ -1790,6 +1929,11 @@ export default async function ListingPage({ params }: Props) {
                       /* A partner shares no number (phoneForSeller) — the footnote must not offer one. */
                       sellerIsPartner={listing.seller.officialPartner}
                       pinned={pinned}
+                      /* The goods tier is the button alone below md; its line is the seller band's last line (`tierLine`, build 7). */
+                      lineInPage={tierLineInPage}
+                      /* ⛔ The rental sheet's tier (owner-approved 2026-11-15 (build 7), cook r07 "rental"): the head's price beside Chat now,
+                         every digit, its unit and "≈ $" under it (SHEET_TIER_*, src/lib/rental-sheet.ts). */
+                      barPrice={pinned && rentalSheet ? <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} className={SHEET_TIER_PRICE} unitClassName={SHEET_TIER_UNIT} approxClassName={SHEET_TIER_APPROX} /> : undefined}
                     /></IosAppHidden>
                     </>}
                 {iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}
@@ -1851,17 +1995,20 @@ export default async function ListingPage({ params }: Props) {
                   Description) — a second line under the row put the breadcrumb between two hairlines ~60px apart, which read as noise
                   (the mock's first round). Since batch 90 the crumb is not drawn below md, so the band holds the host row alone; the
                   rule stands: still no line under it. Below md only (`max-md:`); nothing moves.
-                  ⛔ …EXCEPT ON THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses this band there, and the
-                  canon's "almost no boxes"): the seller is ONE bordered, raised HOST CARD (PdpShopLink `variant="card"`), with no line
-                  over it, and Costs opens on its edge with none either (HOST_CARD_SLOT; src/lib/rental-sheet.ts). */}
+                  ⛔ …EXCEPT ON THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses this band there): no line
+                  over the seller — since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "rental"; it reverses there the r05
+                  bordered, raised HOST CARD) a FLAT HOST ROW (PdpShopLink `variant="card"`) 32px under the head's row of figures,
+                  whose hairline closes the head; Costs opens on its own hairline under it (HOST_CARD_SLOT; src/lib/rental-sheet.ts). */}
               {/* ⛔ …AND ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): Details' phone twin first (`detailsTwin`, rows on
                   hairlines under the head), then the seller as ONE compact band (PdpShopLink `variant="band"`) under a hairline — the
-                  table's own bottom line, or the band's when there is no table (GOODS_BAND; src/lib/goods-sheet.ts). */}
+                  table's own bottom line, or the band's when there is no table (GOODS_BAND; src/lib/goods-sheet.ts).
+                  Since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item") the pinned tier's line is the band's last line
+                  where Seller information does not hold it (`tierLine`, PdpShopLink `caption`). */}
               {/* ⛔ Not on a linked job (owner-approved 2026-11-14, cook r06 jobs): its employer line is under the role (`jobTitleLine`). */}
               {!isJob && (
               <div className={rentalSheet ? HOST_CARD_SLOT : goodsSheet ? GOODS_BAND : HOST_BAND}>
                 {detailsTwin}
-                <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined} />
+                <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined} caption={tierLine} />
               </div>
               )}
 
@@ -1897,14 +2044,16 @@ export default async function ListingPage({ params }: Props) {
                   the deposit (`phoneHidden`); a block left with no row below md is hidden there whole — no heading, no hairline. */}
               {/* Below md it opens on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
                   Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
-              {/* ⛔ On the rental sheet no line: Costs opens on the host card's edge, 32px under it (owner-approved 2026-11-14, cook r05
-                  "rental-c"), and its rows are the sheet's (`sheet`). */}
-              {costRows.length > 0 && <div className={cn('order-7', !rentalSheet && SECTION_LINE, costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>}
-              {/* ⛔ THE GOODS SHEET'S COUNSEL PANEL (owner-approved 2026-11-14, cook r06 "item"; it reverses there batch 70's "Report
-                  kept red" and its own tint well): with Seller information shown the well closes that panel — pulled up over the
-                  column's 24px gap (`-mt-6`, the column's `gap-6`) under an inset hairline — otherwise it is the panel alone; both on
-                  the media edge, Report and Block quiet muted labels (COUNSEL_*, src/lib/goods-sheet.ts). Its DOM place is unchanged:
-                  one strip, moved by order (owner 2026-11-10). */}
+              {/* On the rental sheet the sheet's line (a hairline, 32, the heading) and its rows (`sheet`: 44px each). ⛔ It no longer opens
+                  on the host card's edge with no line (owner-approved 2026-11-15 (build 7), cook r07 "rental"; reverses r05). */}
+              {costRows.length > 0 && <div className={cn('order-7', sectionLine(rentalSheet), costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>}
+              {/* ⛔ THE GOODS SHEET'S COUNSEL (owner-approved 2026-11-14, cook r06 "item"; it reverses there batch 70's "Report kept
+                  red"): Report and Block quiet muted labels (COUNSEL_*, src/lib/goods-sheet.ts). ⛔ WITHOUT THE BOX SINCE BUILD 7
+                  (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's "one quiet tint panel on the media edge" the
+                  well closed, and batch 70's tint well there): an ordinary section on the 12px text edge, 16px under Seller information
+                  (`-mt-2` over the column's `gap-6`) or 32 under whatever precedes it alone; the shield hangs on the edge, the words
+                  run 28 in, "Reports & disputes" and the guide / Report / Block row hang back to the edge (SafetyStrip `flow`,
+                  ProtectionsRow `accent`). Every word stays. Its DOM place is unchanged: one strip, moved by order (owner 2026-11-10). */}
               {/* ⛔ A LINKED JOB'S COUNSEL PANEL (owner-approved 2026-11-14, cook r06 jobs; it reverses there batch 70's well and batch 79's
                   Seller-information hairline): below md this block IS the panel (JOB_COUNSEL) — Seller information's phone copy first
                   (its left-column copy is `max-md:hidden` on a job), then the advice in the quiet voice. DOM order = the order on screen. */}
@@ -1928,19 +2077,21 @@ export default async function ListingPage({ params }: Props) {
                     since 2026-11-12 muted is #595959, 6.42:1 on tint, and ink-4 (5.68:1) stays as the quieter of the two.
                     Measured in a browser (2026-11-12): on the well, light — line 16.4, guide 5.2, Report 5.9, Block 5.7:1; dark —
                     13.3, 6.8, 5.5, 5.8:1.
-                    ⛔ Not on the goods sheet (owner-approved 2026-11-14, cook r06 "item"): its counsel panel, the note on the wrapper. */}
+                    ⛔ Not on the goods sheet (owner-approved 2026-11-14, cook r06 "item"; and with no well at all since build 7,
+                    owner-approved 2026-11-15 (build 7), cook r07 "item"): its unboxed counsel, the note on the wrapper. */}
                 {/* ⛔ THE RENTAL SHEET'S WELL (owner-approved 2026-11-14, cook r05 "rental-c"): the panel recipe (SHEET_WELL) in the
                     quietest voice (`quiet`): the warning regular in body ink — still first, every word — "Reports & disputes" with
                     " — how they work" screen-reader-only (`shortLabel`), and Report and Block as quiet body-ink labels: it reverses
                     "Report kept red" (batch 70; owner 2026-07-08) there only. Every class is max-md:. */}
                 <SafetyStrip
-                  className={rentalSheet ? SHEET_WELL : goodsSheet ? (sellerInfoShown ? COUNSEL_STRIP_JOINED : COUNSEL_STRIP_ALONE) : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}
+                  className={rentalSheet ? SHEET_WELL : goodsSheet ? COUNSEL_STRIP : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}
                   quiet={rentalSheet || goodsSheet || isJob}
+                  flow={goodsSheet}
                   categorySlug={rawListing.category.slug}
                   subcategorySlug={rawListing.subcategorySlug}
                   job={listing.listingType === 'job'}
                   variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
-                  protections={affiliateUrl ? undefined : <ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} />}
+                  protections={affiliateUrl ? undefined : <ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} accent={goodsSheet} />}
                   action={
                     // REPORT AND BLOCK, side by side, on every listing (App Store 1.2 — Apple's 2026-10-28 rejection found
                     // Report without Block). Block names the SHOP and this listing; a shop nobody blockable runs (imported,
@@ -1990,12 +2141,16 @@ export default async function ListingPage({ params }: Props) {
             </div>
             )}
 
+            {/* The rental sheet: Location first (build 7; the note at `locationSection`). */}
+            {rentalSheet && locationSection}
+
             {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
             {/* A linked job below md: its Details are tags under the head, so this holds only the repeat Apply (painted after the
                 counsel panel, where its DOM is: `max-md:order-10`) or nothing (`max-md:hidden`). */}
+            {/* On the rental sheet, hidden whole below md when the only thing in it is the Details a phone does not draw. */}
             {(showDescription || showDetails || amenities.length > 0) && (
-            <div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>
+            <div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, (order8PhoneEmpty || (detailsPhoneHidden && !showDescription && amenities.length === 0 && !(repeatCta && affiliateUrl))) && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>
               {/* Section headers on this page share ONE treatment, SECTION_TITLE (section-title.ts) — the shelves' and
                   the reviews header's below — with more space above (section gap) than below. */}
               {/* …AND, BELOW md, ONE FRAME: A HAIRLINE OVER EVERY SECTION (UI climb batch 79; owner, 2026-11-12: "continue the ui ux
@@ -2008,7 +2163,8 @@ export default async function ListingPage({ params }: Props) {
                   md and up are unchanged. The shelves below <main>'s grid ('More from this seller', 'More like this') get none:
                   the safety well above them is their boundary. ./section-hairline.test.tsx pins the set.
                   On the rental sheet the line is the same and the step is 32px, heading to content 16 (`sectionLine(true)`,
-                  SHEET_HEAD_GAP; owner-approved 2026-11-14, cook r05 "rental-c"), except Costs, which opens on the host card.
+                  SHEET_HEAD_GAP; owner-approved 2026-11-14, cook r05 "rental-c") — Costs too since build 7 (owner-approved 2026-11-15
+                  (build 7)), which no longer opens on a host card.
                   ⛔ ON THE GOODS SHEET, NO LINES (owner-approved 2026-11-14, cook r06 "item"; it reverses batch 79 there): the sections
                   stand 32px apart (this wrapper's, Seller information's and the map's `max-md:mt-2` over the column's 24) under 17px
                   headings (GOODS_SECTION / GOODS_SECTION_TITLE); the seller band keeps its one hairline. */}
@@ -2026,7 +2182,7 @@ export default async function ListingPage({ params }: Props) {
                   the listing states them. Its monthly bill is in the buy box above. Its section hairline (batch 79; owner,
                   2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b) is on a wrapper here, as the
                   Costs' is in the buy box: the component stays the bare section. */}
-              {/* The rental sheet: the three-column icon grid (`sheet`), and back before Details from md (`md:-order-1`). */}
+              {/* The rental sheet: two columns of a glyph beside its name (`sheet`, build 7), and back before Details from md (`md:-order-1`). */}
               {amenities.length > 0 && <div className={cn(sectionLine(rentalSheet), rentalSheet && 'md:-order-1')}><RentalAmenities items={amenities} sheet={rentalSheet} /></div>}
 
               {!rentalSheet && detailsSection}
@@ -2053,45 +2209,12 @@ export default async function ListingPage({ params }: Props) {
                 on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13;
                 canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"; the note at Description), passed as a
                 class so a seller with nothing to state still leaves no stray line. */}
-            {/* The goods sheet: the top half of the counsel panel (COUNSEL_INFO; the safety block's note). */}
+            {/* The goods sheet: the counsel's first section, unboxed since build 7 (COUNSEL_INFO; the safety block's note) — with the
+                pinned tier's source line in place of its "Source" row below md where they name the same shop (`provenanceInInfo`). */}
             {/* A linked job: not below md, where its copy opens the counsel panel (the safety block). */}
-            {sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}
+            {sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined} />}
 
-            {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
-                pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
-                place — an eSIM or a shop's phone 'in District 1'. When there is no map, render NOTHING:
-                the facts line under the title already names the place (or the title does), so a
-                text-only Location section would only repeat it. A seller's own listing keeps its map
-                as before, district-level or not. Below md it opens on the section hairline (batch 79; owner, 2026-11-12:
-                "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements …
-                almost no boxes"; the note at Description). */}
-            {/* ⛔ ON THE RENTAL SHEET, SLOT 8 (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses there the 2026-11-10 "slot 9
-                … before the reviews (10) and the map (11)"): below md the map follows the listing's own sections, BEFORE the safety
-                well. From md it paints exactly as before — in this column only `order-12` items follow it, and they still do. ⚠️ Its
-                DOM stays after the safety block (which lives in the buy box and must exist once — the note there), so below md
-                the "Open map" button paints above the safety links it follows in the focus order: one backward step, where the
-                description already took one. Heading → content 16px, the box 240px at the panel radius (SHEET_MAP_BOX). */}
-            {/* The goods sheet: no line, 32px over it, the 17px heading, the map on the media edge (GOODS_MAP_BOX). */}
-            {showMap && (
-            <div id="location-on-map" className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>
-              <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text="Location" /></h2>
-              {approxArea && (
-                <p data-map-approximate className={cn('text-xs text-muted-foreground', rentalSheet && 'max-md:text-sm', goodsSheet && GOODS_NOTE)}>
-                  {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}
-                </p>
-              )}
-              {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
-                  Leaflet's own `.leaflet-container` (tabIndex=0), which sits flush inside this
-                  `overflow-hidden` box — so the global `outline-offset: 2px` ring was clipped
-                  entirely: tabbing to the map changed 0 pixels. `has-[:focus-visible]` puts the
-                  indicator on the clipper itself, where nothing can crop it.
-                  ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
-                  draw a keyboard ring, and Leaflet focuses its container on click. */}
-              <div className={cn("relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100", rentalSheet && SHEET_MAP_BOX, goodsSheet && GOODS_MAP_BOX)}>
-                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} look={rentalSheet ? 'sheet' : 'default'} />
-              </div>
-            </div>
-            )}
+            {!rentalSheet && locationSection}
 
             {/* 12 — Safety note, in the words that are true for THIS kind of listing. "Meet in a public
                 place and inspect the item" was written for P2P goods and was printed on a flat, a
@@ -2134,13 +2257,13 @@ export default async function ListingPage({ params }: Props) {
             seller has fewer than two other active listings. Sits above the broader
             same-category shelf so a buyer sees the seller's own range first. */}
         {/* ⛔ ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): below sm both shelves are two-column grids at the feed's
-            card size (Shelf `phoneGrid`), 32px apart below md; and a seller with exactly two other items closes the page on a phone
-            — their row follows "More like this" (it reverses there "the seller's own range first", phones only): this copy is not
-            drawn below sm and its twin after RelatedListings is drawn only there. Both are server cards; the hidden copy's lazy
-            photos never load. */}
+            card size (Shelf `phoneGrid`), 32px apart below md — each card on the field tile with "Ad" a plain label since build 7
+            (ListingCard `look="tile"`). ⛔ THE SELLER'S OWN ROW FIRST AGAIN, ON EVERY WIDTH (owner-approved 2026-11-15 (build 7),
+            cook r07 "item"; it reverses r06's "a seller with exactly two other items closes the page on a phone; their row follows
+            More like this", and with it that row's phone twin): one copy, here, in the DOM where it paints. */}
         {/* A linked job (owner-approved 2026-11-14, cook r06 jobs): 32px over each rail below md, and a card naming the page's own
             employer does not repeat it (`hideEmployerNamed`, per card — a job board's rail keeps every other employer). */}
-        <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} phoneGrid={goodsSheet} sectionClassName={goodsSheet ? cn(GOODS_SHELF_GAP, sellerShelfLast && 'max-sm:hidden') : isJob ? JOB_SHELF_GAP : undefined} hideEmployerNamed={isJob ? listing.seller.name : undefined} />
+        <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} phoneGrid={goodsSheet} sectionClassName={goodsSheet ? GOODS_SHELF_GAP : isJob ? JOB_SHELF_GAP : undefined} hideEmployerNamed={isJob ? listing.seller.name : undefined} />
 
         {/* More like this — same-category listings (client-fetched, ISR-safe). Without the seller's own
             rows whenever the seller rail above is showing (it needs two), so the two never repeat a card. */}
@@ -2153,7 +2276,6 @@ export default async function ListingPage({ params }: Props) {
           phoneGrid={goodsSheet}
           sectionClassName={isJob ? JOB_SHELF_GAP : undefined}
         />
-        {sellerShelfLast && <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} phoneGrid sectionClassName={cn(GOODS_SHELF_GAP, 'sm:hidden')} />}
 
         {/* The buyer's own recently-viewed trail (excludes this listing). mt-12 matches the
             two shelves above — the three are bare siblings in main, each owning its own top gap. */}

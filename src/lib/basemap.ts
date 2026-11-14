@@ -24,7 +24,8 @@ const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_KEY
 
 /**
  * @param retina `@2x` for a HiDPI tile, or Leaflet's own `{r}` placeholder, or ''.
- * @param style CARTO basemap style. `light_all` is the app's; the others exist for a dark map.
+ * @param style CARTO basemap style. `light_all` is the app's; the others exist for a dark map — and, since build 7, for the
+ *   rental listing page's phone map picture (PREVIEW_STYLE below).
  */
 export function basemapTileUrl(retina: '@2x' | '{r}' | '' = '', style = 'light_all'): string {
   const base = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}${retina}.png`
@@ -39,3 +40,13 @@ export function basemapTileUrl(retina: '@2x' | '{r}' | '' = '', style = 'light_a
 export function basemapStyle(dark: boolean): 'dark_all' | 'light_all' {
   return dark ? 'dark_all' : 'light_all'
 }
+
+/**
+ * ⛔ THE RENTAL LISTING PAGE'S MAP PICTURE ON A PHONE IS CARTO VOYAGER, ONE ZOOM STEP OUT (owner-approved 2026-11-15 (build 7),
+ * cook r07 "rental"; it reverses there, in light mode only, "`light_all` is the app's" — P-MAP, 2026-09-30): the labelled
+ * Voyager style at z14 (STATIC_MAP_ZOOM − 1), so the streets, the water and the place names around the pin read in the
+ * picture (ListingMapPreview `look="sheet"`, below md). Same CARTO service, same key, same credits (© OpenStreetMap
+ * contributors, © CARTO). The live map — the explorer's, the desktop PDP's and the full-screen one the picture opens — keeps
+ * `light_all` at its own zoom; dark mode keeps `dark_all`.
+ */
+export const PREVIEW_STYLE = 'rastertiles/voyager'

@@ -75,4 +75,19 @@ describe('PdpShopLink variant="band"', () => {
   it('a person keeps "Joined" on the phone band', () => {
     expect(text(band())).toContain('Joined 2024')
   })
+  // ⛔ Build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item"): the pinned tier's line, said once, as the band's last line.
+  it('`caption`: the band\'s last line — row 3, from the name\'s column to the end, 13/18 muted, balanced, after the strip', () => {
+    const el = band({ officialPartner: true, partnerListingCount: 19, caption: 'Partners answer in eno chat. No phone number is shared.' })
+    const cap = el.lastElementChild as HTMLElement
+    expect(cap.hasAttribute('data-band-caption')).toBe(true)
+    expect(cap.className.split(/\s+/)).toEqual(expect.arrayContaining(['col-span-2', 'col-start-2', 'row-start-3', 'text-t-meta', 'text-muted-foreground', 'text-balance']))
+    expect(text(cap)).toBe('Partners answer in eno chat. No phone number is shared.')
+    expect(cap.previousElementSibling!.className).toContain('row-start-2')
+  })
+  it('no `caption`, no third row; the desktop row never draws one', () => {
+    expect(band().querySelector('[data-band-caption]')).toBeNull()
+    const div = document.createElement('div')
+    div.innerHTML = renderToString(<PdpShopLink name="Shop" href="/sellers/s1" metrics={metrics()} caption="x" />)
+    expect(div.querySelector('[data-band-caption]')).toBeNull()
+  })
 })

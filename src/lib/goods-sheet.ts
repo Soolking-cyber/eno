@@ -2,12 +2,26 @@
  * ⛔ THE GOODS SHEET — A GOODS OR VEHICLE LISTING, ON A PHONE (owner-approved 2026-11-14, cook r06 "item": "after this cook
  * round build all best options and deploy"; target stills cook/compare/r06/item__pdp_product.jpg and item__pdp_bike.jpg).
  * Every listing page that is not a home to rent (the rental sheet, src/lib/rental-sheet.ts), a job or a teacher: goods,
- * vehicles and vehicle hire, services, tickets. Wallapop's listing page in eno's own system: the photo on a plain white
- * ground with a 16px sheet edge over it; the PRICE as the page's one display element (`text-t-figure`, 32/40) over the title
- * (17px) and a 14px facts line; the page's own action pinned as ONE bottom tier with the tab bar retracted (pinsAction);
- * Details as label/value rows right under the head; the seller as one compact band; the listing's sections under 17px
- * headings with no rules between them, 32px apart; Seller information and the safety advice as one quiet counsel panel; the
- * shelves as two-column grids at the feed's card size.
+ * vehicles and vehicle hire, services, tickets. Wallapop's listing page in eno's own system: the photo whole, with a 16px
+ * sheet edge over it; the PRICE as the page's one display element (`text-t-figure`, 32/40) over the title (17px) and a 14px
+ * facts line; the page's own action pinned as ONE bottom tier with the tab bar retracted (pinsAction); Details as label/value
+ * rows right under the head; the seller as one compact band; the listing's sections under 17px headings with no rules between
+ * them, 32px apart; Seller information and the safety advice as one counsel section; the shelves as two-column grids at the
+ * feed's card size.
+ *
+ * ⛔ BUILD 7 (owner-approved 2026-11-15 (build 7), cook r07 "item": "simplicity first"; target stills
+ * cook/compare/r07/item__pdp_product.jpg and item__pdp_bike.jpg). It reverses, on these pages, five r06 rulings:
+ *   · the PHOTO's plain white ground → the field grey (`bg-tint`, #f3f3f3) with the photo multiplied onto it in light mode, so a
+ *     white packshot sits on the field and the white sheet edge shows (ListingGallery `plain`); the frame's ratio and size
+ *     are unchanged. (The mock's zoom-to-the-object is not built: the note at ListingGallery `plain`.)
+ *   · "the box is the button and its one line" → the pinned tier is THE BUTTON ALONE; its line is said once in the page: in
+ *     Seller information in place of its "Source" row (a linked shop), or as the seller band's last line (page.tsx `tierLine`).
+ *   · "Seller information and the safety advice as ONE quiet tint panel on the media edge" → no box: ordinary sections on the
+ *     12px text edge (COUNSEL_* below; SafetyStrip `flow`), "Reports & disputes" an accent link like the guide.
+ *   · "a seller with exactly two other items closes the page" → the seller's own row comes before "More like this" again.
+ *   · Details' 16px rows → 10px (44 tall); the shelves' cards on the field tile with no ring and "Ad" as a plain label
+ *     (ListingCard `look="tile"`); a short table in the description (the bike's price by rental length) as a 2-column grid
+ *     of label over value (listing-content.tsx GOODS_TABLE_GRID).
  *
  * ⚠️ BELOW md ONLY. Every class here is `max-md:` (or `max-sm:` on the shelves, which are rails from sm), sits on an element
  * that is display:none from md, or is an `md:` class that puts back exactly what the page paints there today.
@@ -26,14 +40,19 @@ export function isGoodsSheet({ noGallery, rentalSheet, factsLine }: { noGallery:
 
 /**
  * ⛔ PINNED ONLY WHEN THE ACTION IS ONE CONTROL AND ONE LINE. The tier holds the page's whole `#contact` block, so a block
- * that is anything more stays in flow with today's mirror bar (pdp-action-bar.tsx):
+ * that is anything more stays in flow with today's mirror bar (pdp-action-bar.tsx). ⛔ Since build 7 the tier DRAWS only the
+ * control below md (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's "the button and its one line"
+ * there): the one line is still what qualifies the block, and the page says it once, in place (page.tsx `tierLine`).
  *   · (a) a partner LINK that is a purchase or a rental (not a booking: its "Lowest adult ticket" line; not a job), with no
  *     commission (its disclosure must stay under the button — owner 2026-10-01), no discount code (a panel) and no product
  *     step (AffiliateProductStep, a second control); or
  *   · (b) Chat now on a fixed-price or unpriced listing (ContactComposer without the offer panel), when the page is not an
  *     e-visa product or slot (its action follows its disclaimer, `data-no-pin`), not iOS-hidden, not the trip desk, and has
  *     no availability check (RentalCheckToggle).
- * Pure and tested (goods-sheet.test.ts); the one predicate to switch off to unpin every page.
+ * Pure and tested (goods-sheet.test.ts); the one predicate to switch off to unpin every GOODS page. ⛔ It still answers
+ * false on a home to rent (not the goods sheet): since owner-approved 2026-11-15 (build 7), cook r07 "rental", the rental sheet
+ * pins too — its own predicate, src/lib/rental-sheet.ts pinsRentalAction (Chat now alone, the price beside it), ORed with this
+ * one in page.tsx — so this no longer means "no rental is ever pinned".
  */
 export function pinsAction(p: {
   goodsSheet: boolean
@@ -62,6 +81,14 @@ export function pinsAction(p: {
  * tab bar while the bar shows (globals.css, the goods tier block), by `translate` only. From md: the in-flow block as before.
  */
 export const PIN_TIER = '[html:not(.native)_&]:max-md:fixed [html:not(.native)_&]:max-md:inset-x-0 [html:not(.native)_&]:max-md:bottom-0 [html:not(.native)_&]:max-md:z-30 [html:not(.native)_&]:max-md:border-t [html:not(.native)_&]:max-md:border-border [html:not(.native)_&]:max-md:bg-background [html:not(.native)_&]:max-md:shadow-(--shadow-bar) [html:not(.native)_&]:max-md:px-3 [html:not(.native)_&]:max-md:pt-2 [html:not(.native)_&]:max-md:pb-[calc(0.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] max-md:transition-[translate] max-md:duration-[250ms] max-md:ease-out motion-reduce:transition-none'
+/**
+ * The goods tier's top edge (build 7; both blind critics read a line of text cut by the fixed tier — a price, the footer — as
+ * broken, cook r07 "item" criticsBroken): a 16px fade from the page's own ground into the tier, just over its hairline, so what
+ * scrolls under the tier dissolves into it instead of being sliced at the line. Decorative (`pointer-events: none`, a
+ * pseudo-element, nothing to read); it rides with the tier. The tier's room at the page's end is unchanged (the measured
+ * spacer after the footer and `scroll-padding-bottom`): at the end of the page nothing is under it.
+ */
+export const GOODS_TIER_FADE = "[html:not(.native)_&]:max-md:before:pointer-events-none [html:not(.native)_&]:max-md:before:absolute [html:not(.native)_&]:max-md:before:inset-x-0 [html:not(.native)_&]:max-md:before:bottom-[calc(100%+1px)] [html:not(.native)_&]:max-md:before:h-4 [html:not(.native)_&]:max-md:before:bg-linear-to-b [html:not(.native)_&]:max-md:before:from-transparent [html:not(.native)_&]:max-md:before:to-background [html:not(.native)_&]:max-md:before:content-['']"
 
 /** The photo's slot: a 16px white sheet edge over the photo's bottom (the rental sheet's, src/lib/rental-sheet.ts SHEET_PHOTO,
  *  minus its lift), and 24px given back so the price stands 16px under that edge. */
@@ -86,11 +113,13 @@ export const GOODS_FACT = 'max-md:inline-block'
 
 /**
  * Details below md, under the head (the phone twin, in the seller band's slot): label left in muted, value right in ink and
- * bold, 16/24, a hairline over the table and between its rows, 16px rows. Its heading is screen-reader only (the rows name
- * themselves). The left-column Details is `max-md:hidden` on the goods sheet, so one table is ever displayed.
+ * bold, 16/24, a hairline over the table and between its rows. Its heading is screen-reader only (the rows name themselves).
+ * The left-column Details is `max-md:hidden` on the goods sheet, so one table is ever displayed.
+ * ⛔ 10px ROWS, 44 TALL (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's 16px rows, 56 tall): the tap
+ * floor's height, the head's facts one compact table.
  */
 export const GOODS_DETAILS_TWIN = 'md:hidden'
-export const GOODS_DETAILS_ROWS = 'divide-y divide-border border-y border-border text-base [&>div]:py-4 [&_dd]:font-bold'
+export const GOODS_DETAILS_ROWS = 'divide-y divide-border border-y border-border text-base [&>div]:py-2.5 [&_dd]:font-bold'
 
 /** The seller band's slot: one hairline over the row and 16px to it (batch 79's band); with Details over it, Details' own
  *  bottom hairline is that line. */
@@ -108,16 +137,19 @@ export const GOODS_DESC_SECTION = 'max-md:flex max-md:flex-wrap max-md:items-bas
 export const GOODS_MAP_BOX = 'max-md:-mx-2 max-md:rounded-media'
 
 /**
- * THE COUNSEL PANEL: Seller information and the safety advice as ONE quiet tint panel on the media edge (12 radius, 16
- * padding). With Seller information the two halves join — the safety well pulls up over the column's 24px gap (`-mt-6`,
- * coupled to the column's `gap-6`, goods-sheet.test.ts) under a hairline inset 16 from each side. Without it the well stands
- * alone, the same panel. Report and Block are quiet muted labels (they reverse there "Report kept red", batch 70).
+ * THE COUNSEL: Seller information, then the safety advice, every word of both, Report and Block as quiet muted labels (they
+ * reverse there "Report kept red", batch 70; owner-approved 2026-11-14, cook r06 "item").
+ * ⛔ WITHOUT THE BOX (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's "Seller information and the safety
+ * advice as ONE quiet tint panel on the media edge" and batch 70's tint well there): two ordinary sections on the 12px text
+ * edge, the page's one text edge — the grey panel on the 4px media edge was the page's one misaligned surface. Seller
+ * information stands 32px under the section before it (`mt-2` over the column's 24); the safety advice 16 under Seller
+ * information (`-mt-2`, coupled to the column's `gap-6`, goods-sheet.test.ts) or 32 under whatever precedes it alone. The
+ * strip draws no line and no padding of its own there (COUNSEL_STRIP; its internals are SafetyStrip `flow`).
  */
-export const COUNSEL_INFO = 'max-md:mt-2 max-md:-mx-2 max-md:rounded-t-xl max-md:bg-tint max-md:px-4 max-md:pb-3 max-md:pt-4'
-export const COUNSEL_WELL_JOINED = 'max-md:-mt-6 max-md:-mx-2'
-export const COUNSEL_WELL_ALONE = 'max-md:mt-2 max-md:-mx-2'
-export const COUNSEL_STRIP_JOINED = "max-md:relative max-md:rounded-b-xl max-md:rounded-t-none max-md:border-t-0 max-md:bg-tint max-md:px-4 max-md:pb-1 max-md:pt-3 max-md:before:absolute max-md:before:inset-x-4 max-md:before:top-0 max-md:before:h-px max-md:before:bg-line-strong max-md:before:content-['']"
-export const COUNSEL_STRIP_ALONE = 'max-md:rounded-xl max-md:border-t-0 max-md:bg-tint max-md:p-4 max-md:pb-1'
+export const COUNSEL_INFO = 'max-md:mt-2'
+export const COUNSEL_WELL_JOINED = 'max-md:-mt-2'
+export const COUNSEL_WELL_ALONE = 'max-md:mt-2'
+export const COUNSEL_STRIP = 'max-md:border-t-0 max-md:pt-0'
 export const COUNSEL_REPORT = 'max-md:min-h-11 max-md:gap-1 max-md:px-2 max-md:text-sm max-md:font-normal max-md:text-muted-foreground max-md:[&_svg]:size-4 lg:text-sm'
 export const COUNSEL_BLOCK = `${COUNSEL_REPORT} max-md:pr-0`
 

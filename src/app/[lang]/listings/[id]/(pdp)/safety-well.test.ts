@@ -17,7 +17,7 @@ describe('the phone safety well (batch 70)', () => {
     // …and the goods sheet's counsel panel (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts), max-md: too.
     // …and a linked job's (owner-approved 2026-11-14, cook r06 jobs; src/lib/job-sheet.ts): the panel is the block's wrapper
     // (JOB_COUNSEL), the strip drops its own top line and padding inside it (JOB_COUNSEL_STRIP) — max-md: too.
-    expect(page).toContain('className={rentalSheet ? SHEET_WELL : goodsSheet ? (sellerInfoShown ? COUNSEL_STRIP_JOINED : COUNSEL_STRIP_ALONE) : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}')
+    expect(page).toContain('className={rentalSheet ? SHEET_WELL : goodsSheet ? COUNSEL_STRIP : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}')
     expect(page).toContain('quiet={rentalSheet || goodsSheet || isJob}')
     for (const c of [...JOB_COUNSEL.split(' '), ...JOB_COUNSEL_STRIP.split(' ')]) expect(c).toMatch(/^max-md:/)
   })

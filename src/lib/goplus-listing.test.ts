@@ -8,7 +8,7 @@ import {
   goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
   stageGoplusRoom, type GoplusProject, type GoplusRoom, goplusElectricityGuess, GOPLUS_ELECTRICITY_TYPICAL,
   GOPLUS_ELECTRICITY_GUESS_MAX_OFF, GOPLUS_COMMERCIAL_SUBCAT, goplusRoomPageUrl,
-  GOPLUS_FORMER_PROVINCES, GOPLUS_HCMC_CODE, goplusCity, goplusProvince, isGoplusTemplateDescription,
+  GOPLUS_FORMER_PROVINCES, GOPLUS_HCMC_CODE, goplusCity, goplusProvince, isGoplusTemplateDescription, goplusTitleNamesAptType,
 } from './goplus-listing'
 import { VN_PROVINCES } from './vn-areas'
 import { matchesProvinceRow } from './province-match'
@@ -934,5 +934,33 @@ describe('isGoplusTemplateDescription — the description the listing page does 
     expect(isGoplusTemplateDescription({ description: r.mutable.description.replace('book a viewing', 'visit'), title: r.mutable.title })).toBe(false)
     expect(isGoplusTemplateDescription({ description: '', title: r.mutable.title })).toBe(false)
     expect(isGoplusTemplateDescription({ description: r.mutable.description, title: 'Studio for rent' })).toBe(false)
+  })
+})
+
+/**
+ * goplusTitleNamesAptType — the rental sheet's phone Details (owner-approved 2026-11-15 (build 7), cook r07 "rental"): a GoPlus
+ * room's title names its stored type BY CONSTRUCTION (mapGoplusRoom writes "<unit label>[ <area> m²] · <ward, district>"), so
+ * the check is the importer's own label for the stored aptType at the title's start — never a word searched in a title.
+ */
+describe('goplusTitleNamesAptType', () => {
+  it('true for the titles mapGoplusRoom writes for a studio, a duplex and a penthouse, in both languages, with or without the area', () => {
+    for (const type of ['Studio', 'Duplex', 'Penthouse']) {
+      for (const area of [20, null]) {
+        const r = mapped(room({ type, area }))
+        const aptType = JSON.parse(r.mutable.attributes).aptType
+        expect(goplusTitleNamesAptType(aptType, r.mutable.title)).toBe(true)
+        expect(goplusTitleNamesAptType(aptType, r.mutable.titleVi)).toBe(true)
+      }
+    }
+  })
+  it('false for a serviced flat (its title says "1-bedroom apartment", not "Serviced / mini"), a room, or a title of any other shape', () => {
+    const r = mapped(room({ type: '1PN' }))
+    expect(JSON.parse(r.mutable.attributes).aptType).toBe('serviced')
+    expect(goplusTitleNamesAptType('serviced', r.mutable.title)).toBe(false)
+    expect(goplusTitleNamesAptType('studio', 'Studio-style 2BR near District 7')).toBe(false)
+    expect(goplusTitleNamesAptType('studio', 'Cozy Studio · Thao Dien')).toBe(false)
+    expect(goplusTitleNamesAptType('duplex', 'Studio · Nha Be Commune, Nha Be District')).toBe(false)
+    expect(goplusTitleNamesAptType('studio', null)).toBe(false)
+    expect(goplusTitleNamesAptType(undefined, 'Studio · Nha Be Commune, Nha Be District')).toBe(false)
   })
 })

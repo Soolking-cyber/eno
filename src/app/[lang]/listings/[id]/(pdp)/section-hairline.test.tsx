@@ -17,10 +17,12 @@ import { COUNSEL_INFO, GOODS_BAND, GOODS_DESC_SECTION, GOODS_SECTION } from '@/l
  * `border-t border-border` and 24px to its heading below md; the phone storefront row gets the line and 16px (the "Hosted by"
  * band). md and up, the shelves, the safety well and Reviews (which already wore the line) are untouched.
  * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts): the same line and 32px to the
- * heading, 16 from heading to content; the host row is a card with no line, and Costs opens on its edge with none either.
+ * heading, 16 from heading to content; the host row has no line. Since owner-approved 2026-11-15 (build 7), cook r07 "rental",
+ * the host row is flat and Costs opens on the sheet's line like every other section (it no longer opens on a card's edge).
  * ⛔ THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts): NO LINES below md — the sections stand
  * 32px apart under 17px headings, Details is a phone twin under the head (its own section `max-md:hidden`), Seller information
- * is the top of the counsel panel; the seller band keeps its one hairline (or the Details twin's bottom line).
+ * opens the counsel (no box since build 7, owner-approved 2026-11-15); the seller band keeps its one hairline (or the Details
+ * twin's bottom line).
  * The page is ISR with a database behind it, so — like photo-first.contract.test.ts — this pins each wrapper's class
  * EXPRESSION in the source and evaluates that same expression with the real constants, for both branches.
  */
@@ -39,8 +41,8 @@ const fromMd = (classes: string[]) => classes.filter((c) => !c.startsWith('max-m
 const SECTIONS: { name: string; src: string; classes: (sheet: boolean, goods?: boolean) => string; before: string[]; sheetBefore?: string[] }[] = [
   {
     name: 'Costs',
-    src: "<div className={cn('order-7', !rentalSheet && SECTION_LINE, costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>",
-    classes: (sheet) => cn('order-7', !sheet && SECTION_LINE_CLS),
+    src: "<div className={cn('order-7', sectionLine(rentalSheet), costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>",
+    classes: (sheet) => cn('order-7', sectionLine(sheet)),
     before: ['order-7'],
   },
   {
@@ -59,25 +61,26 @@ const SECTIONS: { name: string; src: string; classes: (sheet: boolean, goods?: b
   },
   {
     name: 'Details',
-    // A linked job's table is `max-md:hidden` too (its phone tags, owner-approved 2026-11-14, cook r06 jobs): the `goods` branch here.
-    src: "<div className={cn('space-y-2', goodsSheet || isJob ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>\n          <h2 className={SECTION_TITLE}><Tr text=\"Details\" /></h2>",
+    // A linked job's table is `max-md:hidden` too (its phone tags, owner-approved 2026-11-14, cook r06 jobs): the `goods` branch here;
+    // and the rental sheet's when its one row is the type a GoPlus title was built from (`detailsPhoneHidden`, build 7).
+    src: "<div className={cn('space-y-2', goodsSheet || isJob || detailsPhoneHidden ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>\n          <h2 className={SECTION_TITLE}><Tr text=\"Details\" /></h2>",
     classes: (sheet, goods = false) => cn('space-y-2', goods ? 'max-md:hidden' : sectionLine(sheet), sheet && SHEET_HEAD_GAP),
     before: ['space-y-2'],
   },
   {
     name: 'Seller information',
     // A linked job adds `max-md:hidden` only (its phone copy opens the counsel panel, owner-approved 2026-11-14, cook r06 jobs).
-    src: "{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}",
+    src: "{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} sourceLine={provenanceInInfo ? counselProvenance('text-sm md:hidden') : undefined} />}",
     classes: (sheet, goods = false) => cn('order-8', goods ? COUNSEL_INFO : sectionLine(sheet)),
     before: ['order-8'],
   },
   {
     name: 'Location',
-    src: "<div id=\"location-on-map\" className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>\n              <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text=\"Location\" /></h2>",
-    classes: (sheet, goods = false) => cn(sheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goods ? GOODS_SECTION : sectionLine(sheet), sheet && SHEET_HEAD_GAP, goods && 'max-md:space-y-3'),
+    src: "<div id=\"location-on-map\" className={cn(rentalSheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>\n        <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text=\"Location\" /></h2>",
+    classes: (sheet, goods = false) => cn(sheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goods ? GOODS_SECTION : sectionLine(sheet), sheet && SHEET_HEAD_GAP, goods && 'max-md:space-y-3'),
     before: ['order-11', 'space-y-2', 'scroll-mt-20'],
-    // Slot 8 on the sheet: from md it paints where slot 11 did (only `order-12` items follow it in that column).
-    sheetBefore: ['order-8', 'space-y-2', 'scroll-mt-20'],
+    // Slot 8 on the sheet below md (its DOM leads the left column there, build 7); from md slot 11, where it always painted.
+    sheetBefore: ['order-8', 'md:order-11', 'space-y-2', 'scroll-mt-20'],
   },
 ]
 
@@ -100,16 +103,16 @@ describe('batch 79: one hairline over each listing-page section, below md only',
     expect(fromMd(c)).toEqual(before)
   })
 
-  it.each(SECTIONS.filter((s) => s.name !== 'Costs'))('$name on the rental sheet: the line and 32px, heading → content 16 where it has a heading of its own', ({ classes, before, sheetBefore }) => {
+  it.each(SECTIONS)('$name on the rental sheet: the line and 32px, heading → content 16 where it has a heading of its own', ({ classes, before, sheetBefore }) => {
     const c = list(classes(true))
     for (const x of SHEET_LINE) expect(c).toContain(x)
     expect(c).not.toContain('max-md:pt-6')
     expect(fromMd(c)).toEqual(sheetBefore ?? before)
   })
 
-  it('⛔ Costs on the rental sheet has NO line: it opens on the host card\'s edge (owner-approved 2026-11-14)', () => {
+  it('⛔ Costs on the rental sheet opens on the sheet\'s line now, not on a host card\'s edge (owner-approved 2026-11-15 (build 7))', () => {
     const c = list(SECTIONS[0].classes(true))
-    expect(c).toEqual(['order-7'])
+    expect(c).toEqual(['order-7', ...SHEET_LINE])
   })
 
   it.each(SECTIONS.filter((s) => s.name !== 'Costs' && s.name !== 'Amenities'))('⛔ $name on the goods sheet: NO line below md, and from md exactly what it was (owner-approved 2026-11-14, cook r06 "item")', ({ classes, before }) => {
@@ -124,7 +127,7 @@ describe('batch 79: one hairline over each listing-page section, below md only',
     expect(PAGE).toContain("const costsPhoneHidden = factsLine && deposit ? ['deposit'] : []")
     // Details: decided on the rows that REMAIN after the facts line, the H1 and the price unit took theirs.
     expect(PAGE).toContain('const showDetails = !!providerValues || detailAttrs.length > 0 || detailSpecs.length > 0 || detailOnlySpecs.length > 0 || detailFactRows.length > 0')
-    expect(PAGE).toMatch(/\{showDetails && \(\s*<div className=\{cn\('space-y-2', goodsSheet \|\| isJob \? 'max-md:hidden' : sectionLine\(rentalSheet\)/)
+    expect(PAGE).toMatch(/\{showDetails && \(\s*<div className=\{cn\('space-y-2', goodsSheet \|\| isJob \|\| detailsPhoneHidden \? 'max-md:hidden' : sectionLine\(rentalSheet\)/)
   })
 
   it('every SECTION_TITLE h2 the page draws itself sits directly in a wrapper that carries the line (none missed)', () => {
@@ -135,7 +138,7 @@ describe('batch 79: one hairline over each listing-page section, below md only',
   })
 
   it('the phone storefront row: the "Hosted by" band (line and 16px, over it only), or on the sheet the card\'s slot with no line', () => {
-    expect(PAGE).toMatch(/<div className=\{rentalSheet \? HOST_CARD_SLOT : goodsSheet \? GOODS_BAND : HOST_BAND\}>\s*\{detailsTwin\}\s*<PdpShopLink [^\n]*variant=\{rentalSheet \? 'card' : goodsSheet \? 'band' : 'row'\} className=\{goodsSheet \? \(detailsTwin \? 'pt-4' : 'border-t border-border pt-4'\) : undefined\} \/>/)
+    expect(PAGE).toMatch(/<div className=\{rentalSheet \? HOST_CARD_SLOT : goodsSheet \? GOODS_BAND : HOST_BAND\}>\s*\{detailsTwin\}\s*<PdpShopLink [^\n]*variant=\{rentalSheet \? 'card' : goodsSheet \? 'band' : 'row'\} className=\{goodsSheet \? \(detailsTwin \? 'pt-4' : 'border-t border-border pt-4'\) : undefined\} caption=\{tierLine\} \/>/)
     // The goods sheet's band: md:hidden, its one line the band's own (or the Details twin's bottom border over it).
     expect(list(GOODS_BAND)).toEqual(['order-7', 'md:hidden'])
     expect(fromMd(list(HOST_BAND))).toEqual(['order-7', 'md:hidden'])
@@ -148,14 +151,14 @@ describe('batch 79: one hairline over each listing-page section, below md only',
     // Literal class lists, and the literal first argument of a cn().
     const lists = [...PAGE.matchAll(/className="([^"]*)"/g), ...PAGE.matchAll(/className=\{cn\('([^']*)'/g)].map((m) => m[1])
     expect(lists.filter((l) => /(^|\s)max-md:border-t(\s|$)/.test(l))).toHaveLength(0)
-    // Five sections through sectionLine(), Costs through the page line alone, and the band.
-    expect(PAGE.match(/sectionLine\(rentalSheet\)/g)).toHaveLength(5)
+    // Six sections through sectionLine() — Costs too since build 7 — and the band.
+    expect(PAGE.match(/sectionLine\(rentalSheet\)/g)).toHaveLength(6)
     // The goods band's one literal line (`border-t border-border`, all widths on an md:hidden slot) is the only other.
-    expect(PAGE.match(/!rentalSheet && SECTION_LINE\b/g)).toHaveLength(1)
+    expect(PAGE.match(/!rentalSheet && SECTION_LINE\b/g)).toBeNull()
     expect(PAGE.match(/\bHOST_BAND\b/g)).toHaveLength(2) // the import and the one slot
     // Reviews keeps its own all-widths line.
     expect(PAGE).toContain('<div className="order-10 border-t border-border pt-4">')
-    expect(PAGE).toContain('className={rentalSheet ? SHEET_WELL : goodsSheet ? (sellerInfoShown ? COUNSEL_STRIP_JOINED : COUNSEL_STRIP_ALONE) : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}')
+    expect(PAGE).toContain('className={rentalSheet ? SHEET_WELL : goodsSheet ? COUNSEL_STRIP : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}')
   })
 
   it('the shelves are not touched: no line on their call sites or in their components', () => {
@@ -172,7 +175,8 @@ describe('batch 79: one hairline over each listing-page section, below md only',
   it('no section moved off the sheet: the phone slots are the ones they were', () => {
     // (A linked job below md: the slot-8 column holds only a repeat Apply, painted after the counsel panel — `max-md:order-10` —
     // or nothing; the panel is the safety block. Owner-approved 2026-11-14, cook r06 jobs.)
-    expect(PAGE).toContain("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>")
+    // (On the rental sheet the wrapper is hidden whole below md when all it holds is the Details a phone does not draw, build 7.)
+    expect(PAGE).toContain("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, (order8PhoneEmpty || (detailsPhoneHidden && !showDescription && amenities.length === 0 && !(repeatCta && affiliateUrl))) && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>")
     expect(PAGE).toContain(`<div data-safety-block="" className={cn('order-9 md:order-7', goodsSheet && (sellerInfoShown ? COUNSEL_WELL_JOINED : COUNSEL_WELL_ALONE), isJob && JOB_COUNSEL)}>`)
   })
 

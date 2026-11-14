@@ -6,7 +6,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
 import { trCache, translateText, waitForTranslation } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
-import { richTextGroups } from '@/lib/rich-text-blocks'
+import { inlineText, richTextGroups } from '@/lib/rich-text-blocks'
 import { withoutLeadParagraph } from '@/lib/lead-paragraph'
 import { Button } from '@/components/ui/button'
 
@@ -414,6 +414,20 @@ export function ListingDescription({ text, vi, i18n, className, dropLead, goods 
   // The goods sheet's fold (the prop's note): the index of the first table, or -1 when the text does not fold there.
   const foldAt = goods && clampable ? tableFold(shown) : -1
   const folded = foldAt >= 0 && !expanded
+  // The goods sheet's short tables, drawn below md as a grid of label over value (gridTables; GOODS_TEXT's `data-table-grid` rules).
+  const grids = goods ? gridTables(shown) : null
+  // Each block as formatRichText made it, plus the fold's class and the grid's mark where they apply (both from `shown`, so the
+  // server HTML and the first client render agree).
+  const shownBlocks = blocks.map((b, i) => {
+    if (!isValidElement<{ className?: string }>(b)) return b
+    const fold = folded && i >= foldAt
+    const grid = !!grids?.has(i)
+    if (!fold && !grid) return b
+    return cloneElement(b, {
+      ...(fold ? { className: `${b.props.className ? `${b.props.className} ` : ''}${i > foldAt ? 'max-md:hidden' : 'max-md:mb-0'}` } : {}),
+      ...(grid ? { 'data-table-grid': '' } : {}),
+    } as { className?: string })
+  })
   // `allow-select`: keep the description selectable/copyable in the native app, where chrome
   // selection is disabled (globals.css html.native). Content text is the exception users need.
   return (
@@ -421,7 +435,7 @@ export function ListingDescription({ text, vi, i18n, className, dropLead, goods 
       {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} className={goods ? GOODS_NOTE : undefined} /> : reserve ? <MachineTranslationReserve goods={goods} /> : null}
       <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select [overflow-wrap:anywhere]${className ? ` ${className}` : ''}${goods ? ` ${GOODS_TEXT}` : ''}${clampable && !expanded && foldAt < 0 ? ' max-md:line-clamp-8' : ''}`}>
         {/* Folded: every block after the table is hidden below md, and the table, now the last block shown, drops its 12px. */}
-        {folded ? blocks.map((b, i) => (i >= foldAt && isValidElement<{ className?: string }>(b) ? cloneElement(b, { className: `${b.props.className ? `${b.props.className} ` : ''}${i > foldAt ? 'max-md:hidden' : 'max-md:mb-0'}` }) : b)) : blocks}
+        {shownBlocks}
       </div>
       {clampable && (
         <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className={`relative tap-44 w-fit text-sm font-semibold text-accent-foreground md:hidden${goods ? ` ${GOODS_MORE}` : ''}`}>
@@ -435,8 +449,14 @@ export function ListingDescription({ text, vi, i18n, className, dropLead, goods 
 /** The goods sheet's MT note below md: the meta role, its toggle bold (the prop's note at ListingDescription). */
 const GOODS_NOTE = 'max-md:text-t-meta max-md:[&_button]:text-t-meta max-md:[&_button]:font-bold'
 /** The goods sheet's text below md: 16/24; lead lines bold 14 ink, 24 over and 4 under (8 over a table); tables 16px with
- *  bold values, their first row flush to the top and last to the bottom. The page's section makes it a full row. */
-const GOODS_TEXT = 'max-md:basis-full max-md:leading-6 max-md:[&>p.font-semibold]:mt-6 max-md:[&>p.font-semibold]:text-sm max-md:[&>p.font-semibold]:font-bold max-md:[&>p.font-semibold:first-child]:mt-0 max-md:[&>p.font-semibold]:mb-1 max-md:[&>p.font-semibold:has(+dl)]:mb-2 max-md:[&_dl]:text-base max-md:[&_dd]:font-bold max-md:[&_dl>div:first-child]:pt-0 max-md:[&_dl>div:last-child]:pb-0'
+ *  bold values, their first row flush to the top and last to the bottom. The page's section makes it a full row.
+ *  ⛔ A SHORT TABLE AS A GRID (`data-table-grid`, gridTables; owner-approved 2026-11-15 (build 7), cook r07 "item": "the bike's
+ *  rental tiers become a 2 x 2 grid"): two columns 16 apart, rows 12 apart, no rules; in each cell the label (13/18 muted)
+ *  over the value (16/22 REGULAR ink, tabular figures, left) — the same values in about half the height (92px for four
+ *  rows, not 147). It reverses there r06's bold-valued 16px rows. Keyed on the dl's own mark, one step more specific than
+ *  the table rules above, so it wins them without `!`. */
+const GOODS_TABLE_GRID = 'max-md:[&>dl[data-table-grid]]:grid max-md:[&>dl[data-table-grid]]:grid-cols-2 max-md:[&>dl[data-table-grid]]:gap-x-4 max-md:[&>dl[data-table-grid]]:gap-y-3 max-md:[&>dl[data-table-grid]>div]:flex-col max-md:[&>dl[data-table-grid]>div]:gap-0 max-md:[&>dl[data-table-grid]>div]:border-0 max-md:[&>dl[data-table-grid]>div]:py-0 max-md:[&>dl[data-table-grid]_dt]:text-t-meta max-md:[&>dl[data-table-grid]_dd]:text-left max-md:[&>dl[data-table-grid]_dd]:font-normal max-md:[&>dl[data-table-grid]_dd]:leading-5.5 max-md:[&>dl[data-table-grid]_dd]:tabular-nums'
+const GOODS_TEXT = `max-md:basis-full max-md:leading-6 max-md:[&>p.font-semibold]:mt-6 max-md:[&>p.font-semibold]:text-sm max-md:[&>p.font-semibold]:font-bold max-md:[&>p.font-semibold:first-child]:mt-0 max-md:[&>p.font-semibold]:mb-1 max-md:[&>p.font-semibold:has(+dl)]:mb-2 max-md:[&_dl]:text-base max-md:[&_dd]:font-bold max-md:[&_dl>div:first-child]:pt-0 max-md:[&_dl>div:last-child]:pb-0 ${GOODS_TABLE_GRID}`
 /** "See more" on the goods sheet below md: its own full row, bold, 44px tall, its text 4px under the last row. */
 const GOODS_MORE = 'max-md:-mb-2 max-md:-mt-3 max-md:min-h-11 max-md:basis-full max-md:justify-start max-md:font-bold'
 
@@ -454,6 +474,24 @@ export function tableFold(text: string): number {
   const lines = before.reduce((n, t) => n + t.split('\n').length, 0)
   return chars <= DESCRIPTION_CLAMP_CHARS && lines <= DESCRIPTION_CLAMP_LINES ? at : -1
 }
+
+/**
+ * The goods sheet's SHORT tables (ListingDescription `goods`; GOODS_TABLE_GRID): the indices of the formatted blocks that are a
+ * table of 2, 4 or 6 rows — so the two columns close level — whose every label is at most GRID_LABEL_MAX and every value at
+ * most GRID_VALUE_MAX characters as read (bold marks dropped). A rate card ("Rent 1-2 days: 300,000 đ/day") is that; a spec
+ * sheet with a long value keeps its ledger rows, where a value has the line's width. The same parse as formatRichText.
+ */
+export function gridTables(text: string): Set<number> {
+  const out = new Set<number>()
+  richTextGroups(text).forEach((g, i) => {
+    if (g.kind !== 'dl' || g.rows.length < 2 || g.rows.length > 6 || g.rows.length % 2 !== 0) return
+    if (g.rows.every(([dt, dd]) => inlineText(dt).trim().length <= GRID_LABEL_MAX && inlineText(dd).trim().length <= GRID_VALUE_MAX)) out.add(i)
+  })
+  return out
+}
+/** A grid cell's label and value limits: a label wraps under its own half (175px at 390), a value never should. */
+export const GRID_LABEL_MAX = 28
+export const GRID_VALUE_MAX = 20
 
 /** Past this many characters a description is clamped below md (~8 lines at the phone measure). */
 export const DESCRIPTION_CLAMP_CHARS = 600

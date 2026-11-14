@@ -79,7 +79,9 @@ export function SameSellerShelf({
     >
       {listings.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
-          <ListingCard listing={l} clockInHtml={false} onOpen={(x) => router.push(`/listings/${x.id}`)} />
+          {/* The goods sheet's calm grid (`phoneGrid`): each card on the field tile, "Ad" a plain label (ListingCard `look="tile"`,
+              owner-approved 2026-11-15 (build 7), cook r07 "item"). */}
+          <ListingCard listing={l} clockInHtml={false} onOpen={(x) => router.push(`/listings/${x.id}`)} look={phoneGrid ? 'tile' : undefined} />
         </div>
       ))}
     </Shelf>

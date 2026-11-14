@@ -111,6 +111,13 @@ export const RENTAL_FACT_LABELS = {
   studio: { label: 'Studio', labelVi: 'Studio' },
   bedroomOne: { label: '1 bedroom', labelVi: '1 phòng ngủ' },
   bedroomsN: { label: '{n} bedrooms', labelVi: '{n} phòng ngủ' },
+  // The same facts as the rental sheet's row of figures on a phone (owner-approved 2026-11-15 (build 7), cook r07 "rental";
+  // src/lib/rental-sheet.ts SHEET_STATS): the label under the bedroom count, and a deposit in months as the figure over
+  // "Deposit" (depositAmount above). A screen reader hears the facts line's own words instead (the two pairs above).
+  statBedroom: { label: 'Bedroom', labelVi: 'Phòng ngủ' },
+  statBedrooms: { label: 'Bedrooms', labelVi: 'Phòng ngủ' },
+  statMonth: { label: '1 month', labelVi: '1 tháng' },
+  statMonths: { label: '{n} months', labelVi: '{n} tháng' },
 } as const satisfies Record<string, LabelPair>
 
 /**
