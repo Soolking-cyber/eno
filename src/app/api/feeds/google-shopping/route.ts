@@ -87,6 +87,9 @@ export async function GET(req: Request) {
         verified: true,
         status: 'active',
         affiliateUrl: null,
+        // ✅ An eno-run partner's chat-only row (CellphoneS, Điện Thoại Vui — public link NULL, the purchase link in the
+        // staff-only table, src/lib/partner-purchase-link.ts) IS in this feed: owner 2026-11-15, asked with this file's
+        // Merchant Center history in front of them — "Home and Google". Do not add a `purchaseLink` filter here.
         listingType: { in: feedListingTypes() },
         category: { slug: { in: feedCategories() } },
         // A rate (an hourly service) is not a product price — product-feed.ts FEED_EXCLUDED_PRICE_UNITS.

@@ -389,6 +389,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
           sellerId: seller.id,
           status: 'sold',
           affiliateUrl: null,
+          // ⛔ NOR A ROW WHOSE LINK MOVED TO THE STAFF TABLE (2026-11-15): an eno-run partner's catalogue row goes `sold`
+          // when the SHOP's stock runs out (the nightly feed), exactly as it did with a public link — not an eno sale.
+          purchaseLink: { is: null },
           saleDeclinedAt: null,
           OR: [{ soldAt: { gte: txSince } }, { soldAt: null, updatedAt: { gte: txSince } }],
         },

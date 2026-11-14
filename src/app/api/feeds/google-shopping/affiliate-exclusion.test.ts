@@ -59,6 +59,11 @@ describe('the Google Shopping feed', () => {
       .toContain('affiliateUrl: null')
   })
 
+  it('admits an eno-run partner\'s chat-only rows — owner 2026-11-15 "Home and Google": no purchaseLink filter', () => {
+    const where = feedSelector('src/app/api/feeds/google-shopping/route.ts')
+    expect(where).not.toContain('purchaseLink')
+  })
+
   it('still restricts itself to verified, active, sale-type product rows', () => {
     const where = feedSelector('src/app/api/feeds/google-shopping/route.ts')
     // The affiliate filter is an ADDITION; losing any of these would widen the feed, and one of them

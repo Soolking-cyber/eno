@@ -19,6 +19,8 @@ type Row = {
   categoryId: string
   district: string | null
   affiliateUrl: string | null
+  /** The staff-only purchase link of an eno-run partner's row (partner-purchase-link.ts); absent = none. */
+  purchaseLink?: { url: string } | null
   verified: boolean
   status: string
   updatedAt: Date
@@ -380,10 +382,13 @@ describe('the listing children', () => {
       row({ id: 'own-hidden', status: 'hidden' }),
       row({ id: 'own-unverified', verified: false }),
       row({ id: 'desk-live', sellerId: 'desk-seller' }),
+      // An eno-run partner's chat-only row (public link NULL, the link in the staff table) IS submitted — owner 2026-11-15,
+      // asked with the Merchant Center history in front of them: "Home and Google".
+      row({ id: 'staff-link-live', purchaseLink: { url: 'https://go.isclix.com/x' }, sellerId: 'own-seller' }),
     ]
     const xml = await (await child('listings-0.xml')).text()
     expect(xml).toMatch(/<urlset /)
-    expect(locs(xml)).toEqual([`${HOST}/listings/own-live`])
+    expect(locs(xml)).toEqual([`${HOST}/listings/own-live`, `${HOST}/listings/staff-link-live`])
     expect(xml).toContain('<lastmod>2026-01-01T00:00:00.000Z</lastmod>')
   })
 

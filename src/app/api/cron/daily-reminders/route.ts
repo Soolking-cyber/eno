@@ -57,6 +57,9 @@ export const GET = route({ auth: 'cron' }, async () => {
       status: 'active',
       listingType: { not: TEACHER_LISTING_TYPE },
       seller: { ownerId: { not: null } },
+      // ⛔ NOT an eno-run partner's catalogue row (staff-only purchase link, 2026-11-15): its availability is the nightly
+      // feed's, and the eno-held login that owns it is a support mailbox, not a seller who can tick 1,359 rows.
+      purchaseLink: { is: null },
       OR: [{ availabilityConfirmedAt: { lt: cutoff } }, { availabilityConfirmedAt: null, postedAt: { lt: cutoff } }],
     },
     select: { seller: { select: { ownerId: true } } },

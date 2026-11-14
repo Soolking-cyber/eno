@@ -209,6 +209,13 @@ describe('#26 — sale timing ignores a restamped updatedAt', () => {
     expect((await computeTrustV2('p1'))?.inputs.transactions365).toBe(5)
   })
 
+  it('⛔ a sold row whose link sits in the staff table is a SHOP stock-out, not an eno sale (eno-run partners, 2026-11-15)', async () => {
+    await computeTrustV2('p1')
+    const where = called('listing.findMany')[0].args.where
+    expect(where.affiliateUrl).toBeNull()
+    expect(where.purchaseLink).toEqual({ is: null })
+  })
+
   it('the sold query is windowed on soldAt, with updatedAt only for rows that have none', async () => {
     await computeTrustV2('p1')
     const where = called('listing.findMany')[0].args.where
