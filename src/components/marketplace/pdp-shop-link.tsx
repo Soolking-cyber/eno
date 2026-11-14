@@ -20,6 +20,10 @@ import { PartnerListingCount } from './partner-listing-count'
 import { LinkedShopChip } from './linked-shop-chip'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
+/** The strip's type, and the linked job's counsel line in the same type (batch 95): 12px in the quietest grey on a phone; from lg
+ *  14px in body ink (2026-11-07 audit — at 12px a desktop read who it is dealing with as fine print). */
+const STRIP_TYPE = 'text-xs text-muted-foreground lg:text-sm lg:text-body'
+
 /** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
  *  It carries the full seller identity + trust (name, Business badge, trust score, Joined · rating ·
  *  reviews — "Joined" not below md when another item holds the line, batch 90) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
@@ -94,10 +98,37 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   // Literal strings on both branches, not a template: the i18n harvest (gen-ui-strings) only collects
   // literals, and the nine machine-translated languages read their keys from it.
   const forumVerifies = brandForCopy(SITE_NAME) === 'eno.forum'
-  if (linked === 'job') strip.push(forumVerifies
-    ? tr('Linked job posting — not verified by eno.forum', 'Tin tuyển dụng dẫn link — eno.forum chưa xác minh')
-    : tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh'))
-  else if (linked === 'listing') strip.push(forumVerifies
+  /**
+   * ⛔ A LINKED JOB NAMES ITS STOREFRONT ONCE, AS ONE LINK (UI climb batch 95, owner-approved 2026-11-14, decision 3, "the job
+   * page says it once"; mock variants13/d2c3). It reverses, on a job only, the avatar + "Linked shop" chip row (owner
+   * 2026-10-01) and "More jobs ›" (aria "More jobs from this board"): the employer's name, 16px bold in the foreground ink,
+   * with a chevron, and under it the kept counsel line. Both call sites in page.tsx are unchanged, so the phone's "Hosted by"
+   * band keeps its one hairline (section-hairline.test.tsx).
+   * ⛔ "Linked job posting — not verified by eno.vn" STAYS, on every width (counsel-sensitive; the mock's one deliberate
+   * difference from d2c): it is what tells a reader eno.vn has not vetted the employer.
+   * A block-level link (flex, w-fit), never inside a run of text, so axe's link-in-text-block does not apply and it needs no
+   * underline at rest. `tap-44` is centred on its 24px box, 10px into the band's 16px top padding (phone) or the buy box's
+   * 16px gap (md+), and over the plain counsel line below — nothing else to press there.
+   * Aggregators too (LinkedIn, TEAST…): the link names the BOARD, which is what /sellers/<id> opens; their H1 keeps the
+   * employer (pdp-repeat-rows.ts roleOnlyHeading). Every other row — 'listing', partners, people, businesses — is below, as it was.
+   */
+  if (linked === 'job') {
+    return (
+      <div className={className}>
+        <Link href={href} prefetch={false} className="relative tap-44 flex w-fit max-w-full items-center gap-0.5 text-base font-bold text-foreground hover:underline active:opacity-60">
+          {/* The truncation is on the span, not the link: `overflow:hidden` on the link would clip tap-44's ::before (see below). */}
+          <span className="min-w-0 truncate">{name}</span>
+          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+        </Link>
+        <p className={cn('mt-1', STRIP_TYPE)}>
+          {forumVerifies
+            ? tr('Linked job posting — not verified by eno.forum', 'Tin tuyển dụng dẫn link — eno.forum chưa xác minh')
+            : tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh')}
+        </p>
+      </div>
+    )
+  }
+  if (linked === 'listing') strip.push(forumVerifies
     ? tr('Linked listing — not verified by eno.forum', 'Tin đăng dẫn link — eno.forum chưa xác minh')
     : tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
@@ -193,7 +224,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
                 its dot, and the row sits 10px left (the dot's 4px box + the 6px gap) inside this box, so each line's first dot is cut. */}
             {/* 2026-11-07 audit: from lg the strip is 14px in body ink under a 16px name, and "Shop ›" 14px: at 12px in the quietest
                 grey a desktop read who it is dealing with as fine print. A phone keeps 12px. The dot geometry above is size-free. */}
-            <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body">
+            <div className={cn('-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5', STRIP_TYPE)}>
               {strip.map((node, i) => (
                 <span key={i} className={cn('inline-flex items-center gap-1.5', i === joinedAt && 'max-md:hidden')}>
                   <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
@@ -207,15 +238,14 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       <Link
         href={href}
         prefetch={false}
-        // A job board is not a shop: on a linked job the storefront is the BOARD's other postings
-        // (import-jobs.ts), never the employer's, so the label says what the link actually opens.
-        aria-label={linked === 'job' ? tr('More jobs from this board', 'Việc làm khác từ trang tuyển dụng này') : tr('Visit shop', 'Vào gian hàng')}
+        // (A linked job never reaches here since batch 95: its one employer link is the branch above.)
+        aria-label={tr('Visit shop', 'Vào gian hàng')}
         // `relative tap-44`: 64x28 → a 44px-tall hit area around the same pill. `active:bg-secondary`
         // is the press — the hover wash, shown on touch too, in 60ms; the release eases back at the
         // transition's normal 150ms, so the press reads instantly and the let-go does not flash.
         className="group relative tap-44 flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary active:bg-secondary active:duration-[60ms] lg:text-sm"
       >
-        {linked === 'job' ? tr('More jobs', 'Việc làm khác') : tr('Shop', 'Gian hàng')}
+        {tr('Shop', 'Gian hàng')}
         {/* `motion-reduce:group-hover:translate-x-0` is NOT redundant beside
             `motion-reduce:transition-none`: killing the transition removes only the TWEEN,
             leaving the 2px displacement to happen instantly — the jump a reduced-motion

@@ -13,10 +13,15 @@ import { priceUnitSuffix } from '@/lib/price-unit'
 // a card price line that its own comments document as being at its width limit.
 // Only the MARK changed — English keeps comma grouping ("12,000,000 đ"), Vietnamese keeps dots
 // ("12.000.000 đ"). parseVnd still accepts "VND" because pasted and legacy text carries it.
-// ⚠️ ONE PRICE LINE DROPS THE MARK: a Vietnamese card's per-unit price in millions, "8,5 triệu / tháng"
-// (owner, 2026-10-18 — compactVnd, RATE_COMPACT_VND below). It is the owner's explicit exception for that
-// form, not a retreat from this rule: every full figure, the tỷ scale ("1,2 tỷ đ") and every other language
-// keep "đ". (The map pins' "51tr" / "51M", compactPrice, never carried a mark.)
+// ⚠️ ONE PRICE LINE DROPS THE MARK: a Vietnamese card's price in millions, "8,5 triệu / tháng"
+// (owner, 2026-10-18 — compactVnd, RATE_COMPACT_VND below), and since 2026-11-14 a card's sale price in
+// millions too, "12,8 triệu" (owner-approved 2026-11-14, decision 4 "compact prices"; cardCompactAbove). It is
+// the owner's explicit exception for that form, not a retreat from this rule: every full figure, the tỷ scale
+// ("1,2 tỷ đ") and every other language keep "đ". (The map pins' "51tr" / "51M", compactPrice, never carried a mark.)
+// ⚠️ "THE FULL GROUPED AMOUNT EVERYWHERE" ABOVE HAS THREE SANCTIONED EXCEPTIONS, ALL ON NARROW SURFACES: the map
+// pins (compactPrice), 10 tỷ and up (HUGE_VND), and a card's price of a million or more (RATE_COMPACT_VND — per-unit
+// since 2026-10-18; a sale price on a card or row since 2026-11-14, cardCompactAbove). The listing page, its sticky
+// bar's sale price, JSON-LD and the APIs keep every digit.
 
 export type MoneyLocale = 'en' | 'vi'
 
@@ -177,8 +182,13 @@ export function hugeVnd(n: number, lang: string = 'en'): string {
  * 48 rental cards on /c/rentals wrapped; "8.5M đ / month ≈ $332" is 166px and fits.
  * The đồng figure still LEADS, the "≈ $" still follows (ND 340/2025 order, owner 2026-09-13), and the PDP keeps
  * every digit.
- * ⚠️ PER-UNIT ONLY. A sale price keeps the full figure the owner chose from Facebook's grid ("2,250,000 đ",
- * 2026-09-13): a goods price already fits its line — it is the "/ month" that pushed rents onto two.
+ * ⚠️ PER-UNIT ONLY — REVERSED FOR CARDS AND ROWS, owner-approved 2026-11-14 (decision 4, "compact prices"). This read:
+ * "A sale price keeps the full figure the owner chose from Facebook's grid ("2,250,000 đ", 2026-09-13): a goods price
+ * already fits its line — it is the "/ month" that pushed rents onto two." Since 2026-11-14 a card's or row's SALE price
+ * of a million or more reads in millions too, "12.8M đ ≈ $499" / "12,8 triệu ≈ $499" — but only when it, and any live
+ * struck was-price, is exact to compactVnd's step (a whole thousand; a whole million from a tỷ), so a sale price is never
+ * rounded or marked "≈" under 10 tỷ: an odd one keeps every digit (`cardCompactAbove`). This threshold, `rateCompactAbove`,
+ * is still per-unit only — the PDP's sticky bar reads it, and its sale price keeps every digit.
  * ⛔ VIETNAMESE PRINTS NO "đ" AFTER "triệu" — "8,5 triệu / tháng" — AND THAT IS THE OWNER'S EXPLICIT EXCEPTION
  * (2026-10-18: "go on apply all recommended", accepting the before/after report's "'8,5 triệu / tháng' — fits
  * most rents at 390px, all at 412px (Chợ Tốt's form)"). The 2026-09-13 rule that a price carries "đ" holds
@@ -188,6 +198,9 @@ export function hugeVnd(n: number, lang: string = 'en'): string {
  * price_display the importers read ("25 triệu/tháng"), print none — so " đ" was 14px of Bold and no meaning.
  * Assistive tech gets the same plain text (<Price> puts no aria-label on the figure, and its "≈ $" stays
  * aria-hidden), so a Vietnamese screen reader hears "8,5 triệu / tháng", the way the market says it.
+ * ⚠️ AMENDED 2026-11-14 (batch 94, with the owner-approved sale reversal above): that holds for VIETNAMESE only. An English
+ * or MT card's or row's millions figure ("12.8M đ", "8.5M đ / month", "1280万 đ") is aria-hidden and an sr-only run in front
+ * of it carries every digit ("12,800,000 đ") — batch 81's short-visible / full-spoken pattern (price.tsx `native`).
  * MEASURED in the preview, "≈ $332" after it: "8,5 triệu đ / tháng" wrapped at 390; "8,5 triệu / tháng" and
  * "15 triệu / tháng" fit the 173px column; "12,5 triệu / tháng" wraps at 390 and fits at 412 (a 184px column).
  * Summed as above: 173 / 165 / 180px — 187 / 179 / 194 with the mark, when one line at 390 held only a whole
@@ -229,8 +242,11 @@ export function compactVndStep(n: number): number {
   return n >= 1_000_000_000 ? 1_000_000 : 1_000
 }
 
+type CompactPair = { price: number; prevPrice?: number | null; priceUnit: string | null | undefined }
+
 /**
- * The `compactAbove` a listing CARD hands <Price> — ONE value for its price AND its struck "was" price, so the
+ * The PER-UNIT threshold — what a card handed <Price> until 2026-11-14, and what the PDP's sticky bar still hands it
+ * (page.tsx PdpActionBar: its sale price keeps every digit). ONE value for a price AND its struck "was" price, so the
  * pair always reads in one form (price.tsx `compactAbove`):
  *   · a per-unit price of RATE_COMPACT_VND or more → RATE_COMPACT_VND: "8.5M đ / month", and the was-price
  *     (higher by definition) in the same millions;
@@ -242,10 +258,28 @@ export function compactVndStep(n: number): number {
  * It needs a rent of a tỷ a month.
  * Here, not in price.tsx: that module is 'use client', and the server-rendered SEO tile calls this too.
  */
-export function cardCompactAbove(l: { price: number; prevPrice?: number | null; priceUnit: string | null | undefined }): number {
+export function rateCompactAbove(l: CompactPair): number {
   if (priceUnitSuffix(l.priceUnit) && l.price >= RATE_COMPACT_VND) return RATE_COMPACT_VND
   const hasDrop = l.prevPrice != null && !!dropPercent(l.prevPrice, l.price)
   return hasDrop && l.prevPrice! >= HUGE_VND && l.price >= 1_000_000_000 ? 1_000_000_000 : HUGE_VND
+}
+
+/**
+ * The `compactAbove` a listing CARD or ROW hands <Price> (listing-card.tsx, seo-listing-rail.tsx, compact-listing-row.tsx) —
+ * `rateCompactAbove` plus, since 2026-11-14, a SALE price (owner-approved 2026-11-14, decision 4 "compact prices": "12.8M đ
+ * ≈ $499"). A sale price (unit '', 'VND' or 'VND/service') of RATE_COMPACT_VND or more reads in millions — a tỷ and up in
+ * tỷ words — only when it, and any live struck was-price, is exact to compactVnd's step (a whole thousand; a whole million
+ * from a tỷ): a sale price is never rounded or marked "≈" here, an odd one keeps every digit (the mock's "never rounded
+ * away"). Rents, salaries and anything under a million are exactly `rateCompactAbove`. Still one value for the pair, so both
+ * read compact or both in full — except the two rare cases already recorded: a was-price of 10 tỷ or more keeps the
+ * overflow guard, and a pair across a tỷ reads "900M đ" beside "1.2 billion đ".
+ * Precision is compactVnd's own, up to three decimals ("4.049M đ"): one decimal would have turned 12,990,000 into "≈ 13M".
+ */
+export function cardCompactAbove(l: CompactPair): number {
+  if (priceUnitSuffix(l.priceUnit) || l.price < RATE_COMPACT_VND) return rateCompactAbove(l)
+  const hasDrop = l.prevPrice != null && !!dropPercent(l.prevPrice, l.price)
+  const exact = (n: number) => n % compactVndStep(n) === 0
+  return exact(l.price) && (!hasDrop || exact(l.prevPrice!)) ? RATE_COMPACT_VND : rateCompactAbove(l)
 }
 
 /** Readable helper under the price input: "12 million đ" / "12 triệu đ".

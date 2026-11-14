@@ -221,7 +221,8 @@ export function SeoListingGrid({
             </div>
             {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13), inset
                 onto the page gutter on a phone like the card's text, and the card's price form
-                (`compact` + `cardCompactAbove`: a rent reads "8.5M đ / month", owner 2026-10-18). */}
+                (`compact` + `cardCompactAbove`: a rent reads "8.5M đ / month", owner 2026-10-18; a whole-thousand sale price
+                "12.8M đ", owner-approved 2026-11-14 — the listing page keeps every digit). */}
             <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
               <Price native compact compactAbove={cardCompactAbove(l)} price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className="text-base leading-tight sm:text-lg" />
               <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>

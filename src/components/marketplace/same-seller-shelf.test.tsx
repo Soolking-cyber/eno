@@ -26,7 +26,7 @@ vi.mock('./shelf', () => ({
 import { SameSellerShelf } from './same-seller-shelf'
 import type { SerializedListingCard } from '@/lib/types'
 
-const card = (id: string, slug: string) => ({ id, category: { slug } }) as unknown as SerializedListingCard
+const card = (id: string, slug: string, jobEmployer?: string | null) => ({ id, category: { slug }, jobEmployer }) as unknown as SerializedListingCard
 const title = (listings: SerializedListingCard[], lang = 'en', sellerName = 'CareerLink.vn') => {
   LANG = lang
   const html = renderToString(<SameSellerShelf listings={listings} sellerHref="/s/x" sellerName={sellerName} />)
@@ -54,5 +54,23 @@ describe('SameSellerShelf — the rail title', () => {
 
   it('a name is printed as typed — `$&` / `$1` are not replacement patterns', () => {
     expect(title([card('a', 'jobs'), card('b', 'jobs')], 'en', 'Jobs $& More $1')).toBe('More jobs from Jobs $& More $1')
+  })
+})
+
+describe('SameSellerShelf — batch 95: "More from this employer" when the storefront IS every card\'s employer', () => {
+  const NORD = 'Nord Anglia Education'
+  it('every card\'s jobEmployer is the storefront (form, spacing and case aside): one title in English and Vietnamese', () => {
+    const rail = [card('a', 'jobs', NORD), card('b', 'jobs', 'nord  anglia EDUCATION')]
+    expect(title(rail, 'en', NORD)).toBe('More from this employer')
+    expect(title(rail, 'vi', NORD)).toBe('Tin khác từ nhà tuyển dụng này')
+    expect(title([card('a', 'jobs', NORD.normalize('NFD')), card('b', 'jobs', NORD)], 'en', NORD)).toBe('More from this employer')
+  })
+
+  it('an aggregator\'s rail (mixed employers), a card with no employer, or an employer\'s own posts keep today\'s title', () => {
+    expect(title([card('a', 'jobs', 'Dwight School Hanoi'), card('b', 'jobs', 'BIS Hanoi')], 'en', 'LinkedIn')).toBe('More jobs from LinkedIn')
+    expect(title([card('a', 'jobs', 'Dwight School Hanoi'), card('b', 'jobs', 'BIS Hanoi')], 'vi', 'LinkedIn')).toBe('Tin khác từ LinkedIn')
+    expect(title([card('a', 'jobs', NORD), card('b', 'jobs', null)], 'en', NORD)).toBe('More jobs from Nord Anglia Education')
+    expect(title([card('a', 'jobs'), card('b', 'jobs')], 'en', NORD)).toBe('More jobs from Nord Anglia Education')
+    expect(title([card('a', 'jobs', 'CareerLink.vn'), card('b', 'rentals', 'CareerLink.vn')], 'en')).toBe('More from this seller')
   })
 })

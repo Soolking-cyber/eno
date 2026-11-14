@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Tr, useLanguage } from '@/context/language-context'
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useMounted } from '@/hooks/use-mounted'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { cn } from '@/lib/utils'
@@ -47,33 +48,53 @@ export function JobApplyGuard({ applyBy, children, closed: closedView }: {
 }
 
 /**
- * 'Apply by 8 Oct 2026 · 9 days left' — the deadline, right under the Apply button, instead of only as
- * a raw 'Apply By: 2026-10-08' row at the bottom of Details.
+ * ⛔ ONE CAPTION UNDER A LINKED JOB'S APPLY BUTTON (UI climb batch 95, owner-approved 2026-11-14, decision 3, "the job page
+ * says it once"; mock variants13/d2c3): "careers.nordanglia.com · closes 17 Nov (5 days)" / "careers.nordanglia.com · hạn
+ * 17/11 (còn 5 ngày)" — the site Apply opens, then the deadline. It replaces two lines: JobApplyBy's "Apply by 17 Nov 2026 ·
+ * 5 days left" and the buy box's "Opens careers.nordanglia.com", which sat on ITS OWN line (2026-11-10) only because the
+ * countdown, arriving after mount, wrapped the shared line one frame after load.
  *
- * ⚠️ THE DATE IS SERVER-SAFE, THE COUNTDOWN IS NOT, AND THEY ARE SPLIT ON EXACTLY THAT LINE. The page is
- * ISR-cached for 30 days, so the first render prints only what the cached HTML can know: the day
- * itself, formatted with no clock and no Intl (calendar-day.ts), identical on the server and in
- * hydration. The 'N days left' suffix reads `Date.now()` and appears only after mount — the same
- * two-pass shape as JobApplyGuard above and RelativeTime. It shows only in the final fortnight, where
- * it changes a decision, and turns warning-ink in the last three days.
- * Renders nothing for a missing or malformed date; a PAST date never reaches here, because
- * JobApplyGuard has already replaced the whole block with its closed notice.
+ * ⚠️ THE DATE IS SERVER-SAFE, THE COUNTDOWN IS NOT, AND THEY ARE SPLIT ON EXACTLY THAT LINE. The page is ISR-cached for 30 days,
+ * so the first render prints only what the cached HTML can know: the host, and the day itself, formatted with no clock and no
+ * Intl (calendar-day.ts), identical on the server and in hydration. Its YEAR is the caller's, decided from data
+ * (`year`: page.tsx prints it when the posting's day is in another year), never from the clock.
+ * ⛔ AND THE COUNTDOWN CELL HAS ITS WIDTH FROM THE FIRST RENDER, which is what lets the two lines become one: an inline grid
+ * whose cell holds, invisible and aria-hidden, the two widest things it can ever say — "(14 days)" (n is only 2..14, tabular
+ * figures) and "(today)" — so the real text, '' until mount and then one of those shapes, never widens the line or wraps
+ * it. The weight never changes either: the last three days turn the deadline warning-ink, colour only. Shown only in the
+ * final fortnight, where it changes a decision; "(today)" on the last day.
+ * Renders nothing with neither a host nor a well-formed date; a PAST date never reaches here, because JobApplyGuard has
+ * already replaced the whole block with its closed notice.
  */
-export function JobApplyBy({ applyBy, className }: { applyBy: string; className?: string }) {
+export function JobApplyLine({ applyBy, host, year = true, className }: { applyBy: string | null; host: string | null; year?: boolean; className?: string }) {
   const { tr, lang } = useLanguage()
   const mounted = useMounted()
-  if (!ISO_DAY.test(applyBy)) return null
+  const date = applyBy && ISO_DAY.test(applyBy) ? applyBy : null
+  if (!date && !host) return null
   // End of that day in Vietnam, where every one of these jobs is — the same instant JobApplyGuard uses.
-  const days = mounted ? Math.ceil((Date.parse(`${applyBy}T23:59:59+07:00`) - Date.now()) / 86_400_000) : null
+  const days = date && mounted ? Math.ceil((Date.parse(`${date}T23:59:59+07:00`) - Date.now()) / 86_400_000) : null
   const counting = days != null && days >= 1 && days <= 14
-  const left = counting
-    ? ` · ${days <= 1 ? tr('Last day', 'Hôm nay là hạn cuối') : tr('{n} days left', 'còn {n} ngày').replace('{n}', String(days))}`
-    : ''
   const urgent = counting && days <= 3
-  // 14px from lg (2026-11-07 audit), with the other notes under a desktop's CTA; a phone keeps 12px.
+  // The literals stay inside tr(): scripts/gen-ui-strings.mjs harvests quoted arguments only.
+  const daysLeft = (n: number) => fillTemplate(tr('({n} days)', '(còn {n} ngày)'), '({n} days)', { n: String(n) })
+  const today = tr('(today)', '(hôm nay)')
+  const count = !counting ? '' : days <= 1 ? today : daysLeft(days)
+  // 14px from lg (2026-11-07 audit), with the other notes under a desktop's CTA; a phone keeps 12px. A long host breaks
+  // anywhere rather than overflow (rmit.wd3.myworkdayjobs.com).
   return (
-    <p className={cn('text-xs text-body lg:text-sm', urgent && 'font-semibold text-warning', className)}>
-      {tr('Apply by', 'Hạn nộp:')} <time dateTime={applyBy}>{formatCalendarDay(applyBy, lang)}</time>{left}
+    <p className={cn('text-xs text-body lg:text-sm [overflow-wrap:anywhere]', className)}>
+      {host}
+      {host && date ? ' · ' : null}
+      {date ? (
+        <span className={urgent ? 'text-warning' : undefined}>
+          {tr('closes', 'hạn')} <time dateTime={date}>{formatCalendarDay(date, lang, { year })}</time>{' '}
+          <span data-job-countdown="" className="inline-grid tabular-nums">
+            <span aria-hidden className="invisible [grid-area:1/1]">{daysLeft(14)}</span>
+            <span aria-hidden className="invisible [grid-area:1/1]">{today}</span>
+            <span className="[grid-area:1/1]">{count}</span>
+          </span>
+        </span>
+      ) : null}
     </p>
   )
 }

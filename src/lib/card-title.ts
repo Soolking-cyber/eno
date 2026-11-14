@@ -154,7 +154,10 @@ export type CardTitleInput = {
  *     that city — never "[Urgent]", and never text after a " | " (commit review: that is where pay and visa live);
  *   · a trailing "." or "!" goes — never an ellipsis or an abbreviation's full stop.
  * ⛔ DISPLAY ONLY, like the shortening: the stored title, the h3's `title`, the photo's alt and the listing page keep every
- * character. Anything that would leave no word keeps the title as it was.
+ * character — with ONE exception, owner-approved 2026-11-14 (UI climb batch 95, decision 3): a linked job's H1 drops the
+ * importer's exact " — <employer>" tail where the storefront is that employer (dropEmployerTail; never this grammar, never
+ * a "[Job opening]" tag, and its <title>, share titles and crumb keep the full title). Anything that would leave no word
+ * keeps the title as it was.
  */
 export function cardTitle(input: CardTitleInput): string {
   return lineGrammar(cardTitleBase(input), input)
@@ -279,16 +282,30 @@ function titleGrammar(title: string, { listingType, categorySlug, location }: Ca
   return dropTrailingMark(unshout(s)).trim()
 }
 
+/**
+ * THE IMPORTER'S " — <employer>" TAIL, CUT (job-listing.ts composes a linked job's title as `${role} — ${employer}`) — or the
+ * title exactly as given. The one cut a job card makes (cardTitleBase below) and, since UI climb batch 95 (owner-approved
+ * 2026-11-14, decision 3), the listing page's role-only H1 where the storefront IS that employer (pdp-repeat-rows.ts
+ * roleOnlyHeading). Only an EXACT tail: NFC, case-insensitive, the whole name after " — ".
+ * ⛔ A SHORTENING THAT LEAVES FEWER THAN TWO WORDS IS NOT A TITLE — the original is kept ("Teacher — Nord Anglia" stays).
+ */
+export function dropEmployerTail(title: string, employer: string | null | undefined): string {
+  if (!employer) return title
+  const src = title.normalize('NFC')
+  const tail = ` — ${employer.normalize('NFC')}`
+  // ⚠️ Cut first, compare after: lower-casing can change a string's length (İ → i̇), so comparing lowered strings and then
+  // cutting by the employer's length could cut into the role (commit review).
+  const end = src.slice(-tail.length)
+  if (src.length <= tail.length || end.toLocaleLowerCase() !== tail.toLocaleLowerCase()) return title
+  const out = src.slice(0, src.length - tail.length).trimEnd()
+  return words(out) >= 2 ? out : title
+}
+
 function cardTitleBase({ title, lang, sellerId, categorySlug, listingType, condition, location, employer }: CardTitleInput): string {
   const src = title.normalize('NFC')
   let out = src
   if (employer && listingType === 'job') {
-    const tail = ` — ${employer.normalize('NFC')}`
-    // ⚠️ Cut first, compare after: lower-casing can change a string's length (İ → i̇), so comparing lowered strings and then
-    // cutting by the employer's length could cut into the role (commit review).
-    const end = src.slice(-tail.length)
-    if (src.length <= tail.length || end.toLocaleLowerCase() !== tail.toLocaleLowerCase()) return title
-    out = src.slice(0, src.length - tail.length).trimEnd()
+    return dropEmployerTail(title, employer)
   } else if (categorySlug === 'rentals') {
     if (sellerId === GOPLUS_SELLER_ID) {
       const rooms = src.replace(GOPLUS_BEDROOMS_EN, '$1-bed apartment').replace(GOPLUS_BEDROOMS_VI, 'Căn hộ $1PN')

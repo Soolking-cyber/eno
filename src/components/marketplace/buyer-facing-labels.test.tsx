@@ -207,6 +207,9 @@ describe('PdpShopLink — linked listings, unrated storefronts, the Linked shop 
     expect(vi).not.toContain('kiểm duyệt')
     const job = both(() => text(row({ linked: 'job', unrated: true })))
     expect(job.vi).toContain('Tin tuyển dụng dẫn link — eno.vn chưa xác minh')
+    // Batch 95: a linked job's row is one link and this line — kept on every width (counsel-sensitive).
+    expect(job.en).toContain('Linked job posting — not verified by eno.vn')
+    expect(job.vi).not.toContain('kiểm duyệt')
   })
 
   it('an unrated storefront shows no trust chip; a rated one does', () => {

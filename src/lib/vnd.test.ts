@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, RATE_COMPACT_VND, vndWords } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, rateCompactAbove, RATE_COMPACT_VND, vndWords } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -143,21 +143,56 @@ describe('compactVnd', () => {
   })
 })
 
-describe('cardCompactAbove — ONE threshold for a card\'s price and its struck was-price', () => {
+describe('rateCompactAbove — the per-unit threshold (what the PDP sticky bar reads; cards until 2026-11-14)', () => {
   it('a per-unit price of a million or more → millions (a rent, a hire, a monthly salary)', () => {
-    expect(cardCompactAbove({ price: 8_500_000, priceUnit: 'VND/month' })).toBe(RATE_COMPACT_VND)
-    expect(cardCompactAbove({ price: 1_000_000, priceUnit: 'VND/day', prevPrice: 1_200_000 })).toBe(RATE_COMPACT_VND)
-    expect(cardCompactAbove({ price: 15_000_000, priceUnit: 'VND/month', prevPrice: null })).toBe(RATE_COMPACT_VND)
+    expect(rateCompactAbove({ price: 8_500_000, priceUnit: 'VND/month' })).toBe(RATE_COMPACT_VND)
+    expect(rateCompactAbove({ price: 1_000_000, priceUnit: 'VND/day', prevPrice: 1_200_000 })).toBe(RATE_COMPACT_VND)
+    expect(rateCompactAbove({ price: 15_000_000, priceUnit: 'VND/month', prevPrice: null })).toBe(RATE_COMPACT_VND)
   })
   it('a sale price, a "/ service" price and a rent under a million keep the narrow-surface default', () => {
-    expect(cardCompactAbove({ price: 41_990_000, priceUnit: '' })).toBe(HUGE_VND)
-    expect(cardCompactAbove({ price: 41_990_000, priceUnit: 'VND' })).toBe(HUGE_VND)
-    expect(cardCompactAbove({ price: 3_030_000, priceUnit: 'VND/service' })).toBe(HUGE_VND)
-    expect(cardCompactAbove({ price: 950_000, priceUnit: 'VND/month' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 41_990_000, priceUnit: '' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 41_990_000, priceUnit: 'VND' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 3_030_000, priceUnit: 'VND/service' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 950_000, priceUnit: 'VND/month' })).toBe(HUGE_VND)
   })
   it('a real drop across 10 tỷ whose new price is still a tỷ or more → both in tỷ, as before', () => {
-    expect(cardCompactAbove({ price: 9_990_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(1_000_000_000)
-    expect(cardCompactAbove({ price: 900_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(HUGE_VND)
-    expect(cardCompactAbove({ price: 9_990_000_000, prevPrice: null, priceUnit: '' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 9_990_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(1_000_000_000)
+    expect(rateCompactAbove({ price: 900_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(HUGE_VND)
+    expect(rateCompactAbove({ price: 9_990_000_000, prevPrice: null, priceUnit: '' })).toBe(HUGE_VND)
+  })
+})
+
+/**
+ * A CARD'S OR ROW'S SALE PRICE READS IN MILLIONS (owner-approved 2026-11-14, decision 4: "12.8M đ ≈ $499") — only when it,
+ * and any live struck was-price, is exact to compactVnd's step, so a sale price is never rounded or marked "≈" under 10 tỷ.
+ */
+describe('cardCompactAbove — ONE threshold for a card\'s price and its struck was-price', () => {
+  it('a sale price of a million or more that is a whole thousand → millions (unit "", "VND" and "VND/service")', () => {
+    expect(cardCompactAbove({ price: 41_990_000, priceUnit: '' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 41_990_000, priceUnit: 'VND' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 3_030_000, priceUnit: 'VND/service' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 1_000_000, priceUnit: 'VND' })).toBe(RATE_COMPACT_VND)
+  })
+  it('under a million, or not a whole thousand, every digit stays', () => {
+    expect(cardCompactAbove({ price: 950_000, priceUnit: 'VND' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 12_345_678, priceUnit: 'VND' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 1_234_567_000, priceUnit: '' })).toBe(HUGE_VND) // a tỷ and up: exact to the million
+  })
+  it('a drop pair compacts only when both figures are exact; a stale prevPrice (no drop) does not count', () => {
+    expect(cardCompactAbove({ price: 12_800_000, prevPrice: 14_500_000, priceUnit: 'VND' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 12_800_000, prevPrice: 14_500_500, priceUnit: 'VND' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 12_800_000, prevPrice: 12_345_678, priceUnit: 'VND' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 9_990_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(RATE_COMPACT_VND)
+  })
+  it('a per-unit price, and anything under a million, is exactly rateCompactAbove', () => {
+    for (const l of [
+      { price: 8_500_000, priceUnit: 'VND/month' },
+      { price: 8_555_500, priceUnit: 'VND/month' },
+      { price: 950_000, priceUnit: 'VND/month' },
+      { price: 1_000_000, priceUnit: 'VND/day', prevPrice: 1_200_000 },
+      { price: 900_000_000, prevPrice: 12_000_000_000, priceUnit: 'VND/month' },
+      { price: 290_000, priceUnit: 'VND' },
+      { price: 0, priceUnit: 'VND' },
+    ]) expect(cardCompactAbove(l), JSON.stringify(l)).toBe(rateCompactAbove(l))
   })
 })

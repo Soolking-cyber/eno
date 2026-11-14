@@ -38,8 +38,8 @@ describe('<Price shortUnit> — English cards', () => {
   it('prints "3.79M đ/mo ≈ $148": the short unit glued to the mark, the estimate kept', () => {
     expect(seen(card('VND/month'))).toBe('3.79M đ/mo≈ $148')
   })
-  it('a screen reader hears the whole unit, never "slash mo"', () => {
-    expect(heard(card('VND/month'))).toBe('3.79M đ / month')
+  it('a screen reader hears the whole unit, never "slash mo" — and since batch 94 every digit of the figure too', () => {
+    expect(heard(card('VND/month'))).toBe('3,790,000 đ / month')
   })
   it('"đ/mo" is one nowrap run: the price can break before "≈ $" and nowhere inside the unit', () => {
     const runs = [...card('VND/month').querySelectorAll('span.whitespace-nowrap')].map((s) => s.textContent)

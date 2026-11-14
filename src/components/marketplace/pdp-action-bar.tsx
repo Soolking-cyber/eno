@@ -48,10 +48,16 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
  *   the caption.
  *   WHAT STAYS: the button's accessible name starts with its visible words and names the shop ("Visit shop: <shop>",
  *   WCAG 2.5.3 label in name); the buy box and its in-flow repeat keep "Buy on <shop>", so the listing still names its
- *   source site and its button still opens it (/terms, /regulations Art 3, /partners); Rent on / Book on / Apply on are
- *   mirrored word for word (owner, 2026-09-21: "action button not buy but rent on rever.vn"); a commission link is never
- *   pinned (below). The action and the shop are read from the link's `data-cta-verb` / `data-cta-shop`
- *   (affiliate-booking.tsx), never parsed out of words that arrive in eleven languages. And the short words are only ever
+ *   source site and its button still opens it (/terms, /regulations Art 3, /partners); Rent on / Book on are mirrored word
+ *   for word (owner, 2026-09-21: "action button not buy but rent on rever.vn"); a commission link is never pinned (below).
+ * ⛔ …AND AN 'APPLY' LINK READS "Apply ↗" / "Ứng tuyển ↗" BESIDE "Source: <board>" (UI climb batch 95, owner-approved
+ *   2026-11-14, decision 3, "the job page says it once"; mock variants13/d2c3). It reverses "Apply on" being mirrored word
+ *   for word, and a no-figure job's action taking the whole row: the caption that names the source stands at the start of
+ *   the row with or without a price, so "Apply" is never shown without it, and the action takes the goods pattern's
+ *   `beside` width (min 9rem, at most 62%). The buy box and its in-flow repeat keep "Apply on <board>". The word is
+ *   sense-tagged (`tr('Apply', 'Ứng tuyển', 'job')`, glossary.ts 'Apply@job'): plain "Apply" is the filter sheet's "Áp dụng".
+ *   The action and the shop are read from the link's `data-cta-verb` / `data-cta-shop` (affiliate-booking.tsx), never
+ *   parsed out of words that arrive in eleven languages. And the short words are only ever
  *   shown BESIDE the caption that names the shop: a 'buy' link with no shop name, or a bar whose price has stepped aside
  *   (the three-line rule below), carries the page's own words.
  * No control, a control that is not rendered, a disabled one: no bar.
@@ -81,6 +87,8 @@ const EXIT_MS = 200
 const TWO_LINES = 56
 /** globals.css `@custom-variant pc`: the tab bar is not shown here. */
 const PC_QUERY = '(min-width: 64rem) and (pointer: fine)'
+/** The caption's type, under the price or alone at the start of the row (a no-figure job's "Source: <board>", batch 95). */
+const CAPTION = 'truncate text-xs text-muted-foreground'
 
 export type Mirror =
   | { kind: 'button'; what: string; label: string; busy: boolean; press: () => void }
@@ -157,7 +165,8 @@ export function PdpActionBar({
   control = '[data-affiliate-cta], [data-pdp-primary]',
   hideWhile,
 }: {
-  /** The listing's price as the page prints it, for the start of the row; the page's title rides under it. Without one the action takes the whole row. */
+  /** The listing's price as the page prints it, for the start of the row; the page's title rides under it. Without one the
+   *  action takes the whole row — except an 'apply' link that names its source, whose caption alone starts the row (batch 95). */
   price?: React.ReactNode
   /**
    * The block whose position decides "scrolled away", and inside which the control is looked for.
@@ -271,8 +280,12 @@ export function PdpActionBar({
   const withPrice = !!price && !noPrice
   // ⛔ A 'buy' link: "Visit shop ↗", and the caption under the price says whose shop (owner, 2026-11-12; the note at the top).
   // Only while that caption is on screen: with no shop name, or no price block, the shop would be named nowhere on the bar.
-  const shop = mirror.kind === 'link' && mirror.verb === 'buy' && withPrice ? mirror.shop : ''
-  const visit = shop ? tr('Visit shop', 'Đến cửa hàng') : null
+  // ⛔ An 'apply' link: "Apply ↗" (batch 95, owner-approved 2026-11-14): its caption stands with or without a price, so it only
+  // needs the shop's name. A link that does not name its source keeps the page's words and the row it had.
+  const linkVerb = mirror.kind === 'link' ? mirror.verb : ''
+  const linkShop = mirror.kind === 'link' ? mirror.shop : ''
+  const shop = linkShop && ((linkVerb === 'buy' && withPrice) || linkVerb === 'apply') ? linkShop : ''
+  const short = !shop ? null : linkVerb === 'apply' ? tr('Apply', 'Ứng tuyển', 'job') : tr('Visit shop', 'Đến cửa hàng')
   // Seller information's own words for the shop ("Source" / "Nguồn", seller-info.tsx), the shop's name as written.
   const caption = shop ? `${tr('Source', 'Nguồn')}: ${shop}` : title
 
@@ -291,14 +304,15 @@ export function PdpActionBar({
           <div data-pdp-bar-price="" className="truncate">{price}</div>
           {/* `w-0 min-w-full`: the caption (the title, or a 'buy' link's "Source: <shop>") fills the block and never widens it.
               The block's own width is the price's, so a long caption cannot push the action into wrapping. */}
-          {caption ? <p className="w-0 min-w-full truncate text-xs text-muted-foreground">{caption}</p> : null}
+          {caption ? <p className={`w-0 min-w-full ${CAPTION}`}>{caption}</p> : null}
         </>
-      ) : null}
+        // A no-figure job's "Source: <board>" alone (batch 95): the block is the row's flexible part, so the caption truncates.
+      ) : shop ? <p className={CAPTION}>{caption}</p> : null}
       primary={mirror.kind === 'link'
         ? {
-            label: <>{visit ?? mirror.label} <ArrowUpRight className="size-4" aria-hidden /></>,
-            // The visible words first, then the shop they lead to (WCAG 2.5.3): "Visit shop: Tuấn Nguyễn Mobile".
-            ariaLabel: visit ? `${visit}: ${shop}` : undefined,
+            label: <>{short ?? mirror.label} <ArrowUpRight className="size-4" aria-hidden /></>,
+            // The visible words first, then the shop they lead to (WCAG 2.5.3): "Visit shop: Tuấn Nguyễn Mobile", "Apply: LinkedIn".
+            ariaLabel: short ? `${short}: ${shop}` : undefined,
             render: <a href={mirror.href} target={mirror.target || undefined} rel={mirror.rel} data-affiliate-cta-repeat="true" data-pdp-bar-action="" />,
             // Not followed if the page no longer shows this link (see `allowed`).
             onClick: (e) => { if (!mirror.allowed()) e.preventDefault() },

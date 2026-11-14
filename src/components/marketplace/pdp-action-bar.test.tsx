@@ -5,8 +5,9 @@
  *   · WHEN it may show: the page's control has scrolled off the top AND the tab bar has left; never otherwise (the
  *     July 2026 bar was reverted for taking the tabs away);
  *   · WHAT it is: a mirror of the page's own control (its words; a button is pressed through, a link keeps its address
- *     and its rel), never a second action with rules of its own. The one change of words: a 'buy' link reads "Visit shop"
- *     with "Source: <shop>" under the price (owner, 2026-11-12), checked against the real buy box (AffiliateBooking);
+ *     and its rel), never a second action with rules of its own. The changes of words: a 'buy' link reads "Visit shop"
+ *     with "Source: <shop>" under the price (owner, 2026-11-12), and an 'apply' link "Apply" beside "Source: <board>", with
+ *     or without a price (batch 95, owner-approved 2026-11-14), both checked against the real buy box (AffiliateBooking);
  *   · WHO is left out: a commission link, an e-visa block, a disabled or unrendered control.
  * The geometry (the slot, the tab bar's breakpoint, the motion) was measured on the build; the commit has the numbers.
  */
@@ -31,8 +32,16 @@ vi.mock('@/components/ui/icons', async (importOriginal) => ({
   MessageCircle: (p: React.SVGProps<SVGSVGElement>) => <svg data-bubble="" {...p} />,
 }))
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { PdpActionBar, readPrimary } from './pdp-action-bar'
 import { AffiliateBooking } from './affiliate-booking'
+import { TR_OVERRIDES } from '@/lib/i18n/glossary'
+import { LANGS } from '@/lib/i18n/langs'
+
+const PDP_BAR_SOURCE = readFileSync(join(process.cwd(), 'src/components/marketplace/pdp-action-bar.tsx'), 'utf8')
+/** The nine machine-translated languages: every site language but the two the server renders. */
+const MT_LANGUAGES = LANGS.filter((l) => l !== 'en' && l !== 'vi')
 
 /** The words on the page (constants: the repo's lint allows no string literal inside JSX, tests included). */
 const T = {
@@ -250,7 +259,7 @@ describe('PdpActionBar: a mirror of the page\'s own control', () => {
     expect(document.querySelectorAll('[data-affiliate-cta]')).toHaveLength(1)
   })
 
-  it('a job\'s link keeps the job rel (no "sponsored": a job board pays nothing)', async () => {
+  it('a job\'s link keeps the job rel (no "sponsored": a job board pays nothing); one that names no source keeps its words and the row', async () => {
     const ui = <Page price={null}><a data-affiliate-cta="true" data-commission="false" href="https://jobs.example/p/1" rel="nofollow noopener">{T.apply}</a></Page>
     const view = render(ui)
     await scrollPast(view, ui)
@@ -258,7 +267,9 @@ describe('PdpActionBar: a mirror of the page\'s own control', () => {
     expect(action.rel).toBe('nofollow noopener')
     // The page's link names no target, so neither does the copy.
     expect(action.hasAttribute('target')).toBe(false)
-    // No figure: no leading block, the action takes the whole row, and the row is still the 68px one.
+    // No figure and no `data-cta-shop`: nothing can name the source, so no leading block, the page's words, the whole row
+    // and still the 68px one (batch 95 shortens only a link that names it).
+    expect(action.textContent!.trim()).toBe(T.apply)
     expect(bar()!.querySelector('[data-slot="sticky-action-bar-leading"]')).toBeNull()
     expect(action.className.split(' ')).toContain('flex-1')
     expect(bar()!.querySelector('[data-slot="sticky-action-bar-panel"]')!.className).toContain('py-2.5')
@@ -340,10 +351,6 @@ describe('PdpActionBar: a \'buy\' link reads "Visit shop" and names the shop und
     ['rent', { rental: true }, 'vi', 'Thuê trên GoPlus'],
     ['book', { booking: true }, 'en', 'Book on GoPlus'],
     ['book', { booking: true }, 'vi', 'Đặt trên GoPlus'],
-    ['apply', { job: true }, 'en', 'Apply on GoPlus'],
-    ['apply', { job: true }, 'vi', 'Ứng tuyển trên GoPlus'],
-    // A job is applied for whatever else it says it is (CtaLabel's order).
-    ['apply', { job: true, rental: true, booking: true }, 'en', 'Apply on GoPlus'],
   ] as const)('a \'%s\' link is pinned word for word (%j, %s): "%s", the title under the price, no name of its own', async (verb, props, lang, pinned) => {
     h.lang = lang
     const ui = shopPage({ partnerName: 'GoPlus', ...props })
@@ -354,6 +361,63 @@ describe('PdpActionBar: a \'buy\' link reads "Visit shop" and names the shop und
     expect(words(action())).toBe(pinned)
     expect(action().hasAttribute('aria-label')).toBe(false)
     expect(words(caption())).toBe('Studio near the river')
+  })
+
+  it.each([
+    ['en', { job: true }, 'Apply', 'Source: GoPlus', 'Apply on GoPlus'],
+    ['vi', { job: true }, 'Ứng tuyển', 'Nguồn: GoPlus', 'Ứng tuyển trên GoPlus'],
+    // A job is applied for whatever else it says it is (CtaLabel's order).
+    ['en', { job: true, rental: true, booking: true }, 'Apply', 'Source: GoPlus', 'Apply on GoPlus'],
+  ] as const)('batch 95, %s: an \'apply\' link (%j) reads "%s ↗" and the caption under the price says "%s"; the buy box keeps "%s"', async (lang, props, apply, source, boxWords) => {
+    h.lang = lang
+    const ui = shopPage({ partnerName: 'GoPlus', ...props })
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(buyBox().getAttribute('data-cta-verb')).toBe('apply')
+    expect(words(buyBox())).toBe(boxWords)
+    expect(words(action())).toBe(apply)
+    expect(action().querySelector('[data-arrow]')).not.toBeNull()
+    // Label in name (WCAG 2.5.3): the visible word first, then the source it opens.
+    expect(action().getAttribute('aria-label')).toBe(`${apply}: GoPlus`)
+    expect(bar()!.querySelector('[data-pdp-bar-price]')!.textContent).toBe(T.price)
+    expect(words(caption())).toBe(source)
+    // Still the same link, marked as the buy box's repeat; the job rel, never "sponsored".
+    expect(action().href).toBe(buyBox().href)
+    expect(action().rel).toBe('nofollow noopener')
+    expect(document.querySelectorAll('[data-affiliate-cta]')).toHaveLength(1)
+  })
+
+  it.each([['en', 'Apply', 'Source: VietnamWorks'], ['vi', 'Ứng tuyển', 'Nguồn: VietnamWorks']] as const)(
+    'batch 95, %s: a no-figure job: the caption alone starts the row, and "%s" takes the beside width, not the whole row', async (lang, apply, source) => {
+      h.lang = lang
+      const ui = (
+        <Page price={null}>
+          <AffiliateBooking url="https://jobs.example/p/1" partnerName="VietnamWorks" listingId="j1" booking={false} job />
+        </Page>
+      )
+      const view = render(ui)
+      await scrollPast(view, ui)
+      const leading = bar()!.querySelector('[data-slot="sticky-action-bar-leading"]')!
+      expect(leading).not.toBeNull()
+      expect(leading.querySelector('[data-pdp-bar-price]')).toBeNull()
+      const p = leading.querySelector('p')!
+      expect(words(p)).toBe(source)
+      expect(p.className.split(' ')).toEqual(['truncate', 'text-xs', 'text-muted-foreground'])
+      expect(words(action())).toBe(apply)
+      expect(action().getAttribute('aria-label')).toBe(`${apply}: VietnamWorks`)
+      const cls = action().className.split(' ')
+      expect(cls).not.toContain('flex-1')
+      for (const c of ['min-w-36', 'max-w-[62%]']) expect(cls).toContain(c)
+      // Still the 68px row.
+      expect(bar()!.querySelector('[data-slot="sticky-action-bar-panel"]')!.className).toContain('py-2.5')
+    })
+
+  it('batch 95: "Apply" is sense-tagged for a job in all nine machine-translated languages; the filter sheet\'s "Apply" is not', () => {
+    const job = TR_OVERRIDES['Apply@job']
+    expect(Object.keys(job).sort()).toEqual([...MT_LANGUAGES].sort())
+    for (const v of Object.values(job)) expect(v!.trim().length).toBeGreaterThan(0)
+    expect(TR_OVERRIDES['Apply']).toBeUndefined()
+    expect(PDP_BAR_SOURCE).toContain("tr('Apply', 'Ứng tuyển', 'job')")
   })
 
   it('⛔ a commission link is still never pinned, "buy" or not', async () => {

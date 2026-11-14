@@ -416,8 +416,10 @@ function ListingCardImpl({
   // words beside digits. A drop below 1 tỷ (in practice a typo fix) keeps each figure in its own form. Only
   // with a visible drop — a stale prevPrice must not change how a lone price reads.
   // ⚠️ AND A PER-UNIT PRICE OF A MILLION OR MORE READS IN MILLIONS, its was-price with it — "8.5M đ / month",
-  // "8,5 triệu / tháng" with no "đ" after "triệu" (owner, 2026-10-18; vnd.ts RATE_COMPACT_VND). The rule lives
-  // in vnd.ts `cardCompactAbove` because the SEO tile, a server component, prints the same card price.
+  // "8,5 triệu / tháng" with no "đ" after "triệu" (owner, 2026-10-18; vnd.ts RATE_COMPACT_VND) — and since 2026-11-14 so
+  // does a SALE price of a million or more that is a whole thousand, "12.8M đ ≈ $499" / "12,8 triệu ≈ $499" (owner-approved
+  // 2026-11-14, decision 4; an odd one keeps every digit; the PDP keeps every digit). The rule lives in vnd.ts
+  // `cardCompactAbove` because the SEO tile, a server component, and the list rows print the same card price.
   const pairCompactAbove = cardCompactAbove(listing)
 
   /**
@@ -1350,7 +1352,7 @@ function ListingCardImpl({
             <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
           ) : null}
           {/* ⛔ `native`: the STORED đồng amount always LEADS. A card is a scan surface; for the
-              price reads "2,250,000 đ ≈ $87" for every viewer, including one who picked USD — the
+              price reads "2,250,000 đ ≈ $87" ("2.25M đ ≈ $87" since 2026-11-14, below) for every viewer, including one who picked USD — the
               dollar figure is always the quiet estimate after the đồng figure, never instead of it
               (the ND 340/2025-safe order).
               ⚠️ ONE LINE IS WHAT THE SKELETON RESERVES, AND IT IS MEASURED, NOT ASSUMED (preview build,
@@ -1376,7 +1378,11 @@ function ListingCardImpl({
               (home-03; the owner's 09-25 yield model) — on the figure, never the full-width row. */}
           {/* `compact` (break-ui, 2026-10-05): 10 billion đồng and up reads "95 tỷ đ" here — at 320px the
               API's ceiling, 1e12, painted its digits straight into the neighbouring card's price. A
-              per-unit price reads in millions from a million (`pairCompactAbove`, above). */}
+              per-unit price reads in millions from a million (`pairCompactAbove`, above), and since 2026-11-14
+              a whole-thousand sale price too: "12.8M đ ≈ $499", the "≈ $" kept (owner-approved 2026-11-14,
+              decision 4 — it reverses vnd.ts's "PER-UNIT ONLY": a sale price kept its full figure). In
+              English a screen reader hears every digit ("12,800,000 đ", price.tsx `spoken`). It only
+              shortens the one line the skeleton reserves. */}
           <Price
             native
             compact

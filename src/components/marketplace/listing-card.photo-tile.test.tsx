@@ -9,7 +9,8 @@
  *   · the body's text is inset onto the page gutter on a phone (`px-2 sm:px-0.5`) and the title is regular weight;
  *   · the photo's `sizes` is the grid's derived LISTING_CARD_SIZES;
  *   · a per-unit price of a million or more hands <Price> the millions threshold — for the price AND its struck
- *     "was" price — while a sale price keeps the narrow-surface default.
+ *     "was" price — and since 2026-11-14 so does a whole-thousand sale price of a million or more (owner-approved,
+ *     decision 4); anything under a million, or an odd sale figure, keeps the narrow-surface default.
  * The trust-chip test's harness: everything the card pulls in is stubbed; Price records the props it was given.
  */
 import React from 'react'
@@ -137,9 +138,17 @@ describe('ListingCard — the card price form', () => {
     }
   })
 
-  it('a sale price keeps the full figure (only HUGE_VND compacts), and so does a rent under a million', () => {
-    expect(Number(card({ priceUnit: '', listingType: 'sell', price: 41_990_000 }).querySelector('[data-price]')!.getAttribute('data-compact-above'))).toBe(HUGE_VND)
+  const above = (patch: Record<string, unknown>) => Number(card(patch).querySelector('[data-price]')!.getAttribute('data-compact-above'))
+
+  it('a whole-thousand sale price of a million or more reads in millions too (owner-approved 2026-11-14, decision 4)', () => {
+    expect(above({ priceUnit: '', listingType: 'sell', price: 41_990_000 })).toBe(RATE_COMPACT_VND)
+  })
+
+  it('a sale or a rent under a million, and an odd sale figure, keep the full figure (only HUGE_VND compacts)', () => {
+    expect(above({ priceUnit: '', listingType: 'sell', price: 290_000 })).toBe(HUGE_VND)
     cleanup()
-    expect(Number(card({ price: 950_000 }).querySelector('[data-price]')!.getAttribute('data-compact-above'))).toBe(HUGE_VND)
+    expect(above({ price: 950_000 })).toBe(HUGE_VND)
+    cleanup()
+    expect(above({ priceUnit: 'VND', listingType: 'sell', price: 12_345_678 })).toBe(HUGE_VND)
   })
 })

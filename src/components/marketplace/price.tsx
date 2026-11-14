@@ -79,9 +79,12 @@ type Props = {
   compact?: boolean
   /** With `compact`: the threshold, default HUGE_VND. A PAIR shown together (the card's price and its struck
    *  "was" price) passes one shared threshold so a drop across 10 tỷ never mixes "10,04 tỷ đ" with
-   *  "9.990.000.000 đ". A CARD passes `cardCompactAbove(listing)` (src/lib/vnd.ts): RATE_COMPACT_VND for a
-   *  per-unit price, so a rent reads "8.5M đ / month" / "8,5 triệu / tháng" (owner 2026-10-18); below a tỷ
-   *  the amount reads in millions. ⚠️ No "đ" after "triệu": the owner's explicit exception for that one form
+   *  "9.990.000.000 đ". A CARD or ROW passes `cardCompactAbove(listing)` (src/lib/vnd.ts): RATE_COMPACT_VND for a
+   *  per-unit price, so a rent reads "8.5M đ / month" / "8,5 triệu / tháng" (owner 2026-10-18), and since 2026-11-14
+   *  for a sale price exact to the thousand, "12.8M đ" / "12,8 triệu" (owner-approved 2026-11-14, decision 4); below a tỷ
+   *  the amount reads in millions. The PDP's sticky bar passes `rateCompactAbove(listing)`: per-unit only, so its sale
+   *  price keeps every digit. With `native`, an English or MT millions figure is aria-hidden and screen readers hear every
+   *  digit from an sr-only run (`spoken`, batch 94). ⚠️ No "đ" after "triệu": the owner's explicit exception for that one form
    *  (2026-10-18, Chợ Tốt's wording — at 390px it puts the "≈ $" back on the line for most rents under 10 triệu and
    *  the whole ones to 25 triệu; vnd.ts RATE_COMPACT_VND has the sweep and its exceptions); the tỷ words and
    *  every other language keep the mark. The record and the measurements are in vnd.ts RATE_COMPACT_VND. */
@@ -105,9 +108,9 @@ type Props = {
    *  lines beat one misleading one. Only `dual` gets the container treatment, because an FX
    *  approximation is the one part that carries no meaning of its own. */
   unit?: boolean | 'sm'
-  /** The STORED đồng amount always LEADS ("2,250,000 đ ≈ $87"), whatever display currency the
-   *  viewer picked — for scan surfaces: feed cards, rows, map popups, search suggestions (owner,
-   *  2026-09-13). The "≈ $" approximation behaves exactly as on every other price (same rate band,
+  /** The STORED đồng amount always LEADS ("2,250,000 đ ≈ $87" — on a card "2.25M đ ≈ $87" since 2026-11-14,
+   *  `compactAbove`), whatever display currency the viewer picked — for scan surfaces: feed cards, rows, map
+   *  popups, search suggestions (owner, 2026-09-13). The "≈ $" approximation behaves exactly as on every other price (same rate band,
    *  same reserved slot while rates load, same `dual` control); only the PRIMARY figure changes.
    *  ⚠️ History, so it is not re-tried: a first cut dropped the approximation for the default viewer
    *  to make the card "clean", and the owner asked for it back the same day ("approximate price in
@@ -188,6 +191,15 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // A LINKED job only — an employer's own job keeps "Salary: negotiable" (see `jobMeta`).
   const jobSlot = noFigure && listingType === 'job' && linked !== false && jobMeta !== undefined
   const step = compactVndStep(price)
+  const compacted = compact && currency === '₫' && price >= compactAbove && (native || displayCur === 'VND')
+  const shown = price % step === 0 ? price : Math.round(price / step) * step
+  // ⚠️ SHORT ON SCREEN, EVERY DIGIT SPOKEN (UI climb batch 94, 2026-11-14 — batch 81's `shortUnit` pattern applied to the
+  // figure): a native card's or row's millions figure, "12.8M đ" / "≈ 8.556M đ" / "1280万 đ", is aria-hidden and an sr-only
+  // run in front of it says "12,800,000 đ" — the exact stored amount, never the rounded one. Only in the millions band (the
+  // tỷ words are words already) and never in Vietnamese: "12,8 triệu" is how the market says it (vnd.ts RATE_COMPACT_VND).
+  // `native` keeps it off every non-native compact surface — the PDP's sticky bar, the dashboard rows — whose DOM is unchanged.
+  // English and the MT languages share the English grouping (moneyLocale), so the run cannot differ across hydration.
+  const spoken = !isFree && compacted && native && lang !== 'vi' && shown < 1_000_000_000 ? formatMoneyFull(price, '₫', locale) : null
   const amount = isFree
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free". Since 2026-11-09 it says the rate is asked
     // for, not "Teacher profile" — on /c/teachers every card is one (all21 phone hunt #4). ⚠️ "Thù lao" (pay, a fee), never
@@ -205,11 +217,12 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
     // `compact`: a narrow surface shows HUGE_VND+ in words ("95 tỷ đ") — only while the figure shown is
     // đồng (`native`, or a VND viewer). A viewer in USD/EUR/KRW/… keeps their own currency (opus, 2026-10-05).
     // compactVnd prints a whole number of its step exactly — a million in tỷ, a thousand in millions (a card's
-    // per-unit price, `compactAbove` RATE_COMPACT_VND — owner 2026-10-18); an odd figure is rounded to the step
+    // per-unit price, `compactAbove` RATE_COMPACT_VND — owner 2026-10-18; a card's exact sale price since 2026-11-14,
+    // which cardCompactAbove never hands an odd figure, so a sale is never "≈" under 10 tỷ); an odd figure is rounded to the step
     // and MARKED "≈", so a card never states a falsely exact amount, yet still never paints a 12-digit run into
     // the next card (opus, two rounds, 2026-10-05). The PDP shows the exact digits either way.
-    : compact && currency === '₫' && price >= compactAbove && (native || displayCur === 'VND')
-      ? (price % step === 0 ? compactVnd(price, lang) : `≈ ${compactVnd(Math.round(price / step) * step, lang)}`)
+    : compacted
+      ? (price % step === 0 ? compactVnd(price, lang) : `≈ ${compactVnd(shown, lang)}`)
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
@@ -400,13 +413,18 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
           where the old "… triệu đ" left "≈ 8,556 triệu" unbreakable. Two truthful lines, as with
           "103,000,000" / "VND". */}
       <FigureRun fabAvoid={fabAvoid}>
+      {/* `spoken` (batch 94): the full figure for assistive tech FIRST, then each visible text run aria-hidden INSIDE its
+          nowrap span — so the runs, the break between them and `glued`'s own sr-only "/ month" (never under an aria-hidden
+          parent) are exactly as before. Without `spoken` the markup is byte-identical to before. */}
+      {spoken && <span className="sr-only">{spoken}</span>}
       {(() => {
+        const run = (s: string) => (spoken ? <span aria-hidden="true">{s}</span> : s)
         const cut = amount.lastIndexOf(' ')
-        if (cut < 0) return <span className="whitespace-nowrap">{amount}{glued}</span>
+        if (cut < 0) return <span className="whitespace-nowrap">{run(amount)}{glued}</span>
         return (
           <>
-            <span className="whitespace-nowrap">{amount.slice(0, cut)}</span>{' '}
-            <span className="whitespace-nowrap">{amount.slice(cut + 1)}{glued}</span>
+            <span className="whitespace-nowrap">{run(amount.slice(0, cut))}</span>{' '}
+            <span className="whitespace-nowrap">{run(amount.slice(cut + 1))}{glued}</span>
           </>
         )
       })()}

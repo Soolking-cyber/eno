@@ -1,4 +1,6 @@
 import { rentalPeriodOfUnit } from '@/lib/taxonomy'
+import { dropEmployerTail } from '@/lib/card-title'
+import { detectContentLang } from '@/lib/detect-lang'
 
 /**
  * UI climb batch 84 (2026-11-13): a linked job's Details drop the rows its header already states. This is the one check that
@@ -22,6 +24,48 @@ export function headingNamesEmployer(heading: string, employer: unknown): boolea
     if (!WORD.test(before) && !WORD.test(after)) return true
   }
   return false
+}
+
+/** Two names are one name: Unicode form, spacing and case aside. */
+const sameName = (a: string, b: string) => {
+  const k = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+  return k(a) !== '' && k(a) === k(b)
+}
+
+export type HeadingText = { title: string; titleVi: string | null; i18n: Record<string, string> | null }
+
+/**
+ * ⛔ A LINKED JOB'S H1 IS THE ROLE ONLY — WHERE THE STOREFRONT IS THE EMPLOYER (UI climb batch 95, owner-approved 2026-11-14,
+ * decision 3, "the job page says it once"; mock variants13/d2c3). The importer titles a linked job "<role> — <employer>"
+ * (job-listing.ts), and on an employer-site board (Nord Anglia, Inspired, FPT…) the storefront link right under the buy box
+ * names the same employer, so the H1 said it twice. The cut, or null for "print the title as stored", when ALL hold:
+ *   · `employer` (attributes.employer) is a string and IS the storefront's name (NFC, spacing and case aside) — the mock's own
+ *     rule. ⛔ An aggregator (LinkedIn, TEAST, CareerLink…) keeps "<role> — <employer>": its link can only truthfully name the
+ *     BOARD, so the H1 is the one place the employer is named. RMIT ("… LLC" against "RMIT University Vietnam") keeps it too;
+ *   · the importer's exact " — <employer>" tail is there and leaves two words or more (card-title.ts dropEmployerTail, the
+ *     job card's own cut — never a "[Job opening]" tag, never a word the source wrote);
+ *   · the cut does not change the language detectContentLang reads, so the localisation path the H1 takes is the same.
+ * The stored Vietnamese title and every embedded translation go through the same cut; one whose tail is not exact keeps its
+ * full text (the harmless direction). The page's <title>, share and og titles, crumb and JSON-LD keep the full title, and
+ * the Details "Employer" row is still decided on the full heading (headingNamesEmployer).
+ */
+export function roleOnlyHeading({ title, titleVi, i18n, employer, storefront }: {
+  title: string
+  titleVi: string | null | undefined
+  i18n: Record<string, string> | null | undefined
+  employer: unknown
+  storefront: string
+}): HeadingText | null {
+  if (typeof employer !== 'string' || !sameName(employer, storefront)) return null
+  // The card's spelling of the name (serialize.ts cardJobFacts), so the card and the page cut alike.
+  const name = employer.replace(/\s+/g, ' ').trim()
+  const cut = dropEmployerTail(title, name)
+  if (cut === title || detectContentLang(cut) !== detectContentLang(title)) return null
+  return {
+    title: cut,
+    titleVi: titleVi ? dropEmployerTail(titleVi, name) : null,
+    i18n: i18n ? Object.fromEntries(Object.entries(i18n).map(([lang, t]) => [lang, typeof t === 'string' ? dropEmployerTail(t, name) : t])) : null,
+  }
 }
 
 /**

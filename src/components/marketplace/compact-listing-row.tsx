@@ -19,7 +19,7 @@ import { useLocalized, PostedAgo } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
 import { cardTitle, cardJobType, rowTitle } from '@/lib/card-title'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
-import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, formatCount, moneyLocale, dropPercent, cardCompactAbove } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
@@ -348,7 +348,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* A JOB's slot (batch 78): `text-sm` on its own 20px line; at 0 (the employer, "Salary: negotiable") regular weight
               in ink-3, a real salary keeps <Price>'s bold price ink. ⛔ Not drawn at all for a linked job with no pay and no
               employer (`salaryLine`; the note on `job`) — <Price>'s words stay as they are everywhere else. */}
-          {salaryLine && <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} cardWords className={job ? cn('text-sm leading-5 sm:shrink-0', l.price === 0 && 'font-normal text-ink-3') : 'text-base sm:shrink-0'} />}
+          {/* The card's price form (batch 94, owner-approved 2026-11-14, decision 4): `cardCompactAbove`, so a sale price, a rent
+              and a salary of a million or more read in millions — "12.8M đ", "8.5M đ / month", "8,5 triệu / tháng" (/c/jobs
+              "80M đ / month" in the approved mock). Every digit under a million or when not a whole thousand; the PDP keeps
+              them all. The unit, dual="sm", 16px and the wrap-never-clip above are unchanged. */}
+          {salaryLine && <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact compactAbove={cardCompactAbove(l)} dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} cardWords className={job ? cn('text-sm leading-5 sm:shrink-0', l.price === 0 && 'font-normal text-ink-3') : 'text-base sm:shrink-0'} />}
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line

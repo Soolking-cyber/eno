@@ -57,7 +57,9 @@ export function ListingCardSkeleton({ className, teacher = false }: { className?
         {/* PRICE — text-base/leading-tight below sm (20px), text-lg/leading-tight above (22.5px): ONE line.
             ⚠️ THE "≈ $…" IS NOT GONE, whatever this note used to say — the owner asked for it back
             after the đồng price the day it was dropped (2026-09-13), and a goods price still fits one
-            line with it (48 of 48 on /c/electronics at 390px, 2026-09-29).
+            line with it (48 of 48 on /c/electronics at 390px, 2026-09-29). Since 2026-11-14 a whole-thousand
+            sale price of a million or more reads in millions ("12.8M đ ≈ $499", owner-approved 2026-11-14,
+            vnd.ts cardCompactAbove): it only shortens that line, so the one-line reserve is unchanged.
             ⚠️ A PER-UNIT PRICE USED NOT TO: "9,000,000 đ / month ≈ $351" wrapped to two lines (40px) on
             every rental card at 390px (48 of 48 on /c/rentals). Since 2026-10-18 the card prints it in
             millions ("9M đ / month ≈ $351", vnd.ts RATE_COMPACT_VND) — one line in English at 390 for a rent

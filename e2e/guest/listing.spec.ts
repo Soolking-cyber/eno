@@ -102,7 +102,14 @@ test.describe('Guest · listing detail (first live listing)', () => {
       const label = (await card.getAttribute('aria-label')) || (await card.textContent()) || ''
       // Escape each word FIRST, then join with \s+ — escaping after joining would
       // mangle the joiner's own `+` into a literal.
-      const words = label.trim().split(/\s+/).slice(0, 3)
+      // ⚠️ THE WORDS BEFORE A STANDALONE "—" (batch 95, owner-approved 2026-11-14): a linked job whose storefront is its
+      // employer prints the ROLE as its H1, without the importer's " — <employer>" tail, while the card (with a figure) and
+      // the <title> keep it. The role's first words are in both, so that is what is asserted — at most three.
+      const all = label.trim().split(/\s+/)
+      const dash = all.indexOf('—')
+      // Two words at least before the dash, or the first three words as before: "Studio — District 3" must not shrink to
+      // /Studio/ and accept "Studio — District 7" (codex, batch 95 review).
+      const words = (dash >= 2 ? all.slice(0, dash) : all).slice(0, 3)
         .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('\\s+')
       TITLE_RE = new RegExp(words, 'i')

@@ -24,7 +24,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
 import { Fragment, type ReactNode } from 'react'
 import { db } from '@/lib/db'
-import { formatMoneyFull, dropPercent, cardCompactAbove } from '@/lib/vnd'
+import { formatMoneyFull, dropPercent, rateCompactAbove } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -88,7 +88,7 @@ import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
 import { blvckIntroSentences } from '@/lib/blvck-listing'
-import { factSeparators, headingNamesEmployer, periodRestatedByUnit } from '@/lib/pdp-repeat-rows'
+import { factSeparators, headingNamesEmployer, periodRestatedByUnit, roleOnlyHeading } from '@/lib/pdp-repeat-rows'
 import { hostOf, importProvenance } from '@/lib/import-provenance'
 import { adminPlaceEn, bracketNamedIn, cardArea } from '@/lib/city-short'
 import { PlaceName } from '@/components/marketplace/place-name'
@@ -562,6 +562,25 @@ export default async function ListingPage({ params }: Props) {
    * title is a person's name, shown as written.
    */
   const galleryTitle = lang === 'vi' && listing.listingType !== TEACHER_LISTING_TYPE ? viTitle(listing.title, listing.titleVi, i18n[listing.title]) : displayTitle
+  // ⛔ THE JOB PAGE SAYS IT ONCE (UI climb batch 95, owner-approved 2026-11-14, decision 3; mock variants13/d2c3): a linked job
+  // whose storefront IS its employer (Nord Anglia, Inspired, FPT…) prints the ROLE as its H1, because the employer link under
+  // the buy box names the employer. The rule and its gates are pdp-repeat-rows.ts roleOnlyHeading (unit-tested there); null =
+  // the title as stored, as on every aggregator board (LinkedIn, TEAST, CareerLink…), where the H1 is the one place the employer
+  // is named. ⛔ The H1 only: the <title>, og and share titles, the md+ crumb leaf, BreadcrumbList and the Details rows below all
+  // read the full `listing.title`.
+  const roleHeading = isJob ? roleOnlyHeading({ title: listing.title, titleVi: listing.titleVi, i18n: i18n[listing.title], employer: listing.attributes?.employer, storefront: listing.seller.name }) : null
+  const h1Text = roleHeading ?? { title: listing.title, titleVi: listing.titleVi, i18n: i18n[listing.title] ?? null }
+  // The apply-by day's year (JobApplyLine), decided from the DATA, never the clock (the page is ISR-cached for 30 days): only
+  // when the posting's own day is in another year, so a job posted in December that closes on 5 January says "5 Jan 2027".
+  const jobPostedOn = typeof listing.attributes?.postedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(listing.attributes.postedOn) ? listing.attributes.postedOn : null
+  const applyByYear = !(jobPostedOn && jobApplyBy && jobPostedOn.slice(0, 4) === jobApplyBy.slice(0, 4))
+  // ⛔ NO "Salary: see the original posting" (batch 95, owner-approved 2026-11-14, decision 3 — it reverses batch 63's quiet
+  // line): a linked job with no figure and no stated pay renders NO price block at all, so no empty gapped flex item opens
+  // between the job header and the H1. Only while nothing else would stand in that block (an urgent flag, a price drop —
+  // importers set neither). An employer's own job keeps "Salary: negotiable" (owner 2026-10-01).
+  // A salaryText that is empty or only spaces states no pay either (codex, batch 95 review): no empty price block for it.
+  const noPayLine = isJob && listing.price === 0 && !(typeof listing.attributes?.salaryText === 'string' && listing.attributes.salaryText.trim())
+  const priceBlock = !(noPayLine && !listing.urgent && !(listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)))
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
   // only the suppressed/bucketed label rides into the client SellerCard). The two
   // fields the SERIALIZED seller deliberately doesn't carry — the compute receipt
@@ -647,10 +666,13 @@ export default async function ListingPage({ params }: Props) {
   // only where the header states the same fact: "Employer" when the h1 this variant prints (the importer's "<role> —
   // <employer>"; on the Vietnamese page the title viTitle picks, as the gallery does) names it in full, as whole words
   // (pdp-repeat-rows.ts); "Posted" because the header prints "Posted <ago>" on every linked job (showPosted; LinkedIn's day is
-  // already hidden above); and "Apply by" when the buy box prints the deadline (JobApplyBy takes a YYYY-MM-DD date only). The
-  // attributes stay (the job-ad history and the job-text screen read them), and an employer's own job (isJob needs an
-  // affiliateUrl) keeps every row. ⚠️ The nine machine-translated languages translate the h1 on the client; a company name
-  // survives that as a rule, and the "More jobs from <employer>" rail names it too.
+  // already hidden above); and "Apply by" when the buy box prints the deadline (JobApplyLine's "closes <day>" takes a YYYY-MM-DD
+  // date only). The attributes stay (the job-ad history and the job-text screen read them), and an employer's own job (isJob
+  // needs an affiliateUrl) keeps every row. ⚠️ The nine machine-translated languages translate the h1 on the client; a company
+  // name survives that as a rule, and the "More jobs from <employer>" rail names it too.
+  // ⚠️ Since batch 95 the H1 may print the role only (`roleHeading` above), and only where the storefront link names that same
+  // employer, so "Employer" is still decided on the FULL heading: wherever it goes, the H1 or the link right under the buy box
+  // names the employer.
   if (isJob) {
     const heading = lang === 'vi' ? viTitle(listing.title, listing.titleVi, i18n[listing.title]) : listing.title
     if (headingNamesEmployer(heading, listing.attributes?.employer)) hiddenAttrs.add('employer')
@@ -1066,11 +1088,15 @@ export default async function ListingPage({ params }: Props) {
             pdp-action-bar.tsx has the record and the terms). Inside <main data-sid>, so a blocked shop's page hides it with
             everything else. It mirrors whatever control `#contact` holds for this reader and renders nothing when there is
             none. The price is the buy box's figure in the tiles' short form ("12M đ / month"), with the buy box's "from" on a
-            partner booking; a job with no figure has none to show, and its action takes the whole row. */}
+            partner booking; a job with no figure has none to show — its bar reads "Apply ↗" beside "Source: <board>" (batch 95,
+            owner-approved 2026-11-14, decision 3; it took the whole row before), pdp-action-bar.tsx.
+            ⛔ `rateCompactAbove`, NOT the cards' `cardCompactAbove` (batch 94, owner-approved 2026-11-14): cards and rows now
+            print a sale price in millions; this page keeps every digit of one, the bar included. Its price is not `native`,
+            so <Price>'s sr-only full figure never renders here: the bar's DOM is what it was. */}
         <PdpActionBar price={listing.listingType === 'job' && listing.price === 0 ? undefined : (
           <>
             {affiliateUrl && isBooking ? <span className="text-sm font-medium text-body"><Tr text="from" /> </span> : null}
-            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={cardCompactAbove(listing)} dual="sm" className="text-lg leading-6" />
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={rateCompactAbove(listing)} dual="sm" className="text-lg leading-6" />
           </>
         )} />
         {/* ONE responsive tree, TWO layouts. On a phone it is a single flex column and the
@@ -1265,6 +1291,8 @@ export default async function ListingPage({ params }: Props) {
                     </div>
                   </div>
                 )}
+                {/* Not rendered at all for a linked job with nothing to show in it (`priceBlock`, batch 95). */}
+                {priceBlock && (
                 <div className="flex flex-col gap-1.5">
                   {/* The ≈ slot is reserved before /api/fx answers — price.tsx's invisible FX stand-in —
                       so this row does not grow when the rate lands (CLS measured 0, 2026-09-29). */}
@@ -1288,7 +1316,9 @@ export default async function ListingPage({ params }: Props) {
                     {/* ⚠️ AND WITHOUT A STATED PAY, A NEUTRAL LINE — NOT <Price>. Price prints its
                         'Salary: see details' in the 30px orange headline tier, which made the loudest thing
                         on the page a sentence saying there is nothing to show. Body ink at 16px says the
-                        same without pretending to be a figure; a linked job points at the posting. */}
+                        same without pretending to be a figure. ⛔ A LINKED job says nothing here since batch 95
+                        (owner-approved 2026-11-14): its Apply button already points at the posting, and the block
+                        is not rendered at all unless an urgent flag or a drop stands in it (`priceBlock`). */}
                     {/* ⚠️ AN EMPLOYER'S OWN JOB AT PRICE 0 WITH A SALARY is a row stored before the salary rule
                         (taxonomy.ts paysSalary derives price = salaryM × 1,000,000 on every write since):
                         its salaryM IS the salary (unlike a linked job's, which is a range's floor), so it is
@@ -1296,16 +1326,14 @@ export default async function ListingPage({ params }: Props) {
                     {listing.listingType === 'job' && listing.price === 0 && !isJob && (rawListing.salaryM ?? 0) > 0
                       ? <Price price={salaryPriceFor(rawListing.salaryM)} currency={listing.currency} priceUnit="VND/month" className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />
                       : listing.listingType === 'job' && listing.price === 0
-                      ? (typeof listing.attributes?.salaryText === 'string'
+                      ? (typeof listing.attributes?.salaryText === 'string' && listing.attributes.salaryText.trim()
                           ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
-                          : <span className={cn('text-base', isJob ? 'text-muted-foreground' : 'font-semibold text-body')}>{isJob
-                              // Quiet ink, regular weight (batch 63, 2026-11-11): in semibold over the H1 a line saying there is no figure
-                              // led the page; both blind judges read it as competing with the job's title. "Negotiable" is the employer's answer and keeps its weight.
-                              ? <Bilingual en="Salary: see the original posting" vi="Mức lương: xem tin tuyển dụng gốc" />
-                              // An employer's own job with no salary: the post wizard frames an empty
-                              // Salary as "Negotiable / Thỏa thuận" (owner, 2026-10-01), so that is
-                              // what the employer chose — said in the job boards' own word.
-                              : <Bilingual en="Salary: negotiable" vi="Lương: thỏa thuận" />}</span>)
+                          : isJob
+                            ? null
+                            // An employer's own job with no salary: the post wizard frames an empty
+                            // Salary as "Negotiable / Thỏa thuận" (owner, 2026-10-01), so that is
+                            // what the employer chose — said in the job boards' own word.
+                            : <span className="text-base font-semibold text-body"><Bilingual en="Salary: negotiable" vi="Lương: thỏa thuận" /></span>)
                       : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />}
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
@@ -1351,6 +1379,7 @@ export default async function ListingPage({ params }: Props) {
                       must never promise one (three diff reviewers flagged the original "protections
                       apply" as a false consumer claim on a licensed sàn TMĐT). */}
                 </div>
+                )}
 
                 {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
                     body copy under the price and the page had no heading. Bold at 18px it is a heading
@@ -1360,7 +1389,7 @@ export default async function ListingPage({ params }: Props) {
                     real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
                     never risen above). A machine-translated title gets "Translated · See original" under it. */}
                 {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
-                <LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
+                <LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={h1Text.title} titleVi={h1Text.titleVi} i18n={h1Text.i18n} />
 
                 {/* THE FACTS LINE (UI climb batch 89, 2026-11-13; blind A/B on live eno.vn, Opus +0.24, trust −0.1; owner: "reduce
                     lines … super clean, minimal wording, only what's necessary"): ONE grey 16px line under the H1 — "Fixed price ·
@@ -1455,7 +1484,8 @@ export default async function ListingPage({ params }: Props) {
                         /* A job is applied for on the posting — see the prop's comment. */
                         job={isJob}
                         applyBy={jobApplyBy}
-                        /* The site Apply opens, under the button (best-practice gap 2026-11-10). */
+                        applyByYear={applyByYear}
+                        /* The site Apply opens, under the button (best-practice gap 2026-11-10), on the deadline's line (batch 95). */
                         host={isJob && affiliateUrl ? hostOf(affiliateUrl) : null}
                         provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} /> : null}
                         lang={pageVariant}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardTitle, cardCity, cardJobType, rowTitle, jobCardMeta, jobTypeLabel, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
+import { cardTitle, cardCity, cardJobType, dropEmployerTail, rowTitle, jobCardMeta, jobTypeLabel, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
 import { VEHICLE_SELLERS } from './vehicle-rental-listing'
 import { TAXONOMY } from './taxonomy'
 
@@ -247,6 +247,37 @@ describe('a no-pay linked job whose slot prints the employer (UI climb 2026-11-0
   })
   it('never applies to anything but a job', () => {
     expect(cardTitle({ title: 'Sofa — IKEA', lang: 'en', sellerId: 'm', categorySlug: 'furniture-appliances', listingType: 'sell', employer: 'IKEA' })).toBe('Sofa — IKEA')
+  })
+})
+
+describe('dropEmployerTail — batch 95: the one exact cut, shared by the job card and the listing page\'s role-only H1', () => {
+  it('cuts an exact " — <employer>" tail, in any case and Unicode form', () => {
+    expect(dropEmployerTail('Secondary Computer Science Teacher — Nord Anglia Education', 'Nord Anglia Education')).toBe('Secondary Computer Science Teacher')
+    expect(dropEmployerTail('Secondary Computer Science Teacher — NORD ANGLIA EDUCATION', 'nord anglia education')).toBe('Secondary Computer Science Teacher')
+    expect(dropEmployerTail('Giáo viên Tin học cấp trung học — Trường Á Châu'.normalize('NFD'), 'Trường Á Châu')).toBe('Giáo viên Tin học cấp trung học')
+    expect(dropEmployerTail('Senior Lecturer — Đại Học Mở', 'đại học mở')).toBe('Senior Lecturer')
+  })
+  it('keeps the title, unchanged, with no employer, another tail, a tail elsewhere, or fewer than two words left', () => {
+    const t = 'Associate Lecturer — RMIT University Vietnam LLC'
+    expect(dropEmployerTail(t, null)).toBe(t)
+    expect(dropEmployerTail(t, undefined)).toBe(t)
+    expect(dropEmployerTail(t, '')).toBe(t)
+    expect(dropEmployerTail(t, 'RMIT University Vietnam')).toBe(t)
+    expect(dropEmployerTail('Nord Anglia Education — Teacher of English', 'Nord Anglia Education')).toBe('Nord Anglia Education — Teacher of English')
+    expect(dropEmployerTail('Teacher — Nord Anglia Education', 'Nord Anglia Education')).toBe('Teacher — Nord Anglia Education')
+    expect(dropEmployerTail(' — Nord Anglia Education', 'Nord Anglia Education')).toBe(' — Nord Anglia Education')
+  })
+  it('a case change that changes length never cuts into the role (İ → i̇)', () => {
+    expect(dropEmployerTail('Senior Lecturer — İŞ', 'i̇ş')).toBe('Senior Lecturer — İŞ')
+  })
+  it('is exactly the card\'s cut: a no-pay job card prints what it returns', () => {
+    for (const [title, employer] of [
+      ['Associate Lecturer, Psychology — RMIT University Vietnam', 'RMIT University Vietnam'],
+      ['Lecturer — RMIT University Vietnam', 'RMIT University Vietnam'],
+      ['Associate Lecturer — RMIT University Vietnam', 'VUS'],
+    ] as const) {
+      expect(cardTitle({ title, lang: 'en', sellerId: 'eslboards-com-import-seller-0001', categorySlug: 'jobs', listingType: 'job', employer })).toBe(dropEmployerTail(title, employer))
+    }
   })
 })
 

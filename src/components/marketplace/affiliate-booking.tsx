@@ -7,7 +7,7 @@ import { QrFigure } from '@/components/marketplace/qr-figure'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
 import { AffiliateProductStep } from './affiliate-product-step'
-import { JobApplyBy } from './job-apply-guard'
+import { JobApplyLine } from './job-apply-guard'
 import { cn } from '@/lib/utils'
 import { isCommissionLink } from '@/lib/affiliate-commission'
 import { IS_SERVICES } from '@/lib/edition'
@@ -38,6 +38,7 @@ export function AffiliateBooking({
   rental = false,
   job = false,
   applyBy = null,
+  applyByYear = true,
   host = null,
   provenance = null,
   lang = 'en',
@@ -66,12 +67,15 @@ export function AffiliateBooking({
    * checkout wording apply to it.
    */
   job?: boolean
-  /** A job's apply-by date ('YYYY-MM-DD'), printed directly under the Apply button — see JobApplyBy. */
+  /** A job's apply-by date ('YYYY-MM-DD'), printed directly under the Apply button — see JobApplyLine. */
   applyBy?: string | null
+  /** Whether that day prints its year (JobApplyLine `year`): decided by the page from the data, never the clock. */
+  applyByYear?: boolean
   /**
-   * A job's link host ("careers.nordanglia.com", import-provenance.ts hostOf), said under the Apply button: "Opens
-   * careers.nordanglia.com" (best-practice gap 2026-11-10 — the button named the employer, and nothing said which site it
-   * opens; Indeed and LinkedIn name it). Jobs only: P-b keeps every other import line off jobs, and this one off the rest.
+   * A job's link host ("careers.nordanglia.com", import-provenance.ts hostOf), said under the Apply button, first on the
+   * deadline's line: "careers.nordanglia.com · closes 17 Nov" (best-practice gap 2026-11-10 — the button named the employer,
+   * and nothing said which site it opens; Indeed and LinkedIn name it; one line since batch 95). Jobs only: P-b keeps every
+   * other import line off jobs, and this one off the rest.
    */
   host?: string | null
   /**
@@ -180,15 +184,11 @@ export function AffiliateBooking({
 
       {/* The deadline belongs to the button it limits, so it sits right under it (8px: `-mt-2` against
           this column's 16px gap) — not below the QR row, where it would read as a caption of the code. */}
-      {/* …and the site it opens, on ITS OWN line from the first render: JobApplyBy's "· 8 days left" arrives after mount, and
-          the host appended to that line would wrap it one frame after load, in the phone's first screen. A long host breaks
-          anywhere rather than overflow (rmit.wd3.myworkdayjobs.com). */}
-      {job && (applyBy || host) ? (
-        <div className="-mt-2 space-y-0.5">
-          {applyBy ? <JobApplyBy applyBy={applyBy} /> : null}
-          {host ? <p className="text-xs text-body lg:text-sm [overflow-wrap:anywhere]">{tr('Opens {host}', 'Mở {host}', { host })}</p> : null}
-        </div>
-      ) : null}
+      {/* ⛔ ONE LINE: the site it opens, then the deadline — "careers.nordanglia.com · closes 17 Nov (5 days)" (UI climb batch 95,
+          owner-approved 2026-11-14, decision 3). This REVERSES the 2026-11-10 note that put the host "on ITS OWN line from the
+          first render" because the countdown arriving after mount wrapped the shared line one frame after load: JobApplyLine
+          reserves the countdown's width from the first render, so the line wraps (if at all) the same before and after. */}
+      {job && (applyBy || host) ? <JobApplyLine applyBy={applyBy} host={host} year={applyByYear} className="-mt-2" /> : null}
 
       {/* ⚠️ ONLY WHERE THE AFFILIATE LINK CANNOT REACH THE PRODUCT, and only after the button above
           has been used. `embeddedProductUrl` returns null for every campaign that deep-links

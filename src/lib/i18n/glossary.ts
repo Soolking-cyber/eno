@@ -32,6 +32,10 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   // scripts/glossary-data.json: those rows seed the Translation table keyed by the English source, and
   // `Home@page` is not a string anything sends to the translator.
   'Home@page': { 'zh-Hans': '首页', ko: '홈', ja: 'ホーム', ru: 'Главная', km: 'ទំព័រដើម', ms: 'Laman Utama', th: 'หน้าแรก', fr: 'Accueil', hi: 'होम' },
+  // "Apply" for a JOB (UI climb batch 95, 2026-11-14): the listing page's pinned bar reads "Apply ↗" beside "Source: <board>"
+  // (pdp-action-bar.tsx, `tr('Apply', 'Ứng tuyển', 'job')`). Plain "Apply" is the filter sheet's "apply these filters" (vi
+  // "Áp dụng"), which is what machine translation gives the bare word. Client-only like `Home@page`; not yet native-reviewed.
+  'Apply@job': { 'zh-Hans': '申请', ko: '지원하기', ja: '応募する', ru: 'Откликнуться', km: 'ដាក់ពាក្យ', ms: 'Mohon', th: 'สมัคร', fr: 'Postuler', hi: 'आवेदन करें' },
   // ── Templates the engine reduced to a bare number (measured 2026-10-05 with numbered placeholders: km
   // "{n} available" → "{n}", "{total} listing." and "{total} listings." → "{total}"). Client-only like
   // `Home@page`: only the client renders these templates in a machine-translated language.
