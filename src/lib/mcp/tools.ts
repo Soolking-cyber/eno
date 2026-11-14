@@ -147,7 +147,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
     title: 'Get shop profile',
-    description: "Read the storefront this API key acts for: its id, name, bio, location, phone, logo, trust score and tier, response rate, member-since date and how many listings are live now. Call it first to confirm which shop you are working on. Changes nothing.",
+    description: "Read the storefront this connection acts for: its id, name, bio, location, phone, logo, trust score and tier, response rate, member-since date and how many listings are live now. Use it to confirm which shop this connection acts for. Changes nothing.",
     scope: 'listings:read',
     annotations: READ_ONLY,
     // Every key is always written (handler below) and only bio/location/phone/avatarUrl are nullable columns on Seller
@@ -237,7 +237,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'create_listing',
     title: 'Create listing',
-    description: 'Post one new listing for this shop: a category, a title and a price in VND (a job gives its monthly salary in `salaryM` instead), with optional text, location, condition and photos as public image URLs that eno copies to its own storage (the first 8 are used). Longer text is cut to fit: title 140 characters, description 5,000, district 80, condition 60. The listing goes live at once unless eno must check it first (`verified: false` in the result). Refused with a reason, and nothing created, when the text holds a phone number, the category is unknown or the account may not post right now. Returns the new listing\'s `id` (for update_listing and set_listing_status), `verified` (true when it is already public) and `held` (true while it waits for eno\'s licence check). This publishes to the public site: confirm with the seller first.',
+    description: 'Post one new listing for this shop: a category, a title and a price in VND (a job gives its monthly salary in `salaryM` instead), with optional text, location, condition and photos as public image URLs that eno copies to its own storage (the first 8 are used). Longer text is cut to fit: title 140 characters, description 5,000, district 80, condition 60. The listing goes live at once unless eno must check it first (`verified: false` in the result). Refused with a reason, and nothing created, when the text holds a phone number, the category is unknown or the account may not post right now. Returns the new listing\'s `id` (for update_listing and set_listing_status), `verified` (true when it is already public) and `held` (true while it waits for eno\'s licence check). Use it for a listing the seller has asked to post.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({ listing: z.looseObject({ id: z.string().describe('The new listing\'s id, for update_listing and set_listing_status'), verified: z.boolean().describe('true when the new listing was published on creation; false while it waits for eno\'s check and is not public yet'), held: z.boolean().nullish().describe('true while it waits for eno\'s licence check and is not public yet; absent otherwise') }).describe('The listing just created') }).describe('The new listing\'s id and whether it is public yet'),

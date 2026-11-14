@@ -83,7 +83,7 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
           icons: [{ src: `${OAUTH_ISSUER}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] }],
         },
         instructions:
-          `Manage a ${SITE_NAME} storefront: list/create/update/delete listings, bulk-import, sync a catalogue by your own externalId, read analytics, and manage webhooks. Every action is scoped to the one shop behind the API key.`,
+          `Manage a ${SITE_NAME} storefront: list/create/update/delete listings, bulk-import, sync a catalogue by your own externalId, read analytics, and manage webhooks. Every action is scoped to the one shop the user signed in with (or the one behind the API key).`,
       })
     }
     case 'ping':

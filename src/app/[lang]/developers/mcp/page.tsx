@@ -30,7 +30,7 @@ import { C, Code } from '../doc-parts'
 
 export const metadata: Metadata = withShare({
   title: `${SITE_NAME} MCP server | Manage your shop from an AI agent`,
-  description: `The ${SITE_NAME} MCP server: connect Claude, Cursor or any MCP client to your ${SITE_NAME} storefront — listings, catalogue sync, analytics and webhooks, with your API key as the Bearer token.`,
+  description: `The ${SITE_NAME} MCP server: connect Claude, Cursor or any MCP client to your ${SITE_NAME} storefront — listings, catalogue sync, analytics and webhooks. Sign in with your ${SITE_NAME} shop, or use an API key.`,
   alternates: { canonical: DOC_PATHS.mcp },
 })
 
@@ -55,6 +55,26 @@ export default function McpServerPage() {
 
         <section className="mt-8">
           <h2 className="h-section text-foreground">Connect</h2>
+          <h3 className="mt-4 text-base font-semibold text-foreground">Sign in with {SITE_NAME}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            In Claude, or any app that supports MCP sign-in, add <C>{ENDPOINT}</C> as a connector. The app opens {SITE_NAME}: sign in with your
+            business account, check the app&apos;s address on the consent screen and press <strong className="text-foreground">Allow</strong>. No key to
+            copy.
+          </p>
+          <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>• <strong className="text-foreground">Your shop only:</strong> the connection acts for the one shop of the account that pressed Allow.</li>
+            <li>
+              • <strong className="text-foreground">Disconnect anytime</strong> in your{' '}
+              <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link>: it stops at once.
+              It also ends by itself after 180 days, or when the account is suspended, loses its shop or stops being a business account.
+            </li>
+            <li>
+              • <strong className="text-foreground">If it does not connect:</strong> the consent screen says why — connecting needs a business account with
+              its own shop. A sign-in link that fails or was left open too long: start the connection again from the app.
+            </li>
+          </ul>
+
+          <h3 className="mt-6 text-base font-semibold text-foreground">Or with an API key</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">Add it as a remote MCP server, with your API key as the Bearer token:</p>
           <div className="mt-3"><Code>{`${ENDPOINT}
 Authorization: Bearer eno_live_…`}</Code></div>
