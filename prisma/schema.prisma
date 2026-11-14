@@ -737,6 +737,9 @@ model Listing {
   /// ⚠️ THE OUTBOUND ANCHOR MUST CARRY rel="sponsored" — Google treats an undisclosed paid link as
   /// a link-scheme violation, which costs the ranking this feature exists to earn.
   affiliateUrl            String?
+  /// The staff-only purchase link of an ENO-RUN partner's listing (src/lib/eno-run-partners.ts): never public — the public
+  /// column above stays NULL for those rows (owner 2026-11-14: "only admins should see the link to purchase devices").
+  purchaseLink            PartnerPurchaseLink?
   /// PER-PRODUCT checkout discount, which is the shape the partner actually uses: measured across
   /// the VinWonders catalogue 2026-08-24 the codes differ per attraction (MEMBER10, MEMBER3,
   /// MEMBER2, SHOW5) and three products have none at all. A partner-wide code alone was the wrong
@@ -3337,4 +3340,15 @@ model FacebookImportItem {
 
   @@unique([jobId, fbItemId])
   @@index([status, updatedAt])
+}
+
+/// ⛔ STAFF-ONLY: the AccessTrade purchase link of an eno-run partner's listing (owner 2026-11-14: "same as other partners users
+/// just text our admins to buy … only admins should see the link to purchase devices for users … and send in chat if needed").
+/// Read ONLY by the staff purchase-link endpoint, the nightly affiliate-prices job and the AccessTrade importer — never
+/// serialized, never rendered in a cached page. RLS is ENABLED with no policy (service role only; prisma/rls-guard).
+model PartnerPurchaseLink {
+  listingId String   @id
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+  updatedAt DateTime @updatedAt
 }

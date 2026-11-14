@@ -55,6 +55,8 @@ import { ImportScreen } from '../src/lib/import-screen'
 import { cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
 import { importableCampaign, retiredImportReason } from '../src/lib/retired-imports'
 import { usedForShelf } from '../src/lib/accesstrade-restore'
+import { isEnoRunPartner } from '../src/lib/eno-run-partners'
+import { CAMPAIGN_SELLER_IDS } from '../src/lib/accesstrade-removal'
 import { closeSync, openSync, unlinkSync } from 'node:fs'
 import { mkdirDurably, writeFileDurably } from '../src/lib/durable-file'
 import { homedir } from 'node:os'
@@ -209,8 +211,17 @@ async function main() {
   const merchantName = arg('name') ?? (campaign?.name?.trim() || CAMPAIGN!)
   // The merchant's own city. Only used for the storefront and the listings' fallback map pin.
   const MERCHANT_CITY = arg('city') ?? 'Hồ Chí Minh'
-  let seller = await db.seller.findFirst({ where: { name: merchantName }, select: { id: true, name: true, ownerId: true, trustScore: true } })
-  if (seller?.ownerId) { console.error(`"${merchantName}" is owned by a real account — refusing`); process.exit(1) }
+  // By its fixed id where the campaign has one (commit gate, opus): a same-named storefront is never this shop.
+  const fixedId = CAMPAIGN_SELLER_IDS.get(CAMPAIGN!)
+  let seller = await db.seller.findFirst({ where: fixedId ? { id: fixedId } : { name: merchantName }, select: { id: true, name: true, ownerId: true, trustScore: true, officialPartner: true } })
+  // …unless it is a storefront eno itself runs — a PINNED (seller, owner) pair (src/lib/eno-run-partners.ts): its new rows
+  // keep the purchase link staff-only (PartnerPurchaseLink), the public column NULL (owner 2026-11-14).
+  const ENO_RUN = isEnoRunPartner(seller)
+  if (seller?.ownerId && !ENO_RUN) { console.error(`"${merchantName}" is owned by a real account — refusing`); process.exit(1) }
+  if (ENO_RUN && !SPEC.usedOnly) { console.error(`"${merchantName}" is eno-run: only a used-only (create-only) import may write it — refusing`); process.exit(1) }
+  if (ENO_RUN) console.log(`"${merchantName}" is an eno-run partner: new rows get no public link; their purchase link goes to the staff table`)
+  // A fixed-id campaign's storefront exists (it holds the shop's rows): missing, it is never re-created as a duplicate (opus).
+  if (!seller && fixedId) { console.error(`storefront ${fixedId} for ${CAMPAIGN} not found — refusing (never a second "${merchantName}")`); process.exit(1) }
   if (!seller) {
     console.log(`storefront "${merchantName}" does not exist — ${APPLY ? 'creating' : 'would create'}`)
     if (APPLY) {
@@ -228,7 +239,7 @@ async function main() {
         // ⚠️ `trustScore` is selected because rankScore is computed from it at create — see the
         // note at the field. A new storefront takes the schema default, which is what a brand-new
         // human seller gets too.
-        select: { id: true, name: true, ownerId: true, trustScore: true },
+        select: { id: true, name: true, ownerId: true, trustScore: true, officialPartner: true },
       })
     }
   }
@@ -571,7 +582,9 @@ async function main() {
                  * stamp is exactly what this create wrote. A failed read rolls the create back: the SKU stays pending, no row.
                  */
                 const { id, stamp } = await db.$transaction(async (tx) => {
-                  const { id } = await tx.listing.create({ data: { ...fields, sellerId: seller!.id, externalId }, select: { id: true } })
+                  const { id } = await tx.listing.create({ data: { ...fields, ...(ENO_RUN ? { affiliateUrl: null } : {}), sellerId: seller!.id, externalId }, select: { id: true } })
+                  // An eno-run partner's link: staff-only, in the create's own transaction (no row is ever public with it).
+                  if (ENO_RUN) await tx.partnerPurchaseLink.create({ data: { listingId: id, url: affiliateUrl } })
                   const [stamp] = await tx.$queryRawUnsafe<{ status: string; updatedAt: string }[]>(
                     `SELECT status, "updatedAt"::text AS "updatedAt" FROM "Listing" WHERE id = $1`, id)
                   if (!stamp?.updatedAt) throw new Error(`created ${id} but read no stamp`)

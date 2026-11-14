@@ -1,4 +1,5 @@
 import 'server-only'
+import { ACCESSTRADE_SOURCED_SELLERS } from '../accesstrade-removal'
 import { db } from '@/lib/db'
 import type { Prisma } from '@/generated/prisma/client'
 import { refreshPublicSurfaces, releaseIdentityHolds } from './identity-holds'
@@ -155,7 +156,10 @@ export async function claimGuestStorefront(input: {
   /** Tests pin the clock; production callers never pass it. */
   now?: Date
 }): Promise<{ claimed: boolean; held: number }> {
-  const where = { ...input.match, ownerId: null }
+  // ⛔ Never an AccessTrade storefront (accesstrade-removal.ts ACCESSTRADE_SOURCED_SELLERS): those are claimed only by eno's own
+  // scripts/claim-partner-storefront.mjs, for an eno-held login (owner 2026-11-14; plan review, codex + opus). A NOT arm, never
+  // an `id` key: `match` may itself be `{ id }`, and a second key would overwrite it.
+  const where = { ...input.match, ownerId: null, NOT: { id: { in: [...ACCESSTRADE_SOURCED_SELLERS.keys()] } } }
   const claimedAt = new Date()
   // ⚠️ The `data` literal is written INLINE at both writes below, not hoisted into a variable: the
   // claim tripwire in public-state-writes.test.ts reads `ownerId:` inside a seller write's arguments,

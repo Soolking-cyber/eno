@@ -51,6 +51,7 @@
  * made outside the app purges nothing. Run `node scripts/purge-isr-listings.mjs` (route-wide
  * tombstone) — the script prints the reminder.
  */
+import { enoRunPartnerWhere } from '../src/lib/eno-run-partners'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -113,8 +114,9 @@ async function scan() {
       // ⛔ OWNERLESS IMPORTED/LINKED ROWS ONLY — never a person's own post (see the header); the hide's
       // SQL re-checks the same predicate (src/lib/journaled-hide.ts).
       where: {
-        status: { in: [...LIVE_STATUSES] }, verified: true, seller: { ownerId: null },
-        OR: [{ externalId: { not: null } }, { affiliateUrl: { not: null } }],
+        // …or a storefront eno runs (a pinned pair, eno-run-partners.ts) — its purchase links sit in PartnerPurchaseLink.
+        status: { in: [...LIVE_STATUSES] }, verified: true, seller: { OR: [{ ownerId: null }, ...enoRunPartnerWhere()] },
+        OR: [{ externalId: { not: null } }, { affiliateUrl: { not: null } }, { purchaseLink: { isNot: null } }],
       },
       orderBy: { id: 'asc' },
       take: PAGE,

@@ -86,6 +86,7 @@ import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
+import { isEnoRunPartner } from '@/lib/eno-run-partners'
 import { goplusRoomPageUrl, isGoplusTemplateDescription } from '@/lib/goplus-listing'
 import { blvckIntroSentences } from '@/lib/blvck-listing'
 import { factSeparators, headingNamesEmployer, periodRestatedByUnit, roleOnlyHeading } from '@/lib/pdp-repeat-rows'
@@ -507,6 +508,9 @@ export default async function ListingPage({ params }: Props) {
   // goplus.com.vn is for the GoPlus account and eno's admins, "user shouldnt see the links"). This render is cached for
   // every visitor, so the URL itself comes from api/listings/[id]/goplus-link, which answers it to those accounts only.
   const goplusRoom = rawListing.seller.officialPartner === true && goplusRoomPageUrl(rawListing.externalId) !== null
+  // An eno-run partner's listing (a pinned pair, src/lib/eno-run-partners.ts — owner 2026-11-14) mounts the same staff-only
+  // link: its purchase link is asked for by the signed-in viewer, never carried by this cached page.
+  const staffPurchaseLink = isEnoRunPartner({ id: rawListing.sellerId, ownerId: rawListing.seller.ownerId, officialPartner: rawListing.seller.officialPartner })
   const provenance = importProvenance({
     sellerId: listing.sellerId,
     sellerName: listing.seller.name,
@@ -2041,7 +2045,7 @@ export default async function ListingPage({ params }: Props) {
             {/* 8a — A GoPlus room's page on goplus.com.vn, for the GoPlus account and eno's admins only (api/listings/[id]/
                 goplus-link decides; owner, 2026-10-30). Its own `order-8` item, like 8b below: it renders nothing for
                 everyone else, so it never holds open the section above or earns a gap (commit review, codex + opus). */}
-            {goplusRoom && <GoplusRoomLink listingId={listing.id} className="order-8" />}
+            {(goplusRoom || staffPurchaseLink) && <GoplusRoomLink listingId={listing.id} className="order-8" />}
 
             {/* 8b — Seller information (owner, 2026-10-01): right after Description/Details, sharing their
                 `order-8` slot so DOM order places it below them on phones too. Renders nothing when there is

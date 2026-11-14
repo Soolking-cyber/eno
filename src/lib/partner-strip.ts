@@ -1,3 +1,4 @@
+import { ENO_RUN_SELLER_IDS } from './eno-run-sellers'
 import { IS_SERVICES } from './edition'
 
 /**
@@ -36,6 +37,12 @@ export type StripPartner = {
   size: 'wide' | 'square'
   dark?: true
   marketplaceOnly?: true
+  /**
+   * An ENO-RUN partner (src/lib/eno-run-partners.ts — owner 2026-11-14): it links to `/sellers/<this id>` (an id is never
+   * freed and re-claimed the way a handle can be — plan review, codex + opus) and shows ONLY while its (seller, owner) pair
+   * is pinned. `handle` is then only the roster key.
+   */
+  enoRunSellerId?: string
 }
 
 export const PARTNER_STRIP: readonly StripPartner[] = [
@@ -44,9 +51,19 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'saigonmoving', name: 'Saigon Moving', logo: { src: '/partners/saigonmoving.webp', width: 171, height: 96 }, label: { en: 'Moving', vi: 'Chuyển nhà' }, size: 'square' },
   { handle: 'vinwonders', name: 'VinWonders', logo: { src: '/partners/vinwonders.webp', width: 174, height: 96 }, label: { en: 'Tickets', vi: 'Vé tham quan' }, size: 'square' },
   { handle: 'vietkite', name: 'VietKite', logo: { src: '/partners/vietkite.webp', width: 96, height: 96 }, label: { en: 'e-Visa', vi: 'Visa' }, size: 'square', marketplaceOnly: true },
+  // Owner 2026-11-14: "partners … make sure the are added to strip". Their marks, from their own sites: CellphoneS' is drawn
+  // white (its header is red), so its tile is dark; Điện Thoại Vui's red outline reads on the light tile.
+  { handle: 'cellphones', name: 'CellphoneS', logo: { src: '/partners/cellphones.webp', width: 574, height: 96 }, label: { en: 'Gadgets', vi: 'Công nghệ' }, size: 'wide', dark: true, enoRunSellerId: 'cmt78nvif0000gpq48kvzmxjw' },
+  { handle: 'dienthoaivui', name: 'Điện Thoại Vui', logo: { src: '/partners/dienthoaivui.webp', width: 732, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmtr9qva90000glq44fkjs18b' },
 ]
+
+/** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */
+export function stripHref(p: StripPartner): string {
+  return p.enoRunSellerId ? `/sellers/${p.enoRunSellerId}` : `/${p.handle}`
+}
 
 /** The partners this edition shows: eno.forum leaves out the visa partner that competes with its own desk. */
 export function stripPartners(services: boolean = IS_SERVICES): StripPartner[] {
-  return PARTNER_STRIP.filter((p) => !(services && p.marketplaceOnly))
+  const pinned = new Set(ENO_RUN_SELLER_IDS)
+  return PARTNER_STRIP.filter((p) => !(services && p.marketplaceOnly) && (!p.enoRunSellerId || pinned.has(p.enoRunSellerId)))
 }

@@ -90,6 +90,10 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     if (key === 'category') return CATEGORY_SLUGS[row.categoryId as string] === (cond as { slug: string }).slug
     // The price pages read SHOP rows only (`seller: { ownerId: null }`, lowest-prices.ts). Owned here: the
     // person's own storefront and the desk.
+    // …or a storefront eno runs: `seller: { OR: [{ ownerId: null }, …pinned pairs] }` (eno-run-partners.ts) — each arm alone.
+    if (key === 'seller' && cond && typeof cond === 'object' && 'OR' in (cond as object)) {
+      return (cond as { OR: Where[] }).OR.some((arm) => matches(row, { seller: arm } as Where))
+    }
     if (key === 'seller' && cond && typeof cond === 'object' && 'ownerId' in (cond as object) && (cond as { ownerId: unknown }).ownerId === null) {
       return !['own-seller', 'desk-seller'].includes(row.sellerId as string)
     }

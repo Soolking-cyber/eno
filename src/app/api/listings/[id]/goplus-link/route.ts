@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { getAdmin, isCurrentUserAdminByClaims } from '@/lib/admin'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { goplusRoomPageUrl } from '@/lib/goplus-listing'
+import { isCommissionLink } from '@/lib/affiliate-commission'
+import { isEnoRunPartner } from '@/lib/eno-run-partners'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,14 +35,22 @@ export const GET = route(
     const listing = id
       ? await db.listing.findFirst({
         where: await scopedListingWhere({ id }),
-        select: { externalId: true, seller: { select: { ownerId: true, officialPartner: true } } },
+        select: { externalId: true, sellerId: true, seller: { select: { ownerId: true, officialPartner: true } }, purchaseLink: { select: { url: true } } },
       })
       : null
-    const url = listing?.seller.officialPartner === true ? goplusRoomPageUrl(listing.externalId) : null
+    const goplus = listing?.seller.officialPartner === true ? goplusRoomPageUrl(listing.externalId) : null
+    /**
+     * …OR an eno-run partner's PURCHASE LINK (owner 2026-11-14: "only admins should see the link to purchase devices for
+     * users … and send in chat if needed"): the staff-only PartnerPurchaseLink of a listing in a storefront eno runs (a
+     * PINNED pair — src/lib/eno-run-partners.ts), to the same two viewers. Only an AccessTrade link host is ever answered.
+     */
+    const purchase = !goplus && listing && isEnoRunPartner({ id: listing.sellerId, ownerId: listing.seller.ownerId, officialPartner: listing.seller.officialPartner })
+      && isCommissionLink(listing.purchaseLink?.url) ? listing.purchaseLink!.url : null
+    const url = goplus ?? purchase
     const entitled = !!url && (
       listing!.seller.ownerId === userId
       || ((await isCurrentUserAdminByClaims()) && !!(await getAdmin()))
     )
-    return NextResponse.json({ url: entitled ? url : null }, { headers: NO_STORE })
+    return NextResponse.json({ url: entitled ? url : null, kind: entitled && url ? (goplus ? 'goplus' : 'purchase') : null }, { headers: NO_STORE })
   },
 )

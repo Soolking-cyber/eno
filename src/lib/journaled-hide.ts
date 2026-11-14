@@ -1,3 +1,4 @@
+import { enoRunPartnerSql } from './eno-run-partners'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
@@ -67,8 +68,15 @@ export type HideCandidate = Omit<HideJournalRow, 'priorStatus' | 'updatedAt'> & 
   expectUpdatedAt?: string
 }
 
-/** An ownerless storefront's imported or linked row — the only rows this module ever writes. */
-const IMPORTED_ROW = `s."ownerId" IS NULL AND (l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL)`
+/**
+ * An ownerless storefront's imported or linked row — the only rows this module ever writes — or one of a storefront eno
+ * itself runs (a PINNED pair, src/lib/eno-run-partners.ts; owner 2026-11-14). Such a row keeps its purchase link in the
+ * staff-only PartnerPurchaseLink table, so that row counts as "linked" too: provenance, not the public column (opus, plan
+ * review 2026-11-14 — nulling the column must not drop the row out of the ad-ban and AccessTrade sweeps).
+ */
+const IMPORTED_ROW =
+  `(s."ownerId" IS NULL OR ${enoRunPartnerSql('s.')}) AND (l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL ` +
+  `OR EXISTS (SELECT 1 FROM "PartnerPurchaseLink" pl WHERE pl."listingId" = l.id))`
 
 /** The state the journal records: live, imported, read immediately before the hide. */
 export const SNAPSHOT_SQL =
@@ -91,7 +99,8 @@ export const restorableWhere = (since: string) =>
   `AND NOT EXISTS (SELECT 1 FROM compliance_audit a WHERE a."subjectType" = 'listing' AND a."subjectId" = l.id AND a."occurredAt" >= ${since}::timestamp) ` +
   // ⛔ Still an ownerless storefront: a claim changes Seller.ownerId without touching the listing's
   // updatedAt, and a rollback must never republish a row inside a storefront a person now owns (codex).
-  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND s."ownerId" IS NULL)`
+  // …or one eno itself runs (a pinned pair — eno-run-partners.ts): that is eno's storefront, not a person's.
+  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND (s."ownerId" IS NULL OR ${enoRunPartnerSql('s.')}))`
 const RESTORABLE = restorableWhere('$4')
 
 export const RESTORABLE_SQL =

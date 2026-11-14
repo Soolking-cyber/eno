@@ -5,6 +5,8 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { isCommissionLink } from '@/lib/affiliate-commission'
 
 /** The only address it will show: the one goplusRoomPageUrl builds (goplus-listing.ts — server-only, so the shape is
  *  restated here, and api/listings/[id]/goplus-link/route.test.ts holds the two together), whatever the answer says. */
@@ -27,21 +29,42 @@ export function GoplusRoomLink({ listingId, className }: { listingId: string; cl
   const { user, loading } = useAuth()
   const viewer = loading ? null : (user?.id ?? null)
   const key = `${viewer}:${listingId}`
-  const [answer, setAnswer] = useState<{ key: string; url: string | null } | null>(null)
+  const [answer, setAnswer] = useState<{ key: string; url: string | null; kind: 'goplus' | 'purchase' | null } | null>(null)
+  // Keyed on the link itself (commit gate, codex): another listing's link never shows as "Copied".
+  const [copiedHref, setCopiedHref] = useState<string | null>(null)
   useEffect(() => {
     setAnswer(null)
     if (!viewer) return
     let live = true
     fetch(`/api/listings/${encodeURIComponent(listingId)}/goplus-link`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { url?: unknown } | null) => {
-        if (live) setAnswer({ key, url: typeof d?.url === 'string' && GOPLUS_ROOM_PAGE.test(d.url) ? d.url : null })
+      .then((d: { url?: unknown; kind?: unknown } | null) => {
+        if (!live) return
+        const url = typeof d?.url === 'string' ? d.url : null
+        // Each kind shows only its own shape, whatever the answer says: a GoPlus room page, or (an eno-run partner's staff
+        // purchase link, owner 2026-11-14) an AccessTrade link host.
+        if (url && d?.kind === 'purchase' && isCommissionLink(url) && url.startsWith('https://')) setAnswer({ key, url, kind: 'purchase' })
+        else setAnswer({ key, url: url && GOPLUS_ROOM_PAGE.test(url) ? url : null, kind: 'goplus' })
       })
       .catch(() => {})
     return () => { live = false }
   }, [viewer, listingId, key])
   const href = answer?.key === key ? answer.url : null
   if (!href) return null
+  if (answer?.kind === 'purchase') {
+    // Staff only (the endpoint answers nobody else): open it to buy, or copy it to send in the chat (owner 2026-11-14).
+    return (
+      <p className={cn('flex flex-wrap items-center gap-x-3 text-sm text-body', className)}>
+        <a href={href} target="_blank" rel="noopener noreferrer sponsored" onClick={handleExternalClick} className="font-semibold text-accent-foreground underline-offset-2 hover:underline">
+          {tr('Purchase link (staff only)', 'Link mua hàng (chỉ nhân viên)')}
+          <span className="sr-only"> {tr('(opens in a new tab)', '(mở trong tab mới)')}</span>
+        </a>
+        <Button type="button" variant="link" size="none" className="font-semibold text-accent-foreground underline-offset-2" onClick={() => { void navigator.clipboard?.writeText(href).then(() => setCopiedHref(href), () => {}) }}>
+          {copiedHref === href ? tr('Copied', 'Đã sao chép') : tr('Copy', 'Sao chép')}
+        </Button>
+      </p>
+    )
+  }
   return (
     <p className={cn('text-sm text-body', className)}>
       <a

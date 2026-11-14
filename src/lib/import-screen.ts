@@ -1,3 +1,4 @@
+import { enoRunPartnerWhere } from './eno-run-partners'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { findBannedWordAccentAware } from './publish-guard'
@@ -141,7 +142,8 @@ export class ImportScreen {
     const rows = await this.db.listing.findMany({
       // ⛔ ONLY AN OWNERLESS (IMPORT) STOREFRONT'S ROW. An importer never writes into a storefront a real
       // account owns, so the screen never hides one either — whatever key it happens to share.
-      where: { externalId, seller: { ownerId: null }, ...(this.sellerIds ? { sellerId: { in: this.sellerIds } } : {}) },
+      // …or a storefront eno itself runs (a pinned pair, eno-run-partners.ts) — eno's, not a person's.
+      where: { externalId, seller: { OR: [{ ownerId: null }, ...enoRunPartnerWhere()] }, ...(this.sellerIds ? { sellerId: { in: this.sellerIds } } : {}) },
       select: { id: true, status: true, externalId: true, sellerId: true },
     })
     // Several sellers can share a key only across storefronts; the live one is the one that matters.

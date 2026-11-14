@@ -20,7 +20,9 @@ describe('the SQL carries every guard', () => {
   it('snapshot + hide: ownerless storefront, imported/linked row, live; the hide re-checks status AND updatedAt per row', () => {
     for (const sql of [SNAPSHOT_SQL, HIDE_SQL]) {
       expect(sql).toContain(`s."ownerId" IS NULL`)
-      expect(sql).toContain(`(l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL)`)
+      expect(sql).toContain(`(l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL OR EXISTS (SELECT 1 FROM "PartnerPurchaseLink" pl WHERE pl."listingId" = l.id))`)
+      // The owner arm widens only by the pinned eno-run pairs — none shipped, so it is exactly "ownerless" today.
+      expect(sql).toContain(`(s."ownerId" IS NULL OR FALSE)`)
     }
     expect(SNAPSHOT_SQL).toContain(`l.status IN ('active','sold')`)
     expect(HIDE_SQL).toContain('l.status = j.prior')

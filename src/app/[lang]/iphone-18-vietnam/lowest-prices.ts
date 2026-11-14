@@ -1,3 +1,4 @@
+import { enoRunPartnerWhere } from '@/lib/eno-run-partners'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { categoryFor, subcategoryFor, withoutGiftClause } from '@/lib/feed-taxonomy'
@@ -160,7 +161,8 @@ export function usedPriceWhere(models: readonly string[]) {
     subcategorySlug: 'phones-tablets',
     currency: '₫',
     // ⛔ A SHOP's listing, never a person's own (see the header).
-    seller: { ownerId: null },
+    // …or one eno itself runs (a pinned pair, src/lib/eno-run-partners.ts) — a shop, not a person.
+    seller: { OR: [{ ownerId: null }, ...enoRunPartnerWhere()] },
     AND: [conditionWhere('used')!],
   }
 }

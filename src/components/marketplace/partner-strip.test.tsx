@@ -149,7 +149,16 @@ describe('the partner roster', () => {
   it('leaves the visa partner off eno.forum, keeps every marketplace partner on both, and no longer lists GMBR', () => {
     expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders'])
     expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('gmbr')
-    expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.map((p) => p.handle))
+    // The eno-run partners (CellphoneS, Điện Thoại Vui — owner 2026-11-14) show only once their pair is pinned: none is yet.
+    expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.filter((p) => !p.enoRunSellerId).map((p) => p.handle))
+  })
+
+  it('an eno-run partner links to its storefront BY SELLER ID (a handle can be freed and re-claimed), every other by handle', async () => {
+    const { stripHref } = await import('@/lib/partner-strip')
+    const cps = PARTNER_STRIP.find((p) => p.handle === 'cellphones')!
+    expect(stripHref(cps)).toBe('/sellers/cmt78nvif0000gpq48kvzmxjw')
+    expect(stripHref(PARTNER_STRIP.find((p) => p.handle === 'goplus')!)).toBe('/goplus')
+    expect(PARTNER_STRIP.filter((p) => p.enoRunSellerId).map((p) => p.handle)).toEqual(['cellphones', 'dienthoaivui'])
   })
 
   it('points at logo files that exist, with the dimensions the markup declares', () => {

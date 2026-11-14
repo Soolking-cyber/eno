@@ -6,7 +6,7 @@ import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
-import { stripPartners, type StripPartner } from '@/lib/partner-strip'
+import { stripHref, stripPartners, type StripPartner } from '@/lib/partner-strip'
 import { LANE_HEADER_ROW, LANE_TITLE } from './shelf'
 
 /**
@@ -194,7 +194,7 @@ function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: Stri
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
-      <Link href={`/${p.handle}`} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
+      <Link href={stripHref(p)} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
           <img src={p.logo.src} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>

@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { enoRunPartnerWhere, isEnoRunPartner } from '@/lib/eno-run-partners'
 import { liveForSeller } from '@/lib/unread'
 import { blockedConversationIds } from '@/lib/user-blocks'
 
@@ -41,10 +42,13 @@ export type PartnerInbox = { shops: PartnerInboxShop[]; unreadChats: number; unr
 export async function partnerInboxCounts(): Promise<PartnerInbox> {
   // edition-lint-allow: the owner's five partner shops, their counts shown to admins only — never offered to anyone.
   const found = await db.seller.findMany({
-    where: { handle: { handle: { in: [...PARTNER_INBOX_HANDLES] } } },
+    // …and the storefronts eno itself runs (CellphoneS, Điện Thoại Vui — owner 2026-11-14: "make sure the are added to …
+    // inbox message checker"), by their PINNED (seller, owner) pair (src/lib/eno-run-partners.ts), never by a handle.
+    where: { OR: [{ handle: { handle: { in: [...PARTNER_INBOX_HANDLES] } } }, ...enoRunPartnerWhere()] },
     select: { id: true, name: true, ownerId: true, officialPartner: true, handle: { select: { handle: true } } },
   })
-  const sellers = found.filter((s) => s.officialPartner || s.handle?.handle === ENO_OWN_STORE)
+  const rostered = (h: string | undefined) => !!h && (PARTNER_INBOX_HANDLES as readonly string[]).includes(h)
+  const sellers = found.filter((s) => (rostered(s.handle?.handle) && (s.officialPartner || s.handle?.handle === ENO_OWN_STORE)) || isEnoRunPartner(s))
   const shops = await Promise.all(sellers.map(async (s): Promise<PartnerInboxShop> => {
     // The shop's own inbox hides threads with people its owner blocked (unread.ts, App Store gate `ugc-safety`): so does this.
     const hiddenByBlock = s.ownerId ? await blockedConversationIds(s.ownerId) : []
@@ -53,7 +57,9 @@ export async function partnerInboxCounts(): Promise<PartnerInbox> {
     return { sellerId: s.id, name: s.name, handle: s.handle?.handle ?? '', unreadChats: agg._count._all, unreadMessages: agg._sum.sellerUnread ?? 0 }
   }))
   // The owner's order (the roster's), so the page reads the same on every load; the counts carry the urgency.
-  shops.sort((a, b) => PARTNER_INBOX_HANDLES.indexOf(a.handle as never) - PARTNER_INBOX_HANDLES.indexOf(b.handle as never))
+  // The eno-run partners (no roster handle) come after the five, in the pinned order.
+  const rank = (s: PartnerInboxShop) => { const i = PARTNER_INBOX_HANDLES.indexOf(s.handle as never); return i >= 0 ? i : PARTNER_INBOX_HANDLES.length }
+  shops.sort((a, b) => rank(a) - rank(b))
   return {
     shops,
     unreadChats: shops.reduce((n, s) => n + s.unreadChats, 0),

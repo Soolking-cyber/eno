@@ -1,3 +1,4 @@
+import { CAMPAIGN_SELLER_IDS } from '@/lib/accesstrade-removal'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
@@ -8,6 +9,8 @@ import {
 } from '@/lib/affiliate-price-refresh'
 import { restockReport, screenRestock } from '@/lib/restock-screen'
 import { keepUsedRows } from '@/lib/accesstrade-restore'
+import { enoRunPartnerWhere, isEnoRunPartner } from '@/lib/eno-run-partners'
+import { movePublicLinksToStaff, upsertPurchaseLinks } from '@/lib/partner-purchase-link'
 import { importableCampaign } from '@/lib/retired-imports'
 
 export const runtime = 'nodejs'
@@ -126,6 +129,8 @@ export const GET = route({ auth: 'cron' }, async () => {
     // every price, stock and sold write, plus the not-used rows by id.
     let sellerNow: string | null = null
     let retiredNow: string[] = []
+    // Rows whose public link this run moved to the staff table: purged on a later throw too (commit gate, codex).
+    let movedOuter: string[] = []
     // ⛔ A FAIR SHARE of what is left, per campaign (codex, gate round 7): one slow shop cannot spend the next one's time.
     const share = { deadline: Date.now() + Math.floor(Math.max(0, budget.deadline - Date.now()) / (campaigns.length - i)) }
     /**
@@ -138,7 +143,13 @@ export const GET = route({ auth: 'cron' }, async () => {
       // ⛔ `ownerId: null`. Seller.name is NOT unique — anyone can open a storefront called
       // "CellphoneS" — and this job rewrites prices and buy links in bulk. An owned storefront
       // belongs to a real person and is never a datafeed target.
-      const seller = await db.seller.findFirst({ where: { name: merchantNameFor(campaign), ownerId: null }, select: { id: true } })
+      // …or a storefront eno itself runs: a PINNED (seller, owner) pair (src/lib/eno-run-partners.ts) — never any other owner.
+      const pinnedId = CAMPAIGN_SELLER_IDS.get(campaign)
+      const seller = await db.seller.findFirst({
+        // By its fixed id where the campaign has one (a same-named storefront is never this shop), else by name as before.
+        where: { ...(pinnedId ? { id: pinnedId } : { name: merchantNameFor(campaign) }), OR: [{ ownerId: null }, ...enoRunPartnerWhere()] },
+        select: { id: true, ownerId: true, officialPartner: true },
+      })
       // A configured campaign that cannot refresh is a failure, red like a throw (codex, gate round 9).
       if (!seller) { failed++; results.push({ campaign, error: 'no_storefront' }); continue }
       sellerNow = seller.id
@@ -164,10 +175,23 @@ export const GET = route({ auth: 'cron' }, async () => {
        * retired on an earlier night: a SKU the merchant re-lists has to be found here before it can
        * be restored, and filtering to `active` would make every retire permanent.
        */
-      const held = (await db.listing.findMany({
+      /**
+       * ⛔ AN ENO-RUN PARTNER'S PURCHASE LINKS ARE STAFF-ONLY (src/lib/partner-purchase-link.ts, owner 2026-11-14): its rows
+       * are compared against PartnerPurchaseLink, and a moved link is written THERE, never to the public column.
+       */
+      const enoRun = isEnoRunPartner(seller)
+      // ⛔ …and its PUBLIC column stays NULL by itself (commit gate, codex): any link still public (a move never run, cut
+      // short, or a row written back by hand) goes to the staff table first, in one statement, before the diff reads them.
+      const movedNow = enoRun ? await movePublicLinksToStaff(db, Prisma, seller.id) : []
+      // Purged AT ONCE (commit gate, codex) — and the move stamps a live row's updatedAt, so the 48-hour sweep (flushRecent)
+      // re-purges it on later nights too if every purge here failed.
+      movedOuter = movedNow
+      if (movedNow.length) await flushRecent(seller.id, movedNow)
+      const held = ((await db.listing.findMany({
         where: { sellerId: seller.id, externalId: { not: null } },
-        select: { id: true, externalId: true, price: true, affiliateUrl: true, status: true, condition: true },
-      })) as (ExistingListing & { status: string; condition: string | null })[]
+        select: { id: true, externalId: true, price: true, affiliateUrl: true, status: true, condition: true, ...(enoRun ? { purchaseLink: { select: { url: true } } } : {}) },
+      })) as (ExistingListing & { status: string; condition: string | null; purchaseLink?: { url: string } | null })[])
+        .map((l) => (enoRun ? { ...l, affiliateUrl: l.purchaseLink?.url ?? null } : l))
       /**
        * ⛔ A SKU THE SHOP NOW SELLS AS NEW IS POSITIVE EVIDENCE, NOT ABSENCE (commit gate, codex 2026-11-14). Left to the
        * reconcile it would read as "missing", and the retire floors (≥20 matched, ≥50%, the cap) exist to stop absence
@@ -205,7 +229,13 @@ export const GET = route({ auth: 'cron' }, async () => {
       // row whose feed price moved would be re-flushed every night and push the batch past REVALIDATE_CAP.
       const live = new Set(existing.filter((e) => e.status === 'active' || e.status === 'sold').map((e) => e.id))
       const changes = diff.changes.filter((c) => live.has(c.id))
-      const written = await applyPriceChanges(db, Prisma, changes)
+      // An eno-run partner: the price on the row (its public link stays NULL — COALESCE keeps it), the link in the staff table.
+      const written = enoRun
+        ? await applyPriceChanges(db, Prisma, changes.filter((c) => c.from !== c.to).map((c) => ({ ...c, affiliateUrl: null })))
+        : await applyPriceChanges(db, Prisma, changes)
+      const staffLinks = enoRun
+        ? await upsertPurchaseLinks(db, Prisma, changes.filter((c) => c.affiliateUrl).map((c) => ({ listingId: c.id, url: c.affiliateUrl! })))
+        : 0
 
       /**
        * ⛔ THREE CONDITIONS, AND THE FIRST DRAFT HAD ONLY THE WEAKEST TWO. A reviewer refuted it with
@@ -294,10 +324,12 @@ export const GET = route({ auth: 'cron' }, async () => {
        * only because the reconcile runs BEFORE this line. Keep that order. Awaited BEFORE the push (opus, gate round 15):
        * a throw here is then reported once, by the catch, not as a result and a failure both.
        */
-      const flushed = await flushRecent(seller.id, [...changes.map((c) => c.id), ...(screen?.hide.map((f) => f.id) ?? []), ...nowNew])
+      // An eno-run shop's link-only change alters no public page (the link is staff-only): only its price changes purge (opus).
+      const pageChanges = enoRun ? changes.filter((c) => c.from !== c.to) : changes
+      const flushed = await flushRecent(seller.id, [...pageChanges.map((c) => c.id), ...(screen?.hide.map((f) => f.id) ?? []), ...nowNew, ...movedNow])
       results.push({
         campaign, feedRows: seen, feedDropped: dropped, feedNotUsed: notUsedSkus.size, soldNotUsed, nowNewAlarm, ...(nowNewAlarm ? { notUsedSample: [...notUsedSkus].slice(0, 5) } : {}), listings: existing.length,
-        changed: written, unchanged, missingFromFeed, stock, mayRetire, cappedOut,
+        changed: written, ...(enoRun ? { enoRun: true, staffLinks } : {}), unchanged, missingFromFeed, stock, mayRetire, cappedOut,
         matchedActive, activeHeld, retireCandidates: retireCandidates.length, retireCap,
         ...(screen ? restockReport(screen) : screenError ? { restockScreen: { failed: true, candidates: restoreCandidates.length } } : {}),
         ...flushed,
@@ -307,7 +339,7 @@ export const GET = route({ auth: 'cron' }, async () => {
       console.error('affiliate-prices: %s FAILED — the rest of it is not written tonight', campaign, e)
       results.push({ campaign, error: String((e as Error)?.message ?? e).slice(0, 200) })
       // Nothing this campaign already committed may keep rendering stale from the page cache.
-      if (sellerNow) await flushRecent(sellerNow, retiredNow).catch((f) => console.error('affiliate-prices: %s flush after failure FAILED', campaign, f))
+      if (sellerNow) await flushRecent(sellerNow, [...retiredNow, ...movedOuter]).catch((f) => console.error('affiliate-prices: %s flush after failure FAILED', campaign, f))
     }
   }
   // A 502 with the report, not a thrown 500: the other shops' results stay readable, and eno-cron.sh fails the unit.

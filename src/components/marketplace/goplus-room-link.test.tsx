@@ -130,3 +130,25 @@ describe('⛔ no page or payload carries the URL — only the endpoint does', ()
     expect(readFileSync('src/app/api/conversations/[id]/route.ts', 'utf8')).not.toMatch(/externalId/)
   })
 })
+
+// Owner 2026-11-14: an eno-run partner's staff-only purchase link, answered by the same endpoint with kind 'purchase'.
+describe('GoplusRoomLink — an eno-run partner\'s purchase link (staff only)', () => {
+  const BUY = 'https://go.isclix.com/deep_link/7053736680188167797/4842412845025484719?url=https%3A%2F%2Fcellphones.com.vn%2Fx'
+  const purchase = (url: unknown) => ({ ok: true, json: async () => ({ url, kind: 'purchase' }) })
+  it('staff (the server answers it): the purchase link, in a new tab, sponsored, with a Copy button', async () => {
+    h.user = { id: 'eno-login' }
+    fetchMock.mockResolvedValue(purchase(BUY))
+    render(<GoplusRoomLink listingId="L1" />)
+    const a = await screen.findByRole('link', { name: /Purchase link \(staff only\)/ })
+    expect(a.getAttribute('href')).toBe(BUY)
+    expect(a.getAttribute('rel')).toContain('sponsored')
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy()
+  })
+  it('⛔ a "purchase" answer that is not an AccessTrade link host shows nothing', async () => {
+    h.user = { id: 'eno-login' }
+    fetchMock.mockResolvedValue(purchase('https://evil.example/x'))
+    const { container } = render(<GoplusRoomLink listingId="L1" />)
+    await act(async () => { await Promise.resolve() })
+    expect(container.textContent).toBe('')
+  })
+})

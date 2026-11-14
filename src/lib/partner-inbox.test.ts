@@ -39,8 +39,10 @@ describe('partnerInboxCounts', () => {
     await partnerInboxCounts()
     expect(PARTNER_INBOX_HANDLES).toEqual(['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'])
     const a = calls.sellerArgs[0] as { where: unknown; select: Record<string, unknown> }
-    expect(a.where).toEqual({ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'] } } })
-    expect(JSON.stringify(a.where)).not.toMatch(/officialPartner/)
+    // …OR the pinned eno-run pairs (none shipped yet — owner 2026-11-14), so today the OR holds only the roster.
+    expect(a.where).toEqual({ OR: [{ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'] } } }] })
+    // The ROSTER arm never filters on officialPartner (that is checked per shop below); the pinned eno-run arms do, by design.
+    expect(JSON.stringify((a.where as { OR: unknown[] }).OR[0])).not.toMatch(/officialPartner/)
     // the conversation is only ever aggregated: no findMany, no message, no buyer, no text
     const agg = calls.aggregates[0] as { _count: unknown; _sum: unknown; select?: unknown; include?: unknown }
     expect(agg.select).toBeUndefined()

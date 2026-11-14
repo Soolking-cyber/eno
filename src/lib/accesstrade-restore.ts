@@ -1,5 +1,6 @@
 import { decodeEntities } from './feed-text'
 import { restorableWhere } from './journaled-hide'
+import { enoRunPartnerSql } from './eno-run-partners'
 import { LICENCE_HELD_NOTE, licenceClearedSql } from './licence-stamp'
 import { isUsedTitle } from './used-signal'
 
@@ -130,7 +131,7 @@ export function keepUsedRows(prices: Map<string, FeedItem>, unpriced: ReadonlyMa
  */
 const UNDO_WHERE =
   `l.id = j.id AND l.status = j.st AND l."updatedAt"::text = j.upd ` +
-  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND s."ownerId" IS NULL)`
+  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND (s."ownerId" IS NULL OR ${enoRunPartnerSql('s.')}))`
 export const UNDO_SQL =
   `UPDATE "Listing" l SET status = 'hidden', "verificationNotes" = NULLIF(l."verificationNotes", '${LICENCE_HELD_NOTE}') ` +
   `FROM unnest($1::text[], $2::text[], $3::text[]) AS j(id, st, upd) WHERE ${UNDO_WHERE} RETURNING l.id`
@@ -147,7 +148,7 @@ export const UNDO_COUNT_SQL =
 export const PENDING_UNDO_SQL =
   `UPDATE "Listing" l SET status = 'hidden', "verificationNotes" = NULLIF(l."verificationNotes", '${LICENCE_HELD_NOTE}') ` +
   `WHERE l.id = ANY($1::text[]) AND l.status IN ('active', 'sold') ` +
-  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND s."ownerId" IS NULL) RETURNING l.id`
+  `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND (s."ownerId" IS NULL OR ${enoRunPartnerSql('s.')})) RETURNING l.id`
 
 /** The journals --undo accepts: this script's own, and import-accesstrade.ts' created ids. */
 export const UNDOABLE_KINDS = ['restore-accesstrade-used', 'import-accesstrade-created'] as const

@@ -1,3 +1,4 @@
+import { isEnoRunPartner } from './eno-run-partners'
 import { isCommissionLink } from './affiliate-commission'
 
 /**
@@ -37,11 +38,21 @@ export const ACCESSTRADE_SOURCED_SELLERS: ReadonlyMap<string, string> = new Map(
   ['cmu52jkld0000czq443snv0jh', 'SuperSports (AccessTrade checkout links)'],
 ])
 
-export type AccessTradeRow = { sellerId: string; affiliateUrl: string | null; ownerId: string | null }
+/**
+ * The storefront each used-only campaign writes, BY ID (commit gate, opus 2026-11-14): Seller.name is not unique, so once
+ * the real shop has an owner an ownerless guest storefront of the same name must never be mistaken for it.
+ */
+export const CAMPAIGN_SELLER_IDS: ReadonlyMap<string, string> = new Map([
+  ['cellphones_cps', 'cmt78nvif0000gpq48kvzmxjw'],
+  ['dienthoaivui', 'cmtr9qva90000glq44fkjs18b'],
+])
+
+export type AccessTradeRow = { sellerId: string; affiliateUrl: string | null; ownerId: string | null; officialPartner?: boolean | null }
 
 /** Why a row is NOT removed, or null when it is. Only an ownerless storefront's row is ever removed. */
 export function accessTradeKeepReason(row: AccessTradeRow): string | null {
-  if (row.ownerId !== null) return 'a person owns this storefront — never touched by an operator sweep'
+  // …unless eno itself runs it (a pinned pair — eno-run-partners.ts): that storefront is eno's, not a person's.
+  if (row.ownerId !== null && !isEnoRunPartner({ id: row.sellerId, ownerId: row.ownerId, officialPartner: row.officialPartner })) return 'a person owns this storefront — never touched by an operator sweep'
   const kept = ACCESSTRADE_KEPT_SELLERS.get(row.sellerId)
   if (kept) return kept
   if (ACCESSTRADE_SOURCED_SELLERS.has(row.sellerId)) return null

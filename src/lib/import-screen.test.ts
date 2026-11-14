@@ -250,7 +250,8 @@ describe('ImportScreen — an EXISTING row is never silently frozen', () => {
     const { db, finds } = fakeDb([{ id: 'L1', status: 'active', externalId: 'x1', sellerId: 'other' }])
     const s = new ImportScreen('test', { dir: tmp(), db, sellerIds: ['s1'] })
     await s.check({ title: 'Rượu HALICO 30°', externalId: 'x1' })
-    expect(finds[0]).toEqual({ externalId: 'x1', seller: { ownerId: null }, sellerId: { in: ['s1'] } })
+    // Ownerless, or a pinned eno-run pair (none shipped → the OR holds only the ownerless arm).
+    expect(finds[0]).toEqual({ externalId: 'x1', seller: { OR: [{ ownerId: null }] }, sellerId: { in: ['s1'] } })
     expect(s.toHide).toEqual([]) // another shop's row with the same key is not this importer's to hide
   })
 })

@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   feed: new Map<string, { price: number; affiliateUrl: string | null; name: string; url: string }>(),
   throwFor: '',
   budgets: [] as { deadline: number }[],
+  enoRun: false,
+  movedNow: [] as string[],
   sql: [] as Array<{ text: string; values: unknown[] }>,
   updateMany: [] as Row[],
 }))
@@ -26,13 +28,16 @@ vi.mock('@/lib/affiliate-price-refresh', async (orig) => ({
   fetchFeedPrices: async (campaign: string, _k: string, _id: string, _p: unknown, budget: { deadline: number }) => { h.feedCalls++; h.budgets.push(budget); if (campaign === h.throwFor) throw new Error('datafeeds page 2: HTTP 429'); return { prices: h.feed, seenIds: new Set(h.feed.keys()), seen: h.feed.size, complete: true, total: h.feed.size, dropped: 0 } },
 }))
 
+// The pinned-pair check, switchable per test (src/lib/eno-run-partners.ts ships with no pairs).
+vi.mock('@/lib/eno-run-partners', async (orig) => ({ ...(await orig<typeof import('@/lib/eno-run-partners')>()), isEnoRunPartner: () => h.enoRun }))
+
 vi.mock('@/lib/db', () => ({
   db: {
     seller: { findFirst: async () => ({ id: 's1' }) },
     listing: {
       findMany: async (a: Row) => {
         if (a.where.updatedAt) return [] // flushRecent
-        if (a.where.sellerId) return h.rows.map((r) => ({ id: r.id, externalId: r.externalId, price: r.price, affiliateUrl: null, status: r.status, condition: r.condition ?? 'used' }))
+        if (a.where.sellerId) return h.rows.map((r) => ({ id: r.id, externalId: r.externalId, price: r.price, affiliateUrl: r.affiliateUrl ?? null, status: r.status, condition: r.condition ?? 'used', ...(r.purchaseLink ? { purchaseLink: r.purchaseLink } : {}) }))
         // The restock screen's read: by id, still sold.
         return h.rows.filter((r) => a.where.id.in.includes(r.id) && r.status === a.where.status)
           .map((r) => ({ id: r.id, title: r.title, titleVi: null, description: null, descriptionVi: null, subcategorySlug: null, category: { slug: 'home-living' } }))
@@ -45,6 +50,7 @@ vi.mock('@/lib/db', () => ({
         return { count: hit.length }
       },
     },
+    $queryRaw: async (q: { sql: string; values: unknown[] }) => { h.sql.push({ text: q.sql.replace(/\s+/g, ' '), values: q.values }); return h.movedNow.map((id) => ({ id })) },
     $executeRaw: async (q: { sql: string; values: unknown[] }) => {
       h.sql.push({ text: q.sql.replace(/\s+/g, ' '), values: q.values })
       // The retire statement reports the rows it moved (the budget test reads it); everything else, none.
@@ -72,6 +78,8 @@ beforeEach(() => {
   h.feed = new Map(h.rows.map((r) => [r.externalId, { price: 200, affiliateUrl: null, ...USED }]))
   h.throwFor = ''
   h.budgets = []
+  h.enoRun = false
+  h.movedNow = []
   h.sql = []
   h.updateMany = []
   h.feedCalls = 0
@@ -230,6 +238,44 @@ describe('GET /api/cron/affiliate-prices — used-only shelves', () => {
     // flushRecent's sweep: every row of the storefront whose updatedAt moved in the window.
     expect(reads.some((a) => a.where?.updatedAt)).toBe(true)
     dbm.listing.findMany = orig; spy.mockRestore()
+  })
+  it('⛔ an eno-run partner: the price goes on the row, the moved link ONLY to PartnerPurchaseLink — never the public column', async () => {
+    h.enoRun = true
+    h.rows = [{ id: 'p1', externalId: 'e-p1', price: 100, status: 'active', title: 'x', affiliateUrl: null, purchaseLink: { url: 'https://go.isclix.com/old' } }]
+    h.feed = new Map([['e-p1', { price: 200, affiliateUrl: 'https://go.isclix.com/new', ...USED }]])
+    const out = await run()
+    const priceWrite = h.sql.find((q) => q.text.includes('SET price = v.price'))!
+    expect(priceWrite.values).toContain('p1')
+    expect(JSON.stringify(priceWrite.values)).not.toContain('go.isclix.com')
+    const linkWrite = h.sql.find((q) => q.text.includes('INSERT INTO "PartnerPurchaseLink"') && q.text.includes('DO UPDATE SET url'))!
+    expect(linkWrite.values).toEqual(['p1', 'https://go.isclix.com/new'])
+    expect(out.results[0]).toMatchObject({ enoRun: true })
+  })
+  it('⛔ an eno-run partner\'s leftover PUBLIC links are moved to the staff table first, and their pages purged', async () => {
+    h.enoRun = true
+    h.movedNow = ['p1']
+    h.rows = [{ id: 'p1', externalId: 'e-p1', price: 100, status: 'active', title: 'x', affiliateUrl: null, purchaseLink: { url: 'https://go.isclix.com/same' } }]
+    h.feed = new Map([['e-p1', { price: 100, affiliateUrl: 'https://go.isclix.com/same', ...USED }]])
+    const revalidate = await import('@/lib/revalidate-lang')
+    const purge = vi.spyOn(revalidate, 'revalidatePublicPath')
+    await run()
+    const move = h.sql.find((q) => q.text.includes('ON CONFLICT ("listingId") DO NOTHING'))!
+    expect(move.text).toContain('FOR UPDATE')
+    expect(move.text).toContain('SET "affiliateUrl" = NULL')
+    expect(purge.mock.calls.map((c) => c[0])).toContain('/listings/p1')
+    purge.mockRestore()
+  })
+  it('not an eno-run partner: no move at all', async () => {
+    await run()
+    expect(h.sql.find((q) => q.text.includes('PartnerPurchaseLink'))).toBeUndefined()
+  })
+  it('an eno-run partner whose staff link is current writes no link at all', async () => {
+    h.enoRun = true
+    h.rows = [{ id: 'p1', externalId: 'e-p1', price: 100, status: 'active', title: 'x', affiliateUrl: null, purchaseLink: { url: 'https://go.isclix.com/same' } }]
+    h.feed = new Map([['e-p1', { price: 100, affiliateUrl: 'https://go.isclix.com/same', ...USED }]])
+    await run()
+    expect(h.sql.find((q) => q.text.includes('DO UPDATE SET url'))).toBeUndefined()
+    expect(h.sql.find((q) => q.text.includes('SET price = v.price'))).toBeUndefined()
   })
   it('a configured campaign with no approved AccessTrade campaign is a failure: 502, not a green night', async () => {
     const refresh = await import('@/lib/affiliate-price-refresh')

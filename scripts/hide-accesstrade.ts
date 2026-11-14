@@ -114,9 +114,9 @@ const PREFILTER = [
 async function removableLeft(): Promise<number> {
   const rows = await db.listing.findMany({
     where: { status: { in: ['active', 'sold'] }, OR: PREFILTER },
-    select: { sellerId: true, affiliateUrl: true, seller: { select: { ownerId: true } } },
+    select: { sellerId: true, affiliateUrl: true, seller: { select: { ownerId: true, officialPartner: true } } },
   })
-  return rows.filter((l) => accessTradeKeepReason({ sellerId: l.sellerId, affiliateUrl: l.affiliateUrl, ownerId: l.seller.ownerId }) === null).length
+  return rows.filter((l) => accessTradeKeepReason({ sellerId: l.sellerId, affiliateUrl: l.affiliateUrl, ownerId: l.seller.ownerId, officialPartner: l.seller.officialPartner }) === null).length
 }
 
 async function scan() {
@@ -124,12 +124,12 @@ async function scan() {
   const rows = await db.listing.findMany({
     where: { status: { in: ['active', 'sold'] }, OR: PREFILTER },
     orderBy: { id: 'asc' },
-    select: { id: true, title: true, status: true, verified: true, affiliateUrl: true, sellerId: true, seller: { select: { name: true, ownerId: true } } },
+    select: { id: true, title: true, status: true, verified: true, affiliateUrl: true, sellerId: true, seller: { select: { name: true, ownerId: true, officialPartner: true } } },
   })
   const take: typeof rows = []
   const kept = new Map<string, number>()
   for (const l of rows) {
-    const why = accessTradeKeepReason({ sellerId: l.sellerId, affiliateUrl: l.affiliateUrl, ownerId: l.seller.ownerId })
+    const why = accessTradeKeepReason({ sellerId: l.sellerId, affiliateUrl: l.affiliateUrl, ownerId: l.seller.ownerId, officialPartner: l.seller.officialPartner })
     if (why) kept.set(`${l.seller.name}: ${why}`, (kept.get(`${l.seller.name}: ${why}`) ?? 0) + 1)
     else take.push(l)
   }
