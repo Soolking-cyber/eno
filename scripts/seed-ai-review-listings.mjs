@@ -130,6 +130,7 @@ export const STOREFRONT = Object.freeze({
  * a near-miss address must find nothing rather than someone else's storefront. Left-joined so "no storefront" is
  * told apart from "no account".
  */
+/** @param {{ email: string }} seat */
 export function seatQuery(seat) {
   return Object.freeze({
     text: `select p.id, p."accountType", p."enforcementState",
@@ -280,6 +281,11 @@ export function parseArgs(argv) {
 /**
  * The seat out of SEAT_QUERY's rows: `{ seat }`, or `{ refusal }`. ⛔ EXACTLY ONE account with exactly one storefront,
  * named as the seat table names it — anything else is not this seat and nothing is written to it.
+ */
+/**
+ * @param {any[]} rows
+ * @param {{ email: string, sellerName: string }} [seat]
+ * @param {string} [key]
  */
 export function seatFromRows(rows, seat = SEAT, key = 'ai') {
   if (rows.length === 0) {
