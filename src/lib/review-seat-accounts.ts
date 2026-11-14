@@ -35,8 +35,8 @@ import type { Prisma } from '@/generated/prisma/client'
  * only. src/lib/review-seat-accounts.test.ts imports that table and pins the two together: every seat it defines but the
  * lawyer's must be here (a store seat the guard does not know fails the suite), the lawyer's must not, and nothing here may
  * be anything but a store seat's address.
- * `ai-review@eno.vn` is here BEFORE its row lands in the table (the AI seat's branch): the guard is in place before the
- * account exists, and the test names it as the one address still on its way.
+ * ⛔ A NEW STORE SEAT IS ADDED HERE AND DEPLOYED BEFORE ITS ACCOUNT IS CREATED: until then it would be an unguarded
+ * business partner account. The two AI seats (ai-review, ai-review-2 — Muse asks for two test users) follow that order.
  *
  * ⛔ EXACT, CASE-INSENSITIVE, AFTER TRIM — NEVER A DOMAIN MATCH: @eno.vn is the staff's domain as well as the seats'.
  */
@@ -44,6 +44,7 @@ export const STORE_REVIEW_SEAT_EMAILS: readonly string[] = Object.freeze([
   'play-review@eno.forum',
   'app-review@eno.vn',
   'ai-review@eno.vn',
+  'ai-review-2@eno.vn',
 ])
 
 /**

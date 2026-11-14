@@ -468,11 +468,11 @@ try {
             console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs                      # dry run`)
             console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs --apply --gate=off`)
           }
-          if (picked.key === 'ai') {
+          if (picked.key === 'ai' || picked.key === 'ai2') {
             // The AI reviewers connect the Partner MCP and need something in the shop to read — not on the marketplace.
             console.log(`\nThe AI seat also needs its hidden demo listings (what list_listings / get_listing / analytics_* read):`)
-            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs            # dry run`)
-            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs --apply`)
+            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs --for=${picked.key}            # dry run`)
+            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs --for=${picked.key} --apply`)
           }
         }
       }

@@ -74,7 +74,7 @@ export const REVIEW_SEATS = Object.freeze({
    * official-partner gate, scripts/set-official-partner.mjs), then connect eno's Partner MCP server through "Sign in
    * with eno" (OAuth, src/lib/api/oauth-grant.ts) and read the shop's own demo listings, seeded HIDDEN by
    * scripts/seed-ai-review-listings.mjs.
-   * ⚠️ THE ONLY SEAT THIS TABLE CREATES AS `accountType: 'business'`, AND IT HAS TO BE: eligibleShop() refuses a sign-in
+   * ⚠️ WITH `ai2` BELOW, THE ONLY SEATS THIS TABLE CREATES AS `accountType: 'business'`, AND THEY HAVE TO BE: eligibleShop() refuses a sign-in
    * grant to anyone but a BUSINESS account that owns its storefront (`not_business` on the consent page). What business
    * changes in public is measured in register-play-reviewer.mjs's header. Every other seat has NO `accountType` key and
    * is created 'individual' (seatAccountType below) — the Play seat's entry is pinned whole by
@@ -94,10 +94,28 @@ export const REVIEW_SEATS = Object.freeze({
     // ⛔ Printed on success as the next step: it names the precondition, so the step the header forbids is never invited.
     handOff: "ONLY once the app refuses review seats any teacher contact (register-play-reviewer.mjs header) is LIVE: paste the password into the AI app review forms' test-account fields (ChatGPT, Muse, Claude) — nowhere else",
   }),
+  /**
+   * The SECOND AI-app review seat (2026-11-14): Muse's review asks for "at least two test users for OAuth". Same shape and
+   * the same reasons as `ai` above (business, partner-flagged, its own hidden demo listings via
+   * `seed-ai-review-listings.mjs --for=ai2`). ⛔ Its address is in the app's STORE_REVIEW_SEAT_EMAILS
+   * (src/lib/review-seat-accounts.ts), and that has to be DEPLOYED before this account is created.
+   */
+  ai2: Object.freeze({
+    email: 'ai-review-2@eno.vn',
+    sellerName: 'eno AI app review 2 (internal)',
+    displayName: 'AI app review 2',
+    credFile: '.env.ai-review-2.local',
+    envPrefix: 'AI2',
+    accountType: 'business',
+    credHeader: '# AI app reviews (Muse, ChatGPT, Claude), second test user: sign-in for eno.vn (email + password, eno.vn/signin)',
+    credNote: "# Paste only into the review forms' test-account fields. Treat as a live credential; rotate if it leaks.",
+    // ⛔ Printed on success as the next step: it names the precondition, so the step the header forbids is never invited.
+    handOff: "ONLY once the app refuses review seats any teacher contact (register-play-reviewer.mjs header) is LIVE: paste the password into the AI app review forms' test-account fields (Muse's second test user) — nowhere else",
+  }),
 })
 
 /** The values `--for=` accepts. No `--for` at all is the Play seat — the script's original contract. */
-export const SEAT_FLAGS = Object.freeze(['lawyer', 'apple', 'ai'])
+export const SEAT_FLAGS = Object.freeze(['lawyer', 'apple', 'ai', 'ai2'])
 
 /** The Profile account types a seat may be created with — the two the app itself writes (api/profile/account-type). */
 export const SEAT_ACCOUNT_TYPES = Object.freeze(['individual', 'business'])

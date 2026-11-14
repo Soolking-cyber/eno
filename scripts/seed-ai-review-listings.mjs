@@ -100,6 +100,13 @@ export const SEED_TAG = 'seed-ai-review-listings'
 export const SEAT = REVIEW_SEATS.ai
 
 /**
+ * The seats this seed serves, by the key `--for=<key>` names; no flag is the first AI seat (the original contract). Muse
+ * asks for two test users, hence `ai2` (scripts/review-seats.mjs). Each gets the same three listings on its OWN storefront
+ * — (sellerId, externalId) is unique per shop, so the shared externalIds never collide.
+ */
+export const SEED_SEATS = Object.freeze({ ai: REVIEW_SEATS.ai, ai2: REVIEW_SEATS.ai2 })
+
+/**
  * The statuses a seeded row may be written with — each listing names its own; today all three are hidden. ⛔ NOT
  * 'sold' (gate review, 2026-11-14): the trust maths counts a sold row as a completed sale with no verified check
  * (computeTrustV2, src/lib/trust.ts; sellerTransactionCount, src/lib/enforcement.ts), so a seeded sold row would put a
@@ -123,14 +130,17 @@ export const STOREFRONT = Object.freeze({
  * a near-miss address must find nothing rather than someone else's storefront. Left-joined so "no storefront" is
  * told apart from "no account".
  */
-export const SEAT_QUERY = Object.freeze({
-  text: `select p.id, p."accountType", p."enforcementState",
+export function seatQuery(seat) {
+  return Object.freeze({
+    text: `select p.id, p."accountType", p."enforcementState",
                 s.id as "sellerId", s.name as "sellerName", s."officialPartner", s."trustScore", s."trustTier",
                 s.location as "sellerLocation", s.bio as "sellerBio"
            from "Profile" p left join "Seller" s on s."ownerId" = p.id
           where p.email = $1`,
-  values: Object.freeze([SEAT.email]),
-})
+    values: Object.freeze([seat.email]),
+  })
+}
+export const SEAT_QUERY = seatQuery(SEAT)
 
 /**
  * The listings — the shape the post wizard sends for an ordinary used item (src/components/marketplace/post-wizard.tsx):
@@ -249,31 +259,37 @@ const INSERT_SQL = `insert into "Listing" (id, "externalId", title, "titleVi", d
                                 "sellerId", "sellerTrustScore", verified, status, "updatedAt")
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now())`
 
-const USAGE = 'usage: node --env-file=.env scripts/seed-ai-review-listings.mjs [--apply]'
+const USAGE = 'usage: node --env-file=.env scripts/seed-ai-review-listings.mjs [--for=ai|--for=ai2] [--apply]'
 
-/** `{ apply }` or `{ error }`. ⛔ FAILS CLOSED: an unknown argument (`--aply`, `--for=ai`, `--gate=off`) is an error. */
+/**
+ * `{ apply, key }` or `{ error }`. `--for=ai` or `--for=ai2` (exact, once) picks the seat; none is `ai`. ⛔ FAILS CLOSED: any
+ * other argument (`--aply`, `--for=AI2`, `--for ai2`, `--for=apple`, a second `--for`, `--gate=off`) is an error.
+ */
 export function parseArgs(argv) {
   let apply = false
+  let key = null
   for (const a of argv) {
     if (a === '--apply') apply = true
+    // ⛔ FAILS CLOSED like seatFromArgv: only an EXACT --for=<key> of this seed's seats, and only once.
+    else if (a.startsWith('--for=') && Object.hasOwn(SEED_SEATS, a.slice(6)) && key === null) key = a.slice(6)
     else return { error: `unknown argument ${a} — ${USAGE}` }
   }
-  return { apply }
+  return { apply, key: key ?? 'ai' }
 }
 
 /**
  * The seat out of SEAT_QUERY's rows: `{ seat }`, or `{ refusal }`. ⛔ EXACTLY ONE account with exactly one storefront,
  * named as the seat table names it — anything else is not this seat and nothing is written to it.
  */
-export function seatFromRows(rows) {
+export function seatFromRows(rows, seat = SEAT, key = 'ai') {
   if (rows.length === 0) {
-    return { refusal: `No Profile for ${SEAT.email} — create the AI seat first:\n      node --env-file=.env scripts/register-play-reviewer.mjs --for=ai --apply` }
+    return { refusal: `No Profile for ${seat.email} — create the seat first:\n      node --env-file=.env scripts/register-play-reviewer.mjs --for=${key} --apply` }
   }
-  if (rows.length > 1) return { refusal: `${rows.length} rows for ${SEAT.email} — expected exactly one account with one storefront. Not guessing which.` }
+  if (rows.length > 1) return { refusal: `${rows.length} rows for ${seat.email} — expected exactly one account with one storefront. Not guessing which.` }
   const r = rows[0]
-  if (!r.sellerId) return { refusal: `${SEAT.email} (Profile ${r.id}) owns no storefront — it was not created by register-play-reviewer.mjs --for=ai.` }
-  if (r.sellerName !== SEAT.sellerName) {
-    return { refusal: `${SEAT.email} owns a storefront named "${r.sellerName}" (${r.sellerId}), not "${SEAT.sellerName}" — not the seat's row.` }
+  if (!r.sellerId) return { refusal: `${seat.email} (Profile ${r.id}) owns no storefront — it was not created by register-play-reviewer.mjs --for=${key}.` }
+  if (r.sellerName !== seat.sellerName) {
+    return { refusal: `${seat.email} owns a storefront named "${r.sellerName}" (${r.sellerId}), not "${seat.sellerName}" — not the seat's row.` }
   }
   return { seat: r }
 }
@@ -281,25 +297,26 @@ export function seatFromRows(rows) {
 const vnd = (n) => `${n.toLocaleString('de-DE')} đ`
 
 /** Every read the plan needs. Writes nothing. `refusals` stop the run; `warnings` do not. */
-async function readState(c) {
+async function readState(c, def, key) {
   const refusals = []
   const warnings = []
 
   // ── The seat and its storefront. ──
-  const picked = seatFromRows((await c.query(SEAT_QUERY.text, [...SEAT_QUERY.values])).rows)
+  const q = seatQuery(def)
+  const picked = seatFromRows((await c.query(q.text, [...q.values])).rows, def, key)
   if (picked.refusal) refusals.push(picked.refusal)
   const seat = picked.seat ?? null
   if (seat) {
     // The publish gate's first step (assertPublishable: account_restricted) and eligibleShop's 'restricted'.
     if (seat.trustTier === 'restricted') refusals.push(`The seat's storefront is trust tier "restricted" — the app would refuse it a listing (account_restricted).`)
     if (seat.enforcementState === 'held' || seat.enforcementState === 'suspended') {
-      refusals.push(`${SEAT.email} is ${seat.enforcementState} — "Sign in with eno" refuses it (eligibleShop), so the MCP could not read these anyway.`)
+      refusals.push(`${def.email} is ${seat.enforcementState} — "Sign in with eno" refuses it (eligibleShop), so the MCP could not read these anyway.`)
     }
     if (seat.accountType !== 'business') {
-      warnings.push(`${SEAT.email} has accountType=${seat.accountType ?? 'null'}, not 'business': "Sign in with eno" answers not_business (eligibleShop), so the reviewers cannot connect the MCP. This seed does not need it; the review does.`)
+      warnings.push(`${def.email} has accountType=${seat.accountType ?? 'null'}, not 'business': "Sign in with eno" answers not_business (eligibleShop), so the reviewers cannot connect the MCP. This seed does not need it; the review does.`)
     }
     if (!seat.officialPartner) {
-      warnings.push(`${SEAT.email} is not partner-flagged yet, so password sign-in refuses it. This seed does not need the flag; the review does:\n      node --env-file=.env scripts/set-official-partner.mjs ${seat.sellerId} --apply`)
+      warnings.push(`${def.email} is not partner-flagged yet, so password sign-in refuses it. This seed does not need the flag; the review does:\n      node --env-file=.env scripts/set-official-partner.mjs ${seat.sellerId} --apply`)
     }
   }
 
@@ -331,12 +348,12 @@ async function readState(c) {
     else warnings.push(`The storefront already has a location or bio ("${seat.sellerLocation ?? ''}" / "${seat.sellerBio ?? ''}") — left as it is.`)
   }
 
-  return { seat, categories, seeded, storefront, refusals, warnings }
+  return { def, seat, categories, seeded, storefront, refusals, warnings }
 }
 
 function printPlan(s, args) {
   console.log(`${args.apply ? 'WRITING' : 'DRY RUN — would write'}:`)
-  console.log(`  seat      : ${SEAT.email}${s.seat
+  console.log(`  seat      : ${s.def.email}${s.seat
     ? ` (Profile ${s.seat.id}, accountType=${s.seat.accountType ?? 'null'}, officialPartner=${!!s.seat.officialPartner})`
     : ' — MISSING'}`)
   console.log(`  storefront: ${s.seat ? `${s.seat.sellerId} "${s.seat.sellerName}" (trust ${s.seat.trustScore}/${s.seat.trustTier})` : '—'}`)
@@ -390,7 +407,8 @@ async function main() {
   }
   // ⛔ A STAFF ADDRESS WOULD HAND THE REVIEWERS THE ADMIN CONSOLE. This is the shell's copy of ADMIN_EMAILS; production's
   // lives in Secret Manager (eno-root-env) — check it there too.
-  const staff = listedIn(process.env.ADMIN_EMAILS, [SEAT.email])
+  const def = SEED_SEATS[args.key]
+  const staff = listedIn(process.env.ADMIN_EMAILS, [def.email])
   if (staff.length) {
     console.error(`⛔ ${staff.join(', ')} is in ADMIN_EMAILS — the AI reviewers would get the admin console. Take it out first.`)
     process.exitCode = 1
@@ -407,7 +425,7 @@ async function main() {
     let state
     if (!args.apply) await c.query('begin transaction read only')
     try {
-      state = await readState(c)
+      state = await readState(c, def, args.key)
     } finally {
       if (!args.apply) await c.query('rollback')
     }
@@ -423,7 +441,7 @@ async function main() {
     const ids = await write(state, c)
     console.log(`\nDone. ${ids.length} unverified demo listings (${LISTINGS.map((l) => l.status).join(', ')}) on ${state.seat.sellerId}${state.storefront ? ', plus its location and bio' : ''}:`)
     for (const id of ids) console.log(`  ${id}`)
-    console.log(`  The reviewer sees them signed in as ${SEAT.email}: Dashboard › Listings ("Hidden"), and through the MCP —`)
+    console.log(`  The reviewer sees them signed in as ${def.email}: Dashboard › Listings ("Hidden"), and through the MCP —`)
     console.log(`  list_listings (status hidden), get_listing, analytics_summary, analytics_listings; get_shop (location, bio).`)
     console.log(`  ⛔ Never approve, verify or activate them from the admin console (header: why they are unverified).`)
     if (state.warnings.length) console.error(`\n⚠️  The seat is not ready for review until the warnings above are dealt with.`)

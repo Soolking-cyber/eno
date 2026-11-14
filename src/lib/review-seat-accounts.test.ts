@@ -6,11 +6,10 @@ import { NOT_A_REVIEW_SEATS_LISTING, STORE_REVIEW_SEAT_EMAILS, REVIEW_SEAT_HELD_
  * The app's copy of the STORE-review seats' addresses (review-seat-accounts.ts) held to the table the account scripts read
  * (scripts/review-seats.mjs, imported as it stands — no database, no env).
  *
- * ⚠️ ONE ADDRESS IS ON ITS WAY: the AI seat (`ai-review@eno.vn`) is guarded before its row lands in the table, so on main
- * the table's store seats are two and the copy three. Once the row lands this list is redundant (delete it then); the
- * rules below hold either way.
+ * ⚠️ AN ADDRESS ON ITS WAY: a new store seat may be guarded before its row lands in the table (the guard ships first).
+ * None is today — both AI seats' rows are in the table — so this list is empty; the rules below hold either way.
  */
-const ON_ITS_WAY = ['ai-review@eno.vn']
+const ON_ITS_WAY: string[] = []
 /**
  * ⛔ THE SEATS LEFT OUT ON PURPOSE, each with its reason (round 4, 2026-11-14). A new key here is a decision, not a fix.
  */
@@ -39,10 +38,11 @@ describe('the copy and the table (scripts/review-seats.mjs)', () => {
     expect(notAReviewSeatsListingSql()).not.toContain('lawyer')
   })
 
-  it('holds nothing but store-review addresses: the table\'s, or the AI seat still on its way', () => {
+  it('holds nothing but store-review addresses: the table\'s, or one listed as on its way (none today)', () => {
     for (const email of STORE_REVIEW_SEAT_EMAILS) expect([...storeSeats, ...ON_ITS_WAY], email).toContain(email)
     expect(STORE_REVIEW_SEAT_EMAILS).toContain('ai-review@eno.vn')
-    expect([...STORE_REVIEW_SEAT_EMAILS].sort()).toEqual(['ai-review@eno.vn', 'app-review@eno.vn', 'play-review@eno.forum'])
+    expect(STORE_REVIEW_SEAT_EMAILS).toContain('ai-review-2@eno.vn')
+    expect([...STORE_REVIEW_SEAT_EMAILS].sort()).toEqual(['ai-review-2@eno.vn', 'ai-review@eno.vn', 'app-review@eno.vn', 'play-review@eno.forum'])
     expect(new Set(STORE_REVIEW_SEAT_EMAILS).size).toBe(STORE_REVIEW_SEAT_EMAILS.length)
   })
 

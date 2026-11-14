@@ -8,7 +8,7 @@ import {
 } from '../../scripts/seed-app-review-thread.mjs'
 import {
   INSERT_COLUMNS, LISTINGS as AI_LISTINGS, SEAT as AI_SEAT, SEAT_QUERY as AI_SEAT_QUERY, SEED_STATUSES as AI_SEED_STATUSES, STOREFRONT as AI_STOREFRONT,
-  SEED_TAG as AI_SEED_TAG, SEED_VERIFIED as AI_SEED_VERIFIED, parseArgs as aiParseArgs, rowFor as aiRowFor, seatFromRows as aiSeatFromRows,
+  SEED_TAG as AI_SEED_TAG, SEED_VERIFIED as AI_SEED_VERIFIED, parseArgs as aiParseArgs, rowFor as aiRowFor, seatFromRows as aiSeatFromRows, SEED_SEATS as AI_SEED_SEATS, seatQuery as aiSeatQuery,
 } from '../../scripts/seed-ai-review-listings.mjs'
 import { assertCleanContactName, assertCleanTexts, assertPublishable, minPhotosFor } from './publish-guard'
 import { findSevereAbuse } from './severe-abuse-words'
@@ -77,7 +77,8 @@ describe('review seats — one table for both scripts', () => {
   it('writes every credential to a repo-root file the gitignore covers', () => {
     const ignore = readFileSync(join(process.cwd(), '.gitignore'), 'utf8').split('\n').map((l) => l.trim())
     expect(ignore).toContain('.env*.local')
-    for (const [key, s] of seats) expect(s.credFile, key).toMatch(/^\.env\.[a-z-]+\.local$/)
+    // Digits allowed (.env.ai-review-2.local): the gitignore's `.env*.local` covers any such name; no dot or slash may sneak in.
+    for (const [key, s] of seats) expect(s.credFile, key).toMatch(/^\.env\.[a-z0-9-]+\.local$/)
   })
 
   it('names a seat only with an exact --for=<seat>; no flag is the Play seat', () => {
@@ -86,7 +87,8 @@ describe('review seats — one table for both scripts', () => {
     expect(seatFromArgv(['--for=lawyer'])).toEqual({ key: 'lawyer', seat: REVIEW_SEATS.lawyer })
     expect(seatFromArgv(['--for=apple', '--apply'])).toEqual({ key: 'apple', seat: REVIEW_SEATS.apple })
     expect(seatFromArgv(['--for=ai'])).toEqual({ key: 'ai', seat: REVIEW_SEATS.ai })
-    expect([...SEAT_FLAGS].sort()).toEqual(['ai', 'apple', 'lawyer'])
+    expect([...SEAT_FLAGS].sort()).toEqual(['ai', 'ai2', 'apple', 'lawyer'])
+    expect(seatFromArgv(['--for=ai2'])).toEqual({ key: 'ai2', seat: REVIEW_SEATS.ai2 })
     // Every flag names a seat, and every seat but the Play one (no flag) has its flag.
     expect([...SEAT_FLAGS, 'play'].sort()).toEqual(Object.keys(REVIEW_SEATS).sort())
   })
@@ -133,10 +135,11 @@ describe('the AI seat — AI-app marketplace review (ChatGPT apps, Muse, Claude)
     for (const line of [REVIEW_SEATS.ai.credHeader, REVIEW_SEATS.ai.credNote]) expect(line).toMatch(/^# /)
   })
 
-  it('makes ONLY the AI seat a business account — every other seat has no accountType and is created individual', () => {
+  it('makes ONLY the two AI seats business accounts — every other seat has no accountType and is created individual', () => {
     for (const [key, s] of seats) {
-      expect(Object.hasOwn(s, 'accountType'), key).toBe(key === 'ai')
-      expect(seatAccountType(s), key).toEqual({ accountType: key === 'ai' ? 'business' : 'individual' })
+      const ai = key === 'ai' || key === 'ai2'
+      expect(Object.hasOwn(s, 'accountType'), key).toBe(ai)
+      expect(seatAccountType(s), key).toEqual({ accountType: ai ? 'business' : 'individual' })
     }
     expect([...SEAT_ACCOUNT_TYPES].sort()).toEqual(['business', 'individual'])
   })
@@ -158,6 +161,10 @@ describe('the AI seat — AI-app marketplace review (ChatGPT apps, Muse, Claude)
     expect(() => assertCleanContactName(REVIEW_SEATS.ai.sellerName)).not.toThrow()
     expect(() => assertCleanContactName(REVIEW_SEATS.ai.displayName)).not.toThrow()
     expect(REVIEW_SEATS.ai.sellerName).toMatch(/\(internal\)$/)
+    expect(() => assertCleanContactName(REVIEW_SEATS.ai2.sellerName)).not.toThrow()
+    expect(() => assertCleanContactName(REVIEW_SEATS.ai2.displayName)).not.toThrow()
+    expect(REVIEW_SEATS.ai2.sellerName).toMatch(/\(internal\)$/)
+    expect(REVIEW_SEATS.ai2).toMatchObject({ email: 'ai-review-2@eno.vn', credFile: '.env.ai-review-2.local', envPrefix: 'AI2', accountType: 'business' })
   })
 })
 
@@ -165,6 +172,17 @@ describe('the AI seat demo listings — whose', () => {
   it('belong to the AI seat, found by its EXACT stored email — no lower(), no ILIKE, no domain match', () => {
     expect(AI_SEAT).toBe(REVIEW_SEATS.ai)
     expect(AI_SEAT_QUERY.values).toEqual(['ai-review@eno.vn'])
+    // The second AI seat (Muse's second test user) is looked up by ITS address, and refused under ITS name and flag.
+    expect(Object.keys(AI_SEED_SEATS).sort()).toEqual(['ai', 'ai2'])
+    expect(AI_SEED_SEATS.ai2).toBe(REVIEW_SEATS.ai2)
+    expect(aiSeatQuery(REVIEW_SEATS.ai2).values).toEqual(['ai-review-2@eno.vn'])
+    expect(aiSeatQuery(REVIEW_SEATS.ai2).text).toBe(AI_SEAT_QUERY.text)
+    const two = { id: 'p2', accountType: 'business', enforcementState: 'good_standing', sellerId: 's2', sellerName: REVIEW_SEATS.ai2.sellerName, officialPartner: true, trustScore: 100, trustTier: 'standard' }
+    expect(aiSeatFromRows([two], REVIEW_SEATS.ai2, 'ai2')).toEqual({ seat: two })
+    expect(aiSeatFromRows([], REVIEW_SEATS.ai2, 'ai2').refusal).toMatch(/No Profile for ai-review-2@eno\.vn[\s\S]*--for=ai2 --apply/)
+    // ⛔ The FIRST seat's storefront never passes as the second's (and the other way round).
+    expect(aiSeatFromRows([{ ...two, sellerName: REVIEW_SEATS.ai.sellerName }], REVIEW_SEATS.ai2, 'ai2').refusal).toMatch(/not the seat's row/)
+    expect(aiSeatFromRows([{ ...two, sellerName: REVIEW_SEATS.ai2.sellerName }]).refusal).toMatch(/not the seat's row/)
     expect(AI_SEAT_QUERY.text).toMatch(/where p\.email = \$1\s*$/)
     expect(AI_SEAT_QUERY.text).not.toMatch(/lower\(|ilike|\blike\b|%/i)
   })
@@ -233,9 +251,12 @@ describe('the AI seat demo listings — hidden, unverified, and still the shop\'
   })
 
   it('dry-runs by default, writes only with --apply, and refuses any other argument', () => {
-    expect(aiParseArgs([])).toEqual({ apply: false })
-    expect(aiParseArgs(['--apply'])).toEqual({ apply: true })
-    for (const argv of [['--aply'], ['apply'], ['--gate=off'], ['--for=ai'], ['--apply', '--force']]) {
+    expect(aiParseArgs([])).toEqual({ apply: false, key: 'ai' })
+    expect(aiParseArgs(['--apply'])).toEqual({ apply: true, key: 'ai' })
+    expect(aiParseArgs(['--for=ai2'])).toEqual({ apply: false, key: 'ai2' })
+    expect(aiParseArgs(['--for=ai2', '--apply'])).toEqual({ apply: true, key: 'ai2' })
+    expect(aiParseArgs(['--for=ai'])).toEqual({ apply: false, key: 'ai' })
+    for (const argv of [['--aply'], ['apply'], ['--gate=off'], ['--for=AI2'], ['--for', 'ai2'], ['--for=apple'], ['--for=lawyer'], ['--for=ai', '--for=ai2'], ['--apply', '--force']]) {
       expect(aiParseArgs(argv).error, argv.join(' ')).toMatch(/unknown argument/)
     }
   })
