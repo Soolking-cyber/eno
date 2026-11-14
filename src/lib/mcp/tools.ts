@@ -79,10 +79,11 @@ const listingItem = z.object({
 /** MCP tool annotations (spec 2025-06-18): hints a client uses to tell a read from a write before calling, e.g. to ask
  *  the user first. `destructiveHint` true = may overwrite or remove what is there (false = only adds); `idempotentHint`
  *  true = repeating the same call changes nothing more — claimed by delete_webhook alone, whose repeat finds nothing; every
- *  listing or shop write may notify the shop's webhooks or re-stamp dates again on a repeat; `openWorldHint` true = the call takes a URL
- *  from the caller that eno will reach (image URLs it fetches, a webhook endpoint it will post to). The webhooks every
- *  listing write already notifies do not count — those endpoints were named by register_webhook. Hints only — the
- *  scopes are what enforce. */
+ *  listing or shop write may notify the shop's webhooks or re-stamp dates again on a repeat; `openWorldHint` true = the call
+ *  reaches beyond eno's own records: it changes what the public sees (the shop page, a listing on the site), posts events
+ *  to the shop's webhook endpoints, or takes a URL eno will fetch or post to. So every write but delete_webhook (which
+ *  only forgets an endpoint) — OpenAI's scan flagged update_shop and set_listing_status as false-but-open (2026-11-14).
+ *  Hints only — the scopes are what enforce. */
 export type ToolAnnotations = { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }
 // All four on every tool: ChatGPT's review requires readOnlyHint, destructiveHint and openWorldHint as booleans even on a read.
 const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -204,7 +205,7 @@ export const TOOLS: McpTool[] = [
     title: 'Update shop profile',
     description: 'Change this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat. Send only the fields to change; the others stay as they are (get_shop shows the current values). Long text is shortened to fit: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`. Returns `ok: true` once the change is saved.',
     scope: 'listings:write',
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({ ok: OK }).describe('Confirms the profile change'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings'),
@@ -362,7 +363,7 @@ export const TOOLS: McpTool[] = [
     title: 'Set listing status',
     description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns the status the listing now has.',
     scope: 'listings:write',
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({ ok: OK, status: z.string().describe('The status the listing has now: active, sold or hidden') }).describe('Confirms the change and the listing\'s status now'),
     input: z.object({ id: z.string().describe('The listing to change: the `id` that list_listings, get_listing or create_listing gave'), status: z.enum(['active', 'sold', 'hidden']).describe('What happened to the listing: the item is gone (sold), it should come down for now, e.g. out of stock (hidden), or it is for sale again (active)') }),
     handler: async (auth, args) => {
@@ -390,7 +391,7 @@ export const TOOLS: McpTool[] = [
     title: 'Delete listing',
     description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). While the shop or the listing is under investigation (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false, hidden: true` and why.',
     scope: 'listings:write',
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({ ok: OK, deleted: z.boolean().nullish().describe('false when the listing was hidden instead of deleted; absent when it was deleted'), hidden: z.boolean().nullish().describe('true when it was hidden because the shop or listing is under review; absent when it was deleted'), reason: z.string().nullish().describe('Present only when it was hidden instead: account_held, account_suspended or open_report'), message: z.string().nullish().describe('Present only when it was hidden instead: a sentence explaining why, to show the seller') }).describe('Whether the listing was deleted, or hidden instead and why'),
     input: z.object({ id: z.string().describe('The listing to delete for good: the `id` that list_listings or get_listing gave. Read it with get_listing first to be sure, since a deletion cannot be undone') }),
     handler: async (auth, args) => {

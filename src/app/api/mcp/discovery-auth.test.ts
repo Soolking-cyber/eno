@@ -127,6 +127,9 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
         expect(typeof t.annotations?.[hint], `${t.name} needs ${hint}`).toBe('boolean')
       }
       if (t.annotations.readOnlyHint) expect(t.annotations.destructiveHint, `${t.name}: a read cannot be destructive`).toBe(false)
+      // A write changes what the public sees or posts to the shop's webhooks: open world (OpenAI's scan, 2026-11-14).
+      // Only delete_webhook, which forgets an endpoint, and the reads stay closed.
+      expect(t.annotations.openWorldHint, `${t.name}: openWorldHint`).toBe(!t.annotations.readOnlyHint && t.name !== 'delete_webhook')
       expect(t.title, `${t.name} needs a title`).toBeTruthy()
       // structuredContent MUST conform to the outputSchema: a closed object (additionalProperties:false) anywhere in it
       // would make a validating client reject the day a result gains a field.
