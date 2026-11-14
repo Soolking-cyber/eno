@@ -148,7 +148,9 @@ test.describe('Guest · home lanes', () => {
     }))
     expect(scrolled.header).toBe(0)
     expect(scrolled.rail).toBe(scrolled.headerBottom)
-    expect(scrolled.stuck).toBe(true)
+    // The flag comes from a scroll listener read on the next frame; under a loaded runner hydration can land after the scroll,
+    // so wait for it rather than sample it once (it read false twice in a full parallel run, true alone).
+    await expect.poll(() => page.evaluate(() => document.querySelector('[data-category-rail]')!.hasAttribute('data-stuck'))).toBe(true)
     // Past the lanes: the pills have let go, and the feed's strip never meets them.
     await page.evaluate(() => { const l = document.querySelector('[data-home-lanes]')!; window.scrollTo(0, l.getBoundingClientRect().bottom + scrollY + 200) })
     await page.waitForTimeout(600)
