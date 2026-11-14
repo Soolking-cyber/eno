@@ -2,6 +2,7 @@ import 'server-only'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { containsPhoneNumber } from '@/lib/phone'
 import { assertSafeUrl } from '@/lib/ssrf'
 import type { ApiAuth } from '@/lib/api/auth'
@@ -96,6 +97,27 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 const OK = z.boolean().describe('Always true: a change eno refuses comes back as a tool error with the reason instead')
 const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
 const PAGE_SIZE = z.number().int().min(1).max(100).optional().describe('Page size: how many listings to return in this call. Use a small page for a quick look and follow `next_cursor` for the rest').meta({ default: 50 })
+/**
+ * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
+ * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
+ * (OAUTH_ISSUER = NEXT_PUBLIC_APP_URL, trailing slash stripped); a protocol-relative "//host/…" gets https. Sent back in
+ * an edit, the full URL is fetched and stored like any outside photo (rehostAll), where the bare path was dropped.
+ */
+export function absoluteAssetUrl<T extends string | null | undefined>(u: T): T {
+  if (typeof u !== 'string') return u
+  if (u.startsWith('//')) return `https:${u}` as T
+  return (u.startsWith('/') ? `${OAUTH_ISSUER}${u}` : u) as T
+}
+const listingOut = (l: Parameters<typeof serializeListing>[0]) => {
+  const out = serializeListing(l)
+  return {
+    ...out,
+    ...(Array.isArray(out.images) ? { images: out.images.map(absoluteAssetUrl) } : {}),
+    ...(out.video !== undefined ? { video: absoluteAssetUrl(out.video) } : {}),
+    ...(out.seller ? { seller: { ...out.seller, avatarUrl: absoluteAssetUrl(out.seller.avatarUrl) } } : {}),
+  }
+}
+
 // The fields of serializeListing a caller acts on. Only `id` is required: the rest are documented, not promised, so a
 // field the serializer someday drops can never turn a successful call into a schema failure on the client.
 const LISTING_OUT = z.looseObject({
@@ -174,7 +196,7 @@ export const TOOLS: McpTool[] = [
       })
       // Same rule as GET /api/v1/shop: a GONE storefront (src/lib/storefront-gone.ts) is not found.
       if (!s || await isStorefrontGone(s, s._count.listings)) throw new ToolError('not_found', 'Shop not found.')
-      return { shop: { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: s.avatarUrl, trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: iso(s.memberSince), active_listings: s._count.listings } }
+      return { shop: { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: absoluteAssetUrl(s.avatarUrl), trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: iso(s.memberSince), active_listings: s._count.listings } }
     },
   },
   {
@@ -217,7 +239,7 @@ export const TOOLS: McpTool[] = [
       const where = { AND: [{ sellerId: auth.sellerId }, NOT_REMOVED, ...(args.status ? [{ status: String(args.status) }] : [])] }
       const rows = await db.listing.findMany({ where, orderBy: { id: 'desc' }, ...pageQuery(limit, cursorId), include: LISTING_INCLUDE })
       const { items, nextCursor } = buildPage(rows, limit)
-      return { listings: items.map(serializeListing), next_cursor: nextCursor }
+      return { listings: items.map(listingOut), next_cursor: nextCursor }
     },
   },
   {
@@ -231,7 +253,7 @@ export const TOOLS: McpTool[] = [
     handler: async (auth, args) => {
       await ownedListing(String(args.id), auth.sellerId)
       const l = await db.listing.findUnique({ where: { id: String(args.id) }, include: LISTING_INCLUDE })
-      return { listing: l ? serializeListing(l) : null }
+      return { listing: l ? listingOut(l) : null }
     },
   },
   {
