@@ -1227,6 +1227,8 @@ const nextConfig: NextConfig = {
         // RFC 9727 API catalogue (2026-11-11; src/app/api/well-known/api-catalog/route.ts). The exact well-known name,
         // no extension — the RFC registers `api-catalog`, and a `.json` alias would be a second document to keep equal.
         { source: "/.well-known/api-catalog", destination: "/api/well-known/api-catalog" },
+        // OpenAI's domain check for the ChatGPT plugin (2026-11-14): the exact token, as plain text.
+        { source: "/.well-known/openai-apps-challenge", destination: "/api/well-known/openai-apps-challenge" },
         { source: "/agents.md", destination: "/md/agents" },
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },

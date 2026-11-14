@@ -169,7 +169,8 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     expect(doc.remotes[0].headers).toHaveLength(1)
     expect(h.name).toBe('Authorization')
     expect(h.value).toBe('Bearer {api_key}')
-    expect(h.isRequired).toBe(true)
+    // Optional: a client without a key signs in with eno instead (2026-11-14).
+    expect(h.isRequired).toBe(false)
     // ⛔ THE WHOLE POINT. The key lives in the client's connection config, never in a tool argument,
     // so the server never asks the model for it (src/lib/mcp/tools.ts header). isSecret is what tells a
     // client to mask it and keep it out of logs.
@@ -202,7 +203,8 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     // Not a retyped list — OAUTH_SCOPES, the same constant both .well-known OAuth documents publish
     // and resolveApiKey checks `tool.scope` against.
     expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write'])
-    expect(meta.protectedResourceMetadata).toBe('https://eno.vn/.well-known/oauth-protected-resource')
+    // The MCP server's own RFC 9728 document — the URL its 401 challenge names — not the REST API's.
+    expect(meta.protectedResourceMetadata).toBe('https://eno.vn/.well-known/oauth-protected-resource/api/mcp')
     expect(meta.authorizationServer).toBe('https://eno.vn')
     // `_meta` prefix rules reserve anything ending in `mcp` or `modelcontextprotocol` for MCP itself.
     for (const key of Object.keys(doc._meta)) expect(key).not.toMatch(/(^|\.)(mcp|modelcontextprotocol)\//)

@@ -146,6 +146,15 @@ describe('client metadata documents', () => {
     }
   })
 
+  it('accepts a client that prefers a signed assertion but can also sign in as a public client (ChatGPT)', async () => {
+    h.docs.set(CLIENT, { status: 200, body: doc({ token_endpoint_auth_method: 'private_key_jwt', token_endpoint_auth_methods_supported: ['none', 'private_key_jwt'] }) })
+    expect(await G.loadClient(CLIENT)).toMatchObject({ clientId: CLIENT, redirectUris: [REDIRECT] })
+    for (const methods of [['private_key_jwt'], 'none', undefined]) {
+      h.kv.clear(); h.docs.set(CLIENT, { status: 200, body: doc({ token_endpoint_auth_method: 'private_key_jwt', token_endpoint_auth_methods_supported: methods }) })
+      expect(await G.loadClient(CLIENT), String(methods)).toBeNull()
+    }
+  })
+
   it('refuses an oversized document and a client_id that is not a clean https URL', async () => {
     h.docs.set(CLIENT, { status: 200, body: doc({ client_name: 'x'.repeat(6000) }) })
     expect(await G.loadClient(CLIENT)).toBeNull()

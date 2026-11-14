@@ -163,13 +163,15 @@ function serverCard() {
             // client can show its own settings to a model. Say only what the server controls — the MCP Registry entry
             // (vn.eno/partner-api) carries this same sentence.
             description: 'Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument.',
-            isRequired: true,
+            // Optional since "Sign in with eno" (2026-11-14): a client that leaves it out gets the 401 on tools/call and signs in
+            // through the OAuth documents in `_meta`; required here, a client would ask for a key and never offer sign-in.
+            isRequired: false,
             isSecret: true,
             value: 'Bearer {api_key}',
             variables: {
               api_key: {
-                description: `Partner API key, issued in the ${SITE_NAME} dashboard under Developers. An OAuth 2.0 access token from /api/v1/oauth/token works here too.`,
-                isRequired: true,
+                description: `Partner API key, issued in the ${SITE_NAME} dashboard under Developers. Leave it out to sign in with ${SITE_NAME} instead; an OAuth 2.0 access token works here too.`,
+                isRequired: false,
                 isSecret: true,
                 format: 'string',
                 placeholder: 'eno_live_…',
@@ -190,7 +192,8 @@ function serverCard() {
     _meta: {
       [`${RDNS}/partner-api`]: {
         authorizationServer: OAUTH_ISSUER,
-        protectedResourceMetadata: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource`,
+        // The MCP server's OWN document (resource …/api/mcp, RFC 9728 §3.1), the one its 401 names — not the REST API's.
+        protectedResourceMetadata: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp`,
         authorizationServerMetadata: `${OAUTH_ISSUER}/.well-known/oauth-authorization-server`,
         scopes: [...OAUTH_SCOPES],
         // The MCP server's own page (2026-11-11), not the REST reference: setup per client and each tool's scope.

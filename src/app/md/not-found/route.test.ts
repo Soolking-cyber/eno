@@ -266,6 +266,19 @@ describe('OAuth protected-resource discovery — rewrite wiring', () => {
     throw new Error('no rewrite for /.well-known/oauth-protected-resource/api/mcp')
   })
 
+  it('/.well-known/openai-apps-challenge answers the exact token as plain text (OpenAI domain check)', async () => {
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const r = rewrites.afterFiles.find((x) => x.source === '/.well-known/openai-apps-challenge')
+    expect(r?.destination).toBe('/api/well-known/openai-apps-challenge')
+    expect(existsSync(join(process.cwd(), 'src/app', r!.destination, 'route.ts'))).toBe(true)
+    const { GET } = await import('@/app/api/well-known/openai-apps-challenge/route')
+    const res = GET()
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain/)
+    // The exact token the portal shows, alone: no JSON, no list, no newline (a route file may export only handlers).
+    expect(await res.text()).toBe('gcgUUJR1ts4EcPNBG7j_hby4gX4Ll0LmJp9S7artM5g')
+  })
+
   it('no well-known rewrite hands its handler a destination query', () => {
     for (const r of [...rewrites.beforeFiles, ...rewrites.afterFiles]) {
       if (r.source.startsWith('/.well-known/oauth-')) expect(r.destination).not.toContain('?')

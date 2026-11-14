@@ -166,8 +166,12 @@ async function fetchClient(clientId: string): Promise<ClientInfo | null> {
     return null
   }
   if (!doc || typeof doc !== 'object' || doc.client_id !== clientId) return null
+  // Only a client that can sign in as a PUBLIC client: eno checks no secret or signed assertion, only PKCE and this
+  // binding. ChatGPT's document prefers private_key_jwt but lists "none" in token_endpoint_auth_methods_supported, and
+  // our server metadata offers it only "none" (2026-11-14: ChatGPT was refused as invalid_client before this).
   const auth = doc.token_endpoint_auth_method
-  if (auth !== undefined && auth !== 'none') return null // a public client: there is no secret to check here
+  const methods = Array.isArray(doc.token_endpoint_auth_methods_supported) ? doc.token_endpoint_auth_methods_supported : []
+  if (auth !== undefined && auth !== 'none' && !methods.includes('none')) return null
   const redirectUris = Array.isArray(doc.redirect_uris) ? doc.redirect_uris.filter((x): x is string => typeof x === 'string' && redirectUriAllowed(x)) : []
   if (!redirectUris.length) return null
   const host = new URL(clientId).host
