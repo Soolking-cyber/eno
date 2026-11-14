@@ -129,6 +129,10 @@ const AUDITED: Record<string, { count: number; why: string }> = {
 const AUDITED_CLAIMS: Record<string, { count: number; why: string }> = {
   'src/lib/compliance/seller-publish-gate.ts': { count: 2, why: 'claimGuestStorefront — the ONE claim path (login auto-claim, post-time claim, business onboarding all call it); parks live listings in the claim transaction when the gate refuses the account' },
   'scripts/ci-fixtures.ts': { count: 2, why: 'CI fixture seller on a disposable database (the update and create halves of one upsert)' },
+  // Not claimGuestStorefront: that hands a GUEST storefront to the person who made it (by id/phone match) and parks live rows
+  // under the identity gate; this attaches an eno-HELD business login to one of two ownerless AccessTrade storefronts by
+  // seller id (owner 2026-11-14, "Partners now, admins sell") — eno's own account, not a person's claim.
+  'scripts/claim-partner-storefront.mjs': { count: 3, why: 'operator script: an eno-held login for the two AccessTrade storefronts, by fixed seller id, only while ownerless (an EXPLAIN dry-run probe of the claim, the claim itself, and --reverse detaching it)' },
 }
 
 /**
