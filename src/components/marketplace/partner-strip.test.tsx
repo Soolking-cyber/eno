@@ -7,7 +7,8 @@ import { renderToString } from 'react-dom/server'
 
 /**
  * THE HOME PAGE'S PARTNER STRIP (owner, 2026-11-09). Pins what makes it work as a strip: one still row from the server,
- * the second copy for the seamless -50% loop added in the browser, hidden from screen readers and out of the tab order, every link going to the
+ * the second copy for the seamless -50% loop added in the browser (the top copy only: the phone's feed copy holds still,
+ * owner 2026-11-14), hidden from screen readers and out of the tab order, every link going to the
  * partner's own storefront, both languages' one-word labels, the edition rule (eno.forum leaves out the visa and travel
  * partners that compete with its own desk), and logos that exist at the size the markup promises (no layout shift).
  */
@@ -80,6 +81,40 @@ describe('PartnerStrip', () => {
     expect(track.hasAttribute('data-paused')).toBe(false)
     await act(async () => { root.unmount() })
     host.remove()
+  })
+
+  it('⛔ the feed copy never loops, even where matchMedia is missing (jsdom): the phone band holds still (owner 2026-11-14)', async () => {
+    expect(typeof window.matchMedia).not.toBe('function')
+    const { createRoot } = await import('react-dom/client')
+    const { act } = await import('react')
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () => { root.render(<PartnerStrip placement="feed" />) })
+    expect(host.querySelectorAll('li.partner-strip-item').length).toBe(stripPartners().length)
+    expect(host.querySelector('.partner-strip-track')!.hasAttribute('data-loop')).toBe(false)
+    expect(host.querySelector('.partner-strip-pause')).toBeNull()
+    await act(async () => { root.unmount() })
+    host.remove()
+  })
+
+  it("a blur on the still feed copy keeps the visitor's hand scroll; the looping top copy still goes back to 0", async () => {
+    const { createRoot } = await import('react-dom/client')
+    const { act } = await import('react')
+    for (const [placement, after] of [['feed', 120], ['top', 0]] as const) {
+      const host = document.createElement('div')
+      document.body.append(host)
+      const root = createRoot(host)
+      await act(async () => { root.render(<PartnerStrip placement={placement} />) })
+      const viewport = host.querySelector('.partner-strip-viewport') as HTMLElement
+      // jsdom keeps no scroll offset, so give the viewport one it remembers, as a swipe would leave behind.
+      Object.defineProperty(viewport, 'scrollLeft', { value: 120, writable: true, configurable: true })
+      const link = viewport.querySelector('a.partner-strip-link') as HTMLElement
+      await act(async () => { link.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null })) })
+      expect({ placement, scrollLeft: viewport.scrollLeft }).toEqual({ placement, scrollLeft: after })
+      await act(async () => { root.unmount() })
+      host.remove()
+    }
   })
 
   it("links each partner to its own storefront, named by its logo's alt and its one word", () => {

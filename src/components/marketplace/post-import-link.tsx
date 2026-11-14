@@ -22,7 +22,7 @@ export function PostImportLink() {
   return (
     <p className="mx-auto mb-4 max-w-2xl text-sm text-body">
       {tr('Already selling on Facebook Marketplace?', 'Đã bán trên Facebook Marketplace?')}{' '}
-      <Link href="/dashboard/listings?tab=facebook" className="font-semibold text-primary underline-offset-2 hover:underline">{tr('Import your listings', 'Nhập các tin của bạn')}</Link>
+      <Link href="/dashboard/listings?tab=facebook" className="font-semibold text-brand underline-offset-2 hover:underline">{tr('Import your listings', 'Nhập các tin của bạn')}</Link>
     </p>
   )
 }

@@ -441,7 +441,7 @@ export function TeacherCostIndexMain({ e, editions, errata, origin, siteName, se
   ]
   return (
     <main id="main" tabIndex={-1} lang="en" className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-      <p className="eyebrow text-accent-foreground mb-2">Data · Ho Chi Minh City</p>
+      <p className="eyebrow text-muted-foreground mb-2">Data · Ho Chi Minh City</p>
       <h1 className="h-display text-foreground">Ho Chi Minh City Teacher Cost &amp; Pay Index{series ? '' : `, ${month}`}</h1>
       <Lede e={e} />
       <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-body">

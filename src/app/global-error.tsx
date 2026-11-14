@@ -56,6 +56,7 @@ export default function GlobalError({ error, reset, retry }: { error: Error & { 
   // while pending — aria-busy, the progress cursor and an ellipsis on the label — but NEVER disabled: this is the
   // only control on the page, so a refresh that hangs must still leave it pressable. And never dimmed: a control
   // that can still be pressed keeps its contrast (dimmed to 0.6 it read 2.66:1 — branch review, 2026-10-06).
+  // Its fill is the one accent by hand (no stylesheet here): globals.css --primary, #0060df since 2026-11-14, white 5.62:1.
   const [retrying, startRetry] = useTransition()
   return (
     <html lang={copyFor(lang) ? (lang as string) : 'en'}>
@@ -69,7 +70,7 @@ export default function GlobalError({ error, reset, retry }: { error: Error & { 
             <button
               onClick={() => startRetry(() => (retry ?? reset)())}
               aria-busy={retrying || undefined}
-              style={{ background: '#0a66c2', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: retrying ? 'progress' : 'pointer' }}
+              style={{ background: '#0060df', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: retrying ? 'progress' : 'pointer' }}
             >
               {retryLabel}{retrying ? '…' : ''}
             </button>

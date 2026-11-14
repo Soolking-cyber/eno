@@ -1,9 +1,60 @@
 // @vitest-environment jsdom
 import * as React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 
 import { ThemeProvider, syncThemeColor, useTheme } from './theme-context'
+
+// A path, not `new URL(…, import.meta.url)`: under jsdom the global URL is jsdom's, which node:fs does not accept.
+const repoFile = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+/** globals.css's canvas, resolved through its var() chain (--background → --wash-tail → --home-wash-soft) the way the
+ *  cascade does: the theme's own block first, then :root, which `.dark` inherits whatever it does not redefine. */
+function canvas(theme: 'light' | 'dark'): string {
+  const css = repoFile('src/app/globals.css')
+  const blockOf = (start: number) => css.slice(start, css.indexOf('\n}', start + 1))
+  const root = blockOf(css.indexOf('\n:root {'))
+  const own = theme === 'light' ? root : blockOf(css.indexOf('\n.dark {'))
+  let name = 'background'
+  for (let hop = 0; hop < 5; hop++) {
+    const find = (b: string) => b.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1].trim()
+    const v = find(own) ?? find(root)
+    expect(v, `--${name} in the ${theme} theme`).toBeDefined()
+    const ref = v!.match(/^var\(\s*--([\w-]+)\s*\)$/)
+    if (!ref) return v!.toLowerCase()
+    name = ref[1]
+  }
+  throw new Error('--background does not resolve to a literal')
+}
+
+/**
+ * THE LITERALS THAT STAND IN FOR THE CANVAS WHEN THE STYLESHEET CANNOT BE READ — the pre-paint script's fallback pair
+ * and the no-JavaScript <meta> in [lang]/layout.tsx — ARE THE CANVAS. They drifted once already: #f8fbfe stayed in
+ * layout.tsx while the canvas moved, so this reads both files rather than a fixture (white ground, 2026-11-14).
+ */
+describe('the theme-color fallbacks equal the canvas in globals.css', () => {
+  const layout = repoFile('src/app/[lang]/layout.tsx')
+
+  it('resolves the two canvases (the fixtures below use these values)', () => {
+    expect(canvas('light')).toBe('#ffffff')
+    expect(canvas('dark')).toBe('#1c1d1f')
+  })
+
+  it("the pre-paint script's fallback pair is (dark, light) canvas", () => {
+    const m = layout.match(/getPropertyValue\('--background'\)\.trim\(\)\|\|\(de\.classList\.contains\('dark'\)\?'(#[0-9a-fA-F]{3,6})':'(#[0-9a-fA-F]{3,6})'\)/)
+    expect(m, 'the fallback expression in the pre-paint script').not.toBeNull()
+    expect(m![1].toLowerCase()).toBe(canvas('dark'))
+    expect(m![2].toLowerCase()).toBe(canvas('light'))
+  })
+
+  it('the no-JavaScript <meta> is the light canvas (nothing adds .dark without JS)', () => {
+    const m = layout.match(/<noscript>\s*<meta name="theme-color" content="(#[0-9a-fA-F]{3,6})" \/>\s*<\/noscript>/)
+    expect(m, 'the noscript theme-color').not.toBeNull()
+    expect(m![1].toLowerCase()).toBe(canvas('light'))
+  })
+})
 
 /**
  * THE BROWSER CHROME FOLLOWS THE APP'S CANVAS — one `<meta name="theme-color">`, whose content is the
@@ -21,7 +72,7 @@ afterEach(cleanup)
 let style: HTMLStyleElement
 beforeEach(() => {
   style = document.createElement('style')
-  style.textContent = ':root { --background: #f8fbfe; } :root.dark { --background: #1c1d1f; }'
+  style.textContent = ':root { --background: #ffffff; } :root.dark { --background: #1c1d1f; }'
   document.head.appendChild(style)
   document.documentElement.classList.remove('dark')
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove())
@@ -52,7 +103,7 @@ describe('syncThemeColor', () => {
   it('creates the one tag if it is missing, from the computed --background', () => {
     syncThemeColor(document.documentElement)
     expect(metas()).toHaveLength(1)
-    expect(metas()[0].content).toBe('#f8fbfe')
+    expect(metas()[0].content).toBe('#ffffff')
   })
 
   it('rewrites the existing tag in place — never a second one — when the scheme flips', () => {
@@ -73,7 +124,7 @@ describe('ThemeProvider keeps the chrome on the canvas', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(metas().map((m) => m.content)).toEqual(['#1c1d1f'])
     act(() => { api.current!.setTheme('light') })
-    expect(metas().map((m) => m.content)).toEqual(['#f8fbfe'])
+    expect(metas().map((m) => m.content)).toEqual(['#ffffff'])
   })
 
   it('under "system", an OS scheme change moves theme-color with the page', () => {
@@ -88,16 +139,16 @@ describe('ThemeProvider keeps the chrome on the canvas', () => {
     }))
     syncThemeColor(document.documentElement)
     render(<ThemeProvider><Grab /></ThemeProvider>)
-    expect(metas().map((m) => m.content)).toEqual(['#f8fbfe'])
+    expect(metas().map((m) => m.content)).toEqual(['#ffffff'])
     act(() => { dark = true; listeners.forEach((fn) => fn()) })
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(metas().map((m) => m.content)).toEqual(['#1c1d1f'])
     act(() => { dark = false; listeners.forEach((fn) => fn()) })
-    expect(metas().map((m) => m.content)).toEqual(['#f8fbfe'])
+    expect(metas().map((m) => m.content)).toEqual(['#ffffff'])
   })
 
   it('a load whose tag went missing gets it back on mount', () => {
     render(<ThemeProvider><Grab /></ThemeProvider>)
-    expect(metas().map((m) => m.content)).toEqual(['#f8fbfe'])
+    expect(metas().map((m) => m.content)).toEqual(['#ffffff'])
   })
 })

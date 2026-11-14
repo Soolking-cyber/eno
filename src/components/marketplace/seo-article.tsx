@@ -501,7 +501,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               </ol>
             </nav>
           )}
-          <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
+          <p className="eyebrow text-muted-foreground mb-2">{content.eyebrow}</p>
           <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
           {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
               No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by". */}

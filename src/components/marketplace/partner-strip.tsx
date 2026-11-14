@@ -22,25 +22,35 @@ const SM_UP = '(min-width: 40rem)'
 
 /**
  * The home page's partner band (owner, 2026-11-09): eno's official partners' own logos, each with one word for what they do,
- * drifting right to left. The roster, the logos' provenance and the edition rule live in src/lib/partner-strip.ts.
+ * drifting right to left, from `sm` up (on a phone it holds still, below). The roster, the logos' provenance and the
+ * edition rule live in src/lib/partner-strip.ts.
+ *
+ * ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14, verbatim: "8 still band"; round 15 mock r15b, blind Opus
+ * +0.13/+0.11, GPT +0.03). It reverses the 2026-11-09 "drifting right to left" ON PHONES ONLY: the feed copy (below `sm`)
+ * never loops — no repeats, no `data-loop`, no Pause toggle (nothing moves, so WCAG 2.2.2 asks for none) and no edge fade
+ * (globals.css). It starts at the first partner and scrolls by hand; the logos and their one word stay. It is the server's
+ * one still row as before, so the first chunk, the crawler HTML and hydration are unchanged. Nothing resets its scroll: a
+ * swipe made before hydration, a focus scroll and a restored page keep their offset, and a fresh view is at 0 because
+ * nothing moves it. From `sm` up the top copy is unchanged: the CSS MARQUEE, IT CAN BE STOPPED and BACK TO 0 rulings below
+ * are the top copy's.
  *
  * ⛔ UNDER THE HEADER, NOT ABOVE IT. Above, it would take the iPhone notch inset the sticky header keeps (header.tsx's
  * page-at-top dance exists for the prelaunch bar alone) and push eno's own wordmark off the top of the page. As the first
  * band of the page it reads as eno introducing its partners, and it scrolls away with the content.
  *
- * ⛔ A CSS MARQUEE (globals.css `.partner-strip-*`): the track holds two equal halves and slides by exactly one half (-50%),
- * so the loop is seamless and the motion runs on the compositor. THE REPEATS ARE ADDED AFTER HYDRATION: this band sits in
- * the home page's first chunk, whose bytes are budgeted (crawler-visible-html-contract.test.ts, the 12.8 KB rule), and
- * crawlers have no use for every partner link six times — so the server sends ONE still row (complete and readable as it
- * is) and the loop starts once the repeats exist (`data-loop`). Every repeat is `aria-hidden` with its links out of the tab
+ * ⛔ A CSS MARQUEE (the top copy, from `sm` up; globals.css `.partner-strip-*`): the track holds two equal halves and
+ * slides by exactly one half (-50%), so the loop is seamless and the motion runs on the compositor. THE REPEATS ARE
+ * ADDED AFTER HYDRATION: this band sits in the home page's first chunk, whose bytes are budgeted
+ * (crawler-visible-html-contract.test.ts, the 12.8 KB rule), and crawlers have no use for every partner link six times —
+ * so the server sends ONE still row (complete and readable as it is) and the loop starts once the repeats exist (`data-loop`). Every repeat is `aria-hidden` with its links out of the tab
  * order, so a screen reader and a keyboard meet each partner once. Keyboard focus stops the loop at its start so the focused
  * link is in view (`:focus-visible` only — a mouse click must not move the link it is clicking; globals.css).
  *
- * ⛔ IT CAN BE STOPPED (WCAG 2.2.2, review 2026-11-09): moving content that runs longer than five seconds needs a pause a
- * touch user can reach, not only hover or focus — the Pause toggle at the band's end (a real `<button aria-pressed>`,
- * ui/toggle). Paused, the band stops at its start and scrolls by hand, so a phone reaches every partner; Play resets the
- * scroll and resumes. Hover holds it in place. Under `prefers-reduced-motion` it never moves:
- * the repeats and the toggle are hidden and the row scrolls by hand.
+ * ⛔ IT CAN BE STOPPED (WCAG 2.2.2, review 2026-11-09), wherever it moves (the top copy, from `sm` up): moving content that
+ * runs longer than five seconds needs a pause a touch user can reach, not only hover or focus — the Pause toggle at the
+ * band's end (a real `<button aria-pressed>`, ui/toggle). Paused, the band stops at its start and scrolls by hand, so a
+ * touch screen reaches every partner; Play resets the scroll and resumes. Hover holds it in place. Under
+ * `prefers-reduced-motion` it never moves: the repeats and the toggle are hidden and the row scrolls by hand.
  *
  * ⛔ NO LAYOUT SHIFT: every logo carries its intrinsic width/height and a fixed CSS height, and the band has a fixed height.
  *
@@ -52,7 +62,7 @@ const SM_UP = '(min-width: 40rem)'
  *   · `feed` (listings-explorer.tsx): below `sm` only, a full-width row after the second row of the undirected home feed.
  *     A search or a category result shows no band on a phone at all.
  * Both are in the server's HTML (a row inserted after hydration would push the feed down), so each sends its one still
- * row; only the copy that is on screen at this width runs the loop and grows the repeats.
+ * row; only the top copy, from `sm` up, runs the loop and grows the repeats (the feed copy holds still, above).
  */
 export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
@@ -62,12 +72,19 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // rendered earlier on the page would preload it for every width. Today nothing else on the page draws them eagerly.
   if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP, fetchPriority: 'high' })
   const [looping, setLooping] = useState(false)
+  // The feed copy's own row turns eager once it is on screen (why: PartnerItem). Sticky, and false on the server and in
+  // hydration, so the served row is adopted as it is.
+  const [warm, setWarm] = useState(false)
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const mq = typeof window.matchMedia === 'function' ? window.matchMedia(SM_UP) : null
     const sync = () => {
+      // Whether this copy is on screen at this width.
       const shown = mq ? (placement === 'feed') !== mq.matches : true
+      // ⛔ The feed copy never loops (owner, 2026-11-14: "8 still band"), and its scroll is the visitor's: never reset.
+      // A desktop's hidden feed copy is never shown, so it stays lazy and fetches nothing.
+      if (placement === 'feed') { if (shown) setWarm(true); return }
       // Back to 0 before the loop runs again, as after a pause: a scroll left behind by hand while this copy was the
       // still row would offset the resumed -50% loop (commit review).
       if (shown && viewport.current) viewport.current.scrollLeft = 0
@@ -78,18 +95,20 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
     mq?.addEventListener?.('change', sync)
     return () => mq?.removeEventListener?.('change', sync)
   }, [placement])
-  // ⛔ BACK TO 0 BEFORE THE LOOP RUNS AGAIN. Keyboard focus and the paused state both stop the animation and let the row
-  // scroll (globals.css); a scroll left behind would offset the resumed -50% loop and show a gap at its end (review).
-  useEffect(() => { if (!paused && viewport.current) viewport.current.scrollLeft = 0 }, [paused])
+  // ⛔ BACK TO 0 BEFORE THE LOOP RUNS AGAIN (the top copy, the only one that loops). Keyboard focus and the paused state
+  // both stop the animation and let the row scroll (globals.css); a scroll left behind would offset the resumed -50% loop
+  // and show a gap at its end (review). The still feed copy keeps the visitor's hand scroll (owner, 2026-11-14).
+  useEffect(() => { if (placement === 'top' && !paused && viewport.current) viewport.current.scrollLeft = 0 }, [paused, placement])
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
-    if (!paused && !e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.scrollLeft = 0
+    if (looping && !paused && !e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.scrollLeft = 0
   }
   if (!partners.length) return null
   const label = (p: StripPartner) => tr(p.label.en, p.label.vi)
-  // Server: the roster once. Browser: two halves of REPEAT rosters each; only the very first roster is the real one.
+  // Server, and the feed copy always: the roster once. The looping top copy: two halves of REPEAT rosters each; only the
+  // very first roster is the real one.
   const copies = looping ? REPEAT * 2 : 1
   const items = Array.from({ length: copies }, (_, copy) =>
-    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} />))
+    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} eager={warm} label={label(p)} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
     <section
@@ -143,18 +162,21 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
  *     ⛔ NOT A `<picture>` over a blank image (the first version): WebKit then downloaded every logo twice.
  *   · `top`, the repeats: they exist only while this copy loops, which is only from `sm` up: plain eager `<img>`s.
  *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"` on the server's
- *     row, loaded once it is laid out, and never preloaded. Its repeats, which exist only after hydration, stay
- *     eager: they put every logo in the cache before the loop slides a clipped one in from the right, where a browser
- *     that lazy-loads with no margin would show it empty until its own request came back.
+ *     row, and never preloaded. It has no repeats since it holds still (owner, 2026-11-14: "8 still band"); instead its
+ *     own row turns EAGER once hydrated with the copy on screen (`eager`, PartnerStrip's `warm`). That fetches every
+ *     logo right after hydration, as the eager repeats did, so a logo the visitor scrolls in by hand is not an empty
+ *     tile in a browser that lazy-loads a scroller's clipped part with no margin. A desktop's hidden feed copy is never
+ *     on screen, so it stays lazy and fetches nothing. The ⚠️ on preloads above still holds: the switch happens only on
+ *     the client, and React writes no preload for a client-rendered image.
  */
-function PartnerItem({ partner: p, repeat, label }: { partner: StripPartner; repeat: boolean; label: string }) {
+function PartnerItem({ partner: p, repeat, eager, label }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string }) {
   const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={`/${p.handle}`} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          <img src={p.logo.src} loading={repeat ? undefined : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
+          <img src={p.logo.src} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
         <span className="text-xs font-medium text-ink-4">{label}</span>
       </Link>

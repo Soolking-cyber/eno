@@ -219,7 +219,7 @@ const escapeHtml = (v: string) =>
  * third party's web page, so the escape is the actual boundary, not a precaution.
  */
 function buildingPinHtml(name: string, count: number, active: boolean, glyph: MapGlyph, withName: boolean): string {
-  const bg = active ? '#0a66c2' : '#111827'
+  const bg = active ? '#0060df' : '#111827'
   const scale = active ? 1.06 : 1
   const label = withName
     ? `<span style="max-width:13ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(name)}</span>`
@@ -241,9 +241,9 @@ function pinHtml(label: string, active: boolean, glyph: MapGlyph): string {
   // caller feeds formatter output (digits + currency), but the safety must not depend
   // on that staying true.
   const esc = escapeHtml(label)
-  const bg = active ? '#0a66c2' : '#ffffff'
+  const bg = active ? '#0060df' : '#ffffff'
   const color = active ? '#ffffff' : '#1a202c'
-  const border = active ? '#0a66c2' : '#d8dee6'
+  const border = active ? '#0060df' : '#d8dee6'
   const scale = active ? 1.08 : 1
   return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-flex;align-items:center;gap:3px;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:3px 7px;font-size:11px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${glyphMark(glyph, 12)}<span>${esc}</span></div>`
 }
@@ -1144,7 +1144,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
          * against, missed here because the shape predates that rule (the original L.circle had it
          * too). Confirmed from a live DOM: the path rendered with `class="leaflet-interactive"`.
          */
-        areaShapeRef.current = L.rectangle(bounds, { interactive: false, color: '#0A66C2', weight: 1.5, fillColor: '#0A66C2', fillOpacity: 0.06 }).addTo(map)
+        areaShapeRef.current = L.rectangle(bounds, { interactive: false, color: '#0060df', weight: 1.5, fillColor: '#0060df', fillOpacity: 0.06 }).addTo(map)
       }
     } else if (areaShapeRef.current) {
       map.removeLayer(areaShapeRef.current)
@@ -1212,7 +1212,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const L = (window as any).L
     if (approxLayerRef.current) { map.removeLayer(approxLayerRef.current); approxLayerRef.current = null }
     if (approxLat == null || approxLng == null || approxR == null) return
-    approxLayerRef.current = L.circle([approxLat, approxLng], { radius: approxR, interactive: false, color: '#0A66C2', weight: 2, fillColor: '#0A66C2', fillOpacity: 0.15 }).addTo(map)
+    approxLayerRef.current = L.circle([approxLat, approxLng], { radius: approxR, interactive: false, color: '#0060df', weight: 2, fillColor: '#0060df', fillOpacity: 0.15 }).addTo(map)
     map.fitBounds(approxLayerRef.current.getBounds(), { padding: [24, 24] })
   }, [ready, approxLat, approxLng, approxR])
 
@@ -1250,7 +1250,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     try {
       boundaryLayerRef.current = L.geoJSON(boundary, {
         interactive: false,
-        style: { color: '#0A66C2', weight: 2, opacity: 0.85, fillColor: '#0A66C2', fillOpacity: 0.05, dashArray: '4 3' },
+        style: { color: '#0060df', weight: 2, opacity: 0.85, fillColor: '#0060df', fillOpacity: 0.05, dashArray: '4 3' },
       }).addTo(map)
       // Under the markers: the outline is context, the pins are the content.
       boundaryLayerRef.current.bringToBack?.()
@@ -1300,8 +1300,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
 
     // At rest: a hit area only. On hover: the outline the owner asked for.
-    const REST = { color: '#0A66C2', weight: 0, opacity: 0, fillColor: '#0A66C2', fillOpacity: 0 }
-    const HOVER = { color: '#0A66C2', weight: 2, opacity: 0.9, fillColor: '#0A66C2', fillOpacity: 0.08 }
+    const REST = { color: '#0060df', weight: 0, opacity: 0, fillColor: '#0060df', fillOpacity: 0 }
+    const HOVER = { color: '#0060df', weight: 2, opacity: 0.9, fillColor: '#0060df', fillOpacity: 0.08 }
 
     try {
       const group = L.featureGroup()

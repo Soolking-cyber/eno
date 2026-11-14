@@ -213,15 +213,19 @@
      is the last value that leaves them rounded rectangles. The 4 that do become pills at
      12px are all 24×24 icon buttons, where a circle is correct anyway.
      Re-measure this before raising `xl` again — the safe value is a property of the
-     smallest consumer, not of the tier. */
+     smallest consumer, not of the tier.
+     ⚠️ THE AUTHORED TIERS ARE 8 / 12 / 16 / full SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this
+     cook round build all best options and deploy"): `lg` 10 → 8 and `2xl` 18 → 16, the redesign's --r-sm/--r-md/--r-lg.
+     Only shrinking, so the pill cliff above is untouched (a smaller R clamps later, never sooner); radius is paint
+     only, so no layout moves. `sm`/`md` stay banned bare by design-lint, `3xl` has no consumer. */
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 10px;  /* small thumbs ≤64px, compact controls ≤28px, menu items */
+  --radius-lg: 8px;   /* small thumbs ≤64px, compact controls ≤28px, menu items */
   --radius-xl: 12px;  /* buttons, inputs, selects — capped by the pill cliff above */
-  --radius-2xl: 18px; /* cards, panels, dialogs, popovers, images ≥96px */
+  --radius-2xl: 16px; /* cards, panels, dialogs, popovers, non-photo media ≥96px */
   --radius-3xl: 26px; /* sheets and drawers (no consumer in src/ today — headroom) */
   /* `--radius-media` (listing/product photo tiles) is NOT here: an inline token cannot be overridden at runtime,
-     and that one is (8px round → 14px squircle). See its own `@theme static` block below. */
+     and that one is (16px round → 20px squircle). See its own `@theme static` block below. */
 
   /* Micro type steps below Tailwind's `xs` — the ONLY sanctioned sizes for dense
      card meta and badge labels (docs/design-language.md). They replace the ad-hoc
@@ -231,6 +235,9 @@
   --text-3xs: 0.625rem; /* 10px — micro badge/counter labels */
   --text-3xs--line-height: 1.3;
 
+  /* The saved heart's red (owner-approved 2026-11-14, cook r05: "Red #d92d4a only for a saved heart"). ONE job: a
+     saved heart. Never an error (that is --destructive) and never a price (ink). See the token in :root. */
+  --color-saved: var(--saved);
   /* Brand tokens (Craigslist re-design case study palette) */
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
@@ -238,8 +245,9 @@
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
   --color-brand-150: var(--brand-150);
-  /* The commerce orange — `bg-cta`, `text-cta-ink`, `bg-cta-50`. See the ⛔ note where it is
-     defined for why it is scoped to price/Post rather than being the brand. */
+  /* The commerce tokens — `bg-cta`, `text-cta-ink`, `bg-cta-50`. Since 2026-11-14 (owner-approved) they are the ONE
+     accent (#0060df fill, #004bb0 press) and ink, not an orange: see the ⛔ note where they are defined. The names stay
+     so every call site follows with no markup change. */
   --color-cta: var(--cta);
   --color-cta-dark: var(--cta-dark);
   --color-cta-ink: var(--cta-ink);
@@ -308,18 +316,62 @@
 
 /* ── THE PHOTO-TILE CORNER — `rounded-media` (owner, 2026-10-18: "the product cards should have minimal squircle
    corners") ──────────────────────────────────────────────────────────────────────────────────────────────────
-   One corner for every listing/product photo tile: the card photo, its skeleton, the SEO tile, the wizard Preview,
-   the dashboard cover. 8px round here; the `@supports (corner-shape: squircle)` block further down raises it to a
-   14px SQUIRCLE, which reads as the same corner (14px squircle vs 8px arc differ by ≤ 0.16px, measured in Chrome
-   155 and Playwright WebKit, 2026-10-18) — so Safari/iOS and Firefox show 8px round, Chromium/Samsung the
-   squircle, and iOS switches by itself the day Safari ships corner-shape.
+   One corner for EVERY photo: the card photo, its skeleton, the SEO tile, the wizard Preview, the dashboard cover —
+   and (the redesign's next step) the PDP gallery and banners, so a 16px squircle never sits beside this 20px one.
+   ⛔ 16px ROUND / 20px SQUIRCLE SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this cook round build
+   all best options and deploy"; reverses the 2026-10-18 8px / 14px "minimal" corner). 16px round here; the
+   `@supports (corner-shape: squircle)` block further down raises it to a 20px SQUIRCLE, the compensated corner (the
+   same ~1.25× a squircle reads squarer by, measured 2026-10-18 at 8 → 14) — so Safari/iOS and Firefox show 16px
+   round, Chromium/Samsung the squircle, and iOS switches by itself the day Safari ships corner-shape.
    ⛔ `static`, NEVER `@theme inline`. Inline bakes the value into the utility, and the @supports override below
    would compile to nothing — the exact trap the squircle block records for the tiers. Declared here, Tailwind
    4.3.3 emits `.rounded-media{border-radius:var(--radius-media)}` (and the t/b/l/r forms) with the variable on
    :root in `@layer theme`, which the block's UNLAYERED :root beats. Checked against this repo's own compile.
    ⚠️ After the curves block, not before it: utils.test.ts reads the FIRST `@theme static` for the curves. */
 @theme static {
-  --radius-media: 8px;
+  --radius-media: 16px;
+}
+
+/* ── THE CLOSED TYPE SCALE — six ROLES (owner-approved 2026-11-14, cook r05: "after this cook round build all best
+   options and deploy") ────────────────────────────────────────────────────────────────────────────────────────
+   `text-t-display` 28/34 · `text-t-h2` 22/28 · `text-t-h3` 17/24 · `text-t-price` 17/22 · `text-t-card` 15/20 ·
+   `text-t-meta` 13/18. Each carries its own line height, and the heading/price roles their tracking and the 700
+   weight, so one class is the whole role. The other roles are Tailwind's own steps, which already equal the
+   redesign: body = text-base (16/24), small = text-sm (14/20), label = text-sm font-bold, button = text-base/5
+   font-bold. docs/design-language.md §1 has the table; nothing in the UI is smaller than 13px (design-lint ratchets
+   text-xs / 2xs / 3xs down, `sub13Type`).
+   ⚠️ THE `t-` PREFIX IS LOAD-BEARING: `text-price`, `text-card` and `text-body` are COLOUR utilities, the :root
+   prose vars below are `--text-display/title/section/body/small/caption`, and `text-sm…9xl` are t-shirt sizes.
+   ⚠️ PLAIN `@theme`, NOT `inline`, NOT `static`. Not inline: the utility must read `var(--text-t-h2)` at run time so a
+   Vietnamese-only line-height override (`html[lang="vi"] { --text-t-h2--line-height: … }`) is one line if the stacked
+   marks ever clip. Not static: an unused role emits nothing — and a bare var() in this file (`.eyebrow` reads
+   `--text-t-meta`) counts as a use, measured on Tailwind 4.3.3's compile. Tailwind 4.3.3 emits
+   `.text-t-h2{font-size:var(--text-t-h2);line-height:var(--tw-leading,var(--text-t-h2--line-height));
+   letter-spacing:var(--tw-tracking,…);font-weight:var(--tw-font-weight,…)}`, so a caller's leading-*, tracking-* or
+   font-* still wins (measured on this repo's compile, 2026-11-14).
+   ⚠️ lib/utils.ts teaches tailwind-merge these six names (`theme.text`); without it `cn('text-t-meta',
+   'text-foreground')` reads both as colours and drops one. utils.test.ts compares the two lists; design-lint's
+   NON_COLOR lists them too, or the colour-token gate calls them unknown colours. A seventh role joins all three. */
+@theme {
+  --text-t-display: 1.75rem;
+  --text-t-display--line-height: 2.125rem;
+  --text-t-display--letter-spacing: -0.025em;
+  --text-t-display--font-weight: 700;
+  --text-t-h2: 1.375rem;
+  --text-t-h2--line-height: 1.75rem;
+  --text-t-h2--letter-spacing: -0.02em;
+  --text-t-h2--font-weight: 700;
+  --text-t-h3: 1.0625rem;
+  --text-t-h3--line-height: 1.5rem;
+  --text-t-h3--font-weight: 700;
+  --text-t-price: 1.0625rem;
+  --text-t-price--line-height: 1.375rem;
+  --text-t-price--letter-spacing: -0.015em;
+  --text-t-price--font-weight: 700;
+  --text-t-card: 0.9375rem;
+  --text-t-card--line-height: 1.25rem;
+  --text-t-meta: 0.8125rem;
+  --text-t-meta--line-height: 1.125rem;
 }
 
 /* ── THE Z LADDER (D-Z, 2026-09-29) ──────────────────────────────────────────────────────────────
@@ -373,17 +425,17 @@
   color-scheme: light;
 
   /* ============================================================
-     PALETTE (minimal, proven — 60/30/10)
-     60% canvas    : #ffffff
-     30% neutrals  : TRUE-NEUTRAL ramp (luma-style, de-blued 2026-07-13) — ink #171717 · body #525252 · muted #595959 (#737373 until 2026-11-12) · faint #a3a3a3 · line #e5e5e5 · tint #f5f5f5
-     10% accent    : ONE brand blue #0a66c2 (hover #004182 · tint #e8f1fb · deep #034078) — actions,
-                     links, active, verified
-     commerce      : 58-STYLE ORANGE #d64000 (ink #c73c00 · tint #fff4ee), and ONLY where money is
-                     the subject — the price, the Post button, the commerce badges. Owner,
-                     2026-09-18, after seeing the whole app in orange: "revert only prices orange and
-                     free post and some important parts orange rest previous blue".
-     semantic only : green #166534 · amber #92400e (caution) · red #ef4444 (destructive) · gold #f59e0b (rating)
-     Category colours all resolve to the single blue; product photos provide the rest.
+     PALETTE (minimal, proven — 60/30/10) — THE 2026-11-14 REDESIGN (owner-approved 2026-11-14, cook r05:
+     "after this cook round build all best options and deploy")
+     60% canvas    : WHITE #ffffff, every surface (the blue wash floor of 2026-09-19 is gone)
+     30% neutrals  : ink #141414 · ink-2 #3d3d3d (body, ink-3) · muted #5e5e5e (ink-4) · line #ebebeb ·
+                     line-strong #d6d6d6 · field #f3f3f3 (tint, muted, secondary, accent — never a blue tint)
+     10% accent    : ONE accent #0060df (press #004bb0) — actions, links, active, verified, focus ring
+     money         : INK. A price is #141414 bold, never a colour; the Post button is the one accent. The 58-style
+                     commerce orange (owner 2026-09-18) is RETIRED by the same approval.
+     semantic only : green #166534 · amber #92400e (caution) · red #b91c1c (destructive) · gold #f59e0b (rating) ·
+                     #d92d4a for a SAVED heart only (--saved)
+     Category colours all resolve to the single accent; product photos provide the rest.
      ============================================================ */
   /* ⛔ `--radius` (was 0.4375rem) IS GONE ON PURPOSE — 2026-08-09. It was the single seed
      every corner tier was derived from, and deriving a role scale by ±2px arithmetic is
@@ -392,9 +444,15 @@
      to move every corner in the app at once without seeing the pill cliff documented up
      there, so leave it deleted. Verified zero `var(--radius)` consumers before removal. */
 
-  /* Brand blues (FINN.no palette) */
-  --brand: #0a66c2;
-  --brand-dark: #034078;
+  /* ⛔ THE ONE ACCENT, #0060df (owner-approved 2026-11-14, cook r05; replaces the FINN.no brand blue #0a66c2).
+     White on it 5.62:1, on white 5.62:1, on the #f3f3f3 field 5.06:1; --brand-dark #004bb0 is the PRESS (white
+     7.97:1). --brand-50 (and --accent) KEEP THE LIGHT BLUE TINT #e8f1fb in this first step of the redesign: selected
+     states (chips, active rows, capsules) still mark themselves with it, so turning it grey before they move to the
+     ink-filled selection would make "selected" and "resting" the same grey (WCAG 1.4.1; codex + opus, 2026-11-14).
+     They become the field grey together with their consumers in the next step. --brand-light/-100/-150 are not in the redesign and are left as they were. Literal mirrors
+     that cannot read a token follow by hand: lib/utils.ts BRAND_BLUE, global-error.tsx, listings-map.tsx's pins. */
+  --brand: #0060df;
+  --brand-dark: #004bb0;
   --brand-light: #8fbfe8;
   --brand-50: #e8f1fb;
   --brand-100: #cfe3f5;
@@ -407,7 +465,13 @@
   --brand-150: #b5d3ef;
 
   /**
-   * ⛔ THE COMMERCE ORANGE — 58同城's HUE, AND IT IS NOT THE BRAND. The whole app wore this for one
+   * ⛔ THE COMMERCE ORANGE IS RETIRED (owner-approved 2026-11-14, cook r05: "after this cook round build all best
+   * options and deploy"). The tokens stay, so every `bg-cta` / `text-cta-ink` / `bg-cta-50` follows with no markup
+   * change: the Post fill is the ONE accent (#0060df, white 5.62:1), its press #004bb0 (white 7.97:1, the same in
+   * both themes, so `hover:bg-cta-dark` is the safe hover for any white-label accent button), commerce TEXT is ink
+   * (#141414) and the commerce tint is gone (transparent — its only consumer, the phone Post coin, is the tab-bar
+   * area's). Everything below this paragraph is the orange's history, kept for the measurements.
+   * ⛔ (history) THE COMMERCE ORANGE — 58同城's HUE, AND IT IS NOT THE BRAND. The whole app wore this for one
    * preview and the owner pulled it back to the blue the same afternoon: "revert only prices orange
    * and free post and some important parts orange rest previous blue" (2026-09-18). So it is scoped
    * to where money is the subject — the price, the Post button, the commerce badges — and the blue
@@ -428,13 +492,20 @@
    * 4.73:1, --accent #e8f1fb 4.52:1 (the buy-box offer price sits on the accent tint, which went
    * back to blue with the rest of the theme), --cta-50 4.77:1.
    */
-  --cta: #d64000;        /* fills: the Post button — white ink 4.57:1, S 100% */
-  --cta-dark: #a83200;   /* hover/pressed — white ink 6.73:1 */
-  --cta-ink: #c73c00;    /* text: prices and commerce badges — S 100%, passes on every ground above */
-  --cta-50: #fff4ee;     /* tint surface for those badges */
+  --cta: #0060df;        /* fills: the Post button — the one accent, white ink 5.62:1 */
+  --cta-dark: #004bb0;   /* hover/pressed — the action press, white ink 7.97:1 */
+  --cta-ink: #141414;    /* text: commerce badges — ink, like the price */
+  --cta-50: transparent; /* no commerce tint: a badge sits on the page */
 
   /**
-   * The home page's wash — see `.home-wash`. ⛔ BLUE, NOT THE WARM TINT IT WAS BUILT AS (owner,
+   * ⛔ THE GROUND IS WHITE SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this cook round build all
+   * best options and deploy"; reverses 2026-09-18 "make background gradient our blue" and 2026-09-19 "make sure blue
+   * all page"). All three stops are #ffffff, so the chain below — --wash-tail → --background / --card / --popover,
+   * html, body, #app-header, .wash-surface, .dashboard-canvas, `.home-wash #explorer-toolbar` — paints white with no
+   * markup change, and the seam rules (header = page = rail = canvas) still hold because every surface is still the
+   * ONE value. The variables stay so a future band is one edit. Every ink clears AA on it (the table in
+   * docs/design-language.md §3; tokens-contrast.test.ts). The paragraphs below are the blue wash's history.
+   * (history) The home page's wash — see `.home-wash`. ⛔ BLUE, NOT THE WARM TINT IT WAS BUILT AS (owner,
    * 2026-09-18: "make background gradient our blue"). The first version came from the all-orange
    * pass; with the brand back to blue the warm wash was the odd one out on the page.
    * ⚠️ THE STOPS WERE SET BY CONTRAST, NOT BY EYE. Muted, then #737373, was the weakest ink this app
@@ -450,9 +521,9 @@
    * so the gradient simply stops existing. Measured after restoring, and again after this change:
    * `background-image` resolves to three stops rather than `none`.
    */
-  --home-wash-strong: #e8f1fb;
-  --home-wash-mid: #f5f9fe;
-  --home-wash-soft: #f8fbfe;
+  --home-wash-strong: #ffffff;
+  --home-wash-mid: #ffffff;
+  --home-wash-soft: #ffffff;
   /**
    * ⛔ THE WASH, WRITTEN ONCE. `.home-wash` and `.wash-surface` both paint this; the stops and the
    * reasoning behind them live with `.home-wash` at the bottom of this file. It is a VARIABLE rather
@@ -472,6 +543,8 @@
    * scope, or move the declaration down with it.
    */
   /**
+   * ⚠️ THE SOFT STOP IS WHITE SINCE 2026-11-14 (owner-approved 2026-11-14 — the white ground above), so "blue all
+   * page" below is now "white all page"; the structure — one floor every surface shares — is kept on purpose.
    * ⛔ IT NO LONGER LANDS ON `--background`, IT LANDS ON THE SOFT STOP AND STAYS THERE (owner,
    * 2026-09-19, on a signed-in desktop screenshot: "do you see sides are white center blue background
    * make sure blue all page even dashboar background"). A gradient that fades to the neutral canvas
@@ -524,6 +597,8 @@
   --account-w-open: 240px;
 
   /**
+   * ⚠️ THE FLOOR IS #ffffff SINCE 2026-11-14 (owner-approved 2026-11-14), and the canvas still follows it through
+   * this one reference — which is why the white ground needed no markup change. The 59 call sites below are why.
    * ⛔ THE CANVAS IS THE WASH'S FLOOR — NOT A NEUTRAL (owner, 2026-09-19: "dashboard pages and navbar
    * dont have the blue background"). Painting `html`, `body` and a handful of named elements was
    * whack-a-mole: every screen with its own full-bleed `bg-background` wrapper — /signin, the
@@ -540,7 +615,7 @@
    * #fafafa, and the wash's own stops were chosen against that same threshold.)
    */
   --background: var(--wash-tail);
-  --foreground: #171717;
+  --foreground: #141414; /* the ink (owner-approved 2026-11-14): 18.42:1 on white, 16.60:1 on the #f3f3f3 field */
   /* ⚠️ THE FLAT CANVAS (owner 2026-07-24: "background color as uniform as possible almost no
      boxes"). `--card` is deliberately IDENTICAL to `--background`, which flattens all ~112
      `bg-card` call sites at once without editing one of them — the surface stops being a box
@@ -551,7 +626,7 @@
      that FLOAT — dialog, popover, menu, toast, sticky bar, lightbox — keep their own elevated
      surface, because there the boundary is the information. See docs/flat-surface-plan.md. */
   --card: var(--wash-tail);   /* identical to --background, by the rule above */
-  --card-foreground: #171717;
+  --card-foreground: #141414;
   /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
      dropdowns read lighter than the #fafafa app). Dark keeps its lighter
      elevation values: that's the correct dark-mode depth cue.
@@ -560,24 +635,34 @@
      ten days after the canvas moved — the very mismatch the 07-13 rule exists to prevent. The edge of
      a floating surface is its border and shadow-pop / shadow-overlay, never a lighter fill. */
   --popover: var(--wash-tail);
-  --popover-foreground: #171717;
+  --popover-foreground: #141414;
 
-  /* shadcn primary maps to brand blue */
-  --primary: #0a66c2;
+  /* shadcn primary maps to the one accent */
+  --primary: #0060df;
   --primary-foreground: #ffffff;
+  /* ⚠️ THE FIELD GREY (owner-approved 2026-11-14): --tint and --muted are #f3f3f3. --secondary stays #e5e5e5 (a
+     secondary button must not vanish into a tinted well) and --accent / --brand-50 keep the blue tint until selection
+     moves to ink in the redesign's next step (see --brand-50). accent-foreground on the tint 4.92:1. */
   --secondary: #e5e5e5;
-  --secondary-foreground: #171717;
-  --muted: #f5f5f5;
-  --muted-foreground: #595959; /* owner, 2026-11-12: "go all" — darker grey for secondary text; was #737373. Between body and ink-4: canvas 6.74 / white 7.00 / tint 6.42 */
+  --secondary-foreground: #141414;
+  --muted: #f3f3f3;
+  /* ⛔ #5e5e5e SINCE 2026-11-14 (owner-approved 2026-11-14; the 2026-11-12 "go all" #595959 moves one step lighter,
+     to the redesign's muted, tied with ink-4): white 6.48 / field 5.84. */
+  --muted-foreground: #5e5e5e;
   --accent: #e8f1fb;
-  --accent-foreground: #0a66c2;
+  --accent-foreground: #0060df;
   /* red-700, not red-600 (#dc2626) and certainly not red-500 (#ef4444, only 3.6:1 as
      text on white). The old note said #dc2626 "clears 4.5:1" — true on a PLAIN white
      background, false on the tinted-callout idiom this app actually uses: on
      bg-destructive/10 it lands at 3.98:1 and fails AA. #b91c1c gives 5.26:1 there and
      6.4:1 on plain, and lifts every white-on-destructive surface with it. */
   /**
-   * THE PRICE, AND IT IS THE BRAND ORANGE SINCE 2026-09-18 (owner: "main is orange prices
+   * ⛔ THE PRICE IS INK SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this cook round build all best
+   * options and deploy"; reverses the 2026-09-18 orange price). #141414 = --foreground, in both themes' sense (dark
+   * #f0f0f0): money is set apart by WEIGHT and size (`text-t-price`, 17/22 bold), not by hue. The token is KEPT so
+   * `text-price` still marks a price in markup and a future price colour is one edit; tokens-contrast.test.ts pins
+   * price === foreground. The rest of this note is the orange's history.
+   * (history) THE PRICE, AND IT IS THE BRAND ORANGE SINCE 2026-09-18 (owner: "main is orange prices
    * searchbars post button"). It was #ab395b — a carmine built at the old brand BLUE's perceptual
    * lightness, on the carmine side of red precisely because a warm rust beside a cool blue read as
    * a clash. That reasoning retires with the blue: beside 58's orange the warm value IS the match,
@@ -591,15 +676,21 @@
    * ⛔ STILL NOT --destructive, and the distinction matters more now that both are warm: error red
    * is #b91c1c and carries white ink on fills; this one is text-only.
    */
-  --price: #c73c00;
+  --price: #141414;
+  /* ⛔ THE SAVED HEART'S RED, AND ITS ONLY JOB (owner-approved 2026-11-14, cook r05 shots: "Red #d92d4a only for a
+     saved heart"). 4.75:1 on the white plate the heart sits on. NOT overridden in `.dark` on purpose: the heart sits
+     on a white plate in both themes, so the same value is the right one. Not --destructive (an error), never a price. */
+  --saved: #d92d4a;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
      dark --destructive is a light red (#f7737b), and white on it is only 2.73:1 — so a
      hardcoded text-white on a solid red chip fails AA in dark mode. */
   --destructive-foreground: #ffffff;
-  --border: #e5e5e5;
-  --input: #e5e5e5;
-  --ring: #0a66c2;
+  /* Lines (owner-approved 2026-11-14): the hairline #ebebeb; the stronger edge of a field or control #d6d6d6. */
+  --border: #ebebeb;
+  --input: #d6d6d6;
+  /* The focus ring is the accent (owner-approved 2026-11-14). Every component keeps its own ring classes. */
+  --ring: #0060df;
 
   /* Ink scale — ⚠️ MONOTONIC IN LIGHTNESS, IN BOTH THEMES (D-GREYS, owner 2026-09-30: "do what's
      recommended"). One order, darkest ink first: ink > ink-2 > ink-3 > body > muted-foreground >
@@ -609,21 +700,25 @@
      quietest light text, and light matches the order dark already had. ink-3 was #737373 — LIGHTER
      than ink-4 and identical to muted-foreground — and only 4.35:1 on --tint, where it sits as an
      icon ink (mark-sold-sheet, trip-map close). #404040: canvas 9.98, white 10.37, tint 9.51,
-     secondary 8.23. Keep the order when a stop moves; docs/design-language.md §3 has the table. */
-  --ink: #171717;
-  --ink-2: #262626;
-  --ink-3: #404040;
-  --ink-4: #616161;        /* neutral-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
-  --body: #525252;        /* neutral-600 */
-  --tint: #f5f5f5;        /* neutral-100 */
+     secondary 8.23. Keep the order when a stop moves; docs/design-language.md §3 has the table.
+     ⛔ THREE TIED STOPS SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05): the redesign's ink #141414 (ink,
+     ink-2), ink-2 #3d3d3d (ink-3, body) and muted #5e5e5e (muted-foreground, ink-4). Still monotonic — ties, never an
+     inversion — and every stop clears AA on white and on the #f3f3f3 field (ink-4 5.84 there, the floor);
+     tokens-contrast.test.ts measures the ramp and its order. */
+  --ink: #141414;
+  --ink-2: #141414;
+  --ink-3: #3d3d3d;
+  --ink-4: #5e5e5e;        /* placeholder/meta/chevrons/small icons — 6.48:1 on white, 5.84:1 on the field (was #616161; before that #6b7280, 4.1:1 on tint → failed AA on the tinted search pill) */
+  --body: #3d3d3d;        /* running secondary text — 10.86:1 on white, 9.79:1 on the field */
+  --tint: #f3f3f3;        /* the field grey */
   /* ⚠️ A CONTROL KNOB, NOT A PANEL. The flat canvas made --card equal --background, which is
      right for panels and WRONG for a draggable handle: a slider thumb has to read as a solid
      object sitting on its track. This is deliberately the one raised fill in the ramp and it is
      scoped to knobs (slider thumbs) — do not reach for it to give a container "some depth"
      (canon §3b). */
   --knob: #ffffff;
-  --line-strong: #d4d4d4; /* neutral-300 */
-  --skeleton: #f0f0f0;             /* loading placeholder base */
+  --line-strong: #d6d6d6; /* the stronger line (owner-approved 2026-11-14) */
+  --skeleton: #efefef;             /* loading placeholder base */
   --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
   /* Trust-score tiers — the CANONICAL ladder (matches /trust and the tier design
      decision): red = restricted, NEUTRAL slate = building/standard (where every new
@@ -654,7 +749,7 @@
   --success-foreground: #ffffff;
   --warning: #92400e; /* amber-800 — amber-700 (#b45309) is only 4.20:1 as text on
                          bg-warning/10, the callout idiom this app uses. This clears AA (5.82:1). */
-  --info:    #0a66c2; /* brand blue */
+  --info:    #0060df; /* the one accent */
   --rating:  #f59e0b; /* amber-500  — review-star gold on white cards */
 
   /* ── Official partner — a company eno itself has an agreement with ──────────────
@@ -698,8 +793,8 @@
   --partner-solid: #15803d;
 
   /* Semantic — used ONLY to carry meaning, never decoration.
-     verified/trust folds into the brand blue; amber = caution; red = destructive. */
-  --verified: #0a66c2;
+     verified/trust folds into the one accent; amber = caution; red = destructive. */
+  --verified: #0060df;
   --pending: #f59e0b;
 
   /* ── Elevation (soft, diffuse — Airbnb-style) ────────────────────── */
@@ -844,7 +939,7 @@
   --text-section: 1.125rem;  /* 18px — section heading */
   --text-body:    0.9375rem; /* 15px — body */
   --text-small:   0.8125rem; /* 13px */
-  --text-caption: 0.75rem;   /* 12px — meta / eyebrow (was 11px, a touch small) */
+  --text-caption: 0.75rem;   /* 12px — prose caption (was 11px, a touch small). Not the eyebrow since 2026-11-14: that is the --text-t-meta role */
   /* Spacing rhythm uses an 8pt grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 */
   /* Sidebar (shadcn sidebar block) — mapped onto the ENO palette by REFERENCE,
      so the .dark overrides of the underlying tokens flip the sidebar too (no
@@ -890,7 +985,9 @@
   --brand: #3b8ee6;        /* brand blue, brightened for dark surfaces */
   --brand-dark: #74b3f2;   /* hover goes LIGHTER in dark */
   --brand-light: #2f5377;
-  --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
+  /* A dark blue tint chosen for AA (2026-11-14): text-brand on it 4.66:1 (the old #17314d gave 3.87:1, the field grey
+     #262626 4.47:1). It stays a tint, not the grey, while selection still marks itself with it (see light --brand-50). */
+  --brand-50: #12243a;
   --brand-100: #2b5983;    /* the location-active wash must read on charcoal too */
   /* Deeper cascade column: LIGHTER here, the mirror of light mode.
      ⚠️ MEASURED, NOT PICKED BY EYE. The first value (#3d7ab0) looked right and failed WCAG AA:
@@ -899,15 +996,14 @@
      (L 0.132 vs 0.093), so the ramp still deepens. Light mode's #b5d3ef is 5.03:1 on `--body`. */
   --brand-150: #34699c;
 
-  /* The commerce orange lifted for a dark canvas — measured on #1b1b1b and the #2a2a2a popover. */
-  /* ⛔ THE FILL DOES NOT BRIGHTEN IN DARK, and that is the opposite of every other colour here. A
-     `commerce` button's label is WHITE: on the brightened #ff7a1a that is 2.61:1. The fill therefore
-     keeps its light-theme value in both themes (white 4.57:1) and the hover DARKENS rather than
-     lifts (6.22:1). Only `--cta-ink` — which is text, on the canvas — lightens for dark. */
-  --cta: #d64000;
-  --cta-dark: #b03600;
-  --cta-ink: #ff8c42;      /* on dark the readable weight is LIGHTER, not deeper — 6.66:1 on --cta-50 */
-  --cta-50: #3a1d12;       /* dark orange tint — cta ink on it 6.63:1 */
+  /* ⛔ THE COMMERCE TOKENS ARE THE ACCENT AND INK IN DARK TOO (owner-approved 2026-11-14; the orange is retired).
+     ⛔ THE FILL DOES NOT BRIGHTEN IN DARK, and that rule outlives the orange: a `commerce`/`cta` label is WHITE, so the
+     fill keeps the light #0060df (white 5.62:1) and the press DARKENS to #004bb0 (white 7.97:1) rather than lifting.
+     Commerce TEXT is the dark ink, like the price; no tint. */
+  --cta: #0060df;
+  --cta-dark: #004bb0;
+  --cta-ink: #f0f0f0;
+  --cta-50: transparent;
 
   /* The wash on a dark canvas: a cool lift, not a colour — the blue equivalent of the light one.
      Ink 14.6:1 and muted 8.4:1 on the strongest stop; the dark theme has room the light one does not. */
@@ -925,24 +1021,25 @@
   --popover: #2a2a2a;
   --popover-foreground: #f0f0f0;
 
-  --primary: #0a66c2;      /* primary button keeps brand blue + white text */
+  /* A FILL colour: the primary button keeps the light accent + white text (5.62:1). ⚠️ As TEXT on the dark canvas it
+     is ~3:1, so accent text in markup is `text-brand` (#3b8ee6, 4.98:1), never `text-primary`. */
+  --primary: #0060df;
   --primary-foreground: #ffffff;
   --secondary: #303030;
   --secondary-foreground: #f0f0f0;
   --muted: #262626;
   --muted-foreground: #b8b8b8; /* ~7:1 on card — readable secondary text */
-  --accent: #17314d;       /* blue tint surface */
+  /* = the dark --brand-50 (2026-11-14): a blue tint that clears AA; accent-foreground on it ~7:1. */
+  --accent: #12243a;
   --accent-foreground: #74b3f2;
-  /* Dark price. ⛔ TUNE THIS AGAINST --accent, NOT THE CANVAS — that is what made the first dark
-     value wrong in the blue era, and the rule outlives the hue. Measured for the orange: 7.45:1 on
-     the #1b1b1b canvas, 6.66:1 on the --cta-50 tint, 6.21:1 on the #2a2a2a popover. ⚠️ The dark
-     --accent went back to blue with the rest of the theme, and a price never renders on it. */
-  --price: #ff8c42;
+  /* ⛔ Dark price = the dark ink (owner-approved 2026-11-14; the orange #ff8c42 is retired): 14.8:1 on the canvas.
+     The old rule — tune a price against the surface it is hardest on — still holds: on --accent #262626 it is 13.3:1. */
+  --price: #f0f0f0;
   /* ⚠️ TUNED AGAINST THE SAFETY STRIP, NOT THE CANVAS (D-CONTRAST, 2026-09-29). The binding surface is
      `bg-warning/10` over the canvas (#322d20) — the PDP safety strip that holds the 12px "Report"
      action — where the old #f0616b measured 4.33:1, under AA. #f7737b: 5.02:1 there, canvas 6.18,
-     popover 5.26, its own /10 tint 5.33, --accent 4.86, --tint 5.54. Still apart from the dark price
-     (#ff8c42): pink-red against orange, and an error keeps its icon or label (§3). */
+     popover 5.26, its own /10 tint 5.33, --tint 5.54 (and --accent, which is --tint since 2026-11-14). Apart from
+     the dark price, which is ink since 2026-11-14; an error keeps its icon or label (§3). */
   --destructive: #f7737b;
   /* Near-black ON the light dark-mode red: white would be 2.73:1 (fails). 6.31:1. */
   --destructive-foreground: #1b1b1b;
@@ -1153,6 +1250,21 @@
     font-family: var(--font-open-runde, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: normal;
     font-variation-settings: normal;
+  }
+  /* ⛔ A LINK IN RUNNING TEXT IS UNDERLINED (owner-approved 2026-11-14, cook r05; axe link-in-text-block). The accent
+     #0060df against body text is 1.93:1, so colour alone does not mark a link inside a sentence: the underline does.
+     A link or a text-brand action inside a <p> under <main> gets a 1px line, 3px below the baseline.
+     ⚠️ REAL SPECIFICITY, NOT `:where()` — measured on Tailwind 4.3.3's compile: preflight's
+     `a { text-decoration: inherit }` lives in this same base layer at (0,0,1), so a zero-specificity rule LOSES to it
+     and underlines nothing. In this layer the utilities still beat it whatever its weight (layer order outranks
+     specificity), so `no-underline` or an `underline-offset-*` on the element wins.
+     ⚠️ A NON-TEXT LINK INSIDE A <p> (a block/flex card link, an icon-only action) is caught too: give it `no-underline`
+     AT SOURCE. Nothing is excluded by selector here, so an inline link can never be excluded by accident. */
+  main p a,
+  main p button.text-brand {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
   }
   /* Sub-100ms press feel: drop the browser's ~300ms double-tap-zoom wait on
      interactive elements (pan + pinch-zoom still work; only double-tap zoom is
@@ -1396,12 +1508,17 @@
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+/* ⛔ SENTENCE CASE, THE META ROLE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options
+   and deploy"; reverses the tracked 12px capitals). The LINES stay — the SEO "topic · place" lines the owner kept on
+   2026-08-05 (design-lint EYEBROW_ALLOW) — but they are set as `text-t-meta` (13/18, regular, no tracking, no
+   transform): the copy is already sentence case in EN and VI (tr('Partners', 'Đối tác')), and line-height 1 under
+   capitals was what clipped Vietnamese stacked marks (ĐỐI TÁC). Colour stays a text-* utility at the call site
+   (muted-foreground: the accent is never a label). */
 .eyebrow {
-  font-size: var(--text-caption);
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-t-meta);
+  line-height: var(--text-t-meta--line-height);
+  font-weight: 400;
+  letter-spacing: 0;
 }
 /* Airy hero greeting — the Gemini "Hi Eno, let's get into it" treatment: display size at a LIGHT
    weight with tight tracking, so a welcome floats on the canvas instead of shouting like a bold
@@ -1463,9 +1580,9 @@
    ⚠️ ONE TOKEN IS COMPENSATED, ON PURPOSE: `--radius-media`, the photo-tile corner (owner,
    2026-10-18: "minimal squircle corners"). It is declared in `@theme static`, not inline, so
    the utility reads `var(--radius-media)` at runtime and the `:root` below really does move
-   it: 8px round everywhere, a 14px squircle here — the same visible corner (≤ 0.16px apart,
-   measured 2026-10-18). At a minimal 8px the uncompensated choice would have been visible —
-   an 8px squircle reads ~6px beside Safari's 8px arc — and it is ONE number, on the one
+   it: 16px round everywhere, a 20px squircle here since 2026-11-14 (owner-approved; it was 8px / 14px,
+   measured ≤ 0.16px apart on 2026-10-18). Uncompensated, a squircle reads visibly tighter than
+   Safari's arc at the same radius — and it is ONE number, on the one
    surface the brief is about. The tiers above stay uncompensated; never do this for lg/xl,
    whose 1.75× squircle value would cross the pill cliff (see `@theme inline`).
    Support, re-checked 2026-10-18: Chrome/Edge 139+, Samsung 30+, Android WebView; WebKit
@@ -1501,10 +1618,10 @@
    Per-corner (`rounded-tl-*`) and logical (`rounded-s-*`) families have ZERO uses today;
    add them here if that changes. */
 @supports (corner-shape: squircle) {
-  /* The photo-tile corner's squircle value (see the ⚠️ above). Unlayered, so it beats the 8px that
+  /* The photo-tile corner's squircle value (see the ⚠️ above). Unlayered, so it beats the 16px that
      `@theme static` puts on :root inside `@layer theme`. In the list below, `rounded-media` is not a
      substring of `rounded-t-media`, so each direction of it is listed. */
-  :root { --radius-media: 14px; }
+  :root { --radius-media: 20px; }
   :is(
     [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"],
     [class*="rounded-t-lg"], [class*="rounded-t-xl"], [class*="rounded-t-2xl"], [class*="rounded-t-3xl"],
@@ -3619,7 +3736,8 @@ html:not(.native) #app-splash {
    popover surface; only the small status icon carries colour). */
 [data-sonner-toast][data-type="success"] [data-icon],
 [data-sonner-toast][data-type="info"] [data-icon] {
-  color: #0a66c2;
+  /* The accent token, not a literal (2026-11-14): it re-themes, and it was the FINN blue #0a66c2 after the move. */
+  color: var(--brand);
 }
 [data-sonner-toast][data-type="error"] [data-icon] {
   color: #dc2626;
@@ -3719,7 +3837,7 @@ html:not(.native) #app-splash {
    The call site sets two custom properties: `--plate-tint` (the hue) and `--plate-ink` (the text).
    ⚠️ THE WASH IS --plate-alpha, 14% LIGHT / 8% DARK, AND BOTH ARE MEASURED CEILINGS, NOT TASTE. Contrast
    falls as the wash rises. Worst light chip: restricted red on --muted #f5f5f5, 4.70:1 at 14% (4.54 at 16%,
-   just over the 10px-bold floor). Worst dark chip: restricted red on the popover #2a2a2a, 4.62:1 at 8%. Raise either and
+   just over the 10px-bold floor); on the #f3f3f3 field of 2026-11-14, 4.62:1 at 14%. Worst dark chip: restricted red on the popover #2a2a2a, 4.62:1 at 8%. Raise either and
    re-measure every tier on the darkest light surface and the lightest dark one a chip sits on —
    trust-contrast.test.ts does exactly that, so it fails first.
    ⚠️ color-mix() needs Safari 16.2; this repo's floor is 16.0. There the build's solid polyfill is overridden to
@@ -3856,7 +3974,7 @@ html:not(.native) #app-splash {
      rides on the BOLD layer rather than on the <svg>, so it applies exactly when the filled
      weight is showing and never fights a control that paints its own icon — a destructive action
      keeps its red, because that rule targets the svg and this one does not. --accent-foreground
-     re-themes itself (#0a66c2 light, #74b3f2 dark), so this is one token rather than two rules. */
+     re-themes itself (#0060df light, #74b3f2 dark), so this is one token rather than two rules. */
   color: var(--color-accent-foreground);
 }
 
@@ -4823,6 +4941,7 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
 
 /* ── THE HOME PAGE'S PARTNER STRIP (src/components/marketplace/partner-strip.tsx; roster src/lib/partner-strip.ts) ──
    Owner, 2026-11-09: official partner logos scrolling right to left, one word each, "super professional minimal".
+   Since 2026-11-14 ("8 still band") that is from `sm` up only: the phone's copy holds still (below the viewport rule).
    ⛔ A SEAMLESS LOOP NEEDS EQUAL HALVES, EACH WIDER THAN THE BAND: the track holds two halves of repeated rosters
    (partner-strip.tsx REPEAT) and moves by exactly -50%. Spacing is each
    item's trailing padding, never the track's `gap` (a gap has no partner after the last item, so -50% would land one gap
@@ -4861,6 +4980,16 @@ html[data-explorer-directed] #listings .feed-grid > [data-partner-band] {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 2.5rem), transparent);
   mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 2.5rem), transparent);
 }
+/* ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14: "8 still band"; reverses 2026-11-09's "scrolling right to left"
+   below `sm` only). The feed copy never loops (partner-strip.tsx), so it starts at its first partner and scrolls by hand,
+   with NO EDGE FADE (the blind judges named the stray half-letters the mask left at its ends). `overflow-x` is set here as
+   well as by the :has() rule below, so a browser without :has() (iOS before 15.4) still scrolls it; `overflow-y` stays
+   hidden from the base rule. No media query: this copy is display:none from `sm` up. */
+.partner-strip-feed .partner-strip-viewport {
+  overflow-x: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 .partner-strip-track {
   display: flex;
   width: max-content;
@@ -4884,7 +5013,7 @@ html[data-explorer-directed] #listings .feed-grid > [data-partner-band] {
      browser scrolls the focused link into view. ⛔ `:focus-visible`, NEVER `:focus-within`: Chromium focuses a link on
      MOUSEDOWN, so a focus rule fired by a click jerked the track back to 0 between mousedown and mouseup and the click
      landed on another logo or none (opus). A mouse click on a link is not :focus-visible.
-   - Pause (WCAG 2.2.2): stopped at the start, the row scrolls by hand, so a phone can reach every partner while paused.
+   - Pause (WCAG 2.2.2): stopped at the start, the row scrolls by hand, so a touch screen can reach every partner while paused.
    The scroll that either leaves behind is reset by partner-strip.tsx before the loop runs again. */
 .partner-strip-viewport:has(:focus-visible) .partner-strip-track,
 .partner-strip-track[data-paused] {

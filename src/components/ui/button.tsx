@@ -120,8 +120,11 @@ const buttonVariants = cva(
         // overrides it. Six CTAs are `w-full sm:w-auto` and keep the class from 640 to 1023px while they sit inline, so a
         // below-lg rule grew them there: the CV import's Continue stood 48px with a 16px label beside its 36px Undo
         // (teacher-import-panel.tsx), and the others grew in place.
+        // ⚠️ IT HOVERS TO `bg-cta-dark`, THE ACTION PRESS #004bb0 IN BOTH THEMES (2026-11-14, owner-approved redesign).
+        // It hovered to `brand-dark`, which INVERTS in dark ("hover goes lighter": #74b3f2) and put the white label at
+        // 2.22:1 there — the follow-up the `commerce` note below asked for. White on #004bb0 is 7.97:1 in either theme.
         cta:
-          "bg-primary text-white font-bold hover:bg-brand-dark max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12 max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base",
+          "bg-primary text-white font-bold hover:bg-cta-dark max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12 max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base",
         /**
          * ⛔ `commerce` IS NOT `cta`, AND THE DIFFERENCE IS 128 BUTTONS. `variant="cta"` is the app's
          * primary action — 128 call sites, including every admin panel — so painting IT orange is the
@@ -134,16 +137,16 @@ const buttonVariants = cva(
          * themes for exactly that reason; `--cta-ink` is the one that lightens, for TEXT.
          */
         /**
-         * ⛔ IT HOVERS TO BLUE, NOT TO A DARKER ORANGE (owner, 2026-09-19, on the Post button: "blue
+         * ⛔ SINCE 2026-11-14 IT RESTS ON THE ACCENT AND HOVERS TO THE ACTION PRESS (owner-approved 2026-11-14, cook r05:
+         * "after this cook round build all best options and deploy"; the orange is retired). `--cta` IS #0060df now,
+         * the same blue as `--primary`, so the old `hover:bg-primary` would give NO feedback at all; `hover:bg-cta-dark`
+         * (#004bb0 in BOTH themes, white 7.97:1) still keeps the 09-19 "blue on hover" and never inverts in dark.
+         * ⛔ (history) IT HOVERS TO BLUE, NOT TO A DARKER ORANGE (owner, 2026-09-19, on the Post button: "blue
          * on hover"). The resting fill stays the commerce orange that marks a transaction control;
          * the hover hands it back to the brand.
-         * ⚠️ `hover:bg-primary`, AND NOT `hover:bg-brand-dark` WHICH IS WHAT `cta` ABOVE USES. That
-         * token INVERTS between themes on purpose — #034078 on light, #74b3f2 on dark ("hover goes
-         * LIGHTER in dark") — and this button's label is white, which measures 2.22:1 on the dark
-         * value. `--primary` is #0a66c2 in BOTH themes by explicit intent (globals.css: "primary
-         * button keeps brand blue + white text"), so white holds at 5.69:1 on either ground.
-         * ⚠️ That makes the `cta` variant's own dark hover worth a look some day; it is 128 call
-         * sites and not this change's business, but do not copy its hover into a new variant.
+         * ⚠️ NOT `hover:bg-brand-dark`. That token INVERTS between themes on purpose — #004bb0 on light,
+         * #74b3f2 on dark ("hover goes LIGHTER in dark") — and this button's label is white, which
+         * measures 2.22:1 on the dark value. (`cta` above made the same move on 2026-11-14.)
          * ⚠️ THE BLAST RADIUS OF THIS VARIANT IS ONE BUTTON — the header's Post. Reviewers read a
          * variant-level edit as repainting every transaction control and named checkout and Buy as
          * casualties, so it was measured rather than asserted.
@@ -168,14 +171,13 @@ const buttonVariants = cva(
          * pointer, so a 2-in-1 with a trackpad matches `pc` AND takes taps, and a tap there strands
          * the blue until something else is tapped.
          * ⛔ ACCEPTED, NOT OVERLOOKED, AND THE COST IS WHY. It is cosmetic — the label stays white at
-         * 5.69:1 — and the old `hover:bg-cta-dark` stranded in exactly the same way, just less
-         * visibly. The fix would be `@media (any-pointer: coarse)` (NOT `hover-pointer:`, which a
+         * 7.97:1 — and every hover fill strands in exactly the same way. The fix would be `@media (any-pointer: coarse)` (NOT `hover-pointer:`, which a
          * 2-in-1 also matches), and it would take the blue hover away from every 2-in-1 user driving
          * with a trackpad to spare them a stale colour after a tap. If the stranded blue is ever
          * reported as a real annoyance, that is the lever.
          */
         commerce:
-          "bg-cta text-white font-bold hover:bg-primary",
+          "bg-cta text-white font-bold hover:bg-cta-dark",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:
@@ -193,7 +195,9 @@ const buttonVariants = cva(
         // Transparent at rest, no border.
         soft:
           "hover:bg-muted",
-        link: "text-primary underline-offset-4 hover:underline",
+        // `text-brand`, not `text-primary` (2026-11-14): --primary is a FILL colour that keeps #0060df in dark, ~3:1 as
+        // text on the dark canvas; --brand re-themes for text (#3b8ee6, 4.98:1 there).
+        link: "text-brand underline-offset-4 hover:underline",
         // The empty variant. Every other variant paints *something* on hover
         // (ghost/soft/outline set a hover background, link underlines), so a
         // button that must stay visually inert had to hand-write

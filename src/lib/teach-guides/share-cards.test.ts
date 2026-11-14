@@ -182,16 +182,12 @@ describe('the title fits, whole, in every shape', () => {
   })
 })
 
-describe('the colours are the design tokens', () => {
-  it('each equals its light-theme token in src/app/globals.css', () => {
-    const css = readFileSync('src/app/globals.css', 'utf8')
-    const token = (name: string) => new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6});`).exec(css)?.[1].toLowerCase()
-    expect({
-      brand: token('brand'),
-      brandDark: token('brand-dark'),
-      brand100: token('brand-100'),
-      ink: token('primary-foreground'),
-    }).toEqual(cards.TEACH_CARD_COLORS)
+describe('the colours are the brand mark\'s, not the UI accent', () => {
+  // Since 2026-11-14 (owner-approved redesign) the UI accent token --brand is #0060df, but share cards keep the eno
+  // MARK's blue, like public/logo*.svg and the OG images: platforms cache a card for weeks, so a mixed set would show
+  // two blues side by side. The palette is pinned here on purpose; change it only together with the logo files.
+  it('keeps the mark palette', () => {
+    expect(cards.TEACH_CARD_COLORS).toEqual({ brand: '#0a66c2', brandDark: '#034078', brand100: '#cfe3f5', ink: '#ffffff' })
   })
 })
 

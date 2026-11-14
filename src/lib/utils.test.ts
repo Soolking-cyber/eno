@@ -61,16 +61,58 @@ describe('cn — the photo-tile corner', () => {
     expect(cn('aspect-square rounded-xl bg-tint', 'rounded-media')).toBe('aspect-square bg-tint rounded-media')
   })
 
-  it('is a STATIC token with a squircle override — inline would bake 8px in and the override would do nothing', () => {
+  it('is a STATIC token with a squircle override — inline would bake 16px in and the override would do nothing', () => {
     const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
-    expect(css).toMatch(/@theme static \{\s*--radius-media: 8px;\s*\}/)
+    expect(css).toMatch(/@theme static \{\s*--radius-media: 16px;\s*\}/)
     const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)
     expect(inline, 'the @theme inline block').not.toBeNull()
     expect(inline![1]).not.toMatch(/^\s*--radius-media:/m)
     const squircle = css.match(/@supports \(corner-shape: squircle\) \{([\s\S]*?)\n\}/)
     expect(squircle, 'the squircle block').not.toBeNull()
-    expect(squircle![1]).toMatch(/:root \{ --radius-media: 14px; \}/)
+    expect(squircle![1]).toMatch(/:root \{ --radius-media: 20px; \}/)
     for (const d of ['', 't-', 'b-', 'l-', 'r-']) expect(squircle![1]).toContain(`[class*="rounded-${d}media"]`)
+  })
+
+  it('the authored tiers are 8 / 12 / 16 (owner-approved 2026-11-14)', () => {
+    const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
+    const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)![1]
+    const tier = (n: string) => inline.match(new RegExp(`^\\s*--radius-${n}:\\s*([^;]+);`, 'm'))?.[1]
+    expect([tier('lg'), tier('xl'), tier('2xl')]).toEqual(['8px', '12px', '16px'])
+  })
+})
+
+/**
+ * THE SIX TYPE ROLES ARE A tailwind-merge FONT SIZE (owner-approved 2026-11-14). `text-t-meta` … are theme tokens
+ * (`@theme { --text-t-* }`); without `theme.text` in utils.ts tailwind-merge reads them as text COLOURS, so a role
+ * and a colour knocked each other out and a role and a t-shirt size both shipped.
+ */
+describe('cn — the type roles', () => {
+  it('a role replaces a size, a size replaces a role, and a colour sits beside either', () => {
+    expect(cn('text-sm', 'text-t-meta')).toBe('text-t-meta')
+    expect(cn('text-t-h2', 'text-xl')).toBe('text-xl')
+    expect(cn('text-t-meta', 'text-muted-foreground')).toBe('text-t-meta text-muted-foreground')
+    expect(cn('text-foreground text-t-price', 'sm:text-t-h3')).toBe('text-foreground text-t-price sm:text-t-h3')
+    expect(cn('text-t-card leading-5', 'text-t-meta')).toBe('text-t-meta')
+  })
+
+  it('knows exactly the roles globals.css declares — the two lists cannot drift', () => {
+    const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
+    const roles = [...new Set([...css.matchAll(/--text-(t-[a-z0-9]+):/g)].map((m) => m[1]))]
+    expect(roles.sort()).toEqual(['t-card', 't-display', 't-h2', 't-h3', 't-meta', 't-price'])
+    for (const r of roles) {
+      expect(cn('text-base', `text-${r}`), r).toBe(`text-${r}`)
+      expect(cn(`text-${r}`, 'text-ink'), r).toBe(`text-${r} text-ink`)
+    }
+  })
+
+  it('lives in a PLAIN @theme block — inline would bake the values in and no per-language override could reach them', () => {
+    const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
+    const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)![1]
+    expect(inline).not.toMatch(/--text-t-/)
+    const plain = [...css.matchAll(/@theme \{([^}]*)\}/g)].map((m) => m[1]).find((b) => b.includes('--text-t-meta:'))
+    expect(plain, 'the @theme block holding the roles').toBeDefined()
+    expect(plain).toMatch(/--text-t-h2--font-weight: 700;/)
+    expect(plain).toMatch(/--text-t-meta: 0\.8125rem;/)
   })
 })
 

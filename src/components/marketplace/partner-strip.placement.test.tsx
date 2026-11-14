@@ -6,8 +6,8 @@
  *   · `top`  → `max-sm:hidden`, and nothing that marks it as a feed row;
  *   · `feed` → `sm:hidden col-span-full`, `data-partner-band` (the hook globals.css uses to take it out of a directed
  *     cold link's masked seed and to count it among the grid's first children), and no page gutter of its own.
- * Only the copy on screen at the current width runs the loop: the other stays the one still row the server sent, so a
- * hidden band never holds six rosters of logos in the DOM.
+ * Only the top copy runs the loop, and only from `sm` up; the feed copy holds still at every width (owner, 2026-11-14:
+ * "8 still band"). So a phone's band never moves, and a hidden band never holds six rosters of logos in the DOM.
  */
 import * as React from 'react'
 import { readFileSync } from 'node:fs'
@@ -71,39 +71,55 @@ describe('the two placements, from the server', () => {
   })
 })
 
-describe('only the copy on screen runs the loop', () => {
+describe('only the top copy runs the loop, from sm up; the feed copy holds still', () => {
   const n = () => stripPartners().length
-  it('on a phone: the feed copy loops, the top copy stays one still row with no pause button', async () => {
+  const items = (host: HTMLElement) => host.querySelectorAll('li.partner-strip-item').length
+  const still = (host: HTMLElement) => {
+    expect(items(host)).toBe(n())
+    expect(host.querySelector('.partner-strip-track')!.hasAttribute('data-loop')).toBe(false)
+    expect(host.querySelectorAll('li[data-copy="1"]')).toHaveLength(0)
+    expect(host.querySelector('[aria-hidden]')).toBeNull()
+    expect(host.querySelector('.partner-strip-pause')).toBeNull()
+    // Every partner once, each one a link the keyboard reaches.
+    expect(host.querySelectorAll('a.partner-strip-link:not([tabindex="-1"])')).toHaveLength(n())
+  }
+
+  it('⛔ on a phone the band holds still (owner 2026-11-14): one row, no repeats, no loop, no pause button; the hidden top copy is still too', async () => {
     atWidth(390)
     const feed = await mount('feed')
-    expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n() * 6)
-    expect(feed.host.querySelector('.partner-strip-pause')).not.toBeNull()
+    still(feed.host)
     await feed.done()
     const top = await mount('top')
-    expect(top.host.querySelectorAll('li.partner-strip-item').length).toBe(n())
-    expect(top.host.querySelector('.partner-strip-track')!.hasAttribute('data-loop')).toBe(false)
-    expect(top.host.querySelector('.partner-strip-pause')).toBeNull()
+    still(top.host)
     await top.done()
   })
 
-  it('from sm up: the other way round', async () => {
+  it('from sm up: the top copy loops with its pause button; the hidden feed copy stays the one still row', async () => {
     atWidth(1280)
     const top = await mount('top')
-    expect(top.host.querySelectorAll('li.partner-strip-item').length).toBe(n() * 6)
+    expect(items(top.host)).toBe(n() * 6)
+    expect(top.host.querySelector('.partner-strip-pause')).not.toBeNull()
     await top.done()
     const feed = await mount('feed')
-    expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n())
+    still(feed.host)
     await feed.done()
   })
 
-  it('follows the window across the breakpoint', async () => {
+  it('the top copy follows the window across the breakpoint; the feed copy holds still through it', async () => {
     const win = atWidth(390)
+    const top = await mount('top')
+    expect(items(top.host)).toBe(n())
+    await top.act(async () => { win.set(800) })
+    expect(items(top.host)).toBe(n() * 6)
+    expect(top.host.querySelector('.partner-strip-pause')).not.toBeNull()
+    await top.act(async () => { win.set(390) })
+    still(top.host)
+    await top.done()
     const feed = await mount('feed')
-    expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n() * 6)
-    await feed.act(async () => { win.set(800) })
-    expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n())
-    await feed.act(async () => { win.set(390) })
-    expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n() * 6)
+    for (const w of [390, 800, 390]) {
+      await feed.act(async () => { win.set(w) })
+      still(feed.host)
+    }
     await feed.done()
   })
 
@@ -170,41 +186,62 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
     }
   })
 
-  it('in the browser the repeats of the copy that loops are eager, so the loop never slides in a logo still to be fetched', async () => {
-    for (const [width, placement] of [[390, 'feed'], [1280, 'top']] as const) {
-      atWidth(width)
-      const band = await mount(placement)
-      const first = [...band.host.querySelectorAll('li[data-copy="0"] > a > span > img')]
-      const repeats = [...band.host.querySelectorAll('li[data-copy="1"] > a > span > img')]
-      expect(first.map((img) => img.getAttribute('loading'))).toEqual(stripPartners().map(() => 'lazy'))
-      expect(repeats).toHaveLength(stripPartners().length * 5)
-      expect(repeats.every((img) => !img.hasAttribute('loading'))).toBe(true)
-      expect(repeats.slice(0, stripPartners().length).map((img) => img.getAttribute('src'))).toEqual(logos())
-      await band.done()
-    }
+  it('in the browser the repeats of the copy that loops (the top copy, from sm up) are eager, so the loop never slides in a logo still to be fetched', async () => {
+    atWidth(1280)
+    const band = await mount('top')
+    const first = [...band.host.querySelectorAll('li[data-copy="0"] > a > span > img')]
+    const repeats = [...band.host.querySelectorAll('li[data-copy="1"] > a > span > img')]
+    expect(first.map((img) => img.getAttribute('loading'))).toEqual(stripPartners().map(() => 'lazy'))
+    expect(repeats).toHaveLength(stripPartners().length * 5)
+    expect(repeats.every((img) => !img.hasAttribute('loading'))).toBe(true)
+    expect(repeats.slice(0, stripPartners().length).map((img) => img.getAttribute('src'))).toEqual(logos())
+    await band.done()
   })
 
-  it('hydrates the server row of either copy without a mismatch', async () => {
+  it("the feed copy's own logos turn eager once it is on screen, so a logo scrolled in by hand is already fetched", async () => {
+    atWidth(390)
+    const band = await mount('feed')
+    const imgs = [...band.host.querySelectorAll('img')]
+    expect(imgs.map((img) => [img.getAttribute('src'), img.getAttribute('loading')])).toEqual(logos().map((src) => [src, 'eager']))
+    await band.done()
+  })
+
+  it("a desktop's hidden feed copy stays lazy and fetches nothing (desktop unchanged), and turns eager once the window is narrowed to a phone", async () => {
+    const win = atWidth(1280)
+    const band = await mount('feed')
+    const loading = () => [...band.host.querySelectorAll('img')].map((img) => img.getAttribute('loading'))
+    expect(loading()).toEqual(logos().map(() => 'lazy'))
+    await band.act(async () => { win.set(390) })
+    expect(loading()).toEqual(logos().map(() => 'eager'))
+    await band.done()
+  })
+
+  it('hydrates the server row of either copy at either width without a mismatch, keeping the served nodes', async () => {
     const { hydrateRoot } = await import('react-dom/client')
     const { act } = await import('react')
-    atWidth(1280)
     // React's own test-environment flag, so the only console errors left are what hydration reports.
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const recovered: unknown[] = []
     try {
-      for (const placement of ['top', 'feed'] as const) {
-        const host = document.createElement('div')
-        host.innerHTML = renderToString(<PartnerStrip placement={placement} />)
-        document.body.append(host)
-        const served = [...host.querySelectorAll('img')]
-        expect(served).toHaveLength(stripPartners().length)
-        let root: ReturnType<typeof hydrateRoot> | undefined
-        await act(async () => { root = hydrateRoot(host, <PartnerStrip placement={placement} />, { onRecoverableError: (e) => recovered.push(e) }) })
-        // Hydrated in place: the server's img nodes were adopted, not thrown away for a client render.
-        expect(served.every((img) => host.contains(img))).toBe(true)
-        await act(async () => { root!.unmount() })
-        host.remove()
+      for (const width of [390, 1280]) {
+        atWidth(width)
+        for (const placement of ['top', 'feed'] as const) {
+          const host = document.createElement('div')
+          host.innerHTML = renderToString(<PartnerStrip placement={placement} />)
+          document.body.append(host)
+          const served = [...host.querySelectorAll('img')]
+          expect(served).toHaveLength(stripPartners().length)
+          let root: ReturnType<typeof hydrateRoot> | undefined
+          await act(async () => { root = hydrateRoot(host, <PartnerStrip placement={placement} />, { onRecoverableError: (e) => recovered.push(e) }) })
+          // Hydrated in place: the server's img nodes were adopted, not thrown away for a client render.
+          expect(served.every((img) => host.contains(img))).toBe(true)
+          // On a phone the feed copy's served logos themselves turn eager after hydration; everything else stays lazy.
+          const want = width < 640 && placement === 'feed' ? 'eager' : 'lazy'
+          expect(served.map((img) => img.getAttribute('loading'))).toEqual(served.map(() => want))
+          await act(async () => { root!.unmount() })
+          host.remove()
+        }
       }
       expect(recovered).toEqual([])
       expect(error).not.toHaveBeenCalled()
@@ -228,5 +265,18 @@ describe('the stylesheet side', () => {
 
   it('gives the feed row a hairline above as well as below', () => {
     expect(CSS).toMatch(/\.partner-strip-feed \{\s*border-top: 1px solid var\(--color-border\);\s*\}/)
+  })
+
+  it('⛔ the feed copy scrolls by hand with no edge fade (owner 2026-11-14); the top copy keeps its fade', () => {
+    expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-viewport \{\s*overflow-x: auto;\s*-webkit-mask-image: none;\s*mask-image: none;\s*\}/)
+    // The base rule (the top copy, from sm up) still fades both ends.
+    const base = /\n\.partner-strip-viewport \{([^}]*)\}/.exec(CSS)![1]
+    expect(base).toContain('overflow: hidden;')
+    expect(base).toContain('-webkit-mask-image: linear-gradient(')
+    expect(base).toMatch(/\smask-image: linear-gradient\(/)
+  })
+
+  it('guard: under reduced motion the looping copy still never moves, its repeats and pause button hidden', () => {
+    expect(CSS).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.partner-strip-track\[data-loop\] \{ animation: none; \}\s*\.partner-strip-item\[data-copy="1"\],\s*\.partner-strip-pause \{ display: none; \}/)
   })
 })

@@ -22,8 +22,9 @@
  *  12. White ink on a solid destructive fill (a class, or a Button/Badge variant that carries one
  *      half) — 2.73:1 on the dark red; see checkDestructiveInk
  *  + RATCHETS (fail only when a count RISES — see the block): hand-built button spinners,
- *    hand-sized ✕ glyphs, off-ladder icon sizing, page h1s off the heading ramp, and the
- *    arbitrary var() spelling of a house easing curve
+ *    hand-sized ✕ glyphs, off-ladder icon sizing, page h1s off the heading ramp, the
+ *    arbitrary var() spelling of a house easing curve, type under 13px (text-xs/2xs/3xs) and
+ *    tracked capitals (uppercase / tracking-wide*) — the last two since the 2026-11-14 redesign
  *   + two structural gates: raw controls (use src/components/ui/*) and hand-rolled
  *     popups (createPortal). Each has its own allowlist, documented at its definition.
  *
@@ -620,6 +621,8 @@ const KNOWN_COLORS = (() => {
 const NON_COLOR = new Set([
   // text-*: size, alignment, wrapping, overflow
   'xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl', '2xs', '3xs',
+  // the type ROLES (`@theme { --text-t-* }`, 2026-11-14) — sizes, not colours; lib/utils.ts `theme.text` has the same list
+  't-display', 't-h2', 't-h3', 't-price', 't-card', 't-meta',
   'left', 'right', 'center', 'justify', 'start', 'end', 'wrap', 'nowrap', 'balance', 'pretty', 'clip', 'ellipsis',
   // border-* / outline-* / divide-*: style and side
   'none', 'solid', 'dashed', 'dotted', 'double', 'hidden', 'collapse', 'separate', 'x', 'y', 't', 'b', 'l', 'r', 's', 'e', 'reverse',
@@ -806,6 +809,32 @@ const RATCHETS = {
     what: 'the arbitrary var() form of an ease- utility for a house curve',
     fix: 'use the named utility — ease-out-strong · ease-spring · ease-spring-snappy · ease-bounce (theme tokens since 2026-09-29)',
   },
+  /**
+   * ⛔ NOTHING IN THE UI IS SMALLER THAN 13px (the 2026-11-14 redesign, owner-approved: the closed type scale, whose
+   * smallest role is the 13/18 meta). NOT a global retarget of the three steps — they are on ~1,000 class sites
+   * outside admin, and repainting them all at once is a migration nobody can review — so each area moves its own
+   * surfaces onto the meta role and the count can only fall. Admin is EN staff chrome, exempt by path.
+   * Baseline measured on main 067c07f5c (2026-11-14): 1,002.
+   */
+  'sub13Type': {
+    baseline: 1002,
+    what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
+    fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
+  },
+  /**
+   * ⛔ SENTENCE CASE (the 2026-11-14 redesign, owner-approved): no `uppercase` transform and no wide tracking on UI
+   * labels — the copy is already sentence case in EN and VI, and capitals with tracking were what clipped the
+   * Vietnamese stacked marks (ĐỐI TÁC). `first-letter:uppercase` IS sentence case (the PDP facet values) and is not
+   * counted. Exempt by path: admin (EN staff chrome), the OG share cards (cached by the platforms), and the wallet's
+   * token ticker (a ticker symbol, not a label). Emails are .ts and never reach this count.
+   * Baseline measured on main 067c07f5c (2026-11-14), BEFORE the sentence-case sweep: 83 (each transform and each
+   * tracking class counts once). That sweep lowers it.
+   */
+  'trackedCaps': {
+    baseline: 83,
+    what: 'an `uppercase` transform or `tracking-wide`/`-wider`/`-widest` outside admin, the OG cards and the wallet ticker',
+    fix: 'drop the transform and the tracking — write the label in sentence case in both languages (docs/design-language.md §1)',
+  },
 }
 for (const r of Object.values(RATCHETS)) r.hits = []
 const ratchet = (key, rel, line, text) => RATCHETS[key].hits.push(`${rel}:${line}  ${text}`)
@@ -841,6 +870,25 @@ function countRatchets(rel, code) {
   // arbitrary-ease
   for (const m of code.matchAll(/ease-\[var\(--ease-(?:out-strong|spring-snappy|spring|bounce)\)\]/g)) {
     ratchet('arbitrary-ease', rel, lineAt(code, m.index), m[0])
+  }
+
+  // sub13Type + trackedCaps (2026-11-14): class tokens inside string literals, any variant prefix. A name after a `.`
+  // is a SELECTOR inside an arbitrary variant (ui/button's `:not(.text-xs)`), not a use, so it is not counted.
+  const isAdmin = rel.startsWith('src/app/[lang]/admin/') || rel.startsWith('src/components/admin/')
+  if (!isAdmin) {
+    const strs = stringSpans(code)
+    const inString = (i) => strs.some(([a, b]) => a <= i && i < b)
+    for (const m of code.matchAll(/(?<![\w.-])(?:[\w-]+:)*text-(?:xs|2xs|3xs)(?![\w-])/g)) {
+      if (inString(m.index)) ratchet('sub13Type', rel, lineAt(code, m.index), m[0])
+    }
+    const capsExempt = rel.startsWith('src/app/og/') || rel === 'src/app/[lang]/dashboard/wallet/wallet-client.tsx'
+    if (!capsExempt) {
+      for (const m of code.matchAll(/(?<![\w.-])((?:[\w-]+:)*)(uppercase|tracking-(?:wide|wider|widest))(?![\w-])/g)) {
+        // first-letter:uppercase is sentence case (the PDP facet values), not a transform to capitals.
+        if (m[2] === 'uppercase' && /(?:^|:)first-letter:$/.test(m[1])) continue
+        if (inString(m.index)) ratchet('trackedCaps', rel, lineAt(code, m.index), m[0])
+      }
+    }
   }
 
   // h1-off-ramp: page surfaces only (the PDP h1 is the owner's price-first size; admin is EN chrome).
@@ -905,7 +953,7 @@ const RULES = [
     // beside, which is off the scale at every size it ever rendered (12.8px on a card, 14.4px at
     // sm:text-lg, 24px under the PDP headline). A relative size is still an arbitrary size; the
     // canon has six steps and a surface that needs another size picks a different step.
-    name: 'arbitrary font size (px/em/rem) — use text-3xs/2xs/xs/sm/base — docs/design-language.md §1',
+    name: 'arbitrary font size (px/em/rem) — use a type role (text-t-* display · h2 · h3 · price · card · meta) or text-sm/base — docs/design-language.md §1',
     re: /text-\[(?:length:)?\d*\.?\d+(?:px|r?em)\]/g,
   },
   {

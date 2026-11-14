@@ -146,6 +146,56 @@ test.describe('Guest · homepage', () => {
     await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 
+  test('the partner band holds still on a phone, drifts on desktop', async ({ page }) => {
+    /**
+     * ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14: "8 still band"; partner-strip.tsx). Below `sm` the band is a
+     * row of the home feed that never loops: no `data-loop`, no Pause toggle, no edge fade; it starts at its first partner
+     * and scrolls by hand. From `sm` up the band under the header still drifts with its Pause toggle, and the hidden feed
+     * copy fetches nothing (its logos stay lazy). ⚠️ scrollLeft 0 is a FRESH load's: the still row keeps a hand scroll on
+     * purpose. Branches on the project's viewport: guest-mobile (Pixel 5, 393 px) and guest-desktop (1280 px).
+     */
+    if ((page.viewportSize()?.width ?? 1280) < 640) {
+      const band = page.locator('[data-partner-band]:visible')
+      await band.scrollIntoViewIfNeeded()
+      await expect(band).toBeVisible()
+      // Hydrated: the still row's own logos turn eager once it is on screen, so nothing below reads the server's row alone.
+      await expect(band.locator('img').first()).toHaveAttribute('loading', 'eager', { timeout: 15_000 })
+      await expect(band.locator('.partner-strip-track')).not.toHaveAttribute('data-loop')
+      await expect(band.locator('.partner-strip-pause')).toHaveCount(0)
+      const viewport = band.locator('.partner-strip-viewport')
+      const read = () => viewport.evaluate((el) => {
+        const cs = getComputedStyle(el)
+        return {
+          mask: cs.getPropertyValue('mask-image'),
+          webkitMask: cs.getPropertyValue('-webkit-mask-image'),
+          overflowX: cs.overflowX,
+          scrollLeft: el.scrollLeft,
+          left: el.getBoundingClientRect().left,
+          first: el.querySelector('.partner-strip-item')!.getBoundingClientRect().left,
+        }
+      })
+      const start = await read()
+      expect(start).toMatchObject({ mask: 'none', webkitMask: 'none', overflowX: 'auto', scrollLeft: 0 })
+      expect(Math.abs(start.first - start.left), 'starts at the first partner').toBeLessThanOrEqual(0.5)
+      await page.waitForTimeout(1500)
+      expect(Math.abs((await read()).first - start.first), 'the band does not move').toBeLessThanOrEqual(0.5)
+      const end = await viewport.evaluate((el) => {
+        el.scrollLeft = el.scrollWidth
+        const links = el.querySelectorAll('a.partner-strip-link')
+        return { last: links[links.length - 1].getBoundingClientRect().right, right: el.getBoundingClientRect().right }
+      })
+      expect(end.last, 'the last partner is reachable by hand').toBeLessThanOrEqual(end.right + 1)
+    } else {
+      const track = page.locator('section.partner-strip:not([data-partner-band]) .partner-strip-track')
+      await expect(track).toHaveAttribute('data-loop', '', { timeout: 15_000 })
+      expect(await track.evaluate((el) => getComputedStyle(el).animationName)).toBe('partner-strip-scroll')
+      await expect(page.locator('.partner-strip-pause')).toBeVisible()
+      const feed = await page.locator('[data-partner-band] img').evaluateAll((imgs) => imgs.map((img) => img.getAttribute('loading')))
+      expect(feed.length, 'the feed copy is in the DOM at every width').toBeGreaterThan(0)
+      expect(feed.every((loading) => loading === 'lazy'), "desktop's hidden feed copy stays lazy").toBe(true)
+    }
+  })
+
   test('content images decode (no broken cards)', async ({ page }) => {
     // Wait for a card to render, then measure the largest VISIBLE image — a broken image
     // reports naturalWidth === 0 even though the <img> exists.

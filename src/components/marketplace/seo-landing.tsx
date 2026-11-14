@@ -269,7 +269,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             the document declared it Vietnamese. Each English block says so, as ArticleText does; what is NOT literal
             English stays outside (the visa disclosure carries its own lang="vi" half, `lede`, `inventory.node`, `after`,
             and the listing prices in the grid, which follow the reader). */}
-        <p lang="en" className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
+        <p lang="en" className="eyebrow text-muted-foreground mb-2">{content.eyebrow}</p>
         <h1 lang="en" className="h-display text-foreground">{content.h1}</h1>
         {/* ⚠️ RichBlock, NOT A BARE <p>. An intro is authored prose and some of these now carry the
             same light markdown a listing description does — **bold**, blank-line paragraphs, ✓

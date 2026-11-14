@@ -23,12 +23,19 @@ import { extendTailwindMerge } from "tailwind-merge"
  * radius scale stops at the tier names, so without `theme.radius` `cn('rounded-2xl', 'rounded-media')` kept both and
  * stylesheet order picked the corner (measured on tailwind-merge 3.6.0). `radius` is the key every `rounded-*`
  * group reads, so the t/b/l/r forms merge too.
+ *
+ * ⚠️ AND THE SIX TYPE ROLES (`@theme { --text-t-* }`, owner-approved 2026-11-14). The stock font-size scale is the
+ * t-shirt sizes, and tailwind-merge's text COLOUR group accepts any name, so without `theme.text` `text-t-meta` reads as
+ * a colour: `cn('text-t-meta', 'text-muted-foreground')` dropped the role, and `cn('text-sm', 'text-t-meta')` kept
+ * both. `text` is the key the font-size group reads. Keep this list equal to the `--text-t-*` names in globals.css;
+ * utils.test.ts reads both.
  */
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
       ease: ['out-strong', 'spring', 'spring-snappy', 'bounce'],
       radius: ['media'],
+      text: ['t-display', 't-h2', 't-h3', 't-price', 't-card', 't-meta'],
     },
     classGroups: {
       z: [{ z: ['raised', 'sticky', 'nav', 'fab', 'overlay', 'tooltip', 'splash', 'consent', 'map-overlay', 'nested-popover'] }],
@@ -40,9 +47,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** The single brand blue (`--primary` in globals.css). Use for inline styles that can't
- *  reach the Tailwind token — e.g. the fallback background of an initials avatar. */
-export const BRAND_BLUE = '#0a66c2'
+/** The one accent (`--primary` in globals.css, #0060df since 2026-11-14). Use for inline styles that can't
+ *  reach the Tailwind token — e.g. the fallback background of an initials avatar (white initials 5.62:1). */
+export const BRAND_BLUE = '#0060df'
 
 /** A trailing generational suffix is not a surname: "… Montgomery III" is CM, not CI. ⚠️ Never a bare "V":
  *  "Lan V." abbreviates Vũ/Võ, and "Studio V" is a shop (codex + opus, 2026-10-05). Applied only from three

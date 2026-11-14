@@ -71,12 +71,13 @@ export const TEACH_CARD_TITLE_TRACKING = -0.02
 export const TEACH_CARD_SERIES_TRACKING = 0.08
 
 /**
- * The card's colours: light-theme design tokens (src/app/globals.css), by name. ⚠️ VALUES, NOT `var(--…)`: the renderer
- * draws without the app's stylesheet, so a token cannot reach it — share-cards.test.ts reads globals.css and fails the
- * day one of these moves without the other.
+ * The card's colours: the eno MARK's palette (public/logo*.svg), not the UI accent. ⚠️ VALUES, NOT `var(--…)`: the
+ * renderer draws without the app's stylesheet. Until 2026-11-14 these equalled globals.css's light tokens; the owner-
+ * approved redesign moved the UI accent to #0060df, and share cards stay on the mark's blue because platforms cache a
+ * card for weeks (share-cards.test.ts pins this palette; change it only together with the logo files).
  */
 export const TEACH_CARD_COLORS = {
-  /** --brand — the ground, the blue of every eno mark. */
+  /** The mark's blue — the ground (was --brand until 2026-11-14). */
   brand: '#0a66c2',
   /** --brand-dark — the ground's lower corner, a quiet depth under the type. */
   brandDark: '#034078',

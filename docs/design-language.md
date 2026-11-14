@@ -7,14 +7,25 @@ this document wins.
 
 Some rules are **ratchets** rather than bans: the lint counts a pattern the canon has moved
 past (hand-built button spinners, hand-sized ✕ glyphs, off-ladder icon sizes, page `<h1>`s off
-the heading ramp, the arbitrary `var()` spelling of a house easing curve) and fails only when
-the count **rises**. The existing sites are debt with a number on it; migrate one when you are
-in its file, then lower the baseline in `RATCHETS` in the same change.
+the heading ramp, the arbitrary `var()` spelling of a house easing curve, type under 13px,
+tracked capitals) and fails only when the count **rises**. The existing sites are debt with a
+number on it; migrate one when you are in its file, then lower the baseline in `RATCHETS` in the
+same change.
 
-Identity in one line: **flat single-canvas marketplace — one brand blue
-(#0a66c2), a 58同城-style commerce orange (#d64000 fill / #c73c00 ink) used ONLY
-for price, the Post button and the commerce badges, true-neutral grays, one #f8fbfe
-blue-wash canvas (`--wash-tail`) on every surface, generous radii, spring motion.**
+Identity in one line: **flat white marketplace — one white canvas (#ffffff) on every surface,
+an ink ladder (#141414 / #3d3d3d / #5e5e5e), ONE accent (#0060df, press #004bb0) for actions,
+links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, a closed type
+scale, 8/12/16 corners and 16px photos, sentence case, spring motion.**
+
+⚠️ **The 2026-11-14 redesign is owner-approved** (cook r05: *"after this cook round build all best
+options and deploy"*). It reversed, in one change: the blue wash floor (09-18 / 09-19) → white; the
+FINN brand blue #0a66c2 → #0060df; the commerce orange on price and Post (09-18) → ink price and the
+accent; the resting wells (`tint` / `muted`) → field grey (the blue selection tints follow once selection is ink); muted
+#595959 (11-12) → #5e5e5e; 12px card meta (11-05) → the 13px meta role; tiers `lg` 10 → 8 and `2xl`
+18 → 16; the photo corner 8/14 (10-18) → 16/20; tracked capitals → sentence case. Kept: the flat
+canvas (07-24), popover = canvas (07-13), header = page (09-19), two weights (08-13), no slashed
+zero (08-12), uncompensated tiers with only the photo corner compensated (08-09 / 10-18), pills
+never squircled, the SEO topic · place lines (08-05), the z ladder, Base UI.
 
 ---
 
@@ -26,25 +37,47 @@ static cuts behind `--font-open-runde`; `html[lang="vi"] body` keeps the same fa
 Open Runde draws every Vietnamese glyph (verified per-glyph). Inter and Be Vietnam Pro are
 **retired** — any brief, plan or DESIGN.md that names them is stale. One family, both languages.
 
-Six working sizes for UI markup. Nothing in between.
+**A CLOSED SCALE OF ROLES (owner-approved 2026-11-14).** One class is the whole role — size, line
+height, and for headings and prices the tracking and the 700 weight (`@theme { --text-t-* }` in
+globals.css; a caller's `leading-*` / `tracking-*` / `font-*` still wins). Nothing in between.
 
-| Utility | px | Use for |
-|---|---|---|
-| `text-3xs` | 10 | micro badge/counter labels (notification dots, image counters) |
-| `text-2xs` | 11 | dense card meta **from `sm` up**, chip labels, trust-chip text |
-| `text-xs` | 12 | standard meta, captions, secondary labels |
-| `text-sm` | 14 | UI default — buttons, inputs, labels, list rows |
-| `text-base` | 16 | body copy on content pages, PDP description; the long-form guides' prose (SeoArticle `P`/`Ul`, the lede, key points, FAQ) steps to `text-lg` from `lg` — an editorial 18px at desktop distance, its 60ch measure resolving at that size (2026-11-07) |
-| `text-lg`+ | 18+ | headings — use `lg / xl / 2xl / 3xl` steps only |
+| Role | Utility | Size / line | Tracking · weight | Use for |
+|---|---|---|---|---|
+| display | `text-t-display` | 28 / 34 | -0.025em · 700 | the one big line of a screen; page titles keep the fluid `.h-display` (28 → 40) |
+| h2 | `text-t-h2` | 22 / 28 | -0.02em · 700 | section headings (through `SECTION_TITLE`) |
+| h3 | `text-t-h3` | 17 / 24 | 700 | sub-headings, a card group's title |
+| price | `text-t-price` | 17 / 22 | -0.015em · 700 | a price, in ink |
+| card | `text-t-card` | 15 / 20 | — | a card's title line |
+| body | `text-base` | 16 / 24 | — | running text, PDP description; the long-form guides' prose steps to `text-lg` from `lg` (2026-11-07) |
+| small | `text-sm` | 14 / 20 | — | UI default — inputs, list rows |
+| label | `text-sm font-bold` | 14 / 20 | 700 | field labels, row titles |
+| button | `text-base/5 font-bold` | 16 / 20 | 700 | buttons |
+| meta | `text-t-meta` | 13 / 18 | — | meta, captions, chip labels, the SEO topic · place line — **the smallest type in the UI** |
+
+- **Nothing smaller than 13px.** `text-xs` (12), `text-2xs` (11) and `text-3xs` (10) are not on the
+  scale; design-lint ratchets them (`sub13Type`, 1,002 sites outside admin on 2026-11-14), so the count
+  only falls as each area moves its surfaces to `text-t-meta`. Admin is EN staff chrome and exempt.
+- **The `t-` prefix is load-bearing:** `text-price`, `text-card` and `text-body` are COLOUR utilities.
+  `lib/utils.ts` teaches tailwind-merge the six names and design-lint's `NON_COLOR` lists them; a
+  seventh role joins both.
+- **Vietnamese:** the roles read their values through `var()`, so if the 22/28 or 17/22 line box ever
+  clips a stacked mark (Ổ, Ấ, Ẫ) under `overflow: hidden`, the fix is one `html[lang="vi"]`
+  line-height override for that role alone.
+- **No tabular figures:** Open Runde ships no `tnum` (its GSUB is `aalt case frac locl ordn zero`), so
+  `font-variant-numeric: tabular-nums` would do nothing; the fallback faces are tabular already.
+
+**Sentence case.** No `uppercase` transform and no `tracking-wide/-wider/-widest` on a UI label: the
+EN and VI copy is already sentence case, and capitals were what clipped Vietnamese marks (ĐỐI TÁC).
+`first-letter:uppercase` is sentence case and stays. Exempt: admin, the OG cards, the wallet's
+token ticker. design-lint ratchets the rest (`trackedCaps`).
 
 **Banned:** arbitrary font sizes (`text-[9px]`, `text-[10px]`, `text-[11px]`,
-`text-[12px]`, `text-[13px]`, `text-[15px]`, …). Mappings used in the 2026-07
-normalization: 9→`3xs`, 10→`3xs`, 11→`2xs`, 12→`xs`, 13→`sm` (or `xs` when it
-was meta), 15→`base`.
+`text-[12px]`, `text-[13px]`, `text-[15px]`, …) — pick a role.
 
 **D-TYPE — two size rules (owner, 2026-09-30: "do what's recommended", plan row O-39):**
 
-- **Card meta is 12px at every width since 2026-11-05, in `ink-4`** (UI climb: 11px `muted-foreground` read as tiny and faint on a desktop, three judges' rounds running). Until then the row was `text-xs sm:text-2xs`:
+- ⚠️ **Card meta is the meta role since 2026-11-14** (`text-t-meta`, 13/18; owner-approved, reversing
+  the 11-05 12px below — the card area moves it). History: **card meta was 12px at every width from 2026-11-05, in `ink-4`** (UI climb: 11px `muted-foreground` read as tiny and faint on a desktop, three judges' rounds running). Until then the row was `text-xs sm:text-2xs`:
   12px below `sm`, 11px from `sm` up, where the row carries four facts instead of two. It is a
   single truncating line, so it never wraps — measured on the dev feed at 360/390, 0 wrapped rows
   in EN and VI, light and dark. Truncation does rise (home at 390: 4 → 21 of 28 rows;
@@ -87,7 +120,9 @@ truncated (the whole H1 stays in the HTML). Its lede is one line there too, with
 **No kicker eyebrows.** A small uppercase label that restates the heading under it ("Error
 404", "New") is retired (owner, 2026-08-05). The survivors are the SEO *topic · place* lines
 ("Housing · Vietnam"), which carry the place the heading does not; design-lint allowlists
-those files (`EYEBROW_ALLOW`) and refuses the class anywhere else.
+those files (`EYEBROW_ALLOW`) and refuses the class anywhere else. Since 2026-11-14 `.eyebrow` is
+the meta role in sentence case (13/18, regular, no tracking) and its colour is `muted-foreground`
+— the accent is never a label.
 
 The `:root` vars `--text-display/title/section/body/small/caption` are the
 **prose scale** for long-form content pages (guide/terms/privacy). They are
@@ -96,15 +131,16 @@ consumed by CSS rules in `globals.css` only — never as utilities in markup
 
 ## 2. Radius
 
-Four tiers and one photo-tile corner. Pick by element role, not by taste.
+Three tiers, the pill, and one photo corner: **8 / 12 / 16 / full, photos 16** (owner-approved
+2026-11-14; the tiers were 10 / 12 / 18 and the photo corner 8). Pick by element role, not by taste.
 
 | Utility | Value | Use for |
 |---|---|---|
-| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons |
-| `rounded-media` | 8px round / 14px squircle | **listing & product photo tiles at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame) and the native shell's `.ph` (owner, 2026-10-18: "minimal squircle corners") |
-| `rounded-2xl` | 18px | cards, panels, dialogs, popovers, menus, **and all other media ≥ ~96px** (the PDP gallery, banners) |
-| `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls, **and media between ~64px and ~96px** |
-| `rounded-lg` | 10px | small thumbnails/media ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
+| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons, rail tiles and the search field (a pill is `rounded-full` at source — the squircle never touches it) |
+| `rounded-media` | 16px round / 20px squircle | **EVERY photo, at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame), the native shell's `.ph`. ⏳ The PDP gallery and banners move onto it in the redesign's next step (cards and photos), so a 16px squircle never sits beside the 20px one |
+| `rounded-2xl` | 16px | cards, panels, dialogs, popovers, menus, sheets' tops, non-photo surfaces ≥ ~96px |
+| `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls |
+| `rounded-lg` | 8px | small non-photo boxes ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
 
 **Banned:** bare `rounded`, `rounded-sm`, `rounded-md` (map: tiny element →
 `lg`, control → `xl`). Directional variants (`rounded-t-*` for sheets/drawers)
@@ -125,11 +161,11 @@ Facebook's mobile grid clips its photos at 8px; at 18px eno's tile read soft and
 It is the one corner every listing/product photo tile wears, whatever its size, so a tile
 never changes shape between its skeleton, its loaded card, its preview and its offline shell.
 It is also the one **compensated** radius: an `@theme static` token (never `@theme inline`,
-which would bake 8px in), 8px round everywhere and raised to a 14px squircle inside
-globals.css's `@supports (corner-shape: squircle)` block — the same visible corner
-(≤ 0.16px apart, measured 2026-10-18), so Safari/iOS show 8px round today and switch to the
-squircle by themselves when WebKit ships `corner-shape`. Floating panels, the PDP gallery and
-every other media surface stay on their tiers. `lib/utils.ts` teaches tailwind-merge the name.
+which would bake the value in), 16px round everywhere and raised to a 20px squircle inside
+globals.css's `@supports (corner-shape: squircle)` block (it was 8 / 14 until 2026-11-14, measured
+≤ 0.16px apart), so Safari/iOS show 16px round today and switch to the squircle by themselves when
+WebKit ships `corner-shape`. Floating panels stay on their tiers. `lib/utils.ts` teaches
+tailwind-merge the name.
 
 ⚠️ **The values are authored, not derived, and `xl` has a measured ceiling.** They were
 `--radius ± 1/2/4/8` (5/6/7/9/11/15px) until 2026-08-09 — a scale 10px wide that shipped
@@ -137,41 +173,55 @@ as two shapes. `xl` cannot simply be raised: it is the overloaded tier (113 live
 elements, from a 24×24 icon button to full-width panels), and CSS clamps a radius to a
 pill once 2R passes the shorter side. Measured on `/`: 12px pills 4 elements, 14px pills
 7, 18px pills 13. Re-measure before changing it — see the note in `globals.css @theme`.
+The 2026-11-14 move (`lg` 10 → 8, `2xl` 18 → 16) only shrinks, so it cannot create a pill;
+radius is paint, so nothing moves.
 
 ## 3. Color
 
 Tokens only — never raw hex in `className` or `style`. The palette is 60/30/10:
-the `#f8fbfe` canvas (`--wash-tail`), true-neutral grays, ONE brand blue (plus the commerce orange on price/Post).
-A colour class must name a real token: Tailwind emits nothing for an unknown one (`text-danger`,
-`bg-surface`), silently, so design-lint refuses it.
+the white canvas (`--wash-tail`, #ffffff since 2026-11-14), the ink ladder and the field grey, ONE
+accent #0060df. A colour class must name a real token: Tailwind emits nothing for an unknown one
+(`text-danger`, `bg-surface`), silently, so design-lint refuses it.
 
-- Brand: `brand`, `brand-dark` (hover), `brand-light`, `brand-50`, `brand-100`,
-  `brand-deep(er)` (fixed dark marketing panels)
+- **One accent (owner-approved 2026-11-14):** `brand`, `primary`, `ring`, `cta`, `info`, `verified`
+  and `accent-foreground` are all #0060df in light (white on it 5.62:1, on the field 5.06:1);
+  `brand-dark` / `cta-dark` #004bb0 is the press (white 7.97:1 in BOTH themes — the hover for any
+  white-label accent button, `hover:bg-cta-dark`). In dark the FILLS (`primary`, `cta`) keep #0060df
+  for white labels, and accent TEXT is `text-brand` (#3b8ee6, 4.98:1 on the canvas) — never
+  `text-primary`, which is 3.00:1 as text there.
+- **The field grey:** `tint` and `muted` are #f3f3f3 in light (the dark `tint` #262626 in dark);
+  `secondary` stays #e5e5e5. ⚠️ `accent` / `brand-50` KEEP the blue tint (#e8f1fb; dark #12243a,
+  4.66:1 under `text-brand`) until selection moves to ink: a selected state on a grey well must not
+  be the same grey as resting (WCAG 1.4.1). Lines: `border` #ebebeb (the hairline), `input` / `line-strong` #d6d6d6.
+- Brand ramp beyond the accent (not in the redesign, unchanged): `brand-light`, `brand-100`,
+  `brand-150`, `brand-deep(er)` (fixed dark marketing panels)
 - Semantic: `primary`, `accent` (+`-foreground`), `muted`, `card`, `popover`,
   `background`, `foreground`, `border`, `input`, `ring`, `destructive`,
-  `success`, `warning`, `info`
+  `success`, `warning`, `info`, `saved` (#d92d4a, a saved heart and nothing else — 4.75:1 on its
+  white plate, the same in both themes)
 - Neutral ramp: `ink` (headings) · `ink-2` · `ink-3` · `ink-4`
-  (placeholder/meta — AA on tint) · `body` (neutral-600 secondary text) ·
-  `tint` (neutral-100 surfaces/chips) · `line-strong` (neutral-300 borders)
+  (placeholder/meta — AA on the field) · `body` (running secondary text) ·
+  `tint` (the field grey) · `line-strong` (the stronger line)
 - **D-GREYS — the text greys are ONE monotonic ramp, in the same order in both themes** (owner,
   2026-09-30: "do what's recommended", plan row O-39; muted moved by the owner 2026-11-12, "go
-  all": darker grey for secondary text). Strongest to quietest:
-  **`ink` > `ink-2` > `ink-3` > `body` > `muted-foreground` > `ink-4`**. A higher `ink-N` number
-  is always quieter; `body` sits between `ink-3` and `ink-4` because it is running text, and
-  `muted-foreground` (secondary text) sits between `body` and `ink-4`. `ink-4` — placeholder,
-  disabled and icon ink — is the quietest text stop, so a placeholder never out-shouts real
-  text. This replaced the 09-30 order, where light `muted-foreground` (`#737373`) was the
-  quietest stop, after `ink-4`; dark already ran in the new order. Measured contrast (WCAG):
+  all"; the 2026-11-14 redesign tied it into three stops). Strongest to quietest:
+  **`ink` ≥ `ink-2` ≥ `ink-3` ≥ `body` ≥ `muted-foreground` ≥ `ink-4`** — never an inversion. In
+  light it is three tied stops, the redesign's ink #141414 (`ink`, `ink-2`), ink-2 #3d3d3d (`ink-3`,
+  `body`) and muted #5e5e5e (`muted-foreground`, `ink-4`); dark keeps its six. `ink-4` —
+  placeholder, disabled and icon ink — is never louder than real text. Measured contrast (WCAG;
+  `tokens-contrast.test.ts` checks every ink on every ground, both themes):
 
-  | Token | Light | canvas / white / tint | Dark | canvas / tint / popover |
+  | Token | Light | canvas = white / field | Dark | canvas / tint / popover |
   |---|---|---|---|---|
-  | `ink` | `#171717` | 17.26 / 17.93 / 16.44 | `#f0f0f0` | 14.80 / 13.28 / 12.60 |
-  | `ink-2` | `#262626` | 14.57 / 15.13 / 13.88 | `#e0e0e0` | 12.78 / 11.46 / 10.87 |
-  | `ink-3` | `#404040` | 9.98 / 10.37 / 9.51 | `#d4d4d4` | 11.38 / 10.21 / 9.68 |
-  | `body` | `#525252` | 7.52 / 7.81 / 7.17 | `#cccccc` | 10.50 / 9.42 / 8.94 |
-  | `muted-foreground` | `#595959` | 6.74 / 7.00 / 6.42 | `#b8b8b8` | 8.50 / 7.63 / 7.24 |
-  | `ink-4` | `#616161` | 5.96 / 6.19 / 5.68 | `#a0a0a0` | 6.45 / 5.79 / 5.49 |
+  | `ink` | `#141414` | 18.42 / 16.60 | `#f0f0f0` | 14.80 / 13.28 / 12.60 |
+  | `ink-2` | `#141414` | 18.42 / 16.60 | `#e0e0e0` | 12.78 / 11.46 / 10.87 |
+  | `ink-3` | `#3d3d3d` | 10.86 / 9.79 | `#d4d4d4` | 11.38 / 10.21 / 9.68 |
+  | `body` | `#3d3d3d` | 10.86 / 9.79 | `#cccccc` | 10.50 / 9.42 / 8.94 |
+  | `muted-foreground` | `#5e5e5e` | 6.48 / 5.84 | `#b8b8b8` | 8.50 / 7.63 / 7.24 |
+  | `ink-4` | `#5e5e5e` | 6.48 / 5.84 | `#a0a0a0` | 6.45 / 5.79 / 5.49 |
 
+  What moved on 2026-11-14 (owner-approved): the light ramp to the three stops above (it was
+  #171717 / #262626 / #404040 / #525252 / #595959 / #616161) and the grounds to white + #f3f3f3.
   What moved on 2026-11-12: light `muted-foreground` `#737373` → `#595959` (it was 4.57 / 4.74 /
   4.35, under AA on tint); dark unchanged.
   What moved on 2026-09-30: light `ink-3` `#737373` → `#404040` (it was LIGHTER than `ink-4`, identical to
@@ -183,18 +233,24 @@ A colour class must name a real token: Tailwind emits nothing for an unknown one
   it is 6.42:1 now, so either ink passes there. Dark `muted-foreground` (#b8b8b8) brighter than
   `ink-4` (#a0a0a0) was the one inversion; it is the order in both themes now. Move a stop and
   you re-measure and keep the order.
-- Money: `price` — prices, and only prices, wear it. It is NOT the palette's only red:
-  `destructive` is red in both themes and globals.css spends a paragraph keeping the two
-  apart (OKLab dE 0.076 in light). Never let hue alone carry that distinction — an error
-  keeps its icon or label. Tune it against `accent` (the buy-box tint), not just the canvas.
+- **Money is ink (owner-approved 2026-11-14; the 09-18 commerce orange is retired).** `price` is
+  #141414 (dark #f0f0f0), equal to `foreground`, and a price is set apart by weight and size
+  (`text-t-price`, 17/22 bold), not by hue. The token stays so `text-price` still marks a price in
+  markup; `cta-ink` (commerce text) is ink too and `cta-50` (the commerce tint) is transparent.
+  An error keeps its icon or label — hue alone never carries a meaning.
+- **Links in running text are underlined**: a link (or a `text-brand` action) inside a `<p>` under
+  `<main>` gets a 1px underline, 3px below the baseline, from globals.css's base layer — the accent
+  against body text is 1.93:1, so colour alone does not mark it. A block, flex or icon-only link
+  that sits inside a `<p>` takes `no-underline` at source.
+- **Focus** is the accent (`ring` #0060df light, #4f97ee dark); each component keeps its own ring classes.
 - `destructive` is tuned against the surface it is hardest on, not the canvas: dark
   `#f7737b` is set by the PDP safety strip (`bg-warning/10` over the canvas, 5.02:1). Text on a
   solid destructive fill is `destructive-foreground` (white light / near-black dark) — never
   `text-white`, which is 2.73:1 on the dark red. That includes the white ink a variant carries:
   a red delete is `<Button variant="destructive">`, not `variant="cta"` repainted `bg-destructive`.
   design-lint refuses both shapes (class string or Button/Badge tag).
-- `popover` MATCHES the canvas in light (it is `var(--wash-tail)`; owner, 2026-07-13) and lifts
-  to `#2a2a2a` in dark. A floating surface's edge is its border + `shadow-pop`/`shadow-overlay`.
+- `popover` MATCHES the canvas in light (it is `var(--wash-tail)`, white since 2026-11-14; owner,
+  2026-07-13) and lifts to `#2a2a2a` in dark. A floating surface's edge is its border + `shadow-pop`/`shadow-overlay`.
 - Trust ladder: `verified`, `pending` + the tier colors on `/trust`
 
 Every token has a `.dark` counterpart — using tokens is what keeps dark mode
@@ -224,8 +280,8 @@ lightbox, the floating mobile tab bar. Those use `popover`, not `card`. Everythi
 - **The mobile tab bar is a floating, icon-only pill** (owner, 2026-09-26: *"minimal and sleek pill
   shaped"*): `rounded-full`, inset 12px from the sides and `max(12px, safe area)` from the bottom,
   `bg-popover/95` + `material` blur, `shadow-pop` and a 1px `border-foreground/10` edge. Labels are
-  visual only — each tab keeps its `aria-label`. Location = a tinted `bg-accent` capsule behind the
-  washed brand glyph (the Post coin instead goes solid, with no capsule). Its footprint stays
+  visual only — each tab keeps its `aria-label`. Location = a `bg-accent` capsule (the blue
+  tint until selection moves to ink) behind the brand glyph (the Post coin instead goes solid, with no capsule). Its footprint stays
   4.5rem + safe area, which every bottom-anchored surface clears.
 - ⚠️ **Edge a floating surface with `border`, not `ring-1`, when it also wears `shadow-pop`/
   `shadow-overlay`.** Those are unlayered `box-shadow` rules and a Tailwind ring is a box-shadow,
@@ -248,7 +304,9 @@ costs conversions. It stays a separate, owner-reviewed decision.
 
 ## 4. Spacing & layout
 
-- 8pt rhythm: prefer `1 / 2 / 3 / 4 / 6 / 8 / 12` steps (4–48px).
+- 8pt rhythm: the steps are `1 / 2 / 3 / 4 / 6 / 8 / 12` (4 · 8 · 12 · 16 · 24 · 32 · 48px) — the
+  2026-11-14 redesign's seven spacing steps exactly, so there is no spacing token: Tailwind's steps ARE
+  the scale. The text edge (the redesign's 12px gutter) is `px-3`.
 - Arbitrary px values are acceptable for **geometry** (safe-area calc, precise
   overlay offsets, media aspect boxes) — never for font size, radius, or color.
 - Page frame: `max-w-7xl` (fluid 1280–1360px here: `--container-7xl`, clear of the support mark, 316–318px cards from 1440 on the 360w/640w image rungs) `px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
@@ -400,3 +458,7 @@ spring even on a call site that also carries `transition-colors`.
   millions (`RATE_COMPACT_VND`): `8.5M đ / month`, and in Vietnamese `8,5 triệu / tháng` — no `đ` after
   `triệu`, the owner's explicit exception to the mark (2026-10-18). The tỷ words (`1,2 tỷ đ`), every full
   figure (the PDP keeps every digit) and every other language keep `đ`.
+  Since 2026-11-14 (owner-approved, decision 4) a card's or row's SALE price of a million or more that is a whole
+  thousand reads in millions too — `12.8M đ ≈ $499`, `12,8 triệu ≈ $499` (`cardCompactAbove`). An odd sale figure,
+  anything under a million, the listing page and its sticky bar (`rateCompactAbove`) keep every digit, and the `≈ $`
+  stays. In English and the MT languages a screen reader hears the full figure (sr-only); Vietnamese hears what it reads.

@@ -81,7 +81,7 @@ export function FacebookImportProgress({ status, startedAt, items }: { status: s
                 ? <img src={i.photo} alt="" referrerPolicy="no-referrer" className="size-10 shrink-0 rounded-lg object-cover" loading="lazy" />
                 : <span className="size-10 shrink-0 rounded-lg bg-tint" aria-hidden />}
               <span className="min-w-0 flex-1 truncate text-sm text-ink">{i.fbTitle}</span>
-              <span className={cn('shrink-0 text-xs', i.status === 'raw' ? 'text-ink-4' : 'font-semibold text-primary')}>{i.status === 'raw' ? tr('Reading', 'Đang đọc') : shelf(i.categorySlug)}</span>
+              <span className={cn('shrink-0 text-xs', i.status === 'raw' ? 'text-ink-4' : 'font-semibold text-brand')}>{i.status === 'raw' ? tr('Reading', 'Đang đọc') : shelf(i.categorySlug)}</span>
             </li>
           ))}
         </ul>
