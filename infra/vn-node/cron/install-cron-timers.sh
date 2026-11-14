@@ -240,6 +240,9 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # maps to a storefront, so there is nothing to refresh; a SAFE job would be re-enabled by every installer re-run. Enable
 # it only if the owner brings AccessTrade back (map the campaign in affiliate-price-refresh.ts and set the env first):
 #   systemctl enable --now eno-cron-affiliate-prices.timer
+# ✅ 2026-11-14 the owner brought the two used shelves back (cellphones_cps, dienthoaivui — mapped again). It stays
+# POLICY so a re-run never changes it; enable it by hand after ACCESSTRADE_CAMPAIGNS is in the env and
+# scripts/restore-accesstrade-used.ts has run.
 # partner-stock (2026-10-17): POLICY while the owner's five-per-shop second-hand showcase stands — its restock of sold rows
 # would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
 # teacher-job-dms + job-dms-invite (2026-10-20): POLICY — they message teachers; enable each by hand after its dry run:

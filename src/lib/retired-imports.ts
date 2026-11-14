@@ -18,6 +18,14 @@
  * src/lib/accesstrade-removal.ts; VinWonders kept by the owner's answer), the nightly price refresh lost its last
  * two campaigns (affiliate-price-refresh.ts MERCHANT_NAMES is empty) and its timer is POLICY, not SAFE
  * (infra/vn-node/cron/install-cron-timers.sh). It only ever wrote price and link on active|sold rows.
+ *
+ * ✅ AND SINCE 2026-11-14 THE TWO USED SHELVES ARE BACK — owner: "import all 2nd hand one with comission"
+ * (AccessTrade pays on them: Điện Thoại Vui's used phones 1.59%, CellphoneS' "Hàng cũ" 2.59%/2.07%, excl. VAT).
+ * cellphones_cps and dienthoaivui moved from the refusal list to the allow-list as USED-ONLY campaigns:
+ * the importer creates only a feed row that isUsedTitle (src/lib/used-signal.ts) calls second-hand, and
+ * creates it as condition 'used'. CellphoneS' new goods stay hidden and are never created. The hidden used
+ * rows come back through scripts/restore-accesstrade-used.ts (journaled), not through the importer, which
+ * still skips every non-live row.
  */
 
 const DECISION = 'second-hand focus, owner 2026-10-03: new-goods catalogues are hidden and not re-imported'
@@ -25,10 +33,19 @@ const DECISION = 'second-hand focus, owner 2026-10-03: new-goods catalogues are 
 /** AccessTrade campaign slug → why `scripts/import-accesstrade.ts --campaign <slug>` refuses it. */
 export const RETIRED_ACCESSTRADE_IMPORTS: ReadonlyMap<string, string> = new Map([
   ['tiki_creator', `Tiki — every row is new goods (${DECISION})`],
-  ['cellphones_cps', `CellphoneS — its new goods are hidden and its used rows kept; the importer would relabel them 'new' (${DECISION})`],
   ['ben', `BỀN COMPUTER — every row is new goods (${DECISION})`],
-  ['dienthoaivui', `Điện Thoại Vui — a used-phone shop whose rows the importer would relabel 'new' (${DECISION})`],
 ])
+
+/** How the importer may treat an allow-listed campaign. */
+export type ImportableCampaign = {
+  /** Whose decision put it here, quoted. */
+  why: string
+  /**
+   * ⛔ USED-ONLY: a feed row is created only when isUsedTitle(name, null, url) says the shop calls it second-hand,
+   * and it is created as condition 'used'. A row the rule does not call used is skipped, never created as 'new'.
+   */
+  usedOnly: true
+}
 
 /** Why the SuperSports importer refuses to run (all 5,955 rows hidden 2026-10-02, storefront 404s since 6ac6e6d73). */
 export const SUPERSPORTS_RETIRED =
@@ -37,10 +54,13 @@ export const SUPERSPORTS_RETIRED =
 /**
  * ⛔ AN ALLOW-LIST, NOT ONLY THE DENY-LIST ABOVE (commit-gate review): import-accesstrade.ts writes
  * `condition: 'new'` on every listing it creates, so ANY other approved campaign would publish new goods —
- * the thing the second-hand focus removed. EMPTY since 2026-10-03; adding a campaign is a code change
- * that names the owner's decision, not a flag someone types.
+ * the thing the second-hand focus removed. EMPTY from 2026-10-03 to 2026-11-14; adding a campaign is a code change
+ * that names the owner's decision, not a flag someone types, and every entry is used-only.
  */
-export const IMPORTABLE_ACCESSTRADE_CAMPAIGNS: ReadonlyMap<string, string> = new Map()
+export const IMPORTABLE_ACCESSTRADE_CAMPAIGNS: ReadonlyMap<string, ImportableCampaign> = new Map([
+  ['cellphones_cps', { why: 'CellphoneS used shelf ("Hàng cũ") — owner 2026-11-14: "import all 2nd hand one with comission"', usedOnly: true }],
+  ['dienthoaivui', { why: 'Điện Thoại Vui used phones (campaign /may-cu) — owner 2026-11-14: "import all 2nd hand one with comission"', usedOnly: true }],
+])
 
 /** The refusal message for an AccessTrade campaign, or null when it may be imported. */
 export function retiredImportReason(campaign: string | null | undefined): string | null {
@@ -48,7 +68,12 @@ export function retiredImportReason(campaign: string | null | undefined): string
   const retired = RETIRED_ACCESSTRADE_IMPORTS.get(slug)
   if (retired) return retired
   if (!IMPORTABLE_ACCESSTRADE_CAMPAIGNS.has(slug)) {
-    return `"${slug}" is not on IMPORTABLE_ACCESSTRADE_CAMPAIGNS (src/lib/retired-imports.ts) — the importer creates every product as condition 'new', and ${DECISION}`
+    return `"${slug}" is not on IMPORTABLE_ACCESSTRADE_CAMPAIGNS (src/lib/retired-imports.ts) — only a used-only campaign the owner named may be imported (${DECISION})`
   }
   return null
+}
+
+/** The allow-list entry for a campaign, or null. The importer reads `usedOnly` from here, never from a flag. */
+export function importableCampaign(campaign: string | null | undefined): ImportableCampaign | null {
+  return IMPORTABLE_ACCESSTRADE_CAMPAIGNS.get((campaign ?? '').trim()) ?? null
 }

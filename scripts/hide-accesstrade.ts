@@ -7,6 +7,12 @@
  *   …                         npx tsx scripts/hide-accesstrade.ts --rollback <journal.json> [--apply]
  *   …                         npx tsx scripts/hide-accesstrade.ts --retombstone <journal.json>      # retry the PDP tombstones
  *
+ * ⚠️ SINCE 2026-11-14 the owner brought CellphoneS' and Điện Thoại Vui's used shelves back
+ * (scripts/restore-accesstrade-used.ts): an --apply now hides them AGAIN. Run it only on the owner's word.
+ * ⛔ And do not --rollback the 2026-10-13 journal: it would bring back the rows the restore deliberately left hidden
+ * (sold out since, or no longer called used) at October prices. restore-accesstrade-used.ts is the way back; --rollback
+ * refuses a journal from before 2026-11-14 without --force.
+ *
  * ⛔ HIDDEN, NEVER DELETED, THROUGH THE ONE JOURNALED PATH (src/lib/journaled-hide.ts): each row's status and
  * updatedAt are read just before the hide and journaled ON DISK first; the hide is raw SQL conditional on both and
  * leaves updatedAt alone; --rollback restores a row only while it is still exactly what the hide left. The
@@ -62,6 +68,13 @@ async function rollback(path: string) {
   const journal = JSON.parse(readFileSync(path, 'utf8')) as Omit<HideJournal, 'kind'> & { kind: string }
   if (journal.kind !== 'hide-accesstrade' || !Array.isArray(journal.rows) || typeof journal.createdAt !== 'string') {
     console.error(`${path} is not a hide-accesstrade journal`); process.exit(1)
+  }
+  // ⛔ A hide from before the 2026-11-14 restore is refused without --force (opus, gate round 9): rolling it back would
+  // republish the rows restore-accesstrade-used.ts deliberately left hidden — sold out since, or no longer used — at
+  // their October prices. That script is the way back for the used shelves; --force is for a new owner decision.
+  if (journal.createdAt < '2026-11-14' && !process.argv.includes('--force')) {
+    console.error(`${path} was written ${journal.createdAt}, before the used shelves were restored (2026-11-14). Rolling it back would republish the rows the restore left hidden, at October prices. Use scripts/restore-accesstrade-used.ts; --force only on a new owner decision.`)
+    process.exit(1)
   }
   const r = await journaledRestore(db, journal, { apply: APPLY })
   console.log(`journal ${path}: ${r.total} rows hidden at ${journal.createdAt}`)

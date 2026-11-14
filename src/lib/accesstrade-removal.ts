@@ -13,6 +13,11 @@ import { isCommissionLink } from './affiliate-commission'
  * ⛔ VINWONDERS STAYS — the owner's answer the same day, asked because its 17 ticket listings book through
  * AccessTrade short links (shorten.asia) and the 2026-10-03 cleanup had been told "esim vinwonders … dont
  * touch". Keeping it is a decision, not an oversight: it is named here so a later sweep cannot sweep it.
+ *
+ * ⚠️ SINCE 2026-11-14 CellphoneS' AND Điện Thoại Vui's USED SHELVES ARE BACK (owner: "import all 2nd hand one with
+ * comission" — scripts/restore-accesstrade-used.ts, the used-only importer in src/lib/retired-imports.ts). They are
+ * deliberately NOT added to the kept list: scripts/hide-accesstrade.ts is the owner's "remove all AccessTrade" tool, and
+ * re-running it removes them again — which is what it should do if the owner says that again. Run it only on their word.
  */
 export const ACCESSTRADE_KEPT_SELLERS: ReadonlyMap<string, string> = new Map([
   ['cmt6v9x4o00004fq4v6qokman', 'VinWonders — owner 2026-10-13: "Keep VinWonders" (tickets book through AccessTrade short links)'],

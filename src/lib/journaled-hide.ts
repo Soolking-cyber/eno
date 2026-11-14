@@ -81,13 +81,18 @@ export const HIDE_SQL =
   `WHERE l.id = j.id AND s.id = l."sellerId" AND ${IMPORTED_ROW} AND l.status = j.prior AND l."updatedAt"::text = j.upd ` +
   `RETURNING l.id`
 
-/** Still exactly what the hide left: hidden, untouched since (updatedAt), no compliance decision since. */
-const RESTORABLE =
+/**
+ * Still exactly what the hide left: hidden, untouched since (updatedAt), no compliance decision since.
+ * `since` names the SQL parameter that carries the journal's createdAt — a function so a caller with more
+ * columns (scripts/restore-accesstrade-used.ts writes today's price in the same statement) reuses the one rule.
+ */
+export const restorableWhere = (since: string) =>
   `l.id = j.id AND l.status = 'hidden' AND l."updatedAt"::text = j.upd ` +
-  `AND NOT EXISTS (SELECT 1 FROM compliance_audit a WHERE a."subjectType" = 'listing' AND a."subjectId" = l.id AND a."occurredAt" >= $4::timestamp) ` +
+  `AND NOT EXISTS (SELECT 1 FROM compliance_audit a WHERE a."subjectType" = 'listing' AND a."subjectId" = l.id AND a."occurredAt" >= ${since}::timestamp) ` +
   // ⛔ Still an ownerless storefront: a claim changes Seller.ownerId without touching the listing's
   // updatedAt, and a rollback must never republish a row inside a storefront a person now owns (codex).
   `AND EXISTS (SELECT 1 FROM "Seller" s WHERE s.id = l."sellerId" AND s."ownerId" IS NULL)`
+const RESTORABLE = restorableWhere('$4')
 
 export const RESTORABLE_SQL =
   `SELECT l.id FROM "Listing" l, unnest($1::text[], $2::text[], $3::text[]) AS j(id, prior, upd) WHERE ${RESTORABLE}`

@@ -32,6 +32,8 @@ export type FeedRow = {
   discount?: string | number
   status_discount?: string | number
   aff_link?: string
+  /** The merchant's product page — read by scripts/restore-accesstrade-used.ts (isUsedTitle looks at the slug). */
+  url?: string
 }
 
 /**
@@ -69,12 +71,15 @@ export type FeedRow = {
  * wrong regardless of who can trigger it. A Map has no prototype chain to fall through.
  * (Found by all three review seats, 2026-09-09.)
  */
-/* ⛔ EMPTY SINCE THE ACCESSTRADE REMOVAL (owner, 2026-10-13: "remove all accesstrade products from the website"):
- * CellphoneS' used shelf and Điện Thoại Vui — the two campaigns the second-hand focus had kept — were hidden too
- * (scripts/hide-accesstrade.ts), so every campaign now resolves to its bare slug, finds no storefront and reports
- * `no_storefront` before any AccessTrade call. Bringing one back is a code change here that names the owner's
- * decision, plus the env and the timer (install-cron-timers.sh POLICY). */
-const MERCHANT_NAMES = new Map<string, string>()
+/* ⛔ EMPTY FROM THE ACCESSTRADE REMOVAL (owner, 2026-10-13: "remove all accesstrade products from the website") UNTIL
+ * 2026-11-14, when the owner brought the two used shelves back ("import all 2nd hand one with comission" —
+ * src/lib/retired-imports.ts, scripts/restore-accesstrade-used.ts). Back to the names they had before 10-13 (the
+ * storefronts were never renamed). The other half is the box: ACCESSTRADE_CAMPAIGNS=cellphones_cps,dienthoaivui in
+ * the container env and the timer enabled by hand (install-cron-timers.sh keeps it POLICY). */
+const MERCHANT_NAMES = new Map<string, string>([
+  ['cellphones_cps', 'CellphoneS'],
+  ['dienthoaivui', 'Điện Thoại Vui'],
+])
 
 export function merchantNameFor(campaign: string): string {
   return MERCHANT_NAMES.get(campaign) ?? campaign
@@ -222,10 +227,42 @@ export async function applyStockReconcile(
 const API = 'https://api.accesstrade.vn/v1'
 
 /** The campaign's numeric id, needed to repair every aff_link. Read from the API, never hardcoded. */
-export async function campaignIdFor(campaign: string, key: string): Promise<string | null> {
+/**
+ * ⛔ ACCESSTRADE RATE-LIMITS, AND A 429 IS A "WAIT", NOT A FAILURE (measured 2026-11-14: back-to-back datafeed pages
+ * answer `429 {"message":"Rate limit exceeded","retry_after":1.0}` from the second request on — a restore dry run died on
+ * page 2). Every call here goes through this: a 429 waits what the API asks (at least 1 s, growing per attempt, capped)
+ * and retries; anything else is returned to the caller unchanged. Shared by the nightly job and the operator scripts.
+ */
+export type AccessTradeBudget = { deadline?: number; now?: () => number }
+
+/**
+ * ⛔ `deadline` (epoch ms) BOUNDS THE WHOLE RUN, NOT ONE CALL (codex, diff review round 4): eight retries of 45 s fetches and
+ * growing waits are bounded per call, but a 50-page walk of them is not, and the nightly curl walks away at 900 s. With a
+ * deadline no fetch outlives it and no wait crosses it: out of time, the 429 in hand is the answer (the caller throws on it,
+ * so the walk counts as incomplete and retires nothing). Operator scripts pass none.
+ */
+export async function accessTradeGet(url: string, key: string, opts: { tries?: number; sleep?: (ms: number) => Promise<void> } & AccessTradeBudget = {}): Promise<Response> {
+  const tries = opts.tries ?? 8
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+  const now = opts.now ?? Date.now
+  for (let attempt = 0; ; attempt++) {
+    // ⛔ WHOLE milliseconds: AbortSignal.timeout throws ERR_OUT_OF_RANGE on a fraction (codex, gate round 8 — measured on Node 24).
+    const left = opts.deadline === undefined ? 45_000 : Math.floor(Math.min(45_000, opts.deadline - now()))
+    if (left <= 0) throw new Error(`AccessTrade: out of time before ${new URL(url).pathname}`)
+    const res = await fetch(url, { headers: { Authorization: `Token ${key}` }, signal: AbortSignal.timeout(left) })
+    if (res.status !== 429 || attempt >= tries) return res
+    const body = (await res.json().catch(() => null)) as { retry_after?: number } | null
+    const asked = Number(body?.retry_after)
+    const wait = Math.min(20_000, Math.max(1_000, Number.isFinite(asked) ? asked * 1_000 : 2_000) * (attempt + 1))
+    if (opts.deadline !== undefined && now() + wait >= opts.deadline) return res
+    await sleep(wait)
+  }
+}
+
+export async function campaignIdFor(campaign: string, key: string, budget: AccessTradeBudget = {}): Promise<string | null> {
   // ⚠️ `limit=50`. At limit>=100 this endpoint returns HTTP 200 with an EMPTY data array and no
   // `total` field — which reads exactly like "this publisher has no approved campaigns".
-  const res = await fetch(`${API}/campaigns?approval=successful&limit=50`, { headers: { Authorization: `Token ${key}` }, signal: AbortSignal.timeout(45_000) })
+  const res = await accessTradeGet(`${API}/campaigns?approval=successful&limit=50`, key, budget)
   if (!res.ok) throw new Error(`campaigns: HTTP ${res.status}`)
   const json = (await res.json()) as { data?: { id: string; merchant: string }[] }
   return (json.data || []).find((c) => c.merchant === campaign)?.id ?? null
@@ -237,9 +274,13 @@ export async function campaignIdFor(campaign: string, key: string): Promise<stri
  * smaller final page re-reads the middle of the feed and the tail is never fetched at all, while
  * the progress counter still reaches 100%. Ask for a full page every time.
  */
-export async function fetchFeedPrices(campaign: string, key: string, campaignId: string, onProgress?: (seen: number, total: number) => void) {
+export async function fetchFeedPrices(campaign: string, key: string, campaignId: string, onProgress?: (seen: number, total: number) => void, budget: AccessTradeBudget = {}) {
   const PAGE = 200
-  const out = new Map<string, { price: number; affiliateUrl: string | null }>()
+  // `name`/`url` ride along for scripts/restore-accesstrade-used.ts (which rows the shop still calls used); the
+  // nightly job reads only price and link.
+  const out = new Map<string, { price: number; affiliateUrl: string | null; name: string; url: string }>()
+  // The SKUs dropped for an unusable price, with what the shop calls them: a used-only shelf still judges those (route).
+  const unpriced = new Map<string, { name: string; url: string }>()
   // Every id the walk saw, INCLUDING the ones dropped for an unusable price — see the `seenIds`
   // note on diffPrices for why the two must not be conflated.
   const seenIds = new Set<string>()
@@ -269,7 +310,7 @@ export async function fetchFeedPrices(campaign: string, key: string, campaignId:
   let endedEarly = false
   for (let page = 1; seen < total && page <= MAX_PAGES; page++) {
     const url = `${API}/datafeeds?campaign=${encodeURIComponent(campaign)}&limit=${PAGE}&page=${page}`
-    const res = await fetch(url, { headers: { Authorization: `Token ${key}` }, signal: AbortSignal.timeout(45_000) })
+    const res = await accessTradeGet(url, key, budget)
     if (!res.ok) throw new Error(`datafeeds page ${page}: HTTP ${res.status}`)
     const json = (await res.json()) as { data?: FeedRow[]; total?: number }
     if (page === 1 && typeof json.total === 'number') total = json.total
@@ -281,8 +322,16 @@ export async function fetchFeedPrices(campaign: string, key: string, campaignId:
       const externalId = String(p.sku || p.product_id || '').slice(0, 190)
       const price = feedPrice(p)
       if (externalId) seenIds.add(externalId)
-      if (!externalId || price == null) { dropped++; continue }
-      out.set(externalId, { price, affiliateUrl: repairAffLink(p.aff_link, campaignId) })
+      if (!externalId || price == null) {
+        dropped++
+        // ⛔ A SKU the walk ALSO saw with a price is judged by that row: the two maps never share a SKU, whichever row
+        // came first (codex, gate round 5 — a stale unpriced twin retired a priced used row).
+        if (externalId && !out.has(externalId)) unpriced.set(externalId, { name: String(p.name ?? ''), url: String(p.url ?? '') })
+        continue
+      }
+      unpriced.delete(externalId)
+      // ⛔ The FIRST priced sighting of a SKU wins, as in the importer (codex, gate round 12): one SKU, one verdict.
+      if (!out.has(externalId)) out.set(externalId, { price, affiliateUrl: repairAffLink(p.aff_link, campaignId), name: String(p.name ?? ''), url: String(p.url ?? '') })
     }
     onProgress?.(seen, total)
   }
@@ -298,7 +347,7 @@ export async function fetchFeedPrices(campaign: string, key: string, campaignId:
    * `total` is not a feed we may reconcile against — prices still refresh, nothing is retired.
    */
   const complete = Number.isFinite(total) && seen >= total && !endedEarly
-  return { prices: out, seenIds, seen, complete, total: Number.isFinite(total) ? total : seen, dropped }
+  return { prices: out, unpriced, seenIds, seen, complete, total: Number.isFinite(total) ? total : seen, dropped }
 }
 
 /**

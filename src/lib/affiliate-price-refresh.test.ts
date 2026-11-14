@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Prisma } from '@/generated/prisma/client'
-import { applyPriceChanges, campaignsFromEnv, diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
+import { accessTradeGet, applyPriceChanges, fetchFeedPrices, campaignsFromEnv, diffPrices, feedPrice, merchantNameFor, repairAffLink, type ExistingListing } from './affiliate-price-refresh'
 
 const feed = (rows: [string, number, string | null][]) =>
   new Map(rows.map(([id, price, affiliateUrl]) => [id, { price, affiliateUrl }]))
@@ -154,11 +154,11 @@ describe('merchantNameFor', () => {
    * `no_storefront`, and those listings keep their import-day price forever. Measured
    * 2026-09-09 — `ben` and `dienthoaivui` had never once been refreshed.
    */
-  it('⛔ the AccessTrade removal (owner, 2026-10-13): no campaign maps to a storefront any more', () => {
-    // CellphoneS and Điện Thoại Vui were the last two; every AccessTrade row is hidden (scripts/hide-accesstrade.ts),
-    // so a stale env entry must end at no_storefront, never walk a feed.
-    expect(merchantNameFor('cellphones_cps')).toBe('cellphones_cps')
-    expect(merchantNameFor('dienthoaivui')).toBe('dienthoaivui')
+  it('the two used shelves the owner brought back (2026-11-14) map to their storefronts again', () => {
+    // Hidden 2026-10-13 ("remove all accesstrade products"), back 2026-11-14 ("import all 2nd hand one with comission"),
+    // under the storefront names they always had — the cron finds them by exactly these strings.
+    expect(merchantNameFor('cellphones_cps')).toBe('CellphoneS')
+    expect(merchantNameFor('dienthoaivui')).toBe('Điện Thoại Vui')
   })
 
   /**
@@ -198,5 +198,97 @@ describe('campaignsFromEnv', () => {
   })
   it('trims, drops empties and de-duplicates, keeping the order', () => {
     expect(campaignsFromEnv(' cellphones_cps, dienthoaivui,,cellphones_cps ')).toEqual(['cellphones_cps', 'dienthoaivui'])
+  })
+})
+
+describe('accessTradeGet — a 429 is a wait, not a failure (measured 2026-11-14)', () => {
+  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+  it('waits what the API asks, growing per attempt, then returns the answer', async () => {
+    const answers = [json(429, { retry_after: 1.0 }), json(429, { retry_after: 1.0 }), json(200, { data: [] })]
+    const calls: string[] = []
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (u) => { calls.push(String(u)); return answers.shift()! })
+    const waits: number[] = []
+    const res = await accessTradeGet('https://api.accesstrade.vn/v1/datafeeds?page=2', 'k', { sleep: async (ms) => { waits.push(ms) } })
+    expect(res.status).toBe(200)
+    expect(calls).toHaveLength(3)
+    expect(waits).toEqual([1_000, 2_000])
+    fetchMock.mockRestore()
+  })
+  it('gives up after `tries` retries and hands back the 429, so the caller fails loudly', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json(429, { retry_after: 1 }))
+    const res = await accessTradeGet('u', 'k', { tries: 2, sleep: async () => {} })
+    expect(res.status).toBe(429)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    fetchMock.mockRestore()
+  })
+  it('does not retry anything but a 429', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json(500, {}))
+    const res = await accessTradeGet('u', 'k', { sleep: async () => { throw new Error('should not wait') } })
+    expect(res.status).toBe(500)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    fetchMock.mockRestore()
+  })
+  // The nightly job's budget (codex, diff review round 4): no wait crosses it and no fetch outlives it.
+  it('with a deadline, never waits past it: the 429 in hand is the answer', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json(429, { retry_after: 1 }))
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const res = await accessTradeGet('https://api.accesstrade.vn/v1/datafeeds', 'k', { deadline: 1_500, now: () => 1_000, sleep: async () => { throw new Error('should not wait') } })
+    expect(res.status).toBe(429)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(timeout).toHaveBeenCalledWith(500)
+    fetchMock.mockRestore(); timeout.mockRestore()
+  })
+  it('a fractional deadline (a split budget) still hands AbortSignal.timeout whole milliseconds — Node throws on a fraction', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => json(200, { data: [] }))
+    const res = await accessTradeGet('https://api.accesstrade.vn/v1/datafeeds', 'k', { deadline: 1_500.5, now: () => 1_000 })
+    expect(res.status).toBe(200)
+    expect(() => AbortSignal.timeout(500.5)).toThrow()
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
+    fetchMock.mockRestore()
+  })
+  it('with the deadline already gone, makes no call at all and says so', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    await expect(accessTradeGet('https://api.accesstrade.vn/v1/datafeeds', 'k', { deadline: 1_000, now: () => 1_000 })).rejects.toThrow(/out of time before \/v1\/datafeeds/)
+    expect(fetchMock).not.toHaveBeenCalled()
+    fetchMock.mockRestore()
+  })
+})
+
+describe('fetchFeedPrices — the unpriced SKUs ride along with their names (codex, gate round 4)', () => {
+  it('drops a row with no usable price from the prices but hands back what the shop calls it', async () => {
+    const page = { total: 2, data: [
+      { sku: 'a', price: 13_590_000, name: 'iPhone 12 - Cũ đẹp', url: 'https://cellphones.com.vn/a-cu.html', aff_link: '' },
+      { sku: 'b', price: 0, name: 'iPhone 17 Pro Max VN/A', url: 'https://cellphones.com.vn/b.html', aff_link: '' },
+    ] }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(page), { status: 200 }))
+    const out = await fetchFeedPrices('cellphones_cps', 'k', '1')
+    expect([...out.prices.keys()]).toEqual(['a'])
+    expect([...out.unpriced]).toEqual([['b', { name: 'iPhone 17 Pro Max VN/A', url: 'https://cellphones.com.vn/b.html' }]])
+    expect(out.dropped).toBe(1)
+    expect(out.seenIds.has('b')).toBe(true)
+    fetchMock.mockRestore()
+  })
+  it('a SKU listed twice with prices keeps its FIRST priced row — the importer\'s rule (codex, gate round 12)', async () => {
+    const page = { total: 2, data: [
+      { sku: 'x', price: 9_990_000, name: 'iPhone 12 - Cũ đẹp', url: 'https://cellphones.com.vn/x-cu.html', aff_link: '' },
+      { sku: 'x', price: 20_990_000, name: 'iPhone 17 Pro Max VN/A', url: 'https://cellphones.com.vn/x.html', aff_link: '' },
+    ] }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(page), { status: 200 }))
+    const out = await fetchFeedPrices('cellphones_cps', 'k', '1')
+    expect(out.prices.get('x')).toMatchObject({ price: 9_990_000, name: 'iPhone 12 - Cũ đẹp' })
+    fetchMock.mockRestore()
+  })
+  // codex, gate round 5: a SKU listed twice — once unpriced, once priced — is judged by its priced row, in either order.
+  it.each([['unpriced first', [0, 1]], ['priced first', [1, 0]]] as const)('a SKU the feed lists priced AND unpriced is only in the prices (%s)', async (_, order) => {
+    const rows = [
+      { sku: 'x', price: 0, name: 'iPhone 17 Pro Max VN/A', url: 'https://cellphones.com.vn/x.html', aff_link: '' },
+      { sku: 'x', price: 9_990_000, name: 'iPhone 12 - Cũ đẹp', url: 'https://cellphones.com.vn/x-cu.html', aff_link: '' },
+    ]
+    const page = { total: 2, data: order.map((i) => rows[i]) }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(page), { status: 200 }))
+    const out = await fetchFeedPrices('cellphones_cps', 'k', '1')
+    expect(out.prices.get('x')?.price).toBe(9_990_000)
+    expect(out.unpriced.has('x')).toBe(false)
+    fetchMock.mockRestore()
   })
 })

@@ -1,11 +1,21 @@
 /**
  * Import an AccessTrade campaign's product feed as affiliate listings.
  *
- * ⛔ EVERY CAMPAIGN IS REFUSED UNLESS ALLOW-LISTED, AND tiki_creator, cellphones_cps, ben AND dienthoaivui
- * BY NAME (second-hand focus, owner 2026-10-03 — src/lib/retired-imports.ts). Their new goods were hidden by a journaled hide; a re-import would create
- * them again as active, bump `updatedAt` on the hidden rows (which disables the hide's rollback), and
- * write `condition: 'new'` over the used rows that were kept. Their nightly PRICE refresh is a separate,
- * narrower job (src/lib/affiliate-price-refresh.ts) and keeps running for the shops with kept stock.
+ * ⛔ EVERY CAMPAIGN IS REFUSED UNLESS ALLOW-LISTED, AND tiki_creator AND ben BY NAME (second-hand focus,
+ * owner 2026-10-03 — src/lib/retired-imports.ts). Their new goods were hidden by a journaled hide; a re-import
+ * would create them again as active. Their nightly PRICE refresh is a separate, narrower job
+ * (src/lib/affiliate-price-refresh.ts).
+ * ✅ cellphones_cps AND dienthoaivui ARE ALLOW-LISTED AS USED-ONLY SINCE 2026-11-14 (owner: "import all 2nd hand
+ * one with comission"): a feed row is created only when usedForShelf calls it second-hand (isUsedTitle, minus trade-in
+ * wording — src/lib/accesstrade-restore.ts), as condition 'used';
+ * every other row of the feed is skipped (CellphoneS' new goods stay hidden). For these campaigns the importer is
+ * CREATE-ONLY: a SKU we already hold is left exactly as it is, live or not — its price is the nightly job's, and a refresh
+ * here would bump the `updatedAt` that scripts/restore-accesstrade-used.ts journaled, so that restore could no longer be
+ * undone (opus, diff review 2026-11-14). `--apply` needs `--journal-dir`: each created row is journaled as it is created
+ * so `scripts/restore-accesstrade-used.ts --undo <journal>` can take them down.
+ * ⛔ ONE RUN PER CAMPAIGN AT A TIME: two runs can each journal a SKU the other created, and `--undo` would then list the other run's row (codex, gate round 14). The run book runs them one after the other.
+ * ⚠️ Only until something else writes those rows (translate-imported-listings, the nightly reprice, an admin edit): --undo
+ * then leaves them, and scripts/hide-accesstrade.ts is the way back (opus, gate round 9).
  *
  *   npx tsx scripts/import-accesstrade.ts --campaign <slug>            # DRY RUN
  *   npx tsx scripts/import-accesstrade.ts --campaign <slug> --limit 20 # small slice
@@ -36,14 +46,19 @@ import { buildSearchText } from '../src/lib/fold'
 // ⚠️ ONE COPY, SHARED WITH THE NIGHTLY REFRESH. This link repair used to live here; the cron job
 // needs exactly the same rule, and two copies of "which aff_link shapes do we trust" is how one
 // of them quietly rots. It is unit-tested in src/lib/affiliate-price-refresh.test.ts.
-import { repairAffLink } from '../src/lib/affiliate-price-refresh'
+import { accessTradeGet, feedPrice, repairAffLink } from '../src/lib/affiliate-price-refresh'
 import { browseRankScore } from '../src/lib/ranking-formula'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 // ⛔ Feed text arrives with HTML entities encoded ("Fun &amp; Online"): decoded on the way in, and repaired
 // in the stored columns on a refresh (translation audit 2026-10-02, F9). See src/lib/feed-text.ts.
 import { cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
-import { retiredImportReason } from '../src/lib/retired-imports'
+import { importableCampaign, retiredImportReason } from '../src/lib/retired-imports'
+import { usedForShelf } from '../src/lib/accesstrade-restore'
+import { closeSync, openSync, unlinkSync } from 'node:fs'
+import { mkdirDurably, writeFileDurably } from '../src/lib/durable-file'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
@@ -59,10 +74,43 @@ const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i 
 const campaignArg = arg('campaign')
 const retired = retiredImportReason(campaignArg)
 if (retired) { console.error(`⛔ refusing --campaign ${campaignArg ?? '(none)'}: ${retired}`); process.exit(1) }
+// Non-null: retiredImportReason returns null only for an allow-listed campaign.
+const SPEC = importableCampaign(campaignArg)!
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
 const APPLY = process.argv.includes('--apply')
-const CAMPAIGN = arg('campaign')
+// Trimmed ONCE, here: the allow-list trims, and the merchant match below must see the same name (codex, gate round 9).
+const CAMPAIGN = arg('campaign')?.trim()
+/**
+ * ⛔ THE CREATED IDS ARE JOURNALED, ON DISK, AS THE RUN GOES (2026-11-14 plan review): without them a
+ * used-only import has no way back except a guess by createdAt. Rewritten (durably) before and after every
+ * create, so a crash mid-run still leaves every id created so far; mirrored like hide-accesstrade.ts' journals.
+ */
+const JOURNAL_DIR = arg('journal-dir')
+if (APPLY && (!JOURNAL_DIR || JOURNAL_DIR.startsWith('--'))) { console.error('--apply needs --journal-dir <durable dir outside the repo> — the created ids are the only way back'); process.exit(1) }
+/**
+ * ⛔ ONE --apply RUN PER CAMPAIGN AT A TIME, ENFORCED (codex, gate round 15): two runs could each journal a SKU the other
+ * created, and `--undo` on the loser would then list the winner's row. An exclusive lock file in the
+ * fixed dir (~/eno-journals/accesstrade); a run that died leaves it, and the next one refuses until a human has checked
+ * and removed it.
+ */
+if (APPLY) {
+  // A FIXED place, not --journal-dir: a run given another journal dir must still meet the lock (codex, gate round 16).
+  // One machine's runs — the run book runs every import from one Mac.
+  const lockDir = join(homedir(), 'eno-journals', 'accesstrade')
+  const lock = join(lockDir, `import-accesstrade-${(arg('campaign') ?? '').trim()}.lock`)
+  try {
+    mkdirDurably(lockDir)
+    closeSync(openSync(lock, 'wx'))
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'EEXIST') throw e
+    console.error(`another --apply import of this campaign is running, or one died: ${lock} exists. Check, then remove it and re-run.`)
+    process.exit(1)
+  }
+  process.on('exit', () => { try { unlinkSync(lock) } catch { /* already gone */ } })
+  // Ctrl-C and a kill end the process without 'exit' (opus, gate round 18): the lock goes with them too.
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => process.exit(130))
+}
 const LIMIT = Number(arg('limit') ?? 0)
 const CONCURRENCY = Number(arg('concurrency') ?? 6)
 /**
@@ -99,7 +147,7 @@ type Feed = { name: string; price: number; discount: number; status_discount: nu
 
 async function feedPage(page: number, limit: number): Promise<{ data: Feed[]; total: number }> {
   const url = `https://api.accesstrade.vn/v1/datafeeds?campaign=${encodeURIComponent(CAMPAIGN!)}&limit=${limit}&page=${page}`
-  const res = await fetch(url, { headers: { Authorization: `Token ${KEY}` }, signal: AbortSignal.timeout(45_000) })
+  const res = await accessTradeGet(url, KEY!)
   if (!res.ok) throw new Error(`datafeeds page ${page}: HTTP ${res.status}`)
   return (await res.json()) as { data: Feed[]; total: number }
 }
@@ -134,7 +182,10 @@ async function main() {
   // posted. VinWonders' seeder learned this the same way.
   // The campaign's numeric id, needed to repair every aff_link. Read from the API so this script
   // works for any campaign without a hardcoded table.
-  const campList = await (await fetch(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, { headers: { Authorization: `Token ${KEY}` } })).json() as { data: { id: string; merchant: string; name?: string }[] }
+  // A non-200 (a 429 past its retries) is said as itself, not read as "no approved campaign" (opus, diff review round 5).
+  const campRes = await accessTradeGet(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, KEY!)
+  if (!campRes.ok) throw new Error(`campaigns: HTTP ${campRes.status}`)
+  const campList = await campRes.json() as { data: { id: string; merchant: string; name?: string }[] }
   const campaign = (campList.data || []).find((c) => c.merchant === CAMPAIGN)
   const campaignId = campaign?.id
   if (!campaignId) {
@@ -196,8 +247,30 @@ async function main() {
     if (missing.length) console.log(`brands created: ${missing.join(', ')}\n`)
   }
 
-  let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0, entityRows = 0, carried = 0
+  let seen = 0, matched = 0, created = 0, updated = 0, skipped = 0, imaged = 0, entityRows = 0, carried = 0, notUsed = 0, alreadyHeld = 0
+  const claimed = new Set<string>()
   const failures: string[] = []
+  /**
+   * ⛔ EACH CREATED ROW IS JOURNALED THE MOMENT IT EXISTS, WITH THE STAMP READ RIGHT THEN (codex, diff review): re-reading
+   * every id after each page adopted any later edit as ours, so --undo would hide a row a human had changed since. The
+   * file is rewritten whole through a temp file and a rename, so it is never torn.
+   */
+  const createdRows: { id: string; status: string; updatedAt: string }[] = []
+  /**
+   * ⛔ THE SKU GOES TO DISK BEFORE ITS CREATE (opus, diff review round 2): the database assigns the id, so a crash after
+   * the commit — or a failed stamp read — would otherwise leave a live row in no journal. (sellerId, externalId) is
+   * unique and this run creates only SKUs it found absent, so `--undo` resolves a pending SKU to its row (created at or
+   * after this run's start) and LISTS it for a human; without a stamp it never hides it.
+   */
+  const pendingExternalIds = new Set<string>()
+  const runAt = new Date().toISOString()
+  const journalName = `import-accesstrade-created-${CAMPAIGN}-${runAt.replace(/[:.]/g, '-')}.json`
+  function writeCreatedJournal() {
+    const body = JSON.stringify({ kind: 'import-accesstrade-created', campaign: CAMPAIGN, createdAt: runAt, savedAt: new Date().toISOString(), sellerId: seller?.id ?? null, rows: createdRows, pendingExternalIds: [...pendingExternalIds] }, null, 1)
+    for (const dir of [JOURNAL_DIR!, join(homedir(), 'eno-journals', 'accesstrade')]) {
+      writeFileDurably(dir, journalName, body)
+    }
+  }
   /**
    * ⚠️ A DECODED TEXT IS A NEW CACHE KEY. The Translation cache is keyed by sha1 of the exact text, so
    * decoding a stored description would orphan its cached translations: 1,047 of the 1,271 Tiki
@@ -245,12 +318,25 @@ async function main() {
         seen++
         // The DECODED name everywhere below: rules, brand/model, screening and the stored text all read the same words.
         const name = decodeEntities(p.name)
+        // ⛔ THE FIRST PRICED SIGHTING OF A SKU DECIDES IT — here and in the nightly walk (fetchFeedPrices) alike (codex,
+        // gate rounds 11–12): a SKU listed twice is one task, judged once, so the import and the nightly reprice can never
+        // disagree on whether it is used. (Rows run in feed order: the claim is taken before the first await, and before
+        // --match / --cate, so a filtered run still judges a SKU by its first priced row — codex, gate round 13.)
+        if (SPEC.usedOnly) {
+          const sku = String(p.sku || p.product_id || '').slice(0, 190)
+          // feedPrice — the nightly walk's own rule for "priced", so both pick the same twin (opus, gate round 14).
+          if (sku && feedPrice(p) != null) { if (claimed.has(sku)) { alreadyHeld++; return } claimed.add(sku) }
+        }
         if (MATCH && !MATCH.test(name)) return
         if (CATE && (p as { cate?: string }).cate !== CATE) return
+        // ⛔ USED-ONLY (src/lib/retired-imports.ts): a row the shop does not call second-hand is not this import's —
+        // not created, and not refreshed either (a live row's price is the nightly job's).
+        if (SPEC.usedOnly && !usedForShelf(p.name, p.url)) { notUsed++; return }
         matched++
-        const price = Number(p.status_discount) === 1 && Number(p.discount) > 0 ? Number(p.discount) : Number(p.price)
+        // feedPrice: the one rule for "priced", the nightly walk's and the SKU claim's (opus, gate round 15).
+        const price = feedPrice(p)
         // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
-        if (!Number.isFinite(price) || price <= 0) { skipped++; return }
+        if (price == null) { skipped++; return }
         if (!p.image) { skipped++; return }
         const affiliateUrl = repairAffLink(p.aff_link, campaignId)
         if (!affiliateUrl) { skipped++; return }
@@ -259,6 +345,8 @@ async function main() {
         if (!categoryId) { skipped++; return }
         const externalId = String(p.sku || p.product_id || '').slice(0, 190)
         if (!externalId) { skipped++; return }
+        // (One task per SKU per run, claimed above: a twin that hit P2002 after the first had stamped the row would leave
+        // that SKU "pending" for good, and `--undo --hide` could be pointed at a row the stamp guard protects — opus, round 11.)
         // ⚠️ The dry run queries too, or it reports every row as "created" forever and can never
         // show that a refresh is an UPDATE — which is the thing worth previewing on a re-run.
         const existing = seller
@@ -272,6 +360,8 @@ async function main() {
         // the 2026-10-03 new-goods retirement), stale, expired. A Prisma write here bumps `updatedAt`, and a
         // row touched after its hide is one the hide's --rollback refuses; the refresh has no business there.
         if (existing && existing.status !== 'active' && existing.status !== 'sold') { skipped++; return }
+        // ⛔ USED-ONLY CAMPAIGNS ARE CREATE-ONLY (see the header): a live row we hold is not touched — not refreshed, not screened.
+        if (existing && SPEC.usedOnly) { alreadyHeld++; return }
         // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
         // advertising-banned product (Tiki's spirits, formula, feeding bottles, NexGard…) is never
         // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
@@ -329,7 +419,7 @@ async function main() {
            * Only 47 pre-existing listings were right and 9,726 imported ones were wrong, which is
            * how a one-character mistake stayed invisible: every page still rendered a price.
            */
-          price, priceUnit: '', currency: '₫', negotiable: false, condition: 'new',
+          price, priceUnit: '', currency: '₫', negotiable: false, condition: SPEC.usedOnly ? 'used' : 'new',
           images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
           // Brand/model: set on create only — see effBrand above.
           subcategorySlug: placed.subcategorySlug, brandSlug: effBrand, model: effModel,
@@ -472,10 +562,32 @@ async function main() {
               if (!(await refresh()).count) { skipped++; return }
             } else {
               try {
-                await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
+                pendingExternalIds.add(externalId)
+                writeCreatedJournal()
+                /**
+                 * ⛔ THE STAMP IS READ INSIDE THE CREATE'S OWN TRANSACTION (codex, diff review round 4). Read after the create
+                 * committed, another writer could change the row in between and the journal would adopt THEIR status and
+                 * updatedAt — which --undo would then hide. Uncommitted, the row is invisible to every other session, so the
+                 * stamp is exactly what this create wrote. A failed read rolls the create back: the SKU stays pending, no row.
+                 */
+                const { id, stamp } = await db.$transaction(async (tx) => {
+                  const { id } = await tx.listing.create({ data: { ...fields, sellerId: seller!.id, externalId }, select: { id: true } })
+                  const [stamp] = await tx.$queryRawUnsafe<{ status: string; updatedAt: string }[]>(
+                    `SELECT status, "updatedAt"::text AS "updatedAt" FROM "Listing" WHERE id = $1`, id)
+                  if (!stamp?.updatedAt) throw new Error(`created ${id} but read no stamp`)
+                  return { id, stamp }
+                  // Room for a remote database at concurrency 6 (opus, gate round 20): Prisma's 2 s / 5 s defaults turn a
+                  // busy pool into P2028s. A failure still rolls back and leaves the SKU pending.
+                }, { maxWait: 15_000, timeout: 30_000 })
+                createdRows.push({ id, status: stamp.status, updatedAt: stamp.updatedAt }); pendingExternalIds.delete(externalId)
+                writeCreatedJournal()
               } catch (e) {
                 // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
                 if ((e as { code?: string }).code !== 'P2002') throw e
+                // Another task of THIS run created it first (a SKU twice in one batch): a used-only import never refreshes, so it
+                // is held now. ⛔ The SKU stays pending — it is the other task's row, still ours to undo, and deleting it here
+                // could drop it before that task stamps it (opus, diff review round 3). --undo only lists a pending SKU.
+                if (SPEC.usedOnly) { alreadyHeld++; return }
                 if (!(await refresh()).count) { skipped++; return }
                 refreshed = true
               }
@@ -490,9 +602,10 @@ async function main() {
         }
       }))
     }
-    if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}${MATCH || CATE ? `  matched=${matched}` : ''}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+    if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}  matched=${matched} not-used=${notUsed} already-held=${alreadyHeld}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
   }
-  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped`)
+  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped, ${notUsed} not second-hand (left out), ${alreadyHeld} already held (left as they are)`)
+  if (APPLY && (createdRows.length || pendingExternalIds.size)) console.log(`  created rows journaled: ${join(JOURNAL_DIR!, journalName)} (+ ~/eno-journals/accesstrade/)`)
   console.log(`  HTML entities decoded in stored text: ${entityRows} rows${APPLY ? ` · ${carried} cached translations carried to the decoded text` : ' (would be)'}`)
   await screen.finish({ apply: APPLY })
   // ⚠️ Name the failures rather than leaving "skipped" to mean four different things.
