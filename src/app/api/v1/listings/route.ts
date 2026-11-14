@@ -3,13 +3,11 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
-import { paysSalary, resolveListingType, TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
+import { paysSalary, resolveListingType } from '@/lib/taxonomy'
 import { postingGate } from '@/lib/enforcement'
-import { isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
-import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
-import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
-import { providerLicenceApiMessage } from '@/lib/licence-check-copy'
+import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
@@ -103,22 +101,8 @@ export async function POST(req: NextRequest) {
         // to fall through to the ternary's last arm and tell a partner to "remove phone numbers" from
         // a listing whose only problem was an unverified owner.
         if (isIdentityBlockCode(e.code)) return { status: PUBLISH_BLOCKED_STATUS, body: publishBlockedV1(e.code) }
-        const message = e.code === 'account_restricted' ? 'Shop is restricted (low trust) — cannot publish until its score recovers.'
-          : e.code === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
-          : e.code === 'photo_required' ? 'At least one image is required.'
-          : e.code === 'photos_min' ? 'At least 3 images from different angles are required (the same photo repeated counts as one).'
-          : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
-          : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
-          // A teacher's job-seeker post (Jobs › Teaching + wanted) is a teacher profile (2026-10-12).
-          : e.code === 'teacher_profile_instead' ? TEACHER_PROFILE_REFUSAL.en
-          // e-Visa / Legal & permits (2026-10-14): which attribute keys to send — or which value cannot be accepted, and why
-          // (`detail` '<field>:<reason>' stays in the body for a client that branches on it).
-          : e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? providerLicenceApiMessage(e.code, e.detail)
-          // A hiring post the job-text screen refused (job-listing.ts jobTextProblem, 2026-10-18): its rule's sentence — never
-          // the contact-info line below, which would send a partner to fix the wrong thing; `detail` '<field>:<snippet>'
-          // names the field and the words to take out.
-          : isJobTextBlockCode(e.code) ? JOB_TEXT_REFUSAL[e.code].en
-          : 'Remove phone numbers, contact info or addresses from the title/description.'
+        // One sentence per code, shared with the MCP server (src/lib/api/publish-blocked-message.ts).
+        const message = publishBlockedApiMessage(e.code, e.detail)
         return { status: e.code === 'account_restricted' || e.code === 'released_charge_listing_cap' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }
       throw e

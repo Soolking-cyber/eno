@@ -7,6 +7,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { TOOLS_BY_NAME, toolDescriptors, ToolError } from '@/lib/mcp/tools'
 import { PublishBlockedError } from '@/lib/publish-guard'
+import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import type { ApiAuth } from '@/lib/api/auth'
 
@@ -121,14 +122,13 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
         if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message, e.detail)
         // ⚖️ AN IDENTITY REFUSAL IS AN ANSWER, NOT A CRASH: the code goes back verbatim with the same
         // English copy the partner API sends, so the agent can tell its operator to verify.
-        // ⚠️ IDENTITY CODES ONLY, DELIBERATELY. The content refusals createListingCore also throws as
-        // PublishBlockedError (photos_min, banned_words, duplicate_listing, account_restricted, …)
-        // have always answered `internal_error` here, and the identity gate ships with the promise
-        // that nothing changes while it is off. Surfacing those codes too is probably right, but it
-        // is a separate MCP contract change and should ship as one, not ride in with the gate.
         if (e instanceof PublishBlockedError && isIdentityBlockCode(e.code)) {
           return toolErr(msg.id, e.code, publishBlockedBody(e.code).message.en)
         }
+        // ⛔ EVERY OTHER PUBLISH REFUSAL IS AN ANSWER TOO (2026-11-14): photos_min, photo_required, banned_words,
+        // location_required… answered `internal_error` until ChatGPT told a seller "the connection returned an internal
+        // error" for a listing with no photo. The code, `detail` and the same sentence /api/v1 sends.
+        if (e instanceof PublishBlockedError) return toolErr(msg.id, e.code, publishBlockedApiMessage(e.code, e.detail), e.detail)
         console.error('[mcp] tool error', name, e)
         return toolErr(msg.id, 'internal_error', 'The tool failed to execute.')
       }
