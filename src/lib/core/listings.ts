@@ -35,6 +35,8 @@ import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licence
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds } from '@/lib/edition-scope'
+import { REVIEW_SEAT_HELD_NOTE, isReviewSeatEmail } from '@/lib/review-seat-accounts'
+import { ownerIsReviewSeat } from '@/lib/review-seat-listings'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -275,10 +277,11 @@ export type SoldMeta = {
  * not checked (licenceGateForRevive) — waiting, not refused for good: it goes live with the approval.
  * The four `job_*` codes (400, 2026-10-19) are a relist of a hiring post whose stored text the job-text screen refuses
  * (reactivationJobTextProblem) — with `detail` '<field>:<snippet>', the field and the words to take out.
+ * `review_seat_listing` (403, 2026-11-14) is a relist of any listing a store-review seat owns (review-seat-accounts.ts).
  * ⚠️ Spelled out as literals, not as `EnforcementBlockCode`: src/lib/api/errors.test.ts harvests this
  * union's string LITERALS to decide what is on the wire, and a named alias would be invisible to it.
  */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | 'licence_check_required' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue' | IdentityBlockCode
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | 'licence_check_required' | 'review_seat_listing' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue' | IdentityBlockCode
 
 /** The enforcement refusal a revive or a confirm gets while the storefront owner is held or suspended. */
 export type EnforcementBlockCode = 'account_held' | 'account_suspended'
@@ -385,7 +388,7 @@ export async function setStatusCore(
     const row = await db.listing.findUnique({
       where: { id: listingId },
       select: {
-        status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
+        status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true, email: true } } } },
         verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
         // A hiring post's printed text — a relist is screened like an edit (reactivationJobTextProblem).
         title: true, description: true, location: true, district: true, city: true,
@@ -400,6 +403,15 @@ export async function setStatusCore(
       // the identity gate would say, and the refusal names the hold rather than a verification step.
       const held = enforcementBlockForRevive(row.seller.owner?.enforcementState)
       if (held) return { ok: false, code: 403, error: held }
+      // ⛔ A STORE-REVIEW SEAT'S LISTING NEVER GOES BACK ON — ANY TYPE (round 5, 2026-11-14 — codex + opus, round 4). A
+      // seat's new listings are stored unpublished (review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE), but a row it made
+      // before that rule — a sale, a job post, a teacher profile — may still be verified, and a move back to active makes
+      // such a row public by its status alone: the dashboard's Relist, /api/v1 and MCP set_listing_status, a sync's
+      // re-send. So every sold/hidden → active of a seat's row is refused, verified or not (one rule; an unverified one
+      // would stay unpublished anyway). Taking a row DOWN — hidden, sold, deleted — stays open, and an active → active
+      // re-send changes nothing. confirmCore's revive refuses the same. Read off the row above (no extra query); never the
+      // lawyer (isReviewSeatEmail).
+      if (isReviewSeatEmail(row.seller.owner?.email)) return { ok: false, code: 403, error: 'review_seat_listing' }
       // Seller identity gate (NĐ 248/2026): relisting is a seller act, so a refused owner is REFUSED,
       // not held.
       const blocked = await identityGateForRevive(listingId, { currentStatus: row.status, ownerId: row.seller.ownerId, decision: opts?.publishDecision })
@@ -574,14 +586,14 @@ async function purgeTeacherPages(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' } | { ok: false; code: 409; error: 'licence_check_required' } | { ok: false; code: 400; error: JobTextBlockCode; detail: string }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' | 'review_seat_listing' } | { ok: false; code: 409; error: 'licence_check_required' } | { ok: false; code: 400; error: JobTextBlockCode; detail: string }> {
   const now = new Date()
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
       postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true, sellerId: true,
-      // The storefront owner — for the enforcement refusal below and the identity gate (one read).
-      seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
+      // The storefront owner — for the enforcement refusal below, the review-seat refusal and the identity gate (one read).
+      seller: { select: { ownerId: true, owner: { select: { enforcementState: true, email: true } } } },
       // The licence facts — a revive of an e-Visa / Legal & permits row is gated (licenceGateForRevive), same read.
       verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
       // A hiring post's printed text and its intent — a revive is screened like an edit (reactivationJobTextProblem).
@@ -614,6 +626,10 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // the caller's profile is only the owner on the session route; on /api/v1 it is whichever profile
   // the key belongs to, and the gate is about the person the listing is published under.
   if (wasInactive) {
+    // ⛔ A STORE-REVIEW SEAT'S LISTING NEVER GOES BACK ON, ANY TYPE — setStatusCore's relist rule, on this door too (round 5:
+    // "still available" on a sold or hidden row is a revive, and a seat's older row may still be verified). An ordinary
+    // confirm of a row that is already active is not a revive and is not refused. Read off the row above; never the lawyer.
+    if (isReviewSeatEmail(current.seller.owner?.email)) return { ok: false, code: 403, error: 'review_seat_listing' }
     const blocked = await identityGateForRevive(listingId, { currentStatus: current.status, ownerId: current.seller.ownerId })
     if (blocked) return { ok: false, code: 403, error: blocked }
     // The released-scam-charge cap, as on setStatusCore's relist: a revive makes one more listing
@@ -706,7 +722,7 @@ export type ListingUpdateErrorCode =
 export async function updateListingCore(
   listingId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true; held?: true } | { ok: false; code: number; error: ListingUpdateErrorCode; detail?: string }> {
+): Promise<{ ok: true; held?: true; unpublished?: true } | { ok: false; code: number; error: ListingUpdateErrorCode; detail?: string }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
@@ -728,7 +744,8 @@ export async function updateListingCore(
       attributes: true,
       // A seller's multi-select picks (apartment amenities) are replaced in place, every other token kept (below).
       facetTokens: true,
-      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+      // The storefront owner's address: a store-review seat's row answers `unpublished` (savedAnswer below).
+      seller: { select: { trustTier: true, owner: { select: { email: true } } } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
       // eno's licence-check stamp and its time (src/lib/licence-stamp.ts) — the licence block below decides on them, and
       // the write is a compare-and-set on the stamp it read.
@@ -1209,9 +1226,27 @@ export async function updateListingCore(
     }
   }
 
+  /**
+   * What a save answers. `held` — the row waits for eno's licence check — for every account as before.
+   * ⛔ A STORE-REVIEW SEAT'S ROW (round 5, 2026-11-14 — src/lib/review-seat-accounts.ts) answers `unpublished: true` instead
+   * whenever it is not public after this save, so the wizard goes to the dashboard with one neutral line rather than to a
+   * listing page that 404s (the page shows only a verified row that is active or sold — (pdp)/get-listing.ts
+   * listingIsViewable; an edit never changes the status). Never `held` for such a row: no licence approval publishes a
+   * seat's listing, and `held` promises one. A seat's older row that is still public answers the bare ack. Every other
+   * account's answer is exactly what it was.
+   */
+  const seatRow = isReviewSeatEmail(current.seller.owner?.email)
+  const savedAnswer = (): { ok: true; held?: true; unpublished?: true } => {
+    if (seatRow) {
+      const verifiedAfter = data.verified !== undefined ? data.verified === true : current.verified
+      return verifiedAfter && (current.status === 'active' || current.status === 'sold') ? { ok: true } : { ok: true, unpublished: true }
+    }
+    return licenceHeld ? { ok: true, held: true } : { ok: true }
+  }
+
   // An unchanged save of a row still waiting for the check answers `held` too — the wizard then goes to the dashboard,
   // not to a listing page that 404s.
-  if (Object.keys(data).length === 0) return licenceHeld ? { ok: true, held: true } : { ok: true }
+  if (Object.keys(data).length === 0) return savedAnswer()
 
   // ⚠️ NO CURRENCY WRITE HERE, DELIBERATELY. Every listing on eno is stored in ₫
   // (listingMoneyFor) and create is the only path that ever sets `currency` — so an edit
@@ -1304,7 +1339,8 @@ export async function updateListingCore(
   // bulkImportCore's; sync writes no verified at all) and a publish violation THROWS PublishBlockedError
   // instead of saving a held row. So nothing produces a photo-held listing. (The one create that writes
   // `false` — an e-Visa or Legal & permits listing waiting for eno's licence check, 2026-10-14 — is
-  // published by an admin's 'licence-approve', never by an edit.)
+  // published by an admin's 'licence-approve', never by an edit. The other is a review seat's create, 2026-11-14
+  // (review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE), which nothing publishes at all.)
   //
   // What DOES produce verified=false is, exhaustively (by function — line numbers rot): an admin
   // unverify (api/admin/listings 'unverify'), the moderation queue (api/admin/moderate: bulk-confirm,
@@ -1476,7 +1512,7 @@ export async function updateListingCore(
     after(() => indexAndCheckProvenance(listingId))
   }
 
-  return licenceHeld ? { ok: true, held: true } : { ok: true }
+  return savedAnswer()
 }
 
 /**
@@ -1784,6 +1820,11 @@ export async function createListingCore(input: {
   })()
   const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price: storedPrice, images, attributes: dupFacets })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
+  // ⛔ A REVIEW SEAT'S NEW LISTING IS NEVER PUBLIC (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE — round 3,
+  // 2026-11-14): an outside reviewer's test post — the wizard, /api/v1, MCP create_listing alike — is stored unpublished
+  // with the seat's mark, whatever aisle it is in, and no admin publish accepts it. No identityHold: nothing releases it.
+  // Read from the storefront OWNER's pinned Profile.email; an ownerless storefront is no seat and costs no read.
+  const seatHold = await ownerIsReviewSeat(seller.ownerId)
 
   const listing = await db.listing.create({
     data: {
@@ -1834,7 +1875,9 @@ export async function createListingCore(input: {
       // otherwise. The ternary of literals, not `!licenceHold`: compliance/public-state-writes.test.ts audits every write
       // that can publish by its `verified: true`, and this insert still is one.
       // A held create carries the licence hold's mark: what the approval publishes (licence-stamp.ts LICENCE_HELD_NOTE).
-      ...(licenceHold ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }),
+      // A review seat's create carries the seat's mark instead, FIRST — never the licence mark, which 'licence-approve'
+      // would publish by.
+      ...(seatHold ? { verified: false, verificationNotes: REVIEW_SEAT_HELD_NOTE } : licenceHold ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }),
     },
   })
   if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch((e) => logError(e, { op: 'listings.enrichBrandLogoIfMissing' })) })
@@ -1899,6 +1942,9 @@ export async function createListingCore(input: {
   // `held` = unpublished for eno's licence check in e-Visa or Legal & permits (the same flag updateListingCore returns for
   // an edit that leaves such a row waiting), so an API client can tell it from any other unpublished state; the post
   // wizard says so instead of "Your listing is live!".
+  // A review seat's listing answers `verified: false` alone: unpublished, waiting for eno's check (the MCP's words) — not
+  // `held`, which names the licence check this listing is not waiting for.
+  if (seatHold) return { id: listing.id, verified: false }
   return licenceHold ? { id: listing.id, verified: false, held: true } : { id: listing.id, verified: true }
 }
 

@@ -32,7 +32,7 @@
  * ⛔ THE CSV IS WRITTEN AS `<file>.pending` BEFORE THE DATABASE WRITE AND RENAMED AFTER IT COMMITS (match-io.ts
  * withStaffList): never lost to a crash after the commit, never a list that looks applied when the write failed.
  * ⛔ ONLY LIVE TEACHING JOBS (match-io.ts TEACHING_JOB_WHERE) are exported, and the import re-applies the same set: a
- * pair naming any other listing is never written.
+ * pair naming any other listing is never written. Neither ever reads a review seat's post (review-seat-accounts.ts).
  * ⚠️ stdout carries ONLY the lines above (never console.log — match-io.test.ts holds this file to it); diagnostics go to
  * stderr. Exit: 0 ok · 1 a failure · 3 refused (schema drift; an output not judged by Claude Haiku 5.5 v2) · 4 the
  * database is unreachable (the tunnel).
@@ -49,6 +49,7 @@ import {
   withStaffList,
 } from '../src/lib/teachers/match-io'
 import { MATCH_EMAIL_RULES, emailPlanLine, loadCooling, loadPendingMatchRows, planMatchEmails } from '../src/lib/teachers/match-emails'
+import { NOT_A_REVIEW_SEATS_LISTING } from '../src/lib/review-seat-accounts'
 
 // ⚠️ QUIET: dotenv 17 prints "injected env…" to STDOUT, which the pipeline would have to skip.
 config({ quiet: true })
@@ -87,8 +88,9 @@ async function doExport() {
     db.teacherProfile.count({ where: { ...liveTeacher(), matchEmailOptIn: false, staffContactOptIn: false } }),
     db.listing.findMany({
       // THE job set (listingType 'job': a teacher's "wanted" post in the jobs category is not a job) — the import and the
-      // email rule re-apply the same where.
-      where: TEACHING_JOB_WHERE,
+      // email rule re-apply the same where. ⛔ Never a review seat's post (src/lib/review-seat-accounts.ts): an outside
+      // reviewer's test job is not offered to a teacher, matched or put on the staff list. Null-safe: a no-email owner kept.
+      where: { ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING },
       select: EXPORT_JOB_SELECT,
       orderBy: { postedAt: 'desc' },
       take: 2000,
@@ -117,7 +119,8 @@ async function doImport() {
   const [listings, teachers, existing] = await Promise.all([
     // ⛔ The export's job set, re-applied (gate review, 2026-10-08): a pair naming any other listing is never written —
     // planMatchImport checks the rows again (isTeachingJob).
-    db.listing.findMany({ where: { id: { in: listingIds }, ...TEACHING_JOB_WHERE }, select: IMPORT_LISTING_SELECT }),
+    // …and never a review seat's post, as the export (above).
+    db.listing.findMany({ where: { id: { in: listingIds }, ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING }, select: IMPORT_LISTING_SELECT }),
     db.teacherProfile.findMany({ where: { id: { in: teacherIds }, ...liveTeacher() }, select: IMPORT_TEACHER_SELECT }),
     teacherIds.length
       ? db.teacherJobMatch.findMany({ where: { teacherProfileId: { in: teacherIds }, listingId: { in: listingIds } }, select: EXISTING_MATCH_SELECT })

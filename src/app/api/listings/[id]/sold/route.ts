@@ -4,6 +4,7 @@ import { setStatusCore } from '@/lib/core/listings'
 import { db } from '@/lib/db'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 import { markSoldAsks, normalizeSalePrice, validateMarkSold, type DenyReason, type MarkSoldPatch } from '@/lib/trade-loop'
 import {
   SALE_FACTS_SELECT,
@@ -65,8 +66,8 @@ const MAX_ATTEMPTS = 3
 //
 // Branches: guest → 401 auth_required · no storefront → 403 no_storefront · unknown id → 404 not_found ·
 // not the owner → 403 forbidden · non-UUID buyerProfileId → 400 invalid_buyer · buyer with no thread
-// about this listing, or a block between the two either way (gate `ugc-safety`) → 400
-// buyer_not_in_conversations · naming yourself → 400 buyer_is_seller · a buyer
+// about this listing, a block between the two either way (gate `ugc-safety`), or a teacher named by a review seat →
+// 400 buyer_not_in_conversations · naming yourself → 400 buyer_is_seller · a buyer
 // who said "No" about this listing → 409 buyer_declined · re-marking a sale the buyer already confirmed
 // → 409 already_confirmed · a price change with that buyer's asks spent → 409 ask_budget_exhausted ·
 // a listing taken down by authority order → 409 listing_unavailable · the row kept changing under the
@@ -100,6 +101,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // opening the closed thread on "did you buy this?". The same answer as no thread at all — the block is not
   // revealed — and GET /buyers never offers them. Off ⇒ no query.
   if (buyerProfileId && await isBlockedBetween(auth.profileId, buyerProfileId)) return NextResponse.json({ error: 'buyer_not_in_conversations' }, { status: 400 })
+  // ⛔ …nor a TEACHER named by a review seat (src/lib/review-seat-accounts.ts — round 4, opus): the question is a bell and a
+  // push from the seat's storefront into the teacher's thread. The block's answer, before anything is written; the seat
+  // can still mark it sold without naming anyone. review-seat-listings.ts reviewSeatMeetsTeacher — a read only when a
+  // buyer is named, and only a seat reads further.
+  if (buyerProfileId && await reviewSeatMeetsTeacher(auth.profileId, buyerProfileId)) return NextResponse.json({ error: 'buyer_not_in_conversations' }, { status: 400 })
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // edition-lint-allow: ONE row by id, the CALLER'S OWN listing — checkListingOwner above proved this

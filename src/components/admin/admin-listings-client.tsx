@@ -37,6 +37,8 @@ type Row = {
    * phone number. Such a row is approved under Licence checks, never by Publish here.
    */
   licence?: { state: 'approved' | 'grandfathered' | 'pending' | 'missing'; legalName: string; licenceNo: string; enterpriseCode: boolean }
+  /** ⛔ A review seat owns it (src/lib/review-seat-accounts.ts): never published — Activate, Publish and approvals refuse it. */
+  reviewSeat?: true
 }
 
 /**
@@ -177,6 +179,8 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
     try {
       const res = await fetch('/api/admin/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ids }) })
       const d = await res.json()
+      // ⛔ A review seat's listing is never published (409, nothing written): say which, rather than "Action failed".
+      if (res.status === 409 && d.error === 'review_seat_listing') { toast.error(`${d.ids?.length ?? 0} listing(s) belong to a review seat and are never published — deselect them.`); return }
       if (!res.ok) throw new Error()
       toast.success(`${action === 'delete' ? 'remove' : action} · ${d.affected} listing(s)`)
       // Seller identity gate (only while enforced): approved/activated, but parked until the owner
@@ -270,7 +274,7 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
         header: () => 'Status',
         cell: ({ row }) => {
           const r = row.original
-          const licence = licenceBadge(r, licenceGrandfatherUntil)
+          const licence = r.reviewSeat && !r.verified ? { text: 'Review seat · never published', variant: 'warning' as const } : licenceBadge(r, licenceGrandfatherUntil)
           return (
             <div className="flex items-center gap-1.5">
               {r.featured && <Badge variant="neutral">★</Badge>}

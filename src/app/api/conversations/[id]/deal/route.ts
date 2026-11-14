@@ -6,6 +6,7 @@ import { insertMessage } from '@/lib/messages'
 import { threadKind } from '@/lib/thread-kind'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 import {
   DEAL_WITHDRAWN_LINE, SERVICE_DEAL, canConfirmDeal, canWithdrawDeal, confirmsLeft, dealConfirmedLine, dealState, declinesWarrantFlag,
   mayReviewServiceDeal, reviewBasis, serviceDealInScope, undoCutoff, withdrawUntil, type DealRow, type ServiceDealDenyReason, type ServiceDealKind,
@@ -37,7 +38,8 @@ export const dynamic = 'force-dynamic'
  * Checks, in order — identity BEFORE outcome, so a stranger learns nothing about the thread:
  *   auth 'profile' → limiter (fail-open) → messagingGate (the caller) → body → 404 unknown thread or a seller hidden on
  *   this edition (the thread GET's rule) → 403 forbidden for anyone but the thread's seller-who-owns-the-storefront
- *   (confirm / withdraw) or its buyer (decline) → 409 listing_changed → 403 not_reviewable unless the thread is in scope
+ *   (confirm / withdraw) or its buyer (decline), and for a review seat confirming to (or withdrawing from) a teacher
+ *   buyer → 409 listing_changed → 403 not_reviewable unless the thread is in scope
  *   (an ordinary 'listing' thread, never one of eno's desks by seller AND by listing, never taken down, a rental / lesson /
  *   service listing) → the pure rule's refusals → the conditional write.
  *
@@ -193,6 +195,10 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'deal-confirm'
   // ⛔ IDENTITY FIRST, FAIL CLOSED: both the thread's seller profile AND the storefront's owner (canNameBuyer's rule — an
   // unresolved owner, a guest or unclaimed storefront, refuses).
   if (!convo.sellerProfileId || me.id !== convo.sellerProfileId || me.id !== convo.seller.ownerId) throw new ApiError('forbidden', 403)
+  // ⛔ A REVIEW SEAT CONFIRMS NOTHING TO A TEACHER, NOR UNDOES IT (src/lib/review-seat-accounts.ts — round 4, opus): either
+  // writes a line from the seat into the teacher buyer's thread. review-seat-listings.ts reviewSeatMeetsTeacher, on the
+  // Profile row this request already read — only a seat reads further. Before anything is read or written.
+  if (await reviewSeatMeetsTeacher(me.id, convo.buyerProfileId, { actorEmail: me.email ?? null })) throw new ApiError('forbidden', 403)
   if (action === 'confirm' && convo.listingId !== snapshot) throw new ApiError('listing_changed', 409)
 
   // ⛔ SCOPE — the one predicate the thread GET also asks (serviceDealInScope), plus the desk check by seller AND listing,

@@ -61,8 +61,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   // `held`: the listing waits for eno's licence check in e-Visa or Legal & permits (moved there, a value changed, or not
   // yet approved — taxonomy.ts licenceCheckHold) and is unpublished — an API client must not read a plain success as
-  // "still live".
-  return apiOk(res.held ? { ok: true, held: true } : { ok: true }, r.rate)
+  // "still live". `unpublished` (round 5): a listing of an account whose listings are never shown publicly (a store-review
+  // seat, review-seat-accounts.ts) that is not public after the save — no check publishes it. Set for nobody else.
+  return apiOk(res.held ? { ok: true, held: true } : res.unpublished ? { ok: true, unpublished: true } : { ok: true }, r.rate)
 }
 
 // DELETE /api/v1/listings/{id} — remove a listing. Scope: listings:write.

@@ -5,6 +5,7 @@ import { appendAudit } from '@/lib/compliance/audit'
 import { zaloHref } from '@/lib/contact'
 import { blocksMessaging, getEnforcement } from '@/lib/enforcement'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { COVER_CONSENT_VERSION } from './cover'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS, TEACHER_LISTING_TYPE, type TeacherDmNext } from './constants'
 import { poolKeyFor, teacherDmTier, vnDayWindow } from './dm-quota'
@@ -31,7 +32,8 @@ import {
  *     notice version and the reason) — the grant history the four columns alone would overwrite. Never the number.
  *
  * THE SCHOOL'S SIDE (revealZalo) — one transaction, all of it re-read under the locks:
- *   · a signed-in BUSINESS account (`accountType`), not suspended, not revoked, not blocked either way, never the teacher;
+ *   · a signed-in BUSINESS account (`accountType`), not suspended, not revoked, not blocked either way, never the teacher,
+ *     never a review seat (src/lib/review-seat-accounts.ts);
  *   · the teacher live (profile, listing active + verified, never the demo), cover ON under today's notice, and a Zalo
  *     granted under today's Zalo notice;
  *   · the caps (zalo-rules.ts): 1 a day / 20 a day once business-verified; below that also the connection's pool and the
@@ -238,11 +240,15 @@ type Viewer = { tier: ZaloTier; limit: number; next: TeacherDmNext | null; reaso
 
 /** Who is asking, judged before the transaction (dm-quota.ts: the tier's reads use the shared pool). */
 async function viewerOf(viewerId: string, now: Date): Promise<Viewer> {
-  const profile = await db.profile.findUnique({ where: { id: viewerId }, select: { accountType: true, businessName: true, seller: { select: { name: true } } } })
+  const profile = await db.profile.findUnique({ where: { id: viewerId }, select: { accountType: true, email: true, businessName: true, seller: { select: { name: true } } } })
   // The business's name — its storefront's, else the one given at business onboarding; never the person's display name
   // (review, 2026-10-28: it outlives the account on the teacher's record, and a person's name was never the school's).
   const name = (profile?.seller?.name || profile?.businessName || '').trim().slice(0, 80) || 'A school (no name given)'
   const none = (reason: ZaloReason, next: TeacherDmNext | null = null): Viewer => ({ tier: 'none', limit: 0, next, reason, name, pooled: false })
+  // ⛔ A REVIEW SEAT NEVER SEES A TEACHER'S ZALO (src/lib/review-seat-accounts.ts) — any seat, business or not: it is an
+  // outside reviewer's shared login, not a school, and a reveal leaves a bell naming the shop on the teacher's record. The
+  // personal account's refusal (no oracle: "not available", 404 on a tap), with no step offered — nothing lifts it.
+  if (isReviewSeatEmail(profile?.email)) return none('business_only', 'none')
   if (profile?.accountType !== 'business') return none('business_only', 'switch_to_business')
   if (blocksMessaging((await getEnforcement(viewerId)).state)) return none('suspended')
   const t = await teacherDmTier(viewerId, now)

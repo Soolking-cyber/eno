@@ -9,6 +9,7 @@ import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { canMessage } from '@/lib/compliance/account-state'
 import { verificationStatusForDecision } from '@/lib/compliance/recompute-verification'
 import { isBusinessVerified, verificationView, type VerificationFacts } from '@/lib/business-verification'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { vnDay } from '@/lib/signup-prompt'
 import {
   TEACHER_DM_IP_POOL, TEACHER_DM_LIMITS, TEACHER_LISTING_TYPE, TEACHER_UNANSWERED_MAX,
@@ -121,8 +122,16 @@ const SELLER_FACTS = {
   verifiedIdentityHash: true, verifiedUntil: true,
 } as const
 
-/** A revoked identity: nothing, and no way up (canMessage). */
+/** A revoked identity: nothing, and no way up (canMessage). Also a review seat (teacherDmTier). */
 const REVOKED: TeacherDmTierInfo = { tier: 'revoked', limit: TEACHER_DM_LIMITS.revoked, next: 'none', nextLimit: null, needsPhone: false, pooled: false }
+
+/**
+ * The revoked rung's standing — nothing today, no way up — for a route that refuses a review seat outright, an existing
+ * thread included, without reading the ladder (api/conversations). teacherDmRefusal answers it 403 with no Retry-After.
+ */
+export function revokedStanding(now: Date = new Date()): TeacherDmStanding {
+  return shape(REVOKED, 0, 0, vnDayWindow(now).resetAt, false)
+}
 
 /** The account's rung on the ladder, right now. */
 export async function teacherDmTier(profileId: string, now: Date = new Date()): Promise<TeacherDmTierInfo> {
@@ -130,8 +139,12 @@ export async function teacherDmTier(profileId: string, now: Date = new Date()): 
   if (!canMessage(identity)) return REVOKED
   const profile = await db.profile.findUnique({
     where: { id: profileId },
-    select: { accountType: true, phone: true, seller: { select: { id: true, ...SELLER_FACTS } } },
+    select: { accountType: true, email: true, phone: true, seller: { select: { id: true, ...SELLER_FACTS } } },
   })
+  // ⛔ A REVIEW SEAT NEVER WRITES TO A TEACHER (src/lib/review-seat-accounts.ts): an outside reviewer's shared login,
+  // personal or business, is the revoked rung — 0 new teachers, no way up — on every read of the ladder: the quota
+  // endpoint, the create route's early check and openTeacherThread under its lock.
+  if (isReviewSeatEmail(profile?.email)) return REVOKED
   const business = profile?.accountType === 'business'
   const seller = profile?.seller ?? null
   const businessLive = business && !!seller && isBusinessVerified(seller as unknown as VerificationFacts)

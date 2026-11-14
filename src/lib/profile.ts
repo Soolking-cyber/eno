@@ -10,6 +10,7 @@ import { autoClaimHandle, consolidateSellerHandle } from './handle'
 import { logError } from '@/lib/log'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 import { phoneConfirmationTrusted } from '@/lib/auth-policy'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 
 /**
  * A sign-in provider's picture, kept as the new account's photo only from a host whose links last: Google's
@@ -36,7 +37,12 @@ export function providerAvatarUrl(raw: unknown): string | null {
  * bypasses RLS (intended — there is no client INSERT policy on Profile).
  */
 export async function ensureProfile(user: User) {
-  const email = user.email ?? null
+  // ⛔ ONCE A REVIEW SEAT, ALWAYS ONE (src/lib/review-seat-accounts.ts). Every seat guard reads Profile.email, and a seat
+  // can change its sign-in address itself (Settings › Change email → auth.updateUser): mirrored here, the new address would
+  // switch every guard off. So a row holding a seat's address keeps it — the account, by its id, stays a seat (its
+  // password sign-in, which looks the partner up by that address, then stops working: fail closed).
+  const held = await db.profile.findUnique({ where: { id: user.id }, select: { email: true } })
+  const email = isReviewSeatEmail(held?.email) ? held!.email : user.email ?? null
   // Supabase stores a verified phone on user.phone (E164, no '+'); normalize to
   // the app's canonical +84… form. Only mirror a CONFIRMED phone — and only a confirmation eno's
   // own phone flow could have produced (phoneConfirmationTrusted: it is also the storefront claim

@@ -6,6 +6,7 @@ import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   // A confirm that would revive a sold/hidden listing past the released-scam-charge cap (confirmCore).
   if (!res.ok && res.error === 'released_charge_listing_cap') return apiError(403, res.error, RELEASED_CHARGE_CAP_MESSAGE, r.rate)
+  // A confirm that would revive a store-review seat's sold or hidden listing, any type (confirmCore, round 5 —
+  // review-seat-accounts.ts): the 403 with its code, never the 404 below — the listing exists.
+  if (!res.ok && res.error === 'review_seat_listing') return apiError(403, res.error, REVIEW_SEAT_LISTING_COPY.en, r.rate)
   // A confirm that would revive an e-Visa / Legal & permits listing eno has not checked (2026-10-14): the 409, never the
   // 404 below — the listing exists and waits for eno's licence check.
   if (!res.ok && res.error === 'licence_check_required') return apiError(409, res.error, LICENCE_CHECK_REQUIRED_COPY.en, r.rate)

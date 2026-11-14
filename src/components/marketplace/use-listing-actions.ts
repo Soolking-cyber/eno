@@ -82,6 +82,10 @@ export function useListingActions(
           // not checked cannot be put back on sale by a Relist — it goes live with eno's approval, nothing the seller
           // taps. The route's own sentence (licence-check-copy.ts LICENCE_CHECK_REQUIRED_COPY), as a literal pair.
           refusalToast(tr('This listing is waiting for eno’s licence check, so it can’t be put back on sale yet. It goes live once eno’s team has checked the provider’s licence.', 'Tin này đang chờ eno kiểm tra giấy phép nên chưa thể mở bán lại. Tin sẽ được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.'), { id: `relist-refusal:${listing.id}` })
+        } else if (d.error === 'review_seat_listing') {
+          // ⛔ A STORE-REVIEW SEAT'S LISTING NEVER GOES BACK ON (round 5 — core/listings.ts setStatusCore,
+          // src/lib/review-seat-accounts.ts): the route's neutral line (REVIEW_SEAT_LISTING_COPY), as a literal pair.
+          refusalToast(tr('Listings from this account are not shown publicly.', 'Tin đăng của tài khoản này không hiển thị công khai.'), { id: `relist-refusal:${listing.id}` })
         } else if (typeof d.error === 'string' && isJobTextBlockCode(d.error)) {
           // ⛔ A HIRING POST THE JOB-TEXT SCREEN WILL NOT PUT BACK (2026-10-19 — core/listings.ts reactivationJobTextProblem): its
           // stored words are ones a job ad may not carry, so the Relist is refused until they are edited out. The route's own

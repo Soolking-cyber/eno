@@ -37,6 +37,11 @@ const h = vi.hoisted(() => ({
   raw: [] as { sql: string; values: unknown[] }[],
   /** What the route handed metaUserDataFromHeaders (Sign in with Apple D14). */
   capiExtra: [] as Row[],
+  /** Profile.email by profile id — the review-seat check (review-seat-listings.ts reviewSeatMeetsTeacher). */
+  emails: {} as Record<string, string | null>,
+  /** Profile ids that own a TeacherProfile. */
+  teachers: [] as string[],
+  profileReads: [] as string[],
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -86,6 +91,8 @@ vi.mock('@/lib/db', () => ({
       },
     },
     contactReveal: { create: async ({ data }: Row) => { h.reveals.push(data); return data } },
+    profile: { findUnique: async ({ where }: Row) => { h.profileReads.push(where.id); return where.id in h.emails ? { email: h.emails[where.id] } : null } },
+    teacherProfile: { findUnique: async ({ where }: Row) => (h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null) },
     $transaction: async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]),
   },
 }))
@@ -109,6 +116,9 @@ beforeEach(() => {
   h.reveals = []
   h.raw = []
   h.capiExtra = []
+  h.emails = { [BUYER]: 'b@example.test' }
+  h.teachers = []
+  h.profileReads = []
   vi.clearAllMocks()
 })
 
@@ -278,5 +288,55 @@ describe('what the reveal records', () => {
     // reviewer as a coverage gap, and this is the honest amount of it a route test can close.
     await call()
     expect(scopedListingWhere).toHaveBeenCalledWith({ id: LISTING_ID })
+  })
+})
+
+/**
+ * ⛔ A STORE-REVIEW SEAT NEVER GETS A TEACHER'S NUMBER (round 5, 2026-11-14 — src/lib/review-seat-accounts.ts). A thread a
+ * teacher answered before the seat rules still passes reply-first; a seat in it is refused 403 `forbidden` before the phone
+ * is read or the ledger written — whether the teacher is the seller of this teacher listing or simply owns a TeacherProfile
+ * and sells something else. CONTROL: the lawyer's seat and an ordinary buyer get the teacher's number as before, and a
+ * seat still gets an ordinary seller's.
+ */
+describe('a store-review seat and a teacher\'s number', () => {
+  const OWNER = 'owner-1'
+  const teacherListing = () => verifiedListing({ listingType: 'teacher', seller: { id: SELLER, ownerId: OWNER, phone: '+84901234567' } })
+  const teacherSells = () => verifiedListing({ listingType: 'sell', seller: { id: SELLER, ownerId: OWNER, phone: '+84901234567' } })
+  beforeEach(() => { h.messages = [{ senderProfileId: OWNER }] }) // the teacher replied, before the rules
+
+  it('⛔ every store seat, in any case: 403 forbidden on a teacher listing and on a teacher\'s other listing — no reveal, no counter', async () => {
+    const { STORE_REVIEW_SEAT_EMAILS } = await import('@/lib/review-seat-accounts')
+    for (const listing of [teacherListing, teacherSells]) {
+      h.teachers = listing === teacherSells ? [OWNER] : []
+      for (const email of [...STORE_REVIEW_SEAT_EMAILS, ' PLAY-REVIEW@eno.forum ']) {
+        h.listing = listing()
+        h.emails[BUYER] = email
+        const res = await call()
+        expect(res.status, email).toBe(403)
+        await expect(res.json()).resolves.toEqual({ error: 'forbidden' })
+      }
+    }
+    expect(h.reveals).toEqual([])
+    expect(h.raw).toEqual([])
+  })
+
+  it('CONTROL: an ordinary buyer and the LAWYER\'s seat get the teacher\'s number as before', async () => {
+    for (const email of ['b@example.test', 'lawyer-review@eno.vn']) {
+      h.reveals = []
+      h.listing = teacherListing()
+      h.emails[BUYER] = email
+      const res = await call()
+      expect(res.status, email).toBe(200)
+      await expect(res.json()).resolves.toMatchObject({ phone: '+84901234567' })
+      expect(h.reveals, email).toHaveLength(1)
+    }
+  })
+
+  it('CONTROL: a seat still gets an ORDINARY seller\'s number — the rule is about teachers', async () => {
+    h.listing = teacherSells() // not a teacher: no TeacherProfile, not a teacher listing
+    h.emails[BUYER] = 'app-review@eno.vn'
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(h.reveals).toHaveLength(1)
   })
 })

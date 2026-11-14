@@ -597,25 +597,26 @@ export const SPEC = {
             type: 'boolean',
             description: [
               'Whether the listing is publicly visible now.',
-              '`true` for every listing except one stored unpublished for eno’s licence check — an e-Visa (services/visa-legal) or Legal & permits (services/legal-permits) listing from any shop but eno’s own — which answers `false` together with `held: true`. Anything else that cannot publish is refused (422, 403 or 409) rather than saved.',
+              '`true` for every listing except one stored unpublished. An e-Visa (services/visa-legal) or Legal & permits (services/legal-permits) listing from any shop but eno’s own waits for eno’s licence check and answers `false` together with `held: true`. A listing from one of the few accounts whose listings are never shown publicly answers `false` without `held`, in every category, those two included: no check publishes it and no later call does. Anything else that cannot publish is refused (422, 403 or 409) rather than saved.',
               '`verified` can also turn false LATER, on `Listing` (an admin, the moderation queue, an automatic hold, the enforcement ladder or the licence check) — `getListing` is where you would see that.',
             ].join(' '),
           },
           held: {
             type: 'boolean',
             const: true,
-            description: 'Present only when the listing was stored unpublished, waiting for eno’s licence check (e-Visa / Legal & permits). It goes live, with no further call, once eno has checked the provider’s licence against the values you sent.',
+            description: 'Present only when the listing was stored unpublished, waiting for eno’s licence check (e-Visa / Legal & permits). It goes live, with no further call, once eno has checked the provider’s licence against the values you sent. Never present for a listing from an account whose listings are never shown publicly (`verified: false` alone).',
           },
         },
       },
       /**
        * ⚠️ WHAT `PATCH /listings/{id}` RETURNS. A bare `Ack` until 2026-10-14; now an edit of an e-Visa or Legal & permits
        * listing that leaves it waiting for eno's licence check says so (`held`), since a plain `{ ok: true }` would read
-       * as "still live" (updateListingCore / src/app/api/v1/listings/[id]/route.ts).
+       * as "still live" (updateListingCore / src/app/api/v1/listings/[id]/route.ts). `unpublished` (round 5, 2026-11-14): a
+       * store-review seat's listing that is not public after the edit (src/lib/review-seat-accounts.ts) — never `held`.
        */
       ListingPatchAck: {
         type: 'object',
-        description: 'Acknowledgement of an edit. `held` is present only when the listing is waiting for eno’s licence check and is unpublished.',
+        description: 'Acknowledgement of an edit. `held` is present only when the listing is waiting for eno’s licence check and is unpublished; `unpublished` only when the listing is from an account whose listings are never shown publicly and is not public. At most one of the two is present.',
         required: ['ok'],
         properties: {
           ok: { type: 'boolean', const: true },
@@ -623,6 +624,11 @@ export const SPEC = {
             type: 'boolean',
             const: true,
             description: 'An e-Visa or Legal & permits listing that is not (or no longer) approved: it was moved into either aisle, one of its two provider values changed, or it had not been approved yet. It stays unpublished until eno has checked the provider’s licence.',
+          },
+          unpublished: {
+            type: 'boolean',
+            const: true,
+            description: 'The listing is from one of the few accounts whose listings are never shown publicly, and it is not public after this edit. No check publishes it and no later call does; `held` is never sent beside it.',
           },
         },
       },
@@ -697,7 +703,7 @@ export const SPEC = {
         type: 'object',
         description: [
           'Sparse edit. Every field is optional and only the ones PRESENT are touched — `updateListingCore` keys on `!== undefined`, so sending `null` is a different instruction from omitting the key (where a null is meaningful the field below says so).',
-          'A body whose keys are all unreadable is not an error: the handler returns `{"ok":true}` having written nothing (`{"ok":true,"held":true}` for an e-Visa or Legal & permits listing still waiting for eno’s licence check).',
+          'A body whose keys are all unreadable is not an error: the handler returns `{"ok":true}` having written nothing (`{"ok":true,"held":true}` for an e-Visa or Legal & permits listing still waiting for eno’s licence check, `{"ok":true,"unpublished":true}` for a listing from an account whose listings are never shown publicly that is not public).',
           '⛔ NOT READABLE HERE, THOUGH `POST /listings` ACCEPTS THEM: `categorySlug` (an edit CANNOT move a listing between categories — send it and it is ignored, and you still get 200) and `location` (derived from `district`, never read from the body). `externalId` is not readable on this path either; it exists only on /listings/bulk and /listings/sync.',
         ].join(' '),
         properties: {
@@ -1076,7 +1082,7 @@ export const SPEC = {
         summary: 'Create a listing',
         description: [
           'Runs the exact same path as the seller-facing post wizard: auto-publish gate, brand resolution, translation warm, search reindex and webhook dispatch.',
-          '⚠️ Returns `{ listing: { id, verified, held? } }`, not the serialized listing — fetch `getListing` if you need the row. Every listing either publishes at once (`verified: true`) or is refused (422/403/409) — except one in services/visa-legal (e-Visa) or services/legal-permits from any shop but eno’s own: it needs `attributes.providerLegalName` and `attributes.providerLicenceNo`, and is created UNPUBLISHED (`verified: false, held: true`) until eno has checked the provider’s licence against them.',
+          '⚠️ Returns `{ listing: { id, verified, held? } }`, not the serialized listing — fetch `getListing` if you need the row. A listing publishes at once (`verified: true`), is refused (422/403/409), or is created UNPUBLISHED (`verified: false`). One in services/visa-legal (e-Visa) or services/legal-permits from any shop but eno’s own needs `attributes.providerLegalName` and `attributes.providerLicenceNo`, and waits (`verified: false, held: true`) until eno has checked the provider’s licence against them. A few accounts’ listings are never shown publicly, whatever the category, those two included: they are created with `verified: false` and no `held`, and no check or later call publishes them.',
           'Send an `Idempotency-Key` so a network retry cannot create the listing twice.',
         ].join(' '),
         security: requires('listings:write'),
@@ -1084,7 +1090,7 @@ export const SPEC = {
         requestBody: { required: true, content: json(schemaRef('ListingInput')) },
         responses: {
           '201': ok(
-            'Created. Published at once (`verified: true`) — or, for an e-Visa / Legal & permits listing, stored unpublished and waiting for eno’s licence check (`verified: false, held: true`); it goes live when eno approves it, with no further call.',
+            'Created. Published at once (`verified: true`) — or stored unpublished: an e-Visa / Legal & permits listing waiting for eno’s licence check (`verified: false, held: true`), which goes live when eno approves it, with no further call; or a listing from one of the few accounts whose listings are never shown publicly (`verified: false`, no `held`), which nothing publishes.',
             { type: 'object', required: ['listing'], properties: { listing: schemaRef('CreatedListing') } },
             { 'Idempotency-Replayed': headerRef('Idempotency-Replayed') },
           ),
@@ -1132,14 +1138,14 @@ export const SPEC = {
         operationId: 'updateListing',
         summary: 'Edit a listing',
         description: [
-          'Sparse update with the same validation, licence hold and reindex as the dashboard editor. Naturally idempotent: the same body twice gives the same result. Returns an acknowledgement — with `held: true` when the listing is an e-Visa or Legal & permits listing waiting for eno’s licence check, and so unpublished.',
+          'Sparse update with the same validation, licence hold and reindex as the dashboard editor. Naturally idempotent: the same body twice gives the same result. Returns an acknowledgement — with `held: true` when the listing is an e-Visa or Legal & permits listing waiting for eno’s licence check, and so unpublished; with `unpublished: true` when it is from an account whose listings are never shown publicly and is not public.',
           '⚠️ The body is `ListingPatch`, NOT `ListingInput` — a narrower field set with nothing required. In particular an edit CANNOT move a listing between categories: `categorySlug` is not read here, and sending it still returns 200.',
         ].join(' '),
         security: requires('listings:write'),
         parameters: [{ name: 'id', in: 'path', required: true, description: 'The listing id.', schema: { type: 'string' } }],
         requestBody: { required: true, content: json(schemaRef('ListingPatch')) },
         responses: {
-          '200': ok('Saved. `held: true` — the listing is waiting for eno’s licence check (e-Visa / Legal & permits) and is unpublished.', schemaRef('ListingPatchAck')),
+          '200': ok('Saved. `held: true` — the listing is waiting for eno’s licence check (e-Visa / Legal & permits) and is unpublished. `unpublished: true` — the listing is from an account whose listings are never shown publicly, and is not public.', schemaRef('ListingPatchAck')),
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
           '404': NOT_FOUND_LISTING,
@@ -1202,8 +1208,8 @@ export const SPEC = {
           // ⚠️ AFTER `...authFailures()`, SO THIS KEY REPLACES ITS 403 — `insufficient_scope` has to be
           // listed here again, or the spec stops documenting a refusal the endpoint still sends.
           '403': fail(
-            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused: `account_held` / `account_suspended` while the shop\'s account is held or suspended (always enforced), `released_charge_listing_cap` when the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands, or the seller identity gate (only while it is enforced). A listing that is already active is never refused, and marking one sold or hidden never is. The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`, or re-activating a sold or hidden listing was refused: `account_held` / `account_suspended` while the shop\'s account is held or suspended (always enforced), `released_charge_listing_cap` when the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands, `review_seat_listing` for a listing of any type from an account whose listings are never shown publicly, or the seller identity gate (only while it is enforced). A listing that is already active is never refused, and marking one sold or hidden never is. The identity bodies carry the structured refusal — `verifyUrl`, bilingual `message`, `legalBasis` — beside `error`. ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'review_seat_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
           '409': fail(
@@ -1211,7 +1217,7 @@ export const SPEC = {
             ['licence_check_required'],
           ),
           '422': fail(
-            '`status` was absent or not one of the three allowed values (`invalid_status`); or re-activating a hiring post (category `jobs`, `listingType` `job`) was refused because its stored text carries a line a job ad may not carry — the four `job_*` codes, the same refusals an edit gets: `error.message` says what kind of line, and `error.detail` is "<field>:<words>" — the field and the words to take out or reword (PATCH the listing first). `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above, and the licence check (`licence_check_required`) answers 409.',
+            '`status` was absent or not one of the three allowed values (`invalid_status`); or re-activating a hiring post (category `jobs`, `listingType` `job`) was refused because its stored text carries a line a job ad may not carry — the four `job_*` codes, the same refusals an edit gets: `error.message` says what kind of line, and `error.detail` is "<field>:<words>" — the field and the words to take out or reword (PATCH the listing first). `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`), `review_seat_listing` and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above, and the licence check (`licence_check_required`) answers 409.',
             // 2026-10-19: a relist of a hiring post is screened like an edit (core/listings.ts reactivationJobTextProblem).
             ['invalid_status', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue'],
           ),
@@ -1237,8 +1243,8 @@ export const SPEC = {
           ...authFailures(),
           // ⚠️ Replaces authFailures()'s 403 (same object literal, later key) — insufficient_scope restated.
           '403': fail(
-            'The credential lacks `listings:write`; or the shop\'s account is held or suspended (`account_held` / `account_suspended` — every confirm is refused while it lasts, including one on a listing that is already active); or the confirm would have re-activated a sold or hidden listing and was refused: by the released-charge cap (`released_charge_listing_cap` — the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands), or by the seller identity gate (only while it is enforced). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
-            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'The credential lacks `listings:write`; or the shop\'s account is held or suspended (`account_held` / `account_suspended` — every confirm is refused while it lasts, including one on a listing that is already active); or the confirm would have re-activated a sold or hidden listing and was refused: by the released-charge cap (`released_charge_listing_cap` — the shop\'s scam hold was released but it already holds the active-listing limit it keeps while the confirmed report stands), because the listing is from an account whose listings are never shown publicly (`review_seat_listing`, any listing type), or by the seller identity gate (only while it is enforced). ⚠️ TWO DIFFERENT RESPONSES SHARE THIS STATUS: `insufficient_scope` is refused before the rate limiter and carries only `X-Request-Id`; the account and identity codes happen after authentication and carry the rate-limit set below.',
+            ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'review_seat_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
           '409': fail(

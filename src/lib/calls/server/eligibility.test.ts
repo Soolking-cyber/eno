@@ -23,6 +23,11 @@ const h = vi.hoisted(() => ({
   modeAfterReset: null as null | 'off' | 'staff' | 'beta' | 'all',
   resets: 0,
   thread: true,
+  // Profile.email by id — a review seat's in its test (src/lib/review-seat-accounts.ts).
+  emails: {} as Record<string, string>,
+  // The profiles that own a TeacherProfile (live or hidden), and every TeacherProfile read made.
+  teachers: [] as string[],
+  teacherReads: [] as string[],
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -34,6 +39,13 @@ vi.mock('@/lib/db', () => ({
     },
     identityVerification: {
       findFirst: async ({ where }: { where: { profileId: string } }) => (h.minors.has(where.profileId) ? { id: 'v' } : null),
+    },
+    profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: h.emails[where.id] ?? `${where.id}@example.com` }) },
+    teacherProfile: {
+      findUnique: async ({ where }: { where: { profileId: string } }) => {
+        h.teacherReads.push(where.profileId)
+        return h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null
+      },
     },
   },
 }))
@@ -67,7 +79,7 @@ const convo = (o: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   h.mode = 'all'; h.cohort = []; h.video = true; h.blocking = true; h.staff = new Set(); h.verified = new Set(['buyer', 'seller'])
   h.minors = new Set(); h.suspended = new Set(); h.blocked = false; h.kind = 'listing'; h.evisa = false; h.desks = []
-  h.readFails = false; h.modeAfterReset = null; h.resets = 0; h.thread = true
+  h.readFails = false; h.modeAfterReset = null; h.resets = 0; h.thread = true; h.emails = {}; h.teachers = []; h.teacherReads = []
 })
 
 describe('callPermit', () => {
@@ -127,6 +139,56 @@ describe('callPermit', () => {
     expect((await callPermit(convo(), 'buyer', 'audio')).ok).toBe(true)
     expect(await callPermit(convo(), 'buyer', 'video')).toMatchObject({ ok: false, error: 'calls_peer_not_verified' })
     expect(await callPermit(convo({ listingType: 'teacher' }), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_peer_not_verified' })
+  })
+
+  it('⛔ a review seat never rings a teacher (review-seat-accounts.ts) — both sides verified or not; elsewhere it is any caller', async () => {
+    const teacher = convo({ listingType: 'teacher' })
+    expect((await callPermit(teacher, 'buyer', 'audio')).ok).toBe(true) // the control: not a seat
+    h.emails = { buyer: ' App-Review@eno.vn' }
+    expect(await callPermit(teacher, 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable', status: 403 })
+    expect(await callPermit(teacher, 'buyer', 'video')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+    expect((await callPermit(convo(), 'buyer', 'audio')).ok).toBe(true)
+  })
+
+  /**
+   * ⛔ ROUND 4 (codex P1, opus #2): a seat and a teacher never share a call — in ANY thread, either role, either way. The
+   * old check asked only "a seat BUYER in a teacher-listing thread", so a seat SELLING a job to a teacher who wrote in still
+   * rang them (a call request is a card, a bell and a push). Both sides verified, so only the seat rule can refuse.
+   */
+  it('⛔ a seat SELLING (a job post a teacher wrote to) never rings the teacher buyer — audio or video', async () => {
+    h.emails = { seller: 'ai-review@eno.vn' }
+    h.teachers = ['buyer']
+    const job = convo({ listingType: 'job' })
+    expect(await callPermit(job, 'seller', 'audio')).toEqual({ ok: false, error: 'calls_thread_unavailable', status: 403 })
+    expect(await callPermit(job, 'seller', 'video')).toEqual({ ok: false, error: 'calls_thread_unavailable', status: 403 })
+  })
+
+  it('⛔ …nor rings a teacher it BUYS from on an ordinary listing, nor a teacher whose profile is hidden (the row is all it asks)', async () => {
+    h.emails = { buyer: 'play-review@eno.forum' }
+    h.teachers = ['seller']
+    expect(await callPermit(convo({ listingType: 'sell' }), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+  })
+
+  it('⛔ EITHER WAY: a teacher dialling a seat is refused too — the accept re-judges from the CALLER\'s side, so the seat never picks up', async () => {
+    h.emails = { seller: 'app-review@eno.vn' }
+    h.teachers = ['buyer']
+    expect(await callPermit(convo({ listingType: 'service' }), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+    // …and in a teacher-listing thread the seller IS the teacher, with no read: a seat buyer is refused either way round
+    h.emails = { buyer: 'app-review@eno.vn' }
+    h.teachers = []
+    h.teacherReads = []
+    expect(await callPermit(convo({ listingType: 'teacher' }), 'seller', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+    expect(h.teacherReads).toEqual([])
+  })
+
+  it('CONTROL: an ordinary school selling a job rings the teacher who wrote in; a seat with a non-teacher is untouched; no seat, no TeacherProfile read', async () => {
+    h.teachers = ['buyer']
+    expect(await callPermit(convo({ listingType: 'job' }), 'seller', 'audio')).toMatchObject({ ok: true, calleeId: 'buyer' })
+    expect(h.teacherReads).toEqual([])
+    h.emails = { seller: 'ai-review@eno.vn' }
+    h.teachers = []
+    expect(await callPermit(convo({ listingType: 'job' }), 'seller', 'audio')).toMatchObject({ ok: true, calleeId: 'buyer' })
+    expect(h.teacherReads).toEqual(['buyer'])
   })
 
   it('a known minor (a verified document\'s birth year) cannot call or be video-called', async () => {

@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // code, and ⛔ a profile with nothing to be found for (no job goal, no public cover — what an edit save hides, D6) answers
 // 409 no_teaching_goal, a stable code the form words (gate review, 2026-10-09).
 type Row = Record<string, any>
-const h = vi.hoisted(() => ({ calls: [] as Row[], outcome: 'ok' as 'ok' | 'missing' | 'no_goal' | 'blocked' }))
+const h = vi.hoisted(() => ({ calls: [] as Row[], outcome: 'ok' as 'ok' | 'missing' | 'no_goal' | 'blocked', email: 'teacher@example.com' as string | null }))
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => ({ id: 'p-b' }), getCurrentProfileId: async () => 'p-b', getAdmin: async () => null, isAdminEmail: () => false }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => ({ id: 'p-b', email: h.email }), getCurrentProfileId: async () => 'p-b', getAdmin: async () => null, isAdminEmail: () => false }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
 vi.mock('@/lib/publish-guard', () => ({
   PublishBlockedError: class extends Error { constructor(public code: string) { super(code) } },
@@ -29,7 +29,7 @@ vi.mock('@/lib/db', () => ({ db: {} }))
 const { PATCH } = await import('./route')
 const patch = (body: Row) => PATCH(new Request('https://eno.vn/api/teachers/me/status', { method: 'PATCH', body: JSON.stringify(body) }) as never, {} as never)
 
-beforeEach(() => { h.calls = []; h.outcome = 'ok' })
+beforeEach(() => { h.calls = []; h.outcome = 'ok'; h.email = 'teacher@example.com' })
 
 describe('PATCH /api/teachers/me/status', () => {
   it('shows or hides the caller\'s profile', async () => {
@@ -54,5 +54,14 @@ describe('PATCH /api/teachers/me/status', () => {
     h.outcome = 'missing'
     expect((await patch({ status: 'live' })).status).toBe(404)
     expect((await patch({ status: 'active' })).status).toBe(400)
+  })
+  it('⛔ a review seat (src/lib/review-seat-accounts.ts) never shows a teacher profile — 403, setTeacherStatus never asked; it may still hide one', async () => {
+    h.email = ' App-Review@eno.vn'
+    const res = await patch({ status: 'live' })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'forbidden' })
+    expect(h.calls).toEqual([])
+    expect((await patch({ status: 'hidden' })).status).toBe(200)
+    expect(h.calls).toEqual([{ profileId: 'p-b', status: 'hidden' }])
   })
 })

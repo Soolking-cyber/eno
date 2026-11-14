@@ -24,7 +24,8 @@ vi.mock('@/lib/ratelimit', () => ({
   rateLimit: async () => ({ success: true, resetSec: 0 }),
   kv: { set: async () => 'OK', get: async () => null, del: async () => 1 },
 }))
-vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.convo } } }))
+// The writer's Profile.email: no review seat here (the seat guard is pinned in teacher-notify.test.ts).
+vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.convo }, profile: { findUnique: async () => ({ email: 'buyer@example.com' }) } } }))
 vi.mock('@/lib/enforcement', () => ({ messagingGate: async () => null }))
 vi.mock('@/lib/offer-guard', () => ({ recordFixedPriceOfferAttempt: async (id: string) => { h.docked.push(id) } }))
 vi.mock('@/lib/messages', () => ({

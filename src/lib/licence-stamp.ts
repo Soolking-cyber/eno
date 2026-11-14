@@ -29,6 +29,7 @@ import type { Prisma } from '../generated/prisma/client'
 import { LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG, attributeBag, isLicenceCheckSlot } from './taxonomy'
 import { checkProviderLicence, normalizeLegalName, normalizeLicenceNo, providerLicenceFromInput, providerLicenceOf, type ProviderLicence } from './provider-licence'
 import { LICENCE_WHITELIST, isLicenceWhitelisted } from './licence-whitelist'
+import { REVIEW_SEAT_HELD_NOTE } from './review-seat-accounts'
 
 /** Every stamp starts with this — the SQL guards test for it (a legacy verificationMethod value never carries it). */
 export const LICENCE_STAMP_PREFIX = 'licence:v1:'
@@ -135,8 +136,13 @@ export const LICENCE_HELD_NOTE = 'licence:held'
 /** What licenceHeldMark decides on: the row's publication and its mark, as the write that carries the mark sees them. */
 export type LicenceMarkFacts = { verified: boolean; identityHold: boolean; verificationNotes: string | null }
 
-/** The mark a licence hold writes: the hold's own only for a row that was live, identity-parked or already marked. */
+/**
+ * The mark a licence hold writes: the hold's own only for a row that was live, identity-parked or already marked. A review
+ * seat's held row keeps the SEAT's mark (review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) — never the licence mark, which
+ * 'licence-approve' would publish by, nor null, which would hide from the admin queue why it waits.
+ */
 export function licenceHeldMark(row: LicenceMarkFacts): { verificationNotes: string | null } {
+  if (row.verificationNotes === REVIEW_SEAT_HELD_NOTE) return { verificationNotes: REVIEW_SEAT_HELD_NOTE }
   return { verificationNotes: row.verified || row.identityHold || row.verificationNotes === LICENCE_HELD_NOTE ? LICENCE_HELD_NOTE : null }
 }
 

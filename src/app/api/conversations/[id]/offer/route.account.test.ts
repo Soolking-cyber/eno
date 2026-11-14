@@ -14,6 +14,10 @@ const h = vi.hoisted(() => ({
   gateCalls: 0,
   reads: 0,
   acts: [] as unknown[][],
+  // Profile.email by id (a review seat's in its tests — src/lib/review-seat-accounts.ts), and who owns a TeacherProfile.
+  emails: {} as Record<string, string>,
+  teachers: [] as string[],
+  teacherReads: [] as string[],
 }))
 
 vi.mock('@/lib/admin', () => ({
@@ -34,6 +38,13 @@ vi.mock('@/lib/db', () => ({
         return { id: 'thread-1', buyerProfileId: 'buyer-1', sellerProfileId: 'seller-1', listing: { id: 'L1', status: 'active' } }
       },
     },
+    profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: h.emails[where.id] ?? `${where.id}@example.com` }) },
+    teacherProfile: {
+      findUnique: async ({ where }: { where: { profileId: string } }) => {
+        h.teacherReads.push(where.profileId)
+        return h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null
+      },
+    },
   },
 }))
 
@@ -52,6 +63,7 @@ beforeEach(() => {
   h.gateCalls = 0
   h.reads = 0
   h.acts = []
+  h.emails = {}; h.teachers = []; h.teacherReads = []
 })
 
 describe('POST /api/conversations/[id]/offer — the account that tapped', () => {
@@ -77,5 +89,37 @@ describe('POST /api/conversations/[id]/offer — the account that tapped', () =>
   it('no header (the native apps, an older page) → unchanged', async () => {
     expect(await answer({})).toEqual({ status: 200, body: { ok: true } })
     expect(h.acts).toHaveLength(1)
+  })
+})
+
+/**
+ * ⛔ A REVIEW SEAT ANSWERS NO TEACHER'S OFFER (src/lib/review-seat-accounts.ts — round 4). Accept and decline both write a
+ * line from the seat into the teacher's thread, with a bell and a push (messages.ts actOnOffer): refused before it runs.
+ */
+describe('POST /api/conversations/[id]/offer — a review seat never answers a teacher', () => {
+  it('⛔ the seat SELLING, a teacher\'s offer: accept and decline are 403 forbidden — actOnOffer never runs', async () => {
+    h.emails = { 'seller-1': 'ai-review@eno.vn' }
+    h.teachers = ['buyer-1']
+    expect(await answer({})).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(await answer({}, JSON.stringify({ messageId: 'm-offer', action: 'decline' }))).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(h.acts).toEqual([])
+  })
+
+  it('⛔ …and the seat BUYING from a teacher answers no counter-offer either', async () => {
+    h.me = 'buyer-1'
+    h.emails = { 'buyer-1': 'Play-Review@eno.forum' }
+    h.teachers = ['seller-1']
+    expect((await answer({})).status).toBe(403)
+    expect(h.acts).toEqual([])
+  })
+
+  it('CONTROL: an ordinary seller answers a teacher\'s offer (no TeacherProfile read); a seat answers a non-teacher', async () => {
+    h.teachers = ['buyer-1']
+    expect(await answer({})).toEqual({ status: 200, body: { ok: true } })
+    expect(h.teacherReads).toEqual([])
+    h.emails = { 'seller-1': 'ai-review@eno.vn' }
+    h.teachers = []
+    expect(await answer({})).toEqual({ status: 200, body: { ok: true } })
+    expect(h.acts).toHaveLength(2)
   })
 })

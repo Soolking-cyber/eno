@@ -30,6 +30,8 @@ const h = vi.hoisted(() => ({
   alsoNotPostable: new Set<string>(),
 }))
 
+// The storefront owner is no review seat here (a seat's creates: core/listings.review-seat.test.ts, core/bulk.review-seat.test.ts).
+vi.mock('@/lib/review-seat-listings', () => ({ ownerIsReviewSeat: async () => false, reviewSeatListingIds: async () => [] }))
 vi.mock('@/lib/taxonomy', async (orig) => {
   const real = await orig<typeof import('@/lib/taxonomy')>()
   return { ...real, isPostableCategory: (slug: string | null | undefined) => !h.alsoNotPostable.has(String(slug)) && real.isPostableCategory(slug) }

@@ -5,6 +5,7 @@ import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from 
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,12 +39,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!r.ok && isIdentityBlockCode(r.error)) return NextResponse.json(publishBlockedJson(r.error), { status: PUBLISH_BLOCKED_STATUS })
   // A relist of an e-Visa / Legal & permits listing eno has not checked (409, 2026-10-14) carries its bilingual sentence
   // for the native dashboards, which call this same route; so does a relist of a hiring post whose stored text the job-text
-  // screen refuses (400, 2026-10-19), with `detail` '<field>:<snippet>' — the words to take out in the editor first.
+  // screen refuses (400, 2026-10-19), with `detail` '<field>:<snippet>' — the words to take out in the editor first; and so
+  // does a relist of a store-review seat's listing (403 review_seat_listing, round 5 — review-seat-accounts.ts).
   if (!r.ok) {
     return NextResponse.json({
       error: r.error,
       ...(r.detail ? { detail: r.detail } : {}),
-      ...(r.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : isJobTextBlockCode(r.error) ? { message: JOB_TEXT_REFUSAL[r.error] } : {}),
+      ...(r.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY }
+        : r.error === 'review_seat_listing' ? { message: REVIEW_SEAT_LISTING_COPY }
+          : isJobTextBlockCode(r.error) ? { message: JOB_TEXT_REFUSAL[r.error] } : {}),
     }, { status: r.code })
   }
   return NextResponse.json({ ok: true, status: r.status })

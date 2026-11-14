@@ -59,6 +59,11 @@ const h = vi.hoisted(() => ({
   updates: [] as Row[],
   /** The NEXT dealConfirmation read answers this (a stale read that a concurrent write has since overtaken). */
   staleRead: null as Row | null,
+  /** The caller's Profile.email (a review seat's in its tests — src/lib/review-seat-accounts.ts). */
+  email: 'me@example.com',
+  /** The profiles that own a TeacherProfile, and every TeacherProfile read made. */
+  teachers: [] as string[],
+  teacherReads: [] as string[],
 }))
 
 /** Prisma's where, as far as the route uses it on these rows. */
@@ -84,7 +89,7 @@ function matches(row: Row, where: Row): boolean {
 const missing = () => Object.assign(new Error('The table `public.DealConfirmation` does not exist in the current database.'), { code: 'P2021' })
 
 vi.mock('@/lib/admin', () => ({
-  getCurrentProfile: async () => (h.me ? { id: h.me, displayName: 'Me', email: 'me@example.com' } : null),
+  getCurrentProfile: async () => (h.me ? { id: h.me, displayName: 'Me', email: h.email } : null),
   getCurrentProfileId: async () => h.me,
   getAdmin: async () => null,
 }))
@@ -109,6 +114,9 @@ vi.mock('@/lib/db', () => {
   const db: Row = {
     conversation: { findUnique: async () => h.convo },
     review: { findUnique: async () => h.review },
+    teacherProfile: {
+      findUnique: async ({ where }: Row) => { h.teacherReads.push(where.profileId); return h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null },
+    },
     trustEvent: {
       findFirst: async ({ where }: Row) => (where.subjectProfileId === BUYER_ID && where.reason === 'phone_verified' && h.phoneVerified ? { id: 'te1' } : null),
     },
@@ -215,6 +223,7 @@ beforeEach(() => {
   h.dealListing = null; h.flags = []; h.visaListingIds = []; h.tripAnchor = null; h.deskSellers = []
   h.phoneVerified = false; h.lockKeys = []; h.onLock = null; h.txLog = []; h.inTx = false; h.updates = []; h.staleRead = null
   h.dbNow = undefined; h.lockedListingId = undefined; h.whileLocked = null
+  h.email = 'me@example.com'; h.teachers = []; h.teacherReads = []
   h.messages = [msg(BUYER), msg(BUYER), msg(SELLER)]
   h.convo = {
     id: 'c1', listingId: 'L1', buyerProfileId: BUYER, sellerProfileId: SELLER,
@@ -255,6 +264,42 @@ describe('who may confirm', () => {
 
   it('409 listing_changed when the thread now points at another listing than the dialog showed', async () => {
     expect(await confirm(SELLER, 'L-other')).toEqual({ status: 409, body: { error: 'listing_changed' } })
+  })
+})
+
+/**
+ * ⛔ A REVIEW SEAT CONFIRMS NOTHING TO A TEACHER, NOR UNDOES IT (src/lib/review-seat-accounts.ts — round 4, opus): both write
+ * a line from the seat into the teacher buyer's thread. Refused on the Profile row's address, before the deal is read.
+ */
+describe('⛔ a review seat as the seller, a teacher as the buyer', () => {
+  it('confirm and withdraw are 403 forbidden: no deal row, no event, no line', async () => {
+    h.email = 'AI-Review@eno.vn '
+    h.teachers = [BUYER]
+    expect(await confirm()).toEqual({ status: 403, body: { error: 'forbidden' } })
+    h.deal = { conversationId: 'c1', listingId: 'L1', sellerId: 'shop-1', sellerProfileId: SELLER, buyerProfileId: BUYER, kind: 'rental', confirmedAt: new Date(Date.now() - MIN), revokedAt: null, declinedAt: null, reviewId: null, confirmCount: 1 }
+    expect(await withdraw()).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(h.deal.revokedAt).toBeNull()
+    expect(h.events).toEqual([])
+    expect(h.inserted).toEqual([])
+    expect(h.updates).toEqual([])
+  })
+
+  it('CONTROL: an ordinary seller — and the LAWYER\'s seat, no store seat (round 4) — confirms to a teacher as before (no TeacherProfile read); a seat confirms to a non-teacher', async () => {
+    h.teachers = [BUYER]
+    expect((await confirm()).status).toBe(200)
+    expect(h.teacherReads).toEqual([])
+    expect(h.inserted).toHaveLength(1)
+    h.deal = null; h.inserted = []; h.events = []
+    h.email = 'lawyer-review@eno.vn'
+    expect((await confirm()).status).toBe(200)
+    expect(h.teacherReads).toEqual([])
+    expect(h.inserted).toEqual([expect.objectContaining({ senderId: SELLER, kind: 'deal_confirmed' })])
+    h.deal = null; h.inserted = []; h.events = []
+    h.email = 'ai-review@eno.vn'
+    h.teachers = []
+    expect((await confirm()).status).toBe(200)
+    expect(h.teacherReads).toEqual([BUYER])
+    expect(h.inserted).toEqual([expect.objectContaining({ senderId: SELLER, kind: 'deal_confirmed' })])
   })
 })
 

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { isReactionEmoji } from '@/lib/reactions'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 
 /**
  * TOGGLE ONE PERSON'S REACTION ON ONE MESSAGE.
@@ -69,6 +70,11 @@ export const POST = route(
     // round 5): it only removes interaction. Decided below, inside the transaction, where add vs remove is
     // known. Either direction, like every block; off ⇒ no query.
     const blocked = await isBlockedBetween(convo!.buyerProfileId, convo!.sellerProfileId)
+    // ⛔ A STORE-REVIEW SEAT NEVER REACTS TO A TEACHER (round 4, 2026-11-14 — opus 3b; src/lib/review-seat-accounts.ts): the
+    // seat's reply is refused by the messages route, and an emoji on the teacher's message is the same touch. Refused
+    // like a block, below: an ADD only — taking a reaction back stays possible. The Profile row auth read carries the
+    // address, so only a seat reads further (review-seat-listings.ts reviewSeatMeetsTeacher). Never the lawyer.
+    const seatMeetsTeacher = await reviewSeatMeetsTeacher(profile.id, convo!.buyerProfileId === profile.id ? convo!.sellerProfileId : convo!.buyerProfileId, { actorEmail: profile.email ?? null })
 
     /**
      * ⛔ THE RECALL RACE — AND THE FIRST FIX FOR IT WAS ALSO WRONG. The `deletedAt` read above runs
@@ -109,8 +115,10 @@ export const POST = route(
           where: { messageId, profileId: profile.id, emoji: body.emoji },
         })
         if (removed.count === 0) {
-          // An ADD (or a swap to another emoji) — refused across a block; the transaction rolls back.
+          // An ADD (or a swap to another emoji) — refused across a block, and from a store-review seat to a teacher; the
+          // transaction rolls back.
           if (blocked) throw new ApiError('blocked', 403)
+          if (seatMeetsTeacher) throw new ApiError('forbidden', 403)
           /**
            * ⛔ ONE REACTION PER PERSON PER MESSAGE — A NEW PICK REPLACES THE OLD ONE. Owner,
            * 2026-08-18: "new emoji is added from right to left and not swap places with previously

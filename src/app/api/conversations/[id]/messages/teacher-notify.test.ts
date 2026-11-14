@@ -17,6 +17,13 @@ const h = vi.hoisted(() => ({
   convo: null as Row | null,
   notified: [] as Row[],
   personal: '',
+  // The writer's address as its Profile row reads it — a review seat's (src/lib/review-seat-accounts.ts) in its tests.
+  email: 'someone@example.com',
+  /** Whose Profile reads failed (a database error): the seat guard must fail closed. */
+  profileDown: false,
+  // The profiles that own a TeacherProfile (live or hidden), and every TeacherProfile read the route made.
+  teachers: ['teacher-1'] as string[],
+  teacherReads: [] as string[],
   // The thread's messages as insertMessage wrote them — what mayWriteToTeacher counts.
   messages: [] as Row[],
   // Idempotency claims released (kv.del) — every refusal must free its claim.
@@ -76,7 +83,14 @@ vi.mock('@/lib/db', () => {
       conversation: { findUnique: async () => h.convo },
       forumUserBlock: { findFirst: async () => null },
       // Answers 'individual' for h.personal: were the ring ever gated on the account type again, the test below would see it.
-      profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: 'someone@example.com', accountType: where.id === h.personal ? 'individual' : 'business' }) },
+      profile: { findUnique: async ({ where }: { where: { id: string } }) => {
+        if (h.profileDown) throw new Error('db down')
+        return { email: h.email, accountType: where.id === h.personal ? 'individual' : 'business' }
+      } },
+      teacherProfile: { findUnique: async ({ where }: { where: { profileId: string } }) => {
+        h.teacherReads.push(where.profileId)
+        return h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null
+      } },
       // teacherUnansweredGuard's two statements: LAZY markers, run by insertMessage's mock above as the transaction would.
       $executeRaw: (_s: TemplateStringsArray, ...values: unknown[]) => ({ guard: 'lock', key: values[0] }),
       $queryRaw: (_s: TemplateStringsArray, ...values: unknown[]) => ({ guard: 'check', values }),
@@ -104,7 +118,10 @@ const thread = (hoursQuiet: number, listingType = 'teacher') => ({
 const sentBy = (who: string) => h.messages.filter((m) => m.senderProfileId === who).map((m) => m.body)
 const tick = () => new Promise((r) => setTimeout(r, 0)) // the ring runs in after()
 
-beforeEach(() => { h.me = 'school-1'; h.notified = []; h.personal = ''; h.messages = []; h.released = []; h.beforeInsert = null; h.carried = [] })
+beforeEach(() => {
+  h.me = 'school-1'; h.notified = []; h.personal = ''; h.email = 'someone@example.com'; h.messages = []; h.released = []; h.beforeInsert = null; h.carried = []
+  h.profileDown = false; h.teachers = ['teacher-1']; h.teacherReads = []
+})
 
 describe('a message into a teacher thread', () => {
   it('rings the teacher when the thread had gone quiet', async () => {
@@ -208,5 +225,132 @@ describe('⛔ a teacher who has not answered gets at most two messages (owner, 2
     h.convo = thread(1, 'sell')
     for (const body of ['Is this still available?', 'Could I see it today?', 'Hello?']) expect(await send({ body })).toBe(200)
     expect(sentBy('school-1')).toHaveLength(3)
+  })
+})
+
+describe('⛔ a review seat (src/lib/review-seat-accounts.ts) — personal or business', () => {
+  it('writes nothing into a teacher thread — 403 forbidden, nothing rung, its claim freed', async () => {
+    h.convo = thread(7)
+    h.email = ' AI-Review@eno.vn'
+    const res = await post({ body: 'Hello, we need a cover teacher — could you cover a lesson for us?', clientId: 'seat-1' })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'forbidden' })
+    expect(sentBy('school-1')).toEqual([])
+    expect(h.carried).toEqual([])
+    await tick()
+    expect(h.notified).toEqual([])
+    expect(h.released).toEqual(['msgid:c1:school-1:seat-1'])
+  })
+
+  it('as a PERSON too: the cover opener from a personal seat is refused the same way (the server never reads the words)', async () => {
+    h.convo = thread(7)
+    h.email = 'app-review@eno.vn'
+    h.personal = 'school-1'
+    const res = await post({ body: 'Hello, we need a cover teacher — could you cover a lesson for us?', clientId: 'seat-2' })
+    expect(res.status).toBe(403)
+    expect(sentBy('school-1')).toEqual([])
+    await tick()
+    expect(h.notified).toEqual([])
+    expect(h.released).toEqual(['msgid:c1:school-1:seat-2'])
+  })
+
+  it('CONTROL: the seat on an ordinary listing from someone who is NOT a teacher still writes — and a writer that is not a seat is untouched', async () => {
+    h.email = 'play-review@eno.forum'
+    h.convo = { ...thread(1, 'sell'), sellerProfileId: 'shop-1' }
+    expect(await send({ body: 'Is this still available?' })).toBe(200)
+    expect(h.teacherReads).toEqual(['shop-1'])
+    h.email = 'office@saigon-english.example'
+    h.convo = thread(1)
+    expect(await send({ body: 'Hello, we are hiring a teacher' })).toBe(200)
+    expect(sentBy('school-1')).toHaveLength(2)
+    // An ordinary writer pays the one Profile read and never a TeacherProfile one: the hot path stays as it was.
+    expect(h.teacherReads).toEqual(['shop-1'])
+  })
+
+  // ⛔ Round 4, 2026-11-14: the lawyer's seat is no store seat (review-seat-accounts.ts) — it owns Luật Hoàng Phi's
+  // storefront, and a teacher asking that firm about a work permit must be answered.
+  it('CONTROL: the LAWYER\'s seat writes in a teacher thread as anyone does — no TeacherProfile read', async () => {
+    h.email = 'lawyer-review@eno.vn'
+    h.convo = thread(1)
+    expect(await send({ body: 'Yes, we can help with the work permit.' })).toBe(200)
+    expect(sentBy('school-1')).toEqual(['Yes, we can help with the work permit.'])
+    expect(h.teacherReads).toEqual([])
+  })
+})
+
+/**
+ * ⛔ ROUND 3 (2026-11-14): A SEAT WRITES TO NO TEACHER IN ANY THREAD — as the SELLER too. A teacher who writes in about a
+ * seat's job post (or anything a seat sells) opens a thread where the seat is the seller; its reply would be a school's
+ * voice in a teacher's inbox. Any thread whose other side owns a TeacherProfile, live or hidden, refuses the seat's send:
+ * 403, nothing written, nobody rung, the claim freed.
+ */
+describe('⛔ a review seat writes to no teacher in ANY thread (round 3) — the seat as the seller included', () => {
+  /** A teacher (buyer) wrote to the seat's job post (seller): the seat-as-school arrangement round 2 left open. */
+  const jobThread = (seller = 'seat-1', buyer = 'teacher-2') => ({
+    id: 'c1', buyerProfileId: buyer, sellerProfileId: seller, sellerId: 's-seat',
+    lastMessageAt: new Date(Date.now() - 9 * 3_600_000),
+    listing: { id: 'J1', negotiable: false, status: 'active', listingType: 'job' },
+  })
+
+  it('⛔ teacher buyer, seat seller, a job listing → the seat\'s reply is 403: no message, no notification, the claim freed', async () => {
+    h.teachers = ['teacher-2']
+    h.convo = jobThread()
+    h.me = 'seat-1'
+    h.email = 'ai-review@eno.vn'
+    const res = await post({ body: 'Thanks for applying — can you cover a lesson on Thursday?', clientId: 'seat-job' })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'forbidden' })
+    expect(h.messages).toEqual([])
+    expect(h.carried).toEqual([])
+    await tick()
+    expect(h.notified).toEqual([])
+    expect(h.released).toEqual(['msgid:c1:seat-1:seat-job'])
+    expect(h.teacherReads).toEqual(['teacher-2'])
+  })
+
+  it('…an offer too, and a HIDDEN teacher profile counts (the teacher\'s own switch, not a sign they are not one)', async () => {
+    h.teachers = ['teacher-2'] // the mock answers a row whatever its status: the guard never asks for one
+    h.convo = { ...jobThread(), listing: { id: 'J1', negotiable: true, status: 'active', listingType: 'sell' } }
+    h.me = 'seat-1'
+    h.email = 'app-review@eno.vn'
+    expect(await send({ body: '', offerAmount: 500_000 })).toBe(403)
+    expect(h.messages).toEqual([])
+  })
+
+  it('⛔ the seat as the BUYER on an ordinary listing a teacher sells: 403, nothing written', async () => {
+    h.convo = thread(7, 'sell') // the seller, teacher-1, owns a TeacherProfile
+    h.email = 'play-review@eno.forum'
+    expect(await send({ body: 'Is the bike still available?' })).toBe(403)
+    expect(h.messages).toEqual([])
+    await tick()
+    expect(h.notified).toEqual([])
+  })
+
+  it('⛔ fails CLOSED: a Profile read that fails sends nothing and frees the claim', async () => {
+    h.convo = jobThread()
+    h.me = 'seat-1'
+    h.profileDown = true
+    const res = await post({ body: 'hello', clientId: 'down-1' })
+    expect(res.status).toBe(500)
+    expect(h.messages).toEqual([])
+    expect(h.released).toEqual(['msgid:c1:seat-1:down-1'])
+  })
+
+  it('CONTROL: an ordinary school replying to the teacher who wrote to its job post is untouched — written, one Profile read, no TeacherProfile read', async () => {
+    h.teachers = ['teacher-2']
+    h.convo = jobThread('school-9')
+    h.me = 'school-9'
+    h.email = 'office@saigon-english.example'
+    expect(await send({ body: 'Thanks for applying — can you come in on Thursday?' })).toBe(200)
+    expect(sentBy('school-9')).toEqual(['Thanks for applying — can you come in on Thursday?'])
+    expect(h.teacherReads).toEqual([])
+  })
+
+  it('CONTROL: the teacher writing into that thread is untouched (the guard is on the seat\'s sends only)', async () => {
+    h.teachers = ['teacher-2']
+    h.convo = jobThread()
+    h.me = 'teacher-2'
+    expect(await send({ body: 'Hello, I saw your job post' })).toBe(200)
+    expect(sentBy('teacher-2')).toHaveLength(1)
   })
 })

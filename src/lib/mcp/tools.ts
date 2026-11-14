@@ -22,6 +22,7 @@ import { isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
+import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { cutText } from '@/lib/feed-text'
@@ -327,7 +328,7 @@ export const TOOLS: McpTool[] = [
     description: 'Change one of this shop\'s listings: only the fields you send change. Photos you send replace the current set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. An edit of a listing waiting for eno\'s licence check is saved with the listing kept unpublished until eno approves it (the result says `held: true`); this tool cannot change a subcategory or the licence values.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ ok: OK, held: z.boolean().nullish().describe('true when the listing stays unpublished until eno\'s licence check approves it; absent otherwise') }).describe('Confirms the edit'),
+    output: z.looseObject({ ok: OK, held: z.boolean().nullish().describe('true when the listing stays unpublished until eno\'s licence check approves it; absent otherwise'), unpublished: z.boolean().nullish().describe('true when the listing is from an account whose listings are not shown publicly and is not public; absent otherwise') }).describe('Confirms the edit'),
     input: z.object({
       id: z.string().describe('The listing to change, by the id list_listings or create_listing gave'),
       title: z.string().optional().describe('The new headline; phone numbers are not allowed in it'),
@@ -355,7 +356,8 @@ export const TOOLS: McpTool[] = [
         throw new ToolError(res.error, res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en : res.error)
       }
       // `held`: an e-Visa / Legal & permits listing still waiting for eno's licence check — unpublished, as on /api/v1.
-      return res.held ? { ok: true, held: true } : { ok: true }
+      // `unpublished`: a store-review seat's listing that is not public (round 5 — review-seat-accounts.ts), as on /api/v1.
+      return res.held ? { ok: true, held: true } : res.unpublished ? { ok: true, unpublished: true } : { ok: true }
     },
   },
   {
@@ -378,6 +380,8 @@ export const TOOLS: McpTool[] = [
             : res.error === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
               // An e-Visa / Legal & permits listing eno has not checked (2026-10-14).
               : res.error === 'licence_check_required' ? LICENCE_CHECK_REQUIRED_COPY.en
+                // A store-review seat's listing, any type (round 5 — review-seat-accounts.ts).
+                : res.error === 'review_seat_listing' ? REVIEW_SEAT_LISTING_COPY.en
                 // A hiring post whose stored text the job-text screen refuses (2026-10-19): its rule's sentence, and `detail`.
                 : isJobTextBlockCode(res.error) ? JOB_TEXT_REFUSAL[res.error].en
                   : res.error

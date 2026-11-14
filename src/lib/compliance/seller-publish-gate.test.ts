@@ -93,6 +93,8 @@ const gate = await import('./seller-publish-gate')
 const { recomputeVerification } = await import('./recompute-verification')
 const { PublishBlockedError } = await import('@/lib/publish-guard')
 const { licenceClearedWhere } = await import('@/lib/licence-stamp')
+// releaseIdentityHolds never releases a review seat's row (src/lib/review-seat-accounts.ts) — the write says so.
+const { NOT_A_REVIEW_SEATS_LISTING } = await import('@/lib/review-seat-accounts')
 /** The licence check's guard the release ANDs into its write, for the desk mocked above. */
 const GUARD = licenceClearedWhere(['desk-seller'])
 
@@ -257,7 +259,7 @@ describe('settleHolds — the re-check that closes the decide-then-park race', (
     h.listings = [{ id: 'l1', seller: { ownerId: 'plain-owner' } }]
     h.updateManyCount = 1
     expect(await gate.settleHolds(['l1'], AFTER_ALL_DEADLINES)).toBe(1)
-    expect(h.calls.find((c) => c.m === 'listing.updateMany')!.args).toEqual({ where: { id: { in: ['l1'] }, identityHold: true, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+    expect(h.calls.find((c) => c.m === 'listing.updateMany')!.args).toEqual({ where: { id: { in: ['l1'] }, identityHold: true, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } })
   })
 
   it('an owner still refused: nothing is released or written', async () => {
@@ -311,7 +313,7 @@ describe('AUTO-PUBLISH ON VERIFY — recomputeVerification releases the holds', 
     expect(r.status).toBe('verified')
     const upd = h.calls.find((c) => c.m === 'listing.updateMany')!.args
     // identityHold IS the only selector — a takedown (identityHold false) can never be released here.
-    expect(upd).toEqual({ where: { id: { in: ['l1', 'l2'] }, identityHold: true, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+    expect(upd).toEqual({ where: { id: { in: ['l1', 'l2'] }, identityHold: true, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } })
     expect(h.calls.find((c) => c.m === 'listing.findMany')!.args.where).toEqual({ sellerId: { in: ['s1'] }, identityHold: true })
     expect(h.calls.filter((c) => c.m === 'reindex').map((c) => c.args)).toEqual(['l1', 'l2'])
   })

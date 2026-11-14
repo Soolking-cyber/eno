@@ -7,6 +7,7 @@ import {
 } from './match-emails'
 import { AI_NOTICE_VERSION } from './profile'
 import { JUDGE_PROMPT_VERSION, TEACHING_JOB_WHERE } from './match-io'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
 // The ONE rule the plan the owner approves and the cron that sends share (plan review E2). What it must hold: only
 // current-notice consent, only v2 verdicts judged after that consent, the cooldown before the teacher cap, the visa
@@ -125,10 +126,11 @@ describe('the queries — what the plan and the send read', () => {
       modelVersions: { path: ['prompt'], equals: JUDGE_PROMPT_VERSION },
       teacherProfile: { matchEmailOptIn: true, matchEmailNoticeVersion: AI_NOTICE_VERSION, status: 'live', listing: { status: 'active', verified: true } },
       // ⛔ The export's job set — not just any live listing (gate review, 2026-10-08 — codex).
-      listing: { status: 'active', verified: true, listingType: 'job', category: { slug: 'jobs' }, subcategorySlug: 'teaching' },
+      // …and never a review seat's post (src/lib/review-seat-accounts.ts).
+      listing: { status: 'active', verified: true, listingType: 'job', category: { slug: 'jobs' }, subcategorySlug: 'teaching', ...NOT_A_REVIEW_SEATS_LISTING },
     })
     expect(where).toEqual(mailableMatchWhere(NOW))
-    expect(where.listing).toBe(TEACHING_JOB_WHERE)
+    expect(where.listing).toEqual({ ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING })
     expect(where.teacherProfile).toBe(MAILABLE_TEACHER_WHERE)
     expect(calls[0].args.take).toBe(MATCH_EMAIL_RULES.maxRows)
     expect(calls[0].args.select).toMatchObject({ createdAt: true, teacherProfile: { select: { matchEmailOptInAt: true } } })

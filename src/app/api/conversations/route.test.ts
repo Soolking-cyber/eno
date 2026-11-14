@@ -49,6 +49,9 @@ const h = vi.hoisted(() => ({
     docked: [] as string[],
     // Every `where` conversation.findFirst was handed — the P2002 fallback is held to its filter, not just its result.
     findFirstWheres: [] as Row[],
+    // The profiles that own a TeacherProfile (a review seat opens no thread with one), and every TeacherProfile read made.
+    teacherOwners: [] as string[],
+    teacherReads: [] as string[],
     // The teacher DM ladder (src/lib/teachers/dm-quota.ts), faked at its module in the teacher section below: what it
     // answers, and every question the route asked it.
     dm: {
@@ -118,6 +121,12 @@ vi.mock('@/lib/db', () => {
       // so the id still arrives at the top level.
       findFirst: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
       findUnique: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
+    },
+    teacherProfile: {
+      findUnique: ({ where }: Row) => {
+        h.state.teacherReads.push(where.profileId)
+        return Promise.resolve(h.state.teacherOwners.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null)
+      },
     },
     message: {
       findFirst: ({ where }: Row) =>
@@ -308,6 +317,8 @@ beforeEach(() => {
   h.state.dealThreads = []
   h.state.dealTableMissing = false
   h.state.findFirstWheres = []
+  h.state.teacherOwners = []
+  h.state.teacherReads = []
   h.state.dm = {
     standing: unverifiedDay(0), lockedStanding: null, concurrentThread: null, mayWrite: true, guardRefuses: false,
     tail: { empty: false, repeat: false },
@@ -802,6 +813,75 @@ describe('teacher threads', () => {
       expect(await res.json()).toEqual(await teacherDmRefusal(REVOKED, { error: 'teacher_thread_cap' }).json())
       expect(h.state.convos).toEqual([])
       expect(h.state.dm.asked.open).toEqual([])
+    })
+
+    it('⛔ a review seat as a school (review-seat-accounts.ts) gets the revoked refusal — no thread, no opener, no cover request, the ladder never asked', async () => {
+      h.state.profile = { id: BUYER, accountType: 'business', email: ' AI-Review@eno.vn' }
+      const res = await postRes({ listingId: TEACHER, message: 'Hello, we need a cover teacher — could you cover a lesson for us?' })
+      expect(res.status).toBe(403)
+      expect(res.headers.get('Retry-After')).toBeNull()
+      expect(await res.json()).toMatchObject({ error: 'teacher_thread_cap', tier: 'revoked', limit: 0, remaining: 0, next: 'none', reason: 'revoked' })
+      expect(h.state.convos).toEqual([])
+      expect(h.state.delivered).toEqual([])
+      expect(h.state.dm.asked.standing).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('⛔ …into a teacher thread it already has, too (one it opened before it became a business): nothing sent, nobody rung', async () => {
+      h.state.profile = { id: BUYER, accountType: 'business', email: 'play-review@eno.forum' }
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      const res = await postRes({ listingId: TEACHER, message: 'Could you cover Thursday?' })
+      expect(res.status).toBe(403)
+      expect(await res.json()).toMatchObject({ error: 'teacher_thread_cap', tier: 'revoked' })
+      expect(h.state.delivered).toEqual([])
+      expect(h.state.dm.asked.guarded).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('⛔ …as a PERSON too: a personal seat sending the cover opener is refused the same way (the server never reads the words)', async () => {
+      h.state.profile = { id: BUYER, accountType: 'individual', email: 'app-review@eno.vn' }
+      const res = await postRes({ listingId: TEACHER, message: 'Hello, we need a cover teacher — could you cover a lesson for us?' })
+      expect(res.status).toBe(403)
+      expect(await res.json()).toMatchObject({ error: 'teacher_thread_cap', tier: 'revoked', next: 'none' })
+      expect(h.state.convos).toEqual([])
+      expect(h.state.delivered).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('a school that is not a seat is untouched', async () => {
+      h.state.profile = { id: BUYER, accountType: 'business', email: 'office@saigon-english.example' }
+      expect((await post({ listingId: TEACHER, message: 'Hello, we are hiring a teacher' })).status).toBe(200)
+      expect(h.state.dm.asked.open).toHaveLength(1)
+    })
+
+    // ⛔ ROUND 3 (2026-11-14): nor any OTHER listing a teacher sells or lets — the thread's first message would be the seat
+    // writing to a teacher. A TeacherProfile, live or hidden, makes the storefront owner one.
+    it('⛔ a review seat opening a thread on an ORDINARY listing a teacher sells: 403 forbidden — no thread, no message, nobody rung', async () => {
+      h.state.profile = { id: BUYER, accountType: 'business', email: 'ai-review@eno.vn' }
+      h.state.teacherOwners = ['shop-owner']
+      const res = await postRes({ listingId: SHOP_A, message: 'Is the bike still available?' })
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: 'forbidden' })
+      expect(h.state.convos).toEqual([])
+      expect(h.state.delivered).toEqual([])
+      expect(notified()).toEqual([])
+      expect(h.state.teacherReads).toEqual(['shop-owner'])
+    })
+
+    it('CONTROL: the seat on an ordinary listing from someone who is NOT a teacher still opens its thread', async () => {
+      h.state.profile = { id: BUYER, accountType: 'business', email: 'ai-review@eno.vn' }
+      expect((await post({ listingId: SHOP_A, message: 'Is the bike still available?' })).status).toBe(200)
+      expect(h.state.delivered).toHaveLength(1)
+    })
+
+    it('CONTROL: an ordinary buyer writing to a teacher\'s ordinary listing is untouched — and pays no TeacherProfile read', async () => {
+      h.state.profile = { id: BUYER, accountType: 'individual', email: 'someone@example.com' }
+      h.state.teacherOwners = ['shop-owner']
+      expect((await post({ listingId: SHOP_A, message: 'Is the bike still available?' })).status).toBe(200)
+      expect(h.state.delivered).toHaveLength(1)
+      expect(h.state.teacherReads).toEqual([])
     })
 
     it('an existing teacher thread never asks the ladder — not even with nothing left today', async () => {

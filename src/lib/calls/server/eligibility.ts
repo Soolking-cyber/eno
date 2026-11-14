@@ -11,6 +11,7 @@ import { isEVisaThread } from '@/lib/ios-hide-visa-server'
 import { threadKind } from '@/lib/thread-kind'
 import { rateLimit } from '@/lib/ratelimit'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 import type { CallMedia } from '../types'
 import { modeAdmits, readCallsConfig, resetCallsConfigCache, type CallsConfig } from './config'
 import { pairCallCounts } from './session'
@@ -200,6 +201,16 @@ export async function callPermit(convo: ConversationForCall, callerId: string, m
   const { callerStaff, calleeStaff } = standing
 
   const teacherThread = convo.listingType === TEACHER_LISTING_TYPE
+  // ⛔ A REVIEW SEAT AND A TEACHER NEVER SHARE A CALL (src/lib/review-seat-accounts.ts) — in ANY thread, either role, either
+  // way (round 4, codex + opus: this asked only "a seat buyer in a teacher-listing thread", so a seat SELLING a job to a
+  // teacher still rang them). A call request is a card, a bell and a push in the teacher's thread; a start rings them;
+  // and the accept re-judges from the CALLER's side, so a teacher dialling a seat is refused here too, before the seat can
+  // pick up. review-seat-listings.ts reviewSeatMeetsTeacher, the predicate every seat-side act asks; a teacher listing's
+  // seller is the teacher without a read. Not only the identity check below — that one holds only while no seat has
+  // passed it. Two Profile reads per permit; only a seat reads further. A failed read throws: no call.
+  if (await reviewSeatMeetsTeacher(callerId, calleeId, { eitherWay: true, teacherSeller: teacherThread ? convo.sellerProfileId : null })) {
+    return refuse('calls_thread_unavailable', 403)
+  }
   if (!callerStaff && !(await verifiedAdult(callerId, now))) return refuse('calls_not_verified', 403)
   if ((media === 'video' || teacherThread) && !calleeStaff && !(await verifiedAdult(calleeId, now))) return refuse('calls_peer_not_verified', 403)
   return { ok: true, calleeId, teacherThread, config }

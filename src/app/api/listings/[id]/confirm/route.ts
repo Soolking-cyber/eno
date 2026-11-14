@@ -5,6 +5,7 @@ import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from 
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,8 @@ export const dynamic = 'force-dynamic'
 // {"ok":true}. Note the success body deliberately drops confirmCore's `bumped` flag; that is the
 // existing contract and a wrapper would not change it either way. Added 2026-10-14: a revive of an
 // e-Visa / Legal & permits listing eno has not checked → 409 licence_check_required with
-// `message: { en, vi }`.
+// `message: { en, vi }`. Added round 5 (2026-11-14): a revive of a store-review seat's listing, any type → 403
+// review_seat_listing with `message: { en, vi }` (review-seat-accounts.ts REVIEW_SEAT_LISTING_COPY).
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
@@ -40,12 +42,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!res.ok && isIdentityBlockCode(res.error)) return NextResponse.json(publishBlockedJson(res.error), { status: PUBLISH_BLOCKED_STATUS })
   // …or by the licence check: an e-Visa / Legal & permits listing eno has not checked (409, 2026-10-14) — with the
   // bilingual sentence for the native dashboards; or by the job-text screen: a revived hiring post whose stored text a job ad
-  // may not carry (400, 2026-10-19), with its rule's sentence and `detail` '<field>:<snippet>'.
+  // may not carry (400, 2026-10-19), with its rule's sentence and `detail` '<field>:<snippet>'; or because a store-review
+  // seat owns it (403 review_seat_listing, round 5), with the neutral line.
   if (!res.ok) {
     return NextResponse.json({
       error: res.error,
       ...(res.code === 400 ? { detail: res.detail } : {}),
-      ...(res.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : isJobTextBlockCode(res.error) ? { message: JOB_TEXT_REFUSAL[res.error] } : {}),
+      ...(res.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY }
+        : res.error === 'review_seat_listing' ? { message: REVIEW_SEAT_LISTING_COPY }
+          : isJobTextBlockCode(res.error) ? { message: JOB_TEXT_REFUSAL[res.error] } : {}),
     }, { status: res.code })
   }
   return NextResponse.json({ ok: true })

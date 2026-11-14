@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LICENCE_GRANDFATHER, LICENCE_STAMP_PREFIX, licenceClearedWhere, licenceStampFor } from '@/lib/licence-stamp'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
 // ── /api/admin/listings and the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts) ────────────────────────
 //
@@ -29,6 +30,9 @@ const attrs = (v: { legalName: string; licenceNo: string } | null, extra: Row = 
 // tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
 // turn it on.
 const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+// The review seats' listings (src/lib/review-seat-accounts.ts): `seatRows.ids` are a seat's; none unless a test says so.
+const seatRows = vi.hoisted(() => ({ ids: [] as string[] }))
+vi.mock('@/lib/review-seat-listings', () => ({ reviewSeatListingIds: async (ids: string[]) => ids.filter((i) => seatRows.ids.includes(i)) }))
 vi.mock('@/lib/licence-whitelist', () => ({
   get LICENCE_WHITELIST() { return wl.list },
   isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
@@ -51,11 +55,17 @@ const h = vi.hoisted(() => ({
 }))
 
 // ── the in-memory Listing table: the where-operators the route and licence-check use, with SQL's NULL semantics ──
-const OPS = ['in', 'notIn', 'not', 'equals', 'startsWith', 'none', 'lt']
+// `mode: 'insensitive'` (the review-seat owner test, NOT_A_REVIEW_SEATS_LISTING) compares lowercased, as Postgres's LOWER() does.
+const OPS = ['in', 'notIn', 'not', 'equals', 'startsWith', 'none', 'lt', 'mode']
+const lower = (x: unknown) => (typeof x === 'string' ? x.toLowerCase() : Array.isArray(x) ? x.map(lower) : x)
 function cond(v: unknown, c: any): boolean {
   if (c === null) return v === null || v === undefined
   if (c instanceof Date) return v instanceof Date && v.getTime() === c.getTime()
   if (typeof c !== 'object') return v === c
+  if (c.mode === 'insensitive') {
+    const { mode: _mode, ...rest } = c
+    return cond(lower(v), Object.fromEntries(Object.entries(rest).map(([op, x]) => [op, lower(x)])))
+  }
   return Object.entries(c).every(([op, x]: [string, any]) => {
     if (op === 'in') return v != null && x.includes(v)
     if (op === 'notIn') return v != null && !x.includes(v) // NULL NOT IN (…) is not true in SQL
@@ -166,6 +176,7 @@ const writes = () => h.calls.filter((c) => c.m === 'updateMany' || c.m === 'upda
 const GUARD = licenceClearedWhere([DESK])
 
 beforeEach(() => {
+  seatRows.ids = []
   wl.list = []
   h.rows = []
   h.clock = 1_000
@@ -189,7 +200,7 @@ describe('verify ("Publish") — an unchecked e-Visa / Legal & permits row is ne
     expect(byId('visa-1').verified).toBe(false)
     expect(byId('lp-1').verified).toBe(false)
     // The write names only the cleared id and carries the guard (for eno's desk, resolved once).
-    expect(writes().map((c) => c.args.where)).toEqual([{ id: { in: ['p1'] }, status: { not: 'removed' }, AND: [GUARD] }])
+    expect(writes().map((c) => c.args.where)).toEqual([{ id: { in: ['p1'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }])
     expect(h.deskCalls).toBe(1)
   })
 
@@ -362,7 +373,7 @@ describe('licence-approve — the one stamp writer', () => {
     expect(await json({ action: 'licence-approve', ids: ['visa-1'], seen: { 'visa-1': stampOf(w) } })).toEqual({ ok: true, affected: 0, approved: 1, stillHeld: 1 })
     expect(byId('visa-1').verified).toBe(false)
     const publishWrite = writes().find((c) => c.args.data.verified === true)!
-    expect(publishWrite.args.where.AND).toEqual([GUARD, { reports: { none: { status: { in: ['open', 'confirmed'] } } }, seller: { OR: [{ ownerId: null }, { owner: { enforcementState: { notIn: ['held', 'suspended'] } } }], trustTier: { not: 'restricted' } }, verificationNotes: 'licence:held' }])
+    expect(publishWrite.args.where.AND).toEqual([GUARD, NOT_A_REVIEW_SEATS_LISTING, { reports: { none: { status: { in: ['open', 'confirmed'] } } }, seller: { OR: [{ ownerId: null }, { owner: { enforcementState: { notIn: ['held', 'suspended'] } } }], trustTier: { not: 'restricted' } }, verificationNotes: 'licence:held' }])
   })
 
   it('…and so is an owner held after the read', async () => {
@@ -609,5 +620,93 @@ describe('GET — where each listing stands with the licence check', () => {
     h.rows = [plain('p1')]
     await GET(new Request('https://eno.vn/api/admin/listings') as never)
     expect(h.deskCalls).toBe(0)
+  })
+})
+
+/**
+ * ⛔ A REVIEW SEAT'S LISTING IS NEVER PUBLISHED FROM THE CONSOLE (round 3, 2026-11-14 — src/lib/review-seat-accounts.ts
+ * REVIEW_SEAT_HELD_NOTE). Every action that can make a row public — Activate, Publish, a licence approval — refuses a
+ * batch holding one, by OWNER, before any write (409 naming the rows); the publish and park writes AND the same owner test,
+ * so a row the pre-read did not name is never published or parked either. Takedowns stay open.
+ */
+describe('⛔ a review seat\'s listing (round 3) — refused, never published, never parked', () => {
+  const seatOwner = { enforcementState: 'good_standing', accountType: 'business', email: 'app-review@eno.vn' }
+  const seatSeller = { name: 'eno App Review (internal)', trustScore: 80, trustTier: 'trusted', officialPartner: true, ownerId: 'seat-owner', owner: seatOwner }
+  const seatPlain = (id: string, over: Row = {}) => plain(id, { verificationNotes: 'review-seat:held', seller: { ...seatSeller }, ...over })
+
+  it('⛔ Publish, Activate and a licence approval each answer 409 naming the seat\'s rows — nothing written, audited or refreshed', async () => {
+    // A store seat's Legal & permits row (a reviewer testing the aisle) waits for a licence approval: refused too.
+    const lp = listingRow('seat-lp', { subcategorySlug: 'legal-permits', attributes: attrs(LPV), seller: { ...seatSeller } })
+    h.rows = [plain('p1'), seatPlain('seat-1'), lp]
+    seatRows.ids = ['seat-1', 'seat-lp']
+    for (const body of [
+      { action: 'verify', ids: ['p1', 'seat-1'] },
+      { action: 'activate', ids: ['p1', 'seat-1'] },
+      { action: 'licence-approve', ids: ['seat-lp'], seen: { 'seat-lp': stampOf(lp, LPV) } },
+    ]) {
+      const r = await post(body)
+      expect(r.status, body.action).toBe(409)
+      expect(JSON.parse(r.text), body.action).toEqual({ error: 'review_seat_listing', ids: body.ids.filter((i) => i !== 'p1') })
+    }
+    expect(writes()).toEqual([])
+    expect(h.audits).toEqual([])
+    expect(h.refreshed).toEqual([])
+    expect(byId('p1').verified).toBe(false)
+    expect(byId('seat-1')).toMatchObject({ verified: false, identityHold: false, verificationNotes: 'review-seat:held' })
+    expect(byId('seat-lp')).toMatchObject({ verified: false, identityHold: false, verificationMethod: null })
+  })
+
+  it('⛔ the write ANDs the owner test as well: a seat\'s row the pre-read did not name is neither published nor parked', async () => {
+    // seat-2's owner address stored in another case: the owner test ignores case, as the create hold does (opus, round 3).
+    h.rows = [plain('p1'), seatPlain('seat-1'), seatPlain('seat-2', { seller: { ...seatSeller, owner: { ...seatOwner, email: 'App-Review@ENO.vn' } } })]
+    h.idHeld = ['seat-2'] // its owner refused by the identity gate: the park must skip it too, or a release would publish it
+    const r = JSON.parse((await post({ action: 'verify', ids: ['p1', 'seat-1', 'seat-2'] })).text)
+    expect(r.affected).toBe(1)
+    expect(r.held ?? 0).toBe(0)
+    expect(byId('p1').verified).toBe(true)
+    expect(byId('seat-1')).toMatchObject({ verified: false, identityHold: false })
+    expect(byId('seat-2')).toMatchObject({ verified: false, identityHold: false })
+    for (const w of writes()) expect(w.args.where.AND, w.m).toContainEqual(NOT_A_REVIEW_SEATS_LISTING)
+  })
+
+  it('CONTROL: a no-email owner\'s row and an ownerless row are published as before (the owner test is NULL-safe)', async () => {
+    h.rows = [
+      plain('phone-only', { seller: { ...seatSeller, ownerId: 'phone-owner', owner: { ...seatOwner, email: null } } }),
+      plain('ownerless', { seller: { ...seatSeller, ownerId: null, owner: null } }),
+    ]
+    expect(JSON.parse((await post({ action: 'verify', ids: ['phone-only', 'ownerless'] })).text)).toEqual({ ok: true, affected: 2 })
+    expect(byId('phone-only').verified).toBe(true)
+    expect(byId('ownerless').verified).toBe(true)
+  })
+
+  it('CONTROL: takedowns stay open on a seat\'s row — Hide and Unpublish', async () => {
+    h.rows = [seatPlain('seat-1', { verified: true })]
+    seatRows.ids = ['seat-1']
+    expect((await post({ action: 'hide', ids: ['seat-1'] })).status).toBe(200)
+    expect(byId('seat-1')).toMatchObject({ status: 'hidden', verified: false })
+    expect((await post({ action: 'unverify', ids: ['seat-1'] })).status).toBe(200)
+  })
+
+  it('GET flags a seat\'s row `reviewSeat: true` — and never puts the owner\'s address on the wire', async () => {
+    h.rows = [plain('p1'), seatPlain('seat-1'), plain('phone-only', { seller: { ...seatSeller, ownerId: 'phone-owner', owner: { ...seatOwner, email: null } } })]
+    const res = await GET(new Request('https://eno.vn/api/admin/listings') as never)
+    const { listings } = (await res.json()) as { listings: Row[] }
+    const of = (id: string) => listings.find((l) => l.id === id)!
+    expect(of('seat-1').reviewSeat).toBe(true)
+    expect(of('p1')).not.toHaveProperty('reviewSeat')
+    expect(of('phone-only')).not.toHaveProperty('reviewSeat')
+    expect(JSON.stringify(listings)).not.toContain('app-review@eno.vn')
+  })
+
+  // ⛔ Round 4, 2026-11-14: the lawyer's seat is NOT a store seat (review-seat-accounts.ts) — it owns a real storefront, Luật
+  // Hoàng Phi, whose listings publish like any partner's. The REAL owner test in the write lets them through.
+  it('CONTROL: the lawyer seat\'s storefront (Luật Hoàng Phi) is published and licence-approved like any partner\'s', async () => {
+    const lawyerSeller = { ...seatSeller, name: 'Luật Hoàng Phi', ownerId: 'lawyer-owner', owner: { ...seatOwner, email: 'lawyer-review@eno.vn' } }
+    const lp = listingRow('hp-lp', { subcategorySlug: 'legal-permits', attributes: attrs(LPV), seller: { ...lawyerSeller } })
+    h.rows = [plain('hp-1', { seller: { ...lawyerSeller } }), lp]
+    expect(JSON.parse((await post({ action: 'verify', ids: ['hp-1'] })).text)).toEqual({ ok: true, affected: 1 })
+    expect(byId('hp-1').verified).toBe(true)
+    expect(await json({ action: 'licence-approve', ids: ['hp-lp'], seen: { 'hp-lp': stampOf(lp, LPV) } })).toEqual({ ok: true, affected: 1, approved: 1 })
+    expect(byId('hp-lp')).toMatchObject({ verified: true, identityHold: false })
   })
 })

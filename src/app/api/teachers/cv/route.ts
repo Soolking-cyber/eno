@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { teacherThread } from '@/lib/teachers/share'
 import { conversationGate } from '@/lib/enforcement'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { signTeacherCv } from '@/lib/teachers/cv-store'
 
 export const runtime = 'nodejs'
@@ -16,6 +17,11 @@ export const GET = route(
     const conversationId = new URL(req.url).searchParams.get('conversationId') ?? ''
     const t = conversationId ? await teacherThread(conversationId) : null
     if (!t || t.recruiterUserId !== profile.id) throw new ApiError('not_found', 404)
+    // ⛔ A STORE-REVIEW SEAT NEVER READS A TEACHER'S CV (round 5, 2026-11-14 — codex, round 4; src/lib/review-seat-accounts.ts):
+    // a share made before the seat rules still stands, and it is an outside reviewer's shared login, not a school. Refused
+    // before anything private is read or a link signed — personal or business alike, by the Profile row's address (the one ensureProfile
+    // pins on a seat), never the session's. Never the lawyer (isReviewSeatEmail).
+    if (isReviewSeatEmail(profile.email)) throw new ApiError('forbidden', 403)
     // A recruiter suspended after the teacher shared reads nothing more.
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     if (!t.shared) throw new ApiError('share_required', 403)

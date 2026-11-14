@@ -406,8 +406,10 @@ describe('the job set — ONE definition, exported, imported and mailed through 
     }
   })
   it('⛔ the script exports AND imports through it — never an inline copy of the set', () => {
-    expect(SCRIPT_TEXT).toContain('where: TEACHING_JOB_WHERE,')
-    expect(SCRIPT_TEXT).toContain('where: { id: { in: listingIds }, ...TEACHING_JOB_WHERE }, select: IMPORT_LISTING_SELECT')
+    // …and both leave out a review seat's post (src/lib/review-seat-accounts.ts — null-safe, so a no-email owner's job stays).
+    expect(SCRIPT_TEXT).toContain('where: { ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING },')
+    expect(SCRIPT_TEXT).toContain('where: { id: { in: listingIds }, ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING }, select: IMPORT_LISTING_SELECT')
+    expect(SCRIPT_TEXT).toContain("import { NOT_A_REVIEW_SEATS_LISTING } from '../src/lib/review-seat-accounts'")
     expect(SCRIPT_TEXT).not.toMatch(/subcategorySlug: 'teaching'/)
   })
 })

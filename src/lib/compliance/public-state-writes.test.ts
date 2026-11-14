@@ -39,6 +39,13 @@ import { join, relative, sep } from 'node:path'
  * And, for the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts), two more: every existing-row
  * publish must carry its guard (`publishesWithoutLicenceGuard`, exemptions in LICENCE_GUARD_EXEMPT), and a
  * non-null approval stamp is written in one place only (`stampWrites`, STAMP_WRITERS).
+ * And for the REVIEW SEATS (round 3, 2026-11-14 — src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE): a seat's new
+ * listings are written verified:false, so every existing-row `verified: true` publish must AND the owner test
+ * (NOT_A_REVIEW_SEATS_LISTING / notAReviewSeatsListingSql) or be listed in REVIEW_SEAT_GUARD_EXEMPT with the construction
+ * that keeps a seat's row out (`publishesWithoutReviewSeatGuard`). ⚠️ That scan covers the new rows only: a seat's OLDER
+ * row (made before round 3) may still be verified, and a STATUS-ONLY move back to active would publish it — the scan
+ * does not see those. The seller revives that make that move, core/listings.ts setStatusCore and confirmCore, refuse
+ * every row a seat owns IN CODE (round 5, 403 review_seat_listing — pinned in src/lib/core/listings.review-seat.test.ts).
  * And for the teacher card's "Identity verified" tick (owner, 2026-10-15 — src/lib/teachers/identity-mark-card.ts): a
  * non-null Listing.identityMarkNotice — the card cache that makes a card claim "eno checked this person's ID" — is
  * written in one place only (`markWrites`, MARK_WRITERS).
@@ -71,9 +78,9 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   // (Since 2026-10-14 every EXISTING-row publish below also carries the licence check's guard — licenceClearedWhere /
   // licenceClearedSql, held to it by `publishesWithoutLicenceGuard` further down — and the creates hold a licence-aisle
   // row unpublished: owner, "Anyone posts, live after check".)
-  'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused; a non-desk e-Visa / Legal & permits post is inserted verified:false — licenceCheckHold) + confirmCore revive (identityGateForRevive → refuse; licenceClearedWhere in the write, R1)' },
-  'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false) nor re-show a profile with no job goal and no public cover (D6 — TeacherNoGoalError, under the account lock)' },
-  'src/lib/core/bulk.ts': { count: 1, why: 'bulkImportCore insert — whole batch refused before the loop (sellerPublishDecision)' },
+  'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused; a non-desk e-Visa / Legal & permits post is inserted verified:false — licenceCheckHold; a REVIEW SEAT\'s post is inserted verified:false with REVIEW_SEAT_HELD_NOTE, never identityHold — ownerIsReviewSeat) + confirmCore revive (identityGateForRevive → refuse; licenceClearedWhere in the write, R1; a store-review seat\'s row of any type refused first, 403 review_seat_listing — round 5)' },
+  'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only), and never a review seat\'s (TeacherReviewSeatError, first, on the Profile row\'s address: the insert is verified:true, so a seat is refused a create and an edit alike — review-seat-accounts.ts); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false) nor re-show a profile with no job goal and no public cover (D6 — TeacherNoGoalError, under the account lock), nor one a store-review seat holds (api/teachers/me/status refuses it first; the generic revives — core/listings.ts setStatusCore\'s relist and confirmCore\'s revive — refuse every row a seat owns, any type, round 5)' },
+  'src/lib/core/bulk.ts': { count: 1, why: 'bulkImportCore insert — whole batch refused before the loop (sellerPublishDecision); a REVIEW SEAT\'s rows (the CSV, /api/v1 bulk, MCP bulk, a sync\'s creates) are inserted verified:false with REVIEW_SEAT_HELD_NOTE, never identityHold (ownerIsReviewSeat, once per import)' },
   'src/app/api/admin/listings/route.ts': { count: 4, why: 'admin activate/verify — partitionByIdentityGate, refused owners are HELD (identityHold); uncleared licence-aisle rows left out (licenceBlockedIds) and every write ANDs licenceClearedWhere (activate since R1, 2026-10-14); verify is publishListings, which licence-approve reuses' },
   'src/app/api/admin/moderate/route.ts': { count: 1, why: 'moderation approve — partitionByIdentityGate, refused owner HELD; an uncleared licence-aisle row answers 409 licence_check_required before any write, and the write ANDs NOT_REMOVED + licenceClearedWhere' },
   'src/lib/enforcement.ts': { count: 2, why: 'restoreListings (lift/expiry) + applyEnforcement downgrade restore — refused owners HELD; uncleared licence-aisle rows neither published nor parked, both writes AND licenceClearedWhere' },
@@ -151,6 +158,22 @@ const LICENCE_GUARD_EXEMPT: Record<string, { count: number; why: string }> = {
   'scripts/retire-rever-rentals.ts': { count: 2, why: 'the rollback .sql and the revival of the ownerless Rever seller’s apartment rows (sellerId + apartment subcategory pinned)' },
   'scripts/retire-stale-batdongsan.ts': { count: 1, why: 'the rollback .sql of a stale retire over the ownerless Batdongsan seller (pinned by id)' },
   'scripts/vehicle-rentals-status.ts': { count: 2, why: 'the revival and the expiry rollback over the ownerless vehicle import storefronts (VEHICLE_SELLERS, pinned by id) — car and motorbike hire' },
+}
+
+/**
+ * ⛔ EXISTING-ROW `verified: true` PUBLISHES THAT NEED NO REVIEW-SEAT GUARD (round 3, 2026-11-14 — src/lib/review-seat-accounts.ts
+ * REVIEW_SEAT_HELD_NOTE). A seat's new listing is written verified:false, so only a write that sets `verified: true` on an
+ * existing row can publish one (a status-only write leaves it unpublished). Every such write ANDs NOT_A_REVIEW_SEATS_LISTING
+ * (raw SQL: notAReviewSeatsListingSql) — the admin publishes, moderation approve, the identity releases, publish-held — or
+ * is listed here with the construction that keeps a seat's held row out. Exact counts, as everywhere in this file.
+ * ⚠️ A seat's OLDER row — made before round 3, verified — is a different case: a status-only revive would publish it, and
+ * this list does not see those; the seller revives refuse it in code (core/listings.ts setStatusCore / confirmCore, round 5).
+ */
+const REVIEW_SEAT_GUARD_EXEMPT: Record<string, { count: number; why: string }> = {
+  'src/lib/enforcement.ts': { count: 2, why: 'restoreListings + the applyEnforcement downgrade restore republish ONLY the ids a hold recorded when it PULLED them — rows that were live (verified=true) at the pull. A seat\'s row created since round 3 is verified:false from its create and no publish path admits it, so it is never live, never pulled, never in a restore list. A seat\'s OLDER row that was live when a hold pulled it goes back to exactly that state — the restore puts back what the hold took, it never publishes a row that was not public before' },
+  'scripts/import-goplus.ts': { count: 1, why: 'the post-run identity release over the ONE GoPlus storefront (Handle goplus AND owner contact@goplus.com.vn AND official partner — goplusSellerRefusal), never a seat\'s' },
+  'scripts/seed-visa-shop.mjs': { count: 2, why: "eno's own e-Visa desk rows only (the desk storefront resolved by owner email) — staff, never a seat" },
+  'scripts/seed-trip-desk.mjs': { count: 1, why: "eno's own trip desk anchor row only — staff, never a seat" },
 }
 
 /**
@@ -486,6 +509,35 @@ export function publishesWithoutLicenceGuard(source: string): string[] {
 }
 
 /**
+ * Writes that PUBLISH AN EXISTING ROW by `verified: true` without the REVIEW-SEAT guard (round 3, 2026-11-14 —
+ * src/lib/review-seat-accounts.ts). A seat's new listing is stored verified:false, so the writes that can make one public are
+ * the ones that set `verified: true` on a row that exists: a Prisma `listing.update|updateMany|updateManyAndReturn|upsert`
+ * whose arguments (reads and an upsert's `create` blanked) set it and whose call text does not carry
+ * `NOT_A_REVIEW_SEATS_LISTING` un-negated, or a raw `UPDATE "Listing" … SET … verified = true` whose statement (to its
+ * closing backtick or ';') does not carry `notAReviewSeatsListingSql(`. Status-only writes are outside it: they cannot
+ * publish an unverified row (a seat's OLDER, verified row is kept off the seller revives in code — setStatusCore /
+ * confirmCore, round 5). One hit per write. Blind spots: those of the header (a payload built away from the call, a
+ * guard held in a variable).
+ */
+export function publishesWithoutReviewSeatGuard(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, /\b\w+\.listing\.(update|updateMany|updateManyAndReturn|upsert)\s*\(/g)) {
+    const raw = src.slice(open, close + 1)
+    if (!/\bverified\s*:\s*true\b/.test(blankCreates(blankReads(raw)))) continue
+    if (!raw.includes('NOT_A_REVIEW_SEATS_LISTING') || /\bNOT\s*:\s*\[?\s*NOT_A_REVIEW_SEATS_LISTING\b/.test(raw)) hits.push(`${lineOf(open)}: listing.${method} verified: true without NOT_A_REVIEW_SEATS_LISTING`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    if (!/\bverified"?\s*=\s*true\b/i.test(m[1])) continue
+    const rest = src.slice(m.index!)
+    const end = rest.search(/[`;]/)
+    if (!(end < 0 ? rest : rest.slice(0, end)).includes('notAReviewSeatsListingSql(')) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET verified = true without notAReviewSeatsListingSql`)
+  }
+  return hits
+}
+
+/**
  * Writes of a NON-NULL licence stamp (owner, 2026-10-14). Listing.verificationMethod is the repurposed approval stamp
  * (src/lib/licence-stamp.ts), so a value written to it is an approval: a listing write (any of LISTING_WRITE_CALL, an
  * upsert's `create` included — reads blanked) with `verificationMethod:` anything but `null`, its `{ verificationMethod }`
@@ -615,6 +667,18 @@ describe('⛔ the licence check (owner, 2026-10-14): every existing-row publish 
   it('⛔ a non-null licence stamp is written in ONE place — admin listings ‘licence-approve’', () => {
     const bad = drift(scanWith(stampWrites), STAMP_WRITERS)
     expect(bad, `A write puts a value into Listing.verificationMethod — the licence check's APPROVAL STAMP (src/lib/licence-stamp.ts). Only 'licence-approve' may: clear it with LICENCE_STAMP_CLEARED instead:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+})
+
+describe('⛔ a review seat\'s listing (round 3, 2026-11-14): every existing-row `verified: true` publish carries the owner test', () => {
+  it('⛔ no existing-row publish without NOT_A_REVIEW_SEATS_LISTING / notAReviewSeatsListingSql — unless listed with its construction', () => {
+    const found = scanWith(publishesWithoutReviewSeatGuard)
+    const bad = [
+      ...[...found.entries()].filter(([f]) => !REVIEW_SEAT_GUARD_EXEMPT[f]).map(([f, h]) => `${f} (unlisted)\n    ${h.join('\n    ')}`),
+      ...Object.entries(REVIEW_SEAT_GUARD_EXEMPT).filter(([f, a]) => (found.get(f)?.length ?? 0) !== a.count)
+        .map(([f, a]) => `${f}: expected ${a.count}, found ${found.get(f)?.length ?? 0}\n    ${(found.get(f) ?? []).join('\n    ')}`),
+    ]
+    expect(bad, `A write can publish an existing listing (\`verified: true\`) without the review-seat guard, so a seat's held test post (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) could go live through it. AND NOT_A_REVIEW_SEATS_LISTING into the write's WHERE (raw SQL: \`AND \${notAReviewSeatsListingSql()}\`), refusing by name first where an admin acts (review-seat-listings.ts reviewSeatListingIds); or, only if a seat's row can never reach the write BY CONSTRUCTION, list the file in REVIEW_SEAT_GUARD_EXEMPT with that construction:\n  ${bad.join('\n  ')}`).toEqual([])
   })
 })
 
@@ -757,6 +821,24 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'; UPDATE "Listing" SET verified = true WHERE \${licenceClearedSql()}`)).toHaveLength(1)
     // A raw takedown, and a status read in the WHERE, are not publishes.
     expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'hidden' WHERE status = 'active'`)).toEqual([])
+  })
+  it('flags an existing-row `verified: true` publish without the review-seat guard — and passes a guarded one, Prisma or raw', () => {
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { id: { in: ids }, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { id: { in: ids }, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false } })`)).toEqual([])
+    expect(publishesWithoutReviewSeatGuard(`tx.listing.updateMany({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true } })`)).toHaveLength(1)
+    // Negated is no guard; a guard named only in a comment is none either.
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { id, NOT: NOT_A_REVIEW_SEATS_LISTING }, data: { verified: true } })`)).toHaveLength(1)
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { id } /* NOT_A_REVIEW_SEATS_LISTING */, data: { verified: true } })`)).toHaveLength(1)
+    // Status-only writes, creates, takedowns and reads are outside it.
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { id }, data: { status: 'active' } })`)).toEqual([])
+    expect(publishesWithoutReviewSeatGuard(`db.listing.create({ data: { verified: true } })`)).toEqual([])
+    expect(publishesWithoutReviewSeatGuard(`db.listing.upsert({ where: { id }, create: { verified: true }, update: { title } })`)).toEqual([])
+    expect(publishesWithoutReviewSeatGuard(`db.listing.updateMany({ where: { verified: true }, data: { verified: false } })`)).toEqual([])
+    // Raw: the statement must carry the SQL half.
+    expect(publishesWithoutReviewSeatGuard('c.query(`UPDATE "Listing" SET verified = true WHERE id = ANY($1::text[]) AND ${licenceClearedSql()}`)')).toHaveLength(1)
+    expect(publishesWithoutReviewSeatGuard('c.query(`UPDATE "Listing" SET verified = true WHERE id = ANY($1::text[]) AND ${licenceClearedSql()} AND ${notAReviewSeatsListingSql()}`)')).toEqual([])
+    expect(publishesWithoutReviewSeatGuard('c.query(`UPDATE "Listing" l SET verified = true FROM "Seller" s WHERE s.id = l."sellerId" AND ${notAReviewSeatsListingSql(\'l.\')}`)')).toEqual([])
+    expect(publishesWithoutReviewSeatGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'`)).toEqual([])
   })
   it('flags a non-null identity-mark write, Prisma (any model, nested, shorthand) or raw — and never a cleared one, a read or the consent\'s own version column', () => {
     expect(markWrites(`tx.listing.update({ where: { id }, data: { identityMarkNotice: version } })`)).toHaveLength(1)

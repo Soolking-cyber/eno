@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   dupChecks: [] as Row[],
 }))
 
+// The storefront owner is no review seat here (a seat's creates: core/listings.review-seat.test.ts, core/bulk.review-seat.test.ts).
+vi.mock('@/lib/review-seat-listings', () => ({ ownerIsReviewSeat: async () => false, reviewSeatListingIds: async () => [] }))
 vi.mock('next/server', () => ({ after: () => {} }))
 vi.mock('@/lib/db', () => ({
   db: {

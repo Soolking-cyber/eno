@@ -249,6 +249,17 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     expect(toastFn.error).toHaveBeenCalledWith(`${JOB_TEXT_REFUSAL.job_residence_wording.en} “Visa”`, expect.objectContaining({ id: 'relist-refusal:L1', action: { label: 'Edit', onClick: expect.any(Function) } }))
   })
 
+  it('⛔ review_seat_listing (round 5) → rolled back, with the route’s neutral line — never a silent flick back', async () => {
+    // A store-review seat's listing, any type: setStatusCore refuses its relist (403). The toast says what the route's
+    // `message` says for the native apps (review-seat-accounts.ts REVIEW_SEAT_LISTING_COPY).
+    const { REVIEW_SEAT_LISTING_COPY } = await import('@/lib/review-seat-accounts')
+    answer({ error: 'review_seat_listing', message: REVIEW_SEAT_LISTING_COPY }, false)
+    const { hook, onChanged } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(onChanged).toHaveBeenCalled()
+    expect(toastFn.error).toHaveBeenCalledWith(REVIEW_SEAT_LISTING_COPY.en, expect.objectContaining({ id: 'relist-refusal:L1', duration: expect.any(Number) }))
+  })
+
   it('any other failure keeps its silent rollback', async () => {
     answer({ error: 'invalid_status' }, false)
     const { hook } = await relist()

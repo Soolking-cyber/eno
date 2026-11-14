@@ -19,6 +19,8 @@ import { contentCaseWhere, takeDownReportedContent } from '@/lib/reported-conten
 import { windowExtendedBody } from '@/lib/dispute-window-row'
 import { TEACHER_LISTING_TYPE, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { adminWithdrawDeal, isMissingRelation, type AdminWithdrawResult } from '@/lib/service-deal-server'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
+import { reviewSeatListingIds } from '@/lib/review-seat-listings'
 
 export const dynamic = 'force-dynamic'
 
@@ -345,6 +347,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // action has no button in the console; the refusal is for the API caller who reaches for it anyway.
       const desk = await deskSellerIds()
       if ((await licenceBlockedIds([id], desk)).size) return NextResponse.json({ error: 'licence_check_required' }, { status: 409 })
+      // ⛔ NOR A REVIEW SEAT'S LISTING, EVER (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE — round 3, 2026-11-14):
+      // an outside reviewer's test post is not for sale. 409 before any write — not parked either, which a release would
+      // publish — and its reports stay as they are. By owner; the write below ANDs the same test.
+      if ((await reviewSeatListingIds([id])).length) return NextResponse.json({ error: 'review_seat_listing' }, { status: 409 })
       // ⚖️ SELLER IDENTITY GATE (gate on only): the approval is a CONTENT verdict and still dismisses
       // the reports, but if the owner cannot publish yet the listing is PARKED (identityHold) rather
       // than published — releaseIdentityHolds() publishes it when they verify. `held: 1` tells the
@@ -365,7 +371,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // ⛔ updateMany, CONDITIONAL (2026-10-14): never a tombstone (NOT_REMOVED — the guard this write lacked: an
         // approve used to republish a removed listing), and licenceClearedWhere — an edit that re-held an e-Visa /
         // Legal & permits row between the check above and this write makes it match nothing.
-        const { count } = await tx.listing.updateMany({ where: { id, ...NOT_REMOVED, AND: [licenceClearedWhere(desk)] }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })
+        const { count } = await tx.listing.updateMany({ where: { id, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING] }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })
         if (count !== 1) return false
         await tx.report.updateMany({
           where: { listingId: id, status: 'open' },

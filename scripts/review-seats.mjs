@@ -74,10 +74,13 @@ export const REVIEW_SEATS = Object.freeze({
    * official-partner gate, scripts/set-official-partner.mjs), then connect eno's Partner MCP server through "Sign in
    * with eno" (OAuth, src/lib/api/oauth-grant.ts) and read the shop's own demo listings, seeded HIDDEN by
    * scripts/seed-ai-review-listings.mjs.
-   * ⚠️ THE ONLY SEAT WITH `accountType: 'business'`, AND IT HAS TO BE: eligibleShop() refuses a sign-in grant to anyone
-   * but a BUSINESS account that owns its storefront (`not_business` on the consent page). What business changes in
-   * public is measured in register-play-reviewer.mjs's header. Every other seat has NO `accountType` key and is created
-   * 'individual' (seatAccountType below) — the Play seat's entry is pinned whole by src/lib/app-review-seat.test.ts.
+   * ⚠️ THE ONLY SEAT THIS TABLE CREATES AS `accountType: 'business'`, AND IT HAS TO BE: eligibleShop() refuses a sign-in
+   * grant to anyone but a BUSINESS account that owns its storefront (`not_business` on the consent page). What business
+   * changes in public is measured in register-play-reviewer.mjs's header. Every other seat has NO `accountType` key and
+   * is created 'individual' (seatAccountType below) — the Play seat's entry is pinned whole by
+   * src/lib/app-review-seat.test.ts. ⚠️ "Created" is not "is": the lawyer seat was switched to business afterwards, when
+   * it took over the Luật Hoàng Phi storefront (scripts/seed-hoangphi.ts). So the app's review-seat guards
+   * (src/lib/review-seat-accounts.ts) key on the seat's EMAIL, never on its account type.
    */
   ai: Object.freeze({
     email: 'ai-review@eno.vn',

@@ -21,6 +21,7 @@ import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaThread } from '@/lib/ios-hide-visa-server'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,8 +58,9 @@ const MAX_LEN = 2000
 // with the gate's OWN body (an object, not an error code — returned as a Response) · malformed
 // JSON → 400 bad_request · replayed clientId → 200 with the stored message · in-flight duplicate →
 // 409 send_in_flight · no text and no offer → 400 empty · unknown thread → 404 not_found ·
-// non-participant → 403 forbidden · offer on a fixed-price listing → 409 not_negotiable · offer on
-// a non-active listing → 409 listing_unavailable · success → 200 with the serialized message.
+// non-participant, or a review seat writing to a teacher (either side of the thread) → 403 forbidden · offer on a
+// fixed-price listing → 409 not_negotiable · offer on a non-active listing → 409 listing_unavailable · success → 200
+// with the serialized message.
 //
 // ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: the `catch { await release(); throw e }` around
 // insertMessage rethrows, which used to be Next's default 500 and is now
@@ -137,6 +139,25 @@ export const POST = route(
     // gate off isBlockedBetween answers false WITHOUT a query — this is the hot send path admin.ts
     // warns about. A support operator is not a party to a block (the desk has no profile).
     if (!iAmSupport && await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId)) { await release(); throw new ApiError('blocked', 403) }
+    // ⛔ A REVIEW SEAT NEVER WRITES TO A TEACHER (src/lib/review-seat-accounts.ts) — any seat, personal or business, in ANY
+    // thread whose other side is a teacher (round 3, 2026-11-14): as the buyer in a teacher thread, AND as the seller a
+    // teacher wrote to — a seat's job post, or anything else it sells — and a thread it opened before this guard. The
+    // other side counts as a teacher when they own a TeacherProfile, live or hidden (a hidden profile is the teacher's own
+    // switch, not a sign they are not one). Fails closed: a failed read sends nothing. The writer's pinned Profile.email
+    // (profile.ts — never the session's, which a seat can change) is one PK read per send; only a seat reads further. The
+    // non-participant's 403, before anything is written or rung; the thread page marks the bubble failed.
+    // A support operator is staff (an admin address is never a seat's) and is not read.
+    // The predicate is the one every seat-side act in a thread asks (review-seat-listings.ts reviewSeatMeetsTeacher); a
+    // teacher listing's seller is the teacher without a read.
+    if (!iAmSupport) {
+      let seatToTeacher = false
+      try {
+        seatToTeacher = await reviewSeatMeetsTeacher(meId, iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId, {
+          teacherSeller: convo.listing?.listingType === TEACHER_LISTING_TYPE ? convo.sellerProfileId : null,
+        })
+      } catch (e) { await release(); throw e }
+      if (seatToTeacher) { await release(); throw new ApiError('forbidden', 403) }
+    }
     // ⛔ A TEACHER WHO HAS NOT ANSWERED GETS AT MOST TWO MESSAGES (owner, 2026-10-13: "2 until reply" — dm-quota.ts
     // mayWriteToTeacher). Anyone may now start a teacher chat, so the cap on NEW chats alone would let an account keep
     // writing into every teacher who never answered.

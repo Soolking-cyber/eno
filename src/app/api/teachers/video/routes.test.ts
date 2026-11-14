@@ -232,6 +232,19 @@ describe('the school asks', () => {
     expect(h.rows.has('c1')).toBe(false)
     expect(h.rung).toEqual([])
   })
+  it('⛔ a review seat (review-seat-accounts.ts), business or personal, never asks: 403 forbidden — no line, no request, no ring', async () => {
+    h.me = { id: 'school-1', accountType: 'business', email: 'AI-review@eno.vn ' }
+    expect(await refusal(await post(request, { conversationId: 'c1' }))).toEqual([403, 'forbidden'])
+    expect(h.lines).toEqual([])
+    expect(h.rows.has('c1')).toBe(false)
+    expect(h.rung).toEqual([])
+    expect(h.asked).toEqual([]) // refused before the ladder is asked
+    // As a person too: the ask is a line in the teacher's thread either way.
+    h.me = { id: 'school-1', accountType: 'individual', email: 'ai-review@eno.vn' }
+    expect(await refusal(await post(request, { conversationId: 'c1' }))).toEqual([403, 'forbidden'])
+    expect(h.lines).toEqual([])
+    expect(h.rung).toEqual([])
+  })
   it('never a request the teacher was not told about: the row is written WITH the line, so a failed line writes nothing', async () => {
     h.failLine = true
     expect((await post(request, { conversationId: 'c1' })).status).toBe(500)

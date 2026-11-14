@@ -448,6 +448,7 @@ export type NicheApiErrorCode =
   | 'too_many_posts' // more posts in one delivery than INGEST_LIMITS.posts (413)
   | 'key_in_two_sources' // one externalKey under two sources in one delivery (400)
   | 'licence_check_required' // a licence-aisle row eno has not checked cannot go live — moderate 'approve', or a status change back to active (relist, confirm): approve it under Licence checks (409, 2026-10-14)
+  | 'review_seat_listing' // api/admin/listings verify/activate/licence-approve, api/admin/moderate approve: a store-review seat's listing is never published (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) — `ids` names the rows; nothing written (409, 2026-11-14). setStatusCore / confirmCore: a move back to active of any listing such a seat owns (403, round 5)
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
   | 'grandfather_unresolved' // /api/cron/licence-holds: LICENCE_GRANDFATHER's seller id no longer names VietKite's storefront, so the sweep refused (500, 2026-10-14)
@@ -979,6 +980,7 @@ const ALL = [
   'too_many_posts',
   'key_in_two_sources',
   'licence_check_required',
+  'review_seat_listing',
   'listing_changed',
   'desk_unresolved',
   'grandfather_unresolved',

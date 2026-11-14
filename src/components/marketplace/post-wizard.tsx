@@ -43,7 +43,7 @@ import { variantOfLanguage } from '@/lib/lang-variant'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
-import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
+import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess, notPublicSavedLine } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
 import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
 import { LicenceCheckNote, ProviderLicenceFields, licenceGuessHint, licenceHeldToast, licenceMovedOutToast, type LicenceSlot } from './post-wizard-evisa'
@@ -213,9 +213,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [submitted, setSubmitted] = useState(false)
   // Success-screen context: link to the live listing + a distinct first-ever moment.
   const [createdId, setCreatedId] = useState<string | null>(null)
-  // The licence aisle a new listing waits in for eno's check (createListingCore answered `verified: false`) — the success
-  // screen says so in that aisle's words (PostSuccess `held`). Null = live.
-  const [heldSlot, setHeldSlot] = useState<LicenceSlot | null>(null)
+  // Why a new listing is not live yet (PostSuccess `held`): the licence aisle it waits in for eno's check (createListingCore
+  // answered `held: true`) — the screen says so in that aisle's words — or 'not-public', stored unpublished with no licence
+  // asked and no check promised (`verified: false` alone — a store-review seat's post). Null = live.
+  const [heldSlot, setHeldSlot] = useState<LicenceSlot | 'not-public' | null>(null)
   const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // What a running Publish is doing, shown beside the button (publishProgress below). Photos and the video only
@@ -1604,7 +1605,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // between e-Visa and Legal & permits, a changed licence value, or any save of a listing not approved yet. Its page
         // is not public now, so the seller goes to the dashboard (where its chip reads the generic "Held") with the reason,
         // in that aisle's words — not to a 404.
-        const saved = (await res.json().catch(() => ({}))) as { held?: boolean }
+        const saved = (await res.json().catch(() => ({}))) as { held?: boolean; unpublished?: boolean }
+        // ⛔ A STORE-REVIEW SEAT'S EDIT (`unpublished`, updateListingCore — round 5): the row is not public after the save,
+        // and no check will publish it, so its page would 404. The dashboard with the one neutral line — never a licence
+        // toast, never the listing page. Only a seat's row is ever answered so: every other account's edit is as before.
+        if (saved.unpublished) {
+          subtleToast(notPublicSavedLine(t))
+          router.push('/dashboard')
+          return
+        }
         if (saved.held) {
           // A held save on a form no longer in either aisle is a move OUT of an unchecked listing: off the site, but not
           // waiting for a licence any more — its own words (commit gate).
@@ -1616,7 +1625,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         router.push(`/listings/${edit.id}`)
         return
       }
-      const created = (await res.json().catch(() => ({}))) as { id?: string; verified?: boolean }
+      const created = (await res.json().catch(() => ({}))) as { id?: string; verified?: boolean; held?: boolean }
       // A job's salary is not a sale value — the post event carries 0 for one (as the server's CAPI Lead does).
       trackPostListing({ id: created.id, title: title.trim(), price: salaryPaid ? 0 : Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
@@ -1632,9 +1641,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.setItem('eno-posted-before', '1')
       } catch {}
       setCreatedId(created.id ?? null)
-      // `verified: false` = a listing waiting for eno's licence check in e-Visa or Legal & permits (createListingCore): the
-      // success screen says so, in that aisle's words, instead of "Your listing is live!".
-      setHeldSlot(created.verified === false ? heldAisle : null)
+      // `held: true` = a listing waiting for eno's licence check in e-Visa or Legal & permits (createListingCore): the
+      // success screen says so, in that aisle's words, instead of "Your listing is live!". ⛔ ONLY `held` shows the licence
+      // screen (opus, round 3b): `verified: false` WITHOUT it is a listing stored unpublished in any aisle and never shown
+      // publicly (a store-review seat's post, review-seat-accounts.ts) — a neutral line, never a licence request.
+      setHeldSlot(created.held === true ? heldAisle : created.verified === false ? 'not-public' : null)
       // hapticConfirm, NOT haptic(18). haptics.ts names this exact case in its own docblock —
       // "a listing published" — and this line is the moment it describes. It used to fire a plain
       // tap: the screen threw a party (mascot + "Your first listing is live!") while the hand got

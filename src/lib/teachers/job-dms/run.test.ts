@@ -165,12 +165,15 @@ describe('runJobDms', () => {
     expect(sendJobDm).not.toHaveBeenCalled()
   })
 
-  it('eno.vn\'s own teaching jobs are read through the edition scope (edition-lint Rule A)', async () => {
+  it('eno.vn\'s own teaching jobs are read through the edition scope (edition-lint Rule A) — never a review seat\'s post', async () => {
     const { db } = await import('@/lib/db')
     T.posts = [post('1')]
     scoped.wheres = []
     await runJobDms({ dryRun: false, now: DAY })
     expect(scoped.wheres).toEqual([expect.objectContaining({ status: 'active', verified: true, listingType: 'job', subcategorySlug: 'teaching' })])
+    // ⛔ An outside reviewer's test job is never offered to a teacher (src/lib/review-seat-accounts.ts).
+    const { NOT_A_REVIEW_SEATS_LISTING } = await import('@/lib/review-seat-accounts')
+    expect(scoped.wheres[0]).toMatchObject(NOT_A_REVIEW_SEATS_LISTING)
     expect(vi.mocked(db.listing.findMany).mock.calls.at(-1)?.[0]).toMatchObject({ where: { AND: [scoped.wheres[0], { sellerId: { notIn: ['desk'] } }] } })
   })
 

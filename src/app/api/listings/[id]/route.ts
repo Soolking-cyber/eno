@@ -134,7 +134,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!r.ok) return NextResponse.json({ error: r.error, ...(r.detail ? { detail: r.detail } : {}), ...refusalMessage(r.error) }, { status: r.code })
   // `held`: the listing is waiting for eno's licence check in e-Visa or Legal & permits — moved there, a value changed, or
   // not yet approved — and is unpublished until an admin approves it. The wizard says so and goes to the dashboard.
-  return NextResponse.json(r.held ? { ok: true, held: true } : { ok: true })
+  // `unpublished` (round 5): a store-review seat's listing that is not public after the save — never published by any
+  // check (review-seat-accounts.ts); the wizard goes to the dashboard with the neutral line. Set for nobody else.
+  return NextResponse.json(r.held ? { ok: true, held: true } : r.unpublished ? { ok: true, unpublished: true } : { ok: true })
 }
 
 /** The bilingual sentence a native client shows for an edit refusal it cannot word itself — none for the rest. */

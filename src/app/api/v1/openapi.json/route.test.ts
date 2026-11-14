@@ -143,3 +143,41 @@ describe('the partner API spec — the job-text refusals', () => {
     expect(schemas.SyncRowResult.properties.detail.description).toMatch(/<field>:<words>/)
   })
 })
+
+// ⛔ Round 5, 2026-11-14 (src/lib/review-seat-accounts.ts): a few accounts' listings are never shown publicly — the spec
+// must say so without promising a check that would publish them, keep `held` meaning the licence check alone, and list
+// the refusal on both revive doors.
+describe('the partner API spec — accounts whose listings are never shown publicly', () => {
+  type Obj = Record<string, any>
+  const schemas = async () => (await load()).SPEC.components.schemas as unknown as Obj
+  const op = async (path: string, method: string) => ((await load()).SPEC.paths as unknown as Obj)[path][method] as Obj
+
+  it('createListing and CreatedListing: `verified: false` without `held`, never shown publicly — no check-then-live promise', async () => {
+    const create = await op('/listings', 'post')
+    const texts = [create.description, create.responses['201'].description, (await schemas()).CreatedListing.properties.verified.description]
+    for (const t of texts) {
+      expect(t).toMatch(/never shown publicly/)
+      expect(t).not.toMatch(/team checks|checks (them )?first|wait for eno’s team/)
+      // The licence aisles still answer `held: true`.
+      expect(t).toMatch(/held: true/)
+    }
+  })
+
+  it('updateListing answers `unpublished` beside `held` (ListingPatchAck), never both', async () => {
+    const ack = (await schemas()).ListingPatchAck
+    expect(ack.properties.unpublished).toMatchObject({ type: 'boolean', const: true })
+    expect(ack.properties.unpublished.description).toMatch(/never shown publicly/)
+    expect(ack.description).toMatch(/At most one of the two/)
+    expect((await op('/listings/{id}', 'patch')).responses['200'].description).toMatch(/`unpublished: true`/)
+  })
+
+  it('setListingStatus and confirmListing list `review_seat_listing` among their 403s, for any listing type', async () => {
+    for (const [path, method] of [['/listings/{id}/status', 'post'], ['/listings/{id}/confirm', 'post']] as const) {
+      const r403 = (await op(path, method)).responses['403']
+      expect(r403.description, path).toContain('`review_seat_listing`')
+      expect(r403.description, path).not.toMatch(/teacher profile that may not be shown again/)
+      // fail()'s code list, appended to the description.
+      expect(r403.description, path).toMatch(/`error\.code` is one of: [^.]*`review_seat_listing`/)
+    }
+  })
+})

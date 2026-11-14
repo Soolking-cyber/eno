@@ -28,6 +28,8 @@ type Row = Record<string, any>
 // tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
 // turn it on.
 const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+// The storefront owner is no review seat here (a seat's creates: core/listings.review-seat.test.ts, core/bulk.review-seat.test.ts).
+vi.mock('@/lib/review-seat-listings', () => ({ ownerIsReviewSeat: async () => false, reviewSeatListingIds: async () => [] }))
 vi.mock('@/lib/licence-whitelist', () => ({
   get LICENCE_WHITELIST() { return wl.list },
   isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>

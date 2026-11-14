@@ -2,7 +2,9 @@ import { getAdmin, isCurrentUserAdminByClaims } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
-import { mayWriteToTeacher, openTeacherThread, openerAgainst, sendToTeacherGuarded, teacherDmRefusal, teacherDmStanding } from '@/lib/teachers/dm-quota'
+import { mayWriteToTeacher, openTeacherThread, openerAgainst, revokedStanding, sendToTeacherGuarded, teacherDmRefusal, teacherDmStanding } from '@/lib/teachers/dm-quota'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 import { clientIp } from '@/lib/client-ip'
 import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
@@ -133,6 +135,17 @@ export const POST = route(
   // other. Off ⇒ isBlockedBetween answers false with no query.
   if (await isBlockedBetween(profile.id, listing.seller.ownerId)) throw new ApiError('blocked', 403)
 
+  // ⛔ A REVIEW SEAT NEVER OPENS A THREAD WITH A TEACHER ABOUT ANYTHING (src/lib/review-seat-accounts.ts — round 3,
+  // 2026-11-14): the teacher-listing door is shut below; this is every other listing a teacher sells or lets — the
+  // thread's first message would be the seat writing to a teacher, which api/conversations/[id]/messages refuses after
+  // it. A TeacherProfile, live or hidden, makes the owner a teacher (review-seat-listings.ts reviewSeatMeetsTeacher, on the
+  // Profile row this request already read). Only a seat pays a read. The messages route's 403.
+  // A teacher LISTING keeps its own refusal (the ladder's revoked one, below), which the pending page words.
+  if (listing.listingType !== TEACHER_LISTING_TYPE
+    && await reviewSeatMeetsTeacher(profile.id, listing.seller.ownerId, { actorEmail: profile.email ?? null })) {
+    throw new ApiError('forbidden', 403)
+  }
+
   /**
    * ⛔ THE TEACHER DM LADDER (owner, 2026-10-13 — src/lib/teachers/dm-quota.ts): any signed-in account may start chats
    * with a few NEW teachers a day — 3 unverified, 10 with a live identity check, 30 as a verified business with a live
@@ -142,6 +155,10 @@ export const POST = route(
    */
   let teacherCanonical: { id: string; lastMessageAt: Date } | null = null
   if (listing.listingType === TEACHER_LISTING_TYPE) {
+    // ⛔ A REVIEW SEAT NEVER WRITES TO A TEACHER (src/lib/review-seat-accounts.ts) — any seat, personal or business: no new
+    // thread, no opener, no cover request, nothing into a thread it already has. The ladder's revoked refusal: 403, no
+    // Retry-After, no step (the pending page words it).
+    if (isReviewSeatEmail(profile.email)) return teacherDmRefusal(revokedStanding(), { error: 'teacher_thread_cap' })
     teacherCanonical = await db.conversation.findUnique({
       where: { listingId_buyerProfileId: { listingId: listing.id, buyerProfileId: profile.id } },
       select: { id: true, lastMessageAt: true },

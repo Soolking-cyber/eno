@@ -119,7 +119,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-const { saveTeacherProfile, TeacherProfileChangedError, TeacherValidationError } = await import('./publish')
+const { saveTeacherProfile, TeacherProfileChangedError, TeacherReviewSeatError, TeacherValidationError } = await import('./publish')
 const { AI_NOTICE_VERSION, PUBLISH_NOTICE_VERSION } = await import('./profile')
 const { COVER_CONSENT_VERSION, coverStamp } = await import('./cover')
 
@@ -377,5 +377,45 @@ describe('⚖️ a default left on, on record — "teacher.optins.default" (owne
     expect(h.privateWrites[0].create.cvPath).toEqual(expect.stringContaining(TOKEN))
     expect(h.cvPending).toBe(false)
     expect(h.audits).toEqual([expect.objectContaining({ action: 'teacher.optins.default' })])
+  })
+})
+
+/**
+ * ⛔ A REVIEW SEAT NEVER HAS A TEACHER PROFILE (src/lib/review-seat-accounts.ts — round 4, codex + opus). A first save
+ * writes its listing LIVE (`verified: true`) on a typed phone number, so a seat that filled the form stood on the teachers
+ * board, where schools spend cover requests, Zalo reveals and job DMs on it. Refused on the Profile row's address, a create
+ * and an edit alike — before the lock, the photo check, any bucket copy or any write.
+ */
+describe('⛔ a review seat never has a teacher profile (TeacherReviewSeatError)', () => {
+  const SEAT = { id: 'p1', email: ' AI-Review@eno.vn' }
+
+  it('a CREATE is refused before anything runs: no lock, no write, no audit row', async () => {
+    h.existing = null
+    await expect(saveTeacherProfile(SEAT, body(), { expectTeacherProfileId: null })).rejects.toBeInstanceOf(TeacherReviewSeatError)
+    expect(h.order).toEqual([])
+    expect(h.txOpts).toEqual([])
+    nothingWritten()
+    expect(h.audits).toEqual([])
+    expect(h.cvPending).toBe(true)
+  })
+
+  it('…an EDIT of a profile it already had too, and a caller that names no profile — every seat address', async () => {
+    await expect(saveTeacherProfile(SEAT, body(), { expectTeacherProfileId: 'tp1' })).rejects.toBeInstanceOf(TeacherReviewSeatError)
+    for (const email of ['app-review@eno.vn', 'ai-review@eno.vn', 'play-review@eno.forum']) {
+      await expect(saveTeacherProfile({ id: 'p1', email }, body())).rejects.toBeInstanceOf(TeacherReviewSeatError)
+    }
+    expect(h.order).toEqual([])
+    nothingWritten()
+  })
+
+  it('CONTROL: an ordinary account — the staff\'s own domain included — creates as before, its listing live', async () => {
+    h.existing = null
+    // …the lawyer's seat as well: no store seat (round 4, review-seat-accounts.ts).
+    for (const email of ['jane@example.com', 'review@eno.vn', 'lawyer-review@eno.vn', null]) {
+      h.listingWrites = []; h.profileWrites = []; h.privateWrites = []; h.cvPending = true
+      const r = await saveTeacherProfile({ id: 'p1', email }, body(), { expectTeacherProfileId: null })
+      expect(r.created, String(email)).toBe(true)
+      expect(h.listingWrites[0].data, String(email)).toMatchObject({ verified: true, status: 'active' })
+    }
   })
 })

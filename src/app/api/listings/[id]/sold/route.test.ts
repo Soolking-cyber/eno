@@ -48,6 +48,10 @@ const h = vi.hoisted(() => ({
   /** ForumUserBlock rows (App Store gate `ugc-safety`), and how many times the table was asked. */
   blocks: [] as Row[],
   blockLookups: 0,
+  /** Profile.email by id (a review seat's in its tests — src/lib/review-seat-accounts.ts), and who owns a TeacherProfile. */
+  emails: {} as Record<string, string>,
+  teachers: [] as string[],
+  teacherReads: [] as string[],
 }))
 
 vi.mock('@/lib/listing-owner', () => ({ checkListingOwner: async () => h.owner }))
@@ -104,7 +108,13 @@ vi.mock('@/lib/db', () => ({
         return h.blocks.find((b) => where.OR.some((c) => c.blockerProfileId === b.blockerProfileId && c.blockedProfileId === b.blockedProfileId)) ?? null
       },
     },
-    profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: `${where.id}@example.com` }) },
+    profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: h.emails[where.id] ?? `${where.id}@example.com` }) },
+    teacherProfile: {
+      findUnique: async ({ where }: { where: { profileId: string } }) => {
+        h.teacherReads.push(where.profileId)
+        return h.teachers.includes(where.profileId) ? { id: `tp-${where.profileId}` } : null
+      },
+    },
   },
 }))
 vi.mock('@/lib/edition-scope', () => ({ isServicesDeskListing: async () => h.desk, scopedListingWhere: async (w: unknown) => w }))
@@ -154,6 +164,9 @@ beforeEach(() => {
   h.desk = false
   h.blocks = []
   h.blockLookups = 0
+  h.emails = {}
+  h.teachers = []
+  h.teacherReads = []
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -386,6 +399,35 @@ describe('a write that keeps missing', () => {
  * as the buyer: a bell row and a push with the storefront's name, opening the closed thread on "did you buy
  * this?". On: the answer is the no-thread 400 — the block is not revealed. Off: unchanged, and no lookup.
  */
+/**
+ * ⛔ A REVIEW SEAT NEVER ASKS A TEACHER "DID YOU BUY THIS?" (src/lib/review-seat-accounts.ts — round 4, opus): the question
+ * is a bell and a push from the seat's storefront into the teacher's thread. The block's answer, before anything is written.
+ */
+describe('⛔ a review seat naming a teacher as the buyer', () => {
+  it('→ 400 buyer_not_in_conversations: nothing written, nobody asked or pushed', async () => {
+    h.emails = { [SELLER_P]: 'ai-review@eno.vn' }
+    h.teachers = [BUYER]
+    expect(await post({ buyerProfileId: BUYER, salePrice: 11_000_000 })).toEqual({ status: 400, body: { error: 'buyer_not_in_conversations' } })
+    expect(h.setStatusCalls).toEqual([])
+    expect(h.created).toEqual([])
+    await flushAfter()
+    expect(h.pushes).toEqual([])
+  })
+
+  it('…while the seat may still mark it sold naming nobody, or name someone who is not a teacher', async () => {
+    h.emails = { [SELLER_P]: 'ai-review@eno.vn' }
+    expect((await post({})).status).toBe(200)
+    h.row = listing()
+    expect(await post({ buyerProfileId: BUYER, salePrice: 11_000_000 })).toEqual({ status: 200, body: { ok: true, asked: true } })
+  })
+
+  it('CONTROL: an ordinary seller asks the teacher who bought it, as before — no TeacherProfile read', async () => {
+    h.teachers = [BUYER]
+    expect(await post({ buyerProfileId: BUYER, salePrice: 11_000_000 })).toEqual({ status: 200, body: { ok: true, asked: true } })
+    expect(h.teacherReads).toEqual([])
+  })
+})
+
 describe('⛔ never across a block (App Store gate `ugc-safety`)', () => {
   it('gate OFF: a stored block changes nothing and is never looked up', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')

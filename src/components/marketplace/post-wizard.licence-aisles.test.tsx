@@ -12,7 +12,9 @@
  *   · a photo fill never picks an aisle, and keeps the aisle (and values) the form is in;
  *   · a draft from before the aisles (no v:2) gives up its aisle pick, a v:2 draft keeps it;
  *   · Wanted: no aisle offered, an aisle pick dropped;
- *   · the held success screen and the edit toast speak per aisle; the provider refusals jump to their field;
+ *   · the held success screen and the edit toast speak per aisle — and only `held` is the licence screen (an unpublished
+ *     answer without it gets one neutral line, a new post and an edit's `unpublished` alike — round 5: the edit goes to the
+ *     dashboard, never to its 404ing page); the provider refusals jump to their field;
  *     listing_changed (R2) is worded;
  *   · R3: a Services post whose words file it in an aisle waits for the seller's pick — it is never sent unpicked,
  *     where the server would refuse it with no field on screen to fix.
@@ -430,6 +432,23 @@ for (const edition of ['marketplace', 'services'] as const) {
       expect(text()).toContain('e-Visa listings go live after eno’s team has checked the provider’s licence.')
     })
 
+    // ⛔ Opus, round 3b: a store-review seat's post answers `verified: false` WITHOUT `held` (core/listings.ts). Only `held`
+    // is the licence check — an outside reviewer's test post outside both aisles is never asked for a licence.
+    it('a new listing stored unpublished but NOT held gets one neutral line — never the licence screen', async () => {
+      const PostWizard = await wizardFor(edition)
+      h.save = { ok: true, body: { id: 'n1', verified: false } }
+      // Outside both aisles — the very case whose held screen fell back to e-Visa's words (post-wizard.tsx heldAisle).
+      draft({ title: 'Deep cleaning, 3 hours', attrs: { priceBasis: 'hourly', serviceLocation: 'at-customer' } })
+      render(<PostWizard categories={CATS} />)
+      await settle()
+      await publish()
+      expect(saves()).toHaveLength(1)
+      expect(saves()[0]).toMatchObject({ method: 'POST', body: { subcategorySlug: null } })
+      expect(screen.getByRole('heading', { name: 'Saved. Listings from this account are not shown publicly.' })).toBeTruthy()
+      expect(screen.getByRole('link', { name: 'Go to dashboard' })).toBeTruthy()
+      expect(text()).not.toMatch(/licence|visa|is live|View your listing/i)
+    })
+
     it('an edit the server holds goes to the dashboard with a toast in its aisle’s words', async () => {
       const PostWizard = await wizardFor(edition)
       h.save = { ok: true, body: { ok: true, held: true } }
@@ -443,6 +462,32 @@ for (const edition of ['marketplace', 'services'] as const) {
 
     // Commit gate, 2026-10-14: a Wanted ad filed in an aisle before the rule is never asked for a licence when edited —
     // the server files it under Other on save (core/listings.ts).
+    // ⛔ Round 5 (opus, round 4): a store-review seat's edit of its unpublished listing landed on the listing page, which
+    // 404s for a row that is not public. updateListingCore answers `unpublished: true` for such a row (a seat's ONLY): the
+    // dashboard with the one neutral line. An ordinary edit still lands on its listing.
+    it('an edit answered `unpublished` goes to the dashboard with the neutral line — an ordinary edit still lands on its listing', async () => {
+      const PostWizard = await wizardFor(edition)
+      const edit = services('cleaning', { title: 'Weekly home cleaning', description: 'Two cleaners, three hours, every week — supplies included.', attributes: { priceBasis: 'hourly', serviceLocation: 'at-customer' } })
+      h.save = { ok: true, body: { ok: true, unpublished: true } }
+      render(<PostWizard categories={CATS} edit={edit} />)
+      await settle()
+      await publish()
+      expect(saves()[0]).toMatchObject({ method: 'PATCH', url: '/api/listings/l1' })
+      const toasts = h.toast.mock.calls.map(([m]) => m)
+      expect(toasts).toContain('Saved. Listings from this account are not shown publicly.')
+      expect(toasts.join(' ')).not.toMatch(/licence|e-Visa|goes live|checked/)
+      expect(h.router.push.mock.calls).toEqual([['/dashboard']])
+      // CONTROL: the plain ack (every ordinary account's) lands on the listing, as before — no toast.
+      cleanup()
+      h.toast.mockReset(); h.router.push.mockReset(); h.sent = []
+      h.save = { ok: true, body: { ok: true } }
+      render(<PostWizard categories={CATS} edit={edit} />)
+      await settle()
+      await publish()
+      expect(h.router.push.mock.calls).toEqual([['/listings/l1']])
+      expect(h.toast.mock.calls.map(([m]) => m)).not.toContain('Saved. Listings from this account are not shown publicly.')
+    })
+
     it('an edit of an older Wanted ad sitting in an aisle asks no licence values and saves', async () => {
       const PostWizard = await wizardFor(edition)
       h.save = { ok: true, body: { ok: true } }

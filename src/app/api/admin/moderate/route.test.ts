@@ -80,6 +80,9 @@ const h = vi.hoisted(() => ({
 }))
 
 // ── the database ────────────────────────────────────────────────────────────────
+// The review seats' listings (src/lib/review-seat-accounts.ts): `seatRows.ids` are a seat's; none unless a test says so.
+const seatRows = vi.hoisted(() => ({ ids: [] as string[] }))
+vi.mock('@/lib/review-seat-listings', () => ({ reviewSeatListingIds: async (ids: string[]) => ids.filter((i) => seatRows.ids.includes(i)) }))
 vi.mock('@/lib/db', () => {
   const rec = (m: string, args?: unknown) => {
     h.calls.push({ m, args })
@@ -274,9 +277,10 @@ import { SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/
 import { standingConductEvents } from '@/lib/trust-math'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS } from '@/lib/dispute'
 import { licenceClearedWhere } from '@/lib/licence-stamp'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
-/** `approve`'s write: never a tombstone, and the licence check's guard for the desk mocked above. */
-const APPROVE_WHERE = { id: 'l1', status: { not: 'removed' }, AND: [licenceClearedWhere(['desk-seller'])] }
+/** `approve`'s write: never a tombstone, the licence check's guard for the desk mocked above, and never a review seat's row. */
+const APPROVE_WHERE = { id: 'l1', status: { not: 'removed' }, AND: [licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING] }
 
 /** Returns status + the RAW body text, because the contract is bytes, not a deep-equal shape. */
 async function post(body?: unknown, raw?: string) {
@@ -294,6 +298,7 @@ const args = (m: string, i = 0) => called(m)[i]?.args as Row | undefined
 const effects = (m: string) => h.fx.filter((f) => f.m === m)
 
 beforeEach(() => {
+  seatRows.ids = []
   h.admin = 'mod@eno.vn'
   h.report = null
   h.listing = null
@@ -778,6 +783,28 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: true, identityHold: false, verificationNotes: null }, inTx: true })
   })
 
+  // ⛔ A REVIEW SEAT'S LISTING (round 3, 2026-11-14 — src/lib/review-seat-accounts.ts): an outside reviewer's test post is
+  // never published, so a content verdict cannot publish it either — nor park it, which a release would publish.
+  it('⛔ approve of a REVIEW SEAT\'s listing → 409 {"error":"review_seat_listing"} before ANY write — not parked, its reports stay open', async () => {
+    h.listing = { id: 'l1', verified: false }
+    seatRows.ids = ['l1']
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"review_seat_listing"}')
+    expect(called('$transaction')).toHaveLength(0)
+    expect(called('listing.updateMany')).toHaveLength(0)
+    expect(called('listing.update')).toHaveLength(0)
+    expect(called('report.updateMany')).toHaveLength(0)
+    expect(called('partitionByIdentityGate')).toHaveLength(0)
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('CONTROL: a takedown of a seat\'s listing stays open (unpublish)', async () => {
+    h.listing = { id: 'l1', verified: false }
+    seatRows.ids = ['l1']
+    expect((await post({ action: 'unpublish', id: 'l1' })).status).toBe(200)
+  })
+
   // ⛔ THE LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts). A content verdict is not a licence check: an
   // e-Visa / Legal & permits row eno has not checked goes live only through Catalogue › Licence checks.
   it('⛔ approve of an UNCHECKED licence-aisle row → 409 {"error":"licence_check_required"} before ANY write — its reports stay open', async () => {
@@ -804,7 +831,8 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(args('licenceBlockedIds')).toEqual({ ids: ['l1'], desk: ['desk-seller'] })
     const w = args('listing.updateMany')!
     expect(w.where.status).toEqual({ not: 'removed' })
-    expect(w.where.AND).toEqual([licenceClearedWhere(['desk-seller'])])
+    // …and never a review seat's row (src/lib/review-seat-accounts.ts), in the same write.
+    expect(w.where.AND).toEqual([licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING])
     // …in the same transaction as the report dismissal.
     expect(args('$transaction')).toEqual({ n: 1 })
     expect(w.inTx).toBe(true)

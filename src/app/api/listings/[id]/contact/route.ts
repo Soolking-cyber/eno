@@ -10,6 +10,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { bumpListingCounter } from '@/lib/listing-counters'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { isAppleLinked } from '@/lib/apple-signin'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -87,7 +89,8 @@ function hashIp(ip: string): string | null {
 // Branches: guest → 401 auth_required · either limiter (or a limiter outage, since both are
 // strict) → 429 rate_limited · missing / unverified / out-of-edition listing → 404 not_found ·
 // OFFICIAL PARTNER → 403 partner_chat_only · no conversation or no seller reply → 403
-// reply_required · seller has no stored phone → 404 no_contact · success → 200
+// reply_required · a store-review seat asking for a TEACHER's number (round 5) → 403 forbidden ·
+// seller has no stored phone → 404 no_contact · success → 200
 // {phone,telHref,zaloHref}. The $transaction is already try/caught, so there is no unhandled-throw
 // branch for route() to improve on either.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -113,7 +116,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // the licensed marketplace. The existing !verified check below already turns null into the 404.
   const listing = await db.listing.findFirst({
     where: await scopedListingWhere({ id }),
-    select: { id: true, verified: true, seller: { select: { id: true, ownerId: true, phone: true, officialPartner: true } } },
+    select: { id: true, verified: true, listingType: true, seller: { select: { id: true, ownerId: true, phone: true, officialPartner: true } } },
   })
   // Only verified (public) listings expose contact — never pending/hidden ones.
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -163,6 +166,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // App Store gate `ugc-safety` (R3): a block also closes the phone/Zalo reveal — otherwise the blocked
   // side could step around the chat block with a call. Off ⇒ no query.
   if (await isBlockedBetween(user.id, listing.seller.ownerId)) return NextResponse.json({ error: 'blocked' }, { status: 403 })
+  // ⛔ A STORE-REVIEW SEAT NEVER GETS A TEACHER'S NUMBER (round 5, 2026-11-14 — codex, round 4; src/lib/review-seat-accounts.ts):
+  // a thread a teacher answered before the seat rules still passes reply-first, and a seat is an outside reviewer's shared
+  // login, not a school. A teacher = the owner of a TeacherProfile (any listing of theirs), or the seller of this teacher
+  // listing. Before the phone is read or the reveal ledger written; the one predicate every seat-side act asks
+  // (review-seat-listings.ts reviewSeatMeetsTeacher — the caller's Profile.email, never the session's; one Profile read for
+  // a caller past reply-first, more only for a seat). A failed read throws: nothing is revealed. Never the lawyer.
+  if (await reviewSeatMeetsTeacher(user.id, listing.seller.ownerId, { teacherSeller: listing.listingType === TEACHER_LISTING_TYPE ? listing.seller.ownerId : null })) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
 
   // Only the seller's REAL stored phone — never a synthetic/fallback number.
   // Pass the seller WHOLE. Handing over `{ phone }` alone is what the required `officialPartner`

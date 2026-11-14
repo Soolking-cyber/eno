@@ -21,7 +21,7 @@ import { sendTikTokEvent, tiktokConsent, tiktokEventsConfigured, tiktokUserFromH
 import { consentRecordNamesTikTok } from '@/lib/tiktok-consent-record'
 import {
   saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherNoticeChangedError, TeacherProfileChangedError,
-  TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherPhotoCheckUnavailableError,
+  TeacherReviewSeatError, TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherPhotoCheckUnavailableError,
 } from '@/lib/teachers/publish'
 
 export const runtime = 'nodejs'
@@ -287,6 +287,8 @@ export const PUT = route(
       }
       return saved
     } catch (e) {
+      // ⛔ A review seat never has a teacher profile (publish.ts TeacherReviewSeatError): refused before anything was written.
+      if (e instanceof TeacherReviewSeatError) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
       if (e instanceof TeacherValidationError) {
         return NextResponse.json({ error: 'invalid_teacher_profile', fields: e.errors }, { status: 400 })
       }

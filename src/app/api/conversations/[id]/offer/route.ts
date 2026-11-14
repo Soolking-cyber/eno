@@ -5,6 +5,7 @@ import { messagingGate } from '@/lib/enforcement'
 import { ApiError, route } from '@/lib/api/handler'
 import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { reviewSeatMeetsTeacher } from '@/lib/review-seat-listings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ export const dynamic = 'force-dynamic'
 // the body · gated account → 403
 // with the gate's OWN body (an object, not an error code — returned as a Response) · malformed
 // JSON or missing messageId/action → 400 bad_request · unknown thread → 404 not_found ·
-// non-participant → 403 forbidden · accept on a non-active listing → 409 listing_unavailable ·
+// non-participant, or a review seat answering a teacher → 403 forbidden · accept on a non-active listing → 409 listing_unavailable ·
 // actOnOffer refusing → 409 not_actionable · success → 200 {"ok":true}.
 //
 // ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: neither the conversation read nor actOnOffer
@@ -57,6 +58,13 @@ export const POST = route(
     })
     if (!convo) throw new ApiError('not_found', 404)
     if (convo.buyerProfileId !== meId && convo.sellerProfileId !== meId) {
+      throw new ApiError('forbidden', 403)
+    }
+    // ⛔ A REVIEW SEAT ANSWERS NO TEACHER'S OFFER (src/lib/review-seat-accounts.ts — round 4): accept and decline alike write
+    // a line from the seat into the teacher's thread, with a bell and a push (messages.ts actOnOffer). The teacher's card
+    // stays theirs to withdraw or counter. review-seat-listings.ts reviewSeatMeetsTeacher: one Profile read per answer,
+    // only a seat reads further. Before anything is written.
+    if (await reviewSeatMeetsTeacher(meId, convo.buyerProfileId === meId ? convo.sellerProfileId : convo.buyerProfileId)) {
       throw new ApiError('forbidden', 403)
     }
 

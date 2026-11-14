@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
   mine: { id: 'tp-b' } as Row | null,
   saved: [] as Row[],
   opts: [] as unknown[],
+  savedAs: [] as Row[], // the profile each save was handed — the Profile row's id and address
+  seat: false, // the save refuses a review seat (publish.ts TeacherReviewSeatError)
   changedUnderLock: false, // the save's own check under the account lock refuses (publish.ts TeacherProfileChangedError)
   noticeChanged: null as string | null, // the save refuses an older notice (publish.ts TeacherNoticeChangedError)
   decision: { ok: true } as Row,
@@ -86,12 +88,16 @@ vi.mock('@/lib/teachers/publish', () => {
   // Its own class: the route tests the other errors first, and a shared one would be caught as a validation error.
   class TeacherProfileChangedError extends Error {}
   class TeacherNoticeChangedError extends Error { constructor(public notice: string) { super('notice_changed') } }
+  class TeacherReviewSeatError extends Error {}
   return {
     TeacherCoverConflictError: E, TeacherValidationError: E, TeacherVideoConflictError: E, TeacherVideoStoreError: E, TeacherProfileChangedError,
-    TeacherNoticeChangedError,
+    TeacherNoticeChangedError, TeacherReviewSeatError,
     deleteTeacherProfile: async () => true,
-    saveTeacherProfile: async (_p: Row, body: Row, opts?: unknown) => {
+    saveTeacherProfile: async (p: Row, body: Row, opts?: unknown) => {
       h.opts.push(opts)
+      h.savedAs.push(p)
+      // The real save refuses a seat on the address it is handed (publish.phone.test.ts runs it); here, the route's half.
+      if (h.seat) throw new TeacherReviewSeatError()
       if (h.changedUnderLock) throw new TeacherProfileChangedError()
       if (h.noticeChanged) throw new TeacherNoticeChangedError(h.noticeChanged)
       h.saved.push(body)
@@ -109,7 +115,7 @@ const put = (body: Row, { old = false } = {}) =>
 const get = async () => (await GET(new Request('https://eno.vn/api/teachers/me') as never, {} as never)).json()
 
 beforeEach(() => {
-  h.mine = { id: 'tp-b' }; h.saved = []; h.opts = []; h.changedUnderLock = false; h.noticeChanged = null; h.decision = { ok: true }
+  h.mine = { id: 'tp-b' }; h.saved = []; h.opts = []; h.savedAs = []; h.seat = false; h.changedUnderLock = false; h.noticeChanged = null; h.decision = { ok: true }
   h.decisionFails = false; h.logged = []
   h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.facebookLinked = false; h.facebookThrows = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
@@ -121,6 +127,17 @@ describe('PUT /api/teachers/me — the profile the form was loaded for', () => {
   it('saves when the form names this account\'s profile', async () => {
     expect((await put({ fullName: 'B', teacherProfileId: 'tp-b' })).status).toBe(200)
     expect(h.saved).toHaveLength(1)
+  })
+  it('⛔ hands the save the Profile ROW\'s address — what a review seat is refused on (publish.ts TeacherReviewSeatError) — and answers that refusal 403 forbidden, no conversion sent', async () => {
+    h.me = { id: 'p-b', accountType: 'individual', email: 'ai-review@eno.vn' }
+    h.mine = null; h.created = true; h.seat = true
+    const res = await put({ fullName: 'B', teacherProfileId: null })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'forbidden' })
+    expect(h.savedAs).toEqual([{ id: 'p-b', email: 'ai-review@eno.vn' }])
+    expect(h.saved).toEqual([])
+    expect(h.afterWork).toEqual([])
+    expect(h.capi).toEqual([])
   })
   // The join form's "Identity verified" choice (owner, 2026-10-16: hidden "before publishing too"): the create-only
   // `identityMarkHidden` reaches the save as sent — the save alone decides it (honoured only when it creates the profile,

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { route, ApiError } from '@/lib/api/handler'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { setTeacherStatus, TeacherNoGoalError } from '@/lib/teachers/publish'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 
@@ -12,6 +13,11 @@ export const PATCH = route(
     const body = (await req.json().catch(() => null)) as { status?: unknown } | null
     const status = body?.status === 'live' || body?.status === 'hidden' ? body.status : null
     if (!status) throw new ApiError('bad_request', 400)
+    // ⛔ A REVIEW SEAT'S TEACHER PROFILE IS NEVER SHOWN (src/lib/review-seat-accounts.ts — round 4): a seat cannot make one
+    // (publish.ts TeacherReviewSeatError), and one it made before that rule is never shown again — showing is a relist
+    // onto the teachers board. Hiding is never refused. Judged on the Profile row this request read (the address
+    // ensureProfile pins on a seat's row, never the session's): no read.
+    if (status === 'live' && isReviewSeatEmail(profile.email)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
     try {
       if (!(await setTeacherStatus(profile.id, status))) throw new ApiError('teacher_profile_missing', 404)
     } catch (e) {

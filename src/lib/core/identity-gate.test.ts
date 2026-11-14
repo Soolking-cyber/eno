@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
   purged: [] as string[],
 }))
 
+// The storefront owner is no review seat here (a seat's creates: core/listings.review-seat.test.ts, core/bulk.review-seat.test.ts).
+vi.mock('@/lib/review-seat-listings', () => ({ ownerIsReviewSeat: async () => false, reviewSeatListingIds: async () => [] }))
 vi.mock('@/lib/compliance/account-state', async (orig) => ({
   ...(await orig<typeof import('@/lib/compliance/account-state')>()),
   identityGateEnforced: () => h.enforced,

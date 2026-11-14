@@ -25,6 +25,8 @@ import { isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, paysSalary, resolveLis
 import { isHiringPost, JOB_TEXT_REFUSAL, jobTextProblem } from '@/lib/job-listing'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { cutText } from '@/lib/feed-text'
+import { REVIEW_SEAT_HELD_NOTE } from '@/lib/review-seat-accounts'
+import { ownerIsReviewSeat } from '@/lib/review-seat-listings'
 
 // Bulk-import core (Phase 0). The business-tier bulk CSV importer, decoupled from auth:
 // takes the ALREADY-RESOLVED seller + the rows and returns per-row results. Reused by the
@@ -206,6 +208,10 @@ export async function bulkImportCore(
   // the storefront's remaining active-listing allowance. Null (no release marker) for everyone else.
   const released = await releasedChargeGate(seller.ownerId, seller.id)
   const releasedBudget = released ? released.remaining : Infinity
+  // ⛔ A REVIEW SEAT'S NEW LISTINGS ARE NEVER PUBLIC (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE — round 3,
+  // 2026-11-14): every row a seat imports — the CSV, /api/v1 bulk, MCP bulk_create_listings, a sync's creates — is stored
+  // unpublished with the seat's mark, never identityHold. Asked ONCE per import, of the storefront owner's pinned address.
+  const seatHold = await ownerIsReviewSeat(seller.ownerId)
   let createdCount = 0
 
   // Resolve all referenced categories once.
@@ -388,7 +394,8 @@ export async function bulkImportCore(
            */
           ...(isListingVideoUrl(r.video_url) ? { video: r.video_url } : {}),
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
-          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: true,
+          categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore,
+          ...(seatHold ? { verified: false, verificationNotes: REVIEW_SEAT_HELD_NOTE } : { verified: true }),
           rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
           ...(externalId ? { externalId } : {}),
         },

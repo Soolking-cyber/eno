@@ -179,7 +179,7 @@ vi.mock('@/lib/db', () => {
 
 const { db } = await import('@/lib/db')
 const {
-  ipv6Prefix64, mayWriteToTeacher, teacherGuardAbort, openTeacherThread, openerAgainst, poolKeyFor, sendToTeacherGuarded, teacherDmRefusal, teacherUnansweredGuard, teacherDmStanding, teacherDmTier,
+  ipv6Prefix64, mayWriteToTeacher, teacherGuardAbort, openTeacherThread, openerAgainst, poolKeyFor, revokedStanding, sendToTeacherGuarded, teacherDmRefusal, teacherUnansweredGuard, teacherDmStanding, teacherDmTier,
   teacherThreadsOpenedSince, vnDayWindow,
 } = await import('./dm-quota')
 
@@ -858,5 +858,45 @@ describe('openerAgainst — what the thread\'s newest message says about an open
     h.s.messages = [msg(P, { body: OPENER }), msg(P, { body: 'And Thursday?' }), msg(P, { conversationId: 'c2', body: OPENER })]
     expect(await openerAgainst('c1', P, 't1', OPENER)).toEqual({ empty: false, repeat: false })
     expect(await openerAgainst('c1', P, 't1', 'And Thursday?')).toEqual({ empty: false, repeat: true })
+  })
+})
+
+describe('⛔ a review seat (src/lib/review-seat-accounts.ts), personal or business — the revoked rung, every read', () => {
+  const SEAT = 'AI-Review@eno.vn '
+
+  it('a business seat is revoked — 0, no way up — even with a live badge and a live identity check', async () => {
+    h.s.identity = 'verified'
+    h.s.profile = company(liveBadge(), { email: SEAT })
+    expect(await teacherDmTier(P, NOW)).toEqual({ tier: 'revoked', limit: 0, next: 'none', nextLimit: null, needsPhone: false, pooled: false })
+    expect(h.s.caseQueries).toEqual([]) // nothing about the business can lift it
+    // The quota endpoint's answer: nothing left, reason revoked.
+    expect(await teacherDmStanding(P, { ip: IP, now: NOW })).toMatchObject({ tier: 'revoked', remaining: 0, reason: 'revoked', next: 'none' })
+  })
+
+  it('openTeacherThread refuses it: nothing created, no pool touched', async () => {
+    h.s.profile = company(noBadge(), { email: SEAT })
+    expect(await open()).toMatchObject({ outcome: 'refused', standing: { tier: 'revoked', limit: 0, remaining: 0, reason: 'revoked', next: 'none' } })
+    expect(h.s.created).toEqual([])
+    expect(h.s.events).not.toContain('create')
+    expect(h.s.pool.size).toBe(0)
+  })
+
+  it('the same seat as a PERSON is revoked too; a school that is not a seat keeps its rung', async () => {
+    h.s.profile = person({ email: SEAT })
+    expect(await teacherDmTier(P, NOW)).toMatchObject({ tier: 'revoked', limit: 0, next: 'none' })
+    h.s.identity = 'verified'
+    h.s.profile = company(liveBadge(), { email: 'office@saigon-english.example' })
+    expect((await teacherDmTier(P, NOW)).tier).toBe('business')
+  })
+
+  it('revokedStanding is the revoked rung with nothing left today — teacherDmRefusal answers it 403', async () => {
+    const s = revokedStanding(NOW)
+    expect(s).toEqual({
+      tier: 'revoked', limit: 0, next: 'none', nextLimit: null, needsPhone: false, pooled: false,
+      used: 0, remaining: 0, resetAt: RESET.toISOString(), reason: 'revoked', hasThread: false,
+    })
+    const res = teacherDmRefusal(s, { error: 'teacher_thread_cap' })
+    expect(res.status).toBe(403)
+    expect(res.headers.get('Retry-After')).toBeNull()
   })
 })

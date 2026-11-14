@@ -7,6 +7,7 @@ import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // A relist of an e-Visa / Legal & permits listing eno has not checked (2026-10-14): the 409 setStatusCore answers — a
   // state the listing is in until eno's approval, not a malformed `status`, so never the 422 below.
   if (!res.ok && res.error === 'licence_check_required') return apiError(409, res.error, LICENCE_CHECK_REQUIRED_COPY.en, r.rate)
+  // A store-review seat's listing, any type (setStatusCore, round 5 — review-seat-accounts.ts): who owns it, not a
+  // malformed `status`.
+  if (!res.ok && res.error === 'review_seat_listing') return apiError(403, res.error, REVIEW_SEAT_LISTING_COPY.en, r.rate)
   // A relist of a hiring post whose stored text the job-text screen refuses (2026-10-19): its rule's sentence and `detail`
   // '<field>:<snippet>' in the error envelope (as PATCH answers an edit's) — never the malformed-`status` line below.
   if (!res.ok && isJobTextBlockCode(res.error)) return apiOk({ error: { code: res.error, message: JOB_TEXT_REFUSAL[res.error].en, ...(res.detail ? { detail: res.detail } : {}) } }, r.rate, 422)

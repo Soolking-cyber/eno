@@ -40,6 +40,9 @@ const LISTINGS = [
   // server never sends — licenceGrandfathered requires verified) still reads as held, never as live.
   { ...base, id: 'r7', title: 'Hidden unchecked', status: 'hidden', verified: true, subcategory: 'visa-legal', licence: licence('missing', '', '') },
   { ...base, id: 'r8', title: 'Held VietKite', status: 'active', verified: false, subcategory: 'visa-legal', licence: licence('grandfathered', '', '') },
+  // ⛔ A review seat's listing (round 3, src/lib/review-seat-accounts.ts): never published — said so, in any aisle.
+  { ...base, id: 'r9', title: 'Seat test post', status: 'active', verified: false, subcategory: 'phones-tablets', reviewSeat: true },
+  { ...base, id: 'r10', title: 'Seat legal offer', status: 'active', verified: false, subcategory: 'legal-permits', licence: licence('pending', 'Công ty Luật XYZ', '0312345678', true), reviewSeat: true },
 ]
 
 const fetchMock = vi.fn()
@@ -59,6 +62,32 @@ afterEach(() => {
 
 /** The table row whose title is `title`. */
 const rowOf = (title: string) => screen.getByText(title).closest('tr')!
+
+describe('AdminListingsClient — a review seat\'s rows (round 3, 2026-11-14)', () => {
+  it('says a seat\'s held row is never published, instead of "held" or a licence badge', async () => {
+    render(<AdminListingsClient licenceGrandfatherUntil={UNTIL} />)
+    await screen.findByText('Seat test post')
+    for (const t of ['Seat test post', 'Seat legal offer']) {
+      expect(within(rowOf(t)).getByText('Review seat · never published')).toBeTruthy()
+      expect(within(rowOf(t)).queryByText('held')).toBeNull()
+    }
+    expect(within(rowOf('Seat legal offer')).queryByText('Licence check')).toBeNull()
+  })
+
+  it('Publish refused for a seat\'s row (409 review_seat_listing) says which, not "Action failed"', async () => {
+    fetchMock.mockImplementation(async (_url: string, init?: { method?: string }) => {
+      if (init?.method === 'POST') return { ok: false, status: 409, json: async () => ({ error: 'review_seat_listing', ids: ['r9'] }) }
+      return { ok: true, status: 200, json: async () => ({ listings: LISTINGS, total: LISTINGS.length }) }
+    })
+    render(<AdminListingsClient licenceGrandfatherUntil={UNTIL} />)
+    await screen.findByText('Seat test post')
+    fireEvent.click(screen.getByText('Seat test post'))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Publish/ })) })
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('1 listing(s) belong to a review seat and are never published — deselect them.'))
+    expect(toast.error).not.toHaveBeenCalledWith('Action failed')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+})
 
 describe('AdminListingsClient — licence-aisle rows', () => {
   it('says which hold a licence-aisle row is in instead of the generic "held"', async () => {

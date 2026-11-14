@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // what the check itself leaves out, and the licence actions, are pinned in route.licence.test.ts.
 
 import { licenceClearedWhere } from '@/lib/licence-stamp'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
 type Row = Record<string, any>
 
@@ -47,6 +48,9 @@ const h = vi.hoisted(() => ({
   desk: ['desk-seller'] as string[],
   blocked: [] as string[],
 }))
+// The review seats' listings (src/lib/review-seat-accounts.ts): `seatRows.ids` are a seat's; none unless a test says so.
+const seatRows = vi.hoisted(() => ({ ids: [] as string[] }))
+vi.mock('@/lib/review-seat-listings', () => ({ reviewSeatListingIds: async (ids: string[]) => ids.filter((i) => seatRows.ids.includes(i)) }))
 vi.mock('@/lib/edition-scope', () => ({ deskSellerIds: async () => h.desk }))
 vi.mock('@/lib/core/licence-check', () => ({
   licenceBlockedIds: async (ids: string[]) => new Set(ids.filter((i) => h.blocked.includes(i))),
@@ -130,6 +134,7 @@ const SALE_CLEARED = {
 const writes = () => h.calls.filter((c) => c.m.startsWith('updateMany')).map((c) => [c.m, c.args])
 
 beforeEach(() => {
+  seatRows.ids = []
   h.notifyFails = []
   h.purged = []
   h.held = []
@@ -269,7 +274,7 @@ describe('verify ("Publish")', () => {
     h.counts = [3]
     const r = await post({ action: 'verify', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":3}')
-    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
   })
 
   it('⛔ a publish for an owner the gate ALLOWS clears identityHold — a live row never carries a hold', async () => {
@@ -278,7 +283,7 @@ describe('verify ("Publish")', () => {
     // forgetting the column, or a release, would mis-handle.
     h.counts = [1]
     await post({ action: 'verify', ids: ['a'] })
-    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
     expect(h.settleCalls).toEqual([])
   })
 
@@ -291,8 +296,8 @@ describe('verify ("Publish")', () => {
     expect(r.text).toBe('{"ok":true,"affected":2,"held":1}')
     expect(h.settleCalls).toEqual([['b']])
     expect(writes()).toEqual([
-      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }],
-      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' }, AND: [GUARD] }, data: { identityHold: true }, select: { id: true } }],
+      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { identityHold: true }, select: { id: true } }],
     ])
   })
 

@@ -7,6 +7,7 @@ import { kv } from '@/lib/ratelimit'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
 import { TEACHING_JOB_WHERE, provinceToCitySlug } from '@/lib/teachers/match-io'
 import { JOB_BOARDS } from '@/lib/job-listing'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 import { JOBS_DESK_SELLER_ID, JOB_DMS_MODE_KEY, JOB_DM_RULES, type JobDmsMode } from './constants'
 import { JOB_DM_ON_VERSIONS, defaultOnTeacherWhere, enrolDefaultOn } from './consent'
 import { RULES_VERSION, foldPost, readPost, titleNamesOtherSubject, type RuleFacts } from './extract'
@@ -414,10 +415,11 @@ async function loadJobs(now: Date): Promise<Job[]> {
   }
   // eno.vn's own live teaching jobs (board imports, apply at source through the eno page) — through the edition scope
   // like every listing read (edition-lint Rule A): a desk or hidden seller's row is never offered, and its page would not
-  // open for the teacher anyway.
+  // open for the teacher anyway. ⛔ Never a review seat's post (src/lib/review-seat-accounts.ts): an outside reviewer
+  // testing create_listing makes a live job, and eno must not message real teachers about it.
   const since = new Date(now.getTime() - 14 * 86_400_000)
   const listings = await db.listing.findMany({
-    where: await scopedListingWhere({ ...TEACHING_JOB_WHERE, createdAt: { gte: since } }),
+    where: await scopedListingWhere({ ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING, createdAt: { gte: since } }),
     select: { id: true, title: true, description: true, city: true, salaryM: true, attributes: true, createdAt: true, sellerId: true, externalId: true },
     take: 500,
   })

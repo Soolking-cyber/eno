@@ -30,6 +30,7 @@ import { fold } from '@/lib/fold'
 import { hasVisaWord } from '@/lib/job-listing'
 import { AI_NOTICE_VERSION } from '@/lib/teachers/profile'
 import { JUDGE_PROMPT_VERSION, PENDING_MATCH_SELECT, TEACHING_JOB_WHERE, emailConsented } from '@/lib/teachers/match-io'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
 export { emailConsented }
 
@@ -96,8 +97,9 @@ export function mailableMatchWhere(now: number, teacher: Prisma.TeacherProfileWh
     // ⛔ Judged by the v2 prompt (Claude Haiku 5.5) — never a Gemini/agy or Opus-fallback verdict.
     modelVersions: { path: ['prompt'], equals: JUDGE_PROMPT_VERSION },
     teacherProfile: teacher,
-    // ⛔ A live TEACHING job — the export's job set (match-io.ts), never just any live listing.
-    listing: TEACHING_JOB_WHERE,
+    // ⛔ A live TEACHING job — the export's job set (match-io.ts), never just any live listing — and never a review seat's
+    // post (src/lib/review-seat-accounts.ts): eno does not email real teachers about an outside reviewer's test job.
+    listing: { ...TEACHING_JOB_WHERE, ...NOT_A_REVIEW_SEATS_LISTING },
   } satisfies Prisma.TeacherJobMatchWhereInput
 }
 

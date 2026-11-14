@@ -22,6 +22,8 @@ import { attributeBag, isLicenceCheckSlot, LICENCE_CHECK_SUBCATEGORIES, VISA_CAT
 import { checkProviderLicence, isEnterpriseCodeForm, providerLicenceFromInput, providerLicenceOf } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, LICENCE_STAMP_PREFIX, isLicenceWhitelisted, licenceClearedWhere, licenceWhitelistWhere, licenceStampFor, licenceStateOf } from '@/lib/licence-stamp'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { NOT_A_REVIEW_SEATS_LISTING, isReviewSeatEmail } from '@/lib/review-seat-accounts'
+import { reviewSeatListingIds } from '@/lib/review-seat-listings'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +63,9 @@ async function publishListings(
   // been switched off, or the owner verified and the release missed it) must not go live still
   // carrying a hold. Only the response is pinned byte-identical with the gate off — this column
   // is already false on every row the gate never touched.
-  let affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), ...(onlyIf ? [onlyIf] : [])] }, data: { verified: true, identityHold: false, verificationNotes: null } })).count : 0
+  // ⛔ …and never a review seat's row (src/lib/review-seat-accounts.ts): the POST refuses one before this is reached, and
+  // both writes AND the owner test as well, so nothing between that read and these writes can publish or park one.
+  let affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING, ...(onlyIf ? [onlyIf] : [])] }, data: { verified: true, identityHold: false, verificationNotes: null } })).count : 0
   let held = 0
   let alreadyHeld = 0
   if (gated.length) {
@@ -71,7 +75,7 @@ async function publishListings(
     alreadyHeld = before.filter((r) => !r.verified && r.identityHold).length
     // `identityHold: false` in the WHERE: an already-parked row is not parked again, so it can
     // never be counted as held by this request.
-    const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), ...(onlyIf ? [onlyIf] : [])] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+    const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING, ...(onlyIf ? [onlyIf] : [])] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
     const released = parked.length ? await settleHolds(parked) : 0
     held = parked.length - released
     // Already verified (left as asked, as the allowed path counts it) + parked-then-released here.
@@ -112,7 +116,8 @@ function seenStamps(raw: unknown): Record<string, string> {
 // licence-revoke (the last two since 2026-10-14 — Catalogue › Licence checks).
 // POST branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed JSON → 400
 // `{"error":"bad_request"}` · no usable ids → 400 `{"error":"no_ids"}` · unrecognised action → 400
-// `{"error":"bad_action"}` · success → 200 `{"ok":true,"affected":n}` (+ `"held":h` when the seller identity
+// `{"error":"bad_action"}` · activate / verify / licence-approve on a batch holding a review seat's listing → 409
+// `{"error":"review_seat_listing","ids":[…]}`, nothing written (round 3, 2026-11-14) · success → 200 `{"ok":true,"affected":n}` (+ `"held":h` when the seller identity
 // gate parked any in this request, + `"alreadyHeld":k` when the batch included rows it had parked before
 // — neither ever appears while IDENTITY_GATE_ENFORCED is off, so the off-state body is unchanged; + on
 // "activate" / "verify", `"licenceCheck":n` when n e-Visa / Legal & permits rows were left out for the licence
@@ -166,7 +171,8 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
         createdAt: true,
         // The licence stamp (licence-stamp.ts) — read to say where an aisle row stands, never put on the wire.
         verificationMethod: true,
-        seller: { select: { name: true, trustScore: true, officialPartner: true, ownerId: true, owner: { select: { accountType: true } } } },
+        // The owner's address only to flag a review seat's row (src/lib/review-seat-accounts.ts) — never put on the wire.
+        seller: { select: { name: true, trustScore: true, officialPartner: true, ownerId: true, owner: { select: { accountType: true, email: true } } } },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
@@ -182,7 +188,11 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const desk = rows.some((r) => isLicenceCheckSlot(r.category.slug, r.subcategorySlug)) ? await deskSellerIds() : []
   const listings = rows.map((r) => {
     const l = serializeListingCard(r)
-    const row = { id: l.id, title: l.titleVi || l.title, price: l.price, currency: l.currency, image: l.images[0] ?? null, status: r.status, verified: r.verified, featured: r.featured, sellerName: r.seller.name, category: l.category.name, subcategory: r.subcategorySlug, createdAt: r.createdAt.toISOString() }
+    const row = {
+      id: l.id, title: l.titleVi || l.title, price: l.price, currency: l.currency, image: l.images[0] ?? null, status: r.status, verified: r.verified, featured: r.featured, sellerName: r.seller.name, category: l.category.name, subcategory: r.subcategorySlug, createdAt: r.createdAt.toISOString(),
+      // ⛔ A review seat's row is never published (review-seat-accounts.ts): the console says so instead of a generic held.
+      ...(isReviewSeatEmail(r.seller.owner?.email) ? { reviewSeat: true } : {}),
+    }
     const state = licenceStateOf({ categorySlug: r.category.slug, subcategorySlug: r.subcategorySlug, sellerId: r.sellerId, attributes: r.attributes, verificationMethod: r.verificationMethod, verified: r.verified }, { desk: desk.includes(r.sellerId) })
     if (state === 'not_aisle' || state === 'exempt') return row
     // Both halves as stored, even one alone or one the rules refuse: providerLicenceOf answers null unless both are
@@ -236,6 +246,15 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
    * this file's publishing writes by reading the literal, and a `where: helper({...})` reads to it as
    * a second `status: 'active'` write.
    */
+  // ⛔ A REVIEW SEAT'S LISTING IS NEVER PUBLISHED FROM HERE (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE — round
+  // 3, 2026-11-14). An outside reviewer's test post is not for sale, so every action that can make a row public — Activate
+  // (a verified row goes public by its status), Publish, a licence approval — REFUSES a batch holding one, before any read
+  // or write, naming the rows: fail closed, 409 `review_seat_listing`. By OWNER, not by the mark, which a takedown may
+  // clear. Takedowns (hide, unverify, delete, licence-revoke) and feature flags stay open on them.
+  if (body.action === 'activate' || body.action === 'verify' || body.action === 'licence-approve') {
+    const seat = await reviewSeatListingIds(ids)
+    if (seat.length) return NextResponse.json({ error: 'review_seat_listing', ids: seat }, { status: 409 })
+  }
   switch (body.action) {
     case 'delete': {
       // ⛔ "DELETE" IS A TOMBSTONE (2026-10-01 — src/lib/listing-removed.ts). This was `deleteMany`,

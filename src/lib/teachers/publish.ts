@@ -10,6 +10,7 @@ import { moderateListingById } from '@/lib/ai-moderation'
 import { initialSellerTrust } from '@/lib/trust'
 import { assertSellerMayPublish } from '@/lib/compliance/seller-publish-gate'
 import { PublishBlockedError } from '@/lib/publish-guard'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import { deleteListingCore, parseVideoField } from '@/lib/core/listings'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
@@ -153,6 +154,19 @@ export class TeacherNoGoalError extends Error {
   constructor() {
     super('no_teaching_goal')
     this.name = 'TeacherNoGoalError'
+  }
+}
+
+/**
+ * ⛔ A REVIEW SEAT NEVER HAS A TEACHER PROFILE (src/lib/review-seat-accounts.ts — round 4, codex + opus) → 403 forbidden.
+ * The listing a first save writes is public at once (`verified: true`), on a phone number typed into the form: a seat
+ * that filled it in would stand on the teachers board, where real schools spend cover requests, Zalo reveals and job DMs
+ * on a reviewer. saveTeacherProfile refuses a create and an edit alike, before anything is read, checked or copied.
+ */
+export class TeacherReviewSeatError extends Error {
+  constructor() {
+    super('forbidden')
+    this.name = 'TeacherReviewSeatError'
   }
 }
 
@@ -433,6 +447,9 @@ const optInDefaultsOf = (raw: unknown): { reported: boolean; matchEmail: boolean
  * that creates the profile, in its own transaction, when one is named (TeacherValidationError `cv`: 'expired' when its
  * pending upload is gone); a create that names none publishes without a CV (owner, 2026-10-22: publish before video/CV);
  * ignored by every other save.
+ * `profile.email` is the account's Profile.email — the PUT route's Profile row (getCurrentProfile), the address
+ * ensureProfile pins on a review seat's row (src/lib/profile.ts), never the session's: a seat is refused on it
+ * (TeacherReviewSeatError).
  */
 export async function saveTeacherProfile(
   profile: { id: string; email: string | null },
@@ -441,6 +458,10 @@ export async function saveTeacherProfile(
   // written IN this save's transaction — see below.
   opts: { expectTeacherProfileId?: string | null; onboard?: { data: { accountType: 'individual'; tosAcceptedAt?: Date; tosVersion?: string }; nameIfNone: boolean } } = {},
 ): Promise<{ listingId: string; teacherProfileId: string; created: boolean; live: boolean; noGoal: boolean; cover: SavedCoverState | null; video: SavedVideoState; onboarded: boolean }> {
+  // ⛔ A REVIEW SEAT NEVER HAS A TEACHER PROFILE (TeacherReviewSeatError): first, so nothing below runs for one — no field
+  // errors, no photo check, no bucket copy, no write. A create and an edit alike: a profile a seat made before this rule
+  // can still be hidden (api/teachers/me/status) or deleted, never edited or shown again. No read: the row is given.
+  if (isReviewSeatEmail(profile.email)) throw new TeacherReviewSeatError()
   const expected = opts.expectTeacherProfileId
   // ⛔ ONE SHAPE (plan review D1/D2, 2026-10-08): a body with no teach-area list is a tab opened before the redesign. The
   // server never guesses what it meant — the route refuses it first (409 profile_changed, "reload"); this is the guarantee.

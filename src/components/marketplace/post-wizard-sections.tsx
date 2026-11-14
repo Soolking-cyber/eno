@@ -888,6 +888,15 @@ export function ContactSection({
 
 /* Success screen — peak-motivation moment, never a dead end: view it, share it,
    then manage it. A first-ever publish gets its own (calm) celebration copy. */
+/**
+ * The one line a store-review seat's save gets — a new post's success screen (PostSuccess `held` 'not-public') and an
+ * edit's toast (post-wizard.tsx, `unpublished` from PATCH) alike. It promises nothing: no check publishes a seat's
+ * listing (src/lib/review-seat-accounts.ts REVIEW_SEAT_LISTING_COPY, whose sentences these are, with "Saved." in front).
+ */
+export function notPublicSavedLine(t: T): string {
+  return t('Đã lưu. Tin đăng của tài khoản này không hiển thị công khai.', 'Saved. Listings from this account are not shown publicly.')
+}
+
 export function PostSuccess({
   firstListing,
   createdId,
@@ -904,8 +913,10 @@ export function PostSuccess({
   /** Stored UNPUBLISHED, waiting for eno's licence check — the aisle it waits in (e-Visa or Legal & permits, taxonomy.ts
    *  licenceCheckHold; owner 2026-10-14): the screen says what happens next, in that aisle's words
    *  (post-wizard-evisa.tsx licenceHeldSuccessBody), instead of "Your listing is live!", and offers nothing that needs a
-   *  public page (Share). */
-  held?: LicenceSlot | null
+   *  public page (Share). 'not-public': stored unpublished and never shown publicly, no licence asked and no check
+   *  promised (a store-review seat's post, src/lib/review-seat-accounts.ts) — the same screen with one neutral line
+   *  (notPublicSavedLine), never a licence request. */
+  held?: LicenceSlot | 'not-public' | null
   title: string
   price: string
   /** A job post: candidates, not buyers, will message the poster. */
@@ -922,8 +933,14 @@ export function PostSuccess({
       <Mascot name="success" className="h-52 w-52 animate-in fade-in zoom-in-90 duration-500 ease-bounce" />
       {held ? (
         <>
-          <h1 className="h-title text-foreground">{t('Đã gửi để kiểm tra giấy phép', 'Sent for a licence check')}</h1>
-          <p className="max-w-md text-sm text-body">{licenceHeldSuccessBody(held, t)}</p>
+          {held === 'not-public' ? (
+            <h1 className="h-title text-foreground">{notPublicSavedLine(t)}</h1>
+          ) : (
+            <>
+              <h1 className="h-title text-foreground">{t('Đã gửi để kiểm tra giấy phép', 'Sent for a licence check')}</h1>
+              <p className="max-w-md text-sm text-body">{licenceHeldSuccessBody(held, t)}</p>
+            </>
+          )}
           <Button asChild variant="cta" size="none">
             <Link href="/dashboard" className="px-6 py-2.5">{t('Tới bảng điều khiển', 'Go to dashboard')}</Link>
           </Button>

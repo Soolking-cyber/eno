@@ -4,6 +4,7 @@ import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { licenceBlockedIds } from '@/lib/core/licence-check'
 import { deskSellerIds } from '@/lib/edition-scope'
 import { licenceClearedWhere } from '@/lib/licence-stamp'
+import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
 // ── Releasing what the seller identity gate parked ──────────────────────────────────────────────
 //
@@ -39,7 +40,9 @@ export async function releaseIdentityHolds(ownerId: string): Promise<number> {
   const blocked = await licenceBlockedIds(held.map((l) => l.id), desk)
   const ids = held.map((l) => l.id).filter((id) => !blocked.has(id))
   if (!ids.length) return 0
-  const r = await db.listing.updateMany({ where: { id: { in: ids }, identityHold: true, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+  // ⛔ …nor a review seat's row (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE): a seat's listing is written without
+  // identityHold and every admin publish refuses one, so none should ever be parked — and if one were, it stays down.
+  const r = await db.listing.updateMany({ where: { id: { in: ids }, identityHold: true, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } })
   refreshPublicSurfaces(ids)
   return r.count
 }

@@ -10,6 +10,7 @@ import { conversationGate } from '@/lib/enforcement'
 import { isBlockedBetween } from '@/lib/user-blocks'
 import { notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
 import { mayWriteToTeacher, sendToTeacherGuarded } from '@/lib/teachers/dm-quota'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 
@@ -23,6 +24,9 @@ export const POST = route(
     if (!t || t.recruiterUserId !== profile.id) throw new ApiError('not_found', 404)
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     if (await isBlockedBetween(t.recruiterUserId, t.teacherUserId)) throw new ApiError('blocked', 403)
+    // ⛔ THE ASK IS A LINE IN THE TEACHER'S THREAD — and a review seat, personal or business, never writes to a teacher
+    // (src/lib/review-seat-accounts.ts). The not-allowed 403; nothing is written or rung.
+    if (isReviewSeatEmail(profile.email)) throw new ApiError('forbidden', 403)
     if (!t.videoAvailable) throw new ApiError('video_not_on_request', 409)
     if (t.videoShared) return { ok: true, requested: false, shared: true }
     // A school may ask again a day later (share.ts ASK_AGAIN_MS), or once the teacher stopped sharing since — never

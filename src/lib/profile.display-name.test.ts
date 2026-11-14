@@ -2,11 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ensureProfile seeds displayName — and, from it, the public handle — with the provider's name CLEANED
 // (Sign in with Apple plan, A5): every provider, before either is written.
-const h = vi.hoisted(() => ({ created: null as null | Record<string, unknown>, handleFrom: [] as unknown[] }))
+const h = vi.hoisted(() => ({
+  created: null as null | Record<string, unknown>, updated: null as null | Record<string, unknown>, handleFrom: [] as unknown[],
+  // The row's email as it stands before the sign-in (null: no row yet).
+  held: null as null | { email: string | null },
+}))
 vi.mock('server-only', () => ({}))
 vi.mock('./db', () => ({
   db: {
-    profile: { upsert: async ({ create }: { create: Record<string, unknown> }) => { h.created = create; return { id: create.id, displayName: create.displayName } } },
+    profile: {
+      findUnique: async () => h.held,
+      upsert: async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => { h.created = create; h.updated = update; return { id: create.id, displayName: create.displayName } },
+    },
     seller: { findUnique: async () => null },
   },
 }))
@@ -20,7 +27,7 @@ const { ensureProfile, providerAvatarUrl } = await import('./profile')
 const user = (meta: Record<string, unknown>, email = 'jane@example.com') =>
   ({ id: 'u-1', email, phone: null, phone_confirmed_at: null, user_metadata: meta, app_metadata: {} }) as never
 
-beforeEach(() => { h.created = null; h.handleFrom = [] })
+beforeEach(() => { h.created = null; h.updated = null; h.handleFrom = []; h.held = null })
 
 describe('ensureProfile — the seeded name', () => {
   it('strips bidi, zero-width and control characters and caps at 80, before the handle is claimed', async () => {
@@ -61,5 +68,24 @@ describe('ensureProfile — the seeded photo', () => {
       'https://u:p@lh3.googleusercontent.com/a', 'https://lh3.googleusercontent.com:8443/a', 'javascript:alert(1)', '', 42, null,
       `https://lh3.googleusercontent.com/${'x'.repeat(2100)}`,
     ]) expect(providerAvatarUrl(bad), String(bad).slice(0, 60)).toBeNull()
+  })
+})
+
+// ⛔ ONCE A REVIEW SEAT, ALWAYS ONE (src/lib/review-seat-accounts.ts): a seat that changed its sign-in address itself keeps
+// the seat's address on its Profile, so every guard that reads it still holds.
+describe('ensureProfile — a review seat\'s address is never replaced', () => {
+  it('a row holding a seat\'s address keeps it, whatever the sign-in now says', async () => {
+    h.held = { email: 'ai-review@eno.vn' }
+    await ensureProfile(user({}, 'reviewer@example.com'))
+    expect(h.updated!.email).toBe('ai-review@eno.vn')
+    expect(h.created!.email).toBe('ai-review@eno.vn')
+  })
+  it('anyone else is mirrored as before: a changed address, and a new account', async () => {
+    h.held = { email: 'jane@example.com' }
+    await ensureProfile(user({}, 'jane.doe@example.com'))
+    expect(h.updated!.email).toBe('jane.doe@example.com')
+    h.held = null
+    await ensureProfile(user({}, 'new@example.com'))
+    expect(h.created!.email).toBe('new@example.com')
   })
 })
