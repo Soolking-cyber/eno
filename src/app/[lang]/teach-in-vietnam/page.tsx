@@ -386,7 +386,7 @@ export default async function TeachHubPage() {
   // heading opens it, so no top rule.
   const facts = !((schools && schools.total > 0) || rentFact) ? null : (
     <section aria-label={FACTS_LABEL} className="mt-6 max-w-3xl border-b border-border pb-6">
-      <p className="text-sm font-bold uppercase tracking-wide text-accent-foreground">Saigon for teachers, today</p>
+      <p className="text-sm font-bold text-accent-foreground">Saigon for teachers, today</p>
       <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4 lg:text-lg">
         {schools && schools.total > 0 && (
           <li>

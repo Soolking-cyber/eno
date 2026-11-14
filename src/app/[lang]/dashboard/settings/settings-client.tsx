@@ -71,7 +71,7 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
               the shell (when embedded) owns the title and this doesn't stack a second one on load. */}
           {!embedded && <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />}
           {/* ⚠️ FLAT GROUPS, NOT CARDS. The real body is a stack of <SettingsGroup>s —
-              `mt-6 border-t pt-6` + an uppercase text-xs caption + `mt-3` content, with NO box
+              `mt-6 border-t pt-6` + a sentence-case text-xs caption + `mt-3` content, with NO box
               around anything ("No space-y: each SettingsGroup carries its own hairline"). The
               four `h-28 rounded-2xl` cards this used to draw promised exactly the boxed
               treatment the flat canon removed, and account-client.tsx's own comment warns
@@ -291,7 +291,7 @@ function SignInMethods({ appMetadata }: { appMetadata: unknown }) {
 function SettingsGroup({ caption, danger, first, children }: { caption: string; danger?: boolean; first?: boolean; children: React.ReactNode }) {
   return (
     <section className={cn(!first && 'mt-6 border-t border-border pt-6')}>
-      <h2 className={cn('text-xs font-semibold uppercase tracking-wide', danger ? 'text-destructive' : 'text-ink-4')}>{caption}</h2>
+      <h2 className={cn('text-xs font-semibold', danger ? 'text-destructive' : 'text-ink-4')}>{caption}</h2>
       <div className="mt-3">{children}</div>
     </section>
   )

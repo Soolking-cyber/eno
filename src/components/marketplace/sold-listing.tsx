@@ -68,11 +68,11 @@ export function SoldListing({
         <section className="mx-auto w-full max-w-lg px-4 pt-4 pb-4 text-center sm:pt-14 sm:pb-0">
           <Mascot name="success" className="mx-auto h-20 w-20 sm:h-60 sm:w-60" />
           {/* No 'Sold' kicker above the heading: pure-label eyebrows are retired (owner, 2026-08-05),
-              and the H1 and the SOLD ribbon on the thumbnail below already say it twice. */}
+              and the H1 and the Sold ribbon on the thumbnail below already say it twice. */}
           <h1 className="h-display mt-3 text-foreground sm:mt-6"><Tr text="This item has been sold" /></h1>
 
-          {/* What sold — grayscale thumbnail + SOLD ribbon + title, so the visitor
-              sees they reached the right item, just too late. */}
+          {/* What sold — grayscale thumbnail + Sold ribbon (sentence case, owner-approved 2026-11-14) +
+              title, so the visitor sees they reached the right item, just too late. */}
           <div className="mx-auto mt-4 flex max-w-sm items-center gap-3 rounded-2xl bg-tint p-3 text-left sm:mt-6">
             {cover ? (
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-muted">
@@ -81,7 +81,7 @@ export function SoldListing({
                     `fill`, which lists every width up to 1080. `unoptimized` only for what it would refuse
                     (anything outside our listings bucket 400s there) and for mock/seed CDN images. */}
                 <Image src={cover} alt="" width={64} height={64} quality={60} unoptimized={!isListingImageUrl(cover) || isMockImageUrl(cover)} className="h-full w-full object-cover opacity-55 grayscale" />
-                <span className="absolute inset-x-0 bottom-0 bg-foreground/75 py-0.5 text-center text-3xs font-bold uppercase tracking-wide text-background">
+                <span className="absolute inset-x-0 bottom-0 bg-foreground/75 py-0.5 text-center text-3xs font-bold text-background">
                   <Tr text="Sold" />
                 </span>
               </div>

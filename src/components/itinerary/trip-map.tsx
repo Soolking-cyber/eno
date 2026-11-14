@@ -582,7 +582,7 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
       {!ready && !loadError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-tint">
           <Spinner size="md" />
-          <span className="text-3xs font-bold uppercase tracking-wider text-ink-4">
+          <span className="text-3xs font-bold text-ink-4">
             {tr('Loading map…', 'Đang tải bản đồ…')}
           </span>
         </div>

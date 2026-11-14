@@ -43,7 +43,7 @@ export function ChatTranslationSetting() {
   const label = tr('Translate chat messages', 'Dịch tin nhắn trò chuyện')
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{tr('Chat translation', 'Dịch tin nhắn')}</h2>
+      <h2 className="text-xs font-semibold text-ink-4">{tr('Chat translation', 'Dịch tin nhắn')}</h2>
       <div className="mt-3 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-bold text-foreground">{label}</p>

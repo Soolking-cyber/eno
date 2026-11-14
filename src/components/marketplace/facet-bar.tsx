@@ -814,7 +814,7 @@ export function FacetBar({
           // the panel opened on a run of chips under "Apartment type" with their own label out of view. `sm:pt-2.5` gives
           // it the offset a one-row group's centring gives every other label (34px chip, 15px label line: 9.5px, measured).
           <div key={f.key} className={cn('flex flex-col gap-1.5 sm:flex-row sm:gap-3', f.multi ? 'sm:items-start' : 'sm:items-center')}>
-            <label id={`${uid}-${f.key}-label`} className={cn('text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0', f.multi && 'sm:pt-2.5')}>{tr(f.label, f.labelVi)}</label>
+            <label id={`${uid}-${f.key}-label`} className={cn('text-2xs font-bold text-muted-foreground sm:w-24 sm:shrink-0', f.multi && 'sm:pt-2.5')}>{tr(f.label, f.labelVi)}</label>
             {f.kind === 'range' && f.range ? (
               <RangeFacetControl range={f.range} value={value} onChange={(v) => setFacetValue(f, v)} />
             ) : f.kind === 'toggle' ? (

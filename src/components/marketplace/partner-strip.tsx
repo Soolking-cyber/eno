@@ -118,7 +118,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
     >
       {/* In the feed the grid already puts a full-width row's content on the page gutter (LISTING_GRID's `col-span-full` padding), so this row adds none. */}
       <div className={placement === 'feed' ? 'flex h-full w-full items-center gap-3' : 'mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8'}>
-        <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-4">{tr('Partners', 'Đối tác')}</span>
+        <span className="shrink-0 text-2xs font-semibold text-ink-4">{tr('Partners', 'Đối tác')}</span>
         <div ref={viewport} className="partner-strip-viewport" onBlur={onBlur}>
           <ul className="partner-strip-track" data-loop={looping ? '' : undefined} data-paused={paused ? '' : undefined} style={duration}>
             {items}

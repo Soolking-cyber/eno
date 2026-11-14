@@ -444,12 +444,13 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
           {GROUPS.map((g, gi) => (
             <Fragment key={g.caption ?? gi}>
-              {/* Group caption (mobile + expanded desktop): the small-caps idiom the filter panels
-                  use. The COLLAPSED 72px rail has no room for text — a hairline separator marks the
-                  group break there instead (between groups only, so gi > 0). */}
+              {/* Group caption (mobile + expanded desktop): the quiet sentence-case label the filter
+                  panels use (no tracked capitals: owner-approved 2026-11-14). The COLLAPSED 72px rail
+                  has no room for text — a hairline separator marks the group break there instead
+                  (between groups only, so gi > 0). */}
               {g.caption && (
                 <>
-                  <div className={cn('px-3.5 pb-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground', gi > 0 && 'pt-3', expanded ? 'lg:block' : 'lg:hidden')}>{g.caption}</div>
+                  <div className={cn('px-3.5 pb-1 text-2xs font-bold text-muted-foreground', gi > 0 && 'pt-3', expanded ? 'lg:block' : 'lg:hidden')}>{g.caption}</div>
                   {gi > 0 && <div aria-hidden className={cn('mx-4 my-2 hidden h-px bg-border', !expanded && 'lg:block')} />}
                 </>
               )}

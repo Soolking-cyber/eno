@@ -272,7 +272,7 @@ export function OfferCard({
     >
       {/* §5: a PENDING offer is live user-state, so its Tag wears the solid fill-brand + text-brand
           pair (the same law as the saved heart). Resolved and expired offers return to line. */}
-      <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wide text-accent-foreground">
+      <div className="flex items-center gap-1 text-2xs font-bold text-accent-foreground">
         <Tag className={`h-3 w-3 ${live ? 'fill-brand text-brand' : ''}`} aria-hidden />{' '}
         {tr('Offer', 'Đề nghị')}
       </div>

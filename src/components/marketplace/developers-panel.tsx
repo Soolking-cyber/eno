@@ -381,7 +381,7 @@ function WebhooksSection() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="truncate font-mono text-sm font-bold text-foreground">{h.url}</span>
-                  {!h.enabled && <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-bold uppercase tracking-wide text-ink-4">{tr('Paused', 'Tạm dừng')}</span>}
+                  {!h.enabled && <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-bold text-ink-4">{tr('Paused', 'Tạm dừng')}</span>}
                 </div>
                 <p className="mt-0.5 text-2xs text-ink-4">
                   {h.events.includes('*') ? tr('all events', 'tất cả sự kiện') : h.events.join(' · ')}

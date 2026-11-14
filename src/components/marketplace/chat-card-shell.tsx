@@ -79,7 +79,7 @@ export function ChatCardMetaProvider({ meta, children }: { meta: React.ReactNode
 export function ChatCard({
   eyebrow, icon: Icon, title, step, right, tone = 'live', className, children,
 }: {
-  /** The family label — "e-Visa", "Trip". Small, uppercase, and the one constant across cards. */
+  /** The family label — "e-Visa", "Trip". Small, sentence case (owner-approved 2026-11-14), and the one constant across cards. */
   eyebrow: string
   icon: IconComponent
   title?: string
@@ -118,7 +118,7 @@ export function ChatCard({
     >
       <div className="flex items-center gap-2">
         <Icon className={cn('h-3.5 w-3.5 shrink-0', t.accent)} aria-hidden />
-        <span className={cn('text-2xs font-bold uppercase tracking-wide', t.accent)}>{eyebrow}</span>
+        <span className={cn('text-2xs font-bold', t.accent)}>{eyebrow}</span>
         {/* ⚠️ `!== undefined`, not `??`. With `??`, a caller passing a falsy-but-defined value —
             `right={someFlag && <Badge/>}` is the obvious way to write a conditional badge — got
             `false`, which suppressed the step badge silently instead of falling back to it. */}

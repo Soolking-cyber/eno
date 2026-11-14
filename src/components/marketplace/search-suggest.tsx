@@ -136,7 +136,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return <>{text}</>
 }
 
-const sectionLabelCls = 'block px-2 text-3xs font-bold uppercase tracking-wider text-ink-4'
+const sectionLabelCls = 'block px-2 text-3xs font-bold text-ink-4'
 
 /**
  * The query row's shape, shared by the entity rows that follow it: they are the same kind of thing — a

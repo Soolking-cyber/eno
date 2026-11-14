@@ -87,7 +87,7 @@ export function RowsSection({
   return (
     <section className={cn(!first && 'mt-6 border-t border-border pt-6', className)}>
       {caption && (
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{caption}</h2>
+        <h2 className="text-xs font-semibold text-ink-4">{caption}</h2>
       )}
       <div className={cn(caption && 'mt-2')}>{children}</div>
     </section>

@@ -244,7 +244,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
       <div className="max-w-4xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
-            <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="text-left text-xs text-muted-foreground">
               <th scope="col" className="pb-2 pr-4 font-semibold"><Tr text="District" /></th>
               {RENT_TYPES.map((t) => (
                 <th key={t} scope="col" className="pb-2 pl-4 text-right font-semibold"><TypeLabel t={t} /></th>
@@ -322,7 +322,7 @@ export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: 
       <div className="max-w-5xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
-            <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="text-left text-xs text-muted-foreground">
               <th scope="col" className="pb-2 pr-4 font-semibold"><Tr text="District" /></th>
               {APARTMENT_BANDS.map((b) => (
                 <th key={b} scope="col" className="pb-2 pl-4 text-right font-semibold"><BandLabel b={b} /></th>

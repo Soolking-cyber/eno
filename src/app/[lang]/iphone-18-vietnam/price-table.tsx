@@ -74,7 +74,7 @@ export function PriceTable({ rows, known, updated, heading, id, seeAll = true }:
             <h3 className="text-sm font-bold text-foreground">{model}</h3>
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="text-left text-xs text-muted-foreground">
                   <th scope="col" className="pb-2 font-semibold"><Tr text="Storage" /></th>
                   <th scope="col" className="pb-2 font-semibold"><Tr text="Lowest price" /></th>
                   <th scope="col" className="pb-2 font-semibold"><Tr text="Seller" /></th>

@@ -40,7 +40,7 @@ export function AiFeaturesSetting() {
   const voice = voiceNow || (shownFor === user.id && isNativeVoiceClient())
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{voice ? tr('AI features', 'Tính năng AI') : tr('Google AI', 'Google AI')}</h2>
+      <h2 className="text-xs font-semibold text-ink-4">{voice ? tr('AI features', 'Tính năng AI') : tr('Google AI', 'Google AI')}</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         {voice
           ? tr(

@@ -3419,7 +3419,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                         fill-brand + text-brand pair (same law as the saved heart) — blind-critic
                         catch 2026-08-07: line-only left the spec's loudest law with no pixel
                         witness on the one card built to show it. Resolved offers return to line. */}
-                    <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wide text-accent-foreground"><Tag className={`h-3 w-3 ${m.offerStatus === 'pending' ? 'fill-brand text-brand' : ''}`} aria-hidden /> {tr('Offer', 'Đề nghị')}</div>
+                    <div className="flex items-center gap-1 text-2xs font-bold text-accent-foreground"><Tag className={`h-3 w-3 ${m.offerStatus === 'pending' ? 'fill-brand text-brand' : ''}`} aria-hidden /> {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} <span className="text-price">{formatMoneyFull(m.offerAmount || 0, '₫', locale)}</span></div>
                     {askPct != null && (
                       <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing!.price!, '₫', locale)})</div>

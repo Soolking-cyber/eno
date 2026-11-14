@@ -203,8 +203,9 @@ export const SHEET_ACTION_ROW =
  * row, whose icon is red with its words.
  */
 export const SHEET_LEAD_ICON = '[&>svg:first-child:not([class*=\'text-\'])]:text-ink-4'
-/** A group heading — the same quiet uppercase label CustomSelect and the Filter panel put over their groups. */
-export const SHEET_GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
+/** A group heading — the same quiet sentence-case label CustomSelect and the Filter panel put over their groups (no
+ *  tracked capitals: owner-approved 2026-11-14, the redesign's sentence case). */
+export const SHEET_GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold text-muted-foreground'
 export const SHEET_SEPARATOR = 'mx-3 my-1 h-px shrink-0 bg-border'
 /** The search field pinned at the top of a long list — the house filled-input idiom (tint, soft ring). */
 export const SHEET_SEARCH =

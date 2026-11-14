@@ -1948,7 +1948,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
             // between the control and the bubble, or the one wrapper still holding it re-inflates
             // the row and the fix below looks like it did nothing.
             <div key={section.key} className="min-w-0 space-y-3">
-              <p className="text-2xs font-bold uppercase tracking-wide text-ink-4">{section.title}</p>
+              <p className="text-2xs font-bold text-ink-4">{section.title}</p>
               {section.specs.map((spec) => (
                 <VisaFieldControl
                   key={spec.field}
@@ -2324,13 +2324,13 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
         )}
         <div className="mt-2 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-2xs font-semibold uppercase tracking-wide text-ink-4">{tr('Price', 'Giá')}</p>
+            <p className="text-2xs font-semibold text-ink-4">{tr('Price', 'Giá')}</p>
             <p className="text-base font-bold tabular-nums text-foreground">
               {product ? formatMoneyFull(product.priceVnd, '₫', locale) : '—'}
             </p>
           </div>
           {!quickFlow && <div className="min-w-0 text-right">
-            <p className="text-2xs font-semibold uppercase tracking-wide text-ink-4">{tr('You pay', 'Bạn trả')}</p>
+            <p className="text-2xs font-semibold text-ink-4">{tr('You pay', 'Bạn trả')}</p>
             <p className={cn('text-base font-bold tabular-nums', quote ? 'text-accent-foreground' : 'text-ink-4')}>
               {quote ? formatUsdCents(quote.amountUsdCents, locale) : '—'}
             </p>

@@ -24,7 +24,7 @@ function MapPlaceholder() {
     // token documented as AA on both white and bg-tint for exactly this kind of small meta text.
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none">
       <Spinner size="md" />
-      <span className="text-3xs font-bold text-ink-4 uppercase tracking-wider">
+      <span className="text-3xs font-bold text-ink-4">
         <Tr text="Loading map…" />
       </span>
     </div>

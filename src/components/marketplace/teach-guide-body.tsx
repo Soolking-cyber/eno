@@ -142,7 +142,7 @@ function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { t
                   </th>
                 ) : (
                   <td key={c} className="align-top text-body max-md:mt-1 max-md:block md:py-2 md:pr-4">
-                    <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:hidden">{b.headers[c]}:</span>
+                    <span className="mr-1.5 text-xs font-semibold text-muted-foreground md:hidden">{b.headers[c]}:</span>
                     <Inline src={cell} isLiveHref={isLiveHref} lang={lang} />
                   </td>
                 ),
@@ -220,7 +220,7 @@ const KEY_POINTS_ID = 'key-points'
 export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   return (
     <section aria-labelledby={KEY_POINTS_ID} className="mt-6 max-w-3xl border-b border-border pb-6">
-      <h2 id={KEY_POINTS_ID} className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-accent-foreground">
+      <h2 id={KEY_POINTS_ID} className="flex items-center gap-2 text-sm font-bold text-accent-foreground">
         <ListChecks className="h-4 w-4" aria-hidden /> {lang === 'vi' ? 'Điểm chính' : 'Key points'}
       </h2>
       <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4 lg:text-lg">

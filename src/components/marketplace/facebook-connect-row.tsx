@@ -128,7 +128,7 @@ export function FacebookConnectRow() {
 
   return (
     <section className="mt-6 border-t border-border pt-6">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">Facebook</h2>
+      <h2 className="text-xs font-semibold text-ink-4">Facebook</h2>
       <div className="mt-3 flex items-center justify-between gap-4">
         <p className="min-w-0 text-sm text-body">
           {status.connected

@@ -54,7 +54,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
       {listed ? (
         <table className="mt-4 w-full max-w-md text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="text-left text-xs text-muted-foreground">
               <th scope="col" className="pb-2 font-semibold"><Tr text="Storage" /></th>
               <th scope="col" className="pb-2 font-semibold"><Tr text="Lowest price" /></th>
               <th scope="col" className="pb-2 font-semibold"><Tr text="Seller" /></th>
@@ -82,7 +82,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
         <dl className="mt-4 grid max-w-prose grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           {DUO_RRP.map(([storage, price]) => (
             <div key={storage}>
-              <dt className="text-xs uppercase tracking-wide text-muted-foreground">{storage}</dt>
+              <dt className="text-xs text-muted-foreground">{storage}</dt>
               <dd className="font-semibold text-foreground">
                 <Price native price={price} currency="₫" priceUnit="" dual={false} className="text-sm leading-tight" />
               </dd>

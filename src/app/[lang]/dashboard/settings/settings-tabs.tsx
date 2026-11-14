@@ -45,7 +45,7 @@ function PreferencesTab() {
   return (
     <div className="max-w-2xl space-y-6">
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{tr('Display', 'Hiển thị')}</h2>
+        <h2 className="text-xs font-semibold text-ink-4">{tr('Display', 'Hiển thị')}</h2>
         <PreferencesInline className="pt-1" />
       </section>
       {/* App Store gate `app-ai-notice` (R8, D14): turns chat translation back on after the one-time

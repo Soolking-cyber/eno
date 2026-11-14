@@ -56,8 +56,9 @@ export function groupRuns(options: SelectOption[]): OptionGroup[] | null {
   return runs
 }
 
-/** A group's heading — the same quiet uppercase label the Filter panel puts over its facets. */
-export const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
+/** A group's heading — the same quiet sentence-case label the Filter panel puts over its facets (no tracked capitals:
+ *  owner-approved 2026-11-14, the redesign's sentence case). */
+export const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold text-muted-foreground'
 
 /** ⚠️ DIACRITIC- AND CASE-BLIND, BECAUSE NOBODY TYPES THE ACCENTS. Someone looking for "Ngân hàng
  *  TMCP Á Châu" types "ngan hang a chau". NFD splits each letter from its combining mark and the

@@ -210,7 +210,7 @@ function DistrictTable({ e }: { e: Edition }) {
       <div className="max-w-4xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
-            <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <tr className="text-left text-xs text-muted-foreground">
               <th scope="col" className="pb-2 pr-4 font-semibold">District</th>
               {DISTRICT_BANDS.map((b) => (
                 <th key={b} scope="col" className="pb-2 pl-4 text-right font-semibold">{BAND_LABEL[b]}</th>
@@ -306,7 +306,7 @@ function Method({ e }: { e: Edition }) {
         <div className="md:overflow-x-auto">
           <table className="w-full text-xs sm:text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="text-left text-xs text-muted-foreground">
                 <th scope="col" className="pb-2 pr-3 font-semibold sm:pr-4"><span className="sr-only">Step</span></th>
                 {pay.map((t) => (
                   <th key={t.grossVnd} scope="col" className="pb-2 pl-3 text-right font-semibold sm:pl-4">{money(t.grossVnd)} gross</th>

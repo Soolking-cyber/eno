@@ -344,7 +344,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
           <ol className="space-y-4">
             {trip.dayPlans.map((day) => (
               <li key={day.id} className="rounded-2xl border border-border/70 bg-card p-4">
-                <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">
+                <p className="text-2xs font-bold text-muted-foreground">
                   {tr('Day', 'Ngày')} {day.dayNumber} · {loc(day.area, day.areaVi)}
                 </p>
                 <p className="mt-1 text-sm font-bold text-foreground">{loc(day.title, day.titleVi)}</p>
@@ -409,7 +409,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
                 and this list has no destructive control. See stays/replace.ts. */}
             {trip.stays.length > 0 && (
               <section aria-labelledby="stay-shortlist" className="rounded-2xl border border-border/70 p-4">
-                <h2 id="stay-shortlist" className="text-2xs font-bold uppercase tracking-wide text-foreground">
+                <h2 id="stay-shortlist" className="text-2xs font-bold text-foreground">
                   {tr('Where you would stay', 'Chỗ ở gợi ý')}
                 </h2>
                 <ul className="mt-2.5 space-y-2 text-xs text-body">
