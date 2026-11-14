@@ -1,6 +1,4 @@
-import { NextResponse } from 'next/server'
-import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
-import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
+import { protectedResourceResponse } from '@/lib/api/protected-resource'
 
 // ── RFC 9728 · OAuth 2.0 Protected Resource Metadata ──────────────────────────────
 // Served at /.well-known/oauth-protected-resource via a rewrite in next.config.ts (see the
@@ -16,46 +14,13 @@ import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
 //
 // ⚠️ WHY `resource` IS THE /api/v1 ROOT AND NOT THE SITE ORIGIN. The token audience in practice is
 // the partner API; the marketing site is not bearer-protected. Naming the origin would tell a
-// client that every page needs a token. /api/mcp is served by the same key auth (resolveApiKey
-// with no required scope) and is intentionally not listed as a separate resource — one credential,
-// one authorization server, and a second entry would imply a second trust boundary that does not
-// exist.
+// client that every page needs a token. Since "Sign in with eno" (2026-11-13) the MCP server is its own resource
+// (MCP_RESOURCE, the audience of sign-in tokens) with its own document at …/oauth-protected-resource/api/mcp, served
+// by ./mcp/route.ts — both built by src/lib/api/protected-resource.ts.
 
 export const runtime = 'nodejs'
 
-/**
- * ⛔ ONE DOCUMENT PER RESOURCE (2026-11-13, "Sign in with eno"). RFC 9728 §3.3: the `resource` a client fetched metadata
- * for must be the one it is told about. The MCP server's challenge points at
- * /.well-known/oauth-protected-resource/api/mcp; next.config passes that suffix as `?path=`, and it answers the MCP
- * server's resource. Any other suffix keeps the REST API's document, as before (the note above).
- */
-export async function GET(req: Request) {
-  const path = new URL(req.url).searchParams.get('path') || ''
-  const mcp = path.replace(/^\/+|\/+$/g, '') === 'api/mcp'
-  return NextResponse.json(
-    {
-      // Imported, never rebuilt — issuer and resource must agree with the `iss` we mint and with
-      // the `servers[0].url` the OpenAPI spec publishes. Per edition:
-      // https://eno.vn/api/v1 (marketplace) / https://www.eno.forum/api/v1 (services).
-      resource: mcp ? MCP_RESOURCE : `${OAUTH_ISSUER}/api/v1`,
-      // One authorization server: ourselves. Its metadata is the sibling document at
-      // /.well-known/oauth-authorization-server on this same origin.
-      authorization_servers: [OAUTH_ISSUER],
-      // Same list the authorization server advertises, from the same constant, because a client
-      // that sees different scope sets on the two documents cannot tell which one to request.
-      scopes_supported: [...OAUTH_SCOPES],
-      // resolveApiKey reads `Authorization: Bearer …` and NOTHING else — no `access_token` query
-      // parameter, no form body. Advertising either would invite a client to put a credential in a
-      // URL, where it lands in every access log and Referer header on the way.
-      bearer_methods_supported: ['header'],
-      resource_name: `${new URL(OAUTH_ISSUER).host} Partner API`,
-      resource_documentation: `${OAUTH_ISSUER}/developers`,
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    },
-  )
+/** The REST API's document, for every suffix but /api/mcp (which next.config sends to ./mcp/route.ts). */
+export async function GET() {
+  return protectedResourceResponse('rest')
 }

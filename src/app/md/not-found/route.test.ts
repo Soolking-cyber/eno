@@ -241,3 +241,34 @@ describe('404 markdown body', () => {
     expect(body).not.toMatch(/visa|itinerar|paypal/i)
   })
 })
+
+/**
+ * ⛔ The MCP server's sign-in discovery (2026-11-14, found live): a rewrite whose destination carried `?path=api/mcp` never
+ * reached the handler (a route handler does not see a rewrite's destination query), so MCP clients were told the resource
+ * was /api/v1 and refused to sign in. The handler's own test passed because it built the query by hand. Pinned HERE, the
+ * one file that reads the build config: the MCP document is reached by PATH, before the catch-all, at a route that exists.
+ */
+describe('OAuth protected-resource discovery — rewrite wiring', () => {
+  it('/.well-known/oauth-protected-resource/api/mcp goes to its own route by path, ahead of the catch-all', async () => {
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    for (const group of [rewrites.beforeFiles, rewrites.afterFiles]) {
+      const i = group.findIndex((r) => r.source === '/.well-known/oauth-protected-resource/api/mcp')
+      if (i < 0) continue
+      const dest = group[i].destination
+      expect(dest).toBe('/api/well-known/oauth-protected-resource/mcp')
+      expect(dest).not.toContain('?')
+      expect(existsSync(join(process.cwd(), 'src/app', dest, 'route.ts'))).toBe(true)
+      const catchAll = group.findIndex((r) => r.source === '/.well-known/oauth-protected-resource/:path*')
+      expect(catchAll).toBeGreaterThan(i)
+      return
+    }
+    throw new Error('no rewrite for /.well-known/oauth-protected-resource/api/mcp')
+  })
+
+  it('no well-known rewrite hands its handler a destination query', () => {
+    for (const r of [...rewrites.beforeFiles, ...rewrites.afterFiles]) {
+      if (r.source.startsWith('/.well-known/oauth-')) expect(r.destination).not.toContain('?')
+    }
+  })
+})

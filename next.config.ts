@@ -1178,9 +1178,10 @@ const nextConfig: NextConfig = {
         { source: "/.well-known/oauth-authorization-server", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource" },
-        // The MCP server's own document (RFC 9728 §3.3: its resource is …/api/mcp), by an EXPLICIT rule with a fixed query
-        // — first, so it wins over the catch-all below, and no parameter substitution has to be trusted (review 2026-11-13).
-        { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/well-known/oauth-protected-resource?path=api/mcp" },
+        // The MCP server's own document (RFC 9728 §3.3: its resource is …/api/mcp), by an EXPLICIT rule — first, so it wins
+        // over the catch-all below. ⛔ To its own PATH, never a destination query: a route handler does not see a rewrite's
+        // destination query, and the 11-14 deploy answered /api/v1 here (src/lib/api/protected-resource.ts).
+        { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/well-known/oauth-protected-resource/mcp" },
         { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/well-known/oauth-protected-resource" },
         /**
          * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.

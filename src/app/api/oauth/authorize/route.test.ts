@@ -149,11 +149,12 @@ describe('POST /api/oauth/authorize', () => {
 
 describe('discovery for the sign-in', () => {
   it('the protected-resource document answers the MCP server for /api/mcp, the REST API otherwise', async () => {
-    const { GET } = await import('@/app/api/well-known/oauth-protected-resource/route')
-    const mcp = await (await GET(new Request(`${OAUTH_ISSUER}/api/well-known/oauth-protected-resource?path=api/mcp`))).json()
+    const { GET: mcpGET } = await import('@/app/api/well-known/oauth-protected-resource/mcp/route')
+    const mcp = await (await mcpGET()).json()
     expect(mcp.resource).toBe(G.MCP_RESOURCE)
     expect(mcp.authorization_servers).toEqual([OAUTH_ISSUER])
-    const rest = await (await GET(new Request(`${OAUTH_ISSUER}/api/well-known/oauth-protected-resource`))).json()
+    const { GET } = await import('@/app/api/well-known/oauth-protected-resource/route')
+    const rest = await (await GET()).json()
     expect(rest.resource).toBe(`${OAUTH_ISSUER}/api/v1`)
   })
 
