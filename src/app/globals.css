@@ -376,6 +376,18 @@
   --text-t-card--line-height: 1.25rem;
   --text-t-meta: 0.8125rem;
   --text-t-meta--line-height: 1.125rem;
+  /* The seventh role, the listing page's own display title (owner-approved 2026-11-14, cook r05 "rental-c": a home to
+     rent's H1 on a phone, 700 26/32 −0.02em — the page's one display element; src/lib/rental-sheet.ts). */
+  --text-t-title: 1.625rem;
+  --text-t-title--line-height: 2rem;
+  --text-t-title--letter-spacing: -0.02em;
+  --text-t-title--font-weight: 700;
+  /* The eighth, the goods listing page's figure (owner-approved 2026-11-14, cook r06 "item": a goods or vehicle listing's
+     price on a phone, 700 32/40 −0.03em — that page's one display element; src/lib/goods-sheet.ts). */
+  --text-t-figure: 2rem;
+  --text-t-figure--line-height: 2.5rem;
+  --text-t-figure--letter-spacing: -0.03em;
+  --text-t-figure--font-weight: 700;
 }
 
 /* ── THE Z LADDER (D-Z, 2026-09-29) ──────────────────────────────────────────────────────────────
@@ -742,6 +754,9 @@
      pill's own 1px --search-edge already draws that edge. */
   --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.08);
   --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.08);
+  /* The rental sheet's rounded edge over its photo (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts
+     SHEET_PHOTO): a lift cast UPWARD onto the photo, pulled in 6px so it never shows past the strip's sides. */
+  --shadow-sheet: 0 -4px 12px -6px rgb(0 0 0 / 0.18);
   /* The docked tab bar's home-indicator band (mobile-nav.tsx): env() in a browser and in the iOS app, Capacitor's
      injected var on an Android WebView below 140, whichever is larger. The bar pads by it; each tab's tap strip fills it. */
   --tabbar-inset: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
@@ -1102,6 +1117,7 @@
   --search-edge: var(--input);
   --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.4);
   --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.4);
+  --shadow-sheet: 0 -4px 12px -6px rgb(0 0 0 / 0.5);
   /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
      Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
   --trust-restricted: #f87171; /* red-400     — bad */
@@ -1687,6 +1703,8 @@
    plain class has no variants. Layered, so an unlayered .shadow-pop (the open search window) still wins. */
 @utility shadow-raised { box-shadow: var(--shadow-raised); }
 @utility shadow-chip { box-shadow: var(--shadow-chip); }
+/* The rental sheet's edge over the photo, worn by an `after:` pseudo (src/lib/rental-sheet.ts SHEET_PHOTO). */
+@utility shadow-sheet { box-shadow: var(--shadow-sheet); }
 
 /* ============================================================
    TRUE HAIRLINES — one DEVICE pixel, at any density
@@ -2650,6 +2668,30 @@ html.os-android [data-store="ios"] {
   }
 }
 
+/* ⛔ A GOODS LISTING PAGE'S ONE BOTTOM TIER (owner-approved 2026-11-14, cook r06 "item": "after this cook round build all best
+   options and deploy"; src/lib/goods-sheet.ts pinsAction). It reverses, on these pages only, the tab-nav-stays-on-the-PDP
+   rulings (owner 2026-07-18; pdp-action-bar.tsx "IT NEVER TAKES THE NAVIGATION AWAY"; mobile-nav.tsx) and NAV-3's "every new
+   page starts with the bars showing" (use-hide-on-scroll.ts): a listing page is a pushed screen, its own action is pinned
+   from the first paint (`#contact[data-pin-action]`, page.tsx + ui/sticky-action-bar.tsx PinnedRegion), and the tab bar
+   starts retracted, coming back on the first scroll up (MobileNav `data-scrolled-up`), on keyboard focus, or when the page
+   cannot scroll. While it shows, the tier rides on top of it.
+   · Decided by the server's HTML (`data-pin-action` is server-rendered), so it holds from the first frame: nothing shifts.
+   · `translate` only, so neither move is a layout shift. A browser without `:has()` matches nothing: the bar behaves as on
+     every other page and the tier sits under it at the bottom edge (z 30 under the nav's 40).
+   · UNLAYERED, so it beats the nav's own `translate-y-0` utility; `:not(:focus-within)` keeps a keyboard user's reveal.
+   · `html:not(.native)`: the store apps never pin (PinnedRegion's classes carry the same guard). */
+@media (max-width: 767.98px) {
+  html:not(.native):has(#contact[data-pin-action]) .mobile-nav:not([data-scrolled-up]):not(:focus-within) {
+    translate: 0 100%;
+    opacity: 0;
+    pointer-events: none;
+  }
+  html:not(.native):has(.mobile-nav[data-scrolled-up]) #contact[data-pin-action],
+  html:not(.native):has(.mobile-nav:focus-within) #contact[data-pin-action] {
+    translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));
+  }
+}
+
 /* ⚠️ THE INSTALLED PWA GETS A BACK BUTTON WHERE THE LOGO WAS. manifest.ts installs the site as
    `display: standalone` (the owner's only route to iOS web push), which removes the browser's own Back
    — so a listing opened from a notification had no way back but the tab bar. header.tsx renders
@@ -3250,6 +3292,12 @@ html.dark .leaflet-tile-pane {
    gittery … should be similar experience as ios app"): the cost above, paid on every scrolling frame.
    `native-android` is set on <html> before first paint ([lang]/layout.tsx head script). */
 html.native-android .reveal-on-scroll { animation: none; }
+/* ⛔ …AND NOT ON THE GOODS PHONE CARD (owner-approved 2026-11-14, cook r06 goods; listing-card.tsx `look`): the redesign's slop ban
+   ("fade-in on scroll") on the price-led goods grid, below 40rem only — desktop keeps the reveal. Unlayered and keyed on the
+   card's own `data-look`, like the rule above: `.reveal-on-scroll` is unlayered, so no `max-sm:` utility could beat it. */
+@media (width < 40rem) {
+  .reveal-on-scroll[data-look="goods"] { animation: none; }
+}
 
 /* ============================================================
    TRANSLUCENT MATERIALS — the two accessibility signals besides reduced-motion
@@ -4583,6 +4631,12 @@ html[data-has-recents] .recents-row {
   contain-intrinsic-size: auto calc(50vw + 65px);
 }
 [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc(50vw + 83.5px); }
+/* ⛔ A WIDE PHONE CARD'S GUESS (owner-approved 2026-11-14, cook r06 rentals-a; listings-explorer.tsx `rentalsWide`): one column, so the
+   square photo is the screen less its two 12px gutters, under the wide card's 96px one-line body (card-text.ts WIDE_LINE_PX):
+   100vw − 24 + 96. From sm the cell is an ordinary grid card again and the rules below apply. */
+@media (max-width: 639.98px) {
+  [data-feed-card][data-wide-cell] { contain-intrinsic-size: auto calc(100vw + 72px); }
+}
 @media (min-width: 640px) {
   [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 73px); }
   [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 94.75px); }
@@ -4615,13 +4669,25 @@ html[data-has-recents] .recents-row {
    size, so letting the LCP row start as the intrinsic-size guess would move the fold on first paint. Twelve
    is the first page (FIRST_PAGE_SIZE): three full rows at the widest breakpoint. The guest-capture
    row comes AFTER it since 2026-09-29 (E-ORPHAN).
-   ⚠️ THIRTEEN CHILDREN, NOT TWELVE (2026-11-10): on the undirected home the phone's partner row is the fifth child of the
-   grid (partner-strip.tsx; it is in the DOM at every width and shown below `sm`), so the first page's twelve cards are
-   children 1-4 and 6-13. Counting twelve would leave the twelfth card to the intrinsic-size guess. Where there is no
-   partner row the thirteenth child is page two's first card, or the shelf: one more cell painted eagerly, nothing else. */
-.feed-grid > *:nth-child(-n + 13) [data-feed-card],
-.feed-grid > *:nth-child(-n + 13)[data-feed-card] {
+   ⚠️ TWELVE AGAIN SINCE 2026-11-14: the phone's partner row, which was the grid's fifth child from 2026-11-10 (so the count
+   was thirteen), left the grid for the home page's phone lanes (owner-approved, cook r04 home-b — partner-strip.tsx). The
+   first page's twelve cards are children 1-12 again; the teacher shelf and the guest row come after them. */
+.feed-grid > *:nth-child(-n + 12) [data-feed-card],
+.feed-grid > *:nth-child(-n + 12)[data-feed-card] {
   content-visibility: visible;
+}
+
+/* ⛔ THE HOME PAGE'S PHONE LANES NEVER PAINT ON A LINK THAT WILL HIDE THEM (owner-approved 2026-11-14, cook r04 home-b "lanes
+   as rails"; listings-explorer.tsx `data-home-lanes`). Every query string gets the same ISR document, whose phone view now
+   OPENS on the lanes (Trending, the category lanes, Outstanding businesses, Partners — about three screens) above the
+   toolbar and the feed. A cold /?q=laptop would paint them and then lose them at hydration, moving the whole feed up by
+   their height. The pre-paint script marks a URL the explorer will direct (`html[data-home-lanes-off]`, explorer-url.ts
+   explorerUrlHidesLanes) and the lanes are out of the first frame, by `display` (a held box would close up just the same).
+   Unlike the mask, the 15 s net does NOT lift it: a page whose JavaScript never arrives keeps its feed where it painted it.
+   The explorer drops the mark once the lanes have left its tree (or, on a link it leaves undirected after all, once the
+   URL's answer is drawn). A `?sort=` link is masked but not directed: its lanes paint from the first frame, as they stay. */
+html[data-home-lanes-off] [data-home-lanes] {
+  display: none;
 }
 
 /* ⛔ …AND NOTHING IS SKIPPED WHILE A BACK-NAV RESTORE ALIGNS (E-BACK, 2026-09-29) — THE SKIPPING ABOVE
@@ -4717,8 +4783,52 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
    PhoneFilterChips), and its results row is ONE line whatever is applied — the count, Save search (min-h-11) and the view
    pill. The 86px held the old two rows (chips + pill, then the count). Re-measure if that row changes. */
 @media (width < 40rem) {
-  html[data-explorer-directed]:not([data-explorer-cat="teachers"]) #results {
+  html[data-explorer-directed]:not([data-explorer-cat="teachers"]) #results:not([data-results-hidden]) {
     min-height: 2.75rem;
+  }
+}
+/* ⛔ …EXCEPT A COLD SEARCH LINK WITH NO CATEGORY, WHICH OPENS ON THE GOODS TITLE LINE (owner-approved 2026-11-14, cook r06 goods;
+   listings-explorer.tsx `oneRow`). There the explorer folds the ladder into ONE title line at the top (ResultsTitle, 36px) and
+   ONE control row, and the results row goes sr-only (`data-results-hidden`): no row between the strip and the grid. So from the
+   first frame the ISR seed's results row leaves the box tree the same way (sr-only geometry), while `.ladder-row-reserve`'s
+   36px (first in the ladder, as the title line is) stands in for the title line — the fold then swaps the reserve for the line
+   and moves nothing. Keyed on what the pre-paint script knows: a link it folds (FOLD_ATTR) with no category in its URL, or
+   `category=all` (explorer-url.ts `data-explorer-cat`); the mark goes in the commit that draws the title line. `40rem`, the
+   explorer's `useSmUp` line: from there the fold keeps its compact row and this row.
+   The control row's head is held too: `.scope-chip-reserve` (ladder-compact-row.tsx ScopeChipReserve, the scope chip's own box,
+   invisible) takes the chip's width at the start of the strip, so when the fold draws "All categories ⌄" there the Sort and
+   filter pills after it do not move. Unlayered, so its display:none beats the primitive's `inline-flex` utility.
+   ⚠️ A link the pre-paint script folds that the explorer does NOT draw as one row — a brand or a subcategory with no category
+   (`?brand=apple`: a crumb) — paints this way and then gets its row back: a 44px shift, accepted for those rare links. */
+.scope-chip-reserve {
+  display: none;
+}
+/* …and on every cold goods link (a goods category, `all`, an unknown one, or none — the four left out are goods-surface.ts
+   NOT_GOODS_CATEGORIES; goods-surface.test.ts holds the lists equal) the sort pill's ⇅ is off from the first frame: the goods
+   strip says "Sort" alone (SortStrip `look`), so the pills after it stay where they are when the fold draws that strip. */
+@media (width < 40rem) {
+  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .sort-glyph-default {
+    display: none;
+  }
+}
+@media (width < 40rem) {
+  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) .scope-chip-reserve {
+    display: inline-flex;
+    visibility: hidden;
+  }
+}
+@media (width < 40rem) {
+  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) #results {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
   }
 }
 /* ⛔ …AND UNDER THE MASK THE SEED'S OWN ROW IS THAT ONE LINE TOO (speed wave 3, c1). The row on screen until the explorer
@@ -4755,6 +4865,20 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
   }
   html[data-explorer-directed] #results[data-home-row] > [data-slot="result-line"] {
     display: none;
+  }
+}
+
+/* ⛔ A COLD /?category=rentals LINK'S MASKED SEED IS ONE COLUMN ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a;
+   listings-explorer.tsx `rentalsWide`). The ISR home's two-up seed stands under the mask until the URL's answer is drawn, and that
+   answer is the one-column rentals grid (listing-grid.ts LISTING_GRID_WIDE: no bleed, 24px between cards). So from the first
+   frame the seed's skeleton photos take the answer's column and gaps, and its photos land where they stood. Keyed on the URL's
+   category, which the pre-paint script sets (explorer-url.ts `data-explorer-cat`); it ends with the mask. The answer's cards
+   are new nodes (keyed by the run's generation), so they replace the seed rather than move it. */
+@media (width < 40rem) {
+  html[data-explorer-directed][data-explorer-cat="rentals"] #listings .feed-grid {
+    grid-template-columns: minmax(0, 1fr);
+    margin-inline: 0;
+    row-gap: 1.5rem;
   }
 }
 
@@ -5032,18 +5156,76 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
   border-bottom: 1px solid var(--color-border);
   background: var(--color-card);
 }
-/* ⛔ THE PHONE'S COPY, IN THE HOME FEED (owner, 2026-11-10; partner-strip.tsx `placement="feed"`): a full-width row of the
-   feed grid after its second row, with a hairline above as well as below. The grid's own row gap is its spacing.
-   ⛔ NEVER ON A DIRECTED COLD LINK, AND `display` THIS TIME, NOT `visibility`. Every query string gets the same ISR document,
-   so /?q=laptop arrives with this row in its masked seed. The seed cards keep their boxes under the mask so that lifting
-   it moves nothing; this row is the opposite case: the explorer never renders it on a directed page, so a box held for
-   it would close up under the skeleton cards at hydration and move every row below it. Gone from the first frame, nothing
-   moves. (A `?sort=` link is masked but not directed: there the row appears when the mask lifts, a screen below the fold.) */
-.partner-strip-feed {
-  border-top: 1px solid var(--color-border);
+/* ⛔ THE PHONE'S COPY IS THE "PARTNERS" LANE (owner-approved 2026-11-14, cook r04 home-b "lanes as rails"; partner-strip.tsx
+   `placement="feed"`). It REVERSES 2026-11-10's full-width row of the feed grid after its second row, with a hairline above
+   and below: the copy now sits among the home page's phone lanes (listings-explorer.tsx `data-home-lanes`), under a lane's
+   own heading, so it has no band chrome — no height, no fill, no hairlines. Its viewport bleeds to the screen edges like a
+   lane's scroller (the #listings frame is `px-3` on a phone) and its track pads back onto the 12px text edge; each partner
+   is a TILE the width of a lane card (220px), 56 tall, white with the chips' hairline at the photo radius, its logo then its
+   one word. Spacing is the track's gap here: this copy never loops, so the marquee's trailing-padding rule does not apply.
+   ⛔ A DIRECTED COLD LINK NEVER SHOWS IT: the whole lanes block is display:none from the first frame there
+   (`html[data-home-lanes-off]`, below the feed-grid rules) — the 11-10 rule that took this row out of the masked seed by
+   `display`, never `visibility`, for the same reason. */
+.partner-strip-feed .partner-strip-viewport {
+  margin-inline: -0.75rem;
+  /* Room for a tile's 2px focus ring, which the viewport's `overflow-y: hidden` would otherwise clip. */
+  padding-block: 0.125rem;
+  scroll-padding-inline: 0.75rem;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
-html[data-explorer-directed] #listings .feed-grid > [data-partner-band] {
-  display: none;
+.partner-strip-feed .partner-strip-track {
+  gap: 0.75rem;
+  padding-inline: 0.75rem;
+}
+.partner-strip-feed .partner-strip-item {
+  padding-inline-end: 0;
+}
+.partner-strip-feed .partner-strip-link {
+  min-width: 13.75rem;
+  height: 3.5rem;
+  gap: 0.625rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-media);
+  background: var(--color-background);
+  transition: transform 90ms ease-out, background-color 90ms ease-out;
+}
+.partner-strip-feed .partner-strip-link:active {
+  background: var(--color-muted);
+  transform: scale(0.98);
+}
+@supports (corner-shape: squircle) {
+  .partner-strip-feed .partner-strip-link { corner-shape: squircle; }
+}
+/* The mark sits on the tile itself (no inner tile), 32px tall; a wide wordmark 20. Both keep their attribute width/height
+   (no shift) and shrink inside 120px rather than push the word out. Blvck's mark is drawn for black: a 32px ink badge. */
+.partner-strip-feed .partner-strip-tile {
+  height: 2rem;
+  flex: none;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.partner-strip-feed .partner-strip-logo { height: 2rem; max-width: 7.5rem; object-fit: contain; }
+.partner-strip-feed .partner-strip-logo-wide { height: 1.25rem; max-width: 7.5rem; object-fit: contain; }
+.partner-strip-feed .partner-strip-tile-dark .partner-strip-logo,
+.partner-strip-feed .partner-strip-tile-dark .partner-strip-logo-wide {
+  width: 2rem;
+  height: 2rem;
+  max-height: none;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  background: #0b0b0b;
+}
+/* ⛔ THE MARKS STAY ON WHITE IN BOTH THEMES (the band's ruling above, kept): on the dark canvas the lane's tile is the theme's
+   own, so each mark drawn for a white ground gets its white plate back. */
+.dark .partner-strip-feed .partner-strip-tile:not(.partner-strip-tile-dark) {
+  height: auto;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--radius-lg);
+  background: #fff;
 }
 @media (min-width: 640px) {
   .partner-strip { height: 3.5rem; }

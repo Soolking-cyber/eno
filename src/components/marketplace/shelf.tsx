@@ -12,6 +12,7 @@ import { SECTION_TITLE } from './section-title'
 import { COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LISTING_CARD_SIZES } from './listing-grid'
 import { cn } from '@/lib/utils'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
@@ -101,7 +102,67 @@ export const RAIL_CARD_W =
  *  edge-swipe — a drag that STARTS in the screen-edge gutter is claimed by the system
  *  before the page sees it, and `touch-action` can't refuse it either
  *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
+/** Shelf `phoneGrid` below sm: the rail's scroller as the feed's two columns (the prop's note). */
+export const PHONE_GRID = 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-1 max-sm:gap-y-4 max-sm:overflow-visible max-sm:snap-none max-sm:[&>*]:w-auto max-sm:[&>:last-child:nth-child(odd):not(:first-child)]:hidden'
+/** Shelf `phoneGrid="goods"` below sm (owner-approved 2026-11-14, cook r06 goods): the goods search's grid continued — rows 32px
+ *  apart like the results above it, and every card drawn (a thin search's "More in …" has no "See all" to hold an odd one). */
+export const GOODS_PHONE_GRID = 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-1 max-sm:gap-y-8 max-sm:overflow-visible max-sm:snap-none max-sm:[&>*]:w-auto'
 export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:mx-0 sm:gap-2'
+
+/**
+ * ⛔ THE HOME LANE — A RAIL'S PHONE LOOK ON THE HOME PAGE (owner-approved 2026-11-14, cook r04 home-b "lanes as rails": "after
+ * this cook round build all best options and deploy"). Below `sm` a home shelf is a LANE: a strong heading (the redesign's
+ * `t-h2`, 22/28 bold ink, no icon), then a rail of SAME-SIZE 220px cards, 12px apart, bled to the screen edges with the 12px
+ * text edge as its padding — so the first card sits on the page's text edge and the second peeks (1.66 cards at 390: the
+ * swipe is obvious). 220 is LARGER than the 189px feed column, never smaller, and the photo stays square (owner, 2026-11-14:
+ * "dont change the product card ratio also dont make it smaller"). From `sm` every class here is inert, so a lane is the
+ * rail it always was: each one is `max-sm:` on top of the rail's own string.
+ * ⚠️ THE CARD'S TEXT IS FLUSH WITH ITS PHOTO in a lane (<ListingCard lane>): the photo already
+ * starts on the 12px edge, so the feed's 8px inset would put the text 20px in, off the line every heading uses.
+ * ⚠️ THE SWIPE BEAM STAYS (owner, 2026-08-27 — RailBeam below): the mock hid it, and that ruling was not among the ones the
+ * owner reversed.
+ */
+export type RailLook = 'rail' | 'lane'
+/** A lane's card: 220px (13.75rem) below `sm`; RAIL_CARD_W's columns from `sm`. */
+export const LANE_CARD_W = `${RAIL_CARD_W} max-sm:w-55`
+/** A lane's scroller: bled to the screen edges (the explorer's #listings frame is `px-3` on a phone), padded back onto the
+ *  12px text edge, 12px between cards, and that same edge when the rail is scrolled to a card. */
+export const LANE_SCROLLER = `${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3`
+/** A lane card photo's `sizes`: the grid's own from `sm` (a lane is a rail there), a fixed 220px below it. */
+export const LANE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 6px\)$/, '220px')
+/** A lane's heading row: the shared row, 28px tall at the least on a phone (the heading's own line). */
+export const LANE_HEADER_ROW = `${SECTION_HEADER_ROW} max-sm:min-h-7`
+/** A lane's heading: the redesign's section role on a phone (`t-h2`, 22/28, -0.02em, bold ink); SECTION_TITLE from `sm`. */
+export const LANE_TITLE = `${SECTION_TITLE} max-sm:text-t-h2`
+/** The heading icon a rail draws beside its title: none on a phone lane ("no icons in headings", the redesign's System). */
+export const LANE_ICON_HIDE = 'max-sm:hidden'
+/** See all's chevron: 18px on a phone lane (the redesign's See all: the label role in the accent, then an 18px chevron). */
+export const LANE_CHEVRON = 'h-4 w-4 max-sm:size-4.5'
+
+/**
+ * A lane's cards, drawn once the lane nears the screen (a viewport ahead), with same-size placeholders until then — the gate
+ * category-rails.tsx always had, shared so Outstanding businesses and the later category lanes use one rule. Server
+ * rendered as placeholders, so a lane below the first screen costs the page's hydration nothing; the placeholder is the
+ * card's own geometry (ListingCardSkeleton: the square photo and the 76px phone text block), so nothing moves when the
+ * cards replace it. `show` from the start draws the cards on the server (the first lanes, on the first screen).
+ */
+export function useLaneGate(scrollerRef: RefObject<HTMLDivElement | null>, initialShow = false) {
+  const [show, setShow] = useState(initialShow)
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el || show) return
+    if (typeof IntersectionObserver === 'undefined') { setShow(true); return }
+    const io = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) { setShow(true); io.disconnect() } },
+      // A viewport ahead (was 400px): the cards' photos start loading only when the cards mount, and at a phone's
+      // flick 400px was a third of a second — the rail arrived as placeholders (owner, 2026-11-12).
+      { rootMargin: '100% 0px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [scrollerRef, show])
+  return show
+}
 
 /**
  * ⛔ A RAIL THAT IS NOT DRAWN YET SHOWS ITS SHAPE, NEVER AN EMPTY PAGE (owner, 2026-11-12: "on mobile landing page from
@@ -112,7 +173,8 @@ export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-cont
  * Decorative: aria-hidden, and the caller clips it to the height it already reserves, so nothing moves when it goes.
  * Still, not sweeping (globals.css `.skeleton-still`): measured, the sweeps of every held place cost the scroll more than they say.
  */
-export function ShelfSkeleton() {
+export function ShelfSkeleton({ look = 'rail' }: { look?: RailLook } = {}) {
+  const lane = look === 'lane'
   // `skeleton-still`: the colour without the sweep (globals.css) — ~90 sweeping boxes under the fold cost a phone's scroll.
   return (
     <div aria-hidden="true" className="skeleton-still">
@@ -120,9 +182,10 @@ export function ShelfSkeleton() {
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-4 w-14" />
       </div>
-      <div className="-mx-2 flex gap-1 overflow-hidden sm:mx-0 sm:gap-2">
+      {/* The scroller's own bleed and gaps (a lane's when it is one), clipped instead of scrolling. */}
+      <div className={cn('-mx-2 flex gap-1 overflow-hidden sm:mx-0 sm:gap-2', lane && 'max-sm:-mx-3 max-sm:gap-3 max-sm:px-3')}>
         {Array.from({ length: RAIL_SKELETON_COUNT }, (_, i) => (
-          <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+          <ListingCardSkeleton key={i} className={lane ? LANE_CARD_W : RAIL_CARD_W} />
         ))}
       </div>
     </div>
@@ -231,6 +294,9 @@ export function Shelf({
   sectionClassName,
   watch,
   phoneRows,
+  look = 'rail',
+  deferCards,
+  phoneGrid = false,
   children,
 }: {
   title: React.ReactNode
@@ -253,17 +319,38 @@ export function Shelf({
    * renders exactly as before.
    */
   phoneRows?: React.ReactNode
+  /** 'lane': the home page's phone look (LANE_* above) — inert from `sm`. The caller sizes its cards (LANE_CARD_W). */
+  look?: RailLook
+  /**
+   * Draw the cards only once the shelf nears the screen (useLaneGate); until then this many same-size placeholders hold the
+   * row (the server renders the header and the placeholders). For a home lane below the first screen.
+   */
+  deferCards?: number
+  /**
+   * ⛔ BELOW sm, A TWO-COLUMN GRID INSTEAD OF THE RAIL (owner-approved 2026-11-14, cook r06 "item": the goods listing page's
+   * shelves; src/lib/goods-sheet.ts). The same cards in the same scroller, laid out as the feed's grid — the same bleed
+   * (`-mx-2`) and 4px columns, so a card is exactly a feed column (189px at 390; the cards keep their ratio and size, owner
+   * 2026-11-14) — 16px between rows, no beam (it reverses there the beam above every carousel, owner 2026-08-27: a grid is
+   * not a carousel), and every row full: an odd last card is not drawn ("See all" holds it). The heading takes the
+   * redesign's phone section role (LANE_TITLE). From sm it is the rail it always was.
+   * ⛔ 'goods' (owner-approved 2026-11-14, cook r06 goods — a thin search's "More in …" / Trending under the goods results): the
+   * same grid with the results' 32px between rows, every card drawn (GOODS_PHONE_GRID), and no heading icon on a phone ("no
+   * icons in headings"). It reverses there the rail-as-carousel of the thin-search recovery and its swipe beam (2026-08-27).
+   */
+  phoneGrid?: boolean | 'goods'
   children: React.ReactNode
 }) {
   const { tr } = useLanguage()
+  const lane = look === 'lane'
   const label = tr('See all', 'Xem tất cả')
+  const chevron = <ChevronRight className={lane ? LANE_CHEVRON : 'h-4 w-4'} />
   const seeAll = seeAllHref ? (
     <Link href={seeAllHref} className={SECTION_SEE_ALL}>
-      {label} <ChevronRight className="h-4 w-4" />
+      {label} {chevron}
     </Link>
   ) : seeAllOnClick ? (
     <Button variant="bare" size="none" className={SECTION_SEE_ALL} onClick={seeAllOnClick}>
-      {label} <ChevronRight className="h-4 w-4" />
+      {label} {chevron}
     </Button>
   ) : null
 
@@ -271,28 +358,35 @@ export function Shelf({
   // rail hides its scrollbar, so pointer users can't page it without a trackpad. Centre them on the
   // card PHOTO (data-rail-media), not the full card, so they sit level with the image.
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
+  // A deferred lane (`deferCards`): placeholders at the card's own geometry until it nears the screen, then the cards.
+  const shown = useLaneGate(scrollerRef, deferCards === undefined)
+  const items = shown
+    ? children
+    : Array.from({ length: Math.min(deferCards ?? 0, RAIL_SKELETON_COUNT) }, (_, i) => (
+        <ListingCardSkeleton key={i} className={lane ? LANE_CARD_W : RAIL_CARD_W} />
+      ))
 
   return (
     // `data-shelf` / `data-shelf-items`: a shelf whose every item is a shop the viewer blocked goes as a whole — heading
     // and all — rather than leaving a title over an empty scroller (src/lib/hidden-sellers.ts, App Store 1.2).
-    <section data-shelf="" className={sectionClassName}>
-      <div className={SECTION_HEADER_ROW}>
+    <section data-shelf="" data-lane={lane ? '' : undefined} className={sectionClassName}>
+      <div className={lane ? LANE_HEADER_ROW : SECTION_HEADER_ROW}>
         <div className="flex min-w-0 items-center gap-2">
-          {Icon && <Icon className="h-4 w-4 shrink-0 text-accent-foreground" />}
+          {Icon && <Icon className={cn('h-4 w-4 shrink-0 text-accent-foreground', (lane || phoneGrid === 'goods') && LANE_ICON_HIDE)} />}
           {/* Rail titles wrap (e.g. same-seller's "Tin khác từ {sellerName}" can be long) — but to TWO lines,
               then clamp with the full title on hover (break-ui, 2026-10-05): a 120-character shop name
               wrapped to five lines on the PDP. min-w-0 on the wrapper lets it wrap at all. */}
-          <h2 title={typeof title === 'string' ? title : undefined} className={`${SECTION_TITLE} line-clamp-2 [overflow-wrap:anywhere]`}>{title}</h2>
+          <h2 title={typeof title === 'string' ? title : undefined} className={`${lane || phoneGrid ? LANE_TITLE : SECTION_TITLE} line-clamp-2 [overflow-wrap:anywhere]`}>{title}</h2>
         </div>
         {seeAll}
       </div>
       {phoneRows && <div data-phone-rows="" className={`${COMPACT_LIST_GRID} sm:hidden`}>{phoneRows}</div>}
       {/* ONE tree position for the rail, rows or not, so the scroller never remounts under useScrollArrows when `phoneRows`
           comes or goes (review, batch 67). A plain block box without them: the layout is the one it always was. */}
-      <div className={phoneRows ? 'max-sm:hidden' : undefined}>
-        <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={Children.count(children)} />
+      <div className={phoneRows ? 'max-sm:hidden' : phoneGrid ? 'max-sm:[&_.rail-beam]:hidden' : undefined}>
+        <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={deferCards ?? Children.count(children)} />
         <div className="relative">
-          <div ref={scrollerRef} data-shelf-items="" className={RAIL_SCROLLER}>{children}</div>
+          <div ref={scrollerRef} data-shelf-items="" className={lane ? LANE_SCROLLER : phoneGrid ? `${RAIL_SCROLLER} ${phoneGrid === 'goods' ? GOODS_PHONE_GRID : PHONE_GRID}` : RAIL_SCROLLER}>{items}</div>
           <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
         </div>
       </div>

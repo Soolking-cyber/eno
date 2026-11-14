@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { useLanguage } from '@/context/language-context'
-import { cn } from '@/lib/utils'
 
 /**
  * /c/rentals ON A PHONE: THE COUNT AT THE END OF THE HEADING LINE (UI climb batch 93, owner decision 5, 2026-11-14 — "one
@@ -32,9 +31,9 @@ export function phoneCountText(
 }
 
 /**
- * The short count's type, wherever it is painted: the sort row's end (seller-listings.tsx `phoneNote`) or the heading line —
- * the same words in the same 12px body ink (the mock), one definition. ⚠️ A sub-13px step (design-lint `sub13Type`): when this
- * area moves onto the meta role, it moves here, once, for both.
+ * The short count's type on the sort row's end (seller-listings.tsx `phoneNote`), every /c page but /c/rentals' phone. The
+ * heading line's count has its own (HEADING_COUNT_TYPE, below — the meta role, muted, since 2026-11-14). ⚠️ A sub-13px step
+ * (design-lint `sub13Type`): when this row moves onto the meta role, it moves here.
  */
 export const PHONE_COUNT_TYPE = 'text-xs text-body'
 
@@ -67,13 +66,18 @@ export function useHeadingCount(): Published {
   return useContext(ValueContext)
 }
 
+/** The heading line's count type (HeadingCount, below) — exported for its test. */
+export const HEADING_COUNT_TYPE = 'max-w-[40%] shrink-0 truncate text-t-meta tabular-nums text-muted-foreground'
+
 /**
- * The visible count, floated to the right end of the heading line (it comes BEFORE the heading in the DOM: the heading,
- * `truncate` and so its own block formatting context, narrows beside it and still ellipsises on one line).
+ * The visible count at the right end of the heading line: ⛔ A FLEX SIBLING AFTER THE HEADING (owner-approved 2026-11-14, cook r06
+ * rentals-a — it replaces batch 93's float, which came BEFORE the heading in the DOM). (index)/page.tsx draws the line as one
+ * `flex items-baseline` row: the heading `min-w-0 flex-1 truncate` (the page's one display element, 28/34), then this. DOM order
+ * is visual order, and the two share a baseline at any root size with no tuned line height.
+ * The meta role in the muted ink (`text-t-meta`, 13/18 — the shell's count look; it was 12px body ink), tabular figures so a
+ * Show more does not wobble it. `shrink-0` + `max-w-[40%]` + `truncate`: the heading gives way first, and however large the
+ * number grows the heading keeps 60% of the line.
  * ⚠️ `aria-hidden`: SellerListings keeps the announced copy (an `sr-only` live region), so a screen reader hears one count.
- * ⚠️ `leading-[1.625rem]` = the mock's 26px line, ≤ the heading's own box at every root size, so the float never reaches the
- * line below; `max-w-[40%]` + `truncate` keep room for the heading beside it however large the number grows. The leading goes
- * AFTER the type step: tailwind-merge drops a line height that comes before a font size (text-xs carries its own).
  */
 export function HeadingCount({ seed }: { seed: { shown: number; total: number } }) {
   const { tr, lang } = useLanguage()
@@ -81,7 +85,7 @@ export function HeadingCount({ seed }: { seed: { shown: number; total: number } 
   const text = published === undefined ? phoneCountText(tr, groupedIn(lang), { awaiting: false, ...seed }) : published
   if (text === null) return null
   return (
-    <span aria-hidden data-heading-count="" className={cn('float-right ml-3 max-w-[40%] truncate', PHONE_COUNT_TYPE, 'leading-[1.625rem]')}>
+    <span aria-hidden data-heading-count="" className={HEADING_COUNT_TYPE}>
       {text}
     </span>
   )

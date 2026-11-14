@@ -37,7 +37,15 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * Jobs is a saved job on every device and an alert when a saved search gets a new job. Blind A/B with the Salary filter and the
  * job page's quiet salary line: codex 7.09 to 7.30, Opus 7.16 to 7.31.
  */
-export function CaptureCard({ jobs = false }: { jobs?: boolean }) {
+/**
+ * ⛔ `tight` — ONE LINE ON THE RENTALS FEED'S PHONE (owner-approved 2026-11-14, cook r06 rentals-a; listings-explorer.tsx
+ * `rentalsWide`). Below `sm` the row is the title and the HOUSE SECONDARY button on one line (white, 1px ink — ui/button
+ * `outline`), the three bullets out of the box tree: in a one-column list of homes the brand CTA read as the page's main
+ * action, which the feed does not have (it reverses, there, the cta button and the bullet list above). The title takes the
+ * h3 role (17/24). The button is rendered twice and a class picks one (`max-sm:hidden` / `sm:hidden`), so each width has ONE
+ * in the box tree and the tab order; both open the same sign-in. From `sm` the row is exactly as above.
+ */
+export function CaptureCard({ jobs = false, tight = false }: { jobs?: boolean; tight?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
   // ⛔ IN THE FIRST PAINT FOR A VISITOR WITH NO SESSION (html.no-session, set before the first paint: speed audit, 2026-11-03). It used to arrive when auth settled, 93-163 px
@@ -45,10 +53,10 @@ export function CaptureCard({ jobs = false }: { jobs?: boolean }) {
   // session cookie sees nothing, so a signed-in reader never meets it.
   if (user) return null
   return (
-    <div className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', loading ? 'hidden no-session:flex' : 'flex')}>
-      <div className="min-w-0">
-        <p className="text-base font-extrabold leading-snug text-foreground">{jobs ? tr('Get new jobs first.', 'Nhận việc làm mới sớm nhất.') : tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
-        <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body">
+    <div data-capture-tight={tight || undefined} className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', tight && 'max-sm:flex-row max-sm:items-center', loading ? 'hidden no-session:flex' : 'flex')}>
+      <div className={cn('min-w-0', tight && 'max-sm:flex-1')}>
+        <p className={cn('text-base font-extrabold leading-snug text-foreground', tight && 'max-sm:text-t-h3')}>{jobs ? tr('Get new jobs first.', 'Nhận việc làm mới sớm nhất.') : tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
+        <ul className={cn('mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body', tight && 'max-sm:hidden')}>
           {POSTING_IS_FREE && (
             <li className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {jobs ? tr('Post a job for free', 'Đăng tin tuyển dụng miễn phí') : tr('Post listings for free', 'Đăng tin miễn phí')}</li>
           )}
@@ -67,10 +75,23 @@ export function CaptureCard({ jobs = false }: { jobs?: boolean }) {
         size="none"
         onPointerDown={preloadSignIn}
         onClick={() => openSignIn()}
-        className="min-h-11 w-full shrink-0 whitespace-nowrap px-5 py-2.5 text-center active:scale-[0.96] sm:ml-auto sm:w-auto cursor-pointer"
+        className={cn('min-h-11 w-full shrink-0 whitespace-nowrap px-5 py-2.5 text-center active:scale-[0.96] sm:ml-auto sm:w-auto cursor-pointer', tight && 'max-sm:hidden')}
       >
         {tr('Join free', 'Tham gia miễn phí')}
       </Button>
+      {/* `tight`'s phone button: the house secondary (outline), content width, 44px, after the title on its line. */}
+      {tight && (
+        <Button
+          type="button"
+          variant="outline"
+          size="none"
+          onPointerDown={preloadSignIn}
+          onClick={() => openSignIn()}
+          className="min-h-11 shrink-0 whitespace-nowrap px-5 text-center text-base active:scale-[0.96] sm:hidden cursor-pointer"
+        >
+          {tr('Join free', 'Tham gia miễn phí')}
+        </Button>
+      )}
     </div>
   )
 }

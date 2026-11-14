@@ -13,7 +13,11 @@ import { cn } from '@/lib/utils'
  * favorites context (same store as the bottom-nav Saved tab + /saved page).
  * `compact` renders an icon-only circular button for the gallery overlay.
  */
-export function SaveListingButton({ id, compact = false, className }: { id: string; compact?: boolean; className?: string }) {
+export function SaveListingButton({ id, compact = false, className, shape }: { id: string; compact?: boolean; className?: string; /**
+   * 'square' — the secondary button's box beside a 48px primary (a linked job's Apply below md; owner-approved 2026-11-14, cook
+   * r06 jobs): 48px, 12px corners, the 1px ink outline on white (ui/button `secondary`), a 20px heart, its name "Save listing"
+   * only (`aria-pressed` the state), saved = the solid red heart.
+   */ shape?: 'square' }) {
   const { isFavorite, toggle } = useFavorites()
   const { tr } = useLanguage()
   const saved = isFavorite(id)
@@ -25,6 +29,16 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
   // guard below preserves the rule this file already states — an unsave is not a celebration.
   const [burst, setBurst] = useState(false)
   const onToggle = () => { if (!saved) setBurst(true); toggle(id) }
+
+  if (shape === 'square') {
+    return (
+      <Button variant="secondary" size="none" type="button" onClick={onToggle} aria-pressed={saved} aria-label={tr('Save listing', 'Lưu tin')} className={cn('press size-12 shrink-0 rounded-xl p-0', className)}>
+        <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
+          <Heart className={cn('icon-own-ink h-5 w-5', saved ? 'fill-current text-saved' : 'fill-none')} />
+        </span>
+      </Button>
+    )
+  }
 
   if (compact) {
     // Over-media treatment via the shared shell: <IconButton variant="overlay"> IS the over-photo

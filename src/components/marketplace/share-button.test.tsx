@@ -80,3 +80,16 @@ describe('sharing a teacher profile (owner, 2026-10-11: "easy to share on facebo
     expect(text).not.toMatch(/—\s*0\b/)
   })
 })
+
+/** `shape="round"` (owner-approved 2026-11-14, cook r06 jobs — on a linked job's role line below md): a 44px white plate. */
+describe('ShareButton shape="round"', () => {
+  it('icon-only, named "Share", a 44px plate with a line-strong ring, and it still opens the share card', async () => {
+    const user = userEvent.setup()
+    wrap(<ShareButton url={URL_} title="Teacher" shape="round" />)
+    const btn = screen.getByRole('button', { name: 'Share' })
+    expect(btn.className.split(' ')).toEqual(expect.arrayContaining(['size-11', 'rounded-full', 'border', 'border-line-strong', 'bg-background', 'text-foreground']))
+    expect(btn.textContent).toBe('')
+    await user.click(btn)
+    expect(await screen.findByText('Share this listing')).toBeTruthy()
+  })
+})

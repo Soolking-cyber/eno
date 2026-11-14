@@ -13,12 +13,12 @@ vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: LANG, tr: (en: string, vi?: string) => (LANG === 'vi' && vi != null ? vi : MT[LANG]?.[en] ?? en) }),
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('./listing-card', () => ({ ListingCard: ({ listing }: { listing: { id: string } }) => <i data-card={listing.id} /> }))
+vi.mock('./listing-card', () => ({ ListingCard: ({ listing, look }: { listing: { id: string }; look?: string }) => <i data-card={listing.id} data-look={look} /> }))
 vi.mock('./for-you-rail', () => ({ locateFromRail: () => {} }))
 vi.mock('./shelf', () => ({
   RAIL_CARD_W: '',
   MIN_RAIL_ITEMS: 3,
-  Shelf: ({ title, children }: { title: string; children: React.ReactNode }) => <section><h2>{title}</h2>{children}</section>,
+  Shelf: ({ title, children, phoneGrid }: { title: string; children: React.ReactNode; phoneGrid?: string }) => <section data-phone-grid={phoneGrid}><h2>{title}</h2>{children}</section>,
 }))
 
 import { RelatedShelf } from './related-shelf'
@@ -52,5 +52,20 @@ describe('RelatedShelf', () => {
   it('one card per listing; under three, nothing', () => {
     expect(html(rail(4)).match(/data-card=/g)).toHaveLength(4)
     expect(html(rail(2))).toBe('')
+  })
+})
+
+/**
+ * ⛔ UNDER THE GOODS SEARCH ON A PHONE (owner-approved 2026-11-14, cook r06 goods; listings-explorer.tsx `goodsLook`): "More in …"
+ * continues the results as the same two-column grid (Shelf `phoneGrid="goods"`) of goods cards (ListingCard `look`).
+ */
+describe('RelatedShelf look="goods"', () => {
+  it('asks the shelf for the goods phone grid and every card for the goods look; without it, neither', () => {
+    const goods = renderToString(<RelatedShelf related={rail(4) as never} look="goods" />)
+    expect(goods).toContain('data-phone-grid="goods"')
+    expect(goods.match(/data-look="goods"/g)).toHaveLength(4)
+    const plain = renderToString(<RelatedShelf related={rail(4) as never} />)
+    expect(plain).not.toContain('data-phone-grid')
+    expect(plain).not.toContain('data-look')
   })
 })

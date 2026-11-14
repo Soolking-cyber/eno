@@ -99,3 +99,56 @@ describe('JobCityChips — "Theo tỉnh/thành / By city"', () => {
     expect(screen.getByRole('group', { name: 'By city:' }).querySelector('[aria-current]')).toBeNull()
   })
 })
+
+/**
+ * ⛔ THE PHONE COPY (owner-approved 2026-11-14, cook r06 jobs — `variant="phone"`, under /c/jobs' heading line): the browse
+ * chips in one swipe row that bleeds to the screen edges (the chip the edge clips is the cue); "By city:" is the group's name only (sr-only); the tap is
+ * the row's hand-off, unchanged.
+ */
+describe('JobCityChips variant="phone"', () => {
+  const cities = jobCityChips([{ city: 'Hồ Chí Minh', count: 9 }, { city: 'Hà Nội', count: 6 }])
+  beforeEach(() => { sessionStorage.clear(); LANG = 'en' })
+  afterEach(cleanup)
+
+  it('the label names the group for a screen reader and prints nothing', () => {
+    render(<JobCityChips cities={cities} total={54} variant="phone" />)
+    const group = screen.getByRole('group', { name: 'By city:' })
+    const label = document.getElementById(group.getAttribute('aria-labelledby')!)!
+    expect(label.className).toBe('sr-only')
+  })
+
+  it('the browse chips: white with a line-strong ring, "All N" in the ink fill, the counts regular', () => {
+    render(<JobCityChips cities={cities} total={54} variant="phone" />)
+    const group = screen.getByRole('group')
+    const all = group.querySelector('[aria-current="page"]')!
+    expect(all.className.split(' ')).toEqual(expect.arrayContaining(['pill-on', 'bg-foreground', 'text-background', 'min-h-9', 'rounded-full', 'text-sm', 'font-bold']))
+    for (const a of within(group).getAllByRole('link')) {
+      expect(a.className.split(' ')).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground', 'tap-44', 'shrink-0']))
+      expect(a.className).not.toMatch(/\btext-xs\b/)
+      expect(a.querySelector('span')!.className.split(' ')).toEqual(expect.arrayContaining(['font-normal', 'text-muted-foreground']))
+    }
+  })
+
+  it('one swipe row that bleeds to the screen edges: one axis, the hit areas inside its clip, no touch-action, no fade', () => {
+    render(<JobCityChips cities={cities} total={54} variant="phone" />)
+    const cls = screen.getByRole('group').className.split(' ')
+    // No `relative` on the row: it was the offsetParent of the whole-chip fit (useWholeChipRow), dropped in commit review —
+    // the clipped chip at the edge stays the swipe cue (explorer-toolbar.tsx). Each chip carries its own (PILL_BOX's tap-44).
+    expect(cls).toEqual(expect.arrayContaining(['-mx-3', 'px-3', 'scroll-px-3', 'py-1', 'flex-nowrap', 'overflow-x-auto', 'overflow-y-hidden', 'overscroll-x-contain', 'mt-3']))
+    expect(cls.join(' ')).not.toMatch(/touch-|mask|fade|sm:/)
+    for (const a of within(screen.getByRole('group')).getAllByRole('link')) expect(a.className.split(' ')).toContain('relative')
+  })
+
+  it('a tap still hands the province to the explorer', () => {
+    render(<JobCityChips cities={cities} variant="phone" />)
+    fireEvent.click(screen.getByRole('link', { name: /Hanoi/ }), { button: 0 })
+    expect(JSON.parse(sessionStorage.getItem('eno:pending-area')!)).toMatchObject({ province: { code: '01' } })
+  })
+
+  it('the row copy takes the page\'s class (its `max-sm:hidden`) and keeps its look', () => {
+    render(<JobCityChips cities={cities} total={54} className="max-sm:hidden" />)
+    const cls = screen.getByRole('group').className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['max-sm:hidden', 'sm:flex-wrap', 'sm:mt-6']))
+    expect(document.getElementById(screen.getByRole('group').getAttribute('aria-labelledby')!)!.className).not.toContain('sr-only')
+  })
+})

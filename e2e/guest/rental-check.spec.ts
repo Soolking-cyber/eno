@@ -23,7 +23,9 @@ test.beforeEach(({}, testInfo) => {
   test.skip(testInfo.project.name !== 'guest-mobile', 'phone-width flow runs in guest-mobile only')
 })
 
-const chips = (page: Page) => page.locator('[data-rental-check-toggle]')
+// `:visible` — on /c/rentals' phone a card carries TWO toggles, one per width (owner-approved 2026-11-14, cook r06 rentals-a): the
+// labelled chip at the price line's end below sm, the photo's chip from sm (`max-sm:hidden`, display:none). Count the one shown.
+const chips = (page: Page) => page.locator('[data-rental-check-toggle]:visible')
 
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height

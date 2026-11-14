@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { IS_SERVICES } from '@/lib/edition'
 import { Bilingual } from './bilingual'
 import { LocalizedLink } from './localized-link'
-import { ArrowRight } from '@/components/ui/icons'
 import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
 
 /**
@@ -137,14 +136,15 @@ export function TeacherCoverLink({ className }: { className?: string }) {
   const { tr } = useLanguage()
   return (
     <p className={className}>
-      {/* 2026-11-06 audit: the shape of the teaching lines under it (teaching-links.tsx) — the question in the line's ink, the
-          answer as the link with its arrow. The whole sentence was one underlined brand link, the odd line out of three.
-          The two halves keep their reviewed translations in the nine machine languages (src/lib/i18n/glossary.ts).
-          ⛔ Underlined at rest (batch 91, 2026-11-14): a link in a run of text, never told apart by colour alone (WCAG 1.4.1). */}
+      {/* The shape of the teaching lines (teaching-links.tsx), changed with them: ⛔ owner-approved 2026-11-14, cook r04
+          teachers — it reverses the 2026-11-06 audit's "the question in the line's ink, the answer as the link with its arrow":
+          the question muted (the caller's class), the answer an inline link, 700 14 in the accent, no arrow. The two halves keep
+          their reviewed translations in the nine machine languages (src/lib/i18n/glossary.ts).
+          ⛔ Underlined at rest (batch 91, 2026-11-14, kept): a link in a run of text, never told apart by colour alone (WCAG 1.4.1). */}
       {tr('Need a cover teacher?', 'Cần giáo viên dạy thay?')}{' '}
       {/* LocalizedLink: `/` is the English-pinned home, so a Vietnamese reader must land on its `/vi` twin. */}
-      <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
-        {tr('See who is free', 'Xem ai đang rảnh')} <ArrowRight className="h-4 w-4 shrink-0" />
+      <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="font-bold text-accent-foreground underline decoration-1 underline-offset-3">
+        {tr('See who is free', 'Xem ai đang rảnh')}
       </LocalizedLink>
     </p>
   )

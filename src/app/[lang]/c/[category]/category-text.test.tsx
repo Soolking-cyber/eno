@@ -293,6 +293,34 @@ describe('CategoryGuides', () => {
   it('renders nothing when the category has no guides', () => {
     expect(html('en', <CategoryGuides guides={[]} />)).toBe('')
   })
+
+  /**
+   * ⛔ A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods): plain 48px rows — the name in the body role with its
+   * arrow at the row's end, no blurb on screen (CSS only, never [hidden]: crawlers keep it), no rule over the section, the
+   * heading the section role. Every class `max-sm:`; without the prop the 2026-11-06 audit's layout, byte for byte.
+   */
+  it('compactOnPhone: plain rows below sm, the blurb display:none (never [hidden]), the audit layout from sm', () => {
+    const guides = [
+      { href: '/guides/where-to-buy-iphone', label: 'Where to buy an iPhone in Vietnam', blurb: 'The five kinds of shop that sell iPhones here.', lang: 'en' as const },
+      { href: '/guides/vn-a-vs-xach-tay', label: 'Chính hãng VN/A vs xách tay, explained', blurb: 'What the model-number suffix means.', lang: 'en' as const },
+    ]
+    const out = html('en', <CategoryGuides guides={guides} compactOnPhone />)
+    for (const c of ['max-sm:mt-8', 'max-sm:border-t-0', 'max-sm:pt-0', 'max-sm:[--text-section:var(--text-t-h2)]', 'max-sm:py-0', 'max-sm:min-h-12', 'max-sm:flex-row', 'max-sm:items-center', 'max-sm:active:bg-muted', 'max-sm:justify-between', 'max-sm:font-normal', 'max-sm:size-5', 'max-sm:text-muted-foreground']) {
+      expect(out).toContain(c)
+    }
+    expect(out.match(/max-sm:hidden/g)).toHaveLength(guides.length) // one blurb per guide, each in the HTML
+    for (const g of guides) expect(out).toContain(g.blurb)
+    expect(out).not.toMatch(/\shidden(=|\s|>)/)
+    // Desktop's classes are all still there.
+    expect(out).toContain('mt-12 border-t border-border pt-8')
+    expect(out).toContain('divide-y')
+  })
+
+  it('without compactOnPhone nothing phone-only is added', () => {
+    const out = html('en', <CategoryGuides guides={[{ href: '/guides/x', label: 'X', blurb: 'Y', lang: 'en' }]} />)
+    expect(out).toContain('href="/guides/x"')
+    expect(out).not.toMatch(/max-sm:/)
+  })
 })
 
 describe('CategoryLede — the report sentence only where nothing is linked', () => {

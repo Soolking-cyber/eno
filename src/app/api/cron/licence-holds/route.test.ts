@@ -25,6 +25,7 @@ vi.mock('@/lib/core/licence-check', () => ({
 }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
+vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 
 const { GET } = await import('./route')
 const req = (query = '', auth: string | undefined = 'Bearer cron-secret') =>

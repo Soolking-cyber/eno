@@ -32,7 +32,15 @@ vi.mock('@/lib/quick-contact', () => ({ stashCompose: stash }))
 // App Store gate `ios-hide-kyc`: true only in the iOS app with the gate on (src/hooks/use-ios-hide-kyc.ts).
 vi.mock('@/hooks/use-ios-hide-kyc', () => ({ useIosHideKyc: () => ios.hideKyc }))
 
-import { TEACHER_CONTACT_ID, TeacherContact, TeacherContactJump } from './teacher-contact'
+import { TEACHER_CONTACT_ID, TeacherContact, TeacherContactJump, TeacherCoverAsk } from './teacher-contact'
+
+/**
+ * The block's "Message teacher" BUTTON (from lg). Since 2026-11-14 (owner-approved, cook r04 teachers) its twin is the counsel
+ * panel's link below lg — the same handler and label; CSS shows one per width, and jsdom has no CSS, so both are here.
+ */
+const messageButton = () => screen.getAllByRole('button', { name: 'Message teacher' }).find((b) => b.getAttribute('data-teacher-message') === 'button')!
+/** The block's live region — always mounted since 2026-11-14 (a refusal can start from the cover ask under the week). */
+const said = () => screen.getByRole('status').textContent
 
 /** The one-tap openers (src/lib/teachers/first-message.ts): a business speaks as the school, anyone else as a person. */
 // ⛔ The button never sends (owner, 2026-10-21): it stashes "let the writer choose" in its voice — /messages/pending shows
@@ -107,7 +115,7 @@ describe('TeacherContactJump — "Contact teacher" beside the name', () => {
     expect(stash.mock.calls[0][0]).toMatchObject({ listingId: 't1', listingTitle: 'Ms Lan', ...PERSON_PICK })
     expect(stash.mock.calls[0][0]).not.toHaveProperty('body')
     expect(push).toHaveBeenCalledWith('/messages/pending')
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(said()).toBe('')
   })
 
   it('a personal account over its daily limit gets the ladder’s refusal under the contact button — nothing stashed, no chat', async () => {
@@ -156,8 +164,8 @@ describe('TeacherContact — the daily limit', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     // …bounded at 8 s, so a dead connection never holds the buttons on "Opening chat…".
     expect(fetchMock).toHaveBeenCalledWith('/api/teachers/dm-quota?listingId=t1', { cache: 'no-store', signal: expect.any(AbortSignal) })
-    expect(screen.queryByRole('status')).toBeNull() // nothing is said before the tap
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    expect(said()).toBe('') // nothing is said before the tap
+    fireEvent.click(messageButton())
     await settle() // the tap re-asks before it refuses
     expect(fetchMock).toHaveBeenCalledTimes(2) // ⛔ asked again on the tap — never a refusal from a stale answer
     expect(screen.getByText('You can start chats with up to 3 new teachers a day. Verify your identity to raise this to 10, or start more after midnight.')).toBeTruthy()
@@ -165,7 +173,7 @@ describe('TeacherContact — the daily limit', () => {
     expect(stash).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
     // The button is not left spinning.
-    expect(screen.getByRole('button', { name: 'Message teacher' })).toBeTruthy()
+    expect(messageButton()).toBeTruthy()
   })
 
   it('⛔ a stale refusal never blocks: the tap re-asks, and a fresh answer under the limit opens the chat', async () => {
@@ -175,10 +183,10 @@ describe('TeacherContact — the daily limit', () => {
     await settle()
     // Past the Vietnam midnight (or an identity check approved meanwhile): the server now allows a new chat.
     quotaAnswer = standing({ used: 0, remaining: 3 })
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle()
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(said()).toBe('')
     expect(stash).toHaveBeenCalledTimes(1)
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
@@ -190,10 +198,10 @@ describe('TeacherContact — the daily limit', () => {
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
     quotaAnswer = null // the re-ask fails (a network blip, a 5xx)
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle()
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(said()).toBe('')
     expect(stash).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
@@ -203,17 +211,17 @@ describe('TeacherContact — the daily limit', () => {
     quotaAnswer = OVER_LIMIT
     const { rerender } = render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle()
-    expect(screen.getByRole('status')).toBeTruthy()
+    expect(said()).not.toBe('')
     Object.assign(auth, { user: null, identityLoaded: false, accountType: null })
     rerender(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(said()).toBe('')
     // Another account signing in on the same page starts from its own answer, never the last one's refusal.
     Object.assign(auth, { user: { id: 'u2' }, identityLoaded: true, accountType: 'individual' })
     quotaAnswer = UNDER_LIMIT
     rerender(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(said()).toBe('')
   })
 
   it('a teacher this account already writes to is never counted: at 0 left, the chat still opens', async () => {
@@ -221,8 +229,8 @@ describe('TeacherContact — the daily limit', () => {
     quotaAnswer = standing({ used: 3, remaining: 0, reason: 'limit', hasThread: true })
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
-    expect(screen.queryByRole('status')).toBeNull()
+    fireEvent.click(messageButton())
+    expect(said()).toBe('')
     expect(stash).toHaveBeenCalledTimes(1)
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
@@ -243,8 +251,8 @@ describe('TeacherContact — the daily limit', () => {
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
-    expect(screen.queryByRole('status')).toBeNull()
+    fireEvent.click(messageButton())
+    expect(said()).toBe('')
     expect(stash).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
@@ -254,7 +262,7 @@ describe('TeacherContact — the daily limit', () => {
     quotaAnswer = standing({ tier: 'identity', limit: 10, used: 10, remaining: 0, next: 'switch_to_business', nextLimit: 30, reason: 'limit' })
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle() // the tap re-asks before it refuses
     expect(screen.getByText('You can start chats with up to 10 new teachers a day. A verified business account can start up to 30.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Switch to a business account' }).getAttribute('href')).toBe('/dashboard/settings?tab=account')
@@ -266,7 +274,7 @@ describe('TeacherContact — the daily limit', () => {
     quotaAnswer = standing({ tier: 'identity', limit: 10, used: 10, remaining: 0, next: 'switch_to_business', nextLimit: 30, reason: 'limit' })
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle() // the tap re-asks before it refuses
     expect(screen.getByRole('link', { name: 'Set up a business account' }).getAttribute('href')).toBe('/onboard')
   })
@@ -277,7 +285,7 @@ describe('TeacherContact — the daily limit', () => {
     quotaAnswer = OVER_LIMIT
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    fireEvent.click(messageButton())
     await settle() // the tap re-asks before it refuses
     const said = screen.getByRole('status').textContent
     expect(said).toContain('You can start chats with up to 3 new teachers a day.')
@@ -314,7 +322,7 @@ describe('TeacherContact — cover lessons (2026-10-07)', () => {
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} cover />)
     await settle()
     expect(!!screen.queryByRole('button', { name: 'Ask about a cover lesson' })).toBe(offered)
-    expect(screen.getByRole('button', { name: 'Message teacher' })).toBeTruthy()
+    expect(messageButton()).toBeTruthy()
   })
 })
 
@@ -408,7 +416,7 @@ describe('TeacherContactJump on a cover teacher (best-practice gap 2026-11-10: t
     await settle()
     expect(stash).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
-    expect(screen.getByRole('status')).toBeTruthy()
+    expect(said()).not.toBe('')
   })
 
   it('a personal account has one opener there, so the jump starts it — in its own voice', async () => {
@@ -424,5 +432,172 @@ describe('TeacherContactJump on a cover teacher (best-practice gap 2026-11-10: t
     fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+})
+
+/**
+ * ONE PRIMARY ON A PHONE (owner-approved 2026-11-14, cook r04 teachers): below lg the block is the counsel panel — the page's
+ * identity sentence (`counsel`), the note, and "Message teacher" as the panel's link — and the cover ask is a link under the
+ * week (TeacherCoverAsk), a remote that runs THIS block's action with the cover opener and mirrors its busy state.
+ */
+describe('the counsel panel and the cover ask under the week (cook r04)', () => {
+  it('two "Message teacher" controls, one per width: the button (max-lg:hidden) and the panel link (lg:hidden) — both start the chat', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'individual' })
+    quotaAnswer = UNDER_LIMIT
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
+    await settle()
+    const [button, link] = screen.getAllByRole('button', { name: 'Message teacher' })
+    expect(button.getAttribute('data-teacher-message')).toBe('button')
+    expect(button.className.split(' ')).toContain('max-lg:hidden')
+    expect(link.getAttribute('data-teacher-message')).toBe('link')
+    expect(link.className.split(' ')).toContain('lg:hidden')
+    fireEvent.click(link)
+    expect(stash).toHaveBeenCalledTimes(1)
+    expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
+  })
+
+  it('the counsel opens the panel (below lg only), then the note, then the link', () => {
+    const COUNSEL = 'eno checked this teacher’s ID.'
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} counsel={<span>{COUNSEL}</span>} />)
+    const counsel = screen.getByText('eno checked this teacher’s ID.').parentElement!
+    expect(counsel.className).toBe('text-sm text-body lg:hidden')
+    const panel = counsel.parentElement!
+    expect(panel.className).toBe('space-y-3 max-lg:rounded-xl max-lg:bg-tint max-lg:p-4')
+    const kids = [...panel.children]
+    expect(kids[0]).toBe(counsel)
+    expect(kids[1].textContent).toContain('shared with you only if they choose to')
+    expect(kids[2].getAttribute('data-teacher-message')).toBe('link')
+  })
+
+  it('no counsel: the panel holds the note and the link only', () => {
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
+    const link = screen.getAllByRole('button', { name: 'Message teacher' })[1]
+    expect(link.parentElement!.children).toHaveLength(2)
+  })
+
+  it('the cover ask asks the block for the COVER opener — a school gets the chooser with it', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    quotaAnswer = BUSINESS
+    render(
+      <>
+        <TeacherCoverAsk listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    const ask = screen.getAllByRole('button', { name: /Ask about a cover lesson/ }).find((b) => b.hasAttribute('data-teacher-cover-ask'))!
+    fireEvent.click(ask)
+    expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
+    expect(stash).toHaveBeenCalledTimes(1)
+    expect(stash.mock.calls[0][0]).toMatchObject({ pick: { voice: 'school', cover: true } })
+    expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+
+  it('a guest who taps it is asked to sign in about "a cover lesson" (they chose the cover ask)', () => {
+    render(
+      <>
+        <TeacherCoverAsk listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: /Ask about a cover lesson/ }).find((b) => b.hasAttribute('data-teacher-cover-ask'))!)
+    expect(auth.openSignIn).toHaveBeenCalledTimes(1)
+    expect(auth.openSignIn.mock.calls[0][0]).toMatchObject({ listingTitle: 'a cover lesson' })
+  })
+
+  it('⛔ a personal account: the ask keeps its box but turns invisible (nothing under it moves) — and the block offers no cover cta', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'individual' })
+    render(
+      <>
+        <TeacherCoverAsk listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    const ask = document.querySelector('[data-teacher-cover-ask]')!
+    expect(ask).toBeTruthy()
+    expect(ask.className.split(' ')).toContain('invisible')
+    expect(document.querySelectorAll('button').length).toBeGreaterThan(0)
+    expect(screen.queryAllByRole('button', { name: /Ask about a cover lesson/ }).filter((b) => !b.hasAttribute('data-teacher-cover-ask'))).toHaveLength(0)
+  })
+
+  it('a guest or a school sees it (no `invisible`), and a still-loading account too — the same rule as the block (useOfferCover)', async () => {
+    for (const who of [{ user: null, identityLoaded: false, accountType: null }, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' }, { user: { id: 'u1' }, identityLoaded: false, accountType: null }]) {
+      Object.assign(auth, who)
+      render(<TeacherCoverAsk listingId="t1" />)
+      expect(document.querySelector('[data-teacher-cover-ask]')!.className.split(' ')).not.toContain('invisible')
+      cleanup()
+    }
+  })
+
+  it('mirrors the block\'s busy state: "Opening chat…" and disabled while the block opens the cover chat, then idle again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+      render(
+        <>
+          <TeacherCoverAsk listingId="t1" />
+          <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+        </>,
+      )
+      const ask = () => document.querySelector('[data-teacher-cover-ask]') as HTMLButtonElement
+      expect(ask().textContent).toBe('Ask about a cover lesson')
+      expect(ask().disabled).toBe(false)
+      act(() => { fireEvent.click(ask()) })
+      expect(ask().textContent).toBe('Opening chat…')
+      expect(ask().disabled).toBe(true)
+      act(() => { vi.advanceTimersByTime(8000) }) // the block's backstop releases it
+      expect(ask().textContent).toBe('Ask about a cover lesson')
+      expect(ask().disabled).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the busy mirror is per listing, idle with no block mounted, and taken back when the block unmounts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+      const view = render(
+        <>
+          <TeacherCoverAsk listingId="other" />
+          <TeacherCoverAsk listingId="t1" />
+          <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+        </>,
+      )
+      const [other, mine] = [...document.querySelectorAll('[data-teacher-cover-ask]')] as HTMLButtonElement[]
+      act(() => { fireEvent.click(mine) })
+      expect(mine.disabled).toBe(true)
+      expect(other.disabled).toBe(false)
+      view.rerender(
+        <>
+          <TeacherCoverAsk listingId="other" />
+          <TeacherCoverAsk listingId="t1" />
+        </>,
+      )
+      expect((document.querySelectorAll('[data-teacher-cover-ask]')[1] as HTMLButtonElement).disabled).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the live region is in the page before anything is said, and a refusal started from the cover ask lands in it', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    quotaAnswer = standing({ tier: 'business', limit: 30, used: 30, remaining: 0, reason: 'limit', next: 'tomorrow', nextLimit: null })
+    render(
+      <>
+        <TeacherCoverAsk listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('')
+    expect(region.className).toBe('empty:-mt-2')
+    fireEvent.click(document.querySelector('[data-teacher-cover-ask]')!)
+    await settle()
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).not.toBe('')
+    expect(stash).not.toHaveBeenCalled()
   })
 })

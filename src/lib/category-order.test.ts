@@ -114,13 +114,14 @@ describe('category order', () => {
    * ⛔ "EVERYWHERE" IS EVERY LIST READING THE LEAD. Before 2026-10-10 each had its own order — the footer
    * TAXONOMY's, the /c chips the alphabet's, the shelves pure demand — so the rail's pin changed the rail and
    * nothing else. The footer and the shelves are also checked by render/route tests (footer.test.tsx,
-   * api/category-rails/route.test.ts); the /c page is a server component with a database, so its line is
+   * api/category-rails/route.test.ts, through lib/core/category-rails.ts); the /c page is a server component with a database, so its line is
    * held here.
    */
   it('the footer, the /c "Other categories" chips, the shelves and the "Or browse" chips follow the lead', () => {
     expect(source('../components/marketplace/footer.tsx')).toContain('leadFirst(NAV_CATEGORIES')
     expect(source('../app/[lang]/c/[category]/(index)/page.tsx')).toContain('leadFirst(otherCatRows)')
-    expect(source('../app/api/category-rails/route.ts')).toContain('categoryLeadRank(')
+    // The shelves' read lives in lib/core since 2026-11-14 (the home page reads it into its ISR document; the route wraps it).
+    expect(source('./core/category-rails.ts')).toContain('categoryLeadRank(')
     // The zero-results "Or browse" chips are the rail's head, offered by the rail's rule (count-chip.test.tsx).
     expect(source('../components/marketplace/listings-explorer.tsx')).toContain('browseInsteadCategories(categories, activeCategory)')
   })

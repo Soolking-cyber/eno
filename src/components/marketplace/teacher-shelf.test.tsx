@@ -103,6 +103,28 @@ describe('TeacherShelf', () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 't2' }))
   })
 
+  /**
+   * ⛔ THE LANE LOOK, PHONE ONLY (owner-approved 2026-11-14, cook r04 home-b — the explorer passes `look="lane"`): the shelf
+   * keeps its PLACE (after the twelfth card, ⛔ never above the filter strip) and on a phone takes the home lanes' look — a 22/28
+   * heading with no icon over 220px cards bled to the screen edges. Every class is `max-sm:`, so from `sm` it is the rail.
+   */
+  it('look="lane": phone-only lane classes on its heading, scroller and cards; the cards are lane cards with 220px phone sizes', () => {
+    const { container } = shelf({ look: 'lane' })
+    expect(container.querySelector('h2')!.className).toContain('max-sm:text-t-h2')
+    expect(container.querySelector('h2')!.previousElementSibling!.getAttribute('class')).toContain('max-sm:hidden') // the icon
+    expect(container.querySelector('[data-shelf-items]')!.className).toContain('max-sm:-mx-3 max-sm:gap-3 max-sm:px-3')
+    expect(container.querySelector('[data-shelf-items] > div')!.className).toContain('max-sm:w-55')
+    for (const props of h.cards) {
+      expect(props.lane).toBe(true)
+      expect(String(props.sizes).endsWith(', 220px')).toBe(true)
+    }
+    cleanup(); h.cards = []
+    const rail = shelf()
+    expect(rail.container.querySelector('h2')!.className).not.toContain('max-sm:text-t-h2')
+    expect(rail.container.querySelector('[data-shelf-items] > div')!.className).not.toContain('max-sm:w-55')
+    for (const props of h.cards) expect(props.lane).toBe(false)
+  })
+
   describe('the door', () => {
     const door = () => within(shelf().root()!).getByRole('link', { name: /Create a teacher profile/ })
 

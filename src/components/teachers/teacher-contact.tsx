@@ -6,12 +6,13 @@
 // step that lifts it; the server refuses the same count either way. The teacher's phone, email and CV are never here —
 // they arrive in the thread only after the teacher taps "Share" — EXCEPT the Zalo a cover teacher chose to show for urgent
 // cover (owner, 2026-10-28), revealed to a school by CoverZaloReveal below (src/lib/teachers/zalo.ts).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { ChevronRight } from '@/components/ui/icons'
 import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-only-note'
 import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { stashCompose } from '@/lib/quick-contact'
@@ -39,12 +40,55 @@ async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> 
   try { return await run(ctl.signal) } finally { clearTimeout(timer) }
 }
 
-export function TeacherContact({ listingId, name, image, cover = false }: {
+/**
+ * Whether the cover-lesson opener is offered to THIS reader right now — one formula for the block below and for its remote
+ * under the week (TeacherCoverAsk), so the two can never disagree.
+ * ⛔ A cover lesson is asked by a business only (the guides: cover work is lawful only for the employer holding the work
+ * permit). Offered to a visitor not yet signed in — they may be a school — and hidden once a personal account shows.
+ */
+export function useOfferCover(cover: boolean): boolean {
+  const { user, accountType, identityLoaded } = useAuth()
+  return cover && !(user && identityLoaded && accountType !== 'business')
+}
+
+/**
+ * THE BLOCK'S BUSY STATE, FOR ITS REMOTE (owner-approved 2026-11-14, cook r04 teachers): below lg the cover ask is a link
+ * under the week (TeacherCoverAsk), far from this block, and it must say "Opening chat…" and hold still while the block
+ * works, exactly as the desktop button does. A module store keyed by listing: every snapshot is a stored object (or IDLE),
+ * so `useSyncExternalStore` sees a stable value until the block publishes a change, and the server snapshot is IDLE — the
+ * HTML and the first client render agree. The block deletes its entry when it unmounts.
+ */
+type Busy = { busy: boolean; intent: 'hire' | 'cover' }
+const IDLE: Busy = { busy: false, intent: 'hire' }
+const busyByListing = new Map<string, Busy>()
+const busyListeners = new Set<() => void>()
+function publishBusy(listingId: string, next: Busy | null) {
+  const prev = busyByListing.get(listingId)
+  if (next ? prev?.busy === next.busy && prev?.intent === next.intent : !prev) return
+  if (next) busyByListing.set(listingId, next)
+  else busyByListing.delete(listingId)
+  for (const l of busyListeners) l()
+}
+function subscribeBusy(l: () => void) {
+  busyListeners.add(l)
+  return () => { busyListeners.delete(l) }
+}
+/** The contact block's busy state for this listing (IDLE on the server, and while no block is mounted). */
+export function useContactBusy(listingId: string): Busy {
+  return useSyncExternalStore(subscribeBusy, () => busyByListing.get(listingId) ?? IDLE, () => IDLE)
+}
+
+export function TeacherContact({ listingId, name, image, cover = false, counsel }: {
   listingId: string
   name: string
   image: string | null
   /** The teacher offers cover lessons (2026-10-07): a second opener asks about a cover instead of a job. */
   cover?: boolean
+  /**
+   * The page's counsel sentence (what eno checked — the profile's identity line), a server node. Below lg it opens the
+   * counsel panel at the end of the profile; from lg the page shows it under the header instead (teacher-profile-view.tsx).
+   */
+  counsel?: ReactNode
 }) {
   const { user, loading, accountType, identityLoaded, openSignIn } = useAuth()
   const { tr } = useLanguage()
@@ -78,9 +122,11 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
     return () => { off = true }
   }, [user, identityLoaded, listingId])
 
-  // ⛔ A cover lesson is asked by a business only (the guides: cover work is lawful only for the employer holding the
-  // work permit). Offered to a visitor not yet signed in — they may be a school — and hidden once a personal account shows.
-  const offerCover = cover && !(user && identityLoaded && accountType !== 'business')
+  // ⛔ A cover lesson is asked by a business only — useOfferCover, above, says who.
+  const offerCover = useOfferCover(cover)
+  // The remote under the week reads this (useContactBusy): published after each change, and taken back on unmount.
+  useEffect(() => { publishBusy(listingId, { busy, intent: intent.current }) }, [busy, listingId])
+  useEffect(() => () => publishBusy(listingId, null), [listingId])
 
   // A tap before the account type has loaded is QUEUED, not dropped (Opus, commit gate 09-30).
   const queued = useRef(false)
@@ -167,12 +213,17 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
   // refusal still shows where the reader lands. ⚠️ ASKED FOR WHILE THE ACCOUNT MAY STILL BE A SCHOOL (review): signed in with
   // the type still loading, the tap is queued and replayed — and openChat sets `pick.cover` only for a business, so a
   // personal account that turns out not to be one gets the job openers anyway.
-  const startRef = useRef<() => void>(() => {})
-  useEffect(() => { startRef.current = () => start(false, offerCover && user ? 'cover' : 'hire') })
+  // `want`: what the remote asked for — the cover ask under the week sends 'cover' (TeacherCoverAsk); the first-screen button
+  // sends nothing and keeps the rule above. A cover want this reader is not offered falls back to the job openers.
+  const startRef = useRef<(want?: 'hire' | 'cover') => void>(() => {})
+  useEffect(() => {
+    startRef.current = (want) => start(false, want === 'cover' ? (offerCover ? 'cover' : 'hire') : want ?? (offerCover && user ? 'cover' : 'hire'))
+  })
   useEffect(() => {
     const onJump = (e: Event) => {
-      if ((e as CustomEvent<{ listingId?: string }>).detail?.listingId !== listingId) return
-      startRef.current()
+      const detail = (e as CustomEvent<{ listingId?: string; want?: 'hire' | 'cover' }>).detail
+      if (detail?.listingId !== listingId) return
+      startRef.current(detail.want === 'cover' || detail.want === 'hire' ? detail.want : undefined)
     }
     window.addEventListener(TEACHER_CONTACT_EVENT, onJump)
     return () => window.removeEventListener(TEACHER_CONTACT_EVENT, onJump)
@@ -180,35 +231,92 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
 
   const refusal = refused ? teacherDmLimitMessage(refused, tr) : null
   const step = refused ? teacherDmStep(refused.next, accountType, tr) : null
+  const messageLabel = busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')
 
+  /**
+   * ⛔ ONE PRIMARY ON A PHONE (owner-approved 2026-11-14, cook r04 teachers — it reverses "Ask about a cover lesson" as this
+   * block's cta and "Message teacher" as a button below lg). Below lg the profile's one button is "Contact teacher" (first
+   * screen, then pinned — TeacherContactJump); the cover ask is a link under the week it asks about (TeacherCoverAsk), and
+   * this block is the COUNSEL PANEL at the end of the page: what eno checked (`counsel`), how contact details are shared,
+   * and "Message teacher" as the panel's own link. From lg nothing moved but the note: the cover ask (cta) and Message
+   * (button) lead the sticky column, then the note, the Zalo reveal and a refusal.
+   * Two "Message teacher" controls are in the DOM — the button (`max-lg:hidden`) and the panel link (`lg:hidden`): display:none
+   * takes the other out of the accessibility tree and the tab order, so each width has ONE. Same handler, same busy label.
+   */
   return (
     // `scroll-mt-24`: the jump lands it clear of the sticky header (lg:top-24 is the aside's own offset).
     <div id={TEACHER_CONTACT_ID} className="scroll-mt-24 space-y-2">
       {offerCover && (
-        <Button variant="cta" className="w-full" onClick={() => start(false, 'cover')} disabled={busy}>
+        <Button variant="cta" className="w-full max-lg:hidden" onClick={() => start(false, 'cover')} disabled={busy}>
           {busy && intent.current === 'cover' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Ask about a cover lesson', 'Hỏi về buổi dạy thay')}
         </Button>
       )}
-      <Button variant={offerCover ? 'outline' : 'cta'} className="w-full" onClick={() => start(false, 'hire')} disabled={busy}>
-        {busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
+      <Button variant={offerCover ? 'outline' : 'cta'} data-teacher-message="button" className="w-full max-lg:hidden" onClick={() => start(false, 'hire')} disabled={busy}>
+        {messageLabel}
       </Button>
+      {/* The counsel panel below lg (the shell's panel: the field, 12px corners, 16 in, 14px ink-2); from lg a plain block. */}
+      <div className="space-y-3 max-lg:rounded-xl max-lg:bg-tint max-lg:p-4">
+        {counsel && <div className="text-sm text-body lg:hidden">{counsel}</div>}
+        <p className="text-t-meta text-muted-foreground max-lg:text-sm max-lg:text-body">
+          {cover
+            ? tr('The teacher’s phone, email and CV are shared with you only if they choose to: in your chat — or, for urgent cover, a Zalo number if they chose to show one to schools.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn nếu giáo viên đồng ý: trong cuộc trò chuyện — hoặc, với dạy thay khẩn, số Zalo nếu giáo viên đã chọn hiển thị cho các trường.')
+            : tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
+        </p>
+        {/* The shell's standalone link: 700 14 in the accent, a 44px target, the app's chevron. */}
+        <Button variant="link" size="none" data-teacher-message="link" className="relative tap-44 flex w-fit gap-1.5 text-sm font-bold text-accent-foreground lg:hidden" onClick={() => start(false, 'hire')} disabled={busy}>
+          {messageLabel}
+          <ChevronRight aria-hidden className="size-4" />
+        </Button>
+      </div>
       {/* A school only, and only while the teacher offers it to this account right now (it asks; nothing is drawn else). */}
       {cover && <CoverZaloReveal listingId={listingId} />}
-      {refusal && (
-        <div role="status" className="space-y-2 text-sm text-body">
-          <p>{refusal}</p>
-          {/* In the iOS app with `ios-hide-kyc` on, a verification step is plain text naming the website, never a link. */}
-          {step && (step.kyc && hideKyc
-            ? <IosVerifyElsewhereNote kind={step.kyc} />
-            : <Link href={step.href} className="font-semibold text-brand underline">{step.label}</Link>)}
-        </div>
-      )}
-      <p className="text-xs text-muted-foreground">
-        {cover
-          ? tr('The teacher’s phone, email and CV are shared with you only if they choose to: in your chat — or, for urgent cover, a Zalo number if they chose to show one to schools.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn nếu giáo viên đồng ý: trong cuộc trò chuyện — hoặc, với dạy thay khẩn, số Zalo nếu giáo viên đã chọn hiển thị cho các trường.')
-          : tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
-      </p>
+      {/* ALWAYS MOUNTED (owner-approved 2026-11-14): a refusal can now start from the remote under the week, so the live region
+          is in the page before anything is said into it. Empty, `empty:-mt-2` cancels the 8px the stack gives the element above
+          it (its margin and this one collapse to 0), so an empty region adds nothing under the block. */}
+      <div role="status" className={refusal ? 'space-y-2 text-sm text-body' : 'empty:-mt-2'}>
+        {refusal && (
+          <>
+            <p>{refusal}</p>
+            {/* In the iOS app with `ios-hide-kyc` on, a verification step is plain text naming the website, never a link. */}
+            {step && (step.kyc && hideKyc
+              ? <IosVerifyElsewhereNote kind={step.kyc} />
+              : <Link href={step.href} className="font-semibold text-brand underline">{step.label}</Link>)}
+          </>
+        )}
+      </div>
     </div>
+  )
+}
+
+/**
+ * "Ask about a cover lesson" UNDER THE WEEK IT ASKS ABOUT (owner-approved 2026-11-14, cook r04 teachers): below lg the cover
+ * ask is the shell's standalone link (700 14 accent, a chevron, a 44px target) at the end of the cover section — never a
+ * second button beside "Contact teacher". Like TeacherContactJump it is a REMOTE: it scrolls to the contact block and fires
+ * THAT block's action with `want: 'cover'` (sign-in for a guest, the daily limit, the queue — one set of rules), and it
+ * mirrors the block's busy state (useContactBusy).
+ * ⛔ ALWAYS RENDERED WITH THE SAME BOX: the block offers the cover opener to a guest and a school only (useOfferCover), and
+ * once a personal account has loaded this link turns `invisible` — kept in the layout, out of the accessibility tree and
+ * the tab order — so nothing under it moves when auth settles. From lg the block's own cta is the ask (`lg:hidden` here).
+ */
+export function TeacherCoverAsk({ listingId, className }: { listingId: string; className?: string }) {
+  const { tr } = useLanguage()
+  const offer = useOfferCover(true)
+  const { busy, intent } = useContactBusy(listingId)
+  return (
+    <Button
+      variant="link"
+      size="none"
+      data-teacher-cover-ask=""
+      disabled={busy}
+      className={cn('relative tap-44 gap-1.5 text-sm font-bold text-accent-foreground', !offer && 'invisible', className)}
+      onClick={() => {
+        document.getElementById(TEACHER_CONTACT_ID)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+        window.dispatchEvent(new CustomEvent(TEACHER_CONTACT_EVENT, { detail: { listingId, want: 'cover' } }))
+      }}
+    >
+      {busy && intent === 'cover' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Ask about a cover lesson', 'Hỏi về buổi dạy thay')}
+      <ChevronRight aria-hidden className="size-4" />
+    </Button>
   )
 }
 

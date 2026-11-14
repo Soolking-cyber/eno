@@ -17,7 +17,15 @@ import { locateFromRail } from './for-you-rail'
  * exactly as ForYouRail draws them (RAIL_CARD_W, the same open and "show on map"), so the two read as one family. No
  * "See all": Trending has none either, and the category is one tap away in the explorer's own chips.
  */
-export const RelatedShelf = memo(function RelatedShelf({ related }: { related: RelatedRail }) {
+export const RelatedShelf = memo(function RelatedShelf({ related, look }: {
+  related: RelatedRail
+  /**
+   * ⛔ 'goods' — UNDER THE GOODS SEARCH ON A PHONE (owner-approved 2026-11-14, cook r06 goods; listings-explorer.tsx `goodsLook`):
+   * "More in …" continues the results as the same two-column grid (Shelf `phoneGrid="goods"`: rows 32px apart, no beam, no
+   * heading icon) of goods cards (ListingCard `look`). From sm, and without it, the rail as before.
+   */
+  look?: 'goods'
+}) {
   const { tr } = useLanguage()
   const router = useRouter()
   const openListing = useCallback((x: SerializedListingCard) => router.push(`/listings/${x.id}`), [router])
@@ -32,10 +40,10 @@ export const RelatedShelf = memo(function RelatedShelf({ related }: { related: R
   const name = related.subName ? `${category} · ${tr(related.subName, related.subNameVi ?? undefined)}` : category
   const title = (template.includes('{category}') ? template : 'More in {category}').replace('{category}', () => name)
   return (
-    <Shelf icon={LayoutGrid} title={title}>
+    <Shelf icon={LayoutGrid} title={title} phoneGrid={look === 'goods' ? 'goods' : undefined}>
       {related.listings.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
-          <ListingCard listing={l} onOpen={openListing} onLocate={locateFromRail} />
+          <ListingCard listing={l} onOpen={openListing} onLocate={locateFromRail} look={look} />
         </div>
       ))}
     </Shelf>

@@ -750,3 +750,68 @@ export function PhoneFilterChips({ filters, appliedCount = 0, onClearAll }: { fi
     </>
   )
 }
+
+/**
+ * ⛔ THE GOODS SEARCH'S TITLE LINE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
+ * deploy"). On a phone, a search with no category picked (listings-explorer.tsx `oneRow`) opens on ONE line: the count as the
+ * page's one display element — "2 results for “iphone”", 28/34 bold ink — then Save search and the view pick as two 36px
+ * circles at its end. It replaces, there, the caption row over the grid ("ON A PHONE THE META LINE DROPS TO ITS OWN ROW,
+ * DIRECTLY ABOVE THE GRID", owner 2026-08-12): the count is the title at the TOP now, and the 2026-11-10 "results row is one
+ * line: count, Save search, view pill" is kept as a line, moved up. Kept: "SAVE SEARCH SITS LEFT OF THE VIEW MODES" (owner,
+ * 2026-08-12).
+ *   · THE COUNT HERE IS A PICTURE (aria-hidden), the undirected row's pattern: the number a screen reader hears stays <ResultLine>'s
+ *     ONE live count in #results (sr-only in this state, never moved or remounted). The results' h2 ("Results for “iphone”")
+ *     moves here, sr-only — still the page's one results heading, first in the results.
+ *   · ONE TRUNCATED LINE, ALWAYS: its height never waits for the answer (the count lands after the first frame on a cold
+ *     link, and a wrapping title would push the strip and the grid). A long query is cut in the title; the header's search box
+ *     and the h2 keep the whole words. `-my-1 py-1`: `truncate` clips at the padding box, and at 28px Open Runde's stacked
+ *     Vietnamese marks rise ~3px past the 34px line box — 4px of padding gives them room and the margins give it back, so
+ *     the line still takes 34px in a 36px row.
+ *   · SAVE SEARCH IS THE RESULTS VIEW'S ONE FILLED ACTION while results show (`filled`): the accent fill, a white bookmark — it
+ *     reverses there "`outline`, never `cta`: an offer on the filter row is not the page's one brand CTA" and JOIN-SAVE's
+ *     labelled 44px pill. With nothing to show it is the white outline circle (an empty search has its own primary). Icon-only
+ *     on screen, its name in full ("Save search" / "Lưu tìm kiếm", sr-only).
+ * Same words as <ResultLine>'s count (`resultsForLabel` / `resultCountLabel`), so a filter-only link reads "N listings".
+ */
+export function ResultsTitle({ count, term, heading, onSaveSearch, filled = false, view }: {
+  /** The deferred count <ResultLine> states; `null` = no answer to state yet (the line stays, empty, at its height). */
+  count: number | null
+  /** The words the count answers (a search); omitted, the plain "N listings". */
+  term?: string
+  /** The results' sr-only h2. */
+  heading: string
+  /** Save search, where the explorer offers it (`phoneSaveOffered`); omitted, no circle. */
+  onSaveSearch?: () => void
+  /** The accent fill: results are on screen. */
+  filled?: boolean
+  /** The view pick (explorer-toolbar.tsx ViewSwitch `variant="circle"`). */
+  view?: React.ReactNode
+}) {
+  const { lang, tr } = useLanguage()
+  const text = count === null ? '' : term?.trim() ? resultsForLabel(count, term, lang, tr) : resultCountLabel(count, lang, tr)
+  return (
+    <div data-results-title="" className="flex min-h-9 items-center gap-2">
+      <h2 className="sr-only">{heading}</h2>
+      <p aria-hidden className="-my-1 min-w-0 flex-1 truncate py-1 text-t-display text-foreground">{text}</p>
+      {onSaveSearch && (
+        <Button
+          type="button"
+          variant="bare"
+          size="none"
+          onClick={onSaveSearch}
+          data-save-search=""
+          className={cn(
+            'relative tap-44 inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors',
+            filled
+              ? 'bg-primary text-primary-foreground hover:bg-cta-dark active:bg-cta-dark'
+              : 'border border-line-strong bg-background text-foreground hover:bg-muted active:bg-muted',
+          )}
+        >
+          <Bookmark className="size-5" aria-hidden />
+          <span className="sr-only">{tr('Save search', 'Lưu tìm kiếm')}</span>
+        </Button>
+      )}
+      {view}
+    </div>
+  )
+}

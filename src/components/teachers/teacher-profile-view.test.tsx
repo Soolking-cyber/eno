@@ -30,7 +30,14 @@ vi.mock('@/lib/teachers/identity-mark', () => ({
 }))
 vi.mock('@/components/marketplace/header', () => ({ Header: () => null }))
 vi.mock('@/components/marketplace/footer', () => ({ Footer: () => null }))
-vi.mock('@/components/teachers/teacher-contact', () => ({ TeacherContact: () => null, TeacherContactJump: () => null }))
+// The contact block records what the page hands it (the identity sentence as its `counsel`, below lg) and renders that node,
+// so the HTML can be read as the page draws it; the jump and the cover ask are their own suite's.
+const contact = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }))
+vi.mock('@/components/teachers/teacher-contact', () => ({
+  TeacherContact: (p: Record<string, unknown>) => { contact.props.push(p); return p.counsel ? <div data-test-counsel="">{p.counsel as React.ReactNode}</div> : null },
+  TeacherContactJump: () => null,
+  TeacherCoverAsk: () => React.createElement('button', { type: 'button', 'data-test-cover-ask': '' }, 'Ask about a cover lesson'),
+}))
 
 const { TeacherProfileView } = await import('./teacher-profile-view')
 
@@ -88,7 +95,7 @@ async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, live 
 }
 
 beforeEach(() => { Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] }) })
-afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null; h.shown = false; h.shownThrows = false; h.markCalls = []; h.queries = [] })
+afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null; h.shown = false; h.shownThrows = false; h.markCalls = []; h.queries = []; contact.props = [] })
 
 describe('the header line — nationality · English · experience · where they live', () => {
   it('HCMC, District 7: the curated district name, then the city — from the v2 answers, never the old mirrors', async () => {
@@ -218,7 +225,10 @@ describe('cover lessons — "Can travel to" is the DERIVED reach', () => {
     const p = await page('en', coverOn)
     expect(p.text).toContain('Available for cover lessons')
     const after = p.text.slice(p.text.indexOf('Can travel to'))
-    expect(after).toMatch(/^Can travel to\s*District 4\s*District 7 \(Phu My Hung\)/)
+    // A label | value row since 2026-11-14 (owner-approved, cook r04): the places as words, like Teaching's rows.
+    expect(after).toMatch(/^Can travel to\s*District 4, District 7 \(Phu My Hung\)/)
+    const row = [...p.el.querySelectorAll('section[aria-labelledby="t-cover"] dt')].find((d) => d.textContent === 'Can travel to')!
+    expect([...row.nextElementSibling!.querySelectorAll('[data-fact]')].map((x) => x.textContent)).toEqual(['District 4', 'District 7 (Phu My Hung)'])
     expect(after).not.toMatch(/^Can travel to[^T]*District 1/)
   })
   it('batch 88: the usual week is a compact grid — 3 parts × 7 days, each cell labelled for a screen reader — with one short note', async () => {
@@ -231,9 +241,32 @@ describe('cover lessons — "Can travel to" is the DERIVED reach', () => {
     expect(sec.querySelectorAll('[data-cover-slot="open"]')).toHaveLength(3)
     expect(sec.querySelectorAll('td .sr-only')).toHaveLength(21)
     expect(sec.textContent).toContain('Not available')
-    expect(sec.querySelector('svg')).toBeNull() // no ✓ glyphs
     expect(sec.textContent).toMatch(/Usual week · confirmed /)
     expect(sec.textContent).not.toContain("This is the teacher's usual week")
+  })
+  it('⛔ a free slot is the success wash with ONE check; a closed one the field\'s well, no glyph (owner-approved 2026-11-14)', async () => {
+    const p = await page('en', { ...coverOn, coverSlots: ['mon-am', 'wed-eve', 'sun-pm'] })
+    const sec = p.el.querySelector('section[aria-labelledby="t-cover"]')!
+    const open = [...sec.querySelectorAll('[data-cover-slot="open"]')]
+    for (const s of open) {
+      expect(s.getAttribute('class')).toMatch(/\bbg-success\/10\b/)
+      expect(s.querySelectorAll('svg')).toHaveLength(1)
+      expect(s.getAttribute('aria-hidden')).toBe('true')
+    }
+    const closed = [...sec.querySelectorAll('[data-cover-slot=""]')]
+    expect(closed).toHaveLength(18)
+    for (const s of closed) {
+      expect(s.getAttribute('class')).toMatch(/\bbg-tint\b/)
+      expect(s.querySelector('svg')).toBeNull()
+    }
+    expect(sec.querySelectorAll('svg')).toHaveLength(3) // nothing else in the week draws a glyph
+    expect(sec.innerHTML).not.toMatch(/bg-brand/)
+  })
+  it('the cover ask sits under the week, last in the section (the contact block\'s action, a remote, below lg)', async () => {
+    const p = await page('en', coverOn)
+    const sec = p.el.querySelector('section[aria-labelledby="t-cover"]')!
+    expect(sec.lastElementChild?.hasAttribute('data-test-cover-ask')).toBe(true)
+    expect((await page('en')).el.querySelector('[data-test-cover-ask]')).toBeNull() // no cover section, no ask
   })
   it('no reach near home (abroad) → no cover section at all', async () => {
     const p = await page('en', { ...coverOn, livesIn: 'abroad', currentCity: '', currentDistrictKey: null, teachAreas: ['online'] })
@@ -333,37 +366,58 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
  */
 describe('the "Identity verified" line', () => {
   const line = (el: HTMLElement) => el.querySelector('[data-identity-line]')
-  it('shown: the label and the sentence, in English — under the header, before the rest of the page', async () => {
+  const tick = (el: HTMLElement) => el.querySelector('[data-identity-tick]')
+  const counsel = (el: HTMLElement) => el.querySelector('[data-test-counsel]')
+  const SENTENCE = 'eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring.'
+  /**
+   * ⛔ THE LABEL AND THE SENTENCE PART (owner-approved 2026-11-14, cook r04 teachers): "Identity verified" is a tick under the
+   * name, inside the header; the sentence is drawn twice on the server — under the header from lg (`max-lg:hidden`), and as
+   * the contact block's `counsel` below lg (the end panel) — CSS shows one.
+   */
+  it('shown: the tick under the name in the header, the sentence under the header (lg) and in the counsel panel (below lg)', async () => {
     h.shown = true
     const p = await page('en')
+    const t = tick(p.el)!
+    expect(t.closest('header')).toBeTruthy()
+    expect(t.textContent).toBe('Identity verified')
+    expect(t.querySelectorAll('svg')).toHaveLength(1)
+    // DOM order = reading order: the name, then its tick.
+    expect(t.previousElementSibling?.tagName).toBe('H1')
     const l = line(p.el)!
-    expect(l).toBeTruthy()
-    expect(l.textContent).toContain('Identity verified')
     // One sentence (owner 2026-10-15; batch 65): what was checked and what was not; the hiring advice is said once on the page.
     // The default fixture lists no qualifications, so the sentence carries the hiring advice itself.
-    expect(l.textContent).toBe('Identity verified' + 'eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring.')
+    expect(l.textContent).toBe(SENTENCE)
     expect((l.textContent?.match(/\./g) || []).length).toBe(1)
     expect(l.previousElementSibling?.tagName).toBe('HEADER')
+    // display:none by class below lg — never `[hidden]` (crawler-html.spec.ts).
+    expect(l.getAttribute('class')).toBe('max-lg:hidden')
+    expect(l.hasAttribute('hidden')).toBe(false)
+    expect(counsel(p.el)!.textContent).toBe(SENTENCE)
+    expect(l.textContent).not.toContain('Identity verified')
   })
   it('in Vietnamese — "xác minh", never "xác thực"', async () => {
     h.shown = true
     const p = await page('vi')
+    expect(tick(p.el)!.textContent).toBe('Đã xác minh danh tính')
     const l = line(p.el)!
-    expect(l.textContent).toContain('Đã xác minh danh tính')
-    expect(l.textContent).toContain('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
+    expect(l.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
+    expect(counsel(p.el)!.textContent).toBe(l.textContent)
     expect(p.el.innerHTML).not.toContain('xác thực')
   })
-  it('with a qualifications section (a degree, certificates, or both) the hiring advice is that section\'s line, said once on the page', async () => {
+  it('with a qualifications section (a degree, certificates, or both) the hiring advice is that section\'s line, said once per width', async () => {
     h.shown = true
     const CERT = [{ type: 'celta', hours: 120, provider: 'Cambridge', year: 2020 }]
+    // The page renders the sentence twice (one per width, CSS shows one), so the advice is counted outside the counsel copy.
+    const outsideCounsel = (el: HTMLElement) => { const c = el.cloneNode(true) as HTMLElement; c.querySelector('[data-test-counsel]')?.remove(); return c.textContent ?? '' }
     for (const over of [{ degreeLevel: 'phd', certificates: CERT }, { degreeLevel: 'phd' }, { certificates: CERT }]) {
       const p = await page('en', over)
       const l = line(p.el)!
-      expect(l.textContent).toBe('Identity verifiedeno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
-      expect((p.el.textContent?.match(/ask to see documents/gi) || []).length).toBe(1)
+      expect(l.textContent).toBe('eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
+      expect(counsel(p.el)!.textContent).toBe(l.textContent)
+      expect((outsideCounsel(p.el).match(/ask to see documents/gi) || []).length).toBe(1)
       const v = await page('vi', over)
-      expect(line(v.el)!.textContent).toContain('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
-      expect((v.el.textContent?.match(/hãy đề nghị xem giấy tờ/gi) || []).length).toBe(1)
+      expect(line(v.el)!.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
+      expect((outsideCounsel(v.el).match(/hãy đề nghị xem giấy tờ/gi) || []).length).toBe(1)
     }
   })
   it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from and the card cache', async () => {
@@ -383,14 +437,22 @@ describe('the "Identity verified" line', () => {
     await page('en', { listing: { identityMarkNotice: null } })
     expect(h.markCalls[0][1]).toBeNull()
   })
-  it('not shown, or a failed read: no line (fails closed) — the page renders as before', async () => {
+  it('not shown, or a failed read: no tick, no line, no counsel (fails closed) — the page renders as before', async () => {
     h.shown = false
-    expect(line((await page('en')).el)).toBeNull()
+    const a = await page('en')
+    expect(line(a.el)).toBeNull()
+    expect(tick(a.el)).toBeNull()
+    expect(counsel(a.el)).toBeNull()
+    expect(contact.props.at(-1)?.counsel).toBeNull()
     h.shown = true
     h.shownThrows = true
     const p = await page('en')
     expect(line(p.el)).toBeNull()
+    expect(tick(p.el)).toBeNull()
+    expect(counsel(p.el)).toBeNull()
     expect(p.text).toContain('Jane Doe')
+    // Without the tick the name takes both of the portrait's rows (no empty row under it on a phone).
+    expect(p.el.querySelector('h1')!.getAttribute('class')).toMatch(/\brow-span-2 self-center\b/)
   })
   it('⛔ nothing in the JSON-LD, and no account id (nor the switch, a hide or the card cache) anywhere in the HTML', async () => {
     h.shown = true
@@ -410,6 +472,7 @@ describe('the "Identity verified" line', () => {
     const node = await TeacherProfileView({ listing: LISTING, hostUrl: 'https://eno.vn', live: true, lang: 'en' })
     const html = renderToString(<LanguageProvider initialLang="en" initialViDict={{}}>{node}</LanguageProvider>)
     expect(html).not.toContain('data-identity-line')
+    expect(html).not.toContain('data-identity-tick')
     expect(h.markCalls).toEqual([])
   })
   // ⛔ No extra round-trip (spec 2026-10-16): the card cache is selected through the row's own listing in the page's ONE
@@ -531,18 +594,27 @@ describe('the ProfilePage — dateCreated', () => {
 })
 
 /**
- * TEACHING FACTS FIRST, ABOUT CLAMPED ON A PHONE (UI climb batch 69, 2026-11-11; blind A/B +0.39 GPT / +0.18 Opus). The
- * facts a school or a parent decides on sit under the header and the identity line, before the video, the cover week and
- * the story. A long About is clamped on a mounted phone page only (teacher-bio.test.tsx); the server HTML carries it whole.
+ * THE VIDEO FIRST, THEN TEACHING (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 69's "Teaching comes before
+ * the video", 2026-11-11): a person before their facts, straight under the rate row, at every width (one DOM order). Then the
+ * facts a school or a parent decides on, the cover week, and the story. A long About is clamped on a mounted phone page only
+ * (teacher-bio.test.tsx); the server HTML carries it whole.
  */
-describe('batch 69 — Teaching first, About clamped', () => {
+describe('the page order — video, Teaching, cover, About; About clamped', () => {
   const ids = (el: HTMLElement) => [...el.querySelectorAll('section[aria-labelledby]')].map((s) => s.getAttribute('aria-labelledby'))
-  it('Teaching comes before the video, the cover week and About', async () => {
-    const order = ids((await page('en', { bio: 'Hello. '.repeat(80) }, true, { ...LISTING, video: 'https://eno.vn/v.mp4' })).el)
+  it('the video, then Teaching, the cover week, About, Experience and Qualifications — and the video\'s heading is for screen readers only', async () => {
+    const coverOn = { coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 200_000, coverConsentVersion: COVER_CONSENT_VERSION, coverConfirmedAt: new Date('2026-10-08T00:00:00Z') }
+    const over = { ...coverOn, bio: 'Hello. '.repeat(80), degreeLevel: 'phd', experience: [{ role: 'Teacher', employer: 'ILA', city: 'HCMC', from: '2019-01', to: '' }] }
+    const { el } = await page('en', over, true, { ...LISTING, video: 'https://eno.vn/v.mp4' })
     // Every section this asserts on is present — a fixture that stopped drawing one must fail here, not pass silently.
-    for (const id of ['t-teaching', 't-video', 't-about']) expect(order).toContain(id)
-    expect(order.indexOf('t-teaching')).toBeLessThan(order.indexOf('t-video'))
-    expect(order.indexOf('t-teaching')).toBeLessThan(order.indexOf('t-about'))
+    expect(ids(el)).toEqual(['t-video', 't-teaching', 't-cover', 't-about', 't-exp', 't-quals'])
+    expect(el.querySelector('#t-video')!.getAttribute('class')).toBe('sr-only')
+    expect(el.querySelector('#t-teaching')!.getAttribute('class')).toBe('mb-3 text-t-h2 text-foreground')
+    // The header comes first: the video section is the main column's next block (the identity line is drawn only when shown).
+    expect(el.querySelector('section[aria-labelledby="t-video"]')!.previousElementSibling?.tagName).toBe('HEADER')
+  })
+  it('a video kept private keeps its visible heading (there is no player to say what it is)', async () => {
+    const { el } = await page('en', { videoUrl: 'https://x/v.mp4', videoOnRequest: true, private: { videoPath: 'p1/v.mp4' } })
+    expect(el.querySelector('#t-video')!.getAttribute('class')).not.toContain('sr-only')
   })
   it('⛔ the server HTML carries a long About WHOLE, with no clamp and no button — a phone without the script still reads it all (codex, round 3)', async () => {
     const bio = 'I teach English to children and adults. '.repeat(12).trim()
@@ -551,5 +623,46 @@ describe('batch 69 — Teaching first, About clamped', () => {
     expect(p.className).not.toContain('line-clamp')
     expect(p.textContent).toContain(bio.slice(-60))
     expect(el.querySelector('section[aria-labelledby="t-about"] button')).toBeNull()
+  })
+})
+
+/**
+ * THE HEADER IS ONE GRID (owner-approved 2026-11-14, cook r04 teachers — it reverses 2026-11-05's "a phone's header is two
+ * bands"): portrait | name over its tick | share, then the headline, the facts and the rate with "Contact teacher" on one row.
+ * DOM order = reading order. Subjects read as words (no chips).
+ */
+describe('cook r04 — the profile header and the Teaching rows', () => {
+  it('reading order: h1 → tick → share → the details (headline, facts, rate row)', async () => {
+    h.shown = true
+    const { el } = await page('en', { coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 450_000, coverConsentVersion: COVER_CONSENT_VERSION, coverConfirmedAt: null })
+    const header = el.querySelector('header')!
+    const kids = [...header.children]
+    const at = (sel: string) => kids.findIndex((k) => k.matches(sel))
+    expect(kids[0].tagName).toMatch(/IMG|SPAN/)
+    expect(at('h1')).toBe(1)
+    expect(at('[data-identity-tick]')).toBe(2)
+    expect(at('button[aria-label="Share"]')).toBe(3)
+    const details = kids[4]
+    expect(details.textContent).toContain('CELTA teacher with 5 years in Saigon')
+    // The rate and the action block share one row, below lg only.
+    const row = details.querySelector('[data-pdp-action-block]')!.parentElement!
+    expect(row.getAttribute('class')).toBe('mt-4 flex flex-wrap items-center gap-3 lg:hidden')
+    expect(row.firstElementChild!.textContent).toBe('450,000 đ / hour')
+  })
+  it('the name is the page\'s one display line; a 96px portrait (72 below 360px)', async () => {
+    const { el } = await page('en')
+    expect(el.querySelector('h1')!.getAttribute('class')).toMatch(/\btext-t-display\b.*\btext-balance\b/)
+    expect(el.querySelector('header img')!.getAttribute('class')).toMatch(/\bsize-24\b.*\bmax-\[359px\]:size-18\b/)
+  })
+  it('subjects read as words, like every other row — no chips anywhere in Teaching', async () => {
+    const p = await page('en', { subjects: ['general-english', 'phonics'] })
+    expect(p.row('Subjects')).toEqual(['General English', 'Phonics'])
+    expect(p.el.querySelector('section[aria-labelledby="t-teaching"] li')).toBeNull()
+    expect(p.el.querySelector('section[aria-labelledby="t-teaching"]')!.textContent).toContain('General English, Phonics')
+  })
+  it('the counsel goes to the contact block only as the identity sentence — nothing else of the identity check leaves', async () => {
+    h.shown = true
+    await page('en')
+    expect(Object.keys(contact.props.at(-1)!).sort()).toEqual(['counsel', 'cover', 'image', 'listingId', 'name'])
   })
 })

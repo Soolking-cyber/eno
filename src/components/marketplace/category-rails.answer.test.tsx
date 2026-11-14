@@ -1,245 +1,124 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SerializedCategory } from '@/lib/types'
+import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() }))
-vi.mock('./listing-card', () => ({ ListingCard: () => null }))
-const h = vi.hoisted(() => ({ lang: 'en' }))
-vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: h.lang, tr: (en: string) => en, t: (en: string) => en }) }))
+// The card is drawn as a marker carrying the props this file decides (lane, sizes), so a test can read them back.
+vi.mock('./listing-card', () => ({
+  ListingCard: ({ listing, lane, sizes }: { listing: { id: string }; lane?: boolean; sizes?: string }) => (
+    <i data-card={listing.id} data-lane={lane ? '1' : '0'} data-sizes={sizes ?? ''} />
+  ),
+}))
+vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en, t: (en: string) => en }) }))
 
-import { CategoryRails } from './category-rails'
+import { CategoryLane, CategoryRails, visibleCategoryRails } from './category-rails'
+import { LANE_CARD_SIZES } from './shelf'
 
 /**
- * The home page holds this block's place until there is an answer (DeferredCategoryRails, listings-explorer.tsx): rails that arrived
- * from nothing threw the footer off the screen, 0.42 of real-user CLS on desktop. So every way out has to answer, or the place is held forever.
+ * ⛔ THE RAILS COME FROM THE SERVER (owner-approved 2026-11-14, cook r04 home-b "lanes as rails" — category-rails.tsx has the
+ * record). There is no request any more: which rails draw is a pure function of the server's props, so the server render and
+ * hydration agree on every lane and its place, and a phone's lanes above the feed never arrive after the first paint.
  */
-const cats = [{ slug: 'rentals', name: 'Rentals', nameVi: 'Thuê' }] as unknown as SerializedCategory[]
-const listing = (id: string) => ({ id, title: id, sellerId: 's', images: [] })
-const answered = async (reply: () => Promise<unknown>) => {
-  vi.stubGlobal('fetch', vi.fn(reply))
+const cat = (slug: string) => ({ id: `c-${slug}`, slug, name: slug, nameVi: `vi-${slug}`, icon: 'Home' }) as unknown as SerializedCategory
+const cats = ['rentals', 'jobs', 'services', 'fashion-beauty'].map(cat)
+const listing = (id: string) => ({ id, title: id, sellerId: 's', images: [] }) as unknown as SerializedListingCard
+const rail = (slug: string, ids: string[]) => ({ slug, listings: ids.map(listing) })
+
+beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-  vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
-  const onAnswer = vi.fn()
-  render(<CategoryRails categories={cats} onCategory={() => {}} onAnswer={onAnswer} />)
-  await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
-  return onAnswer
-}
+})
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); h.lang = 'en' })
+describe('visibleCategoryRails — which rails draw, decided from props alone', () => {
+  it('keeps the server order and drops the cards the rails above already showed', () => {
+    const lanes = visibleCategoryRails([rail('rentals', ['a', 'b', 'c', 'd']), rail('services', ['e', 'f', 'g'])], cats, ['b'])
+    expect(lanes.map((l) => [l.slug, l.items.map((i) => i.id)])).toEqual([['rentals', ['a', 'c', 'd']], ['services', ['e', 'f', 'g']]])
+    expect(lanes[0].cat.slug).toBe('rentals')
+  })
+  it('hides a rail the dedup takes under the sparse floor (three)', () => {
+    expect(visibleCategoryRails([rail('rentals', ['a', 'b', 'c'])], cats, ['a'])).toEqual([])
+    expect(visibleCategoryRails([rail('rentals', ['a', 'b'])], cats)).toEqual([])
+  })
+  it('draws nothing for a slug this edition does not list', () => {
+    expect(visibleCategoryRails([rail('visa', ['a', 'b', 'c', 'd'])], cats)).toEqual([])
+  })
+  it('none from the server is none', () => {
+    expect(visibleCategoryRails([], cats, ['x'])).toEqual([])
+  })
+})
 
-describe('CategoryRails answers the place it holds', () => {
-  it('no answer while the request is out', async () => {
-    const onAnswer = await answered(() => new Promise(() => {}))
-    expect(onAnswer).not.toHaveBeenCalled()
+describe('CategoryRails (the shelves under the desktop feed)', () => {
+  it('renders one rail per lane it is given, in order', () => {
+    const lanes = visibleCategoryRails([rail('rentals', ['a', 'b', 'c']), rail('jobs', ['d', 'e', 'f'])], cats)
+    const { container } = render(<CategoryRails lanes={lanes} onCategory={() => {}} />)
+    expect([...container.querySelectorAll('section h2')].map((h) => h.textContent)).toEqual(['rentals', 'jobs'])
   })
-  it('rails to show', async () => {
-    const onAnswer = await answered(async () => ({ ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: ['a', 'b', 'c', 'd'].map(listing) }] }) }))
-    expect(onAnswer).toHaveBeenCalledWith('rails')
+  it('renders nothing for no lanes (no empty box in the shelves’ spacing)', () => {
+    const { container } = render(<CategoryRails lanes={[]} onCategory={() => {}} />)
+    expect(container.innerHTML).toBe('')
   })
-  it.each([
-    ['nothing over the sparse floor', async () => ({ ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: [listing('a')] }] }) })],
-    ['an empty list', async () => ({ ok: true, json: async () => ({ rails: [] }) })],
-    ['a failed response', async () => ({ ok: false })],
-    ['a dropped request', async () => { throw new Error('offline') }],
-  ])('none: %s', async (_name, reply) => {
-    const onAnswer = await answered(reply)
-    expect(onAnswer).toHaveBeenCalledWith('none')
+})
+
+describe('CategoryLane — the phone lane look and its gate', () => {
+  const lane = visibleCategoryRails([rail('rentals', ['a', 'b', 'c', 'd', 'e'])], cats)[0]
+
+  it('`initialShow`: its cards are in the server HTML, as lane cards with the 220px phone sizes', () => {
+    const html = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" initialShow />)
+    expect(html.match(/data-card="/g)).toHaveLength(5)
+    expect(html).toContain('data-lane="1"')
+    expect(html).toContain(`data-sizes="${LANE_CARD_SIZES}"`)
+    expect(LANE_CARD_SIZES.endsWith(', 220px')).toBe(true)
   })
-  it('a filtered feed lets the place go, and clearing the filter brings the rails back', async () => {
-    window.history.replaceState(null, '', '/?category=rentals')
-    const onAnswer = await answered(async () => ({ ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: ['a', 'b', 'c', 'd'].map(listing) }] }) }))
-    expect(onAnswer).toHaveBeenLastCalledWith('none')
-    window.history.replaceState(null, '', '/')
-    await act(async () => { window.dispatchEvent(new Event('eno:query')) })
-    expect(onAnswer).toHaveBeenLastCalledWith('rails')
+
+  it('without it, the server sends the header and same-size placeholders, and the cards come when it nears the screen', async () => {
+    const html = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" />)
+    expect(html).not.toContain('data-card="')
+    expect(html).toContain('<h2')
+    let fire: ((e: { isIntersecting: boolean }[]) => void) | null = null
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(cb: (e: { isIntersecting: boolean }[]) => void) { fire = cb }
+      observe() {} unobserve() {} disconnect() {}
+    })
+    const { container } = render(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" />)
+    expect(container.querySelectorAll('[data-card]')).toHaveLength(0)
+    await act(async () => { fire!([{ isIntersecting: true }]) })
+    expect(container.querySelectorAll('[data-card]')).toHaveLength(5)
   })
-  it('asks with a time limit: a hung request must not hold the place for good', async () => {
-    const onAnswer = await answered(() => new Promise(() => {}))
-    expect(vi.mocked(fetch).mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal)
-    expect(onAnswer).not.toHaveBeenCalled()
+
+  it('the lane classes are phone-only: 22/28 heading, no heading icon, 220px cards on a bled scroller', () => {
+    const html = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" initialShow />)
+    expect(html).toContain('max-sm:text-t-h2')
+    expect(html).toMatch(/class="[^"]*max-sm:hidden[^"]*"/) // the heading's category icon
+    expect(html).toContain('max-sm:w-55')
+    expect(html).toContain('max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3')
+    // The rail look (desktop's shelves) carries none of them.
+    const railHtml = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} initialShow />)
+    for (const c of ['max-sm:text-t-h2', 'max-sm:w-55', 'max-sm:-mx-3', '<section data-lane', 'data-lane="1"']) expect(railHtml).not.toContain(c)
   })
-  it('a browser with no AbortSignal.timeout still asks, rather than throwing in the effect', async () => {
-    const original = AbortSignal.timeout
-    Object.defineProperty(AbortSignal, 'timeout', { value: undefined, configurable: true, writable: true })
+
+  it('hydrates the server HTML with no mismatch', async () => {
+    const { hydrateRoot } = await import('react-dom/client')
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const recovered: unknown[] = []
     try {
-      const onAnswer = await answered(async () => ({ ok: true, json: async () => ({ rails: [] }) }))
-      expect(onAnswer).toHaveBeenCalledWith('none')
-    } finally { Object.defineProperty(AbortSignal, 'timeout', { value: original, configurable: true, writable: true }) }
-  })
-})
-
-/**
- * The reader's language goes in the URL (audit api-08): without it the answer carried every card's title in nine
- * machine-translated languages to a reader who needs one, or none. From the URL, never a cookie: the answer is publicly cached.
- */
-describe('CategoryRails asks in the reader’s language', () => {
-  const four = { ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: ['a', 'b', 'c', 'd'].map(listing) }] }) }
-  const urls = () => vi.mocked(fetch).mock.calls.map((c) => String(c[0]))
-  /** The ONE mounted tree, re-rendered under another language: English ⇄ a machine-translated one switches in place, no reload. */
-  const mounted = async (reply: () => Promise<unknown>) => {
-    vi.stubGlobal('fetch', vi.fn(reply))
-    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
-    const onAnswer = vi.fn()
-    const tree = () => <CategoryRails categories={cats} onCategory={() => {}} onAnswer={onAnswer} />
-    const { container, rerender } = render(tree())
-    const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
-    await settle()
-    return { onAnswer, container, switchTo: async (lang: string) => { h.lang = lang; rerender(tree()); await settle() } }
-  }
-
-  it.each(['en', 'vi', 'ko', 'zh-Hans'])('%s', async (lang) => {
-    h.lang = lang
-    await answered(async () => four)
-    expect(urls()).toEqual([`/api/category-rails?lang=${lang}`])
-  })
-
-  it('a language switched in place asks again, in the new one', async () => {
-    const { switchTo } = await mounted(async () => four)
-    await switchTo('ko')
-    expect(urls()).toEqual(['/api/category-rails?lang=en', '/api/category-rails?lang=ko'])
-  })
-
-  it.each([
-    ['a failed response', async () => ({ ok: false })],
-    ['a dropped request', async () => { throw new Error('offline') }],
-  ])('a failed re-ask keeps the rails already shown: %s', async (_name, failure) => {
-    let asked = 0
-    const { onAnswer, container, switchTo } = await mounted(async () => (asked++ === 0 ? four : failure()))
-    expect(onAnswer).toHaveBeenLastCalledWith('rails')
-    await switchTo('ko')
-    expect(asked).toBe(2)
-    expect(onAnswer).not.toHaveBeenCalledWith('none')
-    expect(container.querySelector('section')).not.toBeNull()
-  })
-})
-
-/**
- * Home asks for the answer at its first idle moment after `load` and draws the rails only when the reader nears them (owner,
- * 2026-11-12: "from services downwards loads slow"). The first mount takes that answer instead of asking again; it is taken
- * ONCE, a failed one is not kept, and until there is an answer the caller's placeholder stands in the place.
- */
-describe('CategoryRails takes an answer asked for early', () => {
-  // The ask is ONE module-level slot: each test starts past both of its windows (repeat 1 min, max age 10 min), so no
-  // earlier test's ask is reused. Only Date.now is moved — the settle below needs real timers.
-  let clock = Date.now()
-  const later = (ms: number) => { clock += ms }
-  beforeEach(() => { later(11 * 60_000); vi.spyOn(Date, 'now').mockImplementation(() => clock) })
-  afterEach(() => { vi.restoreAllMocks() })
-  const four = { ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: ['a', 'b', 'c', 'd'].map(listing) }] }) }
-  const stubs = () => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
-  }
-  const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
-  const mount = async () => {
-    const onAnswer = vi.fn()
-    const view = render(<CategoryRails categories={cats} onCategory={() => {}} onAnswer={onAnswer} fallback={<p data-testid="held" />} />)
-    await settle()
-    return { onAnswer, ...view }
-  }
-
-  it('the first mount uses the early answer and does not ask again; the next mount asks afresh', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn(async () => four))
-    prefetchCategoryRails('en')
-    prefetchCategoryRails('en') // asked twice before any mount: still one request
-    expect(fetch).toHaveBeenCalledTimes(1)
-    const first = await mount()
-    expect(fetch).toHaveBeenCalledTimes(1)
-    expect(first.onAnswer).toHaveBeenCalledWith('rails')
-    cleanup()
-    const second = await mount()
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(second.onAnswer).toHaveBeenCalledWith('rails')
-  })
-
-  it('a failed early answer is dropped, so the mount asks again', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: false }).mockResolvedValue(four))
-    prefetchCategoryRails('en')
-    await settle()
-    const { onAnswer } = await mount()
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(onAnswer).toHaveBeenCalledWith('rails')
-  })
-
-  it('an early answer in another language is not taken', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn(async () => four))
-    prefetchCategoryRails('vi')
-    await mount() // h.lang is 'en'
-    expect(vi.mocked(fetch).mock.calls.map((c) => String(c[0]))).toEqual(['/api/category-rails?lang=vi', '/api/category-rails?lang=en'])
-    cleanup()
-    h.lang = 'vi'
-    await mount() // one slot: the en mount's ask replaced the unused vi one, so this asks afresh
-    expect(fetch).toHaveBeenCalledTimes(3)
-  })
-
-  it('a prefetch that fails while the mount waits on it is asked again, not shown as no rails', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    let fail: (v: unknown) => void = () => {}
-    vi.stubGlobal('fetch', vi.fn().mockImplementationOnce(() => new Promise((r) => { fail = r })).mockResolvedValue(four))
-    prefetchCategoryRails('en')
-    const { onAnswer } = await mount() // takes the prefetch while it is still out
-    expect(onAnswer).not.toHaveBeenCalled()
-    await act(async () => { fail({ ok: false }); await new Promise((r) => setTimeout(r, 0)) })
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(onAnswer).toHaveBeenCalledWith('rails')
-    expect(onAnswer).not.toHaveBeenCalledWith('none')
-  })
-
-  it('a mount that asked first is not asked again by a prefetch a moment later', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn(async () => four))
-    await mount()
-    prefetchCategoryRails('en')
-    expect(fetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('an unused prefetch is renewed after a minute, and not shown after ten', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn(async () => four))
-    prefetchCategoryRails('en')
-    later(61_000)
-    prefetchCategoryRails('en') // a return to Home: a fresh ask
-    expect(fetch).toHaveBeenCalledTimes(2)
-    later(11 * 60_000)
-    await mount() // too old to show: the mount asks
-    expect(fetch).toHaveBeenCalledTimes(3)
-  })
-
-  it('shows the caller’s placeholder until the answer, then the rails in its place', async () => {
-    stubs()
-    let reply: (v: unknown) => void = () => {}
-    vi.stubGlobal('fetch', vi.fn(() => new Promise((r) => { reply = r })))
-    const { queryByTestId, container } = await mount()
-    expect(queryByTestId('held')).not.toBeNull()
-    await act(async () => { reply(four); await new Promise((r) => setTimeout(r, 0)) })
-    expect(queryByTestId('held')).toBeNull()
-    expect(container.querySelector('section')).not.toBeNull()
-  })
-
-  it('no prefetch on a directed feed: the rails hide there, so nothing is asked', async () => {
-    const { prefetchCategoryRails } = await import('./category-rails')
-    window.history.replaceState(null, '', '/?q=iphone')
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ rails: [] }) })))
-    prefetchCategoryRails('en')
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it('a filtered feed shows no placeholder while the answer is out', async () => {
-    window.history.replaceState(null, '', '/?category=rentals')
-    stubs()
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
-    const { queryByTestId } = await mount()
-    expect(queryByTestId('held')).toBeNull()
+      for (const initialShow of [true, false]) {
+        const tree = <CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" initialShow={initialShow} />
+        const host = document.createElement('div')
+        host.innerHTML = renderToString(tree)
+        document.body.append(host)
+        let root: ReturnType<typeof hydrateRoot> | undefined
+        await act(async () => { root = hydrateRoot(host, tree, { onRecoverableError: (e) => recovered.push(e) }) })
+        await act(async () => { root!.unmount() })
+        host.remove()
+      }
+      expect(recovered).toEqual([])
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      error.mockRestore()
+    }
   })
 })

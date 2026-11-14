@@ -14,7 +14,8 @@ import { ImageMark } from './image-mark'
 import { CardBadges } from './card-badges'
 import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
-import Image from 'next/image'
+import Image, { getImageProps } from 'next/image'
+import { preload } from 'react-dom'
 import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
@@ -33,7 +34,9 @@ import { useLanguage } from '@/context/language-context'
 import { usePlaceText } from './place-name'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
 import { cardTitle, cardJobType } from '@/lib/card-title'
-import { CARD_APPROX, CARD_BODY, CARD_META, CARD_PRICE, CARD_WAS, CARD_WAS_APPROX, TEACHER_TITLE_LINE, TITLE_LINE } from '@/lib/card-text'
+import { CARD_APPROX, CARD_BODY, CARD_META, CARD_PRICE, CARD_WAS, CARD_WAS_APPROX, GOODS_BODY, GOODS_PRICE_ROW, GOODS_SALE_PRICE, TEACHER_PROOF, TEACHER_RATE, TEACHER_TITLE_LINE, TITLE_LINE, WIDE_BODY, WIDE_META, WIDE_TITLE } from '@/lib/card-text'
+import { isGoodsCategory } from '@/lib/goods-surface'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -103,9 +106,57 @@ type Props = {
   priority?: boolean
   // The single LCP card (first card of the first landing row): use next/image's
   // real `priority` so Next emits a <link rel=preload> for its image.
-  lcp?: boolean
+  /**
+   * …OR A MEDIA QUERY: this card is the LCP only where the query matches (owner-approved 2026-11-14, cook r04 home-b — the
+   * home page's first lane card on a phone, its first grid card from `sm`). Its first photo is then preloaded with that
+   * `media` at high priority (React's preload(), built by next/image's getImageProps from the very props the <img> gets, so
+   * the preload IS the img's request), and the <img> is eager with no `priority` and no `fetchpriority` of its own: where
+   * the query does not match, nothing claims the page's one high-priority image slot.
+   */
+  lcp?: boolean | string
+  /**
+   * A home LANE's card (owner-approved 2026-11-14, cook r04 home-b; shelf.tsx LANE_*): below `sm` the text is flush with the
+   * photo — the lane already puts the photo on the 12px text edge, so the feed's 8px inset would push the text off it — and
+   * the info line's place no longer stretches, so the partner shield sits right after the place it qualifies. Inert from `sm`.
+   */
+  lane?: boolean
   /** A main grid's card past the first screen: its photo waits for the page's scripts on a phone (src/lib/image-hold.ts). */
   holdPhoto?: boolean
+  /**
+   * ⛔ THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a): a card in a ONE-COLUMN phone grid
+   * (listing-grid.ts LISTING_GRID_WIDE — /c/rentals and the rentals feed). Below `sm` only; every class it adds is `max-sm:`
+   * or sits on an element that is `sm:hidden`, so from `sm` the card is byte-for-byte the grid card in every way that renders.
+   * Below `sm`, under the 366px square photo (the ratio untouched — never smaller than the two-up card):
+   *   · the text block is flush with the photo (the photo already sits on the 12px gutter), 12px under it;
+   *   · the PRICE LINE is a 36px row: the price (its "/mo" / "/ tháng" regular, the ≈$ at 14/20) and, at its right end, ONE
+   *     TRUST SLOT — the availability check as a labelled chip (rental-check-toggle.tsx `chip`), or, where the check does not
+   *     apply, "Official partner" in words beside its shield (partner-badge.tsx `labelled`); never both. The photo's own
+   *     check chip and the info line's partner mark step down below `sm` when the slot carries them, so each width has one;
+   *   · the title in the body role, 16/24 in ink; the info line 14/20 muted, with the freshness the desktop card already
+   *     shows ("place · 1d ago" — a 366px card has the room the two-up card did not);
+   *   · on the photo: the heart's plate 36px (a 24px glyph on `plate-lg`'s 6px), the badge and status chips inset to 12px,
+   *     and the slot pips shown.
+   * One-line body: 12 + 36 + 2 + 24 + 2 + 20 = 96px (listing-card-skeleton.tsx `wide` reserves it). The card's own press
+   * (scale .97) is the press; no second signal.
+   */
+  wide?: boolean
+  /**
+   * ⛔ THE GOODS PHONE CARD (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
+   * deploy"; src/lib/goods-surface.ts). A goods surface passes it — a search over every category, a goods category's grid
+   * and its pages — and it applies only to a card whose OWN category sells things (`isGoodsCategory`), never a teacher, a
+   * `wide` or a `lane` card: in a mixed search a rental or a job keeps the shell card beside it (both bodies are 76px, so a
+   * row stays level). Below `sm` only — every class it adds is `max-sm:` — so from `sm` the card is the shell card:
+   *   · PRICE-LED TEXT (card-text.ts GOODS_*): a sale price at the heading cut, 22/28 ink, in a 28px row 8px under the photo;
+   *     a per-unit, salary or word price keeps 17/22 in the same row; the title and the info line are the shell's.
+   *   · ONE TILE: the photo multiplies onto the grey field tile (`bg-tint` on its slide), so a packshot's white becomes the
+   *     tile and the grid reads as one system (a full photo is unchanged); never in dark mode, where it would black the
+   *     photo. ⛔ The 5% `media-hairline` ring is off (it reverses the owner's 2026-10-18 ring there): the grey tile is the
+   *     edge.
+   *   · ⛔ NO FADE-IN ON SCROLL (the redesign's slop ban): globals.css takes `reveal-on-scroll` off `[data-look="goods"]` below
+   *     40rem.
+   * A primitive, so `memo` stays effective.
+   */
+  look?: 'goods'
   /** False for a card in HTML that lives for weeks (a listing page's shelf): its "x ago" waits for the clock, not a baked claim. ("Just in" is gone since 2026-11-14: card-badges.tsx.) */
   clockInHtml?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
@@ -128,10 +179,11 @@ type Props = {
  * ⛔ A TEACHER CARD LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT / +0.39 Opus), bold
  * and in ink: TEACHER_TITLE_LINE, ABOVE the rate. Every other card keeps the 09-13 order (price → this line → the info
  * line).
- * Line boxes: a teacher's name 16·1.375 = 22px on a phone (24.75 from sm) over its rate 14·1.25 = 17.5 (20 from sm), and
- * since batch 80 (owner, 2026-11-12, "build 2") the proof line (gap-0.5 2 + a 16px text-xs line) between the rate and
- * the info line, reserved on every teacher card; the skeleton reserves those bars only where it is told the cells are
- * teachers (listing-card-skeleton.tsx `teacher`).
+ * Line boxes since 2026-11-14 (owner-approved, cook r04 teachers): a teacher's name 17/24 on a phone (the h3 role; 24.75
+ * from sm) over its rate 14/20 (16/20 from sm), the proof line 14/20 when there is one, the info line with no top padding,
+ * and the proof's reserve at the body's end when there is none — 10 + 24 + 2 + 20 + 2 + 20 + 2 + 18 = 98px on a phone,
+ * every teacher card. The skeleton reserves those bars only where it is told the cells are teachers
+ * (listing-card-skeleton.tsx `teacher`).
  */
 
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
@@ -146,13 +198,26 @@ function ListingCardImpl({
   onOpen,
   priority = false,
   lcp = false,
+  lane = false,
   holdPhoto = false,
+  wide = false,
+  look,
   clockInHtml = true,
   sizes = LISTING_CARD_SIZES,
   onLocate,
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const images = listing.images
+  /**
+   * ⛔ THE MEDIA-SCOPED LCP PRELOAD (`lcp` as a media query — the prop's note). During render, like next/image's own
+   * `priority` preload (React dedupes it by href and writes it into <head> from the server render). The srcset, sizes and
+   * quality are the slide-0 <img>'s below, exactly — a preload that differs from the img fetches the photo twice.
+   */
+  const lcpMedia = typeof lcp === 'string' ? lcp : null
+  if (lcpMedia && images.length > 0) {
+    const { props: first } = getImageProps({ src: images[0], alt: '', fill: true, sizes, quality: 60, unoptimized: isMockImageUrl(images[0]) })
+    preload(first.src, { as: 'image', imageSrcSet: first.srcSet, imageSizes: first.sizes, fetchPriority: 'high', media: lcpMedia })
+  }
   /**
    * ⛔ A TEACHER'S NAME IS NEVER MACHINE-TRANSLATED, IN ANY LANGUAGE (2026-10-16) — "a name translated is a different
    * name" (seller-info.tsx), and the "Identity verified" tick sits beside it: a translated name under the tick would show
@@ -163,10 +228,15 @@ function ListingCardImpl({
    * the storefronts too.
    */
   const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
+  // The goods phone card (`look`, the prop's note): only a goods card on a goods surface, never a teacher, wide or lane card.
+  const goods = look === 'goods' && !isTeacher && !wide && !lane && listing.listingType !== 'job' && isGoodsCategory(listing.category?.slug)
+  // …and its price at the heading cut only when it is a SALE figure: no per-unit suffix (vnd.ts cardCompactAbove's own test) and
+  // a figure at all — "Free", "Negotiable" and a rent keep the shell's 17px in the same 28px row.
+  const goodsSalePrice = goods && listing.price > 0 && !priceUnitSuffix(listing.priceUnit)
   // How slide `i`'s photo loads when it is not the LCP preload (the photo's own comment says why slides 2..n are eager and why a later
   // card's first photo is held). Shared with its blurred fill (photo-fill.tsx), so the two load, and are held, together.
   const slideLoad = (i: number): { loading: 'eager' | 'lazy' } & Record<`data-${string}`, string> =>
-    ({ loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager', ...(i === 0 && !priority && holdPhoto ? { [HELD_PHOTO_ATTR]: '' } : {}) })
+    ({ loading: i === 0 ? (priority || lcpMedia ? 'eager' : 'lazy') : 'eager', ...(i === 0 && !priority && !lcpMedia && holdPhoto ? { [HELD_PHOTO_ATTR]: '' } : {}) })
   const localizedTitle = useLocalized(isTeacher ? '' : listing.title, isTeacher ? null : listing.titleVi, isTeacher ? null : listing.titleI18n)
   const displayTitle = isTeacher ? listing.title : localizedTitle
   /**
@@ -440,7 +510,15 @@ function ListingCardImpl({
   }
 
   // ONE line class for both shapes of the title (TITLE_LINE, above); a teacher card's is the name-first one (2026-11-12).
-  const titleLine = isTeacher ? TEACHER_TITLE_LINE : TITLE_LINE
+  // The wide phone card (`wide`, owner-approved 2026-11-14): the body role in ink, across the body's two columns.
+  const titleLine = isTeacher ? TEACHER_TITLE_LINE : wide ? cn(TITLE_LINE, WIDE_TITLE) : TITLE_LINE
+  /**
+   * The wide card's trust slot (`wide`, the prop's note): the check where it applies — the same gate as the photo's chip —
+   * else "Official partner" in words where the info line would show the partner shield. `slotPartner` also tells that line to
+   * step its own partner mark down below `sm`, so the phone has one.
+   */
+  const checkApplies = rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true)
+  const slotPartner = wide && !checkApplies && listing.seller.officialPartner && !listing.isSponsored
   /**
    * SECONDARY — title, ONE line (FIRST on a teacher card: the body note below). `truncate` rather than `line-clamp-1`: a
    * single-line clamp still reserves the second line's leading in some engines, and one line is the spec. The full title
@@ -448,7 +526,7 @@ function ListingCardImpl({
    * shortening (`lineTitle`). Built once here and rendered in ONE of the body's two slots, so the markup never forks.
    * "Identity verified" (owner, 2026-10-15): on a MARKED teacher card only, the line becomes a row — the truncating h3
    * (`min-w-0`, so the name ellipsises before the tick) and the tick after it, ~18px of the line. Same height: the 14px
-   * glyph sits inside the teacher h3's 22px line box (24.75px from sm; it was 19px before the 2026-11-12 name-first card),
+   * glyph (16px since 2026-11-14) sits inside the teacher h3's 24px line box (24.75px from sm; 22 before 2026-11-14, 19 before the 2026-11-12 name-first card),
    * so the skeleton's one-line reserve holds. Every other card keeps the bare h3, byte-for-byte.
    */
   const titleBlock = (
@@ -458,7 +536,8 @@ function ListingCardImpl({
           <h3 title={displayTitle} className={cn(titleLine, 'min-w-0')}>
             {lineTitle}
           </h3>
-          <IdentityVerifiedMark id={identityMarkId} />
+          {/* 16px on the card (owner-approved 2026-11-14, cook r04 teachers), inside the name's 24px line. */}
+          <IdentityVerifiedMark id={identityMarkId} glyphClassName="size-4" />
         </div>
       ) : (
         <h3 title={displayTitle} className={titleLine}>
@@ -495,6 +574,8 @@ function ListingCardImpl({
       // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
       // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
       data-sid={listing.sellerId}
+      // The goods phone card (`look`): globals.css takes the scroll reveal off it below 40rem (no fade-in on scroll).
+      data-look={goods ? 'goods' : undefined}
       data-pending={pending || undefined}
       // ⚠️ PRESS IS 0.97, NOT 0.985 — the old value was below the perceptual threshold on the
       // app's most-tapped surface. Scale is RELATIVE, so the same number is a different amount
@@ -559,6 +640,7 @@ function ListingCardImpl({
         // row — pads its glyph 6px a side, an 18px glyph (ICON_SIZE.plate) on a 30px plate in the 32px `sm` button.
         // `media-hairline` (owner, same day): the 1px inner edge that keeps white packshots from merging at a 4px
         // gap — a ::before ABOVE the photo, under the overlays; see globals.css for why it is not an inset ring.
+        // ⛔ Off on the goods phone card (owner-approved 2026-11-14, cook r06 goods — `look`): its grey tile is the edge.
         // ⚠️ `partner-ring-media` is NOT on this box any more (the gold ring left the card 2026-08-13; the
         // partner's accessible name is the meta row's sr-only); its `::after` overlay is still defined in
         // globals.css, which is why the hairline took `::before`.
@@ -570,6 +652,8 @@ function ListingCardImpl({
         // measurement before reaching for either again.
         className={cn(
           'plate-lg media-hairline relative aspect-square w-full overflow-hidden rounded-media bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
+          // ⛔ The goods phone card has no ring (owner-approved 2026-11-14, cook r06 goods — `look`): the grey tile is the edge.
+          goods && 'max-sm:before:hidden',
         )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo,
@@ -796,7 +880,9 @@ function ListingCardImpl({
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.slice(0, expanded ? photoCount : 1).map((src, i) => (
-              <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
+              // The goods phone card's tile (`look`): the photo multiplies onto THIS grey, inside the strip — the strip is
+              // transformed, so it is the photo's isolated group and the media box's own grey never reaches the blend.
+              <div key={i} className={cn('relative h-full w-full shrink-0 overflow-hidden', goods && 'max-sm:bg-tint')}>
                 {slideDown[i] ? (
                   <div className="flex h-full w-full items-center justify-center bg-tint">
                     <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
@@ -834,7 +920,8 @@ function ListingCardImpl({
                     // so nothing from original image misses" — the whole photo over its own blurred copy, photo-fill.tsx). The
                     // listing page still shows every photo whole. The ratio and the size of the box are untouched (owner, 11-14).
                     // One <img> per slide again, so the photo itself is the LCP element and the only thing `slideLoad` holds.
-                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]')}
+                    // The goods phone card (`look`): multiplied onto its slide's grey tile in light mode only.
+                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]', goods && 'max-sm:mix-blend-multiply max-sm:dark:mix-blend-normal')}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -872,7 +959,8 @@ function ListingCardImpl({
                     // index 0 only. ⛔ Not the `preload` prop instead: Next throws when it meets both.
                     // ⛔ `holdPhoto`: this photo also waits for the page's scripts on a phone (src/lib/image-hold.ts). The browser's lazy range
                     // reaches 21 off-screen photos, which cost over a second of tap-ready on a mid phone.
-                    {...(lcp && i === 0
+                    // A media-scoped `lcp` (a string) is preloaded above instead, and its img is only eager (slideLoad).
+                    {...(lcp === true && i === 0
                       ? { priority: true, fetchPriority: 'high' as const }
                       : slideLoad(i))}
                   />
@@ -1001,8 +1089,8 @@ function ListingCardImpl({
             photo: only white plates"): the heart and the hover actions the `plate-host` disc (globals.css), the one
             top-left badge and the video / saved chips the `.photo-badge` pill (card-badges.tsx, CardStatusChips), the
             eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `shadow-onmedia` (they are
-            `sm`-and-up only now, below). (The rental-check chip, rental-check-toggle.tsx, still wears its own dark
-            plate.) Do not bring a full-width band back for one corner glyph. */}
+            `sm`-and-up only now, below — and on the wide phone card), and the rental-check chip the same white plate
+            (rental-check-toggle.tsx, since 2026-11-14). Do not bring a full-width band back for one corner glyph. */}
 
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
@@ -1018,13 +1106,14 @@ function ListingCardImpl({
             `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
             width where that row renders. */}
         {/* `max-w`: the 13px white pill never runs under the 32px heart at 320px ("Urgent hiring" measured ~18px of overlap
-            in commit review); its label ellipsizes instead (card-badges.tsx). */}
-        <CardBadges listing={listing} className="pointer-events-none absolute left-2 top-2 z-10 max-w-[calc(100%-3.25rem)]" />
+            in commit review); its label ellipsizes instead (card-badges.tsx). The wide phone card insets it to its big
+            photo's 12px edge (owner-approved 2026-11-14, cook r06 rentals-a). */}
+        <CardBadges listing={listing} className={cn('pointer-events-none absolute left-2 top-2 z-10 max-w-[calc(100%-3.25rem)]', wide && 'max-sm:left-3 max-sm:top-3')} />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
             overlap; clear of the dots (center) and the action column (right). */}
-        <CardStatusChips listing={listing} />
+        <CardStatusChips listing={listing} wide={wide} />
 
         {/* ⚠️ THE AVAILABILITY-CHECK CHIP (owner, 2026-09-25) — rentals only, bottom-right, the one free
             corner (badges and heart own the top, the status chips the bottom-left, the pips the centre).
@@ -1035,7 +1124,10 @@ function ListingCardImpl({
             renders nothing for a non-rental or for the viewer's own listing. */}
         {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): the check is a HOUSING service ("meet the landlord or
             agent"), so a car or motorbike card must not offer it — rentalCheckApplies owns the rule. */}
-        {rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true) && <RentalCheckToggle variant="card" listing={listing} />}
+        {/* ⛔ …EXCEPT ON THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a): below `sm` the check is the labelled chip
+            at the price line's end (the body's trust slot, below), so this copy is `max-sm:hidden` there — display:none, out of
+            the accessibility tree and the tab order — and from `sm` it is this chip, as before. */}
+        {checkApplies && <RentalCheckToggle variant="card" listing={listing} className={wide ? 'max-sm:hidden' : undefined} />}
 
         {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
             horizontally OUT of the save heart (top-right), sliding LEFT into place
@@ -1191,7 +1283,7 @@ function ListingCardImpl({
             the <Heart> child — so the primitive contributes only the shell. The mobile
             Chat/Offer/Map glyphs that used to stack down this edge now live in the card body
             (a quiet native action row); desktop keeps its on-hover unfurl above. */}
-        <CardSaveButton listingId={listing.id} />
+        <CardSaveButton listingId={listing.id} wide={wide} />
 
         {/* Offer slide — ONE edge-to-edge bar for BOTH mobile + desktop (was a
             cramped inline panel on desktop that squeezed the amount on narrow cards).
@@ -1252,8 +1344,10 @@ function ListingCardImpl({
                 the point of being countable.
                 `max-sm:hidden` (owner, 2026-10-18 — a calmer photo, as on Facebook's grid): a phone card
                 is heart + one badge. The swipe still pages the strip, and the fourth slot's "+N photos"
-                doorway still says there is more; from sm, where hover-scan lives, the pips stay. */}
-            <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 max-sm:hidden">
+                doorway still says there is more; from sm, where hover-scan lives, the pips stay.
+                ⛔ EXCEPT THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a — it reverses the line above there): a
+                366px photo is a gallery on its own, and its pips say so, 12px off its bottom edge, as on Airbnb's results. */}
+            <div className={cn('pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1', wide ? 'max-sm:bottom-3' : 'max-sm:hidden')}>
               {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}
@@ -1290,7 +1384,8 @@ function ListingCardImpl({
           across the app including on map view"): PRICE → ONE-LINE TITLE → the info line.
           ⛔ EXCEPT A TEACHER CARD, WHICH LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT /
           +0.39 Opus): NAME (bold, TEACHER_TITLE_LINE) → rate (a step smaller) → PROOF (since 2026-11-12 "build 2": one
-          12px line of self-stated facts, `proofLine`, reserved when empty) → the info line, still untouched. That
+          line of self-stated facts, `proofLine`; since 2026-11-14 drawn only when there is one, its reserve at the body's
+          end) → the info line, still untouched. That
           supersedes the 09-13 order FOR TEACHERS ONLY; every other card keeps PRICE → title → info line byte-for-byte. It
           is REAL DOM order, not CSS `order`: a screen reader hears the name first, as the eye sees it. `titleBlock` (built
           above the return) renders in one of the two slots below, never both.
@@ -1310,7 +1405,12 @@ function ListingCardImpl({
           ⛔ THE TYPE IS THE REDESIGN'S CARD TEXT BLOCK SINCE 2026-11-14 (owner-approved, cook r05: price 17/22 ink, ≈$ 13
           muted, title 15/20 ink-3 one line, meta 13/18 muted, 10px under the photo, 2px between lines) — the strings live in
           src/lib/card-text.ts, shared with the SEO tile and the skeleton (phone body 76px: 10 + 22 + 2 + 20 + 2 + 2 + 18). */}
-      <div className={CARD_BODY}>
+      {/* The wide phone card (`wide`, owner-approved 2026-11-14): below `sm` the body is a two-column grid — the price and the
+          trust slot share row 1 (`minmax(0,1fr) auto`, the price the one that wraps), the title and the info line span both —
+          flush with the photo, 12px under it, 12px between the price and the slot. DOM order = visual order. */}
+      {/* The goods phone card (`look`, owner-approved 2026-11-14, cook r06 goods): 8px under the photo, no gap between lines, the
+          price row 28px (card-text.ts GOODS_*) — the same 76px body. */}
+      <div className={lane ? cn(CARD_BODY, 'max-sm:px-0') : wide ? cn(CARD_BODY, WIDE_BODY) : goods ? cn(CARD_BODY, GOODS_BODY) : CARD_BODY}>
         {/* A teacher card's name comes FIRST (owner, 2026-11-12 — the Body note above). */}
         {isTeacher && titleBlock}
         {/* PRIMARY — price (on a teacher card, the rate under the name). `flex-wrap` so a struck
@@ -1324,7 +1424,7 @@ function ListingCardImpl({
             ≥ min(60% of the viewport, 240px) as a BAR — on a tablet or desktop row the support cluster
             would RISE instead of fading, the hop the 09-25 yield model removed. The figures carry it
             instead (`fabAvoid` on each <Price>; see price.tsx). */}
-        <span className="flex flex-wrap items-baseline gap-x-1.5">
+        <span className={cn('flex flex-wrap items-baseline gap-x-1.5', goods && GOODS_PRICE_ROW)}>
           {/* ⚠️ "from" ONLY ON A PARTNER TICKET, and it is not decoration: the number we hold is the
               LOWEST adult ticket, while the price the visitor actually pays is set at the partner's
               checkout and varies by date. Without the qualifier the card states a price we do not
@@ -1381,13 +1481,19 @@ function ListingCardImpl({
             // The "≈ $" is the meta role, 4px after the figure (CARD_APPROX, 2026-11-14) — and in body ink from lg (2026-11-07
             // audit: it read as faint at desk distance); a phone keeps the quieter grey. A colour only, never a hiding class
             // (owner, 2026-09-13).
-            approxClassName={CARD_APPROX}
+            approxClassName={wide ? cn(CARD_APPROX, 'max-sm:text-sm') : CARD_APPROX}
+            // The wide phone card sets the unit regular beside the bold figure — "7M đ/day", "8,5 triệu / tháng" (owner-approved
+            // 2026-11-14, cook r06 rentals-a: the figure is the price). Both shapes of the unit (price.tsx `unitClassName`).
+            unitClassName={wide ? 'max-sm:font-normal' : undefined}
             price={listing.price}
             currency={listing.currency}
             priceUnit={listing.priceUnit}
-            // A teacher's rate sits a step down under the bold name (owner, 2026-11-12; kept). Every other card: the price
-            // role, 17/22 at every width since 2026-11-14 (CARD_PRICE — it was 16, 18 from sm).
-            className={isTeacher ? 'text-sm leading-tight sm:text-base' : CARD_PRICE}
+            // A teacher's rate sits a step down under the bold name (owner, 2026-11-12; kept): TEACHER_RATE, 14/20 bold since
+            // 2026-11-14 (owner-approved, cook r04 teachers — "Rate on request" the same weight, muted). Every other card: the
+            // price role, 17/22 at every width since 2026-11-14 (CARD_PRICE — it was 16, 18 from sm).
+            // ⛔ A goods phone card's SALE price takes the heading cut, 22/28 (`look`, owner-approved 2026-11-14, cook r06 goods —
+            // it reverses section-title.ts D-TYPE "always one step above the card price" there; card-text.ts GOODS_SALE_PRICE).
+            className={isTeacher ? TEACHER_RATE : goodsSalePrice ? cn(CARD_PRICE, GOODS_SALE_PRICE) : CARD_PRICE}
             listingType={listing.listingType}
             linked={listing.isPartnerBooking}
             jobMeta={jobMeta}
@@ -1411,19 +1517,26 @@ function ListingCardImpl({
           )}
         </span>
 
+        {/* THE WIDE PHONE CARD'S TRUST SLOT (`wide`, owner-approved 2026-11-14, cook r06 rentals-a): row 1's right end, `sm:hidden`.
+            The check as a labelled chip, or "Official partner" in words — never both; empty, it still holds the 36px row, so a
+            card with nothing to say is as tall as one with a chip. ⛔ Partner still REPLACES trust (2026-08-13): no trust number
+            comes back here (2026-11-10). */}
+        {wide && (
+          <div data-trust-slot="" className="flex min-h-9 shrink-0 items-center justify-end sm:hidden">
+            {checkApplies
+              ? <RentalCheckToggle variant="chip" listing={listing} />
+              : slotPartner && <PartnerBadge asLink={false} labelled />}
+          </div>
+        )}
+
         {/* THE PROOF LINE — teacher cards only (owner, 2026-11-12 "build 2"; round-8 A/B test 4). NAME → rate → THIS → the info
             line, which it never touches (09-13). ⛔ Self-stated (no documents are uploaded): no tick, never "verified".
-            RESERVED on every teacher card (a no-break space, aria-hidden) so a row's rates and info lines stay level and the
-            skeleton reserves one fixed line (listing-card-skeleton.tsx `teacher`). 12px in foreground ink: a fact to decide
-            with, darker than the meta under it (the tested design).
-            ⚠️ THE RESERVE IS THE ESCAPE '\u00a0', NEVER A TYPED CHARACTER: an editor that turns it into a plain space leaves
-            this nowrap <p> holding collapsible whitespace — 0px tall, and the reserve is gone (the teacher-order test pins
-            the code point). Not inside `titleBlock`: on a teacher card that is the name slot, BEFORE the rate. */}
-        {isTeacher && (
-          <p data-teacher-proof="" aria-hidden={proofLine ? undefined : true} className="truncate text-xs text-foreground">
-            {proofLine ?? '\u00a0'}
-          </p>
-        )}
+            ⛔ DRAWN ONLY WHEN THERE IS ONE, AT 14px IN INK-2 (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 80's
+            "RESERVED on every teacher card between the rate and the info line … 12px in foreground ink"): a card with nothing
+            to say puts its place right under the rate, and its reserve moves to the card's END (below), so every teacher card
+            is still one height and the skeleton still reserves one fixed line. Not inside `titleBlock`: on a teacher card that
+            is the name slot, BEFORE the rate. */}
+        {isTeacher && proofLine && <p data-teacher-proof="" className={TEACHER_PROOF}>{proofLine}</p>}
 
         {/* SECONDARY on every card but a teacher's — the one-line title and its hidden full title (`titleBlock`, above
             the return, where its notes live). */}
@@ -1441,8 +1554,10 @@ function ListingCardImpl({
             ⛔ The meta role below lg since 2026-11-14 (owner-approved, cook r05: "meta --t-meta muted"): 13/18 muted, 2px
             above (CARD_META; it was 12px ink-4 under 4px). The facts and their order are untouched; at 13px the truncating
             span ellipsises a little sooner — the city tail, as before (D-TYPE below). */}
-        <div className={`mt-auto flex items-center gap-1.5 ${CARD_META}`}>
-          <span className="min-w-0 flex-1 truncate">
+        {/* A teacher's info line is TOP-ALIGNED, under the rate or the proof with the body's 2px (owner-approved 2026-11-14, cook
+            r04 teachers): one line per fact, so a row's names, rates and places line up and none floats to the foot. */}
+        <div className={isTeacher ? cn('flex items-center gap-1.5', CARD_META, 'pt-0') : wide ? cn('mt-auto flex items-center gap-1.5', CARD_META, WIDE_META) : `mt-auto flex items-center gap-1.5 ${CARD_META}`}>
+          <span className={cn('min-w-0 flex-1 truncate', lane && 'max-sm:flex-initial')}>
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
                 as-is, and null (services/jobs, where condition is meaningless) drops out. */}
@@ -1510,7 +1625,10 @@ function ListingCardImpl({
                 <>
                   {lead.join(' · ')}
                   {jobTypeText && <span className="sm:hidden">{lead.length > 0 ? ' · ' : ''}{jobTypeText}</span>}
-                  <span className="hidden sm:inline">
+                  {/* ⛔ …AND THE WIDE PHONE CARD SHOWS IT (owner-approved 2026-11-14, cook r06 rentals-a — it reverses "A PHONE CARD HAS
+                      ROOM FOR EXACTLY TWO FACTS" there): at 366px the line has the room the 189px card did not, so it reads
+                      "place · 1d ago", the freshness the desktop card already shows. */}
+                  <span className={cn('hidden sm:inline', wide && 'max-sm:inline')}>
                     {/* The time is in the first paint: relative-time.tsx is what keeps a stale label on this cached page from a hydration error.
                         ⚠️ A separator belongs to the thing it separates: " · " before the time only if a lead precedes it, or a card without one
                         starts with a dangling middot, baked into the HTML for Googlebot and no-JS visitors. */}
@@ -1529,8 +1647,10 @@ function ListingCardImpl({
               cannot be seen as gold by every reader, so the status stays here as text — and
               this row is the only place on a feed card where it can live. Partner still
               outranks and suppresses the plain Business glyph, exactly as before. */}
+          {/* `slotPartner` (the wide phone card): below `sm` the trust slot says it in words, so this name and the shield below
+              step down there (display:none — one "Official partner" in the accessibility tree per width). */}
           {listing.seller.officialPartner ? (
-            <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
+            <span className={cn('sr-only', slotPartner && 'max-sm:hidden')}>{tr('Official partner', 'Đối tác chính thức')}</span>
           ) : listing.seller.isBusiness && (
             /* ⚠️ `hidden sm:inline-flex` — THE GLYPH YIELDS ITS WIDTH TO THE FACTS ON THE LEFT
                BELOW sm. Measured on the real feed at 320px and 360px, the truncating span was
@@ -1582,8 +1702,14 @@ function ListingCardImpl({
               they were (Official partner, a teacher's Identity verified, the Ad label); the number stays on the listing
               page and the seller's page, which have room to say what it measures (pdp-shop-link, seller-card, /trust).
               src/lib/linked-seller.ts cardHidesTrust is no longer asked here. */}
-          {listing.seller.officialPartner && !listing.isSponsored && <PartnerBadge asLink={false} className="shrink-0" />}
+          {listing.seller.officialPartner && !listing.isSponsored && <PartnerBadge asLink={false} className={cn('shrink-0', slotPartner && 'max-sm:hidden')} />}
         </div>
+        {/* THE PROOF LINE'S RESERVE, AT THE END (owner-approved 2026-11-14, cook r04 teachers): a teacher card with no proof
+            ends on one empty 14/20 line, so it is as tall as one with a proof and as its placeholder (listing-card-skeleton.tsx
+            `teacher`) — a sort or Show-more never changes a row's height. aria-hidden; nothing to read.
+            ⚠️ THE ESCAPE '\u00a0', NEVER A TYPED CHARACTER: an editor that turns it into a plain space leaves this <p> holding
+            collapsible whitespace — 0px tall, and the reserve is gone (the teacher-order test pins the code point). */}
+        {isTeacher && !proofLine && <p data-teacher-proof-reserve="" aria-hidden className="text-sm">{'\u00a0'}</p>}
       </div>
     </div>
   )
@@ -1611,7 +1737,7 @@ function AuthAtClick({ into }: { into: RefObject<AuthValue | null> }) {
 /** The bottom-left status chips: a video indicator (so mobile, which has no hover, still knows there's a clip) + social proof "N saved" (≥3).
  *  ⛔ White `.photo-badge` pills, ink, since 2026-11-14 (owner-approved, cook r05: "over a photo: only white plates … 26 tall
  *  badges 700 13"); they were `bg-foreground/70` chips. Their glyphs stay at the 12px micro step. */
-function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
+function CardStatusChips({ listing, wide = false }: { listing: SerializedListingCard; wide?: boolean }) {
   const { lang, tr } = useLanguage()
   const { savedDelta } = useFavoriteMarks()
   // Base savedCount (real, server-side) + this session's own toggle, floored at 0.
@@ -1619,7 +1745,7 @@ function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
   return (
     <>
         {(listing.video || savedTotal >= 3) && (
-          <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
+          <span className={cn('pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5', wide && 'max-sm:bottom-3 max-sm:left-3')}>
             {listing.video && (
               <span title={tr('Has a video', 'Có video')} className="photo-badge">
                 {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
@@ -1640,7 +1766,7 @@ function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
   )
 }
 
-function CardSaveButton({ listingId }: { listingId: string }) {
+function CardSaveButton({ listingId, wide = false }: { listingId: string; wide?: boolean }) {
   const { tr } = useLanguage()
   const { isFavorite, toggle } = useFavoriteMarks()
   const favorited = isFavorite(listingId)
@@ -1658,7 +1784,9 @@ function CardSaveButton({ listingId }: { listingId: string }) {
           aria-label={tr('Save listing', 'Lưu tin')}
           aria-pressed={favorited}
           onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listingId) }}
-          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
+          // The wide phone card (owner-approved 2026-11-14, cook r06 rentals-a): a 44px box, its plate 36px (a 24px glyph on the
+          // media box's `plate-lg` 6px), 12px from the big photo's edge.
+          className={cn('absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]', wide && 'max-sm:size-11')}
         >
           {/* Icon-only on the white photo plate (overlay variant), ink outline; solid red when saved (icon-language §5
               user-state); heart-pop on save. ICON_SIZE.plate (18px, 2026-11-14), the same as the quick-action glyphs, so
@@ -1680,7 +1808,7 @@ function CardSaveButton({ listingId }: { listingId: string }) {
                 already reached this conclusion and written it down: a filled interior fights the
                 outline, and the outline is what carries legibility. All three now share
                 icon-shadow-brand so the trio is one treatment. */}
-            <Heart className={cn('icon-own-ink transition-colors', ICON_SIZE.plate, favorited
+            <Heart className={cn('icon-own-ink transition-colors', ICON_SIZE.plate, wide && 'max-sm:size-6', favorited
               ? 'fill-current text-saved'
               : 'fill-none')} />
           </span>

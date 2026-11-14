@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useState } from 'react'
 import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
 import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
 import { trCache, translateText, waitForTranslation } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
+import { richTextGroups } from '@/lib/rich-text-blocks'
 import { withoutLeadParagraph } from '@/lib/lead-paragraph'
 import { Button } from '@/components/ui/button'
 
@@ -221,8 +222,9 @@ export function MachineTranslationNote({ original, onToggle, className }: { orig
  * invisible and out of the accessibility tree, in the server HTML too; the note takes its place. If the
  * answer comes back unchanged (nothing was translated) the line goes, as the note would never have come.
  */
-function MachineTranslationReserve() {
-  return <p aria-hidden data-mt-reserve="" className="invisible text-xs">{'\u00a0'}</p>
+function MachineTranslationReserve({ goods = false }: { goods?: boolean }) {
+  // The goods sheet's note is the meta role below md (13/18): its reserve holds that same line box.
+  return <p aria-hidden data-mt-reserve="" className={goods ? 'invisible text-xs max-md:text-t-meta' : 'invisible text-xs'}>{'\u00a0'}</p>
 }
 
 /**
@@ -230,7 +232,7 @@ function MachineTranslationReserve() {
  * screen is a machine translation. The original is marked with its own `lang`.
  * `data-fab-avoid`: the support bubble yields over the end of the title (si-11; back-to-top.tsx).
  */
-export function LocalizedTitleHeading({ title, titleVi, i18n, className }: { title: string; titleVi: string | null; i18n?: Record<string, string> | null; className?: string }) {
+export function LocalizedTitleHeading({ title, titleVi, i18n, className, goods = false }: { title: string; titleVi: string | null; i18n?: Record<string, string> | null; className?: string; /** The goods sheet below md (owner-approved 2026-11-14, cook r06 "item"): the note in the meta role, its toggle bold. */ goods?: boolean }) {
   const { lang } = useLanguage()
   const { out, machine, asked } = useLocalizedSource(title, titleVi, i18n)
   const reserve = useNoteReserve(asked, machine)
@@ -244,7 +246,7 @@ export function LocalizedTitleHeading({ title, titleVi, i18n, className }: { tit
   return (
     <>
       <h1 data-fab-avoid className={className}>{cl && cl !== lang ? <span lang={cl}>{text}</span> : text}</h1>
-      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
+      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} className={goods ? GOODS_NOTE : undefined} /> : reserve ? <MachineTranslationReserve goods={goods} /> : null}
     </>
   )
 }
@@ -362,7 +364,7 @@ function sharedWordShare(text: string, other: string): number {
 }
 
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
-export function ListingDescription({ text, vi, i18n, className, dropLead }: {
+export function ListingDescription({ text, vi, i18n, className, dropLead, goods = false }: {
   text: string
   vi?: string | null
   i18n?: Record<string, string> | null
@@ -373,6 +375,18 @@ export function ListingDescription({ text, vi, i18n, className, dropLead }: {
    * translation or the original — so the translation is still asked for, and cached under, the full stored text.
    */
   dropLead?: readonly string[]
+  /**
+   * ⛔ THE GOODS SHEET'S DESCRIPTION, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts). The
+   * "Translated · See original" line in the meta role beside the heading (the page's section is a wrapping row), the text
+   * 16/24, the seller's own lead lines ("Price by rental length") bold 14 in ink with 24px over and 4 under them, a table's
+   * rows at 16px with bold values; and the clamp FOLDS AT THE FIRST TABLE instead of mid-sentence: when the text is clampable,
+   * its first table is not its last block and what comes before the table is short (≤ DESCRIPTION_CLAMP_CHARS characters
+   * and ≤ DESCRIPTION_CLAMP_LINES lines), the blocks after the table are `max-md:hidden` until "See more" — the same
+   * aria-expanded/aria-controls button — in place of pdp-04's 8-line clamp (it reverses that clamp there; a long prose lead
+   * keeps it). Decided from the same `shown` text as the clamp, so the server HTML and the first client render agree, and
+   * every word stays in the DOM. From md nothing changes.
+   */
+  goods?: boolean
 }) {
   const { lang, tr } = useLanguage()
   // ⚠️ `vi` WAS HARDCODED null HERE while the heading passed titleVi through the same hook — so a
@@ -396,19 +410,49 @@ export function ListingDescription({ text, vi, i18n, className, dropLead }: {
    */
   // Long by characters, OR by lines: twenty short lines under 600 characters still run far past 8 on a phone.
   const clampable = shown.length > DESCRIPTION_CLAMP_CHARS || shown.split('\n').length > DESCRIPTION_CLAMP_LINES
+  const blocks = formatRichText(shown)
+  // The goods sheet's fold (the prop's note): the index of the first table, or -1 when the text does not fold there.
+  const foldAt = goods && clampable ? tableFold(shown) : -1
+  const folded = foldAt >= 0 && !expanded
   // `allow-select`: keep the description selectable/copyable in the native app, where chrome
   // selection is disabled (globals.css html.native). Content text is the exception users need.
   return (
     <>
-      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
-      <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select [overflow-wrap:anywhere]${className ? ` ${className}` : ''}${clampable && !expanded ? ' max-md:line-clamp-8' : ''}`}>{formatRichText(shown)}</div>
+      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} className={goods ? GOODS_NOTE : undefined} /> : reserve ? <MachineTranslationReserve goods={goods} /> : null}
+      <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select [overflow-wrap:anywhere]${className ? ` ${className}` : ''}${goods ? ` ${GOODS_TEXT}` : ''}${clampable && !expanded && foldAt < 0 ? ' max-md:line-clamp-8' : ''}`}>
+        {/* Folded: every block after the table is hidden below md, and the table, now the last block shown, drops its 12px. */}
+        {folded ? blocks.map((b, i) => (i >= foldAt && isValidElement<{ className?: string }>(b) ? cloneElement(b, { className: `${b.props.className ? `${b.props.className} ` : ''}${i > foldAt ? 'max-md:hidden' : 'max-md:mb-0'}` }) : b)) : blocks}
+      </div>
       {clampable && (
-        <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className="relative tap-44 w-fit text-sm font-semibold text-accent-foreground md:hidden">
+        <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className={`relative tap-44 w-fit text-sm font-semibold text-accent-foreground md:hidden${goods ? ` ${GOODS_MORE}` : ''}`}>
           {expanded ? tr('See less', 'Thu gọn') : tr('See more', 'Xem thêm')}
         </Button>
       )}
     </>
   )
+}
+
+/** The goods sheet's MT note below md: the meta role, its toggle bold (the prop's note at ListingDescription). */
+const GOODS_NOTE = 'max-md:text-t-meta max-md:[&_button]:text-t-meta max-md:[&_button]:font-bold'
+/** The goods sheet's text below md: 16/24; lead lines bold 14 ink, 24 over and 4 under (8 over a table); tables 16px with
+ *  bold values, their first row flush to the top and last to the bottom. The page's section makes it a full row. */
+const GOODS_TEXT = 'max-md:basis-full max-md:leading-6 max-md:[&>p.font-semibold]:mt-6 max-md:[&>p.font-semibold]:text-sm max-md:[&>p.font-semibold]:font-bold max-md:[&>p.font-semibold:first-child]:mt-0 max-md:[&>p.font-semibold]:mb-1 max-md:[&>p.font-semibold:has(+dl)]:mb-2 max-md:[&_dl]:text-base max-md:[&_dd]:font-bold max-md:[&_dl>div:first-child]:pt-0 max-md:[&_dl>div:last-child]:pb-0'
+/** "See more" on the goods sheet below md: its own full row, bold, 44px tall, its text 4px under the last row. */
+const GOODS_MORE = 'max-md:-mb-2 max-md:-mt-3 max-md:min-h-11 max-md:basis-full max-md:justify-start max-md:font-bold'
+
+/**
+ * Where the goods sheet's description folds (ListingDescription `goods`): the index of its FIRST table among the formatted
+ * blocks, when that table is not the last block and the text before it is short (≤ DESCRIPTION_CLAMP_CHARS characters and
+ * ≤ DESCRIPTION_CLAMP_LINES lines); otherwise -1 and the 8-line clamp applies. The same parse as formatRichText.
+ */
+export function tableFold(text: string): number {
+  const groups = richTextGroups(text)
+  const at = groups.findIndex((g) => g.kind === 'dl')
+  if (at < 0 || at === groups.length - 1) return -1
+  const before = groups.slice(0, at).map((g) => (g.kind === 'p' || g.kind === 'h' ? g.text : g.kind === 'dl' ? '' : g.items.map((it) => (Array.isArray(it) ? it[1] : it)).join('\n')))
+  const chars = before.join('\n').length
+  const lines = before.reduce((n, t) => n + t.split('\n').length, 0)
+  return chars <= DESCRIPTION_CLAMP_CHARS && lines <= DESCRIPTION_CLAMP_LINES ? at : -1
 }
 
 /** Past this many characters a description is clamped below md (~8 lines at the phone measure). */
@@ -418,6 +462,6 @@ export const DESCRIPTION_CLAMP_LINES = 8
 
 /** Relative "x ago" in the active language (client — keeps the page cacheable).
  *  Hydration-stable: see RelativeTime — the clock is never read before mount. */
-export function PostedAgo({ iso, inHtml }: { iso: string; inHtml?: boolean }) {
-  return <RelativeTime iso={iso} inHtml={inHtml} />
+export function PostedAgo({ iso, inHtml, markFresh, className }: { iso: string; inHtml?: boolean; /** RelativeTime's `data-fresh` under 24 hours (the job card row). */ markFresh?: boolean; className?: string }) {
+  return <RelativeTime iso={iso} inHtml={inHtml} markFresh={markFresh} className={className} />
 }

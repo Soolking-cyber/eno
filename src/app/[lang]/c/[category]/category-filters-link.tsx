@@ -26,11 +26,18 @@ import { cn } from '@/lib/utils'
  * its category/district there; only /api/listings reads `homes`. The param rides along anyway: it is the
  * page's true scope, harmless where it is ignored, and right the day B1 teaches the explorer to read it.
  */
-export function CategoryFiltersLink({ slug, query, className }: {
+export function CategoryFiltersLink({ slug, query, className, glyphClassName = 'h-4 w-4', iconOnly = false }: {
   slug: string
   query?: Record<string, string>
   /** Merged last — the /c sort strip draws this link as its Filters chip ((index)/page.tsx). */
   className?: string
+  /** The sliders glyph's size: 16px, or the 18px of /c/rentals' phone strip (owner-approved 2026-11-14, cook r06 rentals-a). */
+  glyphClassName?: string
+  /**
+   * The glyph alone, its word "Filters" its name (`sr-only`, still the link's text): /c/jobs' phone heading line, a 44px round
+   * icon button beside the sort (owner-approved 2026-11-14, cook r06 jobs; SellerListings `phoneHead.end`).
+   */
+  iconOnly?: boolean
 }) {
   const { tr, lang } = useLanguage()
   const params = new URLSearchParams({ category: slug })
@@ -42,8 +49,8 @@ export function CategoryFiltersLink({ slug, query, className }: {
       prefetch={false}
       className={cn('relative tap-44 inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold text-accent-foreground hover:underline', className)}
     >
-      <SlidersHorizontal className="h-4 w-4" aria-hidden />
-      {tr('Filters', 'Bộ lọc')}
+      <SlidersHorizontal className={cn('shrink-0', glyphClassName)} aria-hidden />
+      {iconOnly ? <span className="sr-only">{tr('Filters', 'Bộ lọc')}</span> : tr('Filters', 'Bộ lọc')}
     </Link>
   )
 }

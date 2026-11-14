@@ -930,3 +930,35 @@ describe('the teachers browse — Hà Nội districts in the "Can teach in" menu
     expect(screen.queryByRole('group', { name: /hanoi districts/i })).toBeNull()
   })
 })
+
+/**
+ * ⛔ THE GOODS ORDER (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and deploy"): on a
+ * phone over a goods surface the explorer passes `order="goods"` — Price, Condition, Type, then Area, in DOM order (so the tab
+ * order is the order on screen). Without it the row is the intent-first order it always was.
+ */
+describe('<FacetBar order="goods">', () => {
+  afterEach(cleanup)
+  /** The four quick pills, each as the row's direct child that holds it, in DOM order. */
+  function pillOrder(container: HTMLElement): string[] {
+    const row = container.querySelector<HTMLElement>('.overflow-x-auto')!
+    const named: [string, Element][] = [
+      ['type', screen.getByRole('combobox', { name: /Listing type/ })],
+      ['condition', screen.getByRole('combobox', { name: /Condition/ })],
+      ['area', screen.getByRole('button', { name: /^Area/ })],
+      ['price', within(row).getAllByRole('button').find((b) => /Price/.test(b.textContent ?? ''))!],
+    ]
+    const top = (el: Element) => { let n: Element = el; while (n.parentElement !== row) n = n.parentElement!; return n }
+    const kids = Array.from(row.children)
+    return named.map(([k, el]) => [k, kids.indexOf(top(el))] as const).sort((a, b) => a[1] - b[1]).map(([k]) => k)
+  }
+
+  it('Price, Condition, Type, Area', () => {
+    const { container } = renderIn('en', <FacetBar {...props({ activeCategory: 'all', histogramQuery: '' })} order="goods" />)
+    expect(pillOrder(container)).toEqual(['price', 'condition', 'type', 'area'])
+  })
+
+  it('the default order is unchanged: Type, Price, Area, Condition', () => {
+    const { container } = renderIn('en', <FacetBar {...props({ activeCategory: 'all', histogramQuery: '' })} />)
+    expect(pillOrder(container)).toEqual(['type', 'price', 'area', 'condition'])
+  })
+})

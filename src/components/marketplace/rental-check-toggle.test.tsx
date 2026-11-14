@@ -160,6 +160,47 @@ describe('card chip', () => {
   })
 })
 
+/**
+ * ⛔ THE WIDE PHONE CARD'S LABELLED CHIP (`variant="chip"`, owner-approved 2026-11-14, cook r06 rentals-a — it reverses "GLYPH-ONLY AT
+ * EVERY WIDTH" on that card): the visible words ARE its name (no aria-label, no tooltip), the browse chip's look with the ink
+ * fill once added, above the card's stretched link, and the same store, gate and stopPropagation as the photo chip.
+ */
+describe('labelled chip (the wide card\'s trust slot)', () => {
+  it('its name is its visible words, in each language; aria-pressed carries the state; the ink fill once added', () => {
+    render(<RentalCheckToggle variant="chip" listing={listing(1)} />)
+    const b = chip()
+    expect(b.textContent).toBe('Check availability')
+    expect(b.hasAttribute('aria-label')).toBe(false)
+    expect(b.hasAttribute('data-rental-check-toggle')).toBe(true)
+    const cls = () => chip().className.split(/\s+/)
+    expect(cls()).toEqual(expect.arrayContaining(['relative', 'tap-44', 'min-h-9', 'rounded-full', 'z-10', 'whitespace-nowrap', 'border-line-strong']))
+    expect(chip().querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
+    fireEvent.click(chip())
+    expect(chip().getAttribute('aria-pressed')).toBe('true')
+    expect(cls()).toEqual(expect.arrayContaining(['pill-on', 'bg-foreground', 'text-background']))
+    expect(chip().querySelector('[data-icon="check"]')!.getAttribute('class')).toContain('icon-own-ink')
+    expect(getBasket().map((i) => i.id)).toEqual(['r1'])
+    cleanup()
+    i18n.lang = 'vi'
+    render(<RentalCheckToggle variant="chip" listing={listing(1)} />)
+    expect(screen.getByRole('button', { name: 'Kiểm tra phòng trống' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('the same gate as the photo chip: no vehicle hire, not the viewer\'s own; the tap never reaches the card', () => {
+    const { container } = render(<RentalCheckToggle variant="chip" listing={{ ...listing(1), subcategorySlug: 'motorbike-rental' }} />)
+    expect(container.querySelector('[data-rental-check-toggle]')).toBeNull()
+    cleanup()
+    auth.sellerId = 's-mine'
+    expect(render(<RentalCheckToggle variant="chip" listing={listing(2, 'rentals', 's-mine')} />).container.innerHTML).toBe('')
+    cleanup()
+    auth.sellerId = null
+    const openCard = vi.fn()
+    render(<div onClick={openCard}><RentalCheckToggle variant="chip" listing={listing(3)} /></div>)
+    fireEvent.click(chip())
+    expect(openCard).not.toHaveBeenCalled()
+  })
+})
+
 describe('PDP button', () => {
   it('adds, then becomes "Added (n/5) · View list" pointing at the list; the free line is always there', () => {
     addToBasket(listing(9))

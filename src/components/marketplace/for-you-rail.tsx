@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, LANE_CARD_W, LANE_CARD_SIZES, type RailLook } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
@@ -23,8 +23,21 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
 export const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
 
 /** ⚠️ MEMO: the explorer above re-renders on its own state, and each pass re-rendered these cards in full (speed audit, 2026-11-03). */
-export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }: {
+export const ForYouRail = memo(function ForYouRail({ initial, recovery = false, look = 'rail', lcpMedia, liveMedia, goods = false }: {
   initial?: SerializedListingCard[]
+  /** 'lane': the home page's phone lane (shelf.tsx LANE_*), inert from `sm`. */
+  look?: RailLook
+  /**
+   * The home page's phone lane leads the page, so its first card is the phone's LCP: a media-scoped preload (ListingCard
+   * `lcp` as a media query — listings-explorer.tsx passes the phone's). Omitted, no card here claims it.
+   */
+  lcpMedia?: string
+  /**
+   * ⛔ PERSONALIZE ONLY WHERE THIS COPY IS SHOWN. The home page renders this rail twice — the phone's lane above the feed
+   * (hidden from `sm`) and the shelf under the feed (hidden below `sm`) — so each asks /api/recommendations only while its
+   * media query matches at mount; the other keeps its seed and costs nothing. Omitted, it always asks (as before).
+   */
+  liveMedia?: string
   /**
    * The explorer renders this rail a SECOND way: under a searched/filtered feed that came back with
    * one to seven results (E-ZERO, 2026-09-29), as the thing to do next. The filtered-URL hide below
@@ -33,6 +46,12 @@ export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }
    * placement is unchanged.
    */
   recovery?: boolean
+  /**
+   * ⛔ THE RECOVERY UNDER THE GOODS SEARCH ON A PHONE (owner-approved 2026-11-14, cook r06 goods; listings-explorer.tsx
+   * `goodsLook`): the same two-column grid as the results above it (Shelf `phoneGrid="goods"`) of goods cards (ListingCard
+   * `look`). From sm, and without it, the rail as before.
+   */
+  goods?: boolean
 }) {
   const { tr } = useLanguage()
   const router = useRouter()
@@ -82,6 +101,8 @@ export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }
     // Seeded + signal-less: the server seed IS the trending answer — skip the fetch
     // entirely (one less cold-start request; a guest with no history gains nothing).
     if (seeded && !uniqTerms.length && !params.has('cats') && !params.has('brands')) return
+    // The copy nobody sees at this width keeps its seed (`liveMedia`, above).
+    if (liveMedia && typeof window.matchMedia === 'function' && !window.matchMedia(liveMedia).matches) return
     fetch(`/api/recommendations?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -98,7 +119,7 @@ export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }
         }
       })
       .catch(() => {})
-  }, [seeded])
+  }, [seeded, liveMedia])
 
   useEffect(() => {
     load()
@@ -142,28 +163,36 @@ export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }
   // the feed grid (which shows everything) carry the page. `null` still means "loading".
   if (listings !== null && listings.length < MIN_RAIL_ITEMS) return null
 
+  const lane = look === 'lane'
+  const cardW = lane ? LANE_CARD_W : RAIL_CARD_W
   return (
     // Cards are PIXEL-IDENTICAL to the feed grid below (RAIL_CARD_W == one grid column) so
-    // the rail reads as one family with the grid.
+    // the rail reads as one family with the grid — or, as a home lane on a phone, 220px (shelf.tsx LANE_*).
     <Shelf
       icon={personalized ? Sparkles : TrendingUp}
       title={personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}
-
+      look={look}
       watch={listings?.length ?? 0}
+      phoneGrid={goods ? 'goods' : undefined}
     >
       {listings === null
         ? // Un-seeded call sites only — the home landing passes `initial`, so this branch
           // never runs there. RAIL_SKELETON_COUNT (4) fills the widest row exactly; six
           // over-promised against the MIN_RAIL_ITEMS floor of three.
           Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => (
-            <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+            <ListingCardSkeleton key={i} className={cardW} />
           ))
-        : listings.map((l) => (
-            <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
+        : listings.map((l, i) => (
+            <div key={l.id} data-sid={l.sellerId} className={cardW}>
               <ListingCard
                 listing={l}
                 onOpen={openListing}
                 onLocate={locateFromRail}
+                lane={lane}
+                look={goods ? 'goods' : undefined}
+                sizes={lane ? LANE_CARD_SIZES : undefined}
+                // The phone's LCP, where this lane leads the page (`lcpMedia`); every other card is lazy, as before.
+                {...(lcpMedia && i === 0 ? { priority: true, lcp: lcpMedia } : {})}
               />
             </div>
           ))}

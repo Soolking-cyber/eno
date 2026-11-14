@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
+import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { LICENCE_SWEEP_DESK_UNRESOLVED, LICENCE_SWEEP_MAX_PULL, sweepLicenceHolds } from '@/lib/core/licence-check'
 
 export const runtime = 'nodejs'
@@ -73,5 +74,7 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
     return NextResponse.json({ ok: false, error: 'grandfather_unresolved', grandfatherProblem: r.grandfatherProblem, wouldPull: r.wouldPull, ...r }, { status: 500 })
   }
   if (r.refused === 'mass_pull') return NextResponse.json({ ok: false, refused: r.refused, wouldPull: r.wouldPull, maxPull, ...r }, { status: 500 })
+  // A pulled listing must leave the home page's cached HTML too (its category lanes are server-rendered since 2026-11-14).
+  if (!dryRun && r.pulled > 0) revalidatePublicPath('/')
   return { ok: true, ...r }
 })

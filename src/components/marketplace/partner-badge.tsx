@@ -43,7 +43,20 @@ import { cn } from '@/lib/utils'
  * Standalone surfaces (the partner page, the PDP shop link, the seller card) keep the link, where
  * it has room and nothing is competing for the tap.
  */
-export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?: 'sm' | 'md'; className?: string; asLink?: boolean }) {
+export function PartnerBadge({ size = 'sm', className, asLink = true, labelled = false }: {
+  size?: 'sm' | 'md'
+  className?: string
+  asLink?: boolean
+  /**
+   * ⛔ THE WORDS BESIDE THE SHIELD — the wide rental card's trust slot on a phone only (owner-approved 2026-11-14, cook r06
+   * rentals-a; listing-card.tsx `wide`). It reverses, there, "THE PLATE ITSELF SHOWS ONLY P" / "ICON ONLY SINCE 2026-09-30"
+   * below: at the end of a 366px card's price line the partner answers availability itself, and "Official partner" in
+   * words is the one trust fact that card has room to SAY. The green shield at 18px with no plate (the line is not a chip
+   * row), the words 14/20 in ink-3. The accessible name is unchanged — still `role="img"` + "Official partner" on the span
+   * branch, so the visible words are not read twice. Everywhere else the plate stays glyph-only.
+   */
+  labelled?: boolean
+}) {
   const { tr } = useLanguage()
   /**
    * ⛔ 2026-10-01: THE TOOLTIP STATES THE AGREEMENT, BECAUSE THE BADGE MEANS ONE AGAIN. The owner
@@ -103,9 +116,22 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
           // /partners) and partner REPLACES the trust chip, so the grown box has no neighbouring target.
           // Not an absolute hit-area pseudo-element: that needs `relative`, which the note above forbids.
           asLink && '-m-[4.5px] p-[4.5px]',
+          labelled && 'items-center gap-1 rounded-none text-sm text-ink-3',
+          labelled && className,
         )}
       >
-        {/* ⚠️ A GLYPH + "P" ON A TRANSLUCENT PLATE — THE TRUST CHIP'S OWN SHAPE. Owner, 2026-09-14: "semitransparent
+        {labelled ? (
+          <>
+            {/* The same Solar shield, 18px (ICON_SIZE.plate), in the partner green on no plate (`--partner-ink`, the plate's own ink). */}
+            <svg width={18} height={18} viewBox="0 0 24 24" className="size-4.5 shrink-0" style={{ color: 'var(--partner-ink)' }} aria-hidden="true">
+              {SHIELD_VERIFIED.rest.map((p, i) => (
+                <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
+              ))}
+            </svg>
+            <span className="whitespace-nowrap">{full}</span>
+          </>
+        ) : (
+        /* ⚠️ A GLYPH + "P" ON A TRANSLUCENT PLATE — THE TRUST CHIP'S OWN SHAPE. Owner, 2026-09-14: "semitransparent
             plates similar to heart icons plate on product cards but with their respective subtle coloring. also have
             letter P only for partner badge", then the same day: "partner badge should have an icon next to it similar
             to trust badge". So the box is the trust chip's exact class string (px-1.5 py-0.5 text-2xs leading-none,
@@ -118,7 +144,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
             This reverses the 2026-08-13 rule that the word "Partner" stays at every width — the owner's call. The full
             "Official partner" is still the accessible name (role=img / the link's label) and the tooltip.
             ⚠️ THE SAME `.badge-plate` AS THE TRUST CHIP, tinted and inked with the partner green; the contrast
-            measurements are on that rule in globals.css. */}
+            measurements are on that rule in globals.css. */
         <span
           className={cn(
             'badge-plate inline-flex shrink-0 items-center justify-center rounded-full px-1 py-0.5 text-2xs font-bold leading-none',
@@ -133,6 +159,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
             ))}
           </svg>
         </span>
+        )}
       </LinkOrSpan>
     </Tooltip>
   )

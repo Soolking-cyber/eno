@@ -106,7 +106,9 @@ test.describe('marketplace, against known fixtures', () => {
   test('the home feed renders every fixture listing', async ({ page }) => {
     await page.goto('/')
     for (const title of FIXTURES) {
-      await expect(page.getByText(title, { exact: false }).first(), `"${title}" should be in the feed`).toBeVisible()
+      // `visible`: since 2026-11-14 the home page holds the phone's lanes AND the desktop's shelves (one hidden by a class at each
+      // width), so a title can be in the DOM twice and the first copy hidden.
+      await expect(page.getByText(title, { exact: false }).filter({ visible: true }).first(), `"${title}" should be in the feed`).toBeVisible()
     }
   })
 

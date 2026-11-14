@@ -249,7 +249,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Buy and sell your own items — quick and simple.": "Mua bán đồ của bạn — nhanh gọn và đơn giản.",
   "Buy from this shop": "Mua từ cửa hàng này",
   "Buy on": "Mua trên",
-  "Buy only on the shop's own website — eno.vn never takes payment for these items, and cannot refund or return one.": "Chỉ mua trên chính website của cửa hàng — eno.vn không bao giờ nhận thanh toán cho các mặt hàng này, và không hỗ trợ hoàn tiền hoặc đổi trả.",
   "Buyer reviews": "Đánh giá từ người mua",
   "Buyers can send offers": "Người mua có thể trả giá",
   "Buyers never see it until you reply.": "Người mua sẽ không thấy cho đến khi bạn trả lời.",

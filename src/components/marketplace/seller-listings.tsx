@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
-import { HELD_FROM_CARD } from '@/lib/image-hold'
+import { HELD_FROM_CARD, HELD_FROM_WIDE } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
-import { LISTING_GRID } from './listing-grid'
-import { CompactListingRowSkeleton, COMPACT_LIST_GRID, JOB_ROWS_RULED } from './compact-listing-row-skeleton'
+import { LISTING_GRID, LISTING_GRID_WIDE, WIDE_CARD_SIZES } from './listing-grid'
+import { JOB_CARD_LIST, JobCardRowSkeleton } from './job-card-row-skeleton'
 import type { CompactListingRowProps } from './compact-listing-row'
 import { sortTabClass } from './sort-tab-class'
 import { CustomSelect } from './custom-select'
@@ -46,18 +46,28 @@ type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
  * -9rem clears a two-row strip with room), the visible pin at the safe-area inset + the 56px header, back at the inset when focus
  * is inside while the header is hidden, and the page-gutter bleed so the frosting covers the viewport while the strip's own
  * hairline stays on the content box. Its own component so only a pinned strip runs the scroll hook (storefronts never do).
+ * ⛔ OPAQUE, NOT FROSTED (owner-approved 2026-11-14, cook r04 — the teachers, rentals, goods and jobs mocks alike; it reverses
+ * "Home's pinned bar exactly … the frosted in-flow bar" for the /c strip): the page's white, no blur and no `material` — the
+ * cards no longer show through the controls as they pass under them. Everything else above holds.
+ * ⛔ `stayPinned` — THE ONE CONTROL ROW STAYS (owner-approved 2026-11-14, cook r06 rentals-a; /c/rentals below sm only, the
+ * strip `phoneOneRow` draws). It reverses there "IT LEAVES WITH THE HEADER on scroll-down … (owner, 2026-08-12, Home's rule)":
+ * while the header is hidden the row pins at the safe-area top instead of parking at -9rem, so Sort, Filters and Map stay one
+ * tap away anywhere in a one-column list of 5,000 homes. `top` is still the only property that moves, the header's return
+ * still brings it back under the header (+3.5rem), and from sm — and on every other page — the 08-12 rule holds unchanged.
  */
-function PinnedStrip({ children }: { children: React.ReactNode }) {
+function PinnedStrip({ children, stayPinned = false, className }: { children: React.ReactNode; stayPinned?: boolean; /** `max-sm:hidden` under `phoneHead`. */ className?: string }) {
   const headerHidden = useHideOnScroll()
   return (
     <div
       data-pinned-strip=""
+      data-stay-pinned={stayPinned || undefined}
       className={cn(
-        'sticky z-30 bg-background/95 material material-bar backdrop-blur transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
+        'sticky z-30 bg-background transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         headerHidden
-          ? 'top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
+          ? cn('top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]', stayPinned && 'max-sm:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]')
           : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]',
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
+        className,
       )}
     >
       {children}
@@ -77,6 +87,9 @@ export function SellerListings({
   pinStrip = false,
   phoneRow: PhoneRow,
   phoneOneRow,
+  phoneWide = false,
+  phoneHead,
+  look,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -101,6 +114,8 @@ export function SellerListings({
    * scrolling back to the top. It leaves WITH the header on scroll-down and comes back under it on scroll-up (owner,
    * 2026-08-12, Home's rule) — one hook (useHideOnScroll), so header and strip move on the same frame. Opt-in: storefronts and
    * the vehicle hub keep their in-flow strip.
+   * ⚠️ NOT BELOW sm UNDER `phoneHead` (owner-approved 2026-11-14, cook r06 jobs — /c/jobs): there the controls ride the heading
+   * line and scroll away with it, and the strip is `max-sm:hidden`; from sm it is pinned as above.
    */
   pinStrip?: boolean
   /**
@@ -120,9 +135,9 @@ export function SellerListings({
    * rows must already be parsed by then, or its first frame is an empty list.
    * ⚠️ Images: a hidden `<img>` still loads if it is eager. So here only the first card stays eager (the wide screen's
    * largest paint, and its preload); the other cards and every row thumbnail are lazy, which a hidden box never fetches.
-   * ⛔ ITS ROWS ARE JOBS, SO THE LIST IS RULED (batch 78, owner 2026-11-12: `JOB_ROWS_RULED`, a hairline under each row in
-   * place of the gap) and its placeholder is the job row's (`CompactListingRowSkeleton job`). A category other than Jobs
-   * that takes this prop must drop both.
+   * ⛔ ITS ROWS ARE JOB CARDS, 8px APART (owner-approved 2026-11-14, cook r06 jobs — job-card-row.tsx; it reverses here batch 78's
+   * "ITS ROWS ARE JOBS, SO THE LIST IS RULED", owner 2026-11-12): the list is JOB_CARD_LIST and its placeholder the card's
+   * (JobCardRowSkeleton). A category other than Jobs that takes this prop must replace both.
    */
   phoneRow?: ComponentType<CompactListingRowProps>
   /**
@@ -138,6 +153,31 @@ export function SellerListings({
    * the count at its end.
    */
   phoneOneRow?: { chips: ReactNode }
+  /**
+   * ⛔ ONE COLUMN OF LARGE SQUARE CARDS BELOW sm (owner-approved 2026-11-14, cook r06 rentals-a — /c/rentals only, (index)/page.tsx):
+   * the grid is LISTING_GRID_WIDE, every card `wide` (its text block flush under a 366px photo, the trust slot at the price
+   * line's end — listing-card.tsx) with the full-width `sizes`, the sort's placeholders the wide skeleton, and photos held from
+   * the third card (HELD_FROM_WIDE). From sm the grid, the cards and their eager first four are exactly LISTING_GRID's.
+   * Together with `phoneOneRow` the phone's one row also bleeds to the screen edges (its hairline with it), sets its glyphs at
+   * 18px in ink, and stays pinned when the header leaves (PinnedStrip `stayPinned`).
+   */
+  phoneWide?: boolean
+  /**
+   * ⛔ THE PHONE'S HEADING LINE CARRIES THE LIST'S TWO CONTROLS (owner-approved 2026-11-14, cook r06 jobs — /c/jobs below sm only,
+   * (index)/page.tsx; Airbnb's filter button beside the title). Below sm this component's FIRST visible block is the page's
+   * heading (`heading`, an aria-hidden copy of the H1's words — the layout's H1 is `max-sm:sr-only` there) with the sort and
+   * `end` (Filters) as 44px round ICON buttons at the end of its first line, then `subhead` (the city chips), then the rows.
+   * It reverses, there, three rulings:
+   *   · "THE PHONE SORTS WITH A PILL" (owner 2026-10-18) — partly: the same CustomSelect and the same bottom sheet, icon-only, its
+   *     words visually hidden and still its name ("Sort by, Relevance"); the ink fill marks a sort other than the page's own;
+   *   · "THE COUNT RIDES THE PHONE'S SORT ROW" (owner 2026-10-18): the count is announced (the sr-only live copy, as under
+   *     `phoneOneRow`) but not printed — the city row's "All 54" and Show more say it;
+   *   · the pinned strip (UI climb 2026-11-09): the controls ride the heading and scroll away with it; the strip is
+   *     `max-sm:hidden` and from sm it is pinned exactly as before.
+   * DOM order = visual order: heading → sort → Filters → subhead → rows. With nothing to sort (0–1 results) the heading still
+   * renders, without the controls. From sm none of it renders (`sm:hidden`) and everything is as it was.
+   */
+  phoneHead?: { heading: ReactNode; end?: ReactNode; subhead?: ReactNode }
   /** The order `listings` is already in, so the strip opens on the truth. */
   initialSort?: SortKey
   /**
@@ -160,7 +200,20 @@ export function SellerListings({
    * there — it opens the plain `/?focus=`.
    */
   homeVariant?: string
+  /**
+   * ⛔ 'goods' — A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods; (index)/page.tsx `goods`,
+   * src/lib/goods-surface.ts). Below sm only:
+   *   · the strip has no rule under it: its hairline goes transparent and keeps its 1px (it reverses, there, "THE HAIRLINE SITS
+   *     ON THE CONTENT BOX" below — the pinned strip is already the page's opaque white), and the strip is 12px over the grid;
+   *   · the sort pill names the page's own order with no glyph ("Relevance ⌄" — the row is words and chevrons); another order
+   *     keeps its glyph, a price order its ↑/↓;
+   *   · the count at the strip's end is the meta role, muted (13/18);
+   *   · the grid is the price-led goods card (ListingCard `look`) in rows 32px apart, its placeholders the goods skeleton.
+   * From sm, and without it, nothing changes.
+   */
+  look?: 'goods'
 }) {
+  const goods = look === 'goods'
   const router = useRouter()
   const { tr, lang } = useLanguage()
   // One identity per card handler: inline closures re-rendered every memoized card on each render here (typing in the
@@ -350,6 +403,8 @@ export function SellerListings({
   const oneRow = !!phoneOneRow
   const publishCount = usePublishHeadingCount()
   useLayoutEffect(() => { if (oneRow) publishCount(countText) }, [oneRow, publishCount, countText])
+  // `phoneHead` announces the count the same way (`phoneOneRow`'s sr-only live copy) and prints none (the prop's note).
+  const liveCopy = oneRow || !!phoneHead
   useLayoutEffect(() => (oneRow ? () => publishCount(null) : undefined), [oneRow, publishCount])
 
   // ⚠️ IN SERVER MODE AN EMPTY `listings` IS NOT AN EMPTY SHOP. The seller may simply have nothing
@@ -383,6 +438,8 @@ export function SellerListings({
    * row is now the explorer's phone row — the sort pill (the same five orders through the same Base UI select),
    * then `stripEnd` (/c's Filters, a chip there), then the count. From sm the tablist is unchanged.
    * The pill rests on the tint while the page's own order is on, and takes the brand tint for any other.
+   * ⚠️ EXCEPT UNDER `phoneHead` (owner-approved 2026-11-14, cook r06 jobs — /c/jobs below sm): the same select, as an icon-only
+   * round button on the heading line (`headSortPill`); the strip, with this pill in it, is not drawn below sm there.
    */
   const sortOptions: { value: SortKey; label: string }[] = [
     { value: 'relevance', label: tr('Relevance', 'Liên quan') },
@@ -403,7 +460,10 @@ export function SellerListings({
       options={sortOptions}
       label={tr('Sort by', 'Sắp xếp theo')}
       triggerLabel={sortPillLabel}
-      icon={<SortGlyph className={cn('size-3.5 shrink-0', sort === initialSort && 'text-ink-4')} />}
+      // The rentals phone row's glyphs are 18px ink (owner-approved 2026-11-14, cook r06 rentals-a: "one accent — never an icon",
+      // one glyph size on the row); every other strip keeps its 14px, muted while the page's own order is on.
+      // A goods category's phone strip (`look`): at the page's own order, the words alone.
+      icon={goods && sort === initialSort ? undefined : <SortGlyph className={cn(phoneWide && phoneOneRow ? 'size-4.5' : 'size-3.5', 'shrink-0', !(phoneWide && phoneOneRow) && sort === initialSort && 'text-ink-4')} />}
       indicator="down"
       searchable={false}
       className={cn(PILL_BOX, PILL_OPEN_ATTR)}
@@ -412,6 +472,37 @@ export function SellerListings({
       wrapperClassName="w-auto shrink-0 sm:hidden"
     />
   )
+  // `phoneHead`: the same select as a 44px round icon button on the heading line — its glyph 20px in ink (the arrows say a
+  // price sort's direction), its words its name only, no ⌄. The ink fill (PILL_ON) is a sort other than the page's own.
+  const headSortPill = phoneHead ? (
+    <CustomSelect
+      value={sort}
+      onChange={(v) => { hapticSelection(); setSort(v as SortKey) }}
+      options={sortOptions}
+      label={tr('Sort by', 'Sắp xếp theo')}
+      triggerLabel={sortPillLabel}
+      labelClassName="sr-only"
+      icon={<SortGlyph aria-hidden className="size-5 shrink-0" />}
+      indicator="none"
+      searchable={false}
+      className={cn(PILL_BOX, PILL_OPEN_ATTR, 'size-11 justify-center rounded-full px-0')}
+      activeClassName={sort === initialSort ? PILL_REST : PILL_ON}
+      wrapperClassName="w-auto shrink-0"
+    />
+  ) : null
+  /** The heading block (`phoneHead`), phones only; `controls` false where there is nothing to sort. */
+  const headBlock = (controls: boolean) => phoneHead ? (
+    <div className="sm:hidden">
+      <div className="flex items-start gap-2">
+        {/* The heading's 34px line centred on the 44px controls; a second line (Vietnamese) wraps under the first, the controls
+            stay on the first. No truncate: a stacked Vietnamese mark is never clipped. */}
+        <div className="flex min-h-11 min-w-0 flex-1 items-center">{phoneHead.heading}</div>
+        {controls && headSortPill}
+        {controls && phoneHead.end}
+      </div>
+      {phoneHead.subhead}
+    </div>
+  ) : null
   /**
    * ⛔ THE COUNT RIDES THE PHONE'S SORT ROW (owner, 2026-10-18: "Showing N of M" into the toolbar line) — in short
    * form, "48 of 736" / "736 listings", so the row holds it; from sm the sentence below the strip is unchanged.
@@ -420,9 +511,11 @@ export function SellerListings({
    * ⚠️ EXCEPT UNDER `phoneOneRow` (owner-approved 2026-11-14, decision 5 — /c/rentals below sm): there the strip is one swipe
    * row of controls and the count moves to the end of the heading line (heading-count.tsx), the announced copy an `sr-only`
    * live region at the top of this component. Every other surface keeps it here. The words are `phoneCountText`'s.
+   * ⚠️ AND UNDER `phoneHead` (owner-approved 2026-11-14, cook r06 jobs — /c/jobs below sm): announced by the same sr-only live
+   * copy, printed nowhere ("All 54" in the city row and Show more say it).
    */
   const phoneNote = serverMode && !loadError && (
-    <p className={cn('ml-auto min-w-0 truncate sm:hidden', PHONE_COUNT_TYPE)} aria-live="polite">
+    <p className={cn('ml-auto min-w-0 truncate sm:hidden', goods ? 'text-t-meta text-muted-foreground' : PHONE_COUNT_TYPE)} aria-live="polite">
       {phoneCountText(tr, grouped, { awaiting: awaitingFirstRows, shown: shown.length, total: resultTotal })}
     </p>
   )
@@ -430,9 +523,12 @@ export function SellerListings({
   // Same tab visuals as the explorer's results strip (kept in sync deliberately); the sticky/header-hide coupling is opt-in
   // (`pinStrip`, the /c pages — a category is anything but short: 4,706 rentals).
 
+  // ⛔ A GOODS CATEGORY'S PHONE STRIP PAINTS IT TRANSPARENT, its 1px kept (owner-approved 2026-11-14, cook r06 goods — `look`).
   // ⚠️ THE HAIRLINE SITS ON THE CONTENT BOX, like the home toolbar's and the canon's (§4: no doubled
   // frame). It used to bleed to the page frame with `-mx-3 px-3 sm:-mx-6 …`, 32px wider than the grid
   // under it at 1440 (C1-HAIRLINE). Tab label x positions are unchanged: the bleed's padding undid it.
+  // ⛔ EXCEPT /c/rentals' PHONE ROW (owner-approved 2026-11-14, cook r06 rentals-a — `phoneWide` with `phoneOneRow`): there the
+  // swipe row and its hairline reach the screen edges, below sm only.
   // `data-horizontal:flex-row` restates the base's `data-horizontal:flex-col` with its own modifier so
   // tailwind-merge drops it; the base's gap-2 is what separates `stripEnd` from the last tab.
   // `max-sm:py-1`: the phone pills' air above the hairline and the room their 44px hit area needs (ui/chip-style PILL_BOX).
@@ -445,9 +541,16 @@ export function SellerListings({
       className={cn(
         'flex items-center border-b border-border data-horizontal:flex-row max-sm:py-1',
         phoneOneRow ? 'scrollbar-none max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain' : 'max-sm:flex-wrap max-sm:gap-y-1',
+        // ⛔ THE RENTALS ROW BLEEDS TO THE SCREEN EDGES, ITS HAIRLINE WITH IT (owner-approved 2026-11-14, cook r06 rentals-a — it
+        // reverses, there, "THE HAIRLINE SITS ON THE CONTENT BOX" below): the chips slide out under the screen's edge like the
+        // header's full-bleed hairline, not under an invisible gutter, and 8px above and below give the 36px chips air and their
+        // 44px hit area inside the scroller's clip. The first chip still starts on the 12px gutter (`px-3`).
+        phoneWide && phoneOneRow && 'max-sm:-mx-3 max-sm:px-3 max-sm:py-2',
+        // A goods category's phone strip (`look`): no rule under it — transparent, the 1px kept.
+        goods && 'max-sm:border-b-transparent',
       )}
     >
-      {sortPill}
+      {!phoneHead && sortPill}
       {/* activateOnFocus=false = MANUAL activation: arrows move focus, Enter/Space commits.
           Auto-activation would double-fire Price — focus activates it (asc), then the same
           click's onClick sees it active and cycles straight on to desc.
@@ -497,7 +600,7 @@ export function SellerListings({
       {/* `phoneOneRow`: the page's Map and district chips after Filters, phones only (from sm the page's own "By area" row
           carries them). DOM order = visual order: pill → (tabs, sm up) → Filters → Map → districts. */}
       {phoneOneRow?.chips != null && <div className="flex shrink-0 items-center gap-2 sm:hidden">{phoneOneRow.chips}</div>}
-      {!phoneOneRow && phoneNote}
+      {!phoneOneRow && !phoneHead && phoneNote}
     </Tabs>
   )
 
@@ -524,7 +627,7 @@ export function SellerListings({
   const grid = (
     <>
     {PhoneRow && (
-      <div data-phone-rows="" className={cn(COMPACT_LIST_GRID, JOB_ROWS_RULED, 'sm:hidden')}>
+      <div data-phone-rows="" className={cn(JOB_CARD_LIST, 'sm:hidden')}>
         {shown.map((l, i) => (
           <div key={l.id} data-sid={l.sellerId}>
             <PhoneRow listing={l} index={i} onOpen={openCard} onPrefetch={prefetchCard} onLocate={locateRow} clockInHtml lazyThumb />
@@ -532,11 +635,16 @@ export function SellerListings({
         ))}
       </div>
     )}
-    <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')}>
+    {/* /c/teachers on a phone: 24px between a card's last line and the next photo (owner-approved 2026-11-14, cook r04 teachers —
+        the name-first body read crowded at 12). The placeholders below keep the same rows. */}
+    <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-8', rowsOnPhone && 'max-sm:hidden')}>
       {shown.map((l, i) => (
         // `first-screen-end`: what a category page's first paint waits for (c/[category]/(index)/layout.tsx).
+        // `phoneWide`: the wide card and its full-width `sizes`. `priority` does NOT change with it: the first four stay eager at
+        // every width (a desktop's first row is four), so a one-column phone also loads cards 3–4 with the page, below its first
+        // screen — the trade the part plan accepted for desktop parity (seller-listings.test.tsx pins the desktop half).
         <div key={l.id} id={i === Math.min(3, shown.length - 1) ? 'first-screen-end' : undefined} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={rowsOnPhone ? i === 0 : i < 4} lcp={i === 0 && !remote} holdPhoto={i >= HELD_FROM_CARD} />
+          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={rowsOnPhone ? i === 0 : i < 4} lcp={i === 0 && !remote} holdPhoto={i >= (phoneWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} wide={phoneWide} sizes={phoneWide ? WIDE_CARD_SIZES : undefined} look={look} />
         </div>
       ))}
     </div>
@@ -550,15 +658,18 @@ export function SellerListings({
    * page: measured 24 cards of 76,000 and no way to reach the rest. District pages pass serverScope with
    * sorting off when they hold ≤1 listing; they have nothing further to load and keep the bare grid.
    */
-  if (!searchable && !sortable && !(serverMode && serverScope!.total > listings.length)) return grid
+  if (!searchable && !sortable && !(serverMode && serverScope!.total > listings.length)) {
+    return phoneHead ? <><div className="mb-4 sm:hidden">{headBlock(false)}</div>{grid}</> : grid
+  }
 
   return (
-    <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>
+    <div className={cn('space-y-4', goods && 'max-sm:space-y-3')} data-listings-ready={ready ? 'true' : undefined}>
       {/* `phoneOneRow` (batch 93): the phone's announced count, in no strip — the heading line paints it (aria-hidden there), so
           a screen reader hears this one. FIRST, where its 1px absolute box sits at x≈0: at the end of the strip's 30 chips
           it would widen the page. Tailwind v4's space-y spaces with margin-block-END, so the strip below keeps its spacing. */}
-      {oneRow && sortable && <p className="sr-only sm:hidden" aria-live="polite">{countText}</p>}
-      {sortable && (pinStrip ? <PinnedStrip>{sortStrip}</PinnedStrip> : sortStrip)}
+      {liveCopy && sortable && <p className="sr-only sm:hidden" aria-live="polite">{countText}</p>}
+      {headBlock(sortable)}
+      {sortable && (pinStrip ? <PinnedStrip stayPinned={phoneWide && oneRow} className={phoneHead ? 'max-sm:hidden' : undefined}>{sortStrip}</PinnedStrip> : phoneHead ? <div className="max-sm:hidden">{sortStrip}</div> : sortStrip)}
       {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
@@ -601,12 +712,12 @@ export function SellerListings({
         // real cards land.
         <>
           {rowsOnPhone && (
-            <div className={cn(COMPACT_LIST_GRID, JOB_ROWS_RULED, 'sm:hidden')} aria-hidden="true">
-              {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <CompactListingRowSkeleton key={i} job />)}
+            <div className={cn(JOB_CARD_LIST, 'sm:hidden')} aria-hidden="true">
+              {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <JobCardRowSkeleton key={i} />)}
             </div>
           )}
-          <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
-            {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} teacher={teacherCells} />)}
+          <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-8', rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
+            {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} teacher={teacherCells} wide={phoneWide} look={look} />)}
           </div>
         </>
       ) : shown.length === 0 && !loading && !loadError ? (

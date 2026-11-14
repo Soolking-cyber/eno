@@ -51,6 +51,8 @@ globals.css; a caller's `leading-*` / `tracking-*` / `font-*` still wins). Nothi
 | Role | Utility | Size / line | Tracking · weight | Use for |
 |---|---|---|---|---|
 | display | `text-t-display` | 28 / 34 | -0.025em · 700 | the one big line of a screen; page titles keep the fluid `.h-display` (28 → 40) |
+| title | `text-t-title` | 26 / 32 | -0.02em · 700 | a home to rent's H1 on a phone — that page's one display element (the rental sheet, below) |
+| figure | `text-t-figure` | 32 / 40 | -0.03em · 700 | a goods or vehicle listing's price on a phone — that page's one display element (the goods sheet, `src/lib/goods-sheet.ts`) |
 | h2 | `text-t-h2` | 22 / 28 | -0.02em · 700 | section headings (through `SECTION_TITLE`) |
 | h3 | `text-t-h3` | 17 / 24 | 700 | sub-headings, a card group's title |
 | price | `text-t-price` | 17 / 22 | -0.015em · 700 | a price, in ink |
@@ -112,17 +114,32 @@ skeleton's bars are those line boxes (`CARD_LINE_PX`; card-text.test.ts ties the
 (§3, *The photo plate*); no "Just in" chip.
 
 **Teacher cards lead with the name (owner, 2026-11-12, "go all").** A teacher `<ListingCard>` reads
-name → rate → proof → info line, in DOM order: the name bold at `text-base sm:text-lg`, the rate a step
-down at `text-sm sm:text-base` — both still under `SECTION_TITLE` — 39.5 / 44.75px of line boxes (the
-price-first card's are 42 at every width since 2026-11-14, so `<ListingCardSkeleton teacher>` draws its own name and
-rate bars). The name stays bold and in ink under the redesign (kept on purpose: the cook mock's `h3` rule flattened it
-only as a side effect). The **proof line** ("build 2",
-same day) is one `truncate text-xs text-foreground` line of the teacher's 1–2 strongest self-stated
-facts ("CELTA · 5–10 yrs", ≤ 22 characters — `src/lib/teachers/card-proof.ts`), never a tick, and
-RESERVED on every teacher card (a no-break space, `aria-hidden`) so teacher rows stay level: a teacher
-body is 18px taller, and the skeleton adds the line where its cells are known to be teachers
-(`<ListingCardSkeleton teacher>`). The info line is unchanged. Every other card keeps the 09-13
-price → title → info line format.
+name → rate → proof → info line, in DOM order. Since the teachers part of the redesign (owner-approved 2026-11-14, cook r04;
+`src/lib/card-text.ts`): the name the h3 role, `text-t-h3` 17/24 bold ink on a phone (18/24.75 from sm), its tick 16px in the
+success green; the rate `TEACHER_RATE` 14/20 bold (16/20 from sm) — "Rate on request" the same weight, muted; the **proof
+line** ("build 2", 2026-11-12: the teacher's 1–2 strongest self-stated facts, "CELTA · 5–10 yrs", ≤ 22 characters —
+`src/lib/teachers/card-proof.ts`, never a tick) `TEACHER_PROOF` 14/20 ink-2, drawn ONLY when there is one; the info line
+top-aligned (no `mt-auto`, no top padding), so a card with no proof puts its place under the rate. That card ends on the
+proof's reserve instead (a no-break space, `aria-hidden`, after the info line), so every teacher body is one height — 98px on
+a phone (10 + 24 + 2 + 20 + 2 + 20 + 2 + 18) — and `<ListingCardSkeleton teacher>` draws name 24 · rate 20 · one 20px line ·
+meta 18. /c/teachers' grid keeps 24px between rows on a phone. The info line's facts are unchanged. Every other card keeps
+the 09-13 price → title → info line format.
+
+**The teacher profile (owner-approved 2026-11-14, cook r04).** Below lg the header is one grid: a 96px portrait (72 under
+360px) | the name, the page's one display line (`text-t-display`, balanced) over its "Identity verified" tick (a BadgeCheck in
+the success green, the label 700 14 ink, no pill) | the share glyph on a 44px target; then at the full width the headline, the
+facts, and the rate (`text-t-h2`, "/ hour" muted) with "Contact teacher" on one row — the profile's one primary on a phone,
+pinned once it scrolls away. Then the video (its heading for screen readers only), Teaching (label | value rows on hairlines,
+7rem labels, 16px values; subjects as words), the cover week (free = `bg-success/10` with a check, closed = the field's well,
+32px slots in 44px rows) with "Can travel to" as a row and the cover ask as a link under it, About, Experience (row titles the
+h3 role), Qualifications, and last the counsel panel (the field `bg-tint`, `rounded-xl`, `p-4`, 14px ink-2: the identity sentence, how contact details are shared,
+"Message teacher" as its link). Section heads are the h2 role at every width. From lg the two columns, the sticky contact
+column with both buttons and the identity sentence under the header are as they were.
+
+**Question lines** — "Need a cover teacher? See who is free", "Looking for a teaching job? Jobs › Teaching", the guide, the
+teacher-profile and post-job lines, "Post your service": the question `text-sm text-muted-foreground`, the answer an inline
+link `font-bold text-accent-foreground underline decoration-1 underline-offset-3`, no arrow (owner-approved 2026-11-14; all six
+change together).
 
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
 category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
@@ -336,6 +353,27 @@ and inherits this for free; one expressed only in a class does not.
 semantic one must exist: headings, `<section>`, list markup. Hairlines that identify a control
 keep non-text contrast (WCAG 1.4.11), and focus rings must stay obvious on the flat canvas.
 
+**The rental sheet — the listing page's one approved box** (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook
+round build all best options and deploy"; `src/lib/rental-sheet.ts` holds every class). On a phone, a home to rent (every
+rentals listing but vehicle hire, with a photo) is an editorial page: the photo fills its square under a 16px white sheet
+edge (`shadow-sheet`); the title (`text-t-title`) leads, then the facts line and the price at 22; Chat now; then the seller
+as ONE bordered, raised **host card** (`border-line-strong`, 16 radius, `shadow-raised`, the header pill's lift) — the one
+box this canon allows on the listing page, because the seller is the object a renter decides on. Its sections all open
+the same way: a hairline, 32, the heading, 16, the content; their tables drop their rules (one row style, 16/24). The
+safety well is the panel recipe in the quietest voice. md and up paint as every other listing page does.
+
+**Job cards — the second approved box, on a phone** (owner-approved 2026-11-14, cook r06 jobs; it reverses batch 78's "a job
+row is text between hairlines … the list is ruled" on these surfaces only). /c/jobs below `sm` and the two rails under a job
+page draw each job as ONE white card (`job-card-row.tsx`): 1px `line-strong`, 16 radius, 16 inside (4 on the right, where one
+44px action column holds the heart over the chat), 8px between cards (`JOB_CARD_LIST`) — Indeed's list. No tile; the role an
+h3 at `t-h3`, whole; the employer 15px body ink, or a stated pay as a field-grey tag (8 radius, 14 bold ink), "Negotiable" the
+same tag in regular; "Urgent hiring" in words; place · posted · type 13/18 muted, a posting under a day old in bold ink. The
+explorer's `/?category=jobs` rows keep the ruled list. /c/jobs' phone heading line is the display role with the sort and
+Filters as 44px round icon buttons at its end (the count is announced, not printed), the cities one row of whole chips under
+it, the question lines after the list. A linked job's page below `md` (`src/lib/job-sheet.ts`): the role as the display line
+with Share on it, the employer once under it, the pay at `t-h2`, Details as field-grey "Label: value" tags, Save beside
+Apply, Seller information and the safety advice as ONE field panel, the rails 32px apart, the question lines last.
+
 ⚠️ **The marketplace GRID is not flattened yet — deliberately.** The two reviewers split on it:
 a product card's boundary is what says *this is one item*, and getting that wrong in a feed
 costs conversions. It stays a separate, owner-reviewed decision.
@@ -363,6 +401,37 @@ costs conversions. It stays a separate, owner-reviewed decision.
   listing-grid.test.ts checks the arithmetic). The bleed needs the `px-3` frame and no clip at the
   content box: the explorer's `#listings` moves its `overflow-x-clip` to the screen edge, and the
   feed grid pads a full-width row (teacher shelf, guest capture) back onto the gutter.
+- **Goods results on a phone are price-led** (owner-approved 2026-11-14, cook r06 goods; `src/lib/goods-surface.ts` — a
+  search with no category and every category but rentals, jobs, teachers and services): the two-up grid with rows 32px
+  apart, of `<ListingCard look="goods">` (card-text.ts `GOODS_*`): a SALE price at the section-heading role (`t-h2`, 22/28)
+  in a 28px row 8px under the photo — a per-unit, salary or word price keeps `t-price` in the same row — then the shell's
+  title and info line (the body is the shell's 76px); the photo multiplied onto the grey tile (light mode only) with no
+  ring; no fade-in on scroll. A search with no category opens on ONE title line (the count at the display role, Save
+  search as the accent circle, the view pick as a white circle) and ONE sticky control row led by the "All categories"
+  scope chip (the ladder opens under it); the strip is opaque with no rule, "Sort" carries no glyph at the default order,
+  and the pills read Price, Condition, Type, Area. A thin search's "More in …" continues the grid. A goods category page
+  wraps its display H1, drops the masthead rule, puts its lede (whole, 14/20 muted) right after the grid, and lists
+  Guides as plain 48px rows (no blurb below `sm`). Reversed for goods: the card-price/section-heading step (D-TYPE), the
+  2026-10-18 media hairline, the one-line category H1 and lede clamp, the frosted strip, the count caption over the grid.
+- **Rental results on a phone are one column** (owner-approved 2026-11-14, cook r06 rentals-a): /c/rentals and the rentals
+  feed (`/?category=rentals`, its grid view) use `LISTING_GRID_WIDE` below `sm` — one column on the 12px gutter, no bleed,
+  24px between cards, so the square photo is 366px at 390 (bigger than the 189px two-up card, never smaller; `WIDE_CARD_SIZES`
+  asks for that width). Each card is `<ListingCard wide>` (card-text.ts `WIDE_*`): the text flush under the photo, 12px down; a
+  36px price line — the unit regular, the ≈ $ 14/20 — with ONE trust slot at its end (the availability check as a labelled
+  chip, or "Official partner" in words beside the green shield; never both); the title 16/24 ink; the info line 14/20 muted
+  with the age ("place · 1d ago"). A one-line body is 96px (`<ListingCardSkeleton wide>`). On the photo: a 36px heart plate,
+  the badges inset to 12px, the pips shown. /c/rentals' heading line is the display role with its count after it (13/18
+  muted), and its one control row bleeds to the screen edges and stays pinned when the header leaves, as does the feed's
+  toolbar; the feed's guest row is one line with the outline button. From `sm` all of it is the grid above.
+- **The home page's phone lanes** (owner-approved 2026-11-14, cook r04 home-b "lanes as rails"): below `sm` the undirected
+  home reads category tiles → lanes → toolbar → Recommended → grid. A lane is a home shelf's phone look (`look="lane"`,
+  shelf.tsx `LANE_*`): a `text-t-h2` heading (22/28 bold ink, no icon) with See all in the accent and an 18px chevron, then
+  a rail of **same-size 220px square cards** (`max-sm:w-55` — larger than the 189px feed column, never smaller), 12px
+  apart, bled to the screen edges with the 12px text edge as its padding; the card's text is flush with its photo
+  (`<ListingCard lane>`). Rhythm: 16px under the tiles, 32 between lanes, 48 to the toolbar, 12 heading → rail. Order:
+  Trending, the first category lane, Outstanding businesses, the second, **Partners** (a still rail of 220×56 logo tiles),
+  the other category lanes; the teacher shelf keeps its place after card 12 in the lane look. The swipe beam stays. From
+  `sm` the block is hidden and the shelves sit under the feed as before (where they are `max-sm:hidden`).
 
 **Layers — the z ladder.** One ordered scale, named by role (`@theme { --z-index-* }` in
 globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows them):

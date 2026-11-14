@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HELD_PHOTO_ATTR, IMAGES_HELD_ATTR, IMAGE_HOLD_JS, IMAGE_HOLD_TIMEOUT_MS } from './image-hold'
+import { HELD_FROM_WIDE, HELD_PHOTO_ATTR, IMAGES_HELD_ATTR, IMAGE_HOLD_JS, IMAGE_HOLD_TIMEOUT_MS } from './image-hold'
 
 const held = () => document.documentElement.hasAttribute(IMAGES_HELD_ATTR)
 // The script as the browser runs it: the page's window is this test's.
@@ -73,8 +73,18 @@ describe('the parts that must stay wired', () => {
     expect(readFileSync('src/app/[lang]/layout.tsx', 'utf8')).toMatch(/__html: IMAGE_HOLD_JS/)
   })
 
-  it.each([['src/components/marketplace/seller-listings.tsx', 'i'], ['src/components/marketplace/listings-explorer.tsx', 'index']])('%s marks only its cards past the first screen', (file, index) => {
-    expect(readFileSync(file, 'utf8')).toContain(`holdPhoto={${index} >= HELD_FROM_CARD}`)
+  // ⛔ …from the THIRD card of a one-column phone grid (owner-approved 2026-11-14, cook r06 rentals-a: HELD_FROM_WIDE — /c/rentals'
+  // `phoneWide`, the rentals feed's `rentalsWide`), the seventh of every other grid.
+  it.each([['src/components/marketplace/seller-listings.tsx', 'i', 'phoneWide'], ['src/components/marketplace/listings-explorer.tsx', 'index', 'rentalsWide']])('%s marks only its cards past the first screen', (file, index, wide) => {
+    expect(readFileSync(file, 'utf8')).toContain(`holdPhoto={${index} >= (${wide} ? HELD_FROM_WIDE : HELD_FROM_CARD)}`)
+  })
+
+  it('a wide card is held from the third: the second sits on the first screen, the third starts past the 940px window', () => {
+    expect(HELD_FROM_WIDE).toBe(2)
+    // The third wide card's top at 320 wide: at least the photo + 96px body + 24px gap, twice, under ~200px of page head.
+    const card = 320 - 24 + 96 + 24
+    expect(200 + 2 * card).toBeGreaterThan(940)
+    expect(200 + card).toBeLessThan(844)
   })
 })
 

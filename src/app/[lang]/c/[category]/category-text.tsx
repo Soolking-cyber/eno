@@ -5,6 +5,7 @@ import { Tr, useLanguage } from '@/context/language-context'
 import { Bilingual, fillBilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
 import { Row, Rows } from '@/components/ui/rows'
+import { cn } from '@/lib/utils'
 import { IS_SERVICES } from '@/lib/edition'
 import type { CategoryGuide } from '@/lib/category-guides'
 import {
@@ -503,26 +504,39 @@ export function RentIndexLink() {
  * ⚠️ THE LINK TEXT IS THE GUIDE'S OWN LABEL IN THE GUIDE'S OWN LANGUAGE, never translated, and it
  * carries `lang` when that differs from the page's, so a screen reader pronounces it correctly.
  */
-export function CategoryGuides({ guides }: { guides: CategoryGuide[] }) {
+export function CategoryGuides({ guides, compactOnPhone = false }: {
+  guides: CategoryGuide[]
+  /**
+   * ⛔ A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods; (index)/page.tsx `goods`): one heading, then PLAIN
+   * ROWS — the guide's name in the body role (16/24 regular ink) with its arrow at the row's end, 48px tall, hairlines between,
+   * pressed to the field grey — so a row reads as a link, not a heading. 32px under what precedes, with no rule over the
+   * section; the heading the section role. It reverses there the 2026-11-06 audit's "the guide's name a step above its blurb
+   * (16px over 14px)": the blurb is not displayed below sm — CSS only (display:none), never [hidden], so crawlers and every
+   * width from sm keep it. From sm the audit's layout, unchanged.
+   */
+  compactOnPhone?: boolean
+}) {
   const { lang, tr } = useLanguage()
   if (!guides.length) return null
+  const c = compactOnPhone
   return (
-    <section className="mt-12 border-t border-border pt-8">
-      <h2 className="h-section text-foreground">{tr('Guides', 'Cẩm nang')}</h2>
+    <section className={cn('mt-12 border-t border-border pt-8', c && 'max-sm:mt-8 max-sm:border-t-0 max-sm:pt-0')}>
+      <h2 className={cn('h-section text-foreground', c && 'max-sm:[--text-section:var(--text-t-h2)]')}>{tr('Guides', 'Cẩm nang')}</h2>
       {/* 2026-11-07 audit: two to a row from lg, across the content width. One column of up to four guides filled the left
           half of a desktop and left the right half empty under a four-across grid. Below lg the ruled list stays. Side by side
           the rules go, because `divide-y` rules every item but the last, which would leave one cell of a row ruled and its
           neighbour not; the gaps separate the guides. */}
-      <Rows className="mt-2 max-w-3xl lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0">
+      <Rows className={cn('mt-2 max-w-3xl lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0', c && 'max-sm:mt-1')}>
         {guides.map((g) => (
-          <Row key={g.href}>
-            <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className="group flex flex-col">
+          <Row key={g.href} className={c ? 'max-sm:py-0' : undefined}>
+            <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className={cn('group flex flex-col', c && 'max-sm:min-h-12 max-sm:flex-row max-sm:items-center max-sm:py-3 max-sm:active:bg-muted')}>
               {/* 2026-11-06 audit: the guide's name a step above its blurb (16px over 14px) and the blurb on the reading measure —
-                  at one size and 700px wide the rail read as a block of footer links, not buying advice. */}
-              <span className="flex items-center gap-1 text-base font-semibold text-foreground group-hover:text-accent-foreground">
-                {g.label} <ArrowRight className="h-4 w-4 shrink-0" />
+                  at one size and 700px wide the rail read as a block of footer links, not buying advice. ⛔ On a goods phone the
+                  plain row instead (`compactOnPhone`, owner-approved 2026-11-14, cook r06 goods); from sm this, unchanged. */}
+              <span className={cn('flex items-center gap-1 text-base font-semibold text-foreground group-hover:text-accent-foreground', c && 'max-sm:w-full max-sm:justify-between max-sm:gap-4 max-sm:font-normal')}>
+                {g.label} <ArrowRight className={cn('h-4 w-4 shrink-0', c && 'max-sm:size-5 max-sm:text-muted-foreground')} />
               </span>
-              <span className="mt-1 max-w-prose text-sm leading-relaxed text-body">{g.blurb}</span>
+              <span className={cn('mt-1 max-w-prose text-sm leading-relaxed text-body', c && 'max-sm:hidden')}>{g.blurb}</span>
             </Link>
           </Row>
         ))}

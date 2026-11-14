@@ -28,7 +28,7 @@ import { Tr } from '@/context/language-context'
 import { LocalizedText } from '@/components/marketplace/listing-content'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { TeacherContact, TeacherContactJump } from '@/components/teachers/teacher-contact'
+import { TeacherContact, TeacherContactJump, TeacherCoverAsk } from '@/components/teachers/teacher-contact'
 import { PdpActionBar } from '@/components/marketplace/pdp-action-bar'
 import { TeacherAvailableFrom } from '@/components/teachers/teacher-available-from'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
@@ -42,8 +42,7 @@ import { availableStart, homeLocationName, livesInLine, publicSituation, teachAr
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { BadgeCheck, Lock } from '@/components/ui/icons'
+import { BadgeCheck, Check, Lock } from '@/components/ui/icons'
 import { identityMarkShownOnCard } from '@/lib/teachers/identity-mark'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
@@ -52,6 +51,7 @@ import { storedLanguageLabel } from '@/components/teachers/language-list'
 import { formatCalendarDay, vnIsoDay } from '@/lib/calendar-day'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { TeacherBio } from '@/components/teachers/teacher-bio'
+import { cn } from '@/lib/utils'
 
 type Opt = { value: string; label: string; labelVi?: string }
 const labelOf = (opts: readonly Opt[], v: string) => opts.find((o) => o.value === v)?.label ?? v
@@ -79,39 +79,40 @@ const ENGLISH_LEVEL: Record<string, { en: string; vi: string }> = {
 }
 
 /**
- * One chip. `text` goes through <Tr>; `node` is rendered as given — a taxonomy option (OptionLabel, its own
+ * One fact. `text` goes through <Tr>; `node` is rendered as given — a taxonomy option (OptionLabel, its own
  * Vietnamese), a place name (⛔ never machine-translated, places.ts placeLabel), an authored pair, or the teacher's own
  * words (a taught language).
  */
 type Chip = { key: string; text?: string; node?: React.ReactNode }
-function Chips({ items }: { items: Chip[] }) {
-  return (
-    <ul className="flex flex-wrap gap-2">
-      {items.map((x) => <li key={x.key} className="rounded-full bg-tint px-3 py-1 text-sm text-body">{x.node ?? <Tr text={x.text} />}</li>)}
-    </ul>
-  )
-}
 
 /**
- * The same facts as one plain line — "Kids, Teens, Adults", "Online, Ho Chi Minh City" (UI climb batch 82, 2026-11-13; blind
+ * The facts as one plain line — "Kids, Teens, Adults", "Online, Ho Chi Minh City" (UI climb batch 82, 2026-11-13; blind
  * A/B Opus 7.02 → 7.41): ages, job types and places were each a column of pills that a phone stacked one or two to a line.
- * Subjects keep their chips — the one list a school scans for a specialty. Each item renders exactly as its chip did (a place
- * name never machine-translated, a taxonomy option in its own Vietnamese).
+ * ⛔ SUBJECTS TOO, AND "Can travel to" (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 82's "Subjects keep
+ * their chips" and the cover section's pill list): every value on this page reads as words. Each item renders exactly as its
+ * chip did (a place name never machine-translated, a taxonomy option in its own Vietnamese).
  */
 function Plain({ items }: { items: Chip[] }) {
   // `data-fact` marks each item, so a test reads the items the way it reads a chip list's <li>s.
   return <>{items.map((x, i) => <Fragment key={x.key}>{i > 0 && ', '}<span data-fact="">{x.node ?? <Tr text={x.text} />}</span></Fragment>)}</>
 }
 
-/** A fact row. On a phone the label column is 7.5rem (batch 82): at 10rem the values had 186px of a 390px screen. */
-function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+/**
+ * A fact row: the label (14, muted) | the value (16, ink), baseline-aligned, 12px above and below its hairline (owner-approved
+ * 2026-11-14, cook r04 teachers: it was 14/14 on 8px). On a phone the label column is 7rem (batch 82 made it 7.5rem: at 10rem
+ * the values had 186px of a 390px screen); a long Vietnamese label ("Sẵn sàng chuyển đến") wraps to two lines on its baseline.
+ */
+function Row({ label, children, className }: { label: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 py-2 text-sm sm:grid-cols-[10rem_1fr]">
-      <dt className="text-muted-foreground">{label}</dt>
+    <div className={cn('grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-x-3 py-3 text-base sm:grid-cols-[10rem_1fr]', className)}>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-foreground">{children}</dd>
     </div>
   )
 }
+
+/** A section's heading: the shell's h2 role (22/28 bold ink, owner-approved 2026-11-14), 12px above its content. */
+const SECTION_H2 = 'mb-3 text-t-h2 text-foreground'
 
 export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
   listing: { id: string; title: string; images: string[]; video: string | null; createdAt: Date | string; updatedAt: Date | string }
@@ -249,6 +250,31 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
     ...(home?.kind === 'abroad' ? [{ key: 'home', node: home.online ? <Bilingual en="Not in Vietnam yet · Online" vi="Chưa ở Việt Nam · Trực tuyến" /> : <Bilingual en="Not in Vietnam yet" vi="Chưa ở Việt Nam" /> }] : []),
   ] : []
 
+  /**
+   * THE IDENTITY SENTENCE, BUILT ONCE (owner, 2026-10-15; ONE sentence since batch 65, 2026-11-11 — both blind judges named
+   * the three of it, five lines of grey on a phone's first screen): what was checked (the ID and a selfie, and that the name
+   * above matches it) and what was not (nationality, qualifications, work permits) — never the tier, the document, its number
+   * or its expiry. "Ask to see documents before hiring" is the qualifications section's own line further down this page, so
+   * it is said once — and here only when that section is not drawn.
+   * ⛔ THE LABEL AND THE SENTENCE PART (owner-approved 2026-11-14, cook r04 teachers — it reverses "full width under the
+   * header, never beside the h1", owner 2026-10-15): "Identity verified" is a tick UNDER THE NAME, in the name's column, at
+   * every width (a 72px portrait below 360px keeps that column ~156px, and the label may wrap — the ruling's worry was a
+   * 128px column); the sentence stays under the header from lg, and below lg it opens the counsel panel at the end of the
+   * page (TeacherContact `counsel`). Two server-rendered copies, CSS shows one (display:none, never `[hidden]`).
+   */
+  const identitySentence = identityShown
+    ? (qualsShown
+        ? <Bilingual
+            en="eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states."
+            vi="eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai."
+          />
+        : <Bilingual
+            en="eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring."
+            vi="eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng."
+          />)
+    : null
+  const rate = cover ? formatMoneyFull(cover.rate, '₫', moneyLocale(lang)) : null
+
   return (
     // data-rum: the page-speed totals tell a teacher profile from any other listing page (src/lib/rum/shared.ts).
     <div className="flex min-h-page flex-col" data-rum="teacher">
@@ -256,11 +282,13 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
       {describe && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
       {describe && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />}
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
+      {/* `pb-6` below lg: the shell's 24px from the last section to the footer's hairline (owner-approved 2026-11-14); lg keeps 48. */}
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-6 lg:pb-12">
         {/* The way up (the /c page's trail, ui/breadcrumb — hidden in the native app by its data-crumb-trail). The leaf
-            repeats the h1 just below, so a phone shows only the way up: one line, no wrap. */}
-        <Breadcrumb className="mb-4">
-          <BreadcrumbList>
+            repeats the h1 just below, so a phone shows only the way up: one line, no wrap — at the meta role (13), 12 above
+            the header. */}
+        <Breadcrumb className="mb-4 max-sm:mb-3">
+          <BreadcrumbList className="max-sm:text-t-meta">
             <BreadcrumbItem>
               {/* `relative tap-44`: a 44px touch target around the short crumb, no layout change (home-06). */}
               <BreadcrumbLink render={<Link href={localizedHref('/', pageLang)} prefetch={false} />} className="relative tap-44 hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
@@ -279,10 +307,16 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
         </Breadcrumb>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_24rem] lg:gap-x-10">
           <div className="space-y-8">
-            {/* ⛔ A PHONE'S HEADER IS TWO BANDS (UI climb 2026-11-05): photo + name + share, then the headline, the facts and Message at
-                the full width. A 96px photo beside everything left the words a 240px column, about ten lines of them. From `sm`
-                it is the three columns it always was. */}
-            <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 sm:grid-rows-[auto_1fr] sm:gap-x-4">
+            {/* ⛔ THE HEADER IS ONE GRID (owner-approved 2026-11-14, cook r04 teachers — it reverses 2026-11-05's "A PHONE'S HEADER
+                IS TWO BANDS … a 96px photo beside everything left the words a 240px column"; the reason still holds). Below lg: a
+                96px portrait | the name (the page's one display line, balanced) over its "Identity verified" tick | the share
+                glyph on a 44px target — the portrait beside ONLY the name and the tick. Then, at the full width: the teacher's
+                headline, the facts, and the rate with "Contact teacher" on one row (the pinned bar's own layout). 320–359px: a
+                72px portrait and the h2 step, so the name column keeps ~156px. From lg the photo spans the column's height
+                beside name, tick and details, as it always did; the h1 stays 24px there, now bold.
+                DOM ORDER = READING ORDER: photo, h1, tick, share, details. 24px down to the video below lg (`max-lg:mb-6` beats
+                the column's zero-specificity space-y). */}
+            <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 max-lg:mb-6 lg:grid-rows-[auto_auto_1fr] lg:gap-x-4">
               {/* ⚠️ THROUGH THE OPTIMIZER, PRELOADED AT HIGH PRIORITY (speed plan item 7, 2026-10-16). The raw <img> sent
                   the uploaded original — 71 KB for a 96px circle on the measured profile, ~2 KB as AVIF — at the
                   default image priority. `priority` is the preload and `fetchPriority`
@@ -290,26 +324,53 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   but a canonical listing-bucket image) is passed through as before. The JSON-LD, the share card
                   and TeacherContact keep the original URL (`photo`). */}
               {photo
-                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-start-1 size-16 shrink-0 rounded-full object-cover sm:row-span-2 sm:size-24" />
-                : <span className="col-start-1 row-start-1 size-16 shrink-0 rounded-full bg-muted sm:row-span-2 sm:size-24" />}
-              <h1 className="col-start-2 row-start-1 min-w-0 self-center text-2xl font-semibold text-foreground [overflow-wrap:anywhere] sm:self-start">{name}</h1>
-              <div className="col-span-3 row-start-2 mt-3 min-w-0 [overflow-wrap:anywhere] sm:col-span-1 sm:col-start-2 sm:mt-1">
+                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full object-cover ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />
+                : <span className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full bg-muted ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />}
+              <h1 className={cn(
+                'col-start-2 row-start-1 min-w-0 text-t-display text-balance text-foreground [overflow-wrap:anywhere] max-[359px]:text-t-h2 lg:self-start lg:text-2xl lg:font-bold lg:tracking-normal',
+                identityShown ? 'self-end' : 'row-span-2 self-center lg:row-span-1',
+              )}>{name}</h1>
+              {/* "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a fact about the person, under the name:
+                  the card's own BadgeCheck in the success green, the label in ink, no pill. It may wrap; never nowrap. */}
+              {identityShown && (
+                <p data-identity-tick="" className="col-start-2 row-start-2 mt-1.5 flex min-w-0 items-start gap-1.5 text-sm font-bold text-foreground">
+                  <BadgeCheck aria-hidden className="mt-px size-4.5 shrink-0 text-success" />
+                  <Bilingual en="Identity verified" vi="Đã xác minh danh tính" />
+                </p>
+              )}
+              {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
+                  link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
+                  price, the PDP's generateMetadata). Only a profile schools can see is worth sharing — one left out of
+                  search engines (the search verdict) is still on eno, so it is still shared. Below sm the glyph alone, 22px in
+                  ink, centred on a 44px target in the header's third column; from sm its label, as before. */}
+              {live && (
+                <ShareButton
+                  url={canonicalUrl}
+                  title={tp?.headline ? `${name} — ${tp.headline}` : name}
+                  subject="teacher-profile"
+                  className="col-start-3 row-span-2 row-start-1 shrink-0 self-center max-sm:size-11 max-sm:justify-center max-sm:p-0 max-sm:text-foreground max-sm:[&_svg]:size-5.5 lg:row-span-1 lg:self-start"
+                />
+              )}
+              <div className="col-span-3 row-start-3 mt-4 min-w-0 [overflow-wrap:anywhere] lg:col-span-1 lg:col-start-2 lg:mt-1">
                 {/* The teacher's own words, translated for the reader like a listing description is (LocalizedText). */}
-                {tp && <p className="text-body"><LocalizedText text={tp.headline} /></p>}
+                {tp && <p className="text-pretty text-foreground"><LocalizedText text={tp.headline} /></p>}
                 {facts.length > 0 && (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 text-pretty text-sm text-muted-foreground">
                     {facts.map((f, i) => <Fragment key={f.key}>{i > 0 && ' · '}{f.node}</Fragment>)}
                   </p>
                 )}
-                {/* "Message" in the first screen (rentals-12): scrolls to the contact block below and runs
-                    its action. Phones and tablets only — on lg the block is the sticky right column. */}
-                {cover && <p className="mt-3 text-lg font-bold text-price lg:hidden">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-sm font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
-                {/* `data-pdp-action-block`: the element the pinned bar measures and reads the button through (pdp-action-bar.tsx:
-                    a node the page keeps, never the button itself). A plain block in a block container (this cell is
-                    neither flex nor grid), so the button inside is laid out as it was: full width on a phone, its own
-                    width from sm, and nothing at lg, where the wrapper is empty and 0px tall. */}
-                <div data-pdp-action-block="">
-                  <TeacherContactJump listingId={listing.id} className="mt-3 w-full sm:w-auto lg:hidden" />
+                {/* THE RATE AND THE ONE ACTION ON ONE ROW (owner-approved 2026-11-14, cook r04 teachers) — the pinned bar's own
+                    layout, so the bar is this row pinned once it scrolls away. Phones and tablets only: on lg the contact block
+                    is the sticky right column. "Contact teacher" (rentals-12) scrolls to that block and runs its action. It takes
+                    the rest of the row, and drops to its own full-width line where the two cannot share one (Vietnamese at 320). */}
+                <div className="mt-4 flex flex-wrap items-center gap-3 lg:hidden">
+                  {rate && <p className="text-t-h2 tabular-nums text-price">{rate} <span className="text-base font-normal tracking-normal text-muted-foreground"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
+                  {/* `data-pdp-action-block`: the element the pinned bar measures and reads the button through (pdp-action-bar.tsx:
+                      a node the page keeps, never the button itself). At lg the row is display:none, so the bar finds no
+                      control to mirror there. */}
+                  <div data-pdp-action-block="" className="grow sm:grow-0">
+                    <TeacherContactJump listingId={listing.id} className="w-full sm:w-auto" />
+                  </div>
                 </div>
                 {/* The same action, pinned once that button has scrolled away and until the full contact block is on screen
                     (owner, 2026-11-10: item 1 of the decision scorecard; pdp-action-bar.tsx). It presses the button above. */}
@@ -319,59 +380,49 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   // = '#' + TEACHER_CONTACT_ID (teacher-contact.tsx). Written out: that file is a client module, and a server
                   // component cannot read a client module's constant. teacher-profile-view.pinned-bar.test.ts keeps the two equal.
                   hideWhile="#teacher-contact"
-                  price={cover ? <p className="text-lg font-bold leading-6 text-price">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-sm font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p> : undefined}
+                  price={rate ? <p className="text-lg font-bold leading-6 text-price">{rate} <span className="text-base font-normal text-muted-foreground"><Bilingual en="/ hour" vi="/ giờ" /></span></p> : undefined}
                 />
               </div>
-              {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
-                  link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
-                  price, the PDP's generateMetadata). Only a profile schools can see is worth sharing — one left out of
-                  search engines (the search verdict) is still on eno, so it is still shared. */}
-              {live && (
-                <ShareButton
-                  url={canonicalUrl}
-                  title={tp?.headline ? `${name} — ${tp.headline}` : name}
-                  subject="teacher-profile"
-                  className="col-start-3 row-start-1 shrink-0"
-                />
-              )}
             </header>
 
-            {/* "IDENTITY VERIFIED" (owner, 2026-10-15) — full width under the header, never beside the h1 (at 320px the
-                name column is ~128px). The label and ONE sentence on exactly what was checked and what was not; never the
-                tier, the document, its number or its expiry. BadgeCheck: the card's own glyph — one claim, one glyph. */}
-            {identityShown && (
-              <div data-identity-line="" className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-                <Badge variant="success" size="md" className="self-start">
-                  <BadgeCheck aria-hidden className="h-3.5 w-3.5" />
-                  <Bilingual en="Identity verified" vi="Đã xác minh danh tính" />
-                </Badge>
-                {/* ONE sentence, as the owner's rule says (batch 65, 2026-11-11): it was three, five lines of grey on a phone's first
-                    screen, which both blind judges named. Kept: what was checked (the ID and a selfie, and that the name above matches it) and what
-                    was not (nationality, qualifications, work permits). "Ask to see documents before hiring" is the qualifications
-                    section's own line further down this page, so it is said once — and here only when that section is not drawn. */}
-                <p className="text-sm text-body">
-                  {qualsShown
-                    ? <Bilingual
-                        en="eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states."
-                        vi="eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai."
-                      />
-                    : <Bilingual
-                        en="eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring."
-                        vi="eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng."
-                      />}
-                </p>
+            {/* The identity sentence under the header from lg (its phone copy opens the counsel panel — `identitySentence`). */}
+            {identitySentence && (
+              <div data-identity-line="" className="max-lg:hidden">
+                <p className="text-sm text-body">{identitySentence}</p>
               </div>
             )}
 
-            {/* TEACHING FACTS FIRST (UI climb batch 69, 2026-11-11; blind A/B +0.39 GPT / +0.18 Opus): subjects, ages, where and
-                languages sit right under the identity line, before the video, the cover week and the long About — a school or a
-                parent decides fit on these, and they used to sit two to three phone screens down, under the whole story. */}
+            {/* ⛔ THE VIDEO FIRST, AT EVERY WIDTH (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 69's "TEACHING
+                FACTS FIRST … before the video", 2026-11-11): a person before their facts, as Preply opens, straight under the
+                rate row. One DOM order: no CSS `order`, no second <video>. The player says what it is, so the heading stays
+                for screen readers only; the frame wears the 16px media corner. */}
+            {publicVideo && (
+              <section aria-labelledby="t-video">
+                <h2 id="t-video" className="sr-only"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
+                <video src={publicVideo} controls preload="metadata" playsInline className="block aspect-video w-full rounded-2xl bg-black" />
+              </section>
+            )}
+            {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
+                2026-10-13, not only a school — and the teacher sends it there. */}
+            {videoOnRequest && (
+              <section aria-labelledby="t-video">
+                <h2 id="t-video" className={SECTION_H2}><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
+                <p className="flex items-center gap-2 text-sm text-body">
+                  <Lock className="size-4 shrink-0 text-muted-foreground" />
+                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi theo yêu cầu — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
+                </p>
+              </section>
+            )}
+
+            {/* TEACHING: subjects, ages, where and languages — what a school or a parent decides fit on (UI climb batch 69), right
+                after the video. Label | value rows on hairlines; the subjects, the long value, take the full width under their
+                label on a phone. */}
             {tp && (
-              <section aria-labelledby="t-teaching" className="space-y-4">
-                <h2 id="t-teaching" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
+              <section aria-labelledby="t-teaching">
+                <h2 id="t-teaching" className={SECTION_H2}><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
                 <dl className="divide-y divide-border">
                   {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
-                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
+                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />} className="pt-1 max-sm:grid-cols-1 max-sm:gap-y-1"><Plain items={subjectChips} /></Row>
                   <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Plain items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
                   {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Plain items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
                   {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and
@@ -387,88 +438,79 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               </section>
             )}
 
-            {publicVideo && (
-              <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
-                <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
-              </section>
-            )}
-            {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
-                2026-10-13, not only a school — and the teacher sends it there. */}
-            {videoOnRequest && (
-              <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
-                <p className="flex items-center gap-2 text-sm text-body">
-                  <Lock className="size-4 shrink-0 text-muted-foreground" />
-                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi theo yêu cầu — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
-                </p>
-              </section>
-            )}
-
-            {/* COVER LESSONS — right after the intro video (2026-11-05: a person before a timetable, as Preply opens), because a
-                school arriving from the cover filter came for exactly this; the rate is already at the button above. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain
-                calendar day (formatCalendarDay): this page is ISR-cached, so nothing here may read the clock. */}
+            {/* COVER LESSONS — after Teaching (2026-11-05: a person before a timetable), because a school arriving from the cover
+                filter came for exactly this; the rate is already at the button above. ⛔ The rate is display only, never JSON-LD
+                (a person is not an Offer — jsonld.ts). Dates are a plain calendar day (formatCalendarDay): this page is
+                ISR-cached, so nothing here may read the clock. */}
             {cover && (
-              <section aria-labelledby="t-cover" className="space-y-3">
-                <h2 id="t-cover" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
-                {/* ⛔ THE USUAL WEEK AS A COMPACT GRID (UI climb batch 88, 2026-11-13 — round 13 "every fact once", part d2c4; blind
-                    A/B, Opus 7.07 → 7.59; owner, 2026-11-13: "reduce lines … super clean"). It was a 7-row table of ✓ and ·, about
-                    560px on a phone, in a tinted box: now three rows (morning, afternoon, evening) by seven days of filled squares,
-                    about 200px, flat on the page ("lines between elements … almost no boxes", owner 07-24). Still a real table:
-                    every cell keeps a screen-reader label — the open slot's own words, "Not available" for the rest — and the
-                    hours stay under each part of the day. */}
-                <Table className="table-fixed border-separate border-spacing-1">
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="h-auto w-20 px-0"><span className="sr-only"><Bilingual en="Part of the day" vi="Buổi" /></span></TableHead>
-                      {COVER_DAYS.map((d) => (
-                        <TableHead key={d} className="h-auto px-0 text-center text-xs font-normal text-ink-4"><CoverDayShort day={d} /></TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {COVER_PARTS.map((p) => (
-                      <TableRow key={p} className="border-0 hover:bg-transparent">
-                        <TableHead scope="row" className="h-auto px-0 text-left align-middle text-xs font-normal text-body">
-                          <Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} />
-                          <span className="block text-2xs text-ink-4">{COVER_PART_LABELS[p].hours}</span>
-                        </TableHead>
-                        {COVER_DAYS.map((d) => {
-                          const slot = `${d}-${p}`
-                          const open = cover.slots.has(slot)
-                          return (
-                            <TableCell key={d} className="p-0">
-                              <span aria-hidden data-cover-slot={open ? 'open' : ''} className={`block h-6 rounded-lg ${open ? 'bg-brand' : 'bg-tint'}`} />
-                              <span className="sr-only">
-                                {open
-                                  ? <Bilingual en={coverSlotLabel(slot, 'en')} vi={coverSlotLabel(slot, 'vi')} />
-                                  : <Bilingual en="Not available" vi="Không nhận" />}
-                              </span>
-                            </TableCell>
-                          )
-                        })}
+              <section aria-labelledby="t-cover">
+                <h2 id="t-cover" className={SECTION_H2}><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
+                {/* ⛔ THE USUAL WEEK AS A COMPACT GRID (UI climb batch 88, 2026-11-13 — round 13 "every fact once"; owner, 2026-11-13:
+                    "reduce lines … super clean"): three rows (morning, afternoon, evening) by seven days, flat on the page ("lines
+                    between elements … almost no boxes", owner 07-24). Still a real table: every cell keeps a screen-reader label —
+                    the open slot's own words, "Not available" for the rest — and the hours stay under each part of the day.
+                    ⛔ A FREE SLOT IS THE SUCCESS GREEN'S WASH WITH ITS CHECK, NOT A FILLED BRAND SQUARE (owner-approved 2026-11-14, cook
+                    r04 teachers — it reverses batch 88's filled squares): the check says "free" without a legend, and nothing in
+                    the week is heavier than the name or the button; a closed slot is the field's well. 32px slots in 44px rows,
+                    4px apart. The wrapper takes the border-spacing's pull, outside ui/table's own overflow container. */}
+                <div className="-mx-1 -mt-1.5">
+                  <Table className="table-fixed border-separate border-spacing-x-1 border-spacing-y-1.5">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="h-auto w-20 px-0"><span className="sr-only"><Bilingual en="Part of the day" vi="Buổi" /></span></TableHead>
+                        {COVER_DAYS.map((d) => (
+                          <TableHead key={d} className="h-auto px-0 pb-0.5 text-center text-t-meta font-normal text-muted-foreground"><CoverDayShort day={d} /></TableHead>
+                        ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground"><Bilingual en="Can travel to" vi="Có thể đến dạy tại" /></p>
-                  {/* Place names in the page's language, never machine-translated (PlaceName's rule). */}
-                  <ul className="flex flex-wrap gap-2">
-                    {cover.areas.map((a) => <li key={a} className="rounded-full bg-tint px-3 py-1 text-sm text-body">{coverAreaLabel(a, lang)}</li>)}
-                  </ul>
+                    </TableHeader>
+                    <TableBody>
+                      {COVER_PARTS.map((p) => (
+                        <TableRow key={p} className="border-0 hover:bg-transparent">
+                          <TableHead scope="row" className="h-auto px-0 text-left align-middle text-sm font-normal text-body">
+                            <Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} />
+                            <span className="block text-t-meta text-muted-foreground">{COVER_PART_LABELS[p].hours}</span>
+                          </TableHead>
+                          {COVER_DAYS.map((d) => {
+                            const slot = `${d}-${p}`
+                            const open = cover.slots.has(slot)
+                            return (
+                              <TableCell key={d} className="h-11 p-0 align-middle">
+                                <span aria-hidden data-cover-slot={open ? 'open' : ''} className={cn('flex h-8 items-center justify-center rounded-lg', open ? 'bg-success/10 text-success' : 'bg-tint')}>
+                                  {open && <Check aria-hidden className="size-4" />}
+                                </span>
+                                <span className="sr-only">
+                                  {open
+                                    ? <Bilingual en={coverSlotLabel(slot, 'en')} vi={coverSlotLabel(slot, 'vi')} />
+                                    : <Bilingual en="Not available" vi="Không nhận" />}
+                                </span>
+                              </TableCell>
+                            )
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
+                {/* "Can travel to" as a label | value row on hairlines, like Teaching's (owner-approved 2026-11-14; it was a pill list).
+                    Place names in the page's language, never machine-translated (PlaceName's rule). */}
+                <dl className="mt-3 border-y border-border">
+                  <Row label={<Bilingual en="Can travel to" vi="Có thể đến dạy tại" />}><Plain items={cover.areas.map((a) => ({ key: a, node: coverAreaLabel(a, lang) }))} /></Row>
+                </dl>
                 {/* One short note (batch 88): the week is the teacher's usual one, and when they confirmed it. */}
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-3 text-t-meta text-muted-foreground">
                   <Bilingual en="Usual week" vi="Lịch thường lệ" />
                   {cover.confirmedAt && <>{' · '}<Bilingual en="confirmed {date}" vi="xác nhận ngày {date}" values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: vnIsoDay(cover.confirmedAt) }} /></>}
                 </p>
+                {/* The cover ask under the week it asks about, below lg (teacher-contact.tsx TeacherCoverAsk: the contact block's
+                    own action, a remote; from lg the block's cta is the ask). A block-level 44px box, 8px under the note, so
+                    its height is its own and never a line box's. */}
+                <TeacherCoverAsk listingId={listing.id} className="mt-2 flex min-h-11 w-fit lg:hidden" />
               </section>
             )}
 
             {tp?.bio && (
               <section aria-labelledby="t-about">
-                <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="About" vi="Giới thiệu" /></h2>
+                <h2 id="t-about" className={SECTION_H2}><Bilingual en="About" vi="Giới thiệu" /></h2>
                 <TeacherBio><LocalizedText text={tp.bio} /></TeacherBio>
               </section>
             )}
@@ -476,12 +518,13 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
             {experience.length > 0 && (
               <section aria-labelledby="t-exp">
                 {/* ⛔ Not <Tr>: the UI-string "Experience" is "Trải nghiệm" (an experience you go on); this is work history. */}
-                <h2 id="t-exp" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Experience" vi="Kinh nghiệm" /></h2>
+                <h2 id="t-exp" className={SECTION_H2}><Bilingual en="Experience" vi="Kinh nghiệm" /></h2>
                 <ol className="space-y-3">
                   {experience.map((x, i) => (
                     <li key={i}>
-                      <p className="font-medium text-foreground">{x.role} · {x.employer}</p>
-                      <p className="text-sm text-muted-foreground">{x.city}{x.city && (x.from || x.to) ? ' · ' : null}{x.from ? <ExperienceMonth v={x.from} /> : null}{x.from && x.to ? ' – ' : null}{x.to ? <ExperienceMonth v={x.to} /> : null}{x.from && !x.to ? <> – <Bilingual en="present" vi="nay" /></> : null}</p>
+                      {/* A row title (the shell's h3 role, 17/24 bold ink), its place and months in the small muted step. */}
+                      <p className="text-t-h3 text-foreground">{x.role} · {x.employer}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">{x.city}{x.city && (x.from || x.to) ? ' · ' : null}{x.from ? <ExperienceMonth v={x.from} /> : null}{x.from && x.to ? ' – ' : null}{x.to ? <ExperienceMonth v={x.to} /> : null}{x.from && !x.to ? <> – <Bilingual en="present" vi="nay" /></> : null}</p>
                     </li>
                   ))}
                 </ol>
@@ -490,8 +533,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
 
             {qualsShown && (
               <section aria-labelledby="t-quals">
-                <h2 id="t-quals" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Qualifications" vi="Bằng cấp và chứng chỉ" /></h2>
-                <ul className="space-y-2 text-sm text-body">
+                <h2 id="t-quals" className={SECTION_H2}><Bilingual en="Qualifications" vi="Bằng cấp và chứng chỉ" /></h2>
+                <ul className="space-y-2 text-base text-body">
                   {degreeLabel && tp.degreeLevel && (
                     <li><OptionLabel opts={degreeOpts} value={tp.degreeLevel} />{tp.degreeMajor ? `, ${tp.degreeMajor}` : ''}{tp.degreeInstitution ? ` — ${tp.degreeInstitution}` : ''}{tp.degreeYear ? ` (${tp.degreeYear})` : ''}</li>
                   )}
@@ -502,15 +545,16 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-muted-foreground"><Bilingual en="Self-stated · ask to see documents" vi="Do giáo viên tự khai · hãy đề nghị xem giấy tờ" /></p>
+                <p className="mt-3 text-t-meta text-muted-foreground"><Bilingual en="Self-stated · ask to see documents" vi="Do giáo viên tự khai · hãy đề nghị xem giấy tờ" /></p>
               </section>
             )}
           </div>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            {/* The rate sits with the action: here on desktop, above the Contact button below lg. */}
-            {cover && <p className="mb-3 hidden text-2xl font-bold tracking-tight text-price lg:block">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-base font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
-            <TeacherContact listingId={listing.id} name={name} image={photo} cover={!!cover} />
+            {/* The rate sits with the action: here on desktop, beside the Contact button in the header below lg. */}
+            {rate && <p className="mb-3 hidden text-2xl font-bold tracking-tight text-price lg:block">{rate} <span className="text-base font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
+            {/* Below lg the block is the counsel panel at the end of the page, opened by the identity sentence (`counsel`). */}
+            <TeacherContact listingId={listing.id} name={name} image={photo} cover={!!cover} counsel={identitySentence} />
           </aside>
         </div>
       </main>

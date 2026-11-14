@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { LISTING_CARD_SIZES, LISTING_GRID, MAP_CARD_SIZES } from './listing-grid'
-import { RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
+import { LISTING_CARD_SIZES, LISTING_GRID, LISTING_GRID_WIDE, MAP_CARD_SIZES, WIDE_CARD_SIZES } from './listing-grid'
+import { LANE_CARD_SIZES, LANE_CARD_W, LANE_SCROLLER, RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
 
 /**
  * A RAIL CARD IS EXACTLY ONE GRID COLUMN (memory eno-card-feed-standards). The two strings live in two files,
@@ -105,5 +105,62 @@ describe('LISTING_CARD_SIZES follows the grid', () => {
   })
   it("map mode's phone card is the full frame width, not half of it", () => {
     expect(MAP_CARD_SIZES.split(/,\s*/).at(-1)).toBe(`calc(100vw - ${2 * FRAME_PX['']}px)`)
+  })
+})
+
+/**
+ * ⛔ THE HOME LANE (owner-approved 2026-11-14, cook r04 home-b "lanes as rails" — shelf.tsx LANE_*): below `sm` a lane card is
+ * 220px (larger than the 189px feed column at 390, never smaller — owner, 2026-11-14), on a scroller bled to the screen edges
+ * (the #listings frame is px-3) and padded back onto the 12px text edge, 12px apart. From `sm` a lane IS the rail: every lane
+ * class is `max-sm:` on top of the rail's own string, and its `sizes` are the grid's.
+ */
+describe('the home lane is the rail plus phone-only classes', () => {
+  it('220px cards, 12px apart, bled 12px each side and padded back by 12', () => {
+    expect(LANE_CARD_W).toBe(`${RAIL_CARD_W} max-sm:w-55`)
+    expect(LANE_SCROLLER).toBe(`${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3`)
+    expect(55 * PX_PER_STEP).toBe(220)
+    expect(3 * PX_PER_STEP).toBe(FRAME_PX[''])
+  })
+  it('no lane class reaches `sm`: each one is max-sm:', () => {
+    for (const [lane, rail] of [[LANE_CARD_W, RAIL_CARD_W], [LANE_SCROLLER, RAIL_SCROLLER]]) {
+      const extra = lane.slice(rail.length).trim().split(/\s+/)
+      expect(extra.every((c) => c.startsWith('max-sm:')), lane).toBe(true)
+    }
+  })
+  it('sizes: the grid\'s own from sm, a fixed 220px on a phone', () => {
+    const terms = (s: string) => s.split(/,\s*/)
+    expect(terms(LANE_CARD_SIZES).slice(0, -1)).toEqual(terms(LISTING_CARD_SIZES).slice(0, -1))
+    expect(terms(LANE_CARD_SIZES).at(-1)).toBe('220px')
+  })
+})
+
+/**
+ * ⛔ RENTAL RESULTS ON A PHONE ARE ONE COLUMN (owner-approved 2026-11-14, cook r06 rentals-a — listing-grid.ts LISTING_GRID_WIDE). Below
+ * `sm` one column on the 12px gutter (no bleed), 24px between cards, so the square photo is 366px at 390 — bigger than the
+ * 189px two-up card, never smaller (owner, 2026-11-14). From `sm` it resolves to LISTING_GRID's exact columns and gaps, so a
+ * tablet and a desktop keep the 3 / 4 grid and the 12-card first page.
+ */
+describe('LISTING_GRID_WIDE: one column on a phone, LISTING_GRID from sm', () => {
+  const wideNum = (bp: Bp, re: RegExp) => num(bp, LISTING_GRID_WIDE, re)
+  it('phone: one column, no bleed, 24px between cards — a card the frame wide', () => {
+    expect(wideNum('', /^grid-cols-(\d+)$/)).toBe(1)
+    expect(bleedPx('', LISTING_GRID_WIDE)).toBe(0)
+    expect(wideNum('', /^gap-y-([\d.]+)$/) * PX_PER_STEP).toBe(24)
+    // At 390: 390 − 2 × 12 = 366, against the two-up card's (390 − 2 × 4 − 4) / 2 = 189.
+    expect(390 - 2 * FRAME_PX['']).toBe(366)
+    expect(390 - 2 * FRAME_PX['']).toBeGreaterThan((390 - 2 * (FRAME_PX[''] - bleedPx('', LISTING_GRID)) - gapPx('')) / 2)
+  })
+  it('sm and lg: the same columns, gaps and bleed as LISTING_GRID', () => {
+    for (const bp of ['sm:', 'lg:'] as const) {
+      expect(wideNum(bp, /^grid-cols-(\d+)$/), bp).toBe(cols(bp))
+      expect(wideNum(bp, /^gap-x-([\d.]+)$/) * PX_PER_STEP, bp).toBe(gapPx(bp))
+      expect(wideNum(bp, /^gap-y-([\d.]+)$/), bp).toBe(num(bp, LISTING_GRID, /^gap-y-([\d.]+)$/))
+      expect(bleedPx(bp, LISTING_GRID_WIDE), bp).toBe(bleedPx(bp, LISTING_GRID))
+    }
+  })
+  it('WIDE_CARD_SIZES: LISTING_CARD_SIZES from sm, the full frame width below it', () => {
+    const terms = (x: string) => x.split(/,\s*/)
+    expect(terms(WIDE_CARD_SIZES).slice(0, -1)).toEqual(terms(LISTING_CARD_SIZES).slice(0, -1))
+    expect(terms(WIDE_CARD_SIZES).at(-1)).toBe(`calc(100vw - ${2 * FRAME_PX['']}px)`)
   })
 })

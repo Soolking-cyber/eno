@@ -50,7 +50,32 @@ describe('CaptureCard', () => {
   it('the explorer hands the jobs wording to both of its rows, keyed on the jobs on screen', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/marketplace/listings-explorer.tsx'), 'utf8')
     expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && jobsRows && <CaptureCard jobs />}')
-    expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} />}')
+    // `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a), keyed on the one-column rentals grid.
+    expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} />}')
     expect(src).not.toMatch(/<CaptureCard \/>/)
+  })
+
+  /**
+   * ⛔ `tight` (owner-approved 2026-11-14, cook r06 rentals-a — the rentals feed's phone): one line, the title and the house SECONDARY
+   * button; the bullets out of the box tree. Below sm only: from sm the row, its bullets and its brand CTA are as before. The
+   * button is rendered twice and a class picks one, so each width has ONE in the tab order.
+   */
+  it('tight: one line on a phone with the outline button; from sm the cta and the bullets as before', () => {
+    auth.value = { user: null, loading: false, openSignIn: () => {} }
+    const { container } = render(<CaptureCard tight />)
+    const r = row(container)!
+    expect(r.getAttribute('data-capture-tight')).toBe('true')
+    expect(r.className.split(/\s+/)).toEqual(expect.arrayContaining(['max-sm:flex-row', 'max-sm:items-center', 'sm:flex-row']))
+    expect(container.querySelector('ul')!.className.split(/\s+/)).toContain('max-sm:hidden')
+    const buttons = [...container.querySelectorAll('button')]
+    expect(buttons.map((b) => b.textContent)).toEqual(['Join free', 'Join free'])
+    expect(buttons[0].className.split(/\s+/)).toContain('max-sm:hidden')
+    expect(buttons[1].className.split(/\s+/)).toContain('sm:hidden')
+    expect(buttons[1].className).not.toMatch(/\bbg-cta\b/)
+    cleanup()
+    // Without it: one button, nothing phone-specific.
+    const plain = render(<CaptureCard />).container
+    expect(plain.querySelectorAll('button')).toHaveLength(1)
+    expect(plain.innerHTML).not.toContain('max-sm:hidden')
   })
 })

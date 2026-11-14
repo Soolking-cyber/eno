@@ -93,12 +93,19 @@ describe('cn — the type roles', () => {
     expect(cn('text-t-meta', 'text-muted-foreground')).toBe('text-t-meta text-muted-foreground')
     expect(cn('text-foreground text-t-price', 'sm:text-t-h3')).toBe('text-foreground text-t-price sm:text-t-h3')
     expect(cn('text-t-card leading-5', 'text-t-meta')).toBe('text-t-meta')
+    expect(cn('text-t-title', 'text-xl')).toBe('text-xl')
+    expect(cn('text-t-title', 'text-foreground')).toBe('text-t-title text-foreground')
+    expect(cn('text-t-title md:text-2xl', 'md:text-t-h2')).toBe('text-t-title md:text-t-h2')
+    expect(cn('text-t-figure', 'text-price')).toBe('text-t-figure text-price')
+    expect(cn('text-3xl', 'text-t-figure')).toBe('text-t-figure')
   })
 
   it('knows exactly the roles globals.css declares — the two lists cannot drift', () => {
     const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
     const roles = [...new Set([...css.matchAll(/--text-(t-[a-z0-9]+):/g)].map((m) => m[1]))]
-    expect(roles.sort()).toEqual(['t-card', 't-display', 't-h2', 't-h3', 't-meta', 't-price'])
+    // t-title (owner-approved 2026-11-14, cook r05 rental-c): the listing page's display title, src/lib/rental-sheet.ts.
+    // t-figure (owner-approved 2026-11-14, cook r06 item): the goods listing page's price on a phone, src/lib/goods-sheet.ts.
+    expect(roles.sort()).toEqual(['t-card', 't-display', 't-figure', 't-h2', 't-h3', 't-meta', 't-price', 't-title'])
     for (const r of roles) {
       expect(cn('text-base', `text-${r}`), r).toBe(`text-${r}`)
       expect(cn(`text-${r}`, 'text-ink'), r).toBe(`text-${r} text-ink`)

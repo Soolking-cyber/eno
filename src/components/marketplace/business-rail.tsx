@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Award } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, LANE_CARD_W, LANE_CARD_SIZES, type RailLook } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
@@ -16,7 +16,14 @@ import { ListingCardSkeleton } from './listing-card-skeleton'
 const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
 
 /** ⚠️ MEMO: see for-you-rail.tsx. */
-export const BusinessRail = memo(function BusinessRail({ initial }: { initial?: SerializedListingCard[] }) {
+export const BusinessRail = memo(function BusinessRail({ initial, look = 'rail' }: {
+  initial?: SerializedListingCard[]
+  /**
+   * 'lane': the home page's phone lane (shelf.tsx LANE_*), inert from `sm`. Its header is in the server's HTML and its cards
+   * are drawn once it nears the screen, over same-size placeholders (Shelf `deferCards`): the third lane down on a phone.
+   */
+  look?: RailLook
+}) {
   const { tr } = useLanguage()
   const router = useRouter()
   const openListing = useCallback((x: SerializedListingCard) => router.push(`/listings/${x.id}`), [router])
@@ -40,21 +47,31 @@ export const BusinessRail = memo(function BusinessRail({ initial }: { initial?: 
   // "loading" (skeletons for un-seeded call sites).
   if (listings !== null && listings.length < MIN_RAIL_ITEMS) return null
 
+  const lane = look === 'lane'
+  const cardW = lane ? LANE_CARD_W : RAIL_CARD_W
   return (
-    <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} watch={listings?.length ?? 0}>
+    <Shelf
+      icon={Award}
+      title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')}
+      watch={listings?.length ?? 0}
+      look={look}
+      deferCards={lane && listings ? listings.length : undefined}
+    >
       {listings === null
         ? // Un-seeded call sites only (the home landing passes `initial`). Four cards fill
           // the widest row exactly — six placeholders against a three-item floor made a
           // resolved rail visibly shrink.
           Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => (
-            <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+            <ListingCardSkeleton key={i} className={cardW} />
           ))
         : listings.map((l) => (
-            <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
+            <div key={l.id} data-sid={l.sellerId} className={cardW}>
               <ListingCard
                 listing={l}
                 onOpen={openListing}
                 onLocate={locateFromRail}
+                lane={lane}
+                sizes={lane ? LANE_CARD_SIZES : undefined}
               />
             </div>
           ))}

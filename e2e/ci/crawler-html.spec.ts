@@ -3,7 +3,7 @@ import type { Browser, Page } from '@playwright/test'
 // never sits over the search box the last test types into.
 import { test, expect } from '../helpers'
 import { SITE_NAME } from '../../src/lib/edition'
-import { LEDE_PLACEMENT } from '../../src/app/[lang]/c/[category]/(index)/lede-placement'
+import { ledePlacementFor } from '../../src/app/[lang]/c/[category]/(index)/lede-placement'
 import worker from '../../infra/cloudflare/eno-html-edge-cache.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ const CRAWLERS: [string, string][] = [
 
 const HOME = '/'
 const CATEGORY = '/c/electronics'
+const CATEGORY_LEDE = ledePlacementFor(CATEGORY.split('/').pop()!)
 /** A plain electronics fixture with no `affiliateUrl`. */
 const LISTING = '/listings/ci-l-1'
 /** The fixture category's English name (ci-fixtures.ts upserts it from src/lib/taxonomy.ts). */
@@ -120,7 +121,7 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
       await page.context().close()
     })
 
-    test(`${bot} ${CATEGORY}: H1, breadcrumb and lede above the skeleton (lede: ${LEDE_PLACEMENT})`, async ({ browser }) => {
+    test(`${bot} ${CATEGORY}: H1, breadcrumb and lede in the first HTML (lede: ${CATEGORY_LEDE})`, async ({ browser }) => {
       const page = await crawl(browser, userAgent, CATEGORY)
       await expect(page.locator('h1')).toContainText(CATEGORY_NAME)
       // The breadcrumb primitive's own markers (ui/breadcrumb: aria-label="breadcrumb", lowercase, and
@@ -130,9 +131,20 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
       expect(await underHidden(page, crumb), 'the breadcrumb must not be under [hidden]').toBe(false)
       const lede = '[data-category-lede]'
       await expect(page.locator(lede)).toHaveCount(1)
-      // Decision H-c: read from the one constant the layout, the page and the skeleton read.
-      if (LEDE_PLACEMENT === 'layout') expect(await underHidden(page, lede), 'the lede must not be under [hidden]').toBe(false)
-      else expect(await page.locator(lede).evaluate((el, sel) => !!el.closest(sel), OUTLINED)).toBe(true)
+      // Decision H-c, per slug since 2026-11-14 (owner-approved, cook r06 goods): read from the one function the layout and the
+      // page read. A goods category ('after-grid') renders it inline right after the grid and before Guides.
+      if (CATEGORY_LEDE === 'page') expect(await page.locator(lede).evaluate((el, sel) => !!el.closest(sel), OUTLINED)).toBe(true)
+      else expect(await underHidden(page, lede), 'the lede must not be under [hidden]').toBe(false)
+      if (CATEGORY_LEDE === 'after-grid') {
+        const order = await page.evaluate((sel) => {
+          const l = document.querySelector(sel)!
+          const grid = document.querySelector('[data-listings-ready]')
+          const guides = [...document.querySelectorAll('h2')].find((h) => /Guides|Cẩm nang/.test(h.textContent ?? ''))
+          const after = (a: Element | null | undefined, b: Element) => !a || !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+          return { afterGrid: after(grid, l), beforeGuides: !guides || !!(l.compareDocumentPosition(guides) & Node.DOCUMENT_POSITION_FOLLOWING) }
+        }, lede)
+        expect(order).toEqual({ afterGrid: true, beforeGuides: true })
+      }
       await page.context().close()
     })
 

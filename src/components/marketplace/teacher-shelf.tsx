@@ -13,7 +13,7 @@ import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { IS_SERVICES } from '@/lib/edition'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { MIN_RAIL_ITEMS, RAIL_CARD_W, Shelf } from './shelf'
+import { LANE_CARD_SIZES, LANE_CARD_W, MIN_RAIL_ITEMS, RAIL_CARD_W, Shelf, type RailLook } from './shelf'
 
 /** The door's link: the action colour, a 44px hit area (tap-44's ::before needs the `relative`), the arrow after. */
 const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline'
@@ -56,6 +56,7 @@ export function TeacherShelf({
   onOpen,
   teacherProfile,
   teacherDraft,
+  look = 'rail',
 }: {
   listings: SerializedListingCard[]
   /** The explorer's card tap — its back-nav snapshot, then the push (stable, so the memoised cards stay memoised). */
@@ -64,6 +65,12 @@ export function TeacherShelf({
   teacherProfile: boolean
   /** The viewer has an unfinished one → the door continues it. */
   teacherDraft: boolean
+  /**
+   * 'lane': the home page's phone lane look (owner-approved 2026-11-14, cook r04 home-b; shelf.tsx LANE_*) — a 22/28 heading
+   * with no icon over 220px cards bled to the screen edges. Every class is `max-sm:`, so this row (in the grid at every
+   * width) changes on a phone only. Its PLACE does not change: still after the twelfth card (⛔ below).
+   */
+  look?: RailLook
 }) {
   const { lang, tr } = useLanguage()
   // The rails' sparse floor (shelf.tsx): two cards and a void read as a dead shop. /c/teachers still lists everyone.
@@ -71,10 +78,10 @@ export function TeacherShelf({
   const title = CATEGORY_ENTRY_LABELS.teachers
   return (
     <div data-teacher-shelf="" className="col-span-full min-w-0 border-t border-border pt-6 pb-4 not-last:border-b">
-      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))}>
+      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))} look={look}>
         {listings.map((l) => (
-          <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
-            <ListingCard listing={l} onOpen={onOpen} />
+          <div key={l.id} data-sid={l.sellerId} className={look === 'lane' ? LANE_CARD_W : RAIL_CARD_W}>
+            <ListingCard listing={l} onOpen={onOpen} lane={look === 'lane'} sizes={look === 'lane' ? LANE_CARD_SIZES : undefined} />
           </div>
         ))}
       </Shelf>

@@ -24,7 +24,8 @@ import { extendTailwindMerge } from "tailwind-merge"
  * stylesheet order picked the corner (measured on tailwind-merge 3.6.0). `radius` is the key every `rounded-*`
  * group reads, so the t/b/l/r forms merge too.
  *
- * ⚠️ AND THE SIX TYPE ROLES (`@theme { --text-t-* }`, owner-approved 2026-11-14). The stock font-size scale is the
+ * ⚠️ AND THE TYPE ROLES (`@theme { --text-t-* }`, owner-approved 2026-11-14; six, and `t-title` the seventh — the rental
+ * listing page's display title, cook r05 rental-c). The stock font-size scale is the
  * t-shirt sizes, and tailwind-merge's text COLOUR group accepts any name, so without `theme.text` `text-t-meta` reads as
  * a colour: `cn('text-t-meta', 'text-muted-foreground')` dropped the role, and `cn('text-sm', 'text-t-meta')` kept
  * both. `text` is the key the font-size group reads. Keep this list equal to the `--text-t-*` names in globals.css;
@@ -35,7 +36,7 @@ const twMerge = extendTailwindMerge({
     theme: {
       ease: ['out-strong', 'spring', 'spring-snappy', 'bounce'],
       radius: ['media'],
-      text: ['t-display', 't-h2', 't-h3', 't-price', 't-card', 't-meta'],
+      text: ['t-display', 't-title', 't-figure', 't-h2', 't-h3', 't-price', 't-card', 't-meta'],
     },
     classGroups: {
       z: [{ z: ['raised', 'sticky', 'nav', 'fab', 'overlay', 'tooltip', 'splash', 'consent', 'map-overlay', 'nested-popover'] }],

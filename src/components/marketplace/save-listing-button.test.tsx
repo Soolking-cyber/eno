@@ -50,3 +50,17 @@ describe('SaveListingButton — a constant-name ARIA toggle', () => {
     expect(btn.getAttribute('aria-label')).toContain(visible())
   })
 })
+
+/** `shape="square"` (owner-approved 2026-11-14, cook r06 jobs — beside a linked job's Apply below md): the secondary button's box. */
+describe('SaveListingButton shape="square"', () => {
+  it('a 48px outlined square, icon-only, the same constant-name toggle', () => {
+    render(<SaveListingButton id="l1" shape="square" className="md:hidden" />)
+    const btn = screen.getByRole('button', { name: 'Save listing' })
+    expect(btn.className.split(' ')).toEqual(expect.arrayContaining(['size-12', 'rounded-xl', 'p-0', 'border', 'border-foreground', 'bg-background', 'md:hidden']))
+    expect(btn.textContent).toBe('')
+    expect(btn.querySelector('svg')!.getAttribute('class')).toContain('fill-none')
+    fireEvent.click(btn)
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+    expect(btn.querySelector('svg')!.getAttribute('class')).toContain('text-saved')
+  })
+})

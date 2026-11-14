@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 /**
  * The category lede, clamped to ONE LINE ON A PHONE with "Show more" at the end of that line; whole from sm.
  *
+ * ⛔ NOT ON A GOODS CATEGORY SINCE 2026-11-14 (owner-approved, cook r06 goods — lede-placement.ts `ledePlacementFor`): there the
+ * lede renders whole, after the grid, with no clamp and no "Show more" (category-lede-block.tsx `placement`). The rule below
+ * holds for rentals, jobs, teachers and services.
  * ⛔ ONE LINE SINCE 2026-10-18 (owner: products first on a phone's first screen). It was two lines with the button on
  * a third; the closed lede is now one line and the button sits beside it on the same line (a flex row while closed
  * — the paragraph takes the room the button leaves), so the whole block costs one line of the fold. Opened, the

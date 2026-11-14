@@ -89,7 +89,8 @@ export function TeacherBio({ children }: { children: ReactNode }) {
     <>
       <p ref={ref} id={id} className={`max-w-prose whitespace-pre-line text-body${long && !expanded ? ' max-md:line-clamp-5' : ''}`}>{children}</p>
       {long && (
-        <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className="relative tap-44 mt-1 w-fit text-sm font-semibold text-accent-foreground md:hidden">
+        // The shell's standalone link (owner-approved 2026-11-14, cook r04 teachers): 700 14 in the accent, a 44px target.
+        <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className="relative tap-44 mt-1 w-fit text-sm font-bold text-accent-foreground md:hidden">
           {expanded ? tr('See less', 'Thu gọn') : tr('See more', 'Xem thêm')}
         </Button>
       )}

@@ -148,9 +148,10 @@ test.describe('Guest · homepage', () => {
 
   test('the partner band holds still on a phone, drifts on desktop', async ({ page }) => {
     /**
-     * ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14: "8 still band"; partner-strip.tsx). Below `sm` the band is a
-     * row of the home feed that never loops: no `data-loop`, no Pause toggle, no edge fade; it starts at its first partner
-     * and scrolls by hand. From `sm` up the band under the header still drifts with its Pause toggle, and the hidden feed
+     * ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14: "8 still band"; partner-strip.tsx). Below `sm` the band is the
+     * Partners LANE among the home page's phone lanes (owner-approved 2026-11-14, cook r04 home-b) and never loops: no
+     * `data-loop`, no Pause toggle, no edge fade; it starts at its first partner on the 12px text edge (the viewport bleeds to
+     * the screen edge, the track pads back by 12) and scrolls by hand. From `sm` up the band under the header still drifts with its Pause toggle, and the hidden feed
      * copy fetches nothing (its logos stay lazy). ⚠️ scrollLeft 0 is a FRESH load's: the still row keeps a hand scroll on
      * purpose. Branches on the project's viewport: guest-mobile (Pixel 5, 393 px) and guest-desktop (1280 px).
      */
@@ -176,7 +177,8 @@ test.describe('Guest · homepage', () => {
       })
       const start = await read()
       expect(start).toMatchObject({ mask: 'none', webkitMask: 'none', overflowX: 'auto', scrollLeft: 0 })
-      expect(Math.abs(start.first - start.left), 'starts at the first partner').toBeLessThanOrEqual(0.5)
+      expect(Math.abs(start.first - start.left - 12), 'starts at the first partner, on the 12px text edge').toBeLessThanOrEqual(0.5)
+      expect(Math.abs(start.left), 'the lane bleeds to the screen edge').toBeLessThanOrEqual(0.5)
       await page.waitForTimeout(1500)
       expect(Math.abs((await read()).first - start.first), 'the band does not move').toBeLessThanOrEqual(0.5)
       const end = await viewport.evaluate((el) => {

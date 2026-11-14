@@ -8,7 +8,7 @@ import { Collapsible } from '@/components/ui/collapsible'
 import { PILL_BOX, PILL_ON, PILL_OPEN, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
 import { CategoryRail } from './category-rail'
 import { FacetBarFallback } from './facet-bar-fallback'
-import { LadderCompactRow } from './ladder-compact-row'
+import { LadderCompactRow, ScopeChip, ScopeChipReserve } from './ladder-compact-row'
 import { TrendingSearches } from './trending-searches'
 
 vi.mock('next/link', () => ({
@@ -63,6 +63,29 @@ describe('the other chip rows wear it', () => {
     const scope = document.querySelector('[data-slot="ladder-compact-row"] > button')!
     // The folded ladder's pill names what is chosen, so it wears the chosen look: the ink fill (2026-11-14).
     expect(tokens(scope)).toEqual(expect.arrayContaining(['min-h-9', 'relative', 'tap-44', 'bg-foreground', 'text-background', 'icon-own-ink']))
+  })
+
+  it('⛔ the goods search\'s scope chip (owner-approved 2026-11-14, cook r06 goods): a plain white chip with words and a chevron — no grid glyph, no ink fill', () => {
+    render(
+      <LanguageProvider>
+        <Collapsible>
+          <ScopeChip expanded={false} />
+          <ScopeChipReserve />
+        </Collapsible>
+      </LanguageProvider>,
+    )
+    const chip = screen.getByRole('button', { name: /All categories|Tất cả danh mục/ })
+    expect(chip.hasAttribute('data-scope-chip')).toBe(true)
+    expect(chip.getAttribute('aria-expanded')).toBe('false')
+    expect(tokens(chip)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-background', 'border-line-strong', 'text-foreground', 'shrink-0', 'gap-1.5']))
+    expect(tokens(chip)).not.toContain('bg-foreground')
+    expect(chip.querySelectorAll('svg')).toHaveLength(1) // the chevron alone
+    // The cold-link reserve: the SAME box (its classes, words and chevron), invisible and never focusable.
+    const reserve = document.querySelector('.scope-chip-reserve')!
+    expect(reserve.tagName).toBe('SPAN')
+    expect(reserve.getAttribute('aria-hidden')).toBe('true')
+    expect(tokens(reserve).filter((t) => t !== 'scope-chip-reserve').sort()).toEqual(tokens(chip).sort())
+    expect(reserve.textContent).toBe(chip.textContent)
   })
 
   it('the category rail\'s subcategory plate: a flat pill when chosen — no raised `shadow-sm` plate', () => {

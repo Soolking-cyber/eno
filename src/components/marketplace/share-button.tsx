@@ -117,7 +117,7 @@ function useShare(url: string, shareText: string) {
  * 2026-10-18: "also mobile all dropdowns should be bottom up card style like the filter card"),
  * titled with the same heading; the channels, Copy link and More… are unchanged inside it.
  */
-export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing' }: {
+export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing', shape }: {
   url: string; title: string; price?: number; currency?: string
   /** The stored unit ('VND/hour', 'VND/month'…): a RATE is shared with its period, or "150,000 đ" reads as a flat price. */
   priceUnit?: string | null
@@ -127,6 +127,11 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
    * button's words too ("Share my profile"). Literal tr() calls here, so every language gets them translated.
    */
   subject?: 'listing' | 'teacher-profile' | 'my-teacher-profile'
+  /**
+   * 'round' — a 44px white plate on the page ground (1px line-strong ring, ink 20px glyph, the word its name only): the role's
+   * line on a linked job's page below md (owner-approved 2026-11-14, cook r06 jobs). Not over media (that is `compact`).
+   */
+  shape?: 'round'
 }) {
   const { lang, tr } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -176,7 +181,15 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
           // variant supplies the plate and the ink — since 2026-11-14 an ink glyph on the white photo
           // plate in both themes (owner-approved, cook r05), so no colour is set here. That shell IS
           // <IconButton>, so use the primitive. The labelled (non-compact) variant is a padded pill with text.
-          compact ? (
+          shape === 'round' ? (
+            <IconButton
+              size="md"
+              aria-label={tr('Share', 'Chia sẻ')}
+              className={cn('icon-own-ink size-11 border border-line-strong bg-background text-foreground transition-transform hover:bg-muted active:scale-[0.96] active:bg-muted', className)}
+            >
+              <Share2 className="h-5 w-5" />
+            </IconButton>
+          ) : compact ? (
             <IconButton
               size="md"
               variant="overlay"

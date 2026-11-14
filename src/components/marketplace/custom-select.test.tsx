@@ -229,3 +229,27 @@ describe('CustomSelect · phone sheet', () => {
     await waitFor(() => expect(mark()).toBe(below))
   })
 })
+
+/**
+ * `indicator="none"` + `labelClassName="sr-only"` (owner-approved 2026-11-14, cook r06 jobs — /c/jobs' phone sort, an icon-only
+ * round button): no disclosure glyph, the value's words visually hidden and still in the name, and the same sheet below sm.
+ */
+describe('CustomSelect · icon-only', () => {
+  it('draws only its own icon, keeps "label, value" as its name, and still opens its list on a phone', async () => {
+    setViewport('phone')
+    render(
+      <LanguageProvider>
+        <CustomSelect value="sell" onChange={vi.fn()} options={TYPES} label="Listing type" indicator="none" labelClassName="sr-only" icon={<svg data-own="" />} />
+      </LanguageProvider>,
+    )
+    const t = trigger()
+    expect(t.querySelectorAll('svg')).toHaveLength(1)
+    expect(t.querySelector('svg[data-own]')).not.toBeNull()
+    expect(t.querySelector('.sr-only')!.textContent).toBe('For sale')
+    const [labelId, selfId] = t.getAttribute('aria-labelledby')!.split(' ')
+    expect(document.getElementById(labelId)!.textContent).toBe('Listing type')
+    expect(selfId).toBe(t.id)
+    await userEvent.setup().click(t)
+    expect(await screen.findByRole('listbox')).toBeTruthy()
+  })
+})

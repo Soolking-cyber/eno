@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ArrowRight } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
@@ -31,15 +30,20 @@ import { formatCountFull } from './category-copy'
  * shape change together, so no page has one odd line. A link inside a run of text must not be told apart by colour alone
  * (WCAG 1.4.1, axe link-in-text-block — the blue on the line's grey is under 3:1, and weight did not count on the live a11y run
  * of 2026-11-14, PDP brand link). PostJobLink's `row` form takes its classes from its caller and is unchanged.
+ * ⛔ THE SHAPE ITSELF (owner-approved 2026-11-14, cook r04 teachers — it reverses the 2026-11-06 audit's "the question in the
+ * line's ink, the answer as the link with its arrow"): the question in the muted small step, the answer an INLINE link —
+ * 700 14 in the accent, a 1px underline 3px under it — and no arrow. Inline, never inline-flex, so a long answer wraps with
+ * the sentence. Written out at each line (teaching-links.test.tsx reads all six), as the underline was.
  */
+
 export function TeachingJobsLink({ count, href }: { count: number; href: string }) {
   const { lang, tr } = useLanguage()
   if (count <= 0) return null
   return (
-    <p className="mt-3 max-w-prose text-sm text-body">
+    <p className="mt-3 max-w-prose text-sm text-muted-foreground">
       {tr('Looking for a teaching job?', 'Tìm việc dạy học?')}{' '}
-      <Link href={href} rel="nofollow" prefetch={false} data-cross-link="teaching-jobs" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
-        {tr('Jobs › Teaching', 'Việc làm › Giảng dạy')} ({formatCountFull(count, lang)}) <ArrowRight className="h-4 w-4 shrink-0" />
+      <Link href={href} rel="nofollow" prefetch={false} data-cross-link="teaching-jobs" className="font-bold text-accent-foreground underline decoration-1 underline-offset-3">
+        {tr('Jobs › Teaching', 'Việc làm › Giảng dạy')} ({formatCountFull(count, lang)})
       </Link>
     </p>
   )
@@ -55,10 +59,10 @@ export function TeachingJobsLink({ count, href }: { count: number; href: string 
 export function TeachGuideLink({ className }: { className?: string }) {
   const { tr } = useLanguage()
   return (
-    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
+    <p className={cn('mt-3 max-w-prose text-sm text-muted-foreground', className)}>
       {tr('New to teaching in Vietnam?', 'Mới dạy học ở Việt Nam?')}{' '}
-      <Link href={TEACH_HUB_PATH} hrefLang="en" data-cross-link="teach-guide" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
-        {tr('Start with the guide', 'Đọc cẩm nang (tiếng Anh)')} <ArrowRight className="h-4 w-4 shrink-0" />
+      <Link href={TEACH_HUB_PATH} hrefLang="en" data-cross-link="teach-guide" className="font-bold text-accent-foreground underline decoration-1 underline-offset-3">
+        {tr('Start with the guide', 'Đọc cẩm nang (tiếng Anh)')}
       </Link>
     </p>
   )
@@ -71,10 +75,10 @@ export function TeachGuideLink({ className }: { className?: string }) {
 export function TeacherProfileLink({ href, className }: { href: string; className?: string }) {
   const { tr } = useLanguage()
   return (
-    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
+    <p className={cn('mt-3 max-w-prose text-sm text-muted-foreground', className)}>
       {tr('Want schools to find you?', 'Muốn trường học tìm đến bạn?')}{' '}
-      <Link href={href} data-cross-link="teacher-profile" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
-        {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')} <ArrowRight className="h-4 w-4 shrink-0" />
+      <Link href={href} data-cross-link="teacher-profile" className="font-bold text-accent-foreground underline decoration-1 underline-offset-3">
+        {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
       </Link>
     </p>
   )
@@ -126,10 +130,10 @@ export function PostJobLink({ href, row = false, className }: { href: string; ro
     )
   }
   return (
-    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
+    <p className={cn('mt-3 max-w-prose text-sm text-muted-foreground', className)}>
       {ask}{' '}
-      <Link href={href} prefetch={false} onPointerDown={warm} onMouseEnter={warm} data-cross-link="post-job" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-4">
-        {act} <ArrowRight className="h-4 w-4 shrink-0" />
+      <Link href={href} prefetch={false} onPointerDown={warm} onMouseEnter={warm} data-cross-link="post-job" className="font-bold text-accent-foreground underline decoration-1 underline-offset-3">
+        {act}
       </Link>
     </p>
   )

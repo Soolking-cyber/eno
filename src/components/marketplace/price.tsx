@@ -129,6 +129,14 @@ type Props = {
    *  "was" price, the map building card's unit tiles, and the search suggestions' rows (which inherit
    *  12px from their row — check the INHERITED size, not just the className, when adding a caller). */
   approxClassName?: string
+  /** Classes for the unit suffix's wrapper (" / month") only — the span that holds the separating space and the suffix's own
+   *  nowrap run, so the amount/unit break and the "never a lone /" rule below are untouched. The rental listing page sets
+   *  its unit in body size and ink beside a 22px figure (owner-approved 2026-11-14, cook r05 rental-c; src/lib/rental-sheet.ts).
+   *  Without it the markup is byte-identical. Where the unit is glued short (`shortUnit`: English "đ/mo") it lands on the
+   *  visible short run ("/mo") instead — that run IS the unit there, and it sits inside the amount's nowrap run, so the wrap
+   *  rules still cannot split it. The wide rental card sets its unit regular beside the bold figure (owner-approved
+   *  2026-11-14, cook r06 rentals-a: "the figure is the price") in both shapes. */
+  unitClassName?: string
 }
 
 /**
@@ -156,7 +164,7 @@ function FigureRun({ fabAvoid, children }: { fabAvoid?: boolean; children: React
   return fabAvoid ? <span data-fab-avoid="">{children}</span> : <>{children}</>
 }
 
-export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid, shortUnit = false, cardWords = false }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, unitClassName, listingType, linked, jobMeta, fabAvoid, shortUnit = false, cardWords = false }: Props) {
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
   const locale = moneyLocale(lang)
@@ -235,7 +243,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   const shortWord = suffix && shortUnit && lang === 'en' && showUnit === true && unitRaw ? SHORT_UNIT_EN.get(unitRaw) : undefined
   const glued = shortWord ? (
     <>
-      <span aria-hidden="true">/{shortWord}</span>
+      <span aria-hidden="true" className={unitClassName}>/{shortWord}</span>
       <span className="sr-only"> {suffix}</span>
     </>
   ) : null
@@ -448,7 +456,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
           (the `<wbr>` lesson below). For the 'sm' variant the space is inside the hidden wrapper so
           the compact row's one-line width is unchanged below sm. */}
       {suffix && !glued && (
-        <span className={showUnit === 'sm' ? 'hidden sm:inline' : undefined}>
+        <span className={cn(showUnit === 'sm' && 'hidden sm:inline', unitClassName) || undefined}>
           {' '}
           <span className="whitespace-nowrap">{suffix}</span>
         </span>

@@ -1,36 +1,15 @@
-import { scopedListingWhere } from '@/lib/edition-scope'
-import { inAppOnly } from '@/lib/in-app-listing'
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
-import { localizeListingTitles } from '@/lib/translate'
 import { LANGS, type Lang } from '@/lib/i18n/langs'
 import { route } from '@/lib/api/handler'
-import { diversifyRail } from '@/lib/feed-diversity'
-import { isRetiredNavCategory } from '@/lib/retired-categories'
-import { categoryLeadRank } from '@/lib/category-lead'
+import { homeCategoryRails } from '@/lib/core/category-rails'
 
 export const runtime = 'nodejs'
 
-// Home page "browse by category" rails — one horizontal feed per category, ordered by
-// live DEMAND (views + weighted contacts) so the most-used category leads, mirroring
-// the category-icon hierarchy. Listings within each rail are trust-first (same default
-// ordering as the main feed). Public, lightly cached.
-const PER_RAIL = 8 // listings per category rail (kept lean; rail scrolls for more)
-const MAX_RAILS = 10 // cap the page length
-const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
-/**
- * Rows each rail CHOOSES its PER_RAIL from (diversifyRail, feed-diversity.ts). Measured 2026-09-29:
- * the electronics rail was eight variants of one iPhone from one seller under one cover photo, and
- * sports, kids, vehicles and travel were each 8 of 8 from one seller — a plain `take: 8` by rankScore
- * cannot do better, because the variants ARE the top eight. From 40, the rail takes each seller's
- * best in turn, one card per (seller, model), never the same photo twice, and at most two per seller
- * once three or more sellers are in reach (a one-seller category keeps a full rail).
- * ⚠️ NEVER BELOW MIN_LISTINGS. The groupBy admitted the category on its COUNT; the rules above could
- * then leave one card (a pool that is one photo throughout), and the client hides a rail under
- * MIN_RAIL_ITEMS. `min` back-fills the repeats instead, so an admitted category keeps its rail.
- */
-const RAIL_POOL = 40
+// Home page "browse by category" rails — the body lives in src/lib/core/category-rails.ts since 2026-11-14 (owner-approved,
+// cook r04 home-b): the home page reads the same function into its ISR document, so its lanes are server-rendered. Its one
+// in-app caller is the home lanes' freshness check: the server's lanes are checked against this once their cards are
+// drawn, and the cards this no longer carries leave (category-rails.tsx useFreshCategoryLanes) — which is why the
+// Cache-Control below stays short. It also answers any page served before the move. Public, lightly cached.
 
 /**
  * `?lang`, ONLY AS ONE OF THE SITE'S OWN CODES (LANGS, src/lib/i18n/langs.ts), or undefined — the every-language answer.
@@ -60,92 +39,14 @@ function readerLang(raw: string | null): Lang | undefined {
 // The success body returns as a NextResponse because the Cache-Control header is the point of the
 // route; route()'s plain-object path would drop it.
 export const GET = route({ auth: 'public' }, async ({ req }) => {
-  // Rank categories by demand over their live listings (like the brand rail), falling
-  // back to listing count where there's no traffic yet.
-  const grouped = await db.listing.groupBy({
-    by: ['categoryId'],
-    // ⚠️ RANK. Scoped together with the fill below, never alone: this groupBy applies a MIN_LISTINGS
-    // floor and slices to MAX_RAILS, so scoping only the fill leaves a Services rail that ranked in
-    // on the desk's demand and then renders with zero cards.
-    // ⛔ ONLY LISTINGS DEALT ON eno, here and in the fill, for the same reason (owner, 2026-10-28 — in-app-listing.ts):
-    // these shelves are drawn on the home page alone, and a category whose rows are booked on partner sites must not
-    // rank in on them and then print them.
-    where: inAppOnly(await scopedListingWhere({ verified: true, status: 'active' })),
-    _count: { _all: true },
-    _sum: { views: true, contactCount: true },
-  })
-  const eligible = grouped.filter((g) => g._count._all >= MIN_LISTINGS)
-  // The slugs BEFORE the cut: a retired shelf is dropped by slug, and dropping it after the slice would leave
-  // the page one rail short instead of letting the next category in.
-  const cats = await db.category.findMany({
-    where: { id: { in: eligible.map((g) => g.categoryId) } },
-    select: { id: true, slug: true },
-  })
-  const slugById = new Map(cats.map((c) => [c.id, c.slug]))
-  const ranked = eligible
-    /**
-     * ⛔ NOT A RETIRED SHELF (second-hand focus, owner 2026-10-03 — src/lib/retired-categories.ts). Vehicles,
-     * pets, books-stationery and hobbies-sports left every browse surface, and this one ranks on live rows
-     * alone: on 2026-10-04 hobbies-sports (4 live) ranked 10th and the home page drew a "Hobbies & Sports"
-     * shelf whose title and See-all opened the shelf the owner retired. Filtered BEFORE MAX_RAILS so the
-     * next category takes its place. Its listings still reach the feed and search; only the shelf goes.
-     */
-    .filter((g) => !isRetiredNavCategory(slugById.get(g.categoryId)))
-    .map((g) => ({
-      categoryId: g.categoryId,
-      count: g._count._all,
-      demand: (g._sum.views ?? 0) + 5 * (g._sum.contactCount ?? 0),
-      lead: categoryLeadRank(slugById.get(g.categoryId) ?? ''),
-    }))
-    /**
-     * ⛔ THE OWNER'S LEAD ORDER FIRST, THEN DEMAND (owner, 2026-10-10: "put find a teacher to number 4
-     * everywhere so rentals jobs services and then electronics" — src/lib/category-lead.ts). These shelves
-     * were pure demand, so they led with electronics while every other list led with rentals.
-     * ⚠️ THERE IS NO TEACHERS SHELF HERE, so here electronics follows services. Teacher profiles are not in this
-     * groupBy (scopedListingWhere keeps them out of listing shelves), and Browse by category stays teacher-free:
-     * they have their own "Find a teacher" shelf on the home page, after the feed's first page (owner, 2026-10-13 —
-     * src/components/marketplace/teacher-shelf.tsx, seeded by src/lib/core/teacher-shelf.ts).
-     * ⚠️ BEFORE THE CUT, so a lead category is never sliced off — which means past MAX_RAILS qualifying
-     * categories a lead shelf takes the place of the tenth by demand. Nine qualified on 2026-10-10.
-     */
-    .sort((a, b) => a.lead - b.lead || b.demand - a.demand || b.count - a.count)
-    .slice(0, MAX_RAILS)
-
-  const rails = await Promise.all(
-    ranked.map(async (r) => {
-      const slug = slugById.get(r.categoryId)
-      if (!slug) return null
-      const listings = await db.listing.findMany({
-        // ⚠️ FILL — the read that actually PRINTS the cards. The take applies after the
-        // exclusion, so the rail refills from real marketplace supply rather than shrinking.
-        where: inAppOnly(await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId })),
-        // Balanced rankScore blend, then most-viewed — matches the main feed's order.
-        orderBy: [
-          { rankScore: 'desc' },
-          { views: 'desc' },
-          { id: 'desc' },
-        ],
-        take: RAIL_POOL,
-        select: LISTING_CARD_SELECT,
-      })
-      return { slug, listings: diversifyRail(listings.map(serializeListingCard), { take: PER_RAIL, min: MIN_LISTINGS }) }
-    }),
-  )
-
-  // ONE translation lookup for every rail's titles (was one query per rail).
   // ⛔ THE READER'S LANGUAGE COMES FROM THE URL, NEVER THE COOKIE: this answer is `public, s-maxage`, so a
   // cookie-read variant would poison the shared entry with whichever language came first (audit P2, as on
   // the feed — feed-payload.ts). With `lang` the answer carries that one language's titles, and none for
-  // en/vi (the row has both). Without it, every language, exactly as before: a page loaded before the
-  // client sent `lang` still asks that way (audit api-08, measured 2026-11-10: 30% of the raw answer was
-  // titles in nine languages). Only a site language counts; anything else is no `lang` (readerLang above).
-  const present = rails.filter((r): r is NonNullable<typeof rails[number]> => !!r)
-  const localizedFlat = await localizeListingTitles(present.flatMap((r) => r.listings), readerLang(new URL(req.url).searchParams.get('lang')))
-  let cursor = 0
-  for (const r of present) { r.listings = localizedFlat.slice(cursor, cursor + r.listings.length); cursor += r.listings.length }
-
+  // en/vi (the row has both). Without it, every language. Only a site language counts; anything else is no
+  // `lang` (readerLang above).
+  const rails = await homeCategoryRails(readerLang(new URL(req.url).searchParams.get('lang')))
   return NextResponse.json(
-    { rails: present },
+    { rails },
     { headers: { 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=900' } },
   )
 })

@@ -22,7 +22,7 @@ vi.mock('./listing-card', () => ({
   ),
 }))
 import { SellerListings } from './seller-listings'
-import { JOB_ROWS_RULED } from './compact-listing-row-skeleton'
+import { JOB_CARD_LIST } from './job-card-row-skeleton'
 
 /** The row is handed in (`phoneRow`); here it is a marker that records what it was handed. */
 function Row({ listing, index, clockInHtml, lazyThumb }: { listing: SerializedListingCard; index: number; clockInHtml?: boolean; lazyThumb?: boolean }) {
@@ -85,29 +85,34 @@ describe('SellerListings phoneRow', () => {
     expect(src).toContain("import type { CompactListingRowProps } from './compact-listing-row'")
     expect(src).not.toMatch(/import \{[^}]*\} from '\.\/compact-listing-row'/)
     expect(src).not.toMatch(/from 'next\/dynamic'/)
+    expect(src).not.toMatch(/from '\.\/job-card-row'/)
     const wrapper = readFileSync('src/components/marketplace/seller-listings-phone-rows.tsx', 'utf8')
-    expect(wrapper).toContain("import { CompactListingRow } from './compact-listing-row'")
-    expect(wrapper).toContain('<SellerListings {...props} phoneRow={CompactListingRow} />')
+    // The job card since 2026-11-14 (owner-approved, cook r06 jobs — job-card-row.tsx).
+    expect(wrapper).toContain("import { JobCardRow } from './job-card-row'")
+    expect(wrapper).toContain('<SellerListings {...props} phoneRow={JobCardRow} />')
   })
 
-  it('rules the rows (batch 78, owner 2026-11-12): a hairline under each job in place of the gap', () => {
+  // ⛔ CARDS 8px APART, NO HAIRLINES (owner-approved 2026-11-14, cook r06 jobs; it reverses batch 78's ruled list here).
+  it('lists the job cards 8px apart, one column, with no hairline between them', () => {
     render(<SellerListings listings={JOBS} phoneRow={Row} />)
     const cls = (document.querySelector('[data-phone-rows]') as HTMLElement).className.split(' ')
-    expect(cls).toEqual(expect.arrayContaining(JOB_ROWS_RULED.split(' ')))
-    expect(cls).not.toContain('gap-y-1.5')
+    expect(cls).toEqual(expect.arrayContaining(JOB_CARD_LIST.split(' ')))
+    expect(cls).toContain('gap-y-2')
+    expect(cls.some((c) => c.includes('border'))).toBe(false)
+    expect(cls).not.toContain('lg:grid-cols-2')
     expect(cls).toContain('sm:hidden')
   })
 
-  it('…and while a sort is on its way, the rows\' placeholder is the job row\'s: ruled, with no tile', async () => {
+  it('…and while a sort is on its way, the rows\' placeholder is the job card\'s: the card\'s box, two role lines, no tile', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
     render(<SellerListings listings={JOBS} phoneRow={Row} sortable initialSort="recent" serverScope={{ params: { category: 'jobs' }, total: 900, pageSize: 6 }} />)
     await userEvent.click(screen.getByRole('tab', { name: /price/i }))
     const held = Array.from(document.querySelectorAll('div[aria-hidden="true"]')).find((e) => e.className.split(' ').includes('sm:hidden'))!
     expect(held).toBeTruthy()
-    expect(held.className.split(' ')).toEqual(expect.arrayContaining(JOB_ROWS_RULED.split(' ')))
+    expect(held.className.split(' ')).toEqual(expect.arrayContaining(JOB_CARD_LIST.split(' ')))
     expect(held.children.length).toBe(6)
     for (const sk of Array.from(held.children)) {
-      expect(sk.className.split(' ')).toEqual(expect.arrayContaining(['items-start', 'py-3']))
+      expect(sk.className.split(' ')).toEqual(expect.arrayContaining(['rounded-2xl', 'border', 'border-line-strong', 'py-4', 'pl-4', 'pr-1']))
       expect(sk.querySelector('.h-14')).toBeNull()
     }
   })

@@ -8,6 +8,7 @@ import { LanguageProvider, useLanguage, type Language } from '@/context/language
 import { formatCount } from '@/lib/vnd'
 import {
   ResultLine,
+  ResultsTitle,
   removeFilterLabel,
   resultCountLabel,
   shouldOfferSaveSearch,
@@ -592,5 +593,58 @@ describe('ResultLine — the browse chip, and the count\'s own classes', () => {
     const live = document.querySelector('[data-slot="result-line"] p[aria-live]')!
     expect(live.getAttribute('class')).toContain('max-sm:sr-only')
     expect(live.textContent).toBe('3 listings')
+  })
+})
+
+/**
+ * ⛔ THE GOODS SEARCH'S TITLE LINE (owner-approved 2026-11-14, cook r06 goods): the count as the page's display line — a PICTURE,
+ * aria-hidden (the live count stays <ResultLine>'s) — the results' sr-only h2, and Save search + the view pick as circles.
+ */
+describe('<ResultsTitle>', () => {
+  it('prints "N results for “q”" as an aria-hidden picture on ONE truncated display line, with the sr-only h2', async () => {
+    const { container } = renderIn('en', <ResultsTitle count={2} term="iphone" heading="Results for “iphone”" />)
+    const line = container.querySelector('[data-results-title]')!
+    const p = line.querySelector('p')!
+    expect(p.getAttribute('aria-hidden')).toBe('true')
+    expect(p.getAttribute('aria-live')).toBeNull()
+    expect(p.textContent).toBe('2 results for “iphone”')
+    expect(p.className.split(/\s+/)).toEqual(expect.arrayContaining(['truncate', 'text-t-display', 'min-w-0', 'flex-1', '-my-1', 'py-1']))
+    const h2 = within(line as HTMLElement).getByRole('heading', { level: 2 })
+    expect(h2.textContent).toBe('Results for “iphone”')
+    expect(h2.className).toBe('sr-only')
+    expect(line.className.split(/\s+/)).toEqual(expect.arrayContaining(['flex', 'min-h-9', 'items-center']))
+  })
+
+  it('a filter-only link reads "N listings"; no answer yet leaves the line empty at its height', () => {
+    const { container, rerender } = renderIn('en', <ResultsTitle count={5} heading="Marketplace listings" />)
+    expect(container.querySelector('[data-results-title] p')!.textContent).toBe('5 listings')
+    rerender(wrap('en', <ResultsTitle count={null} term="iphone" heading="Results for “iphone”" />))
+    expect(container.querySelector('[data-results-title] p')!.textContent).toBe('')
+  })
+
+  it('Save search is a 36px circle (44 to the thumb), named in full — the accent fill with results, the outline without', async () => {
+    const onSave = vi.fn()
+    const { rerender } = renderIn('en', <ResultsTitle count={2} term="iphone" heading="h" onSaveSearch={onSave} filled />)
+    const btn = screen.getByRole('button', { name: 'Save search' })
+    const cls = btn.className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['size-9', 'rounded-full', 'relative', 'tap-44', 'bg-primary', 'text-primary-foreground']))
+    fireEvent.click(btn)
+    expect(onSave).toHaveBeenCalledTimes(1)
+    rerender(wrap('en', <ResultsTitle count={0} term="iphone" heading="h" onSaveSearch={onSave} />))
+    const out = screen.getByRole('button', { name: 'Save search' }).className.split(/\s+/)
+    expect(out).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground']))
+    expect(out).not.toContain('bg-primary')
+  })
+
+  it('no offer, no circle; the view pick rides at the end', () => {
+    const { container } = renderIn('en', <ResultsTitle count={2} heading="h" view={<span data-view="" />} />)
+    expect(screen.queryByRole('button', { name: 'Save search' })).toBeNull()
+    expect(container.querySelector('[data-results-title]')!.lastElementChild!.hasAttribute('data-view')).toBe(true)
+  })
+
+  it('Vietnamese', async () => {
+    renderIn('vi', <ResultsTitle count={2} term="iphone" heading="Kết quả cho “iphone”" onSaveSearch={() => {}} filled />)
+    expect(await screen.findByRole('button', { name: 'Lưu tìm kiếm' })).toBeTruthy()
+    expect(document.querySelector('[data-results-title] p')!.textContent).toBe('2 kết quả cho “iphone”')
   })
 })

@@ -75,3 +75,29 @@ describe('everything else prints exactly as before', () => {
     expect(seen(card('VND/month', { price: 0 }))).toBe('Free')
   })
 })
+
+/**
+ * `unitClassName` on the glued short unit (owner-approved 2026-11-14, cook r06 rentals-a — the wide rental card sets its unit regular
+ * beside the bold figure, "7M đ/day"): it lands on the visible short run, the one that IS the unit there, and leaves the
+ * nowrap run, the sr-only long unit and the figure's own classes alone. Vietnamese's separate "/ tháng" run takes it as before.
+ */
+describe('<Price shortUnit unitClassName>', () => {
+  it('English: the visible "/mo" carries it, inside the one nowrap run; nothing else does', () => {
+    const c = card('VND/month', { unitClassName: 'max-sm:font-normal' })
+    const short = [...c.querySelectorAll('[aria-hidden="true"]')].find((n) => n.textContent === '/mo')!
+    expect(short.getAttribute('class')).toBe('max-sm:font-normal')
+    expect(short.parentElement!.classList.contains('whitespace-nowrap')).toBe(true)
+    expect(c.querySelectorAll('.max-sm\\:font-normal')).toHaveLength(1)
+    expect(seen(c)).toBe('3.79M đ/mo≈ $148')
+  })
+  it('without it the short run carries no class (byte-identical to before)', () => {
+    const short = [...card('VND/month').querySelectorAll('[aria-hidden="true"]')].find((n) => n.textContent === '/mo')!
+    expect(short.hasAttribute('class')).toBe(false)
+  })
+  it('Vietnamese: the separate "/ tháng" run carries it', () => {
+    state.lang = 'vi'
+    const c = card('VND/month', { unitClassName: 'max-sm:font-normal' })
+    const unit = c.querySelector('.max-sm\\:font-normal')!
+    expect(unit.textContent!.trim()).toBe('/ tháng')
+  })
+})

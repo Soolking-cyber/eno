@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { FOLD_ATTR, MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlFolds, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
+import { FOLD_ATTR, LANES_OFF_ATTR, MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlFolds, explorerUrlHidesLanes, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
 import { RECENT_SEARCHES_KEY } from './reco-signals'
 
 /**
@@ -169,5 +169,50 @@ describe('the fold mark (all21 phone hunt #1, 2026-11-09) — a phone paints a d
     timers.forEach((fn) => fn())
     expect(attrs.has(FOLD_ATTR)).toBe(false)
     expect(attrs.has('data-explorer-directed')).toBe(false)
+  })
+})
+
+/**
+ * ⛔ THE HOME PAGE'S PHONE LANES NEVER PAINT ON A LINK THAT WILL HIDE THEM (owner-approved 2026-11-14, cook r04 home-b —
+ * explorer-url.ts LANES_OFF_ATTR). The explorer shows the lanes exactly while it shows undirected browse (`showDiscovery`):
+ * not on any URL it reads as directed, except a list view (`?view=compact`), which it un-latches back to the undirected home.
+ */
+describe('the lanes-off mark — a phone never paints lanes a directed link will drop', () => {
+  const marks = (search: string) => runScript(search).attrs.has(LANES_OFF_ATTR)
+  const urls = ['?q=iphone', '?q=%20%20', '?category=rentals', '?category=all', '?subcategory=apartment-rental', '?brand=apple', '?brand=all',
+    '?model=x', '?line=pro', '?type=rent', '?type=all', '?condition=used', '?condition=all', '?deal=good', '?deal=bad', '?priceMin=100',
+    '?priceMax=9', '?district=q1', '?district=all', '?province=79', '?province=79&ward=26734', '?province=x', '?view=map', '?view=video',
+    '?view=compact', '?view=grid', '?sort=price-low', '?sort=recent', '?match=any', '?q=honda&category=vehicles&sort=price-low', '?ref=email',
+    '?utm_source=zalo', '?fbclid=x', '', '?category=all&category=electronics', '?category=electronics&category=all', '?line=all', '?priceMin=abc',
+    '?view=compact&q=iphone']
+  it('the script marks exactly what explorerUrlHidesLanes says, and that is "directed, but not by a list view alone"', () => {
+    for (const u of urls) {
+      expect(marks(u), u).toBe(explorerUrlHidesLanes(u))
+      const s = readExplorerUrl(u)
+      // The explorer's own reading: directed by anything but `view=compact`, or a takeover view.
+      const directedWithoutList = readExplorerUrl(new URLSearchParams([...new URLSearchParams(u)].filter(([k, v]) => !(k === 'view' && v === 'compact')))).directed
+      const want = s.view === 'map' || s.view === 'video' || directedWithoutList
+      if (explorerUrlMasks(u)) expect(explorerUrlHidesLanes(u), u).toBe(want)
+      else expect(explorerUrlHidesLanes(u), u).toBe(false) // no mask, no lanes-off
+    }
+  })
+  it('a sort, a list view and tracking parameters keep the lanes (they direct nothing the lanes depend on)', () => {
+    for (const u of ['?sort=recent', '?view=compact', '?utm_source=zalo', '?match=any', '']) expect(marks(u), u).toBe(false)
+    for (const u of ['?q=iphone', '?category=rentals', '?view=map', '?deal=good', '?province=79']) expect(marks(u), u).toBe(true)
+  })
+  it('the 15 s net does NOT lift it (a page whose JavaScript never came keeps its feed where it painted it)', () => {
+    const { attrs, timers } = runScript('?q=iphone')
+    expect(attrs.has(LANES_OFF_ATTR)).toBe(true)
+    timers.forEach((fn) => fn())
+    expect(attrs.has(LANES_OFF_ATTR)).toBe(true)
+    expect(attrs.has('data-explorer-directed')).toBe(false)
+  })
+  it('the fold mark is unchanged by it: `view=compact` still folds', () => {
+    expect(runScript('?view=compact').attrs.has(FOLD_ATTR)).toBe(true)
+    expect(runScript('?view=compact').attrs.has(LANES_OFF_ATTR)).toBe(false)
+  })
+  it('declares no global (the script is inline, sloppy-mode)', () => {
+    expect(PREPAINT_SCRIPT).not.toMatch(/[;{]h=false/)
+    expect(PREPAINT_SCRIPT).toContain(',h=false;')
   })
 })

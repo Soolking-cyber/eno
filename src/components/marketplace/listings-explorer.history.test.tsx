@@ -174,7 +174,9 @@ describe('a committed view change is a history entry Back undoes (NAV-1)', () =>
     back()
     await waitFor(() => expect(window.location.search).toBe(''))
     await waitFor(() => expect(cardIds()[0]).toBe('home-0')) // the landing feed, not the rentals one
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Recommended') // the undirected home's heading
+    // The undirected home's feed heading. (Scoped to the results row: since 2026-11-14 the phone's lanes above it carry their
+    // own h2s — "Partners" here — hidden from `sm` by a class jsdom does not apply.)
+    expect(document.querySelector('#results h2')!.textContent).toBe('Recommended')
   })
 
   it('a search from the header (eno:search) is one entry too; Back restores the words that were there', async () => {
@@ -542,6 +544,8 @@ describe('the area is in the URL — codes only, never the near-you circle (NAV-
  */
 describe('the phone "Save search" pill (JOIN-SAVE)', () => {
   const pill = () => document.querySelector('[data-slot="result-line"] button.sm\\:hidden') as HTMLButtonElement | null
+  /** The goods search's title line circle (owner-approved 2026-11-14, cook r06 goods — `oneRow`: no category picked). */
+  const circle = () => document.querySelector('[data-results-title] [data-save-search]') as HTMLButtonElement | null
 
   it('is not offered on the undirected home — there is nothing to save', async () => {
     freshTop('/')
@@ -550,14 +554,17 @@ describe('the phone "Save search" pill (JOIN-SAVE)', () => {
     expect(pill()).toBeNull()
   })
 
-  it('appears with the first search, labelled, 44px, in the count row', async () => {
+  it('appears with the first search — on a search with no category as the title line\'s 36px circle (44 to the thumb), named in full', async () => {
     freshTop('/')
     mount(client(), ALL.slice(0, 12))
     await waitFor(() => expect(cardIds()).toHaveLength(12))
     act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: 'honda' } })) })
-    await waitFor(() => expect(pill()).not.toBeNull())
-    expect(pill()!.textContent).toBe('Save search')
-    expect(pill()!.className).toContain('min-h-11')
+    // ⛔ Owner-approved 2026-11-14, cook r06 goods: the labelled pill of the count row is the title line's circle here — once.
+    await waitFor(() => expect(circle()).not.toBeNull())
+    expect(pill()).toBeNull()
+    expect(circle()!.textContent).toBe('Save search')
+    expect(circle()!.className).toEqual(expect.stringContaining('size-9'))
+    expect(circle()!.className).toEqual(expect.stringContaining('tap-44'))
   })
 
   it('…and with one category alone', async () => {
@@ -574,13 +581,14 @@ describe('the phone "Save search" pill (JOIN-SAVE)', () => {
     act(() => { window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { province: { code: '79', name: 'Hồ Chí Minh', nameEn: 'Ho Chi Minh' }, ward: null, nearby: null } })) })
     await waitFor(() => expect(cardIds()).toHaveLength(7))
     expect(pill()).toBeNull()
+    expect(circle()).toBeNull()
   })
 
   it('a guest\'s tap goes through the existing flow: the save is refused and the sign-in sheet opens with its note', async () => {
     freshTop('/?q=honda')
     mount(client())
-    await waitFor(() => expect(pill()).not.toBeNull())
-    act(() => { pill()!.click() })
+    await waitFor(() => expect(circle()).not.toBeNull())
+    act(() => { circle()!.click() })
     await waitFor(() => expect(h.openSignIn).toHaveBeenCalledWith(expect.objectContaining({ note: 'Sign in to get alerts when new listings match this search.' })))
   })
 })

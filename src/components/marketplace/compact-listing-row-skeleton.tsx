@@ -39,7 +39,8 @@ import { Skeleton } from '@/components/ui/skeleton'
  *  ⚠️ ONE TITLE LINE HERE, NOT TWO AS ABOVE, BECAUSE ONE IS WHAT THE COMMON JOB ROW RENDERS: at 16px the role has the whole
  *    width (no 56px tile, no 12px gap beside it), and the usual role ("English Teachers (Kindergarten)", "Primary PE Teacher")
  *    fits it on a 390pt phone. A two-line role makes a 108px row; a linked job with neither pay nor employer, whose slot line
- *    is left out, a 64px one. Use it wherever EVERY row is a job (the Jobs page's phone list, a job page's rails). */
+ *    is left out, a 64px one. Use it wherever EVERY row is a job in the explorer's list (the Jobs page's phone list and a job
+ *    page's rails draw job cards since 2026-11-14, owner-approved, cook r06 jobs — job-card-row-skeleton.tsx). */
 export function CompactListingRowSkeleton({ job = false }: { job?: boolean } = {}) {
   if (job) {
     return (
@@ -80,8 +81,8 @@ export function CompactListingRowSkeleton({ job = false }: { job?: boolean } = {
 export const COMPACT_LIST_GRID = 'grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5'
 
 /** Added to COMPACT_LIST_GRID (`cn(COMPACT_LIST_GRID, JOB_ROWS_RULED)`, so the gap-y-0 wins) where EVERY row is a job:
- *  the Jobs page's phone list (seller-listings.tsx `phoneRow`), the explorer's list while jobs are on screen, a job page's
- *  rails (job-rail-rows.tsx). Batch 78 (owner 2026-11-12, "continue the ui ux improvement towards 10/10"; A/B codex
+ *  the explorer's list while jobs are on screen. ⛔ Not the Jobs page's phone list or a job page's rails any more (owner-approved
+ *  2026-11-14, cook r06 jobs): those draw job cards 8px apart (job-card-row.tsx, `JOB_CARD_LIST`). Batch 78 (owner 2026-11-12, "continue the ui ux improvement towards 10/10"; A/B codex
  *  7.07 → 7.46, Opus 6.60 → 7.15): jobs are separated by the canon's hairline, not by a gap (docs/design-language.md §3b,
  *  owner 2026-07-24: "lines between elements … almost no boxes"), with the row's own 12px above and below the text.
  *  · A LINE UNDER EVERY ITEM, the last one included, and drawn on the GRID ITEM (`*:`), not on the row: a grid item is

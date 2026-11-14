@@ -12,7 +12,8 @@ import { RentalsHeading } from '../category-text'
 import { TeachersHeading } from '@/components/marketplace/category-lede'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
-import { LEDE_PLACEMENT } from './lede-placement'
+import { ledePlacementFor } from './lede-placement'
+import { isGoodsCategory } from '@/lib/goods-surface'
 import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
 import { SITE_NAME } from '@/lib/edition'
 import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
@@ -120,8 +121,21 @@ export default async function CategoryIndexLayout({
             So on rentals the H1 is `max-sm:sr-only` (whole, in the HTML, read first) and (index)/page.tsx paints the one line
             (RentalsPhoneHeading: the short form, or the H1's own words) with the count and the check line after it, as the
             first thing in its fragment; the check line here is `max-sm:hidden`. From sm this is all exactly as it was. The page
-            is the only route under this layout (one-control-row.contract.test.ts fails if another one, or a boundary, lands). */}
-        <h1 className={cn('h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only')}>
+            is the only route under this layout (one-control-row.contract.test.ts fails if another one, or a boundary, lands).
+            ⛔ EXCEPT /c/teachers (owner-approved 2026-11-14, cook r04 teachers — it reverses the one-line rule for this page only):
+            the page's one display line, two balanced lines at the display size (~28px at 390), never truncated — so a Vietnamese
+            stacked mark is never clipped either. The cover door under it is one line, the controls follow, and the first
+            teachers still start in the first screen. From sm the same heading as before (one line there).
+            ⛔ /c/jobs BELOW sm TOO (owner-approved 2026-11-14, cook r06 jobs — it reverses "ONE LINE ON A PHONE" there): the H1 is
+            `max-sm:sr-only` (whole, in the HTML, read first) and the page paints its words as the one display line (28/34, two lines
+            in Vietnamese, never truncated) with the list's sort and Filters at its end — SellerListings `phoneHead`, or the page's
+            own line over an empty state. From sm unchanged.
+            ⛔ EVERY GOODS CATEGORY TOO (owner-approved 2026-11-14, cook r06 goods — src/lib/goods-surface.ts: /c/electronics,
+            /c/fashion, … — it reverses "ONE LINE ON A PHONE" there): the page's one display line at the display size, the
+            teachers' string — it wraps (balanced), never truncated, so a Vietnamese stacked mark is never clipped. Its words are
+            short ("Electronics in Vietnam"), so it is one line at 390 in both languages; the grid still starts in the first
+            screen (the masthead hairline leaves the phone, page.tsx). From sm the same heading as before. */}
+        <h1 className={cn(cat.slug === TEACHERS_CATEGORY_SLUG || isGoodsCategory(cat.slug) ? 'h-display text-balance text-foreground' : 'h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only', cat.slug === 'jobs' && 'max-sm:sr-only')}>
           {headline ? <RentalsHeading headline={headline} />
             : cat.slug === TEACHERS_CATEGORY_SLUG ? <TeachersHeading />
             : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
@@ -133,7 +147,10 @@ export default async function CategoryIndexLayout({
         {/* ⚠️ THE LEDE COMES AFTER THE GRID IN THE DOM, NOT ONLY ON SCREEN: the products come first (owner, 2026-10-18; Facebook and Airbnb open on
             goods), and it holds links, so painting it low with `order` would send a keyboard user below the listings and back (WCAG 2.4.3).
             No Suspense boundary sits between, so it is still in the first HTML for crawlers. */}
-        {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
+        {/* ⛔ …AND ON A GOODS CATEGORY THE PAGE RENDERS IT, right under the grid, before Guides (owner-approved 2026-11-14, cook r06
+            goods — lede-placement.ts `ledePlacementFor`) — or under the empty state, with no grid: here only where the placement
+            is still this layout's. */}
+        {ledePlacementFor(cat.slug) === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
         {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone). It was
             a row of its own above the breadcrumb. It stays a server-rendered `<a hreflang>` to the twin (crawlers and
             readers without JavaScript keep the link, CS-3 V3b-4), now at the end of the page; on a phone the

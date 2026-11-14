@@ -19,12 +19,17 @@ import { cn } from '@/lib/utils'
  * one glyph: the profile line wears the same BadgeCheck (never the Solar shield — that is the trust chip's).
  * ⛔ THE WORDS ARE ONLY EVER "Identity verified" / "Đã xác minh danh tính" — never "Verified by eno", never "xác thực".
  */
-export function IdentityVerifiedMark({ id, className }: { id?: string; className?: string }) {
+export function IdentityVerifiedMark({ id, className, glyphClassName }: {
+  id?: string
+  className?: string
+  /** The glyph's size, where the line beside it is larger: `size-4` on the teacher card's 24px name line (2026-11-14). */
+  glyphClassName?: string
+}) {
   const { tr } = useLanguage()
   const label = tr('Identity verified', 'Đã xác minh danh tính')
   return (
     <span id={id} role="img" aria-label={label} title={label} data-identity-mark="" className={cn('inline-flex shrink-0 items-center text-success', className)}>
-      <BadgeCheck aria-hidden className="h-3.5 w-3.5" />
+      <BadgeCheck aria-hidden className={cn('size-3.5', glyphClassName)} />
     </span>
   )
 }

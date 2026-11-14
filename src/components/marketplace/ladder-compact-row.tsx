@@ -5,7 +5,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
 import { Toggle } from '@/components/ui/toggle'
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown, LayoutGrid, Plus, UserRound } from '@/components/ui/icons'
 import { CategoryIcon } from './category-icons'
 import { offeredCategories, offeredIntents, offeredSubcategories } from './count-chip'
@@ -29,6 +29,9 @@ import type { FacetCounts } from '@/lib/facet-counts'
  * 80% of the first screen was controls, and a "no results" answer sat below the fold. Once the feed
  * is DIRECTED those tiles have done their job; the answer is what the reader came for.
  *
+ * ⛔ EXCEPT A SEARCH WITH NO CATEGORY PICKED, ON A PHONE (owner-approved 2026-11-14, cook r06 goods): there this row is not drawn —
+ * the scope chip joins the sticky filter row (ScopeChip, below) and the quick chips are what it opens. Everything below holds
+ * with a category picked, and from sm.
  * WHAT THE ROW HOLDS (one line, horizontally scrollable, nothing wraps):
  *   · the SCOPE button first — the current category (or "All categories"), highlighted, with a
  *     chevron: tap it and the full ladder (tile grid + brands) opens below it, tap again and it folds
@@ -226,17 +229,17 @@ export function LadderCompactRow({
  * against a visible rail.
  * The panel fades in on open (150ms, opacity only; none under reduced motion) and leaves at once:
  * the chips take its place in the same commit, so a fade-out would stack the two.
+ * ⚠️ NO COLLAPSIBLE ROOT OF ITS OWN SINCE 2026-11-14 (cook r06 goods): the explorer's `[data-ladder]` IS the root, in every
+ * state (listings-explorer.tsx), so a trigger elsewhere in the ladder — the goods search's scope chip at the head of the
+ * sticky filter row (<ScopeChip>) — reaches the same open state. A bare fragment here: the row and the panel stay where
+ * they always were in the stack, and the open state is the root's (`ladderOpen`).
  */
 export function LadderSlot({
   collapsed,
-  open,
-  onOpenChange,
   row,
   children,
 }: {
   collapsed: boolean
-  open: boolean
-  onOpenChange: (open: boolean) => void
   row: ReactNode
   children: ReactNode
 }) {
@@ -245,12 +248,64 @@ export function LadderSlot({
   // are hidden, so the first frame is the folded page and the fold itself moves nothing (all21 phone hunt #1, 2026-11-09).
   if (!collapsed) return <><div aria-hidden className="ladder-row-reserve" />{children}</>
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange}>
+    <div>
       {row}
-      <CollapsiblePanel className="mt-4 space-y-4 transition-opacity duration-150 ease-[var(--ease-out-strong)] data-starting-style:opacity-0 motion-reduce:transition-none">
+      <CollapsiblePanel className={LADDER_PANEL}>
         {children}
       </CollapsiblePanel>
-    </Collapsible>
+    </div>
+  )
+}
+
+/** The folded ladder's panel: the full rails, faded in on open (150ms, opacity only). Shared by the compact row's slot and the
+ *  goods search's panel under the filter row (listings-explorer.tsx `oneRow`), which drops the `mt-4` (the stack's gap). */
+export const LADDER_PANEL = 'mt-4 space-y-4 transition-opacity duration-150 ease-out-strong data-starting-style:opacity-0 motion-reduce:transition-none'
+
+/**
+ * ⛔ THE GOODS SEARCH'S SCOPE CHIP (owner-approved 2026-11-14, cook r06 goods — it reverses this file's "WHAT THE ROW HOLDS: the
+ * scope button, then the NEXT RUNG as chips", owner 2026-09-24 "Collapse to one compact row", for one state). On a phone, a
+ * search with no category picked (listings-explorer.tsx `oneRow`) has ONE control row: this chip first, then Sort and the
+ * filter pills — the sticky filter row (SortStrip `phoneScope`). The quick category and intent chips are not drawn there:
+ * they are what this chip opens (the full ladder, in the panel right under the row). With a category picked the compact row
+ * above is unchanged.
+ * A plain chip like its neighbours (ui/chip-style PILL_* — white, the 1px line-strong edge, ink label): "All categories" is
+ * not a choice the reader made, so it is not the ink fill the compact row's scope pill wears. Words and a chevron only — the
+ * row's one glyph family (no grid glyph). A Base UI Collapsible trigger: aria-expanded and aria-controls come from the
+ * library, from the root on `[data-ladder]`. `relative tap-44`: 36px seen, 44 to the thumb (the row's `py-1` leaves room).
+ */
+export function ScopeChip({ expanded }: { expanded: boolean }) {
+  const { tr } = useLanguage()
+  return (
+    <CollapsibleTrigger
+      data-scope-chip=""
+      // The look on the <Button> itself (a render child's className is concatenated, not merged — CLAUDE.md).
+      render={<Button variant="bare" size="none" className={SCOPE_CHIP} />}
+    >
+      {tr('All categories', 'Tất cả danh mục')}
+      <ChevronDown aria-hidden className={cn(SCOPE_CHEVRON, expanded && 'rotate-180')} />
+    </CollapsibleTrigger>
+  )
+}
+const SCOPE_CHIP = cn(PILL_BOX, PILL_REST, 'shrink-0 gap-1.5 whitespace-nowrap')
+const SCOPE_CHEVRON = 'size-4 shrink-0 transition-transform duration-200 ease-out-strong motion-reduce:transition-none'
+
+/**
+ * The scope chip's place on a COLD search link's first frame (the ISR home under the pre-paint mask, before the explorer has
+ * folded): `.scope-chip-reserve` is display:none, except on a phone whose pre-paint script folds a link with no category
+ * (globals.css, the goods cold-link rules) — there it holds the chip's exact width, invisible, at the head of the strip, so
+ * when the fold draws the real chip in its place the pills after it do not move. The SAME box as <ScopeChip> (its classes,
+ * words and chevron, through the same primitive), so the two can never differ in width, in either language. Decorative:
+ * aria-hidden, a span, never focusable.
+ */
+export function ScopeChipReserve() {
+  const { tr } = useLanguage()
+  return (
+    <Button asChild variant="bare" size="none" className={cn(SCOPE_CHIP, 'scope-chip-reserve')}>
+      <span aria-hidden>
+        {tr('All categories', 'Tất cả danh mục')}
+        <ChevronDown aria-hidden className={SCOPE_CHEVRON} />
+      </span>
+    </Button>
   )
 }
 

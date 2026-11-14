@@ -307,4 +307,40 @@ export function explorerUrlFolds(search: string | URLSearchParams): boolean {
   return fold
 }
 
-export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);var FK=${JSON.stringify(FOLD_KEYS)},FA=${JSON.stringify(FOLD_ALL_DEFAULT)},f=false,P=new URLSearchParams(location.search),S={};P.forEach(function(_,k){if(f||S[k])return;S[k]=1;var v=(P.get(k)||'').trim();if(!v)return;if(k==='view'){if(v==='compact'||v==='map'||v==='video')f=true;return}if(k==='deal'){if(v==='good')f=true;return}if(k==='province'){if(/^\\d{1,6}$/.test(v))f=true;return}if(v==='all'&&FA.indexOf(k)>-1)return;if(FK.indexOf(k)>-1)f=true});if(f)d.setAttribute(${JSON.stringify(FOLD_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed');d.removeAttribute(${JSON.stringify(FOLD_ATTR)})},15000)}catch(e){}})();`
+/**
+ * ⛔ THE HOME PAGE'S PHONE LANES NEVER PAINT ON A LINK THAT WILL HIDE THEM (owner-approved 2026-11-14, cook r04 home-b "lanes as
+ * rails"). On a phone the ISR home now opens on its lanes — Trending, the category lanes, Outstanding businesses, Partners —
+ * ABOVE the toolbar and the feed (listings-explorer.tsx `data-home-lanes`), and every query string is served that one
+ * document. The explorer draws the lanes only while it shows undirected browse (`showDiscovery`), so a cold /?q=laptop would
+ * paint about three screens of lanes and drop them at hydration, moving the whole feed up. This attribute marks such a URL
+ * before the first paint and globals.css keeps the lanes out of that frame (display).
+ * ⚠️ NOT LIFTED BY THE 15 s NET (unlike the mask and the fold): a page whose JavaScript never arrives keeps the feed where it
+ * painted it rather than have three screens of lanes land above a reader at fifteen seconds. The explorer drops it once the
+ * lanes have left its tree, or — on a link it leaves undirected after all — once the URL's own answer is drawn.
+ */
+export const LANES_OFF_ATTR = 'data-home-lanes-off'
+
+/**
+ * Will the explorer hide this URL's undirected-browse chrome (`showDiscovery` false)? `explorerUrlFolds` with one view
+ * difference, because the two questions differ there: `?view=compact` folds the ladder from the first frame, but the
+ * explorer then un-latches it to the undirected home — lanes and all (globals.css records that path) — while
+ * `?view=map` / `?view=video` are takeovers that never show them. Everything else that folds is a filter the explorer
+ * applies, and a filtered feed shows no lanes. `?sort=` and `?match=` direct nothing (the mask still covers the seed).
+ */
+export function explorerUrlHidesLanes(search: string | URLSearchParams): boolean {
+  let off = false
+  const p = new URLSearchParams(search)
+  new Set(p.keys()).forEach((k) => {
+    if (off) return
+    const v = (p.get(k) ?? '').trim()
+    if (!v) return
+    if (k === 'view') { if (v === 'map' || v === 'video') off = true; return }
+    if (k === 'deal') { if (v === 'good') off = true; return }
+    if (k === 'province') { if (/^\d{1,6}$/.test(v)) off = true; return }
+    if (v === 'all' && (FOLD_ALL_DEFAULT as readonly string[]).includes(k)) return
+    if ((FOLD_KEYS as readonly string[]).includes(k)) off = true
+  })
+  return off
+}
+
+export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);var FK=${JSON.stringify(FOLD_KEYS)},FA=${JSON.stringify(FOLD_ALL_DEFAULT)},f=false,P=new URLSearchParams(location.search),S={},h=false;P.forEach(function(_,k){if(S[k])return;S[k]=1;var v=(P.get(k)||'').trim();if(!v)return;if(k==='view'){if(v==='compact')f=true;else if(v==='map'||v==='video')h=true;return}if(k==='deal'){if(v==='good')h=true;return}if(k==='province'){if(/^\\d{1,6}$/.test(v))h=true;return}if(v==='all'&&FA.indexOf(k)>-1)return;if(FK.indexOf(k)>-1)h=true});if(h)f=true;if(f)d.setAttribute(${JSON.stringify(FOLD_ATTR)},'');if(h)d.setAttribute(${JSON.stringify(LANES_OFF_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed');d.removeAttribute(${JSON.stringify(FOLD_ATTR)})},15000)}catch(e){}})();`

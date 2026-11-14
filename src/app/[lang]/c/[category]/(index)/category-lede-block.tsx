@@ -26,7 +26,17 @@ import { ClampedLede } from '../clamped-lede'
  * tier, and CategoryLede closes on the report sentence only where the tier is 'none' (a linked tier
  * says where the listings open instead).
  */
-export async function CategoryLedeBlock({ slug }: { slug: string }) {
+export async function CategoryLedeBlock({ slug, placement }: {
+  slug: string
+  /**
+   * ⛔ 'after-grid' — A GOODS CATEGORY'S LEDE, RIGHT UNDER ITS GRID (owner-approved 2026-11-14, cook r06 goods; lede-placement.ts
+   * `ledePlacementFor`): the paragraph WHOLE — a plain server <p>, the same words and the same nesting ClampedLede draws, no
+   * clamp and no "Show more" (it reverses there clamped-lede.tsx's "ONE LINE SINCE 2026-10-18": the clamp was the fold's budget,
+   * and below the grid there is none). 24px under the grid on a phone in the small role, muted (14/20 — it closes the listings,
+   * it does not lead them); from sm the lede's own look, 40px under the grid's end.
+   */
+  placement?: 'after-grid'
+}) {
   const loaded = await loadCategory(slug)
   // The layouts above have already answered 404 for an unknown slug; nothing to say here either way.
   if (!loaded) return null
@@ -44,7 +54,20 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
   // Also for rentals with no place live (facts null): the generic lede then speaks, and its trust
   // claim must know the vehicle hire is all linked.
   const linkedCount = !rentals && total > 0 ? await loadLinkedCount(cat.id) : 0
-  // `data-category-lede` is how H2's crawler spec finds the lede, wherever it renders (ClampedLede's <p>).
+  // `data-category-lede` is how H2's crawler spec finds the lede, wherever it renders (ClampedLede's <p>, or the goods one below).
+  if (placement === 'after-grid') {
+    return (
+      <div className="mt-6 sm:mt-10">
+        <p data-category-lede="" className="max-w-prose text-base leading-relaxed text-body max-sm:text-sm max-sm:leading-5 max-sm:text-muted-foreground">
+          {rentals ? (
+            <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} vehicles={rentals.vehicles} homes={rentals.homes} homesLinked={rentals.homesLinked} />
+          ) : (
+            <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} linked={linkedTier(linkedCount, total)} total={total} top={await topSubcategories} />
+          )}
+        </p>
+      </div>
+    )
+  }
   return (
     <>
       <div className="mt-8 sm:mt-10">
@@ -79,16 +102,21 @@ export function CategoryLedeLinks({ slug }: { slug: string }) {
           opens /rentals/check, whose empty list says the rest (how to pick, up to 5, free). The whole sentence stays
           in the HTML, and from sm it reads in full with the same link at its end (RentalCheckHint, 2026-11-07 audit). */}
       {cat.slug === 'rentals' && (
-        <div className="mt-2 flex max-w-prose items-center gap-2">
+        <div className="mt-2 flex max-w-prose items-center gap-2 max-sm:mt-1">
           <RentalCheckHint className="min-w-0 flex-1 max-sm:items-center max-sm:[&>span]:min-w-0 max-sm:[&>span]:truncate" />
-          {/* `-my-1 py-1`, not `tap-44`: "Show more" sits 10px above (ClampedLede says why the extender went). */}
-          <Link href={RENTAL_CHECK_PATH} prefetch={false} className="-my-1 shrink-0 py-1 text-sm font-semibold text-accent-foreground hover:underline sm:hidden">
+          {/* ⛔ `relative tap-44`, A 44px TARGET (owner-approved 2026-11-14, cook r06 rentals-a — it reverses "`-my-1 py-1`, not
+              `tap-44`: 'Show more' sits 10px above"): the lede and its "Show more" left the space above this line with H1b (it
+              renders after the grid now), so on a phone the line sits under the page's heading line, which holds nothing to tap,
+              and the strip's chips start 24px below it. The label role (14/20 bold) in the one accent. A flex sibling of the
+              hint, not a link inside its sentence, so it carries no underline at rest. */}
+          <Link href={RENTAL_CHECK_PATH} prefetch={false} className="relative tap-44 shrink-0 text-sm font-bold text-accent-foreground hover:underline sm:hidden">
             <Bilingual en="Check availability" vi="Kiểm tra phòng trống" />
           </Link>
         </div>
       )}
-      {/* Cover lessons: the schools' door, outside the clamped lede so a phone shows it (category-lede.tsx). */}
-      {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm text-body" />}
+      {/* Cover lessons: the schools' door, outside the clamped lede so a phone shows it (category-lede.tsx). One line, 8px under
+          the H1, the question muted (owner-approved 2026-11-14, cook r04 teachers: the teaching lines' shape). */}
+      {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 text-sm text-muted-foreground" />}
     </>
   )
 }

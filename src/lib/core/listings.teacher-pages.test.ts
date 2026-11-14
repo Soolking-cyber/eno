@@ -144,6 +144,7 @@ describe('setStatusCore on a TEACHER\'s listing — the dashboard row, /api/v1, 
     h.row = listing('active', 'sell')
     expect(await setStatusCore('L1', 'hidden')).toEqual({ ok: true, status: 'hidden' })
     expect(h.teacherSync).toEqual([])
-    expect(h.purged).toEqual(['/listings/L1'])
+    // Its own page and the home page (whose cached lanes carry listing cards since 2026-11-14), never the teacher pages.
+    expect(h.purged).toEqual(['/listings/L1', '/'])
   })
 })

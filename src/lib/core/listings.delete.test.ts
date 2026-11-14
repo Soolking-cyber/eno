@@ -343,7 +343,8 @@ describe('⛔ a TEACHER\'s profile listing is a person: its tombstone is SCRUBBE
     expect(h.storageTombstones).toEqual([])
     for (const fn of h.afters) await fn()
     expect(h.purgedUrls).toEqual([])
-    expect(h.purgedPages).toEqual(['/listings/L1']) // its own page only: the teacher pages are a teacher's
+    // Its own page and the home page (whose cached lanes carry listing cards since 2026-11-14); the teacher pages are a teacher's.
+    expect(h.purgedPages).toEqual(['/listings/L1', '/'])
   })
 
   /**

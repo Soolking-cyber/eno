@@ -47,9 +47,12 @@ for (const lang of ['en', 'vi'] as const) {
       // A real page scroll, not mouse.wheel: in a touch context Playwright's synthetic wheel does not scroll the page
       // (see dropdown-scroll-dismiss.spec.ts), and the bar follows the scroll position.
       // useHideOnScroll ANCHORS on the first scroll frame and decides nothing there, so scroll in two steps a frame apart.
-      await page.evaluate(() => window.scrollBy(0, 200))
-      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
-      await page.evaluate(() => window.scrollBy(0, 700))
+      // Steps a thumb makes, a frame apart: the hook skips a frame in which the page's height changed (lanes that load as
+      // they come into view), so one big jump can land only on skipped frames.
+      for (let i = 0; i < 8; i++) {
+        await page.evaluate(() => window.scrollBy(0, 150))
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+      }
       await expect.poll(() => nav.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
       // Back near the top (y < revealOffset) always brings the bar back.
       await page.evaluate(() => window.scrollTo(0, 0))

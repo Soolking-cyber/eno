@@ -19,6 +19,7 @@ import {
   type RentalCheckSource,
 } from '@/lib/rental-check/store'
 import { cn } from '@/lib/utils'
+import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 
 type Tr = (en: string, vi?: string) => string
 
@@ -70,7 +71,8 @@ export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; s
  *   heart, the bottom-left holds the video / saved chips, the centre holds the slot pips, and the
  *   bottom-right was the one free corner — above the eno.vn mark, which also lives there (see the
  *   chip's className).
- *   ⛔ GLYPH-ONLY AT EVERY WIDTH, AND THAT IS MEASURED, NOT TASTE. The plan put the word "Check" /
+ *   ⛔ GLYPH-ONLY AT EVERY WIDTH, AND THAT IS MEASURED, NOT TASTE (on the photo; the wide phone card's labelled chip in its text
+ *   block is the owner-approved 2026-11-14 exception — `chip`, below). The plan put the word "Check" /
  *   "Kiểm tra" beside the glyph from `sm` up. On the /c/rentals grid (dev build, 12 cards per width)
  *   the glyph-only chip clears the pips by 23px at 360, 31 at 390, 36 at 640, 58 at 768 and 16 at
  *   1024; the word adds 41px (EN) / 51px (VI). So at 640 it lands ON the pips, at 1024 the VI chip
@@ -78,6 +80,14 @@ export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; s
  *   breakpoint cannot know the card's width. The name is in the tooltip on a hovering pointer and in
  *   `aria-label` everywhere; the first add explains the feature in a toast.
  * `pdp` — a full-width outline button under the contact block, with the free line beneath it.
+ * `chip` — ⛔ THE WIDE PHONE CARD'S TRUST SLOT (owner-approved 2026-11-14, cook r06 rentals-a — it reverses, on that card and
+ *   below `sm` only, "a plated chip at the PHOTO's bottom-right" and "GLYPH-ONLY AT EVERY WIDTH"): a LABELLED chip at the
+ *   end of the price line — the 18px glyph and "Check availability" / "Kiểm tra phòng trống" as its visible name, the browse
+ *   chip's look (ui/chip-style PILL_*; added = the ink fill). The measurement above was about colliding with the photo's
+ *   pips; the text block of a 366px card has the room, and there it says what it does instead of asking for a tooltip.
+ *   Same store, same add/remove, same toasts, `aria-pressed`, `data-rental-check-toggle`. Its name is its visible words
+ *   (no aria-label, no tooltip). The card renders it beside a photo copy that is `max-sm:hidden` and itself sits in a
+ *   `sm:hidden` slot, so each width has ONE in the box tree and the tab order (listing-card.tsx `wide`).
  *
  * ⛔ NOT ON THE VIEWER'S OWN LISTING. Asking eno to check whether your own flat is free is a dead
  * end, and a seller browsing their storefront would read the chip as a control over their listing.
@@ -88,7 +98,7 @@ export function RentalCheckToggle({
   className,
 }: {
   listing: RentalCheckToggleListing
-  variant: 'card' | 'pdp'
+  variant: 'card' | 'chip' | 'pdp'
   className?: string
 }) {
   const { sellerId } = useAuth()
@@ -100,7 +110,9 @@ export function RentalCheckToggle({
   // the count would re-render all ~48 of a feed's chips on every add instead of just its own.
   return variant === 'pdp'
     ? <PdpToggle listing={listing} className={className} />
-    : <CardToggle listing={listing} className={className} />
+    : variant === 'chip'
+      ? <ChipToggle listing={listing} className={className} />
+      : <CardToggle listing={listing} className={className} />
 }
 
 /** Add, with the two toasts: "only five" when full, and the free explainer on the session's first add. */
@@ -160,10 +172,13 @@ function CardToggle({ listing, className }: { listing: RentalCheckSource; classN
           // is aspect-square, so a % bottom (height-relative) and the mark's width-relative height are
           // the same length.
           'absolute bottom-[calc(7.9%+4px)] right-2 z-10 h-7 w-7 rounded-full tap-44',
-          'focus-visible:ring-2 focus-visible:ring-white',
-          // The resting chip wears the bottom-left status chips' own plate (dark on light, light on
-          // dark); the added state is the brand fill — user state, the one solid moment (icon-language §5).
-          added ? 'bg-brand text-white' : 'bg-foreground/70 text-background material backdrop-blur-[2px]',
+          // ⛔ THE SHELL'S WHITE PLATE (owner-approved 2026-11-14, cook r05/r06: "over a photo: only white plates"; it reverses the
+          // dark `bg-foreground/70` plate that matched the old status chips): white at 95% with an ink glyph and the plate's own
+          // lift, the same in both themes, like the heart and the `.photo-badge` chips beside it. Added = the INK fill (the
+          // shell's selected look; it was the brand fill). The keyboard ring is the accent: a white ring on a white plate is no
+          // focus indicator (WCAG 2.4.7).
+          'focus-visible:ring-2 focus-visible:ring-ring',
+          added ? 'bg-on-plate text-plate-fill shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
           className,
         )}
       >
@@ -176,6 +191,44 @@ function CardToggle({ listing, className }: { listing: RentalCheckSource; classN
           : <ClipboardCheck className="icon-own-ink h-4 w-4" aria-hidden />}
       </Button>
     </Tooltip>
+  )
+}
+
+/**
+ * The wide phone card's labelled chip (`variant="chip"`, above). `relative z-10` (PILL_BOX carries the `relative`) lifts it
+ * over the card's stretched link (`absolute inset-0 z-0`), which would otherwise take the tap; PILL_BOX's `tap-44` gives the
+ * 36px chip its 44px hit area. `shrink-0 whitespace-nowrap`: the price beside it is the thing that wraps (at its own run
+ * boundaries — price.tsx), never these words.
+ */
+function ChipToggle({ listing, className }: { listing: RentalCheckSource; className?: string }) {
+  const { tr } = useLanguage()
+  const added = useInRentalBasket(listing.id)
+  const add = useAddToCheck(listing)
+  return (
+    <Button
+      type="button"
+      variant="bare"
+      size="none"
+      // The name is the visible words; `aria-pressed` carries the state (the save heart's rule, ARIA APG Button-Toggle).
+      aria-pressed={added}
+      data-rental-check-toggle=""
+      onClick={(e) => {
+        e.stopPropagation()
+        if (added) { hapticTap(); removeFromBasket(listing.id) } else add()
+      }}
+      className={cn(
+        PILL_BOX,
+        added ? PILL_ON : PILL_REST,
+        'z-10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap',
+        className,
+      )}
+    >
+      {/* `icon-own-ink`, as on the photo chip: `aria-pressed="true"` would otherwise paint the glyph's Bold layer accent. */}
+      {added
+        ? <Check className="icon-own-ink size-4.5 shrink-0" aria-hidden />
+        : <ClipboardCheck className="icon-own-ink size-4.5 shrink-0" aria-hidden />}
+      {tr('Check availability', 'Kiểm tra phòng trống')}
+    </Button>
   )
 }
 
@@ -210,7 +263,9 @@ export function RentalCheckHint({ className }: { className?: string }) {
   const { tr } = useLanguage()
   return (
     <p className={cn('flex items-start gap-2 text-sm text-body', className)}>
-      <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+      {/* On a phone the glyph is 18px INK (owner-approved 2026-11-14, cook r06 rentals-a, the shell's "one accent — never an
+          icon"): the line's one accent is its "Check availability" link beside it. From sm it is the 16px brand glyph it was. */}
+      <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand max-sm:mt-0 max-sm:size-4.5 max-sm:text-foreground" aria-hidden />
       {/* ⛔ THE PHONE'S LINE IS WRITTEN TO FIT, NOT CUT TO FIT (UI climb 2026-11-05). It holds one line beside "Check availability"
           (owner, 2026-10-18); cut at ~31 characters the long sentence read "Pick up to 5 rentals and the en…". */}
       <span className="max-sm:hidden">
@@ -225,7 +280,8 @@ export function RentalCheckHint({ className }: { className?: string }) {
           {tr('Check availability', 'Kiểm tra phòng trống')}
         </Link>
       </span>
-      <span className="sm:hidden">{tr('Free check, up to 5 rentals', 'Kiểm tra miễn phí 5 căn')}</span>
+      {/* Muted on a phone (owner-approved 2026-11-14, cook r06 rentals-a): the line is the meta under the page's name. */}
+      <span className="text-muted-foreground sm:hidden">{tr('Free check, up to 5 rentals', 'Kiểm tra miễn phí 5 căn')}</span>
     </p>
   )
 }

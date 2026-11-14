@@ -85,12 +85,13 @@ test.describe('Guest · /c/rentals one control row (batch 93)', () => {
     await expect(strip.locator('a[href*="view=map"]')).toBeVisible()
     expect(await page.locator('main a[href*="view=map"]').filter({ visible: true }).count()).toBe(1)
     // The count: on the heading line, at its right end (the 12px gutter), not in the strip; the page never scrolls sideways.
+    // ⛔ A flex sibling AFTER the heading since 2026-11-14 (owner-approved, cook r06 rentals-a: DOM order = visual order).
     const count = page.locator('[data-heading-count]')
     await expect(count).toBeVisible()
     await expect(count).toHaveText(/\d/)
     const geo = await count.evaluate((el) => {
       const c = el.getBoundingClientRect()
-      const h = (el.nextElementSibling as HTMLElement).getBoundingClientRect()
+      const h = (el.previousElementSibling as HTMLElement).getBoundingClientRect()
       return {
         right: c.right, top: c.top, bottom: c.bottom, hTop: h.top, hBottom: h.bottom, hRight: h.right, left: c.left,
         inStrip: !!el.closest('[data-pinned-strip]'), w: innerWidth, sw: document.documentElement.scrollWidth,

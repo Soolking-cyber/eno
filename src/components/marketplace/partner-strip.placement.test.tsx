@@ -4,8 +4,8 @@
  * of the home feed, not the first thing under the header; from `sm` up it is where it was. One component, two mounts,
  * each shown at its own widths by a class, both in the server's HTML:
  *   · `top`  → `max-sm:hidden`, and nothing that marks it as a feed row;
- *   · `feed` → `sm:hidden col-span-full`, `data-partner-band` (the hook globals.css uses to take it out of a directed
- *     cold link's masked seed and to count it among the grid's first children), and no page gutter of its own.
+ *   · `feed` → `sm:hidden`, `data-partner-band`, and no page gutter of its own — since 2026-11-14 (owner-approved, cook r04
+ *     home-b) the Partners LANE among the home page's phone lanes, named by its own heading, no longer a grid row.
  * Only the top copy runs the loop, and only from `sm` up; the feed copy holds still at every width (owner, 2026-11-14:
  * "8 still band"). So a phone's band never moves, and a hidden band never holds six rosters of logos in the DOM.
  */
@@ -54,12 +54,25 @@ describe('the two placements, from the server', () => {
     expect(html).toContain('max-w-7xl')
   })
 
-  it('feed: a full-width grid row shown below sm only, marked for the stylesheet, with no gutter of its own', () => {
+  it('⛔ feed: the phone\'s Partners LANE (owner-approved 2026-11-14) — below sm only, no band chrome, named by its own heading', () => {
     const html = renderToString(<PartnerStrip placement="feed" />)
-    expect(sectionClass(html)).toEqual(['partner-strip', 'partner-strip-feed', 'col-span-full', 'sm:hidden'])
+    // No `partner-strip` (the band's height, fill and hairline) and no grid row (`col-span-full`): a lane among the lanes.
+    expect(sectionClass(html)).toEqual(['partner-strip-feed', 'sm:hidden'])
     expect(html).toContain('data-partner-band=""')
     expect(html).not.toContain('max-w-7xl')
     expect(html).not.toMatch(/class="[^"]*\bpx-3\b/)
+    // A lane heading (the redesign's t-h2 on a phone) that labels the section, by a generated id.
+    const id = /<h2 id="([^"]+)" class="([^"]*)"/.exec(html)
+    expect(id).not.toBeNull()
+    expect(id![2]).toContain('max-sm:text-t-h2')
+    expect(html).toMatch(new RegExp(`<section aria-labelledby="${id![1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`))
+    expect(html).not.toContain('aria-label="eno partners"')
+    // Each partner's word is the lane's label role, whole.
+    expect(html).toContain('whitespace-nowrap text-sm font-bold text-foreground')
+    // The top band keeps its label and its small word.
+    const top = renderToString(<PartnerStrip />)
+    expect(top).toContain('aria-label="eno partners"')
+    expect(top).not.toContain('<h2')
   })
 
   it('each sends every partner once, as one still row', () => {
@@ -252,19 +265,25 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
 })
 
 describe('the stylesheet side', () => {
-  it('takes the feed row out of a directed cold link from the first frame, with display, not visibility', () => {
-    const rule = /html\[data-explorer-directed\] #listings \.feed-grid > \[data-partner-band\] \{\s*display: none;\s*\}/
-    expect(CSS).toMatch(rule)
+  it('a directed cold link never paints it: the whole phone lanes block is out of its first frame, by display', () => {
+    // The 2026-11-10 grid-row rule went with the row; the lanes block carries the copy now (explorer-url.ts LANES_OFF_ATTR).
+    expect(CSS).not.toContain('.feed-grid > [data-partner-band]')
+    expect(CSS).toMatch(/html\[data-home-lanes-off\] \[data-home-lanes\] \{\s*display: none;\s*\}/)
   })
 
-  it('counts thirteen first children of the feed grid, so the twelfth card is still never skipped', () => {
-    expect(CSS).toContain('.feed-grid > *:nth-child(-n + 13) [data-feed-card],')
-    expect(CSS).toContain('.feed-grid > *:nth-child(-n + 13)[data-feed-card] {')
-    expect(CSS).not.toContain('nth-child(-n + 12)')
+  it('counts twelve first children of the feed grid again: the partner row left the grid (2026-11-14)', () => {
+    expect(CSS).toContain('.feed-grid > *:nth-child(-n + 12) [data-feed-card],')
+    expect(CSS).toContain('.feed-grid > *:nth-child(-n + 12)[data-feed-card] {')
+    expect(CSS).not.toContain('nth-child(-n + 13)')
   })
 
-  it('gives the feed row a hairline above as well as below', () => {
-    expect(CSS).toMatch(/\.partner-strip-feed \{\s*border-top: 1px solid var\(--color-border\);\s*\}/)
+  it('⛔ the lane has no band chrome (owner-approved 2026-11-14: the 11-10 hairlines are reversed) and its tiles are lane-card wide', () => {
+    expect(CSS).not.toMatch(/\.partner-strip-feed \{\s*border-top/)
+    // 220px × 56 tiles, white with the chips' hairline at the photo radius; the viewport bleeds to the screen edges.
+    const link = /\n\.partner-strip-feed \.partner-strip-link \{([^}]*)\}/.exec(CSS)![1]
+    for (const d of ['min-width: 13.75rem;', 'height: 3.5rem;', 'border: 1px solid var(--color-line-strong);', 'border-radius: var(--radius-media);', 'background: var(--color-background);']) expect(link).toContain(d)
+    expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-viewport \{\s*margin-inline: -0\.75rem;/)
+    expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-track \{\s*gap: 0\.75rem;\s*padding-inline: 0\.75rem;\s*\}/)
   })
 
   it('⛔ the feed copy scrolls by hand with no edge fade (owner 2026-11-14); the top copy keeps its fade', () => {

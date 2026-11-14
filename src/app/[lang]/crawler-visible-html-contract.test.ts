@@ -132,11 +132,29 @@ describe('the category page renders its header, breadcrumb, H1 and grid inline',
     expect(s).not.toMatch(/\b(?:loadCategory|loadRentalsFacts|loadLinkedCount|loadDistrictChips)\s*\(|\.(?:count|groupBy|findMany|aggregate)\s*\(|\bdb\./)
   })
 
-  /** The lede block is the one place the counts are read above the grid; it renders exactly once. */
-  it('the lede renders in the layout only under placement "layout", and in the page only under "page"', () => {
-    const at = (file: string) => src(file).match(/(?:LEDE_PLACEMENT === '(?:page|layout)' && )?<CategoryLedeBlock\b/g) ?? []
-    expect(at(`${IDX}/layout.tsx`)).toEqual(["LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock"])
-    expect(at(`${IDX}/page.tsx`)).toEqual(["LEDE_PLACEMENT === 'page' && <CategoryLedeBlock"])
+  /**
+   * The lede block is the one place the counts are read above the grid; it renders exactly once. ⛔ Per slug since 2026-11-14
+   * (owner-approved, cook r06 goods — lede-placement.ts `ledePlacementFor`): a goods category's lede renders in the page right
+   * after the grid ('after-grid'), every other category's where `LEDE_PLACEMENT` says. The three gates are disjoint, so exactly
+   * one renders for any slug.
+   */
+  it('the lede renders in the layout only under placement "layout", in the page only under "page", and after the grid only under "after-grid"', () => {
+    // Every render of the block and the gate in front of it (the text between its `{` and `&& <CategoryLedeBlock`).
+    const gates = (file: string) => [...src(file).matchAll(/\{([^{}]*?) && <CategoryLedeBlock\b/g)].map((m) => m[1])
+    expect(src(`${IDX}/layout.tsx`).match(/<CategoryLedeBlock\b/g)).toHaveLength(1)
+    expect(gates(`${IDX}/layout.tsx`)).toEqual(["ledePlacementFor(cat.slug) === 'layout'"])
+    // The page's first gate (the global value) excludes goods, and goods is exactly where `ledePlacementFor` says 'after-grid':
+    // a goods slug renders it after the grid only, any other slug where LEDE_PLACEMENT says.
+    // ⛔ Twice under 'after-grid' (commit review, 2026-11-14): once under the grid, once under the empty state — the two arms of
+    // the page's `listings.length > 0 ?` — so an empty goods category keeps its lede and any page still renders one.
+    expect(src(`${IDX}/page.tsx`).match(/<CategoryLedeBlock\b/g)).toHaveLength(3)
+    expect(gates(`${IDX}/page.tsx`)).toEqual(["LEDE_PLACEMENT === 'page' && !isGoodsCategory(cat.slug)", "ledePlacementFor(cat.slug) === 'after-grid'", "ledePlacementFor(cat.slug) === 'after-grid'"])
+    expect(src(`${IDX}/page.tsx`).match(/<CategoryLedeBlock slug=\{cat\.slug\} placement="after-grid" \/>/g)).toHaveLength(2)
+    // …the first after the grid (the CategoryListings call) and before Guides, in the DOM; the second after the empty state.
+    const page = src(`${IDX}/page.tsx`)
+    expect(page.indexOf('placement="after-grid"')).toBeGreaterThan(page.indexOf('<CategoryListings'))
+    expect(page.indexOf('placement="after-grid"')).toBeLessThan(page.indexOf('<CategoryGuides'))
+    expect(page.lastIndexOf('placement="after-grid"')).toBeGreaterThan(page.indexOf('<EmptyState'))
     expect(src(`${IDX}/lede-placement.ts`)).toMatch(/^export const LEDE_PLACEMENT = '(?:page|layout)' as 'page' \| 'layout'$/m)
   })
 

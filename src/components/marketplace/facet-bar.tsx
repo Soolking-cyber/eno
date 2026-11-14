@@ -277,7 +277,18 @@ export type FacetBarProps = {
    * `useBackToClose`), and from sm up they stay in-place tweaks.
    */
   onCommit?: () => void
+  /**
+   * ⛔ 'goods' — THE ORDER A BUYER OF GOODS FILTERS IN (owner-approved 2026-11-14, cook r06 goods; the explorer passes it on a
+   * phone over a goods surface, listings-explorer.tsx `goodsLook`): Price, Condition, Type, then Area. It reverses there the
+   * intent-first row ("CONDITION — the 4th quick pill", owner 2026-09-14). Kept: Area stays to the RIGHT of price. The same
+   * pills, the same keys and the same panels — only their DOM order, so the tab order is the order on screen. Omitted, the
+   * row is exactly as below.
+   */
+  order?: 'goods'
 }
+
+/** The goods row's pill order (`order`): the facet keys below, first to last; any other pill keeps its place after them. */
+const GOODS_FACET_ORDER = ['price', 'condition', 'listingType', 'area']
 
 // Compact, category-aware facet bar (faceted-search pattern) — all facets come
 // from the canonical taxonomy (src/lib/taxonomy.ts). Only the facets relevant to
@@ -318,6 +329,7 @@ export function FacetBar({
   resultCount,
   onPanelOpenChange,
   onCommit,
+  order,
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const isPhone = useIsPhone()
@@ -492,7 +504,8 @@ export function FacetBar({
   )
 
   /**
-   * CONDITION — the 4th quick pill (owner, 2026-09-14: "4th dropdown here to select used or new items").
+   * CONDITION — the 4th quick pill (owner, 2026-09-14: "4th dropdown here to select used or new items"). ⛔ The 2nd on a goods
+   * phone, after Price (owner-approved 2026-11-14, cook r06 goods — `order`).
    * Offered on the "all" browse state (the home page, where there is no Filter panel at all) and in every category
    * whose taxonomy has a `condition` facet; a category without one (services, jobs…) gets no pill, because every
    * row there has condition null and the filter could only empty the feed.
@@ -771,6 +784,17 @@ export function FacetBar({
         />
       ))
     }
+  }
+
+  // ⛔ The goods row's order (`order`, owner-approved 2026-11-14): a stable sort by GOODS_FACET_ORDER, by each pill's key,
+  // AFTER every insert above found its neighbour by key — so those rules still read the default order.
+  if (order === 'goods') {
+    const rank = (el: ReactNode) => {
+      const at = isValidElement(el) && typeof el.key === 'string' ? GOODS_FACET_ORDER.indexOf(el.key) : -1
+      return at === -1 ? GOODS_FACET_ORDER.length : at
+    }
+    const sorted = facets.map((el, i) => ({ el, i })).sort((a, b) => rank(a.el) - rank(b.el) || a.i - b.i).map((x) => x.el)
+    facets.splice(0, facets.length, ...sorted)
   }
 
   // The Filter pill. One element for both containers, so the trigger never differs between them.

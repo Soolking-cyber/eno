@@ -21,6 +21,13 @@
  * Slide Over or a tall narrow window keeps today's page.
  */
 export const HELD_FROM_CARD = 6
+/**
+ * …and from the THIRD card of a one-column phone grid (LISTING_GRID_WIDE — /c/rentals and the rentals feed, owner-approved
+ * 2026-11-14, cook r06 rentals-a). A wide card is the screen's width plus its 96px text block, so the third starts at about
+ * 1,030px at 320 wide (1,170 at 390) — past the 940px window globals.css holds photos in — while the second is on the first
+ * screen and must never wait.
+ */
+export const HELD_FROM_WIDE = 2
 export const IMAGE_HOLD_TIMEOUT_MS = 10_000
 /** On <html>, from the first byte of the document until `load`, the first scroll or the timer. */
 export const IMAGES_HELD_ATTR = 'data-images-held'

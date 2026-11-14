@@ -3,7 +3,7 @@
 import { useId, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { chipVariants } from '@/components/ui/chip'
-import { PILL_ON } from '@/components/ui/chip-style'
+import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -29,7 +29,7 @@ const PENDING_AREA_KEY = 'eno:pending-area'
  * ⚠️ NAVIGATING CHIPS ARE `chipVariants()` ON A <Link> (the canon's interactive chip; a link is not a
  * toggle — ui/chip.tsx), and the "Theo tỉnh/thành: / By city:" label names their group for a screen reader.
  */
-export function JobCityChips({ cities, total }: {
+export function JobCityChips({ cities, total, variant = 'row', className }: {
   cities: JobCity[]
   /**
    * The page's whole count (2026-11-06 audit). With it the row opens on "All N" (this page, in the applied look; not a link,
@@ -37,6 +37,17 @@ export function JobCityChips({ cities, total }: {
    * "48" beside "Showing 48 of 71" read as the grid's own filter. Left out, the row is the cities alone.
    */
   total?: number
+  /**
+   * ⛔ 'phone' — /c/jobs' phone copy, under the heading line (owner-approved 2026-11-14, cook r06 jobs; SellerListings
+   * `phoneHead.subhead`, rendered `sm:hidden` there while the page's 'row' copy is `max-sm:hidden`, so one row per width):
+   * the browse chips (PILL_BOX / PILL_REST, "All N" in PILL_ON, the counts regular — muted, white on the ink fill) in ONE row
+   * of whole chips that bleeds to the screen edges, so the rest swipe in from under the edge. It reverses there the visible
+   * "By city:" label (rentals-11, the 2026-11-06 audit): the label stays the group's name for a screen reader (`sr-only`), as
+   * the judged mock has it. No edge fade, never touch-action on the scroller.
+   */
+  variant?: 'row' | 'phone'
+  /** Merged last (the page's `max-sm:hidden` on the row copy). */
+  className?: string
 }) {
   const { tr, lang } = useLanguage()
   const href = localizedHref('/?category=jobs', variantOfLanguage(lang))
@@ -45,11 +56,23 @@ export function JobCityChips({ cities, total }: {
     try { sessionStorage.setItem(PENDING_AREA_KEY, JSON.stringify({ province: city.geo, ward: null, nearby: null })) } catch { /* storage blocked: it opens every job */ }
   }
   const labelId = useId()
+  const phone = variant === 'phone'
+  // The phone copy's chips: the browse chip (one chip style, ui/chip-style), 36px with its 44px hit area inside the row's py-1.
+  const chip = phone ? cn(PILL_BOX, PILL_REST, 'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap') : chipVariants({ size: 'sm', tone: 'neutral' })
   return (
-    <div role="group" aria-labelledby={labelId} className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
-      <span id={labelId} className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4">{tr('By city:', 'Theo tỉnh/thành:')}</span>
+    <div
+      role="group"
+      aria-labelledby={labelId}
+      className={cn(
+        phone
+          ? 'scrollbar-none -mx-3 mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-px-3 px-3 py-1'
+          : 'scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0',
+        className,
+      )}
+    >
+      <span id={labelId} className={phone ? 'sr-only' : 'shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4'}>{tr('By city:', 'Theo tỉnh/thành:')}</span>
       {total != null && (
-        <span aria-current="page" className={cn(chipVariants({ size: 'sm', tone: 'neutral' }), 'cursor-default', PILL_ON, 'hover:bg-foreground hover:text-background')}>
+        <span aria-current="page" className={cn(chip, 'cursor-default', PILL_ON, 'hover:bg-foreground hover:text-background')}>
           {tr('All', 'Tất cả')}
           <span className="font-normal tabular-nums">{total}</span>
         </span>
@@ -62,7 +85,7 @@ export function JobCityChips({ cities, total }: {
           prefetch={false}
           onClick={(e) => handOff(e, c)}
           data-job-city={c.geo.code}
-          className={chipVariants({ size: 'sm', tone: 'neutral' })}
+          className={chip}
         >
           {/* i18n-invariant: a city name — never machine-translated (PlaceName's rule). */}
           {lang === 'vi' ? c.label.vi : c.label.en}

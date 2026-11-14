@@ -1,7 +1,8 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useState } from 'react'
+import { useRowPress } from '@/hooks/use-row-press'
 import Image from 'next/image'
 import { PhotoFill } from './photo-fill'
 import { useRouter } from 'next/navigation'
@@ -56,9 +57,6 @@ export type CompactListingRowProps = {
   lazyThumb?: boolean
 }
 
-/** A floor under a navigation that never arrives — the same 4s as ListingCard's. */
-const PENDING_MAX_MS = 4000
-
 // Compact list row (bonbanh-style): thumbnail + title + price/location/trust meta
 // + locate/favorite actions. Memoized — compact is the default view mode, so every
 // row would otherwise re-render on any explorer state change (hover, page, filters).
@@ -106,6 +104,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
    *   · on a phone the title takes the 36px the row holds for a chat button a linked job never has, when no chip hangs there.
    * ⚠️ compact-listing-row-skeleton.tsx carries a job row's numbers in its `job` variant (one title line + the employer line
    * + the phone's place line): change both or neither.
+   * ⛔ …BUT NOT ON /c/jobs' PHONE LIST OR A JOB PAGE'S RAILS (owner-approved 2026-11-14, cook r06 jobs): there a job is a CARD
+   * (job-card-row.tsx — the same slot rules, the role whole, 8px between cards), which reverses this ruled row on those two
+   * surfaces. This row, its ruled list and its two-line clamp are the explorer's (/?category=jobs, listings-explorer.tsx).
    */
   const job = l.listingType === 'job'
   // ⛔ ONE MEANING OF "LINKED" IN THIS ROW: THE FLAG, the test the chat slot below has always used (commit review, two rounds:
@@ -149,17 +150,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
    *   released at touchend; the row looked untouched and invited a second tap. It now stays pressed
    *   until this row unmounts (a 4s floor frees it if the push never lands), and a second tap is a
    *   no-op instead of a duplicate push.
+   * The pending half lives in useRowPress (src/hooks/use-row-press.ts, extracted 2026-11-14 for the job card row, no change).
    */
-  const [pending, setPending] = useState(false)
-  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (pendingTimer.current) clearTimeout(pendingTimer.current) }, [])
-  const open = () => {
-    if (pending) return
-    setPending(true)
-    if (pendingTimer.current) clearTimeout(pendingTimer.current)
-    pendingTimer.current = setTimeout(() => { pendingTimer.current = null; setPending(false) }, PENDING_MAX_MS)
-    onOpen(l)
-  }
+  const { pending, open } = useRowPress(() => onOpen(l))
 
   return (
     <div

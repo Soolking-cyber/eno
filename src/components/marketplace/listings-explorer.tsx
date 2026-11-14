@@ -1,6 +1,6 @@
 'use client'
 
-import { HELD_FROM_CARD } from '@/lib/image-hold'
+import { HELD_FROM_CARD, HELD_FROM_WIDE } from '@/lib/image-hold'
 import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
@@ -34,8 +34,10 @@ import { PartnerStrip } from './partner-strip'
 import { customFilterChipLabel } from './facet-chip-label'
 import { multiFacetValues, removeMultiFacetValue } from '@/lib/multi-facet'
 import { FacetBarFallback } from './facet-bar-fallback'
-import { LISTING_GRID, MAP_CARD_SIZES } from './listing-grid'
-import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
+import { LISTING_GRID, LISTING_GRID_WIDE, MAP_CARD_SIZES, WIDE_CARD_SIZES } from './listing-grid'
+import { LADDER_PANEL, LadderCompactRow, LadderSlot, ScopeChip, ScopeChipReserve, useMdUp } from './ladder-compact-row'
+import { Collapsible, CollapsiblePanel } from '@/components/ui/collapsible'
+import { goodsScope } from '@/lib/goods-surface'
 import { ForYouRail } from './for-you-rail'
 import { RelatedShelf } from './related-shelf'
 import { useRecoveryRail } from './use-recovery-rail'
@@ -43,12 +45,13 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { BusinessRail } from './business-rail'
 import { TeacherShelf } from './teacher-shelf'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, ShelfSkeleton } from './shelf'
+import { CategoryLane, CategoryRails, useFreshCategoryLanes, visibleCategoryRails, type CategoryLaneData, type CategoryRailData } from './category-rails'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
 import { warmListing } from '@/lib/warm-listing'
 import { isFocusVisible } from '@/lib/focus-visible'
-import { applyFilterParams, FOLD_ATTR, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
+import { applyFilterParams, FOLD_ATTR, isSeededFeed, LANES_OFF_ATTR, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -59,7 +62,7 @@ import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
 import { ViewToggles, ViewSwitch, SortStrip, createHeaderHiddenSignal, type HeaderHiddenSignal } from './explorer-toolbar'
 import { rowsContinue } from './grid-run'
-import { PhoneFilterChips, ResultLine, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
+import { PhoneFilterChips, ResultLine, ResultsTitle, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { histogramQueryFrom } from '@/lib/price-histogram'
@@ -303,17 +306,20 @@ function releaseFeedEntry() {
   if (!feedSnapshotPending()) releaseScrollRestoration(window, () => !feedSnapshotPending())
 }
 
-// CategoryRails and the FacetBar are code-split out of the home route's initial bundle.
+// The FacetBar is code-split out of the home route's initial bundle.
 // ⚠️ NEITHER DESCRIPTION IN THE OLD VERSION OF THIS NOTE SURVIVED THE 2026-08-11 MERGE, so
-// read the new positions rather than the names: CategoryRails is no longer "below the fold"
-// by luck — it is now explicitly BELOW THE RESULTS GRID with the other discovery shelves —
-// and the FacetBar is no longer "filter-only", because home and search are one view and the
-// facets sit above the feed on both. FacetBar is therefore now a cold-path chunk that mounts
+// read the new positions rather than the names: the FacetBar is no longer "filter-only", because home and search are one
+// view and the facets sit above the feed on both. FacetBar is therefore now a cold-path chunk that mounts
 // AFTER hydration directly above the grid, which is why its slot is height-reserved at the
 // call site (min-h-9 today — the reasoning is spelled out there). ForYouRail + BusinessRail are static imports (they reuse the
 // already-bundled ListingCard), deferred at the call site with their height held: see DeferredShelf.
-/** The phone's partner row follows this many cards of the undirected home feed: two full rows at two columns. */
-const PARTNER_BAND_AFTER_CARD = 4
+// ⛔ CategoryRails IS A STATIC IMPORT SINCE 2026-11-14 (owner-approved, cook r04 home-b "lanes as rails"): its lanes are
+// server-rendered on a phone, ABOVE the feed (the `data-home-lanes` block), from rails the home page reads into its ISR
+// document (category-rails.tsx has the record). Under the desktop feed the same rails stay deferred: DeferredCategoryRails.
+
+/** The home page's phone lanes are shown below `sm` (`sm:hidden`); these name the two sides for a media query in JS. */
+const PHONE_MEDIA = '(max-width: 39.99rem)'
+const SM_UP_MEDIA = '(min-width: 40rem)'
 
 /**
  * ⛔ HOW FAR AHEAD THE SHELVES UNDER THE FEED START (owner, 2026-11-12: "on mobile landing page from services downwards loads
@@ -367,8 +373,6 @@ function CategoryRailsSkeleton() {
   )
 }
 
-const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false, loading: () => <CategoryRailsSkeleton /> })
-
 // Perf Phase 1: mount the per-category rails only when the user approaches them —
 // they injected many sections above the feed right after hydration (layout shift +
 // an immediate /api/category-rails fetch on every cold load). The sentinel is
@@ -392,7 +396,7 @@ const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.Cat
  * JavaScript gets them, one that does not still has the grid's links and the sitemap.
  * The height is the rail's, measured on production per width: it only has to keep what is below off the screen until they land.
  */
-function DeferredShelf({ children }: { children: React.ReactNode }) {
+function DeferredShelf({ children, className }: { children: React.ReactNode; /** `max-sm:hidden` under the feed: a phone's copy of these rails is a lane above it. */ className?: string }) {
   const { ref, due } = useShelfDue<HTMLDivElement>()
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -403,62 +407,41 @@ function DeferredShelf({ children }: { children: React.ReactNode }) {
   }, [due])
   // Until it shows, the held height (exact, clipped) carries the rail's shape — never an empty band (SHELF_LOOKAHEAD).
   return show
-    ? <div ref={ref}>{children}</div>
-    : <div ref={ref} className="h-[calc(50vw+107px)] overflow-hidden sm:h-[349px] xl:h-[413px]"><ShelfSkeleton /></div>
+    ? <div ref={ref} className={className}>{children}</div>
+    : <div ref={ref} className={cn('h-[calc(50vw+107px)] overflow-hidden sm:h-[349px] xl:h-[413px]', className)}><ShelfSkeleton /></div>
 }
 
-/** Only a seed the rail will draw: below the floor it renders nothing, and held height would collapse (that collapse was once the home's whole 0.142 of layout shift). */
-const deferShelf = (seed: readonly unknown[] | undefined, rail: React.ReactNode) => ((seed?.length ?? 0) >= MIN_RAIL_ITEMS ? <DeferredShelf>{rail}</DeferredShelf> : rail)
+/**
+ * Only a seed the rail will draw: below the floor it renders nothing, and held height would collapse (that collapse was once
+ * the home's whole 0.142 of layout shift). ⛔ `max-sm:hidden` (owner-approved 2026-11-14, cook r04 home-b): on a phone these
+ * rails are lanes ABOVE the feed, so their copy under it is never shown there — and a display:none place is never
+ * intersected, so it is never drawn and costs a phone nothing.
+ */
+const deferShelf = (seed: readonly unknown[] | undefined, rail: React.ReactNode) => ((seed?.length ?? 0) >= MIN_RAIL_ITEMS ? <DeferredShelf className="max-sm:hidden">{rail}</DeferredShelf> : rail)
 
-function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>) {
+function DeferredCategoryRails({ lanes, onCategory, onDrawn }: { lanes: readonly CategoryLaneData[]; onCategory: (slug: string) => void; /** CategoryRails `onDrawn` (the freshness check). */ onDrawn?: () => void }) {
   const { ref, due } = useShelfDue<HTMLDivElement>()
-  const { lang } = useLanguage()
-  const langRef = useRef(lang)
-  useEffect(() => { langRef.current = lang }, [lang])
   // Idle-armed on top of being due: when the place starts at the first-paint fold (see above) it is due at once, and
-  // without this gate the rails — and their /api/category-rails fetch — would still land inside the critical window.
+  // without this gate the rails would still land inside the critical window.
   const [armed, setArmed] = useState(false)
   useEffect(() => {
     const arm = () => setArmed(true)
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 8000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(arm, 3500); return () => clearTimeout(t)
   }, [])
-  // ⛔ THE CHUNK AND THE ANSWER ARE PREFETCHED AT THE READER'S FIRST SCROLL AFTER `load` (2026-11-12), so that when they reach
-  // the rails they draw at once instead of waiting ~1.3s for /api/category-rails behind a chunk download (category-rails.tsx
-  // prefetchCategoryRails). Never before `load`: neither may compete with the first paint's image and feed (the speed pass's
-  // rule). Not at `load` itself (review): the answer is uncached and costs the database a groupBy and a read per rail, and
-  // a visit that never scrolls must not pay that — before this change only a reader who reached the rails asked. From the
-  // first scroll the rails are still two viewports or more away, about the 1.3s the answer takes. Separate from `armed` on
-  // purpose (review): a reader who reaches the rails before `load` still gets them as soon as they did before.
-  useEffect(() => {
-    let done = false
-    const prefetch = () => {
-      if (done) return
-      done = true
-      document.removeEventListener('scroll', prefetch, { capture: true })
-      void import('./category-rails').then((m) => m.prefetchCategoryRails(langRef.current)).catch(() => {})
-    }
-    const afterLoad = () => document.addEventListener('scroll', prefetch, { capture: true, passive: true })
-    if (document.readyState === 'complete') afterLoad()
-    else window.addEventListener('load', afterLoad, { once: true })
-    return () => {
-      done = true
-      window.removeEventListener('load', afterLoad)
-      document.removeEventListener('scroll', prefetch, { capture: true })
-    }
-  }, [])
-  const [answer, setAnswer] = useState<'pending' | 'rails' | 'none'>('pending')
-  // ⚠️ NOTHING TO SHOW GOES OUT OF FLOW, in the space-y container this sits in: even a zero-height in-flow div
-  // earns a full spacing unit there, a permanent 32–48px dead band. It stays mounted, because the answer can
-  // change (a filter cleared). NOT `hidden`/display:none: those never intersect and would kill the rails forever.
-  const place = answer === 'pending' ? CATEGORY_RAILS_HELD : answer === 'none' ? 'absolute h-0 w-0' : undefined
-  // The placeholder fills the held place until the rails draw: here before they mount, then as their own `fallback` while the
-  // answer is awaited and as the chunk's `loading`, so the hand-over is one picture, never a blank in between.
+  // ⛔ THE ANSWER IS KNOWN FROM THE FIRST BYTE (2026-11-14): the rails are the server's (category-rails.tsx), so whether any
+  // will draw is decided before the first paint — no held place waits on a request any more, and nothing to show is simply
+  // no place at all (in the space-y container this sits in, even a zero-height in-flow div would earn a dead spacing unit).
+  // The 2026-11-12 first-scroll prefetch of the chunk and the answer went with the request.
+  // ⛔ `max-sm:hidden`: on a phone these rails are lanes above the feed (the `data-home-lanes` block). A display:none place is
+  // never intersected, so it is never drawn there. NOT `hidden` at every width: that would kill the rails on desktop too.
+  // (A lane whose every card left after the paint — useFreshCategoryLanes — counts as none.)
+  if (!lanes.some((l) => l.items.length > 0)) return null
+  const show = armed && due
+  // The placeholder fills the held place until the rails draw, so the hand-over is one picture, never a blank in between.
   return (
-    <div ref={ref} className={place}>
-      {armed && due
-        ? <CategoryRails {...props} onAnswer={setAnswer} fallback={<CategoryRailsSkeleton />} />
-        : answer === 'pending' && <CategoryRailsSkeleton />}
+    <div ref={ref} className={cn('max-sm:hidden', !show && CATEGORY_RAILS_HELD)}>
+      {show ? <CategoryRails lanes={lanes} onCategory={onCategory} onDrawn={onDrawn} /> : <CategoryRailsSkeleton />}
     </div>
   )
 }
@@ -626,6 +609,11 @@ type Props = {
    * storefront never passes it. Rendered after the twelfth feed card while `showTeacherShelf` holds.
    */
   initialTeachers?: SerializedListingCard[]
+  /**
+   * Home only — the per-category rails, `homeCategoryRails()` from (home)/page.tsx (owner-approved 2026-11-14, cook r04
+   * home-b): the phone's category lanes above the feed and the desktop's category shelves under it, from one read.
+   */
+  initialCategoryRails?: CategoryRailData[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
   /**
    * Whether this component renders the page's sr-only `<h1>{SITE_NAME}</h1>`. Default: ON for the
@@ -648,7 +636,15 @@ type Props = {
  * re-rendered the whole explorer after load, and the row jumped 44 px when the tab arrived, so the tab's place is held until the probe answers.
  * Perf Phase 1: display-only, so it stays out of the critical cold path and runs in the first post-load idle slot.
  */
-function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showMap: boolean; videoProbeParams: string }) {
+function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle = false }: {
+  viewMode: ViewMode
+  onViewMode: (m: ViewMode) => void
+  showMap: boolean
+  videoProbeParams: string
+  /** The goods search's title line (`oneRow`, phone only): the ONE view pick as a 36px circle (ViewSwitch `variant`), and no
+   *  desktop toggles — that line exists below `sm` alone. */
+  circle?: boolean
+}) {
   const [videoProbeReady, setVideoProbeReady] = useState(false)
   useEffect(() => {
     const arm = () => setVideoProbeReady(true)
@@ -669,6 +665,7 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams }: { view
   })
   // An open Video view keeps its own tab, whatever the probe says about the next filter.
   const showVideo = viewMode === 'video' || (videoAvail?.total ?? 0) > 0
+  if (circle) return <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" />
   return (
     <>
       <div className="flex items-center gap-1 max-sm:hidden">
@@ -701,6 +698,7 @@ export function ListingsExplorer({
   initialBusinesses,
   initialTrending,
   initialTeachers,
+  initialCategoryRails,
   listingsRef,
   sellerId,
   siteHeading = !sellerId,
@@ -1150,6 +1148,28 @@ export function ListingsExplorer({
   const teacherCells = activeCategory === TEACHERS_CATEGORY_SLUG
   /** The presentation on screen: `viewMode`, except that Jobs on a phone draws its default as the list. */
   const shownView: ViewMode = jobsRows ? 'compact' : viewMode
+  /**
+   * ⛔ THE RENTALS FEED IS ONE COLUMN OF LARGE SQUARE CARDS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a: "after this
+   * cook round build all best options and deploy"; listing-grid.ts LISTING_GRID_WIDE). The grid view of `?category=rentals`
+   * (any subcategory, words or filter inside it), never a storefront: the grid is LISTING_GRID_WIDE, every card `wide` (366px
+   * square photo at 390, its text block flush under it with the trust slot at the price line's end — listing-card.tsx), the
+   * placeholders the wide skeleton, photos held from the third card. Every class those add is `max-sm:`, so from `sm` this is
+   * the grid it always was; no width is read here, so the server, the hydrating render and every width agree.
+   * ⛔ THE PRESENTATION FOLLOWS THE ROWS ON SCREEN, NOT THE CATEGORY ASKED FOR — the Jobs rows' rule above, for the same
+   * reason: keyed on `activeCategory` alone, the home feed's cards still on screen would re-lay as one column the moment
+   * Rentals was tapped, and the answer would replace them (two reflows, one of them of the wrong listings). So:
+   *   · into Rentals: wide from the commit that DRAWS a rentals answer (every drawn card is a rental), or while nothing is
+   *     drawn (the first-page skeleton is then the wide one);
+   *   · out of Rentals: the rental cards on screen stay wide until the next answer is drawn (`rentalsWideDrawnRef`).
+   * A cold `?category=rentals` link paints the ISR home under the mask; globals.css lays that masked seed out in one column
+   * already (`data-explorer-cat="rentals"`), so the answer lands where its placeholders stood.
+   */
+  const rentalsWideDrawnRef = useRef<SerializedListingCard[] | null>(null)
+  const rentalsOnScreen = activeCategory === 'rentals'
+    ? gridListings.length === 0 || gridListings.every((l) => l.category?.slug === 'rentals')
+    : rentalsWideDrawnRef.current === gridListings
+  const rentalsWide = !sellerId && shownView === 'grid' && rentalsOnScreen
+  useEffect(() => { rentalsWideDrawnRef.current = rentalsWide ? gridListings : null })
   // The row's chunk, asked for the moment a list is known to be coming: the list view itself, or Jobs on a phone before its
   // answer has arrived (the request and its 150ms debounce are the head start). See `compactRowModule`.
   const listComing = viewMode === 'compact' || (phone && activeCategory === 'jobs' && viewMode === 'grid' && !gridAsked)
@@ -1283,6 +1303,18 @@ export function ListingsExplorer({
     const businessesShown = dedupedBusinesses && dedupedBusinesses.length >= MIN_RAIL_ITEMS ? dedupedBusinesses : []
     return [...trendingShown, ...businessesShown].map((l) => l.id)
   }, [initialTrending, dedupedBusinesses])
+  // The category rails that will draw (deduped against the two above, each over the sparse floor) — from props alone, so the
+  // server render and hydration agree on every lane and its place (category-rails.tsx visibleCategoryRails). ONE list for the
+  // phone's lanes above the feed and the desktop's shelves under it.
+  const serverCategoryLanes = useMemo(
+    () => visibleCategoryRails(initialCategoryRails ?? [], categories, railExcludeIds),
+    [initialCategoryRails, categories, railExcludeIds],
+  )
+  // ⛔ …AND CHECKED ONCE AFTER THE PAINT (commit review, 2026-11-14 — category-rails.tsx useFreshCategoryLanes): a card taken
+  // down since (a licence hold, a seller's own delete) leaves; nothing new comes in. `initialFetchedAt`, the ISR render's own
+  // stamp (the rails are read in the same render), names the snapshot. The lanes ask (`onDrawn`), each copy only where it is
+  // shown, so a page never asks twice.
+  const { lanes: categoryLanes, check: checkCategoryLanes } = useFreshCategoryLanes(serverCategoryLanes, initialFetchedAt)
 
   // ⚠️ NOT A MODE ANY MORE — A PREDICATE. Until 2026-08-11 this gated an early `return`, so
   // the home page and the search page were two different trees and moving between them
@@ -2048,7 +2080,7 @@ export function ListingsExplorer({
     // Anything else (a client mount, or no mark) must not leave one behind.
     const root = document.documentElement
     const masked = coldLoad && root.hasAttribute('data-explorer-directed')
-    if (!masked) { root.removeAttribute('data-explorer-directed'); root.removeAttribute(FOLD_ATTR) }
+    if (!masked) { root.removeAttribute('data-explorer-directed'); root.removeAttribute(FOLD_ATTR); root.removeAttribute(LANES_OFF_ATTR) }
     const mountSearch = window.location.search
     const found = areaForLocation(readExplorerUrl(mountSearch), window.history.state)
     /** The URL is read (once): its params applied, the writer released, the mask armed for its answer. */
@@ -3524,6 +3556,8 @@ export function ListingsExplorer({
     document.documentElement.removeAttribute('data-explorer-directed')
     // A page that did not fold after all (a wider screen than the mark expected) gets its rails back with the answer.
     document.documentElement.removeAttribute(FOLD_ATTR)
+    // …and a link the explorer left undirected after all gets its phone lanes back with it (explorer-url.ts LANES_OFF_ATTR).
+    document.documentElement.removeAttribute(LANES_OFF_ATTR)
     setSeedMasked(false)
   }, [seedMasked, urlApplied, awaitingUrlAnswer, gridListings, shownListings])
   /**
@@ -4035,6 +4069,52 @@ export function ListingsExplorer({
 
   /** The words the grid answers: the server's corrected spelling when it corrected them, else the typed ones. */
   const resultsTerm = correctedQuery ?? debouncedQuery.trim()
+  /** The results' h2 (sr-only on a directed feed — E-TITLE, at the results row below): the words, else the deepest rung. */
+  const resultsHeading = resultsTerm
+    ? tr('Results for {q}', 'Kết quả cho {q}').replace('{q}', `“${resultsTerm}”`)
+    : ladderCrumbs[ladderCrumbs.length - 1]?.label ?? tr('Marketplace listings', 'Tin đăng')
+
+  /**
+   * ⛔ THE GOODS SURFACE ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
+   * deploy"; target still cook/compare/r06/goods__search.jpg; src/lib/goods-surface.ts). Two client-only states — the explorer
+   * applies its filters in effects and `useSmUp` is "desktop" on the server and through hydration, so neither exists in the
+   * server HTML or the hydrating render, and nothing here can mismatch.
+   * · `goodsLook`: a FOLDED directed feed (`collapseLadder`, so it holds still behind an open filter panel exactly as the fold
+   *   does — E-FILTER-SHEET — and lands in the fold's own commit) over every category or a goods category, below `sm`, never a
+   *   storefront — the strip goes
+   *   opaque with no rule under it and its sort pill drops the ⇅ (SortStrip `look`), the filter pills take the goods order
+   *   (FacetBar `order`: Price, Condition, Type, Area), and a thin search's "More in …" continues the grid as the same two
+   *   columns.
+   * · `goodsGrid`: `goodsLook` once the grid no longer draws a cold link's masked seed — the goods cards (ListingCard `look`) and
+   *   rows 32px apart (`max-sm:gap-y-8`) arrive in the commit that draws the answer, with its new cards, so neither ever moves
+   *   cards already on screen. `gridIsSeed` is exactly the negation of the mask lift's own condition (below the E-SSR
+   *   effects): the lift runs in an effect a commit later, and keying on `seedMasked` would paint the answer once in the shell
+   *   look and then re-lay it.
+   * · `oneRow`: on top of the fold (`collapseLadder`, which already implies a directed feed), a search with NO category and no
+   *   rung picked: the page opens on ONE title line (result-line.tsx ResultsTitle — the count as the display line, Save search
+   *   and the view pick as circles), then ONE control row (the scope chip "All categories ⌄" first in the sticky strip —
+   *   SortStrip `phoneScope`), then the grid. The ladder's panel opens right under that row; #results stays the same element
+   *   (the skip link's and the chip removal's focus target, ResultLine's one live count), sr-only. ⚠️ DERIVED FROM
+   *   `collapseLadder` IN THE SAME RENDER, so the commit that folds — whose layout effect drops the pre-paint fold mark — is
+   *   the commit that draws the title line: the CSS that held a cold link's geometry (globals.css, the goods cold-link rules)
+   *   is replaced by the real thing in one frame. With a category picked the compact row is unchanged.
+   */
+  const goodsLook = !smUp && collapseLadder && !showDiscovery && !sellerId && goodsScope(activeCategory)
+  const gridIsSeed = seedMasked && (!urlApplied || awaitingUrlAnswer || gridListings !== shownListings)
+  const goodsGrid = goodsLook && !gridIsSeed
+  const oneRow = !smUp && collapseLadder && !sellerId && activeCategory === 'all' && activeSubcategory === 'all' && ladderCrumbs.length === 0
+  /**
+   * The ladder opened from the scope chip of a STUCK strip (`oneRow`): its panel mounts under the strip's place in the page,
+   * far above the screen, and scroll anchoring keeps the reader where they were — so the open looked like nothing happened.
+   * Brought into view under the header and the strip (the panel's `scroll-mt-28`), before that frame paints. Only on the open
+   * itself, only when the panel is above the screen: a reader at the top sees it open in place.
+   */
+  const ladderPanelRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!oneRow || !ladderOpen) return
+    const panel = ladderPanelRef.current
+    if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' })
+  }, [ladderOpen, oneRow])
 
   /**
    * The returning-visitor recents row (E-RETURNING, O-16) — see the row's own note in the render. At
@@ -4053,8 +4133,25 @@ export function ListingsExplorer({
    * and below the rails' floor it does not render. Placed after the twelfth card in the grid below (`FIRST_PAGE_SIZE`).
    */
   const showTeacherShelf = showDiscovery && !sellerId && (initialTeachers?.length ?? 0) >= MIN_RAIL_ITEMS
-  // The phone's partner row (owner, 2026-11-10; partner-strip.tsx): the undirected home feed only, never a storefront.
-  const showPartnerBand = showDiscovery && !sellerId
+  /**
+   * ⛔ THE HOME PAGE'S PHONE LANES (owner-approved 2026-11-14, cook r04 home-b "lanes as rails") — the `data-home-lanes` block
+   * in the ladder: the undirected home only, exactly like the shelves under the desktop feed (never a search, a filter, an
+   * area, the map or video view, or a storefront). The phone's Partners lane is one of them (partner-strip.tsx).
+   */
+  const showHomeLanes = showDiscovery && !sellerId
+  // The phone's LCP preload sits on Trending's first card only when Trending will draw (three seeds or more, MIN_RAIL_ITEMS);
+  // a thinner seed draws nothing there, so the grid's first card keeps the preload on every width (commit review).
+  const phoneTrendingSeeded = (initialTrending?.length ?? 0) >= MIN_RAIL_ITEMS
+  /**
+   * The pre-paint mark that kept a directed cold link's lanes out of its first frame (explorer-url.ts LANES_OFF_ATTR) goes in
+   * the commit that drops the lanes from this tree — before that frame paints, so nothing shows in between. Not on "the URL
+   * read undirected": a word search turns the explorer on one effect after its URL applies (the fold's note above), and
+   * dropping the mark there would flash the lanes. A link left undirected after all gets them back with its answer (the mask
+   * lift); a client mount never had the mark (the mount effect clears it).
+   */
+  useLayoutEffect(() => {
+    if (!showHomeLanes) document.documentElement.removeAttribute(LANES_OFF_ATTR)
+  }, [showHomeLanes])
   useEffect(() => {
     if (!showRecentsRow) return
     let stored: string[] = []
@@ -4652,6 +4749,89 @@ export function ListingsExplorer({
   // false. Switching to the map or video view still removed the banner's whole height. That is a
   // takeover the visitor explicitly asked for, replacing the grid rather than re-laying it out, so
   // it is a view change and reads as one; a category chip is not.
+  /**
+   * The category ladder's full rails — the tile rail and the brand row (or its reserve). One element, drawn in ONE place: the
+   * ladder's slot (whole, or behind the folded compact row), or — the goods search on a phone (`oneRow`) — the panel under the
+   * sticky strip. Their notes are theirs, below.
+   */
+  const ladderRails = (
+    <>
+          <CategoryRail
+            categories={categories}
+            teacherProfile={hasTeacherProfile}
+            teacherDraft={hasTeacherDraft}
+            activeCategory={activeCategory}
+            activeSubcategory={activeSubcategory}
+            subcategoryCounts={subcategoryCounts}
+            facets={facetCounts}
+            /* ⚠️ `queryFetching`, not `queryLoading`: the jump happens on a REFETCH — tap a
+               category and the held payload is still last second's, so every chip in the new row
+               has no number yet. `isLoading` is only true on the very first fetch and would leave
+               exactly the case the owner reported unfixed. */
+            countsPending={queryFetching}
+            onCategory={handleTileSelect}
+            onSubcategory={setActiveSubcategory}
+            /**
+             * ⛔ NEITHER SHORTCUT GROUP BELONGS ON A SHOP'S STOREFRONT. Owner, 2026-08-30, with a
+             * screenshot of `gmbr.eno.vn` — one listing, five chips: *"3 seperate categories still
+             * show ... only categories subcategories brands models that are present"*.
+             * `DESK_SHORTCUTS` is eno's OWN merchandising (its services tile, pinned ahead of the
+             * demand order) and `INTENT_SHORTCUTS` are marketplace-wide listingType filters — Free
+             * & Giveaways, Wanted, Wholesale. Both are eno navigating its own catalogue, so on a
+             * shop's page they advertise filters that shop cannot fill: every one of those chips
+             * led to an empty feed, which is the same rail-vs-feed disagreement the category rail
+             * had. A storefront shows what the shop HAS.
+             */
+            shortcuts={sellerId ? undefined : DESK_SHORTCUTS}
+            onShortcut={(sc) => { if (sc.kind === 'filter') applyUrl(sc.href); else router.push(sc.href) }}
+            // Free / Wanted shortcuts — the intent tiles, at the tail.
+            intents={sellerId ? undefined : INTENT_SHORTCUTS}
+            activeType={listingType}
+            onIntent={handleIntent}
+            // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
+            hrefFor={tileHref}
+          />
+
+          {/* Brand rail — brands present in this category + subcategory (logo +
+              name), tap to filter + expand the brand's models. Brand categories — and
+              ALL (owner 2026-07-23: "when all selected show all brands available"):
+              /api/brands treats category=all as the most-listed-overall directory.
+              ⚠️ `!showDiscovery` GUARDS THE HOME COLD PATH. This rail fetches /api/brands on
+              mount and it accepts category=all, so without the guard every anonymous home load
+              — the most-served request on the site — would fire a brand-directory query before
+              the visitor has expressed any interest in a brand. It appears the moment they do.
+              ⛔ …BUT NOT OVER A FREE-TEXT SEARCH ON "ALL" (E-RESULTS, 2026-09-29). There the rail is
+              the most-listed-overall directory — /api/brands does not read `q`, and outside a brand
+              category the feed sends no brand facet to narrow it — so /?q=honda showed Apple,
+              Samsung, Xiaomi… (no Honda) and pushed the first result from y≈407 to y=519 at 1440×900.
+              A brand category, a brand pick and undirected browse are unchanged.
+              ⚠️ BOTH HALVES OF THE WORDS, like the un-latch: `debouncedQuery` alone trails a URL's
+              words by 150ms, so a cold /?q= load drew the directory for that window and then pulled
+              it — a 112px drop-and-return of every result under it (measured, CLS +0.11 at 390). */}
+          {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory))
+            && !(activeCategory === 'all' && activeBrand === 'all' && (query.trim() !== '' || debouncedQuery.trim() !== '')) ? (
+            <BrandRail
+              category={activeCategory}
+              subcategory={activeSubcategory}
+              activeBrand={activeBrand}
+              activeModel={activeModel}
+              activeLine={activeLine}
+              facets={facetCounts}
+              sellerId={sellerId}
+              // ⚠️ A NEW BRAND DROPS THE OLD BRAND'S LINE. Without this the previous `?line=`
+              // stayed applied under a brand that has no such line — the cascade's own stale
+              // guard would clear it a render later, but the feed would flash the empty result.
+              onPickBrand={(b) => { setActiveBrand(b); setActiveLine('') }}
+              onPickModel={setActiveModel}
+              onPickLine={handlePickLine}
+              hrefFor={tileHref}
+            />
+          ) : (
+            // The brand row's height, on a cold link to a category that has one (globals.css): nothing moves when the rail takes its place.
+            <div aria-hidden className="brand-row-reserve" />
+          )}
+    </>
+  )
   return (
     // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
     // scroll box and position:sticky would never pin; clip contains the horizontal
@@ -4710,7 +4890,9 @@ export function ListingsExplorer({
     // answer ("iphone": two results and the Trending rail) left that band empty above the footer, and a blind judge named it.
     // The floor still ends at or below the screen's foot whatever sits above (a banner only pushes the section down), so the
     // footer still cannot rise into the first screen.
-    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh max-sm:min-h-[calc(100svh-4.5rem)]')}>
+    // ⛔ `max-sm:pb-0` on the goods phone page (`goodsLook`, owner-approved 2026-11-14, cook r06 goods): the shell's page end (main's
+    // 24px above the footer) closes it, with no band of this section's own before it.
+    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh max-sm:min-h-[calc(100svh-4.5rem)]', goodsLook && 'max-sm:pb-0')}>
       <TeacherFlagsReader onChange={setTeacherFlags} />
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
@@ -4887,7 +5069,13 @@ export function ListingsExplorer({
             LANDING tree, an entrance here would fire on every cold home load. */}
         {/* ⚠️ space-y-3, NOT 4 (home fold trim, 2026-09-30): 4px back between each rung — rail, recents,
             strip, results header — at every width. (home)/loading.tsx mirrored this rhythm until UX3 FAST-8. */}
-        <div ref={ladderRef} data-ladder="" className="space-y-3">
+        {/* ⚠️ THE LADDER IS THE CATEGORY LADDER'S COLLAPSIBLE ROOT, IN EVERY STATE (2026-11-14, cook r06 goods): Base UI's root,
+            rendered AS this div (the same element, the same `data-ladder` box, so nothing above or below it moves), holding
+            `ladderOpen`. The folded compact row's scope pill and its panel (LadderSlot) and the goods search's scope chip in the
+            sticky strip with its panel under the strip (`oneRow`) are its triggers and panels, so whichever is drawn shares the
+            one open state, and the strip's sticky box is still this div. It adds `data-slot="collapsible"` and Base UI's
+            open/closed attribute and nothing else; closed on the server, so hydration agrees. */}
+        <Collapsible ref={ladderRef} open={ladderOpen} onOpenChange={setLadderOpen} render={<div data-ladder="" className="space-y-3" />}>
 
           {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
               Undirected: the FINN-style two-row tile grid (big tiles, eno's own two products
@@ -4917,10 +5105,21 @@ export function ListingsExplorer({
           {/* ⛔ …EXCEPT ON A PHONE ONCE THE FEED IS DIRECTED: then the ladder folds into ONE compact
               row with the full rails one tap behind it (see `collapseLadder`). Undirected, and on
               desktop, LadderSlot is a fragment and the rails below render exactly as they did. */}
+          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods): the title line opens the ladder —
+              the count as the display line, Save search and the view pick as circles (result-line.tsx ResultsTitle) — and the
+              ladder's rails wait in the panel under the sticky strip, whose scope chip opens them. Otherwise the slot as ever. */}
+          {oneRow ? (
+            <ResultsTitle
+              count={gridIsSeed ? null : resultLineCount}
+              term={queryShowingStaleSet ? undefined : resultsTerm}
+              heading={resultsHeading}
+              onSaveSearch={phoneSaveOffered && saveSearch ? saveSearch : undefined}
+              filled={!gridIsSeed && (resultLineCount ?? 0) > 0}
+              view={<ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle />}
+            />
+          ) : (
           <LadderSlot
             collapsed={collapseLadder}
-            open={ladderOpen}
-            onOpenChange={setLadderOpen}
             row={
               <LadderCompactRow
                 categories={categories}
@@ -4940,81 +5139,9 @@ export function ListingsExplorer({
               />
             }
           >
-          <CategoryRail
-            categories={categories}
-            teacherProfile={hasTeacherProfile}
-            teacherDraft={hasTeacherDraft}
-            activeCategory={activeCategory}
-            activeSubcategory={activeSubcategory}
-            subcategoryCounts={subcategoryCounts}
-            facets={facetCounts}
-            /* ⚠️ `queryFetching`, not `queryLoading`: the jump happens on a REFETCH — tap a
-               category and the held payload is still last second's, so every chip in the new row
-               has no number yet. `isLoading` is only true on the very first fetch and would leave
-               exactly the case the owner reported unfixed. */
-            countsPending={queryFetching}
-            onCategory={handleTileSelect}
-            onSubcategory={setActiveSubcategory}
-            /**
-             * ⛔ NEITHER SHORTCUT GROUP BELONGS ON A SHOP'S STOREFRONT. Owner, 2026-08-30, with a
-             * screenshot of `gmbr.eno.vn` — one listing, five chips: *"3 seperate categories still
-             * show ... only categories subcategories brands models that are present"*.
-             * `DESK_SHORTCUTS` is eno's OWN merchandising (its services tile, pinned ahead of the
-             * demand order) and `INTENT_SHORTCUTS` are marketplace-wide listingType filters — Free
-             * & Giveaways, Wanted, Wholesale. Both are eno navigating its own catalogue, so on a
-             * shop's page they advertise filters that shop cannot fill: every one of those chips
-             * led to an empty feed, which is the same rail-vs-feed disagreement the category rail
-             * had. A storefront shows what the shop HAS.
-             */
-            shortcuts={sellerId ? undefined : DESK_SHORTCUTS}
-            onShortcut={(sc) => { if (sc.kind === 'filter') applyUrl(sc.href); else router.push(sc.href) }}
-            // Free / Wanted shortcuts — the intent tiles, at the tail.
-            intents={sellerId ? undefined : INTENT_SHORTCUTS}
-            activeType={listingType}
-            onIntent={handleIntent}
-            // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
-            hrefFor={tileHref}
-          />
-
-          {/* Brand rail — brands present in this category + subcategory (logo +
-              name), tap to filter + expand the brand's models. Brand categories — and
-              ALL (owner 2026-07-23: "when all selected show all brands available"):
-              /api/brands treats category=all as the most-listed-overall directory.
-              ⚠️ `!showDiscovery` GUARDS THE HOME COLD PATH. This rail fetches /api/brands on
-              mount and it accepts category=all, so without the guard every anonymous home load
-              — the most-served request on the site — would fire a brand-directory query before
-              the visitor has expressed any interest in a brand. It appears the moment they do.
-              ⛔ …BUT NOT OVER A FREE-TEXT SEARCH ON "ALL" (E-RESULTS, 2026-09-29). There the rail is
-              the most-listed-overall directory — /api/brands does not read `q`, and outside a brand
-              category the feed sends no brand facet to narrow it — so /?q=honda showed Apple,
-              Samsung, Xiaomi… (no Honda) and pushed the first result from y≈407 to y=519 at 1440×900.
-              A brand category, a brand pick and undirected browse are unchanged.
-              ⚠️ BOTH HALVES OF THE WORDS, like the un-latch: `debouncedQuery` alone trails a URL's
-              words by 150ms, so a cold /?q= load drew the directory for that window and then pulled
-              it — a 112px drop-and-return of every result under it (measured, CLS +0.11 at 390). */}
-          {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory))
-            && !(activeCategory === 'all' && activeBrand === 'all' && (query.trim() !== '' || debouncedQuery.trim() !== '')) ? (
-            <BrandRail
-              category={activeCategory}
-              subcategory={activeSubcategory}
-              activeBrand={activeBrand}
-              activeModel={activeModel}
-              activeLine={activeLine}
-              facets={facetCounts}
-              sellerId={sellerId}
-              // ⚠️ A NEW BRAND DROPS THE OLD BRAND'S LINE. Without this the previous `?line=`
-              // stayed applied under a brand that has no such line — the cascade's own stale
-              // guard would clear it a render later, but the feed would flash the empty result.
-              onPickBrand={(b) => { setActiveBrand(b); setActiveLine('') }}
-              onPickModel={setActiveModel}
-              onPickLine={handlePickLine}
-              hrefFor={tileHref}
-            />
-          ) : (
-            // The brand row's height, on a cold link to a category that has one (globals.css): nothing moves when the rail takes its place.
-            <div aria-hidden className="brand-row-reserve" />
-          )}
+            {ladderRails}
           </LadderSlot>
+          )}
 
           {/* ⛔ THE RETURNING VISITOR'S RECENT SEARCHES (E-RETURNING option 1, owner O-16, 2026-09-30).
               One 44px row, undirected home only, and only for someone who has searched before — a
@@ -5043,6 +5170,44 @@ export function ListingsExplorer({
                 <Chip key={term} size="md" tone="neutral" onClick={() => handleLandingSearch(term)} className="relative tap-44 max-w-[14rem]">
                   <span className="truncate">{term}</span>
                 </Chip>
+              ))}
+            </div>
+          )}
+
+          {/* ⛔ THE HOME PAGE'S PHONE LANES (owner-approved 2026-11-14, cook r04 home-b "lanes as rails": "after this cook round
+              build all best options and deploy"). On a phone the undirected home reads tiles → lanes → toolbar → Recommended →
+              grid: under the category tiles, each shelf is a LANE — a strong heading over a rail of same-size 220px cards
+              (shelf.tsx LANE_*) — in a fixed order: Trending, the first category lane, Outstanding businesses, the second
+              category lane, Partners (partner-strip.tsx), then the other category lanes. This REVERSES, below `sm` only, the
+              2026-08-11 "DISCOVERY SHELVES — BELOW THE RESULTS, NOT ABOVE THEM" (an engineering record, at the bottom of this
+              tree), which still holds from `sm`: the block is `sm:hidden` (out of layout, the tab order and the accessibility
+              tree), and from `sm` the shelves render under the feed exactly as before — where, in turn, they are
+              `max-sm:hidden`. Two copies, each shown at its own widths by a class, like the partner band's two placements.
+              ⚠️ IN THE SERVER'S HTML, SO NOTHING MOVES WHEN IT HYDRATES: Trending and the first category lane draw their cards
+              there (they are on the first screens); the lanes after them draw their real headers and same-size placeholder
+              cards, and their cards once they near the screen (useLaneGate). No lane holds a guessed height, so a Vietnamese or
+              machine-translated heading that wraps is already in the server's height. A lane under the sparse floor renders
+              nothing, and the flex gap leaves no space for it.
+              ⚠️ A DIRECTED COLD LINK NEVER PAINTS THEM: the pre-paint script marks it (explorer-url.ts LANES_OFF_ATTR) and
+              globals.css keeps the block out of its first frame; the mark goes when the lanes leave this tree.
+              ⚠️ THE PHONE'S LCP IS TRENDING'S FIRST CARD, a preload scoped to the phone's media (ForYouRail `lcpMedia`); the
+              grid's first card keeps the desktop's (below). Each copy personalizes only where it is shown (`liveMedia`).
+              Spacing: 16px under the tiles (the ladder's 12 + 4), 32 between lanes, 48 to the toolbar (36 + the ladder's 12). */}
+          {showHomeLanes && (
+            <div data-home-lanes="" className="flex flex-col gap-8 pt-1 pb-9 sm:hidden">
+              <ForYouRail initial={initialTrending} look="lane" lcpMedia={PHONE_MEDIA} liveMedia={PHONE_MEDIA} />
+              {/* `onDrawn` + `liveMedia`: an old ISR answer is checked once a lane's cards are drawn, on a phone only (the block is
+                  display:none from sm, where the shelves under the feed ask instead) — useFreshCategoryLanes above. */}
+              {categoryLanes[0] && (
+                <CategoryLane cat={categoryLanes[0].cat} listings={categoryLanes[0].items} onCategory={handleRailCategorySelect} look="lane" initialShow onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
+              )}
+              <BusinessRail initial={dedupedBusinesses} look="lane" />
+              {categoryLanes[1] && (
+                <CategoryLane cat={categoryLanes[1].cat} listings={categoryLanes[1].items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
+              )}
+              <PartnerStrip placement="feed" />
+              {categoryLanes.slice(2).map(({ cat, items, slug }) => (
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
               ))}
             </div>
           )}
@@ -5105,6 +5270,14 @@ export function ListingsExplorer({
             // pending strip onto two lines and back (0.44 at 1180, production). The audit's own rule: what vanishes stays away.
             goodPriceOffered={facetCounts.deal === undefined ? false : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             onHeaderHidden={headerHiddenSignal.set}
+            // ⛔ The rentals feed's phone row stays pinned when the header leaves (owner-approved 2026-11-14, cook r06 rentals-a;
+            // explorer-toolbar.tsx `stayPinned`). Every other feed keeps the 08-12 rule.
+            stayPinned={rentalsWide}
+            // ⛔ The goods search's phone strip (owner-approved 2026-11-14, cook r06 goods — `goodsLook`): opaque, no rule, "Sort" alone.
+            look={goodsLook ? 'goods' : undefined}
+            // …and with no category picked (`oneRow`) the ladder's way in opens the row: "All categories ⌄" (ScopeChip). Until
+            // then its invisible place, which only a cold no-category search link's first frame shows (ScopeChipReserve).
+            phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} /> : sellerId ? undefined : <ScopeChipReserve />}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
             leading={
@@ -5150,6 +5323,8 @@ export function ListingsExplorer({
                   // An area applied from its panel is a committed change (NAV-1); on a phone it lands on the
                   // sheet's own history entry, from sm up it pushes one.
                   onCommit={commitView}
+                  // ⛔ The goods order on a phone (owner-approved 2026-11-14, cook r06 goods — `goodsLook`): Price, Condition, Type, Area.
+                  order={goodsLook ? 'goods' : undefined}
                 />
               </div>
             }
@@ -5158,6 +5333,17 @@ export function ListingsExplorer({
               with an invisible 44px hit area (owner: one chip style; they went 48 → 44 on 2026-09-30). It must
               equal the pills' height. On a phone the row around it adds `py-1` for the hit area, so the strip
               is the 44px it was (explorer-toolbar.tsx). */}
+
+          {/* ⛔ THE GOODS SEARCH'S LADDER PANEL (`oneRow`, owner-approved 2026-11-14, cook r06 goods): the full rails, right UNDER the
+              row whose scope chip opens them — in the DOM, so the keyboard and a screen reader meet them where the eye does (no
+              CSS `order`). Closed it renders nothing (the panel unmounts), so the grid sits 12px under the strip. Opened from a
+              stuck strip it is scrolled into view under the header and the strip (`scroll-mt-28`; the layout effect beside
+              `oneRow`). The quick category and intent chips are not drawn in this state: they are what the chip opens. */}
+          {oneRow && (
+            <CollapsiblePanel ref={ladderPanelRef} className={cn(LADDER_PANEL, 'mt-0 scroll-mt-28')}>
+              {ladderRails}
+            </CollapsiblePanel>
+          )}
 
           {/* THE RESULTS HEADER — one row that serves both states, which is the point.
               Undirected it is the feed's section heading, styled like every other home section
@@ -5171,7 +5357,9 @@ export function ListingsExplorer({
               `total` field of the /api/listings response, or `shownListings.length` when "near
               you" is on (that path distance-filters client-side, so the server total is wrong by
               construction). A per-facet counts endpoint plugs in HERE and nowhere else. */}
-          {/* ⚠️ ON A PHONE THE META LINE DROPS TO ITS OWN ROW, DIRECTLY ABOVE THE GRID (owner,
+          {/* ⛔ EXCEPT THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods): there the count is the title
+              line at the TOP of the ladder (ResultsTitle) and this row is sr-only. Everywhere else the note below holds.
+              ⚠️ ON A PHONE THE META LINE DROPS TO ITS OWN ROW, DIRECTLY ABOVE THE GRID (owner,
               2026-08-12: "move this line below right above products but thinner"). Measured at
               390px before this: the row held the count, ONE truncated chip, Save search and four
               view toggles in 366px, and the breadcrumb — the thing that says where you are — was
@@ -5259,7 +5447,12 @@ export function ListingsExplorer({
               grew to 62px — an 18px shift of the whole grid (CLS 0.018 at 390×844, 2026-09-30). The
               CSS rule is also gated on `html:not([data-explorer-directed])`, the pre-paint mask
               (E-SSR), so a directed URL paints the flex row from its first frame and never moves. */}
-          <div id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32')}>
+          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods): this row's count, heading and
+              controls are the title line at the top of the ladder now (ResultsTitle). The row stays THE SAME ELEMENT — the skip
+              link's and a chip removal's focus target, holding ResultLine's one always-mounted live count — sr-only, holding no
+              heading (the h2 is the title line's), no Save search and no view pick, so nothing focusable sits in a row nobody
+              sees. `data-results-hidden`: the cold-link reserve (globals.css) skips it. */}
+          <div id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', oneRow && 'max-sm:sr-only')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
                 reorder past its parent's SIBLING, so the line could never get below the toggles.
@@ -5306,12 +5499,9 @@ export function ListingsExplorer({
                    grid answers — the corrected spelling when the server corrected them), else the
                    deepest ladder rung ("Rentals"), else the old generic "Marketplace listings". A
                    heading list that reads "Marketplace listings" on every search tells a screen-reader
-                   user nothing about where they are. */
-                <h2 className="sr-only">
-                  {resultsTerm
-                    ? tr('Results for {q}', 'Kết quả cho {q}').replace('{q}', `“${resultsTerm}”`)
-                    : ladderCrumbs[ladderCrumbs.length - 1]?.label ?? tr('Marketplace listings', 'Tin đăng')}
-                </h2>
+                   user nothing about where they are.
+                   (`resultsHeading`; on the goods search's phone (`oneRow`) the title line at the top carries it.) */
+                !oneRow && <h2 className="sr-only">{resultsHeading}</h2>
               )}
             </div>
 
@@ -5369,7 +5559,9 @@ export function ListingsExplorer({
               // outside its scroller. `sm:hidden` — from sm the offer is the labelled button beside the view modes.
               // `outline`, never `cta`: an offer on the filter row is not the page's one brand CTA (canon).
               // (`hasSavableSearch` already says no on the teachers category; `saveSearch &&` is the same rule, typed.)
-              countTrailing={phoneSaveOffered && saveSearch ? (
+              // ⛔ Not on the goods search's phone (`oneRow`, owner-approved 2026-11-14, cook r06 goods — it reverses there the two notes
+              // above): Save search is the title line's 36px circle, accent-filled while results show (ResultsTitle).
+              countTrailing={phoneSaveOffered && saveSearch && !oneRow ? (
                 <Button type="button" variant="outline" size="none" onClick={saveSearch} className="min-h-11 shrink-0 gap-1.5 rounded-full px-3.5 text-sm font-semibold sm:hidden">
                   <Bookmark className="size-4" aria-hidden />
                   {tr('Save search', 'Lưu tìm kiếm')}
@@ -5396,6 +5588,8 @@ export function ListingsExplorer({
             {/* ⛔ …AND WITH THE CHIPS IN THE FILTER ROW (chipsInStrip) IT JOINS THE COUNT'S LINE, AFTER Save search (owner,
                 2026-08-12: Save search left of the view modes, on the same line — kept): `max-sm:order-5`. The row that held only
                 this pill on a category link is gone (owner, 2026-11-10). */}
+            {/* ⛔ Not on the goods search's phone (`oneRow`): its Save search and view pick are the title line's circles. */}
+            {!oneRow && (
             <div data-view-cluster="" className={cn('order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto', chipsInStrip && 'max-sm:order-5')}>
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
                   SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
@@ -5429,6 +5623,7 @@ export function ListingsExplorer({
                   directed state too, so a cold deep link's row keeps its height when the heading leaves it. */}
               <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} />
             </div>
+            )}
           </div>
 
           {/* Video view (4th mode): its own vertical clip feed with a self-contained
@@ -5450,9 +5645,11 @@ export function ListingsExplorer({
               (initialData below), so `isLoading` is false and the real cards paint first. */}
           {viewMode !== 'video' && isLoading && listings.length === 0 && (
             shownView === 'grid' ? (
-              <div className={LISTING_GRID}>
+              // The goods phone grid's placeholders (`goodsLook`, owner-approved 2026-11-14): its rows 32px apart and the goods body,
+              // so the answer lands where they stood.
+              <div className={cn(rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, goodsLook && 'max-sm:gap-y-8')}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
-                  <ListingCardSkeleton key={i} teacher={teacherCells} />
+                  <ListingCardSkeleton key={i} teacher={teacherCells} wide={rentalsWide} look={goodsLook ? 'goods' : undefined} />
                 ))}
               </div>
             ) : (
@@ -5568,7 +5765,12 @@ export function ListingsExplorer({
                    On the grid, not on each row: the capture row renders null for a signed-in reader, and a
                    wrapper would leave an empty full-width cell; the rows' own selectors in globals.css
                    (`.feed-grid > [data-teacher-shelf] + …`) need them to stay direct children too. */
-                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID, 'max-sm:[&>.col-span-full]:px-2')}>
+                /* `rentalsWide` (owner-approved 2026-11-14, above): the one-column phone grid has no bleed, so a full-width row
+                   (the guest capture row) needs no padding back onto the gutter there. */
+                /* ⛔ THE GOODS PHONE GRID (`goodsGrid`, owner-approved 2026-11-14, cook r06 goods): rows 32px apart — a card's text
+                   sits 8px under its own photo and 32px above the next, so each text block reads with the photo it belongs to —
+                   and the goods cards (ListingCard `look`), from the commit that draws the answer (never on a masked seed). */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-8')}>
                   {gridListings.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
@@ -5581,6 +5783,8 @@ export function ListingsExplorer({
                         data-sid={l.sellerId}
                         // A teacher card is 18px taller (batch 80's proof line): globals.css sizes its unrendered guess from this.
                         data-teacher-cell={l.listingType === 'teacher' || undefined}
+                        // A wide phone card (`rentalsWide`) is a whole screen wide: its unrendered guess too (globals.css).
+                        data-wide-cell={rentalsWide || undefined}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
                         // ⚠️ FOCUS AS WELL AS HOVER. Keyboard and switch users never fire a pointer
@@ -5630,6 +5834,11 @@ export function ListingsExplorer({
                             as="image" imageSrcSet=…>` for exactly that URL. So the hint is spent on
                             the element it names, on both viewports, even though the 280px category
                             grid now sits above the grid on a phone.
+                            ⛔ ON THE UNDIRECTED HOME IT IS SCOPED TO `sm` AND UP SINCE 2026-11-14 (owner-approved, cook r04
+                            home-b): on a phone the home's lanes now sit above this grid — full-width media, the condition the
+                            invariant above asks for — and the phone's LCP is the Trending lane's first card, which carries the
+                            phone's half of the preload (`lcpMedia`). Here the preload is media-scoped (ListingCard `lcp` as a
+                            media query) and the img is only eager; a directed feed and a storefront keep `lcp={true}`.
                             ⚠️ AN UNTHROTTLED RUN WITH JS COVERAGE ON SAID THE LOGO WAS THE LCP at
                             1,044 ms, and that reading is the harness, not the site: with no network
                             throttling the SVG logo paints before any photo arrives. Measure this on
@@ -5637,18 +5846,11 @@ export function ListingsExplorer({
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} holdPhoto={index >= HELD_FROM_CARD} onLocate={locateListing} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && (showHomeLanes && phoneTrendingSeeded ? SM_UP_MEDIA : true)} holdPhoto={index >= (rentalsWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} onLocate={locateListing} wide={rentalsWide} sizes={rentalsWide ? WIDE_CARD_SIZES : undefined} look={goodsGrid ? 'goods' : undefined} />
                       </div>
-                      {/* ⛔ THE PARTNER BAND, ON A PHONE (owner, 2026-11-10: item 5 of the decision scorecard — partner-strip.tsx
-                          has the record). One full-width row after the SECOND row of the undirected home feed: two columns
-                          below `sm`, so after the fourth card. It is in the DOM at every width and shown below `sm` only (from
-                          `sm` up the layout's own copy under the header is the one on screen), so the server's HTML already
-                          holds it and nothing is inserted after hydration. Never `data-feed-card`: no restore anchor, and
-                          the e2e suites count those. globals.css counts it among the grid's first children and takes it
-                          out of a directed cold link's masked seed. */}
-                      {/* A feed shorter than two rows still shows it, after its last card (commit review: with the layout's copy hidden
-                          on a phone, a three-card home would have had no band at all). An empty feed has none. */}
-                      {index === Math.min(PARTNER_BAND_AFTER_CARD, gridListings.length) - 1 && showPartnerBand && <PartnerStrip placement="feed" />}
+                      {/* ⛔ NO PARTNER ROW IN THE GRID SINCE 2026-11-14 (owner-approved, cook r04 home-b): the phone's partner band,
+                          a full-width row after the fourth card from 2026-11-10, is the Partners lane among the phone's lanes
+                          above the feed now (the `data-home-lanes` block; partner-strip.tsx has the record). */}
                       {/* Guest capture (5a #7): one full-width signup ROW after the first page.
                           Renders null once signed in (and while auth is still loading).
                           ⛔ AFTER THE 12TH, NOT THE 8TH, AND FULL WIDTH (E-ORPHAN, 2026-09-29). It was
@@ -5668,9 +5870,10 @@ export function ListingsExplorer({
                           back here — "why this is above the filter put it below where it belongs under recommended",
                           "under rentals" (2026-10-29). */}
                       {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
-                        <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
+                        <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} look="lane" />
                       )}
-                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} />}
+                      {/* `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a): one line, the house button. */}
+                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} />}
                       {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
                           1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
                           "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
@@ -5690,7 +5893,7 @@ export function ListingsExplorer({
                       they stand in for announce themselves when they land. */}
                   {Array.from({ length: pendingRows }, (_, i) => (
                     <div key={`pending-${i}`} data-feed-skeleton="" aria-hidden="true" className="flex flex-col h-full">
-                      <ListingCardSkeleton teacher={teacherCells} />
+                      <ListingCardSkeleton teacher={teacherCells} wide={rentalsWide} look={goodsGrid ? 'goods' : undefined} />
                     </div>
                   ))}
                 </div>
@@ -5951,10 +6154,8 @@ export function ListingsExplorer({
                           onLocate={locateOnMap}
                         />
                       </div>
-                      {/* The phone's partner row in the LIST view of the undirected home, after the same four listings as in
-                          the grid (commit review: the layout's copy is hidden on a phone in every view, so the list needs its
-                          own). These rows are client-only, so nothing here is in the server's HTML or under the cold-link mask. */}
-                      {index === Math.min(PARTNER_BAND_AFTER_CARD, gridListings.length) - 1 && showPartnerBand && <PartnerStrip placement="feed" />}
+                      {/* No partner row in the list either (2026-11-14): on a phone the Partners lane above the feed is shown in
+                          every view of the undirected home (the `data-home-lanes` block). */}
                       {/* The guest sign-up row, where the grid has it (after the first page). Only when this list IS the
                           default presentation (`jobsRows`: Jobs on a phone): there it replaces a grid that carried the row,
                           and a guest must not lose it. The list a reader chose never had it and still does not. */}
@@ -5988,7 +6189,10 @@ export function ListingsExplorer({
               {!nearby && viewMode !== 'map' && (
                 // ⛔ WHILE MORE PAGES WILL ARRIVE ON THEIR OWN, THE FOOTER STAYS A SCREEN AWAY. A short first page of a filtered feed put the footer on screen, and the next
                 // page then threw it off: 0.08 of layout shift on every filtered link on a desktop (speed audit, 2026-11-03). The appended rows land in this reserve.
-                <div ref={loadMoreRef} className={cn('mt-6 select-none', hasMore && !(showDiscovery && !feedUnlocked) && listings.length < autoLoadCeiling && 'min-h-svh')}>
+                // ⛔ The goods phone page (`goodsLook`, owner-approved 2026-11-14, cook r06 goods): once nothing more will page in, the
+                // sentinel gives up its 24px top margin (a thin search's "More in …" then sits 24px under the last result, the end of
+                // the grid on the page's own 24 above the footer). Its margin only — it stays mounted, never hidden (landmine).
+                <div ref={loadMoreRef} className={cn('mt-6 select-none', goodsLook && !hasMore && 'max-sm:mt-0', hasMore && !(showDiscovery && !feedUnlocked) && listings.length < autoLoadCeiling && 'min-h-svh')}>
                   {pageWithoutAnswer && queryError && <div className="border-t border-border pt-6">{renderMoreError()}</div>}
                   {/* ⚠️ THE BUTTON AND THE SPINNER ARE MUTUALLY EXCLUSIVE AND BOTH KEY OFF THE SAME
                       CONDITION, or the footer swaps a 44px button for a ~19px spinner and shifts the
@@ -6052,9 +6256,14 @@ export function ListingsExplorer({
               )}
             </div>
           )}
-        </div>
+        </Collapsible>
 
         {/* ── DISCOVERY SHELVES — BELOW THE RESULTS, NOT ABOVE THEM ───────────────────────
+            ⛔ FROM `sm` UP ONLY SINCE 2026-11-14 (owner-approved, cook r04 home-b "lanes as rails"): on a phone Trending,
+            Outstanding businesses and the category shelves are the lanes ABOVE the feed (the `data-home-lanes` block in the
+            ladder), so here they are `max-sm:hidden` — never intersected there, so never drawn. Recently viewed stays here
+            at every width (its place is known only after hydration; above the feed it would push the first screen). The
+            record below is this block's, and it still holds from `sm`.
             ⚠️ THIS IS THE ONE THING THE MERGE REORDERED, AND IT IS DELIBERATE. These four rails
             used to sit between the category tiles and the feed, where they were the landing's
             content. With a results grid always present they were competing with it for the same
@@ -6094,12 +6303,16 @@ export function ListingsExplorer({
         {!showDiscovery && !sellerId && viewMode === 'grid' && !isLoading && !queryError && !failedWithoutAnswer
           && shownListings.length > 0 && gridListings === shownListings && totalCount > 0 && totalCount < 8 && !hasMore
           && recoveryRail.kind !== 'unknown' && (
-          <div className="mt-8 sm:mt-12 lg:mt-8">
+          // ⛔ Under the goods search on a phone (`goodsLook`, owner-approved 2026-11-14, cook r06 goods): 24px under the last result
+          // (the sentinel gives up its margin there), and the rail is the same two-column grid of goods cards.
+          <div className={cn('mt-8 sm:mt-12 lg:mt-8', goodsLook && 'max-sm:mt-6')}>
             {/* ⛔ "MORE IN <CATEGORY>" WHEN THE ANSWER BROUGHT IT (UI climb 2026-11-09, hunt #9): a search for "iphone" with two
                 answers ended on a keyboard and a hair tool under "Trending now". Words that found 1-7 things carry the rest of
                 their category in the same response; the rail is decided once per answer and never swaps after it paints,
                 and with no decision yet (`unknown`) there is no rail at all rather than a Trending that might change. */}
-            {recoveryRail.kind === 'related' ? <RelatedShelf related={recoveryRail.related} /> : <ForYouRail initial={initialTrending} recovery />}
+            {recoveryRail.kind === 'related'
+              ? <RelatedShelf related={recoveryRail.related} look={goodsLook ? 'goods' : undefined} />
+              : <ForYouRail initial={initialTrending} recovery goods={goodsLook} />}
           </div>
         )}
 
@@ -6108,13 +6321,15 @@ export function ListingsExplorer({
             listings and competing businesses as if they were the shop's (sweep, 2026-10-22). Other sellers appear on a
             storefront only under its own "More from other sellers" heading. */}
         {showDiscovery && !sellerId && (
-          <div className="mt-8 space-y-8 sm:mt-12 sm:space-y-12 lg:mt-8 lg:space-y-8">
-            {/* Recently viewed — the returning buyer's own trail. Self-hides for new visitors. */}
-            <RecentlyViewedRail />
+          // A phone shows only Recently viewed here: no top margin and no stack spacing of its own there, so a first visit (no
+          // trail) leaves no band before the footer; the trail carries its own 32px.
+          <div className="mt-8 space-y-8 sm:mt-12 sm:space-y-12 lg:mt-8 lg:space-y-8 max-sm:mt-0 max-sm:space-y-0">
+            {/* Recently viewed — the returning buyer's own trail. Self-hides for new visitors (`empty:hidden`: no box then). */}
+            <div className="empty:hidden max-sm:mt-8"><RecentlyViewedRail /></div>
 
             {/* For You — the trending seed. It LEADS, so it keeps first claim on its cards and
                 the two rails below are deduped against it (see dedupedBusinesses/railExcludeIds). */}
-            {deferShelf(initialTrending, <ForYouRail initial={initialTrending} />)}
+            {deferShelf(initialTrending, <ForYouRail initial={initialTrending} liveMedia={SM_UP_MEDIA} />)}
 
             {/* Outstanding businesses — the highest-trust business storefronts. Seeded with the
                 DEDUPED set (see railExcludeIds above) so it never repeats For You card-for-card. */}
@@ -6122,7 +6337,7 @@ export function ListingsExplorer({
 
             {/* Browse by category — one horizontal rail per category, most-used first.
                 Tapping a heading / "See all" opens that category (same as a tile). */}
-            <DeferredCategoryRails categories={categories} onCategory={handleRailCategorySelect} excludeIds={railExcludeIds} />
+            <DeferredCategoryRails lanes={categoryLanes} onCategory={handleRailCategorySelect} onDrawn={checkCategoryLanes} />
           </div>
         )}
       </div>

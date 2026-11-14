@@ -15,6 +15,9 @@
  * narrower than 8px would scroll the page sideways — and any `overflow` clip at the content box (the explorer's
  * #listings section had one) cuts the outer cards' edges off; that clip now sits at the screen edge.
  * ⚠️ 2 / 3 / 4 ARE LOAD-BEARING: the first page is 12 cards (FIRST_PAGE_SIZE), the one count all three fill.
+ * ⛔ EXCEPT RENTAL RESULTS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a): /c/rentals and the rentals feed are ONE
+ * column of bigger square cards below `sm` (LISTING_GRID_WIDE, below). Every other grid keeps this one, and from `sm` the two
+ * are the same string.
  *
  * ⚠️ A PLAIN MODULE, NOT 'use client'. Server components import it too (saved/loading.tsx,
  * seo-listing-rail.tsx); from a client module they would receive a client REFERENCE in place of
@@ -38,6 +41,24 @@ export const LISTING_GRID = '-mx-2 grid grid-cols-2 gap-x-1 gap-y-3 sm:mx-0 sm:g
  * 420w rung, a DPR3 one 567px → 640w.
  */
 export const LISTING_CARD_SIZES = '(min-width: 1448px) 318px, (min-width: 1368px) calc(25vw - 44px), (min-width: 1280px) 298px, (min-width: 1024px) calc(25vw - 22px), (min-width: 640px) calc(33.33vw - 21px), calc(50vw - 6px)'
+
+/**
+ * ⛔ RENTAL RESULTS ARE ONE COLUMN OF LARGE SQUARE CARDS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a: "after this
+ * cook round build all best options and deploy") — /c/rentals (SellerListings `phoneWide`) and the rentals feed
+ * (/?category=rentals, listings-explorer.tsx `rentalsWide`). It reverses, for those two surfaces and below `sm` only, the
+ * "FACEBOOK-MARKETPLACE SPACING ON A PHONE … 2 / 3 / 4 ARE LOAD-BEARING" note above: a rental is chosen by its photo, so the
+ * phone shows one home at a time, Airbnb's results shape. The card keeps its SQUARE photo and gets BIGGER, never smaller
+ * (owner, 2026-11-14: "dont change the product card ratio also dont make it smaller"): 366 × 366 at 390 against the two-up
+ * 189 × 189. No bleed — the photo sits on the 12px page gutter, the text flush under it (listing-card.tsx `wide`) — and 24px
+ * between cards. From `sm` it is LISTING_GRID exactly (listing-grid.test.ts pins both breakpoints), so 3 / 4 columns and
+ * the 12-card first page are untouched there.
+ */
+export const LISTING_GRID_WIDE = 'grid grid-cols-1 gap-y-6 sm:grid-cols-3 sm:gap-x-2 sm:gap-y-4 lg:grid-cols-4'
+
+/** The photo `sizes` of a card in LISTING_GRID_WIDE: LISTING_CARD_SIZES from `sm` up, and the full content width below it
+ *  (100vw − the 12px gutter on each side: 366px at 390). ⚠️ A DPR2/DPR3 phone then asks for the 1080w rung where the two-up
+ *  card asked for 420w/640w — the cost of the bigger photo, measured as LCP (part plan "risks"), not hidden by a smaller hint. */
+export const WIDE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 6px\)$/, 'calc(100vw - 24px)')
 
 /**
  * The explorer's MAP-mode list (listings-explorer.tsx): one full-width column below lg — no bleed there, so

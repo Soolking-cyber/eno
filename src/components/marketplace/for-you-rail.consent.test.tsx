@@ -85,6 +85,33 @@ describe('ForYouRail with Personalization ON', () => {
   })
 })
 
+/**
+ * ⛔ PERSONALIZE ONLY WHERE THE COPY IS SHOWN (2026-11-14, cook r04 home-b): the home page renders this rail twice — the
+ * phone's lane above the feed and the desktop's shelf under it — so each asks only while its `liveMedia` matches.
+ */
+describe('ForYouRail `liveMedia`', () => {
+  const at = (matches: boolean) => vi.stubGlobal('matchMedia', (q: string) => ({ matches, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }))
+  it('a copy whose media does not match keeps its seed and asks nothing, even with Personalization on', async () => {
+    vi.stubGlobal('localStorage', memoryStorage(HISTORY))
+    await grant()
+    fetchMock.mockClear()
+    at(false)
+    const { ForYouRail } = await import('./for-you-rail')
+    await mount(<ForYouRail initial={SEED} liveMedia="(max-width: 39.99rem)" />)
+    expect(recoCalls()).toHaveLength(0)
+    expect(screen.getByText('Trending now')).toBeTruthy()
+  })
+  it('the copy on screen asks, as before', async () => {
+    vi.stubGlobal('localStorage', memoryStorage(HISTORY))
+    await grant()
+    fetchMock.mockClear()
+    at(true)
+    const { ForYouRail } = await import('./for-you-rail')
+    await mount(<ForYouRail initial={SEED} liveMedia="(max-width: 39.99rem)" />)
+    expect(recoCalls()).toHaveLength(1)
+  })
+})
+
 const TRENDING = ['t1', 't2', 't3'].map(card)
 const PERSONAL = ['p1', 'p2', 'p3'].map(card)
 const recoCalls = () => fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/api/recommendations'))

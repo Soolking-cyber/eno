@@ -15,7 +15,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LanguageProvider } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
-import { HeadingCount, HeadingCountProvider, groupedIn, phoneCountText, useHeadingCount, usePublishHeadingCount } from './heading-count'
+import { HEADING_COUNT_TYPE, HeadingCount, HeadingCountProvider, groupedIn, phoneCountText, useHeadingCount, usePublishHeadingCount } from './heading-count'
 import { SellerListings } from './seller-listings'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/c/rentals' }))
@@ -131,12 +131,17 @@ describe('HeadingCount reads what is published', () => {
     expect(float()).toBeNull()
   })
 
-  it('the float: aria-hidden, at the line\'s right end, 12px body ink on the mock\'s 26px line, never wider than 40%', () => {
+  // ⛔ A flex sibling AFTER the heading since 2026-11-14 (owner-approved, cook r06 rentals-a): the meta role, muted, tabular,
+  // never wider than 40% and never the one that shrinks first. No float, no tuned line height.
+  it('the count: aria-hidden, a non-shrinking flex item in the meta role, muted, never wider than 40%', () => {
     render(tree(undefined))
     const el = float()!
     expect(el.tagName).toBe('SPAN')
     expect(el.getAttribute('aria-hidden')).toBe('true')
-    expect(el.className.split(/\s+/)).toEqual(expect.arrayContaining(['float-right', 'ml-3', 'max-w-[40%]', 'truncate', 'text-xs', 'text-body', 'leading-[1.625rem]']))
+    const cls = el.className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['shrink-0', 'max-w-[40%]', 'truncate', 'text-t-meta', 'tabular-nums', 'text-muted-foreground']))
+    expect(cls.filter((c) => /^(?:float-|ml-|leading-|text-xs$)/.test(c))).toEqual([])
+    expect(el.className).toBe(HEADING_COUNT_TYPE)
   })
 
   it('outside a provider: the seed, and publishing is a no-op (no throw)', () => {

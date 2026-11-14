@@ -33,7 +33,8 @@ describe('(index)/ holds one route, so the layout may lean on it', () => {
 describe('the layout: the H1 and the check line stand down on a rentals phone', () => {
   it('the H1 is sr-only below sm on rentals (the pinned first argument unchanged)', () => {
     expect(layout).toContain(
-      "<h1 className={cn('h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only')}>",
+      // A goods category takes the teachers' wrapping display H1 (owner-approved 2026-11-14, cook r06 goods); rentals keeps the pin.
+      "<h1 className={cn(cat.slug === TEACHERS_CATEGORY_SLUG || isGoodsCategory(cat.slug) ? 'h-display text-balance text-foreground' : 'h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only', cat.slug === 'jobs' && 'max-sm:sr-only')}>",
     )
   })
 
@@ -57,17 +58,28 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(page).toContain('sortable={(homes?.total ?? total) > 1}')
   })
 
+  // ⛔ ONE DISPLAY LINE since 2026-11-14 (owner-approved, cook r06 rentals-a): the heading at the display role, then the count
+  // as a flex sibling on its baseline — DOM order = visual order (it was a float BEFORE the heading, at the title step).
   it('the phone block is the FIRST thing the page returns, inside the count provider only where the count moves', () => {
     expect(page).toContain('const CountScope = rentalsStrip ? HeadingCountProvider : Fragment')
     expect(page).toMatch(new RegExp([
       String.raw`return \(\s*<CountScope>\s*`,
       String.raw`\{cat\.slug === 'rentals' && \(\s*<div className="sm:hidden">\s*`,
+      String.raw`<div className="flex items-baseline gap-3">\s*`,
+      String.raw`<RentalsPhoneHeading headline=\{headline\} name=\{cat\.name\} nameVi=\{cat\.nameVi\} className="min-w-0 flex-1 truncate py-0\.5 text-t-display text-foreground" \/>\s*`,
       String.raw`\{rentalsStrip && <HeadingCount seed=\{\{ shown: listings\.length, total: ([^}]+) \}\} \/>\}\s*`,
-      String.raw`<RentalsPhoneHeading headline=\{headline\} name=\{cat\.name\} nameVi=\{cat\.nameVi\} className="h-display truncate py-0\.5 text-foreground \[--text-display:var\(--text-title\)\]" \/>\s*`,
+      String.raw`<\/div>\s*`,
       String.raw`<CategoryLedeLinks slug=\{cat\.slug\} \/>\s*<\/div>\s*\)\}\s*`,
       String.raw`\{LEDE_PLACEMENT === 'page' && `,
     ].join('')))
     expect(page).toMatch(/<\/CountScope>\s*\)\s*\}\s*$/)
+  })
+
+  it('/c/rentals asks SellerListings for the one-column phone grid, and only rentals does', () => {
+    expect(page.match(/phoneWide=/g)).toHaveLength(1)
+    expect(page).toContain("phoneWide={cat.slug === 'rentals'}")
+    // `sortable` stays the LAST prop (teaching-links.test reads the call by it).
+    expect(at(page, "phoneWide={cat.slug === 'rentals'}")).toBeLessThan(at(page, 'sortable={(homes?.total ?? total) > 1}'))
   })
 
   it('the seed total IS serverScope.total, the same expression (SSR = the first client render)', () => {
@@ -86,7 +98,9 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(page).toContain("<AreaChipsRow className={rentalsAreas ? 'max-sm:hidden' : undefined}>")
     expect(page).toContain('{!rentalsAreas && <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} />}')
     expect(page).toContain(
-      '{rentalsStrip ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}',
+      // …and on /c/jobs over a grid (owner-approved 2026-11-14, cook r06 jobs: its heading line opens the list on a phone), and on
+      // every goods category (owner-approved 2026-11-14, cook r06 goods: the wrapping H1 opens the list there).
+      '{rentalsStrip || jobsPhoneHead || goods ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}',
     )
     // "By area:" and "All" stay in the row (from sm), and nowhere else.
     expect(page.match(/<Tr text="By area:" \/>/g)).toHaveLength(1)
@@ -100,11 +114,12 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(open).toBeLessThan(sortable)
     const block = page.slice(open, sortable)
     expect(block).toMatch(/chips: rentalsAreas \? \(/)
-    expect(block).toContain('<CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} />')
+    expect(block).toContain('<CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} glyphClassName="size-4.5" />')
     expect(block).toContain('{districts.map((d) => (')
     expect(block).toContain('<Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>')
     expect(block).toContain('<PlaceName en={d.label.en} vi={d.label.vi} />')
-    expect(block).toMatch(/\) : null,\s*\} : undefined\}\s*$/)
+    // (/c/jobs' `phoneHead` sits between `phoneWide` and `sortable` since 2026-11-14, owner-approved, cook r06 jobs.)
+    expect(block).toMatch(/\) : null,\s*\} : undefined\}\s*phoneWide=\{cat\.slug === 'rentals'\}\s*(?:\/\/[^\n]*\n\s*)*phoneHead=\{jobsPhoneHead \? \{[^]*?\} : undefined\}\s*$/)
     // The strip chip is the browse chip with Filters' resting look (one chip style, owner 2026-10-18).
     expect(page).toContain("const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')")
   })

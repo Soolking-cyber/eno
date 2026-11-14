@@ -3,7 +3,7 @@ import * as React from 'react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderToString } from 'react-dom/server'
+import { renderToReadableStream, renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { TEACHERS_COUNSEL_WORDS } from '@/test/teachers-counsel-words'
 
@@ -120,7 +120,14 @@ async function render(category: 'teachers' | 'electronics', lang: 'en' | 'vi', r
   h.all = rows
   h.window = window
   const tree = await CategoryPage({ params: Promise.resolve({ lang, category }) })
-  const html = renderToString(<LanguageProvider initialLang={lang} initialViDict={{}}>{tree}</LanguageProvider>)
+  // ⚠️ THE STREAMING RENDERER, AWAITED WHOLE — not renderToString. A goods category's page (/c/electronics) renders the async
+  // server component <CategoryLedeBlock placement="after-grid"> under its grid (owner-approved 2026-11-14, cook r06 goods —
+  // lede-placement.ts `ledePlacementFor`); renderToString cannot wait for it ("A component suspended while responding to
+  // synchronous input"), the RSC render the server really runs does. `allReady` resolves every async child, so the string is
+  // the whole page, as before.
+  const stream = await renderToReadableStream(<LanguageProvider initialLang={lang} initialViDict={{}}>{tree}</LanguageProvider>)
+  await stream.allReady
+  const html = await new Response(stream).text()
   const el = document.createElement('div')
   el.innerHTML = html
   return { html, el }
@@ -334,6 +341,10 @@ describe('every other category — unchanged', () => {
     it(`${lang}: /c/electronics makes no teacher read, renders no list, and its links are its own`, async () => {
       const rows = phones(93)
       const { el, html } = await render('electronics', lang, rows)
+      // The whole page, async lede included: a goods category's lede closes its grid, exactly once (lede-placement.ts).
+      const ledes = el.querySelectorAll('[data-category-lede]')
+      expect(ledes, 'the after-grid lede').toHaveLength(1)
+      expect(el.querySelector('[data-grid]')!.compareDocumentPosition(ledes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       expect(h.findMany, 'a teacher read on another category').toEqual([])
       expect(vi.mocked(MoreTeachers)).not.toHaveBeenCalled()
       expect(el.querySelector('[data-teacher-links]')).toBeNull()
@@ -343,6 +354,18 @@ describe('every other category — unchanged', () => {
       expect(grid).toHaveLength(GRID)
       // ⛔ The teachers chip is eno.vn's page on eno.forum (the forum 308s its own — src/lib/teachers/surface.ts).
       expect(links(el).filter((l) => !grid.some((g) => g.href === l.href)).map((l) => l.href)).toEqual(['/?category=electronics', '/c/jobs', 'https://eno.vn/c/teachers'])
+    })
+
+    // ⛔ An EMPTY goods category keeps its lede (commit review, 2026-11-14): the layout leaves goods to the page, and the page drew
+    // it only under a grid — so with no listing the page had no lede at all. Now once, after the empty state.
+    it(`${lang}: an empty /c/electronics still renders its lede, once, after the empty state`, async () => {
+      const { el } = await render('electronics', lang, [])
+      expect(el.querySelector('[data-grid]'), 'no grid on an empty category').toBeNull()
+      const ledes = el.querySelectorAll('[data-category-lede]')
+      expect(ledes, 'the lede of an empty goods category').toHaveLength(1)
+      const cta = [...el.querySelectorAll('a')].find((a) => a.getAttribute('href')?.startsWith('/post'))!
+      expect(cta, 'the empty state').toBeTruthy()
+      expect(cta.compareDocumentPosition(ledes[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
     it(`${lang}: on eno.vn the same chip links its own /c/teachers, as it always did — and nothing links eno.vn absolutely`, async () => {

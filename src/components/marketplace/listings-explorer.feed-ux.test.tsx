@@ -617,6 +617,10 @@ describe('on a phone, a directed feed folds its category ladder into one compact
   const rails = () => ({ category: !!screen.queryByTestId('category-rail'), brand: !!screen.queryByTestId('brand-rail') })
   const compactRow = () => document.querySelector<HTMLElement>('[data-slot="ladder-compact-row"]')
   const scopeButton = () => compactRow()!.querySelector('button[aria-expanded]') as HTMLButtonElement
+  /** The goods search's scope chip (`oneRow`, owner-approved 2026-11-14, cook r06 goods): first in the sticky filter row. */
+  const scopeChip = () => document.querySelector<HTMLButtonElement>('#explorer-toolbar [data-scope-chip]')
+  /** The ladder folded, whichever shape: the compact row (a category picked) or the scope chip (none). */
+  const folded = () => !!compactRow() || !!scopeChip()
   function mountAt(url: string) {
     window.history.replaceState({}, '', url)
     return render(
@@ -633,22 +637,84 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(compactRow()).toBeNull()
   })
 
-  it('a search folds the tile grid AND the brand rail into one row; the scope button opens and closes them', async () => {
+  it('⛔ a search with no category is ONE title line and ONE control row: the scope chip leads the sticky strip and opens the rails under it', async () => {
+    // Owner-approved 2026-11-14, cook r06 goods (`oneRow`): it reverses, for this state, the compact row's "the scope button,
+    // then the NEXT RUNG as chips" — the category chips are what the scope chip opens.
     mountAt('/?q=phone')
-    await waitFor(() => expect(compactRow()).not.toBeNull())
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
     expect(rails()).toEqual({ category: false, brand: false }) // ~375px of controls gone from above the results
-    expect(scopeButton().getAttribute('aria-expanded')).toBe('false')
-    expect(scopeButton().textContent).toContain('All categories') // the current scope, highlighted
-    // …and the next rung is one tap away, in the same row: the categories as chips.
-    expect(within(compactRow()!).getByRole('button', { name: 'Electronics' })).toBeTruthy()
+    expect(scopeChip()!.getAttribute('aria-expanded')).toBe('false')
+    expect(scopeChip()!.textContent).toContain('All categories')
+    // The first item of the strip's row, before Sort.
+    const row = scopeChip()!.parentElement!
+    expect(row.firstElementChild).toBe(scopeChip())
+    // No quick category chips anywhere: the chip opens them.
+    expect(screen.queryByRole('button', { name: 'Electronics' })).toBeNull()
 
-    act(() => { scopeButton().click() })
-    expect(scopeButton().getAttribute('aria-expanded')).toBe('true')
-    // The category rail opens; the brand rail does NOT come with it on a free-text search over "All"
-    // (E-RESULTS): there it is the most-listed-overall directory, which does not read the words.
+    act(() => { scopeChip()!.click() })
+    expect(scopeChip()!.getAttribute('aria-expanded')).toBe('true')
+    // The category rail opens UNDER the strip, in the DOM (no CSS order); the brand rail does NOT come with it on a free-text
+    // search over "All" (E-RESULTS): there it is the most-listed-overall directory, which does not read the words.
     expect(rails()).toEqual({ category: true, brand: false })
-    act(() => { scopeButton().click() })
+    const toolbar = document.getElementById('explorer-toolbar')!
+    const rail = screen.getByTestId('category-rail')
+    expect(toolbar.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(scopeChip()!.getAttribute('aria-controls')).toBe(rail.closest('[data-slot="collapsible-panel"]')!.id)
+    act(() => { scopeChip()!.click() })
     expect(rails()).toEqual({ category: false, brand: false })
+  })
+
+  it('⛔ the title line is the ladder\'s first child; #results stays the one live count, sr-only, with no heading or controls', async () => {
+    mountAt('/?q=phone')
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    const ladder = document.querySelector<HTMLElement>('[data-ladder]')!
+    const title = ladder.firstElementChild as HTMLElement
+    expect(title.hasAttribute('data-results-title')).toBe(true)
+    // The page's one results h2, there; the count beside it is a picture.
+    expect(within(title).getByRole('heading', { level: 2 }).textContent).toBe('Results for “phone”')
+    await waitFor(() => expect(title.querySelector('p[aria-hidden]')!.textContent).toMatch(/results? for “phone”/))
+    // Save search and the view pick are its circles (the view pick is the select, named "View").
+    expect(title.querySelector('[data-save-search]')).not.toBeNull()
+    expect(title.querySelector('[data-save-search]')!.textContent).toBe('Save search')
+    const results = document.getElementById('results')!
+    expect(results.getAttribute('data-results-hidden')).not.toBeNull()
+    expect(results.className).toContain('max-sm:sr-only')
+    expect(results.querySelectorAll('h2')).toHaveLength(0)
+    expect(results.querySelector('[data-view-cluster]')).toBeNull()
+    expect(results.querySelectorAll('button')).toHaveLength(0)
+    // One live count, still in #results.
+    expect(document.querySelectorAll('[aria-live="polite"]').length).toBeGreaterThan(0)
+    expect(results.querySelector('p[aria-live="polite"]')).not.toBeNull()
+    expect(document.querySelectorAll('h2').length).toBe(1)
+    // The ladder is the Collapsible root, the same element.
+    expect(ladder.getAttribute('data-slot')).toBe('collapsible')
+  })
+
+  it('the goods look on a phone: the strip is opaque with no rule, the pills in the goods order, the cards price-led', async () => {
+    mountAt('/?q=phone')
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    const toolbar = document.getElementById('explorer-toolbar')!
+    expect(toolbar.className).toContain('max-sm:bg-background')
+    expect(toolbar.className).toContain('max-sm:backdrop-blur-none')
+    expect(toolbar.querySelector('.border-b')!.className).toContain('max-sm:border-b-transparent')
+    expect((h.facet.props as { order?: string }).order).toBe('goods')
+  })
+
+  it('the goods grid: rows 32px apart once the answer is drawn; a rentals feed, a desktop and the home keep their own', async () => {
+    mountAt('/?q=phone')
+    await waitFor(() => expect(document.querySelector('.feed-grid')?.className).toContain('max-sm:gap-y-8'))
+    cleanup()
+    mountAt('/?category=rentals')
+    await waitFor(() => expect(cardIds().length).toBeGreaterThan(0))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-8')
+    expect((h.facet.props as { order?: string }).order).toBeUndefined()
+    cleanup()
+    mountAt('/')
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-8')
+    expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).toBeNull()
   })
 
   it('in a brand category the opened ladder carries the brand rail too', async () => {
@@ -686,11 +752,12 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     try {
       await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
       await new Promise((r) => setTimeout(r, 50))
-      expect(compactRow()).toBeNull()
+      expect(folded()).toBe(false)
       expect(rails().category).toBe(true)
       // The reader narrows the feed (a condition, from the facet bar): now it folds, in that commit.
       act(() => { (h.facet.props as { setConditionFilter: (v: string) => void }).setConditionFilter('new') })
-      expect(compactRow()).not.toBeNull()
+      // No category picked: the folded shape is the scope chip in the strip (`oneRow`).
+      expect(folded()).toBe(true)
       expect(rails().category).toBe(false)
     } finally {
       act(() => { root?.unmount() })
@@ -704,7 +771,7 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     for (const m of marks) document.documentElement.setAttribute(m, '')
     // Every change of the fold mark, with whether the folded row was already in the DOM at that moment.
     const foldLog: string[] = []
-    const mo = new MutationObserver(() => foldLog.push(`fold=${document.documentElement.hasAttribute('data-explorer-fold')} row=${!!compactRow()}`))
+    const mo = new MutationObserver(() => foldLog.push(`fold=${document.documentElement.hasAttribute('data-explorer-fold')} row=${folded()}`))
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-explorer-fold'] })
     const el = (
       <QueryClientProvider client={newClient()}>
@@ -727,7 +794,9 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     await coldLoad('/?q=phone', ['data-explorer-fold', 'data-explorer-directed'], async (foldLog) => {
       // ⛔ The mark never leaves before the fold commits — a word search turns the explorer on one effect after its URL
       // applies, and dropping the mark in that frame showed the rails (review). Watched on every attribute change.
-      await waitFor(() => expect(compactRow()).not.toBeNull())
+      // A word search with no category folds to the goods title line + the scope chip (`oneRow`), in that same commit.
+      await waitFor(() => expect(scopeChip()).not.toBeNull())
+      expect(document.querySelector('[data-ladder]')!.firstElementChild!.hasAttribute('data-results-title')).toBe(true)
       await waitFor(() => expect(foldLog).toEqual(['fold=false row=true']))
       expect(rails().category).toBe(false)
       // The space the CSS held is the row's now: the mark goes in the same commit (before paint).
@@ -1206,6 +1275,8 @@ describe('a cold directed deep link waits for its own answer behind the mask (E-
 
 describe('the view is URL state (E-VIEWS)', () => {
   it('List view writes ?view=compact; Grid, the default, removes it', async () => {
+    // The four view toggles are the sm-and-up control (a phone's search picks its view in the title line's circle).
+    viewport.desktop = true
     window.history.replaceState({}, '', '/?q=phone')
     mount(newClient())
     await waitFor(() => expect(cardIds()).toHaveLength(12))

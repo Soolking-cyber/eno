@@ -11,6 +11,7 @@ import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
 import { homeTeacherShelf } from '@/lib/core/teacher-shelf'
+import { homeCategoryRails, type CategoryRailRow } from '@/lib/core/category-rails'
 import { logError } from '@/lib/log'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
   return homeMetadata(lang)
 }
 
-async function getData(onlyTitleLang: string | undefined): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>>; teachers: SerializedListingCard[] }> {
+async function getData(onlyTitleLang: string | undefined): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>>; teachers: SerializedListingCard[]; categoryRails: CategoryRailRow[] }> {
   try {
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
@@ -88,7 +89,7 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // would hand the reorder the same monopolised twelve rows.
       .then((head) => head.slice(0, 12))
 
-    const [serializedCategories, firstPage, total, businesses, trending, teachers] = await Promise.all([
+    const [serializedCategories, firstPage, total, businesses, trending, teachers, categoryRails] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid. Already in
       // flight, above.
       categoriesPromise,
@@ -119,6 +120,15 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // silent catches (reviewer): the shelf has no client fetch behind it, so a failed read is a home page without
       // teachers for the whole 6h ISR window, and only the log says why.
       homeTeacherShelf().catch((e) => { logError(e, { op: 'home.teacherShelf' }); return [] }),
+      // The per-category shelves, server-known since 2026-11-14 (owner-approved, cook r04 home-b "lanes as rails"): on a
+      // phone they are lanes ABOVE the feed, so a client fetch would push the feed down under the reader; on desktop they
+      // stay below it, deferred, from this same data. The ISR entry's own title language, like the seed. ⚠️ THE ANSWER IS
+      // CHECKED ON THE CLIENT once its cards are drawn (category-rails.tsx useFreshCategoryLanes, one /api/category-rails
+      // ask): not every takedown purges '/', so a card taken down since would otherwise stay in the lanes for the 6h
+      // window. `initialFetchedAt` below, stamped in this same render, names the snapshot the answer applies to.
+      // ⚠️ LOGGED and fail-soft like the teacher shelf: a failed read is a home page without category lanes for the 6h
+      // window, and only the log says why. (`publicScope` above already rethrew a desk failure.)
+      homeCategoryRails(onlyTitleLang).catch((e) => { logError(e, { op: 'home.categoryRails' }); return [] }),
     ])
 
     // ⚡ PAYLOAD (speed plan item 8): on the /vi ISR entry embed NO titleI18n — a vi reader renders from
@@ -127,7 +137,7 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
     // swap titles client-side. (generateStaticParams prerenders en + vi as separate entries.)
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard), onlyTitleLang)
 
-    return { categories: serializedCategories, listings: serializedListings, total, businesses, trending, teachers }
+    return { categories: serializedCategories, listings: serializedListings, total, businesses, trending, teachers, categoryRails }
   } catch (e) {
     /**
      * ⚠️ A DESK-RESOLUTION FAILURE MUST NOT BE SWALLOWED HERE. This catch exists so a transient
@@ -146,7 +156,7 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
     if (process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD) throw e
     // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
     // on the first request, so a transient build-time DB error never fails the deploy.
-    return { categories: [], listings: [], total: 0, businesses: [], trending: [], teachers: [] }
+    return { categories: [], listings: [], total: 0, businesses: [], trending: [], teachers: [], categoryRails: [] }
   }
 }
 
@@ -163,7 +173,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
    * deny-list and allow-list must be one `id` object, not two spreads that overwrite each other.
    */
   const { lang } = await params
-  const { categories, listings, total, businesses, trending, teachers } = await getData(lang === 'vi' ? 'vi' : undefined)
+  const { categories, listings, total, businesses, trending, teachers, categoryRails } = await getData(lang === 'vi' ? 'vi' : undefined)
 
   /**
    * ⛔ THE WRAPPER, HEADER, `<main>`, H1 AND FOOTER ARE IN `(home)/layout.tsx` SINCE SEO WAVE B, H1c,
@@ -182,6 +192,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       initialBusinesses={businesses}
       initialTrending={trending}
       initialTeachers={teachers}
+      initialCategoryRails={categoryRails}
       siteHeading={false}
     />
   )

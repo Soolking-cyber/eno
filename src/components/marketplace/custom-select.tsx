@@ -120,12 +120,15 @@ interface CustomSelectProps {
    * and admin picker used to wear: the sprite draws ChevronsUpDown as Solar's `sort-vertical`, two arrows
    * (scripts/lucide-solar-map.mjs), and judges read it on the schools Area picker and the suggest form as a sort control
    * (2026-11-06 audit), so a caller now has to ask for it.
+   * `'none'`: no disclosure glyph — an icon-only trigger whose own glyph says what it is (/c/jobs' phone sort, a 44px round
+   * button beside the heading; owner-approved 2026-11-14, cook r06 jobs). Its words stay its name (`labelClassName="sr-only"`).
    */
-  indicator?: 'updown' | 'down'
+  indicator?: 'updown' | 'down' | 'none'
 }
 
 /** The trigger's disclosure glyph — see `indicator`. Same 14px box either way, so no pill reflows. */
-function TriggerGlyph({ indicator = 'down', open }: { indicator?: 'updown' | 'down'; open: boolean }) {
+function TriggerGlyph({ indicator = 'down', open }: { indicator?: 'updown' | 'down' | 'none'; open: boolean }) {
+  if (indicator === 'none') return null
   if (indicator === 'down') {
     return <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', open && 'rotate-180')} />
   }

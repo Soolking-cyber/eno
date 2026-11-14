@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState, type CSSProperties, type FocusEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent } from 'react'
 import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
 import { stripPartners, type StripPartner } from '@/lib/partner-strip'
+import { LANE_HEADER_ROW, LANE_TITLE } from './shelf'
 
 /**
  * How many times the roster repeats inside each HALF of the looping track. ⛔ A SEAMLESS LOOP NEEDS ONE HALF AT LEAST AS WIDE
@@ -59,13 +60,24 @@ const SM_UP = '(min-width: 40rem)'
  * "iphone" opened on Motorbikes and Moving, and it was one of five bands before the first listing. Blind A/B against that:
  * codex 6.85 to 7.03, Fable 7.09 to 7.34. Two placements of this one component, each shown at its own widths by a class:
  *   · `top`  (the home layout): from `sm` up, exactly as before; hidden below it;
- *   · `feed` (listings-explorer.tsx): below `sm` only, a full-width row after the second row of the undirected home feed.
- *     A search or a category result shows no band on a phone at all.
+ *   · `feed` (listings-explorer.tsx): below `sm` only — since 2026-11-14 the PARTNERS LANE among the home page's phone lanes
+ *     (below). A search or a category result shows no band on a phone at all.
  * Both are in the server's HTML (a row inserted after hydration would push the feed down), so each sends its one still
  * row; only the top copy, from `sm` up, runs the loop and grows the repeats (the feed copy holds still, above).
+ *
+ * ⛔ THE PHONE'S COPY IS A LANE NOW, NOT A GRID ROW (owner-approved 2026-11-14, cook r04 home-b "lanes as rails": "after this
+ * cook round build all best options and deploy"). It reverses 2026-11-10's "a full-width row after the second row of the
+ * undirected home feed" and its hairline above and below: on a phone the home page's lanes lead (listings-explorer.tsx, the
+ * `data-home-lanes` block), and Partners is one of them, after the second category lane — a `t-h2` heading like every lane
+ * ("Partners" / "Đối tác", the word the band always carried) over a still rail of tiles, one per partner: 220px wide like a
+ * lane's cards, 56 tall, white with the chips' hairline at the photo radius, the logo then its one word, so the peeking
+ * second tile shows its whole mark and its whole word (globals.css `.partner-strip-feed`). The 2026-11-14 still band is kept
+ * whole: one roster, no loop, no Pause, no fade, scrolled by hand, its logos eager once on screen, `data-partner-band`.
  */
 export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
+  const headingId = useId()
+  const feed = placement === 'feed'
   const partners = stripPartners()
   // From `sm` up only, and ahead of the stylesheets (why and what was measured: PartnerItem).
   // ⚠️ React keys an image preload by its href and the first one wins: a plain eager `<img>` of one of these files
@@ -108,17 +120,25 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // very first roster is the real one.
   const copies = looping ? REPEAT * 2 : 1
   const items = Array.from({ length: copies }, (_, copy) =>
-    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} eager={warm} label={label(p)} />))
+    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} eager={warm} label={label(p)} tile={feed} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
     <section
-      aria-label={tr('eno partners', 'Đối tác của eno')}
-      data-partner-band={placement === 'feed' ? '' : undefined}
-      className={placement === 'feed' ? 'partner-strip partner-strip-feed col-span-full sm:hidden' : 'partner-strip max-sm:hidden'}
+      // The lane is named by its own heading; the top band, which has only the small word, by a label.
+      aria-label={feed ? undefined : tr('eno partners', 'Đối tác của eno')}
+      aria-labelledby={feed ? headingId : undefined}
+      data-partner-band={feed ? '' : undefined}
+      className={feed ? 'partner-strip-feed sm:hidden' : 'partner-strip max-sm:hidden'}
     >
-      {/* In the feed the grid already puts a full-width row's content on the page gutter (LISTING_GRID's `col-span-full` padding), so this row adds none. */}
-      <div className={placement === 'feed' ? 'flex h-full w-full items-center gap-3' : 'mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8'}>
-        <span className="shrink-0 text-2xs font-semibold text-ink-4">{tr('Partners', 'Đối tác')}</span>
+      {feed ? (
+        // The lane's heading row, the same as every other lane's (shelf.tsx LANE_*).
+        <div className={LANE_HEADER_ROW}>
+          <h2 id={headingId} className={LANE_TITLE}>{tr('Partners', 'Đối tác')}</h2>
+        </div>
+      ) : null}
+      {/* The lane's viewport bleeds to the screen edges itself (globals.css), so its wrapper adds no gutter. */}
+      <div className={feed ? undefined : 'mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8'}>
+        {feed ? null : <span className="shrink-0 text-2xs font-semibold text-ink-4">{tr('Partners', 'Đối tác')}</span>}
         <div ref={viewport} className="partner-strip-viewport" onBlur={onBlur}>
           <ul className="partner-strip-track" data-loop={looping ? '' : undefined} data-paused={paused ? '' : undefined} style={duration}>
             {items}
@@ -169,7 +189,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
  *     on screen, so it stays lazy and fetches nothing. The ⚠️ on preloads above still holds: the switch happens only on
  *     the client, and React writes no preload for a client-rendered image.
  */
-function PartnerItem({ partner: p, repeat, eager, label }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string }) {
+function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string; /** The phone lane's tile: its word is the lane's label role (14 bold ink), never cut. */ tile: boolean }) {
   const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
@@ -178,7 +198,7 @@ function PartnerItem({ partner: p, repeat, eager, label }: { partner: StripPartn
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
           <img src={p.logo.src} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
-        <span className="text-xs font-medium text-ink-4">{label}</span>
+        <span className={tile ? 'whitespace-nowrap text-sm font-bold text-foreground' : 'text-xs font-medium text-ink-4'}>{label}</span>
       </Link>
     </li>
   )

@@ -122,3 +122,39 @@ describe('RelativeTime on a page generated days earlier', () => {
     expect(r.text).toBe('1h ago')
   })
 })
+
+/**
+ * `markFresh` (owner-approved 2026-11-14, cook r06 jobs — the job card's "16h ago" in bold ink): `data-fresh` under 24 hours.
+ * In the server HTML only on a feed (`inHtml`); either way the effect re-judges it against the DOM after mount, so a page cached
+ * across the 24-hour line is corrected and never mismatches.
+ */
+describe('RelativeTime markFresh on a page generated days earlier', () => {
+  const iso = new Date(GENERATED - 3_600_000).toISOString() // 1h old at generation
+  const fresh = () => document.body.querySelector('time')!.hasAttribute('data-fresh')
+
+  it('a feed: fresh in the HTML, stale by the time it hydrates — no recoverable error, the mark removed', async () => {
+    const r = await renderThenHydrate(<RelativeTime iso={iso} inHtml markFresh />, GENERATED, GENERATED + 3 * DAY)
+    expect(r.html).toContain('data-fresh=""')
+    expect(r.recoverable).toEqual([])
+    expect(fresh()).toBe(false)
+  })
+
+  it('a feed still under a day: the mark stays', async () => {
+    const r = await renderThenHydrate(<RelativeTime iso={iso} inHtml markFresh />, GENERATED, GENERATED + 60_000)
+    expect(r.recoverable).toEqual([])
+    expect(fresh()).toBe(true)
+  })
+
+  it('⛔ by default (a 30-day page) the HTML never claims it; the mark arrives after mount while it is true', async () => {
+    const r = await renderThenHydrate(<RelativeTime iso={iso} markFresh />, GENERATED, GENERATED + 60_000)
+    expect(r.html).not.toContain('data-fresh')
+    expect(r.recoverable).toEqual([])
+    expect(fresh()).toBe(true)
+  })
+
+  it('without markFresh nothing is marked', async () => {
+    const r = await renderThenHydrate(<RelativeTime iso={iso} inHtml />, GENERATED, GENERATED + 60_000)
+    expect(r.html).not.toContain('data-fresh')
+    expect(fresh()).toBe(false)
+  })
+})

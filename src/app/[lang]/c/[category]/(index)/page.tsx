@@ -19,7 +19,8 @@ import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
 import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
-import { LEDE_PLACEMENT } from './lede-placement'
+import { LEDE_PLACEMENT, ledePlacementFor } from './lede-placement'
+import { isGoodsCategory } from '@/lib/goods-surface'
 import { guidesForCategory } from '@/lib/category-guides'
 import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
 import { UNLINKED_CATEGORIES, isRetiredNavCategory } from '@/lib/retired-categories'
@@ -320,6 +321,15 @@ export default async function CategoryPage({ params }: Props) {
    */
   const gridEndFilters = (homes?.total ?? total) <= 1 || (homes?.total ?? rentals?.total ?? total) > listings.length
   const isTeachers = cat.slug === TEACHERS_CATEGORY_SLUG
+  /**
+   * ⛔ A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
+   * deploy"; target still cook/compare/r06/goods__electronics.jpg; src/lib/goods-surface.ts — /c/electronics, /c/fashion, …):
+   * the wrapping display H1 (layout.tsx), no masthead hairline, the strip opaque with the count at its end and the price-led
+   * goods grid (SellerListings `look`), then the lede WHOLE right under the grid (lede-placement.ts `ledePlacementFor`), then
+   * Guides as plain rows and Other categories, each 32px apart with no rule over them. Every phone class is `max-sm:`; the one
+   * desktop change is the lede's place in the DOM (after the grid, before Guides — it was after Other categories).
+   */
+  const goods = isGoodsCategory(cat.slug)
   // N8: the teaching cross-links, in the page's language (localizedHref — the `/vi` twin on a Vietnamese page).
   const teachingJobsHref = localizedHref(`/?${new URLSearchParams(TEACHING_JOBS).toString()}`, pageLang(lang))
   // On eno.forum the sign-up form — like every teacher page, the "Other categories" chip to /c/teachers included — is
@@ -344,6 +354,29 @@ export default async function CategoryPage({ params }: Props) {
     <>
       <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />
       {!IS_SERVICES && <TeachGuideLink />}
+    </>
+  ) : null
+  /**
+   * ⛔ /c/jobs ON A PHONE: THE HEADING LINE HOLDS THE LIST'S CONTROLS, THE CITIES ARE ONE ROW UNDER IT, THE JOBS ARE CARDS, AND THE
+   * THREE QUESTION LINES FOLLOW THE LIST (owner-approved 2026-11-14, cook r06 jobs — "after this cook round build all best
+   * options and deploy"; stills cook/compare/r06/jobs__jobs.jpg). Only over a non-empty grid (`jobsPhoneHead`): the layout's H1
+   * is `max-sm:sr-only` and SellerListings `phoneHead` paints its words with sort and Filters at the line's end, the phone copy
+   * of the city chips under it; the page's own city row, question lines and masthead hairline are `max-sm:hidden`, and the
+   * lines' phone copy renders after the grid-end Filters (batch 91's /c/teachers pattern: two server copies, CSS shows one per
+   * width — no client move, no shift). It reverses there the teacher visibility plan's §4 channel 6 "above the grid" (N8,
+   * 2026-10-18) and "By city:" as visible words (the label stays the group's name). From sm, and on an empty page: unchanged
+   * but for the heading, which an empty page paints itself (the H1 is sr-only below sm at every count).
+   */
+  const isJobs = cat.slug === TEACHING_JOBS.category
+  const jobsPhoneHead = isJobs && listings.length > 0
+  // The H1's own words (the layout's), aria-hidden: the sr-only H1 is what a screen reader reads.
+  const jobsHeading = <p aria-hidden className="text-t-display text-foreground [overflow-wrap:anywhere]"><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></p>
+  // /c/jobs' three lines (N8 and the schools' door — the notes where they render), built once for their two places.
+  const jobLines = isJobs ? (
+    <>
+      <TeacherProfileLink href={teacherJoinHref} />
+      {!IS_SERVICES && <TeachGuideLink />}
+      <PostJobLink href={postHereHref} />
     </>
   ) : null
 
@@ -376,20 +409,27 @@ export default async function CategoryPage({ params }: Props) {
   return (
     <CountScope>
       {/* ⚠️ /c/rentals BELOW sm: THE HEADING LINE AND THE CHECK LINE ARE DRAWN HERE, FIRST (batch 93, decision 5). The layout's
-          H1 is `max-sm:sr-only` and its check line `max-sm:hidden` on rentals ((index)/layout.tsx says why): the count floats at
+          H1 is `max-sm:sr-only` and its check line `max-sm:hidden` on rentals ((index)/layout.tsx says why): the count sits at
           this line's right end, and only the page knows the count. Server-rendered from the same listings and the same total as
           `serverScope` below, so the first HTML already holds the words and hydration changes nothing (heading-count.tsx). With
-          no strip (0–1 results) there is no count, and the line is the H1's own, as before. From sm `sm:hidden` takes it all out. */}
+          no strip (0–1 results) there is no count, and the line is the H1's own, as before. From sm `sm:hidden` takes it all out.
+          ⛔ ONE DISPLAY LINE (owner-approved 2026-11-14, cook r06 rentals-a): the page's name at the display role (`text-t-display`,
+          28/34 bold — the page's one display element; it was the title step, ~20px) and the count AFTER it as a flex sibling on
+          the same baseline (heading-count.tsx), DOM order = visual order. `py-0.5`: `truncate` clips at the padding box, and
+          2px each side keeps a Vietnamese stacked mark whole. */}
       {cat.slug === 'rentals' && (
         <div className="sm:hidden">
-          {rentalsStrip && <HeadingCount seed={{ shown: listings.length, total: homes?.total ?? rentals?.total ?? total }} />}
-          <RentalsPhoneHeading headline={headline} name={cat.name} nameVi={cat.nameVi} className="h-display truncate py-0.5 text-foreground [--text-display:var(--text-title)]" />
+          <div className="flex items-baseline gap-3">
+            <RentalsPhoneHeading headline={headline} name={cat.name} nameVi={cat.nameVi} className="min-w-0 flex-1 truncate py-0.5 text-t-display text-foreground" />
+            {rentalsStrip && <HeadingCount seed={{ shown: listings.length, total: homes?.total ?? rentals?.total ?? total }} />}
+          </div>
           <CategoryLedeLinks slug={cat.slug} />
         </div>
       )}
       {/* The lede renders here, under the skeleton, only if LEDE_PLACEMENT says 'page'; since H1b it says
           'layout' and the lede is in (index)/layout.tsx, under the H1 (decision H-c, lede-placement.ts). */}
-      {LEDE_PLACEMENT === 'page' && <CategoryLedeBlock slug={cat.slug} />}
+      {/* Never on a goods category, whatever LEDE_PLACEMENT says: its lede renders after the grid (below), exactly once. */}
+      {LEDE_PLACEMENT === 'page' && !isGoodsCategory(cat.slug) && <CategoryLedeBlock slug={cat.slug} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
 
       {/* ⚠️ ONE SWIPE ROW ON A PHONE, WRAPPING FROM sm (C1-FOLD, 2026-09-29). Every canonical place is
@@ -425,21 +465,20 @@ export default async function CategoryPage({ params }: Props) {
 
       {/* /c/jobs: "Theo tỉnh/thành / By city" with counts, the jobs page's "By area" (rentals-11) — only
           with two cities or more, where there is a choice to make. */}
-      {jobCities.length > 1 && <JobCityChips cities={jobCities} total={total} />}
+      {/* ⛔ Not below sm over a grid (owner-approved 2026-11-14, cook r06 jobs): there its phone copy rides under the heading line
+          (`jobsPhoneHead`, SellerListings `phoneHead.subhead`). */}
+      {jobCities.length > 1 && <JobCityChips cities={jobCities} total={total} className={jobsPhoneHead ? 'max-sm:hidden' : undefined} />}
 
       {/* N8 (nav audit): a teacher who came looking for WORK is pointed at the jobs, and a teacher browsing
           jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx).
           /c/teachers' two lines (`teacherLines`, below): above the grid from sm, after it on a phone (batch 91). */}
       {teacherLines && (listings.length > 0 ? <div className="max-sm:hidden">{teacherLines}</div> : teacherLines)}
-      {cat.slug === TEACHING_JOBS.category && <TeacherProfileLink href={teacherJoinHref} />}
-      {/* …and both point at the teacher library's hub (teacher visibility plan, 2026-10-18). Marketplace only: eno.forum
-          308s the library to eno.vn. */}
-      {!IS_SERVICES && cat.slug === TEACHING_JOBS.category && <TeachGuideLink />}
-      {/* A school on /c/jobs gets its door AFTER the teacher lines, so those stay together (teacher visibility plan §4
-          channel 6; copy approved in the plan, 2026-10-18): "Hiring? Post your job ad", to the post form with Jobs picked —
-          postHereHref, as OfferServiceLink below. Both editions; on eno.forum, with no guide line, it follows the profile
-          line. */}
-      {cat.slug === TEACHING_JOBS.category && <PostJobLink href={postHereHref} />}
+      {/* /c/jobs (`jobLines`): the teacher's profile line, then the teacher library's hub (teacher visibility plan, 2026-10-18;
+          marketplace only — eno.forum 308s the library to eno.vn), then a school's door AFTER the teacher lines, so those stay
+          together (teacher visibility plan §4 channel 6; copy approved in the plan, 2026-10-18): "Hiring? Post your job ad", to
+          the post form with Jobs picked — postHereHref, as OfferServiceLink below. Both editions; on eno.forum, with no guide
+          line, it follows the profile line. Above the grid from sm and on an empty page; after the list on a phone (above). */}
+      {jobLines && (jobsPhoneHead ? <div className="max-sm:hidden">{jobLines}</div> : jobLines)}
       {/* Owner, 2026-10-14: a provider's way in — "Post your service", Services already picked. */}
       {cat.slug === 'services' && <OfferServiceLink href={postHereHref} />}
 
@@ -448,11 +487,15 @@ export default async function CategoryPage({ params }: Props) {
           Tighter on a phone, where the fold is the budget (C1-FOLD).
           ⚠️ Off a phone on /c/rentals while the strip carries the controls (owner-approved 2026-11-14, decision 5: "gone with the
           row"); the strip keeps its own hairline. */}
-      {rentalsStrip ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}
+      {/* …and off a phone on /c/jobs over a grid (owner-approved 2026-11-14, cook r06 jobs): its heading line opens the list. */}
+      {/* …and off a phone on a goods category (owner-approved 2026-11-14, cook r06 goods — `goods`): the H1 opens the list there. */}
+      {rentalsStrip || jobsPhoneHead || goods ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}
 
       {listings.length > 0 ? (
         <>
-          <div className="mt-2 sm:mt-3">
+          {/* /c/jobs on a phone: nothing above draws there (the H1 is sr-only, the rest `max-sm:hidden`), so the heading line opens
+              on <main>'s own 16px. */}
+          <div className={cn('mt-2 sm:mt-3', jobsPhoneHead && 'max-sm:mt-0')}>
             {/* sr-only h2: the card titles below are h3s, and without this the outline
                 jumps h1 → h3 (detector-confirmed skip; same fix as the home feed header). */}
             <h2 className="sr-only"><Tr text="Listings" /></h2>
@@ -483,10 +526,14 @@ export default async function CategoryPage({ params }: Props) {
                 pageSize: PAGE_SIZE,
               }}
               // The strip's Filters, as the browse chip (owner, 2026-10-18: the home's sort pill + Filters chip on /c).
-              stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} />}
+              // On /c/rentals' phone its glyph is the strip's 18px (owner-approved 2026-11-14, cook r06 rentals-a).
+              stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} glyphClassName={rentalsStrip ? 'h-4 w-4 max-sm:size-4.5' : undefined} />}
               // Pinned under the header like Home's toolbar (UI climb 2026-11-09): a re-sort deep in a category no longer
               // means scrolling back to the top.
               pinStrip
+              // ⛔ A goods category on a phone (owner-approved 2026-11-14, cook r06 goods — `goods`): the opaque strip with no rule, the
+              // sort pill's word alone, the count muted at its end, and the price-led goods grid, rows 32px apart.
+              look={goods ? 'goods' : undefined}
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               // /c/rentals on a phone (batch 93, decision 5): ONE swipe row — the pill, Filters, then Map and every district as
               // the strip's own chips (server <a>, like the row's), and the count on the heading line. Only where the strip
@@ -494,7 +541,7 @@ export default async function CategoryPage({ params }: Props) {
               phoneOneRow={rentalsStrip ? {
                 chips: rentalsAreas ? (
                   <>
-                    <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} />
+                    <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} glyphClassName="size-4.5" />
                     {districts.map((d) => (
                       <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>
                         <PlaceName en={d.label.en} vi={d.label.vi} />
@@ -503,6 +550,17 @@ export default async function CategoryPage({ params }: Props) {
                   </>
                 ) : null,
               } : undefined}
+              // ⛔ /c/rentals ON A PHONE: ONE COLUMN OF LARGE SQUARE CARDS, and the one row stays pinned (owner-approved 2026-11-14,
+              // cook r06 rentals-a — listing-grid.ts LISTING_GRID_WIDE, seller-listings.tsx `phoneWide`). Below sm only; the
+              // district pages keep their two-up grid (an owner call on stills first).
+              phoneWide={cat.slug === 'rentals'}
+              // /c/jobs on a phone (owner-approved 2026-11-14, cook r06 jobs; the note at `jobsPhoneHead`): the heading line with the
+              // sort and Filters as 44px round icon buttons at its end, the city chips' phone copy under it.
+              phoneHead={jobsPhoneHead ? {
+                heading: jobsHeading,
+                end: <CategoryFiltersLink slug={cat.slug} query={homesQuery} iconOnly className={cn(PILL_BOX, PILL_REST, 'size-11 justify-center p-0 hover:no-underline')} glyphClassName="size-5" />,
+                subhead: jobCities.length > 1 ? <JobCityChips cities={jobCities} total={total} variant="phone" /> : undefined,
+              } : undefined}
               sortable={(homes?.total ?? total) > 1}
             />
           </div>
@@ -510,7 +568,8 @@ export default async function CategoryPage({ params }: Props) {
               the first line's own `mt-3`, so 24px under the grid. */}
           {teacherLines && <div className="mt-6 sm:hidden">{teacherLines}</div>}
           {homes && <OtherRentalsLink n={homes.offices} href={localizedHref('/?category=rentals&subcategory=office-rental', pageLang(lang))} />}
-          {gridEndFilters && <div className="mt-8">
+          {/* /c/jobs on a phone: centred, 24px under the list (owner-approved 2026-11-14, cook r06 jobs). */}
+          {gridEndFilters && <div className={cn('mt-8', jobsPhoneHead && 'max-sm:mt-6 max-sm:flex max-sm:justify-center')}>
             {/* The strip's own Filters glyph at h-4, gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
             {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
@@ -525,15 +584,23 @@ export default async function CategoryPage({ params }: Props) {
               </Link>
             </Button>
           </div>}
+          {/* /c/jobs on a phone: the three question lines after the list (`jobsPhoneHead`). `mt-8` collapses with the first line's
+              own `mt-3`, so 32px under what precedes them; the lines keep their 12px. */}
+          {jobsPhoneHead && <div className="mt-8 sm:hidden">{jobLines}</div>}
           {rentals && <RentalsDistricts allHcmc={rentals.allHcmc} top={rentals.top} />}
-          <CategoryGuides guides={guides} />
+          {/* ⛔ A GOODS CATEGORY'S LEDE CLOSES THE LISTINGS (owner-approved 2026-11-14, cook r06 goods — lede-placement.ts): whole, right
+              under the grid, before Guides, in the DOM (the keyboard meets it where the eye does), inline in the first HTML. */}
+          {ledePlacementFor(cat.slug) === 'after-grid' && <CategoryLedeBlock slug={cat.slug} placement="after-grid" />}
+          {/* Goods (`goods`): plain rows on a phone — the title and its arrow, no blurb, no rule over the section. */}
+          <CategoryGuides guides={guides} compactOnPhone={goods} />
           {/* /c/teachers: a plain, followed link to every live profile the grid above does not show — what Show-more
               loads on a tap, in the HTML for crawlers (teacher-links.tsx). AFTER the guide rail, so a reader who finished
               the grid meets the guides first, not a long block of names. Nothing on any other category. */}
           {isTeachers && <MoreTeachers teachers={moreTeachers} />}
-          <section className="mt-12 border-t border-border pt-8">
-            <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
-            <div className="mt-4 flex flex-wrap gap-2">
+          {/* Goods (`goods`) on a phone: 32px under Guides with no rule, the heading the section role, the chips 12px under it. */}
+          <section className={cn('mt-12 border-t border-border pt-8', goods && 'max-sm:mt-8 max-sm:border-t-0 max-sm:pt-0')}>
+            <h2 className={cn('h-section text-foreground', goods && 'max-sm:[--text-section:var(--text-t-h2)]')}><Tr text="Other categories" /></h2>
+            <div className={cn('mt-4 flex flex-wrap gap-2', goods && 'max-sm:mt-3')}>
               {otherCats.map((c) => (
                 <Badge key={c.slug} size="md" interactive render={<Link href={teacherSurfaceHref(localizedHref(`/c/${c.slug}`, pageLang(lang)))} />} className={OTHER_CATEGORY_CHIP}>
                   <Bilingual en={c.name} vi={c.nameVi || c.name} />
@@ -548,6 +615,10 @@ export default async function CategoryPage({ params }: Props) {
            chips live INSIDE this state (not in a separate tail section) so the empty page has
            exactly one recovery surface — and they stay real <a> links, which the noindex/
            follow:true decision in generateMetadata depends on. */
+        <>
+        {/* /c/jobs below sm: the H1 is sr-only at every count (layout.tsx), so the page names itself here (owner-approved
+            2026-11-14, cook r06 jobs). */}
+        {isJobs && <div className="sm:hidden">{jobsHeading}</div>}
         <EmptyState
           tone="bare"
           size="lg"
@@ -598,6 +669,12 @@ export default async function CategoryPage({ params }: Props) {
             </div>
           }
         />
+        {/* ⛔ …AND AN EMPTY GOODS CATEGORY KEEPS ITS LEDE (commit review, 2026-11-14): the layout leaves goods to the page
+            (ledePlacementFor), so without this line an empty /c/electronics had none at all. Here, closing the empty state that
+            stands where the grid would be — exactly where the layout drew it before. The two branches are exclusive, so the
+            page still renders it once. */}
+        {ledePlacementFor(cat.slug) === 'after-grid' && <CategoryLedeBlock slug={cat.slug} placement="after-grid" />}
+        </>
       )}
     </CountScope>
   )

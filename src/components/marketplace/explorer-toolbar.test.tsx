@@ -232,6 +232,24 @@ describe('SortStrip follows the header on its own', () => {
     expect(onHeaderHidden).toHaveBeenLastCalledWith(false)
   })
 
+  /**
+   * ⛔ `stayPinned` — the rentals feed's phone row (owner-approved 2026-11-14, cook r06 rentals-a; listings-explorer.tsx `rentalsWide`):
+   * below sm it pins at the safe-area top while the header is hidden, and it is opaque there. From sm (and without the prop) the
+   * 08-12 rule above holds: the classes it adds are all `max-sm:`.
+   */
+  it('stayPinned: below sm the row stays at the safe-area top with the header hidden, opaque; nothing changes from sm', () => {
+    const { rerender } = render(<SortStrip sort="newest" onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} stayPinned />)
+    expect(bar().getAttribute('data-stay-pinned')).toBe('true')
+    expect(bar().className.split(/\s+/)).toEqual(expect.arrayContaining(['max-sm:bg-background', 'max-sm:backdrop-blur-none', 'material', 'material-bar']))
+    scroll(400)
+    scroll(900)
+    const cls = bar().className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['top-[-9rem]', 'max-sm:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]']))
+    rerender(<SortStrip sort="newest" onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} />)
+    expect(bar().hasAttribute('data-stay-pinned')).toBe(false)
+    expect(bar().className).not.toMatch(/max-sm:(?:top-|bg-background|backdrop-blur-none)/)
+  })
+
   it('the signal the explorer hands it: holds the last flip for a reader that mounts later, and notifies only on a change', () => {
     const signal = createHeaderHiddenSignal()
     const seen = vi.fn()
@@ -255,5 +273,67 @@ describe('on a tablet the strip is always two lines (UI climb 2026-11-10: a cold
     expect(lead.className.split(' ')).toEqual(expect.arrayContaining(['basis-full', 'lg:flex-1', 'lg:basis-auto']))
     // ⚠️ a `sm:` flex-1/basis-auto would let the home's seed and a category's answer wrap differently again
     expect(lead.className).not.toMatch(/(^|\s)(sm|md):(flex-1|basis-auto)(\s|$)/)
+  })
+})
+
+/**
+ * ⛔ THE GOODS SEARCH'S STRIP ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options
+ * and deploy"): `look="goods"` — opaque, no rule under it (transparent, never removed), "Sort" alone at the default order — and
+ * `phoneScope`, the scope chip, first of all in the row.
+ */
+describe('SortStrip look="goods" and phoneScope', () => {
+  const goodsStrip = (sort: Parameters<typeof SortStrip>[0]['sort'], extra: Partial<Parameters<typeof SortStrip>[0]> = {}) => (
+    <SortStrip sort={sort} onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} look="goods" leading={<div data-facet-pills="" />} {...extra} />
+  )
+
+  it('below sm the bar is the page\'s white with no blur, and its hairline goes transparent but keeps its 1px', () => {
+    const { container } = render(goodsStrip('newest'))
+    const bar = container.querySelector('#explorer-toolbar')!
+    expect(tokens(bar)).toEqual(expect.arrayContaining(['max-sm:bg-background', 'max-sm:backdrop-blur-none']))
+    const rule = bar.querySelector('.border-b')!
+    expect(tokens(rule)).toEqual(expect.arrayContaining(['border-b', 'border-border', 'max-sm:border-b-transparent']))
+    expect(tokens(rule)).not.toContain('border-b-0')
+  })
+
+  it('at the default order the sort pill says "Sort" with no ⇅; a price order keeps its arrow', () => {
+    render(goodsStrip('newest'))
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(pill.textContent).toContain('Sort')
+    expect(pill.querySelectorAll('svg').length).toBe(1) // the ⌄ alone
+    cleanup()
+    render(goodsStrip('price-low'))
+    expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2) // ↑ and ⌄
+  })
+
+  it('without the look the strip is as it was: the frosted bar, its rule and the ⇅', () => {
+    const { container } = render(strip('newest'))
+    const bar = container.querySelector('#explorer-toolbar')!
+    expect(tokens(bar)).not.toContain('max-sm:bg-background')
+    expect(tokens(bar.querySelector('.border-b')!)).not.toContain('max-sm:border-b-transparent')
+    expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2)
+  })
+
+  it('phoneScope is the row\'s FIRST item, before the applied chips and the sort pill (DOM order = visual order)', () => {
+    render(goodsStrip('newest', { phoneScope: <button type="button" data-scope="" aria-label="All categories" />, phoneLead: <span data-lead="" /> }))
+    const scope = document.querySelector('[data-scope]')!
+    const row = scope.parentElement!
+    expect(row.firstElementChild).toBe(scope)
+    expect(scope.nextElementSibling!.hasAttribute('data-lead')).toBe(true)
+    const sort = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(scope.compareDocumentPosition(sort) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('ViewSwitch variant="circle" (the goods search\'s title line, owner-approved 2026-11-14)', () => {
+  it('a 36px round chip with the view\'s 20px glyph and no chevron — the same select, the same name and options', async () => {
+    const user = userEvent.setup()
+    render(<ViewSwitch viewMode="grid" onViewMode={() => {}} variant="circle" />)
+    const pill = screen.getByRole('combobox', { name: /View/ })
+    expect(tokens(pill)).toEqual(expect.arrayContaining(['size-9', 'rounded-full', 'tap-44', 'justify-center', 'bg-background', 'border-line-strong']))
+    expect(pill.textContent).toContain('Grid view')
+    expect(pill.querySelectorAll('svg').length).toBe(1)
+    expect(pill.querySelector('svg')!.getAttribute('class')).toContain('size-5')
+    await user.click(pill)
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['List view', 'Grid view', 'Map view', 'Video view'])
   })
 })

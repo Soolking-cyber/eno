@@ -110,17 +110,21 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
     expect(page).toMatch(/teacherJoinHref = teacherSurfaceHref\(localizedHref\('\/teachers\/join', pageLang\(lang\)\)\)/)
   })
 
+  // /c/jobs' three lines, profile, guide, then the schools' door (`jobLines`).
+  const JOB_LINES = String.raw`const jobLines = isJobs \? \(\s*<>\s*<TeacherProfileLink href=\{teacherJoinHref\} />\s*\{!IS_SERVICES && <TeachGuideLink />\}\s*<PostJobLink href=\{postHereHref\} />\s*</>\s*\) : null`
   // /c/teachers' two lines, jobs then guide, built once as `teacherLines` (batch 91 places them, below).
   const TEACHER_LINES = /const teacherLines = isTeachers && \(teachingJobs > 0 \|\| !IS_SERVICES\) \? \(\s*<>\s*<TeachingJobsLink count=\{teachingJobs\} href=\{teachingJobsHref\} \/>\s*\{!IS_SERVICES && <TeachGuideLink \/>\}\s*<\/>\s*\) : null/
 
   it('the jobs line is on /c/teachers, the profile line on /c/jobs', () => {
     expect(page).toMatch(TEACHER_LINES)
-    expect(page).toMatch(/\{cat\.slug === TEACHING_JOBS\.category && <TeacherProfileLink href=\{teacherJoinHref\} \/>\}/)
+    // /c/jobs' three lines are built once as `jobLines` (owner-approved 2026-11-14, cook r06 jobs: two places, below).
+    expect(page).toContain('const isJobs = cat.slug === TEACHING_JOBS.category')
+    expect(page).toMatch(new RegExp(JOB_LINES))
   })
 
   it('the guide line is on both teaching pages, and only on the marketplace', () => {
     expect(page).toMatch(TEACHER_LINES)
-    expect(page).toMatch(/\{!IS_SERVICES && cat\.slug === TEACHING_JOBS\.category && <TeachGuideLink \/>\}/)
+    expect(page).toMatch(new RegExp(JOB_LINES))
     expect(page.match(/<TeachGuideLink \/>/g)).toHaveLength(2)
     expect(page.match(/<TeachingJobsLink\b/g)).toHaveLength(1)
   })
@@ -154,7 +158,7 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
       expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeGreaterThan(-1)
       expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeLessThan(layout.search(/^\s*\{children\}$/m))
       const block = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/category-lede-block.tsx'), 'utf8')
-      expect(block).toMatch(/\{cat\.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm text-body" \/>\}/)
+      expect(block).toMatch(/\{cat\.slug === 'teachers' && <TeacherCoverLink className="mt-2 text-sm text-muted-foreground" \/>\}/)
     })
     it('every link on those lines is underlined at rest — a link in a run of text, never colour alone (WCAG 1.4.1)', () => {
       for (const node of [<TeachingJobsLink key="j" count={3} href="/x" />, <TeachGuideLink key="g" />]) {
@@ -167,11 +171,27 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
     it('…and so is every other question line of this shape (/c/jobs, /c/services): never one odd line out of three', () => {
       const links = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/teaching-links.tsx'), 'utf8')
       const services = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/services-links.tsx'), 'utf8')
+      // ⛔ ONE SHAPE (owner-approved 2026-11-14, cook r04 teachers): the answer an INLINE link, 700 14 accent, a 1px underline 3px
+      // under it, no arrow; the question in the muted small step. The cover door (category-lede.tsx) wears the same link.
+      const LINK = 'className="font-bold text-accent-foreground underline decoration-1 underline-offset-3"'
+      const lede = readFileSync(join(process.cwd(), 'src/components/marketplace/category-lede.tsx'), 'utf8')
       for (const id of ['teaching-jobs', 'teach-guide', 'teacher-profile', 'post-job']) {
-        expect(links, id).toMatch(new RegExp(`data-cross-link="${id}" className="[^"]*\\bunderline underline-offset-4\\b`))
+        expect(links, id).toContain(`data-cross-link="${id}" ${LINK}`)
       }
-      expect(services).toMatch(/data-cross-link="offer-service" className="[^"]*\bunderline underline-offset-4\b/)
+      expect(services).toContain(`data-cross-link="offer-service" ${LINK}`)
+      expect(lede).toContain(`prefetch={false} ${LINK}`)
       expect(links + services).not.toMatch(/data-cross-link="[a-z-]+" className="[^"]*hover:underline/)
+      expect(links + services + lede).not.toMatch(/ArrowRight|inline-flex items-center gap-1 font-semibold/)
+      expect((links.match(/text-sm text-muted-foreground/g) ?? []).length).toBe(4)
+      expect(services).toContain("'mt-3 max-w-prose text-sm text-muted-foreground'")
+    })
+    it('rendered: the question muted, the answer an inline underlined link with no glyph', () => {
+      for (const node of [<TeachingJobsLink key="j" count={3} href="/x" />, <TeachGuideLink key="g" />]) {
+        const a = anchor('en', node)!
+        expect(a.parentElement!.getAttribute('class')).toContain('text-muted-foreground')
+        expect(a.getAttribute('class')).toBe('font-bold text-accent-foreground underline decoration-1 underline-offset-3')
+        expect(a.querySelector('svg')).toBeNull()
+      }
     })
     it('no empty wrapper: the lines are built only when one will render (0 jobs on eno.forum = nothing)', () => {
       expect(page).toContain('const teacherLines = isTeachers && (teachingJobs > 0 || !IS_SERVICES) ? (')
@@ -343,7 +363,8 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     // around the pair and its lines sit 12px apart (space-y-3, each line's own mt-3 zeroed — /c/jobs' rhythm).
     expect(pdp).toMatch(new RegExp([
       String.raw`\{listing\.listingType === 'job' && rawListing\.category\.slug === TEACHER_SEEKING_POST\.category && rawListing\.subcategorySlug === TEACHER_SEEKING_POST\.subcategory && \(`,
-      String.raw`<div className="order-12 space-y-3">`,
+      // `max-md:hidden` on a linked job: its phone copy closes the page, after the rails (owner-approved 2026-11-14, cook r06 jobs).
+      String.raw`<div className=\{cn\('order-12 space-y-3', isJob && 'max-md:hidden'\)\}>`,
       // Through teacherSurfaceHref, like /c/jobs' (2026-10-20): on eno.forum the form is eno.vn's, linked directly.
       String.raw`<TeacherProfileLink href=\{teacherSurfaceHref\(localizedHref\('/teachers/join', pageVariant\)\)\} className="mt-0" />`,
       String.raw`<PostJobLink href=\{localizedHref\('/post\?category=jobs', pageVariant\)\} className="mt-0" />`,
@@ -357,13 +378,7 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     const page = read('src/app/[lang]/c/[category]/(index)/page.tsx')
     // The teacher lines stay together and the school's follows them; on eno.forum, where the guide line renders nothing
     // (IS_SERVICES), it follows the profile line.
-    expect(page).toMatch(new RegExp([
-      String.raw`\{cat\.slug === TEACHING_JOBS\.category && <TeacherProfileLink href=\{teacherJoinHref\} />\}`,
-      String.raw`\{/\*[^]*?\*/\}`,
-      String.raw`\{!IS_SERVICES && cat\.slug === TEACHING_JOBS\.category && <TeachGuideLink />\}`,
-      String.raw`\{/\*[^]*?\*/\}`,
-      String.raw`\{cat\.slug === TEACHING_JOBS\.category && <PostJobLink href=\{postHereHref\} />\}`,
-    ].join(String.raw`\s*`)))
+    expect(page).toMatch(new RegExp(String.raw`const jobLines = isJobs \? \(\s*<>\s*<TeacherProfileLink href=\{teacherJoinHref\} />\s*\{!IS_SERVICES && <TeachGuideLink />\}\s*<PostJobLink href=\{postHereHref\} />\s*</>\s*\) : null`))
     expect(page.match(/<PostJobLink\b/g)).toHaveLength(1)
     expect(page).toMatch(/const postHereHref = localizedHref\(`\/post\?\$\{new URLSearchParams\(\{ category: cat\.slug \}\)\.toString\(\)\}`, pageLang\(lang\)\)/)
     expect(TEACHING_JOBS.category).toBe('jobs')
@@ -403,5 +418,42 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     expect(count(/\(/g)).toBe(count(/\)/g))
     // No edition gate of its own (the hub link's marketplace gate closes before the suggest link).
     expect(schools.slice(suggest, at)).not.toContain('IS_SERVICES')
+  })
+})
+
+/**
+ * ⛔ /c/jobs ON A PHONE: THE THREE QUESTION LINES FOLLOW THE LIST (owner-approved 2026-11-14, cook r06 jobs — batch 91's
+ * /c/teachers pattern): above the grid from sm and on an empty page, after the grid-end Filters below sm. Two server copies,
+ * CSS shows one per width — never a client move.
+ */
+describe('cook r06 jobs: /c/jobs on a phone — the question lines after the list', () => {
+  const page = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/page.tsx'), 'utf8')
+  const at = (needle: string) => { const i = page.indexOf(needle); expect(i, needle).toBeGreaterThan(-1); return i }
+  const above = '{jobLines && (jobsPhoneHead ? <div className="max-sm:hidden">{jobLines}</div> : jobLines)}'
+  const after = '{jobsPhoneHead && <div className="mt-8 sm:hidden">{jobLines}</div>}'
+  it('only over a grid on /c/jobs', () => {
+    expect(page).toContain('const jobsPhoneHead = isJobs && listings.length > 0')
+    expect(page.match(/\{jobLines\}/g)).toHaveLength(2) // above (hidden below sm over a grid) and after (sm:hidden)
+    // + its const, its gate and its no-grid branch (JSX comments out: one names it)
+    expect(page.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').match(/\bjobLines\b/g)).toHaveLength(5)
+  })
+  it('above: before the masthead hairline, hidden below sm over a grid', () => {
+    expect(at(above)).toBeLessThan(at('<div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" />'))
+  })
+  it('after: in the non-empty branch, after the grid and the grid-end Filters, before the guides and the empty state', () => {
+    const a = at(after)
+    expect(a).toBeGreaterThan(at('<CategoryListings'))
+    expect(a).toBeGreaterThan(at('{gridEndFilters && <div'))
+    expect(a).toBeLessThan(at('<CategoryGuides '))
+    expect(a).toBeLessThan(at('<EmptyState'))
+  })
+  it('the city row and the masthead hairline stand down below sm over a grid; the chips\' phone copy rides the heading line', () => {
+    expect(page).toContain("<JobCityChips cities={jobCities} total={total} className={jobsPhoneHead ? 'max-sm:hidden' : undefined} />")
+    expect(page).toContain('subhead: jobCities.length > 1 ? <JobCityChips cities={jobCities} total={total} variant="phone" /> : undefined,')
+    expect(page).toContain("end: <CategoryFiltersLink slug={cat.slug} query={homesQuery} iconOnly className={cn(PILL_BOX, PILL_REST, 'size-11 justify-center p-0 hover:no-underline')} glyphClassName=\"size-5\" />,")
+  })
+  it('an empty /c/jobs still names itself below sm (the H1 is sr-only there at every count)', () => {
+    expect(page).toContain('{isJobs && <div className="sm:hidden">{jobsHeading}</div>}')
+    expect(page).toMatch(/const jobsHeading = <p aria-hidden className="text-t-display text-foreground \[overflow-wrap:anywhere\]"><Bilingual en=\{cat\.name\} vi=\{cat\.nameVi \|\| cat\.name\} \/> <Tr text="in Vietnam" \/><\/p>/)
   })
 })
