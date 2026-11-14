@@ -18,6 +18,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 // Place names are spelled, never translated: here "Quận 7" alone is one.
+vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => w }))
 vi.mock('@/lib/translate', () => ({ spelledPlace: (t: string, l: string) => (t === 'Quận 7' ? (l === 'en' ? 'District 7' : 'Quận 7') : null) }))
 
 import { mtHash, mtJobAuthorized, mtJobToken, mtRowId, mtTodo, mtWrite, refusal, resetMtJobCacheForTests, targetsFor } from './mt-job'

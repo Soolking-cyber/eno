@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { detectContentLang, mayBeVietnamese, readsAsVietnamese, vietnameseWordShare } from '@/lib/detect-lang'
 import { LANGS, type Lang } from '@/lib/i18n/langs'
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { publicListingWhere } from '@/lib/storefront-gone'
 import { spelledPlace } from '@/lib/translate'
 
@@ -82,8 +83,9 @@ type SourceMap = Map<string, { text: string; listingIds: string[]; twinAll: bool
 /** Every active listing's title and description, by hash. */
 async function liveSources(): Promise<SourceMap> {
   const rows = await db.listing.findMany({
-    // What a visitor can open (publicListingWhere), sold ones aside: no text of a held or unverified listing leaves.
-    where: { ...publicListingWhere(), status: 'active' },
+    // What a visitor of THIS edition can open (publicListingWhere, scoped: eno.vn never sends its hidden visa desk's text), sold ones
+    // aside: no text of a held or unverified listing leaves. Teacher profiles included: their pages show in every language too.
+    where: await scopedListingWhere({ ...publicListingWhere(), status: 'active' }, { teachers: true }),
     select: { id: true, title: true, description: true, titleVi: true, descriptionVi: true },
     orderBy: { createdAt: 'desc' },
   })

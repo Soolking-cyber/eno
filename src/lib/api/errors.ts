@@ -480,6 +480,7 @@ export type NicheApiErrorCode =
   | 'call_gone' // the call ended, was answered elsewhere, or timed out (409)
   | 'protocol_mismatch' // the two phones run builds that cannot call each other — reload (409)
   | 'wrong_tab' // an in-call event from a tab the box did not bind to this call (409)
+  | 'write_failed' // api/mt/rows — the daily translation's batch could not be written; nothing of it was (500, src/lib/mt-job.ts)
   | 'relay_unavailable' // the media relay could not issue credentials (503)
   | 'invalid_sdp' // a session description the guard refused (400)
   | 'call_request_cooldown' // a call request was sent in this thread in the last 24 h (429)
@@ -1009,6 +1010,7 @@ const ALL = [
   'call_gone',
   'protocol_mismatch',
   'wrong_tab',
+  'write_failed',
   'relay_unavailable',
   'invalid_sdp',
   'call_request_cooldown',
