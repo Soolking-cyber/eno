@@ -1,9 +1,11 @@
 /**
  * THE REVIEW SEATS — the reusable password logins eno hands to people who check the platform from outside:
- * the two app-store review teams and the owner's lawyer. ONE table, imported by both scripts that need it:
+ * the two app-store review teams, the AI-app marketplace reviewers and the owner's lawyer. ONE table, imported
+ * by every script that needs it:
  *   · scripts/register-play-reviewer.mjs — creates a seat's account (auth user + Profile + Seller);
- *   · scripts/seed-app-review-thread.mjs — seeds the Apple seat's demo conversation (the Block test).
- * A second copy of an address in either script is how the two would drift apart, so neither keeps one.
+ *   · scripts/seed-app-review-thread.mjs — seeds the Apple seat's demo conversation (the Block test);
+ *   · scripts/seed-ai-review-listings.mjs — seeds the AI seat's hidden demo listings (what the Partner MCP reads).
+ * A second copy of an address in any of them is how they would drift apart, so none keeps one.
  *
  * PURE: no database, no network, no env — src/lib/app-review-seat.test.ts imports it as it stands.
  *
@@ -66,10 +68,55 @@ export const REVIEW_SEATS = Object.freeze({
     credNote: '# Paste these into App Store Connect. Treat as a live credential; rotate if it leaks.',
     handOff: 'paste the password into App Store Connect',
   }),
+  /**
+   * AI-app marketplace review (2026-11-14): the reviewers of OpenAI's ChatGPT apps, Muse and Claude's connector
+   * directory. They sign in at eno.vn/signin with this email and password (no SMS, emailed or magic-link code — the
+   * official-partner gate, scripts/set-official-partner.mjs), then connect eno's Partner MCP server through "Sign in
+   * with eno" (OAuth, src/lib/api/oauth-grant.ts) and read the shop's own demo listings, seeded HIDDEN by
+   * scripts/seed-ai-review-listings.mjs.
+   * ⚠️ THE ONLY SEAT WITH `accountType: 'business'`, AND IT HAS TO BE: eligibleShop() refuses a sign-in grant to anyone
+   * but a BUSINESS account that owns its storefront (`not_business` on the consent page). What business changes in
+   * public is measured in register-play-reviewer.mjs's header. Every other seat has NO `accountType` key and is created
+   * 'individual' (seatAccountType below) — the Play seat's entry is pinned whole by src/lib/app-review-seat.test.ts.
+   */
+  ai: Object.freeze({
+    email: 'ai-review@eno.vn',
+    sellerName: 'eno AI app review (internal)',
+    displayName: 'AI app review',
+    credFile: '.env.ai-review.local',
+    envPrefix: 'AI',
+    accountType: 'business',
+    credHeader: '# AI app reviews (OpenAI ChatGPT, Muse, Claude): sign-in for eno.vn (email + password, eno.vn/signin)',
+    credNote: "# Paste only into the review forms' test-account fields. Treat as a live credential; rotate if it leaks.",
+    // ⛔ Printed on success as the next step: it names the precondition, so the step the header forbids is never invited.
+    handOff: "ONLY once the app refuses review seats any teacher contact (register-play-reviewer.mjs header) is LIVE: paste the password into the AI app review forms' test-account fields (ChatGPT, Muse, Claude) — nowhere else",
+  }),
 })
 
 /** The values `--for=` accepts. No `--for` at all is the Play seat — the script's original contract. */
-export const SEAT_FLAGS = Object.freeze(['lawyer', 'apple'])
+export const SEAT_FLAGS = Object.freeze(['lawyer', 'apple', 'ai'])
+
+/** The Profile account types a seat may be created with — the two the app itself writes (api/profile/account-type). */
+export const SEAT_ACCOUNT_TYPES = Object.freeze(['individual', 'business'])
+
+/**
+ * The Profile `accountType` a seat is created with: `{ accountType }`, or `{ error }` for the caller to print before
+ * exiting.
+ *
+ * ⛔ FAIL CLOSED, BEFORE ANY WRITE. A seat with NO `accountType` key is 'individual' (what every seat was created as
+ * until the AI seat); a key that is present must be EXACTLY 'individual' or 'business'. 'Business', ' business', null,
+ * undefined or ['business'] is a typo in this table, and a typo must not become a Profile row the app has never written
+ * — nor silently fall back to 'individual', which would leave the AI seat unable to connect the MCP (eligibleShop).
+ */
+export function seatAccountType(seat) {
+  if (!seat || typeof seat !== 'object') return { error: 'no seat given' }
+  if (!Object.hasOwn(seat, 'accountType')) return { accountType: 'individual' }
+  const v = seat.accountType
+  if (typeof v !== 'string' || !SEAT_ACCOUNT_TYPES.includes(v)) {
+    return { error: `${seat.email}: accountType must be exactly ${SEAT_ACCOUNT_TYPES.map((t) => `'${t}'`).join(' or ')} (got ${JSON.stringify(v) ?? 'undefined'}) — nothing was written` }
+  }
+  return { accountType: v }
+}
 
 /**
  * Which seat a command line names: `{ key, seat }`, or `{ error }` for the caller to print before exiting.

@@ -1,19 +1,60 @@
 /**
  * CREATE THE GOOGLE PLAY REVIEWER ACCOUNT — the one login Play's reviewers use to see the parts
  * of the app that sign-in gates. The same script creates the other review seats (scripts/review-seats.mjs):
- * `--for=lawyer` (the owner's lawyer) and `--for=apple` (App Store review, app-review@eno.vn).
+ * `--for=lawyer` (the owner's lawyer), `--for=apple` (App Store review, app-review@eno.vn) and `--for=ai`
+ * (the AI-app marketplace reviewers — OpenAI ChatGPT apps, Muse, Claude's directory — ai-review@eno.vn).
  *
  *   node --env-file=.env scripts/register-play-reviewer.mjs            # dry run
  *   node --env-file=.env scripts/register-play-reviewer.mjs --apply
  *   node --env-file=.env scripts/register-play-reviewer.mjs --for=apple            # App Store seat, dry run
  *   node --env-file=.env scripts/register-play-reviewer.mjs --for=apple --apply
+ *   node --env-file=.env scripts/register-play-reviewer.mjs --for=ai               # AI-app seat, dry run
  *
  * ⚠️ WHY THIS EXISTS RATHER THAN register-partner-seller.mjs. That script is the right shape for a
  * COMPANY: it claims a Handle, sets `accountType='business'` and writes a bio and a logo, so the
  * storefront is publicly reachable at https://eno.vn/<handle> the moment it exists. A Play reviewer
  * is not a company, and inventing one would put a fake business storefront on a live marketplace
  * for real users to find. This creates the SMALLEST row set that satisfies the sign-in gate and
- * nothing more: no Handle, no business account type, no bio, no avatar, no phone.
+ * nothing more: no Handle, no bio, no avatar, no phone — and no business account type, EXCEPT for
+ * the one seat whose job needs it (the AI seat, next paragraph).
+ *
+ * ⚠️ WHY THE AI SEAT IS A BUSINESS ACCOUNT, AND WHAT THAT COSTS (2026-11-14). Its reviewers must connect
+ * the Partner MCP server through "Sign in with eno", and eligibleShop() (src/lib/api/oauth-grant.ts) refuses
+ * a grant unless Profile.accountType === 'business', the account owns its Seller and is not held or
+ * suspended — checked at consent, at redemption, on every refresh and on every MCP call (resolveApiKey).
+ * So the seat table gives that seat `accountType: 'business'` and this script writes it; every other seat
+ * has no such key and is still written 'individual' (seatAccountType, scripts/review-seats.mjs — any other
+ * value refuses before anything is written). STILL NO HANDLE: the storefront stays at /sellers/<id> only.
+ * What `accountType='business'` changes IN PUBLIC, measured 2026-11-14 by reading every reader of the value
+ * (grep accountType / 'business' over src/), not guessed:
+ *   · THE STOREFRONT — /sellers/<id> (seller-storefront.tsx `isBusiness`) and GET /api/sellers/<id> (the
+ *     native apps' copy) show the "Business" chip. "Business verified" needs the tax-registry KYC as well
+ *     (isBusinessVerified), which this seat never has. Its picture: a business never borrows the owner's
+ *     profile photo (storefront-avatar.ts) — this seat has none either way.
+ *   · ITS LISTINGS' CARDS, PDP AND JSON-LD carry `isBusiness` (serialize.ts) — but only PUBLIC listings
+ *     render anywhere, and the seat's seeded ones are hidden and unverified (seed-ai-review-listings.mjs).
+ *   · THE HOME "Outstanding businesses" RAIL (core/business-rail.ts) picks sellers whose owner is business
+ *     — but only those holding a verified + ACTIVE listing, so not this seat while it has none. ⚠️ A reviewer
+ *     who tests create_listing makes one at once (it goes live: createListingCore writes verified:true), and
+ *     the seat then COMPETES FOR THAT RAIL on its Seller.trustScore (the column default, 100). Hide or
+ *     delete what a review created.
+ *   · A SERVICES listing it posts is stamped providerType 'business' (core/listings.ts withDerivedAttributes).
+ *   · NOT READ BY: the sitemap (its storefront URLs come from submitted listings — verified + active,
+ *     src/lib/sitemap.ts), the Google/Meta feeds, browse and search, the search suggestions, the public MCP
+ *     search server — every one is a LISTING query pinned to verified + active, none keys on the account
+ *     type. There is still no seller index route and /partners is static (the "NOT DISCOVERABLE" note below).
+ *   · Owner-only: the dashboard's business tier (Developers — API keys and the sign-in grants — bulk), and a
+ *     business account cannot write school reviews (schools/queries.ts) — neither is public.
+ *   · ⛔ TEACHERS (codex/opus review, 2026-11-14): a business account may REVEAL A REAL TEACHER'S cover Zalo
+ *     (src/lib/teachers/zalo.ts viewerOf: business → tier 'school', one a day, and a permanent teacher_zalo_seen
+ *     bell row naming the shop on that teacher's record) and messages teachers in the school voice
+ *     (teacher-contact.tsx). This seat's password goes to OUTSIDE reviewers, so the app must refuse review seats
+ *     both before the password is handed out — ⛔ do not paste the AI seat's password into any form until that
+ *     refusal is DEPLOYED.
+ *   · THE OFFICIAL-PARTNER FLAG ALSO LIFTS THE NEW-ACCOUNT LISTING CAP (isListingCapExempt, src/lib/enforcement.ts
+ *     via catalogue-seller.ts): bulk_create_listings and sync_catalogue can publish up to 200 PUBLIC rows per call
+ *     (src/lib/core/bulk.ts), each with the partner badge. The reviewer notes say: test bulk with one or two rows,
+ *     then delete them.
  *
  * ⚠️ WHY THE ACCOUNT NEEDS THE OFFICIAL-PARTNER FLAG AT ALL, which reads backwards at first.
  * Password sign-in on this platform is restricted to official partners — src/app/api/auth/password
@@ -49,8 +90,8 @@
  * src/app/api/auth/password and therefore needs a DEPLOY, which is why it is not what this does.
  *
  * ⚠️ THE PASSWORD IS GENERATED HERE AND NEVER PRINTED. It goes to the seat's credential file at the
- * repo root — .env.play-reviewer.local, .env.lawyer-review.local or .env.app-review.local (all
- * gitignored by both `.env*.local` and `.env*`) — mode 0600, and this script reports only the path
+ * repo root — .env.play-reviewer.local, .env.lawyer-review.local, .env.app-review.local or
+ * .env.ai-review.local (all gitignored by both `.env*.local` and `.env*`) — mode 0600, and this script reports only the path
  * and the length. Whoever pastes it into Play Console (or App Store Connect) should treat it as a
  * live credential — and SHRED IT afterwards; the success path prints the command.
  *
@@ -69,9 +110,14 @@
  *   2. delete "Seller"  where id = '<sellerId>'
  *   3. delete "Profile" where id = '<userId>'
  *   4. delete the auth user in Supabase → Authentication → Users
- *   5. shred the seat's credential file (.env.play-reviewer.local / .env.lawyer-review.local / .env.app-review.local)
+ *   5. shred the seat's credential file (.env.play-reviewer.local / .env.lawyer-review.local / .env.app-review.local
+ *      / .env.ai-review.local)
  * For the Apple seat, deleting its Profile also cascades away the demo conversation it is the buyer in;
  * the demo seller and its listing have their own REVERSAL in scripts/seed-app-review-thread.mjs.
+ * ⚠️ For the AI seat, step 2 is refused once its demo listings exist (scripts/seed-ai-review-listings.mjs): the
+ * Listing → Seller key has no cascade. Remove the WHOLE seat with /admin/users/<its profile id> → Erase instead
+ * (eraseAccount, src/lib/core/account-erasure.ts: listings, storefront, API keys and sign-in grants, Profile and the
+ * auth user, with the audit row), then shred .env.ai-review.local — that script's REVERSAL says the same.
  */
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
@@ -79,18 +125,21 @@ import { randomBytes, randomInt } from 'node:crypto'
 import { writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { findAuthUser, seatFromArgv } from './review-seats.mjs'
+import { findAuthUser, seatAccountType, seatFromArgv } from './review-seats.mjs'
 
 const APPLY = process.argv.includes('--apply')
 /**
- * ⚠️ ONE SCRIPT, THREE REVIEW SEATS. `--for=lawyer` (2026-10-01) creates the account the owner's lawyer uses
+ * ⚠️ ONE SCRIPT, FOUR REVIEW SEATS. `--for=lawyer` (2026-10-01) creates the account the owner's lawyer uses
  * to check eno.vn for regulatory compliance (owner: "create a test account for the lawyer to check the
  * platform"; chose a shared password account knowing it needs the official-partner flag). `--for=apple`
  * (2026-10-07) creates App Store review's demo seat, app-review@eno.vn (docs/ios-appstore-release.md P11);
  * the conversation its reviewer uses to test Block is seeded afterwards by scripts/seed-app-review-thread.mjs.
- * Same minimal row set and the same reasoning as the Play seat above; only the address, the public name and
- * the credential file differ, and those live in ONE table, scripts/review-seats.mjs, which the seed script
- * reads too. The default (no flag) is still the Play reviewer, unchanged.
+ * `--for=ai` (2026-11-14) creates the AI-app marketplace reviewers' seat, ai-review@eno.vn — a BUSINESS
+ * account (header: eligibleShop) whose hidden demo listings scripts/seed-ai-review-listings.mjs seeds afterwards.
+ * Same minimal row set and the same reasoning as the Play seat above; only the address, the public name,
+ * the credential file and (for the AI seat) the account type differ, and those live in ONE table,
+ * scripts/review-seats.mjs, which the seed scripts read too. The default (no flag) is still the Play
+ * reviewer, unchanged.
  */
 // ⛔ FAIL CLOSED ON A MISTYPED SEAT: `--for lawyer` (space), `--for=Lawyer` or a repeated --for must not
 // silently fall through to the Play seat and touch the wrong account (a reviewer's catch) — seatFromArgv
@@ -100,6 +149,14 @@ if (picked.error) {
   console.error(picked.error)
   process.exit(1)
 }
+// ⛔ …AND ON A MISTYPED ACCOUNT TYPE, HERE, before the env, the database or the auth server is touched: absent =
+// 'individual', present = exactly 'individual' or 'business', anything else exits (seatAccountType says why).
+const typed = seatAccountType(picked.seat)
+if (typed.error) {
+  console.error(typed.error)
+  process.exit(1)
+}
+const ACCOUNT_TYPE = typed.accountType
 
 /**
  * ⚠️ THE ADDRESS IS ON A DOMAIN WE CONTROL AND IS NOT AN ADMIN ONE. ADMIN_EMAILS on the box is
@@ -201,7 +258,7 @@ try {
       } else {
         console.log(`${APPLY ? 'WRITING' : 'DRY RUN — would write'}:`)
         console.log(`  auth user : ${REVIEWER.email}   (password generated here, written to ${CRED_FILE}, never printed)`)
-        console.log(`  Profile   : accountType=individual, displayName=${REVIEWER.displayName}`)
+        console.log(`  Profile   : accountType=${ACCOUNT_TYPE}, displayName=${REVIEWER.displayName}`)
         console.log(`  Seller    : name="${REVIEWER.sellerName}", no handle, no phone, verified=false, verifiedSeller=false`)
         console.log(`  Handle    : NONE — but /sellers/<id> still renders it; see the header for the real exposure`)
         console.log(`  officialPartner: NOT set here — run set-official-partner.mjs <sellerId> --apply`)
@@ -327,10 +384,12 @@ try {
              * Profile.id, Profile.updatedAt, Seller.id and Seller.name — all four are set here.
              * register-partner-seller.mjs:239 has always passed "updatedAt" for the same reason.
              */
+            // accountType: the seat's own, already checked above (seatAccountType) — 'individual' for every seat
+            // but the AI one, whose sign-in grant needs 'business' (header).
             await c.query(
               `insert into "Profile" (id, email, "displayName", "accountType", "updatedAt")
-               values ($1, $2, $3, 'individual', now())`,
-              [userId, REVIEWER.email.toLowerCase(), REVIEWER.displayName],
+               values ($1, $2, $3, $4, now())`,
+              [userId, REVIEWER.email.toLowerCase(), REVIEWER.displayName, ACCOUNT_TYPE],
             )
             /**
              * 3. Seller. cuid() is a Prisma-side default, so a raw INSERT must supply the id.
@@ -408,6 +467,12 @@ try {
             console.log(`\nApp Review also needs its demo conversation (the Block test, docs/ios-appstore-release.md P11):`)
             console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs                      # dry run`)
             console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs --apply --gate=off`)
+          }
+          if (picked.key === 'ai') {
+            // The AI reviewers connect the Partner MCP and need something in the shop to read — not on the marketplace.
+            console.log(`\nThe AI seat also needs its hidden demo listings (what list_listings / get_listing / analytics_* read):`)
+            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs            # dry run`)
+            console.log(`  node --env-file=.env scripts/seed-ai-review-listings.mjs --apply`)
           }
         }
       }

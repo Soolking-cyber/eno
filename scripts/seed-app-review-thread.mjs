@@ -173,9 +173,10 @@ const vnd = (n) => `${n.toLocaleString('de-DE')} đ`
 /**
  * Was this file the one `node` ran? Real paths, with or without the extension — a port of src/lib/cli-entry.ts
  * (a plain-node .mjs cannot import the .ts). ⛔ The naive URL comparison is false through a symlinked path,
- * and then a production --apply would skip main() and exit 0 in silence.
+ * and then a production --apply would skip main() and exit 0 in silence. Exported for
+ * scripts/seed-ai-review-listings.mjs, so the port has one copy.
  */
-function invokedDirectly(moduleUrl, argv1 = process.argv[1]) {
+export function invokedDirectly(moduleUrl, argv1 = process.argv[1]) {
   if (!argv1) return false
   const real = (p) => {
     try { return realpathSync(p) } catch { return resolve(p) }
