@@ -39,6 +39,9 @@ export const ICON_SIZE = {
   sm: 'h-3.5 w-3.5',
   /** 16px — THE DEFAULT: buttons, rows, menus */
   md: 'h-4 w-4',
+  /** 18px — a glyph on a LARGE photo plate (`.plate-lg`, 6px a side): the card photo's heart and hover row, an 18 + 12
+   *  = 30px plate inside the 32px `sm` button (owner-approved 2026-11-14, cook r05: "18 on plates"). */
+  plate: 'size-4.5',
   /** 20px — inputs, list leads, PDP action row */
   lg: 'h-5 w-5',
   /** 24px — header search-bar glyphs */

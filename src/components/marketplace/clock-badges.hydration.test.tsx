@@ -71,44 +71,30 @@ describe('DropCountdown on a page generated days earlier', () => {
   })
 })
 
-describe('CardBadges "New" on a feed generated days earlier', () => {
-  const listing = (postedAt: number, isNew: boolean | undefined) => ({ urgent: false, prevPrice: null, price: 1_000_000, postedAt: new Date(postedAt).toISOString(), listingType: 'sell', isNew }) as never
-  const chip = () => document.body.querySelector('span')
+// ⛔ "JUST IN" IS GONE (owner-approved 2026-11-14, cook r05: '"Just in" → hidden'): never rendered, on the server or the client,
+// so it can no longer mismatch. What is left on the photo — Urgent and the price drop — reads no clock at all.
+describe('CardBadges on a feed generated days earlier', () => {
+  const listing = (patch: Record<string, unknown>) => ({ urgent: false, prevPrice: null, price: 1_000_000, postedAt: new Date(GENERATED - 3_600_000).toISOString(), listingType: 'sell', isNew: true, ...patch }) as never
 
-  it('⛔ a listing that was new at generation and is not now hydrates without a mismatch, and its chip hides itself', async () => {
-    const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3 * DAY)
-    expect(r.html).toContain('Just in')
-    expect(r.recoverable).toEqual([])
-    expect(chip()?.hidden).toBe(true)
-  })
-
-  it('a listing still under 24h has its chip in the first paint, and keeps it', async () => {
-    const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3_600_000)
-    expect(r.html).toContain('Just in')
-    expect(r.recoverable).toEqual([])
-    expect(r.text).toBe('Just in')
-    expect(chip()?.hidden).toBe(false)
-  })
-
-  it('⛔ in HTML that lives for weeks the chip claims nothing until the clock agrees', async () => {
-    const stale = await renderThenHydrate(<CardBadges chipInHtml={false} listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3 * DAY)
-    expect(stale.html).toContain('hidden')
-    expect(stale.html).not.toContain('Just in')
-    expect(stale.recoverable).toEqual([])
-    expect(chip()?.hidden).toBe(true)
-    document.body.innerHTML = ''
-    const fresh = await renderThenHydrate(<CardBadges chipInHtml={false} listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3_600_000)
-    expect(fresh.html).not.toContain('Just in')
-    expect(fresh.recoverable).toEqual([])
-    expect(chip()?.hidden).toBe(false)
-    expect(fresh.text).toBe('Just in')
-  })
-
-  it('no chip when the row says no, or when a row kept from before the field does not say', async () => {
-    for (const isNew of [false, undefined]) {
-      const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, isNew)} />, GENERATED, GENERATED)
-      expect(r.html).not.toContain('Just in')
+  it('⛔ a fresh listing (isNew) renders no "Just in" / "Mới đăng" — not in the server HTML, not after hydration', async () => {
+    for (const clientNow of [GENERATED + 3_600_000, GENERATED + 3 * DAY]) {
+      const r = await renderThenHydrate(<CardBadges listing={listing({})} />, GENERATED, clientNow)
+      expect(r.html).toBe('')
+      expect(r.recoverable).toEqual([])
       expect(r.text).toBe('')
+      expect(r.text).not.toContain('Just in')
+      expect(r.html).not.toContain('Mới đăng')
+      document.body.innerHTML = ''
+    }
+  })
+
+  it('Urgent and a price drop hydrate identically whatever the clock says, as the white photo pill', async () => {
+    for (const patch of [{ urgent: true }, { prevPrice: 1_500_000 }]) {
+      const r = await renderThenHydrate(<CardBadges listing={listing(patch)} />, GENERATED, GENERATED + 3 * DAY)
+      expect(r.recoverable).toEqual([])
+      expect(r.html).toContain('photo-badge')
+      expect(r.text).toBe(new DOMParser().parseFromString(r.html, 'text/html').body.textContent)
+      document.body.innerHTML = ''
     }
   })
 })

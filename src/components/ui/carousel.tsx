@@ -210,8 +210,12 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
  * ⚠️ THE INK IS SET HERE RATHER THAN IN THE PLATE RULE so a call site can override it with an
  * ordinary utility. promo-banner used to set `text-white/80` → `hover:text-white` and had to be
  * changed when the glyph started carrying its own ink — check for that when adding a caller.
+ * ⛔ INK ON THE WHITE PLATE SINCE 2026-11-14 (owner-approved, cook r05: "every control over a photo …
+ * one white plate, ink glyph"; it was white on a dark disc, and dark ink on a light one in dark mode):
+ * `text-on-plate` in both themes. The drop-shadow filter is gone with it — the plate carries its own
+ * (--shadow-plate), and a second one around the glyph would ring the white disc twice.
  */
-const ARROW_GLYPH = 'icon-plate size-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]'
+const ARROW_GLYPH = 'icon-plate size-7 text-on-plate'
 
 function CarouselPrevious({
   className,

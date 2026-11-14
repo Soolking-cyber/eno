@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
+import { ICON_SIZE } from '@/lib/icon-tokens'
 
 /**
  * EDIT — shown to a seller on their OWN listing, wherever they meet it.
@@ -110,7 +111,9 @@ export function OwnerEditButton({
         title={label}
         className={cn(!dense && 'press', className)}
       >
-        <Pencil className="h-5 w-5" aria-hidden />
+        {/* Dense = on the card's photo, beside the heart and the other plated glyphs: the plate glyph size (ICON_SIZE.plate,
+            18px) since the 2026-11-14 white plates, so its plate matches theirs (commit review). */}
+        <Pencil className={dense ? ICON_SIZE.plate : 'h-5 w-5'} aria-hidden />
       </IconButton>
     )
   }

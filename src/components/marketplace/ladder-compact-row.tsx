@@ -101,13 +101,14 @@ export function LadderCompactRow({
   const subRow = subs.length > 0 || teacherDoor
 
   // One chip look for every rung — the browse chip (ui/chip-style PILL_*, owner 2026-10-18: one chip style), the same
-  // 36px tinted pill as the facet pills directly below, with an invisible 44px hit area (`tap-44`, which the
-  // scroller's `py-1` leaves room for); pressed = the brand tint the rail uses for "chosen".
+  // 36px pill as the facet pills directly below, with an invisible 44px hit area (`tap-44`, which the
+  // scroller's `py-1` leaves room for); pressed = the INK FILL (owner-approved 2026-11-14; it was the brand tint), its
+  // glyph white with it (`icon-own-ink`).
   const chipCls = cn(
     PILL_BOX,
     PILL_REST,
     'shrink-0 whitespace-nowrap transition-[background-color,color,scale] duration-150 ease-[var(--ease-out-strong)] active:scale-[0.97] motion-reduce:transition-none',
-    'data-pressed:bg-brand-50 data-pressed:text-accent-foreground',
+    'data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background icon-own-ink',
   )
 
   return (
@@ -116,10 +117,13 @@ export function LadderCompactRow({
           concatenated, not merged, so only the primitive's own className beats its base classes
           (CLAUDE.md — the same shape custom-select.tsx uses). */}
       <CollapsibleTrigger
-        render={<Button variant="bare" size="none" className="relative tap-44 min-h-9 shrink-0 gap-1.5 rounded-full bg-brand-50 pl-3 pr-2.5 text-sm font-bold text-accent-foreground" />}
+        // The folded ladder's one pill names what is chosen, so it wears the chosen look: the ink fill (owner-approved
+        // 2026-11-14; it was the brand tint). Its glyph is the plain line in the label's ink — the fill already says
+        // "selected", and the duotone's blue wash under a white line read as a stain.
+        render={<Button variant="bare" size="none" className="relative tap-44 min-h-9 shrink-0 gap-1.5 rounded-full border border-foreground bg-foreground pl-3 pr-2.5 text-sm font-bold text-background icon-own-ink" />}
       >
         {active
-          ? <CategoryIcon name={active.icon} stroke={STROKE_UI} selected className="h-4 w-4 shrink-0" />
+          ? <CategoryIcon name={active.icon} stroke={STROKE_UI} className="h-4 w-4 shrink-0" />
           : <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />}
         <span className="max-w-[10rem] truncate">
           {active ? label(active) : tr('All categories', 'Tất cả danh mục')}

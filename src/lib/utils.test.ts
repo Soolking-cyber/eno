@@ -114,6 +114,18 @@ describe('cn — the type roles', () => {
     expect(plain).toMatch(/--text-t-h2--font-weight: 700;/)
     expect(plain).toMatch(/--text-t-meta: 0\.8125rem;/)
   })
+
+  // The card text block (src/lib/card-text.ts, 2026-11-14): the merges its call sites rely on, measured, not reasoned.
+  it('the card\'s price keeps BOTH its colour mark and the price role; its ≈ swaps size and margin; a teacher name drops the card role', () => {
+    // <Price>'s root is `tabular-nums font-bold text-price` + className — fab-clearance.ts selects `[data-card-root] .text-price`.
+    expect(cn('tabular-nums font-bold text-price', 'text-t-price')).toBe('tabular-nums font-bold text-price text-t-price')
+    // <Price>'s ≈ default + CARD_APPROX.
+    expect(cn('ml-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground', 'ml-1 text-t-meta tracking-normal lg:text-body')).toBe('whitespace-nowrap font-medium text-muted-foreground ml-1 text-t-meta tracking-normal lg:text-body')
+    // TEACHER_TITLE_LINE: a size replaces the card role, and a later leading survives the size.
+    expect(cn('truncate text-t-card font-normal text-ink-3', 'text-base leading-snug text-foreground')).toBe('truncate font-normal text-base leading-snug text-foreground')
+    // A struck "was" price: the muted colour replaces the price mark, the role replaces nothing else.
+    expect(cn('tabular-nums font-bold text-price', 'whitespace-nowrap text-t-meta font-normal text-muted-foreground line-through')).toBe('tabular-nums whitespace-nowrap text-t-meta font-normal text-muted-foreground line-through')
+  })
 })
 
 /**

@@ -172,18 +172,18 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
           so aria-expanded stays honest — the popup the trigger promises is the system one. */}
       <PopoverTrigger
         render={
-          // compact: icon-only, OVER MEDIA (mirrors SaveListingButton's compact mode) — NO circle
-          // background; the `overlay` variant is a white glyph + baked drop-shadow that reads on any
-          // photo, light or dark (our over-media icon aesthetic). That shell IS <IconButton>, so use
-          // the primitive. The labelled (non-compact) variant is a padded pill with text.
+          // compact: icon-only, OVER MEDIA (mirrors SaveListingButton's compact mode). The `overlay`
+          // variant supplies the plate and the ink — since 2026-11-14 an ink glyph on the white photo
+          // plate in both themes (owner-approved, cook r05), so no colour is set here. That shell IS
+          // <IconButton>, so use the primitive. The labelled (non-compact) variant is a padded pill with text.
           compact ? (
             <IconButton
               size="md"
               variant="overlay"
               aria-label={tr('Share', 'Chia sẻ')}
               // `icon-own-ink`: while the popover is open (aria-expanded) the global rule painted the
-              // glyph accent blue on the photo plate, ~1.7:1; it keeps the overlay's own white /
-              // neutral-900, like the compact Save heart beside it.
+              // glyph accent blue on the photo plate; it keeps the overlay's own ink (`text-on-plate`),
+              // like the compact Save heart beside it.
               className={cn('icon-own-ink transition-transform active:scale-[0.96]', className)}
             >
               <Share2 className="h-5 w-5" />

@@ -378,7 +378,7 @@ export function SortStrip({
           sliced at the gutter. From sm the scroller classes are inert and the row is the old one. */}
       <div className="relative border-b border-border">
       {/* ⚠️ `max-sm:py-1` IS THE PILLS' HIT AREA AND THEIR AIR. Since the one chip style (owner, 2026-10-18) the
-          phone pills are 36px tinted chips with a 44px `tap-44` hit area; this row is their scroller, and a
+          phone pills are 36px chips (white + hairline since 2026-11-14) with a 44px `tap-44` hit area; this row is their scroller, and a
           scroller clips both axes, so without 4px above and below them the hit area is cut back to 36. It also
           keeps the tinted pills off the hairline. 36 + 8 = the 44px row the old flush pills drew — the strip,
           the reservation around FacetBar (listings-explorer.tsx) and FacetBarFallback did not move. */}
@@ -389,8 +389,8 @@ export function SortStrip({
       {/* ⛔ THE APPLIED CHIPS LEAD THE PHONE ROW, Clear all first (owner, 2026-11-10: "2 yes"; result-line.tsx PhoneFilterChips). */}
       {phoneLead}
       {/* THE PHONE SORT PILL — first in the row (after any applied chips, owner 2026-11-10) so the order is visible without a swipe. A facet pill
-          (ui/chip-style PILL_*, ⌄), with the order's glyph in front (⇅, or the price direction). Tinted at rest like
-          every pill on the row; the brand tint once an order other than Relevance is picked. */}
+          (ui/chip-style PILL_*, ⌄), with the order's glyph in front (⇅, or the price direction). White at rest like
+          every pill on the row; the ink fill once an order other than Relevance is picked (owner-approved 2026-11-14). */}
       <CustomSelect
         value={sort}
         onChange={(v) => onPickSort(v as SortKey)}
@@ -569,11 +569,11 @@ export function SortStrip({
           'flex w-auto shrink-0 snap-start items-center transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
           PILL_REST,
           // GREEN ONLY WHEN PRESSED (owner, 2026-09-15: "good price button should be green when tapped") —
-          // the one pill on the row whose ON look is not the brand tint, kept on purpose.
+          // the one pill on the row whose ON look is not the ink fill, kept on purpose; its edge goes green with it.
           // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page
           // background colour reads on both (white on green-800, near-black on green-400) where a fixed
           // white would fail contrast on the dark theme's light green.
-          'data-pressed:bg-success data-pressed:text-background data-pressed:hover:bg-success data-pressed:hover:text-background',
+          'data-pressed:border-success data-pressed:bg-success data-pressed:text-background data-pressed:hover:bg-success data-pressed:hover:text-background',
         )}
       >
         {tr('Good price', 'Giá tốt')}
@@ -598,9 +598,10 @@ export function SortStrip({
           size="sm"
           onClick={() => pagePhoneRow(1)}
           aria-label={tr('More', 'Xem thêm')}
-          // ⛔ NOT ON A TOUCH SCREEN (UI climb, 2026-11-05): there the row swipes and the hard-clipped pill already says there is more,
-          // as on Facebook Marketplace and Chợ Tốt, and a 32px disc over the third pill's label read as a layout bug. A mouse in
-          // a narrow window has no swipe, so it keeps this button.
+          // ⛔ NOT ON A TOUCH SCREEN (UI climb, 2026-11-05): there the row swipes, and a 32px disc over the third pill's label read
+          // as a layout bug. A mouse in a narrow window has no swipe, so it keeps this button.
+          // The hard-clipped pill at the edge says there is more (2026-11-05). A whole-chip fit was tried on 2026-11-14 and
+          // dropped in commit review: every round found a new edge case (holes mid-swipe, late rows, stale marks).
           className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pointer-coarse:hidden sm:hidden"
         >
           <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />

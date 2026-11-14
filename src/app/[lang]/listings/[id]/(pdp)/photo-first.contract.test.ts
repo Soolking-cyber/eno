@@ -29,7 +29,9 @@ describe('item 3: the photo-first hook', () => {
   it('puts Back over the photo, opposite Share and Save, with the category as its fallback', () => {
     const at = PAGE.indexOf('data-photo-first=""')
     const block = PAGE.slice(at, PAGE.indexOf('<OwnerEditButton', at))
-    expect(block).toContain('<div className="absolute left-3 top-3 z-10 flex items-center">')
+    // `plate-lg` (2026-11-14, owner-approved): the Back/Share/Save glyphs on 32px white plates.
+    expect(block).toContain('<div className="plate-lg absolute left-3 top-3 z-10 flex items-center">')
+    expect(block).toContain('<div className="plate-lg absolute right-3 top-3 z-10 flex items-center gap-2">')
     expect(block).toContain('<PdpBackButton fallbackHref={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} />')
     expect(block.indexOf('absolute left-3 top-3')).toBeLessThan(block.indexOf('absolute right-3 top-3'))
   })

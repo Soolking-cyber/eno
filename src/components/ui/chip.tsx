@@ -31,7 +31,9 @@ import { cn } from '@/lib/utils'
  *            pill on the browse surfaces. A control that cannot be a <Chip> (a select's trigger, a popover
  *            trigger, a link on a server page) wears the same look from ui/chip-style.ts (PILL_*).
  *   tone ghost   — transparent at rest, muted fill on hover (the composer chips)
- *        neutral — a tint pill; pressed = the accent capsule
+ *        neutral — xs/sm: a tint pill, pressed = the accent capsule. md: THE browse chip, white + 1px line-strong, ink
+ *                  bold label, pressed = the ink fill (owner-approved 2026-11-14 — ui/chip-style.ts has the ruling). A
+ *                  compound variant per size, so `chipVariants()` never emits two backgrounds.
  *        warning — the caution tint, for "still needed" style prompts
  */
 export const chipVariants = cva(
@@ -45,11 +47,24 @@ export const chipVariants = cva(
       },
       tone: {
         ghost: 'text-body hover:bg-muted hover:text-foreground',
-        neutral:
-          'bg-tint text-body hover:bg-accent hover:text-accent-foreground data-pressed:bg-accent data-pressed:text-accent-foreground data-pressed:ring-1 data-pressed:ring-brand/30',
+        neutral: '',
         warning: 'bg-warning/10 text-warning',
       },
     },
+    compoundVariants: [
+      {
+        size: ['xs', 'sm'],
+        tone: 'neutral',
+        className:
+          'bg-tint text-body hover:bg-accent hover:text-accent-foreground data-pressed:bg-accent data-pressed:text-accent-foreground data-pressed:ring-1 data-pressed:ring-brand/30',
+      },
+      {
+        size: 'md',
+        tone: 'neutral',
+        className:
+          'border border-line-strong bg-background text-foreground font-bold hover:bg-muted active:bg-muted data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background icon-own-ink',
+      },
+    ],
     defaultVariants: { size: 'sm', tone: 'neutral' },
   },
 )
@@ -71,6 +86,7 @@ const TOGGLE_MOTION =
  * keep their own hover.
  */
 const TOGGLE_HOVER = 'not-data-pressed:hover:bg-muted not-data-pressed:hover:text-foreground'
+// (2026-11-14) The md neutral chip already hovers to the field grey with ink, so this only matters for xs/sm.
 
 /**
  * The look of a chip that TOGGLES — geometry, tone, the press motion and the no-hover-into-pressed rule above. One

@@ -182,6 +182,8 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // pointer to the posting, not an amount — and docs/design-language.md §3 is explicit that prices,
   // and ONLY prices, wear `text-price`. Rendered in the root span below, it came out in the commerce
   // orange at full price weight, the loudest words on the card for the one line that states nothing.
+  // (Since 2026-11-14 `--price` is INK, owner-approved — the orange is retired — so what sets a price apart is its
+  // weight and the card's `text-t-price` size; the muted/body ink here still keeps a non-figure out of that voice.)
   // Body ink instead, at the semibold tier — which this family renders at 700 (globals.css retargets
   // 600 onto the one bold cut it ships), so the colour is what sets it apart, and the price row keeps
   // its weight. Size stays the caller's (tailwind-merge keeps it), so the line box, and with it every
@@ -365,7 +367,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
  *   exactly how the first version of this list said "all 10" and then cited an eleventh.
  *   Three override the colour, all on Price's OWN className so tailwind-merge resolves it and the
  *   caller wins: `text-white drop-shadow` over video (378) and `text-ink-4 line-through` on the two
- *   struck "was" prices (628, 1054). None sits on a brand fill, and none inherits its colour from a
+ *   struck "was" prices (628, 1054; the card's is `text-muted-foreground` since 2026-11-14, src/lib/card-text.ts CARD_WAS). None sits on a brand fill, and none inherits its colour from a
  *   wrapper — that is the case that would flip red silently, so re-run the grep before adding a
  *   twelfth.
  */

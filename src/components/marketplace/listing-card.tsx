@@ -16,7 +16,6 @@ import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
 import Image from 'next/image'
 import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
-import { PhotoFill } from './photo-fill'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
@@ -33,7 +32,9 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { usePlaceText } from './place-name'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
-import { cardTitle, hasImportDate, cardJobType } from '@/lib/card-title'
+import { cardTitle, cardJobType } from '@/lib/card-title'
+import { CARD_APPROX, CARD_BODY, CARD_META, CARD_PRICE, CARD_WAS, CARD_WAS_APPROX, TEACHER_TITLE_LINE, TITLE_LINE } from '@/lib/card-text'
+import { ICON_SIZE } from '@/lib/icon-tokens'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 // PostedAgo (not a bare timeAgo() call): the card's relative time is the SAME string the PDP prints, and it is safe on a cached page (relative-time.tsx).
@@ -105,7 +106,7 @@ type Props = {
   lcp?: boolean
   /** A main grid's card past the first screen: its photo waits for the page's scripts on a phone (src/lib/image-hold.ts). */
   holdPhoto?: boolean
-  /** False for a card in HTML that lives for weeks (a listing page's shelf): its "x ago" and "New" wait for the clock, not a baked claim. */
+  /** False for a card in HTML that lives for weeks (a listing page's shelf): its "x ago" waits for the clock, not a baked claim. ("Just in" is gone since 2026-11-14: card-badges.tsx.) */
   clockInHtml?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
   // full-width. Default = the result grid's own geometry (LISTING_CARD_SIZES, derived in
@@ -120,31 +121,18 @@ type Props = {
 
 
 /**
- * The card's one-line title (the h3 below). ONE string for both shapes of the line — the bare h3, and the marked teacher
- * card's row, which adds only `min-w-0` — so the two can never drift apart.
- * `font-normal` (owner, 2026-10-18 — "look like top marketplace"): on every card but a teacher's, a regular title under
- * the bold price, the contrast Facebook Marketplace, eBay and Chợ Tốt all draw. It was `font-medium`, which globals.css
- * retargets to 400 anyway (two shipped cuts, 2026-08-13), so nothing repaints today; the class now says what the card
- * means, and keeps meaning it if a 500 cut ever ships.
- * ⛔ A TEACHER CARD LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT / +0.39 Opus): its
- * line is TEACHER_TITLE_LINE, below, and it sits ABOVE the rate. Every other card keeps the 09-13 order (price → this
- * line → the info line) and this string byte-for-byte.
+ * The card's one-line title (the h3 below) and a teacher card's name line are TITLE_LINE / TEACHER_TITLE_LINE in
+ * src/lib/card-text.ts since 2026-11-14 (owner-approved, cook r05: title 15/20 regular in ink-3, one line), shared with the
+ * SEO tile and the skeleton. ONE string for both shapes of the line — the bare h3, and the marked teacher card's row,
+ * which adds only `min-w-0` — so the two can never drift apart.
+ * ⛔ A TEACHER CARD LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT / +0.39 Opus), bold
+ * and in ink: TEACHER_TITLE_LINE, ABOVE the rate. Every other card keeps the 09-13 order (price → this line → the info
+ * line).
+ * Line boxes: a teacher's name 16·1.375 = 22px on a phone (24.75 from sm) over its rate 14·1.25 = 17.5 (20 from sm), and
+ * since batch 80 (owner, 2026-11-12, "build 2") the proof line (gap-0.5 2 + a 16px text-xs line) between the rate and
+ * the info line, reserved on every teacher card; the skeleton reserves those bars only where it is told the cells are
+ * teachers (listing-card-skeleton.tsx `teacher`).
  */
-const TITLE_LINE = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
-/**
- * The teacher card's name line (owner, 2026-11-12, above): TITLE_LINE a step up and bold — 16px on a phone, 18px from sm —
- * so truncation, ink and the hover underline stay one string. Its rate drops a step to match (`text-sm sm:text-base`
- * on <Price>, the body below), which keeps the name + rate line boxes at the price-first card's: 16·1.375 + 14·1.25 =
- * 39.5px on a phone (39.25 before), 18·1.375 + 16·1.25 = 44.75px from sm (44.5) — measured on a local build, the text
- * column was 72 vs 71.3px on a phone and 80.8 vs 80.5px at 1280 against a price-first card.
- * ⚠️ SINCE BATCH 80 (owner, 2026-11-12, "build 2") A TEACHER BODY IS 18px TALLER: the proof line (gap-0.5 2 + a 16px
- * text-xs line) between the rate and the info line, reserved on every teacher card — about 89.5px on a phone, 94.75px
- * from sm. Those sums still hold for the two lines above it; the skeleton reserves the extra line only where it is told
- * the cells are teachers (listing-card-skeleton.tsx `teacher`).
- * ⚠️ `leading-snug` IS RESTATED ON PURPOSE: tailwind-merge 3 lets a later font size drop an earlier `leading-*`, so
- * `cn(TITLE_LINE, 'text-base')` loses it and the line falls back to Tailwind's 1.5 (a 24px line, not 22).
- */
-const TEACHER_TITLE_LINE = cn(TITLE_LINE, 'text-base font-bold leading-snug sm:text-lg')
 
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
 const CARD_DRAG_LOCK_PX = 8
@@ -561,14 +549,14 @@ function ListingCardImpl({
       <div
         data-protected
         data-rail-media
-        // ⛔ `rounded-media`, NOT `rounded-2xl` — AND THIS REVERSES THE 2026-08-09 RULE THAT STOOD HERE ON THE
-        // OWNER'S OWN WORD (2026-10-18: "the product cards should have minimal squircle corners"). That rule
-        // put this photo on canon §2's 2xl size tier (18px) and forbade going back to a smaller corner; the
-        // owner now asks for Facebook Marketplace's minimal one (FB m-web clips its photos at 8px). The token is
-        // 8px round, raised to a 14px squircle where corner-shape exists — the same visible corner (globals.css,
-        // `--radius-media`) — and it is canon §2's one role-based row: every listing/product photo tile wears
-        // it (the skeleton, the SEO tile, the wizard Preview, the map list), so a tile's corner never jumps
-        // between its loading and loaded states. Do not "restore" 2xl here without the owner.
+        // ⛔ `rounded-media`, NOT `rounded-2xl` — canon §2's one role-based row: every listing/product photo tile wears
+        // it (the skeleton, the SEO tile, the wizard Preview, the map list), so a tile's corner never jumps between its
+        // loading and loaded states. ⛔ 16px ROUND / 20px SQUIRCLE SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05:
+        // "after this cook round build all best options and deploy"; it reverses the 2026-10-18 "minimal squircle
+        // corners", 8px round / 14px squircle, which had itself reversed the 2026-08-09 2xl rule). The value lives in
+        // globals.css `--radius-media`; change it there, never here.
+        // ⛔ `plate-lg` (2026-11-14, owner-approved: "18 on plates"): every plate on this photo — the heart and the pc hover
+        // row — pads its glyph 6px a side, an 18px glyph (ICON_SIZE.plate) on a 30px plate in the 32px `sm` button.
         // `media-hairline` (owner, same day): the 1px inner edge that keeps white packshots from merging at a 4px
         // gap — a ::before ABOVE the photo, under the overlays; see globals.css for why it is not an inset ring.
         // ⚠️ `partner-ring-media` is NOT on this box any more (the gold ring left the card 2026-08-13; the
@@ -581,7 +569,7 @@ function ListingCardImpl({
         // red probe on the live page — see `.partner-ring-media` in globals.css for the full
         // measurement before reaching for either again.
         className={cn(
-          'media-hairline relative aspect-square w-full overflow-hidden rounded-media bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
+          'plate-lg media-hairline relative aspect-square w-full overflow-hidden rounded-media bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
         )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo,
@@ -814,21 +802,6 @@ function ListingCardImpl({
                     <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
                   </div>
                 ) : (
-                  <>
-                  {/* ⛔ THE WHOLE PHOTO, OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx). Not for a teacher: a
-                      portrait keeps its face crop below. Same file as the photo, so no second request. */}
-                  {!isTeacher && (
-                    <PhotoFill
-                      key={`fill-${i}:${slideTry[i] ?? 0}`}
-                      src={src}
-                      sizes={sizes}
-                      quality={60}
-                      unoptimized={isMockImageUrl(src)}
-                      // Brightens on hover WITH the photo (the same classes), or the photo lifts off its fill in a visible seam.
-                      className="transition-[filter] duration-200 group-hover:brightness-105 dark:group-hover:brightness-[0.97]"
-                      {...(lcp && i === 0 ? { loading: 'eager' as const } : slideLoad(i))}
-                    />
-                  )}
                   <Image
                     key={`${i}:${slideTry[i] ?? 0}`}
                     src={src}
@@ -856,8 +829,12 @@ function ListingCardImpl({
                     // ⚠️ A TEACHER'S PHOTO IS A FACE (2026-11-08, codex all17 on /c/teachers: "the square crop cuts off most of the
                     // teacher's face"): a portrait centred in the square lost the forehead and eyes. Anchored near the top, where a
                     // portrait keeps its face; a landscape photo crops sideways and is unchanged. Every other card stays centred.
-                    // ⛔ object-contain: the card shows the WHOLE photo (owner, 2026-11-12, above); a teacher's portrait stays cover.
-                    className={cn('transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher ? 'object-cover object-[50%_18%]' : 'object-contain')}
+                    // ⛔ THE PHOTO FILLS ITS SQUARE — `object-cover`, no blurred fill (owner-approved 2026-11-14, cook r05: "photo
+                    // fills its square (cover), --radius-media, 5% inner ring"; it reverses the 2026-11-12 "do not crop but fit in
+                    // so nothing from original image misses" — the whole photo over its own blurred copy, photo-fill.tsx). The
+                    // listing page still shows every photo whole. The ratio and the size of the box are untouched (owner, 11-14).
+                    // One <img> per slide again, so the photo itself is the LCP element and the only thing `slideLoad` holds.
+                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]')}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -899,7 +876,6 @@ function ListingCardImpl({
                       ? { priority: true, fetchPriority: 'high' as const }
                       : slideLoad(i))}
                   />
-                  </>
                 )}
                 {/* The app-drawn eno.vn mark, per SLIDE so each photo gets the ink measured for it. Renders
                     nothing for a photo that still carries a burned mark — see image-mark.tsx. */}
@@ -1021,16 +997,17 @@ function ListingCardImpl({
             Two 48px black/10 gradients darkened the top and bottom of EVERY photo, and on a white packshot
             they read as dirt; Facebook and Chợ Tốt draw nothing over a grid photo. They never carried the
             glyphs either — worst-case glyph contrast with them in place measured 1.23:1 (2026-08-26). Every
-            overlay brings its own plate instead: the heart and the hover actions the translucent
-            `plate-host` disc (globals.css), the one top-left badge a solid chip with `shadow-sm`
-            (card-badges.tsx), the video / saved / rental-check chips a `bg-foreground/70` plate, the
-            eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `shadow-onmedia` (they
-            are `sm`-and-up only now, below). Do not bring a full-width band back for one corner glyph. */}
+            overlay brings its own plate instead — since 2026-11-14 ONE white plate (owner-approved, cook r05: "over a
+            photo: only white plates"): the heart and the hover actions the `plate-host` disc (globals.css), the one
+            top-left badge and the video / saved chips the `.photo-badge` pill (card-badges.tsx, CardStatusChips), the
+            eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `shadow-onmedia` (they are
+            `sm`-and-up only now, below). (The rental-check chip, rental-check-toggle.tsx, still wears its own dark
+            plate.) Do not bring a full-width band back for one corner glyph. */}
 
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
-        {/* Top-left signal: ONE badge — the first of Urgent → price-drop % → New that applies
+        {/* Top-left signal: ONE badge — the first of Urgent → price-drop % that applies ("Just in" is gone, 2026-11-14)
             (the shared, app-wide badge system — see card-badges.tsx, which carries the reasoning
             for why a suppressed drop loses nothing: the struck-through "was" price in the price
             row below states it a second time, independently of this chip). */}
@@ -1040,7 +1017,9 @@ function ListingCardImpl({
             conversion signals on it. The stated reason was crowding, but the badges sit at
             `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
             width where that row renders. */}
-        <CardBadges listing={listing} chipInHtml={clockInHtml} showNew={!hasImportDate(listing.sellerId)} className="pointer-events-none absolute left-2 top-2 z-10" />
+        {/* `max-w`: the 13px white pill never runs under the 32px heart at 320px ("Urgent hiring" measured ~18px of overlap
+            in commit review); its label ellipsizes instead (card-badges.tsx). */}
+        <CardBadges listing={listing} className="pointer-events-none absolute left-2 top-2 z-10 max-w-[calc(100%-3.25rem)]" />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
@@ -1072,14 +1051,15 @@ function ListingCardImpl({
         {quickBar && <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
           {/* No Chat on a reference listing — nobody owns it (see /api/conversations). */}
           {quickOffer === null && !listing.isPartnerBooking && (
-            // ⛔ ALL FOUR CONTROLS SHARE `variant="overlay"`, WHICH IS NOW A TRANSLUCENT PLATE
-            // rather than the 2px black stroke that variant used to paint. Owner, 2026-08-29,
-            // after the stroke came off and the glyphs proved invisible on white photos:
-            // "semistransparent black plate outline with minimal padding to icon on icons on light
-            // theme and semitransparent white on dark theme all icons on images should have that".
-            // ⚠️ THE GLYPHS CARRY NO COLOUR OF THEIR OWN ANY MORE — the variant supplies white in
-            // light mode and dark ink in dark mode, so a `text-white` here would break dark mode.
-            // Only the SAVED heart still sets its own ink, and red on the plate still reads.
+            // ⛔ ALL FOUR CONTROLS SHARE `variant="overlay"`, WHICH IS A PLATE rather than the 2px
+            // black stroke that variant used to paint (owner, 2026-08-29, after the stroke came off and
+            // the glyphs proved invisible on white photos). Since 2026-11-14 (owner-approved, cook r05)
+            // the plate is WHITE with an INK glyph in both themes, 18px glyphs (ICON_SIZE.plate) on the
+            // media box's `plate-lg` 30px plates.
+            // ⚠️ THE GLYPHS CARRY NO COLOUR OF THEIR OWN — the variant supplies `text-on-plate`, so a
+            // `text-white` here would paint white on the white plate. Only the SAVED heart sets its own ink.
+            // ⚠️ THE KEYBOARD RING IS THE ACCENT (`ring-ring`), NOT WHITE, SINCE 2026-11-14: a white ring round a white plate
+            // on a white packshot was no focus indicator at all (WCAG 2.4.7).
             // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
             // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
             //
@@ -1135,9 +1115,11 @@ function ListingCardImpl({
                  * ⚠️ IT DOES NOT GENERALISE. Every other plated glyph is under 1.0 and would gain
                  * nothing from `overflow:visible`; this is a property of one mark, not of the plate.
                  */
-                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <MessageCircle className="h-5 w-5 fill-none [overflow:visible]" />
+                {/* ICON_SIZE.plate (18px) since 2026-11-14: the tail ratio (1.132) is the glyph's own, so at 18px its ink reaches
+                    ~10.2px from centre inside the 15px radius of the 30px `plate-lg` disc — the overflow fix below still holds. */}
+                <MessageCircle className={cn(ICON_SIZE.plate, 'fill-none [overflow:visible]')} />
               </IconButton>
             </Tooltip>
           )}
@@ -1157,7 +1139,7 @@ function ListingCardImpl({
                 // there is NO transition: Tab must not land on a control that is still fading in from
                 // opacity 0, and a keyboard-driven change never animates (the same for Locate and Edit).
                 className={cn(
-                  'pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  'pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   quickOffer === null
                     ? '[transition:translate_200ms_var(--ease-spring-snappy)_75ms,opacity_200ms_var(--ease-spring-snappy)_75ms,scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]'
                     : '[transition:translate_200ms_var(--ease-spring-snappy),opacity_200ms_var(--ease-spring-snappy),scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]',
@@ -1168,7 +1150,7 @@ function ListingCardImpl({
                     controls open as ONE wide edge-to-edge bar (shared with mobile,
                     below) so the amount never gets cramped on a narrow card. */}
                 {/* ⚠️ The active state still fills brand — only the black stroke goes. */}
-                <Tag className={cn('h-5 w-5', quickOffer !== null ? 'fill-brand' : 'fill-none')} />
+                <Tag className={cn(ICON_SIZE.plate, quickOffer !== null ? 'fill-brand' : 'fill-none')} />
               </IconButton>
             </Tooltip>
           )}
@@ -1180,9 +1162,9 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <MapPin className="h-5 w-5 fill-none" />
+                <MapPin className={cn(ICON_SIZE.plate, 'fill-none')} />
               </IconButton>
             </Tooltip>
           )}
@@ -1199,7 +1181,7 @@ function ListingCardImpl({
             sellerId={listing.sellerId}
             compact
             dense
-            className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </span>}
 
@@ -1324,8 +1306,11 @@ function ListingCardImpl({
           with it would start 6px in; 8px puts the left column's price, title and info line back on the
           12px gutter the header and section titles use — FB's own inset text. Text width barely moves
           (173px at 390 against 175 before), so the width budgets measured below still hold. From sm the
-          grid keeps the gutter and the text stays flush. The skeleton mirrors it. */}
-      <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
+          grid keeps the gutter and the text stays flush. The skeleton mirrors it.
+          ⛔ THE TYPE IS THE REDESIGN'S CARD TEXT BLOCK SINCE 2026-11-14 (owner-approved, cook r05: price 17/22 ink, ≈$ 13
+          muted, title 15/20 ink-3 one line, meta 13/18 muted, 10px under the photo, 2px between lines) — the strings live in
+          src/lib/card-text.ts, shared with the SEO tile and the skeleton (phone body 76px: 10 + 22 + 2 + 20 + 2 + 2 + 18). */}
+      <div className={CARD_BODY}>
         {/* A teacher card's name comes FIRST (owner, 2026-11-12 — the Body note above). */}
         {isTeacher && titleBlock}
         {/* PRIMARY — price (on a teacher card, the rate under the name). `flex-wrap` so a struck
@@ -1349,7 +1334,8 @@ function ListingCardImpl({
               ordinary listings without re-measuring — "from 9,500,000,000 đ / month ≈ $361,000"
               is exactly the line that wraps and breaks the grid's mt-auto footer alignment. */}
           {listing.isPartnerBooking && isBookingCategory(listing.category?.slug) ? (
-            <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
+            // The meta role since 2026-11-14 (nothing under 13): it qualifies the 17px figure, it is not one.
+            <span className="text-t-meta font-semibold text-body">{tr('from', 'từ')}</span>
           ) : null}
           {/* ⛔ `native`: the STORED đồng amount always LEADS. A card is a scan surface; for the
               price reads "2,250,000 đ ≈ $87" ("2.25M đ ≈ $87" since 2026-11-14, below) for every viewer, including one who picked USD — the
@@ -1392,14 +1378,16 @@ function ListingCardImpl({
             shortUnit
             // Batch 87: an employer's own job with no figure reads "Negotiable" here (price.tsx `cardWords`).
             cardWords
-            // 2026-11-07 audit: the "≈ $" estimate in body ink from lg, where it read as faint beside the 18px price; a phone
-            // keeps the quieter grey. A colour only, never a hiding class (owner, 2026-09-13).
-            approxClassName="lg:text-body"
+            // The "≈ $" is the meta role, 4px after the figure (CARD_APPROX, 2026-11-14) — and in body ink from lg (2026-11-07
+            // audit: it read as faint at desk distance); a phone keeps the quieter grey. A colour only, never a hiding class
+            // (owner, 2026-09-13).
+            approxClassName={CARD_APPROX}
             price={listing.price}
             currency={listing.currency}
             priceUnit={listing.priceUnit}
-            // A teacher's rate sits a step down under the bold name (owner, 2026-11-12; TEACHER_TITLE_LINE has the heights).
-            className={isTeacher ? 'text-sm leading-tight sm:text-base' : 'text-base leading-tight sm:text-lg'}
+            // A teacher's rate sits a step down under the bold name (owner, 2026-11-12; kept). Every other card: the price
+            // role, 17/22 at every width since 2026-11-14 (CARD_PRICE — it was 16, 18 from sm).
+            className={isTeacher ? 'text-sm leading-tight sm:text-base' : CARD_PRICE}
             listingType={listing.listingType}
             linked={listing.isPartnerBooking}
             jobMeta={jobMeta}
@@ -1414,12 +1402,12 @@ function ListingCardImpl({
               ⚠️ `whitespace-nowrap`, NOT `truncate` — half a number reads as the whole number.
               ⛔ `native`, NEVER `dual={false}`: đồng leads, so a USD viewer can never be left with a
               USD-only struck price (ND 340/2025).
-              `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px now, which would print the
-              estimate LARGER than the 11px figure it follows.
+              The meta role, regular and muted, figure and ≈ alike (CARD_WAS / CARD_WAS_APPROX, 2026-11-14 — it was 11px
+              with a 10px ≈; nothing in the UI is under 13 since the redesign).
               `fabAvoid`: being the only place the drop is stated (above), it is a value the support
               mark must not cover either. */}
           {hasDrop && (
-            <Price native compact compactAbove={pairCompactAbove} fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
+            <Price native compact compactAbove={pairCompactAbove} fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className={CARD_WAS} approxClassName={CARD_WAS_APPROX} />
           )}
         </span>
 
@@ -1449,8 +1437,11 @@ function ListingCardImpl({
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
         {/* 2026-11-07 audit: body ink from lg — at desk distance the 14px grey line (place, freshness, brand) read as fine
-            print. A phone keeps the tertiary grey its measured two-fact budget was set in; no fact moves. */}
-        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4 lg:text-sm lg:text-body">
+            print. A phone keeps the tertiary grey its measured two-fact budget was set in; no fact moves.
+            ⛔ The meta role below lg since 2026-11-14 (owner-approved, cook r05: "meta --t-meta muted"): 13/18 muted, 2px
+            above (CARD_META; it was 12px ink-4 under 4px). The facts and their order are untouched; at 13px the truncating
+            span ellipsises a little sooner — the city tail, as before (D-TYPE below). */}
+        <div className={`mt-auto flex items-center gap-1.5 ${CARD_META}`}>
           <span className="min-w-0 flex-1 truncate">
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
@@ -1617,7 +1608,9 @@ function AuthAtClick({ into }: { into: RefObject<AuthValue | null> }) {
   return null
 }
 
-/** The bottom-left status chips: a video indicator (so mobile, which has no hover, still knows there's a clip) + social proof "N saved" (≥3). */
+/** The bottom-left status chips: a video indicator (so mobile, which has no hover, still knows there's a clip) + social proof "N saved" (≥3).
+ *  ⛔ White `.photo-badge` pills, ink, since 2026-11-14 (owner-approved, cook r05: "over a photo: only white plates … 26 tall
+ *  badges 700 13"); they were `bg-foreground/70` chips. Their glyphs stay at the 12px micro step. */
 function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
   const { lang, tr } = useLanguage()
   const { savedDelta } = useFavoriteMarks()
@@ -1628,7 +1621,7 @@ function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
         {(listing.video || savedTotal >= 3) && (
           <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
             {listing.video && (
-              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background material backdrop-blur-[2px]">
+              <span title={tr('Has a video', 'Có video')} className="photo-badge">
                 {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
                     this size inside a filled chip) at the ladder's 12px micro step. */}
                 <Play className="h-3 w-3 fill-current" />
@@ -1637,7 +1630,7 @@ function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
             {/* base savedCount persists server-side (real saves); savedDelta adds this
                 session's own toggle so it moves the moment the heart is tapped. */}
             {savedTotal >= 3 && (
-              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background material backdrop-blur-[2px]">
+              <span title={tr('people saved this', 'người đã lưu tin này')} className="photo-badge">
                 <Heart className="h-3 w-3 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
               </span>
             )}
@@ -1667,15 +1660,14 @@ function CardSaveButton({ listingId }: { listingId: string }) {
           onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listingId) }}
           className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
         >
-          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
-              legible on ANY photo; solid fill-brand when saved (icon-language §5
-              user-state — the line stays white because it sits over media); heart-pop
-              on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
-              so the whole photo-overlay cluster shares ONE optical size. */}
+          {/* Icon-only on the white photo plate (overlay variant), ink outline; solid red when saved (icon-language §5
+              user-state); heart-pop on save. ICON_SIZE.plate (18px, 2026-11-14), the same as the quick-action glyphs, so
+              the whole photo-overlay cluster shares ONE optical size on the media box's `plate-lg` 30px plates. */}
           <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-            {/* ⚠️ SAVED = RED, THE SAME RED AS THE COUNTERS (owner, 2026-08-13: "clicking on heart
-                on products make it red similar to notif message counter red"), i.e. --destructive,
-                the token the counter badge uses. It was `fill-brand text-white`.
+            {/* ⚠️ SAVED = RED (owner, 2026-08-13: "clicking on heart on products make it red similar to notif message
+                counter red"). It was --destructive, the counter badge's token; since 2026-11-14 it is `text-saved` #d92d4a
+                (owner-approved, cook r05: "Red #d92d4a only for a saved heart"), 4.75:1 on the white plate in BOTH themes —
+                the dark --destructive #f7737b would be ~2.5:1 there. It was `fill-brand text-white` before 08-13.
                 ⚠️ THE COLOUR HAS TO RIDE ON `text-*`, NOT `fill-*`, AND THAT IS WHY THE OLD PAIR
                 LOOKED IDENTICAL IN BOTH STATES. These glyphs are generated with `fill="currentColor"`
                 on each <path>, and a presentation attribute on the path beats a `fill:` inherited
@@ -1688,8 +1680,8 @@ function CardSaveButton({ listingId }: { listingId: string }) {
                 already reached this conclusion and written it down: a filled interior fights the
                 outline, and the outline is what carries legibility. All three now share
                 icon-shadow-brand so the trio is one treatment. */}
-            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
-              ? 'fill-current text-destructive'
+            <Heart className={cn('icon-own-ink transition-colors', ICON_SIZE.plate, favorited
+              ? 'fill-current text-saved'
               : 'fill-none')} />
           </span>
         </IconButton>

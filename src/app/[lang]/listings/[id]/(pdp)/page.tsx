@@ -1236,11 +1236,13 @@ export default async function ListingPage({ params }: Props) {
           {!noGallery && (
           <div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
-            {/* Back: opposite Share and Save, the same offsets. Its fallback is the listing's category, for a visitor who opened the listing cold. */}
-            <div className="absolute left-3 top-3 z-10 flex items-center">
+            {/* Back: opposite Share and Save, the same offsets. Its fallback is the listing's category, for a visitor who opened the listing cold.
+                `plate-lg` (owner-approved 2026-11-14, cook r05: the white photo plates): Back, Share, Save and Edit pad their
+                20px glyphs 6px a side — a 32px white plate inside each 36px button (globals.css, the plate block). */}
+            <div className="plate-lg absolute left-3 top-3 z-10 flex items-center">
               <PdpBackButton fallbackHref={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} />
             </div>
-            <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+            <div className="plate-lg absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
               <SaveListingButton id={listing.id} compact />
               {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
@@ -1682,7 +1684,8 @@ export default async function ListingPage({ params }: Props) {
             {!noGallery && (
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
-              <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+              {/* `plate-lg`: the same 32px white plates as the phone's (2026-11-14, owner-approved). */}
+              <div className="plate-lg absolute right-3 top-3 z-10 flex items-center gap-2">
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
                 <SaveListingButton id={listing.id} compact />
                 {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.

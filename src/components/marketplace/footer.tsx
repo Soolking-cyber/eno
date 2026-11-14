@@ -414,7 +414,11 @@ function FooterBody({ compact }: { compact: boolean }) {
   ].filter((c) => c.links.length > 0)
 
   return (
-    <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground max-sm:pb-4">
+    // ⛔ A COMPACT PAGE END ON A PHONE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options
+    // and deploy" — the redesign's "no white band before the footer"): no top padding below 640px, so the gap above the
+    // hairline is <main>'s own 24px (globals.css, `main#main:has(~ #app-footer)`); the grid's 24px under it. Desktop and
+    // tablet keep the 2026-11-06 audit's footer as it was.
+    <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground max-sm:pb-4 max-sm:pt-0">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
             CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}
@@ -427,9 +431,10 @@ function FooterBody({ compact }: { compact: boolean }) {
             group read the tall second tier as the footer outweighing the page). DOM order, tab order and the phone accordion
             do not change, and the inner columns step by the grid's own 32px gap, so every column of links sits on a track. */}
         {!compact && (
-        <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4 max-sm:gap-y-5 max-sm:pt-8">
-          {/* Brand column */}
-          <div className="col-span-2 space-y-3 lg:col-span-1">
+        <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4 max-sm:gap-y-4 max-sm:pt-6">
+          {/* Brand column. On a phone (owner-approved 2026-11-14) the 36px mark sits BESIDE the tagline, one row instead
+              of three, and the social marks take the full row under both: a grid of the mark's 36px and the rest. */}
+          <div className="col-span-2 space-y-3 lg:col-span-1 max-sm:grid max-sm:grid-cols-[2.25rem_1fr] max-sm:items-center max-sm:gap-x-3 max-sm:space-y-0">
             {/* alt + tagline are PER-EDITION. Both said "eno.vn" unconditionally, so eno.forum's
                 footer introduced itself as the licensed Vietnamese marketplace — the leak class
                 SITE_NAME exists for. The two taglines are spelled out as separate literals rather
@@ -484,7 +489,9 @@ function FooterBody({ compact }: { compact: boolean }) {
                 leading-relaxed text-muted-foreground` classes are still the only thing painting.
                 A screen-reader user gains a heading-navigation stop that names the site; a
                 sighted user sees the same sentence in the same place. */}
-            <h2 className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+            {/* Phone: the meta role (13/18) across the column beside the mark, no measure cap; from sm the 12px relaxed
+                line in its 220px measure, as before. */}
+            <h2 className="max-w-[220px] text-t-meta text-muted-foreground max-sm:max-w-none sm:text-xs sm:leading-relaxed">
               {/* ⛔ NOT "Vietnam's trusted marketplace for the international community" (owner, 2026-10-04):
                   the site's own title dropped "trusted" on 2026-10-01 (src/lib/site-title.ts) and this line is
                   that title, word for word, in both languages; "free" follows POSTING_IS_FREE. */}
@@ -538,7 +545,7 @@ function FooterBody({ compact }: { compact: boolean }) {
                 2026-11-06 audit: `max-sm:max-w-72` does the same for a phone's 44px marks, five over four instead of seven over
                 two, which read as a stray pair: five marks with the ~81px "Group" one fill ~273px of the 288px row, a sixth needs
                 ~321px. Every mark, target size and label is unchanged. */}
-            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1 max-sm:max-w-72 lg:max-w-60">
+            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1 max-sm:col-span-full max-sm:max-w-72 max-sm:gap-0 max-sm:pt-0 lg:max-w-60">
               {/* ⛔ ONE LIST, NOT SEVEN HAND-WRITTEN ANCHORS (src/lib/socials.ts). The row carried three
                   channels and the owner asked for all of them plus the community group; a data list is
                   what stops the next addition from being another copy-pasted anchor with a different
@@ -746,10 +753,13 @@ function FooterBody({ compact }: { compact: boolean }) {
           {/* The phone is a tel: link only once the operator is registered — the same gate /contact
               uses. Until then COMPANY.phone is the PENDING placeholder, and a tel: link to "đang cập
               nhật" would dial nothing. */}
+          {/* ⚠️ LINKS IN RUNNING TEXT ARE UNDERLINED (axe link-in-text-block; owner-approved 2026-11-14): the two are
+              set inside a sentence of the same muted ink, so colour alone cannot say "link". The footer is outside
+              <main>, so globals.css's `main p a` rule does not reach it. */}
           <p>
-            {tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}:{' '}
+            {tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="underline decoration-1 underline-offset-3 transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}:{' '}
             {OPERATOR_REGISTERED
-              ? <a href={`tel:${COMPANY.phone.replace(/[^\d+]/g, '')}`} className="transition-colors hover:text-accent-foreground">{COMPANY.phone}</a>
+              ? <a href={`tel:${COMPANY.phone.replace(/[^\d+]/g, '')}`} className="underline decoration-1 underline-offset-3 transition-colors hover:text-accent-foreground">{COMPANY.phone}</a>
               : COMPANY.phone}
           </p>
           <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>

@@ -100,9 +100,9 @@ const RENTAL = { listingType: 'rent', title: 'Căn hộ 2PN Quận 7', price: 8_
 const PRODUCT = { listingType: 'sell', title: 'Dell XPS 13 9310', price: 12_000_000, priceUnit: 'VND', condition: 'used', sellerId: 'member-seller-2', category: { icon: 'laptop', slug: 'electronics' } }
 
 /** TITLE_LINE, unchanged for every card but a teacher's. */
-const TITLE_CLASS = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
+const TITLE_CLASS = 'truncate -mt-px pt-px text-t-card font-normal text-ink-3 group-hover:underline decoration-1 underline-offset-2' // card-text.ts TITLE_LINE (2026-11-14)
 /** What cn(TITLE_LINE, 'text-base font-bold leading-snug sm:text-lg') resolves to — read off the render, not reasoned. */
-const TEACHER_TITLE_CLASS = 'truncate text-foreground group-hover:underline decoration-1 underline-offset-2 text-base font-bold leading-snug sm:text-lg'
+const TEACHER_TITLE_CLASS = 'truncate -mt-px pt-px group-hover:underline decoration-1 underline-offset-2 text-base font-bold leading-snug sm:text-lg text-foreground'
 
 const card = (patch: Record<string, unknown> = {}) =>
   render(<ListingCard listing={{ ...TEACHER, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
@@ -116,8 +116,9 @@ const precedes = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCU
 
 afterEach(() => { cleanup(); titles.shorten = false; reader.lang = 'en' })
 
-/** The info line, UNCHANGED (owner, 2026-09-13: "dont alter this info line"). */
-const INFO_CLASS = 'mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4 lg:text-sm lg:text-body'
+/** The info line, its FACTS unchanged (owner, 2026-09-13: "dont alter this info line"); its type is the meta role since 2026-11-14
+ *  (owner-approved, cook r05; card-text.ts CARD_META). */
+const INFO_CLASS = 'mt-auto flex items-center gap-1.5 pt-0.5 text-t-meta text-muted-foreground lg:text-sm lg:text-body'
 const PROOF_CLASS = 'truncate text-xs text-foreground'
 const proofOf = (c: HTMLElement) => c.querySelectorAll('[data-teacher-proof]')
 
@@ -131,7 +132,7 @@ describe('ListingCard — a TEACHER card leads with the name', () => {
     expect(precedes(priceRow, body.lastElementChild!)).toBe(true)
   })
 
-  it('the name is bold, 16px on a phone and 18px from sm, leading-snug kept; the rate drops a step', () => {
+  it('the name is bold and in ink, 16px on a phone and 18px from sm, leading-snug kept; the rate drops a step', () => {
     const { h3, price } = parts(card())
     expect(h3.className).toBe(TEACHER_TITLE_CLASS)
     expect(classes(h3)).toEqual(expect.arrayContaining(['font-bold', 'text-base', 'sm:text-lg', 'leading-snug', 'truncate']))
@@ -298,8 +299,8 @@ describe('ListingCard — a TEACHER card\'s proof line (owner, 2026-11-12, "buil
   })
 })
 
-describe('ListingCard — ⛔ every other card keeps the 09-13 order and classes', () => {
-  it('a rental and a product: the price row leads, then the h3 with the old TITLE_LINE, at the old price size', () => {
+describe('ListingCard — ⛔ every other card keeps the 09-13 order', () => {
+  it('a rental and a product: the price row leads, then the h3 with TITLE_LINE, at the price role', () => {
     for (const patch of [RENTAL, PRODUCT]) {
       const { body, priceRow, price, h3 } = parts(card(patch))
       expect(body.firstElementChild).toBe(priceRow)
@@ -308,9 +309,12 @@ describe('ListingCard — ⛔ every other card keeps the 09-13 order and classes
       expect(precedes(price, h3)).toBe(true)
       expect(h3.className).toBe(TITLE_CLASS)
       expect(h3.parentElement).toBe(body)
-      expect(classes(price)).toEqual(expect.arrayContaining(['text-base', 'leading-tight', 'sm:text-lg']))
+      // The price role at every width since 2026-11-14 (card-text.ts CARD_PRICE) — AND the colour class `text-price`, which
+      // fab-clearance.ts selects (`[data-card-root] .text-price`): tailwind-merge must keep both (lib/utils.ts theme.text).
+      expect(classes(price)).toEqual(expect.arrayContaining(['text-t-price', 'text-price', 'font-bold', 'tabular-nums']))
+      expect(classes(price)).not.toContain('text-base')
+      expect(classes(price)).not.toContain('sm:text-lg')
       expect(classes(price)).not.toContain('text-sm')
-      expect(classes(price)).not.toContain('sm:text-base')
       cleanup()
     }
   })

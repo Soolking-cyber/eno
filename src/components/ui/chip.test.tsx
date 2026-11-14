@@ -48,4 +48,15 @@ describe('Chip', () => {
     expect(chipVariants({ size: 'md' })).toContain('min-h-9')
     expect(chipVariants({})).toContain('bg-tint')
   })
+
+  it('the md neutral chip is the browse chip (owner-approved 2026-11-14): white + hairline, ink fill pressed — one background', () => {
+    const md = chipVariants({ size: 'md' }).split(/\s+/)
+    expect(md).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground', 'font-bold', 'data-pressed:bg-foreground', 'data-pressed:text-background', 'icon-own-ink']))
+    expect(md).not.toContain('bg-tint')
+    expect(md.filter((c) => /^bg-/.test(c))).toEqual(['bg-background'])
+    // xs / sm keep the tint and the accent capsule.
+    for (const size of ['xs', 'sm'] as const) expect(chipVariants({ size }).split(/\s+/)).toEqual(expect.arrayContaining(['bg-tint', 'data-pressed:bg-accent']))
+    // The other tones carry no neutral classes at any size.
+    expect(chipVariants({ size: 'md', tone: 'ghost' })).not.toMatch(/bg-background|bg-tint/)
+  })
 })

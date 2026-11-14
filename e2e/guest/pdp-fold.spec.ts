@@ -42,7 +42,7 @@ const openAListing = async (page: Page) => {
 test.describe('Guest · PDP market band sits below the CTA on phones', () => {
   /**
    * The market-price gauge used to sit between the price and the title — ~81px of the phone fold, all
-   * spent above 'Buy on …', which then landed under the floating tab bar on a 390x844 phone. It now
+   * spent above 'Buy on …', which then landed under the tab bar on a 390x844 phone. It now
    * paints right AFTER the contact block. Only listings with enough comparables have a band, so this
    * looks for one among Apple phones (the densest shelf) and skips, rather than passes, without one.
    */
@@ -77,7 +77,7 @@ test.describe('Guest · PDP two columns on a portrait tablet', () => {
       .evaluate((el) => Math.round(el.getBoundingClientRect().bottom + window.scrollY))
     const h1 = await topOf(page, 'h1')
     expect(h1, 'the H1 must sit BESIDE the gallery, not under it').toBeLessThan(galleryBottom)
-    // 136 = the floating tab bar's 72px footprint (it shows up to 1023px) plus 64px for the CTA itself.
+    // 136 = the tab bar's 72px reservation (it shows up to 1023px; docked at 56 + inset inside it since 2026-11-14) plus 64px for the CTA itself.
     expect(await topOf(page, '#contact'), 'the contact block must start in the first screen').toBeLessThan(1180 - 136)
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'no horizontal scroll').toBeLessThanOrEqual(820)
   })

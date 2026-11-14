@@ -105,26 +105,22 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // ⛔ ONE PRIMARY, ONE SECONDARY (owner-approved 2026-11-14, cook r05: "after this cook round build all best options
+        // and deploy"). Primary (`default` and `cta`) is the accent fill, white bold label, pressing and hovering to the
+        // action press #004bb0 (`cta-dark`, the same in both themes, white 7.97:1). Secondary (`outline` and `secondary`,
+        // now ONE look) is white with a 1px ink edge and an ink bold label, pressing to the field grey. On a phone both are
+        // 48px with a 16px label — see PHONE_SIZE below. No third style.
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90",
-        // Canonical brand CTA — matches the app's hand-rolled primary buttons
-        // (solid brand blue, white text, bold, darken-on-hover). Use this for new
-        // primary actions instead of re-coding bg-primary/hover:bg-brand-dark.
-        // 2026-11-07 audit: on a phone (below sm, the app's phone line: useIsPhone, the picker sheets) a FULL-WIDTH one is
-        // the next step, so it gets a 48px body and a 16px label (Chat now, Buy on…, a form's Continue; both blind judges
-        // credited the bigger phone actions, pz31/pz32). The element's own `w-full` class is the signal: desktop, tablet and
-        // inline CTAs keep their size, and a micro CTA that sets its own 11-12px type (the card's quick offer) is left alone.
-        // The selector outranks a caller's single min-h or text-sm class, and tailwind-merge keeps both (different
-        // variants), so no call site had to change.
-        // ⚠️ BELOW sm, NOT BELOW lg (review r31, 2026-11-07): the class is a reliable signal only where no responsive width
-        // overrides it. Six CTAs are `w-full sm:w-auto` and keep the class from 640 to 1023px while they sit inline, so a
-        // below-lg rule grew them there: the CV import's Continue stood 48px with a 16px label beside its 36px Undo
-        // (teacher-import-panel.tsx), and the others grew in place.
+          "bg-primary text-primary-foreground font-bold hover:bg-cta-dark active:bg-cta-dark",
+        // Canonical brand CTA — matches the app's hand-rolled primary buttons. Since 2026-11-14 it is the same look as
+        // `default`; the name stays because 128 call sites say "this is the brand action".
+        // (history) The 2026-11-07 audit gave a FULL-WIDTH cta a 48px/16px phone size through a `w-full` selector; that
+        // is now PHONE_SIZE, for every primary and secondary at the default and lg sizes.
         // ⚠️ IT HOVERS TO `bg-cta-dark`, THE ACTION PRESS #004bb0 IN BOTH THEMES (2026-11-14, owner-approved redesign).
         // It hovered to `brand-dark`, which INVERTS in dark ("hover goes lighter": #74b3f2) and put the white label at
         // 2.22:1 there — the follow-up the `commerce` note below asked for. White on #004bb0 is 7.97:1 in either theme.
         cta:
-          "bg-primary text-white font-bold hover:bg-cta-dark max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12 max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base",
+          "bg-primary text-white font-bold hover:bg-cta-dark active:bg-cta-dark",
         /**
          * ⛔ `commerce` IS NOT `cta`, AND THE DIFFERENCE IS 128 BUTTONS. `variant="cta"` is the app's
          * primary action — 128 call sites, including every admin panel — so painting IT orange is the
@@ -180,10 +176,11 @@ const buttonVariants = cva(
           "bg-cta text-white font-bold hover:bg-cta-dark",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20",
+        // ONE secondary (owner-approved 2026-11-14): the grey `secondary` fill is retired into the ink outline.
         outline:
-          "border bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-foreground bg-background text-foreground font-bold hover:bg-muted active:bg-muted",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border border-foreground bg-background text-foreground font-bold hover:bg-muted active:bg-muted",
         ghost:
           "hover:bg-accent hover:text-accent-foreground",
         // Like `ghost`, minus the hover text-colour change. `ghost`/`outline` both
@@ -298,6 +295,36 @@ const buttonVariants = cva(
 )
 
 /**
+ * ⛔ THE PHONE SIZE CONTRACT (owner-approved 2026-11-14): below 640px a FULL-WIDTH primary or secondary button (`default`,
+ * `cta`, `outline`, `secondary`, at the `default` or `lg` size, `w-full` / `max-sm:w-full`) is 48px tall with a 16px label —
+ * the redesign's one button box for the page's next step. ⚠️ FULL-WIDTH ONLY (commit review, codex + opus): growing EVERY
+ * inline button turned square icon buttons (`size-9`, `w-9 p-0`) into 36×48 ovals and grew inline secondaries, and a
+ * responsive `sm:h-10` was read as a phone height. So inline buttons keep their size, as before 2026-11-14.
+ * Desktop and tablet keep 36/40px with 14px labels.
+ * ⚠️ DECIDED FROM THE CALLER'S CLASSES, NOT BY A SELECTOR (a `:not()` chain's specificity beat a caller's own `min-h`,
+ * codex 2026-11-07). A full-width button takes 48px over a caller's height or min-h — for the page's next step that
+ * height was always a floor, not a compact choice — and only a sub-14px label (`text-xs/2xs/3xs`, `text-t-meta`) or a
+ * pill (`rounded-full`) opts it out. The classes are plain variant utilities, so the caller's own `max-sm:` classes still
+ * merge.
+ * Server and client read the same prop, so this cannot mismatch hydration.
+ */
+const PHONE_SIZE = 'max-sm:min-h-12 max-sm:text-base'
+const PHONE_SIZED_VARIANTS = new Set(['default', 'cta', 'outline', 'secondary'])
+const tokens = (c: unknown) => (typeof c === 'string' ? c.split(/\s+/).filter(Boolean) : [])
+export function phoneSize(variant: string | null | undefined, size: string | null | undefined, ...classNames: unknown[]): string | undefined {
+  if (!PHONE_SIZED_VARIANTS.has(variant ?? 'default') || !['default', 'lg'].includes(size ?? 'default')) return undefined
+  const raw = classNames.flatMap(tokens)
+  // Full width ON A PHONE: an unprefixed `w-full` or a `max-sm:w-full` (an `sm:w-full` is full width only from 640px).
+  if (!raw.some((t) => t === 'w-full' || t === 'max-sm:w-full')) return undefined
+  // …and not narrowed again below sm (`w-full max-sm:w-auto`, codex).
+  if (raw.some((t) => /^max-sm:w-(?!full$)/.test(t))) return undefined
+  // Only what applies ON A PHONE opts out: an unprefixed or `max-sm:` class (an `sm:text-xs` is desktop-only, codex).
+  const phone = raw.filter((t) => !t.includes(':') || t.startsWith('max-sm:')).map((t) => t.replace(/^max-sm:/, ''))
+  if (phone.some((t) => /^text-(?:xs|2xs|3xs|t-meta)$/.test(t) || t === 'rounded-full')) return undefined
+  return PHONE_SIZE
+}
+
+/**
  * ⛔ A CALLER'S `transition-colors` / `transition-opacity` / `transition-shadow` IS DROPPED BEFORE cn().
  * All three are the same tailwind-merge group as the base's arbitrary transition list (the one that
  * names scale), so passing
@@ -372,7 +399,9 @@ function Button({
       ...rest,
       'data-slot': 'button',
       className: cn(
-        buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }),
+        buttonVariants({ variant, size, iconSize }),
+        phoneSize(variant, size, className, child.props.className),
+        keepPressTransition(className),
         keepPressTransition(child.props.className as string | undefined),
       ),
     })
@@ -381,7 +410,7 @@ function Button({
     return (
       <ButtonPrimitive
         data-slot="button"
-        className={cn(buttonVariants({ variant, size, iconSize, className: keepPressTransition(className) }))}
+        className={cn(buttonVariants({ variant, size, iconSize }), phoneSize(variant, size, className), keepPressTransition(className))}
         {...props}
       />
     )
@@ -414,7 +443,7 @@ function Button({
       focusableWhenDisabled
       // `data-loading:cursor-wait`, not `cursor-wait`: a caller's plain `cursor-pointer` (dozens of
       // size="none" sites carry one) is the same tailwind-merge group and would delete a bare one.
-      className={cn(buttonVariants({ variant, size, iconSize }), 'relative data-loading:cursor-wait', keepPressTransition(className))}
+      className={cn(buttonVariants({ variant, size, iconSize }), phoneSize(variant, size, className), 'relative data-loading:cursor-wait', keepPressTransition(className))}
     >
       {/* The spinner settles in over 150ms (@starting-style) instead of appearing in one frame (Emil audit, tier 4).
           The label hides at once, NOT faded: @starting-style also runs on first mount, so a button that mounts already

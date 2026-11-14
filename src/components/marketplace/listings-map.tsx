@@ -1716,11 +1716,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                         "images on the map too icons need plate". This heart sits on a listing photo
                         exactly as the grid card's does, and it previously relied on `text-white`
                         plus a shadow, which is invisible on a white product shot (measured on the
-                        PDP: contrast 0). Setting a colour here would break dark mode, where the
-                        variant paints a light plate and dark ink. Only the SAVED state keeps its
-                        own red. */}
+                        PDP: contrast 0). Since 2026-11-14 the plate is white with an ink glyph in both
+                        themes (owner-approved, cook r05). Only the SAVED state keeps its own red,
+                        `text-saved` (#d92d4a, 4.75:1 on the white plate; owner-approved 2026-11-14). */}
                     <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', isFavorite(card.id)
-              ? 'fill-current text-destructive'
+              ? 'fill-current text-saved'
               : 'fill-none')} />
                   </IconButton>
                 </div>

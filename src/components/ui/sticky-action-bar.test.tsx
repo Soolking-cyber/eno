@@ -124,8 +124,11 @@ describe('StickyActionBar keeps the action reachable', () => {
     const primary = screen.getByRole('button', { name: 'Chat' })
     expect(primary.className).toContain('bg-primary')
     expect(primary.className).toContain('font-bold')
-    // …and the secondary must not compete with it.
-    expect(screen.getByRole('button', { name: 'Make offer' }).className).not.toContain('font-bold')
+    // …and the secondary is the ONE secondary (owner-approved 2026-11-14; "must not compete" by weight is reversed): white,
+    // a 1px ink edge, an ink bold label — the accent fill beside it carries the hierarchy.
+    const secondary = screen.getByRole('button', { name: 'Make offer' }).className.split(/\s+/)
+    expect(secondary).toEqual(expect.arrayContaining(['border-foreground', 'bg-background', 'text-foreground', 'font-bold']))
+    expect(secondary).not.toContain('bg-primary')
   })
 
   it('sets the primary label at 16px below lg and leaves the secondary at 14px (2026-11-07 audit)', () => {

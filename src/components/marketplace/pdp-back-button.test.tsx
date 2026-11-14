@@ -43,6 +43,9 @@ describe('PdpBackButton', () => {
     expect(a.getAttribute('aria-label')).toBe('Quay lại')
     const cls = a.className.split(' ')
     expect(cls).toEqual(expect.arrayContaining(['hidden', 'tap-44', 'h-9', 'w-9', 'rounded-full', 'plate-host', 'icon-own-ink']))
+    // An ink glyph on the white photo plate (owner-approved 2026-11-14): never white ink on it.
+    expect(cls).toContain('text-on-plate')
+    expect(cls).not.toContain('text-white')
     // `flex` from the shell must not survive beside `hidden` (tailwind-merge keeps the later one), or the arrow would show everywhere.
     expect(cls).not.toContain('flex')
     const icon = a.querySelector('[data-chevron]')!

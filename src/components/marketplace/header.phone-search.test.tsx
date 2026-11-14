@@ -171,30 +171,36 @@ describe('the phone panel follows the header, wherever the header is', () => {
 })
 
 /**
- * ⛔ "SLIMMER + CALM" (owner, 2026-10-18): a 56px bar, a 40px logo mark that still matches the 40px search field
- * beside it (the owner's 2026-08-02 rule), and no glow — the field idles as bare tint, with no static ring left in
- * the glow's place. jsdom has no layout, so the classes that make the geometry are what is pinned.
+ * ⛔ "SLIMMER + CALM" (owner, 2026-10-18): a 56px bar and no glow. From sm up a 40px logo mark matches the 40px tint
+ * field beside it (the owner's 2026-08-02 rule). ON A PHONE (owner-approved 2026-11-14, the redesign) the field is a
+ * 44px round, white, raised pill with a 1px edge and the mark is 36px — every geometry class behind `max-sm:`.
+ * jsdom has no layout, so the classes that make the geometry are what is pinned.
  */
-describe('the header bar: 56px, a 40px logo the height of the 40px field, no glow', () => {
-  it('h-14 bar, h-10 logo, a py-2 field that keeps text-base (iOS zooms under 16px)', () => {
+describe('the header bar: 56px, no glow; a 40px tint field + 40px logo from sm, a 44px raised pill + 36px logo on a phone', () => {
+  it('h-14 bar, a 36/40px logo, a py-2 field that keeps text-base (iOS zooms under 16px)', () => {
     render(<Header />)
     const header = document.getElementById('app-header')!
     const bar = header.querySelector(':scope > div') as HTMLElement
     expect(bar.className.split(/\s+/)).toContain('h-14')
     expect(bar.className.split(/\s+/)).not.toContain('h-16')
     const logo = header.querySelector('[data-header-logo] img') as HTMLImageElement
-    expect(logo.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-10', 'w-10']))
+    expect(logo.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-9', 'w-9', 'sm:h-10', 'sm:w-10']))
     const input = field().className.split(/\s+/)
     expect(input).toEqual(expect.arrayContaining(['py-2', 'text-base']))
     expect(input).not.toContain('py-3')
   })
 
-  it('the idle pill is bare tint: no search-beam, no ring or border in its place', () => {
+  it('the idle pill: a raised white 44px pill on a phone, the bare tint from sm — and never a search-beam', () => {
     render(<Header />)
     const pill = field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
     const cls = pill.className.split(/\s+/)
-    expect(cls).toEqual(expect.arrayContaining(['rounded-2xl', 'bg-tint']))
+    expect(cls).toEqual(expect.arrayContaining([
+      'max-sm:h-11', 'max-sm:rounded-full', 'max-sm:border', 'max-sm:border-search-edge', 'max-sm:bg-background', 'max-sm:shadow-raised',
+      'sm:rounded-2xl', 'sm:bg-tint',
+    ]))
     expect(cls).not.toContain('search-beam')
+    // Every edge and lift is phone-only: from sm the idle pill is still bare tint (owner, 2026-10-18).
     expect(cls.some((c) => /^(ring|border|shadow)(-|$)/.test(c))).toBe(false)
+    expect(cls.some((c) => /^sm:(ring|border|shadow)/.test(c))).toBe(false)
   })
 })

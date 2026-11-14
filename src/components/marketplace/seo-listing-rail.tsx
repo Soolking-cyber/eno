@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { provinceWhere } from '@/lib/province-match'
 import { ImageMark } from './image-mark'
-import { PhotoFill } from './photo-fill'
-import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { CARD_APPROX, CARD_BODY, CARD_META, CARD_PRICE, TITLE_LINE } from '@/lib/card-text'
 import { cardCompactAbove } from '@/lib/vnd'
 import { LISTING_CARD_SIZES, LISTING_GRID } from './listing-grid'
 import { Price } from './price'
@@ -199,34 +198,33 @@ export function SeoListingGrid({
                 the tile, and the grid's derived `sizes`. */}
             <div className="media-hairline relative isolate aspect-square w-full overflow-hidden rounded-media bg-tint">
               {l.images[0] && (
-                <>
-                  {/* ⛔ THE WHOLE PHOTO OVER ITS OWN BLURRED FILL, as on <ListingCard> (owner, 2026-11-12; photo-fill.tsx). A teacher's
-                      portrait stays cover with no fill, as on the card and the row. */}
-                  {l.listingType !== TEACHER_LISTING_TYPE && <PhotoFill src={l.images[0]} sizes={LISTING_CARD_SIZES} quality={60} unoptimized={isMockImageUrl(l.images[0]) || undefined} />}
-                  {/* ⛔ NO HOVER ZOOM. This photo carried `group-hover:scale-[1.03]`, against the owner's
-                      rule that a listing photo never scales on hover — every other card obeys it; the
-                      title's underline is the hover signal here, as on <ListingCard>. */}
-                  <Image
-                    src={l.images[0]}
-                    alt={l.title}
-                    fill
-                    unoptimized={isMockImageUrl(l.images[0]) || undefined}
-                    sizes={LISTING_CARD_SIZES}
-                    quality={60}
-                    className={l.listingType === TEACHER_LISTING_TYPE ? 'object-cover' : 'object-contain'}
-                  />
-                </>
+                /* ⛔ THE PHOTO FILLS ITS SQUARE, as on <ListingCard> (owner-approved 2026-11-14, cook r05: "photo fills its
+                   square (cover)"; it reverses the 2026-11-12 whole photo over a blurred fill, photo-fill.tsx). One <img>.
+                   ⛔ NO HOVER ZOOM. This photo carried `group-hover:scale-[1.03]`, against the owner's
+                   rule that a listing photo never scales on hover — every other card obeys it; the
+                   title's underline is the hover signal here, as on <ListingCard>. */
+                <Image
+                  src={l.images[0]}
+                  alt={l.title}
+                  fill
+                  unoptimized={isMockImageUrl(l.images[0]) || undefined}
+                  sizes={LISTING_CARD_SIZES}
+                  quality={60}
+                  className="object-cover"
+                />
               )}
               <ImageMark src={l.images[0]} />
             </div>
             {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13), inset
                 onto the page gutter on a phone like the card's text, and the card's price form
                 (`compact` + `cardCompactAbove`: a rent reads "8.5M đ / month", owner 2026-10-18; a whole-thousand sale price
-                "12.8M đ", owner-approved 2026-11-14 — the listing page keeps every digit). */}
-            <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
-              <Price native compact compactAbove={cardCompactAbove(l)} price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className="text-base leading-tight sm:text-lg" />
-              <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
-              <span className="truncate text-xs text-muted-foreground">{l.location}</span>
+                "12.8M đ", owner-approved 2026-11-14 — the listing page keeps every digit). Since 2026-11-14 the card's own text
+                block, from the same strings (src/lib/card-text.ts: price 17/22 ink, ≈$ 13 muted, title 15/20 ink-3, meta 13/18
+                muted). */}
+            <div className={CARD_BODY}>
+              <Price native compact compactAbove={cardCompactAbove(l)} price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className={CARD_PRICE} approxClassName={CARD_APPROX} />
+              <span className={TITLE_LINE}>{l.title}</span>
+              <span className={`truncate ${CARD_META}`}>{l.location}</span>
             </div>
           </Link>
         ))}

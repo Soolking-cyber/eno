@@ -548,10 +548,18 @@ export function StickyActionBar({
         // z-30 sits UNDER <MobileNav> (z-40) deliberately: the two overlap by design — this
         // bar's background runs beneath the tabs — and the tabs must paint on top. It is also
         // under every ui/* overlay (dialog/sheet at z-overlay, 50) and under back-to-top's z-fab (45).
-        // A hairline top edge, not a shadow: the flat language separates with a line, and this
-        // is the same treatment <MobileNav> gives the app's other bottom edge. `hairline-t`
-        // needs a positioned host and `fixed` is one.
-        'hairline-t bg-background/95 material backdrop-blur-md',
+        // A hairline top edge: the flat language separates with a line, and this is the same
+        // treatment <MobileNav> gives the app's other bottom edge. `hairline-t` needs a positioned
+        // host and `fixed` is one.
+        // ⛔ OPAQUE, NO BLUR, AND A 4% LIFT SINCE 2026-11-14 (owner-approved, cook r05 shell: "the
+        // tab bar's twin … white, top hairline, soft lift"; it was `bg-background/95 material
+        // backdrop-blur-md`). The canvas at full strength under the bar's price and actions — the
+        // price is ink now, and nothing of the page scrolls through behind it — and no backdrop
+        // filter to repaint on every scroll frame. `shadow-bar` (globals.css --shadow-bar) is the
+        // one upward shadow in the system: a bar docked to the bottom lifts off the content above.
+        // It applies to every consumer (the listing page's bar, the post wizard, StepWizard, the
+        // classroom actions, the install hint).
+        'hairline-t bg-background shadow-bar',
         // Safe area + keyboard, once. See the `.kb-bottom` note at the top of this file.
         'kb-bottom [--kb-bottom-extra:var(--sticky-action-bar-offset,0px)]',
         '[html.kb-open_&]:[--kb-bottom-extra:0px]',

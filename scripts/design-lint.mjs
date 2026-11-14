@@ -817,7 +817,7 @@ const RATCHETS = {
    * Baseline measured on main 067c07f5c (2026-11-14): 1,002.
    */
   'sub13Type': {
-    baseline: 1002,
+    baseline: 987,
     what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
     fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
   },
@@ -831,7 +831,7 @@ const RATCHETS = {
    * tracking class counts once). That sweep lowers it.
    */
   'trackedCaps': {
-    baseline: 83,
+    baseline: 5,
     what: 'an `uppercase` transform or `tracking-wide`/`-wider`/`-widest` outside admin, the OG cards and the wallet ticker',
     fix: 'drop the transform and the tracking — write the label in sentence case in both languages (docs/design-language.md §1)',
   },

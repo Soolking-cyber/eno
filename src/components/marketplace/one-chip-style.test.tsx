@@ -17,7 +17,8 @@ vi.mock('next/link', () => ({
 
 /**
  * ⛔ ONE CHIP STYLE ON THE BROWSE SURFACES (owner, 2026-10-18: "make it look super professional … like top marketplace").
- * Every chip there is ui/chip's `md`: a 36px tinted pill with an invisible 44px hit area — the strip's pills (pinned in
+ * Every chip there is ui/chip's `md`: a 36px pill with an invisible 44px hit area — white, a 1px line-strong hairline, ink
+ * bold label, selected = the ink fill since the 2026-11-14 redesign (owner-approved) — the strip's pills (pinned in
  * explorer-toolbar.test.tsx, touch-targets.test.tsx and seller-listings.test.tsx), and here the other rows: the phone's
  * compact ladder, the category rail's subcategory plate, the search panel's trending chips and the server's picture of
  * the facet row. jsdom lays nothing out, so the classes that make the geometry are what is pinned.
@@ -33,11 +34,14 @@ const cats = ['rentals', 'electronics', 'vehicles'].map((slug) => ({ id: slug, s
 describe('the recipe (ui/chip-style.ts)', () => {
   it('a 36px pill, an invisible 44px hit area that carries its own `relative`, and the three looks', () => {
     expect(PILL_BOX.split(' ')).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'px-3.5', 'text-sm', 'relative', 'tap-44']))
-    expect(PILL_REST.split(' ')).toEqual(expect.arrayContaining(['bg-tint', 'text-body']))
-    expect(PILL_REST).not.toMatch(/border|ring/) // no border at rest
-    expect(PILL_ON).toBe('bg-brand-50 text-accent-foreground')
-    expect(PILL_OPEN).toContain('bg-muted')
-    expect(PILL_OPEN_ATTR).toContain('data-popup-open:bg-muted')
+    expect(PILL_BOX.split(' ')).toContain('font-bold')
+    // White with a hairline at rest (owner-approved 2026-11-14 — it was the bare tint, "no border at rest").
+    expect(PILL_REST.split(' ')).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground']))
+    expect(PILL_REST).not.toMatch(/bg-tint|ring/)
+    // Selected = the ink fill, forced-colours Highlight (`pill-on`), its glyph white (`icon-own-ink`).
+    expect(PILL_ON).toBe('pill-on border border-foreground bg-foreground text-background hover:bg-foreground hover:text-background active:bg-foreground active:text-background icon-own-ink')
+    expect(PILL_OPEN.split(' ')).toEqual(expect.arrayContaining(['bg-muted', 'border', 'border-line-strong']))
+    expect(PILL_OPEN_ATTR.split(' ')).toEqual(expect.arrayContaining(['data-popup-open:bg-muted', 'data-popup-open:border-line-strong']))
   })
 })
 
@@ -52,12 +56,13 @@ describe('the other chip rows wear it', () => {
     )
     const row = screen.getByRole('group', { name: /Categories|Danh mục/ })
     for (const chip of within(row).getAllByRole('button')) {
-      expect(tokens(chip)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint', 'data-pressed:bg-brand-50']))
+      expect(tokens(chip)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-background', 'border-line-strong', 'data-pressed:bg-foreground', 'data-pressed:text-background', 'icon-own-ink']))
       expect(tokens(chip)).not.toContain('min-h-11')
     }
     expect(tokens(row)).toEqual(expect.arrayContaining(['-my-1', 'py-1']))
     const scope = document.querySelector('[data-slot="ladder-compact-row"] > button')!
-    expect(tokens(scope)).toEqual(expect.arrayContaining(['min-h-9', 'relative', 'tap-44', 'bg-brand-50']))
+    // The folded ladder's pill names what is chosen, so it wears the chosen look: the ink fill (2026-11-14).
+    expect(tokens(scope)).toEqual(expect.arrayContaining(['min-h-9', 'relative', 'tap-44', 'bg-foreground', 'text-background', 'icon-own-ink']))
   })
 
   it('the category rail\'s subcategory plate: a flat pill when chosen — no raised `shadow-sm` plate', () => {
@@ -77,8 +82,9 @@ describe('the other chip rows wear it', () => {
   it('the search panel\'s trending chips', () => {
     render(<LanguageProvider><TrendingSearches items={['iphone 15', 'honda vision']} onPick={() => {}} /></LanguageProvider>)
     for (const chip of screen.getAllByRole('button')) {
-      expect(tokens(chip)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint']))
+      expect(tokens(chip)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-background', 'border-line-strong']))
       expect(tokens(chip)).not.toContain('rounded-xl')
+      expect(tokens(chip)).not.toContain('bg-tint') // one background, never two (chipVariants' md compound)
     }
   })
 
@@ -89,7 +95,7 @@ describe('the other chip rows wear it', () => {
     const pills = Array.from(row.querySelectorAll(':scope > div > span'))
     expect(pills).toHaveLength(4)
     for (const pill of pills) {
-      expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'px-3.5', 'bg-tint']))
+      expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'px-3.5', 'bg-background', 'border-line-strong']))
       expect(tokens(pill)).not.toContain('min-h-11')
     }
     // Content-sized at every width: no desktop floor left a tinted run between label and ⌄.

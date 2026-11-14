@@ -109,9 +109,9 @@ export function AppDownload() {
       // opens the Play app directly on Android, and a store link belongs in the page's link graph.
       // The shell classes are IconButton's own (rounded-full, tap-44, its `lg` box) so the two glyphs in
       // this header stay identical; keep them in step if that primitive's sizes change.
-      <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]">
+      <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]">
         <a href={storeHref} data-app-download="" aria-label={label}>
-          <Download className="h-7 w-7" strokeWidth={1.75} />
+          <Download className="h-7 w-7 max-sm:h-6 max-sm:w-6" strokeWidth={1.75} />
         </a>
       </Button>
     )
@@ -135,9 +135,9 @@ export function AppDownload() {
             aria-label={tr('Download the eno app', 'Tải ứng dụng eno')}
             // Matches the bell's press feel exactly — they are neighbours, and a different scale or
             // duration on one of two adjacent header glyphs reads as a bug.
-            className="text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
+            className="text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
           >
-            <Download className="h-7 w-7" strokeWidth={1.75} />
+            <Download className="h-7 w-7 max-sm:h-6 max-sm:w-6" strokeWidth={1.75} />
           </IconButton>
         }
       />

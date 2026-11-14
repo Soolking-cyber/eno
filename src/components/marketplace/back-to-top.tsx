@@ -498,10 +498,10 @@ export function BackToTop() {
           className={cn(
             // Hover = colour only (icon-language §8 — scale-on-hover is a tile-glyph move,
             // not chrome); press keeps the standard settle.
-            // ⚠️ HOVER MOVED FROM THE INK TO THE PLATE. The ink is now fixed white (neutral-900 in
-            // dark) because it sits on a disc, so `hover:text-accent-foreground` would have put
-            // brand blue on black — legible, but no longer the same control as every other plated
-            // glyph. Deepening the disc reads as the same affordance and keeps the mark constant.
+            // ⚠️ HOVER MOVED FROM THE INK TO THE PLATE. The ink is fixed (ink on the white plate since
+            // 2026-11-14, owner-approved) because it sits on a disc, so `hover:text-accent-foreground`
+            // would no longer read as the same control as every other plated glyph. Deepening the
+            // disc reads as the same affordance and keeps the mark constant.
             // ⚠️ NO HOVER CLASS HERE — `.icon-plate` OWNS IT. It was written inline first and a
             // reviewer caught that only the arrows got it while ~100 plated IconButtons did not.
             // The deepening now lives with the plate in globals.css, so every plated glyph in the
@@ -521,10 +521,12 @@ export function BackToTop() {
               the thing behind it is lighter than the mark; over a dark photo the chevron and its
               shadow disappeared together. The disc is the same one every plated control wears —
               one definition, in globals.css.
-              ⚠️ 28px GLYPH + 3px EACH SIDE = A 34px DISC inside a 44px button. The shadow stays,
-              but it now falls from the plate rather than from the strokes, which is why it can be
-              lighter than it was. */}
-          <ChevronUp className="icon-plate h-7 w-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]" strokeWidth={STROKE_FLOAT} />
+              ⚠️ 28px GLYPH + 3px EACH SIDE = A 34px DISC inside a 44px button.
+              ⛔ AN INK CHEVRON ON THE WHITE PLATE SINCE 2026-11-14, BOTH THEMES (owner-approved, cook r05: "every
+              control over a photo … one white plate, ink glyph"). Its shadow is the plate's own (--shadow-plate),
+              which is the disc's only edge where it floats over the white page; the glyph's drop-shadow filter went
+              with the dark disc. */}
+          <ChevronUp className="icon-plate size-7 text-on-plate" strokeWidth={STROKE_FLOAT} />
         </Button>}
 
         {/* ⛔ SUPPORT SITS BELOW THE CHEVRON, CLOSEST TO THE BOTTOM NAV — owner, 2026-08-26, swapping

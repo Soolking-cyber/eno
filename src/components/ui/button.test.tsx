@@ -140,24 +140,61 @@ describe('Button loading', () => {
   })
 })
 
-describe('Button — the phone CTA size (2026-11-07 audit)', () => {
-  // jsdom applies no stylesheet. What it can hold: the selector rides on the cta variant only, and tailwind-merge keeps
-  // it beside a caller's own min-h / text size (it carries other variants), so the 48px/16px phone size reaches every
-  // full-width brand CTA without a call-site change.
-  const PHONE_CTA = [
-    'max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12',
-    'max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base',
-  ]
+describe('Button — the phone size contract (owner-approved 2026-11-14)', () => {
+  // jsdom applies no stylesheet: the classes are the contract. Below 640px a primary or secondary at the default or lg
+  // size is 48px with a 16px label (`max-sm:min-h-12 max-sm:text-base`); a caller that sizes the button itself keeps it.
+  const PHONE = ['max-sm:min-h-12', 'max-sm:text-base']
+  const cls = (name = 'Save') => classes(screen.getByRole('button', { name }))
+  /** A label (jsx-no-literals wants none written in JSX). */
+  const T = (label: string) => label
 
-  it('rides on the cta variant, beside a caller min-h and text size', () => {
-    render(<Button variant="cta" className="min-h-11 w-full text-sm">{SAVE}</Button>)
-    expect(classes(screen.getByRole('button', { name: 'Save' }))).toEqual(expect.arrayContaining([...PHONE_CTA, 'min-h-11', 'w-full', 'text-sm']))
-    // Below sm only (review r31, 2026-11-07): a `w-full sm:w-auto` CTA keeps the class from 640px, where it sits inline.
-    expect(classes(screen.getByRole('button', { name: 'Save' })).some((c) => c.startsWith('max-lg:'))).toBe(false)
+  it.each(['default', 'cta', 'outline', 'secondary'] as const)('a full-width %s button at the default and lg sizes takes it', (variant) => {
+    render(<><Button variant={variant} className="w-full">{SAVE}</Button><Button variant={variant} size="lg" className="max-sm:w-full">{T('Go')}</Button></>)
+    expect(cls()).toEqual(expect.arrayContaining(PHONE))
+    expect(cls('Go')).toEqual(expect.arrayContaining(PHONE))
+    // Below sm only (review r31, 2026-11-07): a `w-full sm:w-auto` button keeps its size from 640px, where it sits inline.
+    expect(cls().some((c) => c.startsWith('max-lg:'))).toBe(false)
   })
 
-  it('never on another variant', () => {
-    render(<Button variant="outline" className="w-full">{SAVE}</Button>)
-    expect(classes(screen.getByRole('button', { name: 'Save' })).some((c) => c.startsWith('max-sm:[&.w-full'))).toBe(false)
+  it('never on sm / icon / none sizes, nor on ghost, bare, link, destructive or commerce', () => {
+    render(<>
+      <Button size="sm">{T('A')}</Button><Button size="icon">{T('B')}</Button><Button size="none">{T('C')}</Button>
+      <Button variant="ghost">{T('D')}</Button><Button variant="bare">{T('E')}</Button><Button variant="link">{T('F')}</Button>
+      <Button variant="destructive">{T('G')}</Button><Button variant="commerce">{T('H')}</Button>
+    </>)
+    for (const name of 'ABCDEFGH') expect(cls(name)).not.toContain('max-sm:min-h-12')
+  })
+
+  it('an inline button keeps its size (review: no 36×48 ovals, no grown inline secondaries)', () => {
+    render(<>
+      <Button>{T('A')}</Button><Button className="size-9 p-0">{T('B')}</Button><Button variant="outline" className="sm:h-10">{T('C')}</Button>
+      <Button className="sm:w-full">{T('D')}</Button><Button className="w-full rounded-full">{T('E')}</Button>
+    </>)
+    for (const name of 'ABCDE') expect(cls(name)).not.toContain('max-sm:min-h-12')
+  })
+
+  it('a full-width button takes 48px over its own min-h (the 2026-11-07 floor), but not with a small label', () => {
+    render(<><Button variant="cta" className="min-h-11 w-full text-sm">{SAVE}</Button><Button variant="cta" className="w-full text-xs">{T('Tiny')}</Button></>)
+    expect(cls()).toEqual(expect.arrayContaining([...PHONE, 'min-h-11', 'w-full']))
+    expect(cls('Tiny')).not.toContain('max-sm:min-h-12')
+  })
+
+  it('an icon sized through an arbitrary variant is not the box: `[&_svg]:h-4` does not opt out', () => {
+    render(<Button className="w-full [&_svg]:h-4">{SAVE}</Button>)
+    expect(cls()).toEqual(expect.arrayContaining(PHONE))
+  })
+
+  it('asChild reads the child\'s classes too', () => {
+    render(<Button asChild><a href="/x" className="h-8">{T('Link')}</a></Button>)
+    expect(classes(screen.getByRole('link', { name: 'Link' }))).not.toContain('max-sm:min-h-12')
+  })
+
+  it('one primary, one secondary: accent fill + bold; white + 1px ink edge + ink bold label', () => {
+    render(<><Button>{SAVE}</Button><Button variant="outline">{T('Out')}</Button><Button variant="secondary">{T('Sec')}</Button></>)
+    expect(cls()).toEqual(expect.arrayContaining(['bg-primary', 'font-bold', 'hover:bg-cta-dark', 'active:bg-cta-dark']))
+    for (const name of ['Out', 'Sec']) {
+      expect(cls(name)).toEqual(expect.arrayContaining(['border', 'border-foreground', 'bg-background', 'text-foreground', 'font-bold', 'active:bg-muted']))
+      expect(cls(name)).not.toContain('bg-secondary')
+    }
   })
 })

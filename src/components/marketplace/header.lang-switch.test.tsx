@@ -286,10 +286,10 @@ describe('the control itself', () => {
     expect(readFileSync('src/components/marketplace/mobile-nav.tsx', 'utf8')).toMatch(/'mobile-nav pc:hidden /)
   })
 
-  it('wears the Sign in link\'s box — h-9, rounded-xl, px-2.5, text-sm font-semibold text-body, the accent hover — and its 48px target', () => {
+  it('wears the Sign in link\'s box — h-9, rounded-xl, px-2.5, text-sm font-semibold, ink (2026-11-14), the accent hover — and its 48px target', () => {
     render(<Header />)
     const cls = langButton().className.split(/\s+/)
-    expect(cls).toEqual(expect.arrayContaining(['h-9', 'rounded-xl', 'px-2.5', 'text-sm', 'font-semibold', 'text-body', 'hover:bg-accent', 'hover:text-accent-foreground', 'relative', 'tap-48']))
+    expect(cls).toEqual(expect.arrayContaining(['h-9', 'rounded-xl', 'px-2.5', 'text-sm', 'font-semibold', 'text-foreground', 'hover:bg-accent', 'hover:text-accent-foreground', 'relative', 'tap-48']))
     // ui/button's own press feedback, the Sign in link's scale.
     expect(cls).toContain('active:scale-[0.97]')
   })

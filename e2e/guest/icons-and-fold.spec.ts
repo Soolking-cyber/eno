@@ -11,7 +11,7 @@ import { expect, test, dismissOverlays } from '../helpers'
  * the sprite gets its own guard.
  *
  * ⚠️ THE MOBILE FOLD. The PDP's "Chat now" CTA used to render at y=808 on a 390x844 phone, with a
- * fixed tab bar owning the last 72px — i.e. never visible without scrolling, on the button that IS
+ * fixed tab bar owning the last 72px (the docked bar is 56 + inset of it since 2026-11-14) — i.e. never visible without scrolling, on the button that IS
  * the conversion. It was fixed by CSS `order` alone, which no test asserts and any future reorder
  * can silently undo. Geometry is the only thing that proves it, so this asserts geometry.
  */

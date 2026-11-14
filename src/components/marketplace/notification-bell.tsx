@@ -109,14 +109,14 @@ export function NotificationBell() {
             // active:scale-[0.96] is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.
-            className="text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
+            className="text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
           >
-            {/* 28px everywhere — matches the bottom-nav icons on mobile and the
-                Saved/Messages action icons on desktop (one consistent nav scale).
+            {/* 28px from sm up — the Saved/Messages action icons on desktop (one consistent nav scale); 24px ink on a
+                phone, the redesign's header glyph beside the 44px pill (owner-approved 2026-11-14).
                 STROKE_NAV: the bell is h-7 header chrome (§2 — it was the one chrome
                 glyph in the header still on lucide's default 2). The solid fill-brand
                 when unread is USER-state (§5) — something is yours/waiting. */}
-            <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
+            <Bell className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
             {user && unread > 0 && (
               // `zoom-in-90`, never a bare `zoom-in`: in tw-animate that is --tw-enter-scale: 0, so the
               // counter grew out of NOTHING on every page load. From 0.9 with a fade, on the snappy

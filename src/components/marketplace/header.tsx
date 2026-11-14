@@ -717,8 +717,11 @@ export function Header() {
             the gutter wider than the hero banner beneath it (80→1360 vs 112→1328 at 1440),
             so the rule overhung the banner by one gutter on each side. Mirroring the px-*
             scale as inset-x-* lands the line exactly on the content column at every
-            breakpoint. Keep the two scales in lockstep if either ever changes. */}
-        <span aria-hidden className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border/60 sm:inset-x-6 lg:inset-x-8" />
+            breakpoint. Keep the two scales in lockstep if either ever changes.
+            ⛔ FULL-BLEED ON A PHONE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options
+            and deploy"): below 640px the line runs edge to edge in the full hairline colour, the redesign's header (a
+            phone shows no banner for it to match). From sm up the 2026-08-07 inset line stands. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border sm:inset-x-6 sm:bg-border/60 lg:inset-x-8" />
         {/* ⚠️ INSTALLED-PWA BACK — `display:none` IN A NORMAL TAB, AND THE DISPLAY MODE IS DECIDED BY CSS,
             NOT BY A RENDER BRANCH. manifest.ts installs the site as `display: standalone` (the owner's
             only iOS web-push route), which removes the browser's own Back, and nothing here replaced it:
@@ -775,12 +778,12 @@ export function Header() {
 
               Square: 1024×1024 intrinsic with h-8 w-8, so it reserves a 32×32 box before load (no
               CLS) and hands the header search back the ~65px the .vn lockup was taking on mobile. */}
-          {/* h-10 = 40px, matching the header search pill's height exactly (owner, 2026-08-02: "make logo
-              mark as tall as the searchbar next to it"), so the two line up as one row instead of the mark
-              floating small beside it. Both came down from 48 together with the bar (owner, 2026-10-18:
-              "slimmer + calm") — the match is the rule, not the number. Square, so it costs its width —
-              the search form is `min-w-0 flex-1` and absorbs it. */}
-          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-10 w-10" />
+          {/* h-10 = 40px from sm up, matching the header search pill's height exactly (owner, 2026-08-02: "make logo
+              mark as tall as the searchbar next to it"); both came down from 48 together with the bar (owner, 2026-10-18:
+              "slimmer + calm"). Square, so it costs its width — the search form is `min-w-0 flex-1` and absorbs it.
+              ⛔ ON A PHONE THE MARK IS 36px BESIDE A 44px RAISED PILL (owner-approved 2026-11-14, cook r05): the redesign
+              makes the search pill the header's one loud object, so the mark no longer matches its height there. */}
+          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-9 w-9 sm:h-10 sm:w-10" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never
@@ -859,30 +862,34 @@ export function Header() {
                 is paint only — the fill, the shadow, the bottom radius. `all` also caught the layout
                 that re-flows inside on focus (the input grows 76→180px while the AI and Map buttons
                 unmount), so opening the field could animate geometry nobody asked to see. */}
+            {/* ⛔ ON A PHONE, A 44px ROUND, WHITE, RAISED PILL (owner-approved 2026-11-14, cook r05: "after this cook round
+                build all best options and deploy") — the redesign's one loud object in the header: 1px `search-edge`, the
+                `shadow-raised` lift, an ink glass. It reverses, below 640px only, the 2026-10-18 bare tint ("do not add a
+                border here"). It stays the same pill while the panel is open: the phone's panel is a separate fixed window.
+                From sm up nothing changed: the 40px tint pill, and the fused window when open. `isPhone` picks the open
+                shadow because `.shadow-pop` is an unlayered class with no `sm:` form; the panel is never open in the SSR
+                HTML, so that read cannot mismatch hydration. `border-radius` left the transition list with the morph. */}
             <div className={cn(
-              'relative z-50 flex items-center transition-[background-color,box-shadow,border-radius] duration-200 ease-[var(--ease-out-strong)]',
+              'relative z-50 flex items-center transition-[background-color,box-shadow] duration-200 ease-[var(--ease-out-strong)]',
+              'max-sm:h-11 max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background max-sm:shadow-raised',
               panelOpen
-                // Open = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
-                // suggestions panel it fuses with at sm+ (bottom flattened where they join), so the
+                // Open (sm+) = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
+                // suggestions panel it fuses with (bottom flattened where they join), so the
                 // fused silhouette is one consistent radius. The floating shadow is the standard
                 // popover treatment for a layer over content — not canvas elevation.
-                ? 'rounded-2xl bg-popover shadow-pop sm:rounded-b-none'
-                // Idle = maximally seamless: rounded-2xl (matches the hero search pill + the fused-open
-                // state, so there's no corner jump on open) and PURE bg-tint — zero border, zero ring,
-                // and NO bg swap on focus (a white focus fill would merge into the bg-card header).
-                // The only focus cue is the text caret. It's distinguished from the header solely by
-                // the tint, exactly as requested.
+                ? cn('sm:rounded-2xl sm:rounded-b-none sm:bg-popover', !isPhone && 'shadow-pop')
+                // Idle (sm+) = maximally seamless: rounded-2xl (matches the fused-open state, so there's no corner
+                // jump on open) and PURE bg-tint — zero border, zero ring, and NO bg swap on focus.
                 // ⛔ NO GLOW. The orange `search-beam` that breathed three times on every load (and again
                 // on every close of the panel) is gone — owner, 2026-10-18: "slimmer + calm"; a pulsing
-                // edge read as promotion, not as a search box. Gone means bare tint: the beam's own note
-                // ruled out leaving a static ring in its place, so do not add a border here instead.
-                : 'rounded-2xl bg-tint',
+                // edge read as promotion, not as a search box. Still none on the phone pill: its edge is static.
+                : 'sm:rounded-2xl sm:bg-tint',
             )}
             >
-              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-brand" strokeWidth={STROKE} />
+              <Search className="pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground" strokeWidth={STROKE} />
               {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
-              <div className="@container/q relative flex min-w-0 flex-1 text-base">
+              <div className="@container/q relative flex min-w-0 flex-1 self-stretch text-base">
               <Input
                 // The '/' and Ctrl/⌘+K shortcuts focus this field (use-explorer.ts useSearchShortcuts).
                 id={HEADER_SEARCH_INPUT_ID}
@@ -929,7 +936,8 @@ export function Header() {
                 // not paint it back UNDER the overlay (Chromium keeps the transparency; this makes
                 // that the rule for every engine, not a behaviour we happened to measure).
                 // ⚠️ `py-2`: a 24px line + 16px = the 40px field the logo matches (owner, 2026-10-18). The type
-                // stays `text-base` — anything under 16px and iOS Safari zooms the page on focus.
+                // stays `text-base` — anything under 16px and iOS Safari zooms the page on focus. On a phone its slot
+                // stretches to fill the 44px pill inside its 1px border (`self-stretch`, 42px), so the whole pill types.
                 className="peer w-full min-w-0 bg-transparent py-2 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
               />
               {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29).
@@ -962,7 +970,9 @@ export function Header() {
               <span
                 aria-hidden="true"
                 data-search-placeholder=""
-                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-ink-4', placeholderFit.overlay)}
+                // `text-t-card` (15/20, the redesign's muted placeholder): the rungs' thresholds are em of the slot's own
+                // 16px (`text-base` above), so painting the copy 1px smaller only ever leaves MORE room — it never truncates.
+                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay)}
               >
                 <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Search eno…', 'Tìm trên eno…')}</span>
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
@@ -1031,7 +1041,8 @@ export function Header() {
                        still overhung the search input on the left, which owns those pixels, so this
                        button measured 38px — under the 44px minimum. Margin on both sides gives the
                        hit area room in both directions. */
-                    className="relative ml-2 mr-2 flex h-10 w-10 tap-48"
+                    // Ink at rest, like every glyph in the header (owner-approved 2026-11-14); accent while on /messages/ai.
+                    className={cn('relative ml-2 mr-2 flex h-10 w-10 tap-48', pathname !== '/messages/ai' && 'text-foreground')}
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -1057,7 +1068,7 @@ export function Header() {
                     onClick={openMap}
                     aria-label={tr('Map', 'Bản đồ')}
                     // `hidden sm:flex` — the phone reaches the map from the focus panel's second row (O-03).
-                    className="relative mr-2 hidden h-10 w-10 sm:flex shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                    className="relative mr-2 hidden h-10 w-10 sm:flex shrink-0 items-center justify-center rounded-full text-foreground tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>
@@ -1143,7 +1154,7 @@ export function Header() {
                       <div className="flex items-center justify-between">
                         {/* Micro-meta eyebrow icons ride the UI tier (lucide default 2) — STROKE_NAV
                             is reserved for h-6/h-7 chrome (§2); 2.25 at 12px reads smudged. */}
-                        <span id={RECENT_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
+                        <span id={RECENT_LABEL_ID} className="flex items-center gap-1 text-t-meta font-bold text-muted-foreground"><Clock className="h-3.5 w-3.5" />{tr('Recent', 'Tìm gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_SEARCHES_KEY); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       {/* ROWS, EACH WITH ITS OWN ✕, not chips (S-TYPEAHEAD 2026-09-29): one stale term
@@ -1189,7 +1200,7 @@ export function Header() {
                   {recentLocations.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <span className="flex items-center gap-1 text-t-meta font-bold text-muted-foreground"><MapPin className="h-3.5 w-3.5" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_LOCATIONS_KEY); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       {/* The browse chip (ui/chip `md` + its 44px hit area, owner 2026-10-18 — one chip style).
@@ -1224,7 +1235,7 @@ export function Header() {
                       press, the status bar). Same chip as Trending, same eyebrow. */}
                   {shortcutCategories.length > 0 && (
                     <div className="space-y-1.5">
-                      <span id={CATEGORIES_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><LayoutGrid className="h-3 w-3" />{tr('Categories', 'Danh mục')}</span>
+                      <span id={CATEGORIES_LABEL_ID} className="flex items-center gap-1 text-t-meta font-bold text-muted-foreground"><LayoutGrid className="h-3.5 w-3.5" />{tr('Categories', 'Danh mục')}</span>
                       <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-2">
                         {/* A way in, so Teachers reads "Find a teacher" (category-entry-label.ts) — applied HERE,
                             not in /api/search/trending, so the route's payload and its edge-cached copies keep
@@ -1297,7 +1308,7 @@ export function Header() {
               · FIRST IN THE ROW, between the search pill and the glyphs: "Get the app" keeps both of the owner's
                 placements (right of the bell on a phone, immediately left of Post on a member's desktop — 2026-09-16),
                 the heart, bell and app glyphs stay one group, and Sign in + Post keep the end.
-              · THE SIGN IN LINK'S BOX (h-9 rounded-xl px-2.5, text-sm font-semibold text-body, hover:bg-accent) through
+              · THE SIGN IN LINK'S BOX (h-9 rounded-xl px-2.5, text-sm font-semibold text-foreground, hover:bg-accent) through
                 ui/button, whose base carries the same press (scale 0.97, 60ms) and a focus ring; `relative tap-48` as
                 there, since a 2-in-1 laptop matches `pc` and takes taps.
               · TEXT ONLY. `Globe` exists in the generated set, but in the DEFERRED sprite: drawn here it would put
@@ -1350,7 +1361,7 @@ export function Header() {
                 }, 1000)
               }}
               data-header-lang=""
-              className="relative hidden h-9 rounded-xl px-2.5 text-sm font-semibold text-body tap-48 hover:bg-accent hover:text-accent-foreground pc:flex"
+              className="relative hidden h-9 rounded-xl px-2.5 text-sm font-semibold text-foreground tap-48 hover:bg-accent hover:text-accent-foreground pc:flex"
             >
               {switchToName}
             </Button>
@@ -1374,7 +1385,7 @@ export function Header() {
               asChild
               variant="bare"
               size="none"
-              className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full tap-44 text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] lg:flex"
+              className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] lg:flex"
             >
               <Link
                 href={localizedHref('/saved', variant)}
@@ -1432,7 +1443,7 @@ export function Header() {
                  ⚠️ AND THE `hover:bg-accent` DEFENCE DOES NOT COVER TOUCH: Tailwind gates `hover:`
                  behind `@media (hover: hover)`, and this link renders from `sm` up — which includes
                  touch tablets, where it therefore had no feedback at all. */
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-[color,background-color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.97] active:duration-[60ms] cursor-pointer tap-48 relative"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-foreground transition-[color,background-color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.97] active:duration-[60ms] cursor-pointer tap-48 relative"
             >
               <User className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={STROKE} />
               <span className="sr-only lg:not-sr-only">{tr('Sign in', 'Đăng nhập')}</span>

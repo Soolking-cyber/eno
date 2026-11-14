@@ -146,16 +146,19 @@ export function ScrollArrows({
   // Offset is RESPONSIVE: at ≤1359px the content fills the viewport (only the 32px page padding to
   // work with), so -8 keeps the arrow fully visible with no h-scroll; once the viewport gutter opens
   // up (≥1360px) we push out to -14 for a full arrow-width gap. This never overflows at any width.
-  // ⚠️ HOVER DEEPENS THE DISC RATHER THAN RECOLOURING THE INK, because the ink is now fixed white
-  // (neutral-900 in dark) against the plate — brand blue on a black disc would stop reading as the
-  // same control as every other plated glyph. `hover:scale-110` stays; it was always the louder
-  // half of the affordance. THE DEEPENING ITSELF IS NOT WRITTEN HERE: it belongs to `.icon-plate`
-  // in globals.css, so it is the same on every plated glyph in the app rather than three copies.
+  // ⚠️ HOVER DEEPENS THE DISC RATHER THAN RECOLOURING THE INK, because the ink is fixed against the
+  // plate — since 2026-11-14 (owner-approved, cook r05) an ink glyph on the white photo plate in both
+  // themes, so the accent on it would stop reading as the same control as every other plated glyph.
+  // `hover:scale-110` stays; it was always the louder half of the affordance. THE DEEPENING ITSELF IS
+  // NOT WRITTEN HERE: it belongs to `.icon-plate` in globals.css (95% → solid white), so it is the same
+  // on every plated glyph in the app rather than three copies.
+  // ⚠️ NO DROP-SHADOW FILTER: the plate carries its own shadow (--shadow-plate), which is the white
+  // disc's only edge on the white page; a second one around the glyph doubled it.
   const arrowCls =
     'absolute z-10 hidden -translate-y-1/2 transition-transform duration-150 hover:scale-110 active:scale-[0.96] pc:block'
   // 28px glyph + 3px content-box padding each side = a 34px disc. `size="none"` lets the button
   // hug it, so there is no box to overflow here.
-  const arrowIcon = 'icon-plate size-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]'
+  const arrowIcon = 'icon-plate size-7 text-on-plate'
   // 50% less space when tight: -8→-4 (32→16px), -14→-7 (56→28px).
   const leftInset = tight ? '-left-4 min-[1360px]:-left-7' : '-left-8 min-[1360px]:-left-14'
   const rightInset = tight ? '-right-4 min-[1360px]:-right-7' : '-right-8 min-[1360px]:-right-14'

@@ -49,7 +49,7 @@ export function JobCityChips({ cities, total }: {
     <div role="group" aria-labelledby={labelId} className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
       <span id={labelId} className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4">{tr('By city:', 'Theo tỉnh/thành:')}</span>
       {total != null && (
-        <span aria-current="page" className={cn(chipVariants({ size: 'sm', tone: 'neutral' }), 'cursor-default', PILL_ON)}>
+        <span aria-current="page" className={cn(chipVariants({ size: 'sm', tone: 'neutral' }), 'cursor-default', PILL_ON, 'hover:bg-foreground hover:text-background')}>
           {tr('All', 'Tất cả')}
           <span className="font-normal tabular-nums">{total}</span>
         </span>

@@ -79,10 +79,10 @@ const TEACHER = {
   model: null,
 } as unknown as SerializedListingCard
 
-const TITLE_CLASS = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
+const TITLE_CLASS = 'truncate -mt-px pt-px text-t-card font-normal text-ink-3 group-hover:underline decoration-1 underline-offset-2' // card-text.ts TITLE_LINE (2026-11-14)
 // A teacher card's name line since 2026-11-12 (owner, "go all": name first, bold, a step up — listing-card.tsx
 // TEACHER_TITLE_LINE; the order itself is pinned by listing-card.teacher-order.test.tsx). Every other card keeps TITLE_CLASS.
-const TEACHER_TITLE_CLASS = 'truncate text-foreground group-hover:underline decoration-1 underline-offset-2 text-base font-bold leading-snug sm:text-lg'
+const TEACHER_TITLE_CLASS = 'truncate -mt-px pt-px group-hover:underline decoration-1 underline-offset-2 text-base font-bold leading-snug sm:text-lg text-foreground'
 const card = (patch: Record<string, unknown> = {}) =>
   render(<ListingCard listing={{ ...TEACHER, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
 

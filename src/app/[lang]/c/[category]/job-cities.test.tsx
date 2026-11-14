@@ -89,7 +89,7 @@ describe('JobCityChips — "Theo tỉnh/thành / By city"', () => {
     const all = group.querySelector('[aria-current="page"]')!
     expect(all.tagName).toBe('SPAN')
     expect(all.textContent).toBe('All15')
-    expect(all.className).toMatch(/\bbg-brand-50\b/)
+    expect(all.className).toMatch(/\bbg-foreground\b/) // the ink fill, the applied look since 2026-11-14 (owner-approved)
     // Right after the label, ahead of every city.
     expect(group.children[1]).toBe(all)
   })

@@ -14,20 +14,16 @@ import { cn } from '@/lib/utils'
 // Two opt-ins, both ADDITIVE (defaults reproduce the original shell byte-for-byte):
 //
 //   variant="overlay"  — for controls layered OVER MEDIA (favourite heart on a photo, gallery
-//                        close/mute, video-feed rail). White ink with a dark OUTLINE on the glyph
-//                        itself, so it reads as a dark icon on a light photo and a white icon on a
-//                        dark one, with NO chip of any kind.
-//                        ⛔ THIS DESCRIPTION HAS CHANGED TWICE ON 2026-08-18. It said "white ink +
-//                        a baked drop-shadow", then "white ink on its own translucent dark scrim"
-//                        — the chip shipped in the morning and the owner reversed it the same day
-//                        ("no circles"). The surviving rule from all three versions is that a
-//                        HOVER chip reads as a glitch; that is not an argument for a permanent one.
-//                        See the note on the variant for the backgrounds each option was rendered
-//                        against before this one was chosen.
+//                        close/mute, video-feed rail). Since 2026-11-14 (owner-approved, cook r05):
+//                        an INK glyph on the one white photo plate (globals.css `.plate-host svg`,
+//                        95% white, soft shadow), the same in both themes — see the note on the
+//                        variant for the plate's history (an outline, a dark scrim, a dark/light
+//                        plate) and the backgrounds each was rendered against.
 //                        Fill-state stays on the icon child: <Heart className={favorited ?
-//                        'fill-current text-destructive' : 'fill-none'} />.
-//                        (saved is RED app-wide since 2026-08-13; the colour rides on text-*
-//                        because these glyphs paint every path with fill="currentColor".)
+//                        'fill-current text-saved' : 'fill-none'} />.
+//                        (saved is RED app-wide since 2026-08-13 — `text-saved` #d92d4a since
+//                        2026-11-14, 4.75:1 on the white plate; the colour rides on text-* because
+//                        these glyphs paint every path with fill="currentColor".)
 //                        ⚠️ POSITIONING IS THE CALLER'S. The primitive owns no absolute/inset —
 //                        pass `absolute right-2 top-2` (or fixed/z-*) in className. That works
 //                        because className is the LAST arg to cn(): tailwind-merge resolves the
@@ -79,7 +75,9 @@ const VARIANTS = {
   // call site relies on the class list being exactly the base + size + its own className.
   ghost: '',
   /**
-   * OVER-MEDIA CONTROLS: A TRANSLUCENT PLATE, NOT AN OUTLINE ON THE GLYPH.
+   * OVER-MEDIA CONTROLS: A PLATE, NOT AN OUTLINE ON THE GLYPH.
+   * ⚠️ HISTORY FROM HERE TO THE `overlay` LINE: the plate is WHITE WITH AN INK GLYPH IN BOTH THEMES since 2026-11-14
+   * (owner-approved; the note on `overlay` itself). What follows is why there is a plate at all, which still holds.
    *
    * Owner, 2026-08-29: "try semistransparent black plate outline on icons on light theme and
    * semitransparent white on dark theme all icons on images should have that for better
@@ -138,7 +136,15 @@ const VARIANTS = {
    *  ⛔ THE SIZE RULE TRAVELS WITH THIS VARIANT: the plate is the glyph box + 6px, so a caller
    *  overriding the button box must leave glyph + 6. `h-6 w-6` with a 29px glyph was doing the
    *  opposite in post-wizard-sections until this commit. */
-  overlay: 'plate-host text-white dark:text-neutral-900',
+  /** ⛔ INK ON THE WHITE PLATE, BOTH THEMES (owner-approved 2026-11-14, cook r05 shell: "every control over a photo …
+   *  one white plate, ink glyph"; reverses the 2026-08-29 dark plate / white glyph in light and light plate / dark glyph in
+   *  dark described above). The plate is theme-invariant, so the ink is too: `text-on-plate` (#141414, ≥ 15:1 on it). This
+   *  one class reaches the card heart and hover row, the listing page's Back/Share/Save, the lightbox, the map popup, the
+   *  concierge close, owner-edit and every <CloseButton variant="overlay">.
+   *  ⚠️ A call site must not add `text-white`, a padding or `[&_svg]:bg-*` (ui/plate.contract.test.ts): each would beat
+   *  the plate's layer and paint a white glyph on the white disc. The saved heart's `text-saved` on its glyph is the one
+   *  sanctioned ink override. */
+  overlay: 'plate-host text-on-plate',
 } as const
 
 /**

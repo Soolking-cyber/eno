@@ -48,45 +48,30 @@ const preloadGuestSheet = () => { void import('./guest-account-sheet') }
  * One uniform stroke across the bar (STROKE_NAV, docs/icon-language.md §2, shared with the header) keeps all five
  * tabs at one visual weight.
  *
- * ⛔ A FLOATING, ICON-ONLY PILL — owner, 2026-09-26: "remove these [the micro-labels] on mobile make sure the bottom
- * navbar is minimal and sleek pill shaped according to our design language". What that changed, and what it did not:
- *   · NO VISIBLE LABELS. Every tab still carries its accessible name as `aria-label` (and the active one
- *     `aria-current="page"`), so screen readers, `getByLabelText` and `getByRole(…, { name })` are unchanged.
- *   · THE BAR FLOATS: `rounded-full` (canon §2, pills), inset 12px from the sides and max(12px, safe area) from the
- *     bottom, so it sits above the home indicator rather than painting over it.
- *   · IT IS A FLOATING SURFACE, SO IT WEARS THE FLOATING TIER (canon §3b: "elevation must mean something … those use
- *     `popover`, not `card`"): bg-popover at 95% + the `material` blur, `shadow-pop`, and a 1px
- *     `border-foreground/10` edge. The EDGE is what separates it — the shadow falls 8px downward, so almost none of
- *     it reaches the top edge that content scrolls under, and on the dark canvas it says nothing at all.
- *     ⛔ A `border`, NOT ui/popover's `ring-1`: `.shadow-pop` (globals.css) sets `box-shadow` unlayered, and a
- *     Tailwind ring IS a box-shadow, so the ring was silently overwritten — measured, the computed box-shadow was the
- *     pop shadow alone in both themes, and the pill met the light canvas at ~1.03:1 with no line.
- *   · "YOU ARE HERE" IS A TINTED CAPSULE (`bg-accent`, the brand-50 tint) behind the brand glyph, concentric with the
- *     pill. It replaced the 2px top bar, which only made sense on a flush, full-width bar. The Post tab is the one
- *     exception: its coin already fills solid when active, so a capsule round it would stack three shapes.
- *   · ⚠️ THE FOOTPRINT DID NOT MOVE: 56px pill + 12px gap = 68px, inside the 4.5rem (72px) that <BottomNavSpacer/>,
- *     the `html.native` spacer rule, the sticky action bars, the install hint, the offline banner and the
- *     back-to-top / rental-check cluster all reserve. The pill's top edge is ALWAYS at or below that line — with a
- *     home-indicator inset S it sits at S+56 against the spacer's S+72 — so nothing that clears the old bar by
- *     the same inset is covered by the new one, and none of those files had to learn a new number. (Where a
- *     surface clears only env() — Android WebView < 140 hands Capacitor's inset over as a CSS var — it still
- *     falls short by the var, as it did under the old bar, by less.)
+ * ⛔ A DOCKED, ICON-ONLY BAR (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
+ * deploy"). This REVERSES the floating pill (owner, 2026-09-26: "minimal and sleek pill shaped"), its tinted "you are
+ * here" capsule and the Post coin's orange plate. What the redesign's System section asks, and what it keeps:
+ *   · DOCKED: full width at bottom 0, 56px + the home-indicator band (`--tabbar-inset`, globals.css), which it PADS by
+ *     instead of floating over it. White, a top hairline, the soft `shadow-bar` lift the sticky action bars share, no
+ *     blur, no radius. On a touch tablet the five tabs sit centred in a `max-w-md` row inside the full-width bar.
+ *   · "YOU ARE HERE" IS THE ACCENT BOLD CUT ALONE: idle glyphs are muted, the current one turns accent and goes Bold
+ *     (the sprite's .i-on layer on `aria-current`). No capsule. Post is the bold add-circle in ink, 38px, at rest too.
+ *   · KEPT from 2026-09-26: NO VISIBLE LABELS (every tab carries its `aria-label`, the active one `aria-current`).
+ *   · KEPT: it auto-hides on scroll like a native app (owner 2026-07-16) and steps aside for the keyboard.
+ *   · ⚠️ THE FOOTPRINT STILL FITS: 56px + inset sits inside the 4.5rem (72px) + inset that <BottomNavSpacer/>, the
+ *     `html.native` spacer rule, the sticky action bars, the install hint, the offline banner and the back-to-top /
+ *     rental-check cluster all reserve, so none of those ~43 consumers had to learn a new number.
  */
 const STROKE = STROKE_NAV
 
-// Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
-// `rounded-full`: the keyboard focus ring (globals.css draws it as an `outline`, which follows the radius) is a
-// capsule, not a rectangle poking out of the pill's rounded ends. ⚠️ Its INSET lives in globals.css
+// Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay. The press is the
+// redesign's glyph .92 (owner-approved 2026-11-14). ⚠️ The focus ring's INSET lives in globals.css
 // (`.mobile-nav :is(a,button):focus-visible`, offset -4px): the global focus rule is unlayered, and on the guest
-// <Button> tabs its `[tabindex]` branch is (0,6,0), so no utility here can pull the ring inside the pill.
-// ⚠️ `relative` + the `after:` strip: THE TAP AREA RUNS DOWN TO THE SCREEN EDGE. The old docked bar caught
-// every tap in the bottom 72px + inset; the pill leaves max(12px, safe area) open under it — on an iPhone
-// 34px of the busiest thumb zone — so a thumb landing just under Explore opened whatever listing was
-// scrolling past instead. Each tab's invisible strip (the same max() as the pill's `bottom`, +1px for the pill's
-// border, which the tab sits inside — measured, without it the last device row still went to the page) takes those
-// taps back for the tab above them. The 12px side gutters stay open to the page, like any floating bar.
-// `pointer-events: none` on the retracted <nav> is inherited, so the strips go dead with it.
-const TAB = 'relative flex flex-1 cursor-pointer rounded-full after:absolute after:inset-x-0 after:top-full after:h-[calc(max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))+1px)] transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] [touch-action:manipulation]'
+// <Button> tabs its `[tabindex]` branch is (0,6,0), so no utility here can pull the ring inside the bar.
+// ⚠️ `relative` + the `after:` strip: THE TAP AREA RUNS DOWN TO THE SCREEN EDGE. The bar pads by the home-indicator band
+// (`--tabbar-inset`), and each tab's invisible strip fills that band, so a thumb landing under Explore opens Explore,
+// never the listing scrolling past. `pointer-events: none` on the retracted <nav> is inherited, so the strips go dead with it.
+const TAB = 'relative flex flex-1 cursor-pointer after:absolute after:inset-x-0 after:top-full after:h-(--tabbar-inset) transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.92] active:duration-[60ms] [touch-action:manipulation]'
 
 // PREFETCH (2026-07-21): every tab used to carry `prefetch={false}`, so the five most-travelled
 // destinations in the app were the only ones that paid a full cold round-trip on tap — the
@@ -130,8 +115,7 @@ const TAB = 'relative flex flex-1 cursor-pointer rounded-full after:absolute aft
 // centres in the tab, and the Post coin (40px) and the 28px glyphs share one centre line.
 // The accessible name never lived in that label — it is the tab's `aria-label` — so nothing
 // a screen reader or a test reads changed with it.
-// ⚠️ The glyph's wrapper stays `relative`: it is the anchor the count badges hang off, and it
-// has to paint ABOVE the active capsule, which is an earlier positioned sibling.
+// ⚠️ The glyph's wrapper stays `relative`: it is the anchor the count badges hang off.
 function TabGlyph({ icon }: { icon: React.ReactNode }) {
   return <span className="relative flex items-center justify-center">{icon}</span>
 }
@@ -140,30 +124,19 @@ const STACK = 'relative flex h-full w-full items-center justify-center transitio
 
 type TabIcon = React.ReactNode | ((on: boolean) => React.ReactNode)
 
-/** What a tab PAINTS: the glyph, centred; when `on`, brand ink + wash + the tinted capsule.
+/** What a tab PAINTS: the glyph, centred; muted at rest, accent + wash when `on`.
  *  Presentational only, so the navigating tab (TabBody) and the sign-in-gated button share it. */
-function TabFace({ on, icon, capsule = true, stack = STACK }: { on: boolean; icon: TabIcon; capsule?: boolean; stack?: string }) {
-  // Location-active = soft duotone (icon-language §5): the ink turns brand AND the glyph fills
+function TabFace({ on, icon, stack = STACK }: { on: boolean; icon: TabIcon; stack?: string }) {
+  // Location-active = soft duotone (icon-language §5): the ink turns accent AND the glyph fills
   // its whole body with brand-100 — the same rule the category tiles and the dashboard rail
   // follow, so one selection language runs across every nav surface. The
   // `:not([class*=fill-])` guard skips any icon already carrying an explicit fill-* class, so a
-  // user-state fill always wins over mere location.
-  // THE CAPSULE: `bg-accent` (brand-50 in light, the deep blue tint in dark), `inset-1` inside a tab
-  // that itself sits inside the pill's 1px border — 5px in from the pill's outer edge, so its 23px
-  // radius is concentric with the pill's 28px one. It grows from its centre with `bar-in`
-  // (globals.css — the snappy spring, 200ms) in the same window the wash fades up, so the two read
-  // as ONE move. Both are added by the class flip, so they run once per activation, and
-  // `useLinkStatus`'s `pending` means they start on the TAP, before the destination has loaded.
-  // ⚠️ THE POST-HYDRATION LIGHT-UP ANIMATES TOO, ON PURPOSE. A timer that zeroed it for "the first
-  // 400ms" was tried and deleted (2026-09-27): every review round found a new hole in it — a tap
-  // near its end replayed the grow mid-way, a guest's auth-driven remount landed after it, and an
-  // auth that never settled froze every transition in the bar. The capsule arriving once on a cold
-  // load is the same "you are here" statement a tap makes; there is no second mechanism to keep true.
-  // ⚠️ THE SPRING IS SAFE HERE, where it was not on the old flush bar: the capsule rests inside
-  // the pill, so its 3% overshoot has room to go and never opens a gap on an edge.
+  // user-state fill always wins over mere location. The Bold cut itself comes from the link's `aria-current`
+  // (globals.css .i-rest/.i-on), recoloured accent there by the (0,4,0) rule.
+  // ⛔ NO CAPSULE (owner-approved 2026-11-14; the tinted `bar-in` capsule of 2026-09-26 is retired with the pill).
+  // `useLinkStatus`'s `pending` still lights the tab on the TAP, before the destination has loaded.
   return (
-    <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in', '[--tab-surface:var(--color-accent)]') : 'text-body')}>
-      {on && capsule && <span aria-hidden className="bar-in absolute inset-1 rounded-full bg-accent" />}
+    <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in') : 'text-muted-foreground')}>
       <TabGlyph icon={typeof icon === 'function' ? icon(on) : icon} />
     </span>
   )
@@ -171,7 +144,7 @@ function TabFace({ on, icon, capsule = true, stack = STACK }: { on: boolean; ico
 
 /** Content of a navigating tab. Lives INSIDE <Link> so useLinkStatus lights it the instant it's
  *  tapped — feedback before the destination loads. */
-function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; capsule?: boolean; stack?: string }) {
+function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; stack?: string }) {
   const { pending } = useLinkStatus()
   return <TabFace on={active || pending} {...face} />
 }
@@ -244,7 +217,7 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
       // outline, so these two tabs showed a different focus style from the three links beside them.
       // ⚠️ IT STILL SHOWS LOCATION. A guest can stand on /messages (the page renders its own sign-in
       // prompt), and with no labels in the bar an idle glyph there left nothing saying where they
-      // were. The capsule + brand ink + `aria-current` come back; the tap still opens the card.
+      // were. The accent ink + `aria-current` come back; the tap still opens the card.
       <Button type="button" variant="bare" size="none" onPointerDown={() => { preloadSignIn(); onGuestIntent?.() }} onClick={() => (onGuest ? onGuest() : openSignIn(signInNote ? { note: signInNote } : undefined))} aria-haspopup={onGuest ? 'dialog' : undefined} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
         <TabFace on={active} icon={icon} stack={stack} />
       </Button>
@@ -404,62 +377,40 @@ export function MobileNav() {
       inert={keyboardOpen}
       className={cn(
         // ⛔ POSTING IS A FOCUSED TASK ON A PHONE (UI climb 2026-11-05): Publish alone holds the bottom edge, with Exit at the top of the form.
-        // The Publish bar stacked on this pill took ~130px of a phone's height and left the form clipped between layers. The
-        // same subject-position hook as the header's Post button (header.tsx): the wizard's success screen brings the pill back.
+        // The Publish bar stacked on the tab bar took ~130px of a phone's height and left the form clipped between layers. The
+        // same subject-position hook as the header's Post button (header.tsx): the wizard's success screen brings the bar back.
         isPostFlowPath(pathname) && '[html:not([data-post-done])_&]:hidden',
-        // ⛔ A FLOATING PILL, NOT A DOCKED BAR (owner, 2026-09-26 — the note at the top of this file).
-        // GEOMETRY: `inset-x-3` + `max-w-sm mx-auto` = 12px from each side on a phone, centred and
-        // capped at 384px on anything wider, so five icon-only tabs never stretch into a strip.
-        // `bottom: max(12px, safe area)`: on a phone with a home indicator the inset itself is the
-        // gap and the pill rests just above it; with no inset it floats 12px up. 56px tall (`h-14`),
-        // so its top edge is at most 68px + inset — inside the 4.5rem + inset every dependant clears.
-        // ⚠️ `html.native .mobile-nav` (globals.css) restates `bottom` with the Capacitor
-        // `--safe-area-inset-bottom` fallback; it used to add that inset as padding-bottom instead,
-        // which on a pill would have made the capsule 34px taller rather than lifting it.
-        // SURFACE: the floating tier (canon §3b) — bg-popover/95 + `material` + backdrop-blur-md, the
-        // same material the sticky action bars wear (`.material` is what makes reduce-transparency
-        // and prefers-contrast take it solid), `shadow-pop` (one light source, from above), and a
-        // 1px `border-foreground/10` edge — the separation that holds on the top edge and in dark
-        // mode, where the shadow does not. ⛔ NOT `ring-1`: the unlayered `.shadow-pop` rule
-        // overwrites a ring's box-shadow (the note at the top of this file). The border takes 1px a
-        // side out of the tabs (54px tall, still past the 48px floor); the capsule accounts for it.
-        // The old `hairline-t` is gone with the edge it drew.
-        // ⚠️ THE PILL IS THE <nav> ITSELF, not a pill inside a full-width fixed strip. A transparent
-        // strip would either swallow taps on the page beside the pill or need pointer-events split
-        // across two elements, and the retract below (pointer-events-none while hidden, focus-within
-        // bringing it back, `inert` while typing) would have to be taught to reach through it.
+        // ⛔ DOCKED, FULL WIDTH (owner-approved 2026-11-14 — the note at the top of this file). `bottom-0`, 56px + the
+        // home-indicator band, padded by it (`--tabbar-inset`); `border-box`, so the height includes that padding and the
+        // top hairline. SURFACE: white `bg-background`, `border-t border-border`, the `shadow-bar` lift; no blur.
+        // ⚠️ `html.native .mobile-nav` no longer exists (globals.css): it restated the pill's `bottom`, and on this bar it
+        // would lift it 34px off the edge in the apps. `--tabbar-inset` carries Capacitor's injected fallback itself.
         // ⚠️ BOTH `translate` AND `transform`, AND THE PAIR IS NOT REDUNDANT — the bar is moved by
         // two different mechanisms. Tailwind's `translate-y-*` compile to the standalone `translate`
         // property in v4 (see the note on #app-header), so naming only `transform` made the bar
         // teleport in a single frame on every scroll reversal while its opacity faded over 250ms.
-        // But `html.kb-open .mobile-nav` in globals.css retracts it with a real `transform` (the same
-        // height-plus-gap travel as below) when the keyboard opens, so dropping `transform` here would
-        // trade one snap for another. Listing both is what makes every route into and out of this
-        // bar continuous. `ease-out`, not the house spring: a retracting bar travels to a resting
-        // place, and an overshoot there reads as a wobble (globals.css, the motion contract).
+        // But `html.kb-open .mobile-nav` in globals.css retracts it with a real `transform` when the keyboard opens, so
+        // dropping `transform` here would trade one snap for another. `ease-out`, not the house spring: a docked bar
+        // rests exactly on the screen edge, and an overshoot there opens a gap (globals.css, the motion contract).
         // `pc:hidden`, not `lg:hidden` (break-ui decision, 2026-10-05): a touch tablet at ≥64rem has no account
         // rail (account-panel.tsx) and its header Post button is `mobile:hidden` — with the tab bar width-gated it
         // had neither, so a landscape iPad had no persistent Post entry (measured: none at all on /messages).
         // Touch follows the mobile UI.
-        'mobile-nav pc:hidden fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))] z-nav [--tab-surface:var(--color-popover)] mx-auto h-14 max-w-sm rounded-full border border-foreground/10 bg-popover/95 shadow-pop backdrop-blur-md material transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
+        'mobile-nav pc:hidden fixed inset-x-0 bottom-0 z-nav h-[calc(3.5rem+var(--tabbar-inset))] pb-(--tabbar-inset) border-t border-border bg-background shadow-bar [--tab-surface:var(--color-background)] transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)
         'focus-within:translate-y-0 focus-within:opacity-100 focus-within:pointer-events-auto',
         // Slides DOWN off-screen + fades while scrolling down to browse (returns on scroll-up /
         // near the top) and while the on-screen keyboard is open (so a chat composer sits flush
-        // above it); docked and visible otherwise.
-        // ⚠️ `100%` IS NO LONGER ENOUGH: the pill floats, so its own height leaves it short of the
-        // screen edge by the gap below it. The travel is its height PLUS that gap (the same max()
-        // as `bottom`, Capacitor's fallback inset included), so it leaves the screen entirely
-        // rather than hanging half-faded over the home indicator.
-        off ? 'translate-y-[calc(100%+max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
+        // above it); visible otherwise. Docked at bottom 0, its own height is the whole travel.
+        off ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >
-      {/* Five equal tabs, each the FULL height inside the pill's border (54px) — the tap target is the whole
-          tab, never just the glyph, so there is no dead band along the pill's top or bottom. No
-          text lives in the bar, so the enlarged-text growth the old `min-h` allowed for is moot. */}
-      <div className="flex h-full items-stretch">
+      {/* Five equal tabs, each the FULL height above the home-indicator band — the tap target is the whole
+          tab, never just the glyph. `max-w-md mx-auto`: on a touch tablet the five sit centred in the
+          full-width bar instead of stretching into a strip. */}
+      <div className="mx-auto flex h-full max-w-md items-stretch">
       <Link href={localizedHref('/', variantOfLanguage(lang))} prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : exploreHere ? 'true' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         {/* ⚠️ COMPASS RENDERS AS THE TWO-LAYER DUOTONE, not a single filled svg. The glyph draws
             the needle FIRST and the outer circle SECOND, so a fill applied to the whole svg
@@ -470,7 +421,7 @@ export function MobileNav() {
             (Heart, MessageSquare, User) have no self-covering child and stay single-svg. */}
         <TabBody
           active={exploreHere}
-          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-7 w-7" />}
+          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-6.5 w-6.5" />}
         />
       </Link>
 
@@ -486,10 +437,8 @@ export function MobileNav() {
                   glyph carried `count > 0 && 'fill-brand text-brand'`; it is not restored with the glyph.
                   The COUNT BADGE says there is something to see. Location comes from TabBody's wash and the
                   link's aria-current (Solar Bold). */}
-              <Heart className="h-7 w-7" strokeWidth={STROKE} />
-              {/* `ring-(--tab-surface)` — a 2px cut-out in the colour of whatever is directly under the badge: the
-                  pill (set on the <nav>), or the capsule while this tab is active (set by TabFace). A fixed
-                  `ring-popover` drew a pill-coloured halo on the tinted capsule — a white hole in light mode. */}
+              <Heart className="h-6.5 w-6.5" strokeWidth={STROKE} />
+              {/* `ring-(--tab-surface)` — a 2px cut-out in the colour of the bar under the badge (set on the <nav>). */}
               {/* (HISTORY — reverted below) GREY, NOT RED (owner, O-08 G-SAVED-BADGE): the Saved count is a tally of a list the visitor
                   built, not news — `counter-neutral`. Red stays for the one count that IS news, Messages.
                     ⛔ REVERTED 2026-09-30 (owner: "the counter for saved and messages is gray … make it red as before"): red `counter` again. */}
@@ -528,45 +477,22 @@ export function MobileNav() {
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}
         aria-current={at('/post') ? 'page' : undefined}
-        className={TAB}
+        // `icon-own-ink`: on the post-done screen (`aria-current`) the Bold layer would otherwise be recoloured accent by
+        // globals.css's (0,4,0) rule; Post stays ink in every state.
+        className={cn(TAB, 'icon-own-ink')}
         onClick={(e) => onTabClick(e, false)}
       >
         <TabBody
           active={at('/post')}
-          // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
-          // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
-          // action while staying part of the same flat canvas as the other tabs. Its plate is the
-          // commerce tint (`bg-cta-50` — canon: orange belongs to price, Post and commerce badges);
-          // the history of that choice is on the coin below.
-          stack={STACK}
-          // ⛔ NO CAPSULE ON THIS TAB, AND NO PLATE WHILE IT IS ACTIVE. On /post the capsule wrapped the
-          // 40px coin and the coin's glyph went solid over its orange plate, which left ~1px of the plate
-          // as a rim: three nested shapes (pale capsule, peach rim, blue disc — navy/brown/light-blue in
-          // dark). The solid brand disc IS the "you are here" mark, so the capsule is skipped and the
-          // plate drops away under it; at rest the tab is the orange-plated coin exactly as before.
-          capsule={false}
           icon={
-            // ⚠️ THE MARK FILLS THE COIN — same treatment as the floating support control, owner
-            // 2026-08-26. The bold sprite layer's ink is 0.896 of its box (21.5 of 24 units), so the
-            // box is 42px to paint 37.6px of ink inside the 40px coin: ~1.2px of visible gap. A
-            // `size-10` glyph would have painted 35.8px and read as a small plus in a big disc.
-            // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
-            // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
-            // construction, which is the whole reason the fill reads as deliberate.
-            /* ⛔ BLUE MARK ON THE ORANGE PLATE, and the pair was swapped twice before it landed (owner,
-               2026-09-18: "pos icon orange plate button itself blue", then "inverse — button icon
-               itself blue, the backplate color is orange"). So the disc carries the commerce tint and
-               the plus carries the brand — which also keeps the ink the strongest thing in the coin:
-               measured, brand blue on --cta-50 is 4.80:1, where the reverse pairing put the lighter
-               orange on a tint. Every other tab in this bar is flat blue, so this one still reads as
-               the action. */
-            // ⚠️ THE PLATE LEAVES ON `aria-current`, NOT ON `on`. The solid disc is the Solar BOLD layer, which
-            // globals.css swaps in on the link's `aria-current` — set only once the route has changed. Keyed
-            // on `on` (active || pending) the plate dropped at the TAP, so on a slow network the coin sat as a
-            // bare outlined plus until /post arrived. Same selector, same 130ms as the bold layer's own swap,
-            // so plate-out and disc-in are one crossfade whatever the network does.
-            <span className="flex size-10 items-center justify-center rounded-full bg-cta-50 text-brand transition-colors duration-[130ms] [[aria-current=page]_&]:bg-transparent">
-              <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
+            /* ⛔ THE BOLD ADD-CIRCLE IN INK, 38px, AT REST TOO (owner-approved 2026-11-14, cook r05: "after this cook round
+               build all best options and deploy"). It REVERSES the orange plate under a blue plus (owner, 2026-09-18:
+               "inverse — button icon itself blue, the backplate color is orange") and the plate swap on `aria-current`:
+               the bar's one solid mark is the glyph itself, no tint, no shadow. `icon-solid` (globals.css) shows the
+               sprite's Bold layer permanently. Solar's `add-circle` is a plus inside a circle, so the 40px tab face is
+               concentric with it by construction. `size-9.5` is a spacing step, not an arbitrary icon size. */
+            <span className="icon-solid flex size-10 items-center justify-center rounded-full text-foreground">
+              <Plus className="size-9.5 shrink-0" strokeWidth={STROKE} />
             </span>
           }
         />
@@ -590,7 +516,7 @@ export function MobileNav() {
           <>
             {/* Same rule as Saved: colour is location only — the pre-2026-08-28 unread fill is not restored;
                 unread is the badge's job. */}
-            <MessageSquare className="h-7 w-7" strokeWidth={STROKE} />
+            <MessageSquare className="h-6.5 w-6.5" strokeWidth={STROKE} />
             {user && unread > 0 && (
               <Badge variant="counter" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
                 {unread > 9 ? '9+' : unread}
@@ -623,7 +549,7 @@ export function MobileNav() {
         signInNote={tr('Sign in to manage your listings, messages and alerts.', 'Đăng nhập để quản lý tin đăng, tin nhắn và thông báo của bạn.')}
         onGuest={openGuestSheet}
         onGuestIntent={warmGuestSheet}
-        icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
+        icon={<User className="h-6.5 w-6.5" strokeWidth={STROKE} />}
       />
       </div>
       {/* Portaled by ui/drawer, so its place inside the <nav> costs it nothing — and it does not inherit

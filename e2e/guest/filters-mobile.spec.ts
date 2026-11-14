@@ -3,7 +3,7 @@ import { test, expect, dismissOverlays, waitForHydrated } from '../helpers'
 /**
  * PHONE FILTERS ARE BOTTOM SHEETS (E-FILTER-SHEET, 2026-09-29) — the smoke test for the three panels
  * the explorer's facet row opens below `sm`: Price, Filter and Area. Each is a ui/drawer pinned to the
- * bottom edge, full width, over the floating tab bar, and ends on its action row. Desktop keeps the
+ * bottom edge, full width, over the docked tab bar, and ends on its action row. Desktop keeps the
  * anchored popovers (area-filter.spec.ts and the unit suites cover those).
  * ⚠️ READ-ONLY: every non-GET request is aborted, so nothing here can write (a filter tap only ever
  * reads /api/listings, but analytics beacons are POSTs).

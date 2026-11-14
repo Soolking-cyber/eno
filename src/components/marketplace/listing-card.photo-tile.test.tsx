@@ -117,9 +117,12 @@ describe('ListingCard — the photo tile', () => {
   it('insets the body onto the page gutter on a phone and keeps it flush from sm; the title is regular weight', () => {
     const c = card()
     const body = c.querySelector('[data-rail-media]')!.nextElementSibling
-    expect(classes(body)).toEqual(expect.arrayContaining(['px-2', 'sm:px-0.5', 'pt-2']))
+    // pt-2.5 (10px under the photo) and the card role 15/20 in ink-3 since 2026-11-14 (owner-approved, cook r05; card-text.ts).
+    expect(classes(body)).toEqual(expect.arrayContaining(['px-2', 'sm:px-0.5', 'pt-2.5']))
     expect(classes(body)).not.toContain('px-0.5')
-    expect(classes(c.querySelector('h3'))).toEqual(expect.arrayContaining(['font-normal', 'text-sm']))
+    expect(classes(body)).not.toContain('pt-2')
+    expect(classes(c.querySelector('h3'))).toEqual(expect.arrayContaining(['font-normal', 'text-t-card', 'text-ink-3']))
+    expect(classes(c.querySelector('h3'))).not.toContain('text-sm')
   })
 
   it("asks for the grid's derived photo sizes by default", () => {

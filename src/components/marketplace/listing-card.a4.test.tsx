@@ -111,7 +111,7 @@ describe('ListingCard — the one-line title', () => {
     expect(desc.textContent).toBe(BASE.titleVi)
     // Out of the reading flow (no second reading in browse mode) — aria-describedby still reads hidden text.
     expect(desc.hasAttribute('hidden')).toBe(true)
-    // The photo, not its blurred fill (photo-fill.tsx: alt="", aria-hidden, painted first under it).
+    // The photo — the card's one <img> since 2026-11-14 (the blurred fill it once sat on is gone; the selector still holds).
     expect(c.querySelector('img:not([aria-hidden])')!.getAttribute('alt')).toBe(BASE.titleVi)
   })
 
@@ -187,10 +187,13 @@ describe('ListingCard — the price row', () => {
     expect(prices.map((p) => p.getAttribute('data-fab-avoid-prop'))).toEqual(['true', 'true'])
   })
 
-  it('never hides the "≈ $" estimate, on a per-unit price or any other (owner, 2026-09-13) — its one class is the desktop ink', () => {
-    expect(card().querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('lg:text-body')
+  // Since 2026-11-14 the ≈ is the meta role, 4px after the figure (card-text.ts CARD_APPROX, owner-approved) — still no hiding class.
+  it('never hides the "≈ $" estimate, on a per-unit price or any other (owner, 2026-09-13) — the meta role, and the desktop ink', () => {
+    expect(card().querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('ml-1 text-t-meta tracking-normal lg:text-body')
     cleanup()
-    expect(card({ priceUnit: '', category: { icon: 'phone', slug: 'electronics' }, listingType: 'sell' }).querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('lg:text-body')
+    const cls = card({ priceUnit: '', category: { icon: 'phone', slug: 'electronics' }, listingType: 'sell' }).querySelector('[data-price]')!.getAttribute('data-approx-class')!
+    expect(cls).toBe('ml-1 text-t-meta tracking-normal lg:text-body')
+    expect(cls).not.toMatch(/hidden|sr-only|invisible/)
   })
 
   it('a price-0 linked job hands <Price> null — the slot holds pay only — and its type follows the place on the info line', () => {

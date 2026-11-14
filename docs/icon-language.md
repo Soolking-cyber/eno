@@ -202,8 +202,11 @@ From the canon, with 16px dominant. Constants: `ICON_SIZE` in `icon-tokens.ts`.
 | `h-3.5 w-3.5` | 14 | chip glyphs, dense meta |
 | `h-4 w-4` | 16 | **the default** — buttons, rows, menus (ui/button injects it via a zero-specificity `:where` rule; any class on the icon wins) |
 | `h-5 w-5` | 20 | inputs, list leads, PDP action row |
-| `h-6 w-6` | 24 | header search/map/✕ |
-| `h-7 w-7` | 28 | bottom-nav tabs, bell, header account |
+| `h-5 w-5` (search) | 20 | the header's search glass, ink (owner-approved 2026-11-14) |
+| `h-6 w-6` | 24 | header map/✕; on a phone the header's bell and download glyphs (`max-sm:h-6 max-sm:w-6`, ink, 2026-11-14) |
+| `h-6.5 w-6.5` | 26 | bottom-nav tabs (the docked bar, owner-approved 2026-11-14; 28 on the 2026-09-26 pill) |
+| `h-7 w-7` | 28 | bell, download and header account from sm |
+| `size-9.5` | 38 | the bottom nav's Post: the bold add-circle in ink (`.icon-solid`), the bar's one solid mark |
 | `h-11 w-11`+ | 44+ | category tiles — display tier ONLY, always through `CategoryIcon` |
 
 **DO** put the size class on the svg. **DON'T** use arbitrary `h-[19px]` sizes or

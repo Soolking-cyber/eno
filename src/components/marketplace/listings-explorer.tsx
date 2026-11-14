@@ -526,13 +526,14 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
   ssr: false,
   // ⚠️ NO `animate-pulse`, and ink-4 rather than text-body — this is the same placeholder
   // listing-detail-map.tsx documents at length, and the fix there was never back-ported here.
-  // `animate-pulse` fades the whole subtree to 50%, which drops this 10px bold label to
+  // `animate-pulse` fades the whole subtree to 50%, which dropped the old 10px bold label to
   // ~3.36:1 (axe AA failure); the Spinner already says "loading", so the pulse was redundant
   // with it anyway. Keep the two placeholders identical — they stand in for the same map.
+  // Sentence case at the meta role since 2026-11-14 (owner-approved: no tracked capitals, nothing under 13px).
   loading: () => (
     <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none">
       <Spinner size="md" />
-      <span className="text-3xs font-bold text-ink-4 uppercase tracking-wider">
+      <span className="text-t-meta font-bold text-ink-4">
         <Tr text="Loading map…" />
       </span>
     </div>
@@ -5029,6 +5030,7 @@ export function ListingsExplorer({
               box, so a tap is a search — never a navigation. */}
           {showRecentsRow && (
             <div
+             
               data-recent-searches=""
               role="group"
               aria-label={tr('Recent searches', 'Tìm kiếm gần đây')}

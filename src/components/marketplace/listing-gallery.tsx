@@ -127,8 +127,9 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
           (permanently, for needsTap viewers whose cover never reveals). */}
       {/* `data-video-chip`: on a phone's photo-first listing page Back sits in this corner, and the stylesheet moves the chip
-          beside it (globals.css, the `[data-photo-first]` rules). */}
-      <span data-video-chip="" className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white material backdrop-blur-[2px]">
+          beside it (globals.css, the `[data-photo-first]` rules). ⛔ The white `.photo-badge` pill, ink, since 2026-11-14
+          (owner-approved, cook r05: "over a photo: only white plates"); it was a black/55 chip. Same corner. */}
+      <span data-video-chip="" className="pointer-events-none absolute left-2 top-2 z-10 photo-badge">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
@@ -149,7 +150,10 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
         size="sm"
         aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
         onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
-        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white material backdrop-blur-[2px] transition-transform active:scale-[0.96]"
+        // ⛔ The white photo plate with an ink glyph since 2026-11-14 (owner-approved, cook r05: "every control over a photo …
+        // one white plate, ink glyph"); it was black/50 with a white glyph. A plate on the BUTTON (a 32px disc round a 16px
+        // glyph), not `.plate-host`: that would pad the glyph into a second disc. Same corner, same box.
+        className="absolute bottom-2 left-2 z-20 bg-plate-fill text-on-plate shadow-plate transition-transform active:scale-[0.96]"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </IconButton>
@@ -690,12 +694,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 </Button>
               ))}
             </div>
-            {/* black/60 not /50: white text on the translucent chip must hold 4.5:1
-                even over a white photo (axe computes ~5.7:1 at 60%).
+            {/* ⛔ THE WHITE `.photo-badge` PILL SINCE 2026-11-14 (owner-approved, cook r05: "the photo counter as a white
+                pill"): ink on 95% white is ≥ 15:1 over any photo (it was white on black/60, ~5.7:1 by axe). 26px, 700 13,
+                tabular figures — "1 / 5" is digits only, so it reads the same in Vietnamese.
                 ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right belongs to the app-drawn eno.vn mark
                 (image-mark.tsx, one corner on every image), and bottom-left is the video slide's
                 mute toggle. */}
-            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-semibold text-white">
+            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 photo-badge">
               {slide + 1} / {mediaCount}
             </span>
           </div>
@@ -746,8 +751,10 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                    ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right is where the app-drawn eno.vn mark
                    sits on every image (image-mark.tsx), and the owner asked for that corner to be the
                    same everywhere — the chip moved rather than the mark. Not bottom-left: that is the
-                   video slide's mute toggle (a reviewer caught the first move colliding with it). */
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100"
+                   video slide's mute toggle (a reviewer caught the first move colliding with it).
+                   ⛔ THE WHITE PHOTO PLATE, INK LABEL, SINCE 2026-11-14 (owner-approved, cook r05: "over a photo: only white
+                   plates"); it was black/55 with white text. Same place, the meta role (13px, nothing under 13). */
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-plate-fill px-3 py-1.5 text-t-meta font-semibold text-on-plate shadow-plate cursor-pointer active:scale-100"
               >
                 <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
               </Button>
@@ -860,7 +867,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
             // `press` on the lightbox controls (Close, Previous, Next): tapped constantly, and with
             // no hover on a phone they otherwise showed nothing until the photo changed.
-            className="press absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
+            // No `icon-shadow-brand` since 2026-11-14: the white photo plate brings its own shadow (--shadow-plate).
+            className="press absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)]"
           >
             {/* ⛔ 34px, AND 36 WAS STILL 2px TOO BIG BY MY OWN ARITHMETIC. `variant="overlay"`
                 paints a disc behind the glyph with 3px of `box-content` padding, so the plate is
@@ -1150,7 +1158,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
               aria-label={tr('Previous', 'Trước')}
-              className="press absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              // No drop-shadow filter since 2026-11-14: an ink chevron on the white plate, whose own shadow is the edge.
+              className="press absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2"
             >
               {/* Floating-chevron tier (§2): bare chevrons over content, same as back-to-top. */}
               <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
@@ -1162,7 +1171,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
               aria-label={tr('Next', 'Sau')}
-              className="press absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
+              className="press absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2"
             >
               <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
             </IconButton>

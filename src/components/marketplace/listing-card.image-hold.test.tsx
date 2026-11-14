@@ -82,7 +82,7 @@ afterEach(() => { cleanup(); lang.current = 'vi'; push.mockClear(); localized.mo
 
 // ⛔ OPT-IN (src/lib/image-hold.ts): the home grid's card 2 is lazy and on the first screen, so lazy alone must never mean held.
 describe('which card photo waits', () => {
-  // The photo, not its blurred fill (photo-fill.tsx), which is painted first under it.
+  // The photo (the card's one <img> since 2026-11-14; the `:not([aria-hidden])` is left from the blurred fill it once had).
   const photo = (extra: Record<string, unknown> = {}) => render(<ListingCard listing={BASE} onOpen={vi.fn()} {...extra} />).container.querySelector('img:not([aria-hidden])') as HTMLImageElement
 
   it('a lazy card nobody marked is not held: a rail, a shelf, the first screen', () => {
@@ -107,60 +107,65 @@ describe('which card photo waits', () => {
   })
 })
 
-// ⛔ A CARD SHOWS THE WHOLE PHOTO OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx).
-describe('the whole photo and its fill', () => {
-  const imgs = (extra: Record<string, unknown> = {}, listing = BASE) => {
-    const c = render(<ListingCard listing={listing} onOpen={vi.fn()} {...extra} />).container
-    return { fill: c.querySelector('img[aria-hidden]') as HTMLImageElement | null, photo: c.querySelector('img:not([aria-hidden])') as HTMLImageElement }
-  }
+// ⛔ THE CARD PHOTO FILLS ITS SQUARE (owner-approved 2026-11-14, cook r05: "photo fills its square (cover)"; it reverses the
+// 2026-11-12 whole photo over its own blurred fill, photo-fill.tsx). One <img> per slide: the photo is the LCP element and
+// the only image the hold and the lazy range apply to.
+describe('the photo covers its square', () => {
+  const imgs = (extra: Record<string, unknown> = {}, listing = BASE) =>
+    [...render(<ListingCard listing={listing} onOpen={vi.fn()} {...extra} />).container.querySelectorAll('img')] as HTMLImageElement[]
 
-  it('the photo is fitted whole, over a decorative fill made from the SAME file (no second request)', () => {
-    const { fill, photo } = imgs()
-    expect(photo.className).toContain('object-contain')
-    expect(photo.className).not.toContain('object-cover')
-    expect(fill).not.toBeNull()
-    expect(fill!.getAttribute('alt')).toBe('')
-    expect(fill!.getAttribute('src')).toBe(photo.getAttribute('src'))
-    expect(fill!.getAttribute('sizes')).toBe(photo.getAttribute('sizes'))
-    expect(fill!.className).toContain('blur-lg')
-    // Painted first, so the photo sits on top of it.
-    expect(fill!.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  it('one photo, object-cover, and no decorative fill (no aria-hidden <img>)', () => {
+    const all = imgs()
+    expect(all).toHaveLength(1)
+    const [photo] = all
+    expect(photo.hasAttribute('aria-hidden')).toBe(false)
+    expect(photo.className).toContain('object-cover')
+    expect(photo.className).not.toContain('object-contain')
+    expect(photo.className).not.toContain('blur-lg')
   })
 
-  it('a held photo holds its fill with it, and a lazy one loads it lazily', () => {
+  it('the hold and the lazy range ride on the photo only', () => {
     const held = imgs({ holdPhoto: true })
-    expect(held.fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(true)
-    expect(held.fill!.getAttribute('loading')).toBe('lazy')
+    expect(held).toHaveLength(1)
+    expect(held[0].hasAttribute(HELD_PHOTO_ATTR)).toBe(true)
+    expect(held[0].getAttribute('loading')).toBe('lazy')
     cleanup()
     const lazy = imgs()
-    expect(lazy.fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
-    expect(lazy.fill!.getAttribute('loading')).toBe('lazy')
+    expect(lazy[0].hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
+    expect(lazy[0].getAttribute('loading')).toBe('lazy')
   })
 
-  it('on the LCP card the fill is eager and never held (it can be the LCP element)', () => {
-    const { fill } = imgs({ lcp: true, priority: true, holdPhoto: true })
-    expect(fill!.getAttribute('loading')).toBe('eager')
-    expect(fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
+  it('the LCP card\'s photo is the one image: never held, never lazy', () => {
+    const all = imgs({ lcp: true, priority: true, holdPhoto: true })
+    expect(all).toHaveLength(1)
+    expect(all[0].hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
+    expect(all[0].getAttribute('loading')).not.toBe('lazy')
   })
 
-  it('a photo that fails takes its fill with it (the placeholder, no blurred stale image), and a retry brings both back', () => {
+  it('a photo that fails gives way to the placeholder, and a retry brings it back', () => {
     vi.useFakeTimers()
     try {
       const c = render(<ListingCard listing={BASE} onOpen={vi.fn()} />).container
-      act(() => { fireEvent.error(c.querySelector('img:not([aria-hidden])')!) })
+      act(() => { fireEvent.error(c.querySelector('img')!) })
       expect(c.querySelectorAll('img')).toHaveLength(0)
       act(() => { vi.advanceTimersByTime(3000) })
-      expect(c.querySelector('img[aria-hidden]')).not.toBeNull()
-      expect(c.querySelector('img:not([aria-hidden])')).not.toBeNull()
+      expect(c.querySelectorAll('img')).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('a teacher keeps the face crop and gets no fill', () => {
-    const { fill, photo } = imgs({}, { ...BASE, listingType: 'teacher' } as SerializedListingCard)
-    expect(fill).toBeNull()
+  it('a teacher keeps the face crop, on the same cover', () => {
+    const [photo] = imgs({}, { ...BASE, listingType: 'teacher' } as SerializedListingCard)
     expect(photo.className).toContain('object-cover')
     expect(photo.className).toContain('object-[50%_18%]')
+  })
+
+  it('the photo box carries plate-lg, so the heart sits on the 30px white plate', () => {
+    const c = render(<ListingCard listing={BASE} onOpen={vi.fn()} />).container
+    expect(c.querySelector('[data-rail-media]')!.className.split(' ')).toContain('plate-lg')
+    const heart = c.querySelector('button[aria-pressed]')!
+    expect(heart.className.split(' ')).toEqual(expect.arrayContaining(['plate-host', 'text-on-plate']))
+    expect(heart.querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
   })
 })

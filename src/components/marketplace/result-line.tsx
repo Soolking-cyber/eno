@@ -617,8 +617,9 @@ export function ResultLine({
                     // No `reopenLabel`: the button's accessible name is its visible text, which
                     // is what WCAG 2.5.3 wants and pairs cleanly with "Remove <label>" beside it.
                     // ⛔ THE BROWSE CHIP'S "ON" LOOK (owner, 2026-10-18: one chip style): 36px like every chip on
-                    // the page (ui/chip `md`), brand tint and accent ink (PILL_ON), no hairline — the applied
-                    // pills above it carry none either. The ✕ (24px) and its vertical extender sit inside the
+                    // the page (ui/chip `md`), the field grey and accent ink, no hairline. (Since 2026-11-14 PILL_ON is
+                    // the ink fill; this removable badge keeps the grey because its ✕ is ui/badge's dark-blue glyph,
+                    // which an ink fill would swallow.) The ✕ (24px) and its vertical extender sit inside the
                     // 36px pill; the list's `py-2.5` room is unchanged.
                     className="min-h-9 border-0 pl-3.5 text-sm text-accent-foreground"
                   />

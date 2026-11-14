@@ -49,8 +49,11 @@ describe('CloseButton', () => {
     const el = screen.getByRole('button', { name: 'Remove' })
     expect(cls(el)).toEqual(expect.arrayContaining(['h-6', 'w-6', 'plate-host']))
     expect(cls(el)).not.toContain('tap-44')
-    // The overlay owns its ink (white on the plate) — the ghost tone must not leak onto it.
+    // The overlay owns its ink — INK on the white photo plate since 2026-11-14 (owner-approved; it was white on a dark
+    // plate) — and the ghost tone must not leak onto it.
     expect(cls(el)).not.toContain('text-ink-4')
+    expect(cls(el)).toContain('text-on-plate')
+    expect(cls(el)).not.toContain('text-white')
     expect(cls(el.querySelector('svg')!)).toContain('size-[18px]')
   })
 

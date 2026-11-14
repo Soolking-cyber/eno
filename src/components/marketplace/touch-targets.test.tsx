@@ -135,7 +135,7 @@ describe('the controls that commit or undo a filter are ≥ the size of what the
     wrap(<FacetBar {...props} />)
     expect(screen.queryByRole('button', { name: /^(Clear|Xóa lọc)$/ })).toBeNull()
     for (const pill of [screen.getByRole('button', { name: /^Area/ }), screen.getByRole('button', { name: 'Price' })]) {
-      expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint']))
+      expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-background']))
       expect(tokens(pill)).not.toContain('min-h-11')
     }
     // The row is a scroller below lg: it leaves the 4px above and below the pills that their hit area needs.

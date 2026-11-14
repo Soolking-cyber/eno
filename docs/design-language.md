@@ -15,14 +15,21 @@ same change.
 Identity in one line: **flat white marketplace — one white canvas (#ffffff) on every surface,
 an ink ladder (#141414 / #3d3d3d / #5e5e5e), ONE accent (#0060df, press #004bb0) for actions,
 links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, a closed type
-scale, 8/12/16 corners and 16px photos, sentence case, spring motion.**
+scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header with
+one raised 44px search pill and a docked white tab bar, one primary + one secondary button, white
+hairline chips (a clipped one at the edge says the row swipes).**
 
 ⚠️ **The 2026-11-14 redesign is owner-approved** (cook r05: *"after this cook round build all best
 options and deploy"*). It reversed, in one change: the blue wash floor (09-18 / 09-19) → white; the
 FINN brand blue #0a66c2 → #0060df; the commerce orange on price and Post (09-18) → ink price and the
 accent; the resting wells (`tint` / `muted`) → field grey (the blue selection tints follow once selection is ink); muted
 #595959 (11-12) → #5e5e5e; 12px card meta (11-05) → the 13px meta role; tiers `lg` 10 → 8 and `2xl`
-18 → 16; the photo corner 8/14 (10-18) → 16/20; tracked capitals → sentence case. Kept: the flat
+18 → 16; the photo corner 8/14 (10-18) → 16/20; tracked capitals → sentence case; and the CHROME: the floating
+pill tab bar + its tinted capsule + the orange-plated Post coin (09-26 / 09-18) → a docked white bar, muted glyphs, the
+accent bold cut, an ink add-circle; the phone header's bare tint field (10-18) → a 44px raised white pill beside a 36px
+mark; the tinted chip with a brand-tint selection (10-18) → white + hairline, ink fill selected (the clipped tile / pill
+stays the swipe cue, 11-05 / 11-12: a whole-chip fit was tried and dropped in review); the grey `secondary` button → the ink
+outline. Kept: the flat
 canvas (07-24), popover = canvas (07-13), header = page (09-19), two weights (08-13), no slashed
 zero (08-12), uncompensated tiers with only the photo corner compensated (08-09 / 10-18), pills
 never squircled, the SEO topic · place lines (08-05), the z ladder, Base UI.
@@ -76,8 +83,9 @@ token ticker. design-lint ratchets the rest (`trackedCaps`).
 
 **D-TYPE — two size rules (owner, 2026-09-30: "do what's recommended", plan row O-39):**
 
-- ⚠️ **Card meta is the meta role since 2026-11-14** (`text-t-meta`, 13/18; owner-approved, reversing
-  the 11-05 12px below — the card area moves it). History: **card meta was 12px at every width from 2026-11-05, in `ink-4`** (UI climb: 11px `muted-foreground` read as tiny and faint on a desktop, three judges' rounds running). Until then the row was `text-xs sm:text-2xs`:
+- ⚠️ **Card meta is the meta role since 2026-11-14** (`text-t-meta`, 13/18 in `muted-foreground`; owner-approved,
+  reversing the 11-05 12px `ink-4` below — `CARD_META` in `src/lib/card-text.ts`; from `lg` it stays 14/20 in `body`, the
+  2026-11-07 desk-distance bump). History: **card meta was 12px at every width from 2026-11-05, in `ink-4`** (UI climb: 11px `muted-foreground` read as tiny and faint on a desktop, three judges' rounds running). Until then the row was `text-xs sm:text-2xs`:
   12px below `sm`, 11px from `sm` up, where the row carries four facts instead of two. It is a
   single truncating line, so it never wraps — measured on the dev feed at 360/390, 0 wrapped rows
   in EN and VI, light and dark. Truncation does rise (home at 390: 4 → 21 of 28 rows;
@@ -86,17 +94,29 @@ token ticker. design-lint ratchets the rest (`trackedCaps`).
   location string, not by shrinking the type again.
 - **A section heading is always larger than the card price.** `SECTION_TITLE` (section-title.ts —
   shared by every Shelf, category-rails and the home feed heading) is `text-xl sm:text-2xl`,
-  against the card `<Price>`'s `text-base sm:text-lg`: 20 > 16 on phones, 24 > 18 from `sm`
-  (raised 2026-11-05). Raise the price and you raise the heading in the same change.
+  against the card `<Price>`'s `text-t-price` (17/22 at every width since 2026-11-14; it was
+  `text-base sm:text-lg`): 20 > 17 on phones, 24 > 17 from `sm` (raised 2026-11-05). Raise the price
+  and you raise the heading in the same change.
   The listing page's own section `<h2>`s (Description, Details, Location, a rental's Costs and
   Amenities, Buyer reviews) take the same `SECTION_TITLE` since 2026-11-09 — it lives in the plain
   module `section-title.ts` so those server components can import it — so they no longer sit a step
   below the "More like this" / "More from this seller" shelves on the same page.
 
+**The card text block (owner-approved 2026-11-14, cook r05) — `src/lib/card-text.ts`, ONE set of strings for
+`<ListingCard>`, the SEO tile and `<ListingCardSkeleton>`.** 10px under the photo, 2px between lines, inset onto the 12px
+gutter on a phone: the **price** `text-t-price` (17/22, −0.015em, 700, ink) at every width — 17 is the ceiling, 18 wraps
+"65,000,000 đ ≈ $2,535" in a 189px card; the **≈ $** `text-t-meta` (13/18) muted, 4px after it (`body` from `lg`); the
+**title** `text-t-card` (15/20) regular in `ink-3`, one truncating line; the **meta** line `text-t-meta` muted, 2px above
+it; a struck **"was"** price the meta role, regular, muted. A phone body is 76px (10 + 22 + 2 + 20 + 2 + 2 + 18), and the
+skeleton's bars are those line boxes (`CARD_LINE_PX`; card-text.test.ts ties them). Over the photo nothing but white plates
+(§3, *The photo plate*); no "Just in" chip.
+
 **Teacher cards lead with the name (owner, 2026-11-12, "go all").** A teacher `<ListingCard>` reads
 name → rate → proof → info line, in DOM order: the name bold at `text-base sm:text-lg`, the rate a step
-down at `text-sm sm:text-base` — both still under `SECTION_TITLE` — so those two lines keep the
-price-first card's line boxes (39.5 / 44.75px against 39.25 / 44.5). The **proof line** ("build 2",
+down at `text-sm sm:text-base` — both still under `SECTION_TITLE` — 39.5 / 44.75px of line boxes (the
+price-first card's are 42 at every width since 2026-11-14, so `<ListingCardSkeleton teacher>` draws its own name and
+rate bars). The name stays bold and in ink under the redesign (kept on purpose: the cook mock's `h3` rule flattened it
+only as a side effect). The **proof line** ("build 2",
 same day) is one `truncate text-xs text-foreground` line of the teacher's 1–2 strongest self-stated
 facts ("CELTA · 5–10 yrs", ≤ 22 characters — `src/lib/teachers/card-proof.ts`), never a tick, and
 RESERVED on every teacher card (a no-break space, `aria-hidden`) so teacher rows stay level: a teacher
@@ -237,7 +257,21 @@ accent #0060df. A colour class must name a real token: Tailwind emits nothing fo
   #141414 (dark #f0f0f0), equal to `foreground`, and a price is set apart by weight and size
   (`text-t-price`, 17/22 bold), not by hue. The token stays so `text-price` still marks a price in
   markup; `cta-ink` (commerce text) is ink too and `cta-50` (the commerce tint) is transparent.
+  The listing page's sticky bar price is ink too (`text-lg leading-6`, 18/24, through the token).
   An error keeps its icon or label — hue alone never carries a meaning.
+- **The photo plate — one language for everything over a photo (owner-approved 2026-11-14, cook r05; it reverses
+  the 2026-08-29 dark plate in light / light plate in dark).** 95% white (`--plate-fill`, solid `--plate-fill-hover` on
+  a hovering pointer), an INK glyph or label (`text-on-plate`, #141414, ≥ 15:1 over any photo) and a soft shadow
+  (`--shadow-plate` 0 1 4 / 18%; `--shadow-photo-badge` 0 1 3 / 14% for text pills) — the SAME in both themes: a plate
+  sits on a photo, not on the canvas. Three ways in, one definition in globals.css: `<IconButton variant="overlay">`
+  (`.plate-host`: the card heart and hover row, the listing page's Back/Share/Save, the lightbox, the map popup, every
+  `<CloseButton variant="overlay">`), `.icon-plate` on a bare glyph (carousel and rail arrows, back-to-top), and
+  `.photo-badge` for a word or count on a photo (26px, 700 13/16, tabular: Urgent, the price drop, video, "N saved",
+  the listing page's photo counter and Video chip). The glyph pad is 3px (`--plate-pad`) so "glyph + 6 = button"
+  holds everywhere; `.plate-lg` makes it 6px only on the card photo box (18px glyphs, `ICON_SIZE.plate`, on 30px
+  plates) and the listing page's hero controls (20px on 32px). ⛔ A plate host never carries `text-white`, its own
+  padding, `[&_svg]:bg-*` or a drop-shadow filter (ui/plate.contract.test.ts). The one sanctioned ink override is the
+  saved heart's `text-saved` (#d92d4a, 4.75:1 on the plate).
 - **Links in running text are underlined**: a link (or a `text-brand` action) inside a `<p>` under
   `<main>` gets a 1px underline, 3px below the baseline, from globals.css's base layer — the accent
   against body text is 1.93:1, so colour alone does not mark it. A block, flex or icon-only link
@@ -275,14 +309,18 @@ not a lighter rectangle — it is content on the same surface, separated by a ha
 
 **Elevation must mean something.** Surface + shadow survive ONLY where the element floats above
 the page and the boundary carries information: dialog, popover/menu, toast, sticky bar, media
-lightbox, the floating mobile tab bar. Those use `popover`, not `card`. Everything in normal flow is flat.
+lightbox. Those use `popover`, not `card`. Everything in normal flow is flat.
+The sticky action bar (`ui/sticky-action-bar`) is the exception that keeps the canvas: since 2026-11-14 (owner-approved,
+cook r05: "the tab bar's twin … white, top hairline, soft lift") it is OPAQUE `bg-background` with its top hairline and
+`shadow-bar` (0 −2 12 / 4%, the one upward shadow) — no translucency, no backdrop blur.
 
-- **The mobile tab bar is a floating, icon-only pill** (owner, 2026-09-26: *"minimal and sleek pill
-  shaped"*): `rounded-full`, inset 12px from the sides and `max(12px, safe area)` from the bottom,
-  `bg-popover/95` + `material` blur, `shadow-pop` and a 1px `border-foreground/10` edge. Labels are
-  visual only — each tab keeps its `aria-label`. Location = a `bg-accent` capsule (the blue
-  tint until selection moves to ink) behind the brand glyph (the Post coin instead goes solid, with no capsule). Its footprint stays
-  4.5rem + safe area, which every bottom-anchored surface clears.
+- **The mobile tab bar is DOCKED and icon-only** (owner-approved 2026-11-14, cook r05; it was the floating pill of
+  2026-09-26): full width at bottom 0, 56px + the home-indicator band it pads by (`--tabbar-inset`), opaque
+  `bg-background`, `border-t border-border` and the `shadow-bar` lift — the sticky action bar's twin, no blur, no radius.
+  On a touch tablet the five tabs sit centred in a `max-w-md` row. Labels are visual only — each tab keeps its
+  `aria-label`. Location = the accent bold cut (the sprite's `.i-on` on `aria-current`); idle glyphs `text-muted-foreground`
+  at 26px; Post = the bold add-circle in ink, 38px, at rest too (`.icon-solid`, `icon-own-ink`). Its footprint stays
+  inside the 4.5rem + safe area every bottom-anchored surface clears. It retracts on scroll as before (07-16).
 - ⚠️ **Edge a floating surface with `border`, not `ring-1`, when it also wears `shadow-pop`/
   `shadow-overlay`.** Those are unlayered `box-shadow` rules and a Tailwind ring is a box-shadow,
   so the ring is silently overwritten (measured on the tab bar: no line in either theme).
@@ -307,6 +345,11 @@ costs conversions. It stays a separate, owner-reviewed decision.
 - 8pt rhythm: the steps are `1 / 2 / 3 / 4 / 6 / 8 / 12` (4 · 8 · 12 · 16 · 24 · 32 · 48px) — the
   2026-11-14 redesign's seven spacing steps exactly, so there is no spacing token: Tailwind's steps ARE
   the scale. The text edge (the redesign's 12px gutter) is `px-3`.
+- **The page end on a phone** (owner-approved 2026-11-14): 24px from the last section to the footer's hairline — the
+  footer has no top padding below 640px and globals.css sets `main#main` 24px of bottom padding wherever the footer
+  follows it; the grid under the hairline starts 24px down, the 36px mark sits BESIDE the 13px tagline, and the social
+  marks are one full row of 44px taps (5 + 4). Links inside the footer's legal sentences are underlined. From sm up the
+  page's own `pb-*` and the 2026-11-06 footer stand.
 - Arbitrary px values are acceptable for **geometry** (safe-area calc, precise
   overlay offsets, media aspect boxes) — never for font size, radius, or color.
 - Page frame: `max-w-7xl` (fluid 1280–1360px here: `--container-7xl`, clear of the support mark, 316–318px cards from 1440 on the 360w/640w image rungs) `px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
@@ -328,7 +371,7 @@ globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows the
 |---|---|---|
 | `z-raised` | 10 | a sibling lifted inside its own section |
 | `z-sticky` | 30 | in-flow sticky chrome (facet/sort toolbar, PDP action bar) |
-| `z-nav` | 40 | header, floating tab bar (popup scrims also sit at 40) |
+| `z-nav` | 40 | header, docked tab bar (popup scrims also sit at 40) |
 | `z-fab` | 45 | the back-to-top / support cluster — over the page, **under every overlay** |
 | `z-overlay` | 50 | dialog, sheet, drawer, alert-dialog, every popup positioner |
 | `z-tooltip` | 70 | a hint over the overlay that owns its trigger |
@@ -368,11 +411,11 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 
 | Need | Use |
 |---|---|
-| Any button | `<Button>` — `variant="cta"` is THE brand CTA; `size="none"` preserves bespoke sizing during migration; `loading` for an async action (label kept at opacity 0 so the width holds, spinner centred, `aria-busy`, focus kept) — never a hand-built `<Loader2>` |
+| Any button | `<Button>` — ONE primary (`default` / `cta`: accent fill, white bold label, `cta-dark` press) and ONE secondary (`outline` / `secondary`: white, 1px ink edge, ink bold label, field-grey press); no third look (owner-approved 2026-11-14). On a phone a FULL-WIDTH primary or secondary (`w-full` / `max-sm:w-full`, default or lg size) is 48px with a 16px label, over a caller's own height; a sub-14px label or `rounded-full` opts it out, and inline buttons keep their size: ui/button's `phoneSize`. `variant="cta"` is THE brand CTA; `size="none"` preserves bespoke sizing during migration; `loading` for an async action (label kept at opacity 0 so the width holds, spinner centred, `aria-busy`, focus kept) — never a hand-built `<Loader2>` |
 | Icon-only button | `<IconButton>` (44px tap target) |
 | Close / dismiss / remove ✕ | `<CloseButton>` (ui/close-button) — sizes `2xs`–`lg`, `variant="overlay"` over media; the glyph is derived from the button (`CLOSE_GLYPH`), never hand-typed; `label` when the action is not "Close" |
 | Static chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
-| Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>` |
+| Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>`. The `md` neutral chip is THE browse chip (owner-approved 2026-11-14): white, 1px `line-strong`, ink bold 14/20, pressed = the ink fill; controls that cannot be a `<Chip>` wear ui/chip-style's `PILL_*`. A phone chip strip keeps the clipped chip at its edge as the swipe cue. |
 | Page title row | `<PageHeader>` (ui/page-header) — the h1 on the ramp + meta line + actions |
 | Text input | `<Input>` — filled tint idiom with a hairline (`rounded-xl bg-tint shadow-[inset_0_0_0_1px_var(--color-line-strong)] px-4 py-3 text-sm`: tint alone on the canvas is 1.02:1 and read as disabled; a shadow so the line takes no layout; line-strong since 2026-11-07, when the divider grey still read as inactive); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |

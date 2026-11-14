@@ -2,6 +2,10 @@ import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 /**
+ * ⚠️ SINCE 2026-11-14 ONLY THE COMPACT 56px ROW USES THIS (compact-listing-row.tsx). The grid card and the SEO tile cover
+ * their square again (owner-approved 2026-11-14, cook r05: "photo fills its square (cover)"; it reverses the 2026-11-12
+ * ruling below for those two surfaces). The notes about a card below are its history; the LCP one no longer applies.
+ *
  * The blurred copy of a listing photo that fills its square box around the photo itself, which is shown WHOLE (`object-contain`).
  * ⛔ A CARD SHOWS THE WHOLE PHOTO (owner, 2026-11-12: "do not crop but fit in so nothing from original image misses", then yes to cards
  * fitting the whole photo "with a blurred fill around it, like the listing page"). Until then every card `object-cover`ed its photo, so a

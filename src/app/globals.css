@@ -113,9 +113,8 @@
      `.mobile-nav` name `ease-out` explicitly, so an explicit class beats this fallback and
      they keep their non-overshooting curve — see the boundary rule in the motion contract
      below. If you ever remove `ease-out` from those, you reintroduce the 0.7–0.8px gap.
-     (`.mobile-nav` has floated as a pill 12px+ off the edge since 2026-09-26, so an overshoot
-     there no longer opens a gap — it keeps `ease-out` because a bar that bobs at rest reads
-     as a wobble. The header is still flush.)
+     (`.mobile-nav` floated as a pill 12px+ off the edge from 2026-09-26; since 2026-11-14 it is docked flush again,
+     so the gap rule protects it once more.)
      ⚠️ THEY ARE EXAMPLES OF A CLASS, NOT THE WHOLE CLASS — a reviewer's phrasing, and it is
      the right way to hold this. ANY element whose transition rests exactly on a boundary
      (a docked bar, a drawer at its open position, a value clamped at 0 or 100%) needs an
@@ -238,6 +237,10 @@
   /* The saved heart's red (owner-approved 2026-11-14, cook r05: "Red #d92d4a only for a saved heart"). ONE job: a
      saved heart. Never an error (that is --destructive) and never a price (ink). See the token in :root. */
   --color-saved: var(--saved);
+  /* THE PHOTO PLATE (owner-approved 2026-11-14, cook r05: "over a photo: only white plates"): `bg-plate-fill` for a
+     control or chip that sits on a photo, `text-on-plate` for its glyph/label. Theme-invariant — see the tokens in :root. */
+  --color-plate-fill: var(--plate-fill);
+  --color-on-plate: var(--on-plate);
   /* Brand tokens (Craigslist re-design case study palette) */
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
@@ -279,6 +282,7 @@
   --color-body: var(--body);             /* neutral-600 secondary body text */
   --color-tint: var(--tint);             /* neutral-100 tint surfaces / chips */
   --color-line-strong: var(--line-strong); /* neutral-300 stronger borders/inputs */
+  --color-search-edge: var(--search-edge); /* the phone header search pill's 1px edge (owner-approved 2026-11-14) */
   --color-verified: var(--verified);
   --color-pending: var(--pending);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -381,7 +385,7 @@
    to high — each tier's WHY is the thing to preserve:
      raised          10   a sibling lifted inside its own section (sticky rail arrows, card badges)
      sticky          30   in-flow sticky chrome: facet/sort toolbar, the PDP sticky action bar
-     nav             40   the header and the floating tab bar. ⚠️ The popup SCRIMS (ui/popover,
+     nav             40   the header and the docked tab bar. ⚠️ The popup SCRIMS (ui/popover,
                           select, dropdown-menu, combobox) also sit at a literal 40 — above the sticky
                           toolbar, under their own popup — i.e. UNDER the FAB. That is why
                           back-to-top keeps its per-popup stand-downs (G-FAB, owner-kept).
@@ -681,6 +685,17 @@
      saved heart"). 4.75:1 on the white plate the heart sits on. NOT overridden in `.dark` on purpose: the heart sits
      on a white plate in both themes, so the same value is the right one. Not --destructive (an error), never a price. */
   --saved: #d92d4a;
+  /* ⛔ THE PHOTO PLATE — 95% WHITE, INK GLYPH, IN BOTH THEMES (owner-approved 2026-11-14, cook r05 shell: "over a photo:
+     only white plates (95% white, ink glyph, soft shadow)"; reverses the 2026-08-29 "semitransparent black plate … on light
+     theme and semitransparent white on dark"). Every control or chip over a photo — the card heart and hover row, the
+     listing page's Back/Share/Save, gallery and rail arrows, back-to-top, the lightbox, the map popup, the photo badges —
+     wears this one plate. NOT overridden in `.dark`: a plate sits on a PHOTO, not on the theme's canvas, and the dark theme
+     already drew a light plate (white/75). Ink on it ≥ 15:1 whatever the photo (#141414 on ≥ 95% white).
+     ⚠️ `--plate-ink` WAS TAKEN: it is `.badge-plate`'s call-site property (trust-score.tsx, partner-badge.tsx), so the
+     glyph ink is `--on-plate` / `text-on-plate`. */
+  --plate-fill: rgb(255 255 255 / 0.95);
+  --plate-fill-hover: #ffffff;
+  --on-plate: #141414;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
      dark --destructive is a light red (#f7737b), and white on it is only 2.73:1 — so a
@@ -718,6 +733,18 @@
      (canon §3b). */
   --knob: #ffffff;
   --line-strong: #d6d6d6; /* the stronger line (owner-approved 2026-11-14) */
+  /* The app chrome's own lifts (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
+     deploy"). --search-edge is the phone header search pill's 1px edge, a step softer than --line-strong because the
+     raised shadow already lifts it. --shadow-raised is that pill's lift; --shadow-chip the home rail's More disc. Both
+     exposed through @utility (below the ELEVATION block), so the max-sm: variants exist. */
+  --search-edge: #e2e2e2;
+  /* One layer, from above: the mock's extra `0 0 1px` ring is a halo (see ELEVATION's one-light-source note), and the
+     pill's own 1px --search-edge already draws that edge. */
+  --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.08);
+  --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.08);
+  /* The docked tab bar's home-indicator band (mobile-nav.tsx): env() in a browser and in the iOS app, Capacitor's
+     injected var on an Android WebView below 140, whichever is larger. The bar pads by it; each tab's tap strip fills it. */
+  --tabbar-inset: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
   --skeleton: #efefef;             /* loading placeholder base */
   --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
   /* Trust-score tiers — the CANONICAL ladder (matches /trust and the tier design
@@ -833,6 +860,15 @@
   --shadow-thumb: 0 1px 4px rgba(16, 24, 40, 0.18);    /* slider handle — ported verbatim
      from the old .eno-slider::-webkit-slider-thumb; intentionally NOT overridden in dark
      (the native thumb never was), so the handle reads identically in both themes. */
+  /* The photo plate's edge (owner-approved 2026-11-14, cook r05): a white plate on a white packshot or the white page has
+     no edge but this. Pure black, like --shadow-onmedia, because it lands on photos; NOT overridden in dark (the plate
+     is not either). `--shadow-photo-badge` is the same lift a step softer for the 26px text badges. */
+  --shadow-plate: 0 1px 4px rgb(0 0 0 / 0.18);
+  --shadow-photo-badge: 0 1px 3px rgb(0 0 0 / 0.14);
+  /* ⚠️ THE ONE UPWARD SHADOW, ON PURPOSE (owner-approved 2026-11-14, cook r05: the sticky action bar is "the tab bar's
+     twin … white, top hairline, soft lift"). A bar docked to the BOTTOM edge lifts off the content above it, so its
+     shadow falls up; 4% black over 12px is a shade, not a light source, and the hairline still draws the edge. */
+  --shadow-bar: 0 -2px 12px rgb(0 0 0 / 0.04);
 
   /* Spring easings authored as linear() sampled curves (iOS Safari 17.2+, degrades to
      ease-out on older). Overshoot points >1 give a physical settle. Compositor-only when
@@ -850,8 +886,8 @@
      the 56px header (0.70px at its old 64px) and 0.80px on the 73px nav with `--ease-spring`, and
      1.7–2.2px with snappy — 2 to 6 DEVICE pixels at dpr 2–3, along a colour boundary, on every scroll-up.
      Both bars therefore keep `ease-out` deliberately; that is not an oversight to "fix".
-     (The 73px nav in those numbers was the flush bar. Since 2026-09-26 it is a floating pill
-     resting 12px+ above the edge, so its overshoot would bob rather than gap — still `ease-out`.)
+     (The 73px nav in those numbers was the old flush bar; the 2026-09-26 pill floated 12px+ above the edge; since
+     2026-11-14 the bar is docked flush again at 56px + inset, so the gap argument applies to it as written.)
 
      ⚠️ A TRACK END IS A BOUNDARY TOO, AND `overflow-hidden` DOES NOT RESCUE IT. The card
      carousel was changed to a spring in the same commit that wrote this rule, on the
@@ -966,7 +1002,7 @@
      the home-indicator safe area while it is not (they are mutually exclusive — the
      keyboard already covers the home indicator, which is why the chat composer zeroes
      its own safe-area padding while typing). The third term is the Android < WebView-140
-     delivery path Capacitor injects, mirroring `html.native .mobile-nav` below. */
+     delivery path Capacitor injects, as in --tabbar-inset. */
   --kb-safe-bottom: max(var(--kb-h, 0px), env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
 }
 
@@ -1063,6 +1099,9 @@
   --tint: #262626;
   --knob: #d4d4d4;        /* light knob, clearly above the dark track */
   --line-strong: #414141;
+  --search-edge: var(--input);
+  --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.4);
+  --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.4);
   /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
      Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
   --trust-restricted: #f87171; /* red-400     — bad */
@@ -1143,8 +1182,7 @@
   /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
      rubber-band overscroll exposes past either edge and the area below a page shorter than the
      screen. --card is right for the second case (an empty /saved sits on the card surface) and
-     for the BOTTOM edge (the mobile-nav WAS a flush bg-card bar there; since 2026-09-26 it
-     floats as a pill and never touches the edge). It is NOT the header colour — the header went
+     for the BOTTOM edge (the mobile-nav is docked there again since 2026-11-14, white like --card). It is NOT the header colour — the header went
      flat, bg-background, on 2026-07-17 — so `html.native-ios` further down repaints the canvas
      to match the header for the one context where the top edge is actually reachable. Read that
      rule before touching this one; they are a pair.
@@ -1641,6 +1679,14 @@
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
 /* White chrome over user photography — see --shadow-onmedia for why it is required. */
 .shadow-onmedia { box-shadow: var(--shadow-onmedia); }
+/* The photo plate's edge, for a plated control that is not an `.icon-plate` glyph (the gallery's mute toggle and
+   "Show all" chip) — see --shadow-plate. And the sticky action bar's lift — see --shadow-bar. */
+.shadow-plate { box-shadow: var(--shadow-plate); }
+.shadow-bar { box-shadow: var(--shadow-bar); }
+/* @utility, not a plain class like the four above: the header pill wears its lift on a phone only (`max-sm:`), and a
+   plain class has no variants. Layered, so an unlayered .shadow-pop (the open search window) still wins. */
+@utility shadow-raised { box-shadow: var(--shadow-raised); }
+@utility shadow-chip { box-shadow: var(--shadow-chip); }
 
 /* ============================================================
    TRUE HAIRLINES — one DEVICE pixel, at any density
@@ -1757,14 +1803,13 @@ html[data-nav-pop] .route-fade,
        collapsed the flex-height chain and stranded the composer at the top).
    ============================================================ */
 
-/* Hide the fixed bottom-nav + its spacer while the keyboard is up. The nav FLOATS (a pill, max(12px,
-   safe area) off the bottom — mobile-nav.tsx), so `100%` alone would stop it that gap short of the
-   edge; the travel is its height plus that gap, the same calc as its scroll retract.
+/* Hide the fixed bottom-nav + its spacer while the keyboard is up. The nav is DOCKED to the bottom edge again
+   (owner-approved 2026-11-14; it floated as a pill from 2026-09-26), so its own height is the whole travel.
    ⚠️ While the keyboard is up the nav's scroll-retract `translate` (mobile-nav.tsx: `off` includes the
    keyboard) applies TOO, so the two stack to twice the travel. Harmless — it is off-screen at opacity 0 —
    and do not "fix" it by dropping either: each covers a path into the hidden state the other misses. */
 html.kb-open .mobile-nav {
-  transform: translateY(calc(100% + max(0.75rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))));
+  transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
 }
@@ -2185,9 +2230,8 @@ summary:focus-visible,
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-/* The floating tab pill (mobile-nav.tsx): its tabs fill it edge to edge, so the 2px offset above put
-   the ring 4px OUTSIDE the pill, top and bottom and past its rounded ends (measured). -4px draws it
-   inside the tab, hugging where the active capsule sits (`inset-1`). ⚠️ `!important` because the
+/* The tab bar (mobile-nav.tsx): its tabs fill it edge to edge, so the 2px offset above put the ring outside the bar,
+   past its top hairline and into the home-indicator band (measured on the 2026-09-26 pill). -4px draws it inside the tab. ⚠️ `!important` because the
    guest Messages/Account tabs are <button>s carrying `tabindex`, and the `[tabindex]` branch above is
    (0,6,0) — a scoped rule without it fixed the links and left those two at +2px. */
 .mobile-nav :is(a, button):focus-visible {
@@ -2226,6 +2270,7 @@ summary:focus-visible,
     background-color: Highlight;
   }
   :is(button, a, [role="button"])[aria-pressed="true"],
+  .pill-on,
   [role="radio"][aria-checked="true"],
   [role="switch"][aria-checked="true"],
   [role="option"][aria-selected="true"] {
@@ -2238,6 +2283,7 @@ summary:focus-visible,
      label or glyph plate's own fill (colour or gradient — the "All" pill's count fade) goes, so the
      Highlight shows through under the ink. */
   :is(button, a, [role="button"])[aria-pressed="true"] *,
+  .pill-on *,
   [role="radio"][aria-checked="true"] *,
   [role="option"][aria-selected="true"] * {
     color: HighlightText;
@@ -2504,8 +2550,8 @@ html.native-ios {
    (MainViewController wires `wv.scrollView.refreshControl`), and whether the content layer lands
    above or below that control cannot be settled without a device. Losing the refresh spinner is a
    worse regression than a rare bottom seam. Verify on a device first, then swap.
-   (Since 2026-09-26 the web tab bar is a floating pill that never touches the bottom edge, so the
-   bottom half of this seam has no bar to show against; the top edge is unchanged.) */
+   (Since 2026-11-14 the web tab bar is docked to the bottom edge again, white like the canvas, so the bottom half of
+   this seam has nothing to show against either; the top edge is unchanged.) */
 html.native-ios {
   background-color: var(--background);
   /* ⛔ AND THE WASH IMAGE MUST BE KILLED HERE, OR THIS WHOLE RULE STOPS WORKING. The base `html` rule
@@ -2644,15 +2690,23 @@ html.os-android [data-store="ios"] {
     #app-footer [data-slot=accordion-panel] { display: block !important; }
   }
 }
-/* The tab bar is a FLOATING PILL since 2026-09-26 (mobile-nav.tsx), so the inset LIFTS it rather than
-   padding it: this restates the utility's `bottom: max(0.75rem, env(), var())` (belt and braces — the
-   utility carries Capacitor's injected fallback too). It used to be `padding-bottom`, which on the pill would have made it 34px taller instead. */
-html.native .mobile-nav {
-  bottom: max(0.75rem, env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+/* ⛔ THE PAGE END ON A PHONE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
+   deploy" — the redesign's "no white band before the footer"): 24px between the last section and the footer's hairline,
+   which has no top padding there (footer.tsx). One rule for every page whose <main id="main"> the footer follows, so the
+   ~40 routes' own `pb-8/12/16` stand from sm up and none of them had to change. Unlayered + an id: it beats their utility.
+   ⚠️ No page uses <main>'s bottom padding as a CLEARANCE: the bottom bars reserve their room with their own spacers
+   after the footer (<BottomNavSpacer/>, StickyActionBar's spacer), so 24px never puts content under a bar.
+   `:has()` sits on its own subject (main), the cheap position; a browser without :has() keeps the page's own padding. */
+@media (max-width: 639.98px) {
+  main#main:has(~ #app-footer) { padding-bottom: 1.5rem; }
 }
+
+/* ⛔ NO `html.native .mobile-nav` RULE ANY MORE (owner-approved 2026-11-14): the bar is docked at bottom 0 and pads by
+   --tabbar-inset, which already carries Capacitor's injected fallback. The old rule restated the floating pill's
+   `bottom: max(…)`; kept, it would lift the docked bar 34px off the edge in the apps. */
 html.native .bottom-nav-spacer {
-  /* ⚠️ 4.5rem is the tab bar's FOOTPRINT in mobile-nav.tsx: the 56px pill + its 12px gap, inside this
-     72px. Two separate declarations of ONE number: if this is smaller the pill covers the bottom of
+  /* ⚠️ 4.5rem is the tab bar's FOOTPRINT in mobile-nav.tsx: the docked 56px bar sits inside this 72px (the floating
+     pill's 56 + 12 gap set it, 2026-09-26). Two separate declarations of ONE number: if this is smaller the pill covers the bottom of
      every page; if the pill ever grows past it, the same. Larger only adds air above it. */
   height: calc(4.5rem + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px)));
 }
@@ -2956,7 +3010,8 @@ html.dark .leaflet-tile-pane {
 /* ── THE CARD-PHOTO HAIRLINE (owner, 2026-10-18: Facebook-Marketplace spacing) ──────────────────────────────────
    At a 4px gap, white packshots (the linked shops' stock, the AirPods on /c/electronics) merge with each other and
    with the canvas into one pale blob; Facebook frames every grid photo with a 1px line for the same reason. This is
-   that line — black at 6% on light, white at 8% on dark — on the feed card photo and the SEO tile.
+   that line — black at 5% on light (6% until 2026-11-14, owner-approved: the redesign's "5% inner ring"), white at 8%
+   on dark — on the feed card photo and the SEO tile. ONE ring: the cook mock stacked a second one, which is not built.
    ⛔ A PSEUDO-ELEMENT OVER THE PHOTO, NOT AN INSET outline/box-shadow ON THE BOX: those paint UNDER next/image's
    absolutely positioned `fill` photo (proven for the partner ring above). `z-index: 1` lifts it over the photo and
    the card video (both z-auto) and keeps it under every overlay (badges, heart, chips: z-10). The host must be a
@@ -2973,7 +3028,7 @@ html.dark .leaflet-tile-pane {
   pointer-events: none;
   border-radius: inherit;
   corner-shape: inherit;
-  border: 1px solid rgb(0 0 0 / 0.06);
+  border: 1px solid rgb(0 0 0 / 0.05);
 }
 .dark .media-hairline::before {
   border-color: rgb(255 255 255 / 0.08);
@@ -2983,17 +3038,21 @@ html.dark .leaflet-tile-pane {
   .media-hairline::before { content: none; }
 }
 
-/* ── THE OVER-CONTENT ICON PLATE ──────────────────────────────────────────────────────────────
-   A translucent disc behind a glyph that floats over a photo, a banner or the feed itself. Owner,
-   2026-08-29: "semitransparent black plate outline with minimal padding to icon ... on light theme
-   and semitransparent white on dark", then "put back plates to all arrows around app".
+/* ── THE PHOTO PLATE ──────────────────────────────────────────────────────────────────────────
+   A disc behind a glyph that floats over a photo, a banner or the feed itself.
+   ⛔ WHITE AT 95%, AN INK GLYPH AND A SOFT SHADOW, IN BOTH THEMES SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05
+   shell: "over a photo: only white plates (95% white, ink glyph, soft shadow)"). It reverses the owner's 2026-08-29
+   "semitransparent black plate outline with minimal padding to icon ... on light theme and semitransparent white on
+   dark"; "put back plates to all arrows around app" (same day) still holds — every arrow keeps its plate. The fill,
+   ink and shadow are the :root tokens --plate-fill / --on-plate / --shadow-plate (theme-invariant: a plate sits on a
+   photo, not on the canvas). The glyph's ink is `text-on-plate` at the call site (below).
 
    ⛔ ONE DEFINITION, TWO WAYS IN, BECAUSE THE CALLERS ARE NOT ALL THE SAME COMPONENT. Most plated
    controls are `<IconButton variant="overlay">`, which owns its glyph and reaches it as a
    descendant — that is `.plate-host`. The arrows are not: back-to-top and the carousel are plain
    `<Button>`s whose glyph is styled directly, and they take `.icon-plate` on the glyph itself.
    Writing the numbers twice is how the heart and the chevron drift apart three months from now,
-   so both selectors share this one block. If the alpha changes, it changes for everything.
+   so both selectors share this one block. If the fill changes, it changes for everything.
 
    ⛔ `@layer components`, AND UNLAYERED WAS WRITTEN FIRST AND CAUGHT IN THE BUILD. An unlayered
    rule in this file beats every Tailwind utility — this repo has been bitten by exactly that — so
@@ -3001,33 +3060,39 @@ html.dark .leaflet-tile-pane {
    `hover:[&_svg]:bg-black/60` is a utility, `.icon-plate` was not, and the plate won on every
    hover. Inside `components` the utilities layer still outranks it, which is the right way round:
    this block is the default, a call site is the exception.
+   ⛔ SO NO PLATE HOST MAY CARRY ITS OWN `[&_svg]:bg-*`, PADDING, `text-white` OR DROP-SHADOW FILTER: each would beat this
+   block and put a white glyph on the white plate, or a second shadow around it (ui/plate.contract.test.ts greps for them).
 
    ⚠️ NO `color` HERE EITHER, AND THE REASON IS THE LAYER, NOT THE LACK OF ONE. Ink is a utility at
-   the call site — `text-white dark:text-neutral-900`, as icon-button.tsx's overlay variant sets it
-   — so a call site that wants different ink writes a utility and wins, the same way promo-banner
-   used to. Putting `color` in this block would work but would make that override a specificity
-   argument instead of a layer one, for no gain.
+   the call site — `text-on-plate`, as icon-button.tsx's overlay variant, ui/carousel's ARROW_GLYPH, the rail arrows and
+   back-to-top set it — so a call site that wants different ink (the saved heart's `text-saved`) writes a utility and
+   wins. Putting `color` in this block would make that override a specificity argument instead of a layer one.
 
    ⚠️ `content-box` GROWS THE PLATE RATHER THAN SHRINKING THE GLYPH. A 28px chevron becomes a 34px
    disc, so the BUTTON has to be at least that; `size="lg"` (40px) fits a 34px glyph and no more.
-   This arithmetic is what put a 48px plate inside a 40px lightbox button once already. */
+   This arithmetic is what put a 48px plate inside a 40px lightbox button once already.
+   ⚠️ THE PADDING IS `--plate-pad`, 3px BY DEFAULT, so that arithmetic (and icon-tokens.ts CLOSE_GLYPH's "glyph + 6 =
+   button") holds everywhere. `.plate-lg` raises it to 6px ONLY where the redesign was judged: the card photo box (an
+   18px glyph + 12 = a 30px plate in the 32px `sm` button) and the listing page's Back/Share/Save wrappers (20 + 12 = 32
+   inside the 36px `md` button). The mock used 6px everywhere, which would overflow the 40px lightbox close (34 + 12 = 46)
+   and the 24px photo-tile ×. */
 @layer components {
   .icon-plate,
   .plate-host svg {
     border-radius: 9999px;
-    background-color: rgb(0 0 0 / 0.45);
-    padding: 3px;
+    background-color: var(--plate-fill);
+    padding: var(--plate-pad, 3px);
     box-sizing: content-box;
+    box-shadow: var(--shadow-plate);
   }
-  .dark .icon-plate,
-  .dark .plate-host svg {
-    background-color: rgb(255 255 255 / 0.75);
+  .plate-lg {
+    --plate-pad: 6px;
   }
 
   /* ⛔ HOVER BELONGS HERE, NOT AT THE CALL SITES, AND IT WAS COPY-PASTED TO THREE OF THEM FIRST.
      A reviewer pointed out the consequence: the arrows deepened on hover and the ~100 plated
      IconButtons did not, so one change split the plate into two behaviours. Whatever the plate
-     does, it does everywhere; that is the reason it is one block.
+     does, it does everywhere; that is the reason it is one block. Since 2026-11-14 it goes from 95% to solid white.
      ⚠️ POINTER ONLY. `@media (hover: hover)` keeps a touch device from latching the deepened state
      after a tap — the sticky-hover problem, which on a control that dismisses a photo would leave
      it looking permanently pressed. */
@@ -3043,13 +3108,32 @@ html.dark .leaflet-tile-pane {
     a:hover .icon-plate,
     button:hover .icon-plate,
     .plate-host:hover svg {
-      background-color: rgb(0 0 0 / 0.6);
+      background-color: var(--plate-fill-hover);
     }
-    .dark a:hover .icon-plate,
-    .dark button:hover .icon-plate,
-    .dark .plate-host:hover svg {
-      background-color: rgb(255 255 255 / 0.9);
-    }
+  }
+
+  /* ⛔ THE PHOTO BADGE — a word or a count ON a photo, as one white pill (owner-approved 2026-11-14, cook r05 shell:
+     "over a photo: only white plates … 26 tall badges 700 13"). The card's Urgent and price-drop chips (card-badges.tsx),
+     its video and "N saved" chips (listing-card.tsx CardStatusChips), the listing page's photo counter and its Video chip
+     (listing-gallery.tsx). The plate's fill and ink, a softer shadow, tabular figures. 13px bold on a 26px pill: nothing
+     under the meta role's 13, and a Vietnamese "Bán gấp" / "Tuyển gấp" is never overflow-clipped (no truncate here).
+     Position is the call site's (utilities beat this layer); so is any glyph's size. No corner-shape squircle: it carries
+     no `rounded-*` class, so the squircle block never reaches it — a pill is a true pill. */
+  .photo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 9999px;
+    background-color: var(--plate-fill);
+    color: var(--on-plate);
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    box-shadow: var(--shadow-photo-badge);
   }
 }
 
@@ -3130,20 +3214,8 @@ html.dark .leaflet-tile-pane {
   }
 }
 
-/* 2 · The location indicator that comes with it — grows from the centre out. Not
-   a bounce: it is the same "you are here" statement as the wash, arriving in
-   the same 200ms window so the two read as ONE move. Since 2026-09-26 it is the
-   tinted capsule behind the active glyph in the floating tab pill (it was a 2px
-   bar along the docked bar's top edge); the capsule rests 4px inside the pill,
-   so the snappy spring's overshoot has room and never opens a gap on an edge. */
-/* ⚠️ `clip-path`, not `scaleX`: scaling a 65×46 rounded-full box squashes its round ends into a vertical
-   lozenge for the first frames (the 2px bar hid that). An inset clip with `round` keeps a true capsule
-   while it widens from the centre; the spring's overshoot only pushes the clip past the box, invisibly. */
-@keyframes bar-in {
-  from { opacity: 0; clip-path: inset(0 37.5% round 9999px); }
-  to   { opacity: 1; clip-path: inset(0 round 9999px); }
-}
-.bar-in { animation: bar-in 200ms var(--ease-spring-snappy) both; }
+/* 2 · (retired 2026-11-14) The tinted "you are here" capsule's `bar-in` grow: the docked tab bar marks the current tab
+   with the accent bold cut alone (owner-approved 2026-11-14), so the capsule and its keyframes are gone. */
 
 /* 3 · The send tap — the paper plane leans into its own direction of travel and
    settles back. It fires on the tap ONLY (chat-parts drops the class again on
@@ -3939,6 +4011,10 @@ html:not(.native) #app-splash {
   transition: opacity 200ms var(--ease-spring, ease-out);
 }
 .i-on { opacity: 0; }
+/* A glyph that is ALWAYS its bold cut (owner-approved 2026-11-14: the tab bar's Post is the bold add-circle in ink, at rest
+   too). (0,2,0) beats `.i-on { opacity: 0 }` above; the selected rule below sets the same values, so they never fight. */
+.icon-solid .i-rest { opacity: 0; }
+.icon-solid .i-on { opacity: 1; }
 
 /* ⚠️ SELECTED, NOT PRESSED — `:active` IS DELIBERATELY ABSENT (owner, 2026-08-13: "fix icons
    outline and bold state not on click but when button is selected change state").
