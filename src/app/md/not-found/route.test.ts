@@ -279,6 +279,17 @@ describe('OAuth protected-resource discovery — rewrite wiring', () => {
     expect(await res.text()).toBe('gcgUUJR1ts4EcPNBG7j_hby4gX4Ll0LmJp9S7artM5g')
   })
 
+  it('/.well-known/muse-challenge/<token> answers exactly "muse-challenge=<token>" as plain text (Muse domain check)', async () => {
+    const r = rewrites.afterFiles.find((x) => x.source.startsWith('/.well-known/muse-challenge/'))
+    expect(r?.destination).toBe('/api/well-known/muse-challenge')
+    const token = r!.source.split('/').pop()
+    expect(token).toMatch(/^[0-9a-f]{64}$/)
+    const { GET } = await import('@/app/api/well-known/muse-challenge/route')
+    const res = GET()
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain/)
+    expect(await res.text()).toBe(`muse-challenge=${token}`)
+  })
+
   it('no well-known rewrite hands its handler a destination query', () => {
     for (const r of [...rewrites.beforeFiles, ...rewrites.afterFiles]) {
       if (r.source.startsWith('/.well-known/oauth-')) expect(r.destination).not.toContain('?')

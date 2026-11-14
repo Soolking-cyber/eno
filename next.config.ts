@@ -1229,6 +1229,8 @@ const nextConfig: NextConfig = {
         { source: "/.well-known/api-catalog", destination: "/api/well-known/api-catalog" },
         // OpenAI's domain check for the ChatGPT plugin (2026-11-14): the exact token, as plain text.
         { source: "/.well-known/openai-apps-challenge", destination: "/api/well-known/openai-apps-challenge" },
+        // Muse's domain check for the connector (2026-11-14): that exact path only, answered as plain text.
+        { source: "/.well-known/muse-challenge/bdbd554b70789a33184fa5931210498ed27535f6a3524a4c77fff7d4df019627", destination: "/api/well-known/muse-challenge" },
         { source: "/agents.md", destination: "/md/agents" },
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },
