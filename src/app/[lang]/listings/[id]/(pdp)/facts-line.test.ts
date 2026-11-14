@@ -77,7 +77,7 @@ describe('batch 89 — the facts line', () => {
     expect(BUILD).toContain("facts.push({ key: 'deposit', phoneOnly: true,")
     expect(LINE).toContain('? <span key={f.key} className="md:hidden">{f.node}{tail}</span>')
     expect(PAGE).toContain("const costsPhoneHidden = factsLine && deposit ? ['deposit'] : []")
-    expect(PAGE).toContain('<RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} />')
+    expect(PAGE).toContain('<RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} />')
     // The Rent row is gone: the headline price says it.
     expect(PAGE).not.toContain('rent={monthlyRent}')
   })

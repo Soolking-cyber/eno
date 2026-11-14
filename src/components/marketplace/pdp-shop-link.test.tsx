@@ -109,7 +109,7 @@ describe('batch 90 — a partner’s phone seller strip keeps one meta line; a p
 
   it('a linked listing (no Joined at all) hides nothing: its "not verified" line stays on every width', () => {
     const row = items({ linked: 'listing', unrated: true })
-    expect(row.map((i) => i.text).join(' ')).toContain('Linked listing — not verified by')
+    expect(row.map((i) => i.text).join(' ')).toContain('Linked listing: not verified by')
     expect(row.some((i) => i.cls.includes('max-md:hidden'))).toBe(false)
   })
 })
@@ -140,6 +140,22 @@ describe('batch 95 — a linked job names its storefront once, as one link, over
     // ⚠️ The truncation is on the inner span: `overflow:hidden` on the link would clip tap-44's ::before.
     expect(cls).not.toContain('truncate')
     expect(a.querySelector('span.truncate')?.textContent).toBe('Nord Anglia Education')
+  })
+
+  // `head` (owner-approved 2026-11-14, cook r06 jobs): the copy under a linked job's role below md — the name at the sub-section
+  // role with an 18px chevron, the counsel line at the meta role directly under it; the same one link, the same words.
+  it('`head`: the name at the sub-section role, an 18px chevron, the counsel line at the meta role', () => {
+    const div = job({ head: true, className: 'md:hidden' })
+    expect(div.firstElementChild!.className).toBe('md:hidden')
+    const a = div.querySelector('a')!
+    const cls = a.className.split(/\s+/)
+    expect(cls).toContain('text-t-h3')
+    expect(cls).not.toContain('text-base')
+    expect(cls).toEqual(expect.arrayContaining(['relative', 'tap-44', 'font-bold', 'text-foreground']))
+    expect(a.querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
+    const line = div.querySelector('a + p')!
+    expect(line.className.split(/\s+/)).toEqual(['mt-0', 'text-t-meta', 'text-muted-foreground'])
+    expect(text(line)).toBe('Linked job posting — not verified by eno.vn')
   })
 
   it('no avatar, no Linked-shop chip, no trust chip, no metrics and no "More jobs"', () => {
@@ -182,11 +198,120 @@ describe('batch 95 — a linked job names its storefront once, as one link, over
     div.innerHTML = renderToString(<PdpShopLink name="Shop" href="/sellers/s1" metrics={metrics()} linked="listing" unrated linkedShop />)
     expect(div.querySelectorAll('a')).toHaveLength(3)
     expect(div.innerHTML).toContain('data-linked-shop-chip')
-    expect(text(div)).toContain('Linked listing — not verified by eno.vn')
+    expect(text(div)).toContain('Linked listing: not verified by eno.vn')
     expect(div.querySelector('a[aria-label="Visit shop"]')).not.toBeNull()
     const person = document.createElement('div')
     person.innerHTML = renderToString(<PdpShopLink name="Lan" href="/sellers/s2" metrics={metrics()} />)
     expect(person.querySelectorAll('a[href="/sellers/s2"]').length).toBeGreaterThanOrEqual(3)
     expect(text(person)).toContain('Joined 2024')
+  })
+})
+
+/**
+ * ⛔ THE RENTAL LISTING PAGE'S HOST CARD (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts): one bordered,
+ * raised object with the row's own nodes and words, in DOM = paint order — avatar (aria-hidden), name, badge, status line, then
+ * (a partner with a count only) a hairline and the count as the card's figure, "Shop ›" at its end. Batch 90's partner
+ * "Joined" hide and the linked listing's counsel line are kept; the status line holds one line from the server HTML.
+ */
+describe('PdpShopLink variant="card" — the rental sheet\'s host card', () => {
+  const card = (props: Record<string, unknown> = {}, m?: Partial<Record<string, unknown>>) => {
+    const div = document.createElement('div')
+    div.innerHTML = renderToString(<PdpShopLink name="GoPlus" href="/sellers/s1" metrics={metrics(m)} variant="card" {...props} />)
+    return div.querySelector('[data-host-card]') as HTMLElement
+  }
+  const partner = { officialPartner: true, partnerListingCount: 5379 }
+  /** The text of the card's nodes in document order: the name link, the status line, the figure, Shop. */
+  const order = (el: HTMLElement) => {
+    const name = el.querySelector('a.text-t-h3')!
+    const status = el.querySelector('div.min-h-5')!
+    const count = el.querySelector('[data-partner-listing-count]')
+    const shop = el.querySelector('a[aria-label="Visit shop"]')!
+    const pos = (n: Element | null) => (n ? [...el.querySelectorAll('*')].indexOf(n) : -1)
+    return { name: pos(name), status: pos(status), count: pos(count), shop: pos(shop) }
+  }
+
+  it('one bordered, raised object (the line-strong edge, 16 radius, 16 padding, shadow-raised) with a 56px avatar', () => {
+    const el = card(partner)
+    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['rounded-2xl', 'border', 'border-line-strong', 'bg-background', 'p-4', 'shadow-raised']))
+    const avatarLink = el.querySelector('a[aria-hidden="true"]')!
+    expect(avatarLink.getAttribute('tabindex')).toBe('-1')
+    expect(avatarLink.firstElementChild!.className).toContain('size-14')
+    expect(avatarLink.firstElementChild!.className).not.toMatch(/\bh-12\b|\bw-12\b/)
+  })
+
+  it('a partner: the count is the card\'s figure under a hairline — number over words — and not in the status line; DOM order is name, status, count, Shop', () => {
+    const el = card(partner)
+    const count = el.querySelector('[data-partner-listing-count]')!
+    expect(count.closest('div.border-t')).not.toBeNull()
+    expect(el.querySelector('div.min-h-5 [data-partner-listing-count]')).toBeNull()
+    const [num, words] = [...count.querySelectorAll(':scope > span')]
+    expect(text(num)).toBe('5,379')
+    expect(num.className).toContain('text-t-h2')
+    expect(text(words)).toMatch(/^listings on /)
+    expect(words.className).toContain('text-t-meta')
+    // The element's text is still the one sentence (a real space between the two lines).
+    expect(text(count)).toMatch(/^5,379 listings on /)
+    const o = order(el)
+    expect(o.name).toBeLessThan(o.status)
+    expect(o.status).toBeLessThan(o.count)
+    expect(o.count).toBeLessThan(o.shop)
+    // Shop › sits in the figure's row.
+    expect(el.querySelector('div.border-t a[aria-label="Visit shop"]')).not.toBeNull()
+  })
+
+  it('a partner\'s "Joined" is the one hidden item (batch 90), and the status line holds one line before "Active …" arrives', () => {
+    const el = card(partner, { reviewCount: 2, rating: 5, responseBucket: { key: null, en: '', vi: '' } })
+    const status = el.querySelector('div.min-h-5')!
+    const items = [...status.querySelectorAll(':scope > div > span')]
+    const joined = items.filter((i) => text(i).startsWith('Joined'))
+    expect(joined).toHaveLength(1)
+    expect(joined[0].className).toContain('max-md:hidden')
+    expect(items.filter((i) => i.className.includes('max-md:hidden'))).toEqual(joined)
+    expect(status.className.split(' ')).toContain('min-h-5')
+    MOUNTED = true
+    try {
+      const after = card(partner, { responseBucket: { key: null, en: '', vi: '' } })
+      expect(text(after.querySelector('div.min-h-5')!)).toMatch(/Active today/)
+    } finally {
+      MOUNTED = false
+    }
+  })
+
+  it('a private seller: no figure row, "Shop ›" ends the first row, "Joined" stays visible, and the name is the h3 role', () => {
+    const el = card({}, { reviewCount: 3, rating: 4.7 })
+    expect(el.querySelector('[data-partner-listing-count]')).toBeNull()
+    expect(el.querySelector('div.border-t')).toBeNull()
+    const items = [...el.querySelectorAll('div.min-h-5 > div > span')]
+    expect(items.some((i) => text(i).startsWith('Joined'))).toBe(true)
+    expect(items.some((i) => i.className.includes('max-md:hidden'))).toBe(false)
+    expect(el.querySelector('a.text-t-h3')!.textContent).toBe('GoPlus')
+    const shop = el.querySelector('a[aria-label="Visit shop"]')!
+    expect(shop.className.split(' ')).toEqual(expect.arrayContaining(['min-h-11', 'text-sm', 'font-bold', 'text-accent-foreground']))
+    expect(shop.parentElement!.className).toContain('flex items-center gap-4')
+  })
+
+  it('a linked listing keeps its counsel line in the card, visible', () => {
+    const el = card({ linked: 'listing', unrated: true, linkedShop: true })
+    expect(text(el.querySelector('div.min-h-5')!)).toContain('Linked listing: not verified by eno.vn')
+    expect(el.innerHTML).toContain('data-linked-shop-chip')
+  })
+
+  it('in Vietnamese: "5.379" over "tin đăng trên", "Gian hàng"', () => {
+    LANG = 'vi'
+    try {
+      const el = card(partner)
+      const count = el.querySelector('[data-partner-listing-count]')!
+      expect(text(count)).toMatch(/^5\.379 tin đăng trên /)
+      expect(text(el.querySelector('a[aria-label="Vào gian hàng"]')!)).toBe('Gian hàng')
+    } finally {
+      LANG = 'en'
+    }
+  })
+
+  it('the row is unchanged without the variant (no card, no figure row)', () => {
+    const div = document.createElement('div')
+    div.innerHTML = renderToString(<PdpShopLink name="GoPlus" href="/sellers/s1" metrics={metrics()} {...partner} />)
+    expect(div.querySelector('[data-host-card]')).toBeNull()
+    expect(div.querySelector('div.flex-wrap.text-xs [data-partner-listing-count]')).not.toBeNull()
   })
 })

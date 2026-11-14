@@ -7,6 +7,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { HOST_BAND } from '@/lib/rental-sheet'
+import { GOODS_BAND } from '@/lib/goods-sheet'
 
 const PAGE = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'), 'utf8')
 
@@ -27,8 +29,28 @@ describe('batch 90 — no breadcrumb row on a phone listing page', () => {
     expect(PAGE).toContain('const breadcrumbLd = pdpBreadcrumbLd({')
     expect(PAGE).toContain('<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />')
   })
-  it('the phone "Hosted by" band is untouched: still md:hidden with its one line over it', () => {
-    expect(PAGE).toContain('<div className="order-7 md:hidden max-md:border-t max-md:border-border max-md:pt-4">')
+  it('the phone "Hosted by" band is untouched: still md:hidden with its one line over it (the rental sheet: a card, no line)', () => {
+    // Since 2026-11-14 (cook r05) the class lists are src/lib/rental-sheet.ts constants: HOST_BAND is the band's literal list.
+    expect(HOST_BAND).toBe('order-7 md:hidden max-md:border-t max-md:border-border max-md:pt-4')
+    // …and since 2026-11-14 (cook r06 "item") the goods sheet's slot (GOODS_BAND): md:hidden, its line on the band or the
+    // Details twin over it (src/lib/goods-sheet.ts).
+    expect(PAGE).toContain('<div className={rentalSheet ? HOST_CARD_SLOT : goodsSheet ? GOODS_BAND : HOST_BAND}>')
+    expect(GOODS_BAND).toBe('order-7 md:hidden')
+  })
+  it('the phone row is in the DOM where it paints: after #contact and the market price, before the desktop twin and Costs', () => {
+    const row = PAGE.indexOf('<div className={rentalSheet ? HOST_CARD_SLOT : goodsSheet ? GOODS_BAND : HOST_BAND}>')
+    expect(row).toBeGreaterThan(0)
+    // `#contact` is one element, a div or (on the goods sheet's pinned pages) PinnedRegion: `ContactBlock`.
+    expect(row).toBeGreaterThan(PAGE.indexOf('<ContactBlock id="contact"'))
+    expect(row).toBeGreaterThan(PAGE.indexOf('<div data-market-price className="order-6 lg:order-3">'))
+    expect(row).toBeLessThan(PAGE.indexOf('<div className="order-7 hidden md:block">'))
+    expect(row).toBeLessThan(PAGE.indexOf('<RentalCosts '))
+    // …and no longer ahead of the (phone-hidden) crumb at the top of the grid.
+    expect(row).toBeGreaterThan(PAGE.indexOf('data-crumb-trail=""'))
+    // Three calls since 2026-11-14 (owner-approved, cook r06 jobs): a linked job's employer line under its role (`jobTitleLine`,
+    // `md:hidden`) stands in for this band, which a linked job does not draw (`!isJob`). Still one row per width on every page.
+    expect(PAGE.split('<PdpShopLink ').length - 1).toBe(3)
+    expect(PAGE).toContain('{!isJob && (\n              <div className={rentalSheet ? HOST_CARD_SLOT : goodsSheet ? GOODS_BAND : HOST_BAND}>')
   })
 })
 

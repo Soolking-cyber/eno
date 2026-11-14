@@ -304,6 +304,10 @@ function MapCredit({ className }: { className?: string }) {
         // the credit stays reachable, which is exactly what Google Maps, Mapbox and Apple ship. The
         // ⓘ opens the same copyright page the sentence linked to, so the obligation is discharged
         // and ~250px of legal footnote stops competing with the map.
+        // (One exception, and it is not this credit: on a home-to-rent listing page below md, the map PICTURE's credits
+        // — listing-map-preview.tsx `look="sheet"` — show their wording on one quiet plate, owner-approved 2026-11-14, cook
+        // r05 "rental-c". There that file is no longer this credit's twin; this live map, and the full-screen map the
+        // picture opens, keep the ⓘ.)
         // ⚠️ THE REQUIRED WORDING IS THE LINK'S ACCESSIBLE NAME — `aria-label={OSM_CREDIT}` — and
         // there is exactly ONE link per provider. Two earlier attempts were both reviewer-refuted:
         // `hidden` on the text removed it from the accessibility tree entirely (display:none is not

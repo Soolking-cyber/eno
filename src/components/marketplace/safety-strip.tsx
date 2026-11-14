@@ -14,7 +14,7 @@ const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant, job = false }: { categorySlug: string; /** A job listing, whatever its category: the PDP's bottom note left every listingType 'job', so the ID line keys on the same fact (2026-11-06 review). */ job?: boolean; /**
+export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant, job = false, quiet = false }: { categorySlug: string; /** A job listing, whatever its category: the PDP's bottom note left every listingType 'job', so the ID line keys on the same fact (2026-11-06 review). */ job?: boolean; /**
    * The listing's subcategory. Only VEHICLE HIRE inside `rentals` reads it (2026-10-01): a car or a
    * motorbike is not a home, so the housing lines ("meet the landlord or agent", "hold a place") are
    * swapped for vehicle ones, and a car or motorbike adds the driving-licence line. And Vehicles › Parts
@@ -32,7 +32,13 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
    * that translates its own copy through tr(). A string handed in from the server page cannot be
    * translated — the first draft did exactly that and Vietnamese readers would have got the English
    * sentence, on the one line of the page that exists to prevent someone losing money.
-   */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-rental' | 'affiliate-job' }) {
+   */ variant?: 'affiliate' | 'affiliate-purchase' | 'affiliate-rental' | 'affiliate-job'; /**
+   * ⛔ THE RENTAL SHEET'S WELL, BELOW md (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all best
+   * options and deploy"; src/lib/rental-sheet.ts). The quietest voice on that page: 14/20 in body ink, the warning REGULAR
+   * (it reverses, there only, the "keeps its font-semibold" of the 2026-11-06 note below — it is still the FIRST line and
+   * every word of it shows), 4px between lines, the guide link the one accent, and the actions row on its own 44px line
+   * over a hairline. The page passes the well's box (SHEET_WELL) and quiet Report/Block. Every class is `max-md:`.
+   */ quiet?: boolean }) {
   const { tr } = useLanguage()
   // Vehicle hire inside the one rentals category (taxonomy.ts: vehicle hire is the tail of its list).
   const vehicleHire = categorySlug === 'rentals' && !!subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug)
@@ -47,6 +53,11 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
   // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
   // that we take no deposit "for partner tickets". Same split as the CTA: you book a park, you buy
   // a laptop.
+  // ⛔ NO EM DASH IN THE GOODS PAGE'S COUNSEL (owner-approved 2026-11-14, cook r06 "item": the redesign's slop ban, "em dashes
+  // in UI copy"): the purchase, ticket, vehicle, licence and goods lines join their clauses with '; ' — punctuation only, every
+  // English word as it was. The purchase line's Vietnamese is the curated vi-overrides text it had (with its "không bao giờ",
+  // "never", which matches the English), not the shorter one first written here. The job and housing lines are their own
+  // pages' to change.
   // A JOB is applied for on the original posting. The loss mode there is the "pay a fee to get the
   // job" scam (training fees, uniform deposits), so that is what this line warns about.
   const line = variant === 'affiliate-job'
@@ -84,8 +95,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
       )
     : variant === 'affiliate-purchase'
     ? tr(
-        "Buy only on the shop's own website — eno.vn never takes payment for these items, and cannot refund or return one.",
-        'Chỉ mua trên website chính thức của cửa hàng — eno.vn không nhận thanh toán cho các sản phẩm này, và không thể hoàn tiền hay đổi trả.',
+        "Buy only on the shop's own website; eno.vn never takes payment for these items, and cannot refund or return one.",
+        'Chỉ mua trên website chính thức của cửa hàng; eno.vn không bao giờ nhận thanh toán cho các sản phẩm này, và không thể hoàn tiền hay đổi trả.',
       )
     // ⛔ NOT "THE PARTNER'S OWN WEBSITE" / "PARTNER TICKETS" (2026-10-01). Since that day "partner" means a
     // company with a signed agreement (partner-badge.tsx), and the ticket sellers behind these rows hold none —
@@ -93,8 +104,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // names the operator generically. "eno", not "eno.vn", for the same both-editions reason as the rental line.
     : variant === 'affiliate'
     ? tr(
-        "Book only on the operator's own website — eno never takes payment or a deposit for these tickets, and cannot refund one.",
-        'Chỉ đặt vé trên website chính thức của nhà cung cấp — eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.',
+        "Book only on the operator's own website; eno never takes payment or a deposit for these tickets, and cannot refund one.",
+        'Chỉ đặt vé trên website chính thức của nhà cung cấp; eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.',
       )
     :
     // ⛔ AN EMPLOYER'S OWN JOB POST IS NOT A SALE (owner, 2026-10-01: "tailored to post for job hiring").
@@ -115,8 +126,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
       // both facts live here (and a vehicle for sale gains the impersonation rebuttal too).
       : ownLine === 'vehicle'
       ? tr(
-          'See the vehicle and check its papers match the chassis before paying. Never pay a deposit through a link — eno never asks for one.',
-          'Xem xe tận nơi và kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền. Đừng bao giờ đặt cọc qua đường link — eno không bao giờ yêu cầu điều đó.',
+          'See the vehicle and check its papers match the chassis before paying. Never pay a deposit through a link; eno never asks for one.',
+          'Xem xe tận nơi và kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền. Đừng bao giờ đặt cọc qua đường link; eno không bao giờ yêu cầu điều đó.',
         )
       // "and check the owner's papers" (batch 62, 2026-11-11): the listing page's bottom note said it a screen below this
       // line, which it otherwise repeated; the note is gone on a rental and the one fact it added lives here.
@@ -130,8 +141,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
         // "in a public place" (batch 62, 2026-11-11): the listing page's bottom note said it under this line, which it otherwise
         // repeated; on eno.vn that note is gone on plain goods and its one personal-safety fact lives here.
         : tr(
-            'Never send a deposit through a link — eno.vn never asks for one. Meet in a public place, inspect, then pay.',
-            'Đừng bao giờ chuyển tiền cọc qua đường link — eno.vn không bao giờ yêu cầu đặt cọc. Gặp ở nơi công cộng, kiểm tra hàng rồi mới trả tiền.',
+            'Never send a deposit through a link; eno.vn never asks for one. Meet in a public place, inspect, then pay.',
+            'Đừng bao giờ chuyển tiền cọc qua đường link; eno.vn không bao giờ yêu cầu đặt cọc. Gặp ở nơi công cộng, kiểm tra hàng rồi mới trả tiền.',
           )
 
   return (
@@ -156,10 +167,12 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // ⛔ NEUTRAL INK SINCE 2026-11-06 (audit): orange is for prices and the Post button only (owner), and amber-800 read as the
     // price's own orange one block below it. The warning keeps its shield, its first-line place and its `font-semibold`, in ink;
     // the red Report beside it is unchanged. If it ever reads as a grey note again, the fix is weight and order, not amber.
+    // ⛔ …EXCEPT ON THE RENTAL SHEET BELOW md (`quiet`, owner-approved 2026-11-14, cook r05 "rental-c"): there the warning is
+    // regular body ink and Report is not red — the well's first place and every word carry it (the prop's note).
     // 14px FROM lg, WITH A STEP MORE AIR (2026-11-06 audit). In the desktop buy box the strip's 12px read as fine print under a
     // 24px title, for the lines that decide a payment or an application. The phone keeps 12px: its fold is the budget there.
     // The row it carries follows (protections-row.tsx inline, and the PDP's Report and Block get `lg:text-sm`).
-    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed lg:pt-4 lg:text-sm', className)}>
+    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed lg:pt-4 lg:text-sm', quiet && 'max-md:gap-3 max-md:text-sm max-md:leading-5', className)}>
       {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
           solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
           SEAL_CHECK stroked by hand — purely so the chief could take the strip's amber ink instead
@@ -168,16 +181,17 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
           drifts from the icon set the rest of the app draws from.
           `shield-check` is the same idea in the shared vocabulary: it takes `currentColor`, so the
           amber comes for free, and it gains the outline/bold weights every other icon has. */}
-      <ShieldCheck aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-body" />
+      <ShieldCheck aria-hidden className={cn('mt-0.5 h-5 w-5 shrink-0 text-body', quiet && 'max-md:mt-0')} />
       {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
           protections, actions — sat at the same distance from each other as the words within
           them, so the block read as a pile of links rather than one statement with a footnote.
           `space-y-1.5` separates them enough to be read in order, which is the whole reason
           they are stacked in this order in the first place. */}
-      <div className="min-w-0 flex-1 space-y-1.5 lg:space-y-2">
+      <div className={cn('min-w-0 flex-1 space-y-1.5 lg:space-y-2', quiet && 'max-md:space-y-1')}>
         {/* Ink and weight, not amber (2026-11-06; see the note on the container): `font-semibold` in the darkest ink, over
             the quiet lines below it, is what makes it the warning. */}
-        <p className="font-semibold text-foreground">{line}</p>
+        {/* `quiet` (the rental sheet, below md): regular, body ink — still first, still the whole sentence. */}
+        <p className={cn('font-semibold text-foreground', quiet && 'max-md:font-normal max-md:text-body max-md:text-pretty')}>{line}</p>
         {/* ⚠️ THE DRIVING-LICENCE LINE — cars and motorbikes only (2026-10-01). Quiet second line: the money
             warning above stays the loudest thing in the strip.
             ⛔ SELF-DRIVE, NOT "RENTING". `car-rental` also holds hire WITH a driver (taxonomy.ts: its keywords
@@ -186,8 +200,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
         {licensedVehicle && (
           <p data-vehicle-licence-line="" className="text-body">
             {tr(
-              'Driving a hired car or motorbike yourself needs a valid licence for it — an owner may not hand a vehicle to someone without one.',
-              'Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe — chủ xe không được giao xe cho người không có giấy phép lái xe.',
+              'Driving a hired car or motorbike yourself needs a valid licence for it; an owner may not hand a vehicle to someone without one.',
+              'Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe; chủ xe không được giao xe cho người không có giấy phép lái xe.',
             )}
           </p>
         )}
@@ -228,8 +242,10 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             that overhang covered the bottom ~5px of the reports-and-disputes row above (measured with
             an elementFromPoint grid: its bottom band hit-tested to Guide and Report). 6px more room
             clears it, so each of the three controls owns its full 44px. */}
-        <div className="-mb-1 mt-0.5 flex items-center justify-between gap-3">
-          <Link href="/safety" className="relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60">
+        {/* `quiet`: its own 44px line over a hairline in the line-strong grey; it wraps (Report and Block go to a second 44px line
+            at 320 in Vietnamese) rather than cut a word. */}
+        <div className={cn('-mb-1 mt-0.5 flex items-center justify-between gap-3', quiet && 'max-md:m-0 max-md:min-h-11 max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-0 max-md:border-t max-md:border-line-strong')}>
+          <Link href="/safety" className={cn('relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60', quiet && 'max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:whitespace-nowrap max-md:font-bold')}>
             {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name — on a linked job too
                 (2026-11-06 audit: the `affiliate-job` strip still read "Safe trading guide"). */}
             {isJobStrip ? tr('Safety guide', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}

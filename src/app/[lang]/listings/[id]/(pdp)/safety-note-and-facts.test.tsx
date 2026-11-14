@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LanguageProvider } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
+import { PAGE_TITLE, SHEET_TITLE } from '@/lib/rental-sheet'
 
 const PAGE = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'), 'utf8')
 const UI_STRINGS = readFileSync(join(process.cwd(), 'src/generated/ui-strings.ts'), 'utf8')
@@ -82,8 +83,15 @@ describe('PDP safety note — one copy per edition', () => {
    * listing that links out — the one case where the note is null for its own reason.
    */
   it('the strip is in every safety block, fed the same category, subcategory and job facts, partner lines only when linked', () => {
-    const block = PAGE.slice(PAGE.indexOf('<div data-safety-block="" className="order-9 md:order-7">'), PAGE.indexOf('</div>', PAGE.indexOf('<SafetyStrip')))
-    const beforeStrip = block.slice(0, block.indexOf('<SafetyStrip')).replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    // (The goods sheet's counsel panel classes ride on the wrapper since 2026-11-14 — a class, not a condition on the strip.)
+    // …and a linked job's (JOB_COUNSEL, owner-approved 2026-11-14, cook r06 jobs), whose phone panel opens on Seller information's
+    // `md:hidden` copy: the one element allowed before the strip, and it gates only itself.
+    const open = `<div data-safety-block="" className={cn('order-9 md:order-7', goodsSheet && (sellerInfoShown ? COUNSEL_WELL_JOINED : COUNSEL_WELL_ALONE), isJob && JOB_COUNSEL)}>`
+    expect(PAGE).toContain(open)
+    const block = PAGE.slice(PAGE.indexOf(open) + open.length, PAGE.indexOf('</div>', PAGE.indexOf('<SafetyStrip')))
+    const jobInfo = '{isJob && sellerInfo && <SellerInfo info={sellerInfo} labelId="seller-info-job" panel className={JOB_COUNSEL_INFO} />}'
+    expect(block).toContain(jobInfo)
+    const beforeStrip = block.slice(0, block.indexOf('<SafetyStrip')).replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(jobInfo, '')
     expect(beforeStrip).not.toMatch(/&&|\?/) // nothing conditional between the block and the strip
     expect(block).toContain('categorySlug={rawListing.category.slug}')
     expect(block).toContain('subcategorySlug={rawListing.subcategorySlug}')
@@ -145,7 +153,7 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     expect(PAGE).toContain("if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')")
     // …and SellerInfo itself still renders (the Decree 248 row stays).
     // (Its `max-md:` classes are batch 79's phone section hairline — ./section-hairline.test.tsx.)
-    expect(PAGE).toContain('{sellerInfo && <SellerInfo info={sellerInfo} className="order-8 max-md:border-t max-md:border-border max-md:pt-6" />}')
+    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}")
   })
 
   it('mileage is a vehicle fact: only above 0 km and never on Vehicles › Parts (pdp-08)', () => {
@@ -153,7 +161,8 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
   })
 
   it('the brand link goes through localizedHref, like the breadcrumb (disc-missed) — an inline link in the facts line since batch 89', () => {
-    expect(PAGE).toContain('<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="text-foreground underline underline-offset-4">{brand.name}</Link>')
+    // (The goods sheet greys it below md since 2026-11-14 — still underlined.)
+    expect(PAGE).toContain("<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link>")
     // The old chip is gone: one brand link on the page.
     expect(PAGE.match(/\?brand=\$\{encodeURIComponent/g)).toHaveLength(1)
   })
@@ -163,7 +172,7 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
     expect(link).not.toBe('')
     expect(link).not.toMatch(/tap-44/)
     // ⛔ Always underlined, not only on hover: axe link-in-text-block (serious) failed on live branded listings (2026-11-14).
-    expect(link).toMatch(/className="[^"]*\bunderline\b(?!-)/)
+    expect(link).toMatch(/className=\{cn\('[^']*\bunderline\b(?!-)/)
     expect(link).not.toMatch(/hover:underline/)
   })
 
@@ -176,7 +185,10 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
 
   it('the H1, the market price and every meta item opt into the support bubble’s yield (pdp-01, si-11)', () => {
     // `[overflow-wrap:anywhere]` joined the class list (break-ui, 2026-10-05) — a title with no spaces must not widen the page.
-    expect(PAGE).toContain('<LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]"')
+    // Since 2026-11-14 the class lists are src/lib/rental-sheet.ts constants (PAGE_TITLE everywhere; the rental sheet's SHEET_TITLE).
+    expect(PAGE).toContain('<LocalizedTitleHeading className={rentalSheet ? SHEET_TITLE : goodsSheet ? GOODS_TITLE : isJob ? JOB_TITLE : PAGE_TITLE}')
+    expect(PAGE_TITLE).toBe('text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]')
+    expect(SHEET_TITLE).toContain('[overflow-wrap:anywhere]')
     // The one H1 is LocalizedTitleHeading's (the only `<h1` left in the page is the layout comment).
     expect(PAGE.match(/<h1[\s>]/g) ?? []).toHaveLength(1)
     expect(PAGE.match(/<LocalizedTitleHeading className=/g)).toHaveLength(1)

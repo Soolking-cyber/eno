@@ -622,7 +622,7 @@ const NON_COLOR = new Set([
   // text-*: size, alignment, wrapping, overflow
   'xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl', '2xs', '3xs',
   // the type ROLES (`@theme { --text-t-* }`, 2026-11-14) — sizes, not colours; lib/utils.ts `theme.text` has the same list
-  't-display', 't-h2', 't-h3', 't-price', 't-card', 't-meta',
+  't-display', 't-title', 't-figure', 't-h2', 't-h3', 't-price', 't-card', 't-meta',
   'left', 'right', 'center', 'justify', 'start', 'end', 'wrap', 'nowrap', 'balance', 'pretty', 'clip', 'ellipsis',
   // border-* / outline-* / divide-*: style and side
   'none', 'solid', 'dashed', 'dotted', 'double', 'hidden', 'collapse', 'separate', 'x', 'y', 't', 'b', 'l', 'r', 's', 'e', 'reverse',
@@ -805,7 +805,7 @@ const RATCHETS = {
     fix: 'use <PageHeader> (ui/page-header) or the .h-display / .h-title class (docs/design-language.md §1)',
   },
   'arbitrary-ease': {
-    baseline: 10,
+    baseline: 9,
     what: 'the arbitrary var() form of an ease- utility for a house curve',
     fix: 'use the named utility — ease-out-strong · ease-spring · ease-spring-snappy · ease-bounce (theme tokens since 2026-09-29)',
   },
@@ -817,7 +817,7 @@ const RATCHETS = {
    * Baseline measured on main 067c07f5c (2026-11-14): 1,002.
    */
   'sub13Type': {
-    baseline: 987,
+    baseline: 982,
     what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
     fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
   },

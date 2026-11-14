@@ -114,3 +114,59 @@ describe('ListingDetailMap — an approximate area has no pin (owner, 2026-09-30
     expect(open.querySelector('svg.text-brand')).not.toBeNull()
   })
 })
+
+/**
+ * ⛔ look="sheet" — THE RENTAL LISTING PAGE ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c"): one ink pin placed by its
+ * tip, an ink area, "Open map" top-right, and the credits as one text plate whose links SHOW their licence wording. Every class
+ * it adds is max-md: (a touch tablet at md+ keeps today's look); the default look is unchanged (the suites above).
+ */
+describe('ListingDetailMap look="sheet"', () => {
+  it('the pin: ink and 40px below md, positioned by its tip (translate), brand and 36px from md', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
+    const open = screen.getByRole('button', { name: 'Open map' })
+    const pin = open.querySelector('svg.size-9')!
+    const cls = pin.getAttribute('class')!.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['max-md:size-10', 'max-md:text-foreground', '-translate-x-1/2', '-translate-y-[91.667%]', 'text-brand']))
+    // At the point itself (the default look subtracts the 36px box's tip offsets instead).
+    const style = pin.getAttribute('style') ?? ''
+    expect(style).toMatch(/left: \d+(\.\d+)?px/)
+    const def = render(<ListingDetailMap listings={[listing]} activeDistrict="all" />)
+    const defPin = def.container.querySelector('svg.size-9')!
+    expect(defPin.getAttribute('class')).not.toMatch(/translate|max-md:/)
+    const left = (s: string) => Number(s.match(/left: (-?[\d.]+)px/)![1])
+    const top = (s: string) => Number(s.match(/top: (-?[\d.]+)px/)![1])
+    expect(left(style) - left(defPin.getAttribute('style')!)).toBe(18)
+    expect(top(style) - top(defPin.getAttribute('style')!)).toBe(33)
+  })
+
+  it('"Open map" is top-right in the label voice below md, bottom-right with the pop from md — and still the button\'s name', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
+    const pill = [...screen.getByRole('button', { name: 'Open map' }).querySelectorAll('span')].find((s) => s.textContent === 'Open map')!
+    expect(pill.className.split(' ')).toEqual(expect.arrayContaining(['top-3', 'right-3', 'font-bold', 'shadow-chip', 'md:bottom-3', 'md:top-auto', 'md:font-semibold']))
+    expect(pill.className).not.toMatch(/(^|\s)shadow-pop(\s|$)/)
+  })
+
+  it('the credits: one plate, each link SHOWING its licence wording below md (its ⓘ hidden there), the name unchanged, still outside the button', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" />)
+    const credits = screen.getAllByRole('link')
+    expect(credits.map((a) => a.getAttribute('aria-label'))).toEqual(['© OpenStreetMap contributors', '© CARTO'])
+    expect(credits.map((a) => a.textContent)).toEqual(['© OpenStreetMap contributors', '© CARTO'])
+    for (const a of credits) {
+      expect(a.querySelector('svg')!.getAttribute('class')).toContain('max-md:hidden')
+      expect(a.querySelector('span')!.className).toBe('md:hidden')
+      expect(screen.getByRole('button', { name: 'Open map' }).contains(a)).toBe(false)
+    }
+    const plate = credits[0].parentElement!
+    expect(plate.className.split(' ')).toEqual(expect.arrayContaining(['max-md:h-6', 'max-md:rounded-full', 'max-md:text-t-meta', 'max-md:text-muted-foreground']))
+  })
+
+  it('an approximate area is ink below md, brand from md', () => {
+    coarse = true
+    render(<ListingDetailMap listings={[listing]} activeDistrict="all" look="sheet" approximate={{ lat: 12.6667, lng: 108.05, radiusM: 4000 }} />)
+    const area = screen.getByRole('button', { name: 'Open map' }).querySelector('[data-map-area]')!
+    expect(area.className.split(' ')).toEqual(expect.arrayContaining(['border-brand', 'bg-brand/15', 'max-md:border-foreground', 'max-md:bg-foreground/8']))
+  })
+})

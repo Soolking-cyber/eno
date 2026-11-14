@@ -42,6 +42,7 @@ export function AffiliateBooking({
   host = null,
   provenance = null,
   lang = 'en',
+  pinned = false,
 }: {
   url: string
   partnerName: string
@@ -86,6 +87,14 @@ export function AffiliateBooking({
   provenance?: React.ReactNode
   /** The page variant ('vi' | 'en') — only for the QR's accessible name, an SVG attribute string (below). */
   lang?: string
+  /**
+   * ⛔ THE GOODS SHEET'S PINNED TIER, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts
+   * pinsAction): the page passes this only where the box is the button and its one source line. The column closes to 4px,
+   * the button is the shell's 48px with a 16px label, and the source line under it is the 13px meta role, centred. The page
+   * gives the line ImportProvenance `inline` (an underlined text link, no 44px overhang — its ⛔ below therefore holds at
+   * 4px). Every class is `max-md:`; from md the box is as it was.
+   */
+  pinned?: boolean
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -113,7 +122,7 @@ export function AffiliateBooking({
   const verb = ctaVerb({ job, rental, booking })
 
   return (
-    <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="affiliate-booking-heading" className={cn('flex flex-col gap-4', pinned && 'max-md:gap-1')}>
       <h2 id="affiliate-booking-heading" className="sr-only">
         {job ? <Tr text="Apply on the original posting" /> : rental ? tr('Open the original ad', 'Mở tin gốc') : booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
       </h2>
@@ -144,7 +153,7 @@ export function AffiliateBooking({
           it measured 366x40 on 6 of 7 PDPs while its Chat twin (contact-composer.tsx) already
           reaches the 44px floor. On the PRIMITIVE, where cn() replaces the size's `min-h-10`, rather
           than on the <a> below: the house rule is that size overrides live on the primitive. */}
-      <Button asChild variant="cta" size="lg" className="w-full min-h-11 whitespace-normal text-center">
+      <Button asChild variant="cta" size="lg" className={cn('w-full min-h-11 whitespace-normal text-center', pinned && 'max-md:min-h-12 max-md:rounded-xl max-md:text-base')}>
         {/*
           * An anchor, not a router push: this leaves our origin entirely. Next's Link would
           * prefetch a third-party URL it cannot prefetch and adds nothing.

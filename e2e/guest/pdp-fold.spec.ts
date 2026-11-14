@@ -57,6 +57,13 @@ test.describe('Guest · PDP market band sits below the CTA on phones', () => {
       if (await page.locator('[data-market-price]').count()) { found = true; break }
     }
     test.skip(!found, 'no listing with a market band')
+    // ⛔ A pinned goods page (owner-approved 2026-11-14, cook r06 "item"): `#contact` is the fixed bottom tier, so there is no
+    // order to compare — the band is in flow under the head instead.
+    if (await page.locator('#contact[data-pin-action]').count()) {
+      const [h1, band] = await Promise.all([topOf(page, 'main h1'), topOf(page, '[data-market-price]')])
+      expect(band, 'the market band is in flow under the head').toBeGreaterThan(h1)
+      return
+    }
     const [contact, band] = await Promise.all([topOf(page, '#contact'), topOf(page, '[data-market-price]')])
     expect(band, 'the market band must paint AFTER the CTA block — above it, it pushes the CTA under the tab bar')
       .toBeGreaterThan(contact)

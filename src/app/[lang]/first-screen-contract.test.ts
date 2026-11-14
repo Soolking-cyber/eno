@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { SHEET_PHOTO } from '@/lib/rental-sheet'
+import { GOODS_PHOTO } from '@/lib/goods-sheet'
 
 /**
  * ⛔ THE PHONE'S FIRST SCREEN AND ITS CHROME (owner, 2026-10-18: "look super professional … like top marketplace";
@@ -62,11 +64,11 @@ describe('the first screen', () => {
     const s = code('src/app/[lang]/c/[category]/(index)/category-lede-block.tsx')
     expect(s).toMatch(/<RentalCheckHint className="[^"]*max-sm:\[&>span\]:truncate[^"]*" \/>/)
     expect(s).toMatch(/<Link href=\{RENTAL_CHECK_PATH\} prefetch=\{false\} className="[^"]*\bsm:hidden"/)
-    // ⛔ Its visible box is the target (`-my-1 py-1`), never a 44px extender: "Show more" sits 10px above and the
-    // later extender won a 14px overlap (gate, 2026-10-18 — measured with elementFromPoint at 390 and 360).
+    // ⛔ A 44px target since 2026-11-14 (owner-approved, cook r06 rentals-a): it was its visible box (`-my-1 py-1`) while
+    // "Show more" sat 10px above (gate, 2026-10-18); the lede left that space with H1b, so the extender has room now.
     const link = s.match(/<Link href=\{RENTAL_CHECK_PATH\} prefetch=\{false\} className="([^"]*)"/)![1].split(/\s+/)
-    expect(link).toEqual(expect.arrayContaining(['-my-1', 'py-1']))
-    expect(link).not.toContain('tap-44')
+    expect(link).toEqual(expect.arrayContaining(['relative', 'tap-44', 'font-bold']))
+    expect(link).not.toContain('-my-1')
   })
 
   it('/c: the strip\'s Filters is the browse chip, and so is every "Other categories" chip', () => {
@@ -81,6 +83,15 @@ describe('the first screen', () => {
   it('the PDP: the phone gallery sits flush under the header, or at the top where a phone hides it (`-mt-4` takes back <main>\'s pt-4)', () => {
     const s = code('src/app/[lang]/listings/[id]/(pdp)/page.tsx')
     expect(s).toMatch(/<main id="main"[^>]*className="[^"]*\bpt-4\b/)
-    expect(s).toMatch(/<div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">\s*<ListingGallery variant="mobile"/)
+    // Since 2026-11-14 (owner-approved, cook r05 "rental-c" / r06 "item") the wrapper adds a sheet's photo edge through cn()
+    // (SHEET_PHOTO, src/lib/rental-sheet.ts; GOODS_PHOTO, src/lib/goods-sheet.ts). cn() is tailwind-merge, so an edge that set a
+    // top margin would silently drop the `-mt-4`: none may.
+    const m = s.match(/<div data-photo-first="" className=\{cn\('relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden'((?:, \w+ && \w+)*)\)\}>\s*<ListingGallery variant="mobile"/)
+    expect(m).not.toBeNull()
+    const edges: Record<string, string> = { SHEET_PHOTO, GOODS_PHOTO }
+    for (const [, name] of m![1].matchAll(/&& (\w+)/g)) {
+      expect(edges[name], name).toBeDefined()
+      expect(edges[name].split(/\s+/).filter((c) => /^(?:[\w-]+:)*-?(?:mt|my|m)-/.test(c)), name).toEqual([])
+    }
   })
 })

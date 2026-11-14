@@ -61,7 +61,7 @@ const LINK_UNTIL_HYDRATED = {
   'aria-controls': undefined,
 } as const
 
-export function ProtectionsRow({ inline = false }: {
+export function ProtectionsRow({ inline = false, shortLabel = false }: {
   /**
    * Render as the quiet second line INSIDE the safety strip rather than as a row of its own
    * (owner, 2026-08-11: combine the two PDP trust blocks).
@@ -73,6 +73,13 @@ export function ProtectionsRow({ inline = false }: {
    * It opens the same dialog: what changes is its weight, not its job.
    */
   inline?: boolean
+  /**
+   * ⛔ THE RENTAL SHEET'S WELL, BELOW md (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses, there only, the fully
+   * visible "Reports & disputes — how they work" of the 2026-08-11 merge): the row shows "Reports & disputes" in the well's
+   * label voice (700 14, body ink, a 16px chevron) and " — how they work" is SCREEN-READER-ONLY — still in the DOM, in the
+   * text and in the accessible name, which the visible words begin (label in name). From md, every word shows as before.
+   */
+  shortLabel?: boolean
 } = {}) {
   const { tr } = useLanguage()
   // false in the server render and in the hydration render, true in every render after those.
@@ -222,12 +229,12 @@ export function ProtectionsRow({ inline = false }: {
               glyph, and two in one box devalue both. */}
           {!inline && <Scale className={ICON_SIZE.lg} />}
           {/* 14px from lg, as the PDP's safety strip it rides in (2026-11-06 audit; the PDP is its one caller). */}
-          <span className={cn('min-w-0 text-xs leading-snug text-body lg:text-sm', !inline && 'flex-1')}>
-            <span className="font-bold text-foreground">{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
-            {' — '}
-            {tr('how they work', 'cách xử lý')}
+          <span className={cn('min-w-0 text-xs leading-snug text-body lg:text-sm', !inline && 'flex-1', shortLabel && 'max-md:text-sm max-md:leading-5')}>
+            <span className={cn('font-bold text-foreground', shortLabel && 'max-md:text-body')}>{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
+            {/* `shortLabel`: the tail is screen-reader-only below md (the prop's note); an inline span either way. */}
+            <span className={shortLabel ? 'max-md:sr-only' : undefined}>{' — '}{tr('how they work', 'cách xử lý')}</span>
           </span>
-          <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden />
+          <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4', shortLabel && 'max-md:size-4 max-md:text-body')} aria-hidden />
       </DialogTrigger>
 
       <DialogContent

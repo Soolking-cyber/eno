@@ -17,10 +17,23 @@ export function SameSellerShelf({
   listings,
   sellerHref,
   sellerName,
+  phoneGrid = false,
+  sectionClassName = 'mt-12',
+  hideEmployerNamed,
 }: {
   listings: SerializedListingCard[]
   sellerHref: string
   sellerName: string
+  /** The goods sheet's two-column grid below sm (Shelf `phoneGrid`; owner-approved 2026-11-14, cook r06 "item"). */
+  phoneGrid?: boolean
+  /** The section's own top gap and visibility (the goods sheet passes `mt-8 md:mt-12` and, for its swapped twin, a breakpoint). */
+  sectionClassName?: string
+  /**
+   * The job page's employer (page.tsx passes the storefront's name, the `data-cta-shop` the page's Apply names): a job card on
+   * the rail whose own employer is that name does not print it again (job-card-row.tsx; owner-approved 2026-11-14, cook r06
+   * jobs). Per card, so a job board's rail keeps every other employer's name.
+   */
+  hideEmployerNamed?: string
 }) {
   const router = useRouter()
   const { tr } = useLanguage()
@@ -58,10 +71,11 @@ export function SameSellerShelf({
     <Shelf
       title={ownEmployer ? tr('More from this employer', 'Tin khác từ nhà tuyển dụng này') : allJobs ? jobsTitle : tr('More from this seller', `Tin khác từ ${sellerName}`)}
       seeAllHref={sellerHref}
-      sectionClassName="mt-12"
+      sectionClassName={sectionClassName}
       watch={listings.length}
+      phoneGrid={phoneGrid}
       // A job page's rail is rows on a phone (batch 67), like the Jobs list. Server data: the rows are in the HTML.
-      phoneRows={allJobs ? <JobRailRows listings={listings} /> : undefined}
+      phoneRows={allJobs ? <JobRailRows listings={listings} hideEmployerNamed={hideEmployerNamed} /> : undefined}
     >
       {listings.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>

@@ -16,7 +16,8 @@ const BUTTON = readFileSync(join(process.cwd(), 'src/components/marketplace/pdp-
 
 describe('item 3: the photo-first hook', () => {
   it('is on the phone gallery only, and only when the page has a gallery', () => {
-    const at = PAGE.indexOf('<div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">')
+    // The rental sheet adds its photo slot below md (SHEET_PHOTO, owner-approved 2026-11-14, cook r05 "rental-c").
+    const at = PAGE.indexOf("<div data-photo-first=\"\" className={cn('relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden', rentalSheet && SHEET_PHOTO, goodsSheet && GOODS_PHOTO)}>")
     expect(at).toBeGreaterThan(-1)
     // One hook on the page: a second one would hide the header on a page with no photo to open on.
     expect(PAGE.split('data-photo-first=""').length - 1).toBe(1)
@@ -31,7 +32,8 @@ describe('item 3: the photo-first hook', () => {
     const block = PAGE.slice(at, PAGE.indexOf('<OwnerEditButton', at))
     // `plate-lg` (2026-11-14, owner-approved): the Back/Share/Save glyphs on 32px white plates.
     expect(block).toContain('<div className="plate-lg absolute left-3 top-3 z-10 flex items-center">')
-    expect(block).toContain('<div className="plate-lg absolute right-3 top-3 z-10 flex items-center gap-2">')
+    // The goods sheet sets its plates 12px apart below md (GOODS_PLATES_GAP, owner-approved 2026-11-14, cook r06 "item").
+    expect(block).toContain("<div className={cn('plate-lg absolute right-3 top-3 z-10 flex items-center gap-2', goodsSheet && GOODS_PLATES_GAP)}>")
     expect(block).toContain('<PdpBackButton fallbackHref={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} />')
     expect(block.indexOf('absolute left-3 top-3')).toBeLessThan(block.indexOf('absolute right-3 top-3'))
   })
@@ -69,17 +71,21 @@ describe('item 3: the photo-first hook', () => {
 
 describe('item 8: the safety block follows the facts on a phone', () => {
   it('is one block, slot 9 below md and slot 7 from md', () => {
-    expect(PAGE).toContain('<div data-safety-block="" className="order-9 md:order-7">')
+    // The goods sheet's counsel panel adds max-md: classes only (COUNSEL_WELL_*), a linked job's too (JOB_COUNSEL, owner-approved
+    // 2026-11-14, cook r06 jobs); the slots are the same.
+    expect(PAGE).toContain(`<div data-safety-block="" className={cn('order-9 md:order-7', goodsSheet && (sellerInfoShown ? COUNSEL_WELL_JOINED : COUNSEL_WELL_ALONE), isJob && JOB_COUNSEL)}>`)
     expect(PAGE.split('data-safety-block=""').length - 1).toBe(1)
     expect(PAGE.split('<SafetyStrip').length - 1).toBe(1)
   })
 
   it('sits after the description, the details and the seller information, before the reviews and the map', () => {
     // The slots those blocks hold on the phone's single column.
-    expect(PAGE).toContain('<div className="order-8 flex flex-col gap-8">')
-    // The `max-md:` hairline classes are batch 79's phone section line (./section-hairline.test.tsx); the slots are unchanged.
-    expect(PAGE).toContain('{sellerInfo && <SellerInfo info={sellerInfo} className="order-8 max-md:border-t max-md:border-border max-md:pt-6" />}')
+    expect(PAGE).toContain("<div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>")
+    // The `sectionLine` classes are batch 79's phone section line (./section-hairline.test.tsx); the slots are unchanged.
+    expect(PAGE).toContain("{sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}")
     expect(PAGE).toContain('<div className="order-10 border-t border-border pt-4">')
-    expect(PAGE).toContain('<div id="location-on-map" className="order-11 space-y-2 scroll-mt-20 max-md:border-t max-md:border-border max-md:pt-6">')
+    // ⛔ The map is slot 11 — except on the rental sheet, where it is slot 8, before the well (owner-approved 2026-11-14, cook
+    // r05 "rental-c"); from md both paint in the same place (only order-12 items follow it in its column).
+    expect(PAGE).toContain("<div id=\"location-on-map\" className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>")
   })
 })

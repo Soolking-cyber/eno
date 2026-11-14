@@ -187,3 +187,39 @@ describe('<Price> fabAvoid (card only)', () => {
     expect(el.querySelector('[data-fab-avoid]')!.textContent?.replace(/\s+/g, ' ')).toBe('Full-time · Hanoi')
   })
 })
+
+/**
+ * `unitClassName` (owner-approved 2026-11-14, cook r05 "rental-c"): classes for the unit suffix's wrapper only — the span that
+ * holds the separating space and the suffix's own nowrap run — so the rental listing page can set "/ month" at body size beside
+ * a 22px figure. The amount/unit break and the nowrap runs are untouched; without it nothing changes.
+ */
+describe('<Price> unitClassName', () => {
+  it('lands on the suffix wrapper; the inner nowrap run and the separating space survive', () => {
+    const el = root(<Price price={3_800_000} currency="₫" priceUnit="VND/month" dual={false} unitClassName="max-md:text-base max-md:font-normal max-md:text-body" />)
+    const wrap = [...el.children].find((c) => c.textContent?.includes('/ month')) as HTMLElement
+    expect(wrap.className).toBe('max-md:text-base max-md:font-normal max-md:text-body')
+    expect(wrap.firstChild?.textContent).toBe(' ')
+    expect(wrap.querySelector('.whitespace-nowrap')!.textContent).toBe('/ month')
+    // The amount runs are unchanged.
+    expect([...el.querySelectorAll(':scope > .whitespace-nowrap')].map((s) => s.textContent)).toEqual(['3,800,000', 'đ'])
+  })
+  it('without it the wrapper has no class at all (the markup is what it was)', () => {
+    const el = root(<Price price={3_800_000} currency="₫" priceUnit="VND/month" dual={false} />)
+    const wrap = [...el.children].find((c) => c.textContent?.includes('/ month')) as HTMLElement
+    expect(wrap.hasAttribute('class')).toBe(false)
+  })
+  it('an \'sm\' unit keeps its hide, with the caller\'s classes after it', () => {
+    const el = root(<Price price={3_800_000} currency="₫" priceUnit="VND/month" dual={false} unit="sm" unitClassName="max-md:text-body" />)
+    const wrap = [...el.children].find((c) => c.textContent?.includes('/ month')) as HTMLElement
+    expect(wrap.className).toBe('hidden sm:inline max-md:text-body')
+  })
+  it('the rental sheet\'s bar: the figure on one line, "≈ $" on the line under it below md, the same inline ≈ from md', () => {
+    const el = root(<Price compact compactAbove={1_000_000} dual price={3_800_000} currency="₫" priceUnit="VND/month" className="text-lg leading-6 max-md:block" unitClassName="max-md:font-normal max-md:text-body" approxClassName="max-md:ml-0 max-md:block max-md:font-normal max-md:text-t-meta" />)
+    expect(el.className).toContain('max-md:block')
+    const a = el.querySelector<HTMLElement>('[aria-hidden="true"]')!
+    expect(a.textContent).toMatch(/^≈ \$\d+/)
+    expect(a.className.split(' ')).toEqual(expect.arrayContaining(['ml-1.5', 'max-md:ml-0', 'max-md:block', 'max-md:text-t-meta']))
+    // `dual` true: never hidden below sm (the 'sm' form hides it there).
+    expect(a.className).not.toMatch(/(^|\s)hidden(\s|$)/)
+  })
+})

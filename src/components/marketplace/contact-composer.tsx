@@ -10,6 +10,7 @@ import { EnoSlider } from './eno-slider'
 import { OfferPartiesNote } from './chat-safety-note'
 import { useLocalized } from './listing-content'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { Alert } from '@/components/ui/alert'
 import { CloseButton } from '@/components/ui/close-button'
 import { stashCompose } from '@/lib/quick-contact'
@@ -40,7 +41,7 @@ export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer
  */
 export function ContactComposer({
   listingId, listingTitle, listingTitleVi = null, listingTitleI18n = null, listingImage, sellerName, price, currency, negotiable = true,
-  intent = 'buy', sellerIsPartner = false,
+  intent = 'buy', sellerIsPartner = false, pinned = false,
 }: {
   listingId: string
   listingTitle?: string
@@ -81,6 +82,13 @@ export function ContactComposer({
    * the same reason (`sellerIsPartner`, messages/[id]/page.tsx).
    */
   sellerIsPartner?: boolean
+  /**
+   * ⛔ THE GOODS SHEET'S PINNED TIER, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts
+   * pinsAction): passed only where there is no offer panel (a fixed-price or unpriced listing), so the box is Chat now and
+   * its one line. The column closes to 4px, the button is the shell's 48px with a 16px label and a 20px glyph, and the line
+   * under it is balanced. Every class is `max-md:`; busy, resume and the opener are unchanged.
+   */
+  pinned?: boolean
 }) {
   const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
@@ -332,8 +340,10 @@ export function ContactComposer({
   // answers the eno:chat-now event (the mobile action bar).
   // 14px in body ink from lg (2026-11-07 audit), with the safety strip and Report/Block under it: at 12px in the quietest grey,
   // how contact works read as fine print under a desktop's CTA. A phone keeps 12px.
+  // …13px on a phone since 2026-11-14 (owner-approved, cook r05 "rental-c" and "item": the meta role, nothing under 13);
+  // md–lg keeps its 12px, lg its 14.
   const safetyLine = (
-    <p className="text-center text-xs text-muted-foreground lg:text-sm lg:text-body">
+    <p className={cn('text-center max-md:text-t-meta md:text-xs text-muted-foreground lg:text-sm lg:text-body', pinned && 'max-md:text-balance')}>
       {planning
         // The desk is eno's own, so stranger-safety advice is both irrelevant and slightly
         // alarming here. Say what the tap actually does instead, including that it is free —
@@ -369,7 +379,7 @@ export function ContactComposer({
       aria-disabled={busy}
       // `aria-disabled:cursor-wait` — a reviewer noted an inert control still offering a click-me
       // cursor. The button stays visually undimmed on purpose: it is not disabled, it is working.
-      className="press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer aria-disabled:cursor-wait"
+      className={cn('press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer aria-disabled:cursor-wait', pinned && 'max-md:min-h-12 max-md:gap-2 max-md:rounded-xl max-md:text-base max-md:[&_svg:not([class*=size-])]:size-5')}
     >
       {busy
         // ⚠️ THE LABEL CHANGES, NOT JUST THE ICON. A spinner beside an unchanged "Chat now" reads
@@ -421,7 +431,7 @@ export function ContactComposer({
   ) : null
 
   // Fixed-price listing: no offer → Chat now + the safety reminder.
-  if (!canOffer) return <div className="space-y-2">{resumeChat}{chatButton}{safetyLine}</div>
+  if (!canOffer) return <div className={cn('space-y-2', pinned && 'max-md:space-y-1')}>{resumeChat}{chatButton}{safetyLine}</div>
 
   // `data-auth-settled` only on the panel shown once auth has ANSWERED "no user" — the e2e contact gate waits for it:
   // the copy server-rendered for `no-session` (below) is on screen before React has attached a single handler.

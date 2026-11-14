@@ -22,6 +22,10 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
  *   · the tab bar has already left (`useHideOnScroll`, the signal the tab bar itself reads: the reader is moving down).
  * The moment the reader scrolls up the tab bar returns and this bar goes. It only ever fills the slot the tab bar has
  * vacated, and the five tabs are one upward flick away, as on every other page.
+ * ⛔ …EXCEPT ON A GOODS PAGE THAT PINS ITS OWN ACTION (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts
+ * pinsAction, globals.css the goods tier block): there, below md, the page's `#contact` is the bar from the first paint and
+ * the tab bar starts retracted until the first scroll up — a listing page as a pushed screen. This bar stays away there
+ * (`pinned`). Every other page keeps the rule above.
  *
  * ⛔ IT IS A REMOTE CONTROL FOR THE PAGE'S OWN BUTTON, NOT A SECOND ACTION. Everything that decides what a reader may do
  * here already lives in the control in the page: the sign-in gate and the opener (contact-composer), the daily limit and
@@ -87,6 +91,8 @@ const EXIT_MS = 200
 const TWO_LINES = 56
 /** globals.css `@custom-variant pc`: the tab bar is not shown here. */
 const PC_QUERY = '(min-width: 64rem) and (pointer: fine)'
+/** Where a page that pins its own action (`pinned`) holds it: below md (ui/sticky-action-bar.tsx PinnedRegion's query). */
+const PIN_PHONE_QUERY = '(max-width: 767.98px)'
 /** The caption's type, under the price or alone at the start of the row (a no-figure job's "Source: <board>", batch 95). */
 const CAPTION = 'truncate text-xs text-muted-foreground'
 
@@ -164,6 +170,8 @@ export function PdpActionBar({
   block = '#contact',
   control = '[data-affiliate-cta], [data-pdp-primary]',
   hideWhile,
+  titleCaption = 'always',
+  pinned = false,
 }: {
   /** The listing's price as the page prints it, for the start of the row; the page's title rides under it. Without one the
    *  action takes the whole row — except an 'apply' link that names its source, whose caption alone starts the row (batch 95). */
@@ -179,6 +187,20 @@ export function PdpActionBar({
   control?: string
   /** While this element is on screen the bar stays away: the teacher profile's full contact block further down the page. */
   hideWhile?: string
+  /**
+   * ⛔ 'md' — THE PAGE'S TITLE UNDER THE PRICE ONLY FROM md (owner-approved 2026-11-14, cook r05 "rental-c": a home to rent's
+   * phone bar; src/lib/rental-sheet.ts). It reverses there "the page's title rides under it" (`price` above): below md the
+   * price's own "≈ $" takes that line (the page passes it as a block). ⛔ ONLY THE TITLE: a 'buy' link's "Source: <shop>" and
+   * an 'apply' link's caption are never hidden — they name where the short action goes.
+   */
+  titleCaption?: 'always' | 'md'
+  /**
+   * ⛔ THE PAGE PINS ITS OWN ACTION BELOW md (owner-approved 2026-11-14, cook r06 "item": the goods sheet's one bottom tier,
+   * src/lib/goods-sheet.ts pinsAction). Then, below md and outside the store apps, this bar never shows — decided here from
+   * the screen, not left to the observer (the pinned block is always on screen, so it would never read as "past" anyway):
+   * the page's control and its mirror are never both up. From md, and in the apps, it is the bar it always was.
+   */
+  pinned?: boolean
 }) {
   const { tr } = useLanguage()
   const barsHidden = useHideOnScroll()
@@ -220,7 +242,19 @@ export function PdpActionBar({
     return () => mq.removeEventListener?.('change', sync)
   }, [])
 
-  const wanted = past && barsHidden && !covered && !pc
+  // `pinned`: below md (and outside the apps) the page's own block is the bar (the prop's note).
+  const [phonePinned, setPhonePinned] = React.useState(false)
+  React.useEffect(() => {
+    if (!pinned) { setPhonePinned(false); return }
+    const mq = window.matchMedia?.(PIN_PHONE_QUERY)
+    if (!mq) return
+    const sync = () => setPhonePinned(mq.matches && !document.documentElement.classList.contains('native'))
+    sync()
+    mq.addEventListener?.('change', sync)
+    return () => mq.removeEventListener?.('change', sync)
+  }, [pinned])
+
+  const wanted = past && barsHidden && !covered && !pc && !phonePinned
   React.useEffect(() => {
     if (!wanted) {
       setOpen(false)
@@ -304,7 +338,7 @@ export function PdpActionBar({
           <div data-pdp-bar-price="" className="truncate">{price}</div>
           {/* `w-0 min-w-full`: the caption (the title, or a 'buy' link's "Source: <shop>") fills the block and never widens it.
               The block's own width is the price's, so a long caption cannot push the action into wrapping. */}
-          {caption ? <p className={`w-0 min-w-full ${CAPTION}`}>{caption}</p> : null}
+          {caption ? <p className={`w-0 min-w-full ${CAPTION}${!shop && titleCaption === 'md' ? ' max-md:hidden' : ''}`}>{caption}</p> : null}
         </>
         // A no-figure job's "Source: <board>" alone (batch 95): the block is the row's flexible part, so the caption truncates.
       ) : shop ? <p className={CAPTION}>{caption}</p> : null}

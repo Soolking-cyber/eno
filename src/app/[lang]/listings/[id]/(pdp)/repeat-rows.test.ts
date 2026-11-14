@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { PAGE_TITLE } from '@/lib/rental-sheet'
 
 const PAGE = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'), 'utf8')
 
@@ -49,7 +50,11 @@ describe('batch 95 — the job page says it once (owner-approved 2026-11-14, dec
     expect(PAGE).toContain('const h1Text = roleHeading ?? { title: listing.title, titleVi: listing.titleVi, i18n: i18n[listing.title] ?? null }')
   })
   it('only the H1 reads it: same class list, fed the role props', () => {
-    expect(PAGE).toContain('<LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={h1Text.title} titleVi={h1Text.titleVi} i18n={h1Text.i18n} />')
+    // The class list is src/lib/rental-sheet.ts PAGE_TITLE (a job is never the rental sheet, so a job's H1 always wears it).
+    // (The goods sheet's H1 below md since 2026-11-14, cook r06 "item" — never on a job either: `goodsSheet` needs `factsLine`.)
+    // …and a linked job's below sm, the display role (JOB_TITLE, owner-approved 2026-11-14, cook r06 jobs; src/lib/job-sheet.ts).
+    expect(PAGE).toContain('<LocalizedTitleHeading className={rentalSheet ? SHEET_TITLE : goodsSheet ? GOODS_TITLE : isJob ? JOB_TITLE : PAGE_TITLE} title={h1Text.title} titleVi={h1Text.titleVi} i18n={h1Text.i18n} goods={goodsSheet} />')
+    expect(PAGE_TITLE).toBe('text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]')
     expect(PAGE.match(/h1Text\./g)).toHaveLength(3)
   })
   it('⛔ the <title>, og and share titles, the md+ crumb leaf and the Details heading keep the full title', () => {
@@ -63,7 +68,7 @@ describe('batch 95 — the job page says it once (owner-approved 2026-11-14, dec
     // An empty or whitespace-only salaryText states no pay either (batch 95 review).
     expect(PAGE).toContain("const noPayLine = isJob && listing.price === 0 && !(typeof listing.attributes?.salaryText === 'string' && listing.attributes.salaryText.trim())")
     expect(PAGE).toContain('const priceBlock = !(noPayLine && !listing.urgent && !(listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)))')
-    expect(PAGE).toMatch(/\{priceBlock && \(\n\s*<div className="flex flex-col gap-1\.5">/)
+    expect(PAGE).toMatch(/\{priceBlock && \(\n\s*<div className=\{cn\('flex flex-col gap-1\.5', rentalSheet && SHEET_PRICE_ROW, goodsSheet && GOODS_PRICE_ROW, isJob && JOB_PRICE_ROW\)\}>/)
     // An employer's own job keeps "Salary: negotiable" (owner 2026-10-01), at its weight.
     expect(PAGE).toContain('<span className="text-base font-semibold text-body"><Bilingual en="Salary: negotiable" vi="Lương: thỏa thuận" /></span>')
   })
@@ -75,8 +80,13 @@ describe('batch 95 — the job page says it once (owner-approved 2026-11-14, dec
   })
   it('both storefront rows are the same call, unchanged: the job branch lives in PdpShopLink', () => {
     const calls = PAGE.match(/<PdpShopLink [^\n]*\/>/g)!
-    expect(calls).toHaveLength(2)
-    expect(calls[0]).toBe(calls[1])
-    expect(calls[0]).toContain('linked={linkedSeller}')
+    // Three since 2026-11-14 (owner-approved, cook r06 jobs): a linked job's employer line under its role (`jobTitleLine`, `head`,
+    // `md:hidden`) first, in place of the phone band the job no longer draws; then the band; then the md+ row.
+    expect(calls).toHaveLength(3)
+    expect(calls[0]).toBe(calls[2].replace(' />', ' head className={JOB_EMPLOYER} />'))
+    // The phone row also picks the rental sheet's host card (`variant`, cook r05 — never on a job); every other prop is the same.
+    // …and the goods sheet's band (`variant` + its line, cook r06 "item" — never on a job: `goodsSheet` needs `factsLine`).
+    expect(calls[1].replace(" variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined}", '')).toBe(calls[2])
+    expect(calls[1]).toContain('linked={linkedSeller}')
   })
 })

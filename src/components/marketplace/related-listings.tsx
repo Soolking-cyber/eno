@@ -14,12 +14,15 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 import { PLACES_KIND_PARAM, VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
 import type { SerializedListingCard } from '@/lib/types'
 
+/** The goods sheet's grid below sm holds at most this many cards: three full rows. */
+const PHONE_GRID_CAP = 6
+
 /** "More like this" rail on the listing page — current listing excluded. Fetched CLIENT-side so
  *  the ISR-cached page HTML stays fresh + light, and only once the shelf is ~a viewport away
  *  (IO-gated) so this below-fold call never competes with the gallery LCP image for bandwidth.
  *  Uses the STANDARD grid-matched card size (2/3/4 per view, like the home rails +
  *  "Recently viewed") so all rails read as one family. */
-export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug, model, excludeSellerId, variant = 'pdp' }: {
+export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug, model, excludeSellerId, variant = 'pdp', phoneGrid = false, sectionClassName: sectionClassNameProp }: {
   listingId: string; categorySlug: string; subcategorySlug?: string | null; brandSlug?: string | null
   /** The catalogue model ("A6c"). Read by the 'gone' variant only, whose first pass is brand + model. */
   model?: string | null
@@ -33,6 +36,14 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
   /** 'sold': the shelf on the sold page, where the item itself is gone — hence its own title.
    *  'gone': the shelf on the gone page (gone-listing.tsx) — SECOND-HAND rows only; see the scopes below. */
   variant?: 'pdp' | 'sold' | 'gone'
+  /**
+   * The goods sheet's two-column grid below sm (Shelf `phoneGrid`; owner-approved 2026-11-14, cook r06 "item"): at most six
+   * cards there (three full rows; "See all" holds the rest), a six-card placeholder of the same rows while it loads (the two
+   * extra `sm:hidden`, so from sm the rail's four), and a 32px gap over it below md.
+   */
+  phoneGrid?: boolean
+  /** The PDP section's own top gap, when the page sets it (a linked job: `mt-8 md:mt-12`, owner-approved 2026-11-14, cook r06 jobs). */
+  sectionClassName?: string
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
@@ -161,7 +172,9 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     : variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')
   /* The sold and gone pages' rail sits right under the item's name on a phone (sold-listing.tsx,
      gone-listing.tsx): mt-12 there kept the first card under the tab bar. */
-  const sectionClassName = variant === 'pdp' ? 'mt-12' : 'mt-4 sm:mt-12'
+  const sectionClassName = sectionClassNameProp ?? (variant === 'pdp' ? (phoneGrid ? 'mt-8 md:mt-12' : 'mt-12') : 'mt-4 sm:mt-12')
+  // The grid's cap below sm: cards 7 and on are not drawn there (the rail keeps all of them from sm).
+  const capped = (i: number) => (phoneGrid && i >= PHONE_GRID_CAP ? 'max-sm:hidden' : '')
   // "See all" keeps a Vietnamese reader in Vietnamese, like the sold page's own "Browse this category" and
   // the PDP's brand chip: a bare '/c/…' or '/?category=…' can be an English-pinned pilot path (lang-pinned.ts).
   // The gone rail is second-hand only, so its "See all" is too (gate, 2026-10-05).
@@ -187,8 +200,10 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     return (
       <div ref={ref} data-related-loading="">
         {/* A job's rail loads as rows on a phone (batch 67), so its placeholder is rows there too: the category is known before the answer. */}
-        <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName} phoneRows={categorySlug === 'jobs' ? <JobRailRowsSkeleton /> : undefined}>
+        <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName} phoneRows={categorySlug === 'jobs' ? <JobRailRowsSkeleton /> : undefined} phoneGrid={phoneGrid}>
           {Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => <ListingCardSkeleton key={i} className={RAIL_CARD_W} />)}
+          {/* The grid's two extra placeholders (three rows of two), below sm only. */}
+          {phoneGrid && Array.from({ length: PHONE_GRID_CAP - RAIL_SKELETON_COUNT }).map((_, i) => <ListingCardSkeleton key={`g${i}`} className={`${RAIL_CARD_W} sm:hidden`} />)}
         </Shelf>
       </div>
     )
@@ -208,9 +223,10 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
       sectionClassName={sectionClassName}
       watch={items.length}
       phoneRows={allJobs(items) ? <JobRailRows listings={items} /> : undefined}
+      phoneGrid={phoneGrid}
     >
-      {items.map((l) => (
-        <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
+      {items.map((l, i) => (
+        <div key={l.id} data-sid={l.sellerId} className={`${RAIL_CARD_W} ${capped(i)}`.trim()}>
           <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
         </div>
       ))}

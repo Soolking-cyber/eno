@@ -4,6 +4,11 @@ import { useLanguage } from '@/context/language-context'
 import { SECTION_TITLE } from '@/components/marketplace/section-title'
 import { cn } from '@/lib/utils'
 import { IS_SERVICES } from '@/lib/edition'
+import { SHEET_HEAD_GAP, SHEET_ROWS } from '@/lib/rental-sheet'
+import { GOODS_SECTION_TITLE } from '@/lib/goods-sheet'
+
+/** The goods counsel panel's rows below md: inline "Label: value", no rules, 14px; the value left, ink and bold. */
+const PANEL_ROWS = 'max-md:mt-2 max-md:divide-y-0 max-md:[&>div]:justify-start max-md:[&>div]:gap-1 max-md:[&>div]:py-0 max-md:[&_dd]:text-left max-md:[&_dd]:font-bold'
 import type { SellerInfoProps, SourceAction } from '@/lib/seller-info'
 
 export type { SellerInfoProps }
@@ -30,7 +35,12 @@ export type { SellerInfoProps }
  * ⚠️ PROPS ARE PLAIN STRINGS picked on the server from the raw row — the serialized seller deliberately
  * carries none of the identity columns, and this component must not become the reason it starts to.
  */
-export function SellerInfo({ info, variant = 'pdp', className }: { info: SellerInfoProps; variant?: 'pdp' | 'storefront'; className?: string }) {
+export function SellerInfo({ info, variant = 'pdp', className, sheet = false, panel = false, labelId }: { info: SellerInfoProps; variant?: 'pdp' | 'storefront'; className?: string; /** The heading's id, where a page renders a second copy (a linked job's phone panel, `md:hidden`): ids stay unique. */ labelId?: string; /** The rental sheet's rows and 16px heading step below md (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts) — the same rows as Costs and Details there. */ sheet?: boolean; /**
+   * ⛔ THE GOODS SHEET'S COUNSEL PANEL, BELOW md (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts): the top
+   * half of one tint panel the safety advice closes (the page passes the panel's box). Inside it, quieter: the heading in the
+   * sub-section role, each row inline as "Source: <shop>" (label muted with its colon, value ink and bold), the caption 14px
+   * in body ink, 4px apart. Every class is `max-md:`; from md the block is the table it was.
+   */ panel?: boolean }) {
   const { tr } = useLanguage()
   const rows: { key: string; label: string; value: string }[] = []
   if (info.kind === 'business') {
@@ -50,17 +60,18 @@ export function SellerInfo({ info, variant = 'pdp', className }: { info: SellerI
   if (rows.length === 0) return null
 
   return (
-    <section aria-labelledby={`seller-info-${variant}`} data-seller-info={info.kind} className={cn('space-y-2', className)}>
+    <section aria-labelledby={labelId ?? `seller-info-${variant}`} data-seller-info={info.kind} className={cn('space-y-2', sheet && SHEET_HEAD_GAP, panel && 'max-md:space-y-1', className)}>
       {/* The PDP's section treatment (SECTION_TITLE, as "Description" / "Details" since 2026-11-09 — it was left at text-lg
           between them, pre-deploy review); the storefront's own `h-section`, as its "Reviews" / "Listings by" heads. */}
-      <h2 id={`seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : SECTION_TITLE}>
+      <h2 id={labelId ?? `seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : panel ? GOODS_SECTION_TITLE : SECTION_TITLE}>
         {tr('Seller information', 'Thông tin người bán')}
       </h2>
       {/* The Details table's row grammar: hairline dividers, muted label, strong value. */}
-      <dl className="divide-y divide-border text-sm">
+      <dl className={cn('divide-y divide-border text-sm', sheet && SHEET_ROWS, panel && PANEL_ROWS)}>
         {rows.map((r) => (
           <div key={r.key} className="flex items-start justify-between gap-4 py-2.5">
-            <dt className="shrink-0 text-muted-foreground">{r.label}</dt>
+            {/* The panel's inline row: the colon is the label's own, below md only. */}
+            <dt className="shrink-0 text-muted-foreground">{r.label}{panel && <span className="md:hidden">:</span>}</dt>
             {/* Names and addresses are shown as written — never machine-translated (a name translated is a
                 different name). `[overflow-wrap:anywhere]` so a long unbroken address cannot widen the row. */}
             <dd data-fab-avoid className="min-w-0 text-right font-medium text-foreground [overflow-wrap:anywhere]">{r.value}</dd>
@@ -77,25 +88,27 @@ export function SellerInfo({ info, variant = 'pdp', className }: { info: SellerI
           and a linked RENTAL (home or vehicle) is contacted or booked — "buy" on those was simply wrong.
           2026-11-07 audit: both captions 14px in body ink from lg, as the rows above them; at 12px in the quietest grey "eno.vn is
           not the employer" read as fine print on a desktop. */}
-      {info.kind === 'source' && <p className="text-xs text-muted-foreground lg:text-sm lg:text-body">{sourceCaption(info.action, tr)}</p>}
+      {info.kind === 'source' && <p className={cn('text-xs text-muted-foreground lg:text-sm lg:text-body', panel && 'max-md:text-sm max-md:text-body')}>{sourceCaption(info.action, tr)}</p>}
     </section>
   )
 }
 
-/** The caption under a linked shop's "Source" row — one written-out pair per edition × verb (harvester). */
+/** The caption under a linked shop's "Source" row — one written-out pair per edition × verb (harvester). The buy and default
+ *  captions join their clauses with '; ' since 2026-11-14 (owner-approved, cook r06 "item": no em dashes in UI copy; the words
+ *  are unchanged); the job and rental captions are their pages' to change. */
 function sourceCaption(action: SourceAction, tr: (en: string, vi: string) => string): string {
   if (IS_SERVICES) {
     switch (action) {
       case 'apply': return tr('eno.forum is not the employer — you apply on the source website.', 'eno.forum không phải là nhà tuyển dụng — bạn ứng tuyển trên website gốc.')
       case 'rent': return tr('eno.forum does not rent this out — you contact or book on the source website.', 'eno.forum không phải là bên cho thuê — bạn liên hệ hoặc đặt thuê trên website gốc.')
-      case 'buy': return tr('eno.forum is not the seller here — you contact or buy on the source website.', 'eno.forum không phải là người bán — bạn liên hệ hoặc mua trên website gốc.')
-      default: return tr('eno.forum is not the seller here — each listing links to its source website, and you continue there.', 'eno.forum không phải là người bán — mỗi tin đăng dẫn link về website gốc, bạn tiếp tục tại đó.')
+      case 'buy': return tr('eno.forum is not the seller here; you contact or buy on the source website.', 'eno.forum không phải là người bán; bạn liên hệ hoặc mua trên website gốc.')
+      default: return tr('eno.forum is not the seller here; each listing links to its source website, and you continue there.', 'eno.forum không phải là người bán; mỗi tin đăng dẫn link về website gốc, bạn tiếp tục tại đó.')
     }
   }
   switch (action) {
     case 'apply': return tr('eno.vn is not the employer — you apply on the source website.', 'eno.vn không phải là nhà tuyển dụng — bạn ứng tuyển trên website gốc.')
     case 'rent': return tr('eno.vn does not rent this out — you contact or book on the source website.', 'eno.vn không phải là bên cho thuê — bạn liên hệ hoặc đặt thuê trên website gốc.')
-    case 'buy': return tr('eno.vn is not the seller here — you contact or buy on the source website.', 'eno.vn không phải là người bán — bạn liên hệ hoặc mua trên website gốc.')
-    default: return tr('eno.vn is not the seller here — each listing links to its source website, and you continue there.', 'eno.vn không phải là người bán — mỗi tin đăng dẫn link về website gốc, bạn tiếp tục tại đó.')
+    case 'buy': return tr('eno.vn is not the seller here; you contact or buy on the source website.', 'eno.vn không phải là người bán; bạn liên hệ hoặc mua trên website gốc.')
+    default: return tr('eno.vn is not the seller here; each listing links to its source website, and you continue there.', 'eno.vn không phải là người bán; mỗi tin đăng dẫn link về website gốc, bạn tiếp tục tại đó.')
   }
 }

@@ -167,3 +167,43 @@ describe('reports-and-disputes row: a link until hydration, a dialog trigger aft
     expect(safety).toMatch(/<ContentSection id="protection"/)
   })
 })
+
+/**
+ * ⛔ shortLabel — THE RENTAL SHEET'S WELL (owner-approved 2026-11-14, cook r05 "rental-c"): " — how they work" is
+ * screen-reader-only below md. Every word stays in the DOM, the text and the accessible name (which the visible "Reports &
+ * disputes" begins — label in name), and the server and client renders agree.
+ */
+describe('ProtectionsRow shortLabel', () => {
+  it('the tail is max-md:sr-only; textContent and the name are unchanged; the label and chevron take body ink at 14/16 below md', () => {
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(<ProtectionsRow inline shortLabel />)
+    document.body.appendChild(container)
+    const row = container.querySelector('[data-protections-row]')!
+    expect(row.textContent).toBe('Reports & disputes — how they work')
+    const tail = [...row.querySelectorAll('span')].find((s) => s.textContent === ' — how they work')!
+    expect(tail.className).toBe('max-md:sr-only')
+    const bold = row.querySelector('span.font-bold')!
+    expect(bold.className).toContain('max-md:text-body')
+    expect(row.querySelector('svg')!.getAttribute('class')).toContain('max-md:size-4')
+    expect(row.textContent!.startsWith(bold.textContent!)).toBe(true)
+  })
+
+  it('hydrates with no mismatch', async () => {
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(<ProtectionsRow inline shortLabel />)
+    document.body.appendChild(container)
+    const recoverable: unknown[] = []
+    const consoleErrors: string[] = []
+    vi.spyOn(console, 'error').mockImplementation((...args) => { consoleErrors.push(args.map(String).join(' ')) })
+    await act(async () => {
+      roots.push(hydrateRoot(container, <ProtectionsRow inline shortLabel />, { onRecoverableError: (e) => { recoverable.push(e) } }))
+    })
+    expect(recoverable).toEqual([])
+    expect(consoleErrors.filter((m) => /hydrat|did not match|mismatch/i.test(m))).toEqual([])
+  })
+
+  it('without it the tail is never hidden', () => {
+    const html = renderToString(<ProtectionsRow inline />)
+    expect(html).not.toContain('sr-only')
+  })
+})

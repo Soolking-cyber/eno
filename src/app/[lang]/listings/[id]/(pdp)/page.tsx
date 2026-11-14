@@ -22,7 +22,7 @@ import { EVisaSellerNote } from '@/components/marketplace/evisa-seller-note'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ElementType, type ReactNode } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull, dropPercent, rateCompactAbove } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
@@ -122,6 +122,13 @@ import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
+import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP_ALONE, COUNSEL_STRIP_JOINED, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
+import { PinnedRegion, StickyActionBarSpacer } from '@/components/ui/sticky-action-bar'
+import { isCommissionLink } from '@/lib/affiliate-commission'
+import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
+import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
+import { JobApplyRow } from '@/components/marketplace/job-apply-row'
+import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SECTION_LINE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_TITLE, SHEET_WELL, isRentalSheet, sectionLine } from '@/lib/rental-sheet'
 
 type Props = {
   params: Promise<{ id: string; lang?: string }>
@@ -130,6 +137,8 @@ type Props = {
 /** The facts line's separator (batch 89): a no-break space ties the dot to the fact before it, so the only break is after it —
  *  see the note at the line. A constant, not a JSX literal (jsx-no-literals). */
 const FACT_SEP = '\u00a0· '
+/** FACT_SEP without its breaking space: the goods sheet keeps the dot inside a fact's box and the space outside it. */
+const FACT_DOT = '\u00a0·'
 
 // ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
 // served ~globally in tens of ms instead of a function+DB hit in Singapore per
@@ -458,6 +467,13 @@ export default async function ListingPage({ params }: Props) {
   // Scoped to the photo-optional category through the same function, so every other listing's PDP is
   // exactly as it was (the gallery's own empty state never showed a clip either: hasVideo needs a photo).
   const noGallery = isJob || (minPhotosFor(rawListing.category.slug) === 0 && listing.images.length === 0)
+  /**
+   * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all best options and
+   * deploy"; src/lib/rental-sheet.ts has the whole page): a home to rent, on a phone, is an editorial page with a host card.
+   * Decided here, from the listing alone, so the server HTML and the first client render agree. Below md only; from md the
+   * page paints as before (each call site below says how).
+   */
+  const rentalSheet = isRentalSheet({ noGallery, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType })
   const jobApplyBy = isJob && typeof listing.attributes?.applyBy === 'string' ? (listing.attributes.applyBy as string) : null
   // No owner account and not an official partner (owner, 2026-10-01 — src/lib/linked-seller.ts): the
   // storefront's trustScore describes nobody, so no trust chip on ANY of its listings; and when this row
@@ -948,6 +964,42 @@ export default async function ListingPage({ params }: Props) {
   // the attribute rows before the facts-line de-dup, so the repeat CTA appears on exactly the pages it did.
   const detailRowCount = numericSpecs.length + detailOnlySpecs.length + (attrRowsBefore89 ?? detailAttrs.length)
   const repeatCta = !!affiliateUrl && ((showDescription && descNorm.length >= 600) || detailRowCount >= 8)
+  /**
+   * ⛔ THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item": "after this cook round build all best options and deploy";
+   * src/lib/goods-sheet.ts has the whole page): a goods or vehicle listing, on a phone. Every listing with a gallery that is
+   * not a job (`factsLine`) and not a home to rent (`rentalSheet`). Decided here from the listing alone, so the server HTML
+   * and the first client render agree. Below md only; from md the page paints as before (each call site says how).
+   */
+  const goodsSheet = isGoodsSheet({ noGallery, rentalSheet, factsLine })
+  /**
+   * ⛔ …AND ITS ACTION PINNED FROM THE FIRST PAINT, WITH THE TAB BAR RETRACTED (owner-approved 2026-11-14, cook r06 "item"),
+   * only where `#contact` is one control and one line (pinsAction has the list; every other page keeps the in-flow block and
+   * PdpActionBar's mirror). The same facts the blocks below are rendered from.
+   */
+  const pinned = pinsAction({
+    goodsSheet,
+    affiliate: !!affiliateUrl,
+    job: isJob,
+    booking: isBooking,
+    commission: !!affiliateUrl && isCommissionLink(affiliateUrl),
+    discountCode: !!listing.affiliateDiscountCode,
+    productStep: !!affiliateUrl && embeddedProductUrl(affiliateUrl) !== null,
+    price: listing.price,
+    negotiable: listing.negotiable !== false,
+    visa: isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug),
+    iosHide: iosHideContact,
+    tripDesk: isTripProduct,
+    rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',
+  })
+  // Whether Seller information draws anything (it renders nothing with no row): the counsel panel joins it only then.
+  const sellerInfoShown = !!sellerInfo && (sellerInfo.kind === 'business'
+    ? [sellerInfo.legalName, sellerInfo.legalAddress, sellerInfo.taxCode].some((v) => !!v?.trim())
+    : sellerInfo.source.trim() !== '')
+  // The slot-8 wrapper below md on the goods sheet holds Description, and the partner CTA repeat where it is not pinned; Details
+  // shows under the head there instead. With nothing left to show below md it is hidden whole (no empty item, no gap).
+  const order8PhoneEmpty = goodsSheet && !showDescription && amenities.length === 0 && !(repeatCta && !!affiliateUrl && !pinned)
+  // A seller with exactly two other items: on a phone the goods sheet ends on their row, after "More like this" (the twin below).
+  const sellerShelfLast = goodsSheet && moreFromSeller.length === 2
   const socialProof = (
     <>
       {listing.savedCount >= 3 && (
@@ -1004,7 +1056,8 @@ export default async function ListingPage({ params }: Props) {
     // the "See original" button of the machine-translation note right above it — later in the DOM, so it took those taps
     // (review, 2026-11-13; globals.css tap-44's tap-stealing note). The chip it replaces had no tap floor either.
     if (brand) {
-      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className="text-foreground underline underline-offset-4">{brand.name}</Link> })
+      // The goods sheet below md: the link in the line's own grey, still underlined (owner-approved 2026-11-14, cook r06 "item").
+      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link> })
     }
     for (const s of numericSpecs) facts.push({ key: `spec-${s.label}`, node: <><Tr text={s.label} /> {s.value}</> })
     if (bedrooms) {
@@ -1043,6 +1096,221 @@ export default async function ListingPage({ params }: Props) {
     if (showPosted) facts.push({ key: 'posted', node: <><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></> })
   }
   const factSeps = factSeparators(facts.map((f) => !!f.phoneOnly))
+
+  /**
+   * THE H1 AND THE FACTS LINE, rendered in ONE of two places in the header block below: after the price (every listing page,
+   * P-HIER's price → title → metadata) or, on the rental sheet, BEFORE it — there the DOM order is the phone's paint order
+   * (title, facts, price), and the price row's `md:order-first` paints it first again from md. Nothing in the price row is
+   * focusable, so the focus order is the same either way; only a desktop screen reader hears the title before the price.
+   */
+  // ⛔ A LINKED JOB (owner-approved 2026-11-14, cook r06 jobs; src/lib/job-sheet.ts): the H1 is the display line below sm and
+  // rides one line with Share (`jobTitleLine`); its facts follow the employer and the pay (the header block below).
+  const headH1 = (
+    <>
+      {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
+          body copy under the price and the page had no heading. Bold at 18px it is a heading
+          and still sits far below the 30px price, so price-first holds.
+          ⛔ …EXCEPT ON THE RENTAL SHEET BELOW md (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses P-HIER there):
+          the TITLE leads and is the page's display element (`text-t-title` 26/32), the facts line under it, the price after
+          them at 22 (SHEET_TITLE / SHEET_PRICE, src/lib/rental-sheet.ts). From md: PAGE_TITLE's own 24px, the 30px price first.
+          `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on the facts line below: the
+          support bubble rests over the end of the title and the posted time on first paint (si-11,
+          real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
+          never risen above). A machine-translated title gets "Translated · See original" under it. */}
+      {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
+      {/* ⛔ …AND ON THE GOODS SHEET BELOW md (owner-approved 2026-11-14, cook r06 "item"; it reverses P-HIER's 18px there): the H1
+          is the sub-section role (`text-t-h3`, 17/24) under the 32px price, which stays the largest text (GOODS_TITLE,
+          src/lib/goods-sheet.ts); from md PAGE_TITLE's 24px. */}
+      <LocalizedTitleHeading className={rentalSheet ? SHEET_TITLE : goodsSheet ? GOODS_TITLE : isJob ? JOB_TITLE : PAGE_TITLE} title={h1Text.title} titleVi={h1Text.titleVi} i18n={h1Text.i18n} goods={goodsSheet} />
+    </>
+  )
+  const headFacts = (
+    <>
+      {/* THE FACTS LINE (UI climb batch 89, 2026-11-13; blind A/B on live eno.vn, Opus +0.24, trust −0.1; owner: "reduce
+          lines … super clean, minimal wording, only what's necessary"): ONE grey 16px line under the H1 — "Fixed price ·
+          1 bedroom · Floor 2 · Deposit 1 month" — in place of the price row's chips and the meta row of chips and glyphs.
+          What it holds and each fact's gate: `facts` above. Server-rendered, nothing measured in the browser.
+          ⛔ IT WRAPS, NEVER TRUNCATES (`[overflow-wrap:anywhere]`, no `truncate`): the seller's condition text and the
+          phone's deposit must never be cut off its end, as the mock's one-line ellipsis did.
+          ⚠️ THE '·' SEPARATORS COME FROM THE DATA, IN ONE TEXT RUN (factSeparators). The old meta row banned literal
+          separators because they were FLEX ITEMS of their own, so a wrap could strand one alone at a line's end
+          ('Apple · New · Hồ Chí Minh ·') or start. Here the facts and their dots are one run of inline text: a no-break
+          space ties each dot to the fact before it (FACT_SEP — the H1's own rule, LocalizedTitleHeading, 2026-11-06
+          audit), so a line can end on "fact ·" but never open on a dot, and no dot is ever alone; a dot is only ever
+          printed BETWEEN two facts the reader sees, at every width — the phone-only deposit carries its own, and the
+          fact before it loses its dot from md when nothing visible follows.
+          `data-fab-avoid`: the support bubble yields over it (back-to-top.tsx — a wide value is yielded to, never
+          risen above; si-11). Not on a job: its meta row below is as it was.
+          ⛔ ON THE GOODS SHEET BELOW md (owner-approved 2026-11-14, cook r06 "item"; it reverses "ONE grey 16px line" there): 14px,
+          and each fact but the seller's free-text condition is one box with its dot (GOODS_FACT), so the line breaks BETWEEN facts,
+          never inside a short one ("Ho Chi / Minh"); the space after the dot stays outside the box, where the break is. It still
+          wraps and is never cut (the ⛔ above holds: no nowrap, no truncate). */}
+      {factsLine ? facts.length > 0 && (
+        <div data-facts-line="" data-fab-avoid className={cn('text-base text-muted-foreground [overflow-wrap:anywhere]', facts.every((f) => f.phoneOnly) && 'md:hidden', rentalSheet && 'max-md:text-pretty', goodsSheet && GOODS_FACTS)}>
+          {facts.map((f, i) => {
+            const tail = factSeps[i] === 'all' ? FACT_SEP : factSeps[i] === 'phone' ? <span className="md:hidden">{FACT_SEP}</span> : null
+            if (goodsSheet && f.key !== 'condition') {
+              // The dot (no-break space + '·') inside the box, the breaking space after it outside.
+              const dot = factSeps[i] === 'all' ? FACT_DOT : factSeps[i] === 'phone' ? <span className="md:hidden">{FACT_DOT}</span> : null
+              return <Fragment key={f.key}><span className={cn(GOODS_FACT, f.phoneOnly && 'md:hidden')}>{f.node}{dot}</span>{dot ? ' ' : null}</Fragment>
+            }
+            return f.phoneOnly
+              ? <span key={f.key} className="md:hidden">{f.node}{tail}</span>
+              : <Fragment key={f.key}>{f.node}{tail}</Fragment>
+          })}
+        </div>
+      ) : (
+        /* A JOB'S META ROW, as it was before batch 89 (the facts line is not the job page's): its place, "Posted" and the
+           social proof, each with its glyph — the column gap separates them, no literal '·' (a wrap would strand one).
+           A job never had a brand, a condition (⛔ 2026-10-19) or a vehicle spec to print here. */
+        /* A linked job below md: 12px under the pay or the employer, 14px in body ink, 18px muted glyphs (JOB_META). */
+        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground', isJob && JOB_META)}>
+          <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
+            <MapPin className={cn('h-4 w-4 shrink-0 text-ink-4', isJob && JOB_META_GLYPH)} />
+            <span className="truncate">{placeName}</span>
+          </span>
+          {showPosted && (
+            <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
+              <Clock className={cn('h-4 w-4 shrink-0 text-ink-4', isJob && JOB_META_GLYPH)} />
+              <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
+            </span>
+          )}
+          {showProof && <span data-fab-avoid className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
+        </div>
+      )}
+    </>
+  )
+  const headTitle = <>{headH1}{headFacts}</>
+
+  /** The Details rows, for the section's table and, on the goods sheet, its phone twin (`detailsTwin`). */
+  const detailsRows = (
+          <>
+            {/* First: who holds the licence (e-Visa, Legal & permits) — verbatim, never translated. */}
+            {providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}
+            {[...detailSpecs, ...detailOnlySpecs].map((s) => (
+              <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
+                <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
+                <dd data-fab-avoid className="text-right font-medium text-foreground">{s.value}</dd>
+              </div>
+            ))}
+            {/* A rental's occupancy rows — max occupants, floor, available from (rental-facts.tsx). */}
+            {detailFactRows.length > 0 && <RentalFactRows rows={detailFactRows} />}
+            {detailAttrs.map(([k, v]) => {
+              // ⛔ ONE LABEL FUNCTION (taxonomy.ts detailRowLabel): this row's label is what the job-text screen reads
+              // beside a hiring post's value ("label: value"), so the two cannot drift. A job's text facts carry their
+              // own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
+              // ⚠️ THE LABEL AND THE VALUE ARE THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
+              // facet row carries its own labelVi ("Phòng ngủ"), and a raw key through <Tr> found
+              // Vietnamese only where the UI dictionary held that exact casing: it has "Bedrooms", not
+              // "bedrooms", so a vi rental PDP printed "bedrooms", "bathrooms" (prod, 2026-09-29).
+              // VALUES followed on 2026-10-04 (pdp-02): a vi car hire said "Daily", "Delivered to you",
+              // "Automatic" in the server HTML, because only jobs and eSIM went through the option pair.
+              // <FacetValue> maps each stored value through the facet (./details-labels.test.tsx).
+              // ⚠️ SENTENCE CASE, NOT CSS `capitalize`. Taxonomy and job labels are already written in
+              // sentence case ('Apply by', 'eSIM', 'Full-time'), and `capitalize` title-cased every
+              // word of them into 'Apply By', 'ESIM', 'Full-Time'. Only a RAW key or value (stored
+              // lowercase, no label to borrow) gets its first letter raised — `first-letter:` works
+              // here because dt/dd are flex items, which are blockified.
+              const { jobText, facet: labelFacet, rawKey } = detailRowLabel(k, { categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType })
+              const value = Array.isArray(v) ? v.map(String).join(', ') : String(v)
+              return (
+              <div key={k} className="flex items-start justify-between gap-4 py-2.5">
+                <dt className="text-muted-foreground first-letter:uppercase">
+                  {jobText ? <Bilingual en={jobText.label} vi={jobText.labelVi} />
+                    : labelFacet ? <Bilingual en={labelFacet.label} vi={labelFacet.labelVi} />
+                    : <Tr text={rawKey} />}
+                </dt>
+                {/* A stored DATE ('2026-10-08' — a job's posted/apply-by) reads as the reader writes a
+                    date: '8 Oct 2026' / '8/10/2026'. ⚠️ A NAME (author, publisher) is stored as written
+                    and must never go through machine translation, which would "translate" a person. */}
+                {/^\d{4}-\d{2}-\d{2}$/.test(value)
+                  ? <dd data-fab-avoid className="text-right font-medium text-foreground"><CalendarDay value={value} /></dd>
+                  : jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
+                  ? <dd data-fab-avoid className="text-right font-medium text-foreground">{value}</dd>
+                  : labelFacet
+                  ? <dd data-fab-avoid className={cn('text-right font-medium text-foreground', facetValueStartsRaw(labelFacet, v) && 'first-letter:uppercase')}><FacetValue facet={labelFacet} value={v} pageLang={pageVariant} /></dd>
+                  : <dd data-fab-avoid className="text-right font-medium text-foreground first-letter:uppercase"><Tr text={value} /></dd>}
+              </div>
+              )
+            })}
+          </>
+  )
+
+  /**
+   * DETAILS, rendered in ONE of two places in the description wrapper (slot 8) below: after Description and Amenities (every
+   * listing page) or, on the rental sheet, FIRST — Costs, Details, then the words and the amenity grid, the mock's reading
+   * order (owner-approved 2026-11-14, cook r05 "rental-c") — with Description and Amenities `md:-order-1` there, so from md
+   * the column paints Description, Amenities, Details as before. Details holds nothing focusable; the focus order is the same.
+   */
+  const detailsSection = (
+    <>
+      {/* Details: the section hairline below md (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
+          Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
+      {/* ⛔ On the goods sheet this section is not drawn below md: its phone twin (`detailsTwin`) stands under the head there. */}
+      {showDetails && (
+        <div className={cn('space-y-2', goodsSheet || isJob ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>
+          <h2 className={SECTION_TITLE}><Tr text="Details" /></h2>
+          {/* ⛔ Not below md on a linked job either: its tags (`jobTags`) stand under the head there (owner-approved 2026-11-14, cook r06 jobs). */}
+          {/* Spec table: hairline row dividers, muted label / strong value, even row height.
+              `data-fab-avoid` on every value: the floating support mark yields (fades) when it
+              would sit over one — these right-aligned values run into the corner it rests in,
+              and plain text is otherwise never an obstacle (back-to-top.tsx OBSTACLES). */}
+          {/* `[overflow-wrap:anywhere]` + a shrinkable VALUE (break-ui, 2026-10-05) — on the dd only: inherited by the
+              dt it would lower the label's min-content and split "Dung lượng" mid-word (opus). An imported attribute
+              with no spaces ("256GB-ChínhHãngVN/A-KhôngLock") pushed the row past a 320px screen;
+              the Seller-information block below already does this (seller-info.tsx). */}
+          <dl className={cn('divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]', rentalSheet && SHEET_ROWS)}>
+            {detailsRows}
+          </dl>
+        </div>
+      )}
+    </>
+  )
+  /**
+   * ⛔ DETAILS ON THE GOODS SHEET, BELOW md (owner-approved 2026-11-14, cook r06 "item"): the listing's key facts right under
+   * the head, as label/value rows on hairlines (Wallapop's attribute rows) — the same rows (`detailsRows`), a second <dl>
+   * that is display:none from md while the section above is display:none below it, so one table is ever shown and read.
+   * Its heading is screen-reader only (the rows name themselves). No ids in it. Rendered in the phone band's slot (`md:hidden`).
+   */
+  const detailsTwin = goodsSheet && showDetails ? (
+    <div className={GOODS_DETAILS_TWIN}>
+      <h2 className="sr-only"><Tr text="Details" /></h2>
+      <dl className={cn('[&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]', GOODS_DETAILS_ROWS)}>{detailsRows}</dl>
+    </div>
+  ) : null
+
+  /**
+   * ⛔ A LINKED JOB'S DETAILS AS TAGS, BELOW md (owner-approved 2026-11-14, cook r06 jobs; it reverses there batch 79's hairline
+   * section): the same rows (`detailsRows`, so the table and the tags cannot drift), restyled as field-grey "Label: value" tags
+   * under the place line (JOB_TAG_ROWS). display:none from md, where the table is shown; the table is display:none below md.
+   */
+  const jobTags = isJob && showDetails ? (
+    <div className={JOB_TAGS}>
+      <h2 className="sr-only"><Tr text="Details" /></h2>
+      <dl className={JOB_TAG_ROWS}>{detailsRows}</dl>
+    </div>
+  ) : null
+  /**
+   * ⛔ A LINKED JOB'S HEAD BELOW md (owner-approved 2026-11-14, cook r06 jobs; src/lib/job-sheet.ts): the role with Share (and the
+   * owner's Edit) on its first line — both wrappers `md:contents`, so from md the H1 and its note are the header block's flex items
+   * they are today — then the employer, once, as a link with the kept counsel line under it (the phone band is not drawn for a
+   * job). The md+ storefront row in the buy box is unchanged.
+   */
+  const jobTitleLine = isJob ? (
+    <>
+      <div className={JOB_TITLE_LINE}>
+        <div className={JOB_TITLE_CELL}>{headH1}</div>
+        <div className={JOB_TITLE_ACTIONS}>
+          <ShareButton url={canonicalUrl} title={displayTitle} shape="round" />
+          <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} />
+        </div>
+      </div>
+      <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} head className={JOB_EMPLOYER} />
+    </>
+  ) : null
+
+  // `#contact`'s element: the pinned tier (a client PinnedRegion, which publishes its height) or the plain block.
+  const ContactBlock: ElementType = pinned ? PinnedRegion : 'div'
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -1096,9 +1364,12 @@ export default async function ListingPage({ params }: Props) {
         <PdpActionBar price={listing.listingType === 'job' && listing.price === 0 ? undefined : (
           <>
             {affiliateUrl && isBooking ? <span className="text-sm font-medium text-body"><Tr text="from" /> </span> : null}
-            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={rateCompactAbove(listing)} dual="sm" className="text-lg leading-6" />
+            {/* ⛔ The rental sheet's bar (owner-approved 2026-11-14, cook r05 "rental-c"): below md "≈ $" stands on its own line under
+                the figure, where the title caption is hidden (`titleCaption="md"`); from md it is the same inline ≈ `dual="sm"` prints
+                (SHEET_BAR_*, src/lib/rental-sheet.ts). */}
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={rateCompactAbove(listing)} dual={rentalSheet ? true : 'sm'} className={rentalSheet ? SHEET_BAR_PRICE : 'text-lg leading-6'} unitClassName={rentalSheet ? SHEET_BAR_UNIT : undefined} approxClassName={rentalSheet ? SHEET_BAR_APPROX : undefined} />
           </>
-        )} />
+        )} titleCaption={rentalSheet ? 'md' : 'always'} pinned={pinned} />
         {/* ONE responsive tree, TWO layouts. On a phone it is a single flex column and the
             `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
             `display:contents` there, so their children flatten into this one shared order space:
@@ -1113,22 +1384,11 @@ export default async function ListingPage({ params }: Props) {
             desktop mount at md, so a tablet got the stacked phone order under a ~770px square
             gallery — at 820x1180 the H1 at y=1123 and 'Buy on …' below the fold, behind the tab bar
             (which shows up to 1023px). Side by side, both sit in the first screen. */}
-        <div className="flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-x-6 md:gap-y-6 lg:gap-x-10 lg:gap-y-8">
+        {/* The rental sheet: 32px block to block below md (SHEET_GRID_GAP; src/lib/rental-sheet.ts). */}
+        <div className={cn('flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-x-6 md:gap-y-6 lg:gap-x-10 lg:gap-y-8', rentalSheet && SHEET_GRID_GAP)}>
 
-          {/* The compact storefront link, MOBILE (its history is the note under the breadcrumb). FIRST IN THE DOM, AHEAD OF THE
-              CRUMB (2026-11-06 audit): both paint in slot 7, below `#contact`, and equal `order` falls back to source order — with
-              the crumb first, "eno.vn / Rentals / Motorbike" sat between "Chat now" and the seller it answers for. Both still lead
-              the DOM, so the focus order is the one the breadcrumb note argues for, one row lower. */}
-          {/* THE "HOSTED BY" BAND ON A PHONE (UI climb batch 79; owner, 2026-11-12: "continue the ui ux improvement towards
-              10/10"; blind A/B on live eno.vn, GPT 7.56 → 7.71, Opus 7.61 → 7.74, trust ±0): one hairline over the row and 16px
-              to it, the canon's §3b section line (owner, 2026-07-24: "lines between elements … almost no boxes"), as Airbnb
-              frames its host row. ⛔ ONE LINE, OVER IT ONLY: the band closes on the next section's own line (Costs or
-              Description) — a second line under the row put the breadcrumb between two hairlines ~60px apart, which read as noise
-              (the mock's first round). Since batch 90 the crumb is not drawn below md, so the band holds the host row alone; the
-              rule stands: still no line under it. Below md only (`max-md:`); nothing moves. */}
-          <div className="order-7 md:hidden max-md:border-t max-md:border-border max-md:pt-4">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
-          </div>
+          {/* The compact storefront link, MOBILE, is in the buy box since 2026-11-14 — right after the market price, in the DOM
+              where it paints (the note there). */}
 
           {/* 1 — Breadcrumb (subdued, full width): site / category / subcategory / title. Leaf crumb
               hidden on mobile (it duplicates the H1); the BreadcrumbList JSON-LD still carries it. */}
@@ -1212,7 +1472,10 @@ export default async function ListingPage({ params }: Props) {
               owner's decision (2026-07-23/24) and is the hero; anything stacked on top of it is spent
               from the same 772px budget. (`PdpMobileBar`, which hid the tab bar on this page, was deleted deliberately
               and must not come back; since 2026-11-10 <PdpActionBar> pins the action only in the slot the tab bar has
-              already left, on the owner's word. A reader still at the top of the page has neither.)
+              already left, on the owner's word. A reader still at the top of the page has neither.
+              ⛔ …EXCEPT ON A GOODS PAGE WHOSE ACTION IS ONE CONTROL AND ONE LINE (owner-approved 2026-11-14, cook r06 "item";
+              `pinned`, src/lib/goods-sheet.ts pinsAction): there `#contact` itself is the bottom tier from the first paint and the
+              tab bar starts retracted until the first scroll up — no second bar, nothing hidden for good.)
               ⚠️ THE ROW ITSELF RENDERS ABOVE THE BREADCRUMB NOW (2026-11-06 audit) — the note there says why. */}
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -1233,16 +1496,21 @@ export default async function ListingPage({ params }: Props) {
               is the one hook: globals.css hides `#app-header` below md on a page that carries it and shows the Back control
               below, which stands in for the way back the header gave (pdp-back-button.tsx). Only a page with a gallery has
               the hook, so a linked job and a teacher's profile, which have no photo to open on, keep the header. */}
+          {/* ⛔ ON THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"): the photo fills its square (ListingGallery
+              `sheet`) and a 16px white sheet edge rides over its bottom, the title 24px under it (SHEET_PHOTO,
+              src/lib/rental-sheet.ts). The photo stays square-cornered (owner 2026-07-24, kept): only the sheet is rounded. */}
+          {/* ⛔ ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): the whole photo on a plain white ground (ListingGallery
+              `plain`) under the same 16px sheet edge, the price 16px under it (GOODS_PHOTO, src/lib/goods-sheet.ts). */}
           {!noGallery && (
-          <div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
-            <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
+          <div data-photo-first="" className={cn('relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden', rentalSheet && SHEET_PHOTO, goodsSheet && GOODS_PHOTO)}>
+            <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" sheet={rentalSheet} plain={goodsSheet} />
             {/* Back: opposite Share and Save, the same offsets. Its fallback is the listing's category, for a visitor who opened the listing cold.
                 `plate-lg` (owner-approved 2026-11-14, cook r05: the white photo plates): Back, Share, Save and Edit pad their
                 20px glyphs 6px a side — a 32px white plate inside each 36px button (globals.css, the plate block). */}
             <div className="plate-lg absolute left-3 top-3 z-10 flex items-center">
               <PdpBackButton fallbackHref={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} />
             </div>
-            <div className="plate-lg absolute right-3 top-3 z-10 flex items-center gap-2">
+            <div className={cn('plate-lg absolute right-3 top-3 z-10 flex items-center gap-2', goodsSheet && GOODS_PLATES_GAP)}>
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
               <SaveListingButton id={listing.id} compact />
               {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
@@ -1276,14 +1544,21 @@ export default async function ListingPage({ params }: Props) {
             <div className={cn('contents md:flex md:flex-col md:gap-4 md:border-border/70 lg:sticky lg:top-24', noGallery ? 'md:border-r md:pr-6 lg:pr-10' : 'md:border-l md:pl-6 lg:pl-10')}>
 
               {/* 3 — HEADER BLOCK: price (the anchor) → title → metadata, kept tight (gap-2) so the
-                  three read as one cohesive unit. Price is the largest, boldest text on the page. */}
-              <div className="order-3 flex flex-col gap-2">
+                  three read as one cohesive unit. Price is the largest, boldest text on the page.
+                  ⛔ On a linked job below md: role (+ Share) → employer → pay → place → tags (owner-approved 2026-11-14, cook r06
+                  jobs; it reverses P-HIER there — the role is the page's one display line, a pay follows at 22; job-sheet.ts).
+                  ⛔ On the rental sheet below md: title → metadata → price (owner-approved 2026-11-14, cook r05 "rental-c"; the
+                  note at `headTitle`). */}
+              {/* The goods sheet: 4px between the head's lines below md (GOODS_HEAD). */}
+              <div className={cn('order-3 flex flex-col gap-2', goodsSheet && GOODS_HEAD)}>
                 {/* THE COMPACT JOB HEADER (owner, 2026-09-30, P-JOB): with no poster gallery on a linked
                     job, Share / Save / Edit lose the photo they were overlaid on, so they sit here in
                     their labelled (non-overlay) form, beside a plain 'Job posting' kicker. The overlay
                     variants are white ink for photos and would vanish on the page ground. */}
+                {/* ⛔ md+ ONLY ON A LINKED JOB (owner-approved 2026-11-14, cook r06 jobs; it reverses P-JOB's kicker row there): below md
+                    Share rides the role's line and Save stands beside Apply (JOB_HEADER); from md, first, as before. */}
                 {noGallery && (
-                  <div data-job-header className="flex items-center justify-between gap-2">
+                  <div data-job-header className={cn('flex items-center justify-between gap-2', isJob && JOB_HEADER)}>
                     {listing.listingType === 'job' ? <Badge size="md" className="font-semibold text-body">{tr('Job posting', 'Tin tuyển dụng')}</Badge> : <span />}
                     <div className="flex items-center gap-1">
                       {/* The border matches the labelled Save beside it (its own base has one; Share's does not). */}
@@ -1293,9 +1568,14 @@ export default async function ListingPage({ params }: Props) {
                     </div>
                   </div>
                 )}
+                {/* The rental sheet's title and facts lead the block (`headTitle`, above `return`); the price row follows them. */}
+                {rentalSheet && headTitle}
+                {/* A linked job: the role's line and the employer lead the block below md (`jobTitleLine`); its pay row follows them
+                    and is `md:order-first` (JOB_PRICE_ROW), so from md the block paints job header → price → title → facts as before. */}
+                {jobTitleLine}
                 {/* Not rendered at all for a linked job with nothing to show in it (`priceBlock`, batch 95). */}
                 {priceBlock && (
-                <div className="flex flex-col gap-1.5">
+                <div className={cn('flex flex-col gap-1.5', rentalSheet && SHEET_PRICE_ROW, goodsSheet && GOODS_PRICE_ROW, isJob && JOB_PRICE_ROW)}>
                   {/* The ≈ slot is reserved before /api/fx answers — price.tsx's invisible FX stand-in —
                       so this row does not grow when the rate lands (CLS measured 0, 2026-09-29). */}
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -1329,14 +1609,18 @@ export default async function ListingPage({ params }: Props) {
                       ? <Price price={salaryPriceFor(rawListing.salaryM)} currency={listing.currency} priceUnit="VND/month" className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />
                       : listing.listingType === 'job' && listing.price === 0
                       ? (typeof listing.attributes?.salaryText === 'string' && listing.attributes.salaryText.trim()
-                          ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
+                          ? <span className={isJob ? JOB_SALARY_TEXT : 'text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]'}>{listing.attributes.salaryText}</span>
                           : isJob
                             ? null
                             // An employer's own job with no salary: the post wizard frames an empty
                             // Salary as "Negotiable / Thỏa thuận" (owner, 2026-10-01), so that is
                             // what the employer chose — said in the job boards' own word.
                             : <span className="text-base font-semibold text-body"><Bilingual en="Salary: negotiable" vi="Lương: thỏa thuận" /></span>)
-                      : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight" approxClassName="text-base" listingType={listing.listingType} />}
+                      // The rental sheet's price: 22/28, its unit and "≈ $" at body size below md; today's 30px from md.
+                      // The goods sheet's: the page's one display element, 32/40 (`text-t-figure`), the same unit and "≈ $" (owner-approved
+                      // 2026-11-14, cook r06 "item"); today's 30px from md.
+                      // A linked job's stated pay: the section role (22/28) below md, today's 30px from md (JOB_PRICE).
+                      : <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className={rentalSheet ? SHEET_PRICE : goodsSheet ? GOODS_PRICE : isJob ? JOB_PRICE : 'text-3xl tracking-tight'} approxClassName={rentalSheet || goodsSheet ? SHEET_PRICE_APPROX : isJob ? JOB_PRICE_APPROX : 'text-base'} unitClassName={rentalSheet || goodsSheet ? SHEET_PRICE_UNIT : undefined} listingType={listing.listingType} />}
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against
@@ -1383,58 +1667,10 @@ export default async function ListingPage({ params }: Props) {
                 </div>
                 )}
 
-                {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
-                    body copy under the price and the page had no heading. Bold at 18px it is a heading
-                    and still sits far below the 30px price, so price-first holds.
-                    `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on the facts line below: the
-                    support bubble rests over the end of the title and the posted time on first paint (si-11,
-                    real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
-                    never risen above). A machine-translated title gets "Translated · See original" under it. */}
-                {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
-                <LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={h1Text.title} titleVi={h1Text.titleVi} i18n={h1Text.i18n} />
-
-                {/* THE FACTS LINE (UI climb batch 89, 2026-11-13; blind A/B on live eno.vn, Opus +0.24, trust −0.1; owner: "reduce
-                    lines … super clean, minimal wording, only what's necessary"): ONE grey 16px line under the H1 — "Fixed price ·
-                    1 bedroom · Floor 2 · Deposit 1 month" — in place of the price row's chips and the meta row of chips and glyphs.
-                    What it holds and each fact's gate: `facts` above. Server-rendered, nothing measured in the browser.
-                    ⛔ IT WRAPS, NEVER TRUNCATES (`[overflow-wrap:anywhere]`, no `truncate`): the seller's condition text and the
-                    phone's deposit must never be cut off its end, as the mock's one-line ellipsis did.
-                    ⚠️ THE '·' SEPARATORS COME FROM THE DATA, IN ONE TEXT RUN (factSeparators). The old meta row banned literal
-                    separators because they were FLEX ITEMS of their own, so a wrap could strand one alone at a line's end
-                    ('Apple · New · Hồ Chí Minh ·') or start. Here the facts and their dots are one run of inline text: a no-break
-                    space ties each dot to the fact before it (FACT_SEP — the H1's own rule, LocalizedTitleHeading, 2026-11-06
-                    audit), so a line can end on "fact ·" but never open on a dot, and no dot is ever alone; a dot is only ever
-                    printed BETWEEN two facts the reader sees, at every width — the phone-only deposit carries its own, and the
-                    fact before it loses its dot from md when nothing visible follows.
-                    `data-fab-avoid`: the support bubble yields over it (back-to-top.tsx — a wide value is yielded to, never
-                    risen above; si-11). Not on a job: its meta row below is as it was. */}
-                {factsLine ? facts.length > 0 && (
-                  <div data-facts-line="" data-fab-avoid className={cn('text-base text-muted-foreground [overflow-wrap:anywhere]', facts.every((f) => f.phoneOnly) && 'md:hidden')}>
-                    {facts.map((f, i) => {
-                      const tail = factSeps[i] === 'all' ? FACT_SEP : factSeps[i] === 'phone' ? <span className="md:hidden">{FACT_SEP}</span> : null
-                      return f.phoneOnly
-                        ? <span key={f.key} className="md:hidden">{f.node}{tail}</span>
-                        : <Fragment key={f.key}>{f.node}{tail}</Fragment>
-                    })}
-                  </div>
-                ) : (
-                  /* A JOB'S META ROW, as it was before batch 89 (the facts line is not the job page's): its place, "Posted" and the
-                     social proof, each with its glyph — the column gap separates them, no literal '·' (a wrap would strand one).
-                     A job never had a brand, a condition (⛔ 2026-10-19) or a vehicle spec to print here. */
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
-                    <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
-                      <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                      <span className="truncate">{placeName}</span>
-                    </span>
-                    {showPosted && (
-                      <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
-                        <Clock className="h-4 w-4 shrink-0 text-ink-4" />
-                        <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
-                      </span>
-                    )}
-                    {showProof && <span data-fab-avoid className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
-                  </div>
-                )}
+                {!rentalSheet && !isJob && headTitle}
+                {/* A linked job: place and posted, then the Details' phone tags (`jobTags`). */}
+                {isJob && headFacts}
+                {jobTags}
               </div>
 
               {/* 4 — Enforcement caution (rare: throttled/held sellers) — before any contact action */}
@@ -1454,7 +1690,12 @@ export default async function ListingPage({ params }: Props) {
               {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
                   bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
               {/* `data-no-pin`: an e-visa listing's action follows its disclaimer and is never mirrored by the pinned bar (pdp-action-bar.tsx). */}
-              <div id="contact" data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className="order-6 scroll-mt-24">
+              {/* The rental sheet: Chat now 16px under the price below md (SHEET_CONTACT). */}
+              {/* ⛔ THE GOODS SHEET'S PINNED TIER (owner-approved 2026-11-14, cook r06 "item"; `pinned`): the same block, the same DOM
+                  place (after the facts line, before the seller — the reading and Tab order), rendered by PinnedRegion with
+                  `data-pin-action` and PIN_TIER's classes, which fix it at the bottom edge below md outside the store apps; it
+                  publishes its height for the spacer after the footer. Every other page: the in-flow block, as before. */}
+              <ContactBlock id="contact" data-pin-action={pinned ? '' : undefined} data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className={cn('order-6 scroll-mt-24', rentalSheet && SHEET_CONTACT, pinned && PIN_TIER)}>
                 {/* ⚠️ A VISA PRODUCT DOES NOT OPEN AN EMPTY CHAT. The whole application happens
                     inside the thread (owner: "user click chat then selects available product from
                     admin shop and continues uploading images and filling up the form lastly checks
@@ -1473,7 +1714,8 @@ export default async function ListingPage({ params }: Props) {
                   // checkout — the visitor follows our link, types what we told them, and it fails.
                   // A missing code shows NO discount block; silence is recoverable, a broken promise
                   // at the payment step is not. Set the code per listing to offer one.
-                  ? <JobApplyGuard applyBy={jobApplyBy}>
+                  // ⛔ A linked job: Save beside Apply below md (owner-approved 2026-11-14, cook r06 jobs; JobApplyRow — outside the guard).
+                  ? <JobApplyRow job={isJob} save={<SaveListingButton id={listing.id} shape="square" className="md:hidden" />}><JobApplyGuard applyBy={jobApplyBy}>
                       <AffiliateBooking
                         url={affiliateUrl}
                         partnerName={listing.seller.name}
@@ -1489,10 +1731,11 @@ export default async function ListingPage({ params }: Props) {
                         applyByYear={applyByYear}
                         /* The site Apply opens, under the button (best-practice gap 2026-11-10), on the deadline's line (batch 95). */
                         host={isJob && affiliateUrl ? hostOf(affiliateUrl) : null}
-                        provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} /> : null}
+                        provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} inline={pinned} /> : null}
                         lang={pageVariant}
+                        pinned={pinned}
                       />
-                    </JobApplyGuard>
+                    </JobApplyGuard></JobApplyRow>
                   : isVisaProduct
                   ? <>
                       {/*
@@ -1542,6 +1785,7 @@ export default async function ListingPage({ params }: Props) {
                       intent={isTripProduct ? 'plan' : 'buy'}
                       /* A partner shares no number (phoneForSeller) — the footnote must not offer one. */
                       sellerIsPartner={listing.seller.officialPartner}
+                      pinned={pinned}
                     /></IosAppHidden>
                     </>}
                 {iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}
@@ -1573,7 +1817,7 @@ export default async function ListingPage({ params }: Props) {
                     }}
                   />
                 )}
-              </div>
+              </ContactBlock>
 
               {/* Market price: BELOW the CTA on phones (`order-6` ties with #contact, and DOM order then
                   paints it after), beside the title on desktop (`lg:order-3` ties with the header block,
@@ -1588,6 +1832,33 @@ export default async function ListingPage({ params }: Props) {
                 <div data-market-price className="order-6 lg:order-3">
                   <MarketPrice price={listing.price} band={priceBand} />
                 </div>
+              )}
+
+              {/* The compact storefront link, MOBILE (its history is the note under the breadcrumb). Slot 7, below `#contact`.
+                  ⚠️ IN THE DOM WHERE IT PAINTS, SINCE 2026-11-14 (cook r05; owner-approved "after this cook round build all best
+                  options and deploy"): it stood at the top of the grid only to beat the breadcrumb's order-7 tie (2026-11-06 audit),
+                  and the crumb has not been drawn below md since batch 90. Here, after `#contact` and the market price, a phone's
+                  DOM order is its paint order — Chat now, the seller it answers for, the costs. It is display:none from md, so the
+                  grid's named cells (FAST-10) and md+ are untouched; the paint slot is the same `order-7`. */}
+              {/* THE "HOSTED BY" BAND ON A PHONE (UI climb batch 79; owner, 2026-11-12: "continue the ui ux improvement towards
+                  10/10"; blind A/B on live eno.vn, GPT 7.56 → 7.71, Opus 7.61 → 7.74, trust ±0): one hairline over the row and 16px
+                  to it, the canon's §3b section line (owner, 2026-07-24: "lines between elements … almost no boxes"), as Airbnb
+                  frames its host row. ⛔ ONE LINE, OVER IT ONLY: the band closes on the next section's own line (Costs or
+                  Description) — a second line under the row put the breadcrumb between two hairlines ~60px apart, which read as noise
+                  (the mock's first round). Since batch 90 the crumb is not drawn below md, so the band holds the host row alone; the
+                  rule stands: still no line under it. Below md only (`max-md:`); nothing moves.
+                  ⛔ …EXCEPT ON THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses this band there, and the
+                  canon's "almost no boxes"): the seller is ONE bordered, raised HOST CARD (PdpShopLink `variant="card"`), with no line
+                  over it, and Costs opens on its edge with none either (HOST_CARD_SLOT; src/lib/rental-sheet.ts). */}
+              {/* ⛔ …AND ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): Details' phone twin first (`detailsTwin`, rows on
+                  hairlines under the head), then the seller as ONE compact band (PdpShopLink `variant="band"`) under a hairline — the
+                  table's own bottom line, or the band's when there is no table (GOODS_BAND; src/lib/goods-sheet.ts). */}
+              {/* ⛔ Not on a linked job (owner-approved 2026-11-14, cook r06 jobs): its employer line is under the role (`jobTitleLine`). */}
+              {!isJob && (
+              <div className={rentalSheet ? HOST_CARD_SLOT : goodsSheet ? GOODS_BAND : HOST_BAND}>
+                {detailsTwin}
+                <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} variant={rentalSheet ? 'card' : goodsSheet ? 'band' : 'row'} className={goodsSheet ? (detailsTwin ? 'pt-4' : 'border-t border-border pt-4') : undefined} />
+              </div>
               )}
 
               {/* 9 — ONE trust block: the scam warning, with the reports-and-disputes row folded in
@@ -1605,6 +1876,8 @@ export default async function ListingPage({ params }: Props) {
                   down by 0.2 because the deposit warning is met a screen later; the owner was shown that and chose it. Slot 9
                   is after the description, the details and the Decree's seller information (all slot 8) and before the
                   reviews (10) and the map (11). From md the buy box is its own column and nothing moves (`md:order-7`).
+                  ⛔ On the rental sheet the map is slot 8 too, so it comes BEFORE this block below md (owner-approved 2026-11-14,
+                  cook r05 "rental-c"; the note at the map).
                   ⚠️ ONE STRIP, MOVED BY `order`, NOT A PHONE TWIN: the reports row inside it must exist once on the page
                   (e2e/ci/protections-row.spec.ts counts it, and a second copy once made strict locators throw). The DOM
                   order, which a screen reader follows, is unchanged: costs, this block, then the description. */}
@@ -1620,8 +1893,19 @@ export default async function ListingPage({ params }: Props) {
                   the deposit (`phoneHidden`); a block left with no row below md is hidden there whole — no heading, no hairline. */}
               {/* Below md it opens on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
                   Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
-              {costRows.length > 0 && <div className={cn('order-7 max-md:border-t max-md:border-border max-md:pt-6', costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} /></div>}
-              <div data-safety-block="" className="order-9 md:order-7">
+              {/* ⛔ On the rental sheet no line: Costs opens on the host card's edge, 32px under it (owner-approved 2026-11-14, cook r05
+                  "rental-c"), and its rows are the sheet's (`sheet`). */}
+              {costRows.length > 0 && <div className={cn('order-7', !rentalSheet && SECTION_LINE, costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>}
+              {/* ⛔ THE GOODS SHEET'S COUNSEL PANEL (owner-approved 2026-11-14, cook r06 "item"; it reverses there batch 70's "Report
+                  kept red" and its own tint well): with Seller information shown the well closes that panel — pulled up over the
+                  column's 24px gap (`-mt-6`, the column's `gap-6`) under an inset hairline — otherwise it is the panel alone; both on
+                  the media edge, Report and Block quiet muted labels (COUNSEL_*, src/lib/goods-sheet.ts). Its DOM place is unchanged:
+                  one strip, moved by order (owner 2026-11-10). */}
+              {/* ⛔ A LINKED JOB'S COUNSEL PANEL (owner-approved 2026-11-14, cook r06 jobs; it reverses there batch 70's well and batch 79's
+                  Seller-information hairline): below md this block IS the panel (JOB_COUNSEL) — Seller information's phone copy first
+                  (its left-column copy is `max-md:hidden` on a job), then the advice in the quiet voice. DOM order = the order on screen. */}
+              <div data-safety-block="" className={cn('order-9 md:order-7', goodsSheet && (sellerInfoShown ? COUNSEL_WELL_JOINED : COUNSEL_WELL_ALONE), isJob && JOB_COUNSEL)}>
+                {isJob && sellerInfo && <SellerInfo info={sellerInfo} labelId="seller-info-job" panel className={JOB_COUNSEL_INFO} />}
                 {/*
                   * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
                   * report process and tells the buyer to pay the seller directly after meeting, and
@@ -1639,22 +1923,28 @@ export default async function ListingPage({ params }: Props) {
                     (the 2026-11-05 rule beside the CTA). Block reads in ink-4 there, chosen when muted-foreground was 4.35:1 on tint;
                     since 2026-11-12 muted is #595959, 6.42:1 on tint, and ink-4 (5.68:1) stays as the quieter of the two.
                     Measured in a browser (2026-11-12): on the well, light — line 16.4, guide 5.2, Report 5.9, Block 5.7:1; dark —
-                    13.3, 6.8, 5.5, 5.8:1. */}
+                    13.3, 6.8, 5.5, 5.8:1.
+                    ⛔ Not on the goods sheet (owner-approved 2026-11-14, cook r06 "item"): its counsel panel, the note on the wrapper. */}
+                {/* ⛔ THE RENTAL SHEET'S WELL (owner-approved 2026-11-14, cook r05 "rental-c"): the panel recipe (SHEET_WELL) in the
+                    quietest voice (`quiet`): the warning regular in body ink — still first, every word — "Reports & disputes" with
+                    " — how they work" screen-reader-only (`shortLabel`), and Report and Block as quiet body-ink labels: it reverses
+                    "Report kept red" (batch 70; owner 2026-07-08) there only. Every class is max-md:. */}
                 <SafetyStrip
-                  className="max-md:rounded-2xl max-md:border-t-0 max-md:bg-tint max-md:px-3.5 max-md:pb-2.5 max-md:pt-3.5"
+                  className={rentalSheet ? SHEET_WELL : goodsSheet ? (sellerInfoShown ? COUNSEL_STRIP_JOINED : COUNSEL_STRIP_ALONE) : isJob ? JOB_COUNSEL_STRIP : PAGE_WELL}
+                  quiet={rentalSheet || goodsSheet || isJob}
                   categorySlug={rawListing.category.slug}
                   subcategorySlug={rawListing.subcategorySlug}
                   job={listing.listingType === 'job'}
                   variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
-                  protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
+                  protections={affiliateUrl ? undefined : <ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} />}
                   action={
                     // REPORT AND BLOCK, side by side, on every listing (App Store 1.2 — Apple's 2026-10-28 rejection found
                     // Report without Block). Block names the SHOP and this listing; a shop nobody blockable runs (imported,
                     // partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts). Renders nothing without `ugc-safety`.
                     <span className="flex items-center">
                       {/* 14px from lg, with the strip's text (2026-11-06 audit). The storefront and the chat keep their 12px pair. */}
-                      <ReportButton listingId={listing.id} className="lg:text-sm" />
-                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} className="max-md:text-ink-4 lg:text-sm" />
+                      <ReportButton listingId={listing.id} className={rentalSheet ? SHEET_REPORT : goodsSheet ? COUNSEL_REPORT : 'lg:text-sm'} />
+                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} className={rentalSheet ? SHEET_BLOCK : goodsSheet ? COUNSEL_BLOCK : 'max-md:text-ink-4 lg:text-sm'} />
                     </span>
                   }
                 />
@@ -1698,8 +1988,10 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
+            {/* A linked job below md: its Details are tags under the head, so this holds only the repeat Apply (painted after the
+                counsel panel, where its DOM is: `max-md:order-10`) or nothing (`max-md:hidden`). */}
             {(showDescription || showDetails || amenities.length > 0) && (
-            <div className="order-8 flex flex-col gap-8">
+            <div className={cn('order-8 flex flex-col gap-8', goodsSheet && GOODS_SECTION, order8PhoneEmpty && 'max-md:hidden', isJob && (repeatCta ? 'max-md:order-10' : 'max-md:hidden'))}>
               {/* Section headers on this page share ONE treatment, SECTION_TITLE (section-title.ts) — the shelves' and
                   the reviews header's below — with more space above (section gap) than below. */}
               {/* …AND, BELOW md, ONE FRAME: A HAIRLINE OVER EVERY SECTION (UI climb batch 79; owner, 2026-11-12: "continue the ui ux
@@ -1710,12 +2002,19 @@ export default async function ListingPage({ params }: Props) {
                   border-border + vertical rhythm"), the idiom Reviews already wears (order-10). On the phone's one column they
                   carried spacing only and read as one dense run. No box, no fill, no new element, nothing moves (orders untouched);
                   md and up are unchanged. The shelves below <main>'s grid ('More from this seller', 'More like this') get none:
-                  the safety well above them is their boundary. ./section-hairline.test.tsx pins the set. */}
+                  the safety well above them is their boundary. ./section-hairline.test.tsx pins the set.
+                  On the rental sheet the line is the same and the step is 32px, heading to content 16 (`sectionLine(true)`,
+                  SHEET_HEAD_GAP; owner-approved 2026-11-14, cook r05 "rental-c"), except Costs, which opens on the host card.
+                  ⛔ ON THE GOODS SHEET, NO LINES (owner-approved 2026-11-14, cook r06 "item"; it reverses batch 79 there): the sections
+                  stand 32px apart (this wrapper's, Seller information's and the map's `max-md:mt-2` over the column's 24) under 17px
+                  headings (GOODS_SECTION / GOODS_SECTION_TITLE); the seller band keeps its one hairline. */}
+              {/* On the rental sheet Details comes first in this wrapper (`detailsSection`): it leads the DOM and the phone's paint. */}
+              {rentalSheet && detailsSection}
               {showDescription && (
-              <div className="space-y-2 max-md:border-t max-md:border-border max-md:pt-6">
-                <h2 className={SECTION_TITLE}><Tr text="Description" /></h2>
-                {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
-                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} dropLead={blvckIntros} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
+              <div className={cn('space-y-2', goodsSheet ? GOODS_DESC_SECTION : sectionLine(rentalSheet), rentalSheet && `${SHEET_HEAD_GAP} md:-order-1`)}>
+                <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text="Description" /></h2>
+                {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. The sheet reads it 16/24. */}
+                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} dropLead={blvckIntros} goods={goodsSheet} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${rentalSheet ? 'max-md:leading-6 ' : ''}${repeatedFacts}`} />
               </div>
               )}
 
@@ -1723,78 +2022,17 @@ export default async function ListingPage({ params }: Props) {
                   the listing states them. Its monthly bill is in the buy box above. Its section hairline (batch 79; owner,
                   2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b) is on a wrapper here, as the
                   Costs' is in the buy box: the component stays the bare section. */}
-              {amenities.length > 0 && <div className="max-md:border-t max-md:border-border max-md:pt-6"><RentalAmenities items={amenities} /></div>}
+              {/* The rental sheet: the three-column icon grid (`sheet`), and back before Details from md (`md:-order-1`). */}
+              {amenities.length > 0 && <div className={cn(sectionLine(rentalSheet), rentalSheet && 'md:-order-1')}><RentalAmenities items={amenities} sheet={rentalSheet} /></div>}
 
-              {/* Details: the section hairline below md (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
-                  Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
-              {showDetails && (
-                <div className="space-y-2 max-md:border-t max-md:border-border max-md:pt-6">
-                  <h2 className={SECTION_TITLE}><Tr text="Details" /></h2>
-                  {/* Spec table: hairline row dividers, muted label / strong value, even row height.
-                      `data-fab-avoid` on every value: the floating support mark yields (fades) when it
-                      would sit over one — these right-aligned values run into the corner it rests in,
-                      and plain text is otherwise never an obstacle (back-to-top.tsx OBSTACLES). */}
-                  {/* `[overflow-wrap:anywhere]` + a shrinkable VALUE (break-ui, 2026-10-05) — on the dd only: inherited by the
-                      dt it would lower the label's min-content and split "Dung lượng" mid-word (opus). An imported attribute
-                      with no spaces ("256GB-ChínhHãngVN/A-KhôngLock") pushed the row past a 320px screen;
-                      the Seller-information block below already does this (seller-info.tsx). */}
-                  <dl className="divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
-                    {/* First: who holds the licence (e-Visa, Legal & permits) — verbatim, never translated. */}
-                    {providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}
-                    {[...detailSpecs, ...detailOnlySpecs].map((s) => (
-                      <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
-                        <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
-                        <dd data-fab-avoid className="text-right font-medium text-foreground">{s.value}</dd>
-                      </div>
-                    ))}
-                    {/* A rental's occupancy rows — max occupants, floor, available from (rental-facts.tsx). */}
-                    {detailFactRows.length > 0 && <RentalFactRows rows={detailFactRows} />}
-                    {detailAttrs.map(([k, v]) => {
-                      // ⛔ ONE LABEL FUNCTION (taxonomy.ts detailRowLabel): this row's label is what the job-text screen reads
-                      // beside a hiring post's value ("label: value"), so the two cannot drift. A job's text facts carry their
-                      // own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
-                      // ⚠️ THE LABEL AND THE VALUE ARE THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
-                      // facet row carries its own labelVi ("Phòng ngủ"), and a raw key through <Tr> found
-                      // Vietnamese only where the UI dictionary held that exact casing: it has "Bedrooms", not
-                      // "bedrooms", so a vi rental PDP printed "bedrooms", "bathrooms" (prod, 2026-09-29).
-                      // VALUES followed on 2026-10-04 (pdp-02): a vi car hire said "Daily", "Delivered to you",
-                      // "Automatic" in the server HTML, because only jobs and eSIM went through the option pair.
-                      // <FacetValue> maps each stored value through the facet (./details-labels.test.tsx).
-                      // ⚠️ SENTENCE CASE, NOT CSS `capitalize`. Taxonomy and job labels are already written in
-                      // sentence case ('Apply by', 'eSIM', 'Full-time'), and `capitalize` title-cased every
-                      // word of them into 'Apply By', 'ESIM', 'Full-Time'. Only a RAW key or value (stored
-                      // lowercase, no label to borrow) gets its first letter raised — `first-letter:` works
-                      // here because dt/dd are flex items, which are blockified.
-                      const { jobText, facet: labelFacet, rawKey } = detailRowLabel(k, { categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType })
-                      const value = Array.isArray(v) ? v.map(String).join(', ') : String(v)
-                      return (
-                      <div key={k} className="flex items-start justify-between gap-4 py-2.5">
-                        <dt className="text-muted-foreground first-letter:uppercase">
-                          {jobText ? <Bilingual en={jobText.label} vi={jobText.labelVi} />
-                            : labelFacet ? <Bilingual en={labelFacet.label} vi={labelFacet.labelVi} />
-                            : <Tr text={rawKey} />}
-                        </dt>
-                        {/* A stored DATE ('2026-10-08' — a job's posted/apply-by) reads as the reader writes a
-                            date: '8 Oct 2026' / '8/10/2026'. ⚠️ A NAME (author, publisher) is stored as written
-                            and must never go through machine translation, which would "translate" a person. */}
-                        {/^\d{4}-\d{2}-\d{2}$/.test(value)
-                          ? <dd data-fab-avoid className="text-right font-medium text-foreground"><CalendarDay value={value} /></dd>
-                          : jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
-                          ? <dd data-fab-avoid className="text-right font-medium text-foreground">{value}</dd>
-                          : labelFacet
-                          ? <dd data-fab-avoid className={cn('text-right font-medium text-foreground', facetValueStartsRaw(labelFacet, v) && 'first-letter:uppercase')}><FacetValue facet={labelFacet} value={v} pageLang={pageVariant} /></dd>
-                          : <dd data-fab-avoid className="text-right font-medium text-foreground first-letter:uppercase"><Tr text={value} /></dd>}
-                      </div>
-                      )
-                    })}
-                  </dl>
-                </div>
-              )}
+              {!rentalSheet && detailsSection}
               {/* P-CTA part B — the partner CTA once more, after the text (see repeatCta). A closed job
                   repeats nothing: the buy box already says so. */}
               {repeatCta && affiliateUrl && (
                 <JobApplyGuard applyBy={jobApplyBy} closed={null}>
-                  <AffiliateCtaRepeat url={affiliateUrl} partnerName={listing.seller.name} booking={isBooking} rental={listing.listingType === 'rent'} job={isJob} />
+                  {/* ⛔ Not below md where the action is pinned (owner-approved 2026-11-14, cook r06 "item"; it reverses there P-CTA part B,
+                      whose reason — "on a phone there is no sticky bar to fall back on" — no longer holds): two identical buttons. */}
+                  <AffiliateCtaRepeat url={affiliateUrl} partnerName={listing.seller.name} booking={isBooking} rental={listing.listingType === 'rent'} job={isJob} className={pinned ? 'max-md:hidden' : undefined} />
                 </JobApplyGuard>
               )}
             </div>
@@ -1811,7 +2049,9 @@ export default async function ListingPage({ params }: Props) {
                 on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13;
                 canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"; the note at Description), passed as a
                 class so a seller with nothing to state still leaves no stray line. */}
-            {sellerInfo && <SellerInfo info={sellerInfo} className="order-8 max-md:border-t max-md:border-border max-md:pt-6" />}
+            {/* The goods sheet: the top half of the counsel panel (COUNSEL_INFO; the safety block's note). */}
+            {/* A linked job: not below md, where its copy opens the counsel panel (the safety block). */}
+            {sellerInfo && <SellerInfo info={sellerInfo} className={cn('order-8', goodsSheet ? COUNSEL_INFO : sectionLine(rentalSheet), isJob && 'max-md:hidden')} sheet={rentalSheet} panel={goodsSheet} />}
 
             {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
                 pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
@@ -1821,11 +2061,18 @@ export default async function ListingPage({ params }: Props) {
                 as before, district-level or not. Below md it opens on the section hairline (batch 79; owner, 2026-11-12:
                 "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements …
                 almost no boxes"; the note at Description). */}
+            {/* ⛔ ON THE RENTAL SHEET, SLOT 8 (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses there the 2026-11-10 "slot 9
+                … before the reviews (10) and the map (11)"): below md the map follows the listing's own sections, BEFORE the safety
+                well. From md it paints exactly as before — in this column only `order-12` items follow it, and they still do. ⚠️ Its
+                DOM stays after the safety block (which lives in the buy box and must exist once — the note there), so below md
+                the "Open map" button paints above the safety links it follows in the focus order: one backward step, where the
+                description already took one. Heading → content 16px, the box 240px at the panel radius (SHEET_MAP_BOX). */}
+            {/* The goods sheet: no line, 32px over it, the 17px heading, the map on the media edge (GOODS_MAP_BOX). */}
             {showMap && (
-            <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20 max-md:border-t max-md:border-border max-md:pt-6">
-              <h2 className={SECTION_TITLE}><Tr text="Location" /></h2>
+            <div id="location-on-map" className={cn(rentalSheet ? 'order-8' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>
+              <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text="Location" /></h2>
               {approxArea && (
-                <p data-map-approximate className="text-xs text-muted-foreground">
+                <p data-map-approximate className={cn('text-xs text-muted-foreground', rentalSheet && 'max-md:text-sm', goodsSheet && GOODS_NOTE)}>
                   {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}
                 </p>
               )}
@@ -1836,8 +2083,8 @@ export default async function ListingPage({ params }: Props) {
                   indicator on the clipper itself, where nothing can crop it.
                   ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
                   draw a keyboard ring, and Leaflet focuses its container on click. */}
-              <div className="relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100">
-                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} />
+              <div className={cn("relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100", rentalSheet && SHEET_MAP_BOX, goodsSheet && GOODS_MAP_BOX)}>
+                <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} look={rentalSheet ? 'sheet' : 'default'} />
               </div>
             </div>
             )}
@@ -1852,7 +2099,7 @@ export default async function ListingPage({ params }: Props) {
                 MARKETPLACE ONLY, like the footer link and the sitemap: on eno.forum it would promote
                 the forum's duplicate copy of the directory. */}
             {!IS_SERVICES && listing.listingType === 'job' && (
-              <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="order-12 flex items-start gap-2 text-sm" />
+              <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className={cn('order-12 flex items-start gap-2 text-sm', isJob && 'max-md:hidden')} />
             )}
             {/* A TEACHING job's reader may be a teacher who would rather be found (owner, 2026-10-12): the profile form's
                 door, the line /c/jobs carries (teaching-links.tsx). Both editions — on eno.forum the form is eno.vn's, linked
@@ -1865,13 +2112,13 @@ export default async function ListingPage({ params }: Props) {
                 rhythm of these lines on /c/jobs (each mt-3), the teacher's first; equal order then paints the safety note
                 after it. Both editions — the post form is on both. */}
             {listing.listingType === 'job' && rawListing.category.slug === TEACHER_SEEKING_POST.category && rawListing.subcategorySlug === TEACHER_SEEKING_POST.subcategory && (
-              <div className="order-12 space-y-3">
+              <div className={cn('order-12 space-y-3', isJob && 'max-md:hidden')}>
                 <TeacherProfileLink href={teacherSurfaceHref(localizedHref('/teachers/join', pageVariant))} className="mt-0" />
                 <PostJobLink href={localizedHref('/post?category=jobs', pageVariant)} className="mt-0" />
               </div>
             )}
             {safetyNote && (
-              <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+              <p className={cn('order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground', goodsSheet && GOODS_NOTE)}>
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 {safetyNote}
               </p>
@@ -1882,7 +2129,14 @@ export default async function ListingPage({ params }: Props) {
         {/* More from THIS seller (server-fetched cards) — renders nothing when the
             seller has fewer than two other active listings. Sits above the broader
             same-category shelf so a buyer sees the seller's own range first. */}
-        <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} />
+        {/* ⛔ ON THE GOODS SHEET (owner-approved 2026-11-14, cook r06 "item"): below sm both shelves are two-column grids at the feed's
+            card size (Shelf `phoneGrid`), 32px apart below md; and a seller with exactly two other items closes the page on a phone
+            — their row follows "More like this" (it reverses there "the seller's own range first", phones only): this copy is not
+            drawn below sm and its twin after RelatedListings is drawn only there. Both are server cards; the hidden copy's lazy
+            photos never load. */}
+        {/* A linked job (owner-approved 2026-11-14, cook r06 jobs): 32px over each rail below md, and a card naming the page's own
+            employer does not repeat it (`hideEmployerNamed`, per card — a job board's rail keeps every other employer). */}
+        <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} phoneGrid={goodsSheet} sectionClassName={goodsSheet ? cn(GOODS_SHELF_GAP, sellerShelfLast && 'max-sm:hidden') : isJob ? JOB_SHELF_GAP : undefined} hideEmployerNamed={isJob ? listing.seller.name : undefined} />
 
         {/* More like this — same-category listings (client-fetched, ISR-safe). Without the seller's own
             rows whenever the seller rail above is showing (it needs two), so the two never repeat a card. */}
@@ -1892,14 +2146,34 @@ export default async function ListingPage({ params }: Props) {
           subcategorySlug={rawListing.subcategorySlug}
           brandSlug={rawListing.brandSlug}
           excludeSellerId={moreFromSeller.length >= 2 ? listing.sellerId : undefined}
+          phoneGrid={goodsSheet}
+          sectionClassName={isJob ? JOB_SHELF_GAP : undefined}
         />
+        {sellerShelfLast && <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} phoneGrid sectionClassName={cn(GOODS_SHELF_GAP, 'sm:hidden')} />}
 
         {/* The buyer's own recently-viewed trail (excludes this listing). mt-12 matches the
             two shelves above — the three are bare siblings in main, each owning its own top gap. */}
         <RecentlyViewedRail excludeId={listing.id} sectionClassName="mt-12" />
+        {/* ⛔ A LINKED JOB'S QUESTION LINES, LAST ON A PHONE (owner-approved 2026-11-14, cook r06 jobs; /c/jobs and /c/teachers do the
+            same after their lists): the `order-12` items above are `max-md:hidden` on a job and this copy is `md:hidden`, so one is
+            ever displayed. The school line reads once per render (school-link-for-job.tsx caches it); an empty copy is hidden. */}
+        {isJob && (
+          <div className={JOB_LINES}>
+            {!IS_SERVICES && <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="flex items-start gap-2 text-sm" />}
+            {rawListing.category.slug === TEACHER_SEEKING_POST.category && rawListing.subcategorySlug === TEACHER_SEEKING_POST.subcategory && (
+              <>
+                <TeacherProfileLink href={teacherSurfaceHref(localizedHref('/teachers/join', pageVariant))} className="mt-0" />
+                <PostJobLink href={localizedHref('/post?category=jobs', pageVariant)} className="mt-0" />
+              </>
+            )}
+          </div>
+        )}
       </main>
 
       <Footer />
+      {/* The pinned tier's room at the end of the page (its measured height; PinnedRegion publishes it). Below md outside the
+          apps only, where the tier is fixed. */}
+      {pinned && <StickyActionBarSpacer className="md:hidden [html.native_&]:hidden" />}
 
     </div>
   )

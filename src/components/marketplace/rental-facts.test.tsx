@@ -7,6 +7,7 @@ import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { LanguageProvider } from '@/context/language-context'
 import { RentalAmenities, RentalCosts, RentalFactRows } from './rental-facts'
 import { amenityOptions, rentalCostRows, rentalFactRows } from '@/lib/rental-facts'
+import { SHEET_HEAD_GAP, SHEET_ROWS } from '@/lib/rental-sheet'
 
 /**
  * THE LISTING PAGE'S RENTAL FACTS AS A READER GETS THEM (GoPlus partnership, 2026-10-19): grouped amounts in the reader's
@@ -131,9 +132,57 @@ describe('<RentalAmenities>', () => {
 describe('the listing page wires the facts in', () => {
   it('hides the well-formed raw keys, only where the facts apply, and renders the three sections', () => {
     expect(PAGE).toContain('if (factsApply) for (const k of rentalFactHiddenKeys(listing.attributes)) hiddenAttrs.add(k)')
-    expect(PAGE).toContain('<RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} />')
-    expect(PAGE).toContain('<RentalAmenities items={amenities} />')
+    // `sheet`: the rental sheet's rows and icon grid below md (owner-approved 2026-11-14, cook r05 "rental-c").
+    expect(PAGE).toContain('<RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} />')
+    expect(PAGE).toContain('<RentalAmenities items={amenities} sheet={rentalSheet} />')
     // Batch 89: without the floor where the facts line prints it (facts-line.test.ts).
     expect(PAGE).toContain('<RentalFactRows rows={detailFactRows} />')
+  })
+})
+
+/**
+ * ⛔ THE RENTAL SHEET (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts): below md Costs drops its rules
+ * (one row style, 16/24, body-ink label, value at 400, 12px apart) and Amenities is a three-column icon grid, glyph over name.
+ * Same rows, same words, same order, in both languages; a phone-hidden row is still hidden below md.
+ */
+describe('`sheet` — the rental sheet\'s rows and icon grid, below md', () => {
+  const dom = (lang: 'en' | 'vi', ui: React.ReactNode) => {
+    const div = document.createElement('div')
+    div.innerHTML = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}>{ui}</LanguageProvider>).replaceAll('<!-- -->', '')
+    return div
+  }
+  it('Costs: the dl carries SHEET_ROWS (every class max-md:), the heading steps 16, a phone-hidden row stays max-md:hidden', () => {
+    const div = dom('en', <RentalCosts rows={rentalCostRows(ATTRS)} phoneHidden={['deposit']} sheet />)
+    const dl = div.querySelector('dl')!
+    for (const c of SHEET_ROWS.split(' ')) expect(dl.classList.contains(c), c).toBe(true)
+    expect(dl.parentElement!.classList.contains(SHEET_HEAD_GAP)).toBe(true)
+    const deposit = [...dl.children].find((r) => r.textContent?.startsWith('Deposit'))!
+    expect(deposit.className).toContain('max-md:hidden')
+    // Without `sheet`: the table as it was.
+    const plain = dom('en', <RentalCosts rows={rentalCostRows(ATTRS)} />).querySelector('dl')!
+    expect(plain.className).toBe('divide-y divide-border text-sm')
+  })
+  it('Costs: the same words in both languages with or without the sheet', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      expect(dom(lang, <RentalCosts rows={rentalCostRows(ATTRS)} sheet />).textContent).toBe(dom(lang, <RentalCosts rows={rentalCostRows(ATTRS)} />).textContent)
+    }
+  })
+  it('Amenities: three columns, the 28px ink glyph over a balanced name, below md only; the same names in EN and VI', () => {
+    const items = amenityOptions(TOKENS, 'rentals', 'apartment-rental')
+    expect(items.length).toBe(3)
+    const div = dom('en', <RentalAmenities items={items} sheet />)
+    const ul = div.querySelector('ul')!
+    expect(ul.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-2', 'sm:grid-cols-3', 'max-md:grid-cols-3', 'max-md:gap-x-3', 'max-md:gap-y-6', 'max-md:text-body']))
+    const li = ul.querySelector('li')!
+    expect(li.className.split(' ')).toEqual(expect.arrayContaining(['max-md:flex-col', 'max-md:items-start']))
+    const svg = li.querySelector('svg')!
+    expect(svg.getAttribute('class')!.split(' ')).toEqual(expect.arrayContaining(['max-md:h-7', 'max-md:w-7', 'max-md:text-foreground']))
+    const label = li.querySelector('span')!
+    expect(label.className).toContain('max-md:text-balance')
+    expect(label.className).not.toMatch(/line-clamp|truncate/)
+    for (const lang of ['en', 'vi'] as const) {
+      const names = (sheet: boolean) => [...dom(lang, <RentalAmenities items={items} sheet={sheet} />).querySelectorAll('li')].map((x) => x.textContent?.trim())
+      expect(names(true)).toEqual(names(false))
+    }
   })
 })

@@ -691,6 +691,74 @@ export function StickyActionBarSpacer({ className }: { className?: string }) {
   )
 }
 
+/** Where a PinnedRegion pins: a phone, below md (the goods sheet's tier, src/lib/goods-sheet.ts PIN_TIER). */
+const PIN_QUERY = '(max-width: 767.98px)'
+
+/**
+ * ⛔ A BLOCK OF THE PAGE THAT IS ITS OWN BOTTOM BAR ON A PHONE (owner-approved 2026-11-14, cook r06 "item": "after this cook
+ * round build all best options and deploy"). The goods listing page's `#contact` — its one action and the one line under it —
+ * is pinned from the first paint as ONE bottom tier (src/lib/goods-sheet.ts pinsAction / PIN_TIER), instead of in flow with a
+ * mirror bar that only appears once it has scrolled away (StickyActionBar via pdp-action-bar.tsx). Same element, same DOM
+ * place and reading order: only its classes fix it, below md and outside the store apps.
+ * ⚠️ ITS SERVER HTML IS ITS FIRST CLIENT RENDER: a div with the caller's props. Nothing it renders depends on the screen, and
+ * its effect writes to <html> only — the same contract as StickyActionBar's: `--sticky-action-bar-h` (its measured height,
+ * which <StickyActionBarSpacer/> after the footer reserves), `--sticky-action-bar-clear` and `data-sticky-action-bar` (the
+ * install card and back-to-top step aside), plus `scroll-padding-bottom` so a focused control never sits under it (WCAG
+ * 2.4.11). Only while it is actually pinned: matchMedia(PIN_QUERY) and not `html.native`, followed across the breakpoint.
+ * It shares the bar's mounted count, so a StickyActionBar mounted beside it never clears what it published, nor it the bar's.
+ */
+export function PinnedRegion({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    const root = document.documentElement
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia(PIN_QUERY) : null
+    if (!el || !mq) return
+    let publishing = false
+    let ro: ResizeObserver | undefined
+    const write = () => {
+      const h = `${el.offsetHeight}px`
+      if (root.style.getPropertyValue(HEIGHT_VAR) !== h) root.style.setProperty(HEIGHT_VAR, h)
+      if (root.style.getPropertyValue(CLEAR_VAR) !== h) root.style.setProperty(CLEAR_VAR, h)
+    }
+    const start = () => {
+      if (publishing) return
+      publishing = true
+      mountedBars += 1
+      root.setAttribute(MOUNTED_ATTR, '')
+      root.style.setProperty('scroll-padding-bottom', `var(${CLEAR_VAR}, 0px)`)
+      write()
+      if (typeof ResizeObserver !== 'undefined') {
+        ro = new ResizeObserver(write)
+        ro.observe(el)
+      }
+    }
+    const stop = () => {
+      if (!publishing) return
+      publishing = false
+      ro?.disconnect()
+      ro = undefined
+      mountedBars = Math.max(0, mountedBars - 1)
+      // Zero, not removed (the note in StickyActionBar's cleanup): "a bar ran and takes no room". The scroll clearance
+      // goes only with the LAST bar: a bar still mounted keeps its focus clearance (commit review, codex).
+      if (mountedBars === 0) {
+        root.style.removeProperty('scroll-padding-bottom')
+        root.style.setProperty(HEIGHT_VAR, '0px')
+        root.style.removeProperty(CLEAR_VAR)
+        root.removeAttribute(MOUNTED_ATTR)
+      }
+    }
+    const sync = () => (mq.matches && !root.classList.contains('native') ? start() : stop())
+    sync()
+    mq.addEventListener?.('change', sync)
+    return () => {
+      mq.removeEventListener?.('change', sync)
+      stop()
+    }
+  }, [])
+  return <div ref={ref} {...props}>{children}</div>
+}
+
 /**
  * The two custom properties this pair speaks. Exported so a caller can set the offset from CSS
  * instead of the prop, or read the published height, without re-typing a string that only this

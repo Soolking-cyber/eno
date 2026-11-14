@@ -2676,8 +2676,8 @@ html.os-android [data-store="ios"] {
    starts retracted, coming back on the first scroll up (MobileNav `data-scrolled-up`), on keyboard focus, or when the page
    cannot scroll. While it shows, the tier rides on top of it.
    · Decided by the server's HTML (`data-pin-action` is server-rendered), so it holds from the first frame: nothing shifts.
-   · `translate` only, so neither move is a layout shift. A browser without `:has()` matches nothing: the bar behaves as on
-     every other page and the tier sits under it at the bottom edge (z 30 under the nav's 40).
+   · `translate` only, so neither move is a layout shift. A browser without `:has()` matches nothing here: the bar behaves as
+     on every other page, and the `@supports` rule below keeps the tier above it.
    · UNLAYERED, so it beats the nav's own `translate-y-0` utility; `:not(:focus-within)` keeps a keyboard user's reveal.
    · `html:not(.native)`: the store apps never pin (PinnedRegion's classes carry the same guard). */
 @media (max-width: 767.98px) {
@@ -2689,6 +2689,15 @@ html.os-android [data-store="ios"] {
   html:not(.native):has(.mobile-nav[data-scrolled-up]) #contact[data-pin-action],
   html:not(.native):has(.mobile-nav:focus-within) #contact[data-pin-action] {
     translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));
+  }
+}
+/* …and WITHOUT `:has()` (iOS Safari < 15.4, older WebViews) the tab bar is never retracted, so the tier always rides above
+   it: never the contact action hidden under the nav (commit review, 2026-11-14). */
+@supports not selector(:has(*)) {
+  @media (max-width: 767.98px) {
+    html:not(.native) #contact[data-pin-action] {
+      translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));
+    }
   }
 }
 

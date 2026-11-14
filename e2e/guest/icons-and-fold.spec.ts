@@ -94,9 +94,20 @@ test.describe('Guest · mobile PDP fold', () => {
     const [gallery, contact, shop] = await Promise.all([
       topOf(page, '[data-protected]'), topOf(page, '#contact'), topOf(page, 'main .order-7.md\\:hidden'),
     ])
-    expect(gallery, 'the gallery leads the page').toBeLessThan(contact)
-    expect(contact, 'the CTA must come before the seller row — moving it after is what buys the fold')
-      .toBeLessThan(shop)
+    // ⛔ A GOODS PAGE THAT PINS ITS ACTION (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts): `#contact` is the
+    // fixed bottom tier from the first paint, flush with the screen's bottom (the tab bar starts retracted), and the seller band
+    // paints in flow under the head. Every other page keeps the order claim.
+    const pinned = await page.locator('#contact[data-pin-action]').count()
+    if (pinned) {
+      const tier = await page.locator('#contact').evaluate((el) => ({ pos: getComputedStyle(el).position, bottom: Math.round(el.getBoundingClientRect().bottom), vh: window.innerHeight }))
+      expect(tier.pos).toBe('fixed')
+      expect(Math.abs(tier.bottom - tier.vh)).toBeLessThanOrEqual(1)
+      expect(gallery, 'the gallery leads the page').toBeLessThan(shop)
+    } else {
+      expect(gallery, 'the gallery leads the page').toBeLessThan(contact)
+      expect(contact, 'the CTA must come before the seller row — moving it after is what buys the fold')
+        .toBeLessThan(shop)
+    }
     // UI climb batch 90 (2026-11-14): below md the listing page's breadcrumb trail is not shown (max-md:hidden; the
     // BreadcrumbList JSON-LD and md+ are unchanged) — so it can never sit above the CTA on a phone.
     // Selected by its own marker, and counted first: toBeHidden() alone also passes when nothing matches (codex, 2026-11-14).

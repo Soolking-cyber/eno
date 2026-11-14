@@ -28,7 +28,8 @@ describe('batch 94 — the listing page keeps every digit of a sale price', () =
     expect(PAGE).not.toContain('cardCompactAbove(')
   })
   it('the headline and the struck was-price pass no `compact`', () => {
-    const headline = prices().filter((p) => p.includes('className="text-3xl tracking-tight"'))
+    // (The listing price's class is a ternary since 2026-11-14: the rental sheet's SHEET_PRICE below md, 'text-3xl tracking-tight'.)
+    const headline = prices().filter((p) => p.includes("'text-3xl tracking-tight'") || p.includes('className="text-3xl tracking-tight"'))
     expect(headline.length).toBeGreaterThanOrEqual(2) // the salary figure and the price
     for (const p of headline) expect(p).not.toMatch(/\bcompact/)
     const struck = prices().filter((p) => p.includes('price={listing.prevPrice}'))

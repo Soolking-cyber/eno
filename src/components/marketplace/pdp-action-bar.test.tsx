@@ -631,3 +631,89 @@ describe('readPrimary', () => {
     expect(readPrimary(el('<div><a data-affiliate-cta="true" data-commission="false" href="https://x.example/"> </a></div>'), '[data-affiliate-cta]')).toBeNull()
   })
 })
+
+/**
+ * ⛔ titleCaption="md" — THE RENTAL SHEET'S BAR (owner-approved 2026-11-14, cook r05 "rental-c"): below md the page title under the
+ * price is hidden (the price's own "≈ $" line takes it); from md it is back. ONLY the title: a 'buy' link's "Source: <shop>" is
+ * never hidden — it names where the short action goes.
+ */
+describe('PdpActionBar titleCaption="md" (the rental sheet)', () => {
+  function SheetPage({ children }: { children: React.ReactNode }) {
+    return (
+      <main>
+        <h1>{T.title}</h1>
+        <div id="contact">{children}</div>
+        <PdpActionBar price={<span>{T.price}</span>} titleCaption="md" />
+      </main>
+    )
+  }
+  const caption = () => bar()!.querySelector('[data-slot="sticky-action-bar-leading"] p') as HTMLElement
+
+  it('the title caption is still rendered (the same words) but hidden below md', async () => {
+    const ui = <SheetPage><button data-pdp-primary="chat">{T.chat}</button></SheetPage>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(caption().textContent).toBe('Studio near the river')
+    expect(caption().className.split(' ')).toEqual(['w-0', 'min-w-full', 'truncate', 'text-xs', 'text-muted-foreground', 'max-md:hidden'])
+    expect(bar()!.querySelector('[data-pdp-bar-price]')!.textContent).toBe(T.price)
+  })
+
+  it('⛔ a \'buy\' link\'s "Source: <shop>" caption is never hidden', async () => {
+    const ui = <SheetPage><AffiliateBooking url="https://shop.example/p/1" partnerName={T.shop} listingId="l1" booking={false} /></SheetPage>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(caption().textContent).toBe(`Source: ${T.shop}`)
+    expect(caption().className).not.toContain('max-md:hidden')
+  })
+
+  it('without the prop the title caption shows on every width, as before', async () => {
+    const ui = <Page><button data-pdp-primary="chat">{T.chat}</button></Page>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(caption().className).not.toContain('max-md:hidden')
+  })
+})
+
+/**
+ * ⛔ `pinned` — A GOODS PAGE THAT PINS ITS OWN ACTION (owner-approved 2026-11-14, cook r06 "item"; src/lib/goods-sheet.ts): below
+ * md, outside the store apps, the mirror never shows (the page's block is the bar), however the observers fire. From md it is
+ * the bar it always was.
+ */
+describe('PdpActionBar `pinned`', () => {
+  function PinnedPage() {
+    return (
+      <main>
+        <h1>{T.title}</h1>
+        <div id="contact"><button data-pdp-primary="chat">{T.chat}</button></div>
+        <PdpActionBar price={<span>{T.price}</span>} pinned />
+      </main>
+    )
+  }
+  const phone = (on: boolean) => {
+    window.matchMedia = ((q: string) => ({
+      matches: q === '(max-width: 767.98px)' ? on : false, media: q,
+      addEventListener: () => {}, removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia
+  }
+  it('below md: never mounts the mirror, even scrolled past with the tab bar gone', async () => {
+    phone(true)
+    const view = render(<PinnedPage />)
+    await scrollPast(view, <PinnedPage />)
+    expect(bar()).toBeNull()
+  })
+  it('in the store apps (html.native) and from md: the bar as before', async () => {
+    phone(true)
+    document.documentElement.classList.add('native')
+    const view = render(<PinnedPage />)
+    await scrollPast(view, <PinnedPage />)
+    expect(bar()).not.toBeNull()
+    document.documentElement.classList.remove('native')
+    cleanup()
+    observers.length = 0
+    h.hidden = false
+    phone(false)
+    const v2 = render(<PinnedPage />)
+    await scrollPast(v2, <PinnedPage />)
+    expect(bar()).not.toBeNull()
+  })
+})

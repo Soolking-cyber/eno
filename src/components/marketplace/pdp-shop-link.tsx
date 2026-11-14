@@ -19,6 +19,7 @@ import { useMounted } from '@/hooks/use-mounted'
 import { PartnerListingCount } from './partner-listing-count'
 import { LinkedShopChip } from './linked-shop-chip'
 import type { SellerMetrics } from '@/lib/seller-metrics'
+import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
 
 /** The strip's type, and the linked job's counsel line in the same type (batch 95): 12px in the quietest grey on a phone; from lg
  *  14px in body ink (2026-11-07 audit — at 12px a desktop read who it is dealing with as fine print). */
@@ -29,7 +30,7 @@ const STRIP_TYPE = 'text-xs text-muted-foreground lg:text-sm lg:text-body'
  *  reviews — "Joined" not below md when another item holds the line, batch 90) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className, linked = null, partnerListingCount = null, unrated = false, linkedShop = false, variant = 'row', head = false }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
@@ -69,6 +70,36 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
    * this row (owner, 2026-10-01). Only ever true for an unrated, non-partner storefront.
    */
   linkedShop?: boolean
+  /**
+   * ⛔ 'card': THE RENTAL LISTING PAGE'S HOST CARD, ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook
+   * round build all best options and deploy"; src/lib/rental-sheet.ts). It reverses, on that page only, batch 79's "Hosted by"
+   * band ("⛔ ONE LINE, OVER IT ONLY") and the canon's "almost no boxes" (owner 2026-07-24): the seller is ONE bordered, raised
+   * object — the app's one raised recipe, the header search pill's `shadow-raised` — the PDP's one approved box. Inside it,
+   * the same nodes and words as the row, in this order (DOM = paint): the avatar (56, aria-hidden), the name (the h3 role,
+   * ink) with its badge, the status line (14px muted: the strip minus the partner count, dots and all), and — only when the
+   * partner count is shown — a hairline and the count as the card's one figure (PartnerListingCount `stat`, the same words)
+   * with "Shop ›" at its end; without it "Shop ›" ends the first row. The status line always reserves one line (`min-h-5`):
+   * "Active …" is client-only (the clock) and arrives after mount. Batch 90's partner "Joined" hide and a linked listing's
+   * "not verified" counsel line are kept as they are. The page renders it only in its `md:hidden` phone slot.
+   */
+  /**
+   * ⛔ 'band': THE GOODS LISTING PAGE'S SELLER BAND, ON A PHONE (owner-approved 2026-11-14, cook r06 "item": "after this cook
+   * round build all best options and deploy"; src/lib/goods-sheet.ts). The row's nodes and words in one compact grid, DOM =
+   * paint: the avatar (44, aria-hidden) spanning both lines; the name (the h3 role, ink) with its badge on the first line,
+   * and "Shop" at its end as the shell's outline chip (36 drawn, 44 to tap, no chevron); the status strip (13px muted, the
+   * row's dots and clip) on ONE line under them, running under the chip's column. ⛔ The neutral "Linked shop" chip is left out
+   * whenever the strip carries "Linked listing: not verified by eno.vn" (`linked === 'listing'`): one says it — it reverses
+   * there the 2026-10-01 "A LINKED SHOP SHOWS THE NEUTRAL 'Linked shop' CHIP IN THE PARTNER BADGE'S PLACE" (the row note
+   * below), on the phone band only; desktop keeps it. The page renders it only in its `md:hidden` phone slot.
+   */
+  variant?: 'row' | 'card' | 'band'
+  /**
+   * A linked JOB's employer line in the page's head, under the role (owner-approved 2026-11-14, cook r06 jobs; page.tsx renders
+   * this copy `md:hidden` right after the H1 and draws no phone band for the job): the name at the sub-section role (17/24 bold
+   * ink) with an 18px chevron, the kept counsel line at the meta role (13/18). Its tap-44 sits on the head's own 8px gaps. Only
+   * the job branch reads it; every other row ignores it.
+   */
+  head?: boolean
 }) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
@@ -115,12 +146,12 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   if (linked === 'job') {
     return (
       <div className={className}>
-        <Link href={href} prefetch={false} className="relative tap-44 flex w-fit max-w-full items-center gap-0.5 text-base font-bold text-foreground hover:underline active:opacity-60">
+        <Link href={href} prefetch={false} className={cn('relative tap-44 flex w-fit max-w-full items-center gap-0.5 text-base font-bold text-foreground hover:underline active:opacity-60', head && 'text-t-h3')}>
           {/* The truncation is on the span, not the link: `overflow:hidden` on the link would clip tap-44's ::before (see below). */}
           <span className="min-w-0 truncate">{name}</span>
-          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+          <ChevronRight className={cn('h-4 w-4 shrink-0', head && 'size-4.5')} aria-hidden />
         </Link>
-        <p className={cn('mt-1', STRIP_TYPE)}>
+        <p className={cn('mt-1', head ? 'mt-0 text-t-meta text-muted-foreground' : STRIP_TYPE)}>
           {forumVerifies
             ? tr('Linked job posting — not verified by eno.forum', 'Tin tuyển dụng dẫn link — eno.forum chưa xác minh')
             : tr('Linked job posting — not verified by eno.vn', 'Tin tuyển dụng dẫn link — eno.vn chưa xác minh')}
@@ -128,9 +159,10 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       </div>
     )
   }
+  // ': ', not ' — ' (owner-approved 2026-11-14, cook r06 "item": no em dashes in UI copy; punctuation only, no word changed).
   if (linked === 'listing') strip.push(forumVerifies
-    ? tr('Linked listing — not verified by eno.forum', 'Tin đăng dẫn link — eno.forum chưa xác minh')
-    : tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
+    ? tr('Linked listing: not verified by eno.forum', 'Tin đăng dẫn link: eno.forum chưa xác minh')
+    : tr('Linked listing: not verified by eno.vn', 'Tin đăng dẫn link: eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
   /**
@@ -153,6 +185,107 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
         <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
         <RatingValue value={rating} /> · <CountValue value={reviewCount} /> {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}
       </span>,
+    )
+  }
+
+  // ⚠️ PARTNER REPLACES TRUST, and a linked shop shows its neutral chip — the notes at the row's badge below.
+  const badge = officialPartner
+    ? <PartnerBadge />
+    : linkedShop ? <LinkedShopChip />
+    : linked || unrated ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
+
+  if (variant === 'band') {
+    // The counsel line in the strip already says the shop is linked and unverified: the chip would say it twice.
+    const bandBadge = linked === 'listing' && linkedShop ? null : badge
+    return (
+      <div data-seller-band="" className={cn('grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3', className)}>
+        {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the row's
+            note below. */}
+        <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="col-start-1 row-span-2 row-start-1 shrink-0 self-center rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+          <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-11" />
+        </Link>
+        <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-end">
+          {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
+          <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-t-h3 text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
+          {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
+          {isBusiness && businessVerified && <BusinessVerifiedBadge />}
+          {bandBadge}
+        </div>
+        {/* The shell's chip: 36px drawn (`-my-1.5` gives 12px back to the 24px line), 44 to tap (PILL_BOX's tap-44). */}
+        <Link href={href} prefetch={false} aria-label={tr('Visit shop', 'Vào gian hàng')} className={cn(PILL_BOX, PILL_REST, 'col-start-3 row-start-1 -my-1.5 flex shrink-0 items-center self-center transition-colors')}>
+          {tr('Shop', 'Gian hàng')}
+        </Link>
+        {strip.length > 0 && (
+          <div className="col-span-2 col-start-2 row-start-2 self-start overflow-x-clip">
+            {/* The row's dot geometry: every item carries its dot, the row sits 10px left, so each line's first dot is cut. */}
+            <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 text-t-meta text-muted-foreground">
+              {strip.map((node, i) => (
+                <span key={i} className={cn('inline-flex items-center gap-1.5', i === joinedAt && 'max-md:hidden')}>
+                  <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
+                  {node}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (variant === 'card') {
+    // The status line: the strip without the partner count, which is the card's figure below (the same words, never twice).
+    const status = partnerCountShown ? strip.slice(1) : strip
+    const statusJoinedAt = partnerCountShown ? joinedAt - 1 : joinedAt
+    // "Shop ›": 700 14 in the accent, a 44px-tall target (the row's pill is 28 and leans on tap-44).
+    const shop = (
+      <Link
+        href={href}
+        prefetch={false}
+        aria-label={tr('Visit shop', 'Vào gian hàng')}
+        className="group relative tap-44 flex min-h-11 shrink-0 items-center gap-0.5 text-sm font-bold text-accent-foreground hover:underline active:opacity-60"
+      >
+        {tr('Shop', 'Gian hàng')}
+        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
+      </Link>
+    )
+    return (
+      <div data-host-card="" className={cn('rounded-2xl border border-line-strong bg-background p-4 shadow-raised', className)}>
+        <div className="flex items-center gap-4">
+          {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the
+              row's note below. */}
+          <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+            <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-14" />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
+              <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-t-h3 text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
+              {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
+              {isBusiness && businessVerified && <BusinessVerifiedBadge />}
+              {badge}
+            </div>
+            {/* One line held from the server HTML (`min-h-5`), so the client-only "Active …" lands in a box that is there. The
+                dots and the clip are the row's (each item carries its dot; a line's first dot is cut). */}
+            <div className="mt-0.5 min-h-5 overflow-x-clip">
+              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+                {status.map((node, i) => (
+                  <span key={i} className={cn('inline-flex items-center gap-1.5', i === statusJoinedAt && 'max-md:hidden')}>
+                    <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
+                    {node}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {!partnerCountShown && shop}
+        </div>
+        {partnerCountShown && (
+          <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-4">
+            <PartnerListingCount n={partnerListingCount as number} layout="stat" />
+            {shop}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -210,11 +343,10 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {/* ⚠️ …AND A LINKED SHOP SHOWS THE NEUTRAL "Linked shop" CHIP IN THE PARTNER BADGE'S PLACE, while
               an unrated storefront (no owner, not a partner) shows no trust chip at all (owner, 2026-10-01;
-              src/lib/linked-seller.ts). A linked reference listing never showed one either. */}
-          {officialPartner
-            ? <PartnerBadge />
-            : linkedShop ? <LinkedShopChip />
-            : linked || unrated ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
+              src/lib/linked-seller.ts). A linked reference listing never showed one either.
+              (The goods page's phone band leaves the chip out beside its "Linked listing: not verified" line: owner-approved
+              2026-11-14, cook r06 "item" — `variant="band"` above. This row, desktop's, keeps it.) */}
+          {badge}
         </div>
         {strip.length > 0 && (
           <div className="mt-1 overflow-x-clip">

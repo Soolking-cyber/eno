@@ -278,6 +278,32 @@ export function MobileNav() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  /**
+   * ⛔ ON A PAGE THAT PINS ITS OWN ACTION THE BAR STARTS RETRACTED (owner-approved 2026-11-14, cook r06 "item": a goods
+   * listing page is a pushed screen; globals.css, the goods tier block, hides the bar there until this says otherwise). It
+   * reverses on those pages the 2026-07-18 "the tab-nav stays on the PDP" (below) and NAV-3's first-render show
+   * (use-hide-on-scroll.ts); every other page is untouched, since the stylesheet rule needs `#contact[data-pin-action]`.
+   * `data-scrolled-up` = this visit has seen the reader scroll down and then back up (the bar's own hide, then its own
+   * reveal), or the page cannot scroll at all (a short page must never strand the reader without the tabs). Focus inside
+   * the bar shows it too (the rule's `:not(:focus-within)`). After mount only, so the server HTML and the first client
+   * render agree (absent in both).
+   */
+  const [hidOn, setHidOn] = useState<string | null>(null)
+  useEffect(() => { if (scrolledAway) setHidOn(pathname) }, [scrolledAway, pathname])
+  const [shortPage, setShortPage] = useState(false)
+  useEffect(() => {
+    // Only a page that pins anything needs the measure (one cheap query everywhere else); read in a frame, after layout.
+    if (!document.querySelector('#contact[data-pin-action]')) { setShortPage(false); return }
+    let raf = 0
+    const check = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => setShortPage(document.documentElement.scrollHeight - window.innerHeight < 80))
+    }
+    check()
+    window.addEventListener('resize', check, { passive: true })
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', check) }
+  }, [pathname])
+
   // ⛔ THE GUEST ACCOUNT TAB OPENS A SHEET, NOT THE SIGN-IN CARD (owner, O-09 "Guest chrome"): Sign in on
   // top, then Language, Currency, Help, Safety — see guest-account-sheet.tsx. `guestSheet` mounts the
   // (lazy) sheet on the first touch and keeps it mounted, so its close animation always has a tree to
@@ -334,7 +360,8 @@ export function MobileNav() {
 
   // Hidden only on the full-screen sign-in page. (The PDP used to hide it and show its own fixed
   // Chat / Make-offer bar instead; owner reverted that 2026-07-18 — the tab-nav stays on the PDP and
-  // buyers use the in-page contact composer.) In a chat thread the nav stays put when the keyboard is
+  // buyers use the in-page contact composer. ⛔ Except, since 2026-11-14 (owner-approved, cook r06 "item"), a goods page that
+  // pins its own action: there the bar starts retracted — `data-scrolled-up` above.) In a chat thread the nav stays put when the keyboard is
   // CLOSED (composer sits right above it, no gap — the existing good state); when the keyboard
   // OPENS it's hidden reliably by `html.kb-open .mobile-nav` (globals.css), driven by the
   // frame-accurate kb-open class — not the old laggy React boolean that let it wedge above it.
@@ -371,10 +398,13 @@ export function MobileNav() {
   // transform, so no JS state is needed). When the keyboard is up the tabs are genuinely not a
   // destination (you're typing), so inert there is correct and focus can't enter anyway.
   const off = keyboardOpen || scrolledAway
+  // The reveal on a pinned page (the note at `hidOn` above): never while the bar is retracting for its own reasons.
+  const scrolledUp = mounted && !off && (hidOn === pathname || shortPage)
 
   return (
     <nav
       inert={keyboardOpen}
+      data-scrolled-up={scrolledUp ? '' : undefined}
       className={cn(
         // ⛔ POSTING IS A FOCUSED TASK ON A PHONE (UI climb 2026-11-05): Publish alone holds the bottom edge, with Exit at the top of the form.
         // The Publish bar stacked on the tab bar took ~130px of a phone's height and left the form clipped between layers. The

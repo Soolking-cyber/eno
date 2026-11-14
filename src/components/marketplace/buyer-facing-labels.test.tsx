@@ -50,8 +50,8 @@ describe('SafetyStrip — vehicle hire is not a home (2026-10-01)', () => {
       expect(en).not.toContain('before you pay')
       expect(en).not.toContain('Book only on the rental website')
       // SELF-DRIVE: car-rental also holds hire with a driver (taxonomy.ts), where the hirer needs no licence.
-      expect(en).toContain('Driving a hired car or motorbike yourself needs a valid licence for it — an owner may not hand a vehicle to someone without one.')
-      expect(vi).toContain('Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe — chủ xe không được giao xe cho người không có giấy phép lái xe.')
+      expect(en).toContain('Driving a hired car or motorbike yourself needs a valid licence for it; an owner may not hand a vehicle to someone without one.')
+      expect(vi).toContain('Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe; chủ xe không được giao xe cho người không có giấy phép lái xe.')
       expect(en).not.toContain('Renting a car or motorbike needs')
     }
   })
@@ -125,8 +125,8 @@ describe('SafetyStrip — vehicle hire is not a home (2026-10-01)', () => {
 describe('linked ticket and code copy names the seller or the operator, never a partner', () => {
   it("the ticket safety line (variant 'affiliate'), both languages", () => {
     const { en, vi } = both(() => text(renderToString(<SafetyStrip categorySlug="tickets-travel" variant="affiliate" />)))
-    expect(en).toContain("Book only on the operator's own website — eno never takes payment or a deposit for these tickets, and cannot refund one.")
-    expect(vi).toContain('Chỉ đặt vé trên website chính thức của nhà cung cấp — eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.')
+    expect(en).toContain("Book only on the operator's own website; eno never takes payment or a deposit for these tickets, and cannot refund one.")
+    expect(vi).toContain('Chỉ đặt vé trên website chính thức của nhà cung cấp; eno không bao giờ nhận thanh toán hay tiền cọc cho các vé này, và không thể hoàn tiền.')
     for (const t of [en, vi]) expect(t).not.toMatch(/partner|đối tác|eno\.vn/i)
   })
   it('the iPhone price table’s commission note calls the link an affiliate link, both languages', () => {
@@ -202,8 +202,8 @@ describe('PdpShopLink — linked listings, unrated storefronts, the Linked shop 
 
   it('a linked listing says "not verified", never "kiểm duyệt"', () => {
     const { en, vi } = both(() => text(row({ linked: 'listing', unrated: true })))
-    expect(en).toContain('Linked listing — not verified by eno.vn')
-    expect(vi).toContain('Tin đăng dẫn link — eno.vn chưa xác minh')
+    expect(en).toContain('Linked listing: not verified by eno.vn')
+    expect(vi).toContain('Tin đăng dẫn link: eno.vn chưa xác minh')
     expect(vi).not.toContain('kiểm duyệt')
     const job = both(() => text(row({ linked: 'job', unrated: true })))
     expect(job.vi).toContain('Tin tuyển dụng dẫn link — eno.vn chưa xác minh')
@@ -281,7 +281,7 @@ describe('SellerInfo — who is selling (Decree 248 Art 18.1.c)', () => {
     const { en, vi } = both(() => text(renderToString(<SellerInfo info={{ kind: 'source', source: 'Tiki', action: 'buy' }} />)))
     expect(en).toContain('Source Tiki')
     expect(vi).toContain('Nguồn Tiki')
-    expect(en).toContain('is not the seller here — you contact or buy on the source website.')
+    expect(en).toContain('is not the seller here; you contact or buy on the source website.')
   })
 
   // 2026-10-01: the same caption rendered on linked JOB and RENTAL PDPs — nobody buys a job or a flat.

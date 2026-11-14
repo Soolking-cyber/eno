@@ -44,6 +44,9 @@ type Props = {
    * 2026-09-30, P-MAP). geo.ts approximateArea builds it; null keeps the ordinary pinned map.
    */
   approximate?: { lat: number; lng: number; radiusM: number } | null
+  /** The touch preview's look (listing-map-preview.tsx): 'sheet' on the rental listing page's phone sheet (owner-approved
+   *  2026-11-14, cook r05 "rental-c") — every class it adds is `max-md:`; the live map is the same for every look. */
+  look?: 'default' | 'sheet'
 }
 
 /**
@@ -85,7 +88,7 @@ const coarseNow = () => window.matchMedia?.(COARSE).matches ?? false
  *  full-size, so it is the natural target. The hook fails open where IntersectionObserver
  *  is missing (old WebViews, jsdom) — there the map simply mounts as it does today.
  *  The touch preview rides the same gate, so its tiles are not fetched before the reader is near. */
-export function ListingDetailMap({ listings, activeDistrict, approximate = null }: Props) {
+export function ListingDetailMap({ listings, activeDistrict, approximate = null, look = 'default' }: Props) {
   const { ref, near } = useNearViewport<HTMLDivElement>()
   const touch = useSyncExternalStore<boolean | null>(subscribeCoarse, coarseNow, () => null)
   const liveMap = () => (
@@ -107,7 +110,7 @@ export function ListingDetailMap({ listings, activeDistrict, approximate = null 
       ) : touch ? (
         // A PDP always passes its one listing; with none there is nothing to picture — and a
         // placeholder here would be a loading tile that never resolves.
-        listings[0] ? <ListingMapPreview listing={listings[0]} liveMap={liveMap} approximate={approximate} /> : null
+        listings[0] ? <ListingMapPreview listing={listings[0]} liveMap={liveMap} approximate={approximate} look={look} /> : null
       ) : (
         liveMap()
       )}

@@ -13,6 +13,7 @@ import { useResolvedTheme } from '@/context/theme-context'
 import { metresPerPixel, staticMapTiles, STATIC_MAP_ZOOM, wantsRetinaTiles, zoomToFitRadius } from '@/lib/static-map'
 import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { handleExternalClick } from '@/lib/native-browser'
+import { cn } from '@/lib/utils'
 
 /**
  * THE PDP MAP ON A TOUCH SCREEN: a picture of the map, and a button that opens the real one.
@@ -37,12 +38,23 @@ import { handleExternalClick } from '@/lib/native-browser'
  * two OSM/CARTO credit links (a licence obligation — src/lib/map-credit.ts) cannot live inside a
  * <button> (nested interactive content is invalid and unreachable), so they are siblings painted above.
  */
-export function ListingMapPreview({ listing, liveMap, approximate = null }: {
+export function ListingMapPreview({ listing, liveMap, approximate = null, look = 'default' }: {
   listing: SerializedListingCard
   liveMap: () => ReactNode
   /** Only the district or city is known: draw that AREA as a circle, and no pin — see approximateArea (geo.ts). */
   approximate?: { lat: number; lng: number; radiusM: number } | null
+  /**
+   * ⛔ 'sheet' — THE RENTAL LISTING PAGE ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build
+   * all best options and deploy"; src/lib/rental-sheet.ts). Below md only (every class is `max-md:`, so a touch tablet at md+
+   * keeps today's look): ONE INK PIN (40, positioned by its tip, so its size cannot move the point) or an ink area — it
+   * reverses the brand-blue pin and area there; "Open map" top-right in the label voice; and the two credits as ONE quiet
+   * text plate bottom-left, each link showing its own licence wording (OSM_CREDIT, CARTO_CREDIT — the same string as its
+   * accessible name) in place of the ⓘ. The live map (desktop, and the full-screen sheet this opens) keeps the ⓘ form.
+   * The tiles are never filtered: the picture stays the live map's own cached tiles (the note at the top).
+   */
+  look?: 'default' | 'sheet'
 }) {
+  const sheet = look === 'sheet'
   const { tr } = useLanguage()
   const dark = useResolvedTheme() === 'dark'
   const box = useRef<HTMLDivElement>(null)
@@ -115,7 +127,7 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
             <span
               aria-hidden
               data-map-area
-              className="pointer-events-none absolute rounded-full border-2 border-brand bg-brand/15"
+              className={cn('pointer-events-none absolute rounded-full border-2 border-brand bg-brand/15', sheet && 'max-md:border-foreground max-md:bg-foreground/8')}
               style={{ left: pin.x - areaR, top: pin.y - areaR, width: areaR * 2, height: areaR * 2 }}
             />
           )}
@@ -124,12 +136,17 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
             // projected) would assert a location that is not on screen.
             // The pin: Solar `map-point` (Bold) — the glyph the app's map icons are drawn from — with its
             // tip (y≈22 of 24) on the listing's point. Inline rather than the sprite so it can be SOLID
-            // brand with a light edge over any tile; the sprite swaps weight only on a selected control.
+            // brand with a light edge over any tile; the sprite swaps weight only on a selected control. ⛔ INK on the rental sheet
+            // below md (`look="sheet"`, owner-approved 2026-11-14, cook r05 "rental-c"), as is the area disc above.
+            // 'sheet': placed at the point and pulled back by its own tip (x 12/24, y 22/24 of the box), so the 40px ink pin
+            // below md and the 36px one from md both stand on the same spot.
             <svg
               aria-hidden
               viewBox="0 0 24 24"
-              className="pointer-events-none absolute size-9 text-brand [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]"
-              style={{ left: pin.x - 18, top: pin.y - 33 }}
+              className={sheet
+                ? 'pointer-events-none absolute size-9 -translate-x-1/2 -translate-y-[91.667%] text-brand [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))] max-md:size-10 max-md:text-foreground'
+                : 'pointer-events-none absolute size-9 text-brand [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]'}
+              style={sheet ? { left: pin.x, top: pin.y } : { left: pin.x - 18, top: pin.y - 33 }}
             >
               <path
                 fillRule="evenodd"
@@ -141,7 +158,11 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
               />
             </svg>
           )}
-          <span className="pointer-events-none absolute bottom-3 right-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-semibold text-foreground shadow-pop transition-[scale] duration-150 group-active:scale-[0.97] motion-reduce:transition-none">
+          {/* 'sheet' below md: top-right, 700 14, the chip's light lift. `.shadow-pop` is an UNLAYERED class and would beat any
+              utility, so that look carries the pop as a utility from md instead. */}
+          <span className={sheet
+            ? 'pointer-events-none absolute right-3 top-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-bold text-foreground shadow-chip transition-[scale] duration-150 group-active:scale-[0.97] motion-reduce:transition-none md:bottom-3 md:top-auto md:font-semibold md:shadow-[var(--shadow-pop)]'
+            : 'pointer-events-none absolute bottom-3 right-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-semibold text-foreground shadow-pop transition-[scale] duration-150 group-active:scale-[0.97] motion-reduce:transition-none'}>
             <MapIcon className="size-4" aria-hidden />
             {tr('Open map', 'Mở bản đồ')}
           </span>
@@ -162,7 +183,7 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
           <div className="relative min-h-0 flex-1 border-t border-border">{liveMap()}</div>
         </SheetContent>
       </Sheet>
-      <PreviewCredit />
+      <PreviewCredit sheet={sheet} />
     </div>
   )
 }
@@ -175,29 +196,38 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
  * The basemap credits, in the same collapsed ⓘ form the live map uses (listings-map.tsx `MapCredit`,
  * which is not exported from that landmine file — so the form is repeated here, and a restyle of one
  * must reach the other). Two providers, two reachable links, each named with the exact licence wording.
+ * ⛔ EXCEPT `sheet` BELOW md (owner-approved 2026-11-14, cook r05 "rental-c"): there each link SHOWS its licence wording, on one
+ * quiet plate (24 tall, the meta role, muted — 5.9:1 on the light tiles through the plate). The plate keeps its own material
+ * tint and blur (`bg-card/70`, bare: the reduced-transparency block in globals.css can only reach a bare tint, design-lint),
+ * so only its shape and type change. The words are the constants (never tr(), never shortened — map-credit.ts),
+ * so the visible text and the accessible name are one string. The live map's `MapCredit` keeps the ⓘ form: this is no
+ * longer its twin on a rental phone, and listings-map.tsx says so.
  */
-function PreviewCredit() {
+function PreviewCredit({ sheet = false }: { sheet?: boolean }) {
+  const link = cn('pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body', sheet && 'max-md:h-6 max-md:w-auto max-md:whitespace-nowrap')
   return (
-    <p className="pointer-events-none absolute bottom-1 left-2 z-10 flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px]">
+    <p className={cn('pointer-events-none absolute bottom-1 left-2 z-10 flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px]', sheet && 'max-md:bottom-2 max-md:h-6 max-md:gap-2 max-md:rounded-full max-md:px-2.5 max-md:py-0 max-md:text-t-meta max-md:text-muted-foreground')}>
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
+        className={link}
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={OSM_CREDIT}
       >
-        <Info className="size-5" />
+        <Info className={cn('size-5', sheet && 'max-md:hidden')} />
+        {sheet && <span className="md:hidden">{OSM_CREDIT}</span>}
       </a>
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
+        className={link}
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={CARTO_CREDIT}
       >
-        <Info className="size-5" />
+        <Info className={cn('size-5', sheet && 'max-md:hidden')} />
+        {sheet && <span className="md:hidden">{CARTO_CREDIT}</span>}
       </a>
     </p>
   )

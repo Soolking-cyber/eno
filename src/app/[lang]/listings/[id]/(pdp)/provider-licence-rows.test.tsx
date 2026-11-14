@@ -105,7 +105,10 @@ describe('the PDP wires them in', () => {
   })
 
   it('prints them as the FIRST rows of the Details table, which shows for them alone', () => {
-    const dl = PAGE.slice(PAGE.indexOf('<dl className="divide-y divide-border'), PAGE.indexOf('</dl>'))
+    // (A cn() since 2026-11-14: the rental sheet adds its rows below md — src/lib/rental-sheet.ts SHEET_ROWS.)
+    // (The rows are one const since 2026-11-14, `detailsRows`: the Details table and its goods-sheet phone twin both print it.)
+    const dl = PAGE.slice(PAGE.indexOf('const detailsRows = ('), PAGE.indexOf('const detailsSection = ('))
+    expect(PAGE).toContain("<dl className={cn('divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]', rentalSheet && SHEET_ROWS)}>\n            {detailsRows}\n          </dl>")
     expect(dl).toContain('{providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}')
     // (The spec rows are `detailSpecs` since batch 89: the facts line prints the numeric specs, Details none of them there.)
     expect(dl.indexOf('<ProviderLicenceRows')).toBeLessThan(dl.indexOf('detailSpecs'))

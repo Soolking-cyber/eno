@@ -16,7 +16,7 @@ vi.mock('next/link', () => ({
 }))
 vi.mock('./job-rail-rows', async (orig) => {
   const real = await orig<typeof import('./job-rail-rows')>()
-  return { ...real, JobRailRows: ({ listings }: { listings: { id: string }[] }) => <>{listings.slice(0, real.JOB_RAIL_ROWS).map((l) => <div key={l.id} data-row={l.id} />)}</> }
+  return { ...real, JobRailRows: ({ listings, hideEmployerNamed }: { listings: { id: string }[]; hideEmployerNamed?: string }) => <>{listings.slice(0, real.JOB_RAIL_ROWS).map((l) => <div key={l.id} data-row={l.id} data-hide={hideEmployerNamed ?? ''} />)}</> }
 })
 
 import { Shelf } from './shelf'
@@ -73,6 +73,13 @@ describe('RelatedListings on a job page', () => {
     expect(other.container.querySelector('[data-related-loading]')).not.toBeNull()
     expect(other.container.querySelector('[data-phone-rows]')).toBeNull()
   })
+  it('the page may set the section\'s own gap (a linked job: 32px below md) — placeholder and answer alike', async () => {
+    const { container } = wrap(<RelatedListings listingId="l1" categorySlug="jobs" sectionClassName="mt-8 md:mt-12" />)
+    expect(container.querySelector('[data-related-loading] section')!.className).toBe('mt-8 md:mt-12')
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)) })
+    await act(async () => { answer({ listings: listings(3, 'jobs') }) })
+    expect(container.querySelector('section[data-shelf]')!.className).toBe('mt-8 md:mt-12')
+  })
   it('an all-jobs answer draws at most four rows on a phone and keeps the cards from sm', async () => {
     const { container } = wrap(<RelatedListings listingId="l1" categorySlug="jobs" />)
     await act(async () => { await new Promise((r) => setTimeout(r, 5)) })
@@ -92,6 +99,14 @@ describe('SameSellerShelf on a job page', () => {
     expect(rows.querySelectorAll('[data-row]')).toHaveLength(4)
     expect(container.querySelector('[data-shelf-items]')!.closest('.max-sm\\:hidden')).not.toBeNull()
     expect(container.querySelectorAll('[data-card]')).toHaveLength(6)
+  })
+  // Owner-approved 2026-11-14, cook r06 jobs: the job page passes its employer; each card decides for itself (job-card-row.tsx).
+  it('hands the page\'s employer to the job cards, and nothing when the page passes none', () => {
+    const named = wrap(<SameSellerShelf listings={listings(3, 'jobs')} sellerHref="/s/x" sellerName="Nord Anglia" hideEmployerNamed="Nord Anglia" />).container
+    expect(Array.from(named.querySelectorAll('[data-row]')).map((e) => e.getAttribute('data-hide'))).toEqual(Array(3).fill('Nord Anglia'))
+    cleanup()
+    const plain = wrap(<SameSellerShelf listings={listings(3, 'jobs')} sellerHref="/s/x" sellerName="Nord Anglia" />).container
+    expect(Array.from(plain.querySelectorAll('[data-row]')).map((e) => e.getAttribute('data-hide'))).toEqual(['', '', ''])
   })
   it('any other seller keeps the rail alone', () => {
     const { container } = wrap(<SameSellerShelf listings={[...listings(2, 'jobs'), ...listings(1, 'electronics')]} sellerHref="/s/x" sellerName="Shop" />)

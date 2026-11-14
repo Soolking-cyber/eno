@@ -28,6 +28,31 @@ type Props = {
    *  autoplays muted once loaded); the buyer swipes past it to the photos. */
   video?: string | null
   showAllLabel?: string
+  /**
+   * ⛔ THE RENTAL SHEET'S PHOTO, ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round build all
+   * best options and deploy"; src/lib/rental-sheet.ts). Passed on the MOBILE mount of a home-to-rent listing only. It reverses
+   * there, as the shell did for cards (owner-approved 2026-11-14), BlurFillImage's "one hero slide that never crops": each
+   * photo FILLS its square (`object-cover`) — no blurred backdrop, no flat edge fill, no watermark texture; the lightbox still
+   * shows the whole photo. And the page lays a 16px white sheet edge over the photo's bottom, so the counter and the video's
+   * mute toggle sit 28px up (`bottom-7`), the counter at the END (bottom-right): it reverses "⚠️ BOTTOM-CENTRE since
+   * 2026-09-13" there — the corner it kept free was the app-drawn eno.vn mark's, which is off (image-mark.tsx ON_SCREEN_MARK).
+   * ⚠️ UNTOUCHED: the sharp photo keeps `priority` + fetchPriority=high (it is the LCP element, now with no backdrop to
+   * compete), and the cover video, its eager overlay and its no-`poster` rule are exactly as they were.
+   */
+  sheet?: boolean
+  /**
+   * ⛔ THE GOODS SHEET'S PHOTO, ON A PHONE (owner-approved 2026-11-14, cook r06 "item": "after this cook round build all best
+   * options and deploy"; src/lib/goods-sheet.ts). Passed on the MOBILE mount of a goods or vehicle listing only. Each photo is
+   * WHOLE on a plain white ground (`object-contain`, the frame `bg-background`): no blurred self-backdrop, no flat edge fill
+   * and no watermark texture in the gutters — it reverses there BlurFillImage's blurred fill and I-MARK-DENSITY option B
+   * (owner 2026-09-30, the 0.08 texture). A packshot on white then reads as one surface with the page. The page lays the
+   * same 16px white sheet edge over the photo's bottom as the rental sheet, so the counter sits 28px up at the START
+   * (bottom-left, the item mock's place) — it reverses "⚠️ BOTTOM-CENTRE since 2026-09-13" there — EXCEPT on a gallery with a
+   * video, where bottom-left is the mute toggle's: there it stays bottom-centre, 28px up. The mute toggle lifts the same.
+   * ⚠️ UNTOUCHED: the sharp photo keeps `priority` + fetchPriority=high (the LCP element, with no backdrop to compete), and
+   * the cover video, its eager overlay and its no-`poster` rule are exactly as they were.
+   */
+  plain?: boolean
 }
 
 /** Autoplay is a cost + accessibility decision, not a given: skip it for reduced-motion
@@ -41,7 +66,7 @@ type Props = {
  *  play/pause (TikTok-conditioned reflex); a mute toggle restores sound. `preload` starts
  *  "none" and flips on first visibility — the mobile carousel and desktop mosaic BOTH mount
  *  (CSS-hidden per breakpoint), and this keeps the hidden twin from fetching anything. */
-function GalleryVideo({ src, poster, className }: { src: string; poster?: string; className?: string }) {
+function GalleryVideo({ src, poster, className, sheet = false }: { src: string; poster?: string; className?: string; /** The rental sheet's edge covers the slide's bottom 16px: the mute toggle sits above it (`bottom-7`). */ sheet?: boolean }) {
   const { tr } = useLanguage()
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
@@ -153,7 +178,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
         // ⛔ The white photo plate with an ink glyph since 2026-11-14 (owner-approved, cook r05: "every control over a photo …
         // one white plate, ink glyph"); it was black/50 with a white glyph. A plate on the BUTTON (a 32px disc round a 16px
         // glyph), not `.plate-host`: that would pad the glyph into a second disc. Same corner, same box.
-        className="absolute bottom-2 left-2 z-20 bg-plate-fill text-on-plate shadow-plate transition-transform active:scale-[0.96]"
+        className={cn('absolute left-2 z-20 bg-plate-fill text-on-plate shadow-plate transition-transform active:scale-[0.96]', sheet ? 'bottom-7' : 'bottom-2')}
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </IconButton>
@@ -245,7 +270,9 @@ export function isShowing(el: HTMLImageElement, img: string): boolean {
  *  when the photo already fits the frame, nothing shows). Only the sharp foreground
  *  carries priority/eager and gates the LCP; the backdrop requests a tiny 64px source
  *  (invisible once blurred) so it's a cheap raster + negligible fetch, never competing
- *  with the hero. */
+ *  with the hero.
+ *  ⛔ `cover` — THE RENTAL SHEET'S PHONE PHOTO (owner-approved 2026-11-14, cook r05 "rental-c"; ListingGallery `sheet`): the
+ *  sharp layer alone, `object-cover`, so that one photo CROPS to its square; its priority/fetchPriority are unchanged. */
 /**
  * ⚠️ THE PHOTO DOES NOT SCALE ON HOVER, AND THERE IS NO `hover` PROP ANY MORE.
  * This carried `hover && 'transition-transform duration-300 group-hover:scale-[1.02]'` on the <Image>
@@ -256,9 +283,15 @@ export function isShowing(el: HTMLImageElement, img: string): boolean {
  * JPEG behaved differently in two frames of the same flow. The prop went with the class rather than
  * being left behind as a dead API.
  */
-function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
+function BlurFillImage({ img, alt, sizes, mock, priority, eager, cover = false, plain = false }: {
   img: string; alt: string; sizes: string; mock?: boolean; priority?: boolean; eager?: boolean
+  /** The rental sheet (ListingGallery `sheet`): the photo fills the frame — only the sharp layer renders. */
+  cover?: boolean
+  /** The goods sheet (ListingGallery `plain`): the whole photo on the frame's own white — only the sharp layer renders. */
+  plain?: boolean
 }) {
+  // No gutter treatment at all: a filled frame has no gutters (`cover`), a plain one shows the page's white (`plain`).
+  const sharpOnly = cover || plain
   // A photo that failed to load takes its mark with it — never an eno.vn wordmark over an empty frame.
   // Keyed by the source, so a reused instance showing a different photo starts clean.
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
@@ -285,6 +318,8 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
           backdrop is the LARGEST painted image, so Chrome reported IT as the LCP element — and it was
           lazy, i.e. held until after hydration. It is a 64px source, so loading it eagerly costs ~1 KB
           and does not compete with the sharp layer's fetchPriority=high. */}
+      {/* `cover` (the rental sheet): no backdrop, no gutter fill, no gutter texture — a filled frame has no gutters. */}
+      {!sharpOnly && (
       <Image
         src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined}
         // A late load event from the PREVIOUS photo (a reused instance) must not stamp its colour on this one: isShowing.
@@ -296,13 +331,14 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
         }}
         className={cn('scale-110 object-cover blur-2xl transition-opacity duration-150 dark:brightness-[0.92]', flatFill && 'opacity-0')}
       />
+      )}
       {/* The packshot's flat gutter (edgeColor): its own edge colour, dimmed in dark mode like the photo it continues. */}
-      {flatFill && <span aria-hidden className="pointer-events-none absolute inset-0 animate-in fade-in duration-150 dark:brightness-[0.92]" style={{ backgroundColor: flatFill }} />}
+      {flatFill && !sharpOnly && <span aria-hidden className="pointer-events-none absolute inset-0 animate-in fade-in duration-150 dark:brightness-[0.92]" style={{ backgroundColor: flatFill }} />}
       {/* ⚠️ 0.08, NOT 0.7 (owner, 2026-09-30, I-MARK-DENSITY option B). At 0.7 the repeating tile read
           as a pattern printed over the gutters — a dense field of wordmarks beside a photo that already
           carries its own ImageMark. At 0.08 it is a texture you notice only on a wide letterbox. The
           per-photo <ImageMark> below is unchanged: the brand mark on the image is the real one. */}
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.08] [background-image:url('/watermark.svg?v=6e37f5ef')] [background-size:116px_80px] md:[background-size:248px_171px]" />
+      {!sharpOnly && <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.08] [background-image:url('/watermark.svg?v=6e37f5ef')] [background-size:116px_80px] md:[background-size:248px_171px]" />}
       <Image
         src={img}
         alt={alt}
@@ -329,11 +365,11 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
            never the 64px backdrop above, which must not compete with it. */
         fetchPriority={priority ? 'high' : undefined}
         loading={eager && !priority ? 'eager' : undefined}
-        className="object-contain dark:brightness-[0.92]"
+        className={cn(cover ? 'object-cover' : 'object-contain', 'dark:brightness-[0.92]')}
         onLoad={(e) => { if (isShowing(e.currentTarget, img)) { setSharpSrc(img); setFailedSrc((f) => (f === img ? null : f)) } }}
         onError={() => setFailedSrc(img)}
       />
-      {failedSrc !== img && <ImageMark src={img} fit="contain" />}
+      {failedSrc !== img && <ImageMark src={img} fit={cover ? 'cover' : 'contain'} />}
       <span className="img-watermark" aria-hidden />
     </>
   )
@@ -342,7 +378,7 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
 /** Photo gallery: full-width swipe carousel on mobile (buyers judge condition
  *  from photos — 45%-wide mosaic tiles were too small on a phone), Airbnb-style
  *  mosaic ≥md, and a full-screen lightbox with swipe nav + double-tap zoom. */
-export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos', variant = 'auto' }: Props) {
+export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos', variant = 'auto', sheet = false, plain = false }: Props) {
   // The lightbox chrome (Close/Previous/Next) and the video thumb are icon-only, so their
   // aria-label IS their whole accessible name — it has to follow the viewer's language.
   // eslint's i18n rule is configured with ignoreProps:true / noAttributeStrings:false and
@@ -654,8 +690,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               iOS/Android square. */}
           {/* Same desktop height cap as the mosaic below (P-GALLERY-DESKTOP, see there); `md:` only — the
               phone keeps its full square. */}
-          <div data-protected className="relative aspect-square w-full overflow-hidden bg-tint md:max-h-[max(24rem,calc(100dvh-19rem))]">
-            <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority />
+          <div data-protected className={cn('relative aspect-square w-full overflow-hidden md:max-h-[max(24rem,calc(100dvh-19rem))]', plain ? 'bg-background' : 'bg-tint')}>
+            {/* `sheet` reaches this branch only from the phone mount (md:hidden), so the desktop single photo stays contained. */}
+            <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority cover={sheet} plain={plain} />
           </div>
         </Button>
       ) : (
@@ -685,12 +722,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
               {hasVideo && (
                 <div className="relative aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none">
-                  <GalleryVideo src={video!} poster={images[0]} />
+                  <GalleryVideo src={video!} poster={images[0]} sheet={sheet || plain} />
                 </div>
               )}
               {images.map((img, i) => (
-                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
-                  <BlurFillImage img={img} alt={photoAlt(i + 1)} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
+                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className={cn('relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none cursor-pointer active:scale-100', plain ? 'bg-background' : 'bg-tint')}>
+                  <BlurFillImage img={img} alt={photoAlt(i + 1)} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} cover={sheet} plain={plain} />
                 </Button>
               ))}
             </div>
@@ -699,8 +736,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 tabular figures — "1 / 5" is digits only, so it reads the same in Vietnamese.
                 ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right belongs to the app-drawn eno.vn mark
                 (image-mark.tsx, one corner on every image), and bottom-left is the video slide's
-                mute toggle. */}
-            <span className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 photo-badge">
+                mute toggle.
+                ⛔ …EXCEPT UNDER THE RENTAL SHEET (`sheet`, owner-approved 2026-11-14, cook r05 "rental-c"): bottom-RIGHT, 28px up,
+                above the sheet's 16px edge (z-10 over its z 6) — the mark that corner was kept for is off (ON_SCREEN_MARK).
+                ⛔ …AND UNDER THE GOODS SHEET (`plain`, owner-approved 2026-11-14, cook r06 "item"): bottom-LEFT, 28px up — but
+                bottom-centre (28px up) on a gallery with a video, whose mute toggle owns bottom-left. */}
+            <span className={cn('pointer-events-none absolute photo-badge', sheet ? 'bottom-7 right-3 z-10' : plain ? (hasVideo ? 'bottom-7 left-1/2 z-10 -translate-x-1/2' : 'bottom-7 left-3 z-10') : 'bottom-3 left-1/2 -translate-x-1/2')}>
               {slide + 1} / {mediaCount}
             </span>
           </div>

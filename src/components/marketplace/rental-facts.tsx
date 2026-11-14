@@ -11,6 +11,7 @@ import {
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { RENTAL_FACT_LABELS, type CostRow, type FactRow, type LabelPair } from '@/lib/rental-facts'
 import { cn } from '@/lib/utils'
+import { SHEET_HEAD_GAP, SHEET_ROWS } from '@/lib/rental-sheet'
 
 /**
  * THE LISTING PAGE'S RENTAL FACTS — "Costs", "Amenities" and the occupancy rows of Details (GoPlus partnership,
@@ -18,6 +19,9 @@ import { cn } from '@/lib/utils'
  * on the server (src/lib/rental-facts.ts); this file only prints them, in the Details table's own idiom — hairline
  * rows, muted label, strong right-aligned value, `data-fab-avoid` on every value (the floating support mark yields
  * over one — page.tsx's Details note) — so the three sections read as one page, not a widget dropped onto it.
+ * ⛔ EXCEPT ON THE RENTAL SHEET BELOW md (`sheet`, owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts):
+ * there every table on the page (Costs, Details, Seller information) drops its rules and reads 16/24, the label in body ink,
+ * the value in ink at 400 — one row style, the section's hairline the only line. Same rows, same words, same order.
  * A server component: the language-following parts are the shared client leaves (<Bilingual>, <VndValue>,
  * <CountValue>, <CalendarDay>), as everywhere else on this ISR page.
  */
@@ -51,11 +55,11 @@ function Row({ name, children, className }: { name: LabelPair; children: ReactNo
  * the "≈" bound to the figure by a no-break space. ⚠️ THE WORD IS PLAIN TEXT, never a hover title (a reviewer's catch,
  * 2026-10-20): a tooltip reaches no touch or keyboard reader, so everyone reads the same "estimate".
  */
-export function RentalCosts({ rows, phoneHidden }: { rows: readonly CostRow[]; phoneHidden?: readonly string[] }) {
+export function RentalCosts({ rows, phoneHidden, sheet = false }: { rows: readonly CostRow[]; phoneHidden?: readonly string[]; /** The rental sheet's rows below md (src/lib/rental-sheet.ts SHEET_ROWS): no rules, 16/24, label body ink, value at 400. */ sheet?: boolean }) {
   return (
-    <div className="space-y-2">
+    <div className={cn('space-y-2', sheet && SHEET_HEAD_GAP)}>
       <h2 className={SECTION_TITLE}><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
-      <dl className="divide-y divide-border text-sm">
+      <dl className={cn('divide-y divide-border text-sm', sheet && SHEET_ROWS)}>
         {rows.map((r) => (
           <Row key={r.key} name={r.name} className={phoneHidden?.includes(r.key) ? 'max-md:hidden' : undefined}>
             {r.estimated && <>≈&nbsp;</>}
@@ -124,18 +128,21 @@ const AMENITY_ICON: Readonly<Record<string, IconComponent>> = {
  * live-in landlord, car access) and with the filter chips' own words, so a renter who filtered by one finds it here.
  * Two columns on a phone, three from `sm`; each label wraps inside its track (`minmax(0,1fr)` columns), never pushing
  * the grid past a 320px screen.
+ * ⛔ `sheet` — THE RENTAL SHEET'S ICON GRID BELOW md (owner-approved 2026-11-14, cook r05 "rental-c"; it reverses "two columns
+ * on a phone" there): three to a row, the glyph (28, ink, the nav step of the icon ladder) OVER its name (14/20 body ink,
+ * balanced, never clamped — a Vietnamese name takes the lines it needs), 12 across, 24 down.
  */
-export function RentalAmenities({ items }: { items: readonly (LabelPair & { value: string })[] }) {
+export function RentalAmenities({ items, sheet = false }: { items: readonly (LabelPair & { value: string })[]; sheet?: boolean }) {
   return (
-    <div className="space-y-3">
+    <div className={cn('space-y-3', sheet && SHEET_HEAD_GAP)}>
       <h2 className={SECTION_TITLE}><Bilingual en={RENTAL_FACT_LABELS.amenities.label} vi={RENTAL_FACT_LABELS.amenities.labelVi} /></h2>
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-foreground sm:grid-cols-3">
+      <ul className={cn('grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-foreground sm:grid-cols-3', sheet && 'max-md:grid-cols-3 max-md:gap-x-3 max-md:gap-y-6 max-md:text-body')}>
         {items.map((a) => {
           const Icon = AMENITY_ICON[a.value] ?? CheckCircle2
           return (
-            <li key={a.value} className="flex min-w-0 items-center gap-2">
-              <Icon aria-hidden className={cn(ICON_SIZE.lg, 'shrink-0 text-muted-foreground')} />
-              <span className="min-w-0 [overflow-wrap:anywhere]"><Bilingual en={a.label} vi={a.labelVi} /></span>
+            <li key={a.value} className={cn('flex min-w-0 items-center gap-2', sheet && 'max-md:flex-col max-md:items-start')}>
+              <Icon aria-hidden className={cn(ICON_SIZE.lg, 'shrink-0 text-muted-foreground', sheet && 'max-md:h-7 max-md:w-7 max-md:text-foreground')} />
+              <span className={cn('min-w-0 [overflow-wrap:anywhere]', sheet && 'max-md:text-balance')}><Bilingual en={a.label} vi={a.labelVi} /></span>
             </li>
           )
         })}
