@@ -51,6 +51,7 @@ import { storedLanguageLabel } from '@/components/teachers/language-list'
 import { formatCalendarDay, vnIsoDay } from '@/lib/calendar-day'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { TeacherBio } from '@/components/teachers/teacher-bio'
+import { TeacherIntroVideo } from '@/components/teachers/teacher-intro-video'
 import { cn } from '@/lib/utils'
 
 type Opt = { value: string; label: string; labelVi?: string }
@@ -88,13 +89,32 @@ type Chip = { key: string; text?: string; node?: React.ReactNode }
 /**
  * The facts as one plain line — "Kids, Teens, Adults", "Online, Ho Chi Minh City" (UI climb batch 82, 2026-11-13; blind
  * A/B Opus 7.02 → 7.41): ages, job types and places were each a column of pills that a phone stacked one or two to a line.
- * ⛔ SUBJECTS TOO, AND "Can travel to" (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 82's "Subjects keep
- * their chips" and the cover section's pill list): every value on this page reads as words. Each item renders exactly as its
+ * "Can travel to" too (owner-approved 2026-11-14, cook r04 teachers: it was a pill list). Each item renders exactly as its
  * chip did (a place name never machine-translated, a taxonomy option in its own Vietnamese).
+ * ⛔ EXCEPT SUBJECTS, WHICH ARE CHIPS AGAIN (owner-approved 2026-11-15, build 7 — cook r07 teachers; it reverses cook r04's
+ * "SUBJECTS TOO … every value on this page reads as words", which itself reversed batch 82's "Subjects keep their chips"):
+ * `Chips`, below. Every other row stays words.
  */
 function Plain({ items }: { items: Chip[] }) {
   // `data-fact` marks each item, so a test reads the items the way it reads a chip list's <li>s.
   return <>{items.map((x, i) => <Fragment key={x.key}>{i > 0 && ', '}<span data-fact="">{x.node ?? <Tr text={x.text} />}</span></Fragment>)}</>
+}
+
+/**
+ * The subjects as wrapped chips (owner-approved 2026-11-15, build 7 — cook r07 teachers): the SAME items, each its own chip —
+ * the field's tint, 32px tall, the 8px corner, 14/20 ink, 8px apart, a real list (no commas to hide). Static: a chip here is
+ * a fact, not a control, so it is no button and no link.
+ */
+function Chips({ items }: { items: Chip[] }) {
+  return (
+    <ul className="flex flex-wrap gap-2 pt-1">
+      {items.map((x) => (
+        <li key={x.key} data-fact="" className="inline-flex min-h-8 items-center rounded-lg bg-tint px-3 text-sm text-foreground">
+          {x.node ?? <Tr text={x.text} />}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 /**
@@ -326,8 +346,12 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               {photo
                 ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full object-cover ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />
                 : <span className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full bg-muted ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />}
+              {/* ⛔ THE NAME IS THE FIGURE ROLE BELOW lg (owner-approved 2026-11-15, build 7 — cook r07 teachers; it reverses, on this
+                  page, the shell's "--t-display 28/34, ONE per page"): `text-t-figure` 32px bold −0.03em on a 36px line (two
+                  balanced lines stay 72px beside the 96px portrait), still the page's one display object. 320–359px keeps the h2
+                  step (22/28); from lg the 24px name, as before. */}
               <h1 className={cn(
-                'col-start-2 row-start-1 min-w-0 text-t-display text-balance text-foreground [overflow-wrap:anywhere] max-[359px]:text-t-h2 lg:self-start lg:text-2xl lg:font-bold lg:tracking-normal',
+                'col-start-2 row-start-1 min-w-0 text-t-figure max-lg:leading-9 text-balance text-foreground [overflow-wrap:anywhere] max-[359px]:text-t-h2 max-[359px]:leading-7 lg:self-start lg:text-2xl lg:font-bold lg:tracking-normal',
                 identityShown ? 'self-end' : 'row-span-2 self-center lg:row-span-1',
               )}>{name}</h1>
               {/* "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a fact about the person, under the name:
@@ -363,8 +387,10 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                     layout, so the bar is this row pinned once it scrolls away. Phones and tablets only: on lg the contact block
                     is the sticky right column. "Contact teacher" (rentals-12) scrolls to that block and runs its action. It takes
                     the rest of the row, and drops to its own full-width line where the two cannot share one (Vietnamese at 320). */}
+                {/* The rate a step up (owner-approved 2026-11-15, build 7 — cook r07 teachers): the figure 24/28 bold ink, "/ hour"
+                    a 15 muted label (the card-title role, regular). */}
                 <div className="mt-4 flex flex-wrap items-center gap-3 lg:hidden">
-                  {rate && <p className="text-t-h2 tabular-nums text-price">{rate} <span className="text-base font-normal tracking-normal text-muted-foreground"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
+                  {rate && <p className="text-2xl leading-7 font-bold tracking-tight tabular-nums text-price">{rate} <span className="text-t-card font-normal tracking-normal text-muted-foreground"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
                   {/* `data-pdp-action-block`: the element the pinned bar measures and reads the button through (pdp-action-bar.tsx:
                       a node the page keeps, never the button itself). At lg the row is display:none, so the bar finds no
                       control to mirror there. */}
@@ -394,12 +420,16 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
 
             {/* ⛔ THE VIDEO FIRST, AT EVERY WIDTH (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 69's "TEACHING
                 FACTS FIRST … before the video", 2026-11-11): a person before their facts, as Preply opens, straight under the
-                rate row. One DOM order: no CSS `order`, no second <video>. The player says what it is, so the heading stays
-                for screen readers only; the frame wears the 16px media corner. */}
+                rate row. One DOM order: no CSS `order`, no second <video>. The heading stays for screen readers only; the frame
+                wears the 16px media corner.
+                ⛔ A POSTER WITH A REAL PLAY BUTTON (owner-approved 2026-11-15, build 7 — cook r07 teachers; it reverses cook r04's
+                "the player says what it is" through its native control bar): until the first tap the frame shows the white play
+                disc and the video's length on a white plate; the tap turns the controls on and plays the same <video>. Never
+                autoplay (teacher-intro-video.tsx). */}
             {publicVideo && (
               <section aria-labelledby="t-video">
                 <h2 id="t-video" className="sr-only"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
-                <video src={publicVideo} controls preload="metadata" playsInline className="block aspect-video w-full rounded-2xl bg-black" />
+                <TeacherIntroVideo src={publicVideo} />
               </section>
             )}
             {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
@@ -422,7 +452,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 <h2 id="t-teaching" className={SECTION_H2}><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
                 <dl className="divide-y divide-border">
                   {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
-                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />} className="pt-1 max-sm:grid-cols-1 max-sm:gap-y-1"><Plain items={subjectChips} /></Row>
+                  {/* Subjects as chips (build 7, `Chips`); the full width under their label on a phone. */}
+                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />} className="pt-1 max-sm:grid-cols-1 max-sm:gap-y-1"><Chips items={subjectChips} /></Row>
                   <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Plain items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
                   {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Plain items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
                   {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and

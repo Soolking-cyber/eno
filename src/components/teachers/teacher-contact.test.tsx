@@ -436,43 +436,56 @@ describe('TeacherContactJump on a cover teacher (best-practice gap 2026-11-10: t
 })
 
 /**
- * ONE PRIMARY ON A PHONE (owner-approved 2026-11-14, cook r04 teachers): below lg the block is the counsel panel — the page's
- * identity sentence (`counsel`), the note, and "Message teacher" as the panel's link — and the cover ask is a link under the
- * week (TeacherCoverAsk), a remote that runs THIS block's action with the cover opener and mirrors its busy state.
+ * ONE PRIMARY IN VIEW ON A PHONE (owner-approved 2026-11-14, cook r04 teachers): below lg the block is the counsel panel — the
+ * page's identity sentence (`counsel`), the note — and the cover ask is a link under the week (TeacherCoverAsk), a remote that
+ * runs THIS block's action with the cover opener and mirrors its busy state. Since build 7 (owner-approved 2026-11-15, cook r07
+ * teachers) each counsel line leads with its glyph (below lg) and "Message teacher" is the panel's full-width filled button.
  */
 describe('the counsel panel and the cover ask under the week (cook r04)', () => {
-  it('two "Message teacher" controls, one per width: the button (max-lg:hidden) and the panel link (lg:hidden) — both start the chat', async () => {
+  it('two "Message teacher" controls, one per width: the desktop button (max-lg:hidden) and the panel\'s full-width filled button (lg:hidden) — both start the chat', async () => {
     Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'individual' })
     quotaAnswer = UNDER_LIMIT
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
     await settle()
-    const [button, link] = screen.getAllByRole('button', { name: 'Message teacher' })
+    const [button, panel] = screen.getAllByRole('button', { name: 'Message teacher' })
     expect(button.getAttribute('data-teacher-message')).toBe('button')
     expect(button.className.split(' ')).toContain('max-lg:hidden')
-    expect(link.getAttribute('data-teacher-message')).toBe('link')
-    expect(link.className.split(' ')).toContain('lg:hidden')
-    fireEvent.click(link)
+    expect(panel.getAttribute('data-teacher-message')).toBe('panel')
+    // The brand cta at full width (ui/button: 48px with a 16px label on a phone), 16px under the note, phones and tablets only.
+    expect(panel.className.split(' ')).toEqual(expect.arrayContaining(['bg-primary', 'text-white', 'font-bold', 'w-full', 'max-sm:min-h-12', 'max-sm:text-base', 'max-lg:mt-4', 'lg:hidden']))
+    expect(panel.querySelector('svg')).toBeNull() // no chevron: it is a button now, not a link
+    fireEvent.click(panel)
     expect(stash).toHaveBeenCalledTimes(1)
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
   })
 
-  it('the counsel opens the panel (below lg only), then the note, then the link', () => {
+  it('the counsel opens the panel (below lg only) behind the success shield, then the note behind a lock, then the button — every word kept', () => {
     const COUNSEL = 'eno checked this teacher’s ID.'
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} counsel={<span>{COUNSEL}</span>} />)
-    const counsel = screen.getByText('eno checked this teacher’s ID.').parentElement!
-    expect(counsel.className).toBe('text-sm text-body lg:hidden')
-    const panel = counsel.parentElement!
+    const line = screen.getByText('eno checked this teacher’s ID.').closest('[data-counsel-line]') as HTMLElement
+    expect(line.getAttribute('data-counsel-line')).toBe('checked')
+    expect(line.className).toBe('flex gap-3 text-sm text-body lg:hidden')
+    const shield = line.firstElementChild!
+    expect(shield.tagName.toLowerCase()).toBe('svg')
+    expect(shield.getAttribute('aria-hidden')).toBe('true')
+    expect(shield.getAttribute('class')).toMatch(/\bsize-5\b.*\btext-success\b/)
+    const panel = line.parentElement!
     expect(panel.className).toBe('space-y-3 max-lg:rounded-xl max-lg:bg-tint max-lg:p-4')
     const kids = [...panel.children]
-    expect(kids[0]).toBe(counsel)
+    expect(kids[0]).toBe(line)
+    expect(kids[1].getAttribute('data-counsel-line')).toBe('contact')
     expect(kids[1].textContent).toContain('shared with you only if they choose to')
-    expect(kids[2].getAttribute('data-teacher-message')).toBe('link')
+    // The lock is a phone/tablet glyph only: from lg the note reads as it did.
+    const lock = kids[1].firstElementChild!
+    expect(lock.tagName.toLowerCase()).toBe('svg')
+    expect(lock.getAttribute('class')).toMatch(/\bsize-5\b.*\blg:hidden\b/)
+    expect(kids[2].getAttribute('data-teacher-message')).toBe('panel')
   })
 
-  it('no counsel: the panel holds the note and the link only', () => {
+  it('no counsel: the panel holds the note and the button only', () => {
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
-    const link = screen.getAllByRole('button', { name: 'Message teacher' })[1]
-    expect(link.parentElement!.children).toHaveLength(2)
+    const panelButton = screen.getAllByRole('button', { name: 'Message teacher' })[1]
+    expect(panelButton.parentElement!.children).toHaveLength(2)
   })
 
   it('the cover ask asks the block for the COVER opener — a school gets the chooser with it', async () => {

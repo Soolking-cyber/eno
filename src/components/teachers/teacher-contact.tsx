@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { ChevronRight } from '@/components/ui/icons'
+import { ChevronRight, Lock, ShieldCheck } from '@/components/ui/icons'
 import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-only-note'
 import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { stashCompose } from '@/lib/quick-contact'
@@ -234,14 +234,18 @@ export function TeacherContact({ listingId, name, image, cover = false, counsel 
   const messageLabel = busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')
 
   /**
-   * ⛔ ONE PRIMARY ON A PHONE (owner-approved 2026-11-14, cook r04 teachers — it reverses "Ask about a cover lesson" as this
-   * block's cta and "Message teacher" as a button below lg). Below lg the profile's one button is "Contact teacher" (first
-   * screen, then pinned — TeacherContactJump); the cover ask is a link under the week it asks about (TeacherCoverAsk), and
-   * this block is the COUNSEL PANEL at the end of the page: what eno checked (`counsel`), how contact details are shared,
-   * and "Message teacher" as the panel's own link. From lg nothing moved but the note: the cover ask (cta) and Message
-   * (button) lead the sticky column, then the note, the Zalo reveal and a refusal.
-   * Two "Message teacher" controls are in the DOM — the button (`max-lg:hidden`) and the panel link (`lg:hidden`): display:none
-   * takes the other out of the accessibility tree and the tab order, so each width has ONE. Same handler, same busy label.
+   * ⛔ ONE PRIMARY IN VIEW ON A PHONE (owner-approved 2026-11-14, cook r04 teachers — it reverses "Ask about a cover lesson" as
+   * this block's cta). Below lg the profile's first-screen button is "Contact teacher" (then pinned — TeacherContactJump); the
+   * cover ask is a link under the week it asks about (TeacherCoverAsk), and this block is the COUNSEL PANEL at the end of the
+   * page: what eno checked (`counsel`), how contact details are shared, and "Message teacher".
+   * ⛔ "Message teacher" IS THE PANEL'S FULL-WIDTH FILLED BUTTON (owner-approved 2026-11-15, build 7 — cook r07 teachers; it
+   * reverses cook r04's "Message teacher as the panel's own link below lg"). It is still the only primary on screen: the pinned
+   * bar stands down while this block is in view (teacher-profile-view.tsx `hideWhile="#teacher-contact"`), and the first-screen
+   * button is a page away. From lg nothing moved but the note: the cover ask (cta) and Message (button) lead the sticky column,
+   * then the note, the Zalo reveal and a refusal.
+   * Two "Message teacher" controls are in the DOM — the desktop button (`max-lg:hidden`) and the panel's (`lg:hidden`):
+   * display:none takes the other out of the accessibility tree and the tab order, so each width has ONE. Same handler, same busy
+   * label.
    */
   return (
     // `scroll-mt-24`: the jump lands it clear of the sticky header (lg:top-24 is the aside's own offset).
@@ -254,18 +258,30 @@ export function TeacherContact({ listingId, name, image, cover = false, counsel 
       <Button variant={offerCover ? 'outline' : 'cta'} data-teacher-message="button" className="w-full max-lg:hidden" onClick={() => start(false, 'hire')} disabled={busy}>
         {messageLabel}
       </Button>
-      {/* The counsel panel below lg (the shell's panel: the field, 12px corners, 16 in, 14px ink-2); from lg a plain block. */}
+      {/* The counsel panel below lg (the shell's panel: the field, 12px corners, 16 in, 14px ink-2); from lg a plain block.
+          ⛔ RESTYLED, EVERY WORD KEPT (owner-approved 2026-11-15, build 7 — cook r07 teachers): below lg each counsel line leads
+          with a 20px glyph, 12px before its words — a shield in the success green for what eno checked, a lock for how contact
+          details are shared — and the panel ends on its own full-width "Message teacher" button (below). From lg no glyph. */}
       <div className="space-y-3 max-lg:rounded-xl max-lg:bg-tint max-lg:p-4">
-        {counsel && <div className="text-sm text-body lg:hidden">{counsel}</div>}
-        <p className="text-t-meta text-muted-foreground max-lg:text-sm max-lg:text-body">
-          {cover
-            ? tr('The teacher’s phone, email and CV are shared with you only if they choose to: in your chat — or, for urgent cover, a Zalo number if they chose to show one to schools.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn nếu giáo viên đồng ý: trong cuộc trò chuyện — hoặc, với dạy thay khẩn, số Zalo nếu giáo viên đã chọn hiển thị cho các trường.')
-            : tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
-        </p>
-        {/* The shell's standalone link: 700 14 in the accent, a 44px target, the app's chevron. */}
-        <Button variant="link" size="none" data-teacher-message="link" className="relative tap-44 flex w-fit gap-1.5 text-sm font-bold text-accent-foreground lg:hidden" onClick={() => start(false, 'hire')} disabled={busy}>
+        {counsel && (
+          <div data-counsel-line="checked" className="flex gap-3 text-sm text-body lg:hidden">
+            <ShieldCheck aria-hidden className="size-5 shrink-0 text-success" />
+            <div className="min-w-0">{counsel}</div>
+          </div>
+        )}
+        <div data-counsel-line="contact" className="max-lg:flex max-lg:gap-3">
+          <Lock aria-hidden className="size-5 shrink-0 text-foreground lg:hidden" />
+          <p className="text-t-meta text-muted-foreground max-lg:min-w-0 max-lg:text-sm max-lg:text-body">
+            {cover
+              ? tr('The teacher’s phone, email and CV are shared with you only if they choose to: in your chat — or, for urgent cover, a Zalo number if they chose to show one to schools.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn nếu giáo viên đồng ý: trong cuộc trò chuyện — hoặc, với dạy thay khẩn, số Zalo nếu giáo viên đã chọn hiển thị cho các trường.')
+              : tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
+          </p>
+        </div>
+        {/* The panel's own button, full width (48px on a phone — ui/button's phone size; `tap-44` on a tablet's 36px box, as
+            TeacherContactJump), 16px under the note (its margin and the stack's 12 collapse). The same handler and busy label as
+            the desktop button. */}
+        <Button variant="cta" data-teacher-message="panel" className="relative tap-44 w-full max-lg:mt-4 lg:hidden" onClick={() => start(false, 'hire')} disabled={busy}>
           {messageLabel}
-          <ChevronRight aria-hidden className="size-4" />
         </Button>
       </div>
       {/* A school only, and only while the teacher offers it to this account right now (it asks; nothing is drawn else). */}

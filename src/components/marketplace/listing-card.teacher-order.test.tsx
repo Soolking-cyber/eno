@@ -3,12 +3,14 @@
  * NAME-FIRST TEACHER CARDS (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT / +0.39 Opus) — pinned at the
  * component, because listing-card.tsx is a landmine file:
  *   · a TEACHER card's body reads name → rate → proof → info line in REAL DOM order (a screen reader hears the name
- *     first), the name bold at the h3 role (text-t-h3) / sm:text-lg (sm:leading-snug), the rate 14/20 bold / sm:text-base
- *     (owner-approved 2026-11-14, cook r04 teachers);
+ *     first), the name bold at the h3 role (text-t-h3, tracking-tight on a phone) / sm:text-lg (sm:leading-snug); the rate
+ *     the name's lockup since build 7 (owner-approved 2026-11-15, cook r07 teachers): the figure 16/22 bold ink (16/20 from sm),
+ *     its unit a 13 muted regular label on a phone, "Rate on request" 14/22 muted regular on a phone (16/20 bold from sm); the
+ *     text block runs to the photo's right edge on a phone (`max-sm:pr-0`), its left inset kept;
  *   · the PROOF line (owner, 2026-11-12, "build 2"): one `p[data-teacher-proof]`, 14px ink-2 since 2026-11-14, the rate row's
- *     next sibling and the info line's previous one — drawn ONLY when there is something to say; a card with nothing (an old
- *     cached payload, a payload of another shape) ends instead on `p[data-teacher-proof-reserve]`, a real U+00A0, aria-hidden,
- *     AFTER the info line (so its place sits under the rate and the card keeps its height); never on any other card;
+ *     next sibling and the info line's previous one; a card with nothing to say (an old cached payload, a payload of another
+ *     shape) holds `p[data-teacher-proof-reserve]` — a real U+00A0, aria-hidden — in the SAME slot (one fixed slot since build 7,
+ *     so the place line sits at one height across a row and the card keeps its height); never on any other card;
  *   · the teacher info line is top-aligned: no `mt-auto`, no top padding;
  *   · an identity-marked teacher keeps the h3 and its tick in one row, and that row leads the body;
  *   · the hidden full title stays right after the title block, and the link's description still resolves to it;
@@ -104,8 +106,8 @@ const PRODUCT = { listingType: 'sell', title: 'Dell XPS 13 9310', price: 12_000_
 
 /** TITLE_LINE, unchanged for every card but a teacher's. */
 const TITLE_CLASS = 'truncate -mt-px pt-px text-t-card font-normal text-ink-3 group-hover:underline decoration-1 underline-offset-2' // card-text.ts TITLE_LINE (2026-11-14)
-/** What cn(TITLE_LINE, 'text-t-h3 font-bold sm:text-lg sm:leading-snug text-foreground') resolves to — read off the render, not reasoned. */
-const TEACHER_TITLE_CLASS = 'truncate -mt-px pt-px group-hover:underline decoration-1 underline-offset-2 text-t-h3 font-bold sm:text-lg sm:leading-snug text-foreground'
+/** What cn(TITLE_LINE, 'text-t-h3 font-bold max-sm:tracking-tight sm:text-lg sm:leading-snug text-foreground') resolves to — read off the render, not reasoned. */
+const TEACHER_TITLE_CLASS = 'truncate -mt-px pt-px group-hover:underline decoration-1 underline-offset-2 text-t-h3 font-bold max-sm:tracking-tight sm:text-lg sm:leading-snug text-foreground'
 
 const card = (patch: Record<string, unknown> = {}) =>
   render(<ListingCard listing={{ ...TEACHER, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
@@ -127,7 +129,7 @@ const TEACHER_INFO_CLASS = 'flex items-center gap-1.5 text-t-meta text-muted-for
 const PROOF_CLASS = 'truncate text-sm text-body'
 const proofOf = (c: HTMLElement) => c.querySelectorAll('[data-teacher-proof]')
 const reserveOf = (c: HTMLElement) => c.querySelectorAll('[data-teacher-proof-reserve]')
-/** The info line: the body's child holding the truncating facts span (the last child, or the one before the reserve). */
+/** The info line: the body's child holding the truncating facts span (the body's last child). */
 const infoOf = (body: HTMLElement) => [...body.children].find((e) => e.className.includes('items-center gap-1.5')) as HTMLElement
 
 describe('ListingCard — a TEACHER card leads with the name', () => {
@@ -142,25 +144,40 @@ describe('ListingCard — a TEACHER card leads with the name', () => {
     expect(precedes(priceRow, body.lastElementChild!)).toBe(true)
   })
 
-  it('the name is bold and in ink, the h3 role (17/24) on a phone and 18px from sm; the rate 14/20 bold, 16 from sm', () => {
-    const { h3, price } = parts(card())
+  it('the name is bold and in ink, the h3 role (17/24) on a phone and 18px from sm; the rate 16/22 bold ink, 16/20 from sm (build 7)', () => {
+    const { body, h3, price } = parts(card())
     expect(h3.className).toBe(TEACHER_TITLE_CLASS)
     expect(classes(h3)).toEqual(expect.arrayContaining(['font-bold', 'text-t-h3', 'sm:text-lg', 'sm:leading-snug', 'truncate']))
     expect(classes(h3)).not.toContain('font-normal')
     expect(classes(h3)).not.toContain('text-sm')
     expect(classes(h3)).not.toContain('text-base')
-    expect(classes(price)).toEqual(expect.arrayContaining(['text-sm', 'leading-5', 'sm:text-base', 'font-bold', 'text-price']))
-    expect(classes(price)).not.toContain('text-base')
-    expect(classes(price)).not.toContain('leading-tight')
+    expect(classes(price)).toEqual(expect.arrayContaining(['text-base', 'leading-5.5', 'sm:leading-5', 'font-bold', 'text-price']))
+    expect(classes(price)).not.toContain('text-sm')
+    expect(classes(price)).not.toContain('text-muted-foreground')
     expect(classes(price)).not.toContain('sm:text-lg')
+    // The unit is a label beside the figure on a phone (TEACHER_RATE_UNIT): English glues the short "/mo" to the figure's run.
+    const unit = [...price.querySelectorAll('span[aria-hidden="true"]')].find((e) => e.textContent === '/mo')!
+    expect(classes(unit)).toEqual(['max-sm:text-t-meta', 'max-sm:font-normal', 'max-sm:text-muted-foreground'])
+    // The text block keeps its left inset and runs to the photo's right edge on a phone (TEACHER_BODY).
+    expect(classes(body)).toEqual(expect.arrayContaining(['px-2', 'max-sm:pr-0', 'sm:px-0.5']))
   })
 
-  it('a teacher with no rate: "Rate on request" at the same size AND weight, muted (every rate line weighs the same)', () => {
+  it('in Vietnamese the long unit (" / <unit>", no short form) is the same label', () => {
+    reader.lang = 'vi'
+    const { price } = parts(card())
+    // The unit word is translated by the real provider (this suite stubs it, so it prints the stored word).
+    const unit = [...price.querySelectorAll('span')].find((e) => e.className === 'max-sm:text-t-meta max-sm:font-normal max-sm:text-muted-foreground')!
+    expect(unit.textContent).toMatch(/^ \/ \S/)
+    expect(price.querySelector('span[aria-hidden="true"]')).toBeNull() // no glued short run in Vietnamese
+  })
+
+  it('a teacher with no rate: "Rate on request" 14 muted REGULAR in the figure\'s 22px slot on a phone — never louder than a rate (build 7); 16/20 bold muted from sm', () => {
     const { h3, price } = parts(card({ price: 0 }))
     expect(precedes(h3, price)).toBe(true)
     expect(price.textContent).toContain('Rate on request')
-    expect(classes(price)).toEqual(expect.arrayContaining(['text-sm', 'leading-5', 'sm:text-base', 'font-bold', 'text-muted-foreground']))
+    expect(classes(price)).toEqual(expect.arrayContaining(['text-sm', 'leading-5.5', 'font-normal', 'sm:text-base', 'sm:leading-5', 'sm:font-bold', 'text-muted-foreground']))
     expect(classes(price)).not.toContain('font-semibold')
+    expect(classes(price)).not.toContain('font-bold')
     expect(classes(price)).not.toContain('sm:text-lg')
   })
 
@@ -209,7 +226,7 @@ describe('ListingCard — a TEACHER card leads with the name', () => {
   })
 })
 
-describe('ListingCard — a TEACHER card\'s proof line (owner, 2026-11-12, "build 2"; drawn only when there is one since 2026-11-14)', () => {
+describe('ListingCard — a TEACHER card\'s proof line (owner, 2026-11-12, "build 2"; one fixed slot since build 7, 2026-11-15)', () => {
   it('name → rate → PROOF → info line: one p, the rate row\'s next sibling, the info line\'s previous one; no reserve', () => {
     const c = card({ teacherProof: ['celta', '5-10-years'] })
     const { body, priceRow } = parts(c)
@@ -237,17 +254,17 @@ describe('ListingCard — a TEACHER card\'s proof line (owner, 2026-11-12, "buil
     expect(proofOf(card({ teacherProof: ['5-10-years'] }))[0].textContent).toBe('5–10 yrs')
   })
 
-  it('⛔ nothing to say (an old cached payload, no key): no proof line — the place sits under the rate — and the reserve CLOSES the body', () => {
+  it('⛔ nothing to say (an old cached payload, no key): no proof line — its reserve holds the SAME slot, and the place line closes the body', () => {
     const c = card()
     const { body, priceRow } = parts(c)
     expect(proofOf(c)).toHaveLength(0)
     const info = infoOf(body)
-    expect(priceRow.nextElementSibling).toBe(info)
     const all = reserveOf(c)
     expect(all).toHaveLength(1)
     const r = all[0] as HTMLElement
-    expect(info.nextElementSibling).toBe(r)
-    expect(body.lastElementChild).toBe(r)
+    expect(priceRow.nextElementSibling).toBe(r)
+    expect(r.nextElementSibling).toBe(info)
+    expect(body.lastElementChild).toBe(info)
     expect(r.tagName).toBe('P')
     expect(r.className).toBe('text-sm') // the proof line's 14/20 box: every teacher card is one height
     // ⚠️ EXACT, not a whitespace-normalising matcher: a plain space would collapse to a 0px line and lose the reserve.

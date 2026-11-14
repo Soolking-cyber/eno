@@ -629,7 +629,8 @@ describe('the page order — video, Teaching, cover, About; About clamped', () =
 /**
  * THE HEADER IS ONE GRID (owner-approved 2026-11-14, cook r04 teachers — it reverses 2026-11-05's "a phone's header is two
  * bands"): portrait | name over its tick | share, then the headline, the facts and the rate with "Contact teacher" on one row.
- * DOM order = reading order. Subjects read as words (no chips).
+ * DOM order = reading order. Since build 7 (owner-approved 2026-11-15, cook r07 teachers): the name is the figure role (32/36)
+ * below lg, the rate 24/28 with "/ hour" a 15 muted label, the subjects chips, the video a poster with a play button.
  */
 describe('cook r04 — the profile header and the Teaching rows', () => {
   it('reading order: h1 → tick → share → the details (headline, facts, rate row)', async () => {
@@ -648,17 +649,44 @@ describe('cook r04 — the profile header and the Teaching rows', () => {
     const row = details.querySelector('[data-pdp-action-block]')!.parentElement!
     expect(row.getAttribute('class')).toBe('mt-4 flex flex-wrap items-center gap-3 lg:hidden')
     expect(row.firstElementChild!.textContent).toBe('450,000 đ / hour')
+    expect(row.firstElementChild!.getAttribute('class')).toBe('text-2xl leading-7 font-bold tracking-tight tabular-nums text-price')
+    expect(row.firstElementChild!.querySelector('span')!.getAttribute('class')).toBe('text-t-card font-normal tracking-normal text-muted-foreground')
   })
-  it('the name is the page\'s one display line; a 96px portrait (72 below 360px)', async () => {
+  it('the name is the page\'s one display object, the figure role 32/36 below lg (build 7); a 96px portrait (72 below 360px)', async () => {
     const { el } = await page('en')
-    expect(el.querySelector('h1')!.getAttribute('class')).toMatch(/\btext-t-display\b.*\btext-balance\b/)
+    const h1 = el.querySelector('h1')!.getAttribute('class')!
+    expect(h1).toMatch(/\btext-t-figure\b.*\bmax-lg:leading-9\b.*\btext-balance\b/)
+    expect(h1).not.toMatch(/\btext-t-display\b/)
+    // 320–359px keeps the h2 step on its own 28px line; from lg the 24px name, as before.
+    expect(h1).toMatch(/\bmax-\[359px\]:text-t-h2\b.*\bmax-\[359px\]:leading-7\b.*\blg:text-2xl\b.*\blg:tracking-normal\b/)
     expect(el.querySelector('header img')!.getAttribute('class')).toMatch(/\bsize-24\b.*\bmax-\[359px\]:size-18\b/)
   })
-  it('subjects read as words, like every other row — no chips anywhere in Teaching', async () => {
-    const p = await page('en', { subjects: ['general-english', 'phonics'] })
+  it('⛔ subjects are wrapped chips again (build 7) — a real list, no commas; every other Teaching row still reads as words', async () => {
+    const p = await page('en', { subjects: ['general-english', 'phonics'], ageGroups: ['kids', 'adults'] })
     expect(p.row('Subjects')).toEqual(['General English', 'Phonics'])
-    expect(p.el.querySelector('section[aria-labelledby="t-teaching"] li')).toBeNull()
-    expect(p.el.querySelector('section[aria-labelledby="t-teaching"]')!.textContent).toContain('General English, Phonics')
+    const dt = [...p.el.querySelectorAll('dt')].find((d) => d.textContent === 'Subjects')!
+    const list = dt.nextElementSibling!.firstElementChild!
+    expect(list.tagName).toBe('UL')
+    expect(list.getAttribute('class')).toBe('flex flex-wrap gap-2 pt-1')
+    const chips = [...list.children]
+    expect(chips.map((c) => c.tagName)).toEqual(['LI', 'LI'])
+    for (const c of chips) expect(c.getAttribute('class')).toBe('inline-flex min-h-8 items-center rounded-lg bg-tint px-3 text-sm text-foreground')
+    expect(dt.nextElementSibling!.textContent).toBe('General EnglishPhonics')
+    // Only the subjects: "Teaches" stays one plain line.
+    expect(p.el.querySelectorAll('section[aria-labelledby="t-teaching"] li')).toHaveLength(2)
+    expect(p.el.querySelector('section[aria-labelledby="t-teaching"]')!.textContent).toContain('Kids, Adults')
+  })
+  it('the public video in the server HTML: native controls (playable with no JavaScript), nothing playing, its opening frame', async () => {
+    const { el } = await page('en', { videoUrl: 'https://x/v.mp4' })
+    const section = el.querySelector('section[aria-labelledby="t-video"]')!
+    const video = section.querySelector('video')!
+    // `#t=0.001` makes iOS paint the opening frame; the play overlay replaces the controls only after hydration
+    // (teacher-intro-video.test.tsx covers the client).
+    expect(video.getAttribute('src')).toBe('https://x/v.mp4#t=0.001')
+    expect(video.hasAttribute('controls')).toBe(true)
+    expect(video.hasAttribute('autoplay')).toBe(false)
+    expect(video.getAttribute('preload')).toBe('metadata')
+    expect(section.querySelector('button[data-teacher-video-play]')).toBeNull()
   })
   it('the counsel goes to the contact block only as the identity sentence — nothing else of the identity check leaves', async () => {
     h.shown = true

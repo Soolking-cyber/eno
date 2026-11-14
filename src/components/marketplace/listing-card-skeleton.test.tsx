@@ -39,20 +39,20 @@ describe('ListingCardSkeleton', () => {
     expect(b).toBe(a)
   })
 
-  it('teacher: four bars — name, rate, the one 14/20 line (the proof or its reserve), the META bar still last (2026-11-14)', () => {
+  it('teacher: four bars — name, rate, the one 14/20 slot (the proof or its reserve), the META bar still last (build 7, 2026-11-15)', () => {
     const c = render(<ListingCardSkeleton teacher />).container
     const body = bodyOf(c)
     expect(body.children).toHaveLength(4)
     const [name, rate, third] = [...body.children] as HTMLElement[]
-    // The name and rate line boxes (TEACHER_TITLE_LINE text-t-h3 24 / sm 18·1.375; TEACHER_RATE 20 at every width).
+    // The name and rate line boxes (TEACHER_TITLE_LINE text-t-h3 24 / sm 18·1.375; TEACHER_RATE 22 on a phone, 20 from sm —
+    // owner-approved 2026-11-15, build 7).
     expect(name.className.split(' ')).toEqual(expect.arrayContaining(['h-6', 'sm:h-[24.75px]']))
-    expect(rate.className.split(' ')).toContain('h-5')
-    expect(rate.className).not.toMatch(/sm:h-/)
+    expect(rate.className.split(' ')).toEqual(expect.arrayContaining(['h-[22px]', 'sm:h-5']))
     expect(third.hasAttribute('data-skeleton-proof')).toBe(true)
     expect(third.className.split(' ')).toContain('h-5')
     expect(third.className.split(' ')).not.toContain('mt-0.5')
     expect(c.querySelectorAll('[data-skeleton-proof]')).toHaveLength(1)
-    // The teacher info line has no top padding (it is top-aligned), so neither has its bar: 10 + 24 + 2 + 20 + 2 + 20 + 2 + 18 = 98.
+    // The teacher info line has no top padding (it is top-aligned), so neither has its bar: 10 + 24 + 2 + 22 + 2 + 20 + 2 + 18 = 100.
     const meta = body.lastElementChild!.className.split(' ')
     expect(meta).toEqual(expect.arrayContaining(['h-[18px]', 'lg:h-5']))
     expect(meta).not.toContain('mt-0.5')
