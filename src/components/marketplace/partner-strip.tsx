@@ -1,13 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react'
 import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
 import { stripHref, stripPartners, type StripPartner } from '@/lib/partner-strip'
 import { LANE_HEADER_ROW, LANE_TITLE } from './shelf'
+
+/** The top band's page box: the home layout's max-w-7xl and gutters, so its row (and hairline) is as wide as the content under it. */
+function Frame({ top, children }: { top: boolean; children: ReactNode }) {
+  return top ? <div className="mx-auto h-full w-full max-w-7xl px-3 sm:px-6 lg:px-8">{children}</div> : <>{children}</>
+}
 
 /**
  * How many times the roster repeats inside each HALF of the looping track. ⛔ A SEAMLESS LOOP NEEDS ONE HALF AT LEAST AS WIDE
@@ -136,25 +141,28 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
           <h2 id={headingId} className={LANE_TITLE}>{tr('Partners', 'Đối tác')}</h2>
         </div>
       ) : null}
-      {/* The lane's viewport bleeds to the screen edges itself (globals.css), so its wrapper adds no gutter. */}
-      <div className={feed ? undefined : 'mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8'}>
-        {feed ? null : <span className="shrink-0 text-2xs font-semibold text-ink-4">{tr('Partners', 'Đối tác')}</span>}
-        <div ref={viewport} className="partner-strip-viewport" onBlur={onBlur}>
-          <ul className="partner-strip-track" data-loop={looping ? '' : undefined} data-paused={paused ? '' : undefined} style={duration}>
-            {items}
-          </ul>
+      {/* The lane's viewport bleeds to the screen edges itself (globals.css), so its wrapper adds no gutter. The top band sits in the
+          page's own box (the home layout's max-w-7xl and gutters), and its row draws the hairline at that width. */}
+      <Frame top={!feed}>
+        <div className={feed ? undefined : 'partner-strip-row flex h-full w-full items-center gap-3 sm:gap-4'}>
+          {feed ? null : <span className="shrink-0 text-2xs font-semibold text-ink-4">{tr('Partners', 'Đối tác')}</span>}
+          <div ref={viewport} className="partner-strip-viewport" onBlur={onBlur}>
+            <ul className="partner-strip-track" data-loop={looping ? '' : undefined} data-paused={paused ? '' : undefined} style={duration}>
+              {items}
+            </ul>
+          </div>
+          {looping && (
+            <Toggle
+              pressed={paused}
+              onPressedChange={setPaused}
+              aria-label={paused ? tr('Play the partner logos', 'Chạy logo đối tác') : tr('Pause the partner logos', 'Dừng logo đối tác')}
+              className="partner-strip-pause inline-flex size-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-tint hover:text-ink"
+            >
+              {paused ? <Play size={14} aria-hidden /> : <Pause size={14} aria-hidden />}
+            </Toggle>
+          )}
         </div>
-        {looping && (
-          <Toggle
-            pressed={paused}
-            onPressedChange={setPaused}
-            aria-label={paused ? tr('Play the partner logos', 'Chạy logo đối tác') : tr('Pause the partner logos', 'Dừng logo đối tác')}
-            className="partner-strip-pause inline-flex size-7 shrink-0 items-center justify-center rounded-full text-ink-4 transition-colors hover:bg-tint hover:text-ink"
-          >
-            {paused ? <Play size={14} aria-hidden /> : <Pause size={14} aria-hidden />}
-          </Toggle>
-        )}
-      </div>
+      </Frame>
     </section>
   )
 }

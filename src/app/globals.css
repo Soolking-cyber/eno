@@ -5162,8 +5162,13 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
    only shorten the animation, not stop a looping marquee from jumping). */
 .partner-strip {
   height: 3.25rem;
-  border-bottom: 1px solid var(--color-border);
   background: var(--color-card);
+}
+/* ⛔ THE TOP BAND'S HAIRLINE IS AS WIDE AS THE PAGE'S CONTENT (owner, 2026-11-14: "hairline under this is too long match to
+   actual center length of the box"): its row (.partner-strip-row, inside the home layout's max-w-7xl and gutters) draws it,
+   not the edge-to-edge section. */
+.partner-strip-row {
+  border-bottom: 1px solid var(--color-border);
 }
 /* ⛔ THE PHONE'S COPY IS THE "PARTNERS" LANE (owner-approved 2026-11-14, cook r04 home-b "lanes as rails"; partner-strip.tsx
    `placement="feed"`). It REVERSES 2026-11-10's full-width row of the feed grid after its second row, with a hairline above
