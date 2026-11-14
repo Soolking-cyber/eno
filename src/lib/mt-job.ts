@@ -1,7 +1,7 @@
 import 'server-only'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
-import { detectContentLang, mayBeVietnamese, readsAsVietnamese, vietnameseWordShare } from '@/lib/detect-lang'
+import { detectContentLang, mayBeVietnamese, readsAsVietnamese, VI_DIACRITIC, vietnameseWordShare } from '@/lib/detect-lang'
 import { LANGS, type Lang } from '@/lib/i18n/langs'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { publicListingWhere } from '@/lib/storefront-gone'
@@ -168,15 +168,42 @@ const VISA_FAMILIES: [string, RegExp][] = [
   ['itinerary', /itin[ée]rai?r\p{L}*|lịch trình|hành trình|여행\s*일정|行程安排|行程表|行程单|旅程表|旅行日程|jadual\s+perjalanan|programme\s+de\s+voyage|กำหนดการเดินทาง|туристическ\p{L}*\s+маршрут\p{L}*|маршрут\p{L}*\s+поездки|แผนการเดินทาง|यात्रा\s*कार्यक्रम|कार्यक्रम\s*यात्रा/iu],
   ['paypal', /paypal|pay\s*pal|페이\s*팔|ペイパル|贝宝|貝寶|пейпал|เพย์พาล|पेपैल/iu],
 ]
-/** Currencies other than the dong, in the site's languages ("1억 5천만원" is won, not dong). */
+/**
+ * Currencies other than the dong, in the site's languages ("1억 5천만원" is won, not dong). ⛔ FAIL CLOSED: a currency word is refused
+ * wherever it appears, except inside the ordinary words measured to hold it. The first daily run (2026-11-14) refused 539 good
+ * translations, and every one re-translated (409) was one of these: "ドル" in ベッドルーム (bedroom) and ヌードル (noodle), "원" in
+ * "20m² 원룸" (studio; NFKC turns ² into 2) and "иен" in names (Бай Хиен, Тиен, Биен) and ориентир. A word missing from an exception
+ * list costs a refusal, retried the next day; a currency missing from a rule would write a wrong price for good (codex + Opus, 11-14).
+ * So an exception is a word seen in the data, or the letters before a currency word that no number or currency name can end in
+ * (ミドル, ハンドル); exceptions after a currency word or guessed inside one (円滑, บทบาท, 자유로운, ドルチェ) opened holes a reviewer found
+ * ("100アメリカドルチェーン", "1万円満額", "100여유로"), so they are gone, and those words are refused (retried the next day).
+ * The digits are ASCII here (asciiDigits).
+ */
+/** After a number in Thai, which is written without spaces: digits, a number word or เงิน (money). Not anywhere: งูเยน is Nguyen, ขวงวอน a ward. */
+const TH_AMOUNT = String.raw`(?<=\d\s*|เงิน|ศูนย์|หนึ่ง|เอ็ด|สอง|ยี่|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ|ร้อย|พัน|หมื่น|แสน|ล้าน)`
+/** After a number in Korean: digits or 십 백 천 만 억, any spaces, and 여 ("100여원", about 100 won). */
+const KO_AMOUNT = String.raw`(?<=[\d십백천만억]\s*(?:여\s*)?)`
 const FOREIGN_CURRENCIES: [string, RegExp][] = [
-  // 원 only after a number: it is also inside words (지원 support, 회원 member, 원룸 studio).
-  ['won', /(?<=[\d만억천]\s?)원|원화|(?<!\p{L})(?:won|krw)(?!\p{L})|₩|ウォン|韩元|韓元/iu],
-  ['yen', /円|(?<!\p{L})(?:yen|jpy)(?!\p{L})|엔화|日元|иен/iu],
-  ['yuan', /人民币|人民幣|(?<!\p{L})(?:yuan|rmb|cny)(?!\p{L})|위안|юан/iu],
-  ['dollar', /\$|(?<!\p{L})(?:usd|dollars?)(?!\p{L})|달러|ドル|美元|доллар|ดอลลาร์|डॉलर/iu],
-  ['baht', /฿|(?<!\p{L})(?:baht|thb)(?!\p{L})|บาท|바트|バーツ|泰铢/iu],
-  ['euro', /€|(?<!\p{L})(?:euros?|eur)(?!\p{L})|유로|ユーロ|欧元|евро/iu],
+  // 원 only after a number: it is also inside words (지원 support, 회원 member); after an area it starts 원룸 (studio).
+  // Not after 일, 이, 사, 구, 조…: 일원 (member), 보조원 (assistant), 사원 (employee), 조원.
+  ['won', new RegExp(String.raw`${KO_AMOUNT}(?<!m2\s*)원|원화|(?<!\p{L})(?:wons?|krw)(?!\p{L})|₩|ウォン|韩元|韓元|${TH_AMOUNT}วอน`, 'iu')],
+  // иен inside a name (Бай Хиен, Биен) or ориентир. Only after a number: 엔, and never in 엔진 ("2.0 엔진" engine) or 백엔드 (backend); йен and येन, which are also the place
+  // name Yên (Йен Хоа, येन होआ) and inside नगुयेन (Nguyen); ⚠️ so "сто йен", "सौ येन" (spelled numbers) pass, as before this rule.
+  ['yen', new RegExp(String.raw`円|(?<!\p{L})(?:yens?|jpy)(?!\p{L})|엔화|${KO_AMOUNT}엔(?!진|드)|日元|(?<=\d\s*)йен|(?<!\p{L})иен|${TH_AMOUNT}เยน|(?<=\d\s*)येन`, 'iu')],
+  // 元, 块, 币 after a number only (单元 flat, 一块 a piece of…), "100多元" included; 越南盾 is the dong.
+  ['yuan', new RegExp(String.raw`(?<=[\d〇一二三四五六七八九十百千万亿億]\s*[多余]?)(?:元|块钱|币)|(?<=\d\s*[多余]?)块|港元|港币|台币|新币|人民币|人民幣|(?<!\p{L})(?:yuans?|rmb|cny)(?!\p{L})|위안|юан|${TH_AMOUNT}หยวน|(?<![\p{L}\p{M}])युआन(?![\p{L}\p{M}])`, 'iu')],
+  // ドル inside ベッドルーム (bedroom) and ヌードル (noodle), measured, and after the katakana that end ミドル (middle school), ハンドル,
+  // アイドル, キャンドル, ハードル, サドル, プードル, バンドル: no currency name ends in them, and nothing can sit between them and ドル.
+  // 불 is the Korean dollar after a number ("100불"); долл. and у.е. are Russian price shorthand.
+  ['dollar', new RegExp(String.raw`\$|(?<!\p{L})(?:usd|dollars?|dolar)(?!\p{L})|달러|${KO_AMOUNT}불|(?<!ベッ|ヌー|ミ|ハン|アイ|キャン|ハー|サ|プー|バン)ドル|美元|美金|(?<!\p{L})долл|у\.\s?е\.|ดอลลาร์|डॉलर|เหรียญสหรัฐ|(?<=\d\s*)เหรียญ`, 'iu')],
+  ['baht', /฿|(?<!\p{L})(?:bahts?|thb)(?!\p{L})|บาท|바트|バーツ|泰铢/iu],
+  // The site's other languages' own money: roubles, rupees, ringgit (none in the 24,952 translations measured).
+  ['rouble', /₽|(?<!\p{L})(?:roubles?|rubles?)(?!\p{L})|(?<!\p{L})руб(?:л\p{L}*|\.)?(?!\p{L})/iu],
+  ['rupee', /₹|(?<!\p{L})(?:inr|rupees?|roupies?)(?!\p{L})|(?<!\p{L})rs\.?\s?\d|(?<![\p{L}\p{M}])रुप(?:य|ए)/iu],
+  ['ringgit', /(?<!\p{L})(?:ringgit|myr)(?!\p{L})/iu],
+  ['ringgit', /(?<![\p{L}\d])RM\s?\d/u], // capitals only: "rm" is not money
+  // евро wherever it is ("100-евровый"), but not евроремонт (European-style renovation) or Европа.
+  ['euro', new RegExp(String.raw`€|(?<!\p{L})(?:euros?|eur)(?!\p{L})|유로|ユーロ|欧元|евро(?!ремонт|п)|${TH_AMOUNT}ยูโร|(?<![\p{L}\p{M}])यूरो(?![\p{L}\p{M}])`, 'iu')],
 ]
 /** "Journey" in a source ("your learning journey") lets its Vietnamese say "hành trình" — that word only, no other itinerary wording. */
 const JOURNEY = /journey|voyage/iu
@@ -311,6 +338,79 @@ function nameLike(text: string): boolean {
   return text.length <= 60 && named.length <= max && !shouted && !phrase && !words.some((w) => LISTING_WORDS.has(w.toLowerCase().replace(/[.,:;!?()]/g, '')))
 }
 
+/** English's commonest little words: a text with none of them is not English prose ("cho thue can ho Quận 7", "BÁN XE HONDA WAVE"). */
+const EN_GLUE = new Set('a an the of on in at to for from with and or by is are this that your you our we it be per has have will into also'.split(' '))
+/**
+ * …and those of them that are not also a Vietnamese word written without its marks, as a an (an ninh) the (thẻ) on (ổn) in at to that
+ * (thật) it (ít) be (bé) are: "cho thue nha to ở Quận 7, an ninh tot" is Vietnamese (Opus, 11-14). One of these is needed.
+ */
+const EN_ONLY = new Set([...EN_GLUE].filter((w) => !'a an the on in at to that it be'.split(' ').includes(w)))
+/**
+ * English with Vietnamese names in it: Latin letters only, not Vietnamese by the dominance test, English's little words in it (one in
+ * twelve words), and every Vietnamese-marked word a capitalised name ("Bạch Đằng", "Hà Nội"). The dong sign ("300,000 đ/day") is not a
+ * word, and "số" before a number is part of a street's name ("Đường số 15"). Measured on the 586 texts Haiku sent back unchanged for
+ * English on 2026-11-14: 576 pass, every one English; the 10 refused read as Vietnamese. ⚠️ ACCEPTED RISK: a mostly English text with a
+ * capitalised Vietnamese phrase in it that Haiku sends back unchanged passes ("Bán Xe Honda Wave Đời Mới, for sale in the center…").
+ */
+const VI_LISTING_WORDS = new Set('phòng trọ giá rẻ thuê căn hộ gấp tuyển dụng đẹp'.split(' '))
+/** …and the same words written without their marks, none an English word: two in lower case make a text Vietnamese ("cho thue … for rent in Quận 7"). */
+const VI_UNMARKED = new Set('cho thue gia re nha phong tro lien gan moi dep quan tien dat xe chinh chu'.split(' '))
+function englishWithVietnameseNames(text: string): boolean {
+  const t = text.normalize('NFC').replace(/(?<!\p{L})đ(?!\p{L})|(?<!\p{L})số(?=\s*\d)/gu, ' ')
+  if (readsAsVietnamese(t) || !letters(t).every((c) => /\p{Script=Latin}/u.test(c))) return false
+  const words = t.split(/\s+/).map((w) => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')).filter(Boolean)
+  const glue = words.filter((w) => EN_GLUE.has(w)).length // lower case only: "A", "ON" in a shouted title are not prose
+  if (glue < 2 || !words.some((w) => EN_ONLY.has(w)) || glue * 12 < words.length) return false
+  if (words.filter((w) => VI_UNMARKED.has(w)).length >= 2) return false
+  // The marked words are names: capitalised, and none a listing's own word ("Phòng Trọ Giá Rẻ for rent" is Vietnamese). Not tháng,
+  // quận, nhà, cần, đất, bán: they are in names too (Cách Mạng Tháng Tám, Quận Gò Vấp, Nhà Bè, Cần Thơ, Đất Đỏ, Lũy Bán Bích). An
+  // English text whose only mark is the dong sign has no marked word at all ("Rent 1-2 days: 300,000 đ/day"). And they are few: under a
+  // fifth of the words, as readsAsVietnamese draws its line, but counting French-looking marks too ("Bán Nhà Xây for sale in the center").
+  const marked = words.filter((w) => VI_DIACRITIC.test(w))
+  return marked.length * 5 < words.length && marked.every((w) => /^\p{Lu}/u.test(w) && !VI_LISTING_WORDS.has(w.toLowerCase()))
+}
+
+/** Every word of the source (two or more, of two letters or more) is in the translation as written: it was copied, whatever was added. */
+function copiesEveryWord(src: string, out: string): boolean {
+  const words = src.normalize('NFC').split(/[^\p{L}\p{N}]+/u).filter((w) => letters(w).length >= 2)
+  const got = new Set(out.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
+  return words.length >= 2 && words.every((w) => got.has(w))
+}
+
+/**
+ * English words a Title Case title is made of that are not names ("Spacious Sunny Penthouse Overlooking Saigon River"): copied, they are
+ * the untranslated title. Measured on the first run's 24,543 rows, what Haiku keeps in Latin letters is names (GoPlus 5,600, ward and
+ * street names, Dwight, Honda), never these — nor English's little words ("Cheap Room For Rent Near The Airport"). ⚠️ ACCEPTED RISK: a
+ * common word missing from these lists still counts as a name, so a title half copied in such words passes ("모던 Duplex Courtyard Loft").
+ * Not seen once in the 24,952 translations measured; copiedEverydayRun is the backstop for longer copies.
+ */
+const TITLE_WORDS = new Set(('sunny bright beautiful lovely nice big large small huge tiny quiet peaceful clean fresh great best top amazing perfect ' +
+  'charming stunning gorgeous elegant stylish brand fully high low central convenient affordable available family overlooking facing ' +
+  'opposite next close walking minutes walk minute floor rooftop terrace river lake sea park street ready move urgent hot good').split(' '))
+/**
+ * The longest run of words in a row the translation copied from its source that are everyday English (listing, title or little words):
+ * "저렴한 방 For Rent Near The Airport" is the source left untranslated, whatever its capitals. In the first run's 24,543 rows and 409
+ * re-translations the longest such run was 3, and each was a name ("Nguyen Sieu Secondary and High School"), so 4 refuses.
+ */
+function copiedEverydayRun(src: string, out: string): number {
+  const own = new Set(src.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
+  let run = 0, max = 0
+  for (const t of out.normalize('NFC').split(/\s+/u)) {
+    const w = t.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')
+    if (w && own.has(w) && [LISTING_WORDS, TITLE_WORDS, EN_GLUE].some((set) => set.has(w.toLowerCase()))) max = Math.max(max, ++run)
+    else run = 0
+  }
+  return max
+}
+
+/** A translation without the names it copied from its source: capitalised words written exactly as there, other than listing words. */
+function withoutCopiedNames(src: string, out: string): string {
+  const own = new Set(src.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
+  return out.normalize('NFC').split(/([^\p{L}\p{N}]+)/u)
+    .filter((w) => !(own.has(w) && /^\p{Lu}/u.test(w) && ![LISTING_WORDS, TITLE_WORDS, EN_GLUE].some((set) => set.has(w.toLowerCase()))))
+    .join('')
+}
+
 /** Why a translation is refused, or null. Checked here whatever Reach checked (the header). */
 export function refusal(src: string, value: unknown, target: Lang): string | null {
   if (typeof value !== 'string') return 'not text'
@@ -325,14 +425,32 @@ export function refusal(src: string, value: unknown, target: Lang): string | nul
   if (/[\u00ad\u200b-\u200f\u2060-\u2064\ufeff]/.test(v) && !/[\u00ad\u200b-\u200f\u2060-\u2064\ufeff]/.test(src)) return 'invisible characters'
   const adds = addsToItsSource(src, v)
   if (adds) return adds
+  // Haiku's own note on Japanese room codes: "1LDKではなく1ベッドルームのアパート" ("a 1-bedroom, not a 1LDK") for "1-bedroom apartment", in 7
+  // of 90 short Japanese titles re-translated on 2026-11-14 (none of the 24,543 rows written that morning).
+  if (target === 'ja' && /(?:LDK|DK|ワンルーム)(?:ではなく|じゃなく)/.test(v) && !/ldk/i.test(src)) return 'a note its source does not have'
   // A name reads the same in every language, scripts included (the prompt keeps names as written): written as it is, done.
   if (v === src.trim() && nameLike(v)) return null
+  // English already: an English text that names Vietnamese streets ("Studio of 20 m² on Bạch Đằng, Tan Hoa Ward") is asked for in
+  // English (mayBeVietnamese is broad on purpose) and comes back as it is. That IS its English: written, so it is done and not asked
+  // again every day (586 a day on the first run). Only when every Vietnamese-marked word is a capitalised name: "iPhone 14 cũ" is not.
+  if (target === 'en' && v === src.trim() && englishWithVietnameseNames(v)) return null
   const re = SCRIPT[target]
   if (re) {
     const ls = letters(v)
-    // Brand and building names stay in Latin letters ("Vinhomes Central Park"), so a short title can be mostly Latin: a fifth
-    // of the letters in the language's own script, and at least one.
-    if (!ls.some((c) => re.test(c)) || (ls.length >= 12 && scriptShare(v, target) < 0.2)) return 'not in the target script'
+    // Brand, school and building names stay in Latin letters ("MYP 수학 교사 — Dwight School Hanoi"), so the share is taken without the
+    // names the translation copied from its source: a fifth of the rest in the language's own script, and at least one letter overall.
+    // The rest is judged whatever its length: dropping the names must not leave a copied title with one letter of the script to pass on
+    // ("롯데 Beautiful Family Home" for "Beautiful Family Home" keeps "Home", a listing word, and is refused).
+    // A Vietnamese source is written in Title Case, so its capitals are not names: "아파트 Cao Cấp Sang Trọng Full Nội Thất" is a copy,
+    // with or without its marks ("Can Ho Cao Cap Quan 7 Gia Re": two of its words unmarked and no English little word).
+    const srcWords = src.normalize('NFC').toLowerCase().split(/[^\p{L}]+/u)
+    const viSource = readsAsVietnamese(src) || (srcWords.filter((w) => VI_UNMARKED.has(w)).length >= 2 && !srcWords.some((w) => EN_ONLY.has(w)))
+    const rest = letters(viSource ? v : withoutCopiedNames(src, v))
+    const share = (xs: string[]) => xs.filter((c) => re.test(c)).length / xs.length
+    if (!ls.some((c) => re.test(c)) || (ls.length >= 12 && ((rest.length && share(rest) < 0.2) || (copiesEveryWord(src, v) && share(ls) < 0.2))) ||
+      copiedEverydayRun(src, v) >= 4) {
+      return 'not in the target script'
+    }
   } else if (v === src.trim()) {
     return 'returned untranslated'
   }

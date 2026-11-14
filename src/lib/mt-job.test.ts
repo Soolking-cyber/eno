@@ -151,6 +151,101 @@ describe('refusal', () => {
   it('a short text may come back as it is in a Latin language (a name, a model)', () => {
     expect(refusal('iPhone 15 Pro Max', 'iPhone 15 Pro Max', 'fr')).toBeNull()
   })
+  // The first daily run (2026-11-14) refused 1,799 of 26,342; these are its translations, judged again.
+  it('a currency is a word, not letters inside one (the first run refused 539 for that)', () => {
+    const studio = 'Studio of 20 m² on Võ Oanh, Thanh My Tay Ward, Binh Thanh District'
+    expect(refusal('1-bedroom apartment 30 m² · Tan Hoa Ward', '1ベッドルームのアパート 30 m²・タンホア坊', 'ja')).toBeNull()
+    expect(refusal('Studio 20 m² · Bay Hien Ward, Tan Binh District', 'Студия 20 м² · фуонг Бай Хиен, район Тан Бинь', 'ru')).toBeNull()
+    expect(refusal(studio, '호치민시 빈탄군 탄미떠이동 Võ Oanh 거리의 면적 20m² 원룸입니다.', 'ko')).toBeNull()
+    expect(refusal('Apartment with European-style renovation', 'Квартира с евроремонтом', 'ru')).toBeNull()
+    expect(refusal('2 bedrooms, round dining table', '침실 2개, 원형 식탁', 'ko')).toBeNull()
+    expect(refusal('Pho and noodles served daily', 'フォーとヌードルを毎日提供', 'ja')).toBeNull()
+    // …and a price moved into another currency is still refused, in these forms (fail closed: a word missing from a rule is a gap).
+    for (const [src, value, target] of [['Studio, 100 a month', 'スタジオ 月100ドル', 'ja'], ['Studio, 1000 a month', 'スタジオ 1000円', 'ja'],
+      ['Studio, 500 a month', 'Студия, 500 иен', 'ru'], ['Studio, 50 a month', 'Студия, 50 евро', 'ru'], ['Studio, 100 a month', 'Студия, 100 долларов', 'ru'],
+      ['Studio, 100,000 a month', '원룸 월 10만원', 'ko'], ['Studio, 100 a month', '원룸 100유로', 'ko'], ['Studio, 1,000 a month', 'สตูดิโอ 1,000 บาท', 'th'],
+      ['Studio, five thousand', 'สตูดิโอ ห้าพันบาท', 'th'], ['Studio, 100 a month', 'スタジオ 100ユーロ', 'ja'], ['Studio, paid monthly', 'スタジオ 日本円で支払い', 'ja'],
+      ['Studio, 1,000 a month', 'สตูดิโอ ๑,๐๐๐ บาท', 'th'], ['Studio, paid monthly', 'สตูดิโอ จ่ายเป็นเงินบาท', 'th'], ['Studio, 50 a month', 'スタジオ 五十円', 'ja'],
+      ['Studio, 100 a month', 'スタジオ 100ドルセール', 'ja'], ['Studio, 8,000,000 a month', '원룸 월 8,000,000원부터', 'ko'],
+      ['Studio, 8,000,000 a month', '원룸 월 8,000,000원', 'ko'], ['Studio, 100 a month', 'スタジオ 月100アメリカドル', 'ja'], ['Studio, 5 a month', 'スタジオ 月五円', 'ja'],
+      ['Studio, 8,000,000 a month', '원룸 월 800만원쯤', 'ko'], ['Studio, 5,000,000 a month', '원룸 500만원인데', 'ko'], ['Studio, 50,000 a month', '5만원권', 'ko'],
+      ['Studio, 1000 a month', '원룸 월 천유로', 'ko'], ['Studio, 1,000 a month', 'スタジオ 1,000タイバーツ', 'ja'],
+      ['Necklace for sale, 500', '500원목걸이 판매합니다', 'ko'], ['Studio, 1002 a month', '원룸 월 천이유로', 'ko'], ['Studio, 24 a month', '원룸 이십사유로', 'ko'],
+      ['Studio, 10000, full amount', 'スタジオ 1万円満額', 'ja'], ['Studio, 100 a month', 'สตูดิโอ 100บาทวิถี', 'th'],
+      ['Deposit: 100', 'Депозит: 100-евровый', 'ru'], ['Studio, 1 a month', '원룸 월 1경유로', 'ko'], ['Chain for sale, 100', '100ドルチェーン', 'ja'],
+      ['Room, 50000 a month', '월 5만원룸', 'ko'], ['Studio, about 100', '원룸 월 100여유로', 'ko'], ['Studio, about 100', '원룸 월 백여유로', 'ko'],
+      ['Studio, 100 a month', 'スタジオ 月百ドル', 'ja'], ['Chain for sale, 100', '100アメリカドルチェーン', 'ja'],
+      ['Studio, 100 a month', 'สตูดิโอ 100 ยูโร', 'th'], ['Studio, 100 a month', '원룸 월 100엔', 'ko'], ['Studio, 100 a month', 'Студия, 100 йен', 'ru'],
+      ['Studio, 100 a month', 'स्टूडियो, 100 यूरो', 'hi'], ['Studio, 100 a month', 'สตูดิโอ 100 เยน', 'th'],
+      ['Studio, 500 a month', 'สตูดิโอ ห้าร้อยยูโร', 'th'], ['Studio, 500 a month', '원룸 월 오백엔', 'ko'], ['Studio, 500 a month', '원룸 월 오백원', 'ko'],
+      ['Studio, about 100', '원룸 월 100여원', 'ko'], ['Studio, 100 a month', '원룸 월 100  엔', 'ko'], ['Studio, 100 a month', '원룸 월 100불', 'ko'],
+      ['Studio, 21 a month', 'สตูดิโอ ยี่สิบเอ็ดยูโร', 'th'], ['Studio, 100 a month', '工作室 每月100美金', 'zh-Hans'], ['Studio, 100 a month', 'Студия, 100 у.е.', 'ru'],
+      ['Studio, 100 a month', 'Студия, 100 рублей', 'ru'], ['Studio, 100 a month', 'स्टूडियो, 100 रुपये', 'hi'], ['Studio, 100 a month', 'Studio, RM100 sebulan', 'ms'],
+      ['Studio, 1,500 a month', 'Studio, MYR 1,500 sebulan', 'ms'], ['Studio, 100 a month', '工作室 每月100元', 'zh-Hans'],
+      ['Studio, 100 a month', 'स्टूडियो, 100 रुपए', 'hi'], ['Studio, 100 a month', 'Studio, Rs. 100', 'hi'], ['Studio, about 100', '工作室 每月100多元', 'zh-Hans'],
+      ['Studio, 100 a month', '工作室 每月100块', 'zh-Hans'], ['Studio, about 100', '원룸 월 100여 원', 'ko'], ['Studio, 100 a month', 'สตูดิโอ 100 เหรียญ', 'th'],
+      ['Studio, 100 a month', 'Studio, 100 yens par mois', 'fr'], ['Studio, 100 a month', 'Studio, 100 dolar sebulan', 'ms'], ['Studio, 100 a month', 'Studio, 100 roupies par mois', 'fr']] as const) {
+      expect(refusal(src, value, target)).toBe('a currency its source does not have')
+    }
+  })
+  it("refuses Haiku's note on Japanese room codes, not the codes", () => {
+    const t = '1-bedroom apartment 30 m² · Phu Dinh Ward, District 8'
+    expect(refusal(t, '1LDKではなく1ベッドルームのアパート 30 m² · フーディン区、第8区', 'ja')).toBe('a note its source does not have')
+    expect(refusal(t, '1LDKのアパート 30 m² · フーディン区、第8区', 'ja')).toBeNull()
+    expect(refusal(t, '1ベッドルームのアパート 30 m² · フーディン区、第8区', 'ja')).toBeNull()
+  })
+  it('names kept in Latin letters do not count against the script (job titles)', () => {
+    expect(refusal('MYP Mathematics Teacher — Dwight School Hanoi', 'MYP 수학 교사 — Dwight School Hanoi', 'ko')).toBeNull()
+    expect(refusal('MYP/DP I&S Teacher & DP ESS — Dwight School Hanoi', 'MYP/DP I&S 教师 & DP ESS — Dwight School Hanoi', 'zh-Hans')).toBeNull()
+    expect(refusal('PYP Homeroom Teacher — Odyssey International School - Da Nang', 'PYP होमरूम शिक्षक — Odyssey International School - Da Nang', 'hi')).toBeNull()
+    // Copied English that is not a name still counts: listing words and lower-case words are the untranslated text.
+    expect(refusal('MYP Mathematics Teacher — Dwight School Hanoi', 'MYP 수학 Teacher of the school — Dwight School Hanoi', 'ko')).toBe('not in the target script')
+    expect(refusal(EN, `롯데 ${EN}`, 'ko')).toBe('not in the target script')
+    // A copied Title Case title with one letter of the script is still a copy.
+    expect(refusal('Beautiful Family Home Near Lotte Mart', '롯데 Beautiful Family Home Near Lotte Mart', 'ko')).toBe('not in the target script')
+    expect(refusal('Dwight School Hanoi Admissions Officer', '가 Dwight School Hanoi Admissions Officer', 'ko')).toBe('not in the target script')
+    // …and a title half copied: its common words are not names, whatever their capitals.
+    expect(refusal('Spacious Sunny Penthouse Overlooking Saigon River', '넓은 Spacious Sunny Penthouse Overlooking 사이공 강', 'ko')).toBe('not in the target script')
+    expect(refusal('Cheap Room For Rent Near The Airport', '저렴한 방 For Rent Near The Airport', 'ko')).toBe('not in the target script')
+    // A Vietnamese title copied: its listing words are not names (LISTING_WORDS), only the street's name is.
+    const vi = 'Bán Nhà Mặt Tiền Đường Nguyễn Văn Linh Quận 7 Giá Rẻ'
+    expect(refusal(vi, 'Bán Nhà Mặt Tiền Đường Nguyễn Văn Linh Quận 7 Giá 저렴', 'ko')).toBe('not in the target script')
+    expect(refusal('Căn Hộ Cao Cấp Sang Trọng Full Nội Thất', '아파트 Cao Cấp Sang Trọng Full Nội Thất', 'ko')).toBe('not in the target script')
+    expect(refusal('Masteri Duplex', '가 Masteri Duplex', 'ko')).toBe('not in the target script')
+    expect(refusal('Can Ho Cao Cap Quan 7 Gia Re', '아파트 Cao Cap Quan 7 Gia Re', 'ko')).toBe('not in the target script')
+    expect(refusal('Engine oil change', '엔진 오일 교환', 'ko')).toBeNull()
+    expect(refusal('Honda Civic, 1.5 engine', '혼다 시빅, 1.5 엔진', 'ko')).toBeNull()
+    expect(refusal('Backend Developer', '백엔드 개발자', 'ko')).toBeNull()
+    expect(refusal('Middle School English Teacher', 'ミドルスクール英語教師', 'ja')).toBeNull()
+    expect(refusal('2-bedroom unit, 100 m²', '两居室单元，100 m²', 'zh-Hans')).toBeNull()
+    expect(refusal('Mát xa body, 60 phút', 'Body rub massage, 60 minutes', 'en')).toBeNull()
+    expect(refusal('Join our team as a member', '우리 팀의 일원이 되세요', 'ko')).toBeNull()
+  })
+  it('an English text naming Vietnamese streets is its own English; a Vietnamese word in it is not', () => {
+    const goplus = 'Studio of 20 m² on Nguyên Khiết, Hong Ha Ward, Hoan Kiem, Hanoi.\n\nMessage GoPlus to check availability and book a viewing.'
+    expect(refusal(goplus, goplus, 'en')).toBeNull()
+    const shop = 'Commercial space of 70 m² on Quốc Lộ 13, Hiep Binh Ward, Thu Duc City, Ho Chi Minh City.\n\nMessage GoPlus to check availability and book a viewing.'
+    expect(refusal(shop, shop, 'en')).toBeNull()
+    expect(refusal('Apple iPhone 14 Pro Max 128GB cũ 99%', 'Apple iPhone 14 Pro Max 128GB cũ 99%', 'en')).toBe('returned untranslated')
+    expect(refusal('Căn Hộ Cho Thuê Quận 7 Giá Rẻ', 'Căn Hộ Cho Thuê Quận 7 Giá Rẻ', 'en')).toBe('returned untranslated')
+    // Vietnamese without its marks, shouted, or Title Case is not English: no English little words in it.
+    // "to", "an", "in" are Vietnamese words too, and a listing's own words capitalised are not names.
+    for (const t of ['cho thue can ho Quận 7 gia re, lien he chu nha', 'CHO THUÊ CĂN HỘ GIÁ RẺ QUẬN 7', 'Bán Xe Honda Wave Đời Mới', 'BAN XE HONDA WAVE Ở QUẬN 7',
+      'cho thue nha to, an ninh tot, gan truong', 'cho thue nha to Quận 7, an ninh tot, gan truong', 'Phòng Trọ Giá Rẻ for rent in the District 7',
+      'Bán Nhà Mới Xây for sale in the center', 'Bán Nhà Xây for sale in the center', 'cho thue can ho gia re for rent in Quận 7']) {
+      expect(refusal(t, t, 'en')).toBe('returned untranslated')
+    }
+    const scooter = 'Honda Lead (automatic scooter) from Blvck Motorbike in District 1. Message the shop here on eno.\n\nRent 1-2 days: 300,000 đ/day'
+    expect(refusal(scooter, scooter, 'en')).toBeNull()
+    // Street names made of everyday words are names (August Revolution Street; Lũy Bán Bích).
+    for (const street of ['Cách Mạng Tháng Tám', 'Lũy Bán Bích']) {
+      const t = `Studio of 20 m² on ${street}, Hoa Hung Ward, District 10, Ho Chi Minh City.\n\nMessage GoPlus to check availability and book a viewing.`
+      expect(refusal(t, t, 'en')).toBeNull()
+    }
+    expect(refusal(goplus, goplus, 'fr')).toBe('returned untranslated')
+    // Vietnamese with no marks at all is never asked for in English, so it never reaches this shortcut (targetsFor).
+    expect(targetsFor('Phong tro gia re for rent with ban cong', false)).not.toContain('en')
+  })
 })
 
 describe('mtTodo', () => {
