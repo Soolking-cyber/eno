@@ -20,13 +20,22 @@
  * and deploy"). It reverses the 2026-10-18 tinted pill with the brand-tint selection: the redesign's chips are "36
  * visible / 44 tap, white, 1px line-strong, ink 700 14/20; selected = ink fill, white text; pressed = field". The 1px
  * border sits inside min-h-9 (34px of content + 2), so nothing grows. Dark: #f0f0f0 fill under #1c1d1f ink.
+ * ⛔ …EXCEPT IN THE GOODS STRIPS ON A PHONE: FILLED (owner-approved 2026-11-15 (build 8), cook r08 goods — StockX's pills; it
+ * reverses, there, the white + hairline above and the 2026-10-18 one chip style): a strip that carries `data-pills="filled"`
+ * (explorer-toolbar.tsx SortStrip and seller-listings.tsx PinnedStrip, each with `look="goods"`) paints every RESTING pill in it
+ * the field grey with no edge (the 1px stays, transparent, so nothing grows and forced colours still draw it), pressed or open
+ * one step deeper (`--secondary`); an applied pill keeps the ink fill. One globals.css rule reaches every pill the strip holds —
+ * its own, the facet bar's, the scope chip, the view pick — through the markers below (`pill-rest`, `pill-open`), so no pill
+ * component needs to know which strip it is in. Below 40rem only; every other strip, and every width from sm, is as above.
  * ⚠️ A PLAIN MODULE, NOT ui/chip.tsx: that file is `'use client'`, and a server component that imports a constant
  * from a client module gets a client reference, not the string — the /c landing page (a server page) wears these.
  */
 export const PILL_BOX = 'relative tap-44 min-h-9 rounded-full px-3.5 text-sm font-bold'
-export const PILL_REST = 'border border-line-strong bg-background text-foreground hover:bg-muted active:bg-muted'
+// `pill-rest`: the marker the goods strips' filled look keys on (the note above) — it styles nothing by itself.
+export const PILL_REST = 'pill-rest border border-line-strong bg-background text-foreground hover:bg-muted active:bg-muted'
 // The ON look owns its hover and press too (commit review): beside PILL_REST's `hover:bg-muted` a plain ink fill turned grey
 // under the pointer while its label stayed white — the label vanished.
 export const PILL_ON = 'pill-on border border-foreground bg-foreground text-background hover:bg-foreground hover:text-background active:bg-foreground active:text-background icon-own-ink'
-export const PILL_OPEN = 'border border-line-strong bg-muted text-foreground'
+// `pill-open`: the same marker for the open state (the filled strips open a step deeper, with no edge).
+export const PILL_OPEN = 'pill-open border border-line-strong bg-muted text-foreground'
 export const PILL_OPEN_ATTR = 'data-popup-open:border-line-strong data-popup-open:bg-muted data-popup-open:text-foreground'

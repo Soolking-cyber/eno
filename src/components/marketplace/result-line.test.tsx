@@ -597,18 +597,21 @@ describe('ResultLine — the browse chip, and the count\'s own classes', () => {
 })
 
 /**
- * ⛔ THE GOODS SEARCH'S TITLE LINE (owner-approved 2026-11-14, cook r06 goods): the count as the page's display line — a PICTURE,
- * aria-hidden (the live count stays <ResultLine>'s) — the results' sr-only h2, and Save search + the view pick as circles.
+ * ⛔ THE GOODS SEARCH'S TITLE LINE (owner-approved 2026-11-14, cook r06 goods): the count — a PICTURE, aria-hidden (the live count
+ * stays <ResultLine>'s) — the results' sr-only h2, and Save search. ⛔ Build 7 (owner-approved 2026-11-15, cook r07 goods): the
+ * count at the h3 role (`t-h3` 17/24 — whole beside Save search in both languages; it was the 28/34 display line), Save search in its own words as accent text (it was a
+ * 36px circle, accent-filled while results showed), and no view pick here — it leads the control row (SortStrip `phoneView`).
  */
 describe('<ResultsTitle>', () => {
-  it('prints "N results for “q”" as an aria-hidden picture on ONE truncated display line, with the sr-only h2', async () => {
+  it('prints "N results for “q”" as an aria-hidden picture on ONE line at the h3 role, with the sr-only h2', async () => {
     const { container } = renderIn('en', <ResultsTitle count={2} term="iphone" heading="Results for “iphone”" />)
     const line = container.querySelector('[data-results-title]')!
     const p = line.querySelector('p')!
     expect(p.getAttribute('aria-hidden')).toBe('true')
     expect(p.getAttribute('aria-live')).toBeNull()
     expect(p.textContent).toBe('2 results for “iphone”')
-    expect(p.className.split(/\s+/)).toEqual(expect.arrayContaining(['truncate', 'text-t-display', 'min-w-0', 'flex-1', '-my-1', 'py-1']))
+    expect(p.className.split(/\s+/)).toEqual(expect.arrayContaining(['truncate', 'text-t-h3', 'text-foreground', 'min-w-0', 'flex-1', '-my-1', 'py-1']))
+    expect(p.className).not.toMatch(/text-t-(display|h2)\b/)
     const h2 = within(line as HTMLElement).getByRole('heading', { level: 2 })
     expect(h2.textContent).toBe('Results for “iphone”')
     expect(h2.className).toBe('sr-only')
@@ -622,29 +625,32 @@ describe('<ResultsTitle>', () => {
     expect(container.querySelector('[data-results-title] p')!.textContent).toBe('')
   })
 
-  it('Save search is a 36px circle (44 to the thumb), named in full — the accent fill with results, the outline without', async () => {
+  it('Save search is its own words: accent label text after a 20px bookmark, 44px tall, no fill, no ring — the field grey on a press', async () => {
     const onSave = vi.fn()
-    const { rerender } = renderIn('en', <ResultsTitle count={2} term="iphone" heading="h" onSaveSearch={onSave} filled />)
+    renderIn('en', <ResultsTitle count={2} term="iphone" heading="h" onSaveSearch={onSave} />)
     const btn = screen.getByRole('button', { name: 'Save search' })
+    // The words are SHOWN (no sr-only span), the glyph decorative.
+    expect(btn.textContent).toBe('Save search')
+    expect(btn.querySelector('.sr-only')).toBeNull()
+    expect(btn.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true')
+    expect(btn.querySelector('svg')!.getAttribute('class')).toContain('size-5')
     const cls = btn.className.split(/\s+/)
-    expect(cls).toEqual(expect.arrayContaining(['size-9', 'rounded-full', 'relative', 'tap-44', 'bg-primary', 'text-primary-foreground']))
+    expect(cls).toEqual(expect.arrayContaining(['h-11', '-my-1', '-mr-2', 'px-2', 'gap-1.5', 'text-sm', 'font-bold', 'text-accent-foreground', 'rounded-xl', 'active:bg-muted', 'whitespace-nowrap']))
+    for (const gone of ['size-9', 'rounded-full', 'bg-primary', 'border', 'border-line-strong', 'tap-44']) expect(cls).not.toContain(gone)
     fireEvent.click(btn)
     expect(onSave).toHaveBeenCalledTimes(1)
-    rerender(wrap('en', <ResultsTitle count={0} term="iphone" heading="h" onSaveSearch={onSave} />))
-    const out = screen.getByRole('button', { name: 'Save search' }).className.split(/\s+/)
-    expect(out).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground']))
-    expect(out).not.toContain('bg-primary')
   })
 
-  it('no offer, no circle; the view pick rides at the end', () => {
-    const { container } = renderIn('en', <ResultsTitle count={2} heading="h" view={<span data-view="" />} />)
+  it('no offer, no action; the line holds no view pick (it leads the control row since build 7)', () => {
+    const { container } = renderIn('en', <ResultsTitle count={2} heading="h" />)
     expect(screen.queryByRole('button', { name: 'Save search' })).toBeNull()
-    expect(container.querySelector('[data-results-title]')!.lastElementChild!.hasAttribute('data-view')).toBe(true)
+    expect(container.querySelector('[data-results-title] [role="combobox"]')).toBeNull()
+    expect(container.querySelector('[data-results-title]')!.lastElementChild!.tagName).toBe('P')
   })
 
   it('Vietnamese', async () => {
-    renderIn('vi', <ResultsTitle count={2} term="iphone" heading="Kết quả cho “iphone”" onSaveSearch={() => {}} filled />)
-    expect(await screen.findByRole('button', { name: 'Lưu tìm kiếm' })).toBeTruthy()
+    renderIn('vi', <ResultsTitle count={2} term="iphone" heading="Kết quả cho “iphone”" onSaveSearch={() => {}} />)
+    expect((await screen.findByRole('button', { name: 'Lưu tìm kiếm' })).textContent).toBe('Lưu tìm kiếm')
     expect(document.querySelector('[data-results-title] p')!.textContent).toBe('2 kết quả cho “iphone”')
   })
 })

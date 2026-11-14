@@ -67,8 +67,8 @@ describe('the two placements, from the server', () => {
     expect(id![2]).toContain('max-sm:text-t-h2')
     expect(html).toMatch(new RegExp(`<section aria-labelledby="${id![1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`))
     expect(html).not.toContain('aria-label="eno partners"')
-    // Each partner's word is the lane's label role, whole.
-    expect(html).toContain('whitespace-nowrap text-sm font-bold text-foreground')
+    // Each partner's word, whole: 14/18 bold in body ink under its mark (owner-approved 2026-11-15, build 7 — it was 14/20 ink).
+    expect(html).toContain('whitespace-nowrap text-sm leading-4.5 font-bold text-body')
     // The top band keeps its label and its small word.
     const top = renderToString(<PartnerStrip />)
     expect(top).toContain('aria-label="eno partners"')
@@ -277,11 +277,19 @@ describe('the stylesheet side', () => {
     expect(CSS).not.toContain('nth-child(-n + 13)')
   })
 
-  it('⛔ the lane has no band chrome (owner-approved 2026-11-14: the 11-10 hairlines are reversed) and its tiles are lane-card wide', () => {
+  it('⛔ the lane has no band chrome (owner-approved 2026-11-14: the 11-10 hairlines are reversed) and shows three whole raised tiles (build 8)', () => {
     expect(CSS).not.toMatch(/\.partner-strip-feed \{\s*border-top/)
-    // 220px × 56 tiles, white with the chips' hairline at the photo radius; the viewport bleeds to the screen edges.
+    // Owner-approved 2026-11-15 (build 8): EXACT thirds of the text column — three whole tiles 12px edge to 12px edge and the
+    // fourth starting at the screen edge (build 7's 24px edge of it was marked broken by the blind critics) — 72 tall, the mark
+    // over its word; a word wider than its tile widens it. Raised like the category pills (the search-edge rim and the chip
+    // lift) at the photo radius; the viewport bleeds to the screen edges and keeps 6px under the tiles for the lift.
     const link = /\n\.partner-strip-feed \.partner-strip-link \{([^}]*)\}/.exec(CSS)![1]
-    for (const d of ['min-width: 13.75rem;', 'height: 3.5rem;', 'border: 1px solid var(--color-line-strong);', 'border-radius: var(--radius-media);', 'background: var(--color-background);']) expect(link).toContain(d)
+    for (const d of ['width: calc((100vw - 3rem) / 3);', 'min-width: max-content;', 'height: 4.5rem;', 'flex-direction: column;', 'border: 1px solid var(--color-search-edge);', 'border-radius: var(--radius-media);', 'background: var(--color-background);', 'box-shadow: var(--shadow-chip);']) expect(link).toContain(d)
+    expect(link).not.toContain('4.5rem) / 3')
+    for (const w of [360, 375, 390, 412, 430]) expect(12 + 3 * ((w - 48) / 3) + 2 * 12 + 12).toBe(w) // the 3rd tile ends on the 12px edge
+    expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-viewport \{[^}]*padding-block: 0\.125rem 0\.375rem;/)
+    // A mark is drawn inside its tile's width, so only its word can widen the tile.
+    expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-logo,\n\.partner-strip-feed \.partner-strip-logo-wide \{\s*width: 0;\s*min-width: 100%;\s*object-fit: contain;\s*\}/)
     expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-viewport \{\s*margin-inline: -0\.75rem;/)
     expect(CSS).toMatch(/\n\.partner-strip-feed \.partner-strip-track \{\s*gap: 0\.75rem;\s*padding-inline: 0\.75rem;\s*\}/)
   })

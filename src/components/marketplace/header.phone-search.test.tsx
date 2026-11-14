@@ -22,7 +22,8 @@ const h = vi.hoisted(() => {
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
   const phone = { value: true }
   const pathname = { value: '/help' }
-  return { push, router, language, auth, phone, pathname }
+  const hidden = { value: false }
+  return { push, router, language, auth, phone, pathname, hidden }
 })
 
 vi.mock('next/navigation', () => ({
@@ -40,12 +41,15 @@ vi.mock('@/context/language-context', () => ({
 vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth, preloadSignIn: () => {} }))
 vi.mock('./account-panel', () => ({ useAccountPanel: () => ({ open: false }) }))
 vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
-vi.mock('./notification-bell', () => ({ NotificationBell: () => <button type="button" aria-label="Notifications" /> }))
+vi.mock('./notification-bell', () => ({ NotificationBell: ({ quiet }: { quiet?: boolean }) => <button type="button" aria-label="Notifications" data-quiet={quiet ? '' : undefined} /> }))
 vi.mock('./app-download', () => ({ AppDownload: () => null }))
+// The header's own slide, held still unless a test asks for it (the real hook only moves on scroll, which nothing here does).
+vi.mock('@/hooks/use-hide-on-scroll', () => ({ useHideOnScroll: () => h.hidden.value }))
 vi.mock('@/hooks/use-is-phone', () => ({ useIsPhone: () => h.phone.value }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" />, GuideMark: () => null }))
 
 import { Header } from './header'
+import { setHeaderPinned } from '@/hooks/use-header-pin'
 import { setConciergeAvailable } from '@/lib/concierge/client'
 
 function memoryStorage(): Storage {
@@ -66,9 +70,11 @@ beforeEach(() => {
   h.push.mockClear()
   h.phone.value = true
   h.pathname.value = '/help'
+  h.hidden.value = false
 })
 afterEach(() => {
   cleanup()
+  act(() => setHeaderPinned(false))
   vi.unstubAllGlobals()
 })
 
@@ -202,5 +208,88 @@ describe('the header bar: 56px, no glow; a 40px tint field + 40px logo from sm, 
     // Every edge and lift is phone-only: from sm the idle pill is still bare tint (owner, 2026-10-18).
     expect(cls.some((c) => /^(ring|border|shadow)(-|$)/.test(c))).toBe(false)
     expect(cls.some((c) => /^sm:(ring|border|shadow)/.test(c))).toBe(false)
+  })
+})
+
+/**
+ * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): on the home route's phone header the search pill is the one primary
+ * action — 46px, a stronger lift, an empty state that is a centred bold ink label beside its own magnifier (the ONE-word rung:
+ * the mock's centred "Search eno…" read as cut copy), the ✨ / bell / download muted — and the bar stays put while the home
+ * lanes are drawn (use-header-pin.ts), with no hairline under it (the pinned pills carry the one). Every other route is the
+ * r05 header, class for class (the pins above run on /help).
+ */
+describe('build 8: the home route\'s phone header', () => {
+  const pill = () => field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
+  const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  const hairline = () => document.querySelector('#app-header > div > span[aria-hidden].absolute')!
+
+  it('on /: a 46px pill with the stronger lift; the leading magnifier steps out while the field is empty', () => {
+    h.pathname.value = '/'
+    render(<Header />)
+    const cls = tokens(pill())
+    expect(cls).toEqual(expect.arrayContaining(['max-sm:h-11.5', 'max-sm:shadow-search', 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]', 'max-sm:rounded-full', 'max-sm:border-search-edge', 'sm:rounded-2xl', 'sm:bg-tint']))
+    expect(cls).not.toContain('max-sm:h-11')
+    expect(cls).not.toContain('max-sm:shadow-raised')
+    // The pill says when its field is empty (a :has() on itself); the leading glyph reads it.
+    expect(tokens(pill().querySelector(':scope > svg'))).toContain('max-sm:[visibility:var(--lead-glyph,visible)]')
+  })
+
+  it('on /: the empty label is centred, bold ink, beside its own magnifier, and it is the one-word rung below sm', () => {
+    h.pathname.value = '/'
+    render(<Header />)
+    const overlay = document.querySelector('[data-search-placeholder]')!
+    expect(tokens(overlay)).toEqual(expect.arrayContaining(['max-sm:left-0', 'max-sm:right-0', 'max-sm:justify-center', 'max-sm:gap-2', 'max-sm:font-bold', 'max-sm:text-foreground', 'text-t-card']))
+    expect(tokens(overlay.querySelector(':scope > svg'))).toEqual(expect.arrayContaining(['hidden', 'max-sm:block']))
+    // The long rung waits for sm; the short rung ("Search" — the field's own name) is the phone's label.
+    const long = overlay.querySelector('[data-rung="long"]')!
+    const short = overlay.querySelector('[data-rung="short"]')!
+    expect(tokens(long)).toEqual(expect.arrayContaining(['hidden', 'sm:@min-[8.6em]/q:block']))
+    expect(tokens(long)).not.toContain('@min-[8.6em]/q:block')
+    expect(tokens(short)).toContain('sm:@min-[8.6em]/q:hidden')
+    expect(short.textContent).toBe(field().getAttribute('aria-label'))
+    // The bell steps back with the rest.
+    expect(screen.getByRole('button', { name: 'Notifications' }).hasAttribute('data-quiet')).toBe(true)
+  })
+
+  it('off /: the r05 pill, the ladder and the bell exactly as they were', () => {
+    render(<Header />)
+    expect(tokens(pill())).toEqual(expect.arrayContaining(['max-sm:h-11', 'max-sm:shadow-raised']))
+    expect(tokens(pill())).not.toContain('max-sm:shadow-search')
+    expect(tokens(pill().querySelector(':scope > svg'))).not.toContain('max-sm:[visibility:var(--lead-glyph,visible)]')
+    expect(tokens(pill()).some((c) => c.includes('placeholder-shown'))).toBe(false)
+    const overlay = document.querySelector('[data-search-placeholder]')!
+    expect(overlay.querySelector(':scope > svg')).toBeNull()
+    expect(tokens(overlay)).not.toContain('max-sm:font-bold')
+    expect(tokens(overlay.querySelector('[data-rung="long"]'))).toContain('@min-[8.6em]/q:block')
+    expect(screen.getByRole('button', { name: 'Notifications' }).hasAttribute('data-quiet')).toBe(false)
+  })
+
+  it('pinned by the home lanes: the bar does not slide away below sm (it still does from sm), and draws no hairline', () => {
+    h.pathname.value = '/'
+    h.hidden.value = true
+    const { rerender } = render(<Header />)
+    const header = document.getElementById('app-header')!
+    // Not pinned (a directed feed on /): it slides on every width, and its hairline is there.
+    expect(tokens(header)).toEqual(expect.arrayContaining(['-translate-y-full', 'opacity-0']))
+    expect(tokens(header)).not.toContain('max-sm:translate-y-0')
+    expect(tokens(hairline())).not.toContain('max-sm:hidden')
+    act(() => setHeaderPinned(true))
+    rerender(<Header />)
+    expect(tokens(header)).toEqual(expect.arrayContaining(['-translate-y-full', 'opacity-0', 'max-sm:translate-y-0', 'max-sm:opacity-100']))
+    expect(tokens(hairline())).toContain('max-sm:hidden')
+    act(() => setHeaderPinned(false))
+    expect(tokens(header)).not.toContain('max-sm:translate-y-0')
+  })
+
+  it('the home route\'s server HTML already leaves the hairline out (the explorer cannot say yet); other routes keep it', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const line = (path: string) => {
+      h.pathname.value = path
+      const box = document.createElement('div')
+      box.innerHTML = renderToString(<Header />)
+      return tokens(box.querySelector('#app-header > div > span[aria-hidden].absolute'))
+    }
+    expect(line('/')).toContain('max-sm:hidden')
+    expect(line('/help')).not.toContain('max-sm:hidden')
   })
 })

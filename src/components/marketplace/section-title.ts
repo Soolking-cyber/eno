@@ -6,8 +6,8 @@
  * text-lg title TIED it from sm up and the shelf read as a list of prices with a caption. text-xl → sm:text-2xl (2026-11-05)
  * keeps 20>16 and 24>18. No skeleton draws this heading (measured layout shift 0 on home and /c/*). Raise the price, raise this.
  * ⛔ EXCEPT A GOODS PHONE (owner-approved 2026-11-14, cook r06 goods — card-text.ts GOODS_SALE_PRICE): there a card's sale price
- * takes the section role itself (22/28, `t-h2`), equal to "More in …", Guides and Other categories — the price-led grid's one
- * loud object per card. Everywhere else the step holds.
+ * takes the section role itself (22/28, `t-h2`), equal to "More in …", Guides and Other categories — the goods grid's one
+ * loud object per card (the card's last line since build 8, owner-approved 2026-11-15, cook r08 goods). Everywhere else the step holds.
  * ⚠️ ONE SIZE ON THE LISTING PAGE TOO (UI climb 2026-11-09, closing docs/design-language.md's open follow-up): its sections
  * hand-typed text-lg → sm:text-xl, so from sm up they sat a step below "More like this" / "More from this seller" on the same
  * page, and Amenities never took the sm step at all.

@@ -132,4 +132,24 @@ describe('ListingCard `lane`', () => {
     expect(body(plain).className).not.toContain('max-sm:px-0')
     expect(plain.querySelector('span.min-w-0.flex-1.truncate')!.className).not.toContain('max-sm:flex-initial')
   })
+
+  // ⛔ Build 7 (owner-approved 2026-11-15, cook r07 home: "calmer lane cards"): one rhythm — 8px under the photo, 4 between the
+  // price, the title and the info line (the same 76px body: 8 + 22 + 4 + 20 + 4 + 18) — and one overlay at most on the photo:
+  // the video / "N saved" plates go on a phone lane. All phone-only; a grid card is unchanged.
+  it('build 7: below sm one 8 / 4 / 4 rhythm, and no video or saved plate on the photo; nothing changes without it', () => {
+    const body = (c: HTMLElement) => c.querySelector('[data-card-root] > div:last-child')!
+    const meta = (c: HTMLElement) => c.querySelector('span.min-w-0.flex-1.truncate')!.parentElement!
+    const plates = (c: HTMLElement) => c.querySelector('[class*="bottom-2"][class*="left-2"]')
+    const busy = { ...RENT, video: 'https://xyz.supabase.co/storage/v1/object/public/listings/v.mp4', savedCount: 5 }
+    const lane = render(<ListingCard listing={busy} onOpen={vi.fn()} lane />).container
+    expect(body(lane).className.split(/\s+/)).toEqual(expect.arrayContaining(['gap-0.5', 'pt-2.5', 'max-sm:gap-1', 'max-sm:pt-2', 'max-sm:px-0']))
+    expect(meta(lane).className.split(/\s+/)).toEqual(expect.arrayContaining(['pt-0.5', 'max-sm:pt-0']))
+    expect(plates(lane)!.className.split(/\s+/)).toContain('max-sm:hidden')
+    expect(8 + 22 + 4 + 20 + 4 + 18).toBe(10 + 22 + 2 + 20 + 2 + 2 + 18)
+    cleanup()
+    const plain = render(<ListingCard listing={busy} onOpen={vi.fn()} />).container
+    expect(body(plain).className).not.toContain('max-sm:gap-1')
+    expect(meta(plain).className).not.toContain('max-sm:pt-0')
+    expect(plates(plain)!.className).not.toContain('max-sm:hidden')
+  })
 })

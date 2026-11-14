@@ -444,7 +444,9 @@ describe('phoneOneRow (/c/rentals, decision 5)', () => {
     function before(a: Node, b: Node) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) }
   })
 
-  it('publishes the count to the heading line: the page\'s count, "Searching…" in flight, the answer, then Show more', async () => {
+  // ⛔ The TOTAL since build 7 (owner-approved 2026-11-15, cook r07 rentals — heading-count.tsx `headingCountText`): the heading line
+  // says "63,730 listings" through a sort and Show more; the announced copy keeps the short count of what is on screen.
+  it('publishes the scope\'s total to the heading line — before, during and after a sort, and after Show more; the live copy counts the screen', async () => {
     let release: (v: unknown) => void = () => {}
     const second = Array.from({ length: 60 }, (_, i) => card(`p2-${i}`, 1_000 + i))
     let call = 0
@@ -454,15 +456,18 @@ describe('phoneOneRow (/c/rentals, decision 5)', () => {
       return Promise.resolve({ ok: true, json: async () => ({ listings: second, total: 63730 }) })
     }))
     render(rentals())
-    expect(probe()).toBe('60 of 63,730')
+    const live = () => document.querySelector('p.sr-only[aria-live]')!.textContent
+    expect(probe()).toBe('63,730 listings')
+    expect(live()).toBe('60 of 63,730')
     await userEvent.click(screen.getByRole('tab', { name: /price/i }))
-    await waitFor(() => expect(probe()).toBe('Searching…'))
+    await waitFor(() => expect(live()).toBe('Searching…'))
+    expect(probe()).toBe('63,730 listings')
     release({ ok: true, json: async () => ({ listings: PAGE.map((l) => card(`s-${l.id}`, l.price)), total: 63730 }) })
-    await waitFor(() => expect(probe()).toBe('60 of 63,730'))
+    await waitFor(() => expect(live()).toBe('60 of 63,730'))
+    expect(probe()).toBe('63,730 listings')
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }))
-    await waitFor(() => expect(probe()).toBe('120 of 63,730'))
-    // The announced copy says the same thing.
-    expect(document.querySelector('p.sr-only[aria-live]')!.textContent).toBe('120 of 63,730')
+    await waitFor(() => expect(live()).toBe('120 of 63,730'))
+    expect(probe()).toBe('63,730 listings')
   })
 
   it('a failed query hides it (null, never the seed), as the in-strip count did', async () => {
@@ -475,7 +480,7 @@ describe('phoneOneRow (/c/rentals, decision 5)', () => {
 
   it('on unmount it hides', () => {
     const { rerender } = render(rentals())
-    expect(probe()).toBe('60 of 63,730')
+    expect(probe()).toBe('63,730 listings')
     rerender(rentals({}, false))
     expect(probe()).toBe('null')
   })
@@ -485,6 +490,23 @@ describe('phoneOneRow (/c/rentals, decision 5)', () => {
     expect(document.querySelector('p.sr-only[aria-live]')).toBeNull()
     expect(probe()).not.toMatch(/\d/)
     expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).not.toContain('max-sm:hidden')
+  })
+
+  // ⛔ The list's own header under the row (owner-approved 2026-11-15 (build 7), cook r07 rentals: /c/rentals' free-check line).
+  it('listHead: right after the pinned strip, before the grid, phones only, pulled to 12px under the row', () => {
+    // (Unpinned here: PinnedStrip's scroll hook needs the app router. The page pins it; the order is the same either way.)
+    render(rentals({ phoneOneRow: { chips: CHIPS, listHead: <p data-check-line="" /> } }))
+    const head = document.querySelector('[data-list-head]')!
+    expect(head.querySelector('[data-check-line]')).not.toBeNull()
+    expect(tokens(head)).toEqual(['-mt-1', 'sm:hidden'])
+    expect(head.previousElementSibling).toBe(strip())
+    const grid = screen.getAllByTestId('card')[0]
+    expect(!!(head.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('no listHead: nothing is drawn between the strip and the grid', () => {
+    render(rentals())
+    expect(document.querySelector('[data-list-head]')).toBeNull()
   })
 
   it('without a provider: no throw, the strip is still one row, the announced copy is still there', () => {

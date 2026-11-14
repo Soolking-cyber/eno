@@ -447,3 +447,129 @@ describe('<CategoryRail> subcategory plate', () => {
     expect(renderRail(cats(10), 'not-a-category').chips).toEqual([])
   })
 })
+
+/**
+ * ⛔ THE HOME PAGE'S PILL ROW (owner-approved 2026-11-15 (build 7), cook r07 home — category-rail.tsx `pills`, PILL_*). On the
+ * undirected home, below 640px, every tile is a 40px pill: its art beside its 14/20 bold word, raised like the header's search
+ * pill, the row bled to the screen edges. Every class is `max-sm:`, so the 640px+ grid pins above stand; a rail without
+ * `pills` (a storefront, a directed feed's folded panel) is exactly the tile row above.
+ * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): the row is PAGES OF WHOLE PILLS (PILL_PAGES — a one-column multicol box
+ * one pill tall; a pill that does not fit the page in full starts the next one) ending on the More disc, always the cue; the
+ * art is 26px with 6px to its word; the row pins under the header (sticky) with one hairline once pinned. Build 7's
+ * "a cut pill whose word shows is the cue" (PILL_LABEL_SHOWN) is gone with it.
+ */
+describe('<CategoryRail pills> — the home page\'s phone row', () => {
+  const renderPills = (pills: boolean) => {
+    const { container } = render(
+      <LanguageProvider>
+        <CategoryRail categories={cats(10)} intents={INTENTS} activeCategory="all" activeSubcategory="all" subcategoryCounts={{}} onCategory={() => {}} onSubcategory={() => {}} onIntent={() => {}} pills={pills} />
+      </LanguageProvider>,
+    )
+    const root = container.querySelector('[data-category-rail]')!
+    const grid = root.querySelector('[role="group"][aria-label]')!
+    return { root, grid, tiles: [...grid.querySelectorAll('[data-cat],[data-intent],[data-shortcut]')] }
+  }
+  const tokens = (el: Element | null | undefined) => (el?.getAttribute('class') ?? '').split(/\s+/)
+
+  it('the row bleeds to the screen edges and PINS under the header: sticky at the header\'s line, opaque, 18px over the first lane', () => {
+    const { root } = renderPills(true)
+    expect(tokens(root)).toEqual([
+      'relative', 'max-sm:sticky', 'max-sm:top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]', 'max-sm:z-30',
+      'max-sm:-mx-3', 'max-sm:-mt-4', 'max-sm:mb-3', 'max-sm:bg-background',
+    ])
+    // One hairline, drawn only once the row has pinned (paint only, phone only).
+    const line = root.querySelector(':scope > span[aria-hidden]')!
+    expect(tokens(line)).toEqual(expect.arrayContaining(['absolute', 'inset-x-0', 'bottom-0', 'h-px', 'bg-border', 'opacity-0', 'sm:hidden']))
+    // jsdom applies no stylesheet, so the row is never `sticky` here and never reads as pinned.
+    expect(root.hasAttribute('data-stuck')).toBe(false)
+  })
+
+  // ⚠️ The column is 44px (52 less 6 + 2 of padding), 4px taller than its one line: at exactly 40 WebKit adds an empty column
+  // after the last pill (a swipe ended on a blank page — measured in Playwright WebKit, 2026-11-15).
+  it('the scroller is pages of whole pills: one 52px multicol box (a 44px column) from the 12px edge to the disc, pages 64px apart', () => {
+    const { grid } = renderPills(true)
+    const g = tokens(grid)
+    expect(g).toEqual(expect.arrayContaining([
+      'max-sm:block', 'max-sm:h-13', 'max-sm:columns-1', 'max-sm:gap-x-16', 'max-sm:[column-fill:auto]', 'max-sm:overflow-y-hidden',
+      'max-sm:pt-1.5', 'max-sm:pb-0.5', 'max-sm:pl-3', 'max-sm:pr-13', 'max-sm:leading-none',
+    ]))
+    // No width-ranged gap and no tile-row padding: nothing is tuned by width or at run time.
+    expect(g.some((t) => /^(?:max|min)-\[/.test(t))).toBe(false)
+    expect(g).not.toContain('max-sm:py-0')
+    // From 640px the grid is the one above.
+    expect(g).toEqual(expect.arrayContaining(['grid', 'grid-rows-6', 'md:grid-rows-2', 'gap-x-2', 'py-1']))
+  })
+
+  it('each tile is an inline 40px pill — its 26px art 6px from its whole 14/20 word, its 8px gap its own margin; from 640px unchanged', () => {
+    const { tiles } = renderPills(true)
+    expect(tiles.length).toBeGreaterThan(3)
+    for (const t of tiles) {
+      const c = tokens(t)
+      expect(c).toEqual(expect.arrayContaining(['relative', 'tap-44', 'max-sm:inline-flex', 'max-sm:align-top', 'max-sm:mr-2', 'max-sm:h-10', 'max-sm:w-auto', 'max-sm:flex-row', 'max-sm:gap-1.5', 'max-sm:rounded-full', 'max-sm:border', 'max-sm:border-search-edge', 'max-sm:bg-background', 'max-sm:pl-1.5', 'max-sm:pr-3', 'max-sm:shadow-chip']))
+      expect(c).not.toContain('max-sm:w-21')
+      expect(c).not.toContain('max-sm:gap-2')
+      // The 640px+ tile: its span and its width.
+      expect(c.some((x) => /^row-span-[23]$/.test(x)), t.className).toBe(true)
+      expect(c.some((x) => x.startsWith('w-[calc(')), t.className).toBe(true)
+      const box = t.firstElementChild!
+      expect(tokens(box)).toEqual(expect.arrayContaining(['max-sm:size-6.5', 'max-sm:p-0', 'max-sm:rounded-none', 'max-sm:bg-transparent']))
+      expect(tokens(box.querySelector('img,svg'))).toContain('max-sm:size-6.5')
+      const label = t.lastElementChild!
+      expect(tokens(label)).toEqual(expect.arrayContaining(['max-sm:w-auto', 'max-sm:overflow-visible', 'max-sm:text-sm', 'max-sm:leading-5', 'font-bold', 'text-foreground']))
+    }
+  })
+
+  it('without `pills` the row is the tile row, class for class — not sticky, no hairline', () => {
+    const { root, grid, tiles } = renderPills(false)
+    expect(tokens(root)).toEqual(['relative'])
+    expect(root.querySelector(':scope > span[aria-hidden]')).toBeNull()
+    expect(tokens(grid)).toEqual(expect.arrayContaining(['max-[23.25rem]:gap-x-1', 'max-sm:py-0']))
+    expect(tokens(grid)).not.toContain('max-sm:columns-1')
+    for (const t of tiles) {
+      expect(tokens(t)).toContain('max-sm:w-21')
+      expect(tokens(t)).not.toContain('max-sm:h-10')
+      expect(tokens(t)).not.toContain('max-sm:inline-flex')
+      expect(tokens(t)).not.toContain('tap-44')
+    }
+  })
+
+  it('the More disc is always the cue: the 40px grey arrow disc on the 12px edge, centred on the pills; one tap is one page', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 390 })
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => 1200 })
+    const mm = window.matchMedia
+    window.matchMedia = ((q: string) => ({ matches: q.includes('max-width'), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
+    const scrollBy = vi.fn()
+    HTMLElement.prototype.scrollBy = scrollBy as unknown as typeof HTMLElement.prototype.scrollBy
+    try {
+      renderPills(true)
+      const more = await screen.findByRole('button', { name: 'More' })
+      expect(tokens(more)).not.toContain('max-sm:hidden')
+      expect(tokens(more)).toEqual(expect.arrayContaining(['max-sm:right-3', 'max-sm:top-1/2', 'max-sm:size-10', 'max-sm:border-0', 'max-sm:bg-tint', 'max-sm:text-foreground', 'pc:hidden']))
+      // The lanes' arrow below 640px, the rail's chevron above it.
+      expect(more.querySelectorAll('svg')).toHaveLength(2)
+      more.click()
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 390 }))
+    } finally {
+      delete (HTMLElement.prototype as unknown as { clientWidth?: unknown }).clientWidth
+      delete (HTMLElement.prototype as unknown as { scrollWidth?: unknown }).scrollWidth
+      delete (HTMLElement.prototype as unknown as { scrollBy?: unknown }).scrollBy
+      window.matchMedia = mm
+    }
+  })
+
+  it('the disc is in the server\'s HTML on the pill row (before any measuring), phone-only until measured; never on the tile row', async () => {
+    const { renderToString } = await import('react-dom/server')
+    const html = (pills: boolean) => renderToString(
+      <LanguageProvider>
+        <CategoryRail categories={cats(10)} intents={INTENTS} activeCategory="all" activeSubcategory="all" subcategoryCounts={{}} onCategory={() => {}} onSubcategory={() => {}} onIntent={() => {}} pills={pills} />
+      </LanguageProvider>,
+    )
+    const box = document.createElement('div')
+    box.innerHTML = html(true)
+    const more = box.querySelector('button[aria-label="More"]')!
+    expect(more).not.toBeNull()
+    expect(tokens(more)).toContain('sm:hidden')
+    box.innerHTML = html(false)
+    expect(box.querySelector('button[aria-label="More"]')).toBeNull()
+  })
+})

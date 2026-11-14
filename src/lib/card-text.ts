@@ -10,6 +10,9 @@ import { cn } from '@/lib/utils'
  *   body   pt 10, 2px between lines, inset onto the 12px page gutter on a phone (px-2; flush from sm, 2026-10-18)
  *   price  `text-t-price` 17/22 −0.015em 700, ink (`--price` = foreground since 2026-11-14) — ONE size at every width
  *          (it was 16, 18 from sm). 17 is the ceiling: 18 wraps "65,000,000 đ ≈ $2,535" in a 189px card (cook r04).
+ *          ⛔ EXCEPT THE WIDE RENTAL CARD'S FIGURE ON A PHONE (owner-approved 2026-11-15 (build 7), cook r07 rentals — it reverses
+ *          "ONE size at every width" there): 22/28 in a 366px card (WIDE_PRICE below; the goods sale price's cut, GOODS_SALE_PRICE),
+ *          its unit and ≈ $ quieter. The ceiling above is the 189px card's; the wide card has twice the width.
  *   ≈ $    `text-t-meta` 13/18 muted, 4px after the figure. From lg in body ink: the 2026-11-07 desk-distance legibility
  *          bump is kept (a colour only, never a hiding class — owner 2026-09-13).
  *   title  `text-t-card` 15/20, regular, ink-3 (#3d3d3d), ONE truncating line (it was 14, 16 from sm, in foreground).
@@ -49,16 +52,38 @@ export const TITLE_LINE = 'truncate -mt-px pt-px text-t-card font-normal text-in
  * The teacher card's name line (owner, 2026-11-12, "go all"): TITLE_LINE a step up, bold and in ink, so truncation and the
  * hover underline stay one string. ⛔ ON A PHONE THE SHELL'S h3 ROLE, `text-t-h3` 17/24 (owner-approved 2026-11-14, cook r04
  * teachers — it reverses the 2026-11-12 16/22: "people cards may set the NAME in --t-h3 ink"); 18/24.75 from sm, as before.
- * Its rate sits under it at 14/20 bold (`TEACHER_RATE`). ⚠️ `sm:leading-snug` IS RESTATED ON PURPOSE: tailwind-merge 3 lets a
+ * Its rate sits under it (`TEACHER_RATE`). ⚠️ `sm:leading-snug` IS RESTATED ON PURPOSE: tailwind-merge 3 lets a
  * later font size drop an earlier `leading-*`, and `sm:text-lg` alone would take text-lg's own 28px line.
+ * ⚠️ 17, NOT THE COOK r07 MOCK'S 18 (build 7, 2026-11-15): the blind critics marked the mock's names truncated ("Maksym
+ * Vovkovy…") — measured in Open Runde Bold, "Maksym Vovkovych" + the 16px tick + 4px is 191px at 18/−0.015em against a 181px
+ * text column, 179px at 17 with `max-sm:tracking-tight` (−0.025em). The name keeps the closed scale's h3 role; the lockup
+ * gets louder through the rate (16, below). A name longer than the column ("Catherine Caranto Felisilda", 218px) still
+ * truncates — never rewritten (text surgery is banned), and the full name is the h3's `title` and the link's name.
  */
-export const TEACHER_TITLE_LINE = cn(TITLE_LINE, 'text-t-h3 font-bold sm:text-lg sm:leading-snug text-foreground')
+export const TEACHER_TITLE_LINE = cn(TITLE_LINE, 'text-t-h3 font-bold max-sm:tracking-tight sm:text-lg sm:leading-snug text-foreground')
 /**
- * The teacher card's rate (<Price className>): 14/20 bold on a phone, 16/20 from sm (owner-approved 2026-11-14, cook r04
- * teachers). `font-bold` also carries "Rate on request" — <Price> sets a no-figure line `font-semibold`, and every rate line
- * on the card weighs the same; that one stays muted.
+ * ⛔ THE NAME + RATE LOCKUP (owner-approved 2026-11-15, build 7 — cook r07 teachers; it reverses the 2026-11-14 cook r04 "rate
+ * 14/20 bold, 'Rate on request' the same weight, muted"). On a phone the rate FIGURE is 16/22 bold ink right under the name, its
+ * unit ("/hr", "/ giờ") a 13 muted regular label (`TEACHER_RATE_UNIT`) beside the ≈ $ the shell already sets 13 muted. From sm
+ * it is 16/20 bold, the unit in the figure's ink, as before. <Price className>.
  */
-export const TEACHER_RATE = 'text-sm leading-5 font-bold sm:text-base'
+export const TEACHER_RATE = 'text-base leading-5.5 font-bold sm:leading-5'
+/**
+ * "Rate on request" (<Price className> when the teacher states no figure): on a phone 14 muted REGULAR in the figure's 22px slot
+ * — never louder than a real rate (owner-approved 2026-11-15, build 7); from sm 16/20 bold muted, as before. <Price> adds
+ * `text-muted-foreground` for a teacher with no figure; `font-normal` replaces its `font-semibold` (tailwind-merge, caller wins).
+ */
+export const TEACHER_NO_RATE = 'text-sm leading-5.5 font-normal sm:text-base sm:leading-5 sm:font-bold'
+/** The rate's unit on a phone (<Price unitClassName>: the short English "/hr" run, or the Vietnamese " / giờ" span) — a label,
+ *  13/18 muted regular beside the bold figure (build 7). From sm it inherits the figure, as before. */
+export const TEACHER_RATE_UNIT = 'max-sm:text-t-meta max-sm:font-normal max-sm:text-muted-foreground'
+/**
+ * The teacher card's text block on a phone (build 7, owner-approved 2026-11-15 — cook r07 teachers): it keeps the 8px LEFT
+ * inset onto the 12px page gutter (listing-grid.ts, the header, the title and the controls share that edge) and runs to its
+ * photo's RIGHT edge, so the name gets 181px of a 189px card instead of 173 (the mock set the text flush on both sides and moved
+ * the page to a 4px edge; the critics read that edge as cramped, so the build keeps the 12px one).
+ */
+export const TEACHER_BODY = 'max-sm:pr-0'
 /** A teacher card's proof line (owner, 2026-11-12, "build 2"): 14/20 in ink-2 since 2026-11-14 (cook r04; it was 12px ink). */
 export const TEACHER_PROOF = 'truncate text-sm text-body'
 /** The info line's type and spacing (the row's layout classes are the card's own: listing-card.tsx). */
@@ -78,42 +103,87 @@ export const CARD_LINE_PX = { price: 22, title: 20, meta: 18 } as const
  * options and deploy") — <ListingCard wide> in a one-column phone grid (listing-grid.ts LISTING_GRID_WIDE: /c/rentals and the
  * rentals feed) and its skeleton (listing-card-skeleton.tsx `wide`). Every class is `max-sm:`, so from `sm` the card is the
  * grid card above. Merged onto CARD_BODY / TITLE_LINE / CARD_META with cn().
- *   body   a two-column grid, `minmax(0,1fr) auto`: row 1 is the price and the trust slot (the price is the one that wraps),
- *          the title and the info line span both. Flush with the photo (it sits on the 12px gutter), 12px under it, 12px
- *          between the price and the slot, the body's 2px between rows. `content-start`: never spreads its rows in a taller
- *          cell.
- *   row 1  36px at least (the slot's `min-h-9`, the chip's height), so every wide card's price line is one height.
+ *   body   ⛔ ONE COLUMN, THREE LINES, ONE ORDER ON EVERY CARD (owner-approved 2026-11-15 (build 8), cook r08 rentals — it
+ *          reverses the r06/r07 two-column grid whose row 1 shared the price with the trust slot): price, title, place · age.
+ *          The availability check left the text block for the photo's top-right corner (listing-card.tsx `wide`), so the
+ *          block is CARD_BODY's own flex column: flush with the photo (it sits on the 12px gutter), 12px under it, the
+ *          body's 2px between lines.
+ *   row 1  28px at least (WIDE_PRICE_ROW — the figure's own line box), so a word price's 22px line sits in the same row as a
+ *          figure's and every wide card's text block is one height. It was 36 while the chip shared it (r06/r07).
+ *   price  ⛔ the FIGURE at the section-heading role, `text-t-h2` 22/28 −0.02em bold ink (owner-approved 2026-11-15 (build 7),
+ *          cook r07 rentals: "the price is the card's one loud object" — the goods sale price's cut, GOODS_SALE_PRICE; it
+ *          reverses the shell's "ONE size at every width" on this card, the header note above). Only for a figure: a word
+ *          price ("Contact for price") keeps 17/22, centred in the 28px row (WIDE_PRICE_ROW's `content-center`). With the whole
+ *          366px to itself the longest Vietnamese rent ("150 triệu / tháng ≈ $5,850", 177.9px) stays one line.
+ *   unit   "/mo", "/ tháng": the body role, 16 regular ink-3, no tracking (WIDE_UNIT) — quiet after the figure; the ≈ $
+ *          14/20 regular muted (CARD_APPROX + `max-sm:text-sm`, listing-card.tsx).
  *   title  the body role, 16/24, in ink (it was 15/20 ink-3) — one truncating line; TITLE_LINE's 1px of stacked-mark room
  *          rides along.
  *   meta   14/20 (`text-sm`), muted, flush under the title.
  */
-export const WIDE_BODY = 'max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:content-start max-sm:items-center max-sm:gap-x-3 max-sm:px-0 max-sm:pt-3'
-export const WIDE_TITLE = 'max-sm:col-span-2 max-sm:text-base max-sm:leading-6 max-sm:text-foreground'
-export const WIDE_META = 'max-sm:col-span-2 max-sm:pt-0 max-sm:text-sm'
-/** The wide phone card's line boxes, in px: a one-line body is 12 + 36 + 2 + 24 + 2 + 20 = 96px. */
-export const WIDE_LINE_PX = { top: 12, row: 36, title: 24, meta: 20, gap: 2 } as const
+export const WIDE_BODY = 'max-sm:px-0 max-sm:pt-3'
+export const WIDE_TITLE = 'max-sm:text-base max-sm:leading-6 max-sm:text-foreground'
+export const WIDE_META = 'max-sm:pt-0 max-sm:text-sm'
+/** The wide card's price row below sm (the note above): the figure's 28px line box on every card, a word price centred in it. */
+export const WIDE_PRICE_ROW = 'max-sm:min-h-7 max-sm:content-center'
+/** The wide card's FIGURE below sm (the note above): <Price className> on top of CARD_PRICE, for a price above zero only. */
+export const WIDE_PRICE = 'max-sm:text-t-h2'
+/** The wide card's unit below sm (<Price unitClassName>: the glued English "/mo" run, or the Vietnamese " / tháng" span). */
+export const WIDE_UNIT = 'max-sm:text-base max-sm:font-normal max-sm:tracking-normal max-sm:text-ink-3'
+/** The wide phone card's line boxes, in px: a one-line body is 12 + 28 + 2 + 24 + 2 + 20 = 88px (96 while row 1 was 36, build 7). */
+export const WIDE_LINE_PX = { top: 12, row: 28, title: 24, meta: 20, gap: 2 } as const
 
 /**
  * ⛔ THE GOODS PHONE CARD'S TEXT BLOCK (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best
  * options and deploy") — <ListingCard look="goods"> on a goods surface (src/lib/goods-surface.ts: a search over every category,
- * /c/electronics and every goods category), and its skeleton (listing-card-skeleton.tsx `look`). PRICE-LED: the compact sale
- * price (batch 94, "12.8M đ ≈ $499") is a short token, so it takes the heading cut — one loud object per card, the photo above
- * it and two quiet lines under it. Every class is `max-sm:`, so from `sm` the card is the shell card above. Merged onto
- * CARD_BODY / CARD_PRICE with cn().
- *   body   8px under the photo, no gap between lines: the price row's own 28px box carries the air (the meta keeps its 2px).
- *   price  a SALE price at the section-heading role, `text-t-h2` 22/28 −0.02em bold ink. ⛔ It equals the section heading on a
- *          goods phone (it reverses section-title.ts D-TYPE there, owner 2026-09-30: "always one step above the card price").
- *          A per-unit, salary or word price keeps `text-t-price` 17/22 inside the same 28px row (GOODS_PRICE_ROW), so a mixed
- *          row stays level. The ≈ $ (13 muted, 4px after the figure) and the struck was-price are the shell's.
- *   title  the shell's 15/20 ink-3 line; meta the shell's 13/18 muted, 2px above.
- * One-line body: 8 + 28 + 20 + 2 + 18 = 76px — the shell card's 76 (10 + 22 + 2 + 20 + 2 + 2 + 18), so a goods card is the
- * shell card's height (265 at 390) and the skeleton reserves the same total. A drop card whose struck price wraps grows, as it
- * does on the shell card.
+ * /c/electronics and every goods category), and its skeleton (listing-card-skeleton.tsx `look`). Every class is `max-sm:` (or
+ * sits on the phone's own copy of the price row, which is `sm:hidden`), so from `sm` the card is the shell card above. Merged
+ * onto CARD_BODY / TITLE_LINE / CARD_META / CARD_PRICE with cn().
+ * ⛔ ONE FIXED ORDER THAT ENDS ON THE PRICE (owner-approved 2026-11-15 (build 8), cook r08 goods — StockX's card; it reverses
+ * r06's "PRICE-LED … a sale price at the heading cut … in a 28px row 8px under the photo" and, on this card, the 09-13
+ * "PRICE → ONE-LINE TITLE → the info line", listing-card.tsx): the photo, then the title, the info line, and the price LAST,
+ * large and bold — every card in a row ends on its number. In the DOM in that order on a phone (listing-card.tsx renders the
+ * price row twice, a class picking one per width), so a screen reader hears what the eye reads.
+ *   body   10px under the photo (the shell's pt-2.5), no gap between lines.
+ *   title  the shell's 15/20 line, regular, in INK (`GOODS_CARD_TITLE`; it was ink-3) — the line a reader scans first now.
+ *   meta   the shell's 13/18 muted line, 2px above (CARD_META's own `pt-0.5`), right under the title (`GOODS_CARD_META`: not pushed
+ *          to the foot — the price row is).
+ *   price  ⛔ a SALE price at the section-heading role, `text-t-h2` 22/28 −0.02em bold ink (r06's cut, kept — it equals the
+ *          section heading on a goods phone, reversing section-title.ts D-TYPE there, owner 2026-09-30: "always one step above
+ *          the card price"), in a row 6px under the info line whose own box is 28px (GOODS_PRICE_ROW: `min-h-8.5` holds
+ *          6 + 28), pushed to the card's foot (`mt-auto`). A per-unit, salary or word price keeps `text-t-price` 17/22 in the
+ *          same row, so a mixed row stays level. The ≈ $ (13 muted, 4px after the figure) and the struck was-price are the
+ *          shell's.
+ * One-line body: 10 + 20 + 2 + 18 + 6 + 28 = 84px (76 until build 8): the card grows 8px, never shrinks (owner, 2026-11-14:
+ * "dont make it smaller"), the photo's square and size untouched. The skeleton reserves the same total. A drop card whose struck
+ * price wraps grows, as it does on the shell card.
  */
-export const GOODS_BODY = 'max-sm:gap-0 max-sm:pt-2'
-/** The price row: 28px tall at the least below sm, whatever size the figure takes (a sale price's 28px line, a rent's 22). */
-export const GOODS_PRICE_ROW = 'max-sm:min-h-7'
+export const GOODS_BODY = 'max-sm:gap-0'
+/**
+ * A NON-goods card in a goods grid (a no-category search: `look="goods"` reaches every card, the goods body only goods ones):
+ * its body reserves the goods body's 84px below sm. The grid's placeholders are goods skeletons, so a row of two rental or job
+ * cards would otherwise land 8px shorter than its placeholder and move everything under it when the answer paints (review).
+ */
+export const GOODS_CELL_FLOOR = 'max-sm:min-h-21'
+/** The goods card's title below sm: the shell's line in ink (the note above). */
+export const GOODS_CARD_TITLE = 'max-sm:text-foreground'
+/** The goods card's info line below sm: right under the title — the price row takes the free space instead (`mt-auto`). */
+export const GOODS_CARD_META = 'max-sm:mt-0'
+/** The phone's copy of the price row (`sm:hidden` on the card): at the foot, 6px under the info line, its own box 28px at least. */
+export const GOODS_PRICE_ROW = 'mt-auto min-h-8.5 pt-1.5'
 /** A goods card's SALE price below sm (the note above): <Price className> on top of CARD_PRICE. */
 export const GOODS_SALE_PRICE = 'max-sm:text-t-h2'
-/** The goods phone card's line boxes, in px: a one-line body is 8 + 28 + 20 + 2 + 18 = 76px. */
-export const GOODS_LINE_PX = { top: 8, price: 28, title: 20, metaTop: 2, meta: 18 } as const
+/** The goods phone card's line boxes, in px, in their order: a one-line body is 10 + 20 + 2 + 18 + 6 + 28 = 84px. */
+export const GOODS_LINE_PX = { top: 10, title: 20, metaTop: 2, meta: 18, priceTop: 6, price: 28 } as const
+
+/**
+ * ⛔ A HOME LANE CARD'S TEXT BLOCK ON A PHONE (owner-approved 2026-11-15 (build 7), cook r07 home: "one tight text rhythm on
+ * every lane — price 4 title 4 meta") — <ListingCard lane>, never a teacher card (its own block, above). Every class is
+ * `max-sm:`, merged onto CARD_BODY / CARD_META with cn(); from `sm` a lane is a rail and its card the shell card.
+ *   body   flush with the photo (the lane already puts the photo on the 12px edge), 8px under it, 4px between lines.
+ *   meta   the shell's 13/18 muted line, its own 2px dropped: the body's 4px is the space above it.
+ * 8 + 22 + 4 + 20 + 4 + 18 = 76px — the shell body's total (CARD_LINE_PX), so a deferred lane's placeholders
+ * (ListingCardSkeleton) still hold its cards exactly.
+ */
+export const LANE_BODY = 'max-sm:gap-1 max-sm:px-0 max-sm:pt-2'
+export const LANE_META = 'max-sm:pt-0'

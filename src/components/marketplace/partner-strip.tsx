@@ -73,11 +73,20 @@ const SM_UP = '(min-width: 40rem)'
  * ⛔ THE PHONE'S COPY IS A LANE NOW, NOT A GRID ROW (owner-approved 2026-11-14, cook r04 home-b "lanes as rails": "after this
  * cook round build all best options and deploy"). It reverses 2026-11-10's "a full-width row after the second row of the
  * undirected home feed" and its hairline above and below: on a phone the home page's lanes lead (listings-explorer.tsx, the
- * `data-home-lanes` block), and Partners is one of them, after the second category lane — a `t-h2` heading like every lane
- * ("Partners" / "Đối tác", the word the band always carried) over a still rail of tiles, one per partner: 220px wide like a
- * lane's cards, 56 tall, white with the chips' hairline at the photo radius, the logo then its one word, so the peeking
- * second tile shows its whole mark and its whole word (globals.css `.partner-strip-feed`). The 2026-11-14 still band is kept
- * whole: one roster, no loop, no Pause, no fade, scrolled by hand, its logos eager once on screen, `data-partner-band`.
+ * `data-home-lanes` block), and Partners is one of them — a `t-h2` heading like every lane ("Partners" / "Đối tác", the word
+ * the band always carried) over a still rail of tiles, one per partner, white with the chips' hairline at the photo radius.
+ * The 2026-11-14 still band is kept whole: one roster, no loop, no Pause, no fade, scrolled by hand, its logos eager once on
+ * screen, `data-partner-band`.
+ * ⛔ BEFORE THE SECOND CATEGORY LANE, THREE WHOLE TILES, THE MARK OVER ITS WORD (owner-approved 2026-11-15 (build 7), cook r07
+ * home; it reverses r04's place after that lane and its 220×56 tiles with the logo beside the word): the lane splits
+ * Outstanding businesses from Services, the two lanes of sellers' flyers. Each tile is a third of the row less the next
+ * tile's 24px edge, 72 tall, the partner's mark in its own colours over its one word (14/18 bold), centred
+ * (globals.css `.partner-strip-feed`).
+ * ⛔ AFTER THE PRODUCT LANES, BEFORE OUTSTANDING BUSINESSES AND SERVICES; EXACT THIRDS, RAISED (owner-approved 2026-11-15
+ * (build 8), cook r08 home — it reverses build 7's place before the second category lane and its 24px edge of the fourth
+ * tile): the lane closes the product lanes and opens the flyer lanes (listings-explorer.tsx LATE_LANE_SLUGS); its three
+ * whole tiles fill the text column and nothing of the fourth shows (the blind critics marked that cut tile broken); each
+ * tile is raised like the category pills (globals.css `.partner-strip-feed`). The still band itself is unchanged.
  */
 export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
@@ -197,7 +206,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
  *     on screen, so it stays lazy and fetches nothing. The ⚠️ on preloads above still holds: the switch happens only on
  *     the client, and React writes no preload for a client-rendered image.
  */
-function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string; /** The phone lane's tile: its word is the lane's label role (14 bold ink), never cut. */ tile: boolean }) {
+function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string; /** The phone lane's tile: its word 14/18 bold in body ink under the mark (build 7), never cut. */ tile: boolean }) {
   const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
@@ -206,7 +215,7 @@ function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: Stri
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
           <img src={p.logo.src} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
-        <span className={tile ? 'whitespace-nowrap text-sm font-bold text-foreground' : 'text-xs font-medium text-ink-4'}>{label}</span>
+        <span className={tile ? 'whitespace-nowrap text-sm leading-4.5 font-bold text-body' : 'text-xs font-medium text-ink-4'}>{label}</span>
       </Link>
     </li>
   )

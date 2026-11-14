@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Children, useEffect, useState } from 'react'
 import type { CSSProperties, RefObject } from 'react'
-import { ChevronRight } from '@/components/ui/icons'
+import { ArrowRight, ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
@@ -104,9 +104,10 @@ export const RAIL_CARD_W =
  *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
 /** Shelf `phoneGrid` below sm: the rail's scroller as the feed's two columns (the prop's note). */
 export const PHONE_GRID = 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-1 max-sm:gap-y-4 max-sm:overflow-visible max-sm:snap-none max-sm:[&>*]:w-auto max-sm:[&>:last-child:nth-child(odd):not(:first-child)]:hidden'
-/** Shelf `phoneGrid="goods"` below sm (owner-approved 2026-11-14, cook r06 goods): the goods search's grid continued — rows 32px
- *  apart like the results above it, and every card drawn (a thin search's "More in …" has no "See all" to hold an odd one). */
-export const GOODS_PHONE_GRID = 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-1 max-sm:gap-y-8 max-sm:overflow-visible max-sm:snap-none max-sm:[&>*]:w-auto'
+/** Shelf `phoneGrid="goods"` below sm (owner-approved 2026-11-14, cook r06 goods): the goods search's grid continued — rows 40px
+ *  apart like the results above it (owner-approved 2026-11-15 (build 8), cook r08 goods: the cards end on their price; 20 in
+ *  build 7, 32 in r06), and every card drawn (a thin search's "More in …" has no "See all" to hold an odd one). */
+export const GOODS_PHONE_GRID = 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-1 max-sm:gap-y-10 max-sm:overflow-visible max-sm:snap-none max-sm:[&>*]:w-auto'
 export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:mx-0 sm:gap-2'
 
 /**
@@ -119,25 +120,58 @@ export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-cont
  * rail it always was: each one is `max-sm:` on top of the rail's own string.
  * ⚠️ THE CARD'S TEXT IS FLUSH WITH ITS PHOTO in a lane (<ListingCard lane>): the photo already
  * starts on the 12px edge, so the feed's 8px inset would put the text 20px in, off the line every heading uses.
- * ⚠️ THE SWIPE BEAM STAYS (owner, 2026-08-27 — RailBeam below): the mock hid it, and that ruling was not among the ones the
- * owner reversed.
+ * ⛔ NO SWIPE BEAM ON A LANE (owner-approved 2026-11-15 (build 7), cook r07 home: "no swipe beam on home lanes"). It reverses,
+ * on a phone lane only, the beam above every carousel (owner, 2026-08-27 — RailBeam below), which the 2026-11-14 r04 build
+ * still kept: the canon's ban on long thin decorative lines comes first there. The lane's peeking card is its swipe cue. A
+ * rail from `sm` keeps its beam (`RAIL_BEAM_LANE` is `max-sm:` only).
+ * ⛔ CARDS HOLD THEIR OWN HEIGHT IN A LANE (build 7, `max-sm:items-start` on LANE_SCROLLER): a card whose price takes a
+ * second line (a struck "was" price, kept whole) no longer stretches its neighbours into a blank line above their info row.
+ * ⛔ 8px FROM A LANE'S HEADING TO ITS CARDS on a phone (build 7, LANE_HEADER_ROW; it was 12 with the beam between them) —
+ * 16px since owner-approved 2026-11-15 (build 8), cook r08 home, with 40 between lanes (listings-explorer.tsx).
+ * ⛔ EVERY LANE ONE ANATOMY (owner-approved 2026-11-15 (build 8), cook r08 home): the heading, and on its right a lane's See all
+ * as a 32px round grey ARROW DISC (LANE_SEE_ALL / LaneSeeAllFace) — the category row's More disc, smaller. It reverses the
+ * redesign's See all on a phone lane ("the label role in the accent, then an 18px chevron", build 7's LANE_CHEVRON). The words stay
+ * the control's accessible name (`sr-only` below `sm`), so a screen reader and a voice user still meet "See all". From `sm`
+ * the link is the words and the chevron it always was.
  */
 export type RailLook = 'rail' | 'lane'
 /** A lane's card: 220px (13.75rem) below `sm`; RAIL_CARD_W's columns from `sm`. */
 export const LANE_CARD_W = `${RAIL_CARD_W} max-sm:w-55`
 /** A lane's scroller: bled to the screen edges (the explorer's #listings frame is `px-3` on a phone), padded back onto the
- *  12px text edge, 12px between cards, and that same edge when the rail is scrolled to a card. */
-export const LANE_SCROLLER = `${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3`
+ *  12px text edge, 12px between cards, and that same edge when the rail is scrolled to a card; each card its own height. */
+export const LANE_SCROLLER = `${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3 max-sm:items-start`
 /** A lane card photo's `sizes`: the grid's own from `sm` (a lane is a rail there), a fixed 220px below it. */
 export const LANE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 6px\)$/, '220px')
-/** A lane's heading row: the shared row, 28px tall at the least on a phone (the heading's own line). */
-export const LANE_HEADER_ROW = `${SECTION_HEADER_ROW} max-sm:min-h-7`
+/** A lane's heading row: the shared row, 32px tall at the least on a phone (the See all disc; build 8), 16px over the cards. */
+export const LANE_HEADER_ROW = `${SECTION_HEADER_ROW} max-sm:mb-4 max-sm:min-h-8`
 /** A lane's heading: the redesign's section role on a phone (`t-h2`, 22/28, -0.02em, bold ink); SECTION_TITLE from `sm`. */
 export const LANE_TITLE = `${SECTION_TITLE} max-sm:text-t-h2`
+/**
+ * ⛔ THE LEAD LANE'S HEADING IS THE PAGE'S ONE DISPLAY LINE (owner-approved 2026-11-15 (build 7), cook r07 home: "Trending
+ * leads"): `t-display`, 28/34 −0.025em bold ink, on a phone; SECTION_TITLE from `sm`. It reverses there r04's one `t-h2` for
+ * every lane heading. Only the first lane carries it (listings-explorer.tsx `lead`).
+ */
+export const LEAD_TITLE = `${SECTION_TITLE} max-sm:text-t-display`
+/** A lane's swipe beam: none on a phone (the note above), the rail's own from `sm`. */
+export const RAIL_BEAM_LANE = 'max-sm:hidden'
 /** The heading icon a rail draws beside its title: none on a phone lane ("no icons in headings", the redesign's System). */
 export const LANE_ICON_HIDE = 'max-sm:hidden'
-/** See all's chevron: 18px on a phone lane (the redesign's See all: the label role in the accent, then an 18px chevron). */
-export const LANE_CHEVRON = 'h-4 w-4 max-sm:size-4.5'
+/**
+ * A lane's See all (build 8, the note above): below `sm` a 32px round disc in the field grey with an 18px ink arrow, pressed a
+ * shade darker; its 44px tap area is SECTION_SEE_ALL's `tap-44`. The words' accent, underline and gap are the rail's from `sm`.
+ * Ink on #f3f3f3 is 17:1; the disc's edge needs no contrast of its own, the arrow is the visual that names it (WCAG 1.4.11).
+ */
+export const LANE_SEE_ALL = `${SECTION_SEE_ALL} max-sm:size-8 max-sm:justify-center max-sm:gap-0 max-sm:rounded-full max-sm:bg-tint max-sm:text-foreground max-sm:hover:no-underline max-sm:active:bg-line-strong max-sm:active:opacity-100`
+/** What a lane's See all shows: the words (screen-reader only below `sm`) and the chevron from `sm`; the arrow below it. */
+export function LaneSeeAllFace({ label }: { label: string }) {
+  return (
+    <>
+      <span className="max-sm:sr-only">{label}</span>
+      <ChevronRight className="h-4 w-4 max-sm:hidden" />
+      <ArrowRight className="hidden size-4.5 max-sm:block" />
+    </>
+  )
+}
 
 /**
  * A lane's cards, drawn once the lane nears the screen (a viewport ahead), with same-size placeholders until then — the gate
@@ -241,11 +275,13 @@ export function railSwipeSeed(items: number | undefined): 'sm' | 'lg' | 'all' | 
   return 'all'
 }
 
-export function RailBeam({ scrollerRef, canRight, seedItems }: {
+export function RailBeam({ scrollerRef, canRight, seedItems, className }: {
   scrollerRef: RefObject<HTMLDivElement | null>
   canRight: boolean
   /** The rail's item count, for the pre-hydration seed (see `railSwipeSeed`). Omit for no seed. */
   seedItems?: number
+  /** RAIL_BEAM_LANE on a lane: no beam on a phone (owner-approved 2026-11-15 (build 7)), its footprint gone with it. */
+  className?: string
 }) {
   // False on the server and in the hydration render, true from the first effect — see railSwipeSeed.
   const [measured, setMeasured] = useState(false)
@@ -278,7 +314,7 @@ export function RailBeam({ scrollerRef, canRight, seedItems }: {
   // with elementFromPoint: 42px instead of 44). A mark that means "this scrolls" must not take taps.
   return (
     <div
-      className="rail-beam pointer-events-none"
+      className={cn('rail-beam pointer-events-none', className)}
       data-swipeable={canRight && !everScrolled ? '' : undefined}
       data-swipe-seed={measured ? undefined : railSwipeSeed(seedItems)}
       aria-hidden="true"
@@ -295,6 +331,7 @@ export function Shelf({
   watch,
   phoneRows,
   look = 'rail',
+  lead = false,
   deferCards,
   phoneGrid = false,
   children,
@@ -321,6 +358,8 @@ export function Shelf({
   phoneRows?: React.ReactNode
   /** 'lane': the home page's phone look (LANE_* above) — inert from `sm`. The caller sizes its cards (LANE_CARD_W). */
   look?: RailLook
+  /** The home page's lead lane (with `look="lane"`): its heading the page's one display line on a phone (LEAD_TITLE). */
+  lead?: boolean
   /**
    * Draw the cards only once the shelf nears the screen (useLaneGate); until then this many same-size placeholders hold the
    * row (the server renders the header and the placeholders). For a home lane below the first screen.
@@ -334,7 +373,7 @@ export function Shelf({
    * not a carousel), and every row full: an odd last card is not drawn ("See all" holds it). The heading takes the
    * redesign's phone section role (LANE_TITLE). From sm it is the rail it always was.
    * ⛔ 'goods' (owner-approved 2026-11-14, cook r06 goods — a thin search's "More in …" / Trending under the goods results): the
-   * same grid with the results' 32px between rows, every card drawn (GOODS_PHONE_GRID), and no heading icon on a phone ("no
+   * same grid with the results' 40px between rows (build 8; 20 in build 7, 32 in r06), every card drawn (GOODS_PHONE_GRID), and no heading icon on a phone ("no
    * icons in headings"). It reverses there the rail-as-carousel of the thin-search recovery and its swipe beam (2026-08-27).
    */
   phoneGrid?: boolean | 'goods'
@@ -343,14 +382,16 @@ export function Shelf({
   const { tr } = useLanguage()
   const lane = look === 'lane'
   const label = tr('See all', 'Xem tất cả')
-  const chevron = <ChevronRight className={lane ? LANE_CHEVRON : 'h-4 w-4'} />
+  const chevron = <ChevronRight className="h-4 w-4" />
+  // A lane's See all is the arrow disc on a phone (LANE_SEE_ALL, build 8); every other rail's is the words and the chevron.
+  const face = lane ? <LaneSeeAllFace label={label} /> : <>{label} {chevron}</>
   const seeAll = seeAllHref ? (
-    <Link href={seeAllHref} className={SECTION_SEE_ALL}>
-      {label} {chevron}
+    <Link href={seeAllHref} className={lane ? LANE_SEE_ALL : SECTION_SEE_ALL}>
+      {face}
     </Link>
   ) : seeAllOnClick ? (
-    <Button variant="bare" size="none" className={SECTION_SEE_ALL} onClick={seeAllOnClick}>
-      {label} {chevron}
+    <Button variant="bare" size="none" className={lane ? LANE_SEE_ALL : SECTION_SEE_ALL} onClick={seeAllOnClick}>
+      {face}
     </Button>
   ) : null
 
@@ -376,7 +417,7 @@ export function Shelf({
           {/* Rail titles wrap (e.g. same-seller's "Tin khác từ {sellerName}" can be long) — but to TWO lines,
               then clamp with the full title on hover (break-ui, 2026-10-05): a 120-character shop name
               wrapped to five lines on the PDP. min-w-0 on the wrapper lets it wrap at all. */}
-          <h2 title={typeof title === 'string' ? title : undefined} className={`${lane || phoneGrid ? LANE_TITLE : SECTION_TITLE} line-clamp-2 [overflow-wrap:anywhere]`}>{title}</h2>
+          <h2 title={typeof title === 'string' ? title : undefined} className={`${lane && lead ? LEAD_TITLE : lane || phoneGrid ? LANE_TITLE : SECTION_TITLE} line-clamp-2 [overflow-wrap:anywhere]`}>{title}</h2>
         </div>
         {seeAll}
       </div>
@@ -384,7 +425,7 @@ export function Shelf({
       {/* ONE tree position for the rail, rows or not, so the scroller never remounts under useScrollArrows when `phoneRows`
           comes or goes (review, batch 67). A plain block box without them: the layout is the one it always was. */}
       <div className={phoneRows ? 'max-sm:hidden' : phoneGrid ? 'max-sm:[&_.rail-beam]:hidden' : undefined}>
-        <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={deferCards ?? Children.count(children)} />
+        <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={deferCards ?? Children.count(children)} className={lane ? RAIL_BEAM_LANE : undefined} />
         <div className="relative">
           <div ref={scrollerRef} data-shelf-items="" className={lane ? LANE_SCROLLER : phoneGrid ? `${RAIL_SCROLLER} ${phoneGrid === 'goods' ? GOODS_PHONE_GRID : PHONE_GRID}` : RAIL_SCROLLER}>{items}</div>
           <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />

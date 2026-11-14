@@ -15,7 +15,8 @@ describe('listings-explorer sweep guards', () => {
   it('a shelf pick scrolls to #listings after the shelves unmount', () => {
     expect(src).toContain('<DeferredCategoryRails lanes={categoryLanes} onCategory={handleRailCategorySelect}')
     // The phone's lanes above the feed (2026-11-14) take the same handler: a lane pick leaves them and lands on the results.
-    expect(src.match(/<CategoryLane [^>]*onCategory=\{handleRailCategorySelect\}/g)?.length).toBe(3)
+    // Build 8 (owner-approved 2026-11-15): two call sites — the product lanes, then the flyer lanes after Partners.
+    expect(src.match(/<CategoryLane [^>]*onCategory=\{handleRailCategorySelect\}/g)?.length).toBe(2)
     expect(src).toMatch(/const handleRailCategorySelect = \(slug: string\) => \{\s*handleCategorySelect\(slug\)\s*requestAnimationFrame\(\(\) => document\.getElementById\('listings'\)\?\.scrollIntoView/)
   })
 

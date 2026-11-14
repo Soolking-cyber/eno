@@ -646,9 +646,13 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(rails()).toEqual({ category: false, brand: false }) // ~375px of controls gone from above the results
     expect(scopeChip()!.getAttribute('aria-expanded')).toBe('false')
     expect(scopeChip()!.textContent).toContain('All categories')
-    // The first item of the strip's row, before Sort.
+    // The strip's row opens on the view circle, then this chip, before Sort (build 7, owner-approved 2026-11-15, cook r07 goods:
+    // the view pick left the title line for the control row).
     const row = scopeChip()!.parentElement!
-    expect(row.firstElementChild).toBe(scopeChip())
+    const view = within(row).getByRole('combobox', { name: /View/ })
+    expect(row.firstElementChild!.contains(view)).toBe(true)
+    expect(row.firstElementChild!.nextElementSibling).toBe(scopeChip())
+    expect(scopeChip()!.compareDocumentPosition(within(row).getByRole('combobox', { name: /Sort by/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // No quick category chips anywhere: the chip opens them.
     expect(screen.queryByRole('button', { name: 'Electronics' })).toBeNull()
 
@@ -674,9 +678,11 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     // The page's one results h2, there; the count beside it is a picture.
     expect(within(title).getByRole('heading', { level: 2 }).textContent).toBe('Results for “phone”')
     await waitFor(() => expect(title.querySelector('p[aria-hidden]')!.textContent).toMatch(/results? for “phone”/))
-    // Save search and the view pick are its circles (the view pick is the select, named "View").
+    // Save search ends it, in its own words (build 7); the view pick is NOT here — it leads the control row.
     expect(title.querySelector('[data-save-search]')).not.toBeNull()
     expect(title.querySelector('[data-save-search]')!.textContent).toBe('Save search')
+    expect(title.querySelector('[role="combobox"]')).toBeNull()
+    expect(within(document.getElementById('explorer-toolbar')!).getByRole('combobox', { name: /View/ })).toBeTruthy()
     const results = document.getElementById('results')!
     expect(results.getAttribute('data-results-hidden')).not.toBeNull()
     expect(results.className).toContain('max-sm:sr-only')
@@ -691,7 +697,7 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(ladder.getAttribute('data-slot')).toBe('collapsible')
   })
 
-  it('the goods look on a phone: the strip is opaque with no rule, the pills in the goods order, the cards price-led', async () => {
+  it('the goods look on a phone: the strip is opaque with no rule in place, the pills in the goods order — and since build 8 pinned, with filled pills', async () => {
     mountAt('/?q=phone')
     await waitFor(() => expect(scopeChip()).not.toBeNull())
     const toolbar = document.getElementById('explorer-toolbar')!
@@ -699,21 +705,28 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(toolbar.className).toContain('max-sm:backdrop-blur-none')
     expect(toolbar.querySelector('.border-b')!.className).toContain('max-sm:border-b-transparent')
     expect((h.facet.props as { order?: string }).order).toBe('goods')
+    // ⛔ build 8 (owner-approved 2026-11-15, cook r08 goods): the row stays pinned when the header leaves, its pills filled.
+    expect(toolbar.getAttribute('data-stay-pinned')).toBe('true')
+    expect(toolbar.getAttribute('data-pills')).toBe('filled')
   })
 
-  it('the goods grid: rows 32px apart once the answer is drawn; a rentals feed, a desktop and the home keep their own', async () => {
+  it('⛔ the goods grid: rows 40px apart once the answer is drawn (build 8, owner-approved 2026-11-15, cook r08 goods; 20 in build 7, 32 in r06); a rentals feed, a desktop and the home keep their own', async () => {
     mountAt('/?q=phone')
-    await waitFor(() => expect(document.querySelector('.feed-grid')?.className).toContain('max-sm:gap-y-8'))
+    await waitFor(() => expect(document.querySelector('.feed-grid')?.className).toContain('max-sm:gap-y-10'))
+    expect(document.querySelector('.feed-grid')!.className).not.toMatch(/max-sm:gap-y-(5|8)\b/)
+    // The guest capture row sits on the gutter by its own margin: the grid's padding-back skips the goods panel.
+    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2')
     cleanup()
     mountAt('/?category=rentals')
     await waitFor(() => expect(cardIds().length).toBeGreaterThan(0))
     await new Promise((r) => setTimeout(r, 50))
-    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-8')
+    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-10')
     expect((h.facet.props as { order?: string }).order).toBeUndefined()
     cleanup()
     mountAt('/')
     await waitFor(() => expect(cardIds()).toHaveLength(12))
-    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-8')
+    expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-10')
+    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full]:px-2')
     expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).toBeNull()
   })
 

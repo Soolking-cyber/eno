@@ -67,9 +67,11 @@ describe('the page: the phone heading line, the gates, the strip', () => {
       String.raw`\{cat\.slug === 'rentals' && \(\s*<div className="sm:hidden">\s*`,
       String.raw`<div className="flex items-baseline gap-3">\s*`,
       String.raw`<RentalsPhoneHeading headline=\{headline\} name=\{cat\.name\} nameVi=\{cat\.nameVi\} className="min-w-0 flex-1 truncate py-0\.5 text-t-display text-foreground" \/>\s*`,
-      String.raw`\{rentalsStrip && <HeadingCount seed=\{\{ shown: listings\.length, total: ([^}]+) \}\} \/>\}\s*`,
+      String.raw`\{rentalsStrip && <HeadingCount seed=\{\{ total: ([^}]+) \}\} \/>\}\s*`,
       String.raw`<\/div>\s*`,
-      String.raw`<CategoryLedeLinks slug=\{cat\.slug\} \/>\s*<\/div>\s*\)\}\s*`,
+      // ⛔ Build 7 (owner-approved 2026-11-15, cook r07 rentals): under the heading only with no row; with the row it is the
+      // list's own header under it (`listHead`, below).
+      String.raw`\{!rentalsStrip && <CategoryLedeLinks slug=\{cat\.slug\} \/>\}\s*<\/div>\s*\)\}\s*`,
       String.raw`\{LEDE_PLACEMENT === 'page' && `,
     ].join('')))
     expect(page).toMatch(/<\/CountScope>\s*\)\s*\}\s*$/)
@@ -83,7 +85,8 @@ describe('the page: the phone heading line, the gates, the strip', () => {
   })
 
   it('the seed total IS serverScope.total, the same expression (SSR = the first client render)', () => {
-    const seed = page.match(/<HeadingCount seed=\{\{ shown: listings\.length, total: ([^}]+) \}\} \/>/)?.[1]
+    // The seed is the total alone since build 7 (the heading line says "5,344 listings", heading-count.tsx headingCountText).
+    const seed = page.match(/<HeadingCount seed=\{\{ total: ([^}]+) \}\} \/>/)?.[1]
     const scope = page.match(/serverScope=\{\{[\s\S]*?\n\s*total: ([^,\n]+),/)?.[1]
     expect(seed).toBe('homes?.total ?? rentals?.total ?? total')
     expect(scope).toBe(seed)
@@ -100,7 +103,8 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(page).toContain(
       // …and on /c/jobs over a grid (owner-approved 2026-11-14, cook r06 jobs: its heading line opens the list on a phone), and on
       // every goods category (owner-approved 2026-11-14, cook r06 goods: the wrapping H1 opens the list there).
-      '{rentalsStrip || jobsPhoneHead || goods ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}',
+      // …and on /c/teachers over a grid (owner-approved 2026-11-15, build 7 — cook r07 teachers).
+      '{rentalsStrip || jobsPhoneHead || goods || (isTeachers && listings.length > 0) ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}',
     )
     // "By area:" and "All" stay in the row (from sm), and nowhere else.
     expect(page.match(/<Tr text="By area:" \/>/g)).toHaveLength(1)
@@ -114,13 +118,18 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(open).toBeLessThan(sortable)
     const block = page.slice(open, sortable)
     expect(block).toMatch(/chips: rentalsAreas \? \(/)
-    expect(block).toContain('<CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} glyphClassName="size-4.5" />')
+    // ⛔ Build 8 (owner-approved 2026-11-15, cook r08 rentals): the Map chip also carries the float look (map-float.ts MAP_FLOAT).
+    expect(block).toContain('<CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_MAP_CHIP} glyphClassName="size-4.5" />')
     expect(block).toContain('{districts.map((d) => (')
     expect(block).toContain('<Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>')
     expect(block).toContain('<PlaceName en={d.label.en} vi={d.label.vi} />')
     // (/c/jobs' `phoneHead` sits between `phoneWide` and `sortable` since 2026-11-14, owner-approved, cook r06 jobs.)
-    expect(block).toMatch(/\) : null,\s*\} : undefined\}\s*phoneWide=\{cat\.slug === 'rentals'\}\s*(?:\/\/[^\n]*\n\s*)*phoneHead=\{jobsPhoneHead \? \{[^]*?\} : undefined\}\s*$/)
+    // …then the free-check line as the list's own header under the row (owner-approved 2026-11-15 (build 7), cook r07 rentals).
+    expect(block).toMatch(/\) : null,\s*(?:\/\/[^\n]*\n\s*)*listHead: <CategoryLedeLinks slug=\{cat\.slug\} className="min-h-6" \/>,\s*\} : undefined\}\s*phoneWide=\{cat\.slug === 'rentals'\}\s*(?:\/\/[^\n]*\n\s*)*phoneHead=\{jobsPhoneHead \? \{[^]*?\} : undefined\}\s*$/)
+    expect(page.match(/<CategoryLedeLinks /g)).toHaveLength(2)
     // The strip chip is the browse chip with Filters' resting look (one chip style, owner 2026-10-18).
     expect(page).toContain("const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')")
+    expect(page).toContain('const STRIP_MAP_CHIP = cn(STRIP_CHIP, MAP_FLOAT)')
+    expect(page).toContain("import { MAP_FLOAT } from '@/components/marketplace/map-float'")
   })
 })

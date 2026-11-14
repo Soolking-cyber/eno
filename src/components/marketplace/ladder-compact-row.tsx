@@ -265,7 +265,8 @@ export const LADDER_PANEL = 'mt-4 space-y-4 transition-opacity duration-150 ease
  * ⛔ THE GOODS SEARCH'S SCOPE CHIP (owner-approved 2026-11-14, cook r06 goods — it reverses this file's "WHAT THE ROW HOLDS: the
  * scope button, then the NEXT RUNG as chips", owner 2026-09-24 "Collapse to one compact row", for one state). On a phone, a
  * search with no category picked (listings-explorer.tsx `oneRow`) has ONE control row: this chip first, then Sort and the
- * filter pills — the sticky filter row (SortStrip `phoneScope`). The quick category and intent chips are not drawn there:
+ * filter pills — the sticky filter row (SortStrip `phoneScope`); since build 7 (owner-approved 2026-11-15, cook r07 goods) the
+ * view circle leads the row, right before this chip (SortStrip `phoneView`). The quick category and intent chips are not drawn there:
  * they are what this chip opens (the full ladder, in the panel right under the row). With a category picked the compact row
  * above is unchanged.
  * A plain chip like its neighbours (ui/chip-style PILL_* — white, the 1px line-strong edge, ink label): "All categories" is

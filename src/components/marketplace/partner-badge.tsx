@@ -43,19 +43,24 @@ import { cn } from '@/lib/utils'
  * Standalone surfaces (the partner page, the PDP shop link, the seller card) keep the link, where
  * it has room and nothing is competing for the tap.
  */
-export function PartnerBadge({ size = 'sm', className, asLink = true, labelled = false }: {
+export function PartnerBadge({ size = 'sm', className, asLink = true, onPhoto = false }: {
   size?: 'sm' | 'md'
   className?: string
   asLink?: boolean
   /**
-   * ⛔ THE WORDS BESIDE THE SHIELD — the wide rental card's trust slot on a phone only (owner-approved 2026-11-14, cook r06
-   * rentals-a; listing-card.tsx `wide`). It reverses, there, "THE PLATE ITSELF SHOWS ONLY P" / "ICON ONLY SINCE 2026-09-30"
-   * below: at the end of a 366px card's price line the partner answers availability itself, and "Official partner" in
-   * words is the one trust fact that card has room to SAY. The green shield at 18px with no plate (the line is not a chip
-   * row), the words 14/20 in ink-3. The accessible name is unchanged — still `role="img"` + "Official partner" on the span
-   * branch, so the visible words are not read twice. Everywhere else the plate stays glyph-only.
+   * ⛔ THE PHOTO PLATE — the wide rental card's partner mark on a phone only (owner-approved 2026-11-15 (build 7), cook r07
+   * rentals: "trust sits on the photo's top-left as a white 'Official partner' plate, like a host badge"; listing-card.tsx
+   * `wide`). It replaces the 2026-11-14 words beside the shield in the price line's trust slot (cook r06 rentals-a, the
+   * `labelled` variant): that slot now holds only the action, the availability check, so a meaning never alternates with a
+   * button in one place. It still reverses, on that card, "THE PLATE ITSELF SHOWS ONLY P" / "ICON ONLY SINCE 2026-09-30"
+   * below: on a 366px photo "Official partner" in words is the one trust fact the card has room to SAY.
+   * The shell's photo badge (globals.css `.photo-badge`: the white plate, ink 700 13/16, its soft lift) 28px tall, the green
+   * shield at 16px before the words. Display only: the card passes `asLink={false}` and the plate is `pointer-events-none`
+   * there, so a thumb on it opens the listing like every other pixel of the photo. The accessible name is unchanged —
+   * `role="img"` + "Official partner" on the span branch, so the visible words are not read twice. The caller positions it
+   * (`className`, on the plate itself). Everywhere else the plate stays glyph-only.
    */
-  labelled?: boolean
+  onPhoto?: boolean
 }) {
   const { tr } = useLanguage()
   /**
@@ -116,14 +121,17 @@ export function PartnerBadge({ size = 'sm', className, asLink = true, labelled =
           // /partners) and partner REPLACES the trust chip, so the grown box has no neighbouring target.
           // Not an absolute hit-area pseudo-element: that needs `relative`, which the note above forbids.
           asLink && '-m-[4.5px] p-[4.5px]',
-          labelled && 'items-center gap-1 rounded-none text-sm text-ink-3',
-          labelled && className,
+          // `onPhoto`: the shell's photo badge at 28px, 8px before the shield and 10px after the words (the prop's note).
+          onPhoto && 'photo-badge h-7 gap-1 pl-2 pr-2.5',
+          onPhoto && className,
         )}
       >
-        {labelled ? (
+        {onPhoto ? (
           <>
-            {/* The same Solar shield, 18px (ICON_SIZE.plate), in the partner green on no plate (`--partner-ink`, the plate's own ink). */}
-            <svg width={18} height={18} viewBox="0 0 24 24" className="size-4.5 shrink-0" style={{ color: 'var(--partner-ink)' }} aria-hidden="true">
+            {/* The same Solar shield, 16px, in the partner green. ⚠️ `--partner-solid`, NOT `--partner-ink`: the plate is white in
+                BOTH themes (globals.css `--plate-fill`), and `--partner-ink` re-themes to #4ade80 in dark — 1.6:1 on white.
+                `--partner-solid` (#15803d) is one value in both themes: 5.0:1 on the plate. */}
+            <svg width={16} height={16} viewBox="0 0 24 24" className="size-4 shrink-0" style={{ color: 'var(--partner-solid)' }} aria-hidden="true">
               {SHIELD_VERIFIED.rest.map((p, i) => (
                 <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
               ))}

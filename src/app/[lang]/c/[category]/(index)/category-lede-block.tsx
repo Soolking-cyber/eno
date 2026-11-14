@@ -8,6 +8,7 @@ import { loadLinkedCount, loadRentalsFacts, loadTopSubcategories } from '../cate
 import { linkedTier } from '../category-copy'
 import { RentalsLede } from '../category-text'
 import { ClampedLede } from '../clamped-lede'
+import { cn } from '@/lib/utils'
 
 /**
  * The category page's lede: one measured paragraph (two lines and "Show more" on a phone —
@@ -92,7 +93,11 @@ export async function CategoryLedeBlock({ slug, placement }: {
  * The lines that must stay above the grid: the rental availability check and the schools' cover-lesson door. The lede's paragraph
  * itself renders after the grid (see the layout), and these used to follow it.
  */
-export function CategoryLedeLinks({ slug }: { slug: string }) {
+export function CategoryLedeLinks({ slug, className }: {
+  slug: string
+  /** The rentals line's own box, merged last — /c/rentals' phone copy under the control row passes `min-h-6` (build 7). */
+  className?: string
+}) {
   const cat = { slug }
   return (
     <>
@@ -100,15 +105,23 @@ export function CategoryLedeLinks({ slug }: { slug: string }) {
           ⛔ ONE LINE ON A PHONE, WITH ITS LINK (owner, 2026-10-18: products first on a phone's first screen). The
           promise wrapped to four lines at 390px; below sm it now truncates to one, and "Check availability" beside it
           opens /rentals/check, whose empty list says the rest (how to pick, up to 5, free). The whole sentence stays
-          in the HTML, and from sm it reads in full with the same link at its end (RentalCheckHint, 2026-11-07 audit). */}
+          in the HTML, and from sm it reads in full with the same link at its end (RentalCheckHint, 2026-11-07 audit).
+          ⛔ ON /c/rentals' PHONE IT SITS UNDER THE CONTROL ROW, NOT UNDER THE HEADING (owner-approved 2026-11-15 (build 7), cook
+          r07 rentals — it reverses, there, the batch 93 placement "under the heading line"): the page's name stands alone at
+          the display size and this line is the list's own header, 12px under the row's hairline, 24px tall (`min-h-6`), 16px
+          over the first card ((index)/page.tsx hands it to SellerListings `phoneOneRow.listHead`). Still one line with its
+          link, the same words. With no row (0–1 results) it stays under the heading; from sm, and on a district page, as before. */}
       {cat.slug === 'rentals' && (
-        <div className="mt-2 flex max-w-prose items-center gap-2 max-sm:mt-1">
+        <div className={cn('mt-2 flex max-w-prose items-center gap-2 max-sm:mt-1', className)}>
           <RentalCheckHint className="min-w-0 flex-1 max-sm:items-center max-sm:[&>span]:min-w-0 max-sm:[&>span]:truncate" />
           {/* ⛔ `relative tap-44`, A 44px TARGET (owner-approved 2026-11-14, cook r06 rentals-a — it reverses "`-my-1 py-1`, not
               `tap-44`: 'Show more' sits 10px above"): the lede and its "Show more" left the space above this line with H1b (it
               renders after the grid now), so on a phone the line sits under the page's heading line, which holds nothing to tap,
               and the strip's chips start 24px below it. The label role (14/20 bold) in the one accent. A flex sibling of the
-              hint, not a link inside its sentence, so it carries no underline at rest. */}
+              hint, not a link inside its sentence, so it carries no underline at rest.
+              Under the control row (build 7, above) the hit area still clears the chips': their 44px ends 4px under each 36px chip,
+              inside the row's 8px padding, and this one starts 2px under the row's hairline (the 12px gap, less the extender's
+              10px above the 24px line). */}
           <Link href={RENTAL_CHECK_PATH} prefetch={false} className="relative tap-44 shrink-0 text-sm font-bold text-accent-foreground hover:underline sm:hidden">
             <Bilingual en="Check availability" vi="Kiểm tra phòng trống" />
           </Link>

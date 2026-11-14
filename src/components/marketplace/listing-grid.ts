@@ -7,7 +7,10 @@
  * frame's 12px gutter (`-mx-2` inside `px-3`), so photos sit 4px from the screen edge, 4px apart, with
  * 12px between rows (more than the 8px between a photo and its own price, so each price groups with its
  * photo): 189px cards at 390, 174 at 360, 150 at 320 (179 / 164 / 140 before). The card's text is inset
- * back onto the 12px gutter (listing-card.tsx body, `px-2 sm:px-0.5`). From `sm` the grid keeps the page
+ * back onto the 12px gutter (listing-card.tsx body, `px-2 sm:px-0.5`). ⛔ A TEACHER card's text keeps that left inset and runs
+ * to its photo's RIGHT edge on a phone (card-text.ts TEACHER_BODY, owner-approved 2026-11-15, build 7 — cook r07 teachers, which
+ * set the text flush on both sides and moved the page onto the photos' 4px edge; the build keeps the 12px edge the blind
+ * critics asked for, and gives the name the 8px). From `sm` the grid keeps the page
  * gutter (`sm:mx-0`), 8px apart and 16px between rows — 298px cards at ≥1280 (292 before).
  * ⚠️ THE BLEED ASSUMES THE `px-3` PAGE FRAME (`max-w-7xl px-3 sm:px-6 lg:px-8`), and every consumer sits
  * directly in one (checked 2026-10-18: the explorer, seller-listings, /saved + its loading skeleton, the SEO
@@ -18,6 +21,10 @@
  * ⛔ EXCEPT RENTAL RESULTS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a): /c/rentals and the rentals feed are ONE
  * column of bigger square cards below `sm` (LISTING_GRID_WIDE, below). Every other grid keeps this one, and from `sm` the two
  * are the same string.
+ * ⛔ …AND THE GOODS GRIDS' ROWS ON A PHONE (owner-approved 2026-11-15 (build 8), cook r08 goods — StockX's strict grid; it reverses
+ * the 12px above there): a goods card ends on its price (listing-card.tsx `look`), so its rows sit 40px apart and no figure reads
+ * as the caption of the photo under it — `max-sm:gap-y-10` on this string at each goods grid (listings-explorer.tsx `goodsGrid`,
+ * seller-listings.tsx `look`, shelf.tsx GOODS_PHONE_GRID). Columns, bleed and card size are this grid's, unchanged.
  *
  * ⚠️ A PLAIN MODULE, NOT 'use client'. Server components import it too (saved/loading.tsx,
  * seo-listing-rail.tsx); from a client module they would receive a client REFERENCE in place of

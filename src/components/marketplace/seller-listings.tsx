@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
 import { HELD_FROM_CARD, HELD_FROM_WIDE } from '@/lib/image-hold'
@@ -18,6 +18,10 @@ import { Button } from '@/components/ui/button'
 import { PILL_BOX, PILL_ON, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useScrolledPast } from '@/hooks/use-scrolled-past'
+import { useStuck } from '@/hooks/use-stuck'
+import { useRentalBasketCount } from '@/lib/rental-check/store'
+import { MAP_FLOAT_HOST, mapFloatHost } from './map-float'
 import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
 import { hapticSelection } from '@/lib/haptics'
@@ -25,7 +29,7 @@ import { useLanguage } from '@/context/language-context'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
-import { PHONE_COUNT_TYPE, groupedIn, phoneCountText, usePublishHeadingCount } from './heading-count'
+import { PHONE_COUNT_TYPE, groupedIn, headingCountText, phoneCountText, usePublishHeadingCount } from './heading-count'
 
 /**
  * ⚠️ ENGLISH PLURALISES, VIETNAMESE DOES NOT — and the count line read "1 listings." until an
@@ -53,20 +57,51 @@ type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
  * strip `phoneOneRow` draws). It reverses there "IT LEAVES WITH THE HEADER on scroll-down … (owner, 2026-08-12, Home's rule)":
  * while the header is hidden the row pins at the safe-area top instead of parking at -9rem, so Sort, Filters and Map stay one
  * tap away anywhere in a one-column list of 5,000 homes. `top` is still the only property that moves, the header's return
- * still brings it back under the header (+3.5rem), and from sm — and on every other page — the 08-12 rule holds unchanged.
+ * still brings it back under the header (+3.5rem), and from sm — and on every other page but a goods category's (`goods`,
+ * owner-approved 2026-11-15 (build 8), below) — the 08-12 rule holds unchanged.
+ * ⛔ `mapFloatAfter` — THE MAP FLOATS ONCE THE HEAD IS GONE (owner-approved 2026-11-15 (build 8), cook r08 rentals; /c/rentals,
+ * map-float.ts has the whole rule): this strip is the Map link's host. Once the element it names (the list's own header, the
+ * last of the page's head) is past the top of the screen, the strip says so (`data-map-float`, "shown" or "hidden" with the
+ * header's own hide signal, above) and the link's MAP_FLOAT classes take it out of the row as the ink pill over the tab bar;
+ * the rental-check basket's pill lifts it. The strip itself does not move or change: its children are the page's server
+ * markup, handed in, so this state re-renders the strip's div alone.
+ * ⛔ `goods` — A GOODS CATEGORY'S ROW (owner-approved 2026-11-15 (build 8), cook r08 goods — /c/electronics and every goods
+ * category, below sm): it STAYS PINNED like /c/rentals' (the caller passes `stayPinned` with it — it reverses there the 08-12
+ * "IT LEAVES WITH THE HEADER"), its pills are FILLED (`data-pills="filled"`, globals.css — it reverses there ui/chip-style's
+ * white + hairline), and once it is pinned over the grid it says so (`data-stuck`, `useStuck` — a colour, never a box): the
+ * strip's hairline, transparent while it sits in place (SellerListings `look`), shows (`group/pin`).
  */
-function PinnedStrip({ children, stayPinned = false, className }: { children: React.ReactNode; stayPinned?: boolean; /** `max-sm:hidden` under `phoneHead`. */ className?: string }) {
+function PinnedStrip({ children, stayPinned = false, goods = false, className, mapFloatAfter }: {
+  children: React.ReactNode
+  stayPinned?: boolean
+  /** A goods category's row (the note above). */
+  goods?: boolean
+  /** `max-sm:hidden` under `phoneHead`. */
+  className?: string
+  /** /c/rentals' list header: past it, the Map link in this strip floats (the note above). */
+  mapFloatAfter?: RefObject<HTMLElement | null>
+}) {
   const headerHidden = useHideOnScroll()
+  const away = useScrolledPast(mapFloatAfter, !!mapFloatAfter)
+  const basket = useRentalBasketCount() > 0
+  const rootRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(rootRef, goods)
   return (
     <div
+      ref={rootRef}
       data-pinned-strip=""
       data-stay-pinned={stayPinned || undefined}
+      data-pills={goods ? 'filled' : undefined}
+      data-stuck={stuck || undefined}
+      {...mapFloatHost(away, headerHidden, basket)}
       className={cn(
         'sticky z-30 bg-background transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         headerHidden
           ? cn('top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]', stayPinned && 'max-sm:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]')
           : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]',
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
+        mapFloatAfter && MAP_FLOAT_HOST,
+        goods && 'group/pin',
         className,
       )}
     >
@@ -151,8 +186,13 @@ export function SellerListings({
    *   a 30-chip row its 1px box would widen the page).
    * Without it, nothing changes: every other category, the district pages and the storefronts keep the wrapping row with
    * the count at its end.
+   * · `listHead` — ⛔ THE LIST'S OWN HEADER UNDER THE ROW (owner-approved 2026-11-15 (build 7), cook r07 rentals: /c/rentals'
+   *   free-check line, category-lede-block.tsx CategoryLedeLinks): below sm it renders right AFTER the pinned strip, 12px
+   *   under its hairline and 16px over the grid, so the page's name stands alone above the row. Server markup handed in
+   *   (rendered by the page, like `chips`), in the DOM where it shows: no client move, no shift. `sm:hidden`; from sm the
+   *   layout's copy of the line stays above the strip.
    */
-  phoneOneRow?: { chips: ReactNode }
+  phoneOneRow?: { chips: ReactNode; listHead?: ReactNode }
   /**
    * ⛔ ONE COLUMN OF LARGE SQUARE CARDS BELOW sm (owner-approved 2026-11-14, cook r06 rentals-a — /c/rentals only, (index)/page.tsx):
    * the grid is LISTING_GRID_WIDE, every card `wide` (its text block flush under a 366px photo, the trust slot at the price
@@ -203,12 +243,16 @@ export function SellerListings({
   /**
    * ⛔ 'goods' — A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods; (index)/page.tsx `goods`,
    * src/lib/goods-surface.ts). Below sm only:
-   *   · the strip has no rule under it: its hairline goes transparent and keeps its 1px (it reverses, there, "THE HAIRLINE SITS
-   *     ON THE CONTENT BOX" below — the pinned strip is already the page's opaque white), and the strip is 12px over the grid;
+   *   · the strip has no rule under it while it sits in place: its hairline goes transparent and keeps its 1px (it reverses,
+   *     there, "THE HAIRLINE SITS ON THE CONTENT BOX" below — the pinned strip is already the page's opaque white), and the strip
+   *     is 12px over the grid. ⛔ Since build 8 (owner-approved 2026-11-15, cook r08 goods) the strip STAYS PINNED, its pills are
+   *     FILLED, and once it is pinned over the grid the hairline shows again (PinnedStrip `goods`, its note);
    *   · the sort pill names the page's own order with no glyph ("Relevance ⌄" — the row is words and chevrons); another order
    *     keeps its glyph, a price order its ↑/↓;
    *   · the count at the strip's end is the meta role, muted (13/18);
-   *   · the grid is the price-led goods card (ListingCard `look`) in rows 32px apart, its placeholders the goods skeleton.
+   *   · the grid is the goods card (ListingCard `look` — title, info line, then the price, since build 8) in rows 40px apart
+   *     (owner-approved 2026-11-15 (build 8), cook r08 goods — StockX's strict grid: every card ends on its price; 20 in build 7,
+   *     32 in r06), its placeholders the goods skeleton in the same rows.
    * From sm, and without it, nothing changes.
    */
   look?: 'goods'
@@ -396,16 +440,21 @@ export function SellerListings({
     : phoneCountText(tr, grouped, { awaiting: awaitingFirstRows, shown: shown.length, total: resultTotal })
   /**
    * `phoneOneRow` (batch 93): the heading line paints the count, so it is handed to the page's HeadingCountProvider —
-   * a layout effect, so Show more, a sort's "Searching…" and its answer reach the heading in the same frame as the grid. Its
-   * first value equals the server's seed (the same `phoneCountText`, the same inputs), so hydration changes nothing; on
-   * unmount it hides. Without `phoneOneRow` nothing is published, provider or not.
+   * a layout effect, so an answer with a new total reaches the heading in the same frame as the grid. Its first value equals
+   * the server's seed (the same `headingCountText`, the same total), so hydration changes nothing; on unmount it hides.
+   * Without `phoneOneRow` nothing is published, provider or not.
+   * ⛔ The TOTAL since build 7 (owner-approved 2026-11-15, cook r07 rentals — heading-count.tsx `headingCountText`): "5,344
+   * listings", never "48 of 5,344"; the announced copy below keeps the short count (`countText`).
    */
   const oneRow = !!phoneOneRow
+  const headingText = countText === null ? null : headingCountText(tr, grouped, resultTotal)
   const publishCount = usePublishHeadingCount()
-  useLayoutEffect(() => { if (oneRow) publishCount(countText) }, [oneRow, publishCount, countText])
+  useLayoutEffect(() => { if (oneRow) publishCount(headingText) }, [oneRow, publishCount, headingText])
   // `phoneHead` announces the count the same way (`phoneOneRow`'s sr-only live copy) and prints none (the prop's note).
   const liveCopy = oneRow || !!phoneHead
   useLayoutEffect(() => (oneRow ? () => publishCount(null) : undefined), [oneRow, publishCount])
+  // /c/rentals' list header (`phoneOneRow.listHead`): the pinned strip floats its Map link once this is past the top (build 8).
+  const listHeadRef = useRef<HTMLDivElement>(null)
 
   // ⚠️ IN SERVER MODE AN EMPTY `listings` IS NOT AN EMPTY SHOP. The seller may simply have nothing
   // matching the first page's filters; the scope's own total decides whether this surface exists.
@@ -546,8 +595,9 @@ export function SellerListings({
         // header's full-bleed hairline, not under an invisible gutter, and 8px above and below give the 36px chips air and their
         // 44px hit area inside the scroller's clip. The first chip still starts on the 12px gutter (`px-3`).
         phoneWide && phoneOneRow && 'max-sm:-mx-3 max-sm:px-3 max-sm:py-2',
-        // A goods category's phone strip (`look`): no rule under it — transparent, the 1px kept.
-        goods && 'max-sm:border-b-transparent',
+        // A goods category's phone strip (`look`): no rule under it — transparent, the 1px kept — until it is pinned over the grid
+        // (PinnedStrip `goods` marks `data-stuck`; build 8): then the border's own colour again.
+        goods && 'max-sm:border-b-transparent max-sm:group-data-[stuck]/pin:border-b-border',
       )}
     >
       {!phoneHead && sortPill}
@@ -637,7 +687,7 @@ export function SellerListings({
     )}
     {/* /c/teachers on a phone: 24px between a card's last line and the next photo (owner-approved 2026-11-14, cook r04 teachers —
         the name-first body read crowded at 12). The placeholders below keep the same rows. */}
-    <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-8', rowsOnPhone && 'max-sm:hidden')}>
+    <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-10', rowsOnPhone && 'max-sm:hidden')}>
       {shown.map((l, i) => (
         // `first-screen-end`: what a category page's first paint waits for (c/[category]/(index)/layout.tsx).
         // `phoneWide`: the wide card and its full-width `sizes`. `priority` does NOT change with it: the first four stay eager at
@@ -669,7 +719,13 @@ export function SellerListings({
           it would widen the page. Tailwind v4's space-y spaces with margin-block-END, so the strip below keeps its spacing. */}
       {liveCopy && sortable && <p className="sr-only sm:hidden" aria-live="polite">{countText}</p>}
       {headBlock(sortable)}
-      {sortable && (pinStrip ? <PinnedStrip stayPinned={phoneWide && oneRow} className={phoneHead ? 'max-sm:hidden' : undefined}>{sortStrip}</PinnedStrip> : phoneHead ? <div className="max-sm:hidden">{sortStrip}</div> : sortStrip)}
+      {/* `mapFloatAfter` (build 8, PinnedStrip's note): /c/rentals' phone row floats its Map link once the list header below has
+          scrolled past the top — only with that header, and only on the wide one-row page that draws it. */}
+      {/* A goods category's row stays pinned too, with filled pills (PinnedStrip `goods`, build 8). */}
+      {sortable && (pinStrip ? <PinnedStrip stayPinned={(phoneWide && oneRow) || goods} goods={goods} mapFloatAfter={phoneWide && oneRow && phoneOneRow?.listHead != null ? listHeadRef : undefined} className={phoneHead ? 'max-sm:hidden' : undefined}>{sortStrip}</PinnedStrip> : phoneHead ? <div className="max-sm:hidden">{sortStrip}</div> : sortStrip)}
+      {/* `phoneOneRow.listHead` (build 7): the list's own header, right under the row on a phone. `-mt-1` against the strip's 16px
+          (space-y-4 spaces with margin-block-END, and the two margins collapse to 12px); the grid follows at this root's 16. */}
+      {sortable && phoneOneRow?.listHead != null && <div ref={listHeadRef} data-list-head="" className="-mt-1 sm:hidden">{phoneOneRow.listHead}</div>}
       {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
@@ -716,7 +772,7 @@ export function SellerListings({
               {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <JobCardRowSkeleton key={i} />)}
             </div>
           )}
-          <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-8', rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
+          <div className={cn(phoneWide ? LISTING_GRID_WIDE : LISTING_GRID, teacherCells && 'max-sm:gap-y-6', goods && 'max-sm:gap-y-10', rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
             {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} teacher={teacherCells} wide={phoneWide} look={look} />)}
           </div>
         </>

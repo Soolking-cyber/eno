@@ -817,7 +817,7 @@ const RATCHETS = {
    * Baseline measured on main 067c07f5c (2026-11-14): 1,002.
    */
   'sub13Type': {
-    baseline: 982,
+    baseline: 981,
     what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
     fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
   },

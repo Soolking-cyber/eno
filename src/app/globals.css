@@ -754,6 +754,9 @@
      pill's own 1px --search-edge already draws that edge. */
   --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.08);
   --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.08);
+  /* The home route's phone search pill (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homePill`): the page's
+     one primary action, so a stronger lift than --shadow-raised — a near contact shadow and a soft 14px fall, both from above. */
+  --shadow-search: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 14px rgb(0 0 0 / 0.1);
   /* The rental sheet's rounded edge over its photo (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts
      SHEET_PHOTO): a lift cast UPWARD onto the photo, pulled in 6px so it never shows past the strip's sides. */
   --shadow-sheet: 0 -4px 12px -6px rgb(0 0 0 / 0.18);
@@ -1117,6 +1120,7 @@
   --search-edge: var(--input);
   --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.4);
   --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.4);
+  --shadow-search: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.45);
   --shadow-sheet: 0 -4px 12px -6px rgb(0 0 0 / 0.5);
   /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
      Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
@@ -1703,6 +1707,7 @@
    plain class has no variants. Layered, so an unlayered .shadow-pop (the open search window) still wins. */
 @utility shadow-raised { box-shadow: var(--shadow-raised); }
 @utility shadow-chip { box-shadow: var(--shadow-chip); }
+@utility shadow-search { box-shadow: var(--shadow-search); }
 /* The rental sheet's edge over the photo, worn by an `after:` pseudo (src/lib/rental-sheet.ts SHEET_PHOTO). */
 @utility shadow-sheet { box-shadow: var(--shadow-sheet); }
 
@@ -2679,7 +2684,12 @@ html.os-android [data-store="ios"] {
    · `translate` only, so neither move is a layout shift. A browser without `:has()` matches nothing here: the bar behaves as
      on every other page, and the `@supports` rule below keeps the tier above it.
    · UNLAYERED, so it beats the nav's own `translate-y-0` utility; `:not(:focus-within)` keeps a keyboard user's reveal.
-   · `html:not(.native)`: the store apps never pin (PinnedRegion's classes carry the same guard). */
+   · `html:not(.native)`: the store apps never pin (PinnedRegion's classes carry the same guard).
+   ⛔ …AND A HOME TO RENT WHOSE ACTION IS CHAT NOW ALONE (owner-approved 2026-11-15 (build 7), cook r07 "rental"; src/lib/rental-sheet.ts
+   pinsRentalAction): the same tier and the same retracted tab bar, the price beside Chat now (ContactComposer `barPrice`).
+   ⛔ ON A GOODS PAGE THE TIER IS THE BUTTON ALONE (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses there r06's
+   "the button and its one line"): its line is said once in the page (page.tsx `tierLine`), and a 16px fade over its top edge
+   (src/lib/goods-sheet.ts GOODS_TIER_FADE) dissolves what scrolls under it. The rules below are unchanged. */
 @media (max-width: 767.98px) {
   html:not(.native):has(#contact[data-pin-action]) .mobile-nav:not([data-scrolled-up]):not(:focus-within) {
     translate: 0 100%;
@@ -3302,7 +3312,7 @@ html.dark .leaflet-tile-pane {
    `native-android` is set on <html> before first paint ([lang]/layout.tsx head script). */
 html.native-android .reveal-on-scroll { animation: none; }
 /* ⛔ …AND NOT ON THE GOODS PHONE CARD (owner-approved 2026-11-14, cook r06 goods; listing-card.tsx `look`): the redesign's slop ban
-   ("fade-in on scroll") on the price-led goods grid, below 40rem only — desktop keeps the reveal. Unlayered and keyed on the
+   ("fade-in on scroll") on the goods grid, below 40rem only — desktop keeps the reveal. Unlayered and keyed on the
    card's own `data-look`, like the rule above: `.reveal-on-scroll` is unlayered, so no `max-sm:` utility could beat it. */
 @media (width < 40rem) {
   .reveal-on-scroll[data-look="goods"] { animation: none; }
@@ -4640,11 +4650,17 @@ html[data-has-recents] .recents-row {
   contain-intrinsic-size: auto calc(50vw + 65px);
 }
 [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc(50vw + 83.5px); }
-/* ⛔ A WIDE PHONE CARD'S GUESS (owner-approved 2026-11-14, cook r06 rentals-a; listings-explorer.tsx `rentalsWide`): one column, so the
-   square photo is the screen less its two 12px gutters, under the wide card's 96px one-line body (card-text.ts WIDE_LINE_PX):
-   100vw − 24 + 96. From sm the cell is an ordinary grid card again and the rules below apply. */
+/* A goods grid's cell (`data-goods-cell`, build 8): the goods body is 84px, 8px over the shell card's, so an unrendered cell's
+   guess grows by the same 8px (back-navigation lands where it should). Phones only; from sm the grid is the shell grid. */
 @media (max-width: 639.98px) {
-  [data-feed-card][data-wide-cell] { contain-intrinsic-size: auto calc(100vw + 72px); }
+  [data-feed-card][data-goods-cell] { contain-intrinsic-size: auto calc(50vw + 73px); }
+}
+/* ⛔ A WIDE PHONE CARD'S GUESS (owner-approved 2026-11-14, cook r06 rentals-a; listings-explorer.tsx `rentalsWide`): one column, so the
+   square photo is the screen less its two 12px gutters, under the wide card's 88px one-line body (card-text.ts WIDE_LINE_PX —
+   96 until build 8 moved the check onto the photo, owner-approved 2026-11-15, cook r08 rentals): 100vw − 24 + 88. From sm the
+   cell is an ordinary grid card again and the rules below apply. */
+@media (max-width: 639.98px) {
+  [data-feed-card][data-wide-cell] { contain-intrinsic-size: auto calc(100vw + 64px); }
 }
 @media (min-width: 640px) {
   [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 73px); }
@@ -4747,8 +4763,9 @@ html[data-explorer-directed] #listings [data-feed-heading] {
    fold width, useMdUp), the tile rail and the brand row's reserve leave the first frame and `.ladder-row-reserve`
    (LadderSlot) holds the folded row's exact height in their place. The explorer arms the fold at once and its row mounts
    into that space — nothing moves — then drops the mark (useLayoutEffect, before that frame paints).
-   ⚠️ DIRECT CHILDREN OF THE LADDER ONLY (`[data-ladder] >`): folded, the same rails sit inside the row's closed panel and
-   must open normally. ⚠️ THE HEIGHT IS THE ROW'S, MEASURED (ladder-compact-row.tsx: a min-h-9 trigger and h-9 chips — 36px at
+   ⚠️ DIRECT CHILDREN OF THE LADDER'S HEAD ONLY (`[data-ladder] > [data-ladder-head] >` — the box that holds the slot, the
+   recents row and the home lanes since owner-approved 2026-11-15 (build 8), listings-explorer.tsx): folded, the same rails sit
+   inside the row's closed panel and must open normally. ⚠️ THE HEIGHT IS THE ROW'S, MEASURED (ladder-compact-row.tsx: a min-h-9 trigger and h-9 chips — 36px at
    every phone width, EN and VI) and IN THE ROW'S UNIT, rem, so a reader's larger default font grows both alike: change one,
    change the other, or the fold moves the page by the difference. ⚠️ `768px`, NOT `48rem`: the explorer arms the fold by
    `(min-width: 768px)` (useMdUp), and a rem media query follows the browser's default font size — with a larger one a
@@ -4757,11 +4774,11 @@ html[data-explorer-directed] #listings [data-feed-heading] {
   display: none;
 }
 @media (width < 768px) {
-  html[data-explorer-fold] [data-ladder] > [data-category-rail],
-  html[data-explorer-fold] [data-ladder] > .brand-row-reserve {
+  html[data-explorer-fold] [data-ladder] > [data-ladder-head] > [data-category-rail],
+  html[data-explorer-fold] [data-ladder] > [data-ladder-head] > .brand-row-reserve {
     display: none !important;
   }
-  html[data-explorer-fold] [data-ladder] > .ladder-row-reserve {
+  html[data-explorer-fold] [data-ladder] > [data-ladder-head] > .ladder-row-reserve {
     display: block;
     height: 2.25rem;
   }
@@ -4807,21 +4824,71 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
    The control row's head is held too: `.scope-chip-reserve` (ladder-compact-row.tsx ScopeChipReserve, the scope chip's own box,
    invisible) takes the chip's width at the start of the strip, so when the fold draws "All categories ⌄" there the Sort and
    filter pills after it do not move. Unlayered, so its display:none beats the primitive's `inline-flex` utility.
+   …and ahead of it the view circle's (`.view-pick-reserve`, explorer-toolbar.tsx ViewPickReserve, 36px): since
+   owner-approved 2026-11-15 (build 7), cook r07 goods, the view pick is the row's first chip, not the title line's last circle.
    ⚠️ A link the pre-paint script folds that the explorer does NOT draw as one row — a brand or a subcategory with no category
    (`?brand=apple`: a crumb) — paints this way and then gets its row back: a 44px shift, accepted for those rare links. */
-.scope-chip-reserve {
+.scope-chip-reserve,
+.view-pick-reserve {
   display: none;
 }
 /* …and on every cold goods link (a goods category, `all`, an unknown one, or none — the four left out are goods-surface.ts
-   NOT_GOODS_CATEGORIES; goods-surface.test.ts holds the lists equal) the sort pill's ⇅ is off from the first frame: the goods
-   strip says "Sort" alone (SortStrip `look`), so the pills after it stay where they are when the fold draws that strip. */
+   NOT_GOODS_CATEGORIES; goods-surface.test.ts holds the lists equal) the sort pill is the goods strip's from the first frame:
+   no ⇅, and — since owner-approved 2026-11-15 (build 8), cook r08 goods — no "Sort" either, its own sr-only label shown
+   ("Relevance": SortStrip `look` prints it), so the pills after it stay where they are when the fold draws that strip. The
+   label's box is Tailwind's `not-sr-only` but for `overflow` and `white-space`, which stay the label's own `truncate`. */
 @media (width < 40rem) {
-  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .sort-glyph-default {
+  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar :is(.sort-glyph-default, .sort-word-default) {
     display: none;
+  }
+  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .sort-label-default {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    clip-path: none;
+  }
+}
+/* ⛔ THE GOODS STRIPS' PILLS ARE FILLED (owner-approved 2026-11-15 (build 8), cook r08 goods — ui/chip-style.ts has the rule; it
+   reverses, in these strips below 40rem, the 2026-11-14 white + 1px line-strong pill): a resting pill (`.pill-rest`) is the field
+   grey with no edge — the 1px border stays, transparent, so no pill grows and forced colours still outline it — and pressed or
+   open (`:active`, Base UI's `data-popup-open`, PILL_OPEN's `.pill-open`) one step deeper, `--secondary`. An applied pill keeps
+   the ink fill (PILL_ON carries no `.pill-rest`); a pressed toggle (`data-pressed`: Good price's green) is left to its own look.
+   The strips say so themselves (`data-pills="filled"`: SortStrip and PinnedStrip with `look="goods"`); a cold goods link's
+   first frame — the ISR home's strip under the pre-paint mask — takes the same look from the fold mark, so the fold changes
+   nothing a reader sees. Unlayered, so it beats the pills' own background and border utilities. */
+@media (width < 40rem) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]),
+  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .pill-rest:not([data-pressed]) {
+    border-color: transparent;
+    background-color: var(--muted);
+  }
+  /* the glyphs in a resting pill (the select's ⌄, Filters' sliders) one step up from muted, `--ink-3`, on the grey */
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]) svg {
+    color: var(--ink-3);
+  }
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open, .pill-on[data-popup-open]),
+  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open) {
+    border-color: transparent;
+    background-color: var(--secondary);
+  }
+}
+/* An APPLIED pill (ink fill, white label) whose menu is open takes the grey above: its label and glyphs go back to ink, or the
+   white label sits on light grey and disappears (review). */
+@media (width < 40rem) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-on[data-popup-open],
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-on[data-popup-open] svg {
+    color: var(--foreground);
+  }
+}
+@media (width < 40rem) and (hover: hover) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]):hover {
+    background-color: var(--secondary);
   }
 }
 @media (width < 40rem) {
-  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) .scope-chip-reserve {
+  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) .scope-chip-reserve,
+  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) .view-pick-reserve {
     display: inline-flex;
     visibility: hidden;
   }
@@ -5175,15 +5242,26 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
    and below: the copy now sits among the home page's phone lanes (listings-explorer.tsx `data-home-lanes`), under a lane's
    own heading, so it has no band chrome — no height, no fill, no hairlines. Its viewport bleeds to the screen edges like a
    lane's scroller (the #listings frame is `px-3` on a phone) and its track pads back onto the 12px text edge; each partner
-   is a TILE the width of a lane card (220px), 56 tall, white with the chips' hairline at the photo radius, its logo then its
-   one word. Spacing is the track's gap here: this copy never loops, so the marquee's trailing-padding rule does not apply.
+   is a TILE, white with the chips' hairline at the photo radius. Spacing is the track's gap here: this copy never loops, so
+   the marquee's trailing-padding rule does not apply.
+   ⛔ THREE WHOLE TILES, THE MARK OVER ITS WORD (owner-approved 2026-11-15 (build 7), cook r07 home; it reverses r04's 220px
+   × 56 tile with the logo then its word): 72 tall, the partner's mark in its own colours (28 tall, a wide wordmark 18) over
+   its one word (14/18 bold, partner-strip.tsx), centred, 6 apart. A third of the row less the fourth tile's edge: three
+   whole tiles 12 apart and 24px of the fourth — the mock's thirds left the other four partners with no cue that the row
+   scrolls. A word wider than its tile widens the tile (`min-width: max-content`), so no word is ever cut on a narrow phone.
+   ⛔ EXACT THIRDS, NOTHING OF THE FOURTH, AND RAISED (owner-approved 2026-11-15 (build 8), cook r08 home): the three tiles
+   fill the text column (12px edge to 12px edge, 12 apart) and the fourth starts at the screen edge — the blind critics
+   marked the cut fourth tile broken (opus), so build 7's 24px edge of it goes. Each tile is raised like the category pills
+   (the `search-edge` rim and `shadow-chip` lift, the 16px media radius); the viewport keeps 6px under the tiles for that
+   lift. The partners after the third are a swipe away, as before.
    ⛔ A DIRECTED COLD LINK NEVER SHOWS IT: the whole lanes block is display:none from the first frame there
    (`html[data-home-lanes-off]`, below the feed-grid rules) — the 11-10 rule that took this row out of the masked seed by
    `display`, never `visibility`, for the same reason. */
 .partner-strip-feed .partner-strip-viewport {
   margin-inline: -0.75rem;
-  /* Room for a tile's 2px focus ring, which the viewport's `overflow-y: hidden` would otherwise clip. */
-  padding-block: 0.125rem;
+  /* Room for a tile's 2px focus ring, which the viewport's `overflow-y: hidden` would otherwise clip — and under the tiles
+     for their raised lift (build 8: `shadow-chip` falls ~5px). */
+  padding-block: 0.125rem 0.375rem;
   scroll-padding-inline: 0.75rem;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
@@ -5196,42 +5274,63 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
   padding-inline-end: 0;
 }
 .partner-strip-feed .partner-strip-link {
-  min-width: 13.75rem;
-  height: 3.5rem;
-  gap: 0.625rem;
-  padding-inline: 1rem;
-  border: 1px solid var(--color-line-strong);
+  width: calc((100vw - 3rem) / 3);
+  min-width: max-content;
+  height: 4.5rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--color-search-edge);
   border-radius: var(--radius-media);
   background: var(--color-background);
+  box-shadow: var(--shadow-chip);
   transition: transform 90ms ease-out, background-color 90ms ease-out;
 }
 .partner-strip-feed .partner-strip-link:active {
-  background: var(--color-muted);
+  background: var(--color-tint);
   transform: scale(0.98);
 }
 @supports (corner-shape: squircle) {
   .partner-strip-feed .partner-strip-link { corner-shape: squircle; }
 }
-/* The mark sits on the tile itself (no inner tile), 32px tall; a wide wordmark 20. Both keep their attribute width/height
-   (no shift) and shrink inside 120px rather than push the word out. Blvck's mark is drawn for black: a 32px ink badge. */
+/* The mark sits on the tile itself (no inner tile), in a 28px row over the word: 28px tall, a wide wordmark 18, each drawn
+   inside the tile's width (`width: 0; min-width: 100%` — the box is the row, `object-fit: contain` centres the mark in it),
+   so a mark never widens its tile and only its word can (above). Fixed boxes: nothing shifts when a logo arrives. A mark
+   drawn for black gets an ink plate: a 28px badge for Blvck's emblem, a 28px bar across the tile for a wide wordmark
+   (CellphoneS), whose letters keep their 18px height. */
 .partner-strip-feed .partner-strip-tile {
-  height: 2rem;
+  width: 100%;
+  height: 1.75rem;
   flex: none;
+  justify-content: center;
   padding: 0;
   border-radius: 0;
   background: none;
   box-shadow: none;
 }
-.partner-strip-feed .partner-strip-logo { height: 2rem; max-width: 7.5rem; object-fit: contain; }
-.partner-strip-feed .partner-strip-logo-wide { height: 1.25rem; max-width: 7.5rem; object-fit: contain; }
+.partner-strip-feed .partner-strip-logo,
+.partner-strip-feed .partner-strip-logo-wide {
+  width: 0;
+  min-width: 100%;
+  object-fit: contain;
+}
+.partner-strip-feed .partner-strip-logo { height: 1.75rem; }
+.partner-strip-feed .partner-strip-logo-wide { height: 1.125rem; }
 .partner-strip-feed .partner-strip-tile-dark .partner-strip-logo,
 .partner-strip-feed .partner-strip-tile-dark .partner-strip-logo-wide {
-  width: 2rem;
-  height: 2rem;
+  height: 1.75rem;
   max-height: none;
-  padding: 3px;
   border-radius: var(--radius-lg);
   background: #0b0b0b;
+}
+.partner-strip-feed .partner-strip-tile-dark .partner-strip-logo {
+  width: 1.75rem;
+  min-width: 0;
+  padding: 3px;
+}
+.partner-strip-feed .partner-strip-tile-dark .partner-strip-logo-wide {
+  padding: 0.3125rem 0.5rem;
 }
 /* ⛔ THE MARKS STAY ON WHITE IN BOTH THEMES (the band's ruling above, kept): on the dark canvas the lane's tile is the theme's
    own, so each mark drawn for a white ground gets its white plate back. */

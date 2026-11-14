@@ -8,7 +8,8 @@ import { cleanup, render, screen } from '@testing-library/react'
  * ⛔ THE DOCKED TAB BAR (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and deploy").
  * It reverses the 2026-09-26 floating pill, its tinted capsule and the Post coin's orange plate: full width at bottom 0,
  * 56px + the home-indicator band it pads by, white, a top hairline, idle glyphs muted, the current one the accent bold
- * cut, Post the bold add-circle in ink. jsdom has no layout, so the classes and the stylesheet rules are the contract.
+ * cut, Post the bold add-circle in ink — since build 8 (owner-approved 2026-11-15, cook r08 home) the OUTLINE add-circle at the
+ * other tabs' 26px, in the stronger ink at rest. jsdom has no layout, so the classes and the stylesheet rules are the contract.
  * ⚠️ EXPLICIT CLEANUP — no vitest `globals`.
  */
 
@@ -64,13 +65,26 @@ describe('the bar is docked, not a floating pill', () => {
     expect(tokens(explore)).toContain('text-muted-foreground')
   })
 
-  it('Post: the ink add-circle — icon-solid, text-foreground, no plate — on a link that keeps its own ink', () => {
+  it('⛔ Post (build 8): the outline add-circle at the other tabs\' 26px, the stronger ink at rest — no solid disc, no plate', () => {
     render(<MobileNav />)
     const post = screen.getByLabelText('Post')
-    expect(tokens(post)).toContain('icon-own-ink')
-    const coin = post.querySelector('.icon-solid')!
-    expect(tokens(coin)).toEqual(expect.arrayContaining(['text-foreground', 'size-10', 'rounded-full']))
-    expect(coin.className).not.toMatch(/bg-cta-50|text-brand|\[aria-current=page\]/)
+    expect(tokens(post)).not.toContain('icon-own-ink')
+    expect(post.querySelector('.icon-solid')).toBeNull()
+    const glyph = post.querySelector('svg')!
+    expect(tokens(glyph)).toEqual(expect.arrayContaining(['h-6.5', 'w-6.5', 'text-ink-3']))
+    // The same size as its neighbours (the Saved heart), so the five read as one family.
+    const heart = screen.getByLabelText('Saved').querySelector('svg')!
+    expect(tokens(heart)).toEqual(expect.arrayContaining(['h-6.5', 'w-6.5']))
+    expect(post.innerHTML).not.toMatch(/bg-cta-50|text-brand|size-10|rounded-full/)
+  })
+
+  it('Post on /post: the accent cut like every current tab — the stronger ink is its resting state only', () => {
+    nav.pathname = '/post'
+    render(<MobileNav />)
+    const post = screen.getByLabelText('Post')
+    expect(post.getAttribute('aria-current')).toBe('page')
+    expect(tokens(post.querySelector('svg')!)).not.toContain('text-ink-3')
+    expect(tokens(post.firstElementChild!)).toContain('text-accent-foreground')
   })
 
   it('the badge ring cuts out the bar\'s own white, and every tab\'s tap strip fills the inset band', () => {

@@ -55,7 +55,9 @@ const preloadGuestSheet = () => { void import('./guest-account-sheet') }
  *     instead of floating over it. White, a top hairline, the soft `shadow-bar` lift the sticky action bars share, no
  *     blur, no radius. On a touch tablet the five tabs sit centred in a `max-w-md` row inside the full-width bar.
  *   · "YOU ARE HERE" IS THE ACCENT BOLD CUT ALONE: idle glyphs are muted, the current one turns accent and goes Bold
- *     (the sprite's .i-on layer on `aria-current`). No capsule. Post is the bold add-circle in ink, 38px, at rest too.
+ *     (the sprite's .i-on layer on `aria-current`). No capsule. Post was the bold add-circle in ink, 38px, at rest too —
+ *     ⛔ since owner-approved 2026-11-15 (build 8), cook r08 home, it is the outline add-circle at the other tabs' 26px in
+ *     the stronger ink (the Post tab's note, below).
  *   · KEPT from 2026-09-26: NO VISIBLE LABELS (every tab carries its `aria-label`, the active one `aria-current`).
  *   · KEPT: it auto-hides on scroll like a native app (owner 2026-07-16) and steps aside for the keyboard.
  *   · ⚠️ THE FOOTPRINT STILL FITS: 56px + inset sits inside the 4.5rem (72px) + inset that <BottomNavSpacer/>, the
@@ -112,7 +114,7 @@ const TAB = 'relative flex flex-1 cursor-pointer after:absolute after:inset-x-0 
 // ⛔ NO LABEL SLOT ANY MORE (owner, 2026-09-26 — see the note at the top). The micro-label
 // stack that lived here bottom-anchored a `text-3xs` label under each glyph so five labels
 // shared one baseline beside the taller Post coin; with the labels gone the glyph simply
-// centres in the tab, and the Post coin (40px) and the 28px glyphs share one centre line.
+// centres in the tab, and the Post glyph and the others share one centre line (all 26px since build 8, 2026-11-15).
 // The accessible name never lived in that label — it is the tab's `aria-label` — so nothing
 // a screen reader or a test reads changed with it.
 // ⚠️ The glyph's wrapper stays `relative`: it is the anchor the count badges hang off.
@@ -280,7 +282,8 @@ export function MobileNav() {
 
   /**
    * ⛔ ON A PAGE THAT PINS ITS OWN ACTION THE BAR STARTS RETRACTED (owner-approved 2026-11-14, cook r06 "item": a goods
-   * listing page is a pushed screen; globals.css, the goods tier block, hides the bar there until this says otherwise). It
+   * listing page is a pushed screen — and a home to rent whose action is Chat now alone since owner-approved 2026-11-15 (build 7),
+   * cook r07 "rental"; globals.css, the goods tier block, hides the bar there until this says otherwise). It
    * reverses on those pages the 2026-07-18 "the tab-nav stays on the PDP" (below) and NAV-3's first-render show
    * (use-hide-on-scroll.ts); every other page is untouched, since the stylesheet rule needs `#contact[data-pin-action]`.
    * `data-scrolled-up` = this visit has seen the reader scroll down and then back up (the bar's own hide, then its own
@@ -361,7 +364,7 @@ export function MobileNav() {
   // Hidden only on the full-screen sign-in page. (The PDP used to hide it and show its own fixed
   // Chat / Make-offer bar instead; owner reverted that 2026-07-18 — the tab-nav stays on the PDP and
   // buyers use the in-page contact composer. ⛔ Except, since 2026-11-14 (owner-approved, cook r06 "item"), a goods page that
-  // pins its own action: there the bar starts retracted — `data-scrolled-up` above.) In a chat thread the nav stays put when the keyboard is
+  // pins its own action — and a rental's, owner-approved 2026-11-15 (build 7): there the bar starts retracted — `data-scrolled-up` above.) In a chat thread the nav stays put when the keyboard is
   // CLOSED (composer sits right above it, no gap — the existing good state); when the keyboard
   // OPENS it's hidden reliably by `html.kb-open .mobile-nav` (globals.css), driven by the
   // frame-accurate kb-open class — not the old laggy React boolean that let it wedge above it.
@@ -507,23 +510,20 @@ export function MobileNav() {
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}
         aria-current={at('/post') ? 'page' : undefined}
-        // `icon-own-ink`: on the post-done screen (`aria-current`) the Bold layer would otherwise be recoloured accent by
-        // globals.css's (0,4,0) rule; Post stays ink in every state.
-        className={cn(TAB, 'icon-own-ink')}
+        className={TAB}
         onClick={(e) => onTabClick(e, false)}
       >
         <TabBody
           active={at('/post')}
           icon={
-            /* ⛔ THE BOLD ADD-CIRCLE IN INK, 38px, AT REST TOO (owner-approved 2026-11-14, cook r05: "after this cook round
-               build all best options and deploy"). It REVERSES the orange plate under a blue plus (owner, 2026-09-18:
-               "inverse — button icon itself blue, the backplate color is orange") and the plate swap on `aria-current`:
-               the bar's one solid mark is the glyph itself, no tint, no shadow. `icon-solid` (globals.css) shows the
-               sprite's Bold layer permanently. Solar's `add-circle` is a plus inside a circle, so the 40px tab face is
-               concentric with it by construction. `size-9.5` is a spacing step, not an arbitrary icon size. */
-            <span className="icon-solid flex size-10 items-center justify-center rounded-full text-foreground">
-              <Plus className="size-9.5 shrink-0" strokeWidth={STROKE} />
-            </span>
+            /* ⛔ THE OUTLINE ADD-CIRCLE, ONE OF FIVE CALM GLYPHS (owner-approved 2026-11-15 (build 8), cook r08 home: "Post is an
+               outline add-circle, not a black disc"). It REVERSES the bold add-circle in ink, 38px, at rest too (owner-approved
+               2026-11-14, cook r05), which had itself reversed the orange plate under a blue plus (owner, 2026-09-18): Post is
+               now the same family, size and stroke as the other four tabs — Solar's `add-circle` OUTLINE at 26px (the sprite's
+               .i-rest layer; no `icon-solid`), the Bold cut and the accent only when it is the current page, exactly like
+               them. It keeps one step of emphasis: the stronger ink (`text-ink-3`, 10.7:1 on white) at rest where the other
+               four are muted. Applied to the bar everywhere it shows, not only on the home page: one tab bar, one glyph. */
+            (on) => <Plus className={cn('h-6.5 w-6.5 shrink-0', !on && 'text-ink-3')} strokeWidth={STROKE} />
           }
         />
       </Link>

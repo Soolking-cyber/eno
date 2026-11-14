@@ -1,6 +1,8 @@
 'use client'
 
-import { useLayoutEffect } from 'react'
+import { useHeaderPinned } from '@/hooks/use-header-pin'
+import { useIsPhone } from '@/hooks/use-is-phone'
+import { useLayoutEffect, useRef } from 'react'
 import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -14,7 +16,9 @@ import { sortTabClass } from './sort-tab-class'
 import { CustomSelect } from './custom-select'
 import { useScrollArrows } from '@/hooks/use-scroll-arrows'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useStuck } from '@/hooks/use-stuck'
 import { STROKE_UI } from '@/lib/icon-tokens'
+import { MAP_FLOAT, MAP_FLOAT_LABEL } from './map-float'
 
 // Presentational toolbar pieces extracted from ListingsExplorer. Pure: they read a value +
 // call a passed handler, own no state — except SortStrip's hide-on-scroll hook (see SortStrip).
@@ -31,9 +35,23 @@ type SortTab = 'newest' | 'recent' | 'popular' | 'price'
  *  at all (gate review, 2026-10-09). Every row there is a teacher and a teacher is never a pin (map-pin-rows.ts), so
  *  the tab could only open a map without one pin and nothing saying why. The explorer also lands `?view=map` on that
  *  feed in the default view (listings-explorer.tsx, `mapOffered`) — this prop only takes the button away.
- *  Default true: every other feed keeps all four. */
-export function ViewToggles({ viewMode, onViewMode, showVideo = true, videoUnknown = false, showMap = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean; /** The probe has not answered: its place is held, so the row does not move when it does. */ videoUnknown?: boolean; showMap?: boolean }) {
+ *  Default true: every other feed keeps all four.
+ *  ⛔ `floatMap` — THE FEED'S MAP FLOATS ON A PHONE (owner-approved 2026-11-15 (build 8), cook r08 rentals; map-float.ts): the
+ *  rentals feed's grid shows these four from sm only, as everywhere, EXCEPT that below sm the Map toggle is the floating ink pill
+ *  once the head is gone (the host — listings-explorer.tsx ViewChoices — says when), its name in words beside its glyph. The
+ *  other three stay `max-sm:hidden` (the phone's view pick has all four). Same button, same handler, same name. */
+export function ViewToggles({ viewMode, onViewMode, showVideo = true, videoUnknown = false, showMap = true, floatMap = false }: {
+  viewMode: ViewMode
+  onViewMode: (m: ViewMode) => void
+  showVideo?: boolean
+  /** The probe has not answered: its place is held, so the row does not move when it does. */
+  videoUnknown?: boolean
+  showMap?: boolean
+  /** The rentals feed's phone (the note above): its host renders these with `max-sm:contents`, so every toggle but the floated Map steps down. */
+  floatMap?: boolean
+}) {
   const { tr } = useLanguage()
+  const phoneOff = floatMap ? 'max-sm:hidden' : undefined
   // p-2.5 + 20px icon = a 40px box (h-5 is the §4 ladder step for action-row icons — the old
   // h-[18px] was an off-ladder arbitrary size).
   // ⚠️ `tap-44` FITS HERE EXACTLY, AND THIS COMMENT USED TO SAY THE OPPOSITE. The four toggles sit
@@ -64,26 +82,28 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true, videoUnkno
   return (
     <>
       <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
-        <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
+        <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={cn(tab('compact'), phoneOff)}>
           <Rows3 className="h-5 w-5" />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
-        <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
+        <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={cn(tab('grid'), phoneOff)}>
           <LayoutGrid className="h-5 w-5" />
         </Button>
       </Tooltip>
       {showMap && (
         <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
-          <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
+          <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={floatMap ? cn(tab('map'), phoneOff, MAP_FLOAT) : tab('map')}>
             <Map className="h-5 w-5" />
+            {/* Floated, its name is in words too — the aria-label's own, so the visible label is the accessible name. */}
+            {floatMap && <span className={MAP_FLOAT_LABEL}>{tr('Map view', 'Bản đồ')}</span>}
           </Button>
         </Tooltip>
       )}
-      {!showVideo && videoUnknown && <span aria-hidden className={cn(tab('video'), 'invisible')}><Play className="h-5 w-5" /></span>}
+      {!showVideo && videoUnknown && <span aria-hidden className={cn(tab('video'), 'invisible', phoneOff)}><Play className="h-5 w-5" /></span>}
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
-          <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
+          <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={cn(tab('video'), phoneOff)}>
             <Play className="h-5 w-5" />
           </Button>
         </Tooltip>
@@ -111,9 +131,10 @@ export function ViewSwitch({ viewMode, onViewMode, showVideo = true, showMap = t
   showMap?: boolean
   className?: string
   /**
-   * ⛔ 'circle' — THE GOODS SEARCH'S TITLE LINE (owner-approved 2026-11-14, cook r06 goods; result-line.tsx ResultsTitle): the
-   * same select as a 36px round chip (white, the 1px line-strong edge) holding the current view's 20px glyph and no chevron —
-   * the circle is the control. Same name ("View, Grid view"), same options, same gates; `tap-44` from PILL_BOX.
+   * ⛔ 'circle' — THE GOODS SEARCH'S VIEW PICK (owner-approved 2026-11-14, cook r06 goods): the same select as a 36px round chip
+   * (white, the 1px line-strong edge) holding the current view's 20px glyph and no chevron — the circle is the control. Same
+   * name ("View, Grid view"), same options, same gates; `tap-44` from PILL_BOX. Since build 7 (owner-approved 2026-11-15, cook
+   * r07 goods) it is the FIRST CHIP OF THE CONTROL ROW (SortStrip `phoneView`), no longer on the title line.
    */
   variant?: 'pill' | 'circle'
 }) {
@@ -143,6 +164,19 @@ export function ViewSwitch({ viewMode, onViewMode, showVideo = true, showMap = t
       wrapperClassName={cn('w-auto shrink-0', className)}
     />
   )
+}
+
+/**
+ * The view circle's place on a COLD search link's first frame (build 7, owner-approved 2026-11-15, cook r07 goods): the strip's
+ * row opens on the view pick there now (SortStrip `phoneView`), and the ISR home painted under the pre-paint mask has none.
+ * `.view-pick-reserve` is display:none, except where `.scope-chip-reserve` shows (globals.css, the goods cold-link rules: a
+ * phone whose pre-paint script folds a link with no category) — there it holds the circle's 36px, invisible, ahead of the
+ * scope chip's reserve, so when the fold draws the real circle and chip the pills after them do not move. 36 × 36 is the
+ * circle trigger's box (PILL_BOX `min-h-9` + `size-9`, border inside), and CustomSelect's wrapper adds nothing around it.
+ * Decorative: aria-hidden, a span, never focusable.
+ */
+export function ViewPickReserve() {
+  return <span aria-hidden className="view-pick-reserve size-9 shrink-0" />
 }
 
 /**
@@ -187,6 +221,7 @@ export function SortStrip({
   onHeaderHidden,
   leading,
   phoneLead,
+  phoneView,
   phoneScope,
   look,
   priceLabel = 'price',
@@ -255,25 +290,45 @@ export function SortStrip({
   /** First in the PHONE row, before the sort pill: the applied chips and Clear all (result-line.tsx PhoneFilterChips). */
   phoneLead?: React.ReactNode
   /**
-   * ⛔ FIRST OF ALL IN THE PHONE ROW, before `phoneLead` (owner-approved 2026-11-14, cook r06 goods): the goods search's scope
-   * chip, "All categories ⌄" (ladder-compact-row.tsx ScopeChip) — the category ladder's way in joins the filter row, so a
+   * ⛔ FIRST OF ALL IN THE PHONE ROW, before `phoneScope` (owner-approved 2026-11-15 (build 7), cook r07 goods — it reverses r06's
+   * view circle at the title line's end): the goods search's view pick, a 36px white circle (ViewSwitch `variant="circle"`),
+   * so the row reads view · All categories · Sort · Price … — every control on one quiet line, in the DOM where it shows. The
+   * caller passes it on a phone only (listings-explorer.tsx `oneRow`), or a cold link's invisible place (ViewPickReserve).
+   */
+  phoneView?: React.ReactNode
+  /**
+   * ⛔ FIRST IN THE PHONE ROW after `phoneView`, before `phoneLead` (owner-approved 2026-11-14, cook r06 goods): the goods search's
+   * scope chip, "All categories ⌄" (ladder-compact-row.tsx ScopeChip) — the category ladder's way in joins the filter row, so a
    * search with no category picked has ONE control row. The caller passes it on a phone only (listings-explorer.tsx `oneRow`).
    */
   phoneScope?: React.ReactNode
   /**
    * ⛔ 'goods' — THE GOODS SEARCH'S STRIP ON A PHONE (owner-approved 2026-11-14, cook r06 goods; src/lib/goods-surface.ts). Below
    * `sm` only:
-   *   · OPAQUE: the page's white, no blur (it reverses, there, the frosted in-flow bar) — a price-led grid passing under it
-   *     must not show through;
-   *   · NO RULE UNDER IT: the hairline goes transparent and keeps its 1px, so the strip's height never moves on the flip;
-   *   · at the default order the sort pill says "Sort" with no ⇅ (it reverses there the UI climb 2026-11-05 "glyph beside the
-   *     word"): the row is words and chevrons, one glyph family. A price order keeps its ↑/↓, the pill's only sign of direction.
+   *   · OPAQUE: the page's white, no blur (it reverses, there, the frosted in-flow bar) — a grid passing under it must not
+   *     show through;
+   *   · NO RULE UNDER IT WHILE IT SITS IN PLACE: the hairline goes transparent and keeps its 1px, so the strip's height never
+   *     moves on the flip. ⛔ …ONCE PINNED, ITS ONE HAIRLINE (owner-approved 2026-11-15 (build 8), cook r08 goods): while the
+   *     grid slides beneath the stuck strip (`useStuck` — a colour, never a box) the line is the border's own colour again;
+   *   · at the default order the sort pill drops the ⇅ (it reverses there the UI climb 2026-11-05 "glyph beside the word"): the
+   *     row is words and chevrons, one glyph family. A price order keeps its ↑/↓, the pill's only sign of direction.
+   *     ⛔ …AND IT PRINTS ITS STATE, "Relevance" / "Liên quan" (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses
+   *     there the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'" and r06's "Sort" alone): the order's own name,
+   *     which the pill already carried for a screen reader, shown — as /c/electronics' strip already does. No new words;
+   *   · ⛔ FILLED PILLS (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses, in this strip below sm, ui/chip-style's
+   *     "WHITE + HAIRLINE" of 2026-11-14 and the 2026-10-18 one chip style): `data-pills="filled"` — every resting pill in the
+   *     row is the field grey with no edge, pressed or open a step deeper, applied still the ink fill (globals.css, the goods
+   *     strip's filled pills — one rule for every pill the row holds, its own or handed in);
+   *   · ⛔ IT STAYS PINNED (owner-approved 2026-11-15 (build 8), cook r08 goods — the explorer passes `stayPinned` with it; the
+   *     note there).
    * From `sm`, and on every other feed, the strip is exactly as below.
    */
   look?: 'goods'
   /**
    * ⛔ THE RENTALS FEED'S PHONE ROW STAYS PINNED (owner-approved 2026-11-14, cook r06 rentals-a — the explorer passes it for the
-   * one-column rentals grid, listings-explorer.tsx `rentalsWide`). Below `sm` only, it reverses "THIS BAR LEAVES WITH THE
+   * one-column rentals grid, listings-explorer.tsx `rentalsWide`) — ⛔ AND SO DOES THE GOODS SEARCH'S (owner-approved 2026-11-15
+   * (build 8), cook r08 goods: StockX's pinned controls — the explorer passes it with `look="goods"`, `goodsLook`, so the view
+   * pick, All categories, Relevance and the filter pills stay one tap away down a grid of 48 cards). Below `sm` only, it reverses "THIS BAR LEAVES WITH THE
    * HEADER" (owner, 2026-08-12, below): while the header is hidden the bar pins at the safe-area top instead of parking at
    * -9rem, so Sort, Filter, Price and Area stay one tap away down a list of homes a screen each. It is OPAQUE there (the page's
    * white, no blur): a card passing under a bar that never leaves must not show through it. `top` is still the only property
@@ -288,8 +343,17 @@ export function SortStrip({
   // 395 components and an ~83 ms task on `/`, as the header and this strip start to move. Here a flip re-renders this
   // strip and the map split (`onHeaderHidden`). Same hook, same per-visit rule; the strip mounts with the explorer,
   // so its instance starts at the same moment the explorer's did.
-  const headerHidden = useHideOnScroll()
+  // The home page pins the header (build 8, use-header-pin.ts): it is on screen however the page scrolls, so this strip must
+  // sit under it, never jump to the top edge on focus where the pinned header would cover it (WCAG 2.4.11, review).
+  // Phones only: the header's pin is `max-sm:` (header.tsx); from `sm` it still slides, so the strip keeps following it (review).
+  const isPhone = useIsPhone()
+  const headerPinned = useHeaderPinned() && isPhone
+  const headerHidden = useHideOnScroll() && !headerPinned
   useLayoutEffect(() => { onHeaderHidden?.(headerHidden) }, [headerHidden, onHeaderHidden])
+  const goods = look === 'goods'
+  // The goods strip's hairline shows once it is pinned (`look`'s note): the strip's own sticky box, read only on that strip.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(rootRef, goods)
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
   // The strip is a real ARIA tablist (ui/tabs → Base UI Tabs), driven by the URL/parent state, so
   // it uses the CONTROLLED api: value + onValueChange. The two price directions collapse onto ONE
@@ -316,8 +380,7 @@ export function SortStrip({
     ? (salary ? tr('Salary', 'Lương') : tr('Price', 'Giá'))
     : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
   const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
-  const goods = look === 'goods'
-  // The goods strip's sort pill at the default order: the word alone (`look`'s note).
+  // The goods strip's sort pill at the default order: the order's name alone, no ⇅ (`look`'s note).
   const sortGlyphShown = !(goods && sort === 'newest')
   // The phone row's scroller, for the edge "›" (category-rail.tsx's pattern — see below). `page` is the
   // desktop arrows' own step (85% of the row), so the phone button scrolls exactly as "Scroll right" does.
@@ -337,7 +400,11 @@ export function SortStrip({
        * trap CLAUDE.md records for `render`-prop children. An id selector outranks it outright.
        */
       id="explorer-toolbar"
+      ref={rootRef}
       data-stay-pinned={stayPinned || undefined}
+      // The goods strip's filled pills (`look`'s note; globals.css). Only where the explorer draws the goods strip: a cold goods
+      // link's first frame reaches the same rule through the pre-paint fold mark instead.
+      data-pills={goods ? 'filled' : undefined}
       value={activeTab}
       onValueChange={(value) => {
         const next = value as SortTab
@@ -366,7 +433,8 @@ export function SortStrip({
         'sticky z-30 bg-background/95 material material-bar backdrop-blur transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         (stayPinned || goods) && 'max-sm:bg-background max-sm:backdrop-blur-none',
         // ⛔ EXCEPT THE RENTALS FEED'S PHONE ROW (owner-approved 2026-11-14, cook r06 rentals-a — `stayPinned`, above): there it pins
-        // at the safe-area top while the header is hidden. Everything below still holds everywhere else.
+        // at the safe-area top while the header is hidden. ⛔ …AND THE GOODS SEARCH'S (owner-approved 2026-11-15 (build 8), cook r08
+        // goods — `stayPinned` again, passed with `look="goods"`). Everything below still holds everywhere else.
         // ⚠️ THIS BAR LEAVES WITH THE HEADER NOW, IT DOES NOT TAKE ITS PLACE (owner, 2026-08-12:
         // "on mobile and desktop when scroll up make these disappear and appear together with top
         // navbar" … "otherwise it should be there on home screen"). It used to swap `top` between
@@ -426,8 +494,9 @@ export function SortStrip({
           the outer box at the content's width; the scroller inside bleeds to the screen edges
           (`-mx-3 px-3`, the facet row's own bleed) so pills slide out under the edge rather than being
           sliced at the gutter. From sm the scroller classes are inert and the row is the old one. */}
-      {/* The goods strip (`look`): no rule under it on a phone — transparent, never removed, so the strip keeps its 1px. */}
-      <div className={cn('relative border-b border-border', goods && 'max-sm:border-b-transparent')}>
+      {/* The goods strip (`look`): no rule under it on a phone while it sits in place — transparent, never removed, so the strip
+          keeps its 1px — and the line back once it is pinned over the grid (`stuck`, build 8). */}
+      <div className={cn('relative border-b border-border', goods && !stuck && 'max-sm:border-b-transparent')}>
       {/* ⚠️ `max-sm:py-1` IS THE PILLS' HIT AREA AND THEIR AIR. Since the one chip style (owner, 2026-10-18) the
           phone pills are 36px chips (white + hairline since 2026-11-14) with a 44px `tap-44` hit area; this row is their scroller, and a
           scroller clips both axes, so without 4px above and below them the hit area is cut back to 36. It also
@@ -437,7 +506,9 @@ export function SortStrip({
         ref={phoneRowRef}
         className="flex flex-wrap items-center justify-between gap-x-4 max-sm:-mx-3 max-sm:flex-nowrap max-sm:justify-start max-sm:gap-x-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain max-sm:px-3 max-sm:py-1 scrollbar-none"
       >
-      {/* ⛔ The goods search's scope chip opens the row (owner-approved 2026-11-14, cook r06 goods — `phoneScope`). */}
+      {/* ⛔ The goods search's view pick opens the row (owner-approved 2026-11-15 (build 7), cook r07 goods — `phoneView`)… */}
+      {phoneView}
+      {/* ⛔ …then its scope chip (owner-approved 2026-11-14, cook r06 goods — `phoneScope`). */}
       {phoneScope}
       {/* ⛔ THE APPLIED CHIPS LEAD THE PHONE ROW, Clear all first (owner, 2026-11-10: "2 yes"; result-line.tsx PhoneFilterChips). */}
       {phoneLead}
@@ -453,11 +524,14 @@ export function SortStrip({
         // AT THE DEFAULT ORDER THE PILL SAYS "Sort" (UI climb 2026-11-05): "Relevance" says nothing a buyer acts on and cost the
         // first screen one filter, while a glyph alone was less clear to both judges. Any other order names itself, tinted.
         // The order's name stays for assistive tech either way.
-        // ⛔ The goods strip drops the ⇅ at the default order (owner-approved 2026-11-14, cook r06 goods — `look`).
-        // `sort-glyph-default`: a cold goods link's first frame paints the pill without it already (globals.css, the goods cold-link
-        // rules), so the pills after it do not move when the fold draws the goods strip.
-        icon={<>{sortGlyphShown && <SortGlyph className={cn('size-4 shrink-0', sort === 'newest' && 'sort-glyph-default text-ink-3')} />}{sort === 'newest' && <span aria-hidden>{tr('Sort', 'Sắp xếp')}</span>}</>}
-        labelClassName={sort === 'newest' ? 'sr-only' : undefined}
+        // ⛔ The goods strip drops the ⇅ at the default order (owner-approved 2026-11-14, cook r06 goods — `look`) ⛔ and prints the
+        // order's own name there, "Relevance" (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses "Sort" on that
+        // strip): the sr-only label shown, no "Sort" beside it.
+        // `sort-glyph-default`, `sort-word-default`, `sort-label-default`: a cold goods link's first frame paints this pill as the
+        // goods strip will — no ⇅, no "Sort", the label shown (globals.css, the goods cold-link rules) — so the pills after it do
+        // not move when the fold draws the goods strip.
+        icon={<>{sortGlyphShown && <SortGlyph className={cn('size-4 shrink-0', sort === 'newest' && 'sort-glyph-default text-ink-3')} />}{sort === 'newest' && !goods && <span aria-hidden className="sort-word-default">{tr('Sort', 'Sắp xếp')}</span>}</>}
+        labelClassName={sort === 'newest' && !goods ? 'sr-only sort-label-default' : undefined}
         indicator="down"
         searchable={false}
         className={cn(PILL_BOX, sort === 'newest' && PILL_REST, PILL_OPEN_ATTR)}

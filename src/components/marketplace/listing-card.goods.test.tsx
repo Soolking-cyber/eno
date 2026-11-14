@@ -36,7 +36,11 @@ vi.mock('@/context/language-context', () => ({
 }))
 vi.mock('./listing-content', () => ({
   useLocalized: (title: string) => title,
-  PostedAgo: () => null,
+  // A marker, so the info line's time can be found (relative-time.tsx is pinned on its own).
+  PostedAgo: () => {
+    const ago = '2h ago'
+    return <time data-posted-ago="">{ago}</time>
+  },
 }))
 vi.mock('@/context/favorites-context', () => ({
   useFavoriteMarks: () => ({ isFavorite: () => false, toggle: vi.fn(), savedDelta: () => 0 }),
@@ -60,8 +64,11 @@ import { GOODS_LINE_PX } from '@/lib/card-text'
 
 /**
  * ⛔ THE GOODS PHONE CARD (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and deploy";
- * ListingCard `look="goods"`): a goods card on a goods surface — price-led text, one grey tile under a multiplied photo, no
- * ring, no fade-in on scroll — every class `max-sm:`. A rental, a job or a teacher in the same surface keeps the shell card.
+ * ListingCard `look="goods"`): a goods card on a goods surface — one grey tile under a multiplied photo, no ring, no fade-in on
+ * scroll — every class `max-sm:`. A rental, a job or a teacher in the same surface keeps the shell card.
+ * ⛔ Since build 8 (owner-approved 2026-11-15, cook r08 goods — StockX's card): ONE ORDER THAT ENDS ON THE PRICE — title (ink),
+ * info line, then the price, in the DOM on a phone (the price row twice, a class picking one per width) — and the "Ad" chip as
+ * the photo's white plate below sm.
  */
 const PHONE = {
   id: 'g1',
@@ -103,25 +110,79 @@ describe('ListingCard look="goods"', () => {
     expect(classes(root)).toContain('reveal-on-scroll')
   })
 
-  it('price-led body: 8px under the photo, no gap between lines, a 28px price row, the sale price at the heading cut — phones only', () => {
+  it('⛔ one order that ends on the price (build 8): title → info line → price in the DOM on a phone; from sm the shell\'s price → title → info line', () => {
     const c = card()
-    const price = c.querySelector('[data-price="12800000"]')!
-    expect(classes(price)).toEqual(expect.arrayContaining(['text-t-price', 'max-sm:text-t-h2']))
-    expect(classes(price.parentElement)).toEqual(expect.arrayContaining(['flex', 'flex-wrap', 'items-baseline', 'max-sm:min-h-7']))
-    const body = price.parentElement!.parentElement!
-    expect(classes(body)).toEqual(expect.arrayContaining(['pt-2.5', 'gap-0.5', 'max-sm:pt-2', 'max-sm:gap-0']))
-    expect(GOODS_LINE_PX.top + GOODS_LINE_PX.price + GOODS_LINE_PX.title + GOODS_LINE_PX.metaTop + GOODS_LINE_PX.meta).toBe(76)
+    const prices = c.querySelectorAll('[data-price="12800000"]')
+    expect(prices).toHaveLength(2)
+    const [shellRow, phoneRow] = [...prices].map((p) => p.parentElement!)
+    const body = shellRow.parentElement!
+    expect(phoneRow.parentElement).toBe(body)
+    const kids = [...body.children]
+    const h3 = body.querySelector('h3')!
+    const meta = body.querySelector('div.text-t-meta')!
+    // The shell's row leads (from sm), the title and the info line follow, the phone's row closes the block.
+    expect(kids.indexOf(shellRow)).toBeLessThan(kids.indexOf(h3))
+    expect(kids.indexOf(h3)).toBeLessThan(kids.indexOf(meta))
+    expect(kids.indexOf(meta)).toBeLessThan(kids.indexOf(phoneRow))
+    expect(kids[kids.length - 1]).toBe(phoneRow)
+    // One per width, display:none for the other — out of the box tree and the accessibility tree.
+    expect(classes(shellRow)).toContain('max-sm:hidden')
+    expect(classes(phoneRow)).toContain('sm:hidden')
+    expect(classes(phoneRow)).not.toContain('max-sm:hidden')
+  })
+
+  it('the body: 10px under the photo, no gap; the title in ink; the info line right under it; the price row at the foot, 6px down, 28px — 84px', () => {
+    const c = card()
+    const [, phoneRow] = [...c.querySelectorAll('[data-price="12800000"]')].map((p) => p.parentElement!)
+    const body = phoneRow.parentElement!
+    expect(classes(body)).toEqual(expect.arrayContaining(['pt-2.5', 'gap-0.5', 'max-sm:gap-0']))
+    expect(classes(body)).not.toContain('max-sm:pt-2')
+    expect(classes(body.querySelector('h3'))).toEqual(expect.arrayContaining(['text-t-card', 'font-normal', 'text-ink-3', 'max-sm:text-foreground', 'truncate']))
+    expect(classes(body.querySelector('div.text-t-meta'))).toEqual(expect.arrayContaining(['mt-auto', 'max-sm:mt-0', 'pt-0.5']))
+    expect(classes(phoneRow)).toEqual(expect.arrayContaining(['flex', 'flex-wrap', 'items-baseline', 'mt-auto', 'min-h-8.5', 'pt-1.5']))
+    // The sale price keeps r06's heading cut, in both rows.
+    for (const p of c.querySelectorAll('[data-price="12800000"]')) expect(classes(p)).toEqual(expect.arrayContaining(['text-t-price', 'max-sm:text-t-h2']))
+    const { top, title, metaTop, meta, priceTop, price } = GOODS_LINE_PX
+    expect([top, title, metaTop, meta, priceTop, price]).toEqual([10, 20, 2, 18, 6, 28])
+    expect(top + title + metaTop + meta + priceTop + price).toBe(84)
   })
 
   it('a per-unit or a word price keeps the shell 17px inside the same 28px row', () => {
     for (const patch of [{ priceUnit: 'VND/day', price: 700_000 }, { price: 0, listingType: 'free' }]) {
       const c = card(patch)
-      const price = c.querySelector('[data-price]')!
-      expect(classes(price)).toContain('text-t-price')
-      expect(classes(price)).not.toContain('max-sm:text-t-h2')
-      expect(classes(price.parentElement)).toContain('max-sm:min-h-7')
+      for (const price of c.querySelectorAll('[data-price]')) {
+        expect(classes(price)).toContain('text-t-price')
+        expect(classes(price)).not.toContain('max-sm:text-t-h2')
+      }
+      expect(classes(c.querySelectorAll('[data-price]')[1].parentElement)).toContain('min-h-8.5')
       cleanup()
     }
+  })
+
+  it('⛔ "Ad" is the photo\'s white plate below sm (build 8), first in its bottom-left row; the info line\'s chip from sm — one per width', () => {
+    const c = card({ isSponsored: true })
+    const ads = [...c.querySelectorAll('[data-ad-marker]')]
+    expect(ads).toHaveLength(2)
+    const [plate, chip] = ads
+    expect(plate.textContent).toBe('Ad')
+    expect(c.querySelector('[data-rail-media]')!.contains(plate)).toBe(true)
+    expect(classes(plate)).toEqual(expect.arrayContaining(['photo-badge', 'sm:hidden']))
+    // Its row: bottom-left, 8px in, and a phone's only when the plate is all it holds.
+    expect(classes(plate.parentElement)).toEqual(expect.arrayContaining(['absolute', 'left-2', 'bottom-2', 'pointer-events-none', 'sm:hidden']))
+    expect(plate.parentElement!.firstElementChild).toBe(plate)
+    expect(c.querySelector('div.text-t-meta')!.contains(chip)).toBe(true)
+    expect(classes(chip)).toContain('max-sm:hidden')
+    cleanup()
+    // A video card's row keeps its plate from sm (only the Ad steps down there).
+    const v = card({ isSponsored: true, video: 'https://example.com/v.mp4' })
+    const row = v.querySelector('[data-rail-media] [data-ad-marker]')!.parentElement!
+    expect(classes(row)).not.toContain('sm:hidden')
+    cleanup()
+    // No sponsorship, no plate; the shell card keeps its one chip in the info line.
+    expect(card().querySelectorAll('[data-ad-marker]')).toHaveLength(0)
+    const shell = card({ isSponsored: true }, 'none')
+    expect(shell.querySelectorAll('[data-ad-marker]')).toHaveLength(1)
+    expect(classes(shell.querySelector('[data-ad-marker]'))).not.toContain('max-sm:hidden')
   })
 
   it('one tile: no ring on a phone, the photo multiplies onto its slide\'s grey (never in dark mode)', () => {
@@ -147,24 +208,62 @@ describe('ListingCard look="goods"', () => {
     }
   })
 
+  it('⛔ the info line carries the posted time on a phone (build 7, owner-approved 2026-11-15, cook r07 goods); the brand/model tail stays sm-only', () => {
+    const c = card({ brandSlug: 'apple', model: 'iPhone 16' })
+    const time = c.querySelector('time[data-posted-ago]')!
+    const span = time.parentElement!
+    // "Used · <place> · 2h ago" below sm: the time's span is inline there too (it was `hidden sm:inline` alone).
+    expect(classes(span)).toEqual(expect.arrayContaining(['hidden', 'sm:inline', 'max-sm:inline']))
+    expect(span.textContent!.startsWith(' · 2h ago')).toBe(true)
+    // The tail rides in its own span, out of the box tree below sm, its middot with it; from sm the line reads as before.
+    const tail = span.querySelector('span.max-sm\\:hidden')!
+    expect(tail.textContent).toBe(' · Apple · iPhone 16')
+    expect(span.textContent).toBe(' · 2h ago · Apple · iPhone 16')
+    // Still ONE truncating line: no wrap, no second meta row.
+    expect(classes(span.parentElement)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'truncate']))
+  })
+
+  it('…a goods card with no brand has no tail; a shell card keeps the time sm-only, its text unchanged', () => {
+    const goods = card()
+    expect(goods.querySelector('time[data-posted-ago]')!.parentElement!.querySelector('span')).toBeNull()
+    cleanup()
+    const plain = card({ brandSlug: 'apple', model: 'iPhone 16' }, 'none')
+    const span = plain.querySelector('time[data-posted-ago]')!.parentElement!
+    expect(classes(span)).toEqual(expect.arrayContaining(['hidden', 'sm:inline']))
+    expect(classes(span)).not.toContain('max-sm:inline')
+    expect(span.querySelector('span')).toBeNull()
+    expect(span.textContent).toBe(' · 2h ago · Apple · iPhone 16')
+  })
+
   it('without the look the card is the shell card, class for class', () => {
     const plain = card({}, 'none')
     expect(plain.querySelector('[data-card-root]')!.hasAttribute('data-look')).toBe(false)
-    expect(plain.innerHTML).not.toMatch(/max-sm:(mix-blend|before:hidden|text-t-h2|min-h-7|pt-2 )/)
+    expect(plain.innerHTML).not.toMatch(/max-sm:(mix-blend|before:hidden|text-t-h2|min-h-7|pt-2 |mt-0|text-foreground)|min-h-8\.5/)
+    // One price row, first in the body: the 09-13 order.
+    const prices = plain.querySelectorAll('[data-price]')
+    expect(prices).toHaveLength(1)
+    expect(prices[0].parentElement!.parentElement!.firstElementChild).toBe(prices[0].parentElement)
+    expect(classes(prices[0].parentElement)).toEqual(['flex', 'flex-wrap', 'items-baseline', 'gap-x-1.5'])
   })
 })
 
 describe('ListingCardSkeleton look="goods"', () => {
-  it('the goods body: 8 + a 22px bar in the 28px row + 20 + 2 + 18 = 76, phones only', () => {
+  it('the goods body in the card\'s order (build 8): 10 + title 20 + 2 + meta 18 + 9 + a 22px price bar + 3 = 84, phones only', () => {
     const { container } = render(<ListingCardSkeleton look="goods" />)
     const root = container.firstElementChild!
     expect(root.getAttribute('data-look')).toBe('goods')
     const body = root.children[1]
-    expect(classes(body)).toEqual(expect.arrayContaining(['pt-2.5', 'max-sm:pt-2', 'max-sm:gap-0']))
+    expect(classes(body)).toEqual(expect.arrayContaining(['pt-2.5', 'max-sm:gap-0']))
+    expect(classes(body)).not.toContain('max-sm:pt-2')
     const bars = Array.from(body.children)
-    expect(classes(bars[0])).toEqual(expect.arrayContaining(['h-[22px]', 'max-sm:my-0.75']))
+    expect(bars).toHaveLength(4)
+    // The shell's price bar, from sm only; then the title and the info line; then the phone's price bar, last.
+    expect(classes(bars[0])).toEqual(expect.arrayContaining(['h-[22px]', 'max-sm:hidden']))
     expect(classes(bars[1])).toContain('h-5')
     expect(classes(bars[2])).toEqual(expect.arrayContaining(['mt-0.5', 'h-[18px]']))
+    expect(classes(bars[3])).toEqual(expect.arrayContaining(['mt-2.25', 'mb-0.75', 'h-[22px]', 'sm:hidden']))
+    // 9 + 22 + 3 = the card's 6px step and its 28px row.
+    expect(9 + 22 + 3).toBe(GOODS_LINE_PX.priceTop + GOODS_LINE_PX.price)
   })
 
   it('a teacher or a wide cell ignores it', () => {

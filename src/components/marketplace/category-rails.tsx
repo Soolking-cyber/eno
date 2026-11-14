@@ -9,7 +9,7 @@ import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
 import {
   RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam,
-  LANE_CARD_W, LANE_SCROLLER, LANE_CARD_SIZES, LANE_HEADER_ROW, LANE_TITLE, LANE_ICON_HIDE, LANE_CHEVRON, useLaneGate, type RailLook,
+  LANE_CARD_W, LANE_SCROLLER, LANE_CARD_SIZES, LANE_HEADER_ROW, LANE_TITLE, LANE_ICON_HIDE, LANE_SEE_ALL, LaneSeeAllFace, LEAD_TITLE, RAIL_BEAM_LANE, useLaneGate, type RailLook,
 } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -32,6 +32,9 @@ export type CategoryLaneData = { cat: SerializedCategory; items: SerializedListi
  * explorer hands them here. The ask before the paint and its one-slot prefetch are gone; desktop draws the same rails,
  * still deferred below the feed (listings-explorer.tsx DeferredCategoryRails), from the same data. What came back is a
  * CHECK AFTER the paint (useFreshCategoryLanes below).
+ * ⛔ THE PHONE'S LANE ORDER IS NO LONGER r04's FIXED ONE (owner-approved 2026-11-15 (build 8), cook r08 home): the explorer
+ * draws the category lanes in the server's order but splits them BY SLUG — the flyer-heavy ones (Services) after Partners and
+ * Outstanding businesses (listings-explorer.tsx LATE_LANE_SLUGS). The server still decides which rails exist and their order.
  *
  * Which rails draw, decided ONCE from props (so the server render and hydration agree on every lane and its place):
  * drop the cards the rails ABOVE already showed (`excludeIds`: Trending / Outstanding businesses — on a 13-listing catalogue
@@ -77,8 +80,8 @@ export function visibleCategoryRails(
  * hiding a lane after the paint moves everything under it — on a phone, the lanes after it and the feed — under a reader
  * already looking. One or two real cards for the rest of the visit are the lesser cost. Only a lane left with NO card goes
  * (CategoryLane draws nothing for it: a heading over an empty row is worse than the shift, and every card of a lane taken
- * down within six hours is rare). It keeps its entry here, so the lanes after it keep their places in the phone's fixed
- * order (listings-explorer.tsx `data-home-lanes` draws lanes 0 and 1 by index).
+ * down within six hours is rare). It keeps its entry here, so the lanes after it keep their places in the phone's order
+ * (listings-explorer.tsx `data-home-lanes` draws them by slug, the first product lane with its cards from the server).
  */
 export function freshenLanes(lanes: readonly CategoryLaneData[], fresh: readonly CategoryRailData[]): CategoryLaneData[] {
   const live = new Map<string, SerializedListingCard>()
@@ -159,12 +162,15 @@ function afterLoadIdle(run: () => void): () => void {
  * `onDrawn`: told once the cards are drawn (the gate open), at the first idle moment after `load` — useFreshCategoryLanes'
  * `check` — and only while `liveMedia` matches, when given (the ForYouRail `liveMedia` rule: the home page draws these
  * lanes twice, and the copy hidden at this width never asks). A lane whose every card left (freshenLanes) draws nothing.
+ * `lead`: the home page's first lane when Trending does not draw — its heading the page's one display line (shelf.tsx
+ * LEAD_TITLE, owner-approved 2026-11-15 (build 7)).
  */
-export function CategoryLane({ cat, listings, onCategory, look = 'rail', initialShow = false, onDrawn, liveMedia }: {
+export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = false, initialShow = false, onDrawn, liveMedia }: {
   cat: SerializedCategory
   listings: readonly SerializedListingCard[]
   onCategory: (slug: string) => void
   look?: RailLook
+  lead?: boolean
   initialShow?: boolean
   onDrawn?: () => void
   liveMedia?: string
@@ -205,19 +211,20 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', initial
                 later pass wants a fill here it needs a real boolean to hang it on, and this
                 component has none. (A phone lane draws no heading icon at all — shelf.tsx.) */}
             <CategoryIcon name={cat.icon} stroke={STROKE_UI} className={cn('h-4 w-4 text-accent-foreground', lane && LANE_ICON_HIDE)} />
-            <span className={cn(lane ? LANE_TITLE : SECTION_TITLE, 'transition-colors group-hover:text-accent-foreground')}>
+            <span className={cn(lane ? (lead ? LEAD_TITLE : LANE_TITLE) : SECTION_TITLE, 'transition-colors group-hover:text-accent-foreground')}>
               <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </span>
           </Button>
         </h2>
-        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className={SECTION_SEE_ALL}>
-          {tr('See all', 'Xem tất cả')}
-          <ChevronRight className={lane ? LANE_CHEVRON : 'h-4 w-4'} />
+        {/* A lane's See all is the 32px arrow disc on a phone, its words its accessible name (shelf.tsx LANE_SEE_ALL, build 8). */}
+        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className={lane ? LANE_SEE_ALL : SECTION_SEE_ALL}>
+          {lane ? <LaneSeeAllFace label={tr('See all', 'Xem tất cả')} /> : <>{tr('See all', 'Xem tất cả')}<ChevronRight className="h-4 w-4" /></>}
         </Button>
       </div>
       {/* ⚠️ THE SWIPE BEAM BELONGS HERE TOO — this rail does NOT go through <Shelf>, which is
-          exactly why the first version of the hint missed Services, Travel, Home and Fashion. */}
-      <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={lane ? listings.length : undefined} />
+          exactly why the first version of the hint missed Services, Travel, Home and Fashion.
+          ⛔ …except on a phone lane (owner-approved 2026-11-15 (build 7) — shelf.tsx RAIL_BEAM_LANE). */}
+      <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={lane ? listings.length : undefined} className={lane ? RAIL_BEAM_LANE : undefined} />
       {/* Cards pixel-match the feed grid (RAIL_SCROLLER / RAIL_CARD_W: its bleed and gaps, one card == one grid column) —
           or, as a phone lane, 220px cards bled to the screen edges (LANE_*). */}
       <div className="relative">

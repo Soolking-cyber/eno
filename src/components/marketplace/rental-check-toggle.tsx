@@ -19,7 +19,7 @@ import {
   type RentalCheckSource,
 } from '@/lib/rental-check/store'
 import { cn } from '@/lib/utils'
-import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
+import { PILL_BOX } from '@/components/ui/chip-style'
 
 type Tr = (en: string, vi?: string) => string
 
@@ -71,8 +71,10 @@ export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; s
  *   heart, the bottom-left holds the video / saved chips, the centre holds the slot pips, and the
  *   bottom-right was the one free corner — above the eno.vn mark, which also lives there (see the
  *   chip's className).
- *   ⛔ GLYPH-ONLY AT EVERY WIDTH, AND THAT IS MEASURED, NOT TASTE (on the photo; the wide phone card's labelled chip in its text
- *   block is the owner-approved 2026-11-14 exception — `chip`, below). The plan put the word "Check" /
+ *   ⛔ GLYPH-ONLY AT EVERY WIDTH, AND THAT IS MEASURED, NOT TASTE (on THIS chip's bottom-right corner; the wide phone card's
+ *   labelled chip is the exception — owner-approved 2026-11-14 in its text block, and owner-approved 2026-11-15 (build 8), cook
+ *   r08 rentals, LABELLED ON THE PHOTO's top-right: `chip`, below — the measurement was about this chip meeting the pips at
+ *   the bottom of a two-up photo, and a 366px photo's top band has the room). The plan put the word "Check" /
  *   "Kiểm tra" beside the glyph from `sm` up. On the /c/rentals grid (dev build, 12 cards per width)
  *   the glyph-only chip clears the pips by 23px at 360, 31 at 390, 36 at 640, 58 at 768 and 16 at
  *   1024; the word adds 41px (EN) / 51px (VI). So at 640 it lands ON the pips, at 1024 the VI chip
@@ -80,14 +82,18 @@ export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; s
  *   breakpoint cannot know the card's width. The name is in the tooltip on a hovering pointer and in
  *   `aria-label` everywhere; the first add explains the feature in a toast.
  * `pdp` — a full-width outline button under the contact block, with the free line beneath it.
- * `chip` — ⛔ THE WIDE PHONE CARD'S TRUST SLOT (owner-approved 2026-11-14, cook r06 rentals-a — it reverses, on that card and
- *   below `sm` only, "a plated chip at the PHOTO's bottom-right" and "GLYPH-ONLY AT EVERY WIDTH"): a LABELLED chip at the
- *   end of the price line — the 18px glyph and "Check availability" / "Kiểm tra phòng trống" as its visible name, the browse
- *   chip's look (ui/chip-style PILL_*; added = the ink fill). The measurement above was about colliding with the photo's
- *   pips; the text block of a 366px card has the room, and there it says what it does instead of asking for a tooltip.
- *   Same store, same add/remove, same toasts, `aria-pressed`, `data-rental-check-toggle`. Its name is its visible words
- *   (no aria-label, no tooltip). The card renders it beside a photo copy that is `max-sm:hidden` and itself sits in a
- *   `sm:hidden` slot, so each width has ONE in the box tree and the tab order (listing-card.tsx `wide`).
+ * `chip` — ⛔ THE WIDE PHONE CARD'S LABELLED CHECK (owner-approved 2026-11-14, cook r06 rentals-a — it reverses, on that card and
+ *   below `sm` only, "a plated chip at the PHOTO's bottom-right" and "GLYPH-ONLY AT EVERY WIDTH"): the 18px glyph and "Check
+ *   availability" / "Kiểm tra phòng trống" as its visible name. Same store, same add/remove, same toasts, `aria-pressed`,
+ *   `data-rental-check-toggle`. Its name is its visible words (no aria-label, no tooltip). The card renders it beside a photo
+ *   copy that is `max-sm:hidden` and gives it `sm:hidden` itself, so each width has ONE in the box tree and the tab order
+ *   (listing-card.tsx `wide`).
+ *   ⛔ ON THE PHOTO'S TOP-RIGHT, BESIDE THE HEART (owner-approved 2026-11-15 (build 8), cook r08 rentals — it reverses "THE WIDE
+ *   PHONE CARD'S TRUST SLOT … a LABELLED chip at the end of the price line, the browse chip's look", owner-approved
+ *   2026-11-14, cook r06 rentals-a): status top-left, actions top-right, so the text block under every photo is the same three
+ *   lines. Over a photo it wears the shell's ONE white plate (owner-approved 2026-11-14, cook r05: "over a photo: only white
+ *   plates") — `bg-plate-fill`, the ink glyph and words, the plate's own lift, no rim — 36px tall (44 to the finger, PILL_BOX's
+ *   `tap-44`), 14/20 bold; added = the ink fill, as the photo's glyph chip. The plate is white in both themes, and so is its ink.
  *
  * ⛔ NOT ON THE VIEWER'S OWN LISTING. Asking eno to check whether your own flat is free is a dead
  * end, and a seller browsing their storefront would read the chip as a control over their listing.
@@ -195,10 +201,10 @@ function CardToggle({ listing, className }: { listing: RentalCheckSource; classN
 }
 
 /**
- * The wide phone card's labelled chip (`variant="chip"`, above). `relative z-10` (PILL_BOX carries the `relative`) lifts it
- * over the card's stretched link (`absolute inset-0 z-0`), which would otherwise take the tap; PILL_BOX's `tap-44` gives the
- * 36px chip its 44px hit area. `shrink-0 whitespace-nowrap`: the price beside it is the thing that wraps (at its own run
- * boundaries — price.tsx), never these words.
+ * The wide phone card's labelled chip (`variant="chip"`, above), on the photo since build 8. `relative z-10` (PILL_BOX carries
+ * the `relative`) lifts it over the card's stretched link (`absolute inset-0 z-0`), which would otherwise take the tap;
+ * PILL_BOX's `tap-44` gives the 36px plate its 44px hit area. `shrink-0 whitespace-nowrap`: these words never wrap — the
+ * badge beside it is the one that gives way (listing-card.tsx `photoTop`). 12px before the glyph, 14 after the words.
  */
 function ChipToggle({ listing, className }: { listing: RentalCheckSource; className?: string }) {
   const { tr } = useLanguage()
@@ -218,8 +224,10 @@ function ChipToggle({ listing, className }: { listing: RentalCheckSource; classN
       }}
       className={cn(
         PILL_BOX,
-        added ? PILL_ON : PILL_REST,
-        'z-10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap',
+        'z-10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap pl-3 pr-3.5 transition-[background-color,color,scale] duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring',
+        // The photo's one white plate (CardToggle's pair, above): ink on white at rest, the ink fill once added. The press is the
+        // scale alone — a grey press fill would be the dark theme's --muted under the plate's fixed ink.
+        added ? 'bg-on-plate text-plate-fill shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
         className,
       )}
     >

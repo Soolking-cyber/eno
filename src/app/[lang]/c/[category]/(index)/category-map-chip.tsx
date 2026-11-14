@@ -17,11 +17,16 @@ import { cn } from '@/lib/utils'
  * (both judges); only "All" wears the applied look.
  * ⛔ …AND THE ICON IS INK NOW (owner-approved 2026-11-14, cook r06 rentals-a and the shell's "one accent — never an icon"): the
  * whole chip is the browse chip's ink, as every other chip on the row. `glyphClassName` sizes the glyph — /c/rentals' phone
- * strip passes the 18px of its other glyphs (the sort arrows, Filters' sliders).
+ * strip passes the 18px of its other glyphs (the sort arrows, Filters' sliders). ⛔ EXCEPT ONCE FLOATED (owner-approved
+ * 2026-11-15 (build 8), cook r08 rentals): then the chip is the ink FILL and its glyph and word the page colour (below).
  * The wrapping sort strip has no room for it (15px spare at 360, 45 at 390, measured), so it rides the "By area" row, after
  * "All" ((index)/page.tsx) — ⚠️ EXCEPT ON /c/rentals (owner-approved 2026-11-14, UI climb batch 93, decision 5): there the
  * phone's strip is one swipe row, and the page renders this chip in it, after Filters, with the strip's chip look
  * (`className`, which REPLACES the row look below — the strip's chip wrapper is the one that is `sm:hidden` there).
+ * ⛔ …ONLY WHILE THE HEAD IS ON SCREEN (owner-approved 2026-11-15 (build 8), cook r08 rentals — src/components/marketplace/
+ * map-float.ts): past the list header the same link leaves the row and floats as ONE ink pill, bottom centre, 16px over the
+ * tab bar, its 20px glyph and its word in the page colour, riding the bar (gone while it is). The page passes MAP_FLOAT in
+ * `className`; the strip (seller-listings.tsx PinnedStrip `mapFloatAfter`) says when. Same href, same words, same element.
  * Scoped like the district page's link: this category, `homes=1` with the homes-only grid, the `/vi`
  * twin on a Vietnamese page; rel="nofollow" + prefetch={false}, since the URL canonicalises to `/`.
  * ⛔ Never where the category has no map (teachers — map-pin-rows.ts `categoryHasMap`: it would open a map without a pin).

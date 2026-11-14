@@ -7,6 +7,8 @@
  * first render, the float would change width at hydration and the heading's ellipsis beside it would move — so the first
  * test renders the real pair to HTML, hydrates it, and asserts the same words before and after, in English and Vietnamese.
  * ⚠️ TRI-STATE: a published `null` hides the count and never falls back to the seed (codex, plan review round 4).
+ * ⛔ Since build 7 (owner-approved 2026-11-15, cook r07 rentals) the heading line says the scope's TOTAL, "5,344 listings"
+ * (`headingCountText`), while the announced live copy keeps the short "48 of 5,344" (`phoneCountText`).
  */
 import React, { act, useLayoutEffect } from 'react'
 import { renderToString } from 'react-dom/server'
@@ -15,7 +17,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LanguageProvider } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
-import { HEADING_COUNT_TYPE, HeadingCount, HeadingCountProvider, groupedIn, phoneCountText, useHeadingCount, usePublishHeadingCount } from './heading-count'
+import { HEADING_COUNT_TYPE, HeadingCount, HeadingCountProvider, groupedIn, headingCountText, phoneCountText, useHeadingCount, usePublishHeadingCount } from './heading-count'
 import { SellerListings } from './seller-listings'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/c/rentals' }))
@@ -44,7 +46,7 @@ afterEach(() => {
 const pagePair = (lang: 'en' | 'vi') => (
   <LanguageProvider initialLang={lang} initialViDict={{}}>
     <HeadingCountProvider>
-      <HeadingCount seed={{ shown: PAGE.length, total: TOTAL }} />
+      <HeadingCount seed={{ total: TOTAL }} />
       <SellerListings
         listings={PAGE}
         sortable
@@ -56,7 +58,7 @@ const pagePair = (lang: 'en' | 'vi') => (
 )
 
 describe('HeadingCount on the server and at hydration', () => {
-  it.each([['en', '48 of 5,344'], ['vi', '48/5.344 tin']] as const)('%s: the HTML carries "%s", the same words SellerListings announces, and hydration keeps them', async (lang, words) => {
+  it.each([['en', '5,344 listings', '48 of 5,344'], ['vi', '5.344 tin đăng', '48/5.344 tin']] as const)('%s: the HTML carries "%s" (the total), SellerListings announces "%s", and hydration keeps both', async (lang, words, announced) => {
     const html = renderToString(pagePair(lang))
     const el = document.createElement('div')
     el.innerHTML = html
@@ -64,8 +66,8 @@ describe('HeadingCount on the server and at hydration', () => {
     const float = () => el.querySelector('[data-heading-count]')?.textContent
     const live = () => el.querySelector('p.sr-only[aria-live="polite"]')?.textContent
     expect(float()).toBe(words)
-    // SellerListings' own first value (its announced copy is the same `countText` it publishes).
-    expect(live()).toBe(words)
+    // SellerListings' announced copy: the short count of what is on screen (`phoneCountText`), not the heading's total.
+    expect(live()).toBe(announced)
 
     const errors: unknown[] = []
     let root: Root | undefined
@@ -74,18 +76,29 @@ describe('HeadingCount on the server and at hydration', () => {
     })
     expect(errors).toEqual([])
     expect(float()).toBe(words)
-    expect(live()).toBe(words)
+    expect(live()).toBe(announced)
     await act(async () => root!.unmount())
     el.remove()
   })
 
-  it('the seed and SellerListings\' first count are one function of the same inputs, in both languages', () => {
+  it('the seed and SellerListings\' first published count are one function of the same total, in both languages', () => {
     for (const lang of ['en', 'vi'] as const) {
       const tr = (en: string, vi?: string) => (lang === 'vi' && vi != null ? vi : en)
-      const seed = phoneCountText(tr, groupedIn(lang), { awaiting: false, shown: 48, total: TOTAL })
-      const out = renderToString(<LanguageProvider initialLang={lang} initialViDict={{}}><HeadingCount seed={{ shown: 48, total: TOTAL }} /></LanguageProvider>)
+      const seed = headingCountText(tr, groupedIn(lang), TOTAL)
+      const out = renderToString(<LanguageProvider initialLang={lang} initialViDict={{}}><HeadingCount seed={{ total: TOTAL }} /></LanguageProvider>)
       expect(out).toContain(`>${seed}</span>`)
     }
+  })
+})
+
+describe('headingCountText (build 7: the heading line says the total)', () => {
+  const en = (a: string) => a
+  const vi = (_a: string, b?: string) => b ?? _a
+  it('the total in words, singular and plural, grouped per language — never "N of M"', () => {
+    expect(headingCountText(en, groupedIn('en'), 5344)).toBe('5,344 listings')
+    expect(headingCountText(vi, groupedIn('vi'), 5344)).toBe('5.344 tin đăng')
+    expect(headingCountText(en, groupedIn('en'), 1)).toBe('1 listing')
+    expect(headingCountText(vi, groupedIn('vi'), 1)).toBe('1 tin đăng')
   })
 })
 
@@ -112,7 +125,7 @@ describe('HeadingCount reads what is published', () => {
   const tree = (text: string | null | undefined) => (
     <LanguageProvider initialLang="en" initialViDict={{}}>
       <HeadingCountProvider>
-        <HeadingCount seed={{ shown: 48, total: TOTAL }} />
+        <HeadingCount seed={{ total: TOTAL }} />
         <Publisher text={text} />
       </HeadingCountProvider>
     </LanguageProvider>
@@ -121,7 +134,7 @@ describe('HeadingCount reads what is published', () => {
 
   it('nothing published yet: the seed', () => {
     render(tree(undefined))
-    expect(float()?.textContent).toBe('48 of 5,344')
+    expect(float()?.textContent).toBe('5,344 listings')
   })
 
   it('a published text replaces it; a published null hides it and never falls back to the seed', () => {
@@ -148,7 +161,7 @@ describe('HeadingCount reads what is published', () => {
     function Probe() { return <output data-probe={String(useHeadingCount())} /> }
     render(
       <LanguageProvider initialLang="en" initialViDict={{}}>
-        <HeadingCount seed={{ shown: 3, total: 3 }} />
+        <HeadingCount seed={{ total: 3 }} />
         <Publisher text="ignored" />
         <Probe />
       </LanguageProvider>,

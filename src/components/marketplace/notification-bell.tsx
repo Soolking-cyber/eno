@@ -34,7 +34,14 @@ import { moneyLocale } from '@/lib/vnd'
  *  be bottom up card style like the filter card"): the filter card titled "Notifications", with Mark all
  *  read / Clear all beside the title and the list filling the body. The panel's own header row is a
  *  `PopoverHeader`, which the sheet drops (it draws its own). */
-export function NotificationBell() {
+export function NotificationBell({ quiet = false }: {
+  /**
+   * The home route's phone header (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homePill`): below `sm` the
+   * glyph steps back to the muted ink (6.48:1 on white) at 22px, so the search pill is the header's one loud object.
+   * An unread bell keeps its brand fill — that is the user's own state, not chrome.
+   */
+  quiet?: boolean
+} = {}) {
   const { user, openSignIn } = useAuth()
   const { items, unread, markRead, markAllRead, remove, clearAll } = useNotifications()
   const { tr, lang } = useLanguage()
@@ -109,14 +116,14 @@ export function NotificationBell() {
             // active:scale-[0.96] is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.
-            className="text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
+            className={cn('text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}
           >
             {/* 28px from sm up — the Saved/Messages action icons on desktop (one consistent nav scale); 24px ink on a
                 phone, the redesign's header glyph beside the 44px pill (owner-approved 2026-11-14).
                 STROKE_NAV: the bell is h-7 header chrome (§2 — it was the one chrome
                 glyph in the header still on lucide's default 2). The solid fill-brand
                 when unread is USER-state (§5) — something is yours/waiting. */}
-            <Bell className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
+            <Bell className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', quiet && 'max-sm:size-5.5', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
             {user && unread > 0 && (
               // `zoom-in-90`, never a bare `zoom-in`: in tw-animate that is --tw-enter-scale: 0, so the
               // counter grew out of NOTHING on every page load. From 0.9 with a fade, on the snappy

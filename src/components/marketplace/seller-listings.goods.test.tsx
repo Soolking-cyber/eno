@@ -3,7 +3,9 @@
  * ⛔ A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
  * deploy"; SellerListings `look="goods"`, (index)/page.tsx `goods`): no rule under the strip (transparent, its 1px kept), the
  * sort pill's words alone at the page's own order, the count muted at the strip's end, 12px from the strip to the grid, and the
- * price-led goods cards in rows 32px apart. Every class `max-sm:`; without the look nothing changes.
+ * goods cards in rows 40px apart (build 8; 20 in build 7, 32 in r06). ⛔ Since build 8 (owner-approved 2026-11-15, cook r08
+ * goods) the strip STAYS PINNED, its pills are FILLED (`data-pills`), and its hairline is back once it is stuck (`data-stuck`).
+ * Every class `max-sm:`; without the look nothing changes.
  */
 import React from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -12,6 +14,8 @@ import type { SerializedListingCard } from '@/lib/types'
 import { LISTING_GRID } from './listing-grid'
 
 const hidden = vi.hoisted(() => ({ value: false }))
+const stuckNow = vi.hoisted(() => ({ value: false, on: [] as boolean[] }))
+vi.mock('@/hooks/use-stuck', () => ({ useStuck: (_ref: unknown, on = true) => { stuckNow.on.push(on); return on && stuckNow.value } }))
 const cards = vi.hoisted(() => ({ props: [] as Record<string, unknown>[], skeletons: [] as Record<string, unknown>[] }))
 vi.mock('@/hooks/use-hide-on-scroll', () => ({ useHideOnScroll: () => hidden.value }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }))
@@ -35,7 +39,7 @@ const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/
 /** The cards' grid: the element whose class list is one of the two grid strings. */
 const grid = (c: HTMLElement) => [...c.querySelectorAll('div')].find((d) => d.className.startsWith(LISTING_GRID))!
 
-afterEach(() => { cleanup(); hidden.value = false; cards.props = []; cards.skeletons = []; vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); hidden.value = false; stuckNow.value = false; stuckNow.on = []; cards.props = []; cards.skeletons = []; vi.unstubAllGlobals() })
 const drawn = () => cards.props.slice(-MANY.length)
 const goods = () => render(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} look="goods" />)
 
@@ -62,11 +66,12 @@ describe('SellerListings look="goods"', () => {
     expect(tokens(note)).not.toContain('text-xs')
   })
 
-  it('12px from the strip to the grid; rows 32px apart; every card and placeholder takes the goods look', () => {
+  it('⛔ 12px from the strip to the grid; rows 40px apart (build 8, owner-approved 2026-11-15, cook r08 goods; 20 in build 7); every card and placeholder takes the goods look', () => {
     const { container } = goods()
     const root = container.querySelector('.space-y-4')!
     expect(tokens(root)).toContain('max-sm:space-y-3')
-    expect(tokens(grid(container))).toContain('max-sm:gap-y-8')
+    expect(tokens(grid(container))).toContain('max-sm:gap-y-10')
+    expect(tokens(grid(container))).not.toContain('max-sm:gap-y-5')
     expect(drawn()).toHaveLength(10)
     for (const p of drawn()) expect(p.look).toBe('goods')
   })
@@ -75,7 +80,39 @@ describe('SellerListings look="goods"', () => {
     const { container } = render(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} />)
     expect(tokens(container.querySelector('[data-slot="tabs"]'))).not.toContain('max-sm:border-b-transparent')
     expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg')).toHaveLength(2)
-    expect(tokens(grid(container))).not.toContain('max-sm:gap-y-8')
+    expect(tokens(grid(container))).not.toContain('max-sm:gap-y-10')
     for (const p of drawn()) expect(p.look).toBeUndefined()
+    // …and the strip leaves with the header, white bordered pills, no stuck read at all.
+    const bar = container.querySelector('[data-pinned-strip]')!
+    expect(bar.hasAttribute('data-stay-pinned')).toBe(false)
+    expect(bar.hasAttribute('data-pills')).toBe(false)
+    expect(tokens(bar)).not.toContain('group/pin')
+    expect(stuckNow.on.every((on) => on === false)).toBe(true)
+  })
+
+  it('⛔ the strip stays pinned below sm while the header is hidden (build 8): it reverses the 08-12 rule on a goods category', () => {
+    hidden.value = true
+    const { container } = goods()
+    const bar = container.querySelector('[data-pinned-strip]')!
+    expect(bar.getAttribute('data-stay-pinned')).toBe('true')
+    expect(tokens(bar)).toEqual(expect.arrayContaining(['top-[-9rem]', 'max-sm:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]']))
+  })
+
+  it('⛔ its pills are filled (build 8): the strip says so for globals.css, and the resting pills carry the rule\'s marker', () => {
+    const { container } = goods()
+    expect(container.querySelector('[data-pinned-strip]')!.getAttribute('data-pills')).toBe('filled')
+    expect(tokens(screen.getByRole('combobox', { name: /Sort by/ }))).toContain('pill-rest')
+  })
+
+  it('⛔ once pinned over the grid the hairline is back (build 8): `data-stuck` on the strip, the rule\'s colour through `group/pin`', () => {
+    const { container, rerender } = goods()
+    const bar = () => container.querySelector('[data-pinned-strip]')!
+    expect(tokens(bar())).toContain('group/pin')
+    expect(bar().hasAttribute('data-stuck')).toBe(false)
+    expect(tokens(bar().querySelector('[data-slot="tabs"]'))).toEqual(expect.arrayContaining(['max-sm:border-b-transparent', 'max-sm:group-data-[stuck]/pin:border-b-border']))
+    stuckNow.value = true
+    rerender(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} look="goods" />)
+    expect(bar().getAttribute('data-stuck')).toBe('true')
+    expect(stuckNow.on).toContain(true)
   })
 })

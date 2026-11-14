@@ -162,10 +162,12 @@ describe('card chip', () => {
 
 /**
  * ⛔ THE WIDE PHONE CARD'S LABELLED CHIP (`variant="chip"`, owner-approved 2026-11-14, cook r06 rentals-a — it reverses "GLYPH-ONLY AT
- * EVERY WIDTH" on that card): the visible words ARE its name (no aria-label, no tooltip), the browse chip's look with the ink
- * fill once added, above the card's stretched link, and the same store, gate and stopPropagation as the photo chip.
+ * EVERY WIDTH" on that card): the visible words ARE its name (no aria-label, no tooltip), above the card's stretched link, and the
+ * same store, gate and stopPropagation as the photo chip. ⛔ Since build 8 (owner-approved 2026-11-15, cook r08 rentals) it sits on
+ * the PHOTO's top-right, so it wears the photo's one white plate — ink on white, no rim — and the ink fill once added (it was the
+ * browse chip's look at the price line's end).
  */
-describe('labelled chip (the wide card\'s trust slot)', () => {
+describe('labelled chip (the wide card\'s check, on the photo)', () => {
   it('its name is its visible words, in each language; aria-pressed carries the state; the ink fill once added', () => {
     render(<RentalCheckToggle variant="chip" listing={listing(1)} />)
     const b = chip()
@@ -173,11 +175,15 @@ describe('labelled chip (the wide card\'s trust slot)', () => {
     expect(b.hasAttribute('aria-label')).toBe(false)
     expect(b.hasAttribute('data-rental-check-toggle')).toBe(true)
     const cls = () => chip().className.split(/\s+/)
-    expect(cls()).toEqual(expect.arrayContaining(['relative', 'tap-44', 'min-h-9', 'rounded-full', 'z-10', 'whitespace-nowrap', 'border-line-strong']))
+    expect(cls()).toEqual(expect.arrayContaining(['relative', 'tap-44', 'min-h-9', 'rounded-full', 'z-10', 'whitespace-nowrap', 'text-sm', 'font-bold', 'pl-3', 'pr-3.5', 'bg-plate-fill', 'text-on-plate', 'shadow-plate']))
+    // No rim on the photo, and no browse-chip fill.
+    expect(cls().some((t) => t === 'border' || t.startsWith('border-'))).toBe(false)
+    expect(cls()).not.toContain('bg-background')
     expect(chip().querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
     fireEvent.click(chip())
     expect(chip().getAttribute('aria-pressed')).toBe('true')
-    expect(cls()).toEqual(expect.arrayContaining(['pill-on', 'bg-foreground', 'text-background']))
+    expect(cls()).toEqual(expect.arrayContaining(['bg-on-plate', 'text-plate-fill', 'shadow-plate']))
+    expect(cls()).not.toContain('bg-plate-fill')
     expect(chip().querySelector('[data-icon="check"]')!.getAttribute('class')).toContain('icon-own-ink')
     expect(getBasket().map((i) => i.id)).toEqual(['r1'])
     cleanup()

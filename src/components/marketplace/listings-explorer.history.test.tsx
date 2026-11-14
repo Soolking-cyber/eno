@@ -544,7 +544,8 @@ describe('the area is in the URL — codes only, never the near-you circle (NAV-
  */
 describe('the phone "Save search" pill (JOIN-SAVE)', () => {
   const pill = () => document.querySelector('[data-slot="result-line"] button.sm\\:hidden') as HTMLButtonElement | null
-  /** The goods search's title line circle (owner-approved 2026-11-14, cook r06 goods — `oneRow`: no category picked). */
+  /** The goods search's title line action (owner-approved 2026-11-14, cook r06 goods — `oneRow`: no category picked; in words
+   *  since build 7, owner-approved 2026-11-15, cook r07 goods). */
   const circle = () => document.querySelector('[data-results-title] [data-save-search]') as HTMLButtonElement | null
 
   it('is not offered on the undirected home — there is nothing to save', async () => {
@@ -554,17 +555,19 @@ describe('the phone "Save search" pill (JOIN-SAVE)', () => {
     expect(pill()).toBeNull()
   })
 
-  it('appears with the first search — on a search with no category as the title line\'s 36px circle (44 to the thumb), named in full', async () => {
+  it('appears with the first search — on a search with no category at the title line\'s end, 44px, its words shown', async () => {
     freshTop('/')
     mount(client(), ALL.slice(0, 12))
     await waitFor(() => expect(cardIds()).toHaveLength(12))
     act(() => { window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: 'honda' } })) })
-    // ⛔ Owner-approved 2026-11-14, cook r06 goods: the labelled pill of the count row is the title line's circle here — once.
+    // ⛔ Owner-approved 2026-11-14, cook r06 goods: the labelled pill of the count row moves to the title line here — once.
+    // Build 7 (owner-approved 2026-11-15, cook r07 goods): there it is accent text after its glyph, not a circle.
     await waitFor(() => expect(circle()).not.toBeNull())
     expect(pill()).toBeNull()
     expect(circle()!.textContent).toBe('Save search')
-    expect(circle()!.className).toEqual(expect.stringContaining('size-9'))
-    expect(circle()!.className).toEqual(expect.stringContaining('tap-44'))
+    expect(circle()!.className).toEqual(expect.stringContaining('h-11'))
+    expect(circle()!.className).toEqual(expect.stringContaining('text-accent-foreground'))
+    expect(circle()!.className).not.toEqual(expect.stringContaining('bg-primary'))
   })
 
   it('…and with one category alone', async () => {

@@ -110,6 +110,10 @@ export function BackToTop() {
    * They stay on /dashboard*, /help* and every other page, and on a desktop everywhere (the /messages exit below is
    * unchanged). Help stays one tap away on a phone: the guest Account sheet's "Help center" row, the signed-in
    * dashboard menu's, and the footer's. The rental-check pill is not a floater — it is the basket's own feedback.
+   * ⛔ ONE EXCEPTION, NOT IN THIS CLUSTER (owner-approved 2026-11-15 (build 8), cook r08 rentals): on /c/rentals and the rentals
+   * feed the page's own Map control floats as one ink pill, bottom centre, once the head has scrolled away — only while the tab
+   * bar shows (it rides the bar, so it is never over the cards while the reader scrolls down them), at `z-sticky` under every
+   * scrim and overlay. Its rule, and why it is not here: src/components/marketplace/map-float.ts. Nothing else floats there.
    */
   const floatersOff = !desktop && isBrowseSurface(pathname)
   const supportAway = scrolledAway && !desktop

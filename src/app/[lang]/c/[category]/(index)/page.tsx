@@ -45,6 +45,7 @@ import { Mascot } from '@/components/marketplace/mascot'
 import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { MAP_FLOAT } from '@/components/marketplace/map-float'
 import { SellerListingsPhoneRows } from '@/components/marketplace/seller-listings-phone-rows'
 import { HeadingCount, HeadingCountProvider } from '@/components/marketplace/heading-count'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -70,6 +71,11 @@ const OTHER_CATEGORY_CHIP = cn(PILL_BOX, PILL_REST, 'py-1.5 hover:bg-accent hove
  * control. Its hover only exists where these are hidden (from sm the "By area" row shows instead).
  */
 const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')
+/**
+ * ⛔ …AND THE MAP CHIP FLOATS ONCE THE HEAD IS GONE (owner-approved 2026-11-15 (build 8), cook r08 rentals — map-float.ts): the
+ * strip chip in the head, and past the list header the ink pill bottom centre over the tab bar, riding it. The same link.
+ */
+const STRIP_MAP_CHIP = cn(STRIP_CHIP, MAP_FLOAT)
 
 /**
  * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP SO THAT A LOADING BOUNDARY NEVER WRAPS `[district]` (its
@@ -324,8 +330,8 @@ export default async function CategoryPage({ params }: Props) {
   /**
    * ⛔ A GOODS CATEGORY ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options and
    * deploy"; target still cook/compare/r06/goods__electronics.jpg; src/lib/goods-surface.ts — /c/electronics, /c/fashion, …):
-   * the wrapping display H1 (layout.tsx), no masthead hairline, the strip opaque with the count at its end and the price-led
-   * goods grid (SellerListings `look`), then the lede WHOLE right under the grid (lede-placement.ts `ledePlacementFor`), then
+   * the wrapping display H1 (layout.tsx), no masthead hairline, the strip opaque with the count at its end (pinned, filled
+   * pills, since build 8) and the goods grid (SellerListings `look`; its cards end on their price since build 8), then the lede WHOLE right under the grid (lede-placement.ts `ledePlacementFor`), then
    * Guides as plain rows and Other categories, each 32px apart with no rule over them. Every phone class is `max-sm:`; the one
    * desktop change is the lede's place in the DOM (after the grid, before Guides — it was after Other categories).
    */
@@ -416,14 +422,18 @@ export default async function CategoryPage({ params }: Props) {
           ⛔ ONE DISPLAY LINE (owner-approved 2026-11-14, cook r06 rentals-a): the page's name at the display role (`text-t-display`,
           28/34 bold — the page's one display element; it was the title step, ~20px) and the count AFTER it as a flex sibling on
           the same baseline (heading-count.tsx), DOM order = visual order. `py-0.5`: `truncate` clips at the padding box, and
-          2px each side keeps a Vietnamese stacked mark whole. */}
+          2px each side keeps a Vietnamese stacked mark whole.
+          ⛔ THE NAME ALONE (owner-approved 2026-11-15 (build 7), cook r07 rentals): the count is the scope's total in words,
+          "5,344 listings" (heading-count.tsx `headingCountText`; the seed is that total alone), and while the row renders the
+          check line is not here — it is the list's own header UNDER the row (SellerListings `phoneOneRow.listHead`, below;
+          category-lede-block.tsx says why). With no row it stays under the heading, as before. */}
       {cat.slug === 'rentals' && (
         <div className="sm:hidden">
           <div className="flex items-baseline gap-3">
             <RentalsPhoneHeading headline={headline} name={cat.name} nameVi={cat.nameVi} className="min-w-0 flex-1 truncate py-0.5 text-t-display text-foreground" />
-            {rentalsStrip && <HeadingCount seed={{ shown: listings.length, total: homes?.total ?? rentals?.total ?? total }} />}
+            {rentalsStrip && <HeadingCount seed={{ total: homes?.total ?? rentals?.total ?? total }} />}
           </div>
-          <CategoryLedeLinks slug={cat.slug} />
+          {!rentalsStrip && <CategoryLedeLinks slug={cat.slug} />}
         </div>
       )}
       {/* The lede renders here, under the skeleton, only if LEDE_PLACEMENT says 'page'; since H1b it says
@@ -489,13 +499,15 @@ export default async function CategoryPage({ params }: Props) {
           row"); the strip keeps its own hairline. */}
       {/* …and off a phone on /c/jobs over a grid (owner-approved 2026-11-14, cook r06 jobs): its heading line opens the list. */}
       {/* …and off a phone on a goods category (owner-approved 2026-11-14, cook r06 goods — `goods`): the H1 opens the list there. */}
-      {rentalsStrip || jobsPhoneHead || goods ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}
+      {/* …and off a phone on /c/teachers over a grid (owner-approved 2026-11-15, build 7 — cook r07 teachers: one line fewer, the
+          title block's own hairline goes; the strip's rule under the controls stays), the controls 16px under the cover door. */}
+      {rentalsStrip || jobsPhoneHead || goods || (isTeachers && listings.length > 0) ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}
 
       {listings.length > 0 ? (
         <>
           {/* /c/jobs on a phone: nothing above draws there (the H1 is sr-only, the rest `max-sm:hidden`), so the heading line opens
               on <main>'s own 16px. */}
-          <div className={cn('mt-2 sm:mt-3', jobsPhoneHead && 'max-sm:mt-0')}>
+          <div className={cn('mt-2 sm:mt-3', jobsPhoneHead && 'max-sm:mt-0', isTeachers && 'max-sm:mt-4')}>
             {/* sr-only h2: the card titles below are h3s, and without this the outline
                 jumps h1 → h3 (detector-confirmed skip; same fix as the home feed header). */}
             <h2 className="sr-only"><Tr text="Listings" /></h2>
@@ -532,7 +544,9 @@ export default async function CategoryPage({ params }: Props) {
               // means scrolling back to the top.
               pinStrip
               // ⛔ A goods category on a phone (owner-approved 2026-11-14, cook r06 goods — `goods`): the opaque strip with no rule, the
-              // sort pill's word alone, the count muted at its end, and the price-led goods grid, rows 32px apart.
+              // sort pill's word alone, the count muted at its end, and the goods grid. Since build 8 (owner-approved 2026-11-15, cook
+              // r08 goods) the strip stays pinned with filled pills and a hairline once stuck, and the cards end on their price in
+              // rows 40px apart (20 in build 7, 32 in r06).
               look={goods ? 'goods' : undefined}
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               // /c/rentals on a phone (batch 93, decision 5): ONE swipe row — the pill, Filters, then Map and every district as
@@ -541,7 +555,7 @@ export default async function CategoryPage({ params }: Props) {
               phoneOneRow={rentalsStrip ? {
                 chips: rentalsAreas ? (
                   <>
-                    <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} glyphClassName="size-4.5" />
+                    <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_MAP_CHIP} glyphClassName="size-4.5" />
                     {districts.map((d) => (
                       <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>
                         <PlaceName en={d.label.en} vi={d.label.vi} />
@@ -549,6 +563,9 @@ export default async function CategoryPage({ params }: Props) {
                     ))}
                   </>
                 ) : null,
+                // The free-check line under the row, as the list's own header (owner-approved 2026-11-15 (build 7), cook r07 rentals —
+                // category-lede-block.tsx CategoryLedeLinks; the heading block above leaves it out while the row renders).
+                listHead: <CategoryLedeLinks slug={cat.slug} className="min-h-6" />,
               } : undefined}
               // ⛔ /c/rentals ON A PHONE: ONE COLUMN OF LARGE SQUARE CARDS, and the one row stays pinned (owner-approved 2026-11-14,
               // cook r06 rentals-a — listing-grid.ts LISTING_GRID_WIDE, seller-listings.tsx `phoneWide`). Below sm only; the

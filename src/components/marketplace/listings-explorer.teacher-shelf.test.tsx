@@ -61,11 +61,12 @@ vi.mock('./listing-card', () => ({
 // renders nothing for a signed-in reader.
 vi.mock('./capture-card', () => ({ CaptureCard: () => (h.auth.user ? null : <div data-testid="capture-row" />) }))
 vi.mock('./brand-rail', () => ({ BrandRail: () => null }))
-vi.mock('./category-rail', () => ({ CategoryRail: () => null }))
+// The tile rail is a MARKER carrying whether the explorer asked for the home's phone pills (build 7, `pills`).
+vi.mock('./category-rail', () => ({ CategoryRail: ({ pills }: { pills?: boolean }) => <div data-testid="category-rail" data-pills={pills ? '' : undefined} /> }))
 // The two seeded rails are MARKERS carrying the props the explorer decides (where, which look, which LCP / personalization media).
 vi.mock('./for-you-rail', () => ({
-  ForYouRail: ({ look, lcpMedia, liveMedia }: { look?: string; lcpMedia?: string; liveMedia?: string }) => (
-    <section data-rail="trending" data-look={look ?? 'rail'} data-lcp-media={lcpMedia} data-live-media={liveMedia} />
+  ForYouRail: ({ look, lead, lcpMedia, liveMedia }: { look?: string; lead?: boolean; lcpMedia?: string; liveMedia?: string }) => (
+    <section data-rail="trending" data-look={look ?? 'rail'} data-lead={lead ? '' : undefined} data-lcp-media={lcpMedia} data-live-media={liveMedia} />
   ),
 }))
 vi.mock('./recently-viewed-rail', () => ({ RecentlyViewedRail: () => null }))
@@ -390,9 +391,12 @@ describe('the home page\'s phone lanes', () => {
   const rails = cats.map((c, i) => ({ slug: c.slug, listings: Array.from({ length: 4 }, (_, j) => row(`${c.slug}-${i}-${j}`)) }))
   const homeProps = { categories: cats, initialCategoryRails: rails, initialTrending: Array.from({ length: 4 }, (_, i) => row(`tr${i}`)), initialBusinesses: Array.from({ length: 4 }, (_, i) => row(`b${i}`)) }
 
-  it('in order: Trending, the first category lane, Outstanding businesses, the second, Partners, then the rest', () => {
+  // ⛔ Product lanes first, then Partners, then Outstanding businesses and the flyer lanes (owner-approved 2026-11-15 (build 8),
+  // cook r08 home — it reverses build 7's Partners before the second category lane and r04's fixed order). In the DOM, picked
+  // by slug (Services goes last whatever the server's order put it second), so the reading order is the screen's.
+  it('in order: Trending, the product category lanes in the server\'s order, Partners, Outstanding businesses, then Services', () => {
     mount(newClient(), homeProps)
-    expect(laneOrder()).toEqual(['trending', 'rentals', 'business', 'services', 'partners', 'fashion-beauty', 'furniture-appliances'])
+    expect(laneOrder()).toEqual(['trending', 'rentals', 'fashion-beauty', 'furniture-appliances', 'partners', 'business', 'services'])
     // Every lane in the lane look; Trending carries the phone's LCP and personalizes only on a phone.
     const trending = document.querySelector('[data-home-lanes] [data-rail="trending"]')!
     expect([trending.getAttribute('data-look'), trending.getAttribute('data-live-media')]).toEqual(['lane', '(max-width: 39.99rem)'])
@@ -400,10 +404,42 @@ describe('the home page\'s phone lanes', () => {
     expect(document.querySelectorAll('[data-home-lanes] section[data-lane]')).toHaveLength(4) // the four category lanes
   })
 
+  // ⛔ The first lane leads (build 7): Trending's heading is the page's one display line; with too few Trending cards to draw,
+  // the first category lane's is. No other lane takes it.
+  it('the lead heading: Trending, or the first category lane when Trending cannot draw', () => {
+    mount(newClient(), homeProps)
+    expect(document.querySelector('[data-home-lanes] [data-rail="trending"]')!.hasAttribute('data-lead')).toBe(true)
+    const display = () => [...document.querySelectorAll('[data-home-lanes] section[data-lane]')].map((s) => s.querySelector('h2 [class~="max-sm:text-t-display"]') !== null)
+    expect(display()).toEqual([false, false, false, false])
+    cleanup()
+    __resetExplorerCommittedForTests()
+    mount(newClient(), { ...homeProps, initialTrending: Array.from({ length: 2 }, (_, i) => row(`tr${i}`)) })
+    expect(display()).toEqual([true, false, false, false])
+  })
+
+  // ⛔ The undirected home's phone category row is pills (build 7, category-rail.tsx `pills`) exactly where the lanes are: never on
+  // a storefront, and not once the feed is directed (where a phone folds the row into its compact panel).
+  it('asks the category rail for pills on the undirected home only', async () => {
+    mount(newClient(), homeProps)
+    expect(screen.getAllByTestId('category-rail').every((r) => r.hasAttribute('data-pills'))).toBe(true)
+    cleanup()
+    __resetExplorerCommittedForTests()
+    mount(newClient(), { ...homeProps, sellerId: 'shop-1' })
+    expect(screen.getAllByTestId('category-rail').some((r) => r.hasAttribute('data-pills'))).toBe(false)
+    cleanup()
+    __resetExplorerCommittedForTests()
+    window.history.replaceState({}, '', '/?category=rentals')
+    mount(newClient(), homeProps)
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('category') === 'rentals')).toBe(true))
+    await waitFor(() => expect(screen.queryAllByTestId('category-rail').some((r) => r.hasAttribute('data-pills'))).toBe(false))
+  })
+
   it('above the toolbar and the feed, phone-only; the shelves under the feed are desktop-only and draw the same lanes', () => {
     mount(newClient(), homeProps)
     const lanes = document.querySelector('[data-home-lanes]')!
-    expect(lanes.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'flex', 'flex-col', 'gap-8']))
+    // 40px between lanes and no top padding (build 8; the pills' own 12px margin is the space above the first lane).
+    expect(lanes.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'flex', 'flex-col', 'gap-10']))
+    expect(lanes.className.split(' ')).not.toContain('pt-1')
     const toolbar = document.getElementById('explorer-toolbar')!
     expect(lanes.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(lanes.compareDocumentPosition(grid()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -413,6 +449,34 @@ describe('the home page\'s phone lanes', () => {
     expect(laneSections[1].querySelectorAll('[data-testid="card"]')).toHaveLength(0)
     // No grid row for the partners any more.
     expect(grid().querySelector('[data-partner-band]')).toBeNull()
+  })
+
+  // ⛔ Build 8: the pills pin under the header while the lanes scroll and let go with the last lane — their sticky box is the
+  // ladder's head (the slot, the recents row, the lanes), and the feed's sticky strip is outside it. The header stays put
+  // while the lanes are drawn (use-header-pin.ts), and slides again once the feed is directed.
+  it('the ladder\'s head holds the category row and the lanes — not the toolbar; the header is pinned while the lanes are drawn', async () => {
+    const { useHeaderPinned } = await import('@/hooks/use-header-pin')
+    const Probe = () => <i data-testid="pin-probe" data-pinned={String(useHeaderPinned())} />
+    mount(newClient(), homeProps)
+    render(<Probe />)
+    const head = document.querySelector('[data-ladder] > [data-ladder-head]')!
+    expect(head).not.toBeNull()
+    expect(head.className.split(' ')).toEqual(['space-y-3'])
+    expect(head.contains(screen.getAllByTestId('category-rail')[0])).toBe(true)
+    expect(head.contains(document.querySelector('[data-home-lanes]'))).toBe(true)
+    expect(head.contains(document.getElementById('explorer-toolbar'))).toBe(false)
+    expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('true')
+    cleanup()
+    __resetExplorerCommittedForTests()
+    render(<Probe />)
+    // The explorer is gone: nothing pins the header.
+    expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
+    window.history.replaceState({}, '', '/?category=rentals')
+    mount(newClient(), homeProps)
+    await waitFor(() => expect(document.querySelector('[data-home-lanes]')).toBeNull())
+    expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
+    // Directed, the head is still there (nothing remounts), holding only the slot.
+    expect(document.querySelector('[data-ladder] > [data-ladder-head]')).not.toBeNull()
   })
 
   it('in the server HTML, hydrating with no recoverable error', async () => {
@@ -474,7 +538,7 @@ describe('the home page\'s phone lanes', () => {
       await waitFor(() => expect(laneCards(0)).toEqual(kept.map((l) => l.id)))
       expect(laneCards(0)).not.toContain(gone.id)
       expect(railsAsks()).toEqual(['?lang=en'])
-      expect(laneOrder()).toEqual(['trending', 'rentals', 'business', 'services', 'partners', 'fashion-beauty', 'furniture-appliances'])
+      expect(laneOrder()).toEqual(['trending', 'rentals', 'fashion-beauty', 'furniture-appliances', 'partners', 'business', 'services'])
     })
 
     it('a young answer is checked too (no age gate on the browser clock); a desktop, where the phone block is display:none, asks nothing', async () => {

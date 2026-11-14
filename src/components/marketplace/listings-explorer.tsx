@@ -5,7 +5,7 @@ import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, useSyncExternalStore, useTransition, type Dispatch, type SetStateAction, type CSSProperties } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, useSyncExternalStore, useTransition, type Dispatch, type SetStateAction, type CSSProperties, type RefObject } from 'react'
 import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
@@ -14,6 +14,9 @@ import { Inbox, AlertTriangle, X, Clock, Bookmark } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory, BuildingPin } from '@/lib/types'
 import { categoryHasMap, mapPinRows } from './map-pin-rows'
+import { MAP_FLOAT_HOST, mapFloatHost } from './map-float'
+import { useScrolledPast } from '@/hooks/use-scrolled-past'
+import { useRentalBasketCount } from '@/lib/rental-check/store'
 // ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
 // Prisma chain; a value import here would drag it into the client bundle (or fail the build).
 // `import type` is erased at compile, so this costs nothing at runtime.
@@ -28,6 +31,7 @@ import { CaptureCard } from './capture-card'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { preloadable } from '@/lib/preloadable'
 import { useTapGlide } from '@/hooks/use-tap-glide'
+import { setHeaderPinned } from '@/hooks/use-header-pin'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { PartnerStrip } from './partner-strip'
@@ -60,7 +64,7 @@ import { peekWard, provinceByCode, rememberWard, resolveWard } from '@/lib/vn-ar
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
-import { ViewToggles, ViewSwitch, SortStrip, createHeaderHiddenSignal, type HeaderHiddenSignal } from './explorer-toolbar'
+import { ViewToggles, ViewSwitch, ViewPickReserve, SortStrip, createHeaderHiddenSignal, type HeaderHiddenSignal } from './explorer-toolbar'
 import { rowsContinue } from './grid-run'
 import { PhoneFilterChips, ResultLine, ResultsTitle, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
@@ -320,6 +324,12 @@ function releaseFeedEntry() {
 /** The home page's phone lanes are shown below `sm` (`sm:hidden`); these name the two sides for a media query in JS. */
 const PHONE_MEDIA = '(max-width: 39.99rem)'
 const SM_UP_MEDIA = '(min-width: 40rem)'
+/**
+ * The category lanes that go LAST among the home page's phone lanes, after Partners and Outstanding businesses (owner-approved
+ * 2026-11-15 (build 8), cook r08 home: "the flyer-heavy lanes ... move below the product lanes"): Services, a lane of sellers'
+ * flyers. A taxonomy slug, so the order holds in every language and survives a renamed heading.
+ */
+const LATE_LANE_SLUGS: readonly string[] = ['services']
 
 /**
  * ⛔ HOW FAR AHEAD THE SHELVES UNDER THE FEED START (owner, 2026-11-12: "on mobile landing page from services downwards loads
@@ -631,20 +641,37 @@ type Props = {
 
 
 
+/** No signal (every ViewChoices but the rentals feed's floated Map): the bars never read as hidden. */
+const NO_BARS_SUBSCRIBE = () => () => {}
+const NO_BARS_HIDDEN = () => false
+
 /**
  * The view icons and the probe that decides the ▷ tab (filter-scoped since E-VIEWS). ⛔ A LEAF (speed audit, 2026-11-03): the probe's arming and its answer each
  * re-rendered the whole explorer after load, and the row jumped 44 px when the tab arrived, so the tab's place is held until the probe answers.
  * Perf Phase 1: display-only, so it stays out of the critical cold path and runs in the first post-load idle slot.
+ * ⛔ `floatMapAfter` — THE RENTALS FEED'S MAP FLOATS (owner-approved 2026-11-15 (build 8), cook r08 rentals; map-float.ts): this
+ * leaf is the Map toggle's host. Once the element it names (the results line, the end of the feed's head) is past the top, its
+ * toggle box says so (`data-map-float`, "shown" or "hidden" with SortStrip's header signal — `barsHidden`, the tab bar's own
+ * flip) and ViewToggles' Map leaves for the ink pill over the tab bar. The state lives HERE, so the explorer never re-renders
+ * for it. Below sm the box is `display: contents`, so nothing in the results line moves: the other toggles stay hidden as before.
  */
-function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle = false }: {
+function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle = false, floatMapAfter, barsHidden }: {
   viewMode: ViewMode
   onViewMode: (m: ViewMode) => void
   showMap: boolean
   videoProbeParams: string
-  /** The goods search's title line (`oneRow`, phone only): the ONE view pick as a 36px circle (ViewSwitch `variant`), and no
-   *  desktop toggles — that line exists below `sm` alone. */
+  /** The goods search's control row (`oneRow`, phone only — the title line's until build 7): the ONE view pick as a 36px circle
+   *  (ViewSwitch `variant`), and no desktop toggles — that row exists below `sm` alone. */
   circle?: boolean
+  /** The rentals feed's results line (the note above): past it, the phone's Map toggle floats. */
+  floatMapAfter?: RefObject<HTMLElement | null>
+  /** SortStrip's hide-on-scroll value (the explorer's `headerHiddenSignal`): the floated Map rides the bars with it. */
+  barsHidden?: HeaderHiddenSignal
 }) {
+  const floatMap = !!floatMapAfter && showMap && !circle
+  const away = useScrolledPast(floatMapAfter, floatMap)
+  const hidden = useSyncExternalStore(barsHidden?.subscribe ?? NO_BARS_SUBSCRIBE, barsHidden?.get ?? NO_BARS_HIDDEN, NO_BARS_HIDDEN)
+  const basket = useRentalBasketCount() > 0
   const [videoProbeReady, setVideoProbeReady] = useState(false)
   useEffect(() => {
     const arm = () => setVideoProbeReady(true)
@@ -668,8 +695,11 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   if (circle) return <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" />
   return (
     <>
-      <div className="flex items-center gap-1 max-sm:hidden">
-        <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} />
+      {/* `floatMap`: `max-sm:contents` instead of `max-sm:hidden` — the box keeps no box of its own on a phone (the cluster's
+          gap and widths are what they were), its toggles step down one by one in ViewToggles, and its data attribute keys the
+          floated Map's classes. From sm it is the same flex row. */}
+      <div {...(floatMap ? mapFloatHost(away, hidden, basket) : {})} className={cn('flex items-center gap-1', floatMap ? cn(MAP_FLOAT_HOST, 'max-sm:contents') : 'max-sm:hidden')}>
+        <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} floatMap={floatMap} />
       </div>
       <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} className="sm:hidden" />
     </>
@@ -973,6 +1003,8 @@ export function ListingsExplorer({
   // components at phone 4x on `/`. The sticky sort strip runs the hook itself and passes each flip to this signal, which
   // only <MapSplit> reads (the desktop map's `--map-top`). Created once, so it never re-renders this component either.
   const [headerHiddenSignal] = useState(createHeaderHiddenSignal)
+  // The results line (`#results`): on the rentals feed's phone grid, past it the Map toggle floats (ViewChoices `floatMapAfter`, build 8).
+  const resultsRowRef = useRef<HTMLDivElement>(null)
 
   /**
    * ⛔ "THIS TAP IS A STEP BACK CAN UNDO" (UX3 NAV-1). Called at the start of every committed view change —
@@ -4082,18 +4114,19 @@ export function ListingsExplorer({
    * · `goodsLook`: a FOLDED directed feed (`collapseLadder`, so it holds still behind an open filter panel exactly as the fold
    *   does — E-FILTER-SHEET — and lands in the fold's own commit) over every category or a goods category, below `sm`, never a
    *   storefront — the strip goes
-   *   opaque with no rule under it and its sort pill drops the ⇅ (SortStrip `look`), the filter pills take the goods order
+   *   opaque with no rule under it and its sort pill drops the ⇅ (SortStrip `look`; since build 8, owner-approved 2026-11-15, cook
+   *   r08 goods: it stays pinned, its pills are filled, the pill prints "Relevance" and a hairline shows once it is stuck), the filter pills take the goods order
    *   (FacetBar `order`: Price, Condition, Type, Area), and a thin search's "More in …" continues the grid as the same two
    *   columns.
    * · `goodsGrid`: `goodsLook` once the grid no longer draws a cold link's masked seed — the goods cards (ListingCard `look`) and
-   *   rows 32px apart (`max-sm:gap-y-8`) arrive in the commit that draws the answer, with its new cards, so neither ever moves
+   *   rows 40px apart (`max-sm:gap-y-10`; 20 in build 7, 32 in r06) arrive in the commit that draws the answer, with its new cards, so neither ever moves
    *   cards already on screen. `gridIsSeed` is exactly the negation of the mask lift's own condition (below the E-SSR
    *   effects): the lift runs in an effect a commit later, and keying on `seedMasked` would paint the answer once in the shell
    *   look and then re-lay it.
    * · `oneRow`: on top of the fold (`collapseLadder`, which already implies a directed feed), a search with NO category and no
-   *   rung picked: the page opens on ONE title line (result-line.tsx ResultsTitle — the count as the display line, Save search
-   *   and the view pick as circles), then ONE control row (the scope chip "All categories ⌄" first in the sticky strip —
-   *   SortStrip `phoneScope`), then the grid. The ladder's panel opens right under that row; #results stays the same element
+   *   rung picked: the page opens on ONE title line (result-line.tsx ResultsTitle — the count, then Save search in words), then
+   *   ONE control row (the view circle and the scope chip "All categories ⌄" first in the sticky strip — SortStrip `phoneView`
+   *   and `phoneScope`; build 7, owner-approved 2026-11-15, cook r07 goods), then the grid. The ladder's panel opens right under that row; #results stays the same element
    *   (the skip link's and the chip removal's focus target, ResultLine's one live count), sr-only. ⚠️ DERIVED FROM
    *   `collapseLadder` IN THE SAME RENDER, so the commit that folds — whose layout effect drops the pre-paint fold mark — is
    *   the commit that draws the title line: the CSS that held a cold link's geometry (globals.css, the goods cold-link rules)
@@ -4139,6 +4172,21 @@ export function ListingsExplorer({
    * area, the map or video view, or a storefront). The phone's Partners lane is one of them (partner-strip.tsx).
    */
   const showHomeLanes = showDiscovery && !sellerId
+  /**
+   * ⛔ THE PHONE LANES' TWO GROUPS (owner-approved 2026-11-15 (build 8), cook r08 home — the `data-home-lanes` block's note):
+   * the category lanes in the server's order, less the flyer-heavy ones, which follow Partners and Outstanding businesses.
+   * By slug (LATE_LANE_SLUGS), never by a heading's words, so it holds in every language.
+   */
+  const productLanes = useMemo(() => categoryLanes.filter((l) => !LATE_LANE_SLUGS.includes(l.slug)), [categoryLanes])
+  const lateLanes = useMemo(() => categoryLanes.filter((l) => LATE_LANE_SLUGS.includes(l.slug)), [categoryLanes])
+  /**
+   * ⛔ THE HEADER STAYS PUT WHILE THE LANES ARE DRAWN (owner-approved 2026-11-15 (build 8), cook r08 home — use-header-pin.ts):
+   * set in the commit that draws or drops them, before any scroll can hide the header; released when this explorer goes.
+   */
+  useLayoutEffect(() => {
+    setHeaderPinned(showHomeLanes)
+  }, [showHomeLanes])
+  useLayoutEffect(() => () => setHeaderPinned(false), [])
   // The phone's LCP preload sits on Trending's first card only when Trending will draw (three seeds or more, MIN_RAIL_ITEMS);
   // a thinner seed draws nothing there, so the grid's first card keeps the preload on every width (commit review).
   const phoneTrendingSeeded = (initialTrending?.length ?? 0) >= MIN_RAIL_ITEMS
@@ -4790,6 +4838,9 @@ export function ListingsExplorer({
             onIntent={handleIntent}
             // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
             hrefFor={tileHref}
+            // ⛔ The undirected home's phone row is pills, the art beside the word (owner-approved 2026-11-15 (build 7), cook r07
+            // home; category-rail.tsx PILL_*): exactly where the lanes are. A directed feed, folded on a phone, keeps the tiles.
+            pills={showHomeLanes}
           />
 
           {/* Brand rail — brands present in this category + subcategory (logo +
@@ -5106,18 +5157,27 @@ export function ListingsExplorer({
               row with the full rails one tap behind it (see `collapseLadder`). Undirected, and on
               desktop, LadderSlot is a fragment and the rails below render exactly as they did. */}
           {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods): the title line opens the ladder —
-              the count as the display line, Save search and the view pick as circles (result-line.tsx ResultsTitle) — and the
-              ladder's rails wait in the panel under the sticky strip, whose scope chip opens them. Otherwise the slot as ever. */}
+              the count, then Save search in words (result-line.tsx ResultsTitle; build 7, owner-approved 2026-11-15, cook r07
+              goods: the heading calm at the h3 role, the view pick moved down into the control row) — and the ladder's rails
+              wait in the panel under the sticky strip, whose scope chip opens them. Otherwise the slot as ever. */}
+          {/* ⛔ THE LADDER'S HEAD — the slot, the recents row and the home's phone lanes in ONE box (owner-approved 2026-11-15
+              (build 8), cook r08 home): on the undirected home the category pills pin under the header while the lanes scroll
+              (category-rail.tsx `pills`), and a sticky box sticks only inside its parent — so this box IS where the pinned row
+              lets go: with the last lane, before the feed's own sticky strip (a sibling below) can meet it. No script decides it.
+              It is a plain block in every state, so nothing remounts when the feed is directed; `space-y-3` inside and the
+              ladder's own 12px after it collapse into the one 12px every rung had (each child's bottom margin and this box's
+              meet, whichever of them is the last one shown), so no rung moves at any width. The goods search's title line
+              (`oneRow`) takes the box's place, as it took the slot's. globals.css's fold rules name the rails through it
+              (`[data-ladder] > [data-ladder-head] > …`). */}
           {oneRow ? (
             <ResultsTitle
               count={gridIsSeed ? null : resultLineCount}
               term={queryShowingStaleSet ? undefined : resultsTerm}
               heading={resultsHeading}
               onSaveSearch={phoneSaveOffered && saveSearch ? saveSearch : undefined}
-              filled={!gridIsSeed && (resultLineCount ?? 0) > 0}
-              view={<ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle />}
             />
           ) : (
+          <div data-ladder-head="" className="space-y-3">
           <LadderSlot
             collapsed={collapseLadder}
             row={
@@ -5141,7 +5201,6 @@ export function ListingsExplorer({
           >
             {ladderRails}
           </LadderSlot>
-          )}
 
           {/* ⛔ THE RETURNING VISITOR'S RECENT SEARCHES (E-RETURNING option 1, owner O-16, 2026-09-30).
               One 44px row, undirected home only, and only for someone who has searched before — a
@@ -5177,8 +5236,13 @@ export function ListingsExplorer({
           {/* ⛔ THE HOME PAGE'S PHONE LANES (owner-approved 2026-11-14, cook r04 home-b "lanes as rails": "after this cook round
               build all best options and deploy"). On a phone the undirected home reads tiles → lanes → toolbar → Recommended →
               grid: under the category tiles, each shelf is a LANE — a strong heading over a rail of same-size 220px cards
-              (shelf.tsx LANE_*) — in a fixed order: Trending, the first category lane, Outstanding businesses, the second
-              category lane, Partners (partner-strip.tsx), then the other category lanes. This REVERSES, below `sm` only, the
+              (shelf.tsx LANE_*) — in a fixed order: Trending, the first category lane, Outstanding businesses, Partners
+              (partner-strip.tsx), the second category lane, then the other category lanes. ⛔ PARTNERS BEFORE THE SECOND
+              CATEGORY LANE (owner-approved 2026-11-15 (build 7), cook r07 home — it reverses the 2026-11-14 r04 order, Partners
+              after it): the logo lane splits Outstanding businesses and Services, the two lanes full of sellers' flyers.
+              ⛔ BOTH ORDERS REVERSED, owner-approved 2026-11-15 (build 8): product lanes first, then Partners, then the flyer
+              lanes — the build 8 note at the end of this one. In the
+              DOM in that order, so the reading and tab order are the order on screen. This REVERSES, below `sm` only, the
               2026-08-11 "DISCOVERY SHELVES — BELOW THE RESULTS, NOT ABOVE THEM" (an engineering record, at the bottom of this
               tree), which still holds from `sm`: the block is `sm:hidden` (out of layout, the tab order and the accessibility
               tree), and from `sm` the shelves render under the feed exactly as before — where, in turn, they are
@@ -5192,24 +5256,42 @@ export function ListingsExplorer({
               globals.css keeps the block out of its first frame; the mark goes when the lanes leave this tree.
               ⚠️ THE PHONE'S LCP IS TRENDING'S FIRST CARD, a preload scoped to the phone's media (ForYouRail `lcpMedia`); the
               grid's first card keeps the desktop's (below). Each copy personalizes only where it is shown (`liveMedia`).
-              Spacing: 16px under the tiles (the ladder's 12 + 4), 32 between lanes, 48 to the toolbar (36 + the ladder's 12). */}
+              ⛔ THE FIRST LANE LEADS (owner-approved 2026-11-15 (build 7), cook r07 home: "Trending leads"): its heading is the
+              page's one display line (`lead`, shelf.tsx LEAD_TITLE, 28/34) — Trending's, or the first category lane's when
+              Trending has too few cards to draw (`phoneTrendingSeeded`).
+              Spacing (owner-approved 2026-11-15 (build 7), itself reversed by build 8 below; it reverses r04's 16 under the tiles and 32 between lanes): the
+              pills 6px under the header and 12px over the first lane (category-rail.tsx `pills`), 8px from a heading to its
+              cards (shelf.tsx LANE_HEADER_ROW), 24 between lanes, 48 to the toolbar (36 + the ladder's 12). The mock set 28
+              between lanes and 12 under a heading and hid Trending's info line; the build keeps that line (the blind critics
+              marked its loss broken) and buys its 22px back from those two gaps, so the first screen at 390×844 still shows
+              Trending whole and the second lane's price and title above the tab bar.
+              ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home: "product lanes first; Partners, then Outstanding businesses
+              and Services last"). It reverses build 7's order above and r04's fixed order (category-rails.tsx has the record):
+              Trending, then every category lane but the flyer-heavy ones in the server's order (`productLanes`), then Partners,
+              then Outstanding businesses, then the flyer-heavy category lanes (`lateLanes`) — picked by SLUG (LATE_LANE_SLUGS),
+              never by heading text, and in the DOM in that order, so reading and tab order follow the screen. Nothing is
+              removed. The first product lane keeps the server-drawn cards (`initialShow`) and the lead when Trending cannot
+              draw. Spacing (build 8): 40 between lanes, 16 from a heading to its cards (shelf.tsx LANE_HEADER_ROW), the pills
+              18px over the first lane (category-rail.tsx); the first screen at 390×844 shows the pills, Trending whole and the
+              next lane's heading over its photos — build 7's "the second lane's price above the tab bar" goes with the mock. */}
           {showHomeLanes && (
-            <div data-home-lanes="" className="flex flex-col gap-8 pt-1 pb-9 sm:hidden">
-              <ForYouRail initial={initialTrending} look="lane" lcpMedia={PHONE_MEDIA} liveMedia={PHONE_MEDIA} />
+            <div data-home-lanes="" className="flex flex-col gap-10 pb-9 sm:hidden">
+              {/* `lead` only when seeded: a thin seed hands the lead to the first category lane, and a Trending that the client
+                  draws later must not become a second display heading (review). */}
+              <ForYouRail initial={initialTrending} look="lane" lead={phoneTrendingSeeded} lcpMedia={PHONE_MEDIA} liveMedia={PHONE_MEDIA} />
               {/* `onDrawn` + `liveMedia`: an old ISR answer is checked once a lane's cards are drawn, on a phone only (the block is
                   display:none from sm, where the shelves under the feed ask instead) — useFreshCategoryLanes above. */}
-              {categoryLanes[0] && (
-                <CategoryLane cat={categoryLanes[0].cat} listings={categoryLanes[0].items} onCategory={handleRailCategorySelect} look="lane" initialShow onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
-              )}
-              <BusinessRail initial={dedupedBusinesses} look="lane" />
-              {categoryLanes[1] && (
-                <CategoryLane cat={categoryLanes[1].cat} listings={categoryLanes[1].items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
-              )}
+              {productLanes.map(({ cat, items, slug }, i) => (
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" lead={i === 0 && !phoneTrendingSeeded} initialShow={i === 0} onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
+              ))}
               <PartnerStrip placement="feed" />
-              {categoryLanes.slice(2).map(({ cat, items, slug }) => (
+              <BusinessRail initial={dedupedBusinesses} look="lane" />
+              {lateLanes.map(({ cat, items, slug }) => (
                 <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
               ))}
             </div>
+          )}
+          </div>
           )}
 
           {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
@@ -5271,12 +5353,17 @@ export function ListingsExplorer({
             goodPriceOffered={facetCounts.deal === undefined ? false : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             onHeaderHidden={headerHiddenSignal.set}
             // ⛔ The rentals feed's phone row stays pinned when the header leaves (owner-approved 2026-11-14, cook r06 rentals-a;
-            // explorer-toolbar.tsx `stayPinned`). Every other feed keeps the 08-12 rule.
-            stayPinned={rentalsWide}
-            // ⛔ The goods search's phone strip (owner-approved 2026-11-14, cook r06 goods — `goodsLook`): opaque, no rule, "Sort" alone.
+            // explorer-toolbar.tsx `stayPinned`) — ⛔ and so does the goods strip (owner-approved 2026-11-15 (build 8), cook r08 goods:
+            // StockX's pinned controls). Every other feed keeps the 08-12 rule.
+            stayPinned={rentalsWide || goodsLook}
+            // ⛔ The goods search's phone strip (owner-approved 2026-11-14, cook r06 goods — `goodsLook`): opaque, no rule until it is
+            // pinned (build 8), filled pills, and the sort pill names its order ("Relevance", build 8).
             look={goodsLook ? 'goods' : undefined}
-            // …and with no category picked (`oneRow`) the ladder's way in opens the row: "All categories ⌄" (ScopeChip). Until
-            // then its invisible place, which only a cold no-category search link's first frame shows (ScopeChipReserve).
+            // …and with no category picked (`oneRow`) the view circle and the ladder's way in open the row: [▦] "All categories ⌄"
+            // (ViewSwitch `circle`, ScopeChip — the view pick left the title line in build 7, owner-approved 2026-11-15, cook r07
+            // goods). Until then their invisible places, which only a cold no-category search link's first frame shows
+            // (ViewPickReserve, ScopeChipReserve).
+            phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle /> : sellerId ? undefined : <ViewPickReserve />}
             phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} /> : sellerId ? undefined : <ScopeChipReserve />}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
@@ -5452,7 +5539,7 @@ export function ListingsExplorer({
               link's and a chip removal's focus target, holding ResultLine's one always-mounted live count — sr-only, holding no
               heading (the h2 is the title line's), no Save search and no view pick, so nothing focusable sits in a row nobody
               sees. `data-results-hidden`: the cold-link reserve (globals.css) skips it. */}
-          <div id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', oneRow && 'max-sm:sr-only')}>
+          <div ref={resultsRowRef} id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', oneRow && 'max-sm:sr-only')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
                 reorder past its parent's SIBLING, so the line could never get below the toggles.
@@ -5560,7 +5647,8 @@ export function ListingsExplorer({
               // `outline`, never `cta`: an offer on the filter row is not the page's one brand CTA (canon).
               // (`hasSavableSearch` already says no on the teachers category; `saveSearch &&` is the same rule, typed.)
               // ⛔ Not on the goods search's phone (`oneRow`, owner-approved 2026-11-14, cook r06 goods — it reverses there the two notes
-              // above): Save search is the title line's 36px circle, accent-filled while results show (ResultsTitle).
+              // above): Save search is on the title line (ResultsTitle) — since build 7 (owner-approved 2026-11-15, cook r07 goods)
+              // in its own words, accent text after its glyph, no fill.
               countTrailing={phoneSaveOffered && saveSearch && !oneRow ? (
                 <Button type="button" variant="outline" size="none" onClick={saveSearch} className="min-h-11 shrink-0 gap-1.5 rounded-full px-3.5 text-sm font-semibold sm:hidden">
                   <Bookmark className="size-4" aria-hidden />
@@ -5569,7 +5657,9 @@ export function ListingsExplorer({
               ) : undefined}
             />
             {/* ⛔ SAVE SEARCH SITS LEFT OF THE VIEW MODES, ON THE SAME LINE — owner, 2026-08-12,
-                and the order is the instruction, not a preference. Both are right-aligned by this
+                and the order is the instruction, not a preference. (Not on the goods search's phone, `oneRow`:
+                owner-approved 2026-11-15 (build 7), cook r07 goods — Save search ends the title line there and the view pick
+                leads the control row under it, result-line.tsx ResultsTitle. Everywhere else this holds.) Both are right-aligned by this
                 row's justify-between, so the count and the path own the left and these two own the
                 right regardless of how long the breadcrumb gets.
                 ⚠️ Save search is OFFERED, NOT ALWAYS SHOWN: below two applied filters it is an
@@ -5588,7 +5678,8 @@ export function ListingsExplorer({
             {/* ⛔ …AND WITH THE CHIPS IN THE FILTER ROW (chipsInStrip) IT JOINS THE COUNT'S LINE, AFTER Save search (owner,
                 2026-08-12: Save search left of the view modes, on the same line — kept): `max-sm:order-5`. The row that held only
                 this pill on a category link is gone (owner, 2026-11-10). */}
-            {/* ⛔ Not on the goods search's phone (`oneRow`): its Save search and view pick are the title line's circles. */}
+            {/* ⛔ Not on the goods search's phone (`oneRow`): its Save search ends the title line and its view pick leads the control
+                row (build 7). */}
             {!oneRow && (
             <div data-view-cluster="" className={cn('order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto', chipsInStrip && 'max-sm:order-5')}>
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
@@ -5620,8 +5711,12 @@ export function ListingsExplorer({
               {/* ⛔ No Map tab over the teachers feed — `mapOffered` (gate review, 2026-10-09). */}
               {/* The four icons from sm; a phone gets the ONE view pill instead (owner, 2026-10-18 — see the
                   heading box above). Same views, same gates. The pill holds this row's first line at 36px in the
-                  directed state too, so a cold deep link's row keeps its height when the heading leaves it. */}
-              <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} />
+                  directed state too, so a cold deep link's row keeps its height when the heading leaves it.
+                  ⛔ …AND ON THE RENTALS FEED'S PHONE GRID THE MAP TOGGLE FLOATS once this line is past the top (owner-approved
+                  2026-11-15 (build 8), cook r08 rentals — it reverses, for that one toggle, "a phone gets the ONE view pill
+                  instead"): the ink pill over the tab bar, riding it (ViewChoices `floatMapAfter`, map-float.ts). The view pick
+                  stays, with every view. */}
+              <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} floatMapAfter={rentalsWide ? resultsRowRef : undefined} barsHidden={rentalsWide ? headerHiddenSignal : undefined} />
             </div>
             )}
           </div>
@@ -5645,9 +5740,9 @@ export function ListingsExplorer({
               (initialData below), so `isLoading` is false and the real cards paint first. */}
           {viewMode !== 'video' && isLoading && listings.length === 0 && (
             shownView === 'grid' ? (
-              // The goods phone grid's placeholders (`goodsLook`, owner-approved 2026-11-14): its rows 32px apart and the goods body,
-              // so the answer lands where they stood.
-              <div className={cn(rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, goodsLook && 'max-sm:gap-y-8')}>
+              // The goods phone grid's placeholders (`goodsLook`, owner-approved 2026-11-14): its rows 40px apart (build 8) and the
+              // goods body, so the answer lands where they stood.
+              <div className={cn(rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, goodsLook && 'max-sm:gap-y-10')}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
                   <ListingCardSkeleton key={i} teacher={teacherCells} wide={rentalsWide} look={goodsLook ? 'goods' : undefined} />
                 ))}
@@ -5767,10 +5862,15 @@ export function ListingsExplorer({
                    (`.feed-grid > [data-teacher-shelf] + …`) need them to stay direct children too. */
                 /* `rentalsWide` (owner-approved 2026-11-14, above): the one-column phone grid has no bleed, so a full-width row
                    (the guest capture row) needs no padding back onto the gutter there. */
-                /* ⛔ THE GOODS PHONE GRID (`goodsGrid`, owner-approved 2026-11-14, cook r06 goods): rows 32px apart — a card's text
-                   sits 8px under its own photo and 32px above the next, so each text block reads with the photo it belongs to —
-                   and the goods cards (ListingCard `look`), from the commit that draws the answer (never on a masked seed). */
-                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-8')}>
+                /* ⛔ THE GOODS PHONE GRID (`goodsGrid`, owner-approved 2026-11-14, cook r06 goods): the goods cards (ListingCard
+                   `look`), from the commit that draws the answer (never on a masked seed). ⛔ ROWS 40px APART (owner-approved
+                   2026-11-15 (build 8), cook r08 goods — StockX's strict grid; it reverses build 7's 20, itself r06's 32, and the
+                   shell's LISTING_GRID gap-y-3 here): every card now ENDS on its price, a 22px bold figure (ListingCard `look`), so
+                   the next photo starts a clear step under it and no figure reads as the caption of the photo below. One gap on
+                   every phone height — it is not fitted to any screen's fold.
+                   The guest capture row is a field panel there (CaptureCard `panel`): one calm row on the 12px gutter (its own
+                   8px margin), so the grid's 8px padding-back onto the gutter skips it (`:not([data-capture-panel])`). */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : goodsGrid ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-10')}>
                   {gridListings.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
@@ -5785,6 +5885,7 @@ export function ListingsExplorer({
                         data-teacher-cell={l.listingType === 'teacher' || undefined}
                         // A wide phone card (`rentalsWide`) is a whole screen wide: its unrendered guess too (globals.css).
                         data-wide-cell={rentalsWide || undefined}
+                        data-goods-cell={goodsGrid || undefined}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
                         // ⚠️ FOCUS AS WELL AS HOVER. Keyboard and switch users never fire a pointer
@@ -5872,8 +5973,9 @@ export function ListingsExplorer({
                       {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
                         <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} look="lane" />
                       )}
-                      {/* `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a): one line, the house button. */}
-                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} />}
+                      {/* `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a): one line, the house button.
+                          `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods): one field panel. */}
+                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid} />}
                       {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
                           1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
                           "Browse everything" every later card's <h3> was outlined under it. This hands them back to the

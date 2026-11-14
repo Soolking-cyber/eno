@@ -178,7 +178,11 @@ describe('the rentals feed on a phone: one column of large square cards (owner-a
     expect(wideIds()).toEqual([])
     expect(gridOf().className.split(' ')).toEqual(expect.arrayContaining(LISTING_GRID.split(' ')))
     expect(screen.getByTestId('capture').getAttribute('data-tight')).toBe('false')
-    expect(document.getElementById('explorer-toolbar')!.hasAttribute('data-stay-pinned')).toBe(false)
+    // ⛔ The strip pins here too since build 8 — not as the rentals row, as the GOODS strip (owner-approved 2026-11-15, cook r08
+    // goods: electronics is a goods feed, `goodsLook`, and SortStrip `look="goods"` comes with it).
+    const bar = document.getElementById('explorer-toolbar')!
+    expect(bar.getAttribute('data-stay-pinned')).toBe('true')
+    expect(bar.getAttribute('data-pills')).toBe('filled')
   })
 
   it('the list view of rentals is not the wide grid', async () => {

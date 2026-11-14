@@ -98,6 +98,41 @@ describe('CategoryLane — the phone lane look and its gate', () => {
     for (const c of ['max-sm:text-t-h2', 'max-sm:w-55', 'max-sm:-mx-3', '<section data-lane', 'data-lane="1"']) expect(railHtml).not.toContain(c)
   })
 
+  // ⛔ Build 7 (owner-approved 2026-11-15, cook r07 home): a phone lane has no swipe beam, holds each card at its own height, puts
+  // its heading 8px over the cards, and the lead lane's heading is the display line. The rail look keeps its beam everywhere.
+  it('build 7: no beam on a phone lane, cards at their own height; build 8: 16px under the heading; the lead heading is the display line', () => {
+    const html = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" initialShow />)
+    expect(html).toMatch(/class="rail-beam pointer-events-none max-sm:hidden"/)
+    expect(html).toContain('max-sm:items-start')
+    expect(html).toMatch(/class="mb-3 [^"]*max-sm:mb-4 max-sm:min-h-8[^"]*"/)
+    expect(html).not.toContain('max-sm:text-t-display')
+    const lead = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" lead initialShow />)
+    expect(lead).toContain('max-sm:text-t-display')
+    expect(lead).not.toContain('max-sm:text-t-h2')
+    const railHtml = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} lead initialShow />)
+    expect(railHtml).toMatch(/class="rail-beam pointer-events-none"/)
+    expect(railHtml).not.toContain('max-sm:text-t-display')
+  })
+
+  // ⛔ Build 8 (owner-approved 2026-11-15, cook r08 home): every lane's See all is a 32px round grey ARROW disc on a phone, its
+  // words its accessible name; from sm the rail's words and chevron.
+  it('build 8: a lane\'s See all is the 32px arrow disc on a phone, named by its words; a rail keeps the words', () => {
+    const host = document.createElement('div')
+    host.innerHTML = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" initialShow />)
+    const seeAll = host.querySelector('section > div > button')!
+    const cls = seeAll.className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['relative', 'tap-44', 'max-sm:size-8', 'max-sm:justify-center', 'max-sm:rounded-full', 'max-sm:bg-tint', 'max-sm:text-foreground']))
+    expect(seeAll.textContent).toBe('See all')
+    expect(seeAll.querySelector('span')!.className).toBe('max-sm:sr-only')
+    const [chevron, arrow] = [...seeAll.querySelectorAll('svg')]
+    expect(chevron.getAttribute('class')).toContain('max-sm:hidden')
+    expect(arrow.getAttribute('class')).toContain('max-sm:block')
+    host.innerHTML = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} initialShow />)
+    const railSeeAll = host.querySelector('section > div > button')!
+    expect(railSeeAll.className).not.toContain('max-sm:size-8')
+    expect(railSeeAll.querySelectorAll('svg')).toHaveLength(1)
+  })
+
   it('hydrates the server HTML with no mismatch', async () => {
     const { hydrateRoot } = await import('react-dom/client')
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

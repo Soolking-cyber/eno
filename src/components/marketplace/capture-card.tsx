@@ -45,37 +45,55 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * h3 role (17/24). The button is rendered twice and a class picks one (`max-sm:hidden` / `sm:hidden`), so each width has ONE
  * in the box tree and the tab order; both open the same sign-in. From `sm` the row is exactly as above.
  */
-export function CaptureCard({ jobs = false, tight = false }: { jobs?: boolean; tight?: boolean }) {
+/**
+ * ⛔ `panel` — ONE FIELD PANEL ON THE GOODS GRID'S PHONE (owner-approved 2026-11-15 (build 7), cook r07 goods; listings-explorer.tsx
+ * `goodsGrid`). Below `sm` the row is a well of the field grey (`bg-tint`, the canon's "wells that genuinely need to sit apart",
+ * 16 radius) with NO hairlines: in a grid of grey photo tiles, two rules across the page read as a section break, a well reads as
+ * one more tile. It is still a full-width ROW, never a cell (E-ORPHAN, above).
+ * ⛔ ONE CALM ROW (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses build 7's stacked panel, with its three
+ * bullets and its full-width 48px button, and, here as on the rentals feed's `tight` row, the bullet list above): the title (the
+ * h3 role, 17/24 — it wraps, never truncates, where a Vietnamese line is long) and "Join free" on ONE line, the bullets out of
+ * the box tree. Where the title would get under 96px beside the button (Vietnamese at 320, "Tham gia miễn phí" being 185px) the
+ * button takes the next line instead (`flex-wrap`, the title's `min-w-24`) — measured in Open Runde: one row with a two-line title
+ * at 360–390 in Vietnamese, one line in English from 320. "Join free" stays the one brand CTA (the grid has no other), sized to its words, 44px tall. The panel sits on
+ * the page's 12px gutter (`mx-2` inside the grid's 4px bleed — the grid's own padding-back skips it), 12px inside, 16 at its
+ * start. The same words, fewer of them. From `sm` the row is exactly as above.
+ */
+export function CaptureCard({ jobs = false, tight = false, panel = false }: { jobs?: boolean; tight?: boolean; panel?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
   // ⛔ IN THE FIRST PAINT FOR A VISITOR WITH NO SESSION (html.no-session, set before the first paint: speed audit, 2026-11-03). It used to arrive when auth settled, 93-163 px
   // inside the grid, throwing "Browse everything" and the shelves down under a reader put back there by a reload (0.05). While auth is still loading a visitor with a
   // session cookie sees nothing, so a signed-in reader never meets it.
   if (user) return null
+  // The bullets' glyphs, in the accent (off a phone only under `tight` and `panel`, where the bullets leave the row).
+  const glyph = 'h-3.5 w-3.5 shrink-0 text-accent-foreground'
   return (
-    <div data-capture-tight={tight || undefined} className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', tight && 'max-sm:flex-row max-sm:items-center', loading ? 'hidden no-session:flex' : 'flex')}>
-      <div className={cn('min-w-0', tight && 'max-sm:flex-1')}>
-        <p className={cn('text-base font-extrabold leading-snug text-foreground', tight && 'max-sm:text-t-h3')}>{jobs ? tr('Get new jobs first.', 'Nhận việc làm mới sớm nhất.') : tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
-        <ul className={cn('mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body', tight && 'max-sm:hidden')}>
+    <div data-capture-tight={tight || undefined} data-capture-panel={panel || undefined} className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', tight && 'max-sm:flex-row max-sm:items-center', panel && 'max-sm:mx-2 max-sm:flex-row max-sm:flex-wrap max-sm:items-center max-sm:rounded-2xl max-sm:border-0 max-sm:not-last:border-b-0 max-sm:bg-tint max-sm:py-3 max-sm:pl-4 max-sm:pr-3', loading ? 'hidden no-session:flex' : 'flex')}>
+      <div className={cn('min-w-0', (tight || panel) && 'max-sm:flex-1', panel && 'max-sm:min-w-24')}>
+        <p className={cn('text-base font-extrabold leading-snug text-foreground', (tight || panel) && 'max-sm:text-t-h3')}>{jobs ? tr('Get new jobs first.', 'Nhận việc làm mới sớm nhất.') : tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
+        <ul className={cn('mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body', (tight || panel) && 'max-sm:hidden')}>
           {POSTING_IS_FREE && (
-            <li className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {jobs ? tr('Post a job for free', 'Đăng tin tuyển dụng miễn phí') : tr('Post listings for free', 'Đăng tin miễn phí')}</li>
+            <li className="flex items-center gap-1.5"><Tag className={glyph} aria-hidden /> {jobs ? tr('Post a job for free', 'Đăng tin tuyển dụng miễn phí') : tr('Post listings for free', 'Đăng tin miễn phí')}</li>
           )}
           {jobs
-            ? <li className="flex items-center gap-1.5"><Heart className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Save jobs to apply later', 'Lưu việc để ứng tuyển sau')}</li>
-            : <li className="flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Chat with sellers instantly', 'Nhắn tin ngay với người bán')}</li>}
-          <li className="flex items-center gap-1.5"><Bell className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {jobs ? tr('Alerts for new jobs', 'Thông báo khi có việc mới') : tr('Price-drop & search alerts', 'Báo giá giảm & tin mới')}</li>
+            ? <li className="flex items-center gap-1.5"><Heart className={glyph} aria-hidden /> {tr('Save jobs to apply later', 'Lưu việc để ứng tuyển sau')}</li>
+            : <li className="flex items-center gap-1.5"><MessageCircle className={glyph} aria-hidden /> {tr('Chat with sellers instantly', 'Nhắn tin ngay với người bán')}</li>}
+          <li className="flex items-center gap-1.5"><Bell className={glyph} aria-hidden /> {jobs ? tr('Alerts for new jobs', 'Thông báo khi có việc mới') : tr('Price-drop & search alerts', 'Báo giá giảm & tin mới')}</li>
         </ul>
       </div>
       {/* Full width and 44px on a phone (a thumb target on its own line); content width from `sm`,
           pushed to the row's right edge. `whitespace-nowrap`: "Join free" / "Tham gia miễn phí" is one
-          line at every width — the old two-column cell wrapped its label inside a 147px pill. */}
+          line at every width — the old two-column cell wrapped its label inside a 147px pill.
+          In the goods panel (`panel`) the button role (16/20 bold; the primitive's 12 radius), sized to its words at 44px on the
+          title's line (build 8; full width at 48 in build 7). */}
       <Button
         type="button"
         variant="cta"
         size="none"
         onPointerDown={preloadSignIn}
         onClick={() => openSignIn()}
-        className={cn('min-h-11 w-full shrink-0 whitespace-nowrap px-5 py-2.5 text-center active:scale-[0.96] sm:ml-auto sm:w-auto cursor-pointer', tight && 'max-sm:hidden')}
+        className={cn('min-h-11 w-full shrink-0 whitespace-nowrap px-5 py-2.5 text-center active:scale-[0.96] sm:ml-auto sm:w-auto cursor-pointer', tight && 'max-sm:hidden', panel && 'max-sm:w-auto max-sm:text-base/5')}
       >
         {tr('Join free', 'Tham gia miễn phí')}
       </Button>

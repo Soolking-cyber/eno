@@ -9,6 +9,8 @@
  *     order it gives, "Price low → high" / "Price high → low" (and the salary twins over jobs).
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedCategory } from '@/lib/types'
@@ -26,7 +28,7 @@ vi.mock('@/context/language-context', () => ({
 }))
 
 import userEvent from '@testing-library/user-event'
-import { SortStrip, ViewSwitch, ViewToggles, createHeaderHiddenSignal } from './explorer-toolbar'
+import { SortStrip, ViewPickReserve, ViewSwitch, ViewToggles, createHeaderHiddenSignal } from './explorer-toolbar'
 import { CategoryRail } from './category-rail'
 
 /** Every scroller overflows: 300px wide, 1000px of content — so each row has more to its right. */
@@ -132,6 +134,41 @@ describe('ViewToggles: the Map tab is offered unless the feed has no map', () =>
     view.unmount()
     render(<ViewToggles viewMode="grid" onViewMode={() => {}} showMap={false} showVideo={false} />)
     expect(views()).toEqual(['List view', 'Grid view'])
+  })
+})
+
+/**
+ * ⛔ THE RENTALS FEED'S MAP FLOATS ON A PHONE (owner-approved 2026-11-15 (build 8), cook r08 rentals — map-float.ts; ViewToggles
+ * `floatMap`): the same four buttons, the same order and names; below sm every one but Map steps down (its host box is
+ * `display: contents` there), and Map carries the float look and its name in words — the aria-label's own. Without the prop
+ * nothing changes.
+ */
+describe('ViewToggles `floatMap`: the phone\'s Map toggle is the floating pill', () => {
+  const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+
+  it('the same buttons; every one but Map max-sm:hidden; Map wears MAP_FLOAT and shows its name only while floated', async () => {
+    const { MAP_FLOAT, MAP_FLOAT_LABEL } = await import('./map-float')
+    const onViewMode = vi.fn()
+    render(<ViewToggles viewMode="grid" onViewMode={onViewMode} floatMap />)
+    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['List view', 'Grid view', 'Map view', 'Video view'])
+    for (const name of ['List view', 'Grid view', 'Video view']) expect(tokens(screen.getByRole('button', { name }))).toContain('max-sm:hidden')
+    const map = screen.getByRole('button', { name: 'Map view' })
+    expect(tokens(map)).toEqual(expect.arrayContaining(['max-sm:hidden', ...MAP_FLOAT.split(' ')]))
+    const label = map.querySelector('span')!
+    expect(label.textContent).toBe('Map view')
+    expect(label.getAttribute('class')).toBe(MAP_FLOAT_LABEL)
+    fireEvent.click(map)
+    expect(onViewMode).toHaveBeenCalledWith('map')
+  })
+
+  it('without it: no float class, no label, no phone-off on any toggle', async () => {
+    const { MAP_FLOAT } = await import('./map-float')
+    render(<ViewToggles viewMode="grid" onViewMode={() => {}} />)
+    for (const b of screen.getAllByRole('button')) {
+      expect(tokens(b)).not.toContain('max-sm:hidden')
+      for (const t of MAP_FLOAT.split(' ')) expect(tokens(b)).not.toContain(t)
+    }
+    expect(screen.getByRole('button', { name: 'Map view' }).querySelector('span')).toBeNull()
   })
 })
 
@@ -278,8 +315,10 @@ describe('on a tablet the strip is always two lines (UI climb 2026-11-10: a cold
 
 /**
  * ⛔ THE GOODS SEARCH'S STRIP ON A PHONE (owner-approved 2026-11-14, cook r06 goods: "after this cook round build all best options
- * and deploy"): `look="goods"` — opaque, no rule under it (transparent, never removed), "Sort" alone at the default order — and
- * `phoneScope`, the scope chip, first of all in the row.
+ * and deploy"): `look="goods"` — opaque, no rule under it (transparent, never removed) while it sits in place — and `phoneScope`,
+ * the scope chip, first of all in the row. Since build 8 (owner-approved 2026-11-15, cook r08 goods): the pill prints its order
+ * ("Relevance") where it said "Sort", the pills are filled (`data-pills`), and the strip stays pinned with its hairline back once
+ * stuck (explorer-toolbar.goods-pinned.test.tsx).
  */
 describe('SortStrip look="goods" and phoneScope', () => {
   const goodsStrip = (sort: Parameters<typeof SortStrip>[0]['sort'], extra: Partial<Parameters<typeof SortStrip>[0]> = {}) => (
@@ -295,22 +334,56 @@ describe('SortStrip look="goods" and phoneScope', () => {
     expect(tokens(rule)).not.toContain('border-b-0')
   })
 
-  it('at the default order the sort pill says "Sort" with no ⇅; a price order keeps its arrow', () => {
+  it('⛔ at the default order the sort pill prints its state, "Relevance", with no ⇅ and no "Sort" (build 8, owner-approved 2026-11-15, cook r08 goods); a price order keeps its arrow', () => {
     render(goodsStrip('newest'))
     const pill = screen.getByRole('combobox', { name: /Sort by/ })
-    expect(pill.textContent).toContain('Sort')
+    expect(pill.textContent).toBe('Relevance')
+    // The order's name is the pill's visible label — the one it carried for a screen reader — not an sr-only copy.
+    const label = [...pill.querySelectorAll('span')].find((e) => e.textContent === 'Relevance')!
+    expect(tokens(label)).not.toContain('sr-only')
+    expect(pill.querySelector('.sort-word-default')).toBeNull()
     expect(pill.querySelectorAll('svg').length).toBe(1) // the ⌄ alone
     cleanup()
     render(goodsStrip('price-low'))
     expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2) // ↑ and ⌄
   })
 
-  it('without the look the strip is as it was: the frosted bar, its rule and the ⇅', () => {
+  it('without the look the strip is as it was: the frosted bar, its rule, the ⇅ and "Sort" — marked for the cold goods link\'s first frame', () => {
     const { container } = render(strip('newest'))
     const bar = container.querySelector('#explorer-toolbar')!
     expect(tokens(bar)).not.toContain('max-sm:bg-background')
+    expect(bar.hasAttribute('data-pills')).toBe(false)
     expect(tokens(bar.querySelector('.border-b')!)).not.toContain('max-sm:border-b-transparent')
-    expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2)
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(pill.querySelectorAll('svg').length).toBe(2)
+    // "Sort" shown, "Relevance" sr-only — each marked, so globals.css can paint a cold goods link's seed as the goods pill.
+    expect(pill.querySelector('.sort-word-default')!.textContent).toBe('Sort')
+    expect(tokens(pill.querySelector('.sort-label-default')!)).toEqual(expect.arrayContaining(['sr-only', 'truncate']))
+    expect(pill.querySelector('.sort-label-default')!.textContent).toBe('Relevance')
+  })
+
+  it('⛔ the goods strip says its pills are filled (build 8, owner-approved 2026-11-15, cook r08 goods; globals.css paints them)', () => {
+    const { container } = render(goodsStrip('newest'))
+    expect(container.querySelector('#explorer-toolbar')!.getAttribute('data-pills')).toBe('filled')
+    // Every resting pill carries the marker the rule keys on; an applied one does not.
+    expect(tokens(screen.getByRole('combobox', { name: /Sort by/ }))).toContain('pill-rest')
+    expect(tokens(screen.getByRole('button', { name: 'Good price' }))).toContain('pill-rest')
+    cleanup()
+    render(goodsStrip('recent'))
+    expect(tokens(screen.getByRole('combobox', { name: /Sort by/ }))).not.toContain('pill-rest')
+  })
+
+  it('globals.css: the filled look below 40rem — field grey, no edge, a step deeper pressed or open — in the goods strips and a cold goods link\'s seed only', () => {
+    const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
+    const at = css.indexOf('#explorer-toolbar[data-pills="filled"]')
+    expect(at).toBeGreaterThan(0)
+    const block = css.slice(css.lastIndexOf('@media', at), css.indexOf('@media (width < 40rem) and (hover: hover)', at))
+    expect(block.startsWith('@media (width < 40rem)')).toBe(true)
+    expect(block).toContain(':is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed])')
+    expect(block).toMatch(/border-color: transparent;\s*background-color: var\(--muted\);/)
+    expect(block).toMatch(/\.pill-rest\[data-popup-open\], \.pill-open[^{]*\{\s*border-color: transparent;\s*background-color: var\(--secondary\);/)
+    // A pressed toggle (Good price's green) is never repainted.
+    expect(block).not.toMatch(/\.pill-rest(?!:not\(\[data-pressed\]\))(?![\[]data-popup-open)[ ,{:]/)
   })
 
   it('phoneScope is the row\'s FIRST item, before the applied chips and the sort pill (DOM order = visual order)', () => {
@@ -322,9 +395,51 @@ describe('SortStrip look="goods" and phoneScope', () => {
     const sort = screen.getByRole('combobox', { name: /Sort by/ })
     expect(scope.compareDocumentPosition(sort) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it('⛔ phoneView leads the row, before phoneScope (owner-approved 2026-11-15 (build 7), cook r07 goods): view · All categories · Sort', () => {
+    render(goodsStrip('newest', {
+      phoneView: <ViewSwitch viewMode="grid" onViewMode={() => {}} variant="circle" />,
+      phoneScope: <button type="button" data-scope="" aria-label="All categories" />,
+      phoneLead: <span data-lead="" />,
+    }))
+    const view = screen.getByRole('combobox', { name: /View/ })
+    const scope = document.querySelector('[data-scope]')!
+    const row = scope.parentElement!
+    // The view circle's CustomSelect wrapper is the row's first item, the scope chip right after it.
+    expect(row.firstElementChild!.contains(view)).toBe(true)
+    expect(row.firstElementChild!.nextElementSibling).toBe(scope)
+    expect(scope.nextElementSibling!.hasAttribute('data-lead')).toBe(true)
+    expect(view.compareDocumentPosition(screen.getByRole('combobox', { name: /Sort by/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })
 
-describe('ViewSwitch variant="circle" (the goods search\'s title line, owner-approved 2026-11-14)', () => {
+describe('ViewPickReserve (the view circle\'s place on a cold link, build 7)', () => {
+  it('an invisible 36px box: a span, aria-hidden, never focusable, display:none unless the cold-link rule shows it', () => {
+    const { container } = render(<ViewPickReserve />)
+    const reserve = container.firstElementChild!
+    expect(reserve.tagName).toBe('SPAN')
+    expect(reserve.getAttribute('aria-hidden')).toBe('true')
+    expect(reserve.getAttribute('tabindex')).toBeNull()
+    expect(tokens(reserve).sort()).toEqual(['shrink-0', 'size-9', 'view-pick-reserve'])
+  })
+
+  it('globals.css hides it, and shows it (invisible) exactly where the scope chip\'s reserve shows', () => {
+    const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
+    expect(css).toMatch(/\.scope-chip-reserve,\s*\.view-pick-reserve \{\s*display: none;/)
+    // The shown rule's selector list: from the brace that opens its @media block to `.view-pick-reserve {` (string search —
+    // a backtracking regex over the whole stylesheet ran past the test timeout under a parallel run).
+    const end = css.search(/\.view-pick-reserve \{\s*display: inline-flex;\s*visibility: hidden;/)
+    expect(end).toBeGreaterThan(0)
+    const shown = css.slice(css.lastIndexOf('{', end) + 1, end + '.view-pick-reserve'.length)
+    // Two selectors, one per reserve, the same condition (the `:is(…)` list holds commas of its own, so split before `html`).
+    const sel = shown.split(/,\s*(?=html)/).map((x) => x.trim())
+    expect(sel).toHaveLength(2)
+    expect(sel[0]).toMatch(/ \.scope-chip-reserve$/)
+    expect(sel[0].replace('.scope-chip-reserve', '.view-pick-reserve')).toBe(sel[1])
+  })
+})
+
+describe('ViewSwitch variant="circle" (the goods search\'s view pick, owner-approved 2026-11-14; the control row\'s first chip since build 7)', () => {
   it('a 36px round chip with the view\'s 20px glyph and no chevron — the same select, the same name and options', async () => {
     const user = userEvent.setup()
     render(<ViewSwitch viewMode="grid" onViewMode={() => {}} variant="circle" />)

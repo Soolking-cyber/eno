@@ -21,8 +21,8 @@ export const RelatedShelf = memo(function RelatedShelf({ related, look }: {
   related: RelatedRail
   /**
    * ⛔ 'goods' — UNDER THE GOODS SEARCH ON A PHONE (owner-approved 2026-11-14, cook r06 goods; listings-explorer.tsx `goodsLook`):
-   * "More in …" continues the results as the same two-column grid (Shelf `phoneGrid="goods"`: rows 32px apart, no beam, no
-   * heading icon) of goods cards (ListingCard `look`). From sm, and without it, the rail as before.
+   * "More in …" continues the results as the same two-column grid (Shelf `phoneGrid="goods"`: rows 40px apart since build 8,
+   * no beam, no heading icon) of goods cards (ListingCard `look`). From sm, and without it, the rail as before.
    */
   look?: 'goods'
 }) {

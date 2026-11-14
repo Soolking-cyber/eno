@@ -1,12 +1,12 @@
 'use client'
 
-import { Fragment, useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
-import { ChevronRight, Plus, UserRound } from '@/components/ui/icons'
+import { ArrowRight, ChevronRight, Plus, UserRound } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, subcategoryCountFor } from './count-chip'
 import { Button } from '@/components/ui/button'
@@ -79,8 +79,32 @@ function TileLabel({ en, vi }: { en: string; vi?: string | null }) {
  *   432-639px → 4px gap (440: 64 shown, 20 cut)
  * ⛔ NOT AN EDGE FADE: the owner removed the fade from THIS rail on 2026-08-26 ("remove these effects on sides of category
  *   model rails the cloudy effect" — the note on the scroller below). The edge hard-clips; the clip IS the cue.
+ * ⛔ …EXCEPT THE HOME PAGE'S PILL ROW (`pills`), WHICH SHOWS WHOLE PILLS AND THE MORE DISC (owner-approved 2026-11-15
+ *   (build 8), cook r08 home; it reverses there the clipped cue above and build 7's "a cut pill is the cue when part of its
+ *   word shows"). No pill is ever cut at rest: the row is laid out in PAGES (PILL_PAGES, below), and the More disc is
+ *   always the cue. Nothing is measured or tuned at run time.
  */
 const PHONE_GAP = 'max-[23.25rem]:gap-x-1 min-[23.25rem]:max-[27rem]:gap-x-0 min-[27rem]:max-sm:gap-x-1'
+
+/**
+ * ⛔ THE HOME'S PILL ROW IS LAID OUT IN PAGES OF WHOLE PILLS (owner-approved 2026-11-15 (build 8), cook r08 home: "the strip
+ * ends on whole pills and the rail's own More disc (no art-only peek)"). Below 640px the scroller is a ONE-COLUMN MULTICOL
+ * box one pill tall (`columns-1`, `column-fill: auto`, a fixed 52px: 6px over the 40px pills and 6 under them), and the pills are
+ * inline boxes in one line of text: a pill that does not fit the line in full goes to the next line, which is the next
+ * column — the next page — so the first screen ends on a whole pill, 8px or more before the disc, at every width, language,
+ * font and text size, with no measuring and nothing moved after the first paint. The column box runs from the 12px text
+ * edge to the disc's left edge (`pr-13`: the 12px edge + the 40px disc), and a pill's own 8px right margin is its gap, so
+ * the last whole pill always ends 8px or more before the disc. The column gap is 64px, so the next page starts 12px past the
+ * screen edge (nothing peeks), and one page is exactly the scroller's width: the disc steps one page (`pagePills`). A swipe
+ * scrolls freely, as the rail always has (no snap points); between pages it shows the air the mock's own push left.
+ * The cue is the disc (below), never a cut pill. From 640px the scroller is the grid above, untouched.
+ * ⚠️ THE COLUMN IS 44px, NOT 40 — 4px taller than its one line (`pt-1.5 pb-0.5`: 6 over the pills, the column's own 4px + 2
+ * under them). With the column exactly as tall as the line, WebKit lays out one more, EMPTY column after the last pill, so a
+ * swipe on an iPhone ended on a blank page (measured, Playwright WebKit and Chromium, 320-430px, EN and VI, 2026-11-15: at
+ * 40px WebKit's scroll width was one page longer than Chromium's; from 41px both end on the last pill). Two lines need 80px,
+ * so 44 still holds exactly one.
+ */
+const PILL_PAGES = 'max-sm:block max-sm:h-13 max-sm:columns-1 max-sm:gap-x-16 max-sm:[column-fill:auto] max-sm:overflow-y-hidden max-sm:pt-1.5 max-sm:pb-0.5 max-sm:pl-3 max-sm:pr-13 max-sm:leading-none'
 
 /**
  * Does the scroller's VISIBLE right edge, where the row is now, cut a child — a tile, or the subcategory box — with at
@@ -88,7 +112,7 @@ const PHONE_GAP = 'max-[23.25rem]:gap-x-1 min-[23.25rem]:max-[27rem]:gap-x-0 min
  * picked category slid to the left edge with its box beside it, the edge can land between tiles even at a width
  * PHONE_GAP covers at rest. `null` when there is no layout to read (every child 0px wide): the caller keeps what it had.
  * Where it reads false — those positions, and widths PHONE_GAP does not cover (round 4: 280, 464, 552px) — the phone
- * row's More arrow comes back.
+ * row's More arrow comes back. (Not asked on the home's pill row: there the disc is always the cue — PILL_PAGES.)
  */
 export function edgeClipsChild(el: HTMLElement): boolean | null {
   const edge = el.clientWidth
@@ -132,6 +156,7 @@ export function CategoryRail({
   hrefFor,
   teacherProfile = false,
   teacherDraft = false,
+  pills = false,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -210,6 +235,12 @@ export function CategoryRail({
   teacherProfile?: boolean
   /** An unfinished teacher profile is saved to this account (dash.teacherDraft): the chip continues it. */
   teacherDraft?: boolean
+  /**
+   * The undirected home page's phone row: below 640px each tile is a pill, the art beside the word (PILL_*, owner-approved
+   * 2026-11-15 (build 7)). listings-explorer.tsx passes `showHomeLanes`. Without it — a storefront, a directed feed's folded
+   * panel — the phone row is the tiles; from 640px it changes nothing.
+   */
+  pills?: boolean
 }) {
   const { lang, tr } = useLanguage()
   /**
@@ -253,11 +284,12 @@ export function CategoryRail({
    * gap every few pixels, never blinks the arrow — and again on a resize, when the subcategory box's slide-in ends (it
    * moves while it animates), and when the row's content changes (counts arriving widen the chips without resizing the
    * scroller). Left alone where there is no layout (jsdom, display:none).
+   * Not on the home's pill row (`pills`): no pill is cut there and the disc is always the cue (PILL_PAGES).
    */
   const [edgeClip, setEdgeClip] = useState(true)
   useEffect(() => {
     const el = railRef.current
-    if (!el) return
+    if (!el || pills) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const measure = () => {
       const clipped = edgeClipsChild(el)
@@ -281,7 +313,50 @@ export function CategoryRail({
       ro?.disconnect()
       mo?.disconnect()
     }
-  }, [railRef, canRight, activeCategory, allCategories.length, lang])
+  }, [railRef, canRight, activeCategory, allCategories.length, lang, pills])
+  /**
+   * The home's pill row draws its More disc from the server's HTML on (PILL_PAGES: the first page always ends before it), so
+   * it is there in the first frame instead of arriving with the first measurement; from then on `canRight` decides, as on
+   * every other row, so it leaves at the row's end. `measured` is false on the server and in the hydration render.
+   */
+  const [measured, setMeasured] = useState(false)
+  useEffect(() => { setMeasured(true) }, [])
+  /**
+   * ⛔ THE HOME'S PILL ROW PINS UNDER THE HEADER WHILE THE LANES SCROLL (owner-approved 2026-11-15 (build 8), cook r08 home:
+   * "search + categories, one bar"): below 640px its root is `sticky` at the header's height (the header itself stays put
+   * there — use-header-pin.ts), opaque white, and lets go where the lanes end — not by script: its sticky box is the
+   * explorer's `data-ladder-head` block (the row, the recents row and the lanes), so it scrolls away with the last lane,
+   * before the feed's own sticky strip reaches the top. `stuck`: the row has pinned (the page has scrolled and the row sits
+   * on its sticky line), which draws its one hairline. A passive scroll listener read once a frame, after layout.
+   */
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el || !pills) return
+    let frame = 0
+    const read = () => {
+      frame = 0
+      const cs = getComputedStyle(el)
+      const line = parseFloat(cs.top)
+      // 1px of slack: the header's bottom (the sticky line) can land on a sub-pixel, and a pinned row then reads a hair below it.
+      setStuck(cs.position === 'sticky' && window.scrollY > 0 && Number.isFinite(line) && el.getBoundingClientRect().top <= line + 1)
+    }
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(read) }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [pills])
+  /** The pill row's disc steps one PAGE (PILL_PAGES: a page is exactly the scroller's width); every other row keeps `page`. */
+  const pagePills = () => {
+    const el = railRef.current
+    if (el) el.scrollBy({ left: el.clientWidth, behavior: scrollBehavior() })
+  }
 
   // When a category is chosen, slide the rail so that category sits at the left edge
   // — the user immediately sees their pick with its subcategories rolled out beside it.
@@ -433,6 +508,9 @@ export function CategoryRail({
    *             An earlier version of this line said "8 per screen", which is the column count — a
    *             reviewer read it as the tile count, and the tile count is what a reader wants.)
    * `grid-flow-col` fills column by column, which is what makes the overflow horizontal.
+   * ⛔ …EXCEPT THE UNDIRECTED HOME'S ROW, WHICH IS PILLS (owner-approved 2026-11-15 (build 7), cook r07 home — `pills`, PILL_*
+   * below): the same one row of the same links below 640px, each a 40px pill with its art beside its word. It reverses the
+   * 84px tile with a 44px glyph over a one-line label (2026-11-12, "go all") on that row only; every other phone row keeps it.
    */
   // `h-full justify-center` so a tile FILLS its cell instead of sitting at the top of it — measured
   // when the cells were larger: without it a tile drew 93px of content inside a 134px cell and the
@@ -465,6 +543,31 @@ export function CategoryRail({
    * scrolls freely. Nothing re-aligns at rest — an earlier comment here claimed otherwise.
    */
   const tileCls = `press group flex h-full ${TILE_W} max-sm:w-21 flex-col items-center justify-center gap-1 py-0 text-center md:py-0.5 cursor-pointer select-none`
+  /**
+   * ⛔ THE HOME PAGE'S PILLS (owner-approved 2026-11-15 (build 7), cook r07 home: "build 7"; `pills`). Below 640px, merged
+   * over the tile's own classes, so from 640px the tile is exactly as above:
+   *   the pill   40px tall, as wide as its art and word (6px before the art, 8 between, 14 after the word), fully round,
+   *              white, raised like the header's search pill above it — its 1px `search-edge` rim and the rail's own lift
+   *              (`shadow-chip`, the More disc's). A press fills it with the field grey. `tap-44`: a 44px hit area (WCAG 2.5.8).
+   *   the art    28px, beside the word, on no disc (PILL_GLYPH) — 26px since build 8 (below).
+   *   the word   14/20 bold ink, whole: the pill grows to fit it, so it never truncates (PILL_LABEL).
+   * It reverses, on this row: the one-line label under a 44px glyph in an 84px tile (2026-11-12, "go all"), the 40px art
+   * (2026-09-18, "make it fit this box larger" — note on glyphSize below), and, for these pills, the flat chip (2026-10-18:
+   * one chip style, "A FLAT PILL, NOT A RAISED PLATE" — the subcategory chip's note) and the canon's shadows only for
+   * things that float (§3b). The row itself bleeds to the screen edges with the 12px text edge as its padding, sits 6px
+   * under the header and 12px over the first lane (the rail's root and scroller, below).
+   * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): the art is 26px with 6px to its word and 12px after it (the mock's
+   * pill), and each pill is an INLINE box with its 8px gap as its own right margin — the row is pages of whole pills
+   * (PILL_PAGES), so a pill is never cut and the row ends on the More disc. The row pins under the header (`stuck`, below)
+   * and the first lane starts 18px under the pills.
+   */
+  const PILL_TILE = 'relative tap-44 max-sm:inline-flex max-sm:h-10 max-sm:w-auto max-sm:mr-2 max-sm:align-top max-sm:flex-row max-sm:justify-start max-sm:gap-1.5 max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background max-sm:pl-1.5 max-sm:pr-3 max-sm:shadow-chip max-sm:active:bg-tint'
+  const PILL_GLYPH_BOX = 'max-sm:size-6.5 max-sm:p-0 max-sm:rounded-none max-sm:bg-transparent'
+  const PILL_GLYPH = 'max-sm:size-6.5'
+  const PILL_LABEL = 'max-sm:w-auto max-sm:overflow-visible max-sm:text-sm max-sm:leading-5'
+  /** A tile's classes, as a pill on the home's phone row (`pills`); `on`: the current one wears an ink rim there. */
+  const tileClass = (span: string, on = false) =>
+    pills ? cn('whitespace-normal', tileCls, span, PILL_TILE, on && 'max-sm:border-foreground') : cn('whitespace-normal', tileCls, span)
   /**
    * ⛔ FROM 640px TO md: TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows
    * when swiped transitions into 3"). One grid expresses both: six unit rows, where the first six tiles
@@ -505,6 +608,9 @@ export function CategoryRail({
    * "go all"). Below 640px every tile is the SMALL one — the big branch carries `max-sm:` 44px box / `p-0.5`
    * / 40px mark — in one row of 44 + 4 + a one-line 15px label = a 63px rail at 360-430, en and vi
    * (computed from the classes; the 201px was measured when phones had the six-row grid).
+   * ⛔ BESIDE THE WORD ON THE HOME'S PILL ROW (owner-approved 2026-11-15 (build 7), cook r07 home — PILL_GLYPH_BOX /
+   * PILL_GLYPH): the 2026-09-18 "larger" ruling is reversed there; the art sits on no disc inside the 40px pill, 26px since
+   * owner-approved 2026-11-15 (build 8) (28 in build 7).
    */
   /**
    * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
@@ -522,8 +628,9 @@ export function CategoryRail({
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
       big ? 'h-15 w-15 max-sm:h-11 max-sm:w-11 max-sm:p-0.5 md:h-14 md:w-14' : 'h-11 w-11 p-0.5 md:h-14 md:w-14 md:p-1',
       on && 'bg-brand-50',
+      pills && PILL_GLYPH_BOX,
     )
-  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 max-sm:h-10 max-sm:w-10 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12')
+  const glyphSize = (big: boolean) => cn(big ? 'h-13 w-13 max-sm:h-10 max-sm:w-10 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12', pills && PILL_GLYPH)
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -564,14 +671,17 @@ export function CategoryRail({
   // face. `max-sm:block` because text-overflow is defined for a block container, not the -webkit-box the
   // base clamp sets. So on a phone the wrap fallbacks above (hyphens, break-words) never act: OS text
   // scaling cuts a label with "…" instead of hyphenating it. From 640px the two-line clamp is unchanged.
+  // ⛔ …EXCEPT ON THE HOME'S PILL ROW (owner-approved 2026-11-15 (build 7) — PILL_LABEL): 14/20 bold ink, whole, the pill as
+  // wide as its word. `overflow-visible` there: the word is never cut, and a 20px line must not clip a stacked Vietnamese mark.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors max-sm:block max-sm:truncate md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors max-sm:block max-sm:truncate md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground', pills && PILL_LABEL)
 
 
 
   // ⛔ A FLAT PILL, NOT A RAISED PLATE (owner, 2026-10-18: one chip style). The chosen subcategory used to lift off the
   // plate as a white card with `shadow-sm` — the one raised chip on the page, and the canon keeps shadows for things
   // that float (§3b). It is now the browse chip's pill shape, chosen = the plate's white fill without the shadow.
+  // (The home page's CATEGORY pills are raised — owner-approved 2026-11-15 (build 7), PILL_TILE; this chip stays flat.)
   // ⚠️ THE ROW STAYS 28px (`py-1`), NOT the chip's 36: the plate's row cap is measured against the tile rail's
   // height (the note on its grid below — 640-767px: 6×28 + gaps ≈ 190px under a ~201px rail; below 640px: 2×28 +
   // 4px of padding = 60px under the 63px one-row rail); a taller chip grows the rail.
@@ -713,7 +823,26 @@ export function CategoryRail({
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
-    <div data-category-rail="" className="relative">
+    // The home's pill row (`pills`, below 640px): the row bleeds to the screen edges (the #listings frame is `px-3`), and
+    // its scroller keeps 6px above and below the pills — room for their lift, which the scroller's overflow would clip. The
+    // root takes back the frame's 16px top, so that room is the whole gap to the header (the pills sit 6px under it).
+    // Directed, this root is display:none on a phone (globals.css data-explorer-fold) and the folded row takes its place, so
+    // these margins never move a result.
+    // ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): it PINS under the header (`sticky` at the header's 56px + the
+    // safe-area inset — the sort strip's own line, explorer-toolbar.tsx), opaque white, z-30 under the header's z-40, and
+    // its 52px is the whole pinned row: the pills and 6px either side — no taller than they need ("keep the pinned chrome
+    // as short as the design allows": 56 + 52 = 108px, where the mock pinned 116). It ends 12px over the next rung, so the
+    // first lane starts 18px under the pills (the mock's 10 + 8). Its sticky box is the explorer's `data-ladder-head`, so it
+    // lets go with the last lane (`stuck`'s note, above).
+    <div
+      ref={rootRef}
+      data-category-rail=""
+      data-stuck={pills && stuck ? '' : undefined}
+      className={cn('relative', pills && 'max-sm:sticky max-sm:top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)] max-sm:z-30 max-sm:-mx-3 max-sm:-mt-4 max-sm:mb-3 max-sm:bg-background')}
+    >
+    {/* The pinned row's one hairline (build 8): the header draws none over the home lanes (header.tsx `headerLineOff`), so
+        header and pills read as one top block, and this line under them shows only once the row has pinned. Paint only. */}
+    {pills && <span aria-hidden className={cn('pointer-events-none absolute inset-x-0 bottom-0 z-10 h-px bg-border opacity-0 transition-opacity duration-150 sm:hidden', stuck && 'opacity-100')} />}
     <div
       ref={railRef}
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
@@ -740,8 +869,10 @@ export function CategoryRail({
          `max-sm:` overrides make it one compact row with no gaps or padding (owner, 2026-11-12: "go all").
          `grid-rows-1` is `repeat(1,minmax(0,1fr))`, and in this auto-height scroller an fr row with
          indefinite free space resolves to its tallest item's max-content (CSS Grid §12.7.1) — exactly
-         `auto`, so the row is the 63px tile; the token form keeps it beside `grid-rows-6`. */
-      className={`grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 max-sm:grid-rows-1 ${PHONE_GAP} max-sm:gap-y-0 max-sm:py-0 md:grid-rows-2 md:gap-x-3 md:gap-y-2`}
+         `auto`, so the row is the 63px tile; the token form keeps it beside `grid-rows-6`.
+         The home's pill row (`pills`): pages of whole pills (PILL_PAGES — a one-column multicol box, not this grid), from the
+         12px text edge to the More disc, 6px above and below for the pills' lift. */
+      className={`grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 max-sm:grid-rows-1 ${pills ? PILL_PAGES : `${PHONE_GAP} max-sm:py-0`} max-sm:gap-y-0 md:grid-rows-2 md:gap-x-3 md:gap-y-2`}
     >
       {/* ⛔ NO "ALL" TILE (owner, 2026-09-18: "remove All category from both desktop and mobile").
           Clearing a category is still one tap — a category tile is a TOGGLE, `onCategory(isActive ?
@@ -753,7 +884,7 @@ export function CategoryRail({
           tailwind-merge, so the base `inline-flex` would beat `flex flex-col` and the base
           `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
       {shortcuts?.map((sc, si) => (
-        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls, spanClasses[si])}>
+        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={tileClass(spanClasses[si], shortcutActive(sc))}>
           <span className={glyphBox(bigTile[si], shortcutActive(sc))}>
             {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
                 not merely falsy — the string never enters the artifact at all, and the file it
@@ -769,12 +900,12 @@ export function CategoryRail({
               /* eslint-disable-next-line @next/next/no-img-element -- same reasoning as CategoryArt */
               <img src={sc.art} alt="" aria-hidden width={184} height={184} draggable={false}
                 fetchPriority="low" decoding="async"
-                className={cn('shrink-0 select-none object-contain transition-[filter] duration-200', !shortcutActive(sc) && 'grayscale', iconCls(shortcutActive(sc)))} />
+                className={cn('shrink-0 select-none object-contain transition-[filter] duration-200', !shortcutActive(sc) && 'grayscale', iconCls(shortcutActive(sc)), pills && PILL_GLYPH)} />
             ) : (
-              <CategoryIcon name={sc.icon} className={iconCls(shortcutActive(sc))} />
+              <CategoryIcon name={sc.icon} className={cn(iconCls(shortcutActive(sc)), pills && PILL_GLYPH)} />
             )}
           </span>
-          <span className="flex w-full flex-col items-center gap-0.5">
+          <span className={cn('flex w-full flex-col items-center gap-0.5', pills && 'max-sm:w-auto')}>
             <span className={nameCls(false)}><TileLabel en={sc.name} vi={sc.nameVi} /></span>
           </span>
         </Button>
@@ -789,7 +920,7 @@ export function CategoryRail({
           <Fragment key={cat.id}>
             {tile({
               key: `tile-${cat.slug}`,
-              className: cn('whitespace-normal', tileCls, spanClasses[at]),
+              className: tileClass(spanClasses[at], isActive),
               href: hrefFor ? hrefFor(isActive ? null : { category: cat.slug }) : null,
               onSelect: () => onCategory(isActive ? 'all' : cat.slug),
               data: { 'data-cat': cat.slug },
@@ -965,7 +1096,7 @@ export function CategoryRail({
             return (
               tile({
                 key: s.type,
-                className: cn('whitespace-normal', tileCls, spanClasses[shortcutCount + categories.length + i]),
+                className: tileClass(spanClasses[shortcutCount + categories.length + i], active),
                 // The intent is a toggle too (onIntent clears the active one), so its href follows it.
                 href: hrefFor ? hrefFor(active ? null : { type: s.type }) : null,
                 onSelect: () => onIntent?.(s.type),
@@ -1007,22 +1138,34 @@ export function CategoryRail({
         * width). Where the edge still lands between tiles at rest — odd widths like 280, 464 or 552px (review round
         * 4) — `edgeClip` reads false and the arrow comes back, so a phone never shows whole tiles with nothing saying
         * there are more. It still shows from 640px until `pc:`.
+        * ⛔ ON THE HOME'S PILL ROW IT IS ALWAYS THE CUE (owner-approved 2026-11-15 (build 8), cook r08 home: "the strip ends on
+        * whole pills and the rail's own More disc"; it reverses there "below 640px only as a fallback" and build 7's "a cut
+        * pill whose word shows is the cue"): a 40px grey disc with an ink arrow — the same disc every lane's See all is
+        * (shelf.tsx LANE_SEE_ALL) — on the 12px edge, centred on the pills, 8px or more after the last whole pill
+        * (PILL_PAGES). It is in the server's HTML (`measured`), and a tap steps one page of pills (`pagePills`). At the
+        * row's end (`canRight` false) it goes, as everywhere.
         * display:none takes it out of the tab order too, which costs nothing: every tile is a real
         * link/button and a focused one scrolls into view.
         */}
-      {canRight && (
+      {(canRight || (pills && !measured)) && (
         <IconButton
           size="sm"
-          onClick={() => page(1)}
+          onClick={() => (pills && window.matchMedia?.('(max-width: 639.98px)').matches ? pagePills() : page(1))}
           aria-label={tr('More', 'Xem thêm')}
           // ⚠️ 12px BELOW CENTRE (UI climb 2026-11-05): at dead centre the 32px disc sat on the end of the top row's third label ("Electronics").
           // Here it lands in the gap beside the second row's art, and it is solid: a glass disc over a label read as a layout bug.
-          // On the one-row phone rail (the fallback above) it centres on the 44px glyph discs instead.
-          className={cn('absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-5.5 pc:hidden', edgeClip && 'max-sm:hidden')}
+          // On the one-row phone rail (the fallback above) it centres on the 44px glyph discs instead; on the home's pill row
+          // (`pills`) it is the 40px grey disc on the 12px edge, centred on the pills (build 8). Until measured it shows on a
+          // phone only (`sm:hidden`), where the first page always ends before it.
+          className={cn(
+            'absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-5.5 pc:hidden',
+            pills ? cn('max-sm:right-3 max-sm:top-1/2 max-sm:size-10 max-sm:border-0 max-sm:bg-tint max-sm:text-foreground max-sm:active:bg-line-strong', !measured && 'sm:hidden') : edgeClip && 'max-sm:hidden',
+          )}
         >
           {/* ⛔ STATIC — the owner removed the drift the moment they saw it ("remove animation from
-              right arrow"). */}
-          <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
+              right arrow"). The pill row's disc draws the lanes' arrow (build 8). */}
+          <ChevronRight className={cn('h-5 w-5', pills && 'max-sm:hidden')} strokeWidth={STROKE_UI} />
+          {pills && <ArrowRight className="hidden size-4.5 max-sm:block" strokeWidth={STROKE_UI} />}
         </IconButton>
       )}
 

@@ -23,6 +23,8 @@ vi.mock('@/lib/lang-pinned', async (importOriginal) => {
 })
 
 import { CategoryMapChip } from './category-map-chip'
+import { MAP_FLOAT } from '@/components/marketplace/map-float'
+import { cn } from '@/lib/utils'
 
 afterEach(() => { cleanup(); LANG = 'en' })
 const params = (a: HTMLElement) => {
@@ -81,6 +83,18 @@ describe('CategoryMapChip', () => {
     it('⛔ teachers: still no chip', () => {
       const { container } = render(<CategoryMapChip slug="teachers" homesOnly={false} lang="en" className={STRIP} />)
       expect(container.innerHTML).toBe('')
+    })
+
+    // ⛔ Build 8 (owner-approved 2026-11-15, cook r08 rentals — map-float.ts): the page's STRIP_MAP_CHIP adds the float look. The
+    // merge must keep every float class and every strip class (they sit on different variants, so none may drop the other), and
+    // the link, its words and its target stay the chip's own.
+    it('with MAP_FLOAT: every float class and every strip class survive the merge; the same link', () => {
+      render(<CategoryMapChip slug="rentals" homesOnly lang="en" className={cn(STRIP, MAP_FLOAT)} glyphClassName="size-4.5" />)
+      const a = screen.getByRole('link', { name: /Map/ })
+      expect(tokens(a)).toEqual(expect.arrayContaining([...MAP_FLOAT.split(' '), 'min-h-9', 'py-0', 'text-sm', 'gap-1.5']))
+      expect(MAP_FLOAT.split(' ').every((t) => t.startsWith('max-sm:'))).toBe(true)
+      expect(params(a)).toEqual({ path: '/', q: { category: 'rentals', homes: '1', view: 'map' } })
+      expect(a.textContent).toContain('Map')
     })
   })
 })

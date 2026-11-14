@@ -59,11 +59,12 @@ for (const lang of ['en', 'vi'] as const) {
       await expect.poll(() => nav.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
     })
 
-    test('the header: a 44px round pill and a 36px mark', async ({ page, baseURL }) => {
+    test('the header: a round pill (46px on home since build 8, 44px elsewhere) and a 36px mark', async ({ page, baseURL }) => {
       await open(page, '/', lang, baseURL)
       const pill = page.locator('#app-header form[role="search"] div.relative.z-50')
       const p = (await pill.boundingBox())!
-      expect(Math.round(p.height)).toBe(44)
+      // Build 8 (owner-approved 2026-11-15): the home route's pill is the page's one primary action, 46px with a stronger lift.
+      expect(Math.round(p.height)).toBe(46)
       expect(await pill.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))).toBeGreaterThanOrEqual(22)
       const logo = (await page.locator('#app-header [data-header-logo] img').boundingBox())!
       expect(Math.round(logo.width)).toBe(36)

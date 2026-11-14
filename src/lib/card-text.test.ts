@@ -8,7 +8,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CARD_APPROX, CARD_BODY, CARD_LINE_PX, CARD_META, CARD_PRICE, CARD_WAS, TEACHER_PROOF, TEACHER_RATE, TEACHER_TITLE_LINE, TITLE_LINE, WIDE_BODY, WIDE_LINE_PX, WIDE_META, WIDE_TITLE } from './card-text'
+import { CARD_APPROX, CARD_BODY, CARD_LINE_PX, CARD_META, CARD_PRICE, CARD_WAS, TEACHER_BODY, TEACHER_NO_RATE, TEACHER_PROOF, TEACHER_RATE, TEACHER_RATE_UNIT, TEACHER_TITLE_LINE, TITLE_LINE, WIDE_BODY, WIDE_LINE_PX, WIDE_META, WIDE_PRICE_ROW, WIDE_TITLE } from './card-text'
+import { cn } from './utils'
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8')
 const CSS = read('src/app/globals.css')
@@ -62,14 +63,19 @@ describe('card-text — one block for the card, the SEO tile and the skeleton', 
 
   it('a teacher keeps the name bold and in ink (owner, 2026-11-12, kept) — the h3 role on a phone, 18 from sm (2026-11-14)', () => {
     const cls = TEACHER_TITLE_LINE.split(' ')
-    expect(cls).toEqual(expect.arrayContaining(['truncate', 'text-t-h3', 'font-bold', 'sm:text-lg', 'sm:leading-snug', 'text-foreground']))
+    expect(cls).toEqual(expect.arrayContaining(['truncate', 'text-t-h3', 'font-bold', 'max-sm:tracking-tight', 'sm:text-lg', 'sm:leading-snug', 'text-foreground']))
     expect(cls).not.toContain('text-t-card')
     expect(cls).not.toContain('text-ink-3')
     expect(cls).not.toContain('font-normal')
     expect(linePx('h3')).toBe(24)
-    // The rate 14/20 bold (16/20 from sm), the proof 14/20 ink-2 — nothing under the 13px meta role.
-    expect(TEACHER_RATE.split(' ')).toEqual(['text-sm', 'leading-5', 'font-bold', 'sm:text-base'])
+    // Build 7 (owner-approved 2026-11-15, cook r07 teachers): the rate 16/22 bold on a phone (16/20 from sm), its unit a 13 muted
+    // label, "Rate on request" 14/22 regular on a phone (16/20 bold from sm); the proof 14/20 ink-2 — nothing under 13px.
+    expect(TEACHER_RATE.split(' ')).toEqual(['text-base', 'leading-5.5', 'font-bold', 'sm:leading-5'])
+    expect(TEACHER_NO_RATE.split(' ')).toEqual(['text-sm', 'leading-5.5', 'font-normal', 'sm:text-base', 'sm:leading-5', 'sm:font-bold'])
+    expect(TEACHER_RATE_UNIT.split(' ')).toEqual(['max-sm:text-t-meta', 'max-sm:font-normal', 'max-sm:text-muted-foreground'])
     expect(TEACHER_PROOF.split(' ')).toEqual(['truncate', 'text-sm', 'text-body'])
+    // The text block keeps CARD_BODY's left inset and runs to the photo's right edge on a phone.
+    expect(cn(CARD_BODY, TEACHER_BODY).split(' ')).toEqual(expect.arrayContaining(['px-2', 'max-sm:pr-0', 'sm:px-0.5']))
   })
 
   it('the card no longer paints a blurred fill under its photo, nor a "Just in" chip', () => {
@@ -84,26 +90,34 @@ describe('card-text — one block for the card, the SEO tile and the skeleton', 
 
 /**
  * ⛔ THE WIDE PHONE CARD'S BLOCK (owner-approved 2026-11-14, cook r06 rentals-a — card-text.ts WIDE_*, listing-card.tsx `wide`): every
- * class is phone-only, and its one-line body is the 96px the skeleton and the feed's unrendered guess reserve.
+ * class is phone-only, and its one-line body is the 88px the skeleton and the feed's unrendered guess reserve (96 until build 8 —
+ * owner-approved 2026-11-15, cook r08 rentals — moved the check out of the price row onto the photo).
  */
 describe('card-text — the wide phone card', () => {
   it('every WIDE_* class is max-sm:, so from sm the card is the grid card', () => {
-    for (const s of [WIDE_BODY, WIDE_TITLE, WIDE_META]) for (const t of s.split(' ')) expect(t).toMatch(/^max-sm:/)
+    for (const s of [WIDE_BODY, WIDE_TITLE, WIDE_META, WIDE_PRICE_ROW]) for (const t of s.split(' ')) expect(t).toMatch(/^max-sm:/)
   })
 
-  it('the body is the two-column grid, flush, 12px under the photo; the title the body role in ink; the meta 14/20', () => {
-    expect(WIDE_BODY.split(' ')).toEqual(expect.arrayContaining(['max-sm:grid', 'max-sm:grid-cols-[minmax(0,1fr)_auto]', 'max-sm:px-0', 'max-sm:pt-3', 'max-sm:gap-x-3']))
-    expect(WIDE_TITLE.split(' ')).toEqual(expect.arrayContaining(['max-sm:col-span-2', 'max-sm:text-base', 'max-sm:leading-6', 'max-sm:text-foreground']))
-    expect(WIDE_META.split(' ')).toEqual(expect.arrayContaining(['max-sm:col-span-2', 'max-sm:pt-0', 'max-sm:text-sm']))
+  it('the body is CARD_BODY\'s one column, flush, 12px under the photo; the price row 28px; the title the body role in ink; the meta 14/20', () => {
+    expect(WIDE_BODY.split(' ')).toEqual(['max-sm:px-0', 'max-sm:pt-3'])
+    expect(CARD_BODY.split(' ')).toEqual(expect.arrayContaining(['flex', 'flex-col', 'gap-0.5']))
+    expect(WIDE_PRICE_ROW.split(' ')).toEqual(['max-sm:min-h-7', 'max-sm:content-center'])
+    expect(WIDE_TITLE.split(' ')).toEqual(['max-sm:text-base', 'max-sm:leading-6', 'max-sm:text-foreground'])
+    expect(WIDE_META.split(' ')).toEqual(['max-sm:pt-0', 'max-sm:text-sm'])
+    // No grid and no column spans are left over from the two-column body (build 7).
+    for (const s of [WIDE_BODY, WIDE_TITLE, WIDE_META]) expect(s).not.toMatch(/grid|col-span/)
   })
 
-  it('a one-line wide body is 96px, and the feed guesses an unrendered wide cell at 100vw − 24 + 96', () => {
+  it('a one-line wide body is 88px, and the feed guesses an unrendered wide cell at 100vw − 24 + 88', () => {
     const { top, row, title, meta, gap } = WIDE_LINE_PX
-    expect(top + row + gap + title + gap + meta).toBe(96)
-    expect(CSS).toContain('[data-feed-card][data-wide-cell] { contain-intrinsic-size: auto calc(100vw + 72px); }')
-    // The skeleton's wide bars: the 36px slot row, the 24px title, the 20px meta.
-    expect(SKELETON).toContain('{wide && <div aria-hidden className="min-h-9 sm:hidden" />}')
-    expect(SKELETON).toContain("'h-5 w-4/5 max-sm:col-span-2 max-sm:h-6'")
-    expect(SKELETON).toContain('max-sm:col-span-2 max-sm:mt-0 max-sm:h-5')
+    expect(row).toBe(28)
+    expect(top + row + gap + title + gap + meta).toBe(88)
+    expect(CSS).toContain('[data-feed-card][data-wide-cell] { contain-intrinsic-size: auto calc(100vw + 64px); }')
+    // The skeleton's wide bars: the 22px price bar centred in the 28px row (no slot row), the 24px title, the 20px meta.
+    expect(SKELETON).not.toContain('min-h-9 sm:hidden')
+    // (The goods skeleton's price bar left this branch in build 8: its card ends on the price — listing-card.goods.test.tsx.)
+    expect(SKELETON).toContain('{wide ? <Skeleton className="h-[22px] w-1/2 max-sm:my-0.75" />')
+    expect(SKELETON).toContain("'h-5 w-4/5 max-sm:h-6'")
+    expect(SKELETON).toContain("'mt-0.5 h-[18px] w-1/2 lg:h-5 max-sm:mt-0 max-sm:h-5'")
   })
 })

@@ -115,9 +115,9 @@ describe('LISTING_CARD_SIZES follows the grid', () => {
  * class is `max-sm:` on top of the rail's own string, and its `sizes` are the grid's.
  */
 describe('the home lane is the rail plus phone-only classes', () => {
-  it('220px cards, 12px apart, bled 12px each side and padded back by 12', () => {
+  it('220px cards, 12px apart, bled 12px each side and padded back by 12, each card its own height (build 7)', () => {
     expect(LANE_CARD_W).toBe(`${RAIL_CARD_W} max-sm:w-55`)
-    expect(LANE_SCROLLER).toBe(`${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3`)
+    expect(LANE_SCROLLER).toBe(`${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3 max-sm:items-start`)
     expect(55 * PX_PER_STEP).toBe(220)
     expect(3 * PX_PER_STEP).toBe(FRAME_PX[''])
   })

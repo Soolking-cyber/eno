@@ -23,10 +23,13 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
 export const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
 
 /** ⚠️ MEMO: the explorer above re-renders on its own state, and each pass re-rendered these cards in full (speed audit, 2026-11-03). */
-export const ForYouRail = memo(function ForYouRail({ initial, recovery = false, look = 'rail', lcpMedia, liveMedia, goods = false }: {
+export const ForYouRail = memo(function ForYouRail({ initial, recovery = false, look = 'rail', lead = false, lcpMedia, liveMedia, goods = false }: {
   initial?: SerializedListingCard[]
   /** 'lane': the home page's phone lane (shelf.tsx LANE_*), inert from `sm`. */
   look?: RailLook
+  /** The home page's lead lane: its heading the page's one display line on a phone (shelf.tsx LEAD_TITLE, owner-approved
+   *  2026-11-15 (build 7), cook r07 home: "Trending leads"). */
+  lead?: boolean
   /**
    * The home page's phone lane leads the page, so its first card is the phone's LCP: a media-scoped preload (ListingCard
    * `lcp` as a media query — listings-explorer.tsx passes the phone's). Omitted, no card here claims it.
@@ -172,6 +175,7 @@ export const ForYouRail = memo(function ForYouRail({ initial, recovery = false, 
       icon={personalized ? Sparkles : TrendingUp}
       title={personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}
       look={look}
+      lead={lead}
       watch={listings?.length ?? 0}
       phoneGrid={goods ? 'goods' : undefined}
     >

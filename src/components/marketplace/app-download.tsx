@@ -33,7 +33,10 @@ import { cn } from '@/lib/utils'
  * (that class is set by layout.tsx's pre-paint script) — a render-time `window` check instead would
  * make the server and client markup disagree.
  */
-export function AppDownload() {
+export function AppDownload({ quiet = false }: {
+  /** The home route's phone header (owner-approved 2026-11-15 (build 8), header.tsx `homePill`): muted ink, 22px, below `sm` — the bell's own `quiet`. */
+  quiet?: boolean
+} = {}) {
   const { tr } = useLanguage()
   const [inApp, setInApp] = useState(false)
   /**
@@ -109,9 +112,9 @@ export function AppDownload() {
       // opens the Play app directly on Android, and a store link belongs in the page's link graph.
       // The shell classes are IconButton's own (rounded-full, tap-44, its `lg` box) so the two glyphs in
       // this header stay identical; keep them in step if that primitive's sizes change.
-      <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]">
+      <Button asChild variant="bare" size="none" className={cn('relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}>
         <a href={storeHref} data-app-download="" aria-label={label}>
-          <Download className="h-7 w-7 max-sm:h-6 max-sm:w-6" strokeWidth={1.75} />
+          <Download className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', quiet && 'max-sm:size-5.5')} strokeWidth={1.75} />
         </a>
       </Button>
     )
@@ -135,9 +138,9 @@ export function AppDownload() {
             aria-label={tr('Download the eno app', 'Tải ứng dụng eno')}
             // Matches the bell's press feel exactly — they are neighbours, and a different scale or
             // duration on one of two adjacent header glyphs reads as a bug.
-            className="text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
+            className={cn('text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}
           >
-            <Download className="h-7 w-7 max-sm:h-6 max-sm:w-6" strokeWidth={1.75} />
+            <Download className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', quiet && 'max-sm:size-5.5')} strokeWidth={1.75} />
           </IconButton>
         }
       />

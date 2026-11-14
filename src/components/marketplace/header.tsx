@@ -21,6 +21,7 @@ import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useHeaderPinned } from '@/hooks/use-header-pin'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -151,6 +152,25 @@ export function Header() {
   // explorer's sort bar to this same state, where believing the stale version would have meant
   // building a desktop branch for a difference that does not exist.
   const hidden = useHideOnScroll()
+  // ⛔ …EXCEPT ON THE HOME PAGE'S PHONE LANES (owner-approved 2026-11-15 (build 8), cook r08 home): there the bar stays put
+  // below `sm` — the explorer says when (use-header-pin.ts). From `sm`, and on every other view, it slides as above.
+  const pinned = useHeaderPinned()
+  /**
+   * ⛔ THE HOME ROUTE'S PHONE HEADER (owner-approved 2026-11-15 (build 8), cook r08 home: "the raised search pill as the one
+   * primary action"): below `sm` on `/` (HOME_PATHS — a test that agrees on the server and the client, so no hydration gate),
+   * the pill is 46px with a stronger lift (`shadow-search`), its empty state a centred bold ink label beside its own
+   * magnifier, and the ✨, bell and download glyphs step back to the muted ink. Every other route keeps the r05 pill (its ⛔
+   * note on the pill, below). A search or a filter on `/` keeps the same pill, so submitting never morphs the header.
+   */
+  const homePill = !!pathname && HOME_PATHS.has(pathname)
+  /**
+   * ⛔ NO HAIRLINE UNDER THE HEADER WHILE THE HOME LANES PIN THE CATEGORY PILLS UNDER IT (owner-approved 2026-11-15 (build 8),
+   * cook r08 home: the header and the pills read as one top block; the one hairline is under the pills once they pin —
+   * category-rail.tsx `pills`). It reverses there the r05 full-bleed phone hairline (its ⛔ note, below). Before hydration
+   * the explorer cannot say yet, so the home route's server HTML already leaves it out; a directed `/?…` link gets it back
+   * once hydrated (a 1px line appearing, never a shift).
+   */
+  const headerLineOff = pinned || (!hydrated && homePill)
 
   // Notch/Dynamic-Island handling for the installed PWA (and any web target with a real
   // safe-area inset). The prelaunch banner sits above the header and clears the notch
@@ -602,11 +622,19 @@ export function Header() {
    * The placeholder ladder's container-query classes per language — see the note on the overlay in
    * the search field. Whole literals, so Tailwind sees every class it has to generate.
    */
+  // The home route's phone pill (`homePill`, owner-approved 2026-11-15 (build 8)) labels itself with the one-word rung: there the
+  // long rung waits for `sm`, where the ladder runs as everywhere else. Below `sm` its overlay shows with NO width threshold: the
+  // leading glyph steps out whenever the field is empty, so a threshold (a narrow phone, enlarged text) would leave the pill with
+  // no label and no glyph (review); the overlay carries its own glyph and its word truncates at worst. MT languages unchanged.
   const placeholderFit =
     lang === 'vi'
-      ? { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: '@min-[8.7em]/q:block', short: '@min-[8.7em]/q:hidden' }
+      ? homePill
+        ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[5.55em]/q:flex', long: 'sm:@min-[8.7em]/q:block', short: 'sm:@min-[8.7em]/q:hidden' }
+        : { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: '@min-[8.7em]/q:block', short: '@min-[8.7em]/q:hidden' }
       : lang === 'en'
-        ? { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
+        ? homePill
+          ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[4.55em]/q:flex', long: 'sm:@min-[8.6em]/q:block', short: 'sm:@min-[8.6em]/q:hidden' }
+          : { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
         : { overlay: 'peer-placeholder-shown:@min-[15em]/q:flex', long: 'block', short: 'hidden' }
 
   /**
@@ -677,7 +705,9 @@ export function Header() {
         'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[translate,opacity] duration-[var(--duration-sticky,250ms)] ease-out [will-change:translate,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
-        hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
+        // ⛔ …but not below `sm` on the home page's lanes (`pinned`, owner-approved 2026-11-15 (build 8)): the media query
+        // comes later in the sheet than the plain utilities, so there the bar stays where it is.
+        hidden ? cn('-translate-y-full opacity-0', pinned && 'max-sm:translate-y-0 max-sm:opacity-100') : 'translate-y-0 opacity-100',
       )}
     >
       {/* ⚠️ NO HORIZONTAL PADDING, DELIBERATELY — the logo and the action buttons sit flush to the
@@ -720,8 +750,10 @@ export function Header() {
             breakpoint. Keep the two scales in lockstep if either ever changes.
             ⛔ FULL-BLEED ON A PHONE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options
             and deploy"): below 640px the line runs edge to edge in the full hairline colour, the redesign's header (a
-            phone shows no banner for it to match). From sm up the 2026-08-07 inset line stands. */}
-        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border sm:inset-x-6 sm:bg-border/60 lg:inset-x-8" />
+            phone shows no banner for it to match). From sm up the 2026-08-07 inset line stands.
+            ⛔ NONE ON A PHONE OVER THE HOME PAGE'S LANES (owner-approved 2026-11-15 (build 8) — `headerLineOff`, above): the
+            pinned category pills carry the one hairline there. */}
+        <span aria-hidden className={cn('pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border sm:inset-x-6 sm:bg-border/60 lg:inset-x-8', headerLineOff && 'max-sm:hidden')} />
         {/* ⚠️ INSTALLED-PWA BACK — `display:none` IN A NORMAL TAB, AND THE DISPLAY MODE IS DECIDED BY CSS,
             NOT BY A RENDER BRANCH. manifest.ts installs the site as `display: standalone` (the owner's
             only iOS web-push route), which removes the browser's own Back, and nothing here replaced it:
@@ -868,10 +900,18 @@ export function Header() {
                 border here"). It stays the same pill while the panel is open: the phone's panel is a separate fixed window.
                 From sm up nothing changed: the 40px tint pill, and the fused window when open. `isPhone` picks the open
                 shadow because `.shadow-pop` is an unlayered class with no `sm:` form; the panel is never open in the SSR
-                HTML, so that read cannot mismatch hydration. `border-radius` left the transition list with the morph. */}
+                HTML, so that read cannot mismatch hydration. `border-radius` left the transition list with the morph.
+                ⛔ ON THE HOME ROUTE, 46px WITH A STRONGER LIFT (owner-approved 2026-11-15 (build 8), cook r08 home — `homePill`):
+                the pill is the page's one primary action there, so it is 2px taller and wears `shadow-search` (a near
+                contact shadow and a soft 14px fall) over the same `search-edge` rim. Other routes keep the 44px r05 pill.
+                While its field is empty the pill sets `--lead-glyph: hidden` (a :has() on the pill itself), which the leading
+                magnifier reads (below). */}
             <div className={cn(
               'relative z-50 flex items-center transition-[background-color,box-shadow] duration-200 ease-[var(--ease-out-strong)]',
-              'max-sm:h-11 max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background max-sm:shadow-raised',
+              'max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background',
+              // The leading glyph steps out only where the centred label replaces it: English and Vietnamese. The nine
+              // machine-translated languages' label shows only from 15em, so a narrow pill there kept no label AND no glyph (review).
+              homePill ? cn('max-sm:h-11.5 max-sm:shadow-search', (lang === 'en' || lang === 'vi') && 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]') : 'max-sm:h-11 max-sm:shadow-raised',
               panelOpen
                 // Open (sm+) = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
                 // suggestions panel it fuses with (bottom flattened where they join), so the
@@ -886,7 +926,12 @@ export function Header() {
                 : 'sm:rounded-2xl sm:bg-tint',
             )}
             >
-              <Search className="pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground" strokeWidth={STROKE} />
+              {/* ⛔ ON THE HOME ROUTE'S PHONE PILL IT STEPS OUT WHILE THE FIELD IS EMPTY (owner-approved 2026-11-15 (build 8)):
+                  the label below is centred beside its own magnifier then. Read from the field's `:placeholder-shown`, so text
+                  typed before hydration brings it back too. `visibility`, NOT `display` (the mock's): the glyph keeps its
+                  34px, so the first typed letter does not shove the caret 34px right, and the centred label sits nearer the
+                  pill's own centre (the ✨ takes the right end). */}
+              <Search className={cn('pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground', homePill && 'max-sm:[visibility:var(--lead-glyph,visible)]')} strokeWidth={STROKE} />
               {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
               <div className="@container/q relative flex min-w-0 flex-1 self-stretch text-base">
@@ -967,13 +1012,20 @@ export function Header() {
                   ⚠️ The nine machine-translated languages have no width we can know ahead of time,
                   so they get only the long copy, and only with 224px of room — never a guess that
                   might be cut. `truncate` on each rung is a backstop for a fallback face, not a mode. */}
+              {/* ⛔ ON THE HOME ROUTE'S PHONE PILL, A CENTRED BOLD INK LABEL BESIDE ITS OWN MAGNIFIER (owner-approved
+                  2026-11-15 (build 8), cook r08 home — `homePill`): the leading glyph steps out (above) and the label is the
+                  pill's action, 15/20 bold ink. It is the ONE-WORD rung there ("Search" / "Tìm kiếm", the field's aria-label):
+                  the mock's centred "Search eno…" ended in its ellipsis right beside ✨ and both blind critics read it as cut
+                  copy (opus: broken), so the whole word, with air either side, is the label. The ladder's rule stands — no
+                  rung below the room it needs — and machine-translated languages keep their long copy only (`placeholderFit`). */}
               <span
                 aria-hidden="true"
                 data-search-placeholder=""
                 // `text-t-card` (15/20, the redesign's muted placeholder): the rungs' thresholds are em of the slot's own
                 // 16px (`text-base` above), so painting the copy 1px smaller only ever leaves MORE room — it never truncates.
-                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay)}
+                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay, homePill && (lang === 'en' || lang === 'vi') && 'max-sm:left-0 max-sm:right-0 max-sm:justify-center max-sm:gap-2 max-sm:font-bold max-sm:text-foreground')}
               >
+                {homePill && (lang === 'en' || lang === 'vi') && <Search aria-hidden className="hidden h-5 w-5 shrink-0 max-sm:block" strokeWidth={STROKE} />}
                 <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Search eno…', 'Tìm trên eno…')}</span>
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
               </span>
@@ -1042,7 +1094,8 @@ export function Header() {
                        button measured 38px — under the 44px minimum. Margin on both sides gives the
                        hit area room in both directions. */
                     // Ink at rest, like every glyph in the header (owner-approved 2026-11-14); accent while on /messages/ai.
-                    className={cn('relative ml-2 mr-2 flex h-10 w-10 tap-48', pathname !== '/messages/ai' && 'text-foreground')}
+                    // ⛔ Muted on the home route's phone pill (owner-approved 2026-11-15 (build 8), `homePill`): the label is the loud part.
+                    className={cn('relative ml-2 mr-2 flex h-10 w-10 tap-48', pathname !== '/messages/ai' && 'text-foreground', homePill && 'max-sm:text-muted-foreground')}
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -1406,12 +1459,14 @@ export function Header() {
             </Button>
             </Tooltip>
           )}
-          <NotificationBell />
+          {/* ⛔ `quiet` ON THE HOME ROUTE (owner-approved 2026-11-15 (build 8), cook r08 home — `homePill`): below `sm` the bell
+              and the download glyph step back to the muted ink at 22px, so the search pill is the header's one loud object. */}
+          <NotificationBell quiet={homePill} />
           {/* "Get the app" — ONE control placed to satisfy both placements the owner asked for
               (2026-09-16): on a phone, where Post lives in the bottom nav, it lands immediately to the
               RIGHT OF THE BELL; on desktop it is the control immediately LEFT OF POST. Renders nothing
               inside the native shell. */}
-          <AppDownload />
+          <AppDownload quiet={homePill} />
           {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
               bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
               still get a Sign in link here. */}

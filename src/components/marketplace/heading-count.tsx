@@ -9,10 +9,12 @@ import { useLanguage } from '@/context/language-context'
  * count ("48 of 5,344" / "48/5.344 tin") left it for the right end of the heading line, the mock's 12px body ink.
  *
  * ⛔ THE SERVER PAINTS IT, AND HYDRATION CHANGES NOTHING. The page renders <HeadingCount> with a `seed` computed from the same
- * `listings.length` and the same total expression as `serverScope.total`, so the first HTML already carries the words; then
+ * total expression as `serverScope.total`, so the first HTML already carries the words; then
  * SellerListings (the one that knows about Show more, a sort in flight, a failed query) publishes its own text through the
- * provider. Its first value IS the seed's, because both come from `phoneCountText` below with the same inputs
+ * provider. Its first value IS the seed's, because both come from `headingCountText` below with the same total
  * (heading-count.test.tsx pins it, EN and VI): the ellipsis of the heading beside it never moves at hydration.
+ * ⛔ Since build 7 (owner-approved 2026-11-15, cook r07 rentals) the line says the TOTAL, "5,344 listings", not "48 of 5,344"
+ * (`headingCountText`); the short "48 of 5,344" stays the announced live copy and every other page's sort-row count.
  * ⚠️ TRI-STATE: `undefined` = nothing published yet (show the seed), `null` = hide (no strip, a failed query), a string = show
  * it. A published `null` NEVER falls back to the seed (codex, plan review round 4).
  * ⚠️ PER TREE, NOT A MODULE SINGLETON: each page render mounts its own provider, so nothing outlives the page or leaks
@@ -28,6 +30,22 @@ export function phoneCountText(
   if (awaiting) return tr('Searching…', 'Đang tìm…')
   if (shown >= total) return `${grouped(total)} ${total === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}`
   return tr('{shown} of {total}', '{shown}/{total} tin').replace('{shown}', grouped(shown)).replace('{total}', grouped(total))
+}
+
+/**
+ * ⛔ WHAT THE HEADING LINE SAYS: THE SCOPE'S TOTAL, IN WORDS — "5,344 listings" / "5.344 tin đăng" (owner-approved 2026-11-15
+ * (build 7), cook r07 rentals — it reverses batch 93's / cook r06's "48 of 5,344" / "48/5.344 tin" there). Beside the page's
+ * name, "48 of" read as a vague fraction; the total is the figure the page is about, and the words are the page's own sentence's
+ * ("Showing 48 of 5,344 listings."). How many are on screen is still announced: SellerListings' `sr-only` live copy keeps
+ * `phoneCountText` ("48 of 5,344"), and Show more says the rest. No "Searching…" here either: a sort in flight does not change
+ * the scope, so the line keeps its total (a failed query still hides it — SellerListings publishes `null`).
+ */
+export function headingCountText(
+  tr: (en: string, vi?: string) => string,
+  grouped: (n: number) => string,
+  total: number,
+): string {
+  return `${grouped(total)} ${total === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}`
 }
 
 /**
@@ -78,11 +96,13 @@ export const HEADING_COUNT_TYPE = 'max-w-[40%] shrink-0 truncate text-t-meta tab
  * Show more does not wobble it. `shrink-0` + `max-w-[40%]` + `truncate`: the heading gives way first, and however large the
  * number grows the heading keeps 60% of the line.
  * ⚠️ `aria-hidden`: SellerListings keeps the announced copy (an `sr-only` live region), so a screen reader hears one count.
+ * The words are the total's since build 7 (`headingCountText`, above): the seed is the scope's total alone, the same
+ * expression as `serverScope.total`, so the server's words are SellerListings' first published words.
  */
-export function HeadingCount({ seed }: { seed: { shown: number; total: number } }) {
+export function HeadingCount({ seed }: { seed: { total: number } }) {
   const { tr, lang } = useLanguage()
   const published = useHeadingCount()
-  const text = published === undefined ? phoneCountText(tr, groupedIn(lang), { awaiting: false, ...seed }) : published
+  const text = published === undefined ? headingCountText(tr, groupedIn(lang), seed.total) : published
   if (text === null) return null
   return (
     <span aria-hidden data-heading-count="" className={HEADING_COUNT_TYPE}>
