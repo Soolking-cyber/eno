@@ -92,7 +92,10 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     // person's own storefront and the desk.
     // …or a storefront eno runs: `seller: { OR: [{ ownerId: null }, …pinned pairs] }` (eno-run-partners.ts) — each arm alone.
     if (key === 'seller' && cond && typeof cond === 'object' && 'OR' in (cond as object)) {
-      return (cond as { OR: Where[] }).OR.some((arm) => matches(row, { seller: arm } as Where))
+      // Only the ownerless arm can match a fixture: no fixture storefront is an eno-run pair (owner + officialPartner),
+      // so a pinned arm ({ id, ownerId, officialPartner }) matches none — never by seller id alone (commit gate).
+      return (cond as { OR: Where[] }).OR.some((arm) => 'ownerId' in arm && (arm as { ownerId: unknown }).ownerId === null
+        && matches(row, { seller: arm } as Where))
     }
     if (key === 'seller' && cond && typeof cond === 'object' && 'ownerId' in (cond as object) && (cond as { ownerId: unknown }).ownerId === null) {
       return !['own-seller', 'desk-seller'].includes(row.sellerId as string)

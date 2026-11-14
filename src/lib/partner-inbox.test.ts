@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// The two pinned pairs, spelled out (not rebuilt from the module under test).
+const PINNED = [{ id: 'cmt78nvif0000gpq48kvzmxjw', ownerId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', officialPartner: true }, { id: 'cmtr9qva90000glq44fkjs18b', ownerId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', officialPartner: true }]
 
 /**
  * The partner shops' unread chats (src/lib/partner-inbox.ts) — owner, 2026-11-12: "Counter only, no reading".
@@ -39,8 +41,8 @@ describe('partnerInboxCounts', () => {
     await partnerInboxCounts()
     expect(PARTNER_INBOX_HANDLES).toEqual(['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'])
     const a = calls.sellerArgs[0] as { where: unknown; select: Record<string, unknown> }
-    // …OR the pinned eno-run pairs (none shipped yet — owner 2026-11-14), so today the OR holds only the roster.
-    expect(a.where).toEqual({ OR: [{ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'] } } }] })
+    // …OR the pinned eno-run pairs (CellphoneS, Điện Thoại Vui — pinned 2026-11-15).
+    expect(a.where).toEqual({ OR: [{ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'] } } }, ...PINNED] })
     // The ROSTER arm never filters on officialPartner (that is checked per shop below); the pinned eno-run arms do, by design.
     expect(JSON.stringify((a.where as { OR: unknown[] }).OR[0])).not.toMatch(/officialPartner/)
     // the conversation is only ever aggregated: no findMany, no message, no buyer, no text

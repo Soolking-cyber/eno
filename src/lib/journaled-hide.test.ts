@@ -21,8 +21,8 @@ describe('the SQL carries every guard', () => {
     for (const sql of [SNAPSHOT_SQL, HIDE_SQL]) {
       expect(sql).toContain(`s."ownerId" IS NULL`)
       expect(sql).toContain(`(l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL OR EXISTS (SELECT 1 FROM "PartnerPurchaseLink" pl WHERE pl."listingId" = l.id))`)
-      // The owner arm widens only by the pinned eno-run pairs — none shipped, so it is exactly "ownerless" today.
-      expect(sql).toContain(`(s."ownerId" IS NULL OR FALSE)`)
+      // The owner arm widens only by the pinned eno-run pairs (eno-run-partners.ts) — never by any other owner.
+      expect(sql).toContain(`(s."ownerId" IS NULL OR ((s.id, s."ownerId") IN (('cmt78nvif0000gpq48kvzmxjw', 'a7dcc001-3521-4732-a07b-fda02d50b3b6'::uuid), ('cmtr9qva90000glq44fkjs18b', '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc'::uuid)) AND s."officialPartner"))`)
     }
     expect(SNAPSHOT_SQL).toContain(`l.status IN ('active','sold')`)
     expect(HIDE_SQL).toContain('l.status = j.prior')

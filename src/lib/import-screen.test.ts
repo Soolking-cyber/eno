@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ImportScreen, screenImportRow, type ScreenDb } from './import-screen'
 import { HIDE_SQL, SNAPSHOT_SQL } from './journaled-hide'
+// The two pinned pairs, spelled out (not rebuilt from the module under test): seller id, owner, officialPartner.
+const PINNED = [{ id: 'cmt78nvif0000gpq48kvzmxjw', ownerId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', officialPartner: true }, { id: 'cmtr9qva90000glq44fkjs18b', ownerId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', officialPartner: true }]
 
 // The screen every importer (scripts/import-*.ts) runs before it writes a row. Pinned: the order (a
 // banned word wins), that the banned-word half reads TITLES WITH ACCENTS (not folded descriptions —
@@ -250,8 +252,8 @@ describe('ImportScreen — an EXISTING row is never silently frozen', () => {
     const { db, finds } = fakeDb([{ id: 'L1', status: 'active', externalId: 'x1', sellerId: 'other' }])
     const s = new ImportScreen('test', { dir: tmp(), db, sellerIds: ['s1'] })
     await s.check({ title: 'Rượu HALICO 30°', externalId: 'x1' })
-    // Ownerless, or a pinned eno-run pair (none shipped → the OR holds only the ownerless arm).
-    expect(finds[0]).toEqual({ externalId: 'x1', seller: { OR: [{ ownerId: null }] }, sellerId: { in: ['s1'] } })
+    // Ownerless, or a pinned eno-run pair (eno-run-partners.ts) — never any other owner.
+    expect(finds[0]).toEqual({ externalId: 'x1', seller: { OR: [{ ownerId: null }, ...PINNED] }, sellerId: { in: ['s1'] } })
     expect(s.toHide).toEqual([]) // another shop's row with the same key is not this importer's to hide
   })
 })

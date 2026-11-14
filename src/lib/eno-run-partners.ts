@@ -28,7 +28,11 @@
 
 export type EnoRunPartner = { sellerId: string; ownerProfileId: string; name: string }
 
-export const ENO_RUN_PARTNERS: readonly EnoRunPartner[] = []
+export const ENO_RUN_PARTNERS: readonly EnoRunPartner[] = [
+  // Pinned 2026-11-15 from scripts/claim-partner-storefront.mjs (eno-held logins support+<shop>@eno.vn; passwords in ~/eno-vault).
+  { sellerId: 'cmt78nvif0000gpq48kvzmxjw', ownerProfileId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', name: 'CellphoneS' },
+  { sellerId: 'cmtr9qva90000glq44fkjs18b', ownerProfileId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', name: 'Điện Thoại Vui' },
+]
 
 const SELLER_ID = /^[a-z0-9]{20,40}$/
 const PROFILE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

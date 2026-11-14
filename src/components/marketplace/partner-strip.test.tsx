@@ -21,7 +21,7 @@ vi.mock('@/context/language-context', () => ({
 }))
 
 import { PartnerStrip } from './partner-strip'
-import { PARTNER_STRIP, stripPartners } from '@/lib/partner-strip'
+import { stripHref, PARTNER_STRIP, stripPartners } from '@/lib/partner-strip'
 
 const html = () => renderToString(<PartnerStrip />)
 
@@ -120,7 +120,7 @@ describe('PartnerStrip', () => {
   it("links each partner to its own storefront, named by its logo's alt and its one word", () => {
     const out = html()
     for (const p of stripPartners()) {
-      expect(out).toContain(`href="/${p.handle}"`)
+      expect(out).toContain(`href="${stripHref(p)}"`)
       expect(out).toContain(`alt="${p.name}"`)
       expect(out).toContain(`>${p.label.en}<`)
     }
@@ -147,10 +147,11 @@ describe('the partner roster', () => {
   })
 
   it('leaves the visa partner off eno.forum, keeps every marketplace partner on both, and no longer lists GMBR', () => {
-    expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders'])
+    // eno.forum is the same marketplace: the eno-run phone shops show there too (only the visa partner is left off).
+    expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders', 'cellphones', 'dienthoaivui'])
     expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('gmbr')
-    // The eno-run partners (CellphoneS, Điện Thoại Vui — owner 2026-11-14) show only once their pair is pinned: none is yet.
-    expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.filter((p) => !p.enoRunSellerId).map((p) => p.handle))
+    // The eno-run partners (CellphoneS, Điện Thoại Vui — owner 2026-11-14) show once their pair is pinned: both are (11-15).
+    expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.map((p) => p.handle))
   })
 
   it('an eno-run partner links to its storefront BY SELLER ID (a handle can be freed and re-claimed), every other by handle', async () => {
