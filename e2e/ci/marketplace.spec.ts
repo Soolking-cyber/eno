@@ -446,6 +446,12 @@ test.describe('marketplace, against known fixtures', () => {
         for (const el of card.querySelectorAll('span.tabular-nums, span.tabular-nums span')) {
           const r = el.getBoundingClientRect()
           if (r.width === 0) continue
+          // An sr-only run (price.tsx `spoken`, the full figure for a screen reader) is a clipped 1px box with a -1px margin:
+          // on a home lane card, whose text is flush with the card's edge, it sits 1px outside it, and nothing is seen. Skipped
+          // only while it IS clipped (computed, so a responsive un-hide is measured) and no more than 2px out.
+          const cs = getComputedStyle(el)
+          const clipped = cs.position === 'absolute' && (cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clipPath === 'inset(50%)') && r.width <= 1
+          if (clipped && r.left >= cr.left - 2 && r.right <= cr.right + 2) continue
           if (r.right > cr.right + 0.5 || r.left < cr.left - 0.5) out.push(`${(el.textContent || '').trim()} +${Math.round(r.right - cr.right)}px`)
         }
       }
