@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
 import { HELD_FROM_CARD } from '@/lib/image-hold'
@@ -25,6 +25,7 @@ import { useLanguage } from '@/context/language-context'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { PHONE_COUNT_TYPE, groupedIn, phoneCountText, usePublishHeadingCount } from './heading-count'
 
 /**
  * ⚠️ ENGLISH PLURALISES, VIETNAMESE DOES NOT — and the count line read "1 listings." until an
@@ -75,6 +76,7 @@ export function SellerListings({
   homeVariant,
   pinStrip = false,
   phoneRow: PhoneRow,
+  phoneOneRow,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -123,6 +125,19 @@ export function SellerListings({
    * that takes this prop must drop both.
    */
   phoneRow?: ComponentType<CompactListingRowProps>
+  /**
+   * ONE CONTROL ROW ON A PHONE (UI climb batch 93, owner decision 5, 2026-11-14 — /c/rentals only, (index)/page.tsx). Below sm
+   * the strip is ONE horizontal swipe row: the sort pill, Filters (`stripEnd`), then `chips` (the page's Map and district
+   * links, the browse chip's resting look), where the "By area" row used to stand on a line of its own.
+   * · The strip scrolls on one axis (`overflow-y-hidden`, never touch-action: explorer-toolbar.tsx's trap), hard-clipped at
+   *   the gutter (no fade, owner 2026-08-26), and keeps `py-1`, the pills' 44px hit area inside the clip.
+   * · The short count leaves the strip for the heading line (heading-count.tsx): this publishes it to the page's
+   *   HeadingCountProvider, and keeps the announced copy as an `sr-only` live region, the root's first child (at the end of
+   *   a 30-chip row its 1px box would widen the page).
+   * Without it, nothing changes: every other category, the district pages and the storefronts keep the wrapping row with
+   * the count at its end.
+   */
+  phoneOneRow?: { chips: ReactNode }
   /** The order `listings` is already in, so the strip opens on the truth. */
   initialSort?: SortKey
   /**
@@ -307,6 +322,36 @@ export function SellerListings({
     return out
   }, [serverMode, remote, queryKey, isInitialView, listings, searchable, q, sortable, sort])
 
+  /** Server mode's own note: what is on screen, out of the scope's true size. */
+  const resultTotal = serverMode ? (remote?.key === queryKey ? remote.total : serverScope!.total) : 0
+  /**
+   * ⛔ THE GRID IS EMPTY WHILE A NEW QUERY IS IN FLIGHT, AND THE NOTE MUST NOT REPORT THAT AS AN
+   * ANSWER. `shown` is deliberately `[]` between asking for a sort and receiving it — showing the
+   * previous rows would present the newest 60 as "cheapest first". But the count line then read
+   * "Showing 0 of 9,726" over a blank grid, which on a slow connection is several seconds of a shop
+   * that looks empty. Announcing a zero through `aria-live` is worse still. So while it is loading
+   * the surface says it is loading, and skeletons stand in for the cards (external review).
+   */
+  const awaitingFirstRows = serverMode && loading && shown.length === 0
+  const grouped = groupedIn(lang)
+  /**
+   * The phone's short count, or null where there is none to show: no scope, a failed query (the old in-strip count hid on
+   * loadError too), or no strip. Up here, above the early returns, because `phoneOneRow` publishes it from an effect.
+   */
+  const countText = !serverMode || loadError || !sortable
+    ? null
+    : phoneCountText(tr, grouped, { awaiting: awaitingFirstRows, shown: shown.length, total: resultTotal })
+  /**
+   * `phoneOneRow` (batch 93): the heading line paints the count, so it is handed to the page's HeadingCountProvider —
+   * a layout effect, so Show more, a sort's "Searching…" and its answer reach the heading in the same frame as the grid. Its
+   * first value equals the server's seed (the same `phoneCountText`, the same inputs), so hydration changes nothing; on
+   * unmount it hides. Without `phoneOneRow` nothing is published, provider or not.
+   */
+  const oneRow = !!phoneOneRow
+  const publishCount = usePublishHeadingCount()
+  useLayoutEffect(() => { if (oneRow) publishCount(countText) }, [oneRow, publishCount, countText])
+  useLayoutEffect(() => (oneRow ? () => publishCount(null) : undefined), [oneRow, publishCount])
+
   // ⚠️ IN SERVER MODE AN EMPTY `listings` IS NOT AN EMPTY SHOP. The seller may simply have nothing
   // matching the first page's filters; the scope's own total decides whether this surface exists.
   if (listings.length === 0 && !(serverMode && serverScope!.total > 0)) return null
@@ -331,19 +376,6 @@ export function SellerListings({
   }
 
   const salary = priceLabel === 'salary'
-
-  /** Server mode's own note: what is on screen, out of the scope's true size. */
-  const resultTotal = serverMode ? (remote?.key === queryKey ? remote.total : serverScope!.total) : 0
-  /**
-   * ⛔ THE GRID IS EMPTY WHILE A NEW QUERY IS IN FLIGHT, AND THE NOTE MUST NOT REPORT THAT AS AN
-   * ANSWER. `shown` is deliberately `[]` between asking for a sort and receiving it — showing the
-   * previous rows would present the newest 60 as "cheapest first". But the count line then read
-   * "Showing 0 of 9,726" over a blank grid, which on a slow connection is several seconds of a shop
-   * that looks empty. Announcing a zero through `aria-live` is worse still. So while it is loading
-   * the surface says it is loading, and skeletons stand in for the cards (external review).
-   */
-  const awaitingFirstRows = serverMode && loading && shown.length === 0
-  const grouped = (n: number) => n.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')
 
   /**
    * ⛔ THE PHONE SORTS WITH A PILL, NOT THE TABS (owner, 2026-10-18: the home's sort/filter pattern on /c pages and
@@ -385,14 +417,13 @@ export function SellerListings({
    * form, "48 of 736" / "736 listings", so the row holds it; from sm the sentence below the strip is unchanged.
    * Exactly one of the two is displayed at any width (`sm:hidden` / `max-sm:hidden` on its twin), so a screen reader
    * hears one live count. It truncates last, and drops to its own line before it would cut the pill or Filters.
+   * ⚠️ EXCEPT UNDER `phoneOneRow` (owner-approved 2026-11-14, decision 5 — /c/rentals below sm): there the strip is one swipe
+   * row of controls and the count moves to the end of the heading line (heading-count.tsx), the announced copy an `sr-only`
+   * live region at the top of this component. Every other surface keeps it here. The words are `phoneCountText`'s.
    */
   const phoneNote = serverMode && !loadError && (
-    <p className="ml-auto min-w-0 truncate text-xs text-body sm:hidden" aria-live="polite">
-      {awaitingFirstRows
-        ? tr('Searching…', 'Đang tìm…')
-        : shown.length >= resultTotal
-          ? `${grouped(resultTotal)} ${resultTotal === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}`
-          : tr('{shown} of {total}', '{shown}/{total} tin').replace('{shown}', grouped(shown.length)).replace('{total}', grouped(resultTotal))}
+    <p className={cn('ml-auto min-w-0 truncate sm:hidden', PHONE_COUNT_TYPE)} aria-live="polite">
+      {phoneCountText(tr, grouped, { awaiting: awaitingFirstRows, shown: shown.length, total: resultTotal })}
     </p>
   )
 
@@ -405,11 +436,16 @@ export function SellerListings({
   // `data-horizontal:flex-row` restates the base's `data-horizontal:flex-col` with its own modifier so
   // tailwind-merge drops it; the base's gap-2 is what separates `stripEnd` from the last tab.
   // `max-sm:py-1`: the phone pills' air above the hairline and the room their 44px hit area needs (ui/chip-style PILL_BOX).
+  // `phoneOneRow` (batch 93): below sm the root itself is the one-axis scroller instead of a wrapping row — the hairline stays
+  // on its content box, `py-1` keeps the 44px hit areas inside its clip, and nothing sets touch-action.
   const sortStrip = (
     <Tabs
       value={tabValue}
       onValueChange={(v) => onTabValueChange(String(v))}
-      className="flex items-center border-b border-border data-horizontal:flex-row max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-1"
+      className={cn(
+        'flex items-center border-b border-border data-horizontal:flex-row max-sm:py-1',
+        phoneOneRow ? 'scrollbar-none max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain' : 'max-sm:flex-wrap max-sm:gap-y-1',
+      )}
     >
       {sortPill}
       {/* activateOnFocus=false = MANUAL activation: arrows move focus, Enter/Space commits.
@@ -458,13 +494,17 @@ export function SellerListings({
       {/* At the far end from sm (the tablist takes the rest); right after the pill on a phone. The short rule
           that stood before it on a phone — an edge for the tabs scrolling under the link — went with the tabs. */}
       {stripEnd && <div className="flex shrink-0 items-center">{stripEnd}</div>}
-      {phoneNote}
+      {/* `phoneOneRow`: the page's Map and district chips after Filters, phones only (from sm the page's own "By area" row
+          carries them). DOM order = visual order: pill → (tabs, sm up) → Filters → Map → districts. */}
+      {phoneOneRow?.chips != null && <div className="flex shrink-0 items-center gap-2 sm:hidden">{phoneOneRow.chips}</div>}
+      {!phoneOneRow && phoneNote}
     </Tabs>
   )
 
   // Not over a failed query either: "Showing 0 of 63,652" above "Couldn't load listings." reported
   // the failure as an empty answer.
-  // `max-sm:hidden` beside a strip: there the phone reads the short twin on the sort row (`phoneNote`).
+  // `max-sm:hidden` beside a strip: there the phone reads the short twin on the sort row (`phoneNote`), or under
+  // `phoneOneRow` on the heading line.
   // 2026-11-06 audit: 14px in body ink, the readable secondary step. At 12px muted it was the faintest line between the strip
   // and the grid on a desktop, for the one figure a reader compares the page by. The phone twin keeps 12px (the sort row's
   // budget) in the same ink.
@@ -514,6 +554,10 @@ export function SellerListings({
 
   return (
     <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>
+      {/* `phoneOneRow` (batch 93): the phone's announced count, in no strip — the heading line paints it (aria-hidden there), so
+          a screen reader hears this one. FIRST, where its 1px absolute box sits at x≈0: at the end of the strip's 30 chips
+          it would widen the page. Tailwind v4's space-y spaces with margin-block-END, so the strip below keeps its spacing. */}
+      {oneRow && sortable && <p className="sr-only sm:hidden" aria-live="polite">{countText}</p>}
       {sortable && (pinStrip ? <PinnedStrip>{sortStrip}</PinnedStrip> : sortStrip)}
       {serverNote}
       {searchable && (

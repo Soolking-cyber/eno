@@ -44,6 +44,26 @@ describe('SellerListings pinStrip', () => {
     expect(bar.className).toContain('focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]')
   })
 
+  /**
+   * /c/rentals' one control row (batch 93, decision 5, 2026-11-14): the pinned strip is that one row, and the count is on the
+   * heading line, which scrolls away; the pinned strip carries none (the announced copy sits outside it).
+   */
+  it('with phoneOneRow the pinned strip is the one row and carries no count', () => {
+    const many = Array.from({ length: 10 }, (_, i) => card(`r${i}`))
+    const { container } = render(
+      <SellerListings listings={many} sortable pinStrip serverScope={{ params: { category: 'rentals' }, total: 5344, pageSize: 10 }} phoneOneRow={{ chips: <a href="/c/rentals/go-vap" aria-label="Go Vap District" /> }} />,
+    )
+    const bar = container.querySelector('[data-pinned-strip]')!
+    expect(bar.querySelector('[data-slot="tabs"]')!.className).toContain('max-sm:overflow-x-auto')
+    expect(bar.querySelector('a[href="/c/rentals/go-vap"]')).toBeTruthy()
+    expect(bar.querySelector('[aria-live]')).toBeNull()
+    expect(bar.textContent).not.toMatch(/10 of 5,344/)
+    // The announced copy is outside, before it.
+    const live = container.querySelector('p.sr-only[aria-live]')!
+    expect(live.textContent).toBe('10 of 5,344')
+    expect(bar.contains(live)).toBe(false)
+  })
+
   it('without pinStrip the strip stays in flow and the scroll hook never runs (storefronts, the vehicle hub)', () => {
     const { container } = render(<SellerListings listings={LIST} sortable />)
     expect(container.querySelector('[data-pinned-strip]')).toBeNull()

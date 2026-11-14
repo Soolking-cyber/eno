@@ -21,6 +21,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 import { SellerListings } from './seller-listings'
+import { HeadingCountProvider, useHeadingCount } from './heading-count'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({
@@ -361,6 +362,154 @@ describe('SellerListings on a phone: a sort pill, the Filters chip and the count
     render(<SellerListings listings={PAGE} initialSort="relevance" serverScope={{ params: { excludeSeller: 's1' }, total: 76000, pageSize: 60 }} />)
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(tokens(screen.getByText('Showing 60 of 76,000 listings.'))).not.toContain('max-sm:hidden')
+  })
+})
+
+/**
+ * ⛔ /c/rentals ON A PHONE: ONE CONTROL ROW (UI climb batch 93, owner decision 5, 2026-11-14 — owner-approved reversal of the
+ * 2026-10-18 "count rides the sort row" there only). `phoneOneRow` makes the strip ONE swipe row — the pill, Filters, then
+ * the page's Map and district chips — and the count leaves it for the heading line: published to the page's
+ * HeadingCountProvider, announced from an `sr-only` live region that is the component's first child. The tests above stay
+ * the regression guard for every other surface (the wrapping row with the short count at its end).
+ */
+describe('phoneOneRow (/c/rentals, decision 5)', () => {
+  const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+  /** Reads the provider's value, as the heading line does. */
+  function Probe() {
+    const v = useHeadingCount()
+    return <output data-probe={v === undefined ? 'undefined' : v === null ? 'null' : v} />
+  }
+  const probe = () => document.querySelector('[data-probe]')!.getAttribute('data-probe')
+  const CHIPS = (
+    <>
+      <a href="/?category=rentals&homes=1&view=map" rel="nofollow" aria-label="Map" />
+      <a href="/c/rentals/go-vap" aria-label="Go Vap District" />
+    </>
+  )
+  function rentals(extra: Record<string, unknown> = {}, show = true) {
+    return (
+      <HeadingCountProvider>
+        <Probe />
+        {show && (
+          <SellerListings
+            listings={PAGE}
+            sortable
+            serverScope={{ params: { category: 'rentals' }, total: 63730, pageSize: 60 }}
+            stripEnd={<a href="/?category=rentals" rel="nofollow" aria-label="Filters" />}
+            phoneOneRow={{ chips: CHIPS }}
+            {...extra}
+          />
+        )}
+      </HeadingCountProvider>
+    )
+  }
+  const strip = () => document.querySelector('[data-slot="tabs"]')!
+
+  it('the strip is one horizontal scroller below sm: one axis, its hit-area room kept, never wrapping, never touch-pan', () => {
+    render(rentals())
+    const t = tokens(strip())
+    expect(t).toEqual(expect.arrayContaining(['max-sm:overflow-x-auto', 'max-sm:overflow-y-hidden', 'max-sm:overscroll-x-contain', 'max-sm:py-1', 'scrollbar-none', 'border-b']))
+    expect(t).not.toContain('max-sm:flex-wrap')
+    expect(t).not.toContain('max-sm:gap-y-1')
+    expect(t.filter((c) => /touch-/.test(c))).toEqual([])
+  })
+
+  it('DOM order = visual order: pill → tablist → Filters → the page\'s chips, these phones only', () => {
+    render(rentals())
+    const pill = screen.getByRole('combobox', { name: /Sort by/ }).parentElement!
+    const list = screen.getByRole('tablist')
+    const filters = screen.getByRole('link', { name: 'Filters' })
+    const map = screen.getByRole('link', { name: 'Map' })
+    const box = map.parentElement!
+    const before = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(before(pill, list)).toBe(true)
+    expect(before(list, filters)).toBe(true)
+    expect(before(filters, box)).toBe(true)
+    expect(box.parentElement).toBe(strip())
+    expect(tokens(box)).toEqual(expect.arrayContaining(['flex', 'shrink-0', 'items-center', 'gap-2', 'sm:hidden']))
+    expect(Array.from(box.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual(['/?category=rentals&homes=1&view=map', '/c/rentals/go-vap'])
+  })
+
+  it('the count is in no strip: the announced copy is the first child, sr-only below sm; the sentence still stands from sm', () => {
+    render(rentals())
+    expect(strip().querySelector('[aria-live]')).toBeNull()
+    const root = document.querySelector('[data-listings-ready], .space-y-4')!
+    const first = root.firstElementChild!
+    expect(first.tagName).toBe('P')
+    expect(tokens(first)).toEqual(['sr-only', 'sm:hidden'])
+    expect(first.getAttribute('aria-live')).toBe('polite')
+    expect(first.textContent).toBe('60 of 63,730')
+    expect(before(first, strip())).toBe(true)
+    expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).toContain('max-sm:hidden')
+    function before(a: Node, b: Node) { return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) }
+  })
+
+  it('publishes the count to the heading line: the page\'s count, "Searching…" in flight, the answer, then Show more', async () => {
+    let release: (v: unknown) => void = () => {}
+    const second = Array.from({ length: 60 }, (_, i) => card(`p2-${i}`, 1_000 + i))
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn(() => {
+      call++
+      if (call === 1) return new Promise((r) => { release = r })
+      return Promise.resolve({ ok: true, json: async () => ({ listings: second, total: 63730 }) })
+    }))
+    render(rentals())
+    expect(probe()).toBe('60 of 63,730')
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    await waitFor(() => expect(probe()).toBe('Searching…'))
+    release({ ok: true, json: async () => ({ listings: PAGE.map((l) => card(`s-${l.id}`, l.price)), total: 63730 }) })
+    await waitFor(() => expect(probe()).toBe('60 of 63,730'))
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(probe()).toBe('120 of 63,730'))
+    // The announced copy says the same thing.
+    expect(document.querySelector('p.sr-only[aria-live]')!.textContent).toBe('120 of 63,730')
+  })
+
+  it('a failed query hides it (null, never the seed), as the in-strip count did', async () => {
+    stubFetch(() => 'fail')
+    render(rentals())
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    await waitFor(() => expect(screen.getByText("Couldn't load listings.")).toBeTruthy())
+    expect(probe()).toBe('null')
+  })
+
+  it('on unmount it hides', () => {
+    const { rerender } = render(rentals())
+    expect(probe()).toBe('60 of 63,730')
+    rerender(rentals({}, false))
+    expect(probe()).toBe('null')
+  })
+
+  it('sortable=false: no announced copy and no count published; the sentence shows at every width', () => {
+    render(rentals({ sortable: false }))
+    expect(document.querySelector('p.sr-only[aria-live]')).toBeNull()
+    expect(probe()).not.toMatch(/\d/)
+    expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).not.toContain('max-sm:hidden')
+  })
+
+  it('without a provider: no throw, the strip is still one row, the announced copy is still there', () => {
+    render(
+      <SellerListings
+        listings={PAGE}
+        sortable
+        serverScope={{ params: { category: 'rentals' }, total: 63730, pageSize: 60 }}
+        phoneOneRow={{ chips: CHIPS }}
+      />,
+    )
+    expect(tokens(strip())).toContain('max-sm:overflow-x-auto')
+    expect(document.querySelector('p.sr-only[aria-live]')!.textContent).toBe('60 of 63,730')
+  })
+
+  it('without phoneOneRow inside a provider: nothing published, the count stays on the row', () => {
+    render(
+      <HeadingCountProvider>
+        <Probe />
+        <SellerListings listings={PAGE} sortable serverScope={{ params: { category: 'electronics' }, total: 63730, pageSize: 60 }} />
+      </HeadingCountProvider>,
+    )
+    expect(probe()).toBe('undefined')
+    expect(strip().contains(screen.getByText('60 of 63,730'))).toBe(true)
+    expect(document.querySelector('p.sr-only[aria-live]')).toBeNull()
   })
 })
 

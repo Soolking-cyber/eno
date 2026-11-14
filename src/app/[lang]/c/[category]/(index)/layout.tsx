@@ -8,8 +8,7 @@ import { Tr } from '@/context/language-context'
 import { getCategoryRow } from '../load-category'
 import { loadRentalsHeadline } from '../category-data'
 import { cn } from '@/lib/utils'
-import { RentalsHeading, RentalsHeadingShort } from '../category-text'
-import { rentalsHeadlineHasShortForm } from '../category-copy'
+import { RentalsHeading } from '../category-text'
 import { TeachersHeading } from '@/components/marketplace/category-lede'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
@@ -115,14 +114,21 @@ export default async function CategoryIndexLayout({
             The phone exception is written into docs/design-language.md §1.
             /c/teachers says what the people hiring look for — "Find English teachers in Vietnam" (plan B3, approved in the
             plan, 2026-10-18; category-copy.ts TEACHERS_H1, which its <title> is built from and which says why its Vietnamese
-            is an interim) — from the row it already has, awaiting nothing. category-copy.test.ts pins this branch. */}
-        <h1 className={cn('h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', headline && rentalsHeadlineHasShortForm(headline) && 'max-sm:sr-only')}>
+            is an interim) — from the row it already has, awaiting nothing. category-copy.test.ts pins this branch.
+            ⚠️ /c/rentals BELOW sm: THE PAGE DRAWS THE LINE (UI climb batch 93, owner decision 5, 2026-11-14). The count sits at
+            the heading line's right end there (heading-count.tsx), and the count is the page's to know: this layout awaits none.
+            So on rentals the H1 is `max-sm:sr-only` (whole, in the HTML, read first) and (index)/page.tsx paints the one line
+            (RentalsPhoneHeading: the short form, or the H1's own words) with the count and the check line after it, as the
+            first thing in its fragment; the check line here is `max-sm:hidden`. From sm this is all exactly as it was. The page
+            is the only route under this layout (one-control-row.contract.test.ts fails if another one, or a boundary, lands). */}
+        <h1 className={cn('h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only')}>
           {headline ? <RentalsHeading headline={headline} />
             : cat.slug === TEACHERS_CATEGORY_SLUG ? <TeachersHeading />
             : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
         </h1>
-        {headline && <RentalsHeadingShort headline={headline} className="h-display truncate py-0.5 text-foreground [--text-display:var(--text-title)] sm:hidden" />}
-        <CategoryLedeLinks slug={cat.slug} />
+        {/* The wrapper only takes it off a phone (the page's copy speaks there); with no box of its own, the line's `mt-2`
+            collapses through it, so from sm nothing moves. */}
+        {cat.slug === 'rentals' ? <div className="max-sm:hidden"><CategoryLedeLinks slug={cat.slug} /></div> : <CategoryLedeLinks slug={cat.slug} />}
         {children}
         {/* ⚠️ THE LEDE COMES AFTER THE GRID IN THE DOM, NOT ONLY ON SCREEN: the products come first (owner, 2026-10-18; Facebook and Airbnb open on
             goods), and it holds links, so painting it low with `order` would send a keyboard user below the listings and back (WCAG 2.4.3).

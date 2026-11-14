@@ -10,7 +10,7 @@ import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, lo
 import { AreaChipsRow } from './area-chips-row'
 import { CategoryMapChip } from './category-map-chip'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
-import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
+import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts, RentalsPhoneHeading } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
 import { PostJobLink, TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from '../teaching-links'
@@ -18,7 +18,7 @@ import { MoreTeachers, TEACHER_LINKS_MAX, teachersPastGrid } from '../teacher-li
 import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
-import { CategoryLedeBlock } from './category-lede-block'
+import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
 import { MIN_CATEGORY_LISTINGS } from '@/lib/index-floor'
@@ -35,6 +35,7 @@ import { pageShare } from '@/lib/site-identity'
 import { langAlternates, localizedHref } from '@/lib/lang-pinned'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 import Link from 'next/link'
+import { Fragment } from 'react'
 import { SlidersHorizontal } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { SellerListingsPhoneRows } from '@/components/marketplace/seller-listings-phone-rows'
+import { HeadingCount, HeadingCountProvider } from '@/components/marketplace/heading-count'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 
@@ -60,6 +62,13 @@ const DISTRICT_CHIPS = 80
  * `interactive` hover (the brand tint) and press stay.
  */
 const OTHER_CATEGORY_CHIP = cn(PILL_BOX, PILL_REST, 'py-1.5 hover:bg-accent hover:text-accent-foreground')
+
+/**
+ * /c/rentals' Map and district chips in the phone's one control row (batch 93, decision 5): the browse chip above with the
+ * strip's own Filters look — `py-0` on the 36px `min-h-9` box, the glyph's `gap-1.5` — so the row reads as one kind of
+ * control. Its hover only exists where these are hidden (from sm the "By area" row shows instead).
+ */
+const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')
 
 /**
  * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP SO THAT A LOADING BOUNDARY NEVER WRAPS `[district]` (its
@@ -216,7 +225,7 @@ export default async function CategoryPage({ params }: Props) {
   const scopedWhere = await scopedListingWhere(
     homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
     : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base, { teachers: true })
-  const [raw, otherCatRows, chips, rentals, jobCities, teachingJobs, teacherRows] = await Promise.all([
+  const [raw, otherCatRows, chips, rentals, jobCities, teachingJobs, teacherRows, headline] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
     // `teachers: true` again inside the window, which re-applies the scope: without it /c/teachers was empty.
@@ -246,6 +255,9 @@ export default async function CategoryPage({ params }: Props) {
     // cards out still leaves TEACHER_LINKS_MAX. Beside the window, so the ISR render waits for no extra round trip.
     // ⛔ THE WINDOW'S OWN `scopedWhere`, one source of truth: whatever narrows the grid's set narrows the list with it.
     cat.slug === TEACHERS_CATEGORY_SLUG ? loadTeacherLinks(scopedWhere, PAGE_SIZE + TEACHER_LINKS_MAX) : Promise.resolve([]),
+    // /c/rentals only: the headline variant its phone heading line paints (batch 93, below) — the same cached value the layout's
+    // H1 and generateMetadata's <title> read (category-data.ts loadRentalsHeadline), so the three cannot disagree.
+    cat.slug === 'rentals' ? loadRentalsHeadline(cat.id) : null,
   ])
   // Each "Other categories" chip is a way IN, so it wears the entry label — "Find a teacher", not
   // "Teachers" (nav audit N8, category-entry-label.ts). Only the label: slug and href are the category's.
@@ -271,6 +283,18 @@ export default async function CategoryPage({ params }: Props) {
   }
   // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
   const districts = byAreaChips(chips, DISTRICT_CHIPS)
+  /**
+   * ⛔ ONE CONTROL ROW ON A PHONE, /c/rentals ONLY (UI climb batch 93, owner decision 5, 2026-11-14; mocked and judged on
+   * /c/rentals below sm). The area chips join the Relevance + Filters row, "By area:" and "All" go, and the count moves to the
+   * end of the heading line. Two gates:
+   * · `rentalsStrip` — exactly when the sort strip renders (the grid's own `sortable` below, over a non-empty grid): the count
+   *   moves (HeadingCount + SellerListings `phoneOneRow`), the strip scrolls, and the masthead hairline leaves the phone (the
+   *   strip's own hairline stays). With 0–1 results there is no strip to join, and the page is as it was.
+   * · `rentalsAreas` — and there are areas: the "By area" row leaves the phone, and Map + every district ride the strip.
+   * From sm, on /c/rentals/<district>, in the explorer and on every other category: unchanged.
+   */
+  const rentalsStrip = cat.slug === 'rentals' && listings.length > 0 && (homes?.total ?? total) > 1
+  const rentalsAreas = rentalsStrip && districts.length > 0
   // Registry-driven (src/lib/category-guides.ts) and only over real stock: a guide rail under an
   // empty category is a signpost to nothing, which is why it lives in the non-empty branch below.
   // ⚠️ MARKETPLACE ONLY: on eno.forum these links would promote its self-canonical COPIES of eno.vn's
@@ -346,8 +370,23 @@ export default async function CategoryPage({ params }: Props) {
   // Jobs read as rows on a phone (owner, 2026-11-10: item 2 of the decision scorecard). A different client component, not a
   // prop: the row's code then loads on this one category's page only (seller-listings.tsx `phoneRow` has the record).
   const CategoryListings = cat.slug === 'jobs' ? SellerListingsPhoneRows : SellerListings
+  // Batch 93: the heading line's count and the strip's live count share one per-render store (heading-count.tsx), only where
+  // the count moves; everywhere else the page is exactly the fragment it was.
+  const CountScope = rentalsStrip ? HeadingCountProvider : Fragment
   return (
-    <>
+    <CountScope>
+      {/* ⚠️ /c/rentals BELOW sm: THE HEADING LINE AND THE CHECK LINE ARE DRAWN HERE, FIRST (batch 93, decision 5). The layout's
+          H1 is `max-sm:sr-only` and its check line `max-sm:hidden` on rentals ((index)/layout.tsx says why): the count floats at
+          this line's right end, and only the page knows the count. Server-rendered from the same listings and the same total as
+          `serverScope` below, so the first HTML already holds the words and hydration changes nothing (heading-count.tsx). With
+          no strip (0–1 results) there is no count, and the line is the H1's own, as before. From sm `sm:hidden` takes it all out. */}
+      {cat.slug === 'rentals' && (
+        <div className="sm:hidden">
+          {rentalsStrip && <HeadingCount seed={{ shown: listings.length, total: homes?.total ?? rentals?.total ?? total }} />}
+          <RentalsPhoneHeading headline={headline} name={cat.name} nameVi={cat.nameVi} className="h-display truncate py-0.5 text-foreground [--text-display:var(--text-title)]" />
+          <CategoryLedeLinks slug={cat.slug} />
+        </div>
+      )}
       {/* The lede renders here, under the skeleton, only if LEDE_PLACEMENT says 'page'; since H1b it says
           'layout' and the lede is in (index)/layout.tsx, under the H1 (decision H-c, lede-placement.ts). */}
       {LEDE_PLACEMENT === 'page' && <CategoryLedeBlock slug={cat.slug} />}
@@ -359,15 +398,20 @@ export default async function CategoryPage({ params }: Props) {
           behind a drawer. `py-1` is room for the chips' 3px focus ring inside the scroller, which
           clips at its padding box; `overflow-y-hidden` keeps it a one-axis scroller, so a vertical
           drag that starts on a chip still scrolls the page (explorer-toolbar.tsx measured that trap). */}
+      {/* ⚠️ EXCEPT ON /c/rentals BELOW sm, WHERE IT RIDES THE SORT STRIP (owner-approved 2026-11-14, decision 5: `rentalsAreas`
+          above). The row stays from sm, and on every other category. */}
       {districts.length > 0 && (
-        <AreaChipsRow>
+        <AreaChipsRow className={rentalsAreas ? 'max-sm:hidden' : undefined}>
           <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
           {/* 2026-11-06 audit: the row opens on where the reader is, "All" (this page, in the applied look; not a link, so
               `aria-current`). It listed only the places to go, so nothing on it said what the grid below covers. A district
-              page opens on its own place the same way, and /c/jobs' city row on "All N". */}
+              page opens on its own place the same way, and /c/jobs' city row on "All N".
+              ⚠️ Not in /c/rentals' phone strip (owner-approved 2026-11-14, decision 5): there "By area:" and "All" go — the H1
+              names the whole page, and the strip holds only controls. From sm this row, with both, is unchanged. */}
           <Badge size="md" aria-current="page" className={cn('shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold', PILL_ON)}><Tr text="All" /></Badge>
-          {/* The map, chosen by area: right after "All", so the row still opens on where the reader is (category-map-chip.tsx). */}
-          <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} />
+          {/* The map, chosen by area: right after "All", so the row still opens on where the reader is (category-map-chip.tsx).
+              Under `rentalsAreas` it is in the strip instead (it is a phone chip, and there the row is not on a phone). */}
+          {!rentalsAreas && <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} />}
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
           {districts.map((d) => (
@@ -401,8 +445,10 @@ export default async function CategoryPage({ params }: Props) {
 
       {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
           home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.
-          Tighter on a phone, where the fold is the budget (C1-FOLD). */}
-      <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />
+          Tighter on a phone, where the fold is the budget (C1-FOLD).
+          ⚠️ Off a phone on /c/rentals while the strip carries the controls (owner-approved 2026-11-14, decision 5: "gone with the
+          row"); the strip keeps its own hairline. */}
+      {rentalsStrip ? <div aria-hidden className="mt-4 border-t border-border max-sm:hidden sm:mt-5" /> : <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />}
 
       {listings.length > 0 ? (
         <>
@@ -442,6 +488,21 @@ export default async function CategoryPage({ params }: Props) {
               // means scrolling back to the top.
               pinStrip
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
+              // /c/rentals on a phone (batch 93, decision 5): ONE swipe row — the pill, Filters, then Map and every district as
+              // the strip's own chips (server <a>, like the row's), and the count on the heading line. Only where the strip
+              // renders (`rentalsStrip`); the "By area" row is the same links from sm.
+              phoneOneRow={rentalsStrip ? {
+                chips: rentalsAreas ? (
+                  <>
+                    <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_CHIP} />
+                    {districts.map((d) => (
+                      <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>
+                        <PlaceName en={d.label.en} vi={d.label.vi} />
+                      </Badge>
+                    ))}
+                  </>
+                ) : null,
+              } : undefined}
               sortable={(homes?.total ?? total) > 1}
             />
           </div>
@@ -538,6 +599,6 @@ export default async function CategoryPage({ params }: Props) {
           }
         />
       )}
-    </>
+    </CountScope>
   )
 }

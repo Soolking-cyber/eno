@@ -3,11 +3,12 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
-import { LanguageProvider } from '@/context/language-context'
+import { LanguageProvider, Tr } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { guidesForCategory } from '@/lib/category-guides'
 import { CATEGORY_LINKED_SENTENCE, DISTRICT_RENTALS_H1, RENTALS_H1, RENTALS_LINKED_SENTENCE, REPORT_SENTENCE, TEACHERS_CONTACT_SENTENCE, categoryMetadata, districtLinkedSentence, districtMetadata, homeFacts, rentalKinds, type RentalsHeadline } from './category-copy'
 import { CategoryLede } from '@/components/marketplace/category-lede'
-import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsHeadingShort, RentalsLede, rentalsLinkedLede } from './category-text'
+import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsHeadingShort, RentalsLede, RentalsPhoneHeading, rentalsLinkedLede } from './category-text'
 import { readFileSync } from 'node:fs'
 
 /**
@@ -58,6 +59,42 @@ describe('RentalsHeading', () => {
     expect(text('en', <RentalsHeadingShort headline="apartments-hcmc" />)).toBe('Apartments for rent in HCMC')
     expect(text('vi', <RentalsHeadingShort headline="apartments-houses-hcmc" />)).toBe('Cho thuê căn hộ và nhà tại TP.HCM')
     expect(text('en', <RentalsHeadingShort headline="rentals-vietnam" />)).toBe('')
+  })
+
+  /**
+   * Batch 93 (decision 5, 2026-11-14): below sm /c/rentals' page draws the heading line, with the count floated at its end, and
+   * the layout's H1 is sr-only there. The line says what the H1 says (its short form where it has one) and is hidden from
+   * assistive tech, which reads the H1. No new copy.
+   */
+  describe('RentalsPhoneHeading (the page-drawn phone line)', () => {
+    const line = (headline: RentalsHeadline | null) => <RentalsPhoneHeading headline={headline} name="Rentals" nameVi="Cho thuê" className="h-display truncate" />
+    it.each([...cases, null])('%s is one aria-hidden <p> with the classes it is given', (key) => {
+      for (const lang of ['en', 'vi'] as const) {
+        const out = html(lang, line(key))
+        expect(out).toMatch(/^<p aria-hidden="true" class="h-display truncate">/)
+        expect(out.match(/<p\b/g)).toHaveLength(1)
+        expect(out).not.toMatch(/<h1\b/)
+      }
+    })
+    it('a headline with a short form paints the short form', () => {
+      expect(text('en', line('apartments-hcmc'))).toBe('Apartments for rent in HCMC')
+      expect(text('vi', line('apartments-houses-hcmc'))).toBe('Cho thuê căn hộ và nhà tại TP.HCM')
+    })
+    it('any other headline paints exactly the H1\'s words', () => {
+      for (const key of ['rentals-hcmc', 'rentals-vietnam'] as const) {
+        for (const lang of ['en', 'vi'] as const) expect(text(lang, line(key))).toBe(RENTALS_H1[key][lang])
+      }
+      expect(text('en', line('rentals-vietnam'))).toBe('Rentals in Vietnam')
+      expect(text('vi', line('rentals-vietnam'))).toBe('Cho thuê tại Việt Nam')
+      expect(text('en', line('rentals-hcmc'))).toBe('Rentals in Ho Chi Minh City')
+    })
+    it('with no live rental (no headline) it is the generic H1: the row\'s own name, in Vietnamese from nameVi', () => {
+      // The layout's own generic H1 branch, rendered the same way: the two say one thing.
+      const h1 = <><Bilingual en="Rentals" vi="Cho thuê" /> <Tr text="in Vietnam" /></>
+      expect(text('en', line(null))).toBe('Rentals in Vietnam')
+      for (const lang of ['en', 'vi'] as const) expect(text(lang, line(null))).toBe(text(lang, h1))
+      expect(text('vi', line(null)).startsWith('Cho thuê ')).toBe(true)
+    })
   })
 })
 

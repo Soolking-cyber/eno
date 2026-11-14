@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Tr, useLanguage } from '@/context/language-context'
-import { fillBilingual } from '@/components/marketplace/bilingual'
+import { Bilingual, fillBilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
 import { Row, Rows } from '@/components/ui/rows'
 import { IS_SERVICES } from '@/lib/edition'
@@ -73,6 +73,24 @@ export function RentalsHeadingShort({ headline, className }: { headline: Rentals
       {headline === 'apartments-houses-hcmc'
         ? tr('Apartments & houses for rent in HCMC', 'Cho thuê căn hộ và nhà tại TP.HCM')
         : tr('Apartments for rent in HCMC', 'Cho thuê căn hộ ở TP.HCM')}
+    </p>
+  )
+}
+
+/**
+ * /c/rentals' heading line on a phone, drawn by THE PAGE ((index)/page.tsx), not the layout (UI climb batch 93, owner decision 5,
+ * 2026-11-14): the count floats at its right end (heading-count.tsx), and the count is the page's to know — the layout awaits
+ * no count (crawler contract). The layout's H1 stays whole in the HTML, `max-sm:sr-only` on rentals; this line is decoration
+ * for sighted phones, so `aria-hidden`.
+ * The words are the H1's own: the short form where the headline has one (RentalsHeadingShort), else exactly what the H1 says —
+ * the headline variant, or with no live rental the generic "<name> in Vietnam" (the name from the row, never through <Tr>).
+ * No new copy.
+ */
+export function RentalsPhoneHeading({ headline, name, nameVi, className }: { headline: RentalsHeadline | null; name: string; nameVi: string | null; className?: string }) {
+  if (headline && rentalsHeadlineHasShortForm(headline)) return <RentalsHeadingShort headline={headline} className={className} />
+  return (
+    <p aria-hidden className={className}>
+      {headline ? <RentalsHeading headline={headline} /> : <><Bilingual en={name} vi={nameVi || name} /> <Tr text="in Vietnam" /></>}
     </p>
   )
 }
