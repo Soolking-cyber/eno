@@ -132,7 +132,7 @@ const AUDITED_CLAIMS: Record<string, { count: number; why: string }> = {
   // Not claimGuestStorefront: that hands a GUEST storefront to the person who made it (by id/phone match) and parks live rows
   // under the identity gate; this attaches an eno-HELD business login to one of two ownerless AccessTrade storefronts by
   // seller id (owner 2026-11-14, "Partners now, admins sell") — eno's own account, not a person's claim.
-  'scripts/claim-partner-storefront.mjs': { count: 3, why: 'operator script: an eno-held login for the two AccessTrade storefronts, by fixed seller id, only while ownerless (an EXPLAIN dry-run probe of the claim, the claim itself, and --reverse detaching it)' },
+  'scripts/claim-partner-storefront.mjs': { count: 4, why: 'operator script: an eno-held login for the AccessTrade storefronts, by fixed seller id, only while ownerless (an EXPLAIN dry-run probe of the claim, the claim itself, --attach after the pin is live on both sites, and --reverse detaching it)' },
 }
 
 /**

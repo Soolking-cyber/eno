@@ -85,6 +85,17 @@ beforeEach(() => {
   h.feedCalls = 0
 })
 
+
+describe('affiliate-prices — a crawl campaign is never walked as a datafeed (2026-11-15)', () => {
+  it('⛔ refuses hoanghamobile in ACCESSTRADE_CAMPAIGNS — its datafeed is new goods, its used shelf is crawled', async () => {
+    process.env.ACCESSTRADE_CAMPAIGNS = 'hoanghamobile'
+    const before = h.feedCalls
+    const body = await run()
+    expect(body.results).toEqual([{ campaign: 'hoanghamobile', error: 'wrong_source' }])
+    expect(h.feedCalls).toBe(before)
+  })
+})
+
 describe('GET /api/cron/affiliate-prices — the restore is screened', () => {
   it('restores ok + review rows only; the banned one is hidden; the tombstone is not a candidate', async () => {
     const out = await run()

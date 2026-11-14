@@ -65,6 +65,11 @@ declare -A SCHED=(
   # (affiliate-price-refresh.ts) — so the job is in POLICY below: written, never enabled by a re-run. It was disabled on
   # the box the same day. Unset or empty ACCESSTRADE_CAMPAIGNS walks NOTHING (campaignsFromEnv).
   [affiliate-prices]="*-*-* 20:00:00 UTC"
+  # The AccessTrade CRAWL campaigns — Hoàng Hà, ShopDunk, chat-only partners (owner 2026-11-14 "All of them"): their used
+  # sections are read from the shops' own pages every night, whole-shop (src/lib/affiliate-night.ts 'crawl'). 21:31 UTC =
+  # 04:31 ICT, after the datafeed run; ~27 minutes of polite reads, so a 2,700 s curl. POLICY: enabled by hand once the two
+  # storefronts are pinned and ACCESSTRADE_CRAWL_CAMPAIGNS=shopdunk_web,hoanghamobile is in both editions' env.
+  [affiliate-crawl]="*-*-* 21:31:00 UTC"
   # Availability + price refresh for the thirteen SCRAPED partner shops (owner, 2026-09-08: "a
   # daily cron to fetch availability for all partner stores and price updates for existing
   # products"). 19:00 UTC = 02:00 ICT — an hour before affiliate-prices, so the two multi-minute
@@ -247,7 +252,7 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
 # teacher-job-dms + job-dms-invite (2026-10-20): POLICY — they message teachers; enable each by hand after its dry run:
 #   systemctl enable --now eno-cron-teacher-job-dms.timer eno-cron-job-dms-invite.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep)
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -308,10 +313,15 @@ for job in "${!SCHED[@]}"; do
   # on the first line, which is the one that reports the feed error.
   EXTRA=""
   [ "$job" = affiliate-prices ] && EXTRA="ExecStart=-/opt/eno/bin/eno-cron.sh $job eno.forum 3002"
+  # affiliate-crawl the same way (eno.forum has no ACCESSTRADE_KEY, so its call only flushes), with a 2,700 s curl and a
+  # unit timeout above it: a oneshot unit has none by default, and nothing may cut the read before its own deadline.
+  [ "$job" = affiliate-crawl ] && EXTRA=$'ExecStart=-/opt/eno/bin/eno-cron.sh affiliate-crawl eno.forum 3002 300\nTimeoutStartSec=3600'
   # ⚠️ storage-tombstones is a `.svc.` route — it exists only in the SERVICES image (its sweep
   # reads the visa documents table). It is called on eno.forum:3002 and nowhere else.
   TARGET="$HOST_HEADER $PORT"
   [ "$job" = storage-tombstones ] && TARGET="eno.forum 3002"
+  # ⚠️ affiliate-crawl reads on eno.vn with a 2,700 s curl (eno-cron.sh's 4th argument); its forum line is in EXTRA above.
+  [ "$job" = affiliate-crawl ] && TARGET="eno.vn 3001 2700"
   # ⚠️ indexnow is eno.vn's ONLY, whatever host this installer was run for: the route 404s on the
   # services edition, and IndexNow is told about https://eno.vn URLs only.
   [ "$job" = indexnow ] && TARGET="eno.vn 3001"

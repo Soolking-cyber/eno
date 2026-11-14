@@ -79,6 +79,10 @@ export type FeedRow = {
 const MERCHANT_NAMES = new Map<string, string>([
   ['cellphones_cps', 'CellphoneS'],
   ['dienthoaivui', 'Điện Thoại Vui'],
+  // The crawl campaigns (retired-imports.ts `source: 'crawl'`) — their storefronts are looked up by FIXED id
+  // (CAMPAIGN_SELLER_IDS); the name is for logs and the restock screen.
+  ['hoanghamobile', 'Hoàng Hà Mobile'],
+  ['shopdunk_web', 'ShopDunk'],
 ])
 
 export function merchantNameFor(campaign: string): string {

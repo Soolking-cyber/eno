@@ -44,12 +44,38 @@ import { join } from 'node:path'
 const SHOPS = {
   cellphones: { sellerId: 'cmt78nvif0000gpq48kvzmxjw', name: 'CellphoneS', email: 'cellphones@eno.vn' },
   dienthoaivui: { sellerId: 'cmtr9qva90000glq44fkjs18b', name: 'Điện Thoại Vui', email: 'dienthoaivui@eno.vn' },
+  // The AccessTrade CRAWL campaigns (retired-imports.ts, chat only). sellerId is filled by the commit that PINS the pair:
+  // until then only --login-only runs for them (it takes the storefront id from --seller-id), and --attach refuses.
+  // twoStep: ONLY --login-only then --attach (commit gate, codex): the one-step claim leaves an owned-but-unpinned window.
+  hoangha: { sellerId: null, name: 'Hoàng Hà Mobile', email: 'support+hoangha@eno.vn', twoStep: true },
+  shopdunk: { sellerId: null, name: 'ShopDunk', email: 'support+shopdunk@eno.vn', twoStep: true },
 }
 
 const key = process.argv[2]
 const APPLY = process.argv.includes('--apply')
 const REVERSE = process.argv.includes('--reverse')
+/**
+ * ⛔ LOGIN FIRST, PIN, THEN ATTACH — no window in which a storefront is owned but not eno-run (plan review 2026-11-15,
+ * codex + opus): the combined claim below leaves one between its --apply and the deploy that pins the pair.
+ *   --login-only --seller-id <id>  creates the eno-held login + its Profile and RECORDS the storefront id; owns nothing.
+ *                                  Prints the pair to pin. (The deployed pin matches nothing while the shop is ownerless.)
+ *   --attach                       after the pin is DEPLOYED: the pair must be in this script's SHOPS (the pinning commit)
+ *                                  and BOTH live editions' home pages must already link /sellers/<id> (the partner strip
+ *                                  shows a storefront only when the deployed build pins it) — then it sets the owner and
+ *                                  officialPartner in one transaction, ownerless re-stated in the write.
+ */
+const LOGIN_ONLY = process.argv.includes('--login-only')
+const ATTACH = process.argv.includes('--attach')
+const sellerIdArg = process.argv.includes('--seller-id') ? process.argv[process.argv.indexOf('--seller-id') + 1] : undefined
+if ([LOGIN_ONLY, ATTACH, REVERSE].filter(Boolean).length > 1) { console.error('--login-only, --attach and --reverse are separate runs'); process.exit(1) }
 const SHOP = SHOPS[key] && { ...SHOPS[key] }
+if (SHOP && LOGIN_ONLY) {
+  if (!sellerIdArg || !/^[a-z0-9]{20,40}$/.test(sellerIdArg)) { console.error('--login-only needs --seller-id <the storefront id>'); process.exit(1) }
+  if (SHOP.sellerId && SHOP.sellerId !== sellerIdArg) { console.error(`--seller-id ${sellerIdArg} is not ${SHOP.name}'s pinned ${SHOP.sellerId}`); process.exit(1) }
+  SHOP.sellerId = sellerIdArg
+}
+if (SHOP?.twoStep && !LOGIN_ONLY && !ATTACH && !REVERSE) { console.error(`${SHOP.name} is claimed in two steps only: --login-only --seller-id <id>, pin + deploy, then --attach`); process.exit(1) }
+if (SHOP && !SHOP.sellerId && !LOGIN_ONLY && !REVERSE) { console.error(`${SHOP.name} has no pinned storefront id yet: run --login-only --seller-id <id> first, pin, deploy, then --attach`); process.exit(1) }
 // A re-claim after a --reverse needs a FRESH login (the reversed one stays banned): --email <another eno-controlled address>.
 const emailArg = process.argv[process.argv.indexOf('--email') + 1]
 if (SHOP && process.argv.includes('--email')) {
@@ -57,7 +83,7 @@ if (SHOP && process.argv.includes('--email')) {
   SHOP.email = emailArg
 }
 if (!SHOP) {
-  console.error(`Usage: node --env-file=.env scripts/claim-partner-storefront.mjs <${Object.keys(SHOPS).join('|')}> [--apply] [--reverse]`)
+  console.error(`Usage: node --env-file=.env scripts/claim-partner-storefront.mjs <${Object.keys(SHOPS).join('|')}> [--apply] [--reverse | --login-only --seller-id <id> | --attach]`)
   process.exit(1)
 }
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -169,6 +195,23 @@ async function claim() {
   }
   saveRecord({ ...record, status: 'pending', ownerProfileId: userId })
   console.log(`auth user created: ${userId}. If this run stops before "Done", run --reverse --apply: it reads the storefront and undoes whatever landed.`)
+
+  if (LOGIN_ONLY) {
+    // The Profile alone (business, no daily reminder) — the storefront is NOT touched; --attach does that after the pin.
+    await c.query(
+      `insert into "Profile" (id, email, "displayName", "accountType", "dailyReminderOptIn", "updatedAt")
+       values ($1::uuid, $2, $3, 'business', false, now())
+       on conflict (id) do update set "accountType" = 'business', "displayName" = excluded."displayName", "dailyReminderOptIn" = false, "updatedAt" = now()`,
+      [userId, SHOP.email, SHOP.name],
+    )
+    saveRecord({ ...record, status: 'login-only', ownerProfileId: userId, loginAt: new Date().toISOString() })
+    console.log(`\nLogin ready. ${SHOP.email} exists and owns NOTHING yet.`)
+    console.log(`  password: ${PW_FILE}   (read it with: cat ${PW_FILE})`)
+    console.log(`  PIN THIS PAIR in src/lib/eno-run-partners.ts (+ eno-run-sellers.ts, SHOPS.${key}.sellerId here, CAMPAIGN_SELLER_IDS):`)
+    console.log(`    { sellerId: '${SHOP.sellerId}', ownerProfileId: '${userId}' }`)
+    console.log(`  then deploy, then: node --env-file=.env scripts/claim-partner-storefront.mjs ${key} --attach --apply`)
+    return
+  }
 
   // 3. Profile + owner + partner flag, one transaction, the ownerless check re-stated in the write.
   let committed = false
@@ -282,6 +325,72 @@ async function reverse() {
   }
 }
 
+/** --attach: the recorded login takes the storefront — only once the pinned pair is in this script AND live on both sites. */
+async function attach() {
+  if (!existsSync(CLAIM_FILE)) throw new Error(`${CLAIM_FILE} not found — run --login-only first`)
+  const r = JSON.parse(readFileSync(CLAIM_FILE, 'utf8'))
+  if (!r.ownerProfileId || (r.status !== 'login-only' && r.status !== 'pending')) throw new Error(`the record is '${r.status}', not 'login-only' — refusing`)
+  // ⛔ RESUMABLE (commit gate, codex): a run that stopped after writing 'pending' is settled from the DATABASE — owned by the
+  // recorded login → the attach landed, finish the record; still ownerless → it did not, carry on as 'login-only'.
+  if (r.status === 'pending') {
+    const owner = await ownerNow(r.sellerId)
+    if (owner === r.ownerProfileId) {
+      // A dry run reports and writes nothing (commit gate, codex); --apply (which holds the lock) finishes the record.
+      if (!APPLY) { console.log(`${SHOP.name}: the earlier attach had landed (owner ${owner}) — re-run with --attach --apply to finish the record.`); return }
+      saveRecord({ ...r, status: 'claimed', claimedAt: r.claimedAt ?? new Date().toISOString() })
+      console.log(`${SHOP.name}: the earlier attach had landed (owner ${owner}) — record finished as 'claimed'.`)
+      return
+    }
+    if (owner) throw new Error(`${SHOP.name} is owned by ${owner}, not the recorded login — refusing; settle it by hand`)
+  }
+  if (r.sellerId !== SHOP.sellerId) throw new Error(`the record's storefront ${r.sellerId} is not the pinned ${SHOP.sellerId} — refusing`)
+  // ⛔ THE PAIR ITSELF — seller AND owner — must be the one pinned in this checkout's src/lib/eno-run-partners.ts (commit
+  // gate, codex): the live check below can only see the seller id, so a pin with the wrong owner would pass it alone.
+  const pins = readFileSync(new URL('../src/lib/eno-run-partners.ts', import.meta.url), 'utf8')
+  const pinned = [...pins.matchAll(/sellerId:\s*'([a-z0-9]+)',\s*ownerProfileId:\s*'([0-9a-f-]{36})'/g)].map((m) => `${m[1]}|${m[2]}`)
+  if (!pinned.includes(`${r.sellerId}|${r.ownerProfileId}`)) throw new Error(`src/lib/eno-run-partners.ts does not pin { sellerId: '${r.sellerId}', ownerProfileId: '${r.ownerProfileId}' } — pin THIS pair, deploy, then attach; refusing`)
+  // ⚠️ RESIDUAL, STATED (commit gate, codex): the live sites expose the pinned SELLER (the strip link), not the pinned
+  // OWNER, so "this exact pair is deployed" rests on the local pin + the deploy of this checkout's main. If a different
+  // owner were ever deployed for this seller, the attached shop would simply not be eno-run: chatOnly then refuses every
+  // import and nightly write (nothing exists yet to show a link), which is the safe failure.
+  // ⛔ THE PIN MUST BE LIVE ON BOTH EDITIONS FIRST: the home page's partner strip links /sellers/<id> only when the deployed
+  // build pins that storefront (src/lib/partner-strip.ts, ENO_RUN_SELLER_IDS). Cache-busted, no edge copy.
+  for (const host of ['https://eno.vn', 'https://www.eno.forum']) {
+    const res = await fetch(`${host}/?pin-check=${Date.now()}`, { headers: { 'cache-control': 'no-cache', 'user-agent': 'eno-claim-check/1.0' }, signal: AbortSignal.timeout(30_000) })
+    const html = res.ok ? await res.text() : ''
+    if (!html.includes(`href="/sellers/${r.sellerId}"`)) throw new Error(`${host} does not show the pinned storefront ${r.sellerId} yet (HTTP ${res.status}) — deploy the pin to both editions first; refusing`)
+  }
+  const s = (await c.query(`select id, name, "ownerId", "officialPartner" from "Seller" where id = $1`, [r.sellerId])).rows[0]
+  if (!s) throw new Error(`no Seller ${r.sellerId}`)
+  if (s.name !== SHOP.name) throw new Error(`Seller ${s.id} is "${s.name}", expected "${SHOP.name}" — refusing`)
+  if (s.ownerId) throw new Error(`${SHOP.name} already has an owner (${s.ownerId}) — refusing`)
+  console.log(`${SHOP.name} (${s.id}): owner none -> ${r.ownerProfileId} (${r.email}); officialPartner ${s.officialPartner} -> true; pin live on both sites ✓`)
+  if (!APPLY) { console.log('\nDRY RUN — nothing written. Re-run with --attach --apply.'); return }
+  let priorFlag = s.officialPartner
+  try {
+    await c.query('BEGIN')
+    const locked = (await c.query(`select "officialPartner" from "Seller" where id = $1 and "ownerId" is null for update`, [r.sellerId])).rows[0]
+    if (!locked) throw new Error('the storefront was claimed by someone else meanwhile — nothing kept')
+    priorFlag = locked.officialPartner
+    const u = await c.query(`update "Seller" set "ownerId" = $1::uuid, "claimedAt" = now(), "officialPartner" = true where id = $2 and "ownerId" is null`, [r.ownerProfileId, r.sellerId])
+    if (u.rowCount !== 1) throw new Error(`changed ${u.rowCount} rows — nothing kept`)
+    saveRecord({ ...r, status: 'pending', priorOfficialPartner: priorFlag })
+    await c.query('COMMIT')
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => {})
+    const owner = await ownerNow(r.sellerId).catch(() => undefined)
+    if (owner !== r.ownerProfileId) {
+      // Confirmed NOT attached: the record goes back to 'login-only' so a plain re-run can attach (an unreadable owner
+      // keeps 'pending', which the next --attach settles from the database as above).
+      if (owner === null) saveRecord({ ...r, status: 'login-only' })
+      throw e
+    }
+  }
+  saveRecord({ ...r, status: 'claimed', priorOfficialPartner: priorFlag, claimedAt: new Date().toISOString() })
+  console.log(`\nDone. ${SHOP.name} is owned by ${r.email} and eno-run from this moment (the pin is live); officialPartner = true.`)
+  console.log(`  way back: node --env-file=.env scripts/claim-partner-storefront.mjs ${key} --reverse --apply`)
+}
+
 if (APPLY) takeLock()
 await c.connect()
-try { await (REVERSE ? reverse() : claim()) } finally { await c.end() }
+try { await (REVERSE ? reverse() : ATTACH ? attach() : claim()) } finally { await c.end() }

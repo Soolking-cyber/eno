@@ -57,10 +57,13 @@ import { importableCampaign, retiredImportReason } from '../src/lib/retired-impo
 import { usedForShelf } from '../src/lib/accesstrade-restore'
 import { isEnoRunPartner } from '../src/lib/eno-run-partners'
 import { CAMPAIGN_SELLER_IDS } from '../src/lib/accesstrade-removal'
-import { closeSync, openSync, unlinkSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, unlinkSync } from 'node:fs'
+import { isNewGoodsTitle, readHoangHaUsed, readShopDunkUsed, type CrawlRead, type CrawlRow } from '../src/lib/accesstrade-crawl'
+import { trackingLink } from '../src/lib/accesstrade-crawl-feed'
+import { merchantNameFor } from '../src/lib/affiliate-price-refresh'
 import { mkdirDurably, writeFileDurably } from '../src/lib/durable-file'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
 /**
  * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
@@ -81,6 +84,24 @@ const SPEC = importableCampaign(campaignArg)!
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
 const APPLY = process.argv.includes('--apply')
+/**
+ * ⛔ A CRAWL CAMPAIGN (retired-imports.ts `source: 'crawl'` — Hoàng Hà, ShopDunk) IS READ FROM THE SHOP'S USED SECTION,
+ * NEVER FROM ITS DATAFEED (Hoàng Hà's 2,275 feed rows are all new goods), and a datafeed campaign is never crawled:
+ *   --crawl                 read the shop now (src/lib/accesstrade-crawl.ts; with photos on --apply, ~80 min for Hoàng Hà),
+ *                           and stage what was read to --crawl-out <file> for review;
+ *   --crawl-file <file>     import from a staged read instead (photos are in it only if it was staged with them).
+ * ⛔ AND IT IS CHAT ONLY (`chatOnly`): refused unless the storefront — by its FIXED id, never by name — is a pinned eno-run
+ * pair, so every row is created with a NULL public link and its tracking link in the staff-only table.
+ */
+const CRAWL_FILE = arg('crawl-file')
+const CRAWL_MODE = process.argv.includes('--crawl') || !!CRAWL_FILE
+if ((SPEC.source === 'crawl') !== CRAWL_MODE) {
+  console.error(SPEC.source === 'crawl'
+    ? `⛔ ${campaignArg} is a crawl campaign: pass --crawl (read the shop) or --crawl-file <staged read> — its datafeed is not its used shelf`
+    : `⛔ ${campaignArg} is a datafeed campaign: --crawl / --crawl-file do not apply`)
+  process.exit(1)
+}
+const CRAWL_OUT = arg('crawl-out')
 // Trimmed ONCE, here: the allow-list trims, and the merchant match below must see the same name (codex, gate round 9).
 const CAMPAIGN = arg('campaign')?.trim()
 /**
@@ -171,9 +192,44 @@ const hostImage = makeImageHost({ storage, storageUrl: storageUrl!, bucket: BUCK
 async function main() {
   console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — campaign=${CAMPAIGN}${LIMIT ? ` (first ${LIMIT})` : ''}\n`)
 
-  const first = await feedPage(1, 1)
+  // ⛔ A chat-only campaign is refused BEFORE a (long) read: its storefront must already be a pinned eno-run pair by id.
+  if (SPEC.chatOnly) {
+    const fixed = CAMPAIGN_SELLER_IDS.get(CAMPAIGN!)
+    const s = fixed ? await db.seller.findUnique({ where: { id: fixed }, select: { id: true, ownerId: true, officialPartner: true } }) : null
+    if (!isEnoRunPartner(s)) { console.error(`⛔ ${CAMPAIGN} is chat only and its storefront is ${fixed ? 'not (yet) a pinned eno-run pair' : 'not pinned by id (CAMPAIGN_SELLER_IDS)'} — refusing before any read`); process.exit(1) }
+  }
+  // A crawl campaign's rows come from the shop's used section, read (or staged) here — see CRAWL_MODE above.
+  let crawlFeed: (Feed & { images: string[] })[] | null = null
+  if (CRAWL_MODE) {
+    let rows: CrawlRow[]
+    if (CRAWL_FILE) {
+      const staged = JSON.parse(readFileSync(CRAWL_FILE, 'utf8')) as { campaign: string; complete: boolean; rows: CrawlRow[] }
+      if (staged.campaign !== CAMPAIGN) { console.error(`⛔ ${CRAWL_FILE} is a read of ${staged.campaign}, not ${CAMPAIGN} — refusing`); process.exit(1) }
+      rows = staged.rows
+      console.log(`staged read: ${rows.length} rows (complete=${staged.complete})`)
+    } else {
+      const reader = CAMPAIGN === 'hoanghamobile' ? readHoangHaUsed : CAMPAIGN === 'shopdunk_web' ? readShopDunkUsed : null
+      if (!reader) { console.error(`no crawl reader for ${CAMPAIGN}`); process.exit(1) }
+      const read: CrawlRead = await reader({ deadline: Date.now() + 150 * 60_000, withPhotos: APPLY })
+      rows = [...read.rows.values()]
+      console.log(`read: ${rows.length} rows, ${read.unknown.size} unknown, ${read.skippedNew} new-goods titles left out, complete=${read.complete}`, read.log)
+      if (CRAWL_OUT) {
+        writeFileDurably(dirname(CRAWL_OUT), basename(CRAWL_OUT), JSON.stringify({ campaign: CAMPAIGN, readAt: new Date().toISOString(), complete: read.complete, log: read.log, rows }, null, 1))
+        console.log(`staged → ${CRAWL_OUT}`)
+      }
+    }
+    // Only what is IN STOCK is created; the importer never writes a row it would immediately call sold. A title that declares
+    // new goods is refused here too — a STAGED read is a file, and the reader's own filter is not re-run on it (codex, gate).
+    const declaredNew = rows.filter((r) => isNewGoodsTitle(r.name)).length
+    if (declaredNew) console.log(`  ${declaredNew} staged rows declare new goods — left out`)
+    crawlFeed = rows.filter((r) => r.inStock && !isNewGoodsTitle(r.name)).map((r) => ({
+      name: r.name, price: r.price, discount: 0, status_discount: 0, image: r.images[0] ?? '', images: r.images, url: r.url,
+      aff_link: '', sku: r.sku, product_id: r.sku, cate: '', desc: r.desc, domain: new URL(r.url).hostname,
+    }))
+  }
+  const first = crawlFeed ? { total: crawlFeed.length } : await feedPage(1, 1)
   const total = LIMIT || first.total
-  console.log(`feed reports ${first.total} products; importing ${total}\n`)
+  console.log(`${crawlFeed ? 'read holds' : 'feed reports'} ${first.total} products; importing ${total}\n`)
 
   const cats = await db.category.findMany({ select: { id: true, slug: true } })
   const catId = new Map(cats.map((c) => [c.slug, c.id]))
@@ -185,10 +241,13 @@ async function main() {
   // The campaign's numeric id, needed to repair every aff_link. Read from the API so this script
   // works for any campaign without a hardcoded table.
   // A non-200 (a 429 past its retries) is said as itself, not read as "no approved campaign" (opus, diff review round 5).
-  const campRes = await accessTradeGet(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, KEY!)
-  if (!campRes.ok) throw new Error(`campaigns: HTTP ${campRes.status}`)
-  const campList = await campRes.json() as { data: { id: string; merchant: string; name?: string }[] }
-  const campaign = (campList.data || []).find((c) => c.merchant === CAMPAIGN)
+  // A crawl campaign's id is in its allow-list entry (it was approved 2026-11-14; there is no feed to ask).
+  const campList = crawlFeed ? { data: [] as { id: string; merchant: string; name?: string }[] } : await (async () => {
+    const campRes = await accessTradeGet(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, KEY!)
+    if (!campRes.ok) throw new Error(`campaigns: HTTP ${campRes.status}`)
+    return await campRes.json() as { data: { id: string; merchant: string; name?: string }[] }
+  })()
+  const campaign = crawlFeed ? { id: SPEC.campaignId!, merchant: CAMPAIGN!, name: merchantNameFor(CAMPAIGN!) } : (campList.data || []).find((c) => c.merchant === CAMPAIGN)
   const campaignId = campaign?.id
   if (!campaignId) {
     // ⛔ Not approved = the links earn nothing. Refuse rather than fill the marketplace with them.
@@ -222,6 +281,11 @@ async function main() {
   if (ENO_RUN) console.log(`"${merchantName}" is an eno-run partner: new rows get no public link; their purchase link goes to the staff table`)
   // A fixed-id campaign's storefront exists (it holds the shop's rows): missing, it is never re-created as a duplicate (opus).
   if (!seller && fixedId) { console.error(`storefront ${fixedId} for ${CAMPAIGN} not found — refusing (never a second "${merchantName}")`); process.exit(1) }
+  // ⛔ CHAT ONLY (retired-imports.ts): by its FIXED id, and only as a pinned eno-run pair — never a storefront created here.
+  if (SPEC.chatOnly && (!fixedId || !ENO_RUN)) {
+    console.error(`⛔ ${CAMPAIGN} is chat only: its storefront must be pinned by id (CAMPAIGN_SELLER_IDS) and eno-run (src/lib/eno-run-partners.ts) — ${!fixedId ? 'no fixed id' : 'not eno-run'}; refusing`)
+    process.exit(1)
+  }
   if (!seller) {
     console.log(`storefront "${merchantName}" does not exist — ${APPLY ? 'creating' : 'would create'}`)
     if (APPLY) {
@@ -318,7 +382,7 @@ async function main() {
      * 6,144 — rows 6,145-6,272 again — while rows 9,601-9,728 were never requested at all, and the
      * progress line still printed "9728/9728". Ask for a full page every time and trim here.
      */
-    const { data: raw } = await feedPage(page, PAGE)
+    const { data: raw } = crawlFeed ? { data: crawlFeed.slice((page - 1) * PAGE, page * PAGE) } : await feedPage(page, PAGE)
     if (!raw?.length) break
     const data = raw.slice(0, Math.max(0, total - seen))
     if (!data.length) break
@@ -342,14 +406,15 @@ async function main() {
         if (CATE && (p as { cate?: string }).cate !== CATE) return
         // ⛔ USED-ONLY (src/lib/retired-imports.ts): a row the shop does not call second-hand is not this import's —
         // not created, and not refreshed either (a live row's price is the nightly job's).
-        if (SPEC.usedOnly && !usedForShelf(p.name, p.url)) { notUsed++; return }
+        // (A crawl campaign's section IS the evidence — its titles do not say "cũ"; the reader left out new-goods titles.)
+        if (SPEC.usedOnly && !crawlFeed && !usedForShelf(p.name, p.url)) { notUsed++; return }
         matched++
         // feedPrice: the one rule for "priced", the nightly walk's and the SKU claim's (opus, gate round 15).
         const price = feedPrice(p)
         // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
         if (price == null) { skipped++; return }
         if (!p.image) { skipped++; return }
-        const affiliateUrl = repairAffLink(p.aff_link, campaignId)
+        const affiliateUrl = crawlFeed ? (() => { try { return trackingLink(campaignId, p.url) } catch { return null } })() : repairAffLink(p.aff_link, campaignId)
         if (!affiliateUrl) { skipped++; return }
         const slug = categoryFor(name)
         const categoryId = catId.get(slug)
@@ -388,8 +453,11 @@ async function main() {
         let images = existing?.images
         const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
         if (!hasImage) {
-          const url = await hostImage(p.image, slug)
-          if (url) { images = JSON.stringify([url]); imaged++ }
+          // A crawl row carries its gallery (≤5, the reader's order: the first is the cover); a feed row one image.
+          const sources = crawlFeed ? ((p as Feed & { images?: string[] }).images ?? []).slice(0, 5) : [p.image]
+          const hosted: string[] = []
+          for (const src of sources) { const url = src ? await hostImage(src, slug) : null; if (url) hosted.push(url) }
+          if (hosted.length) { images = JSON.stringify(hosted); imaged++ }
         }
         if (!images || images === '[]') { skipped++; return }
 

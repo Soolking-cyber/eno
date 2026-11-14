@@ -45,6 +45,23 @@ export type ImportableCampaign = {
    * and it is created as condition 'used'. A row the rule does not call used is skipped, never created as 'new'.
    */
   usedOnly: true
+  /**
+   * ⛔ 'crawl' — the shop's used stock is NOT in its AccessTrade datafeed (Hoàng Hà: 2,275 feed rows, 0 used; ShopDunk: no
+   * feed), so its used section is READ from the shop's own pages (src/lib/accesstrade-crawl.ts) by the importer's
+   * `--crawl` mode and the nightly /api/cron/affiliate-crawl (src/lib/affiliate-night.ts). The section is the used
+   * evidence: titles there do not say "cũ", so usedForShelf is not applied — the reader leaves out a title that DECLARES
+   * new goods instead. A crawl campaign is never walked as a datafeed, and a datafeed campaign never as a crawl.
+   */
+  source?: 'crawl'
+  /**
+   * ⛔ CHAT ONLY (owner 2026-11-14: "no links that lead to another website"; "only admins should see the link"): every
+   * listing write for the campaign — import or nightly — is REFUSED unless its storefront is a pinned eno-run pair
+   * (src/lib/eno-run-partners.ts). So a row of it can only ever exist with a NULL public link and its tracking link in the
+   * staff-only table; an un-pin or an un-claim stops every write rather than re-opening the public column.
+   */
+  chatOnly?: true
+  /** The AccessTrade campaign id (a crawl campaign has no datafeed to ask) — the tracking link's second path segment. */
+  campaignId?: string
 }
 
 /** Why the SuperSports importer refuses to run (all 5,955 rows hidden 2026-10-02, storefront 404s since 6ac6e6d73). */
@@ -60,6 +77,10 @@ export const SUPERSPORTS_RETIRED =
 export const IMPORTABLE_ACCESSTRADE_CAMPAIGNS: ReadonlyMap<string, ImportableCampaign> = new Map([
   ['cellphones_cps', { why: 'CellphoneS used shelf ("Hàng cũ") — owner 2026-11-14: "import all 2nd hand one with comission"', usedOnly: true }],
   ['dienthoaivui', { why: 'Điện Thoại Vui used phones (campaign /may-cu) — owner 2026-11-14: "import all 2nd hand one with comission"', usedOnly: true }],
+  // Owner 2026-11-14 ("register the remaining 3 and import all 2nd hand one with comission"; Hoàng Hà + ShopDunk: "All of
+  // them"; "Partners now, admins sell") and 11-15 ("Keep tracking link"). Both campaigns auto-approved 2026-11-14.
+  ['hoanghamobile', { why: 'Hoàng Hà Mobile used units (/kho-san-pham-cu, crawled) — owner 2026-11-14 "All of them", chat only', usedOnly: true, source: 'crawl', chatOnly: true, campaignId: '5229340396064683522' }],
+  ['shopdunk_web', { why: 'ShopDunk used Apple (/may-cu, crawled) — owner 2026-11-14 "All of them", chat only', usedOnly: true, source: 'crawl', chatOnly: true, campaignId: '6800497735607325103' }],
 ])
 
 /** The refusal message for an AccessTrade campaign, or null when it may be imported. */
