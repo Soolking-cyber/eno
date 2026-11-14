@@ -222,7 +222,9 @@ export async function checkAuthRequest(q: URLSearchParams): Promise<AuthRequestC
   const asked = (q.get('scope') || '').split(/\s+/).filter(Boolean)
   if (asked.some((s) => !ALL_SCOPES.has(s))) return fail('invalid_scope', `Scopes are: ${OAUTH_SCOPES.join(' ')}.`)
   const scopes = asked.length ? [...new Set(asked)] : DEFAULT_SIGN_IN_SCOPES
-  if (state.length > 512) return fail('invalid_request', 'state is too long.')
+  // ChatGPT sends a ~760-character state (2026-11-14: refused at the old 512 cap). It only rides the sealed consent
+  // ticket and the return redirect, so a generous cap costs nothing; the cap only stops absurd links.
+  if (state.length > 2048) return fail('invalid_request', 'state is too long.')
   return { ok: true, req: { clientId, redirectUri, state, codeChallenge: challenge, scopes, resource }, client }
 }
 

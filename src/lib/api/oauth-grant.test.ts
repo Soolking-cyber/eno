@@ -122,6 +122,14 @@ describe('the authorization request', () => {
     expect(await G.checkAuthRequest(q({ response_type: 'token' }))).toMatchObject({ ok: false, error: 'unsupported_response_type' })
   })
 
+  it('a long state passes through (ChatGPT sends ~760 characters); only an absurd one is refused', async () => {
+    const c = await G.checkAuthRequest(q({ state: 's'.repeat(800) }))
+    expect(c.ok && c.req.state.length).toBe(800)
+    const ticket = c.ok ? G.issueConsentTicket(c.req, 'p1', ['shop1'], now()) : null
+    expect(ticket && G.openConsentTicket(ticket, now())?.state).toBe('s'.repeat(800))
+    expect(await G.checkAuthRequest(q({ state: 's'.repeat(2049) }))).toMatchObject({ ok: false, error: 'invalid_request' })
+  })
+
   it('a client names no scope → the MCP tools\' scopes, never media:write', async () => {
     const c = await G.checkAuthRequest(q())
     expect(c.ok && c.req.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read'])
