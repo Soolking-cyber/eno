@@ -56,6 +56,8 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // site's header mark is white-on-red and read as a blurry outline on the light tile).
   { handle: 'cellphones', name: 'CellphoneS', logo: { src: '/partners/cellphones.webp', width: 574, height: 96 }, label: { en: 'Gadgets', vi: 'Công nghệ' }, size: 'wide', dark: true, enoRunSellerId: 'cmt78nvif0000gpq48kvzmxjw' },
   { handle: 'dienthoaivui', name: 'Điện Thoại Vui', logo: { src: '/partners/dienthoaivui-v2.webp', width: 799, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmtr9qva90000glq44fkjs18b' },
+  { handle: 'hoanghamobile', name: 'Hoàng Hà Mobile', logo: { src: '/partners/hoanghamobile.webp', width: 597, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmwgyb5m10000rjq4xxjkwwaz' },
+  { handle: 'shopdunk', name: 'ShopDunk', logo: { src: '/partners/shopdunk.webp', width: 384, height: 96 }, label: { en: 'Apple', vi: 'Apple' }, size: 'wide', dark: true, enoRunSellerId: 'cmwgyb5sl0001rjq4yuj9b2sq' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

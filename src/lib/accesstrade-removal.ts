@@ -33,6 +33,10 @@ export const ACCESSTRADE_KEPT_SELLERS: ReadonlyMap<string, string> = new Map([
 export const ACCESSTRADE_SOURCED_SELLERS: ReadonlyMap<string, string> = new Map([
   ['cmt78nvif0000gpq48kvzmxjw', 'CellphoneS (campaign cellphones_cps)'],
   ['cmtr9qva90000glq44fkjs18b', 'Điện Thoại Vui (campaign dienthoaivui)'],
+  // The crawl campaigns' storefronts (2026-11-15) — listed so NO public claim path can take them while they wait, ownerless,
+  // for --attach (seller-publish-gate.ts claimGuestStorefront refuses every id here; commit gate, opus).
+  ['cmwgyb5m10000rjq4xxjkwwaz', 'Hoàng Hà Mobile (campaign hoanghamobile, crawled)'],
+  ['cmwgyb5sl0001rjq4yuj9b2sq', 'ShopDunk (campaign shopdunk_web, crawled)'],
   ['cmtu2fppp000008q44x4pvrz2', 'Tiki (campaign tiki_creator)'],
   ['cmtba6iyc00006iq4m6qkwjjf', 'BỀN COMPUTER (campaign ben)'],
   ['cmu52jkld0000czq443snv0jh', 'SuperSports (AccessTrade checkout links)'],
@@ -45,6 +49,9 @@ export const ACCESSTRADE_SOURCED_SELLERS: ReadonlyMap<string, string> = new Map(
 export const CAMPAIGN_SELLER_IDS: ReadonlyMap<string, string> = new Map([
   ['cellphones_cps', 'cmt78nvif0000gpq48kvzmxjw'],
   ['dienthoaivui', 'cmtr9qva90000glq44fkjs18b'],
+  // The crawl campaigns' empty storefronts, made by scripts/create-crawl-storefronts.ts on 2026-11-15.
+  ['hoanghamobile', 'cmwgyb5m10000rjq4xxjkwwaz'],
+  ['shopdunk_web', 'cmwgyb5sl0001rjq4yuj9b2sq'],
 ])
 
 export type AccessTradeRow = { sellerId: string; affiliateUrl: string | null; ownerId: string | null; officialPartner?: boolean | null }

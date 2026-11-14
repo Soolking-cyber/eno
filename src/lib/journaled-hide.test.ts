@@ -22,7 +22,7 @@ describe('the SQL carries every guard', () => {
       expect(sql).toContain(`s."ownerId" IS NULL`)
       expect(sql).toContain(`(l."externalId" IS NOT NULL OR l."affiliateUrl" IS NOT NULL OR EXISTS (SELECT 1 FROM "PartnerPurchaseLink" pl WHERE pl."listingId" = l.id))`)
       // The owner arm widens only by the pinned eno-run pairs (eno-run-partners.ts) — never by any other owner.
-      expect(sql).toContain(`(s."ownerId" IS NULL OR ((s.id, s."ownerId") IN (('cmt78nvif0000gpq48kvzmxjw', 'a7dcc001-3521-4732-a07b-fda02d50b3b6'::uuid), ('cmtr9qva90000glq44fkjs18b', '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc'::uuid)) AND s."officialPartner"))`)
+      expect(sql).toContain(`(s."ownerId" IS NULL OR ((s.id, s."ownerId") IN (('cmt78nvif0000gpq48kvzmxjw', 'a7dcc001-3521-4732-a07b-fda02d50b3b6'::uuid), ('cmtr9qva90000glq44fkjs18b', '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc'::uuid), ('cmwgyb5m10000rjq4xxjkwwaz', '18e1fa7c-0a61-4441-9afa-4ed15ca35d25'::uuid), ('cmwgyb5sl0001rjq4yuj9b2sq', 'ea489372-35f3-4b81-9d91-d8ce5b840b4d'::uuid)) AND s."officialPartner"))`)
     }
     expect(SNAPSHOT_SQL).toContain(`l.status IN ('active','sold')`)
     expect(HIDE_SQL).toContain('l.status = j.prior')

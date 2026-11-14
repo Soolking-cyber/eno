@@ -141,7 +141,7 @@ describe('sellerPublishDecision — OFF MEANS OFF', () => {
     expect(h.calls.map((c) => c.m)).toEqual(['seller.updateMany'])
     const a = h.calls[0].args
     // …never an AccessTrade storefront (claimed only by eno's own claim-partner-storefront.mjs — owner 2026-11-14).
-    expect(a.where).toEqual({ phone: '+84900000000', ownerId: null, NOT: { id: { in: ['cmt78nvif0000gpq48kvzmxjw', 'cmtr9qva90000glq44fkjs18b', 'cmtu2fppp000008q44x4pvrz2', 'cmtba6iyc00006iq4m6qkwjjf', 'cmu52jkld0000czq443snv0jh'] } } })
+    expect(a.where).toEqual({ phone: '+84900000000', ownerId: null, NOT: { id: { in: ['cmt78nvif0000gpq48kvzmxjw', 'cmtr9qva90000glq44fkjs18b', 'cmwgyb5m10000rjq4xxjkwwaz', 'cmwgyb5sl0001rjq4yuj9b2sq', 'cmtu2fppp000008q44x4pvrz2', 'cmtba6iyc00006iq4m6qkwjjf', 'cmu52jkld0000czq443snv0jh'] } } })
     expect(a.data).toMatchObject({ ownerId: 'plain-owner' })
     expect(a.data.claimedAt).toBeInstanceOf(Date)
   })

@@ -148,7 +148,7 @@ describe('the partner roster', () => {
 
   it('leaves the visa partner off eno.forum, keeps every marketplace partner on both, and no longer lists GMBR', () => {
     // eno.forum is the same marketplace: the eno-run phone shops show there too (only the visa partner is left off).
-    expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders', 'cellphones', 'dienthoaivui'])
+    expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders', 'cellphones', 'dienthoaivui', 'hoanghamobile', 'shopdunk'])
     expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('gmbr')
     // The eno-run partners (CellphoneS, Điện Thoại Vui — owner 2026-11-14) show once their pair is pinned: both are (11-15).
     expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.map((p) => p.handle))
@@ -159,7 +159,7 @@ describe('the partner roster', () => {
     const cps = PARTNER_STRIP.find((p) => p.handle === 'cellphones')!
     expect(stripHref(cps)).toBe('/sellers/cmt78nvif0000gpq48kvzmxjw')
     expect(stripHref(PARTNER_STRIP.find((p) => p.handle === 'goplus')!)).toBe('/goplus')
-    expect(PARTNER_STRIP.filter((p) => p.enoRunSellerId).map((p) => p.handle)).toEqual(['cellphones', 'dienthoaivui'])
+    expect(PARTNER_STRIP.filter((p) => p.enoRunSellerId).map((p) => p.handle)).toEqual(['cellphones', 'dienthoaivui', 'hoanghamobile', 'shopdunk'])
   })
 
   it('points at logo files that exist, with the dimensions the markup declares', () => {

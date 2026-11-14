@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ImportScreen, screenImportRow, type ScreenDb } from './import-screen'
 import { HIDE_SQL, SNAPSHOT_SQL } from './journaled-hide'
 // The two pinned pairs, spelled out (not rebuilt from the module under test): seller id, owner, officialPartner.
-const PINNED = [{ id: 'cmt78nvif0000gpq48kvzmxjw', ownerId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', officialPartner: true }, { id: 'cmtr9qva90000glq44fkjs18b', ownerId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', officialPartner: true }]
+const PINNED = [{ id: 'cmt78nvif0000gpq48kvzmxjw', ownerId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', officialPartner: true }, { id: 'cmtr9qva90000glq44fkjs18b', ownerId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', officialPartner: true }, { id: 'cmwgyb5m10000rjq4xxjkwwaz', ownerId: '18e1fa7c-0a61-4441-9afa-4ed15ca35d25', officialPartner: true }, { id: 'cmwgyb5sl0001rjq4yuj9b2sq', ownerId: 'ea489372-35f3-4b81-9d91-d8ce5b840b4d', officialPartner: true }]
 
 // The screen every importer (scripts/import-*.ts) runs before it writes a row. Pinned: the order (a
 // banned word wins), that the banned-word half reads TITLES WITH ACCENTS (not folded descriptions —

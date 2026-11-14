@@ -47,8 +47,8 @@ const SHOPS = {
   // The AccessTrade CRAWL campaigns (retired-imports.ts, chat only). sellerId is filled by the commit that PINS the pair:
   // until then only --login-only runs for them (it takes the storefront id from --seller-id), and --attach refuses.
   // twoStep: ONLY --login-only then --attach (commit gate, codex): the one-step claim leaves an owned-but-unpinned window.
-  hoangha: { sellerId: null, name: 'Hoàng Hà Mobile', email: 'support+hoangha@eno.vn', twoStep: true },
-  shopdunk: { sellerId: null, name: 'ShopDunk', email: 'support+shopdunk@eno.vn', twoStep: true },
+  hoangha: { sellerId: 'cmwgyb5m10000rjq4xxjkwwaz', name: 'Hoàng Hà Mobile', email: 'support+hoangha@eno.vn', twoStep: true },
+  shopdunk: { sellerId: 'cmwgyb5sl0001rjq4yuj9b2sq', name: 'ShopDunk', email: 'support+shopdunk@eno.vn', twoStep: true },
 }
 
 const key = process.argv[2]

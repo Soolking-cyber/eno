@@ -7,14 +7,14 @@ const OWNER = '11111111-2222-4333-8444-555555555555'
 const LIST: EnoRunPartner[] = [{ sellerId: CPS, ownerProfileId: OWNER, name: 'CellphoneS' }]
 
 describe('eno-run partners — a pinned (seller, owner) pair, flagged officialPartner (owner 2026-11-14)', () => {
-  it('pins exactly the two eno-held logins the claim script created (2026-11-15) — and only those owners count', () => {
-    expect(ENO_RUN_PARTNERS.map((p) => p.sellerId)).toEqual(['cmt78nvif0000gpq48kvzmxjw', 'cmtr9qva90000glq44fkjs18b'])
+  it('pins exactly the four eno-held logins the claim script created (2026-11-15) — and only those owners count', () => {
+    expect(ENO_RUN_PARTNERS.map((p) => p.sellerId)).toEqual(['cmt78nvif0000gpq48kvzmxjw', 'cmtr9qva90000glq44fkjs18b', 'cmwgyb5m10000rjq4xxjkwwaz', 'cmwgyb5sl0001rjq4yuj9b2sq'])
     for (const p of ENO_RUN_PARTNERS) {
       expect(isEnoRunPartner({ id: p.sellerId, ownerId: p.ownerProfileId, officialPartner: true })).toBe(true)
       expect(isEnoRunPartner({ id: p.sellerId, ownerId: OWNER, officialPartner: true })).toBe(false)
     }
     expect(enoRunPartnerSql('s.')).toContain('(s.id, s."ownerId") IN (')
-    expect(enoRunPartnerWhere()).toHaveLength(2)
+    expect(enoRunPartnerWhere()).toHaveLength(4)
   })
   it('only the exact pair counts — another owner of the same storefront (a stranger\'s claim) gains nothing', () => {
     expect(isEnoRunPartner({ id: CPS, ownerId: OWNER, officialPartner: true }, LIST)).toBe(true)

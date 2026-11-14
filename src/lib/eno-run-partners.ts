@@ -32,6 +32,10 @@ export const ENO_RUN_PARTNERS: readonly EnoRunPartner[] = [
   // Pinned 2026-11-15 from scripts/claim-partner-storefront.mjs (eno-held logins support+<shop>@eno.vn; passwords in ~/eno-vault).
   { sellerId: 'cmt78nvif0000gpq48kvzmxjw', ownerProfileId: 'a7dcc001-3521-4732-a07b-fda02d50b3b6', name: 'CellphoneS' },
   { sellerId: 'cmtr9qva90000glq44fkjs18b', ownerProfileId: '26101f3e-bb4a-45bc-8bf1-d2f0720e41cc', name: 'Điện Thoại Vui' },
+  // Pinned 2026-11-15 from claim-partner-storefront.mjs --login-only (support+hoangha@ / support+shopdunk@eno.vn). The
+  // storefronts are still OWNERLESS when this ships, so these pairs match nothing until `--attach` after the deploy.
+  { sellerId: 'cmwgyb5m10000rjq4xxjkwwaz', ownerProfileId: '18e1fa7c-0a61-4441-9afa-4ed15ca35d25', name: 'Hoàng Hà Mobile' },
+  { sellerId: 'cmwgyb5sl0001rjq4yuj9b2sq', ownerProfileId: 'ea489372-35f3-4b81-9d91-d8ce5b840b4d', name: 'ShopDunk' },
 ]
 
 const SELLER_ID = /^[a-z0-9]{20,40}$/
