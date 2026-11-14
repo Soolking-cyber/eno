@@ -52,9 +52,10 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'vinwonders', name: 'VinWonders', logo: { src: '/partners/vinwonders.webp', width: 174, height: 96 }, label: { en: 'Tickets', vi: 'Vé tham quan' }, size: 'square' },
   { handle: 'vietkite', name: 'VietKite', logo: { src: '/partners/vietkite.webp', width: 96, height: 96 }, label: { en: 'e-Visa', vi: 'Visa' }, size: 'square', marketplaceOnly: true },
   // Owner 2026-11-14: "partners … make sure the are added to strip". Their marks, from their own sites: CellphoneS' is drawn
-  // white (its header is red), so its tile is dark; Điện Thoại Vui's red outline reads on the light tile.
+  // white (its header is red), so its tile is dark; Điện Thoại Vui's is its wordmark in its brand red (#E41D31) on transparent, cut from its own 4501 px logo file (owner 2026-11-15: the
+  // site's header mark is white-on-red and read as a blurry outline on the light tile).
   { handle: 'cellphones', name: 'CellphoneS', logo: { src: '/partners/cellphones.webp', width: 574, height: 96 }, label: { en: 'Gadgets', vi: 'Công nghệ' }, size: 'wide', dark: true, enoRunSellerId: 'cmt78nvif0000gpq48kvzmxjw' },
-  { handle: 'dienthoaivui', name: 'Điện Thoại Vui', logo: { src: '/partners/dienthoaivui.webp', width: 732, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmtr9qva90000glq44fkjs18b' },
+  { handle: 'dienthoaivui', name: 'Điện Thoại Vui', logo: { src: '/partners/dienthoaivui-v2.webp', width: 799, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmtr9qva90000glq44fkjs18b' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */
