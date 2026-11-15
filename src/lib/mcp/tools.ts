@@ -352,8 +352,10 @@ export type McpTool = {
 }
 
 // Titles: each round on the live server tests a form per tool and the best stays (owner: every title to 100; the 100s are
-// left alone). Round 2: the exact tool name took get_shop to 100 twice; Title Case did not help. Round 3: the title's verb
-// is the word its description opens with (28% of such titles score 100, 17% otherwise); "Fetch" (58% at 100) for the list.
+// left alone). The judge gives 100 at confidence >= 0.99: "Get shop", "Update shop", "Get shop analytics summary" and the
+// webhook titles reach it; titles on a bare "listing" stall at 0.88-0.98. Round 4 pins the object down ("marketplace
+// listing" to create or update one, "shop" for this shop's own: "Get shop listings", "Get shop listing details", "Delete shop listing",
+// "Sync shop catalogue") and rewords the analytics title; "Fetch listings" (0.88) is gone.
 export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
@@ -390,8 +392,8 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'list_listings',
-    title: 'Fetch listings',
-    description: 'Fetch this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: its id, title, price and price unit, status, whether it is verified, district, city, cover photo and photo count, category, date posted, views, leads and page `url`; and `next_cursor`. get_listing returns a listing\'s text, condition and every photo. Use get_listing to read one listing by id, and analytics_listings for its views and leads by day.',
+    title: 'Get shop listings',
+    description: 'Get this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: its id, title, price and price unit, status, whether it is verified, district, city, cover photo and photo count, category, date posted, views, leads and page `url`; and `next_cursor`. get_listing returns a listing\'s text, condition and every photo. Use get_listing to read one listing by id, and analytics_listings for its views and leads by day.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
@@ -414,7 +416,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'get_listing',
-    title: 'Get listing details',
+    title: 'Get shop listing details',
     description: 'Get one of this shop\'s listings by id, in any status: its title, text, price, status, category, location, photos, views, leads and page `url`.\n\nFails with `not_found` when the id is not one of this shop\'s listings or the listing was deleted.\n\nReturns `listing`. Use it to see the current values before update_listing or delete_listing; to see every listing at once, use list_listings instead.',
     scope: 'listings:read',
     annotations: READ_ONLY,
@@ -428,7 +430,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'create_listing',
-    title: 'Create listing',
+    title: 'Create marketplace listing',
     description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job gives its monthly salary in `salaryM` instead) and the district where it is; text, condition, brand and model are optional. Photos are public image URLs that eno copies to its own storage (the first 8 are used): most categories need at least 3 photos of different angles, services need 1 and jobs none. Longer text is cut to fit: title 140 characters, description 5,000, district 80, condition 60.\n\nThe listing goes live at once unless eno must check it first. It is refused with a reason code, and nothing is created, when photos or the district are missing (`photos_min`, `photo_required`, `location_required`), the text holds a phone number, the category is unknown or the account may not post right now. Posting the same listing again while the first is still active (on sale, checked or not) is refused as `duplicate_listing`, with that listing\'s id.\n\nReturns `listing` with the new `id` (for update_listing and set_listing_status), `verified` (true when it is already public), `held` (true while it waits for eno\'s licence check) and its page `url`. Use it when the seller asks to post something; to post many listings at once, use bulk_create_listings.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -490,7 +492,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_listing',
-    title: 'Update listing',
+    title: 'Update marketplace listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
     description: 'Update one of this shop\'s listings: its title, text, price, district, condition, photos or a job\'s salary.\n\nSend the listing\'s id and only the fields to change; the rest stay as they are. Changes are saved immediately. Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. A refused edit changes nothing and comes back with its reason code, such as `title_too_short` or `invalid_price`.\n\nIt cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).\n\nReturns `listing` as it now stands, and `held` and `unpublished`, which say when the saved edit is not public yet: `held: true` while the listing waits for eno\'s licence check. Use it when the seller asks for a new price, better text, another district or new photos.',
@@ -579,7 +581,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'delete_listing',
-    title: 'Delete listing',
+    title: 'Delete shop listing',
     description: 'Delete one of this shop\'s listings for good. It cannot be undone, so ask the seller to confirm first; to take a listing down for now, use set_listing_status hidden instead.\n\nWhile the shop or the listing is under review (an open report, or the account is held or suspended), it is hidden instead of deleted and can be deleted once the review is over. A second call for a listing already deleted answers `not_found`.\n\nReturns `deleted: true` once the listing is gone. When it was hidden instead, `deleted: false` and `hidden: true` come with the `reason` code and a `message` to show the seller. Every answer carries all four fields: `deleted`, `hidden`, `reason` and `message`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -631,7 +633,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'sync_catalogue',
-    title: 'Sync catalogue',
+    title: 'Sync shop catalogue',
     description: `Sync this shop's listings with your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row's status can mark it sold or hidden.\n\nIn mode "full", every active listing whose externalId is missing from this payload is also hidden; listings without an externalId, such as ones posted on the website, are never touched. When the account may not publish new listings, new rows are refused while edits still apply.\n\nReturns counts of \`created\`, \`updated\`, \`retired\` and \`failed\` rows, \`results\` (one per row), and \`publish_blocked\` with the reason when new rows were refused (null otherwise). Not for a one-off post (use create_listing) or a batch of new listings without your own ids (use bulk_create_listings).`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -699,7 +701,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'analytics_listings',
-    title: 'Get daily listing analytics',
+    title: 'Get listing analytics by day',
     description: 'Get the views and leads (times a buyer opened contact) of each of this shop\'s listings, day by day over a date range, with each listing\'s all-time totals.\n\nThe range is the last 30 days unless you set `from` and `to` (UTC days); a longer range than 92 days is cut to its last 92. Deleted listings are left out. A page holds 50 listings unless you set `limit`; pass `next_cursor` back as `cursor` for the next page.\n\nReturns the `range` actually used, `listings` (each with its totals and `daily` figures) and `next_cursor`. Use analytics_summary for the shop\'s overall totals.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
