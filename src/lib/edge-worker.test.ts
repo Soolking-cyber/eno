@@ -1229,3 +1229,156 @@ describe('edge Worker — chunks start at the first paint', () => {
     })
   })
 })
+
+/**
+ * ora AGENT-TRAFFIC REPORT — minimal, no personal data (owner, 2026-11-15). Pinned: off without the key; only a public page
+ * load by a signed-out reader reports; the event carries exactly the listed fields; the reader's response is untouched;
+ * /__ora/status answers the installation check.
+ */
+describe('edge Worker — ora report (minimal)', () => {
+  const ENV = { ORA_INGEST_KEY: 'k-test', ORA_DOMAIN_ID: 'dom-1' }
+  const callEnv = (path: string, headers: Record<string, string> = {}, env: Record<string, string> = ENV) =>
+    worker.fetch(new Request(`https://eno.vn${path}`, { headers }), env, ctx) as Promise<Response>
+  const ingests = () => h.origin.filter((r) => r.url.startsWith('https://ingest.ora.ai/'))
+  const drain = async () => { await vi.advanceTimersByTimeAsync(4_000); await Promise.all(h.waits) }
+  /** Every event sent, in order — one ingest request per counted page view. */
+  const sentEvents = async () => Promise.all(ingests().map(async (r) => JSON.parse((await r.clone().text()).trim())))
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    // The shared stub expects a Request; the reporter calls fetch(url, init) — normalise both, and answer ingest with 202.
+    vi.stubGlobal('fetch', async (input: Request | string, init?: RequestInit) => {
+      const req = typeof input === 'string' ? new Request(input, init) : input
+      h.origin.push(req)
+      if (req.url.startsWith('https://ingest.ora.ai/')) return new Response(null, { status: 202 })
+      const variant = langVariantFor(new RequestCookies(req.headers).get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
+      return originResponse(await h.respond(req), variant)
+    })
+  })
+  afterEach(async () => { await drain(); vi.useRealTimers() })
+
+  it('/__ora/status answers ora\'s installation check, with or without the key — and never reaches the origin', async () => {
+    const on = await (await callEnv('/__ora/status')).json()
+    expect(on).toEqual({ reporting: true, domainId: 'dom-1' })
+    const off = await (await callEnv('/__ora/status', {}, {})).json()
+    expect(off).toEqual({ reporting: false, domainId: null })
+    expect(h.origin).toHaveLength(0)
+  })
+
+  it('without the key nothing is reported', async () => {
+    await callEnv('/', {}, { ORA_DOMAIN_ID: 'dom-1' })
+    await drain()
+    expect(ingests()).toHaveLength(0)
+  })
+
+  it('a signed-out page load of a public page reports EXACTLY the listed fields — no query, no IP, no cookie, no visitor id', async () => {
+    const res = await callEnv('/c/rentals?utm_source=chatgpt.com&q=secret', {
+      'user-agent': 'GPTBot/1.2', referer: 'https://chatgpt.com/c/abc?x=1', 'cf-ipcountry': 'VN', 'cf-connecting-ip': '203.0.113.9',
+      'sec-fetch-dest': 'document', cookie: 'lang=en',
+    })
+    expect(res.status).toBe(200)
+    await drain()
+    expect(ingests()).toHaveLength(1)
+    const req = ingests()[0]
+    expect(req.method).toBe('POST')
+    expect(req.headers.get('authorization')).toBe('Bearer k-test')
+    const event = JSON.parse((await req.text()).trim())
+    expect(Object.keys(event).sort()).toEqual(['cc', 'durMs', 'host', 'id', 'method', 'path', 'referer', 'status', 'ts', 'ua'])
+    expect(event).toMatchObject({ host: 'eno.vn', path: '/c/*', method: 'GET', status: 200, ua: 'GPTBot', referer: 'chatgpt.com', cc: 'VN' })
+    expect(JSON.stringify(event)).not.toMatch(/203\.0\.113\.9|secret|utm_source|lang=en/)
+  })
+
+  it('reports nothing for a signed-in reader, a private page, an RSC payload, a sub-resource or a prefetch', async () => {
+    await callEnv('/', { cookie: 'sb-abc-auth-token=x' })
+    await callEnv('/dashboard')
+    await callEnv('/', { 'sec-fetch-dest': 'image' })
+    await callEnv('/', { 'sec-purpose': 'prefetch' })
+    await drain()
+    expect(ingests()).toHaveLength(0)
+  })
+
+  it('never reports the forum\'s zone, which the same Worker serves', async () => {
+    await worker.fetch(new Request('https://www.eno.forum/', { headers: { 'sec-fetch-dest': 'document' } }), ENV, ctx)
+    await drain()
+    expect(ingests()).toHaveLength(0)
+  })
+
+  it('⛔ nothing free-text: a known agent by its NAME only; any other browser — Sec-Fetch headers or not — is "browser"', async () => {
+    const nav = { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
+    await callEnv('/', { ...nav, 'user-agent': 'Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15' })
+    await callEnv('/c/jobs', { ...nav, 'user-agent': 'Mozilla/5.0 (Macintosh) Chrome/141.0 Safari/537.36 ChatGPT-Atlas/1.2' })
+    // An old iPhone sends no Sec-Fetch headers at all (Safari < 16.4): still only "browser" (commit gate, opus).
+    await callEnv('/', { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_7 like Mac OS X) Version/15.6 Mobile/15E148 Safari/604.1' })
+    await callEnv('/', { 'user-agent': 'Mozilla/5.0 CustomerDevice/alice-123' })
+    await callEnv('/', { 'user-agent': 'ChatGPT-alice123/1.0' }) // an identifier riding an agent's name: the name only
+    await callEnv('/', { 'user-agent': 'curl/8.4.0' })
+    await callEnv('/', { 'user-agent': 'NotGPTBot/1.0' }) // a name inside another word is not that agent
+    await callEnv('/', { 'user-agent': 'Mozilla/5.0 Custom/CometaryBrowser' })
+    await drain()
+    const events = await sentEvents()
+    expect(events.map((e) => e.ua)).toEqual(['browser', 'ChatGPT-Atlas', 'browser', 'browser', 'ChatGPT', 'other', 'other', 'browser'])
+    for (const e of events) expect(e.ts).toMatch(/:00\.000Z$/)
+  })
+
+  it('⛔ the page is a KIND of page from a fixed list, never its address — a redirect, /vi and a 404 included', async () => {
+    h.respond = (req) => {
+      const p = new URL(req.url).pathname
+      if (p.startsWith('/c/nope')) return { status: 404 }
+      if (p.endsWith('/')) return { status: 308, headers: { location: p.slice(0, -1) } }
+      return {}
+    }
+    await callEnv('/sellers/nguyen-van-a', { 'user-agent': 'GPTBot/1.0' })
+    await callEnv('/vi/sellers/nguyen-van-a', { 'user-agent': 'GPTBot/1.0' })
+    await callEnv('/c/alice@example.com/', { 'user-agent': 'GPTBot/1.0' }) // a redirect (308)
+    await callEnv('/c/nope-alice@example.com', { 'user-agent': 'GPTBot/1.0' })
+    await callEnv('/c/rentals', { 'user-agent': 'GPTBot/1.0' })
+    await callEnv('/vi', { 'user-agent': 'GPTBot/1.0' })
+    await callEnv('/privacy', { 'user-agent': 'GPTBot/1.0' })
+    await drain()
+    expect((await sentEvents()).map((e) => e.path)).toEqual(['/sellers/*', '/vi/sellers/*', '/c/*', '(none)', '/c/*', '/vi', '/privacy'])
+  })
+
+  it('the country is Cloudflare\'s two-character code or nothing', async () => {
+    await callEnv('/', { 'user-agent': 'GPTBot/1.0', 'cf-ipcountry': 'alice@example.com' })
+    await drain()
+    expect((await sentEvents())[0].cc).toBeUndefined()
+  })
+
+  it('the referring site is a known AI or search site by name, otherwise "other" — never a subdomain, an IP or localhost', async () => {
+    await callEnv('/', { 'user-agent': 'GPTBot/1.0', referer: 'https://www.google.com/search?q=x' })
+    await callEnv('/', { 'user-agent': 'GPTBot/1.0', referer: 'https://alice123.customer.example/p' })
+    await callEnv('/', { 'user-agent': 'GPTBot/1.0', referer: 'http://198.51.100.7/x' })
+    await callEnv('/', { 'user-agent': 'GPTBot/1.0' })
+    await drain()
+    const events = await sentEvents()
+    expect(events.map((e) => e.referer)).toEqual(['google.com', 'other', 'other', undefined])
+  })
+
+  it('/__ora/status answers on eno.vn only — the forum\'s zone passes through', async () => {
+    const res = await worker.fetch(new Request('https://www.eno.forum/__ora/status'), ENV, ctx)
+    expect(res.headers.get('content-type')).not.toBe('application/json')
+  })
+
+  it('⛔ an ingest that fails never touches the page; it is retried once after 3 s, then given up — no shared state', async () => {
+    const answers = [503, 0, 202, 202] // 0 = the network fails
+    vi.stubGlobal('fetch', async (input: Request | string, init?: RequestInit) => {
+      const req = typeof input === 'string' ? new Request(input, init) : input
+      h.origin.push(req)
+      if (req.url.startsWith('https://ingest.ora.ai/')) {
+        const code = answers.shift() ?? 202
+        if (code === 0) throw new TypeError('network down')
+        return new Response(null, { status: code })
+      }
+      return originResponse(await h.respond(req), 'en')
+    })
+    const res = await callEnv('/privacy')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('<html')
+    await drain()
+    expect(ingests()).toHaveLength(2) // the send (503) and its one retry (network down): that view is not counted
+    await callEnv('/terms') // the next view is its own send, untouched by the last one's failure
+    await drain()
+    expect(ingests()).toHaveLength(3)
+    expect((await sentEvents())[2].path).toBe('/terms')
+  })
+})

@@ -152,7 +152,13 @@ describe('deploy-worker.sh', { timeout: 20_000 }, () => {
     expect(r.seen.url).toBe('/client/v4/accounts/c91cf27edd31b01aba677ac9e007d569/workers/scripts/eno-html-edge-cache')
     const meta = JSON.parse(r.seen.parts.find((p) => p.name === 'metadata')?.body.toString() ?? 'null')
     // a PUT replaces the script's settings: whatever is not sent is dropped (see the script's header)
-    expect(meta).toEqual({ main_module: 'worker.js', compatibility_date: '2026-09-01', bindings: [], compatibility_flags: [] })
+    expect(meta).toEqual({
+      main_module: 'worker.js', compatibility_date: '2026-09-01',
+      bindings: [{ type: 'plain_text', name: 'ORA_DOMAIN_ID', text: '1f319088-fb8c-424e-8b07-c11492785e5e' }],
+      compatibility_flags: [],
+      // ⛔ the owner's ORA_INGEST_KEY secret survives every deploy (a PUT drops what it does not send or keep)
+      keep_bindings: ['secret_text'],
+    })
     const modules = r.seen.parts.filter((p) => p.filename !== undefined)
     expect(modules.map((p) => p.filename)).toEqual([meta.main_module])
     expect(modules[0].type).toBe('application/javascript+module')

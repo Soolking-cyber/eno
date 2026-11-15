@@ -598,9 +598,220 @@ function withTiming(res, timing) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// ora AGENT-TRAFFIC REPORT — MINIMAL, NO PERSONAL DATA (owner 2026-11-15: "Connect, report only", then "Minimal: no
+// personal data"). ora.ai (era labs) shows which AI agents read eno.vn. Written for eno, NOT ora's worker.js: that file
+// also serves content, verifies bots, claims /ask and /mcp and hashes a visitor pseudonym — none of it is here.
+//   · WHAT IS REPORTED: a page view of a PUBLIC page of eno.vn this Worker caches (cacheablePath — home, /c/*, /sellers/*,
+//     the legal pages, /vi), by a reader who is NOT signed in, as a page load (no RSC payload, no prefetch, no
+//     sub-resource). Never the forum's zone, which this Worker also serves.
+//   · ⛔ ORDER: the app deploy carrying the /privacy row FIRST, then this Worker, then the owner's key — reporting starts
+//     only with the key (oraOn), and the key is added only after /privacy is seen live naming ora.
+//   · THE FIELDS, ALL OF THEM: a random event id, the time TO THE MINUTE, host, the KIND OF PAGE (a fixed list — see
+//     oraPath — never its address), method, status, the KIND
+//     OF CLIENT (a known crawler's or AI agent's name from a fixed list, else "browser" or "other"), the REFERRING SITE (a
+//     known AI-assistant or search site from a fixed list, else "other"), country (Cloudflare's two-letter code), time to
+//     the response.
+//     Nothing free-text: no user-agent string, no IP, no cookie, no visitor ID, no query, no other header. /privacy
+//     lists these (beside the random event id, the host and the method, which say nothing about a reader).
+//   · OFF until BOTH `ORA_INGEST_KEY` (a secret the owner adds in the dashboard) and `ORA_DOMAIN_ID` are set.
+//   · NEVER IN THE READER'S WAY: the event is built after the response and sent behind it, one send per view
+//     (`ctx.waitUntil`); anything that throws is swallowed — the response is returned whatever happens here.
+// Plan + reviews: ~/eno-ora-2026-11-15/PLAN.md (codex + opus, 2026-11-15).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+const ORA_INGEST_URL = "https://ingest.ora.ai/v1/events";
+const ORA_TRANSMITTER = "eno-html-edge-cache/ora-minimal-1";
+const ORA_TIMEOUT_MS = 4000;
+
+function oraOn(env) {
+  return Boolean(env && env.ORA_INGEST_KEY && env.ORA_DOMAIN_ID);
+}
+
+/** A public page load by a reader who is not signed in — the only requests that report. */
+function oraReportable(request, url) {
+  // eno.vn's own pages only: ora's domain id is eno.vn's, and this Worker also serves the forum's zone.
+  if (url.hostname !== "eno.vn" && url.hostname !== "www.eno.vn") return false;
+  if (request.method !== "GET" || !cacheablePath(url.pathname)) return false;
+  if (request.headers.has("rsc")) return false;
+  // Signed in = the SAME test the cache itself uses to pass a reader's page uncached (`signedIn` in handle()): what this
+  // reports is exactly the traffic the cache treats as anonymous.
+  if ((request.headers.get("cookie") || "").includes("-auth-token")) return false;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest !== null && dest !== "document") return false;
+  return !`${request.headers.get("sec-purpose") || ""} ${request.headers.get("purpose") || ""}`.includes("prefetch");
+}
+
+/**
+ * ⛔ NOTHING FREE-TEXT LEAVES: EVERY VALUE IS FROM A FIXED LIST (commit gate rounds 1–2, codex + opus: a user-agent passed
+ * through — even "scrubbed" — carried device details for browsers that send no Sec-Fetch headers, older iPhones and
+ * in-app webviews; an agent token or a referring subdomain could carry an identifier). So:
+ *   · the client is the NAME of a known crawler or AI agent from ORA_CLIENTS (never its version or the rest of its
+ *     string), else "browser" for anything that calls itself Mozilla/…, else "other";
+ *   · the referring site is a known AI-assistant or search site from ORA_REFERRERS, else "other" (none sent when there is
+ *     no referrer);
+ *   · the time is to the minute.
+ */
+const ORA_CLIENTS = [
+  "ChatGPT-User", "OAI-SearchBot", "GPTBot", "ChatGPT-Atlas", "ChatGPT",
+  "Claude-User", "Claude-SearchBot", "ClaudeBot", "Claude-Web", "anthropic-ai",
+  "Perplexity-User", "PerplexityBot", "Comet",
+  "GoogleOther", "Googlebot", "Gemini",
+  "bingbot", "Applebot-Extended", "Applebot", "DuckAssistBot", "YouBot", "cohere-ai", "Meta-ExternalAgent",
+  "Bytespider", "CCBot", "Amazonbot", "MistralAI-User",
+];
+const ORA_REFERRERS = [
+  "chatgpt.com", "chat.openai.com", "claude.ai", "perplexity.ai", "gemini.google.com", "copilot.microsoft.com",
+  "google.com", "google.com.vn", "bing.com", "duckduckgo.com", "search.brave.com", "you.com", "kagi.com",
+];
+
+/** A name counts only as a whole word of the user-agent (commit gate round 7, codex: "NotGPTBot" or "Cometary" are not those agents). */
+const ORA_CLIENT_RES = ORA_CLIENTS.map((name) => [name, new RegExp(`(?:^|[^a-z0-9])${name.toLowerCase()}(?:[^a-z0-9]|$)`)]);
+
+function oraClient(request) {
+  const ua = (request.headers.get("user-agent") || "").toLowerCase();
+  const known = ORA_CLIENT_RES.find(([, re]) => re.test(ua));
+  if (known) return known[0];
+  return ua.startsWith("mozilla/") ? "browser" : "other";
+}
+
+function oraReferer(request) {
+  const raw = request.headers.get("referer");
+  if (!raw) return undefined;
+  try {
+    const host = new URL(raw).hostname.toLowerCase().replace(/^www\./, "");
+    return ORA_REFERRERS.includes(host) ? host : "other";
+  } catch {
+    return "other";
+  }
+}
+
+/**
+ * ⛔ THE PAGE IS A KIND OF PAGE FROM A FIXED LIST, NEVER ITS ADDRESS (commit gate rounds 5–6, codex + opus: a 404 filter,
+ * then a redirect, then a soft 404 or `/vi/sellers/<handle>` — each let a typed address out). Like the client and the
+ * referrer, it is now chosen from ORA_PAGES, so nothing a visitor types can reach ora: "/", "/c/*", "/sellers/*",
+ * "/privacy", "/terms", "/safety", each also under "/vi"; a page that answered 4xx/5xx is "(none)". The trade: ora sees
+ * that agents read category pages, not which category.
+ */
+function oraPath(url, status) {
+  if (status >= 400) return "(none)";
+  const p = url.pathname;
+  const vi = p === "/vi" || p.startsWith("/vi/");
+  const rest = vi ? p.slice(3) || "/" : p;
+  const kind =
+    rest === "/" ? "/"
+    : rest.startsWith("/c/") ? "/c/*"
+    : rest.startsWith("/sellers/") ? "/sellers/*"
+    : rest.startsWith("/privacy") ? "/privacy"
+    : rest.startsWith("/terms") ? "/terms"
+    : rest.startsWith("/safety") ? "/safety"
+    : "(other)";
+  if (!vi) return kind;
+  return kind === "/" ? "/vi" : kind === "(other)" ? kind : `/vi${kind}`;
+}
+
+/** Cloudflare's country: a two-character code ("VN", "XX", "T1") or nothing (commit gate, codex: never copied unchecked). */
+function oraCountry(request) {
+  const cc = request.headers.get("cf-ipcountry") || "";
+  return /^[A-Z][A-Z0-9]$/.test(cc) ? cc : undefined;
+}
+
+/** The event — every field it may carry is named here (see the header). */
+function oraEvent(request, url, status, startedAt) {
+  return {
+    id: crypto.randomUUID(), // a random id for this one event (de-duplication), tied to nothing
+    ts: new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString(),
+    host: url.hostname,
+    path: oraPath(url, status),
+    method: "GET",
+    status,
+    ua: oraClient(request),
+    referer: oraReferer(request),
+    cc: oraCountry(request),
+    durMs: Math.max(0, Date.now() - startedAt),
+  };
+}
+
+/**
+ * Send events. True when ora took them (202) or refused them for good (a 4xx other than 429: retrying cannot help).
+ * ATTRIBUTION IS BY THE KEY (commit gate, codex: "ORA_DOMAIN_ID never reaches the ingest"): ora's own Worker 4.7.0 sends
+ * exactly this request — Bearer key, x-ora-batch-id, x-ora-transmitter, NDJSON, no domain id — so the key, issued for
+ * eno.vn's domain in ora, is what files the events. ORA_DOMAIN_ID only answers /__ora/status. Proven end to end only
+ * once the owner's key is in: ora's Connect page then shows "Traffic received".
+ */
+async function oraSend(env, events) {
+  try {
+    const res = await fetch(ORA_INGEST_URL, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.ORA_INGEST_KEY}`,
+        "content-type": "application/x-ndjson",
+        "x-ora-batch-id": crypto.randomUUID(),
+        "x-ora-transmitter": ORA_TRANSMITTER,
+      },
+      body: events.map((e) => JSON.stringify(e)).join("\n"),
+      signal: AbortSignal.timeout(ORA_TIMEOUT_MS),
+    });
+    if (res.status !== 202) console.log(`[ora] ingest ${res.status}`);
+    else {
+      // A 202 can still reject single events (a field ora does not accept): logged the way ora's own Worker does, and not
+      // retried — the same event would be rejected again (commit gate round 7, codex: noted, deliberate).
+      const body = await res.json().catch(() => null);
+      if (body && body.rejected) console.log(`[ora] ${body.accepted} accepted, ${body.rejected} rejected`);
+    }
+    return res.status === 202 || (res.status >= 400 && res.status < 500 && res.status !== 429);
+  } catch (err) {
+    console.log(`[ora] ingest failed: ${String(err && err.message).slice(0, 120)}`);
+    return false;
+  }
+}
+
+/**
+ * ⛔ ONE PAGE VIEW, ONE SEND, IN THAT REQUEST'S OWN `waitUntil` — NO SHARED BUFFER (commit gate rounds 1–4, codex + opus:
+ * every cross-request buffer — batching, a pending flag, a lease, front-trimming — had a race that lost or duplicated
+ * events, or a run longer than the ~30 s Cloudflare allows after a response). Nothing is shared between requests, so
+ * nothing can race; the worst case is 4 s + 3 s + 4 s = 11 s. BEST EFFORT: a view whose send and one retry both fail is
+ * not counted — a count lost, never a reader's page touched. The trade: one small request per counted view, not batches.
+ */
+const ORA_RETRY_MS = 3_000;
+
+function oraRecord(request, url, status, env, ctx, startedAt) {
+  const event = oraEvent(request, url, status, startedAt);
+  ctx.waitUntil(
+    (async () => {
+      if (await oraSend(env, [event])) return;
+      await new Promise((resolve) => setTimeout(resolve, ORA_RETRY_MS));
+      await oraSend(env, [event]);
+    })().catch(() => {}),
+  );
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // ora's installation check: whether reporting is configured. No key, no event, no origin request.
+    // ora's installation check. It reaches this Worker through the zone route `eno.vn/*` (measured 2026-11-15: the only
+    // apex catch-all; www.eno.vn has path routes only, and ora checks the apex).
+    if (request.method === "GET" && url.pathname === "/__ora/status" && (url.hostname === "eno.vn" || url.hostname === "www.eno.vn")) {
+      return new Response(JSON.stringify({ reporting: oraOn(env), domainId: (env && env.ORA_DOMAIN_ID) || null }), {
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      });
+    }
+    const startedAt = Date.now();
+    const response = await handle(request, env, ctx, url);
+    try {
+      // A fresh URL of the request as it arrived (commit gate, opus): whatever handle() did with its own `url` cannot change
+      // what is reported.
+      const asked = new URL(request.url);
+      if (oraOn(env) && oraReportable(request, asked)) oraRecord(request, asked, response.status, env, ctx, startedAt);
+    } catch {
+      /* the report never costs the reader their page */
+    }
+    return response;
+  },
+};
+
+/** The cache itself — unchanged by the ora report above, which only reads the request and the response's status. */
+async function handle(request, env, ctx, url) {
     if (!cacheablePath(url.pathname)) return fetch(request);
     if (request.method !== "GET") return fetch(request);
     /**
@@ -766,5 +977,4 @@ export default {
     const setCookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
     for (const c of setCookies) out.headers.append("set-cookie", c);
     return out;
-  },
-};
+}

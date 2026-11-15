@@ -13,7 +13,8 @@
 # ⚠️ A PUT REPLACES THE WHOLE SCRIPT, INCLUDING ITS SETTINGS. Bindings and compatibility flags that
 # are not sent are DROPPED. Verified 2026-09-22: this worker has zero bindings and zero flags, so
 # metadata below is complete. Re-check with GET .../settings before adding one, or the next deploy
-# silently unbinds it.
+# silently unbinds it. Since 2026-11-15: one plain_text binding (ORA_DOMAIN_ID) and the owner's secret ORA_INGEST_KEY,
+# kept by `keep_bindings`.
 # ⚠️ Routes are NOT part of the script and survive a PUT — they are zone-level and point at the
 # script NAME (12 routes per zone, both apex and www). Do not "restore" them after deploying.
 set -euo pipefail
@@ -28,6 +29,11 @@ COMPAT=2026-09-01
 # worker.js"; the same PUT with `;filename=worker.js` added deployed (source sha 7b2251c174578a42).
 # Both now come from this one variable, so they cannot disagree again (deploy-worker.test.ts).
 MODULE=worker.js
+# ora's agent-traffic report (owner 2026-11-15, minimal — see the Worker's header). The domain id is not a secret; the
+# ingest key IS, and is never in this file: the owner adds `ORA_INGEST_KEY` as a Secret in the dashboard.
+# ⛔ `keep_bindings: ["secret_text"]` IN THE METADATA BELOW: a PUT drops every binding it does not send, so without it the
+# next deploy would silently delete the owner's key and switch the report off.
+ORA_DOMAIN_ID=1f319088-fb8c-424e-8b07-c11492785e5e
 SRC=${1:-"$(cd "$(dirname "$0")" && pwd)/eno-html-edge-cache.js"}
 
 CF_TOKEN_FILE=${CF_TOKEN_FILE:-/opt/eno/secrets/cf-token}
@@ -48,7 +54,7 @@ echo "  deploying $(basename "$SRC") ($(wc -c < "$SRC" | tr -d ' ') bytes, sha $
 # `filename=$MODULE` overrides the basename curl would send (see MODULE above).
 resp=$(printf 'header = "Authorization: Bearer %s"\n' "$CF_TOKEN" | curl -sS -X PUT --config - \
   "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/workers/scripts/$NAME" \
-  -F "metadata={\"main_module\":\"$MODULE\",\"compatibility_date\":\"$COMPAT\",\"bindings\":[],\"compatibility_flags\":[]};type=application/json" \
+  -F "metadata={\"main_module\":\"$MODULE\",\"compatibility_date\":\"$COMPAT\",\"bindings\":[{\"type\":\"plain_text\",\"name\":\"ORA_DOMAIN_ID\",\"text\":\"$ORA_DOMAIN_ID\"}],\"compatibility_flags\":[],\"keep_bindings\":[\"secret_text\"]};type=application/json" \
   -F "$MODULE=@$SRC;filename=$MODULE;type=application/javascript+module")
 
 python3 - "$resp" <<'PY'

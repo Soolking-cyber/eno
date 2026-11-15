@@ -193,6 +193,19 @@ describe('/privacy — the facts it states match the code', () => {
     expect(text).not.toMatch(/bound by a data-processing agreement/) // no copies collected yet
   })
 
+  it('⛔ ora (agent-traffic measurement): on eno.vn only, nothing that identifies you, and names what never goes — both languages', async () => {
+    const vn = await policy('marketplace')
+    expect(vn).toContain('ora (era labs)')
+    expect(vn).toContain('Nothing that identifies you. For each view of a public page of eno.vn by a visitor who is not signed in')
+    expect(vn).toContain('otherwise only the word “browser” or “other”')
+    expect(vn).toContain('Never your IP address, your cookies, your account or anything else that identifies you.')
+    expect(await policy('marketplace', 'vi')).toContain('Không có thông tin nào nhận diện bạn.')
+  })
+
+  it('⛔ ora is not named on the forum: its zone is never reported', async () => {
+    expect(await policy('services')).not.toContain('ora (era labs)')
+  })
+
   it('⛔ location: no "sorts listings by distance" (there is no distance sort) — it filters, estimates and fills in', async () => {
     const text = await policy('marketplace')
     expect(text).not.toMatch(/sort(s)? listings by distance/i)
