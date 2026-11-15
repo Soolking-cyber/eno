@@ -39,7 +39,7 @@ const INSTRUCTIONS = `You translate Vietnamese second-hand electronics listings 
 Rules:
 - Keep brand names, model names, capacities, colours' product codes, numbers and dates exactly as given.
 - These are USED items. "Mới 99%" / "Mới 95%" etc. mean condition: write "99% like-new", "95% like-new". "Hàng cũ" / "máy cũ" = "Used".
-  "Trôi bảo hành" / "Trôi BH" = "Out of original warranty". "Bảo hành đến DD/MM/YYYY" = "Warranty until DD/MM/YYYY". "Cửa hàng: X" = "Store: X".
+  "Trôi bảo hành" / "Trôi BH" / "TBH" = "Warranty already started" (literally: the warranty period is running — never "activated", never how much is left). "Bảo hành đến DD/MM/YYYY" = "Warranty until DD/MM/YYYY". "Cửa hàng: X" = "Store: X".
 - Never write "brand new", "new", "sealed", "unopened", "new in box" or "factory" about the item. Never add facts.
 - Keep one fact per line in descriptions, as in the source.
 Answer with ONLY a JSON array, no prose, no code fence: [{"id": "...", "title": "...", "description": "..."}], one object per input object, same ids.
