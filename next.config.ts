@@ -1223,6 +1223,9 @@ const nextConfig: NextConfig = {
         { source: "/.well-known/mcp-server-card.json", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/mcp/server-card", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/mcp/server-card.json", destination: "/api/well-known/mcp-server-card" },
+        // The Server Card WG's reserved spot, `<streamable-http-url>/server-card` (2026-11-16): the Partner API's is this same
+        // card; the search server's is its own route (src/app/api/mcp/search/server-card).
+        { source: "/api/mcp/server-card", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/ai-catalog.json", destination: "/api/well-known/ai-catalog" },
         // RFC 9727 API catalogue (2026-11-11; src/app/api/well-known/api-catalog/route.ts). The exact well-known name,
         // no extension — the RFC registers `api-catalog`, and a `.json` alias would be a second document to keep equal.

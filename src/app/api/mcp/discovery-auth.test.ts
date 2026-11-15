@@ -180,7 +180,14 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     // The transport spec has a client's GET ask for a stream; this server has none, so that stays a 405.
     expect((await get('text/event-stream')).status).toBe(405)
     expect((await get('application/json, text/event-stream')).status).toBe(405)
-    expect((await get('')).status).toBe(405)
+    // Any other GET without a credential is a scanner probing the URL: the protected resource's 401 + WWW-Authenticate.
+    const probe = await get('')
+    expect(probe.status).toBe(401)
+    expect(probe.headers.get('www-authenticate')).toMatch(/^Bearer resource_metadata="https:\/\/[^"]+\/\.well-known\/oauth-protected-resource\/api\/mcp"/)
+    expect((await get('*/*')).status).toBe(401)
+    // With a credential it is a client that knows the server: the 405, whatever it accepts.
+    const keyed = await GET(new Request('https://eno.vn/api/mcp', { headers: { accept: '*/*', authorization: 'Bearer eno_live_x' } }) as never)
+    expect(keyed.status).toBe(405)
   })
 
   it('ping answers without a credential', async () => {

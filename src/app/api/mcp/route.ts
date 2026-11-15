@@ -262,9 +262,21 @@ export async function OPTIONS() {
 export async function GET(req: Request) {
   // A person who opens the server's URL in a browser gets the setup page. An MCP client's GET asks for a stream
   // (`Accept: text/event-stream`, required by the transport spec) and keeps the 405 below.
-  const accept = req.headers.get('accept') ?? ''
+  const accept = (req.headers.get('accept') ?? '').toLowerCase()
   if (!accept.includes('text/event-stream') && accept.includes('text/html')) {
     return new Response(null, { status: 302, headers: { Location: `${OAUTH_ISSUER}/developers/mcp`, Vary: 'Accept', ...CORS } })
+  }
+  // A GET that is not an MCP client's stream request (no `text/event-stream`) and carries no credential is a scanner
+  // probing the URL: it gets what a protected resource answers (RFC 9728 §5.1), a 401 whose WWW-Authenticate names the
+  // sign-in documents (2026-11-16, ora's agent-auth-www-authenticate). The MCP SDKs' GET asks for the stream, so a real
+  // client keeps the 405 below exactly as before. ⚠️ Manufact's scan also GETs this URL (node/Bun, 405 in the nginx log of
+  // 2026-11-16 01:42 ICT, Accept unlogged): re-check its "Setup instructions at MCP URL" after the deploy. Any
+  // Authorization header, valid or not, keeps the 405: a GET returns nothing either way.
+  if (!accept.includes('text/event-stream') && !req.headers.get('authorization')) {
+    return new Response(JSON.stringify(rpcError(null, -32001, 'Sign in with your eno shop, or send an API key as `Authorization: Bearer eno_live_…`, then POST JSON-RPC to this URL.')), {
+      status: 401,
+      headers: { 'content-type': 'application/json', 'WWW-Authenticate': CHALLENGE, Vary: 'Accept, Authorization', ...CORS },
+    })
   }
   // No server-initiated stream — this server is request/response only.
   return new Response(JSON.stringify(rpcError(null, -32601, 'GET not supported; use POST.')), {
