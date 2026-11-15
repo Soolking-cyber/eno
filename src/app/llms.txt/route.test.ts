@@ -204,7 +204,7 @@ describe('/llms.txt on the marketplace', () => {
     it('says posting is currently free, and where that is written down', async () => {
       const body = await bodyOf()
       expect(body).toContain('Browsing and posting are currently free.')
-      expect(body).toContain('see Article 8 of the [Operating Regulations](https://eno.vn/regulations).')
+      expect(body).toContain('see Article 8 of the [Operating Regulations](https://eno.vn/regulations) and [pricing.md](https://eno.vn/pricing.md).')
     })
 
     it('says linked listings link to their source instead of implying in-app chat for all', async () => {

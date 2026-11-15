@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { detectContentLang, looksVietnamese } from '@/lib/detect-lang'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
 import { SOCIALS } from '@/lib/socials'
@@ -118,6 +118,26 @@ export function marketplaceOrganizationFields(origin: string) {
     sameAs: [...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES],
     areaServed: { '@type': 'Country', name: 'Vietnam' },
     knowsLanguage: [...LANGS],
+    ...(POSTING_IS_FREE && !IS_SERVICES ? { makesOffer: marketplacePriceOffer(origin) } : {}),
+  }
+}
+
+/**
+ * ⛔ WHAT USING THE MARKETPLACE COSTS A BUYER OR SELF-POSTER, AS DATA: 0 VND, on eno.vn only and only while POSTING_IS_FREE
+ * (ora.ai pricing-info, 2026-11-16: "schema.org/Offer structured data that carries a price and currency"). It states
+ * exactly what Operating Regulations Art. 8 and the Terms' fees section state — browsing, posting one's own listings and
+ * contacting sellers. The partner service fees and commissions are in the prose twin, /pricing.md
+ * (src/app/md/pricing/route.ts), which this Offer's url points at.
+ */
+export function marketplacePriceOffer(origin: string) {
+  return {
+    '@type': 'Offer',
+    name: 'Browsing, posting your own listings and contacting sellers',
+    description: 'Free for buyers, tenants and anyone posting their own listings (Operating Regulations, Article 8). Fees for signed service partners, and commissions, are listed at the url.',
+    price: '0',
+    priceCurrency: 'VND',
+    url: `${origin}/pricing.md`,
+    itemOffered: { '@type': 'Service', name: `Classified listings on ${SITE_NAME}`, provider: { '@id': organizationId(origin) } },
   }
 }
 

@@ -238,7 +238,7 @@ function marketplaceWhenToUse(f: SiteFacts | null): string {
 function marketplaceAbout(f: SiteFacts | null): string {
   const lines: string[] = []
   if (POSTING_IS_FREE) {
-    lines.push(`- Cost: browsing, posting and contacting sellers are currently free, with no listing fee; see Article 8 of the [Operating Regulations](${SITE_ORIGIN}/regulations). Any fee introduced later is published in VND at least 20 days before it applies.`)
+    lines.push(`- Cost: browsing, posting and contacting sellers are currently free, with no listing fee; see Article 8 of the [Operating Regulations](${SITE_ORIGIN}/regulations) and [pricing.md](${SITE_ORIGIN}/pricing.md). Any fee introduced later is published in VND at least 20 days before it applies.`)
   }
   if (f && f.live > 0) {
     const hcmc = inCity(f, 'hcmc')

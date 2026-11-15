@@ -1237,6 +1237,8 @@ const nextConfig: NextConfig = {
         { source: "/agents.md", destination: "/md/agents" },
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },
+        // What using the marketplace costs (ora.ai pricing-md, 2026-11-16): marketplace only, from the fees clauses.
+        { source: "/pricing.md", destination: "/md/pricing" },
         // The llms.txt family (ora.ai, 2026-11-15; src/lib/llms-txt.ts): the root index stays under 30,000 characters, the
         // full document and the two long sections answer at their own dotted paths. Route handlers under md/ like the twins
         // above — never new root directories, because /guides and /teach-in-vietnam are PAGE paths the proxy rewrites into

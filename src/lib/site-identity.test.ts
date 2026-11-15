@@ -41,6 +41,29 @@ describe('the Organization entity fields', () => {
   })
 })
 
+describe('what using the marketplace costs, as data (ora.ai pricing-info)', () => {
+  async function fieldsOn(edition: 'marketplace' | 'services') {
+    vi.resetModules()
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', edition)
+    return import('./site-identity')
+  }
+
+  it('⛔ an Offer at 0 VND for exactly what the fees clauses name, pointing at /pricing.md — on eno.vn', async () => {
+    const m = await fieldsOn('marketplace')
+    const f = m.marketplaceOrganizationFields('https://eno.vn') as Record<string, unknown>
+    expect(f.makesOffer).toEqual(m.marketplacePriceOffer('https://eno.vn'))
+    const offer = m.marketplacePriceOffer('https://eno.vn')
+    expect(offer).toMatchObject({ '@type': 'Offer', price: '0', priceCurrency: 'VND', url: 'https://eno.vn/pricing.md' })
+    expect(offer.name).toBe('Browsing, posting your own listings and contacting sellers')
+    expect(offer.itemOffered.provider).toEqual({ '@id': m.organizationId('https://eno.vn') })
+  })
+
+  it('⛔ never on the services edition, which makes no "free" claim', async () => {
+    const m = await fieldsOn('services')
+    expect((m.marketplaceOrganizationFields('https://www.eno.forum') as Record<string, unknown>).makesOffer).toBeUndefined()
+  })
+})
+
 describe('registeredOperatorFields', () => {
   it('⛔ emits nothing for an operator that is not registered — no placeholder as a legal name', () => {
     expect(registeredOperatorFields(OPERATORS.services)).toEqual({})
