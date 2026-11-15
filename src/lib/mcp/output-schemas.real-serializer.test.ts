@@ -17,7 +17,7 @@ vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
 vi.mock('next/server', () => ({ after: () => {} }))
 
 const { serializeListing } = await import('@/lib/serialize')
-const { TOOLS, listingOut } = await import('./tools')
+const { TOOLS, listingOut, listingSummaryOut } = await import('./tools')
 
 const at = new Date('2026-11-01T03:04:05.000Z')
 const category = { id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone', color: 'blue', description: null, sortOrder: 0, createdAt: at, updatedAt: at }
@@ -55,9 +55,10 @@ describe('listing tools — outputSchema vs the real serializer', () => {
   for (const [label, row] of [['a full row', full], ['a sparse row', sparse]] as const) {
     // What MCP answers: tools.ts listingOut over the REAL serializer.
     const listing = listingOut(row as never)
+    const summary = listingSummaryOut(row as never)
 
     it(`list_listings fits ${label}`, () => {
-      const out = { listings: [listing], next_cursor: null }
+      const out = { listings: [summary], next_cursor: null }
       const r = TOOLS.find((t) => t.name === 'list_listings')!.output.safeParse(out)
       expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
     })
@@ -78,19 +79,23 @@ describe('listing tools — outputSchema vs the real serializer', () => {
   // schema reads it as a string, so the whole page does not fail a validating client (2026-11-15).
   it('a listing whose stored status is not one the tools write (stale) still fits list_listings and get_listing', () => {
     const listing = listingOut({ ...full, status: 'stale' } as never)
-    expect(TOOLS.find((t) => t.name === 'list_listings')!.output.safeParse({ listings: [listing], next_cursor: null }).success).toBe(true)
+    const summary = listingSummaryOut({ ...full, status: 'stale' } as never)
+    expect(TOOLS.find((t) => t.name === 'list_listings')!.output.safeParse({ listings: [summary], next_cursor: null }).success).toBe(true)
     expect(TOOLS.find((t) => t.name === 'get_listing')!.output.safeParse({ listing }).success).toBe(true)
   })
 
-  it('every field list_listings documents comes from the serializer (url is built from the id) — none is advertised and missing', () => {
-    const tool = TOOLS.find((t) => t.name === 'list_listings')!
-    const schema = z.toJSONSchema(tool.output) as unknown as { properties: { listings: { items: { properties: Record<string, unknown> } } } }
-    const documented = Object.keys(schema.properties.listings.items.properties)
+  // get_listing documents the full listing (every key but url from the serializer); list_listings a summary built from it.
+  it('every field get_listing documents comes from the serializer (url is built from the id), and list_listings answers exactly its summary', () => {
+    const one = z.toJSONSchema(TOOLS.find((t) => t.name === 'get_listing')!.output) as unknown as { properties: { listing: { anyOf: { properties?: Record<string, unknown> }[] } } }
+    const documented = Object.keys(one.properties.listing.anyOf.find((x) => x.properties)!.properties!)
     expect(documented.length).toBeGreaterThan(10)
+    const list = z.toJSONSchema(TOOLS.find((t) => t.name === 'list_listings')!.output) as unknown as { properties: { listings: { items: { properties: Record<string, unknown> } } } }
+    const summarised = Object.keys(list.properties.listings.items.properties)
     for (const row of [full, sparse]) {
       const l = serializeListing(row as never) as Record<string, unknown>
       expect(documented.filter((k) => k !== 'url' && !(k in l))).toEqual([])
       expect(Object.keys(listingOut(row as never)).sort()).toEqual([...documented].sort())
+      expect(Object.keys(listingSummaryOut(row as never)).sort()).toEqual([...summarised].sort())
     }
   })
 

@@ -157,7 +157,7 @@ export const listingOut = (l: Parameters<typeof serializeListing>[0]) => {
   }
 }
 const LISTING_OUT = z.strictObject({
-  id: z.string().describe('The listing id; pass it to get_listing, update_listing, set_listing_status or delete_listing'),
+  id: z.string().describe('The listing id (such as `cmh0q2x8f0001...`); pass it to get_listing, update_listing, set_listing_status or delete_listing'),
   title: z.string().describe('The headline buyers see in search and on the listing page'),
   description: z.string().describe('The text on the listing page; an empty string when the seller wrote none'),
   price: z.number().describe('The asking price in VND; for a job, its monthly salary in VND'),
@@ -182,6 +182,34 @@ const LISTING_OUT = z.strictObject({
   contactCount: z.number().describe('Leads: how many signed-in buyers opened the seller\'s contact from it'),
   url: z.string().describe('Its page on eno; share it with buyers once the listing is public'),
 }).describe('One of this shop\'s listings')
+
+/** list_listings' item: the summary an agent scans a page by (the best list outputs on Manufact's board answer a focused
+ *  summary per item and leave the full record to the get tool). get_listing and update_listing answer the full LISTING_OUT. */
+export const listingSummaryOut = (l: Parameters<typeof serializeListing>[0]) => {
+  const f = listingOut(l)
+  return {
+    id: f.id, title: f.title, price: f.price, priceUnit: f.priceUnit, status: f.status, verified: f.verified,
+    district: f.district, city: f.city, cover: (f.images[0] as string | undefined) ?? null, photos: f.images.length,
+    categorySlug: f.category.slug, postedAt: f.postedAt, views: f.views, contactCount: f.contactCount, url: f.url,
+  }
+}
+const LISTING_SUMMARY_OUT = z.strictObject({
+  id: LISTING_OUT.shape.id,
+  title: LISTING_OUT.shape.title,
+  price: LISTING_OUT.shape.price,
+  priceUnit: LISTING_OUT.shape.priceUnit,
+  status: LISTING_OUT.shape.status,
+  verified: LISTING_OUT.shape.verified,
+  district: LISTING_OUT.shape.district,
+  city: LISTING_OUT.shape.city,
+  cover: z.string().nullable().describe('Its first photo as a full URL, the one shown on cards; null when it has none'),
+  photos: z.number().describe('How many photos it has; get_listing returns them all'),
+  categorySlug: z.string().describe('Its category slug, as create_listing takes it; get_listing gives the category\'s name too'),
+  postedAt: LISTING_OUT.shape.postedAt,
+  views: LISTING_OUT.shape.views,
+  contactCount: LISTING_OUT.shape.contactCount,
+  url: LISTING_OUT.shape.url,
+}).describe('One of this shop\'s listings, in summary; get_listing returns all its fields')
 
 /** A webhook as list_webhooks and register_webhook answer it. Events are stored as typed by register_webhook (the enum). */
 type WebhookRow = { id: string; url: string; events: string; enabled: boolean; failureCount: number; lastError: string | null; lastDeliveryAt: Date | null; createdAt: Date }
@@ -297,6 +325,7 @@ const deletedOut = (hold: DeleteHoldReason | null) => hold
 type Fits<T, S extends z.ZodType> = [T] extends [z.infer<S>] ? ([z.infer<S>] extends [T] ? true : never) : never
 const PINS: [
   Fits<ReturnType<typeof listingOut>, typeof LISTING_OUT>,
+  Fits<ReturnType<typeof listingSummaryOut>, typeof LISTING_SUMMARY_OUT>,
   Fits<Awaited<ReturnType<typeof readShop>>, typeof SHOP_OUT>,
   Fits<ReturnType<typeof webhookOut>, typeof WEBHOOK_OUT>,
   Fits<ReturnType<typeof webhookOut> & { secret: string }, typeof REGISTERED_WEBHOOK_OUT>,
@@ -304,7 +333,7 @@ const PINS: [
   Fits<ReturnType<typeof bulkRowOut>, typeof BULK_ROW_OUT>,
   Fits<ReturnType<typeof syncRowOut>, typeof SYNC_ROW_OUT>,
   Fits<ReturnType<typeof analyticsRowOut>, typeof ANALYTICS_ROW_OUT>,
-] = [true, true, true, true, true, true, true, true]
+] = [true, true, true, true, true, true, true, true, true]
 void PINS
 
 export type McpTool = {
@@ -361,10 +390,10 @@ export const TOOLS: McpTool[] = [
   {
     name: 'list_listings',
     title: 'List eno.vn listings',
-    description: 'List this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each with its price, status, category, photos and page `url`, and `next_cursor`. Use get_listing to read one listing by id, and analytics_listings for its views and leads by day.',
+    description: 'List this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: its id, title, price and price unit, status, whether it is verified, district, city, cover photo and photo count, category, date posted, views, leads and page `url`; and `next_cursor`. get_listing returns a listing\'s text, condition and every photo. Use get_listing to read one listing by id, and analytics_listings for its views and leads by day.',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.strictObject({ listings: z.array(LISTING_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
+    output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
     input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find listings taken down; leave it out to see every listing') }),
     handler: async (auth, args) => {
       const sp = new URLSearchParams()
@@ -379,7 +408,7 @@ export const TOOLS: McpTool[] = [
       const where = { AND: [{ sellerId: auth.sellerId }, NOT_REMOVED, ...(args.status ? [{ status: String(args.status) }] : [])] }
       const rows = await db.listing.findMany({ where, orderBy: { id: 'desc' }, ...pageQuery(limit, cursorId), include: LISTING_INCLUDE })
       const { items, nextCursor } = buildPage(rows, limit)
-      return { listings: items.map(listingOut), next_cursor: nextCursor }
+      return { listings: items.map(listingSummaryOut), next_cursor: nextCursor }
     },
   },
   {

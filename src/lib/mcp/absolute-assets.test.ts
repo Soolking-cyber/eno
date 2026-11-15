@@ -35,9 +35,11 @@ describe('MCP output names photos in full', () => {
     expect(absoluteAssetUrl(null)).toBeNull()
   })
 
-  it('list_listings and get_listing both return full photo URLs and the full page link', async () => {
-    const list = (await tool('list_listings').handler(AUTH as never, {} as never)) as { listings: { images: string[]; url: string }[] }
-    expect(list.listings[0].images).toEqual(WANT)
+  it('list_listings and get_listing return full photo URLs and the full page link', async () => {
+    // list_listings answers a summary: the cover photo, in full, and how many photos there are.
+    const list = (await tool('list_listings').handler(AUTH as never, {} as never)) as { listings: { cover: string; photos: number; url: string }[] }
+    expect(list.listings[0].cover).toBe(WANT[0])
+    expect(list.listings[0].photos).toBe(3)
     expect(list.listings[0].url).toBe('https://eno.vn/listings/l1')
     const one = (await tool('get_listing').handler(AUTH as never, { id: 'l1' } as never)) as { listing: { images: string[]; url: string } }
     expect(one.listing.images).toEqual(WANT)
