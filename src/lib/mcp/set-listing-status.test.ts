@@ -58,9 +58,14 @@ describe('set_listing_status', () => {
     await expect(run()).rejects.toMatchObject({ code: 'released_charge_listing_cap', message: expect.stringContaining('at most 10 active listings') })
   })
 
-  it('other refusals keep the code as the message (unchanged)', async () => {
+  it('an unknown status is worded: the input is a plain string since 2026-11-15, so the core is what checks it', async () => {
     h.status = { ok: false, code: 400, error: 'invalid_status' }
-    await expect(run()).rejects.toMatchObject({ code: 'invalid_status', message: 'invalid_status' })
+    await expect(run()).rejects.toMatchObject({ code: 'invalid_status', message: 'status must be active, sold or hidden (a teacher profile can be active or hidden, not sold).' })
+  })
+
+  it('other refusals keep the code as the message (unchanged)', async () => {
+    h.status = { ok: false, code: 409, error: 'some_other_refusal' }
+    await expect(run()).rejects.toMatchObject({ code: 'some_other_refusal', message: 'some_other_refusal' })
   })
 
   it('success is unchanged', async () => {

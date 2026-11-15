@@ -13,7 +13,7 @@ import { bulkImportCore, claimRehostedImages, discardRehostedImages, rehostListi
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow, type SyncRowResult } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
 import { postingGate } from '@/lib/enforcement'
-import { paysSalary, resolveListingType } from '@/lib/taxonomy'
+import { paysSalary, resolveListingType, TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
@@ -67,17 +67,20 @@ async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<
   return { images, fresh }
 }
 
+// The category slugs a listing can be filed under, from the taxonomy itself (no tool or endpoint lists them otherwise).
+const POSTABLE_SLUGS = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c) => c.slug).join(', ')
+
 // One partner-supplied listing item → BulkRow (shared by bulk + sync mapping).
 const listingItem = z.object({
-  categorySlug: z.string().describe('The category to file the listing under, by its slug, e.g. "electronics", "vehicles" or "rentals"'),
+  categorySlug: z.string().describe(`Where the listing is filed, by category slug: ${POSTABLE_SLUGS}. A job goes in jobs, a room or flat to let in rentals`),
   // Its minimum length is the server's (create_listing's handler, bulk.ts per row): a short title in a bulk call fails its row, not the batch.
   title: z.string().describe('The headline buyers see in search and on the listing page: name the item and what sets it apart. Buyers reach the seller through eno, so it carries no phone number').meta({ examples: ['Honda Vision 2022, 8,000 km'] }),
   price: z.number().nonnegative().describe('The asking price in Vietnamese đồng (VND)'),
-  description: z.string().optional().describe('The text shown on the listing page; contact details (phone, e-mail, links) are not allowed in it'),
+  description: z.string().optional().describe('The text shown on the listing page: what it is, its state and what comes with it. Contact details (phone, e-mail, links) are not allowed in it. Leave it out for a listing with no text'),
   district: z.string().optional().describe('Where the item is: the district or area as free text, e.g. "Thảo Điền, Thủ Đức". A new listing needs it: without it the post is refused with `location_required`'),
-  condition: z.string().optional().describe('The item\'s condition in words, e.g. "new", "like new" or "used"; ignored for a job'),
-  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies each one to its own storage. A new listing needs at least 3 photos of different angles in most categories, 1 for services and none for jobs; fewer is refused with `photos_min` or `photo_required`'),
-  externalId: z.string().optional().describe('Your own id for this listing, echoed back in the results so you can match them'),
+  condition: z.string().optional().describe('The item\'s condition in words, e.g. "new", "like new" or "used"; ignored for a job. Leave it out when it does not apply'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies each one to its own storage. A new listing needs at least 3 photos of different angles in most categories, 1 for services and none for jobs; fewer is refused with `photos_min` or `photo_required`. On a new listing, leave it out only for a job'),
+  externalId: z.string().optional().describe('Your own id for this listing, such as your SKU, echoed back in the results so you can match each row to your system; leave it out if you have none'),
 })
 
 /** MCP tool annotations (spec 2025-06-18): hints a client uses to tell a read from a write before calling, e.g. to ask
@@ -340,8 +343,8 @@ export const TOOLS: McpTool[] = [
     output: z.strictObject({ ok: OK, shop: SHOP_OUT.nullable().describe('The profile after your change, the same fields get_shop returns: the fields you sent now read as saved. null only if it could not be read back; the change is saved either way') }).describe('Confirms the change and shows the profile after it'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings. Leave it out to keep the current name'),
-      bio: z.string().optional().describe('About the shop, shown on its page. Send an empty string to clear it, or leave it out to keep it'),
-      location: z.string().optional().describe('Where the shop is, shown on its page. Send an empty string to clear it, or leave it out to keep it'),
+      bio: z.string().optional().describe('About the shop in a few sentences, shown on its page: what it sells and how it serves buyers. Send an empty string to clear it, or leave it out to keep it'),
+      location: z.string().optional().describe('Where the shop is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức", shown on its page. Send an empty string to clear it, or leave it out to keep it'),
       avatarUrl: z.string().optional().describe('The shop\'s logo: an image URL already on eno\'s storage, such as one from a listing\'s images. Send an empty string to remove it, or leave it out to keep it'),
       phone: z.string().optional().describe('The shop\'s contact phone number, a Vietnamese mobile; eno shares it with a buyer only inside its chat, never on the public page. Leave it out to keep the current number').meta({ examples: ['0901 234 567', '+84 901 234 567'] }),
     }),
@@ -385,7 +388,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listing: LISTING_OUT.nullable().describe('The listing as it stands now, including the title, text, price, district, condition and photos update_listing can change; null only if it was removed a moment ago') }).describe('The listing asked for'),
-    input: z.object({ id: z.string().describe('The listing to read, by the id list_listings or create_listing gave') }),
+    input: z.object({ id: z.string().describe('The listing to read: its id (such as `cmh0q2x8f0001...`), from list_listings or create_listing') }),
     handler: async (auth, args) => {
       await ownedListing(String(args.id), auth.sellerId)
       const l = await db.listing.findUnique({ where: { id: String(args.id) }, include: LISTING_INCLUDE })
@@ -404,8 +407,8 @@ export const TOOLS: McpTool[] = [
       price: z.number().nonnegative().optional().describe('The asking price in VND. Needed for everything except a job (category "jobs"), whose pay is `salaryM`; a job sent with only a price has it read as the monthly salary.'),
       negotiable: z.boolean().optional().describe('Whether buyers may send offers below the price (yes unless you say no); services and jobs never take offers'),
       listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs); otherwise the category\'s usual one is used'),
-      brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands'),
-      model: z.string().optional().describe('The model within that brand; kept only when the brand was recognised'),
+      brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands. Leave it out when the item has none'),
+      model: z.string().optional().describe('The model within that brand; kept only when the brand was recognised. Leave it out when unknown'),
       salaryM: z.number().int().nonnegative().optional().describe('A job\'s monthly salary in millions of VND (category "jobs"); leave it out when the pay is agreed with the candidate'),
     }),
     handler: async (auth, args) => {
@@ -469,7 +472,7 @@ export const TOOLS: McpTool[] = [
       listing: LISTING_OUT.nullable().describe('The listing as it now stands, the same fields get_listing returns; null only if it could not be read back'),
     }).describe('Confirms the edit and shows the listing after it'),
     input: z.object({
-      id: z.string().describe('The listing to change, by the id list_listings or create_listing gave'),
+      id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings or create_listing'),
       title: z.string().optional().describe('The new headline; phone numbers are not allowed in it. Leave it out to keep the current one'),
       description: z.string().optional().describe('The new text for the listing page; contact details are not allowed in it. Leave it out to keep the current text'),
       // A negative price is refused by updateListingCore (`invalid_price`), so the schema carries no bound to repeat.
@@ -513,7 +516,9 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ ok: OK, status: LISTING_STATUS_SET }).describe('Confirms the change and the listing\'s status now'),
-    input: z.object({ id: z.string().describe('The listing to change: the `id` that list_listings, get_listing or create_listing gave'), status: z.enum(['active', 'sold', 'hidden']).describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), active to put it back on sale') }),
+    // `status` is checked by setStatusCore (invalid_status, worded below), not by an enum: an enum input is the one field the
+    // reviewers flag as "validation repeated" whatever its prose says (2026-11-15).
+    input: z.object({ id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings, get_listing or create_listing'), status: z.string().describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), or active to put it back on sale') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -528,6 +533,9 @@ export const TOOLS: McpTool[] = [
               : res.error === 'licence_check_required' ? LICENCE_CHECK_REQUIRED_COPY.en
                 // A store-review seat's listing, any type (round 5 — review-seat-accounts.ts).
                 : res.error === 'review_seat_listing' ? REVIEW_SEAT_LISTING_COPY.en
+                // The input is a plain string (no enum): name the three states the core accepts, and its one other use of the
+                // code (core/listings.ts: a teacher profile is never "sold").
+                : res.error === 'invalid_status' ? 'status must be active, sold or hidden (a teacher profile can be active or hidden, not sold).'
                 // A hiring post whose stored text the job-text screen refuses (2026-10-19): its rule's sentence, and `detail`.
                 : isJobTextBlockCode(res.error) ? JOB_TEXT_REFUSAL[res.error].en
                   : res.error
@@ -550,7 +558,7 @@ export const TOOLS: McpTool[] = [
       reason: z.enum(DELETE_HOLD_REASONS).nullable().describe('Why it was hidden instead. account_held or account_suspended: the account is under review. open_report: a report about it or the shop is still open. null when it was deleted'),
       message: z.string().nullable().describe('A sentence to show the seller, saying why it was hidden and when it can be deleted; null when it was deleted'),
     }).describe('Whether the listing was deleted, or hidden instead and why'),
-    input: z.object({ id: z.string().describe('The listing to delete for good: the `id` that list_listings or get_listing gave. Read it with get_listing first to be sure, since a deletion cannot be undone') }),
+    input: z.object({ id: z.string().describe('The listing to delete for good: its id (such as `cmh0q2x8f0001...`), from list_listings or get_listing. Read it with get_listing first to be sure, since a deletion cannot be undone') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -698,7 +706,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ webhook: REGISTERED_WEBHOOK_OUT }).describe('The new webhook and its one-time signing secret'),
-    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive the events'), events: z.array(z.enum(WEBHOOK_EVENTS)).optional().describe('The changes to be told about, e.g. only listing.status_changed to hear when something sells; leave it out to receive every event') }),
+    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive each event as a signed POST; an address reachable only inside your own network is refused'), events: z.array(z.enum(WEBHOOK_EVENTS)).optional().describe('Which changes to be told about: a listing created, updated, changing status (e.g. sold or hidden) or deleted. Leave it out to receive every event') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
       try { await assertSafeUrl(url) } catch { throw new ToolError('invalid_input', 'url must be a public HTTPS endpoint.') }
@@ -717,7 +725,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     output: z.strictObject({ ok: OK }).describe('Confirms the webhook is gone'),
-    input: z.object({ id: z.string().describe('The webhook to remove, by the id list_webhooks or register_webhook gave') }),
+    input: z.object({ id: z.string().describe('The webhook to remove: its id (such as `cmh0q2x8f0001...`), from list_webhooks or register_webhook') }),
     handler: async (auth, args) => {
       const hook = await db.webhookEndpoint.findUnique({ where: { id: String(args.id) }, select: { sellerId: true } })
       if (!hook || hook.sellerId !== auth.sellerId) throw new ToolError('not_found', 'Webhook not found.')
