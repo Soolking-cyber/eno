@@ -98,7 +98,7 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // only removing a required key would, and the conformance test in src/lib/mcp/output-schemas.test.ts runs the handlers.
 const OK = z.boolean().describe('Always true: a change eno refuses comes back as a tool error with the reason instead')
 const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
-const PAGE_SIZE = z.number().int().min(1).max(100).optional().describe('Page size: how many listings to return in this call. Use a small page for a quick look and follow `next_cursor` for the rest').meta({ default: 50 })
+const PAGE_SIZE = z.number().int().min(1).max(100).optional().describe('How many listings to return in this call. Ask for a few for a quick look; to go through them all, call again with `next_cursor` until it comes back null').meta({ default: 50 })
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
@@ -367,7 +367,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({ ok: OK, status: z.string().describe('The status the listing has now: active, sold or hidden') }).describe('Confirms the change and the listing\'s status now'),
-    input: z.object({ id: z.string().describe('The listing to change: the `id` that list_listings, get_listing or create_listing gave'), status: z.enum(['active', 'sold', 'hidden']).describe('What happened to the listing: the item is gone (sold), it should come down for now, e.g. out of stock (hidden), or it is for sale again (active)') }),
+    input: z.object({ id: z.string().describe('The listing to change: the `id` that list_listings, get_listing or create_listing gave'), status: z.enum(['active', 'sold', 'hidden']).describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), active to put it back on sale') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -393,10 +393,10 @@ export const TOOLS: McpTool[] = [
   {
     name: 'delete_listing',
     title: 'Delete listing',
-    description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). While the shop or the listing is under investigation (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false, hidden: true` and why.',
+    description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). Returns `ok: true` once the listing is deleted. While the shop or the listing is under review (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then also says `deleted: false` and `hidden: true`, with the `reason` code and a `message` to show the seller.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.looseObject({ ok: OK, deleted: z.boolean().nullish().describe('false when the listing was hidden instead of deleted; absent when it was deleted'), hidden: z.boolean().nullish().describe('true when it was hidden because the shop or listing is under review; absent when it was deleted'), reason: z.string().nullish().describe('Present only when it was hidden instead: account_held, account_suspended or open_report'), message: z.string().nullish().describe('Present only when it was hidden instead: a sentence explaining why, to show the seller') }).describe('Whether the listing was deleted, or hidden instead and why'),
+    output: z.looseObject({ ok: OK, deleted: z.boolean().nullish().describe('false when the listing was hidden instead of deleted; absent when it was deleted'), hidden: z.boolean().nullish().describe('true when the listing was hidden instead of deleted because the shop or listing is under review; absent when it was deleted'), reason: z.string().nullish().describe('Why it was hidden instead of deleted: account_held, account_suspended or open_report; absent when it was deleted'), message: z.string().nullish().describe('A sentence to show the seller, saying why it was hidden and when it can be deleted; absent when it was deleted') }).describe('`ok: true` alone when the listing was deleted; when it was hidden instead, also `deleted: false`, `hidden: true`, the reason and a message'),
     input: z.object({ id: z.string().describe('The listing to delete for good: the `id` that list_listings or get_listing gave. Read it with get_listing first to be sure, since a deletion cannot be undone') }),
     handler: async (auth, args) => {
       const id = String(args.id)
@@ -444,7 +444,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'sync_catalogue',
     title: 'Sync catalogue',
-    description: `Make this shop's listings match your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row's status can mark it sold or hidden. In mode "full", every active listing whose externalId is missing from this payload is also hidden (listings without an externalId, such as ones posted on the website, are never touched). Up to ${SYNC_MAX_ROWS} rows per call. Returns counts of created, updated, retired and failed rows and a result per row; when the account may not publish new listings, new rows are refused while edits still apply, and \`publish_blocked\` says why.`,
+    description: `Make this shop's listings match your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row's status can mark it sold or hidden. In mode "full", every active listing whose externalId is missing from this payload is also hidden (listings without an externalId, such as ones posted on the website, are never touched). Returns counts of created, updated, retired and failed rows and a result per row; when the account may not publish new listings, new rows are refused while edits still apply, and \`publish_blocked\` says why.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.looseObject({
@@ -462,7 +462,7 @@ export const TOOLS: McpTool[] = [
       publish_blocked: z.looseObject({ code: z.string().describe('Why new listings may not be published'), message: z.string().describe('A sentence to show the seller') }).nullish().describe('Present when the account may not publish new listings right now: new rows were refused, edits still applied'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
-      mode: z.enum(['partial', 'full']).optional().describe('How to treat your listings missing from this payload: partial (when left out) leaves them as they are, for sending only the rows that changed; full hides each active one whose externalId you did not send, so eno mirrors your whole catalogue. Listings without an externalId are never touched'),
+      mode: z.enum(['partial', 'full']).optional().describe(`How to treat your listings missing from this payload: partial leaves them as they are, for sending only the rows that changed; full hides each active one whose externalId you did not send, so eno mirrors your whole catalogue. Full compares against this one payload alone, so use it only when the whole catalogue fits in one call (${SYNC_MAX_ROWS} rows); a bigger catalogue syncs in partial mode, since full calls split across a catalogue each hide the rows the others carry. Listings without an externalId are never touched`).meta({ default: 'partial' }),
       listings: z.array(listingItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
         status: z.enum(['active', 'sold', 'hidden']).optional().describe('Puts an existing listing on sale (active), marks it sold, or hides it'),
