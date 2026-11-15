@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cutText, decodeEntities, entityRepairs, feedDescription } from './feed-text'
+import { crawlDescription, cutText, decodeEntities, entityRepairs, feedDescription } from './feed-text'
+import { richTextGroups } from './rich-text-blocks'
 
 /** Live strings from the translation audit (2026-10-02, F9). */
 describe('decodeEntities', () => {
@@ -38,6 +39,25 @@ describe('feedDescription', () => {
   it('strips tags BEFORE decoding, so a decoded "<" never reads as a tag', () => {
     expect(feedDescription('<p>Độ ẩm &lt; 10 Tỉ lệ nảy mầm &gt; 85</p>')).toBe('Độ ẩm < 10 Tỉ lệ nảy mầm > 85')
     expect(feedDescription('a&nbsp;&nbsp;b\n\nc')).toBe('a b c')
+  })
+})
+
+describe('crawlDescription', () => {
+  it('keeps one fact per PARAGRAPH — a spec ending "KHÔNG" never runs into the warranty line', () => {
+    const raw = 'Hàng cũ · Mới 99%\n256GB · Blue · KHÔNG\nBảo hành 6 tháng\nCửa hàng: 48 Đống Đa'
+    expect(crawlDescription(raw)).toBe('Hàng cũ · Mới 99%\n\n256GB · Blue · KHÔNG\n\nBảo hành 6 tháng\n\nCửa hàng: 48 Đống Đa')
+    // …because the page joins the lines of ONE paragraph with a space: each fact must be its own paragraph.
+    expect(richTextGroups(crawlDescription(raw)).map((g) => g.kind === 'p' && g.text)).toEqual(['Hàng cũ · Mới 99%', '256GB · Blue · KHÔNG', 'Bảo hành 6 tháng', 'Cửa hàng: 48 Đống Đa'])
+    expect(feedDescription(raw)).toContain('KHÔNG Bảo hành 6 tháng') // what the datafeed cleaner does to it
+  })
+  it('cleans inside each line and drops empty ones', () => {
+    expect(crawlDescription('<b>a</b>&nbsp;&nbsp;b\r\n\n  c  ')).toBe('a b\n\nc')
+  })
+  it('an opening block tag is a line break too', () => {
+    expect(crawlDescription('256GB · KHÔNG<div class="w">Bảo hành 6 tháng</div>')).toBe('256GB · KHÔNG\n\nBảo hành 6 tháng')
+  })
+  it('a <br>, a closing block tag and a lone \\r are line breaks too', () => {
+    expect(crawlDescription('256GB · KHÔNG<br class="x">Bảo hành 6 tháng<br/>x</p><p>y\rz')).toBe('256GB · KHÔNG\n\nBảo hành 6 tháng\n\nx\n\ny\n\nz')
   })
 })
 

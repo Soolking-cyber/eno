@@ -99,6 +99,22 @@ export function feedDescription(raw: string, max = 1800): string {
   return cutText(decodeEntities(raw.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim(), max)
 }
 
+/**
+ * A CRAWL description as stored (Hoàng Hà, ShopDunk — src/lib/accesstrade-crawl.ts): the same cleaning, but the LINE BREAKS
+ * STAY. The reader writes one fact per line; `feedDescription` folded them into one line, and "· KHÔNG" (no accessories) ran
+ * into "Bảo hành 6 tháng" (6-month warranty) as "KHÔNG Bảo hành 6 tháng" — "NO 6-month warranty", in Vietnamese and in its
+ * English translation (2026-11-15: 131 Hoàng Hà rows; 59 translated so).
+ * ⛔ A BLANK LINE BETWEEN FACTS, not a line break: the page's rich text joins the lines of one paragraph with a SPACE
+ * (src/lib/rich-text-blocks.ts — every listing's renderer, not changed for this), so a single "\n" still showed
+ * "· không Bảo hành đến…" run together. Each fact is its own paragraph.
+ */
+export function crawlDescription(raw: string, max = 1800): string {
+  // A <br> or a block's start or end is a line break too (commit gate, codex + opus), so is a lone \r — mapped BEFORE tags are stripped.
+  const broken = raw.replace(/<br\b[^>]*>|<\/?(?:p|div|li|tr|h[1-6])\b[^>]*>/gi, '\n').replace(/<[^>]+>/g, ' ')
+  const lines = decodeEntities(broken).split(/\r\n|\r|\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  return cutText(lines.join('\n\n'), max)
+}
+
 export type TextColumns = { title: string; titleVi: string | null; description: string; descriptionVi: string | null }
 
 /**

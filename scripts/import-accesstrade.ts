@@ -52,7 +52,7 @@ import { browseRankScore } from '../src/lib/ranking-formula'
 import { ImportScreen } from '../src/lib/import-screen'
 // ⛔ Feed text arrives with HTML entities encoded ("Fun &amp; Online"): decoded on the way in, and repaired
 // in the stored columns on a refresh (translation audit 2026-10-02, F9). See src/lib/feed-text.ts.
-import { cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
+import { crawlDescription, cutText, decodeEntities, entityRepairs, feedDescription } from '../src/lib/feed-text'
 import { importableCampaign, retiredImportReason } from '../src/lib/retired-imports'
 import { usedForShelf } from '../src/lib/accesstrade-restore'
 import { isEnoRunPartner } from '../src/lib/eno-run-partners'
@@ -473,7 +473,10 @@ async function main() {
         // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
         const effBrand = existing ? existing.brandSlug : brandFor(name)
         const effModel = existing ? existing.model : modelFor(name)
-        const feedDesc = feedDescription(p.desc || p.name)
+        // A crawl row keeps its line breaks (crawlDescription): one fact per line, never "KHÔNG" + "Bảo hành 6 tháng" run together.
+        // (Crawl campaigns are used-only = CREATE-ONLY — an existing row returned as alreadyHeld above — so this never rewrites a
+        // stored row; the rows imported before it were repaired from the staged crawls, 2026-11-15.)
+        const feedDesc = crawlFeed ? crawlDescription(p.desc || p.name) : feedDescription(p.desc || p.name)
         // The row's current text, with any entity decoded: what the searchText blob folds below.
         const cur = existing && {
           title: repairs.title?.to ?? existing.title, titleVi: repairs.titleVi?.to ?? existing.titleVi,
