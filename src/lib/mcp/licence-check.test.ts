@@ -32,6 +32,8 @@ vi.mock('@/lib/db', () => ({
   db: {
     category: { findUnique: async () => ({ id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }) },
     seller: { findUnique: async () => ({ id: 's1', ownerId: 'p1', trustTier: 'standard', trustScore: 100, phone: null }) },
+    // update_listing reads the row back after an edit (2026-11-15); null = removed a moment ago.
+    listing: { findUnique: async () => null },
   },
 }))
 vi.mock('@/lib/serialize', () => ({ serializeListing: () => ({}) }))
@@ -61,9 +63,9 @@ describe('update_listing', () => {
 
   it('⛔ a listing still waiting for eno’s licence check answers held — an agent must not read "ok" as live', async () => {
     h.update = { ok: true, held: true }
-    expect(await run()).toEqual({ ok: true, held: true })
+    expect(await run()).toEqual({ ok: true, held: true, listing: null })
     h.update = { ok: true }
-    expect(await run()).toEqual({ ok: true })
+    expect(await run()).toEqual({ ok: true, listing: null })
   })
 
   it('the description says so, and that the tool cannot change a subcategory or the licence values', () => {

@@ -36,13 +36,20 @@ vi.mock('@/lib/db', () => ({
     webhookEndpoint: {
       findMany: async () => [{ id: 'w1', url: 'https://x.example/h', events: '*', enabled: true, failureCount: 0, lastError: null, lastDeliveryAt: null, createdAt: now }],
       count: async () => 0,
-      create: async () => ({ id: 'w2', url: 'https://x.example/h', events: 'listing.created', enabled: true, createdAt: now }),
+      create: async () => ({ id: 'w2', url: 'https://x.example/h', events: 'listing.created', enabled: true, failureCount: 0, lastError: null, lastDeliveryAt: null, createdAt: now }),
       findUnique: async () => ({ sellerId: 's1' }),
       delete: async () => ({}),
     },
   },
 }))
-vi.mock('@/lib/serialize', () => ({ serializeListing: (l: Row) => ({ id: l.id, title: 't', price: 1 }) }))
+// Every key LISTING_OUT requires (the real serializer's own fit is output-schemas.real-serializer.test.ts).
+vi.mock('@/lib/serialize', () => ({
+  serializeListing: (l: Row) => ({
+    id: l.id, title: 't', description: '', price: 1, priceUnit: 'VND', negotiable: true, status: 'active', verified: true, listingType: 'sell',
+    condition: null, location: 'Thảo Điền', district: null, city: 'Hồ Chí Minh', images: [], category: { slug: 'electronics', name: 'Electronics' },
+    subcategorySlug: null, postedAt: '2026-11-13T00:00:00.000Z', views: 0, contactCount: 0,
+  }),
+}))
 vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
 vi.mock('@/lib/core/bulk', () => ({
   bulkImportCore: async () => ({ created: 1, failed: 1, results: [{ row: 1, id: 'l3', external_id: 'a' }, { row: 2, error: 'Invalid price' }] }),

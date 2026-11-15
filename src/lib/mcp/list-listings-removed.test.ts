@@ -66,8 +66,8 @@ describe('delete_listing', () => {
     await expect(tool('delete_listing').handler(AUTH as never, { id: 'L1' } as never)).rejects.toBeInstanceOf(ToolError)
   })
 
-  it('a 404 (already gone or removed) stays the idempotent { ok: true }', async () => {
+  it('a 404 (already gone or removed) answers { ok: true, deleted: true }: the listing is gone either way', async () => {
     h.del = { ok: false, code: 404, error: 'not_found' }
-    expect(await tool('delete_listing').handler(AUTH as never, { id: 'L1' } as never)).toEqual({ ok: true })
+    expect(await tool('delete_listing').handler(AUTH as never, { id: 'L1' } as never)).toEqual({ ok: true, deleted: true })
   })
 })

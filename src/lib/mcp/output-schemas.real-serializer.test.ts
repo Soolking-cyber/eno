@@ -65,6 +65,12 @@ describe('listing tools — outputSchema vs the real serializer', () => {
       const r = TOOLS.find((t) => t.name === 'get_listing')!.output.safeParse({ listing })
       expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
     })
+
+    // update_listing answers with the row read back after the edit (2026-11-15): the same serializer, its own wrapper.
+    it(`update_listing's read-back fits ${label}`, () => {
+      const r = TOOLS.find((t) => t.name === 'update_listing')!.output.safeParse({ ok: true, listing })
+      expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
+    })
   }
 
   it('every field list_listings documents is really in the serializer\'s output — none is advertised and missing', () => {

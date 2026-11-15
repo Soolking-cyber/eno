@@ -31,6 +31,8 @@ vi.mock('@/lib/db', () => ({
   db: {
     category: { findUnique: async () => ({ id: 'c-jobs', slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' }) },
     seller: { findUnique: async () => ({ id: 's1', ownerId: 'p1', trustTier: 'standard', trustScore: 100, phone: null }) },
+    // update_listing reads the row back after an edit (2026-11-15); null = removed a moment ago.
+    listing: { findUnique: async () => null },
   },
 }))
 vi.mock('@/lib/serialize', () => ({ serializeListing: () => ({}) }))
