@@ -235,6 +235,35 @@ describe('/auth.md', () => {
     expect(body).not.toMatch(/`(orders|payments|users|escrow):[a-z]+`/)
   })
 
+  it('follows the auth.md step order and documents the sign-in grant as the code runs it', async () => {
+    const { body } = await md(await load.auth())
+    const steps = ['## Step 1 — Discover', '## Step 2 — Pick a method', '## Step 3 — Register', '## Step 4 — Claim', '## Step 5 — Exchange', '## Step 6 — Use the access_token', '## Errors', '## Revocation']
+    const at = steps.map((h) => body.indexOf(h))
+    expect(at.every((i) => i > 0)).toBe(true)
+    expect([...at].sort((a, b) => a - b)).toEqual(at)
+    const g = await import('@/lib/api/oauth-grant')
+    for (const t of ['authorization_code', 'refresh_token', 'code_challenge_method=S256', '/oauth/authorize', g.MCP_RESOURCE, 'invalid_grant', 'invalid_target']) expect(body).toContain(t)
+    expect(body).toContain(`lives\n  ${g.CODE_TTL_SECONDS} seconds`)
+    expect(body).toContain(`${g.GRANT_MAX_AGE_SECONDS / 86400} days`)
+    expect(body).toContain(g.DEFAULT_SIGN_IN_SCOPES.join(' '))
+    // ⛔ What eno does NOT run is said, never advertised as an endpoint: no agent_auth block, no registration endpoint.
+    expect(body).toContain('no `agent_auth` block')
+    expect(body).not.toMatch(/\/agent\/(identity|event)/)
+    // Still a heading first: ora's auth-md-exists check.
+    expect(body.startsWith('# ')).toBe(true)
+  })
+
+  it('describes the authorization server the way its RFC 8414 metadata does', async () => {
+    const { body } = await md(await load.auth())
+    const meta = await (await (await import('@/app/api/well-known/oauth-authorization-server/route')).GET()).json()
+    for (const g of meta.grant_types_supported as string[]) expect(body).toContain(`\`${g}\``)
+    expect(meta.grant_types_supported).toEqual(expect.arrayContaining(['client_credentials', 'authorization_code', 'refresh_token']))
+    expect(meta.code_challenge_methods_supported).toEqual(['S256'])
+    expect(meta.client_id_metadata_document_supported).toBe(true)
+    expect(body).toContain(new URL(meta.authorization_endpoint).pathname)
+    expect(body).toContain(new URL(meta.token_endpoint).pathname)
+  })
+
   it('states the grant, the TTL and the absence of a refresh token', async () => {
     const { body } = await md(await load.auth())
     expect(body).toContain('client_credentials')
