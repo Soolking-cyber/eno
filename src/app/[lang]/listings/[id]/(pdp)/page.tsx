@@ -123,7 +123,7 @@ import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
-import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TIER_FADE, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
+import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
 import { contactLine } from '@/lib/contact-line'
 import { PinnedRegion, StickyActionBarSpacer } from '@/components/ui/sticky-action-bar'
 import { isCommissionLink } from '@/lib/affiliate-commission'
@@ -1835,9 +1835,8 @@ export default async function ListingPage({ params }: Props) {
                   `data-pin-action` and PIN_TIER's classes, which fix it at the bottom edge below md outside the store apps; it
                   publishes its height for the spacer after the footer. Every other page: the in-flow block, as before.
                   ⛔ Since build 7 (owner-approved 2026-11-15 (build 7), cook r07 "item") the goods tier below md is the control ALONE —
-                  its line is said once in the page (`tierLine`) — under a 16px fade from the page into its top edge (GOODS_TIER_FADE:
-                  what scrolls under it dissolves instead of being sliced at the line). */}
-              <ContactBlock id="contact" data-pin-action={pinned ? '' : undefined} data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className={cn('order-6 scroll-mt-24', rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)}>
+                  its line is said once in the page (`tierLine`); no fade over it (owner, 2026-11-15: "without weird haze"). */}
+              <ContactBlock id="contact" data-pin-action={pinned ? '' : undefined} data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className={cn('order-6 scroll-mt-24', rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER)}>
                 {/* ⚠️ A VISA PRODUCT DOES NOT OPEN AN EMPTY CHAT. The whole application happens
                     inside the thread (owner: "user click chat then selects available product from
                     admin shop and continues uploading images and filling up the form lastly checks

@@ -183,7 +183,6 @@ describe('page.tsx: DOM order is the phone\'s paint order', () => {
 
   it('the pinned tier (build 7): the head\'s price beside Chat now, every digit; the in-flow step only when not pinned', () => {
     expect(PAGE).toContain('barPrice={pinned && rentalSheet ? <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} className={SHEET_TIER_PRICE} unitClassName={SHEET_TIER_UNIT} approxClassName={SHEET_TIER_APPROX} /> : undefined}')
-    // (`tierLineInPage && GOODS_TIER_FADE` is the goods tier's fade, build 7 — never on the rental sheet: goods-sheet.test.ts.)
-    expect(PAGE).toContain("rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)}>")
+    expect(PAGE).toContain("rentalSheet && !pinned && SHEET_CONTACT, pinned && PIN_TIER)}>")
   })
 })

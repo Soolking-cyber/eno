@@ -81,14 +81,6 @@ export function pinsAction(p: {
  * tab bar while the bar shows (globals.css, the goods tier block), by `translate` only. From md: the in-flow block as before.
  */
 export const PIN_TIER = '[html:not(.native)_&]:max-md:fixed [html:not(.native)_&]:max-md:inset-x-0 [html:not(.native)_&]:max-md:bottom-0 [html:not(.native)_&]:max-md:z-30 [html:not(.native)_&]:max-md:border-t [html:not(.native)_&]:max-md:border-border [html:not(.native)_&]:max-md:bg-background [html:not(.native)_&]:max-md:shadow-(--shadow-bar) [html:not(.native)_&]:max-md:px-3 [html:not(.native)_&]:max-md:pt-2 [html:not(.native)_&]:max-md:pb-[calc(0.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] max-md:transition-[translate] max-md:duration-[250ms] max-md:ease-out motion-reduce:transition-none'
-/**
- * The goods tier's top edge (build 7; both blind critics read a line of text cut by the fixed tier — a price, the footer — as
- * broken, cook r07 "item" criticsBroken): a 16px fade from the page's own ground into the tier, just over its hairline, so what
- * scrolls under the tier dissolves into it instead of being sliced at the line. Decorative (`pointer-events: none`, a
- * pseudo-element, nothing to read); it rides with the tier. The tier's room at the page's end is unchanged (the measured
- * spacer after the footer and `scroll-padding-bottom`): at the end of the page nothing is under it.
- */
-export const GOODS_TIER_FADE = "[html:not(.native)_&]:max-md:before:pointer-events-none [html:not(.native)_&]:max-md:before:absolute [html:not(.native)_&]:max-md:before:inset-x-0 [html:not(.native)_&]:max-md:before:bottom-[calc(100%+1px)] [html:not(.native)_&]:max-md:before:h-4 [html:not(.native)_&]:max-md:before:bg-linear-to-b [html:not(.native)_&]:max-md:before:from-transparent [html:not(.native)_&]:max-md:before:to-background [html:not(.native)_&]:max-md:before:content-['']"
 
 /** The photo's slot: a 16px white sheet edge over the photo's bottom (the rental sheet's, src/lib/rental-sheet.ts SHEET_PHOTO,
  *  minus its lift), and 24px given back so the price stands 16px under that edge. */

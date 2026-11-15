@@ -2682,7 +2682,10 @@ html.os-android [data-store="ios"] {
    page starts with the bars showing" (use-hide-on-scroll.ts): a listing page is a pushed screen, its own action is pinned
    from the first paint (`#contact[data-pin-action]`, page.tsx + ui/sticky-action-bar.tsx PinnedRegion), and the tab bar
    starts retracted, coming back on the first scroll up (MobileNav `data-scrolled-up`), on keyboard focus, or when the page
-   cannot scroll. While it shows, the tier rides on top of it.
+   cannot scroll.
+   ⛔ ONE BAR AT A TIME, AS IN THE iOS APP (owner, 2026-11-15: "shows either one … make it like in ios for mobile web"): while
+   the tab bar shows, the tier steps down out of view instead of riding on top of it (pdp-action-bar.tsx does the same in
+   the apps); a page too short to scroll, or keyboard focus inside the tier, keeps both, the tier above the tabs.
    · Decided by the server's HTML (`data-pin-action` is server-rendered), so it holds from the first frame: nothing shifts.
    · `translate` only, so neither move is a layout shift. A browser without `:has()` matches nothing here: the bar behaves as
      on every other page, and the `@supports` rule below keeps the tier above it.
@@ -2691,17 +2694,26 @@ html.os-android [data-store="ios"] {
    ⛔ …AND A HOME TO RENT WHOSE ACTION IS CHAT NOW ALONE (owner-approved 2026-11-15 (build 7), cook r07 "rental"; src/lib/rental-sheet.ts
    pinsRentalAction): the same tier and the same retracted tab bar, the price beside Chat now (ContactComposer `barPrice`).
    ⛔ ON A GOODS PAGE THE TIER IS THE BUTTON ALONE (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses there r06's
-   "the button and its one line"): its line is said once in the page (page.tsx `tierLine`), and a 16px fade over its top edge
-   (src/lib/goods-sheet.ts GOODS_TIER_FADE) dissolves what scrolls under it. The rules below are unchanged. */
+   "the button and its one line"): its line is said once in the page (page.tsx `tierLine`). No fade over its top edge
+   (owner, 2026-11-15: "without weird haze on top of chat bar"). */
 @media (max-width: 767.98px) {
   html:not(.native):has(#contact[data-pin-action]) .mobile-nav:not([data-scrolled-up]):not(:focus-within) {
     translate: 0 100%;
     opacity: 0;
     pointer-events: none;
   }
-  html:not(.native):has(.mobile-nav[data-scrolled-up]) #contact[data-pin-action],
-  html:not(.native):has(.mobile-nav:focus-within) #contact[data-pin-action] {
+  html:not(.native):has(.mobile-nav[data-scrolled-up]:not([data-short-page])) #contact[data-pin-action],
+  html:not(.native):has(.mobile-nav:focus-within:not([data-short-page])) #contact[data-pin-action] {
+    translate: 0 100%;
+    pointer-events: none;
+  }
+  /* …except where both must show, the tier riding above the tabs: a page too short to scroll (the tabs stay up for good, the
+     action never hidden) and keyboard focus inside the tier while the tabs show (never two bars on the same pixels). */
+  html:not(.native):has(.mobile-nav[data-short-page]) #contact[data-pin-action],
+  html:not(.native):has(.mobile-nav[data-scrolled-up]) #contact[data-pin-action]:focus-within,
+  html:not(.native):has(.mobile-nav:focus-within) #contact[data-pin-action]:focus-within {
     translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));
+    pointer-events: auto;
   }
 }
 /* …and WITHOUT `:has()` (iOS Safari < 15.4, older WebViews) the tab bar is never retracted, so the tier always rides above

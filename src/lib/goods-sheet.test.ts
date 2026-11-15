@@ -79,12 +79,23 @@ describe('the pinned tier', () => {
     expect(G.PIN_TIER).toContain('[html:not(.native)_&]:max-md:fixed')
     expect(G.PIN_TIER).toContain('max-md:transition-[translate]')
   })
-  it('one stylesheet block: the tab bar starts retracted on a pinned page and the tier rides it — phones, never the apps', () => {
+  // ⛔ One bar at a time, as in the iOS app (owner, 2026-11-15): the tab bar shows → the tier steps down out of view.
+  it('one stylesheet block: the tab bar starts retracted on a pinned page, and while it shows the tier steps away — phones, never the apps', () => {
     const at = CSS.indexOf('html:not(.native):has(#contact[data-pin-action]) .mobile-nav:not([data-scrolled-up]):not(:focus-within)')
     expect(at).toBeGreaterThan(0)
     expect(CSS.slice(CSS.lastIndexOf('@media', at), at)).toMatch(/^@media \(max-width: 767\.98px\) \{\s*$/)
-    expect(CSS).toContain('html:not(.native):has(.mobile-nav[data-scrolled-up]) #contact[data-pin-action],')
-    expect(CSS).toContain('translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));')
+    const away = CSS.indexOf('html:not(.native):has(.mobile-nav[data-scrolled-up]:not([data-short-page])) #contact[data-pin-action],')
+    expect(away).toBeGreaterThan(at)
+    expect(CSS.slice(away, CSS.indexOf('}', away))).toMatch(/translate: 0 100%;\s*pointer-events: none;/)
+    // Both bars, the tier above the tabs: a page too short to scroll, and keyboard focus inside the tier while the tabs show.
+    const both = CSS.indexOf('html:not(.native):has(.mobile-nav[data-short-page]) #contact[data-pin-action],')
+    expect(both).toBeGreaterThan(away)
+    const bothBlock = CSS.slice(both, CSS.indexOf('}', both))
+    expect(bothBlock).toContain('#contact[data-pin-action]:focus-within')
+    expect(bothBlock).toMatch(/translate: 0 calc\(-1 \* \(3\.5rem \+ var\(--tabbar-inset\)\)\);\s*pointer-events: auto;/)
+    // Without :has() the tab bar never retracts, so the tier still rides above it there (never hidden under the nav).
+    const sup = CSS.indexOf('@supports not selector(:has(*))')
+    expect(CSS.slice(sup, CSS.indexOf('\n}\n', sup))).toContain('translate: 0 calc(-1 * (3.5rem + var(--tabbar-inset)));')
     // Only `translate` and `opacity` move anything: no box property, so no layout shift.
     const block = CSS.slice(at, CSS.indexOf('\n}\n', at))
     expect(block).not.toMatch(/\b(?:top|bottom|height|margin|padding)\s*:/)
@@ -119,11 +130,9 @@ describe('the class contract: below md only', () => {
     expect(G.GOODS_DETAILS_ROWS.split(' ')).toContain('[&>div]:py-2.5')
     expect(G.GOODS_DETAILS_ROWS).not.toContain('py-4')
   })
-  it('⛔ the tier\'s fade: a pseudo-element over its top edge, below md outside the apps, never a hit target; goods only', () => {
-    for (const c of G.GOODS_TIER_FADE.split(' ')) expect(c).toMatch(/^\[html:not\(\.native\)_&\]:max-md:before:/)
-    expect(G.GOODS_TIER_FADE).toContain('before:pointer-events-none')
-    expect(G.GOODS_TIER_FADE).toContain('before:bottom-[calc(100%+1px)]')
-    expect(PAGE).toContain('pinned && PIN_TIER, tierLineInPage && GOODS_TIER_FADE)')
+  it('⛔ no fade over the tier (owner, 2026-11-15: "without weird haze on top of chat bar")', () => {
+    expect('GOODS_TIER_FADE' in G).toBe(false)
+    expect(PAGE).toContain('pinned && PIN_TIER)}>')
   })
   it('⛔ the tier\'s line is said once in the page: the tier\'s copies hidden below md, the page\'s from the same facts', () => {
     expect(PAGE).toContain('const tierLineInPage = pinned && goodsSheet')

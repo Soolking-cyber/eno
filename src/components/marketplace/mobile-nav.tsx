@@ -408,6 +408,8 @@ export function MobileNav() {
     <nav
       inert={keyboardOpen}
       data-scrolled-up={scrolledUp ? '' : undefined}
+      // A page that cannot scroll keeps both bars (globals.css): with the tabs always up, the tier stepping away would hide the action.
+      data-short-page={scrolledUp && shortPage ? '' : undefined}
       className={cn(
         // ⛔ POSTING IS A FOCUSED TASK ON A PHONE (UI climb 2026-11-05): Publish alone holds the bottom edge, with Exit at the top of the form.
         // The Publish bar stacked on the tab bar took ~130px of a phone's height and left the form clipped between layers. The

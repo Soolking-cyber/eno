@@ -53,6 +53,7 @@ describe('data-scrolled-up', () => {
     off.scrolled = false
     rerender(<MobileNav />)
     expect(bar().hasAttribute('data-scrolled-up')).toBe(true)
+    expect(bar().hasAttribute('data-short-page')).toBe(false)
   })
   it('a pinned page that cannot scroll shows the bar at once (never stranded)', async () => {
     pinPage()
@@ -62,6 +63,8 @@ describe('data-scrolled-up', () => {
     await act(async () => {})
     // jsdom: scrollHeight 0 and innerHeight 768, so the page "cannot scroll".
     expect(screen.getByRole('navigation').hasAttribute('data-scrolled-up')).toBe(true)
+    // …and says so, so the tier rides above the tabs there instead of stepping away (globals.css).
+    expect(screen.getByRole('navigation').hasAttribute('data-short-page')).toBe(true)
     vi.unstubAllGlobals()
   })
 })
