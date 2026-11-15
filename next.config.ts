@@ -1234,6 +1234,13 @@ const nextConfig: NextConfig = {
         { source: "/agents.md", destination: "/md/agents" },
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },
+        // The llms.txt family (ora.ai, 2026-11-15; src/lib/llms-txt.ts): the root index stays under 30,000 characters, the
+        // full document and the two long sections answer at their own dotted paths. Route handlers under md/ like the twins
+        // above — never new root directories, because /guides and /teach-in-vietnam are PAGE paths the proxy rewrites into
+        // [lang] (lang-segment.guard.test.ts); these dotted files skip the proxy and land here before any dynamic route.
+        { source: "/llms-full.txt", destination: "/md/llms-full" },
+        { source: "/guides/llms.txt", destination: "/md/llms-guides" },
+        { source: "/teach-in-vietnam/llms.txt", destination: "/md/llms-teach" },
         { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
         { source: "/feeds/facebook-rentals.csv", destination: "/api/feeds/facebook-rentals" },
         { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },

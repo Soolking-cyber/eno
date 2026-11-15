@@ -4,6 +4,7 @@ import "../globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
+import { WebMcpTools } from "@/components/marketplace/webmcp-tools";
 import { Providers } from "./providers";
 import { fxSeedUsd } from "@/lib/fx-seed";
 import { notFound } from "next/navigation";
@@ -701,6 +702,9 @@ export default async function RootLayout({
         <OutsideConciergeFrame>
           <AnalyticsTags />
           <AttributionCapture />
+          {/* WebMCP: the public search tools for a browser agent; does nothing without `modelContext`. Not in the
+              concierge's frame: the page around it already offers them. */}
+          <WebMcpTools />
         </OutsideConciergeFrame>
       </body>
     </html>

@@ -63,6 +63,27 @@ const markdownHas = (entry: RewriteEntry | undefined) => {
   return entry!.has![0].value
 }
 
+describe('the llms.txt family reaches its handlers (ora.ai, 2026-11-15)', () => {
+  /**
+   * ⛔ /guides and /teach-in-vietnam are PAGE paths, so their nested llms.txt must (1) skip the proxy — its page matcher
+   * excludes every dotted path, or the proxy rewrites them into [lang] and they 404 — and (2) be rewritten in afterFiles,
+   * which Next evaluates before any dynamic route, to their md/ handlers. Pinned against the real config and matcher.
+   */
+  it('afterFiles maps each dotted file to its md/ handler, and the proxy never sees them', async () => {
+    const pairs = rewrites.afterFiles.map((r) => [r.source, r.destination])
+    expect(pairs).toEqual(expect.arrayContaining([
+      ['/llms-full.txt', '/md/llms-full'],
+      ['/guides/llms.txt', '/md/llms-guides'],
+      ['/teach-in-vietnam/llms.txt', '/md/llms-teach'],
+    ]))
+    const { config } = await import('@/proxy')
+    const page = new RegExp(`^${config.matcher[1]}$`)
+    for (const path of ['/llms.txt', '/llms-full.txt', '/guides/llms.txt', '/teach-in-vietnam/llms.txt']) expect(page.test(path), path).toBe(false)
+    // …while the page paths themselves still go to the proxy (and so into [lang]).
+    for (const path of ['/guides', '/teach-in-vietnam']) expect(page.test(path), path).toBe(true)
+  })
+})
+
 describe('404 markdown negotiation — rewrite wiring', () => {
   it('routes unmatched paths to /md/not-found from the fallback group only', () => {
     expect(rewrites.fallback).toHaveLength(1)

@@ -1,4 +1,4 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { withShare } from '@/lib/site-identity'
 import Link from 'next/link'
@@ -9,6 +9,7 @@ import { TOOLS } from '@/lib/mcp/tools'
 import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
+import { MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { C, Code } from '../doc-parts'
 
 /**
@@ -96,6 +97,15 @@ Authorization: Bearer eno_live_…`}</Code></div>
               <a href="/.well-known/mcp.json" className="font-mono font-semibold text-accent-foreground hover:underline">/.well-known/mcp.json</a> — the
               transport, the protocol versions and the header, for clients that read it.
             </li>
+            {/* The official MCP Registry record (published 11-11 under the DNS-verified vn.eno namespace) — linked so an
+                agent or a scanner can tie the registry entry to this site (ora.ai, 2026-11-15). eno.vn's server only. */}
+            {!IS_SERVICES && (
+              <li>
+                • <strong className="text-foreground">MCP Registry:</strong>{' '}
+                <a href={MCP_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground hover:underline">{MCP_REGISTRY_NAME}</a> — the
+                official registry entry, published under the eno.vn domain namespace.
+              </li>
+            )}
           </ul>
 
           <h3 className="mt-6 text-base font-semibold text-foreground">Claude Code</h3>

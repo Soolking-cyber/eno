@@ -24,7 +24,7 @@ vi.mock('@/lib/site-facts', async (importOriginal) => ({
 
 const load = async () => {
   vi.resetModules()
-  return import('./route')
+  return { ...(await import('@/lib/llms-txt')), ...(await import('./route')) }
 }
 
 // Each test re-imports the route after resetModules, and the marketplace body now pulls in the
@@ -42,6 +42,11 @@ afterEach(() => { vi.unstubAllEnvs() })
 const bodyOf = async () => {
   const { GET } = await load()
   return await GET().text()
+}
+/** /llms-full.txt — the root index with every guide inline. */
+const fullBodyOf = async () => {
+  const { fullLlms } = await load()
+  return await fullLlms().text()
 }
 
 /**
@@ -146,6 +151,11 @@ describe('/llms.txt on the marketplace', () => {
     expectNoGluedPunctuation(withFacts)
     h.facts = null
     expectNoGluedPunctuation(await bodyOf())
+    // …and the files the index sends agents to: the full document and both section files (commit gate, opus).
+    expectNoGluedPunctuation(await fullBodyOf())
+    const { marketplaceGuidesBody, teachGuidesBody } = await load()
+    expectNoGluedPunctuation(marketplaceGuidesBody())
+    expectNoGluedPunctuation(teachGuidesBody())
   })
 
   it('the URL check catches the defect it exists for (not vacuous)', () => {
@@ -261,9 +271,48 @@ describe('/llms.txt on the marketplace', () => {
     }
   })
 
-  it('lists every marketplace and phone guide, marks the Vietnamese ones, and each one has a page', async () => {
-    const [{ MARKETPLACE_GUIDES }, { PHONE_GUIDES }] = await Promise.all([import('@/lib/expat-guides'), import('@/lib/phone-guides')])
+  it('⛔ the root stays a navigation index under 30,000 characters and points at the guide files (ora.ai, 2026-11-15)', async () => {
+    h.facts = MEASURED // with the live counts, the size production serves (commit gate, opus)
+    expect((await bodyOf()).length).toBeLessThan(30_000)
+    h.facts = null
     const body = await bodyOf()
+    expect(body.length).toBeLessThan(30_000)
+    expect(body).toContain('(https://eno.vn/guides/llms.txt)')
+    expect(body).toContain('(https://eno.vn/llms-full.txt)')
+    const { marketplaceGuidesBody } = await load()
+    const [{ MARKETPLACE_GUIDES }, { PHONE_GUIDES }] = await Promise.all([import('@/lib/expat-guides'), import('@/lib/phone-guides')])
+    const guidesFile = marketplaceGuidesBody()
+    expect(guidesFile.startsWith('# ')).toBe(true)
+    for (const g of [...MARKETPLACE_GUIDES, ...PHONE_GUIDES]) expect(guidesFile).toContain(`[${g.label}](https://eno.vn/${g.slug})`)
+    // The full file is the index with the guides inline: every line of the index's other sections is in it.
+    const full = await fullBodyOf()
+    expect(full.length).toBeGreaterThan(body.length)
+    expect(full.split('## For developers and agents')[1]).toBe(body.split('## For developers and agents')[1])
+  })
+
+  it('the three new files answer: /llms-full.txt, /guides/llms.txt and /teach-in-vietnam/llms.txt (whenever the index links it)', async () => {
+    vi.resetModules()
+    const [full, guides, teach, { GET }] = await Promise.all([
+      import('../md/llms-full/route'), import('../md/llms-guides/route'), import('../md/llms-teach/route'), import('./route'),
+    ])
+    const fullRes = full.GET()
+    expect(fullRes.status).toBe(200)
+    expect(fullRes.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect((await fullRes.text()).startsWith('# eno.vn')).toBe(true)
+    const g = guides.GET()
+    expect(g.status).toBe(200)
+    expect(await g.text()).toContain('## Guides')
+    const index = await GET().text()
+    const t = teach.GET()
+    // Always linked, always 200 (commit gate, codex + opus: the index and the file sit in separate caches, so a
+    // "linked only when released" rule could link a cached 404) — an empty library says so in the file instead.
+    expect(index).toContain('(https://eno.vn/teach-in-vietnam/llms.txt)')
+    expect(t.status).toBe(200)
+  })
+
+  it('lists every marketplace and phone guide (in /llms-full.txt), marks the Vietnamese ones, and each one has a page', async () => {
+    const [{ MARKETPLACE_GUIDES }, { PHONE_GUIDES }] = await Promise.all([import('@/lib/expat-guides'), import('@/lib/phone-guides')])
+    const body = await fullBodyOf()
     const guides = body.split('## Guides')[1].split('## For developers and agents')[0]
     for (const g of [...MARKETPLACE_GUIDES, ...PHONE_GUIDES]) {
       expect(guides).toContain(`[${g.label}](https://eno.vn/${g.slug})${g.lang === 'vi' ? ' (Vietnamese)' : ''}: `)
