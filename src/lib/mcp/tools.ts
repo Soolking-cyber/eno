@@ -23,7 +23,6 @@ import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
 import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
-import type { TrustTier } from '@/lib/trust-math'
 import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
 import type { AnalyticsListingRow } from '@/lib/listing-analytics'
 import { NOT_REMOVED } from '@/lib/listing-removed'
@@ -121,11 +120,14 @@ export function absoluteAssetUrl<T extends string | null | undefined>(u: T): T {
 /** A listing's public page on THIS edition's site (src/lib/social/caption.ts listingUrl, without the campaign tags). */
 const listingPageUrl = (id: string) => `${OAUTH_ISSUER}/listings/${id}`
 
+// ⛔ A value READ FROM THE DATABASE is a described string, never a closed enum: a stored value the enum does not list would
+// make a validating client reject the whole answer. Measured 2026-11-15: listings also hold 'stale' (Rever rentals,
+// scripts/retire-rever-rentals.ts), which no tool writes. Enums stay only where this code makes the value itself.
 const LISTING_STATUS = ['active', 'sold', 'hidden'] as const
 type ListingStatusOut = (typeof LISTING_STATUS)[number]
-const LISTING_STATUS_OUT = z.enum(LISTING_STATUS).describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted. Change it with set_listing_status')
+const LISTING_STATUS_SET = z.enum(LISTING_STATUS).describe('The status the listing has now. active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted')
+const LISTING_STATUS_OUT = z.string().describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted; set_listing_status moves a listing between these three. Any other value, such as stale, means eno took the listing off the site')
 const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'] as const
-const TRUST_TIERS = ['restricted', 'standard', 'trusted', 'exceptional'] as const satisfies readonly TrustTier[]
 
 /** The listing as MCP answers it: the fields a seller's agent acts on, by name (serializeListing writes ~60, most for the
  *  web page), photos as full URLs, and the page link. list_listings and get_listing never reach a tombstone
@@ -135,7 +137,7 @@ export const listingOut = (l: Parameters<typeof serializeListing>[0]) => {
   const s = serializeListing(l)
   return {
     id: s.id, title: s.title, description: s.description, price: s.price, priceUnit: s.priceUnit, negotiable: s.negotiable,
-    status: s.status as ListingStatusOut, verified: s.verified, listingType: s.listingType, condition: s.condition,
+    status: s.status, verified: s.verified, listingType: s.listingType, condition: s.condition,
     location: s.location, district: s.district, city: s.city, images: s.images.map((u) => absoluteAssetUrl(u)), video: absoluteAssetUrl(s.video),
     category: { slug: s.category.slug, name: s.category.name }, subcategorySlug: s.subcategorySlug, postedAt: s.postedAt,
     views: s.views, contactCount: s.contactCount, url: listingPageUrl(s.id),
@@ -171,13 +173,13 @@ const LISTING_OUT = z.strictObject({
 /** A webhook as list_webhooks and register_webhook answer it. Events are stored as typed by register_webhook (the enum). */
 type WebhookRow = { id: string; url: string; events: string; enabled: boolean; failureCount: number; lastError: string | null; lastDeliveryAt: Date | null; createdAt: Date }
 const webhookOut = (h: WebhookRow) => ({
-  id: h.id, url: h.url, events: (h.events === '*' ? ['*'] : h.events.split(/\s+/).filter(Boolean)) as ('*' | (typeof WEBHOOK_EVENTS)[number])[],
+  id: h.id, url: h.url, events: h.events === '*' ? ['*'] : h.events.split(/\s+/).filter(Boolean),
   enabled: h.enabled, failure_count: h.failureCount, last_error: h.lastError, last_delivery_at: iso(h.lastDeliveryAt), created_at: h.createdAt.toISOString(),
 })
 const WEBHOOK_OUT = z.strictObject({
   id: z.string().describe('The webhook id; pass it to delete_webhook'),
   url: z.string().describe('The HTTPS address the events are posted to'),
-  events: z.array(z.enum(['*', ...WEBHOOK_EVENTS])).describe('The events it receives; ["*"] means every event'),
+  events: z.array(z.string()).describe('The events it receives: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
   enabled: z.boolean().describe('Whether events are being delivered; false once deliveries kept failing'),
   failure_count: z.number().describe('Failed deliveries in a row since the last success; 0 when the last one worked'),
   last_error: z.string().nullable().describe('Why the last delivery failed; null when it worked or none was sent yet'),
@@ -195,7 +197,7 @@ const SHOP_OUT = z.strictObject({
   phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page; null when not set'),
   avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL; null when it has none'),
   trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150: higher is more trusted'),
-  trust_tier: z.enum(TRUST_TIERS).describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
+  trust_tier: z.string().describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
   response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations'),
   member_since: z.string().describe('When the shop joined eno (ISO 8601)'),
   active_listings: z.number().describe('How many of its listings buyers can see on the site now; analytics_summary counts every status'),
@@ -209,7 +211,7 @@ async function readShop(sellerId: string) {
     select: { id: true, ownerId: true, name: true, bio: true, location: true, phone: true, avatarUrl: true, trustScore: true, trustTier: true, responseRate: true, memberSince: true, _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
   })
   if (!s || await isStorefrontGone(s, s._count.listings)) throw new ToolError('not_found', 'Shop not found.')
-  return { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: absoluteAssetUrl(s.avatarUrl), trust_score: s.trustScore, trust_tier: s.trustTier as TrustTier, response_rate: s.responseRate, member_since: s.memberSince.toISOString(), active_listings: s._count.listings }
+  return { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: absoluteAssetUrl(s.avatarUrl), trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: s.memberSince.toISOString(), active_listings: s._count.listings }
 }
 
 const createdOut = (c: Awaited<ReturnType<typeof createListingCore>>) => ({
@@ -240,7 +242,7 @@ const SYNC_ROW_OUT = z.strictObject({
 }).describe('What happened to one catalogue row')
 
 const analyticsRowOut = (r: AnalyticsListingRow) => ({
-  id: r.id, external_id: r.external_id, title: r.title, status: r.status as ListingStatusOut, views_total: r.views_total, leads_total: r.leads_total,
+  id: r.id, external_id: r.external_id, title: r.title, status: r.status, views_total: r.views_total, leads_total: r.leads_total,
   daily: r.daily.map((d) => ({ day: d.day, views: d.views, leads: d.leads })),
 })
 const ANALYTICS_ROW_OUT = z.strictObject({
@@ -265,9 +267,8 @@ const deletedOut = (hold: DeleteHoldReason | null) => hold
 // ⛔ COMPILE-TIME PINS (2026-11-15): each projection's type must EQUAL the type of the schema published for it, checked
 // both ways, so a field that turns nullable, changes type, goes missing OR is added without the schema fails `tsc` HERE,
 // not in a client validating structuredContent after a write has landed. (A conditional that resolves to `never` cannot
-// hold `true`; the tuple wraps stop it distributing over a union.) The enum casts inside the projections are measured, not
-// assumed: listing status (active|sold|hidden — tombstones never reach these tools), TrustTier (trust-math.ts tierFor is
-// its only writer) and webhook events (both writers, here and /api/v1/webhooks, check the same four or "*").
+// hold `true`; the tuple wraps stop it distributing over a union.) Values read from the database are plain strings in
+// both the projection and the schema (see LISTING_STATUS_OUT), so no cast can hide a stored value the schema refuses.
 type Fits<T, S extends z.ZodType> = [T] extends [z.infer<S>] ? ([z.infer<S>] extends [T] ? true : never) : never
 const PINS: [
   Fits<ReturnType<typeof listingOut>, typeof LISTING_OUT>,
@@ -484,7 +485,7 @@ export const TOOLS: McpTool[] = [
     description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns `ok: true` and the `status` the listing now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ ok: OK, status: LISTING_STATUS_OUT }).describe('Confirms the change and the listing\'s status now'),
+    output: z.strictObject({ ok: OK, status: LISTING_STATUS_SET }).describe('Confirms the change and the listing\'s status now'),
     input: z.object({ id: z.string().describe('The listing to change: the `id` that list_listings, get_listing or create_listing gave'), status: z.enum(['active', 'sold', 'hidden']).describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), active to put it back on sale') }),
     handler: async (auth, args) => {
       const id = String(args.id)
