@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   notifications: [] as Row[],
   updates: [] as Row[],
   refreshed: [] as string[][],
+  /** The photo-mark revokes the hold's transaction ran (data), applied with it. */
+  revoked: [] as Row[],
   /** The options each refreshListingSurfaces call carried (`home`, `teachers`). */
   refreshOpts: [] as Row[],
   /** Every listing read's arguments. */
@@ -41,6 +43,12 @@ vi.mock('@/lib/db', () => {
           if (!matches(h.row, a.where)) throw Object.assign(new Error('No record was found for an update.'), { code: 'P2025' })
           return { ...a.data }
         }),
+        // The photo hold's revoke (listing-photo-hold.ts): a conditional write on the mark, in the same transaction.
+        updateMany: (a: Row) => op(() => {
+          const hit = !!h.row && h.row.id === a.where.id && h.row.verificationNotes === a.where.verificationNotes
+          if (hit) h.revoked.push({ ...a.data })
+          return { count: hit ? 1 : 0 }
+        }),
       },
       report: { create: (a: Row) => op(() => a.data) },
       notification: { create: (a: Row) => op(() => a.data) },
@@ -50,7 +58,7 @@ vi.mock('@/lib/db', () => {
       $transaction: async (ops: Array<{ run: () => unknown }>) => {
         const results = ops.map((o) => o.run())
         const [listing, report, notification] = results as Row[]
-        Object.assign(h.row!, listing)
+        Object.assign(h.row!, listing, ...h.revoked)
         h.reports.push(report)
         if (notification) h.notifications.push(notification)
         return results
@@ -67,7 +75,7 @@ const { indexAndCheckProvenance } = await import('./image-provenance')
 beforeEach(() => {
   h.row = { id: 'COPY', images: JSON.stringify(['a.jpg', 'b.jpg', 'c.jpg']), status: 'active', sellerId: 's2', verified: true }
   h.duringQueries = null
-  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []
+  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []; h.revoked = []
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -96,6 +104,14 @@ describe('indexAndCheckProvenance — the hold', () => {
     h.row!.listingType = 'sell'
     await indexAndCheckProvenance('COPY')
     expect(h.refreshOpts).toEqual([{ home: true, teachers: false }])
+  })
+
+  // ⛔ A10 (listing-photo-hold.ts): a real photo added later must not publish what this check held.
+  it('⛔ a photo-held row it holds loses the photo mark in the same transaction', async () => {
+    Object.assign(h.row!, { verified: false, verificationNotes: 'photo:held' })
+    await indexAndCheckProvenance('COPY')
+    expect(h.row).toMatchObject({ status: 'hidden', verified: false, verificationNotes: null })
+    expect(h.reports).toHaveLength(1)
   })
 
   it('⛔ the hide carries the tombstone guard in its OWN where (atomic with the write)', async () => {

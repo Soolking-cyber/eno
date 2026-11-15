@@ -42,6 +42,7 @@ vi.mock('@/components/admin/admin-listings-client', () => ({
   AdminListingsClient: ({ licenceGrandfatherUntil }: { licenceGrandfatherUntil?: string }) => <div data-listings-console={licenceGrandfatherUntil} />,
 }))
 vi.mock('@/components/admin/admin-brands-client', () => ({ AdminBrandsClient: () => <div data-brands-console="" /> }))
+vi.mock('@/components/admin/listing-photo-checks', () => ({ ListingPhotoChecks: () => <div data-listing-photo-checks="" /> }))
 
 import AdminCataloguePage from './catalogue/page'
 import AdminOverviewPage from './page'
@@ -63,10 +64,18 @@ describe('Admin › Catalogue — the Licence checks tab', () => {
       ['Licence checks', '/admin/catalogue?tab=licences', 'page'],
       // Teacher photos (2026-10-16): the profile-photo check's refusals and asks, with the "Photo is fine" override.
       ['Teacher photos', '/admin/catalogue?tab=teacher-photos', null],
+      // Listing photos (2026-11-15): what the listing photo check held or removed, with the same override.
+      ['Listing photos', '/admin/catalogue?tab=listing-photos', null],
       ['Brands', '/admin/catalogue?tab=brands', null],
     ])
     expect(doc.querySelector('[data-licence-checks]')).not.toBeNull()
     expect(doc.querySelector('[data-listings-console]')).toBeNull()
+  })
+
+  it('?tab=listing-photos renders the listing photo checks', async () => {
+    const doc = await catalogue('listing-photos')
+    expect(doc.querySelector('[data-listing-photo-checks]')).not.toBeNull()
+    expect(doc.querySelector('nav a[aria-current="page"]')?.textContent).toBe('Listing photos')
   })
 
   it('the listings tab (and the default) hands the console the grandfather’s end date', async () => {

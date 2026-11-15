@@ -140,6 +140,8 @@ export type LicenceMarkFacts = { verified: boolean; identityHold: boolean; verif
  * The mark a licence hold writes: the hold's own only for a row that was live, identity-parked or already marked. A review
  * seat's held row keeps the SEAT's mark (review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) — never the licence mark, which
  * 'licence-approve' would publish by, nor null, which would hide from the admin queue why it waits.
+ * A photo-held row (listing-photo-hold.ts) gets null: a licence hold ends the photo hold's release (A10), and an admin
+ * Publish decides it from then on.
  */
 export function licenceHeldMark(row: LicenceMarkFacts): { verificationNotes: string | null } {
   if (row.verificationNotes === REVIEW_SEAT_HELD_NOTE) return { verificationNotes: REVIEW_SEAT_HELD_NOTE }

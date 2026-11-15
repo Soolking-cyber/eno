@@ -42,6 +42,7 @@ import { journalDirProblem } from '../src/lib/honeycomb-listing'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { HOST_EDGE, imageVerdict, measureImage } from '../src/lib/import-photo-check'
 import { browseRankScore } from '../src/lib/ranking-formula'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 
 const argv = process.argv.slice(2)
 const APPLY = argv.includes('--apply')
@@ -150,6 +151,7 @@ async function main() {
     console.log(`translations      ${translated} written`)
 
     let created = 0, failed = 0
+    const photoIds: string[] = []
     const hostPhotos = async (bike: BlvckBike): Promise<string[]> => {
       const urls: string[] = []
       for (const src of feed.get(bike.slug)!.photos) {
@@ -164,27 +166,32 @@ async function main() {
       }
       return urls
     }
-    for (const bike of todo) {
-      const row = stageBlvckBike(bike)
-      const photos = await hostPhotos(bike)
-      if (photos.length < BLVCK_MIN_PHOTOS) { failed++; console.warn(`  ⛔ ${bike.slug}: only ${photos.length} photos hosted, not created`); continue }
-      recordDurably(CREATED, JSON.stringify({ planned: row.externalId, at: new Date().toISOString() }))
-      const now = new Date()
-      const made = await db.listing.create({
-        data: {
-          ...row, categoryId: category.id, sellerId: seller!.id,
-          // ⛔ `verified` is the publication gate (feed-query pins it), asked above; the badge is Seller.verified.
-          status: 'active', verified: true,
-          images: JSON.stringify(photos),
-          postedAt: now, availabilityConfirmedAt: now,
-          sellerTrustScore: seller!.trustScore,
-          rankScore: browseRankScore({ sellerTrustScore: seller!.trustScore, postedAt: now, featured: false }, Date.now()),
-        },
-        select: { id: true },
-      })
-      recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: row.externalId, at: new Date().toISOString() }))
-      created++
-      console.log(`  created ${made.id}  ${row.title}  (${photos.length} photos)`)
+    try {
+      for (const bike of todo) {
+        const row = stageBlvckBike(bike)
+        const photos = await hostPhotos(bike)
+        if (photos.length < BLVCK_MIN_PHOTOS) { failed++; console.warn(`  ⛔ ${bike.slug}: only ${photos.length} photos hosted, not created`); continue }
+        recordDurably(CREATED, JSON.stringify({ planned: row.externalId, at: new Date().toISOString() }))
+        const now = new Date()
+        const made = await db.listing.create({
+          data: {
+            ...row, categoryId: category.id, sellerId: seller!.id,
+            // ⛔ `verified` is the publication gate (feed-query pins it), asked above; the badge is Seller.verified.
+            status: 'active', verified: true,
+            images: JSON.stringify(photos),
+            postedAt: now, availabilityConfirmedAt: now,
+            sellerTrustScore: seller!.trustScore,
+            rankScore: browseRankScore({ sellerTrustScore: seller!.trustScore, postedAt: now, featured: false }, Date.now()),
+          },
+          select: { id: true },
+        })
+        recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: row.externalId, at: new Date().toISOString() }))
+        created++; photoIds.push(made.id)
+        console.log(`  created ${made.id}  ${row.title}  (${photos.length} photos)`)
+      }
+    } finally {
+      // A throw out of the loop still queues the rows already written for the photo check.
+      if (APPLY) await enqueuePhotoChecks(db, photoIds)
     }
 
     // The shop's address is the storefront's; a listing text may not carry one (blvck-listing.ts). An admin's own stands.

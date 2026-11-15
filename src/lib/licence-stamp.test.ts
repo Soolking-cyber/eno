@@ -312,6 +312,8 @@ describe('licenceHeldMark — the licence hold keeps its own mark only for a row
     ['a row still waiting (marked)', { verified: false, identityHold: false, verificationNotes: LICENCE_HELD_NOTE }, LICENCE_HELD_NOTE],
     ['a row something else took down (unmarked)', { verified: false, identityHold: false, verificationNotes: null }, null],
     ['a row carrying anything else in the column', { verified: false, identityHold: false, verificationNotes: 'legacy note' }, null],
+    // ⛔ A10 (listing-photo-hold.ts): a licence hold ends the photo hold's release — never kept, never turned into its own.
+    ['a photo-held row', { verified: false, identityHold: false, verificationNotes: 'photo:held' }, null],
   ])('%s → %s', (_label, row, mark) => {
     expect(licenceHeldMark(row)).toEqual({ verificationNotes: mark })
   })

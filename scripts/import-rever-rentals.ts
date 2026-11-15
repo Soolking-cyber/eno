@@ -42,6 +42,7 @@ import { roomAttributes } from '../src/lib/taxonomy'
 import { localizeReferenceImportText, untranslatedSummary, type LocalizedImportTexts } from '../src/lib/import-i18n'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 
 /**
  * ⛔ THE SELLER IS PINNED BY ID, NEVER LOOKED UP BY NAME. `Seller.name` has NO unique constraint
@@ -310,84 +311,91 @@ async function main() {
   // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
   const removed = new Set((await db.listing.findMany({ where: { sellerId: SELLER_ID, status: 'removed' }, select: { externalId: true } })).map((l) => l.externalId))
   let created = 0, updated = 0, skippedRemoved = 0
-  for (const r of batch) {
-    if (removed.has(`rever:${r.id}`)) { skippedRemoved++; continue }
-    const price = r._price as number
-    /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
-    const { title, titleVi, description, descriptionVi } = compose(r, price)
-    const c = { title, titleVi, description, descriptionVi }
-    const images = (r.images as unknown[]).filter(allowedImage)
-    /**
-     * ⛔ A MISSING BEDROOM COUNT IS NOT A STUDIO. `Number(r.bedrooms || 0)` mapped absent to 0, and
-     * the taxonomy's `bedrooms` facet reads '0' as "Studio" — so 446 listings, mostly offices,
-     * land and shops, would have been filed under a studio-flat filter. Omit the attribute when
-     * there is no value; a null facet is honest, a wrong one is a lie a buyer filters on.
-     */
-    // Bedrooms AND bathrooms, clamped at the taxonomy's open-ended top bucket (6+) — roomAttributes.
-    const attributes = roomAttributes({ bedrooms: r.bedrooms, bathrooms: r.bathrooms })
-    const externalId = `rever:${r.id}`
-    seen.add(externalId)
+  const photoIds: string[] = []
+  try {
+    for (const r of batch) {
+      if (removed.has(`rever:${r.id}`)) { skippedRemoved++; continue }
+      const price = r._price as number
+      /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
+      const { title, titleVi, description, descriptionVi } = compose(r, price)
+      const c = { title, titleVi, description, descriptionVi }
+      const images = (r.images as unknown[]).filter(allowedImage)
+      /**
+       * ⛔ A MISSING BEDROOM COUNT IS NOT A STUDIO. `Number(r.bedrooms || 0)` mapped absent to 0, and
+       * the taxonomy's `bedrooms` facet reads '0' as "Studio" — so 446 listings, mostly offices,
+       * land and shops, would have been filed under a studio-flat filter. Omit the attribute when
+       * there is no value; a null facet is honest, a wrong one is a lie a buyer filters on.
+       */
+      // Bedrooms AND bathrooms, clamped at the taxonomy's open-ended top bucket (6+) — roomAttributes.
+      const attributes = roomAttributes({ bedrooms: r.bedrooms, bathrooms: r.bathrooms })
+      const externalId = `rever:${r.id}`
+      seen.add(externalId)
 
-    /**
-     * ⛔ `status` AND `verified` ARE CREATE-ONLY. They were in the shared `data` object, so every
-     * re-run rewrote them — silently re-publishing any row a moderator had hidden or held, with no
-     * warning. Refreshing price and availability must never override a human moderation decision.
-     */
-    const mutable = {
-      ...c,
-      price, priceUnit: 'VND', currency: '₫',
-      negotiable: false,
-      listingType: 'rent',
-      categoryId: category.id,
-      subcategorySlug: SUBCAT[r.property_type] ?? null,
-      sellerId: SELLER_ID,
-      location: r.full_address ?? [r.ward, r.district, r.city].filter(Boolean).join(', '),
-      district: r.district ?? null,
-      city: r.city ?? 'Hồ Chí Minh',
       /**
-       * ⛔ COORDINATES ARE RANGE-CHECKED, NOT JUST PASSED THROUGH. A string, a null island (0,0) or
-       * a swapped lat/lng puts a map pin in the Gulf of Guinea or the wrong hemisphere — this repo
-       * has already shipped a version of that bug once. Bounds are Vietnam's land extent with room
-       * to spare; anything outside stores null, which renders no pin rather than a wrong one.
-       * A non-finite `area_m2` would also throw mid-loop, leaving a partial import.
+       * ⛔ `status` AND `verified` ARE CREATE-ONLY. They were in the shared `data` object, so every
+       * re-run rewrote them — silently re-publishing any row a moderator had hidden or held, with no
+       * warning. Refreshing price and availability must never override a human moderation decision.
        */
-      lat: inRange(r.latitude, 8, 24) ? r.latitude : null,
-      lng: inRange(r.longitude, 102, 110) ? r.longitude : null,
-      areaM2: Number.isFinite(r.area_m2) && r.area_m2 > 0 ? r.area_m2 : null,
-      attributes,
-      affiliateUrl: r.url,
-      /** ⚠️ Spread conditionally: with no --buildings file this key is ABSENT from the update
-       *  payload, so Prisma leaves the column alone. Writing `null` would un-group every row. */
-      ...(buildingOf.has(r.url) ? { buildingKey: buildingOf.get(r.url)! } : {}),
-      searchText: buildSearchText([c.title, c.titleVi, r.full_address, r.district, r.property_type]),
+      const mutable = {
+        ...c,
+        price, priceUnit: 'VND', currency: '₫',
+        negotiable: false,
+        listingType: 'rent',
+        categoryId: category.id,
+        subcategorySlug: SUBCAT[r.property_type] ?? null,
+        sellerId: SELLER_ID,
+        location: r.full_address ?? [r.ward, r.district, r.city].filter(Boolean).join(', '),
+        district: r.district ?? null,
+        city: r.city ?? 'Hồ Chí Minh',
+        /**
+         * ⛔ COORDINATES ARE RANGE-CHECKED, NOT JUST PASSED THROUGH. A string, a null island (0,0) or
+         * a swapped lat/lng puts a map pin in the Gulf of Guinea or the wrong hemisphere — this repo
+         * has already shipped a version of that bug once. Bounds are Vietnam's land extent with room
+         * to spare; anything outside stores null, which renders no pin rather than a wrong one.
+         * A non-finite `area_m2` would also throw mid-loop, leaving a partial import.
+         */
+        lat: inRange(r.latitude, 8, 24) ? r.latitude : null,
+        lng: inRange(r.longitude, 102, 110) ? r.longitude : null,
+        areaM2: Number.isFinite(r.area_m2) && r.area_m2 > 0 ? r.area_m2 : null,
+        attributes,
+        affiliateUrl: r.url,
+        /** ⚠️ Spread conditionally: with no --buildings file this key is ABSENT from the update
+         *  payload, so Prisma leaves the column alone. Writing `null` would un-group every row. */
+        ...(buildingOf.has(r.url) ? { buildingKey: buildingOf.get(r.url)! } : {}),
+        searchText: buildSearchText([c.title, c.titleVi, r.full_address, r.district, r.property_type]),
+      }
+      const res = await db.listing.upsert({
+        where: { sellerId_externalId: { sellerId: SELLER_ID, externalId } },
+        /**
+         * ⛔ `verified` IS THE PUBLICATION GATE, NOT A TRUST BADGE. `feed-query.ts` pins
+         * `verifiedFilter = true` with "public callers ALWAYS get verified-only", so `false` means the
+         * row exists and is reachable by nobody — it renders "Held" in the dashboard, never on the
+         * site. The first run wrote 1,100 rows with `false` and /c/rentals showed "0 listings".
+         * The buyer-facing trust signal is `Seller.verified`, a different column, which stays FALSE.
+         */
+        /**
+         * ⛔ `images` IS CREATE-ONLY, AND THIS IS LOAD-BEARING. It used to sit in `mutable`, i.e. in the
+         * UPDATE payload, so re-running this importer would have overwritten every re-hosted photo url
+         * with a `photo.rever.vn` hotlink again — silently undoing `attach-rever-photos.ts` and taking
+         * the eno.vn watermark with it, because the overlay only renders under `listings/affiliate/m/`.
+         * A reviewer caught it here; the identical bug was caught on the Batdongsan importer days
+         * earlier, which is why it is worth stating twice: a re-import refreshes PRICES and AVAILABILITY,
+         * it does not own the pictures.
+         * ⚠️ THE COST, STATED: a re-import can no longer REPAIR images either. A row whose photos are
+         * still hotlinked or broken stays that way until `attach-rever-photos.ts` runs — that script
+         * owns this column now, and it is the one to reach for, not a re-import.
+         */
+        create: { ...mutable, externalId, status: 'active', verified: true, images: JSON.stringify(images) },
+        update: mutable,
+        select: { id: true, createdAt: true, updatedAt: true },
+      })
+      if (res.createdAt.getTime() === res.updatedAt.getTime()) { created++; photoIds.push(res.id) } else updated++
+      if ((created + updated) % 200 === 0) console.log(`  ${created + updated}/${batch.length}`)
     }
-    const res = await db.listing.upsert({
-      where: { sellerId_externalId: { sellerId: SELLER_ID, externalId } },
-      /**
-       * ⛔ `verified` IS THE PUBLICATION GATE, NOT A TRUST BADGE. `feed-query.ts` pins
-       * `verifiedFilter = true` with "public callers ALWAYS get verified-only", so `false` means the
-       * row exists and is reachable by nobody — it renders "Held" in the dashboard, never on the
-       * site. The first run wrote 1,100 rows with `false` and /c/rentals showed "0 listings".
-       * The buyer-facing trust signal is `Seller.verified`, a different column, which stays FALSE.
-       */
-      /**
-       * ⛔ `images` IS CREATE-ONLY, AND THIS IS LOAD-BEARING. It used to sit in `mutable`, i.e. in the
-       * UPDATE payload, so re-running this importer would have overwritten every re-hosted photo url
-       * with a `photo.rever.vn` hotlink again — silently undoing `attach-rever-photos.ts` and taking
-       * the eno.vn watermark with it, because the overlay only renders under `listings/affiliate/m/`.
-       * A reviewer caught it here; the identical bug was caught on the Batdongsan importer days
-       * earlier, which is why it is worth stating twice: a re-import refreshes PRICES and AVAILABILITY,
-       * it does not own the pictures.
-       * ⚠️ THE COST, STATED: a re-import can no longer REPAIR images either. A row whose photos are
-       * still hotlinked or broken stays that way until `attach-rever-photos.ts` runs — that script
-       * owns this column now, and it is the one to reach for, not a re-import.
-       */
-      create: { ...mutable, externalId, status: 'active', verified: true, images: JSON.stringify(images) },
-      update: mutable,
-      select: { id: true, createdAt: true, updatedAt: true },
-    })
-    if (res.createdAt.getTime() === res.updatedAt.getTime()) created++; else updated++
-    if ((created + updated) % 200 === 0) console.log(`  ${created + updated}/${batch.length}`)
+  } finally {
+    // The new rows, for the photo check (their photos are hotlinked until attach-rever-photos.ts re-hosts them) — in a
+    // finally, so a throw out of the loop still queues the rows already written.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   /**

@@ -9,6 +9,7 @@ import { quickThinking } from '@/lib/gemini-model'
 import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { PHOTO_HELD_NOTE } from '@/lib/listing-photo-hold'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
@@ -197,6 +198,9 @@ export async function moderateListingById(listingId: string): Promise<void> {
         },
       }))
     }
+    // ⛔ …and a photo hold on it ends with this takedown, in the same transaction (listing-photo-hold.ts, A10): a real photo
+    // added later must not publish what this check held.
+    writes.push(db.listing.updateMany({ where: { id: l.id, verificationNotes: PHOTO_HELD_NOTE }, data: { verificationNotes: null } }))
     await db.$transaction(writes)
     // Drop the cached page NOW: the edit path re-rendered it with this content moments before the
     // hold landed, and the PDP's ISR window is 30 days. Also removes it from AI search. A teacher's profile (the

@@ -153,6 +153,10 @@ declare -A SCHED=(
   # ⛔ The classroom cannot be switched ON without it: each run stamps classroom_config.swept_at, and the switch's writers
   # refuse any mode but 'off' unless that is fresh (src/lib/classroom/config.ts SWEEP_FRESH_S).
   [classroom-sweep]="*-*-* *:00/5:20 UTC"
+  # The listing photo sweep (owner, 2026-11-15 — src/app/api/cron/listing-photos/route.ts): hourly at :20 — the queue, what
+  # changed, and the weekly walk. POLICY: a real run holds and strips listings and bells their sellers. Enabled by hand once
+  # the owner has read the dry-run counts; until PHOTO_RULES_WRITE=1 is in the container every run is a dry run anyway.
+  [listing-photos]="*-*-* *:20:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -252,7 +256,9 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
 # teacher-job-dms + job-dms-invite (2026-10-20): POLICY — they message teachers; enable each by hand after its dry run:
 #   systemctl enable --now eno-cron-teacher-job-dms.timer eno-cron-job-dms-invite.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep)
+# listing-photos (2026-11-15): POLICY — it holds listings and bells sellers; enable it after the dry runs:
+#   systemctl enable --now eno-cron-listing-photos.timer
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep listing-photos)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -346,6 +352,9 @@ for job in "${!SCHED[@]}"; do
   [ "$job" = calls-sweep ] && TARGET="eno.vn 3001"
   # ⚠️ classroom-sweep too: the classroom is eno.vn's and its rows are in the shared database — once, on eno.vn.
   [ "$job" = classroom-sweep ] && TARGET="eno.vn 3001"
+  # ⚠️ listing-photos runs ONCE, on eno.vn (the route answers {skipped:'marketplace_only'} on eno.forum), with a 900 s curl:
+  # the route's own maxDuration (it stops starting passes at 780 s).
+  [ "$job" = listing-photos ] && TARGET="eno.vn 3001 900"
   # ⚠️ secondhand-showcase runs ONCE, on eno.vn (the listings and the ISR invalidations are shared), with a 30-minute curl
   # (eno-cron.sh's 4th argument) — it reads ~17 shops politely — and its answer, the run's journal, kept for a rollback.
   # TimeoutStartSec spelled out (a oneshot unit has none by default) so nothing cuts the curl before its own 1800 s.

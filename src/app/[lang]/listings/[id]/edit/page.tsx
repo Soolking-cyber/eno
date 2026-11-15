@@ -13,6 +13,7 @@ import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { deskSellerIds } from '@/lib/edition-scope'
 import { LICENCE_WHITELIST, licenceCleared } from '@/lib/licence-stamp'
 import { editFormAttributes } from '@/lib/multi-facet'
+import { photoRefusalsFor } from '@/lib/listing-photo-refusal'
 
 /** A pre-salary-rule job's monthly price as whole millions on the salary facet's scale, or null.
  *  ⚠️ ROUNDED DOWN (salaryMFromPrice), never to the nearest: an untouched 12,500,000 ₫ job opened and
@@ -91,6 +92,11 @@ export default async function EditListingPage({ params }: Props) {
     exemptAisles,
   }
 
+  const images = safeParse<string[]>(listing.images, [])
+  // Photos whose refusal is confirmed open marked, so Save is refused as Publish is (the cache only; a failure marks none).
+  // Every photo here is already on the listing: while writes are off, none is marked (`existing`).
+  const photoRefused = await photoRefusalsFor(images, { category: listing.category.slug, subcategory: listing.subcategorySlug, sellerId: listing.sellerId, listingId: listing.id, existing: listing.images }).catch(() => [])
+
   const edit: ListingEditData = {
     id: listing.id,
     title: listing.title,
@@ -126,9 +132,10 @@ export default async function EditListingPage({ params }: Props) {
     area: resolveStoredArea(vnUnits, listing.city, listing.district),
     lat: listing.lat,
     lng: listing.lng,
-    images: safeParse<string[]>(listing.images, []),
+    images,
     video: listing.video,
     licence,
+    photoRefused,
   }
 
   return (

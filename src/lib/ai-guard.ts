@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { kv, rateLimit } from '@/lib/ratelimit'
 
 // Single gate for every paid AI endpoint (concierge, classify, rephrase, visual-search).
 // AI is LOGIN-ONLY + a hard per-account hourly cap so a bad actor (or a bot crawling the
@@ -49,6 +49,45 @@ export async function chargeAiGlobal(feature: string): Promise<boolean> {
 /** Teacher onboarding's reserved daily budget — not the shared pool (item 19). */
 export async function chargeAiTeacherReserve(): Promise<boolean> {
   return (await rateLimit('ai-global-teachers', 'global', AI_TEACHER_RESERVE_DAILY, '1 d', { strict: true })).success
+}
+
+/**
+ * ⛔ THE LISTING PHOTO CHECK HAS ITS OWN CEILING, OUTSIDE THE 2,000 ABOVE (owner, 2026-11-15: no flyers or contact details
+ * in listing photos). It is moderation of what someone chose to publish, not a feature a member asks for, and one backfill
+ * day alone needs more than the whole authoring pool. Three lanes, so a sweep cannot starve a Publish; together they ARE
+ * the ceiling (16,000 a day). EVERY model call is charged — a hedge's backup and a confirming second read too
+ * (listing-photo-check.ts). Strict: an unreachable limiter refuses.
+ */
+export const AI_LISTING_PHOTO_LANES = { upload: 3_000, pass: 3_000, sweep: 10_000 } as const
+export type PhotoCheckLane = keyof typeof AI_LISTING_PHOTO_LANES
+export const AI_LISTING_PHOTO_DAILY = AI_LISTING_PHOTO_LANES.upload + AI_LISTING_PHOTO_LANES.pass + AI_LISTING_PHOTO_LANES.sweep
+
+// ⚠️ A UTC-day counter, not rl_check: rl_check counts a refused call too, so a sweep that kept asking held its lane shut.
+const laneKey = (lane: PhotoCheckLane) => `ai-global-listing-photos-${lane}:${new Date().toISOString().slice(0, 10)}`
+
+/** One listing-photo model call, charged to its lane; a refusal is not counted. */
+export async function chargeAiPhotoCheck(lane: PhotoCheckLane): Promise<boolean> {
+  try {
+    if ((await kv.incrby(laneKey(lane), 1, 2 * 86_400)) <= AI_LISTING_PHOTO_LANES[lane]) return true
+    await kv.incrby(laneKey(lane), -1, 2 * 86_400)
+  } catch { /* strict */ }
+  return false
+}
+
+/** Room left in the lane today — read, never charged (asked before a download). */
+export async function photoLaneOpen(lane: PhotoCheckLane): Promise<boolean> {
+  try { return Number((await kv.get<number>(laneKey(lane))) ?? 0) < AI_LISTING_PHOTO_LANES[lane] } catch { return false }
+}
+
+/**
+ * A member's own Publish checks, per PHOTO, asked BEFORE the upload lane (item 19's lesson: a few accounts must not spend
+ * everyone's lane). Over it, the photo is checked from the cache only and published; the pass decides. A guest gets no
+ * paid check at all (/api/upload). Strict.
+ */
+export const AI_LISTING_PHOTO_ACCOUNT = { hour: 40, day: 120 } as const
+export async function chargeAccountPhotoCheck(profileId: string): Promise<boolean> {
+  if (!(await rateLimit('ai-listing-photos-account-h', profileId, AI_LISTING_PHOTO_ACCOUNT.hour, '1 h', { strict: true })).success) return false
+  return (await rateLimit('ai-listing-photos-account-d', profileId, AI_LISTING_PHOTO_ACCOUNT.day, '1 d', { strict: true })).success
 }
 
 type Gate = { ok: true; profileId: string } | { ok: false; res: NextResponse }

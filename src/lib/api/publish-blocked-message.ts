@@ -43,6 +43,8 @@ export function publishBlockedApiMessage(code: PublishBlockCode, detail?: string
     case 'job_candidate_fee':
     case 'job_adult_venue':
       return JOB_TEXT_REFUSAL[code].en
+    // The listing photo check (2026-11-15): `detail` names each refused image as '<rule>:<url>'.
+    case 'photo_not_allowed': return 'Some images are flyers or show a phone number or other contact details (see detail) — remove them, then post again.'
     default: {
       const unhandled: never = code
       return unhandled

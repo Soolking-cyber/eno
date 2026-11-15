@@ -15,6 +15,9 @@ const h = vi.hoisted(() => ({
   openReports: 0,
   seller: null as null | { id: string; avatarUrl: string | null; bannerUrl: string | null },
   listings: [] as Array<{ id: string; images: string; video: string | null }>,
+  /** Strip audits on the listings (`listing.photo.stripped` — listing-photo-pass.ts) and what the read asked for. */
+  strips: [] as Array<{ detail: unknown }>,
+  stripReads: [] as unknown[],
   identities: [] as Array<{ id: string; evidence: Record<string, unknown> }>,
   events: [] as string[],
   tombstones: [] as Array<{ bucket: string; path: string }>,
@@ -111,6 +114,7 @@ vi.mock('@/lib/db', () => {
     },
     profile: { delete: async () => { h.events.push('profile-deleted'); return {} } },
     teacherPrivate: { findFirst: async () => h.teacherPrivate },
+    complianceAudit: { findMany: async (a: unknown) => { h.stripReads.push(a); return h.strips } },
     $queryRaw: async (strings: TemplateStringsArray) =>
       strings.join('?').includes('DealConfirmation') ? [{ deals: h.dealTables, events: h.dealTables }] : [{ ok: h.callTables }],
     dealConfirmation: { deleteMany: async ({ where }: { where: unknown }) => { h.dealDeletes.push({ table: 'DealConfirmation', where }); h.events.push('deal-rows'); return { count: 1 } } },
@@ -266,6 +270,7 @@ beforeEach(() => {
   h.events = []; h.tombstones = []; h.audits = []; h.identityUpdates = []; h.purged = []; h.cleared = []; h.deskListError = false; h.authDeletes = 0
   h.ownedListError = false
   h.teacherPrivate = null
+  h.strips = []; h.stripReads = []
   h.ownedTop = [{ id: null, name: 'identity' }, { id: 'b1', name: 'licence.pdf' }]
   h.ownedIdentity = [{ id: 'i1', name: 'document-1.jpg' }, { id: 'i2', name: 'selfie-1.jpg' }]
   h.authDeleteStatus = 200; h.authDeleteBody = {}; h.duringAuthDelete = null; h.crashAfterCommit = false; h.pendingTx = []; h.txFails = false
@@ -285,6 +290,16 @@ describe('eraseAccount', () => {
       { bucket: 'teacher-cvs', path: 'tp1/cv-1.pdf' },
       { bucket: 'teacher-videos', path: 'p1/aaaaaaaa-0000-4000-8000-000000000000.mp4' },
     ]))
+  })
+
+  // ⛔ The photos the photo check took off a listing are kept 180 days for a restore (listing-photo-pass.ts): an erasure
+  // takes them with the account, now — tombstoned with the rest, and on the fast-path purge.
+  it('⛔ photos the photo check removed from the listings go with the account, at once', async () => {
+    h.strips = [{ detail: { before: ['https://proj/listings/1.webp', 'https://proj/listings/flyer.webp'], removed: [{ i: 1, url: 'https://proj/listings/flyer.webp', key: 'flyer.webp', rule: 'flyer' }] } }, { detail: { junk: true } }]
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.stripReads[0]).toMatchObject({ where: { action: 'listing.photo.stripped', subjectType: 'listing', subjectId: { in: ['l1'] } } })
+    expect(h.tombstones).toEqual(expect.arrayContaining([{ bucket: 'listings', path: 'flyer.webp' }]))
+    expect(h.purged).toEqual(expect.arrayContaining(['https://proj/listings/flyer.webp']))
   })
 
   it('refuses under the investigation hold before touching anything', async () => {

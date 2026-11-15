@@ -103,6 +103,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { browseRankScore } from '../src/lib/ranking-formula'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import { minPhotosFor } from '../src/lib/publish-guard'
 import { untranslatedSummary } from '../src/lib/import-i18n'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
@@ -796,6 +797,8 @@ async function main() {
    * failed retire, a failed tombstone) still pays what is owed before the process exits. Anything still
    * owed after that is written to OWED as paste-ready SQL and the run exits non-zero.
    */
+  // Rows created or revived, for the photo check (listing-photo-queue.ts).
+  const photoIds: string[] = []
   const ledger = makeTombstoneLedger((ids) => tombstonePdps(db, ids))
   try {
     for (const p of [...toUpdate, ...toCreate]) {
@@ -844,6 +847,7 @@ async function main() {
           if (!moved.count) { if (Object.keys(data).length || p.dated.revive) stat.raced++; continue }
           /** The rollback line only now — the write moved the row — guarded on what it created, with its tombstone. */
           if (undo) recordDurably(ROLLBACK, undo)
+          if (p.dated.revive) photoIds.push(p.s.id)
           if (p.dated.revive) { stat.revived++; await ledger.pay() }
           if (p.changed!.length) stat.updated++
           if (p.dated.postedAt) stat.redated++
@@ -892,6 +896,7 @@ async function main() {
           select: { id: true },
         })
         recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId, images: urls.length }))
+        photoIds.push(created.id)
         stat.created++
         if (stat.created % 25 === 0) console.log(`  ${stat.created} created · ${stat.uploaded} photos`)
       } catch (e) {
@@ -934,6 +939,8 @@ async function main() {
       console.error(`\n⛔ ${owed.length} page(s) changed visibility but have NO ISR tombstone (${(e as Error).message.slice(0, 160)}): ${owed.join(', ')}\n  run ${OWED}, or:\n${sql}`)
       process.exitCode = 1
     }
+    // A throw mid-write still queues the rows already written for the photo check.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@/generated/prisma/client'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
@@ -11,6 +10,7 @@ import { appendAudit } from '@/lib/compliance/audit'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { licenceBlockedIds } from '@/lib/core/licence-check'
+import { OPEN_CASE, OWNER_PULLED, publishListings } from '@/lib/core/publish-listings'
 import { deskSellerIds } from '@/lib/edition-scope'
 import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { notifyDispute } from '@/lib/dispute'
@@ -22,67 +22,11 @@ import { attributeBag, isLicenceCheckSlot, LICENCE_CHECK_SUBCATEGORIES, VISA_CAT
 import { checkProviderLicence, isEnterpriseCodeForm, providerLicenceFromInput, providerLicenceOf } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, LICENCE_STAMP_PREFIX, isLicenceWhitelisted, licenceClearedWhere, licenceWhitelistWhere, licenceStampFor, licenceStateOf } from '@/lib/licence-stamp'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
-import { NOT_A_REVIEW_SEATS_LISTING, isReviewSeatEmail } from '@/lib/review-seat-accounts'
+import { PHOTO_HELD_NOTE } from '@/lib/listing-photo-hold'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { reviewSeatListingIds } from '@/lib/review-seat-listings'
 
 export const dynamic = 'force-dynamic'
-
-/** Report states that keep a licence approval from publishing (R4): a case still open, or one upheld against the row. */
-const OPEN_CASE = ['open', 'confirmed']
-/** Owner enforcement states under which an approval publishes nothing — the hold pulled the account's listings. */
-const OWNER_PULLED = ['held', 'suspended']
-
-/**
- * ⚖️ PUBLISH — "verify", and the publish half of 'licence-approve' (owner, 2026-10-14). The verify body, moved here
- * unchanged but for the licence check:
- *   · ⛔ UNCLEARED LICENCE-AISLE ROWS ARE LEFT OUT FIRST (licenceBlockedIds — a non-desk e-Visa or Legal & permits
- *     listing whose provider values eno has not approved as they stand) and counted as `licenceCheck`: they go live only
- *     through Catalogue › Licence checks. Not parked either — an identity hold on one would be a publish the moment its
- *     seller verifies (releaseIdentityHolds), the licence aside;
- *   · both writes AND licenceClearedWhere(desk), the necessary condition that closes the race with an edit clearing the
- *     stamp between the pre-filter and the write. Spelled in the call, where public-state-writes.test.ts looks for it;
- *   · `onlyIf` is ANDed into both writes as well — 'licence-approve' passes "no open or confirmed report, owner not held
- *     or suspended, not Restricted, still carrying the licence hold's mark" (R4, plan review 2026-10-14; commit gate), so
- *     a report filed, a hold applied or an Unverify landing after its read cannot be published over. "verify" passes
- *     nothing: Publish has always been the admin's own call on those;
- *   · the publish write drops the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE), as every publish of an
- *     existing row does (compliance/public-state-writes.test.ts): a public row is nobody's hold. The park keeps it.
- * Everything else — the identity gate's partition, the park, the re-check (settleHolds) and the counts — is the verify
- * branch's, and its comments below say why.
- */
-async function publishListings(
-  ids: string[], desk: string[], onlyIf?: Prisma.ListingWhereInput,
-): Promise<{ affected: number; held: number; alreadyHeld: number; licenceCheck: number }> {
-  const blocked = await licenceBlockedIds(ids, desk)
-  const eligible = blocked.size ? ids.filter((id) => !blocked.has(id)) : ids
-  // ⚖️ For an owner the identity gate refuses, the admin's approval is recorded as a HOLD (identityHold) and becomes a
-  // publish the moment they verify. Never a silent no-op. A gated row that is ALREADY verified is left exactly as it is
-  // (counted, not rewritten): the gate governs entering public state, and re-verifying must not turn into a takedown.
-  const { allowed, held: gated } = await partitionByIdentityGate(eligible)
-  // `identityHold: false` rides the publish: a row parked earlier (the gate was on and has since
-  // been switched off, or the owner verified and the release missed it) must not go live still
-  // carrying a hold. Only the response is pinned byte-identical with the gate off — this column
-  // is already false on every row the gate never touched.
-  // ⛔ …and never a review seat's row (src/lib/review-seat-accounts.ts): the POST refuses one before this is reached, and
-  // both writes AND the owner test as well, so nothing between that read and these writes can publish or park one.
-  let affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING, ...(onlyIf ? [onlyIf] : [])] }, data: { verified: true, identityHold: false, verificationNotes: null } })).count : 0
-  let held = 0
-  let alreadyHeld = 0
-  if (gated.length) {
-    // Read BEFORE the park and the re-check: afterwards a parked row and a pre-existing hold look
-    // the same, and a pre-existing hold the re-check released would look "already verified".
-    const before = await db.listing.findMany({ where: { id: { in: gated }, ...NOT_REMOVED }, select: { verified: true, identityHold: true } })
-    alreadyHeld = before.filter((r) => !r.verified && r.identityHold).length
-    // `identityHold: false` in the WHERE: an already-parked row is not parked again, so it can
-    // never be counted as held by this request.
-    const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: false, identityHold: false, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING, ...(onlyIf ? [onlyIf] : [])] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
-    const released = parked.length ? await settleHolds(parked) : 0
-    held = parked.length - released
-    // Already verified (left as asked, as the allowed path counts it) + parked-then-released here.
-    affected += before.filter((r) => r.verified).length + released
-  }
-  return { affected, held, alreadyHeld, licenceCheck: blocked.size }
-}
 
 /** The `seen` map 'licence-approve' sends — id → the stamp the admin's screen showed. Anything else reads as empty. */
 function seenStamps(raw: unknown): Record<string, string> {
@@ -121,7 +65,8 @@ function seenStamps(raw: unknown): Record<string, string> {
 // gate parked any in this request, + `"alreadyHeld":k` when the batch included rows it had parked before
 // — neither ever appears while IDENTITY_GATE_ENFORCED is off, so the off-state body is unchanged; + on
 // "activate" / "verify", `"licenceCheck":n` when n e-Visa / Legal & permits rows were left out for the licence
-// check — absent when the batch held none, so its body is unchanged; + on "delete" only, `"resolved":r` when
+// check — absent when the batch held none, so its body is unchanged; + on "verify", `"photoCheck":n` when n photo-held
+// rows were left out (2026-11-15), absent otherwise; + on "delete" only, `"resolved":r` when
 // the removal closed r open reports — absent when it closed none). "licence-approve" answers
 // `{"ok":true,"affected":published,"approved":a}` + `held` / `alreadyHeld` (identity gate) / `stillHeld`
 // (approved but still unpublished: an open or confirmed report, the owner held or suspended, or a row that was
@@ -230,6 +175,8 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   // "activate" / "verify": e-Visa / Legal & permits rows left out because eno has not approved their provider's licence
   // (licence-stamp.ts) — they go live only through Catalogue › Licence checks. 0 for every batch without one.
   let licenceCheck = 0
+  // "verify": photo-held rows left out (listing-photo-hold.ts) — 0 for every batch without one.
+  let photoCheck = 0
   // "licence-approve" only: its own answer (see the header) — the batch actions' fields mean other things.
   let approval: Record<string, number> | null = null
   /**
@@ -324,7 +271,13 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     // status='active', so this now also writes the documented takedown idiom (verified:false + identityHold:false,
     // schema.prisma): a relisted row flips to active but stays non-public until an admin re-verifies (the 'verify' or
     // 'activate' action). Same columns as 'unverify', plus the hidden status.
-    case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { status: 'hidden', verified: false, identityHold: false } })).count; break
+    // …and the photo hold's mark, so a photo release must not undo this takedown (photo amendment A10). ONLY that mark: a
+    // licence or review-seat note says why the row waits and stays (licenceHeldMark).
+    case 'hide': affected = await db.$transaction(async (tx) => {
+      const { count } = await tx.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { status: 'hidden', verified: false, identityHold: false } })
+      await tx.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED, verificationNotes: PHOTO_HELD_NOTE }, data: { verificationNotes: null } })
+      return count
+    }); break
     case 'activate': {
       // ⚖️ Activating a VERIFIED row that is not live yet publishes it, so for an owner the identity
       // gate refuses that row is parked instead: the status the admin asked for is applied, with
@@ -389,9 +342,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     case 'feature': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { featured: true } })).count; break
     case 'unfeature': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { featured: false } })).count; break
     case 'verify': {
-      // ⚖️ "Publish" — publishListings above: the identity gate as it always was, and since 2026-10-14 every
-      // e-Visa / Legal & permits row eno has not approved left out and counted (`licenceCheck`).
-      ;({ affected, held, alreadyHeld, licenceCheck } = await publishListings(ids, await deskSellerIds()))
+      // ⚖️ "Publish" — core/publish-listings.ts: the identity gate as it always was, every e-Visa / Legal & permits row eno
+      // has not approved left out and counted (`licenceCheck`, 2026-10-14), and every photo-held row (`photoCheck`,
+      // 2026-11-15 — it goes back through the seller's own release or "Photo is fine").
+      ;({ affected, held, alreadyHeld, licenceCheck, photoCheck } = await publishListings(ids, await deskSellerIds()))
       break
     }
     case 'licence-approve': {
@@ -484,7 +438,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // enforcementState is NOT NULL (default good_standing), so NOT IN needs no NULL branch. The publish write itself
         // drops the mark, as every publish does: the row is public, no longer the licence check's hold.
         const owner = { OR: [{ ownerId: null }, { owner: { enforcementState: { notIn: OWNER_PULLED } } }], trustTier: { not: 'restricted' } }
-        const r = await publishListings(publish, desk, { reports: { none: { status: { in: OPEN_CASE } } }, seller: owner, verificationNotes: LICENCE_HELD_NOTE })
+        const r = await publishListings(publish, desk, { onlyIf: { reports: { none: { status: { in: OPEN_CASE } } }, seller: owner, verificationNotes: LICENCE_HELD_NOTE } })
         ;({ affected, held, alreadyHeld } = r)
         // Re-held by an edit after the stamp (licenceCheck) → stale; excluded by the publish's own WHERE → still held.
         stale += r.licenceCheck
@@ -573,5 +527,5 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   if (approval) return NextResponse.json({ ok: true, affected, ...approval })
   // `held` / `alreadyHeld` / `licenceCheck` / `resolved` only when non-zero, so with the gate off (and no report
   // closed, and no licence-aisle row in the batch) the body is byte-for-byte what it always was.
-  return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}), ...(licenceCheck ? { licenceCheck } : {}), ...(resolvedReports ? { resolved: resolvedReports } : {}) })
+  return NextResponse.json({ ok: true, affected, ...(held ? { held } : {}), ...(alreadyHeld ? { alreadyHeld } : {}), ...(licenceCheck ? { licenceCheck } : {}), ...(photoCheck ? { photoCheck } : {}), ...(resolvedReports ? { resolved: resolvedReports } : {}) })
 })

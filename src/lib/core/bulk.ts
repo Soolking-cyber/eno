@@ -18,6 +18,7 @@ import { logError } from '@/lib/log'
 import { reindexListing } from '@/lib/listing-index'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
+import { photoPassById } from '@/lib/listing-photo-pass'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
@@ -429,6 +430,7 @@ export async function bulkImportCore(
       await Promise.all(ids.slice(i, i + CONCURRENCY).map(async (id) => {
         await moderateListingById(id)          // AI prohibited-content (trust-gated inside)
         await indexAndCheckProvenance(id)       // cross-app image provenance (indexed, cheap)
+        await photoPassById(id, 'sweep')        // flyers and contact details in photos (listing-photo-pass.ts); a row never fails on them
       }))
     }
   })

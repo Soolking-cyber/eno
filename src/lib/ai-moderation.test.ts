@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   notifications: [] as Row[],
   updates: [] as Row[],
   refreshed: [] as string[][],
+  /** The photo-mark revokes the hold's transaction ran (data), applied with it. */
+  revoked: [] as Row[],
   /** The options each refreshListingSurfaces call carried (`home`, `teachers`). */
   refreshOpts: [] as Row[],
   /** Every listing read's arguments. */
@@ -50,6 +52,12 @@ vi.mock('@/lib/db', () => {
           if (!matches(h.row, a.where)) throw Object.assign(new Error('No record was found for an update.'), { code: 'P2025' })
           return { ...a.data }
         }),
+        // The photo hold's revoke (listing-photo-hold.ts): a conditional write on the mark, in the same transaction.
+        updateMany: (a: Row) => op(() => {
+          const hit = !!h.row && h.row.id === a.where.id && h.row.verificationNotes === a.where.verificationNotes
+          if (hit) h.revoked.push({ ...a.data })
+          return { count: hit ? 1 : 0 }
+        }),
       },
       report: { create: (a: Row) => op(() => { if (h.reportFails) throw new Error('connection reset'); return a.data }) },
       notification: { create: (a: Row) => op(() => a.data) },
@@ -57,7 +65,7 @@ vi.mock('@/lib/db', () => {
       $transaction: async (ops: Array<{ run: () => unknown }>) => {
         const results = ops.map((o) => o.run())
         const [listing, report, notification] = results as Row[]
-        Object.assign(h.row!, listing)
+        Object.assign(h.row!, listing, ...h.revoked)
         h.reports.push(report)
         if (notification) h.notifications.push(notification)
         return results
@@ -86,7 +94,7 @@ const { moderateListingById } = await import('./ai-moderation')
 beforeEach(() => {
   h.row = { id: 'L1', sellerId: 's1', title: 'Pistol', description: 'real one', images: '[]', status: 'active', verified: true, identityHold: false }
   h.duringClassify = null
-  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []; h.reportFails = false
+  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []; h.reportFails = false; h.revoked = []
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -120,6 +128,21 @@ describe('moderateListingById — the hold', () => {
     h.row!.listingType = 'sell'
     await moderateListingById('L1')
     expect(h.refreshOpts).toEqual([{ home: true, teachers: false }])
+  })
+
+  // ⛔ A10 (listing-photo-hold.ts): a photo-held row the seller edits is classified too (its status is still active); the
+  // hold ends the photo hold in its own transaction, so a real photo added later cannot publish what this check held.
+  it('⛔ a photo-held row it holds loses the photo mark in the same transaction', async () => {
+    Object.assign(h.row!, { verified: false, verificationNotes: 'photo:held' })
+    await moderateListingById('L1')
+    expect(h.row).toMatchObject({ status: 'hidden', verified: false, verificationNotes: null })
+    expect(h.reports).toHaveLength(1)
+  })
+
+  it('…and a row with any other mark keeps it (the revoke matches the photo mark only)', async () => {
+    Object.assign(h.row!, { verificationNotes: 'licence:held' })
+    await moderateListingById('L1')
+    expect(h.row).toMatchObject({ status: 'hidden', verificationNotes: 'licence:held' })
   })
 
   it('a row the seller HID meanwhile is still held (only the tombstone is refused)', async () => {

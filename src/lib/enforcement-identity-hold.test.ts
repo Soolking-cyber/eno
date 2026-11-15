@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 
 // ── Enforcement restores under the seller identity gate ─────────────────────────────────────────
 //
@@ -91,8 +92,8 @@ beforeEach(() => {
   h.profileState = 'good_standing'
 })
 
-const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false, AND: [GUARD] }, data: { identityHold: true }, select: { id: true } })
-const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false, AND: [GUARD, NOT_PHOTO_HELD] }, data: { identityHold: true }, select: { id: true } })
+const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false, AND: [GUARD, NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
 const rows = (ids: string[]) => ids.map((id) => ({ id }))
 
 describe('liftAction', () => {

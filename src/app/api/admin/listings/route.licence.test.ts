@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LICENCE_GRANDFATHER, LICENCE_STAMP_PREFIX, licenceClearedWhere, licenceStampFor } from '@/lib/licence-stamp'
 import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 
 // ── /api/admin/listings and the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts) ────────────────────────
 //
@@ -137,6 +138,12 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   partitionByIdentityGate: async (ids: string[]) => ({ allowed: ids.filter((i) => !h.idHeld.includes(i)), held: ids.filter((i) => h.idHeld.includes(i)) }),
   settleHolds: async () => 0,
 }))
+// The photo hold (listing-photo-hold.ts): the publish's pre-read reads the table directly (no findMany is counted for the
+// afterRead hooks); the follow-up pass is not this file's.
+vi.mock('@/lib/listing-photo-hooks', () => ({
+  photoHeldIds: async (ids: string[]) => new Set(h.rows.filter((r) => ids.includes(r.id) && r.verificationNotes === 'photo:held').map((r) => r.id)),
+  photoPassSoon: () => {},
+}))
 vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[]) => { h.refreshed.push(ids) } }))
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 vi.mock('@/lib/core/listing-tombstone', () => ({ tombstoneListingsTx: async () => [] }))
@@ -200,7 +207,7 @@ describe('verify ("Publish") — an unchecked e-Visa / Legal & permits row is ne
     expect(byId('visa-1').verified).toBe(false)
     expect(byId('lp-1').verified).toBe(false)
     // The write names only the cleared id and carries the guard (for eno's desk, resolved once).
-    expect(writes().map((c) => c.args.where)).toEqual([{ id: { in: ['p1'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }])
+    expect(writes().map((c) => c.args.where)).toEqual([{ id: { in: ['p1'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }])
     expect(h.deskCalls).toBe(1)
   })
 
@@ -373,7 +380,7 @@ describe('licence-approve — the one stamp writer', () => {
     expect(await json({ action: 'licence-approve', ids: ['visa-1'], seen: { 'visa-1': stampOf(w) } })).toEqual({ ok: true, affected: 0, approved: 1, stillHeld: 1 })
     expect(byId('visa-1').verified).toBe(false)
     const publishWrite = writes().find((c) => c.args.data.verified === true)!
-    expect(publishWrite.args.where.AND).toEqual([GUARD, NOT_A_REVIEW_SEATS_LISTING, { reports: { none: { status: { in: ['open', 'confirmed'] } } }, seller: { OR: [{ ownerId: null }, { owner: { enforcementState: { notIn: ['held', 'suspended'] } } }], trustTier: { not: 'restricted' } }, verificationNotes: 'licence:held' }])
+    expect(publishWrite.args.where.AND).toEqual([GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD, { reports: { none: { status: { in: ['open', 'confirmed'] } } }, seller: { OR: [{ ownerId: null }, { owner: { enforcementState: { notIn: ['held', 'suspended'] } } }], trustTier: { not: 'restricted' } }, verificationNotes: 'licence:held' }])
   })
 
   it('…and so is an owner held after the read', async () => {

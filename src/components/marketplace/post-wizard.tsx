@@ -42,6 +42,7 @@ import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
+import { parsePhotoRefusalDetail, type PhotoRefusal } from '@/lib/upload-client'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess, notPublicSavedLine } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
@@ -148,6 +149,8 @@ export type ListingEditData = {
    * only: the server decides the hold. Absent → an unapproved, non-desk listing.
    */
   licence?: { approved: boolean; exempt: boolean; exemptAisles?: readonly string[] }
+  /** The listing's photos whose refusal by the photo check is confirmed (listing-photo-refusal.ts): their tiles open marked. */
+  photoRefused?: { url: string; rule: PhotoRefusal }[]
 }
 
 /** The attributes without the provider's two licence keys (provider-licence.ts) — what an AI fill or a draft from before
@@ -1323,7 +1326,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     const hasContact = (s: string) => containsPhoneNumber(s) || containsContactInfo(s)
     if (code === 'contact_in_text' || code === 'no_phone_in_listing') return hasContact(title) ? 'title' : hasContact(description) ? 'description' : null
     if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
-    if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'photo_required' || code === 'photos_min') return 'photo'
+    if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'upload_photo_refused' || code === 'photo_not_allowed' || code === 'photo_required' || code === 'photos_min') return 'photo'
     if (code === 'location_required') return 'location'
     // The keyword-guess case: the subcategory the server read is not on screen, so the jump goes to the category section.
     if (code === 'teacher_profile_instead') return teacherSeeking ? 'teacher' : 'category'
@@ -1541,7 +1544,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // Photo upload + the video sign→PUT→complete→transcode-poll pipeline moved
       // VERBATIM into usePostMedia (use-post-media.ts) — same order, same thrown
       // codes ('upload' / 'video' / 'video_hevc') that the catch below maps to copy.
-      const imageUrls = await uploadPhotos((done, total) => setPublishStep({ kind: 'photos', done, total }))
+      const imageUrls = await uploadPhotos((done, total) => setPublishStep({ kind: 'photos', done, total }), categorySlug, { subcategory: subcategorySlug || null, seller: mySellerId })
       if (mediaVideo?.file) setPublishStep({ kind: 'video' })
       const videoUrl = await resolveVideoUrl()
       setPublishStep({ kind: 'saving' })
@@ -1673,6 +1676,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // A job-text refusal names the field and the words ('<field>:<snippet>'): kept for the note under that field.
       setJobTextHit(isJobTextBlockCode(msg) ? splitJobTextDetail(detail) : null)
       if (identityMsg) { setError(identityMsg); hapticError(); console.error(e); return }
+      // The save's own photo screen names the photos: their tiles are marked as an upload refusal marks them.
+      if (msg === 'photo_not_allowed') media.markRefusedUrls(parsePhotoRefusalDetail(detail))
       setError(
         // ⚠️ THE THREE SPECIFIC CAUSES COME FIRST, because "try again" is actively wrong for all
         // of them: a rejected format or an oversized file will fail identically forever, and a
@@ -1692,6 +1697,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Ảnh quá lớn (tối đa 12MB). Hãy chọn ảnh nhỏ hơn.', 'That photo is too large (12MB max) — pick a smaller one.')
           : msg === 'upload_broken'
           ? t('Không đọc được một ảnh trong số này. Hãy bỏ ảnh đó ra rồi đăng lại.', 'One of those photos could not be read — remove it and post again.')
+          // The photo check (owner, 2026-11-15): the refused tiles are marked, each with its own line.
+          : msg === 'upload_photo_refused' || msg === 'photo_not_allowed'
+          ? t('Một số ảnh không được phép — hãy bỏ các ảnh được đánh dấu rồi đăng lại.', 'Some photos are not allowed — remove the marked ones and post again.')
           : msg === 'upload_rate_limited'
           ? t('Bạn đã tải lên quá nhiều ảnh trong một giờ. Hãy đợi một lát rồi thử lại.', 'You have uploaded a lot of photos this hour — wait a little and try again.')
           : msg === 'upload'

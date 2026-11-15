@@ -3,6 +3,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { hashFromUrl, hexToBits } from '@/lib/image-hash'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { PHOTO_HELD_NOTE } from '@/lib/listing-photo-hold'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
@@ -120,6 +121,9 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
           },
         }))
       }
+      // ⛔ …and a photo hold on it ends with this takedown, in the same transaction (listing-photo-hold.ts, A10): a real photo
+      // added later must not publish what this check held.
+      writes.push(db.listing.updateMany({ where: { id: l.id, verificationNotes: PHOTO_HELD_NOTE }, data: { verificationNotes: null } }))
       await db.$transaction(writes)
       // Same as ai-moderation: the held page must not keep serving from the 30-day ISR cache — nor a held teacher
       // profile stay named on /c/teachers' 6h-ISR HTML.

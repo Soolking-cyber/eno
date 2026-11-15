@@ -115,6 +115,7 @@ import { MARK_SEED_ROWS, coverByMark, fetchStoredImage, markScore, markSeedUrls,
 import { untranslatedSummary } from '../src/lib/import-i18n'
 import { APARTMENT_SUBCAT, FRESH_DAYS, WRITE_MIN_LIFE_DAYS, tooLateToWrite } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import {
@@ -862,6 +863,8 @@ async function main() {
     /** tooLate*: not created (no photo fetched) / not revived — under a day of the window left at the write (tooLateToWrite). */
     const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, revived: 0, redated: 0, raced: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, tooLateCreate: 0, tooLateRevive: 0, imagesRefused: {} as Record<string, number> }
     const revivedIds: string[] = []
+    // Rows created, and the revived ones, for the photo check (listing-photo-queue.ts).
+    const photoIds: string[] = []
     let stopped: string | null = null
     try {
     for (const r of batch) {
@@ -972,6 +975,7 @@ async function main() {
           throw e
         }
         recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: r.externalId }))
+        photoIds.push(created.id)
         stat.created++
         if (c.moved) stat.coverByMark++
         if (stat.created % 100 === 0) console.log(`  ${stat.created} created`)
@@ -983,6 +987,8 @@ async function main() {
       }
     }
     } finally {
+      // The photo check's queue first: it never throws, so a failed tombstone below cannot skip it.
+      if (APPLY) await enqueuePhotoChecks(db, [...photoIds, ...revivedIds])
       /** ⛔ Every revival that landed before a throw keeps its tombstone too (the per-row one may not have run). */
       await tombstoneAll(db, revivedIds, 'revived rows', DATED)
     }

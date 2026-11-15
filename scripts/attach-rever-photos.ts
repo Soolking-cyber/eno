@@ -65,6 +65,7 @@ import { createClient } from '@supabase/supabase-js'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { makeImageHost } from '../src/lib/host-product-image'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 
 /** ⛔ PINNED BY ID. `Seller.name` is user-settable and not unique — a name lookup could attach
  *  these to a real shop, who would then field the enquiries. */
@@ -134,6 +135,7 @@ async function main() {
     ...(LIMIT ? { take: LIMIT } : {}),
   })
 
+  const photoIds: string[] = []
   const stat = {
     candidates: rows.length, rewritten: 0, uploaded: 0,
     skippedNoRecord: 0, skippedUnmapped: 0, skippedUploadFailed: 0, skippedRaced: 0, skippedMixed: 0, errored: 0, refetched: 0,
@@ -142,81 +144,88 @@ async function main() {
   console.log(`  mode                          ${APPLY ? 'APPLY — UPLOADS + WRITES TO PRODUCTION' : 'DRY RUN'}`)
   if (APPLY) console.log(`  rollback journal              ${BACKUP}\n  uploaded-object manifest      ${UPLOADED}`)
 
-  for (const t of rows) {
-   /**
-    * ⚠️ ONE BAD ROW MUST NOT END THE RUN. A throw anywhere below — a corrupt JPEG sharp cannot
-    * decode, a transient storage 5xx — would otherwise abandon every remaining listing, and the
-    * operator would see a stack trace where a count belongs. The job is resumable by design
-    * (candidates are "still hotlinking"), so the right response to one failure is to record it and
-    * carry on. A reviewer raised this.
-    */
-   try {
-    const oldRaw = t.images || '[]'
-    const dbImgs: string[] = JSON.parse(oldRaw)
-    /** A row part-way through a previous shape is not something to guess about — report it. */
-    if (!dbImgs.length || !dbImgs.every((u) => u.includes(REVER_HOST))) { stat.skippedMixed++; continue }
+  try {
+    for (const t of rows) {
+     /**
+      * ⚠️ ONE BAD ROW MUST NOT END THE RUN. A throw anywhere below — a corrupt JPEG sharp cannot
+      * decode, a transient storage 5xx — would otherwise abandon every remaining listing, and the
+      * operator would see a stack trace where a count belongs. The job is resumable by design
+      * (candidates are "still hotlinking"), so the right response to one failure is to record it and
+      * carry on. A reviewer raised this.
+      */
+     try {
+      const oldRaw = t.images || '[]'
+      const dbImgs: string[] = JSON.parse(oldRaw)
+      /** A row part-way through a previous shape is not something to guess about — report it. */
+      if (!dbImgs.length || !dbImgs.every((u) => u.includes(REVER_HOST))) { stat.skippedMixed++; continue }
 
-    const rec = byId.get(String(t.externalId).replace(/^rever:/, ''))
-    if (!rec) { stat.skippedNoRecord++; continue }
-    const recImgs: string[] = rec.images ?? []
-    const locals: string[] = rec.local_images ?? []
+      const rec = byId.get(String(t.externalId).replace(/^rever:/, ''))
+      if (!rec) { stat.skippedNoRecord++; continue }
+      const recImgs: string[] = rec.images ?? []
+      const locals: string[] = rec.local_images ?? []
 
-    /**
-     * Resolve EVERY photo first. If any one cannot be resolved, this row is not touched at all.
-     * ⚠️ A ZERO-BYTE LOCAL FILE IS NOT A MISSING ONE, AND `existsSync` CANNOT TELL THEM APART. The
-     * first full run left exactly 4 listings behind for this reason: each had ONE truncated
-     * download in the scrape (0 bytes), sharp refused it with "Input Buffer is empty", and
-     * all-or-nothing then correctly declined to write a 4-photo gallery. Falling back to the url we
-     * already hold heals it from the same source the scrape came from — 4 requests, not 5,500.
-     */
-    const sources: { abs?: string; url?: string }[] = []
-    for (const u of dbImgs) {
-      const j = recImgs.indexOf(u)
-      const rel = j >= 0 ? locals[j] : undefined
-      const abs = rel ? join(ROOT, rel) : null
-      if (abs && existsSync(abs) && statSync(abs).size > 0) sources.push({ abs })
-      else sources.push({ url: u })
-    }
-    if (sources.length !== dbImgs.length) { stat.skippedUnmapped++; continue }
-    if (!APPLY) { stat.rewritten++; stat.uploaded += sources.length; continue }
-
-    /** Upload all before writing anything. A partial upload leaks orphans (logged) but never a
-     *  short row. */
-    const slug = String(t.externalId).replace(/[^a-z0-9]/gi, '-')
-    const urls: string[] = []
-    for (const src of sources) {
-      let buf: Buffer | null = null
-      if (src.abs) buf = readFileSync(src.abs)
-      else if (src.url) {
-        const res = await fetch(src.url)
-        if (res.ok) { buf = Buffer.from(await res.arrayBuffer()); stat.refetched++ }
+      /**
+       * Resolve EVERY photo first. If any one cannot be resolved, this row is not touched at all.
+       * ⚠️ A ZERO-BYTE LOCAL FILE IS NOT A MISSING ONE, AND `existsSync` CANNOT TELL THEM APART. The
+       * first full run left exactly 4 listings behind for this reason: each had ONE truncated
+       * download in the scrape (0 bytes), sharp refused it with "Input Buffer is empty", and
+       * all-or-nothing then correctly declined to write a 4-photo gallery. Falling back to the url we
+       * already hold heals it from the same source the scrape came from — 4 requests, not 5,500.
+       */
+      const sources: { abs?: string; url?: string }[] = []
+      for (const u of dbImgs) {
+        const j = recImgs.indexOf(u)
+        const rel = j >= 0 ? locals[j] : undefined
+        const abs = rel ? join(ROOT, rel) : null
+        if (abs && existsSync(abs) && statSync(abs).size > 0) sources.push({ abs })
+        else sources.push({ url: u })
       }
-      if (!buf || !buf.length) break
-      const url = await host.fromBuffer(buf, slug)
-      if (!url) break
-      recordDurably(UPLOADED, url)
-      urls.push(url)
-    }
-    if (urls.length !== sources.length) { stat.skippedUploadFailed++; continue }
+      if (sources.length !== dbImgs.length) { stat.skippedUnmapped++; continue }
+      if (!APPLY) { stat.rewritten++; stat.uploaded += sources.length; continue }
 
-    /** ⚠️ BOTH values, and BEFORE the write. `old` is what rollback restores; `next` is what makes
-     *  that rollback CONDITIONAL — a reviewer pointed out that journalling only the old value means
-     *  a row whose UPDATE lost the race (or never ran) is still in the journal, and a blind replay
-     *  would then overwrite whatever the real editor put there. Matching on `next` reverts exactly
-     *  the rows this run wrote and nothing else. */
-    const nextRaw = JSON.stringify(urls)
-    recordDurably(BACKUP, JSON.stringify({ id: t.id, externalId: t.externalId, old: oldRaw, next: nextRaw }))
-    /** ⛔ Raw SQL: keeps `updatedAt` still (sitemap orders by it) and makes the write conditional
-     *  on the value we read, so a concurrent edit is skipped rather than clobbered. */
-    const n = await db.$executeRaw`UPDATE "Listing" SET images = ${nextRaw} WHERE id = ${t.id} AND images = ${oldRaw}`
-    if (n !== 1) { stat.skippedRaced++; continue }
-    stat.rewritten++
-    stat.uploaded += urls.length
-    if (stat.rewritten % 100 === 0) console.log(`  ${stat.rewritten} listings · ${stat.uploaded} photos re-hosted`)
-   } catch (e) {
-    stat.errored++
-    console.warn(`  ! ${t.externalId}: ${(e as Error).message.slice(0, 120)}`)
-   }
+      /** Upload all before writing anything. A partial upload leaks orphans (logged) but never a
+       *  short row. */
+      const slug = String(t.externalId).replace(/[^a-z0-9]/gi, '-')
+      const urls: string[] = []
+      for (const src of sources) {
+        let buf: Buffer | null = null
+        if (src.abs) buf = readFileSync(src.abs)
+        else if (src.url) {
+          const res = await fetch(src.url)
+          if (res.ok) { buf = Buffer.from(await res.arrayBuffer()); stat.refetched++ }
+        }
+        if (!buf || !buf.length) break
+        const url = await host.fromBuffer(buf, slug)
+        if (!url) break
+        recordDurably(UPLOADED, url)
+        urls.push(url)
+      }
+      if (urls.length !== sources.length) { stat.skippedUploadFailed++; continue }
+
+      /** ⚠️ BOTH values, and BEFORE the write. `old` is what rollback restores; `next` is what makes
+       *  that rollback CONDITIONAL — a reviewer pointed out that journalling only the old value means
+       *  a row whose UPDATE lost the race (or never ran) is still in the journal, and a blind replay
+       *  would then overwrite whatever the real editor put there. Matching on `next` reverts exactly
+       *  the rows this run wrote and nothing else. */
+      const nextRaw = JSON.stringify(urls)
+      recordDurably(BACKUP, JSON.stringify({ id: t.id, externalId: t.externalId, old: oldRaw, next: nextRaw }))
+      /** ⛔ Raw SQL: keeps `updatedAt` still (sitemap orders by it) and makes the write conditional
+       *  on the value we read, so a concurrent edit is skipped rather than clobbered. */
+      const n = await db.$executeRaw`UPDATE "Listing" SET images = ${nextRaw} WHERE id = ${t.id} AND images = ${oldRaw}`
+      if (n !== 1) { stat.skippedRaced++; continue }
+      photoIds.push(t.id)
+      stat.rewritten++
+      stat.uploaded += urls.length
+      if (stat.rewritten % 100 === 0) console.log(`  ${stat.rewritten} listings · ${stat.uploaded} photos re-hosted`)
+     } catch (e) {
+      stat.errored++
+      console.warn(`  ! ${t.externalId}: ${(e as Error).message.slice(0, 120)}`)
+     }
+    }
+  } finally {
+    // A raw write keeps updatedAt still, so the cron's `recent` scope cannot see these rows: queued instead — in a
+    // finally, so a throw out of the loop still queues the rows already written.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   console.log(`\n${JSON.stringify(stat, null, 2)}`)

@@ -41,6 +41,10 @@
 // outside reviewer's test post is held for good, not for a rule it could pass. Skipped FIRST and counted under
 // `reviewSeat` — neither published nor parked (a park is a publish the day its owner verifies) — and every UPDATE ANDs
 // notAReviewSeatsListingSql, the same owner test in SQL.
+//
+// ⛔ AND NEVER A PHOTO-HELD LISTING (2026-11-15 — src/lib/listing-photo-hold.ts): it goes back through its seller's real
+// photo. Every UPDATE ANDs notPhotoHeldSql, so such a row is neither published nor parked (the counts printed are the
+// rows each write changed).
 import pg from 'pg'
 import { containsPhoneNumber } from '../src/lib/phone'
 import { containsContactInfo, findBannedWord } from '../src/lib/publish-guard'
@@ -49,6 +53,7 @@ import { deriveVerification, type VerificationRow } from '../src/lib/compliance/
 import { decideBeforeStatus, decideOwned } from '../src/lib/compliance/seller-publish-decision'
 import { licenceCleared, licenceClearedSql } from '../src/lib/licence-stamp'
 import { isReviewSeatEmail, notAReviewSeatsListingSql } from '../src/lib/review-seat-accounts'
+import { notPhotoHeldSql } from '../src/lib/listing-photo-hold'
 
 const APPLY = process.argv.includes('--apply')
 const GATE_ARG = process.argv.find((a) => a.startsWith('--gate='))?.slice('--gate='.length)
@@ -136,11 +141,11 @@ if (APPLY && !GATE_ARG) {
       // `"identityHold" = false` rides the publish (the selection read identityHold = false, but a park
       // can land between that read and this write): a row made live must never carry a hold.
       // licenceClearedSql: the licence skip above, re-checked IN the write (header).
-      const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE id = ANY($1::text[]) AND ${licenceClearedSql()} AND ${notAReviewSeatsListingSql()}`, [toPublish])
+      const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE id = ANY($1::text[]) AND ${licenceClearedSql()} AND ${notAReviewSeatsListingSql()} AND ${notPhotoHeldSql()}`, [toPublish])
       console.log(`PUBLISHED ${res.rowCount} listing(s).`)
     }
     if (toHold.length) {
-      const res = await c.query(`UPDATE "Listing" SET "identityHold" = true WHERE id = ANY($1::text[]) AND verified = false AND ${notAReviewSeatsListingSql()}`, [toHold])
+      const res = await c.query(`UPDATE "Listing" SET "identityHold" = true WHERE id = ANY($1::text[]) AND verified = false AND ${notAReviewSeatsListingSql()} AND ${notPhotoHeldSql()}`, [toHold])
       console.log(`PARKED ${res.rowCount} listing(s) until their owners verify.`)
       // ⚠️ RE-CHECK AFTER THE PARK (the app's settleHolds, for a raw client): an owner whose KYC was
       // approved between the decision above and this write had their release run BEFORE the hold
@@ -156,7 +161,7 @@ if (APPLY && !GATE_ARG) {
         // …and the licence guard, as releaseIdentityHolds() has it: a parked aisle row eno has not checked stays parked.
         const r = await c.query(
           `UPDATE "Listing" l SET verified = true, "identityHold" = false, "verificationNotes" = NULL FROM "Seller" s
-            WHERE s.id = l."sellerId" AND s."ownerId" = $1 AND l."identityHold" AND ${licenceClearedSql('l.')} AND ${notAReviewSeatsListingSql('l.')}`,
+            WHERE s.id = l."sellerId" AND s."ownerId" = $1 AND l."identityHold" AND ${licenceClearedSql('l.')} AND ${notAReviewSeatsListingSql('l.')} AND ${notPhotoHeldSql('l.')}`,
           [ownerId],
         )
         released += r.rowCount ?? 0

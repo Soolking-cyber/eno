@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 // ⚠️ NOT a top-level `import sharp` — see lib/sharp-lazy.ts. lib/core/listings imports this module
 // for its pure VIDEO helpers (isCanonicalVideoUrl, removeListingVideoByUrl), so a module-scope
 // native import here reached /api/listings for code paths that only run on upload.
@@ -67,24 +68,22 @@ async function markInks(png: Buffer, width: number, height: number): Promise<{ c
   return { cover: await probe(() => cardMarkRegion(width, height)), contain: await probe(() => watermarkPlacement(width, height).region) }
 }
 
+/** An encoded listing image, not yet stored. `sha256` is of the bytes that will be stored: the same file uploaded or
+ *  re-hosted again, and the object read back from the bucket, all hash alike — the photo check's cache key
+ *  (listing-photo-verdict.ts). `nameFacts` is the mark facts + dHash part of the stored name. */
+export type PreparedListingImage = { out: Buffer; sha256: string; nameFacts: string }
+
 /**
  * Decode → auto-orient (bake EXIF rotation, then DROP all metadata incl. GPS) →
  * downscale to fit MAX_EDGE → measure the inks a drawn eno.vn mark would use (NOTHING is baked
- * since 2026-11-10, see above; the facts ride in the stored name) →
- * re-encode WebP → store in the listings bucket. sharp throws on a corrupt file, but it DECODES
- * SVG, GIF, TIFF and AVIF (measured), so this does not reject a disguised file: a caller taking
- * bytes from the public sniffs them first (sniffImageType). limitInputPixels guards decompression bombs. Returns the public
- * URL, or null on any failure (bad input / storage error). Never throws.
+ * since 2026-11-10, see above; the facts ride in the stored name) → re-encode WebP. sharp throws on a corrupt file, but it
+ * DECODES SVG, GIF, TIFF and AVIF (measured), so this does not reject a disguised file: a caller taking
+ * bytes from the public sniffs them first (sniffImageType). limitInputPixels guards decompression bombs. Null on bad
+ * input. Never throws.
  * `watermark: false` is for NON-listing assets (avatars / shop logos) only: their name carries no mark facts, so a
  * mark can never be drawn or baked over them.
- * `beforeUpload` runs with the object's path after the image is encoded and BEFORE a byte is stored; if it throws,
- * nothing is uploaded and the answer is null. Bulk re-hosting writes the object's tombstone there, so no object of its
- * ever exists untombstoned (core/bulk.ts rehost).
  */
-export async function storeListingImage(
-  buf: Buffer,
-  opts: { pathPrefix?: string; watermark?: boolean; beforeUpload?: (path: string) => Promise<void> } = {},
-): Promise<string | null> {
+export async function prepareListingImage(buf: Buffer, opts: { watermark?: boolean } = {}): Promise<PreparedListingImage | null> {
   let out: Buffer
   // Perceptual hash for duplicate detection — computed from the normalized (pre-WebP)
   // intermediate so a re-upload of the same source hashes identically, and embedded
@@ -114,7 +113,21 @@ export async function storeListingImage(
   } catch {
     return null
   }
-  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${markFacts}${hash ? `-h${hash}` : ''}.webp`
+  return { out, sha256: createHash('sha256').update(out).digest('hex'), nameFacts: `${markFacts}${hash ? `-h${hash}` : ''}` }
+}
+
+/**
+ * Store a prepared image in the listings bucket under a fresh name. The public URL and the object key, or null on a
+ * storage error. Never throws.
+ * `beforeUpload` runs with the object's path BEFORE a byte is stored; if it throws, nothing is uploaded and the answer
+ * is null. Bulk re-hosting writes the object's tombstone there, so no object of its ever exists untombstoned
+ * (core/bulk.ts rehost).
+ */
+export async function putListingImage(
+  img: PreparedListingImage,
+  opts: { pathPrefix?: string; beforeUpload?: (path: string) => Promise<void> } = {},
+): Promise<{ url: string; key: string } | null> {
+  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${img.nameFacts}.webp`
   if (opts.beforeUpload) {
     try { await opts.beforeUpload(path) } catch (e) {
       console.error('[media] beforeUpload', e)
@@ -125,12 +138,28 @@ export async function storeListingImage(
   // Objects are uniquely named and never rewritten (upsert:false) → immutable: cache for a
   // year. Without this Supabase defaults to max-age=3600 and raw-URL consumers (OG scrapes,
   // video posters) refetch + bill egress every hour.
-  const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
+  const { error } = await admin.storage.from(LISTINGS_BUCKET).upload(path, img.out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
   if (error) {
     console.error('[media] store', error.message)
     return null
   }
-  return admin.storage.from(LISTINGS_BUCKET).getPublicUrl(path).data.publicUrl
+  return { url: admin.storage.from(LISTINGS_BUCKET).getPublicUrl(path).data.publicUrl, key: path }
+}
+
+/**
+ * prepareListingImage + putListingImage: the public URL, or null on any failure. Never throws. The new key is pointed at
+ * the bytes' sha for EVERY caller (v1 media, MCP, bulk, sync), so the photo check finds a re-host's facts in its cache.
+ * (Loaded lazily: listings.ts imports this module for its video helpers only.)
+ */
+export async function storeListingImage(
+  buf: Buffer,
+  opts: { pathPrefix?: string; watermark?: boolean; beforeUpload?: (path: string) => Promise<void> } = {},
+): Promise<string | null> {
+  const img = await prepareListingImage(buf, opts)
+  const put = img && (await putListingImage(img, opts))
+  if (!put) return null
+  await import('@/lib/listing-photo-verdict').then((m) => m.rememberPhotoKey(put.key, img.sha256)).catch((e) => console.error('[media] key', e))
+  return put.url
 }
 
 // ── Listing video ──────────────────────────────────────────────────────────────────

@@ -187,7 +187,8 @@ export async function syncListingsCore(
         body.images = hosted
       }
       if (Object.keys(body).length) {
-        const u = await updateListingCore(id, body)
+        // A refused photo never fails a sync row (its price and stock would be lost): the pass strips it.
+        const u = await updateListingCore(id, body, { photoRefusal: false })
         // The refusal's pointer rides along (a hiring post's job-text code: '<field>:<snippet>', the words to take out), so a
         // partner can fix the row rather than guess at the bare code.
         if (!u.ok) {

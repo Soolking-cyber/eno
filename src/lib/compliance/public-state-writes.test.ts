@@ -46,6 +46,10 @@ import { join, relative, sep } from 'node:path'
  * row (made before round 3) may still be verified, and a STATUS-ONLY move back to active would publish it — the scan
  * does not see those. The seller revives that make that move, core/listings.ts setStatusCore and confirmCore, refuse
  * every row a seat owns IN CODE (round 5, 403 review_seat_listing — pinned in src/lib/core/listings.review-seat.test.ts).
+ * And for the PHOTO HOLD (2026-11-15 — src/lib/listing-photo-hold.ts PHOTO_HELD_NOTE): every existing-row publish or park
+ * (`verified: true` / `identityHold: true`) ANDs NOT_PHOTO_HELD (notPhotoHeldSql) or is listed in PHOTO_GUARD_EXEMPT
+ * (`publishesWithoutPhotoGuard`); status-only writes are outside it, as for the seats: a held row is verified:false. And a
+ * script that writes listing photos queues them for the photo check (`photoWrites`, PHOTO_QUEUE_EXEMPT).
  * And for the teacher card's "Identity verified" tick (owner, 2026-10-15 — src/lib/teachers/identity-mark-card.ts): a
  * non-null Listing.identityMarkNotice — the card cache that makes a card claim "eno checked this person's ID" — is
  * written in one place only (`markWrites`, MARK_WRITERS).
@@ -81,7 +85,8 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused; a non-desk e-Visa / Legal & permits post is inserted verified:false — licenceCheckHold; a REVIEW SEAT\'s post is inserted verified:false with REVIEW_SEAT_HELD_NOTE, never identityHold — ownerIsReviewSeat) + confirmCore revive (identityGateForRevive → refuse; licenceClearedWhere in the write, R1; a store-review seat\'s row of any type refused first, 403 review_seat_listing — round 5)' },
   'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only), and never a review seat\'s (TeacherReviewSeatError, first, on the Profile row\'s address: the insert is verified:true, so a seat is refused a create and an edit alike — review-seat-accounts.ts); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false) nor re-show a profile with no job goal and no public cover (D6 — TeacherNoGoalError, under the account lock), nor one a store-review seat holds (api/teachers/me/status refuses it first; the generic revives — core/listings.ts setStatusCore\'s relist and confirmCore\'s revive — refuse every row a seat owns, any type, round 5)' },
   'src/lib/core/bulk.ts': { count: 1, why: 'bulkImportCore insert — whole batch refused before the loop (sellerPublishDecision); a REVIEW SEAT\'s rows (the CSV, /api/v1 bulk, MCP bulk, a sync\'s creates) are inserted verified:false with REVIEW_SEAT_HELD_NOTE, never identityHold (ownerIsReviewSeat, once per import)' },
-  'src/app/api/admin/listings/route.ts': { count: 4, why: 'admin activate/verify — partitionByIdentityGate, refused owners are HELD (identityHold); uncleared licence-aisle rows left out (licenceBlockedIds) and every write ANDs licenceClearedWhere (activate since R1, 2026-10-14); verify is publishListings, which licence-approve reuses' },
+  'src/app/api/admin/listings/route.ts': { count: 3, why: 'admin activate — partitionByIdentityGate, refused owners are HELD (identityHold); uncleared licence-aisle rows left out (licenceBlockedIds) and every write ANDs licenceClearedWhere (since R1, 2026-10-14). Verify and licence-approve publish through core/publish-listings.ts' },
+  'src/lib/core/publish-listings.ts': { count: 1, why: 'publishListings (moved out of api/admin/listings, 2026-11-15) — admin verify, licence-approve and the photo self-release: partitionByIdentityGate, refused owners are HELD; uncleared licence-aisle rows left out (licenceBlockedIds) and photo-held rows too unless it is the photo release, which publishes only a row still carrying the mark; both writes AND licenceClearedWhere, NOT_A_REVIEW_SEATS_LISTING and the photo guard' },
   'src/app/api/admin/moderate/route.ts': { count: 1, why: 'moderation approve — partitionByIdentityGate, refused owner HELD; an uncleared licence-aisle row answers 409 licence_check_required before any write, and the write ANDs NOT_REMOVED + licenceClearedWhere' },
   'src/lib/enforcement.ts': { count: 2, why: 'restoreListings (lift/expiry) + applyEnforcement downgrade restore — refused owners HELD; uncleared licence-aisle rows neither published nor parked, both writes AND licenceClearedWhere' },
   'src/lib/compliance/identity-holds.ts': { count: 1, why: 'releaseIdentityHolds — the gate’s own release, only after the owner is verified; an uncleared licence-aisle row stays parked (licenceBlockedIds + licenceClearedWhere)' },
@@ -178,6 +183,21 @@ const REVIEW_SEAT_GUARD_EXEMPT: Record<string, { count: number; why: string }> =
   'scripts/import-goplus.ts': { count: 1, why: 'the post-run identity release over the ONE GoPlus storefront (Handle goplus AND owner contact@goplus.com.vn AND official partner — goplusSellerRefusal), never a seat\'s' },
   'scripts/seed-visa-shop.mjs': { count: 2, why: "eno's own e-Visa desk rows only (the desk storefront resolved by owner email) — staff, never a seat" },
   'scripts/seed-trip-desk.mjs': { count: 1, why: "eno's own trip desk anchor row only — staff, never a seat" },
+}
+
+/**
+ * ⛔ EXISTING-ROW PUBLISHES AND PARKS THAT NEED NO PHOTO GUARD (2026-11-15 — src/lib/listing-photo-hold.ts). A photo-held
+ * row is verified:false, so only a write that sets `verified: true` — or parks one (`identityHold: true`, a publish the day
+ * its owner verifies) — on an existing row can put it back. Each ANDs NOT_PHOTO_HELD (raw SQL: notPhotoHeldSql) or is
+ * listed here with the construction that keeps a held row out. The photo release (core/publish-listings.ts) spells it
+ * `photoRelease ? { verificationNotes: PHOTO_HELD_NOTE } : NOT_PHOTO_HELD` — the one writer that may publish a held row,
+ * and only while it still carries the mark. Exact counts.
+ */
+const PHOTO_GUARD_EXEMPT: Record<string, { count: number; why: string }> = {
+  'src/app/api/admin/listings/route.ts': { count: 1, why: 'activate\'s park of a VERIFIED row the identity gate refuses (`verified: true` in its WHERE) — a held row is verified:false' },
+  'src/lib/compliance/seller-publish-gate.ts': { count: 1, why: 'claimGuestStorefront\'s park of the guest\'s LIVE rows (`verified: true` in its WHERE) — a held row is verified:false' },
+  'scripts/seed-visa-shop.mjs': { count: 2, why: "eno's own e-Visa desk rows only (the desk storefront resolved by owner email): an operator's re-seed of the desk's products is the operator's call on them" },
+  'scripts/seed-trip-desk.mjs': { count: 1, why: "eno's own trip desk anchor row only (hidden, price 0)" },
 }
 
 /**
@@ -542,6 +562,62 @@ export function publishesWithoutReviewSeatGuard(source: string): string[] {
 }
 
 /**
+ * Writes that PUBLISH OR PARK AN EXISTING ROW without the PHOTO guard (2026-11-15 — src/lib/listing-photo-hold.ts): a Prisma
+ * `listing.update|updateMany|updateManyAndReturn|upsert` whose arguments (reads and an upsert's `create` blanked) set
+ * `verified: true` or `identityHold: true` and whose call text does not carry `NOT_PHOTO_HELD` un-negated, or a raw
+ * `UPDATE "Listing" … SET … verified = true | "identityHold" = true` whose statement (to its closing backtick or ';') does
+ * not carry `notPhotoHeldSql(`. One hit per write; blind spots as the header's.
+ */
+export function publishesWithoutPhotoGuard(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, /\b\w+\.listing\.(update|updateMany|updateManyAndReturn|upsert)\s*\(/g)) {
+    const raw = src.slice(open, close + 1)
+    const set = blankCreates(blankReads(raw)).match(/\bverified\s*:\s*true\b|\bidentityHold\s*:\s*true\b/)
+    if (set && (!raw.includes('NOT_PHOTO_HELD') || /\bNOT\s*:\s*\[?\s*NOT_PHOTO_HELD\b/.test(raw))) hits.push(`${lineOf(open)}: listing.${method} ${set[0]} without NOT_PHOTO_HELD`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    const set = /\bverified"?\s*=\s*true\b|"?identityHold"?\s*=\s*true\b/i.exec(m[1])
+    if (!set) continue
+    const rest = src.slice(m.index!)
+    const end = rest.search(/[`;]/)
+    if (!(end < 0 ? rest : rest.slice(0, end)).includes('notPhotoHeldSql(')) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET ${set[0]} without notPhotoHeldSql`)
+  }
+  return hits
+}
+
+/**
+ * Scripts that WRITE A LISTING'S PHOTOS (2026-11-15 — src/lib/listing-photo-queue.ts): a `scripts/import-*` that writes
+ * listings and names `images` at all (its payloads are built far from the write), or any script whose listing write
+ * (reads blanked) or raw `UPDATE "Listing" SET` names images. One hit per file or write. Same blind spots as the header's,
+ * and more (A14): a photo change the scan cannot see waits for the cron's weekly full pass.
+ */
+export function photoWrites(rel: string, source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, LISTING_WRITE_CALL)) {
+    if (/\bimages\b/.test(blankReads(src.slice(open, close + 1)))) hits.push(`${lineOf(open)}: listing.${method} images`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) if (/"?\bimages"?\s*=/i.test(m[1])) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET images`)
+  const writes = new RegExp(LISTING_WRITE_CALL.source).test(src) || new RegExp(String.raw`(UPDATE|INSERT\s+INTO)\s+${LISTING_TABLE}`, 'i').test(src)
+  if (!hits.length && /^scripts\/import-/.test(rel) && writes && /\bimages\b/.test(src)) hits.push('an importer that writes listings and names images')
+  return hits
+}
+
+/** Scripts that write photos and need not queue them, each with why. */
+const PHOTO_QUEUE_EXEMPT: Record<string, string> = {
+  'scripts/import-batdongsan-rentals.ts': "creates rows with images '[]' and never writes images again; their photos come from attach-batdongsan-photos.ts, which queues",
+  'scripts/import-esim.ts': 'the eSIM carriers\' ownerless storefronts in services/esim only — never read by the check (listing-photo-check.ts PHOTO_CHECK_EXEMPT, the owner\'s protected stores)',
+  'scripts/set-vinwonders-covers.ts': 'the VinWonders storefront only — a protected store the check never reads (PHOTO_CHECK_EXEMPT)',
+  'scripts/set-vinwonders-images.ts': 'the VinWonders storefront only — a protected store the check never reads (PHOTO_CHECK_EXEMPT)',
+  'scripts/reorder-import-covers.ts': 'reorders photos a listing already has — no photo added, so no verdict changes',
+  'scripts/dedupe-listing-images.ts': 'removes second copies of photos a listing already has — no photo added, so no verdict changes',
+  'scripts/ci-fixtures.ts': 'fixture rows on a disposable CI database',
+}
+
+/**
  * Writes of a NON-NULL licence stamp (owner, 2026-10-14). Listing.verificationMethod is the repurposed approval stamp
  * (src/lib/licence-stamp.ts), so a value written to it is an approval: a listing write (any of LISTING_WRITE_CALL, an
  * upsert's `create` included — reads blanked) with `verificationMethod:` anything but `null`, its `{ verificationMethod }`
@@ -683,6 +759,35 @@ describe('⛔ a review seat\'s listing (round 3, 2026-11-14): every existing-row
         .map(([f, a]) => `${f}: expected ${a.count}, found ${found.get(f)?.length ?? 0}\n    ${(found.get(f) ?? []).join('\n    ')}`),
     ]
     expect(bad, `A write can publish an existing listing (\`verified: true\`) without the review-seat guard, so a seat's held test post (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) could go live through it. AND NOT_A_REVIEW_SEATS_LISTING into the write's WHERE (raw SQL: \`AND \${notAReviewSeatsListingSql()}\`), refusing by name first where an admin acts (review-seat-listings.ts reviewSeatListingIds); or, only if a seat's row can never reach the write BY CONSTRUCTION, list the file in REVIEW_SEAT_GUARD_EXEMPT with that construction:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+})
+
+describe('⛔ the photo hold (2026-11-15): every existing-row publish or park carries the photo guard', () => {
+  it('⛔ no `verified: true` / `identityHold: true` write without NOT_PHOTO_HELD / notPhotoHeldSql — unless listed with its construction', () => {
+    const found = scanWith(publishesWithoutPhotoGuard)
+    const bad = [
+      ...[...found.entries()].filter(([f]) => !PHOTO_GUARD_EXEMPT[f]).map(([f, h]) => `${f} (unlisted)\n    ${h.join('\n    ')}`),
+      ...Object.entries(PHOTO_GUARD_EXEMPT).filter(([f, a]) => (found.get(f)?.length ?? 0) !== a.count)
+        .map(([f, a]) => `${f}: expected ${a.count}, found ${found.get(f)?.length ?? 0}\n    ${(found.get(f) ?? []).join('\n    ')}`),
+    ]
+    expect(bad, `A write can publish or park an existing listing without the photo guard, so a listing the photo check holds (src/lib/listing-photo-hold.ts PHOTO_HELD_NOTE) could go live through it. AND NOT_PHOTO_HELD into the write's WHERE (raw SQL: \`AND \${notPhotoHeldSql()}\`); or, only if a held row can never reach the write BY CONSTRUCTION, list the file in PHOTO_GUARD_EXEMPT with that construction:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+})
+
+describe('⛔ the photo check (2026-11-15): a script that writes listing photos queues them for the cron', () => {
+  const found = () => {
+    const out = new Map<string, string[]>()
+    for (const { rel, src } of SOURCES) if (rel.startsWith('scripts/')) { const h = photoWrites(rel, src); if (h.length) out.set(rel, h) }
+    return out
+  }
+  it('⛔ every one calls enqueuePhotoChecks (listing-photo-queue.ts) — or is listed with why it need not', () => {
+    const bad = [...found().entries()].filter(([f]) => !PHOTO_QUEUE_EXEMPT[f] && !/\benqueuePhotoChecks\s*\(/.test(stripComments(SOURCES.find((s) => s.rel === f)!.src)))
+      .map(([f, h]) => `${f}\n    ${h.join('\n    ')}`)
+    expect(bad, `A script writes listing photos without queueing them for the photo check, so a flyer it adds stays up until the weekly full pass. Call \`enqueuePhotoChecks(db, ids)\` (src/lib/listing-photo-queue.ts) at the end of an applied run; or, only if its photos never need a check, list it in PHOTO_QUEUE_EXEMPT with why:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+  it('every exemption still names a script that writes photos', () => {
+    const f = found()
+    expect(Object.keys(PHOTO_QUEUE_EXEMPT).filter((p) => !f.has(p))).toEqual([])
   })
 })
 
@@ -844,6 +949,25 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(publishesWithoutReviewSeatGuard('c.query(`UPDATE "Listing" l SET verified = true FROM "Seller" s WHERE s.id = l."sellerId" AND ${notAReviewSeatsListingSql(\'l.\')}`)')).toEqual([])
     expect(publishesWithoutReviewSeatGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'`)).toEqual([])
   })
+  it('flags an existing-row publish or park without the photo guard — and passes a guarded one, Prisma or raw', () => {
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesWithoutPhotoGuard(`db.listing.updateManyAndReturn({ where: { id }, data: { identityHold: true }, select: { id: true } })`)).toHaveLength(1)
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id, AND: [NOT_PHOTO_HELD] }, data: { verified: true } })`)).toEqual([])
+    expect(publishesWithoutPhotoGuard(`tx.listing.updateMany({ where: { id, AND: [o.photoRelease ? { verificationNotes: PHOTO_HELD_NOTE } : NOT_PHOTO_HELD] }, data: held ? { identityHold: true } : { verified: true } })`)).toEqual([])
+    // Negated, or named only in a comment, is no guard.
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id, NOT: NOT_PHOTO_HELD }, data: { verified: true } })`)).toHaveLength(1)
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id } /* NOT_PHOTO_HELD */, data: { verified: true } })`)).toHaveLength(1)
+    // Status-only writes, takedowns, the hold itself, creates and reads are outside it.
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id }, data: { status: 'active' } })`)).toEqual([])
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { id }, data: { verified: false, identityHold: false, verificationNotes: PHOTO_HELD_NOTE } })`)).toEqual([])
+    expect(publishesWithoutPhotoGuard(`db.listing.create({ data: { verified: true } })`)).toEqual([])
+    expect(publishesWithoutPhotoGuard(`db.listing.updateMany({ where: { identityHold: true, verified: true }, data: { verified: false } })`)).toEqual([])
+    // Raw: the statement must carry the SQL half.
+    expect(publishesWithoutPhotoGuard('c.query(`UPDATE "Listing" SET "identityHold" = true WHERE id = ANY($1::text[])`)')).toHaveLength(1)
+    expect(publishesWithoutPhotoGuard('c.query(`UPDATE "Listing" SET verified = true WHERE id = ANY($1::text[]) AND ${notPhotoHeldSql()}`)')).toEqual([])
+    expect(publishesWithoutPhotoGuard('c.query(`UPDATE "Listing" l SET verified = true FROM "Seller" s WHERE s.id = l."sellerId" AND ${notPhotoHeldSql(\'l.\')}`)')).toEqual([])
+    expect(publishesWithoutPhotoGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'`)).toEqual([])
+  })
   it('flags a non-null identity-mark write, Prisma (any model, nested, shorthand) or raw — and never a cleared one, a read or the consent\'s own version column', () => {
     expect(markWrites(`tx.listing.update({ where: { id }, data: { identityMarkNotice: version } })`)).toHaveLength(1)
     expect(markWrites(`db.listing.updateMany({ where: { id }, data: { identityMarkNotice } })`)).toHaveLength(1)
@@ -877,5 +1001,13 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(stampWrites(`db.listing.updateManyAndReturn({ where: { id }, data: { verified: false }, select: { verificationMethod: true } })`)).toEqual([])
     // Another model's column of the same name (Profile.verificationMethod — the identity check) is not the stamp.
     expect(stampWrites(`db.profile.update({ where: { id }, data: { verificationMethod: source.method } })`)).toEqual([])
+  })
+  it('sees a script\'s photo writes, and not a read of them', () => {
+    expect(photoWrites('scripts/x.ts', `await db.listing.update({ where: { id }, data: { images: JSON.stringify(urls) } })`)).toHaveLength(1)
+    expect(photoWrites('scripts/x.ts', 'await db.$executeRaw`UPDATE "Listing" SET images = ${next} WHERE id = ${id}`')).toHaveLength(1)
+    expect(photoWrites('scripts/x.ts', `await db.listing.updateMany({ where: { id }, data: { price }, select: { images: true } })`)).toEqual([])
+    // An importer builds its payload far from the write: naming images at all counts.
+    expect(photoWrites('scripts/import-x.ts', `const fields = { images }\nawait db.listing.updateMany({ where: { id }, data: fields })`)).toHaveLength(1)
+    expect(photoWrites('scripts/other.ts', `const fields = { images }\nawait db.listing.updateMany({ where: { id }, data: fields })`)).toEqual([])
   })
 })

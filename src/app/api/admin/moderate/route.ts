@@ -20,6 +20,8 @@ import { windowExtendedBody } from '@/lib/dispute-window-row'
 import { TEACHER_LISTING_TYPE, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { adminWithdrawDeal, isMissingRelation, type AdminWithdrawResult } from '@/lib/service-deal-server'
 import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
+import { NOT_PHOTO_HELD, PHOTO_HELD_NOTE } from '@/lib/listing-photo-hold'
+import { photoPassSoon } from '@/lib/listing-photo-hooks'
 import { reviewSeatListingIds } from '@/lib/review-seat-listings'
 
 export const dynamic = 'force-dynamic'
@@ -339,8 +341,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
 
     case 'approve': {
       // Publish a held listing and dismiss any open reports against it.
-      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
+      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true, verificationNotes: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      // ⛔ NOR A PHOTO-HELD ROW (listing-photo-hold.ts): it goes back through its seller's real photo or "Photo is fine".
+      if (listing.verificationNotes === PHOTO_HELD_NOTE) return NextResponse.json({ error: 'photo_check_required' }, { status: 409 })
       // ⛔ NOT AN e-VISA / LEGAL & PERMITS ROW eno HAS NOT CHECKED (owner, 2026-10-14 — licence-stamp.ts). A content
       // verdict is not a licence check: such a row goes live only through Catalogue › Licence checks, which compares the
       // provider's values with the copies it emailed. 409 BEFORE any write, so its reports stay open as they are. This
@@ -371,7 +375,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // ⛔ updateMany, CONDITIONAL (2026-10-14): never a tombstone (NOT_REMOVED — the guard this write lacked: an
         // approve used to republish a removed listing), and licenceClearedWhere — an edit that re-held an e-Visa /
         // Legal & permits row between the check above and this write makes it match nothing.
-        const { count } = await tx.listing.updateMany({ where: { id, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING] }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })
+        const { count } = await tx.listing.updateMany({ where: { id, ...NOT_REMOVED, AND: [licenceClearedWhere(desk), NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })
         if (count !== 1) return false
         await tx.report.updateMany({
           where: { listingId: id, status: 'open' },
@@ -394,6 +398,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       if (approvedDismissed.length) await settleAppeal(approvedDismissed.map((r) => r.id), onHeld)
       // A verification that landed between the decision and the park: released now, and not held.
       if (held && (await settleHolds([id]))) held = 0
+      photoPassSoon([id], 'pass')
       revalidatePublicPath(`/listings/${id}`)
       // …and the home page, as every takedown here purges it: the other direction, so an approved teacher is back on the
       // "Find a teacher" shelf — which has no client fetch — within the edge cache's window rather than the home page's

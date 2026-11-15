@@ -65,6 +65,17 @@ describe('storage tombstones — the writers', () => {
     expect(h.rows[0]).toMatchObject({ reason: 'visa_upload_intent', notBefore: new Date(later.getTime() + TOMBSTONE_GRACE_MS) })
   })
 
+  it('`graceMs` keeps an object longer (a removed listing photo: 180 days), never shorter than the hour — and a later write resets it', async () => {
+    const days180 = 180 * 24 * 3600_000
+    await writeTombstones(db, [{ bucket: 'listings', path: 'flyer.webp' }], 'listing_photo_stripped', t0, { graceMs: days180 })
+    expect(h.rows[0]).toMatchObject({ reason: 'listing_photo_stripped', notBefore: new Date(t0.getTime() + days180) })
+    await writeTombstones(db, [{ bucket: 'listings', path: 'b.webp' }], 'account_deleted', t0, { graceMs: 1 })
+    expect(h.rows[1].notBefore).toEqual(new Date(t0.getTime() + TOMBSTONE_GRACE_MS))
+    // An account erasure re-tombstones the kept photo with the ordinary hour: it goes at once.
+    await writeTombstones(db, [{ bucket: 'listings', path: 'flyer.webp' }], 'account_deleted', later)
+    expect(h.rows[0]).toMatchObject({ reason: 'account_deleted', notBefore: new Date(later.getTime() + TOMBSTONE_GRACE_MS) })
+  })
+
   it('clearTombstones removes exactly the settled objects', async () => {
     await writeTombstones(db, [{ bucket: 'listings', path: 'a.webp' }, { bucket: 'listings', path: 'b.webp' }, { bucket: 'listing-videos', path: 'a.webp' }], 'account_deleted', t0)
     expect(await clearTombstones([{ bucket: 'listings', path: 'a.webp' }, { bucket: 'listings', path: 'nope.webp' }])).toBe(1)

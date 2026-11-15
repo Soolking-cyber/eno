@@ -247,6 +247,8 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
 // The licence check (2026-10-14): eno's desk and the exact pre-filter — their own rules are tested in
 // src/lib/core/licence-check.test.ts; here only what `approve` does with the answer.
 vi.mock('@/lib/edition-scope', () => ({ deskSellerIds: async () => ['desk-seller'] }))
+// The follow-up photo pass after an approval (listing-photo-hooks.ts): recorded, not run.
+vi.mock('@/lib/listing-photo-hooks', () => ({ photoPassSoon: (ids: string[]) => { h.calls.push({ m: 'photoPassSoon', args: { ids } }) } }))
 vi.mock('@/lib/core/licence-check', () => ({
   licenceBlockedIds: async (ids: string[], desk?: string[]) => {
     h.calls.push({ m: 'licenceBlockedIds', args: { ids, desk } })
@@ -278,9 +280,10 @@ import { standingConductEvents } from '@/lib/trust-math'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS } from '@/lib/dispute'
 import { licenceClearedWhere } from '@/lib/licence-stamp'
 import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 
-/** `approve`'s write: never a tombstone, the licence check's guard for the desk mocked above, and never a review seat's row. */
-const APPROVE_WHERE = { id: 'l1', status: { not: 'removed' }, AND: [licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING] }
+/** `approve`'s write: never a tombstone, the licence check's guard for the desk mocked above, never a review seat's row, nor a photo-held one. */
+const APPROVE_WHERE = { id: 'l1', status: { not: 'removed' }, AND: [licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }
 
 /** Returns status + the RAW body text, because the contract is bytes, not a deep-equal shape. */
 async function post(body?: unknown, raw?: string) {
@@ -783,6 +786,22 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: true, identityHold: false, verificationNotes: null }, inTx: true })
   })
 
+  // ⛔ A PHOTO-HELD LISTING (listing-photo-hold.ts) goes back through its seller's real photo or "Photo is fine", never a
+  // content verdict; an approval that publishes goes through the photo pass.
+  it('⛔ approve of a PHOTO-HELD listing → 409 {"error":"photo_check_required"} before ANY write', async () => {
+    h.listing = { id: 'l1', verified: false, verificationNotes: 'photo:held' }
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"photo_check_required"}')
+    expect(called('$transaction')).toHaveLength(0)
+  })
+
+  it('an approval hands the listing to the photo pass', async () => {
+    h.listing = { id: 'l1', verified: false }
+    await post({ action: 'approve', id: 'l1' })
+    expect(args('photoPassSoon')).toEqual({ ids: ['l1'] })
+  })
+
   // ⛔ A REVIEW SEAT'S LISTING (round 3, 2026-11-14 — src/lib/review-seat-accounts.ts): an outside reviewer's test post is
   // never published, so a content verdict cannot publish it either — nor park it, which a release would publish.
   it('⛔ approve of a REVIEW SEAT\'s listing → 409 {"error":"review_seat_listing"} before ANY write — not parked, its reports stay open', async () => {
@@ -832,7 +851,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const w = args('listing.updateMany')!
     expect(w.where.status).toEqual({ not: 'removed' })
     // …and never a review seat's row (src/lib/review-seat-accounts.ts), in the same write.
-    expect(w.where.AND).toEqual([licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING])
+    expect(w.where.AND).toEqual([licenceClearedWhere(['desk-seller']), NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD])
     // …in the same transaction as the report dismissal.
     expect(args('$transaction')).toEqual({ n: 1 })
     expect(w.inTx).toBe(true)

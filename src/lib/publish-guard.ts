@@ -53,7 +53,7 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead' | 'provider_licence_required' | 'provider_licence_invalid' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead' | 'provider_licence_required' | 'provider_licence_invalid' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue' | 'photo_not_allowed'
 
 // ⚠️ THE JOB-TEXT CODES (teacher visibility plan §3a item 6, approved in the plan 2026-10-18 — owner: "go with recommended";
 // they ship with the "Hiring? Post your job ad" prompt) — job-listing.ts jobTextProblem, run on every HIRING post (Jobs,
@@ -81,6 +81,9 @@ export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'ide
 // providerLicenceProblems) — the desk included. The values keep the phone / contact / banned-word screen; the phone
 // screen is waived ONLY for the bare enterprise code in Legal & permits. The session routes answer 400 with the
 // bilingual PROVIDER_LICENCE_REFUSAL as `message`.
+// ⚠️ `photo_not_allowed` (owner 2026-11-15): a photo is a flyer or shows contact details, confirmed by two reads
+// (listing-photo-refusal.ts) — createListingCore throws it, updateListingCore returns it, with `detail` '<rule>:<url> …'.
+// Fixable (remove the marked photos), so 400.
 // ⚠️ `identity_sign_in_required` IS THE GUEST'S CODE, AND IT IS DISTINCT FROM `identity_unverified` ON
 // PURPOSE. Both mean "verify before you sell", but a guest has no account to verify: sending them to
 // /dashboard/account/verify bounces them through sign-in with no explanation of why. The wizard turns

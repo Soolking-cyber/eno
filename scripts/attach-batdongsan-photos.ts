@@ -43,6 +43,7 @@ import { createClient } from '@supabase/supabase-js'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { makeImageHost } from '../src/lib/host-product-image'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 
 const SELLER_ID = 'bds-vn-import-seller-0001'
 const BUCKET = 'listings'
@@ -105,43 +106,50 @@ async function main() {
     ...(LIMIT ? { take: LIMIT } : {}),
   })
 
+  const photoIds: string[] = []
   const stat = { listings: 0, uploaded: 0, skippedHeadshot: 0, skipped200: 0, missingFile: 0, failed: 0, noneUsable: 0 }
   console.log(`seller rows without images   ${targets.length}`)
   console.log(`mode                         ${APPLY ? 'APPLY — UPLOADS + WRITES TO PRODUCTION' : 'DRY RUN'}`)
 
-  for (const t of targets) {
-    const row = t.externalId ? byExternal.get(t.externalId) : undefined
-    if (!row) continue
-    const paths: string[] = (row.local_images ?? []).filter((p: string) => !isHeadshotName(p))
-    stat.skippedHeadshot += (row.local_images ?? []).length - paths.length
+  try {
+    for (const t of targets) {
+      const row = t.externalId ? byExternal.get(t.externalId) : undefined
+      if (!row) continue
+      const paths: string[] = (row.local_images ?? []).filter((p: string) => !isHeadshotName(p))
+      stat.skippedHeadshot += (row.local_images ?? []).length - paths.length
 
-    const urls: string[] = []
-    for (const rel of paths) {
-      const abs = join(IMAGES, rel.replace(/^images\//, ''))
-      if (!existsSync(abs)) { stat.missingFile++; continue }
-      const buf = readFileSync(abs)
-      const d = await dimsOf(buf)
-      /**
-       * ⛔ Headshot guard #2 — content, not naming — AND IT FAILS CLOSED. A 200x200 square is the
-       * avatar transform. The first cut read `if (d && …)`, so a file sharp could not decode
-       * skipped the check entirely and any headshot not named `img_2` would have been published.
-       * A guard protecting a real person's likeness must refuse on doubt, not wave it through.
-       * ⚠️ This guard is not theatre: on the full run it caught 2,496 avatars the FILENAME missed.
-       */
-      if (!d || (d.w === 200 && d.h === 200)) { stat.skipped200++; continue }
-      if (!APPLY) { urls.push('(would upload)'); continue }
-      const url = await host.fromBuffer(buf, t.externalId!.replace(/[^a-z0-9]/gi, '-'))
-      if (!url) { stat.failed++; continue }
-      urls.push(url)
-      stat.uploaded++
-    }
+      const urls: string[] = []
+      for (const rel of paths) {
+        const abs = join(IMAGES, rel.replace(/^images\//, ''))
+        if (!existsSync(abs)) { stat.missingFile++; continue }
+        const buf = readFileSync(abs)
+        const d = await dimsOf(buf)
+        /**
+         * ⛔ Headshot guard #2 — content, not naming — AND IT FAILS CLOSED. A 200x200 square is the
+         * avatar transform. The first cut read `if (d && …)`, so a file sharp could not decode
+         * skipped the check entirely and any headshot not named `img_2` would have been published.
+         * A guard protecting a real person's likeness must refuse on doubt, not wave it through.
+         * ⚠️ This guard is not theatre: on the full run it caught 2,496 avatars the FILENAME missed.
+         */
+        if (!d || (d.w === 200 && d.h === 200)) { stat.skipped200++; continue }
+        if (!APPLY) { urls.push('(would upload)'); continue }
+        const url = await host.fromBuffer(buf, t.externalId!.replace(/[^a-z0-9]/gi, '-'))
+        if (!url) { stat.failed++; continue }
+        urls.push(url)
+        stat.uploaded++
+      }
 
-    if (!urls.length) { stat.noneUsable++; continue }
-    stat.listings++
-    if (APPLY) {
-      await db.listing.update({ where: { id: t.id }, data: { images: JSON.stringify(urls) } })
-      if (stat.listings % 250 === 0) console.log(`  ${stat.listings} listings · ${stat.uploaded} photos uploaded`)
+      if (!urls.length) { stat.noneUsable++; continue }
+      stat.listings++
+      if (APPLY) {
+        await db.listing.update({ where: { id: t.id }, data: { images: JSON.stringify(urls) } })
+        photoIds.push(t.id)
+        if (stat.listings % 250 === 0) console.log(`  ${stat.listings} listings · ${stat.uploaded} photos uploaded`)
+      }
     }
+  } finally {
+    // A throw out of the loop still queues the rows already written for the photo check.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   console.log(`\n${JSON.stringify(stat, null, 2)}`)

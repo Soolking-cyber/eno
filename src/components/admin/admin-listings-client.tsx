@@ -194,6 +194,8 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
       // ⛔ The licence aisles (owner, 2026-10-14): Publish (and Activate, R1) skip every e-Visa / Legal & permits listing
       // still waiting for eno's licence check and count them here, so "published 10" never hides the 2 it did not touch.
       if (d.licenceCheck > 0) toast.warning(`${d.licenceCheck} need a licence check — approve them under Licence checks`)
+      // The photo hold (2026-11-15, listing-photo-hold.ts): Publish skips it; the seller's real photo releases it.
+      if (d.photoCheck > 0) toast.warning(`${d.photoCheck} held for flyer or contact photos — they go live when the seller adds a real photo`)
       load()
     } catch { toast.error('Action failed') } finally { setBusy(false) }
   }

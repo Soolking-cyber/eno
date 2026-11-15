@@ -24,6 +24,7 @@ const h = vi.hoisted(() => {
   return { uploads: [] as Array<{ path: string; body: Buffer; opts: Record<string, unknown> }> }
 })
 
+vi.mock('@/lib/listing-photo-verdict', () => ({ rememberPhotoKey: async () => {} }))
 vi.mock('@/lib/supabase-admin', () => ({
   LISTINGS_BUCKET: 'listings',
   EVIDENCE_BUCKET: 'evidence',

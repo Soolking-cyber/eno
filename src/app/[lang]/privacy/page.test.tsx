@@ -724,6 +724,34 @@ describe('/privacy — Zalo for urgent cover', () => {
 })
 
 /**
+ * ⛔ THE LISTING PHOTO CHECK (owner, 2026-11-15 — src/lib/listing-photo-check.ts): at Publish (signed in, or a photo checked
+ * before — a guest's upload reads the cache only; a refusal needs two reads that agree; on jobs contact details only), and
+ * on published listings (the hold until a real photo, removed photos kept for STRIPPED_KEEP_MS, the seller told each time).
+ */
+describe('/privacy — the listing photo check', () => {
+  it('both editions, both languages — and the 180 days are the code’s', async () => {
+    const { STRIPPED_KEEP_MS } = await import('@/lib/listing-photo-pass')
+    expect(STRIPPED_KEEP_MS).toBe(180 * 24 * 3600_000)
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      for (const s of [
+        'An AI model (Google Gemini) also looks at each photo you add — when you are signed in, or when the same photo was checked before — for a flyer or other advertisement, or a phone number or other contact details on it (on a job listing, only contact details count); a photo is refused only when two separate checks agree, and it is marked so you can replace it.',
+        'a listing whose photos are all flyers or show contact details may be hidden until its seller adds a real photo — it then goes live again by itself — and in any other listing such photos may be removed and kept for up to 180 days',
+        'The seller is notified each time and can ask from the Help page for a member of our team to look again.',
+      ]) expect(en, `${site}: ${s}`).toContain(s)
+      cleanup()
+      const vi = await policy(site, 'vi')
+      for (const s of [
+        'ảnh chỉ bị từ chối khi hai lần kiểm tra riêng biệt cùng kết luận, và được đánh dấu để bạn thay ảnh khác.',
+        'có thể bị ẩn cho đến khi người bán thêm một ảnh chụp thật — sau đó tin tự hiển thị lại',
+        'được lưu tối đa 180 ngày',
+      ]) expect(vi, `${site}: ${s}`).toContain(s)
+      cleanup()
+    }
+  })
+})
+
+/**
  * THE ONE-TIME ZALO INVITE (owner, 2026-10-29 — src/lib/teachers/zalo-invite.ts): told once, where, that it counts toward
  * "two until you reply", never while paused, and the time kept and downloadable — at the end of "Job messages for teachers".
  */

@@ -181,6 +181,7 @@ import {
 // The 7-day rule for imported apartments (header ⛔ 8).
 import { FRESH_DAYS, FRESH_SET_KIND, REVIVABLE_STATUSES, WRITE_MIN_LIFE_DAYS, tooLateToWrite } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import {
   NHATOT_APARTMENT_CG, NHATOT_WINDOW_OVERLAP, nhatotExistingRowPlan, nhatotFreshCrawlProblem, nhatotFreshDecision, nhatotFreshOutProblem,
   nhatotRepostRollbackSql, nhatotRevivalRollbackSql, nhatotSqlLit, nhatotTombstoneSql,
@@ -1157,6 +1158,8 @@ async function importMain() {
   }
   /** Rows THIS run moved back to 'active' — each tombstoned as it lands, and all once more in the finally. */
   const revivedIds: string[] = []
+  // Rows created, and the revived ones, for the photo check (listing-photo-queue.ts).
+  const photoIds: string[] = []
   let stopped: string | null = null
   let tombstoneFailed = false
   try {
@@ -1262,6 +1265,7 @@ async function importMain() {
           select: { id: true },
         })
         recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: r.externalId, at: new Date().toISOString() }))
+        photoIds.push(made.id)
         stat.created++
         if (plan.cover) stat.coverByMark++
       } catch (e) {
@@ -1273,6 +1277,8 @@ async function importMain() {
       if (done % 100 === 0) console.log(`  ${done}/${batch.length}  ${JSON.stringify(stat)}`)
     }
   } finally {
+    // The photo check's queue first: it never throws, so a failed tombstone below cannot skip it.
+    if (APPLY) await enqueuePhotoChecks(db, [...photoIds, ...revivedIds])
     /** Every page revived this run once more — a per-row tombstone that failed, or a throw between a write
      *  and its tombstone, still ends with the cached 404 gone. Idempotent (a newer stamp wins). */
     if (revivedIds.length) {

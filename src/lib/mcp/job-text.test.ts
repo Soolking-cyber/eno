@@ -86,6 +86,12 @@ describe('update_listing — a hiring post’s edit the job-text screen refused'
     expect(e).toMatchObject({ code, message: JOB_TEXT_REFUSAL[code].en, detail: 'description:Female only' })
   })
 
+  it('⛔ photo_not_allowed → the sentence and `detail` naming the refused images, so the agent knows which to drop', async () => {
+    h.update = { ok: false, code: 422, error: 'photo_not_allowed', detail: 'contact:https://sb/b.webp' }
+    const e = await run().catch((x: unknown) => x)
+    expect(e).toMatchObject({ code: 'photo_not_allowed', message: expect.stringMatching(/flyers or show a phone number/), detail: 'contact:https://sb/b.webp' })
+  })
+
   it('other refusals are unchanged: the code as the message, no detail', async () => {
     h.update = { ok: false, code: 400, error: 'title_too_short' }
     const e = await run().catch((x: unknown) => x)

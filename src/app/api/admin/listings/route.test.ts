@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { licenceClearedWhere } from '@/lib/licence-stamp'
 import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 
 type Row = Record<string, any>
 
@@ -47,6 +48,13 @@ const h = vi.hoisted(() => ({
   /** eno's desk (deskSellerIds) and the ids the licence pre-filter blocks — none here: route.licence.test.ts covers them. */
   desk: ['desk-seller'] as string[],
   blocked: [] as string[],
+  /** Photo-held ids (listing-photo-hold.ts) the publish leaves out, and the ids handed to the follow-up pass. */
+  photoHeld: [] as string[],
+  passSoon: [] as string[][],
+}))
+vi.mock('@/lib/listing-photo-hooks', () => ({
+  photoHeldIds: async (ids: string[]) => new Set(ids.filter((i) => h.photoHeld.includes(i))),
+  photoPassSoon: (ids: string[]) => { h.passSoon.push(ids) },
 }))
 // The review seats' listings (src/lib/review-seat-accounts.ts): `seatRows.ids` are a seat's; none unless a test says so.
 const seatRows = vi.hoisted(() => ({ ids: [] as string[] }))
@@ -81,7 +89,11 @@ vi.mock('@/lib/db', () => ({
     // The callback form `delete` uses: the tombstones, their audit rows and the report closures commit together.
     $transaction: async (fn: (tx: unknown) => unknown, opts?: Row) => {
       h.calls.push({ m: '$transaction', args: opts ?? {} })
-      const tx = { report: { updateMany: async (a: Row) => { h.calls.push({ m: 'tx.report.updateMany', args: { ...a, inTx: h.inTx } }); return { count: h.openReports } } } }
+      const tx = {
+        report: { updateMany: async (a: Row) => { h.calls.push({ m: 'tx.report.updateMany', args: { ...a, inTx: h.inTx } }); return { count: h.openReports } } },
+        // hide's two writes (the takedown, then the photo mark only).
+        listing: { updateMany: async (a: Row) => { h.calls.push({ m: 'updateMany', args: a }); return { count: h.counts.shift() ?? 0 } } },
+      }
       h.inTx = true
       try { return await fn(tx) } finally { h.inTx = false }
     },
@@ -144,6 +156,8 @@ beforeEach(() => {
   h.before = []
   h.releasable = []
   h.settleCalls = []
+  h.photoHeld = []
+  h.passSoon = []
 })
 
 describe('activate', () => {
@@ -203,7 +217,10 @@ describe('activate', () => {
     h.counts = [2]
     await post({ action: 'hide', ids: ['a', 'b'] })
     const hide = h.calls.find((c) => c.m === 'updateMany' && c.args?.data?.status === 'hidden')
-    expect(hide?.args.data).toMatchObject({ status: 'hidden', verified: false, identityHold: false })
+    expect(hide?.args.data).toEqual({ status: 'hidden', verified: false, identityHold: false })
+    // ⛔ O4: …and the photo mark ONLY (a photo release may not undo it, A10); a licence or review-seat note stays.
+    const marks = h.calls.filter((c) => c.m === 'updateMany' && 'verificationNotes' in (c.args?.data ?? {}))
+    expect(marks.map((c) => c.args)).toEqual([{ where: { id: { in: ['a', 'b'] }, status: { not: 'removed' }, verificationNotes: 'photo:held' }, data: { verificationNotes: null } }])
   })
 
   it('a refused owner: rows about to go public are PARKED; unverified or already-live rows are left un-held', async () => {
@@ -274,7 +291,7 @@ describe('verify ("Publish")', () => {
     h.counts = [3]
     const r = await post({ action: 'verify', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":3}')
-    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
   })
 
   it('⛔ a publish for an owner the gate ALLOWS clears identityHold — a live row never carries a hold', async () => {
@@ -283,7 +300,7 @@ describe('verify ("Publish")', () => {
     // forgetting the column, or a release, would mis-handle.
     h.counts = [1]
     await post({ action: 'verify', ids: ['a'] })
-    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
     expect(h.settleCalls).toEqual([])
   })
 
@@ -296,8 +313,8 @@ describe('verify ("Publish")', () => {
     expect(r.text).toBe('{"ok":true,"affected":2,"held":1}')
     expect(h.settleCalls).toEqual([['b']])
     expect(writes()).toEqual([
-      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { verified: true, identityHold: false, verificationNotes: null } }],
-      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING] }, data: { identityHold: true }, select: { id: true } }],
+      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' }, AND: [GUARD, NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] }, data: { identityHold: true }, select: { id: true } }],
     ])
   })
 
@@ -312,6 +329,18 @@ describe('verify ("Publish")', () => {
     const r = await post({ action: 'verify', ids: ['a', 'b', 'c', 'd'] })
     expect(r.text).toBe('{"ok":true,"affected":2,"held":1,"alreadyHeld":1}')
     expect(h.settleCalls).toEqual([['c']])
+  })
+
+  it('⛔ a photo-held row is left out — neither published nor parked — and counted (`photoCheck`); what went out goes to the pass', async () => {
+    h.photoHeld = ['b']
+    h.held = ['c']
+    h.counts = [1]
+    h.before = [{ verified: false, identityHold: false }]
+    h.returns = [[{ id: 'c' }]]
+    const r = await post({ action: 'verify', ids: ['a', 'b', 'c'] })
+    expect(r.text).toBe('{"ok":true,"affected":1,"held":1,"photoCheck":1}')
+    expect(writes().map(([, a]) => (a as Row).where.id)).toEqual([{ in: ['a'] }, { in: ['c'] }])
+    expect(h.passSoon).toEqual([['a', 'c']])
   })
 
   it('a row parked here and released by the re-check counts as published, not held', async () => {

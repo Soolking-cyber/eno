@@ -53,6 +53,7 @@ import { browseRankScore } from '../src/lib/ranking-formula'
 import { supersportsFacets } from '../src/lib/supersports-taxonomy'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import { SUPERSPORTS_RETIRED } from '../src/lib/retired-imports'
 
 // ⛔ EVERY MODE, DRY RUN INCLUDED — see the header.
@@ -457,18 +458,25 @@ async function main() {
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
   const screen = new ImportScreen('supersports', { db })
   const failures: string[] = []
+  // Rows written with their photos, for the photo check (listing-photo-queue.ts).
+  const photoIds = new Set<string>()
 
-  for (let i = 0; i < products.length; i += CONCURRENCY) {
-    await Promise.all(products.slice(i, i + CONCURRENCY).map(async (p) => {
-      // ⚠️ THE WHOLE ROW IS GUARDED. This job talks to Postgres over an SSH tunnel and to two
-      // CDNs; an unguarded throw inside Promise.all ends the run and orphans the photos its
-      // siblings just uploaded. The run is idempotent, so skipping a row is always the better
-      // failure (the partner importer learned this the hard way).
-      try { await importOne(p) } catch (e) { skipped++; failures.push((e as Error).message.slice(0, 90)) }
-    }))
-    if (seen % 250 < CONCURRENCY || seen >= products.length) {
-      console.log(`  ${seen}/${products.length}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+  try {
+    for (let i = 0; i < products.length; i += CONCURRENCY) {
+      await Promise.all(products.slice(i, i + CONCURRENCY).map(async (p) => {
+        // ⚠️ THE WHOLE ROW IS GUARDED. This job talks to Postgres over an SSH tunnel and to two
+        // CDNs; an unguarded throw inside Promise.all ends the run and orphans the photos its
+        // siblings just uploaded. The run is idempotent, so skipping a row is always the better
+        // failure (the partner importer learned this the hard way).
+        try { await importOne(p) } catch (e) { skipped++; failures.push((e as Error).message.slice(0, 90)) }
+      }))
+      if (seen % 250 < CONCURRENCY || seen >= products.length) {
+        console.log(`  ${seen}/${products.length}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+      }
     }
+  } finally {
+    // A throw out of the loop still queues the rows already written for the photo check.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   async function importOne(viP: Product) {
@@ -694,7 +702,8 @@ async function main() {
             data: { status: inStock ? 'active' : 'sold' },
           }))
         }
-        await db.$transaction(ops)
+        const [row] = await db.$transaction(ops)
+        photoIds.add((row as { id: string }).id)
         existing ? updated++ : created++
         return
       } catch (e) {

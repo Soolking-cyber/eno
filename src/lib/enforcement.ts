@@ -10,6 +10,8 @@ import { partitionByIdentityGate, settleHolds } from './compliance/seller-publis
 import { licenceBlockedIds } from './core/licence-check'
 import { deskSellerIds } from './edition-scope'
 import { licenceClearedWhere } from './licence-stamp'
+import { NOT_PHOTO_HELD } from './listing-photo-hold'
+import { photoPassSoon } from './listing-photo-hooks'
 import { TEACHERS_CATEGORY_SLUG } from './teachers/constants'
 import {
   ENFORCEMENT,
@@ -242,22 +244,25 @@ function parsePulled(json: string | null | undefined): string[] {
 // licence check: such a row (licenceBlockedIds) is neither published nor parked — it simply stays unpublished after the
 // lift and waits under Catalogue › Licence checks, whose approval publishes it. Both writes AND licenceClearedWhere,
 // against an edit that re-held one between that read and the write.
+// ⛔ …NOR A PHOTO-HELD ROW (listing-photo-hold.ts): a pull never takes one (it is not live), so one here was held after
+// the pull — its own release puts it back. Both writes AND NOT_PHOTO_HELD; what is published goes through the pass.
 async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<{ held: number }> {
   if (!ids.length) return { held: 0 }
   const desk = await deskSellerIds()
   const blocked = await licenceBlockedIds(ids, desk)
   const { allowed, held } = await partitionByIdentityGate(blocked.size ? ids.filter((id) => !blocked.has(id)) : ids)
-  if (allowed.length) await client.listing.updateMany({ where: { id: { in: allowed }, status: 'active', verified: false, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+  if (allowed.length) await client.listing.updateMany({ where: { id: { in: allowed }, status: 'active', verified: false, AND: [licenceClearedWhere(desk), NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
   // ⚠️ THE IDS THE PARK WROTE, NOT THE DECISION SET `held` — for the count AND for the re-check. The
   // guard skips rows sold/hidden/re-approved since the pull and rows ALREADY parked, and handing the
   // whole set to settleHolds let a pre-existing hold it released cancel out a row parked HERE (the
   // cap below `parked` hid that only while every id shared one owner). Same fix as the admin batch.
   const parked = held.length
-    ? (await client.listing.updateManyAndReturn({ where: { id: { in: held }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk)] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+    ? (await client.listing.updateManyAndReturn({ where: { id: { in: held }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk), NOT_PHOTO_HELD] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
     : []
   // A verification that landed between the decision and the park is released here (settleHolds).
   const released = parked.length ? await settleHolds(parked) : 0
   for (const id of ids) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
+  photoPassSoon(allowed)
   return { held: Math.max(0, parked.length - released) }
 }
 
@@ -467,10 +472,10 @@ export async function applyEnforcement(
           // A row the licence check blocks is in neither list: it stays unpublished, under Licence checks.
           const publish = ids.filter((id) => !identityHeld.has(id) && !licenceBlocked.has(id))
           const park = ids.filter((id) => identityHeld.has(id) && !licenceBlocked.has(id))
-          if (publish.length) await tx.listing.updateMany({ where: { id: { in: publish }, status: 'active', verified: false, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+          if (publish.length) await tx.listing.updateMany({ where: { id: { in: publish }, status: 'active', verified: false, AND: [licenceClearedWhere(desk), NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
           // `identityHold: false` in the guard: a row already parked is not "held by this restore", so it
           // is neither re-written nor counted — the same meaning `held` has in the admin batch.
-          if (park.length) parked.push(...(await tx.listing.updateManyAndReturn({ where: { id: { in: park }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk)] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id))
+          if (park.length) parked.push(...(await tx.listing.updateManyAndReturn({ where: { id: { in: park }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk), NOT_PHOTO_HELD] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id))
           // Every id, the blocked ones too: revalidating a page whose state did not change costs one render.
           touched.push(...ids)
         }
@@ -556,6 +561,8 @@ export async function applyEnforcement(
       return { touched, parked }
     })
     for (const id of revalidateIds) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
+    // What a downgrade restored goes through the photo pass (it re-holds a row that came back with flyers).
+    if (nextSev < ENFORCEMENT_SEVERITY.held) photoPassSoon(revalidateIds)
     // …and the home page when any listing was pulled or restored: its 6h-ISR HTML carries cards — the feed, the rails and,
     // since 2026-10-13, the "Find a teacher" shelf — so a held seller's cards leave it within the edge cache's five
     // minutes, not its six hours (a pull purged only the listing pages before). Once per transition, both languages.

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { listingObjectKey } from '@/lib/listing-image'
+import { strippedPhotosOf } from '@/lib/listing-photo-hold'
 import { parseVerificationDocs } from '@/lib/business-verification-store'
 import { BUSINESS_VERIFICATION_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { appendAudit } from '@/lib/compliance/audit'
@@ -157,6 +158,12 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
         try { imageUrls.push(...(JSON.parse(l.images) as string[])) } catch {}
         // ⚠️ THE LISTING VIDEO TOO — it was never queued, so a deleted seller's clips stayed public.
         if (l.video) imageUrls.push(l.video)
+      }
+      // …and the photos the photo check took off these listings (kept 180 days for a restore — listing-photo-pass.ts):
+      // they go now, with the account.
+      if (listings.length) {
+        const strips = await tx.complianceAudit.findMany({ where: { action: 'listing.photo.stripped', subjectType: 'listing', subjectId: { in: erasedListingIds } }, select: { detail: true } })
+        for (const a of strips) imageUrls.push(...(strippedPhotosOf(a.detail)?.removed.map((r) => r.url) ?? []))
       }
       if (s.avatarUrl) imageUrls.push(s.avatarUrl)
       if (s.bannerUrl) imageUrls.push(s.bannerUrl)

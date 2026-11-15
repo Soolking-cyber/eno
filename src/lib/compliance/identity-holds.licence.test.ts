@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 import { licenceClearedWhere } from '@/lib/licence-stamp'
 import { NOT_A_REVIEW_SEATS_LISTING } from '@/lib/review-seat-accounts'
 
@@ -60,7 +61,7 @@ describe('releaseIdentityHolds — the licence check stays in force', () => {
     expect(await releaseIdentityHolds('owner-1')).toBe(2)
     expect(called('licenceBlockedIds').map((c) => c.args)).toEqual([{ ids: ['l1', 'visa-1', 'l2'], desk: DESK }])
     expect(called('listing.updateMany').map((c) => c.args)).toEqual([{
-      where: { id: { in: ['l1', 'l2'] }, identityHold: true, AND: [licenceClearedWhere(DESK), NOT_A_REVIEW_SEATS_LISTING] },
+      where: { id: { in: ['l1', 'l2'] }, identityHold: true, AND: [licenceClearedWhere(DESK), NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] },
       data: { verified: true, identityHold: false, verificationNotes: null },
     }])
     expect(h.refreshed).toEqual([{ ids: ['l1', 'l2'], op: 'identityHolds' }])
@@ -70,7 +71,7 @@ describe('releaseIdentityHolds — the licence check stays in force', () => {
     h.held = [{ id: 'visa-ok' }]
     h.count = 1
     expect(await releaseIdentityHolds('owner-1')).toBe(1)
-    expect(called('listing.updateMany')[0].args.where).toEqual({ id: { in: ['visa-ok'] }, identityHold: true, AND: [licenceClearedWhere(DESK), NOT_A_REVIEW_SEATS_LISTING] })
+    expect(called('listing.updateMany')[0].args.where).toEqual({ id: { in: ['visa-ok'] }, identityHold: true, AND: [licenceClearedWhere(DESK), NOT_A_REVIEW_SEATS_LISTING, NOT_PHOTO_HELD] })
   })
 
   it('every parked row blocked → 0, no write and nothing refreshed', async () => {

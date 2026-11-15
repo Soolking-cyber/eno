@@ -55,6 +55,7 @@ import { HOST_EDGE, imageVerdict, measureImage } from '../src/lib/import-photo-c
 import { PARTNER_AVATAR_MIN_VISIBLE_PCT, renderPartnerAvatar } from '../src/lib/partner-avatar'
 import { minPhotosFor } from '../src/lib/publish-guard'
 import { browseRankScore } from '../src/lib/ranking-formula'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import {
   type PhotoBox, SAIGONMOVING_ADDRESS, SAIGONMOVING_EXTERNAL_ID, SAIGONMOVING_HANDLE, SAIGONMOVING_LOGO_FILE, SAIGONMOVING_PHOTO_FLOOR, SAIGONMOVING_PHOTOS,
   saigonmovingSellerRefusal, stageSaigonmovingListing, type SaigonmovingSeller,
@@ -210,6 +211,7 @@ async function main() {
       })
       recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: row.externalId, at: new Date().toISOString() }))
       console.log(`created           ${made.id}  ${row.title}  (${hosted.length} photos)`)
+      await enqueuePhotoChecks(db, [made.id])
     }
 
     // The office address is the storefront's; a listing text may not carry one (saigonmoving-listing.ts). An admin's own stands.

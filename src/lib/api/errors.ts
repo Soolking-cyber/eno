@@ -444,6 +444,7 @@ export type NicheApiErrorCode =
   | 'too_many_posts' // more posts in one delivery than INGEST_LIMITS.posts (413)
   | 'key_in_two_sources' // one externalKey under two sources in one delivery (400)
   | 'licence_check_required' // a licence-aisle row eno has not checked cannot go live — moderate 'approve', or a status change back to active (relist, confirm): approve it under Licence checks (409, 2026-10-14)
+  | 'photo_check_required' // api/admin/moderate approve: a photo-held listing goes back through the seller's real photo or "Photo is fine", never a content approval (409, 2026-11-15 — listing-photo-hold.ts)
   | 'review_seat_listing' // api/admin/listings verify/activate/licence-approve, api/admin/moderate approve: a store-review seat's listing is never published (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE) — `ids` names the rows; nothing written (409, 2026-11-14). setStatusCore / confirmCore: a move back to active of any listing such a seat owns (403, round 5)
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
@@ -517,6 +518,7 @@ export type NicheApiErrorCode =
   | 'profile_hidden'
   | 'photo_required'
   | 'photos_min'
+  | 'photo_not_allowed' // a listing photo is a flyer or shows contact details, confirmed by two reads (listing-photo-refusal.ts)
 
   /**
    * ⚠️ FOUR MORE THE TEXT SCAN COULD NOT SEE, FROM A SECOND VARIABLE-SHAPED EMISSION.
@@ -975,6 +977,7 @@ const ALL = [
   'too_many_posts',
   'key_in_two_sources',
   'licence_check_required',
+  'photo_check_required',
   'review_seat_listing',
   'listing_changed',
   'desk_unresolved',
@@ -1044,6 +1047,7 @@ const ALL = [
   'profile_hidden',
   'photo_required',
   'photos_min',
+  'photo_not_allowed',
   'invalid_price',
   'no_phone_in_listing',
   'title_too_short',

@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   status: { ok: true, status: 'active' } as Row,
   confirm: { ok: true, bumped: false } as Row,
   del: { ok: true, deleted: true } as Row,
+  update: { ok: true } as Row,
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -25,13 +26,13 @@ vi.mock('@/lib/core/listings', () => ({
   setStatusCore: async () => h.status,
   confirmCore: async () => h.confirm,
   deleteListingCore: async () => h.del,
-  updateListingCore: async () => ({ ok: true }),
+  updateListingCore: async () => h.update,
   DELETE_HOLD_MESSAGE: {},
 }))
 
 const { POST: statusPOST } = await import('./status/route')
 const { POST: confirmPOST } = await import('./confirm/route')
-const { DELETE: listingDELETE } = await import('./route')
+const { DELETE: listingDELETE, PATCH: listingPATCH } = await import('./route')
 
 const params = { params: Promise.resolve({ id: 'L1' }) }
 const req = (body?: unknown) => new Request('https://eno.vn/api/v1/listings/L1/x', { method: 'POST', headers: { authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) })
@@ -104,5 +105,14 @@ describe('DELETE /api/v1/listings/{id}', () => {
   it('a 404 (already gone, or a tombstone) stays the idempotent {ok:true}', async () => {
     h.del = { ok: false, code: 404, error: 'not_found' }
     expect(await json(await del())).toEqual({ status: 200, body: { ok: true } })
+  })
+})
+
+describe('PATCH /api/v1/listings/{id} — a refused photo', () => {
+  it('⛔ photo_not_allowed → a sentence, not the bare code, and `detail` naming the images', async () => {
+    h.update = { ok: false, code: 422, error: 'photo_not_allowed', detail: 'flyer:https://sb/a.webp' }
+    const r = await json(await listingPATCH(new Request('https://eno.vn/api/v1/listings/L1', { method: 'PATCH', headers: { authorization: 'Bearer k' }, body: '{"images":[]}' }) as never, params))
+    expect(r.status).toBe(422)
+    expect(r.body.error).toMatchObject({ code: 'photo_not_allowed', message: expect.stringMatching(/flyers or show a phone number/), detail: 'flyer:https://sb/a.webp' })
   })
 })

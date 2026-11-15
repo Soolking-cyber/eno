@@ -63,6 +63,7 @@ import { VND_PER_USD_BAND, vndPerUsdFrom, journalDirProblem } from '../src/lib/h
 import { browseRankScore } from '../src/lib/ranking-formula'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import {
   BONBON_HCMC, MIOTO_HCMC, TRIPS_REFERENCE_MAX_DAYS, TRIPS_REFERENCE_MIN_DAYS, bonbonVerdicts, carStageBlock, earliestRecordTime, miotoVerdicts,
   type Verdict,
@@ -544,55 +545,63 @@ async function importRows(rows: StagedVehicle[], presence: Presence): Promise<St
     await screen.applyHides()
 
     let created = 0, updated = 0, unchanged = 0, heldNew = 0
+    const photoIds: string[] = []
     const createdBy = new Map<string, number>()
-    for (const { row, images } of ready) {
-      const sellerId = VEHICLE_SELLERS[row.seller].id
-      // The growth guard above: a held source's NEW rows are not created this run (existing ones are refreshed).
-      if (createHeld[row.seller] && !stored.has(`${sellerId}|${row.externalId}`)) { heldNew++; continue }
-      /**
-       * Refreshed on every run: texts, price + unit, facets, place, link. ⛔ NOT status / verified /
-       * images — a moderator's hide must survive a re-run, and the photos are owned by stage 1.
-       */
-      const mutable = {
-        title: row.title, titleVi: row.titleVi, description: row.description, descriptionVi: row.descriptionVi,
-        price: row.price, priceUnit: row.priceUnit, currency: '₫',
-        negotiable: false,
-        listingType: 'rent',
-        categoryId: category.id,
-        subcategorySlug: row.subcategorySlug,
-        sellerId,
-        location: row.location, district: row.district, city: row.city,
-        lat: row.lat, lng: row.lng,
-        attributes: row.attributes, facetTokens: row.facetTokens,
-        affiliateUrl: row.affiliateUrl,
-        searchText: row.searchText,
-      }
-      const prev = stored.get(`${sellerId}|${row.externalId}`)
-      // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
-      if (prev?.status === 'removed') { unchanged++; continue }
-      if (prev && MUTABLE_KEYS.every((k) => Object.is(prev[k] ?? null, (mutable as Record<string, unknown>)[k] ?? null))) {
-        unchanged++
+    try {
+      for (const { row, images } of ready) {
+        const sellerId = VEHICLE_SELLERS[row.seller].id
+        // The growth guard above: a held source's NEW rows are not created this run (existing ones are refreshed).
+        if (createHeld[row.seller] && !stored.has(`${sellerId}|${row.externalId}`)) { heldNew++; continue }
+        /**
+         * Refreshed on every run: texts, price + unit, facets, place, link. ⛔ NOT status / verified /
+         * images — a moderator's hide must survive a re-run, and the photos are owned by stage 1.
+         */
+        const mutable = {
+          title: row.title, titleVi: row.titleVi, description: row.description, descriptionVi: row.descriptionVi,
+          price: row.price, priceUnit: row.priceUnit, currency: '₫',
+          negotiable: false,
+          listingType: 'rent',
+          categoryId: category.id,
+          subcategorySlug: row.subcategorySlug,
+          sellerId,
+          location: row.location, district: row.district, city: row.city,
+          lat: row.lat, lng: row.lng,
+          attributes: row.attributes, facetTokens: row.facetTokens,
+          affiliateUrl: row.affiliateUrl,
+          searchText: row.searchText,
+        }
+        const prev = stored.get(`${sellerId}|${row.externalId}`)
+        // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+        if (prev?.status === 'removed') { unchanged++; continue }
+        if (prev && MUTABLE_KEYS.every((k) => Object.is(prev[k] ?? null, (mutable as Record<string, unknown>)[k] ?? null))) {
+          unchanged++
+          if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
+          continue
+        }
+        const res = await db.listing.upsert({
+          where: { sellerId_externalId: { sellerId, externalId: row.externalId } },
+          // ⛔ verified:true IS THE PUBLICATION GATE, not a trust badge (import-rever-rentals.ts).
+          // postedAt + rankScore are CREATE-ONLY and come from the SOURCE's date (see StagedVehicle.postedAt);
+          // the nightly recompute keeps ranking them from that date afterwards.
+          create: {
+            ...mutable, externalId: row.externalId, status: 'active', verified: true, images: JSON.stringify(images),
+            postedAt: row.postedAt,
+            rankScore: browseRankScore({ sellerTrustScore: trustOf.get(row.seller) ?? 100, postedAt: row.postedAt, featured: false }),
+          },
+          update: mutable,
+          select: { id: true, createdAt: true, updatedAt: true },
+        })
+        if (res.createdAt.getTime() === res.updatedAt.getTime()) created++; else updated++
+        if (!prev) photoIds.push(res.id)
+        // The growth budget counts what was NEW in the read above — not the timestamps (gate review: @updatedAt and
+        // createdAt are not guaranteed equal on a create, and a miscount handed the revivals the creations' budget).
+        if (!prev) createdBy.set(row.seller, (createdBy.get(row.seller) ?? 0) + 1)
         if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
-        continue
       }
-      const res = await db.listing.upsert({
-        where: { sellerId_externalId: { sellerId, externalId: row.externalId } },
-        // ⛔ verified:true IS THE PUBLICATION GATE, not a trust badge (import-rever-rentals.ts).
-        // postedAt + rankScore are CREATE-ONLY and come from the SOURCE's date (see StagedVehicle.postedAt);
-        // the nightly recompute keeps ranking them from that date afterwards.
-        create: {
-          ...mutable, externalId: row.externalId, status: 'active', verified: true, images: JSON.stringify(images),
-          postedAt: row.postedAt,
-          rankScore: browseRankScore({ sellerTrustScore: trustOf.get(row.seller) ?? 100, postedAt: row.postedAt, featured: false }),
-        },
-        update: mutable,
-        select: { createdAt: true, updatedAt: true },
-      })
-      if (res.createdAt.getTime() === res.updatedAt.getTime()) created++; else updated++
-      // The growth budget counts what was NEW in the read above — not the timestamps (gate review: @updatedAt and
-      // createdAt are not guaranteed equal on a create, and a miscount handed the revivals the creations' budget).
-      if (!prev) createdBy.set(row.seller, (createdBy.get(row.seller) ?? 0) + 1)
-      if ((created + updated + unchanged) % 250 === 0) console.log(`  ${created + updated + unchanged}/${ready.length}`)
+    } finally {
+      // The new rows, for the photo check (listing-photo-queue.ts) — in a finally, so a throw out of the loop still queues
+      // the rows already written.
+      if (APPLY) await enqueuePhotoChecks(db, photoIds)
     }
 
     /**

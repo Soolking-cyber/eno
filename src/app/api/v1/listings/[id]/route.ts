@@ -9,6 +9,7 @@ import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { LISTING_CHANGED_COPY, providerLicenceApiMessage } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -54,8 +55,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       : res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en
       // The job-text screen's refusal of a hiring post's edit (job-listing.ts jobTextProblem, 2026-10-18), in its rule's words.
       : isJobTextBlockCode(res.error) ? JOB_TEXT_REFUSAL[res.error].en
+      : res.error === 'photo_not_allowed' ? publishBlockedApiMessage(res.error, res.detail)
       : res.error
-    // `detail` ('<field>:<reason>' on provider_licence_invalid; '<field>:<snippet>' on a job-text refusal) rides in the error
+    // `detail` ('<field>:<reason>' on provider_licence_invalid; '<field>:<snippet>' on a job-text refusal; '<rule>:<url> …' on
+    // photo_not_allowed) rides in the error
     // envelope, as on POST /listings.
     return res.detail ? apiOk({ error: { code: res.error, message, detail: res.detail } }, r.rate, status) : apiError(status, res.error, message, r.rate)
   }

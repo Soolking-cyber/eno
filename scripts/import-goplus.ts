@@ -121,6 +121,8 @@ import { identityGateEnforced } from '../src/lib/compliance/account-state'
 import type { VerificationRow } from '../src/lib/compliance/derive-verification'
 import type { SellerPublishDecision } from '../src/lib/compliance/seller-publish-decision'
 import { licenceClearedSql, licenceClearedWhere } from '../src/lib/licence-stamp'
+import { notPhotoHeldSql } from '../src/lib/listing-photo-hold'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import {
   GOPLUS_CATEGORY_SLUG, GOPLUS_EMAIL, GOPLUS_HANDLE, GOPLUS_MAX_PHOTOS_DEFAULT, GOPLUS_SUBCATS, GOPLUS_MIN_PHOTOS, GOPLUS_PAGE_MAX, GOPLUS_PHOTO_FLOOR,
   GOPLUS_VACANT_STATUS, goplusExternalId, goplusPartialTokens, goplusOverlaySlug,
@@ -782,6 +784,8 @@ async function main() {
     const rankAt = (postedAt: Date) => browseRankScore({ sellerTrustScore: seller!.trustScore, postedAt, featured: false }, Date.now())
     const changedIds: string[] = []
     const confirmedIds: string[] = []
+    // New or changed photos, and every revival, for the photo check (listing-photo-queue.ts).
+    const photoIds: string[] = []
     let tombstoneFailed = false
     let stopped: string | null = null
 
@@ -820,6 +824,7 @@ async function main() {
           select: { id: true },
         })
         recordDurably(CREATED, JSON.stringify({ id: made.id, externalId: r.externalId, held: !gate.ok, at: new Date().toISOString() }))
+        photoIds.push(made.id)
         if (gate.ok) stat.created++
         else stat.createdHeld++
         return
@@ -874,6 +879,7 @@ async function main() {
           data: { ...data, ...dates, ...media, availabilityConfirmedAt: new Date(), status: 'active', ...publishState },
         })
         if (back.count !== 1) { stat.raced++; return }
+        photoIds.push(cur.id)
         if (cur.verified ? gate.ok : cur.identityHold && gate.ok) stat.revived++
         else if (cur.verified || cur.identityHold) stat.revivedHeld++
         else bump('revivedUnpublished')
@@ -896,6 +902,7 @@ async function main() {
         data: { ...data, ...dates, ...media },
       })
       if (w.count !== 1) { stat.raced++; return }
+      if (media.images) photoIds.push(cur.id)
       stat.refreshed++
       if (repost) stat.reposted++
       changedIds.push(cur.id)
@@ -915,7 +922,8 @@ async function main() {
         if (++done % 100 === 0) console.log(`  ${done}/${batch.length}  ${JSON.stringify(stat)}  (${((Date.now() - started) / 60_000).toFixed(1)} min)`)
       }
     }
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+    // A throw out of the loop still queues the rows already written for the photo check.
+    try { await Promise.all(Array.from({ length: CONCURRENCY }, worker)) } finally { if (APPLY) await enqueuePhotoChecks(db, photoIds) }
 
     // ── after the loop: pages that changed, the availability stamp, the expiry ──
     if (changedIds.length && !(await tombstoneNow(db, changedIds))) tombstoneFailed = true
@@ -929,10 +937,10 @@ async function main() {
       const again = await gateDecision(db, seller!)
       if (again.ok) {
         // ⛔ The publish of a held row clears its hold and the licence mark in the same write, pinned to the GoPlus
-        // storefront's apartment aisle, and ANDs the licence guard — releaseIdentityHolds' shape, for this storefront.
+        // storefront's apartment aisle, and ANDs the licence and photo guards — releaseIdentityHolds' shape, for this storefront.
         const releasedRows = await db.$queryRawUnsafe<{ id: string }[]>(
           `UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL
-            WHERE "sellerId" = $1 AND status = 'active' AND "identityHold" AND "subcategorySlug" IN (${GOPLUS_SUBCATS_SQL}) AND "externalId" LIKE 'goplus:%' AND ${licenceClearedSql()}
+            WHERE "sellerId" = $1 AND status = 'active' AND "identityHold" AND "subcategorySlug" IN (${GOPLUS_SUBCATS_SQL}) AND "externalId" LIKE 'goplus:%' AND ${licenceClearedSql()} AND ${notPhotoHeldSql()}
             RETURNING id`,
           sellerId,
         )

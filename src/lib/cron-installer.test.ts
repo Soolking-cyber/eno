@@ -132,6 +132,13 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(next).not.toContain('ENO_CRON_KEEP_DIR') // the job after it inherits nothing
   })
 
+  it('⛔ listing-photos (2026-11-15) is POLICY — it holds listings and bells sellers — hourly, once, on eno.vn, a 900 s curl', () => {
+    expect(list('POLICY').words).toContain('listing-photos')
+    for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('listing-photos')
+    expect(SCRIPT).toMatch(/^\s*\[listing-photos\]="\*-\*-\* \*:20:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = listing-photos ] && TARGET="eno.vn 3001 900"')
+  })
+
   it('⛔ partner-stock is POLICY while the five-per-shop showcase stands — its restock of sold rows would break the cap', () => {
     expect(list('POLICY').words).toContain('partner-stock')
     for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('partner-stock')

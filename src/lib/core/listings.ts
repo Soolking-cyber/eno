@@ -14,6 +14,8 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl } from '@/lib/listing-image'
+import { assertNoRefusedPhotos } from '@/lib/listing-photo-refusal'
+import { photoPassById } from '@/lib/listing-photo-pass'
 import { isCanonicalVideoUrl, removeListingVideoByUrl } from '@/lib/core/media'
 
 /** Evict a listing video's storage object ONLY when no listing references it anymore.
@@ -727,6 +729,8 @@ export type ListingUpdateErrorCode =
 export async function updateListingCore(
   listingId: string,
   body: Record<string, unknown>,
+  /** `photoRefusal: false` — a sync row: a refused photo is stripped by the pass, never fails the row (listing-photo-refusal.ts). */
+  opts: { photoRefusal?: boolean } = {},
 ): Promise<{ ok: true; held?: true; unpublished?: true } | { ok: false; code: number; error: ListingUpdateErrorCode; detail?: string }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
@@ -952,8 +956,10 @@ export async function updateListingCore(
       // The listing's OWN category — an edit cannot move a listing between categories,
       // so this is the same bar create used, and a 1-photo service listing stays editable.
       assertEnoughAngles(images, current.category.slug, { imported: current.externalId?.startsWith('fb:') ?? false })
+      // A photo two reads refused — the new ones and (writes on only) those already on it, less this listing's overrides.
+      if (opts.photoRefusal !== false) await assertNoRefusedPhotos(images, { category: current.category.slug, subcategory: current.subcategorySlug, sellerId: current.sellerId, listingId, existing: current.images })
     } catch (e) {
-      if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code }
+      if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code, ...(e.detail ? { detail: e.detail } : {}) }
       throw e
     }
     data.images = JSON.stringify(images)
@@ -1355,7 +1361,8 @@ export async function updateListingCore(
   // 2026-10-14 — the licence check on BOTH aisles, e-Visa and Legal & permits: createListingCore's held
   // insert, the licence block above (a move in or between the aisles, a changed value, any edit of a row
   // still waiting), the daily sweep (core/licence-check.ts sweepLicenceHolds) and an admin's
-  // 'licence-revoke' (api/admin/listings). Every one but the licence check is a TAKEDOWN. Auto-republishing
+  // 'licence-revoke' (api/admin/listings) — and since 2026-11-15 the listing photo check's hold (listing-photo-pass.ts).
+  // Every one but the licence check and the photo hold is a TAKEDOWN. Auto-republishing
   // any of them because the seller edited the row is exactly the bypass this removal closes — and the old
   // guard could not tell them apart, because all of them write the same single boolean and nothing else.
   //
@@ -1369,6 +1376,12 @@ export async function updateListingCore(
   // action (api/admin/listings 'verify' — which skips an aisle row eno has not checked; that one is
   // published by 'licence-approve' under Admin › Catalogue › Licence checks). Restoring a listing a
   // human or a moderation system pulled should take a human, which is the whole point.
+  //
+  // ⛔ THE PHOTO HOLD (2026-11-15) IS RELEASED, BUT NEVER FROM HERE. It carries its own mark (listing-photo-hold.ts
+  // PHOTO_HELD_NOTE), which every takedown above clears in the same write or leaves behind a report or an owner state the
+  // release refuses; the pass after this edit (the after() below) publishes only a row still carrying it, whose every
+  // photo it has just found fine, through publishListings with licence-approve's report and owner conditions. This write
+  // still republishes nothing.
 
   // ⚠️ THE "Good price" VERDICT IS ALSO VOID WHEN THE LISTING CHANGES BAND, not only price. The band
   // is keyed on brand + model + shelf (subcategory) + condition + year band (listingSegment), and
@@ -1511,13 +1524,15 @@ export async function updateListingCore(
   // then-edit bypass for the VISION signal (the inline word-scan already re-runs on edited
   // text via assertCleanTexts; images/context need the AI pass too). moderateListingById
   // re-reads the now-edited listing, so it scans the new content. Trust-gated + fail-open.
-  if (data.images !== undefined || data.title !== undefined || data.description !== undefined) {
-    after(() => moderateListingById(listingId))
-  }
   // Re-index + re-check image provenance when the photos changed (edited to reuse another
   // seller's photos).
-  if (data.images !== undefined) {
-    after(() => indexAndCheckProvenance(listingId))
+  // …and then the photo pass (listing-photo-pass.ts): it may release a photo-held row, so it runs once both takedown checks
+  // have settled — a hold they write ends the photo hold first (A10). A sync row's pass is charged to the sweep lane.
+  if (data.images !== undefined || data.title !== undefined || data.description !== undefined) {
+    after(async () => {
+      await Promise.allSettled([moderateListingById(listingId), data.images !== undefined ? indexAndCheckProvenance(listingId) : null])
+      if (data.images !== undefined) await photoPassById(listingId, opts.photoRefusal === false ? 'sweep' : 'pass')
+    })
   }
 
   return savedAnswer()
@@ -1710,6 +1725,8 @@ export async function createListingCore(input: {
   // since the guess comes from the poster's own words ("ESL teacher"). The route adds the bilingual refusal; the wizard
   // holds Publish on the pair and shows the way in, so this is the backstop for every other caller.
   if (isTeacherSeekingPost(categorySlug, listingType, subcategorySlug)) throw new PublishBlockedError('teacher_profile_instead')
+  // ⛔ A photo two reads refused (listing-photo-refusal.ts). Not for a Facebook import: the pass strips it there.
+  if (!input.imported) await assertNoRefusedPhotos(images, { category: categorySlug, subcategory: subcategorySlug, sellerId: seller.id })
   // Currency + price unit — ₫ for EVERY listing, unit follows the intent (monthly for
   // rent/job, per-service for a service). Derived in one place so create and the taxonomy
   // can't drift; `money.currency` is typed as the literal '₫', so tsc, not a reviewer,
@@ -1898,8 +1915,9 @@ export async function createListingCore(input: {
   // ⚠️ ONE after(), and social syndication waits for BOTH checks: posting ran concurrently with them,
   // so a listing they held seconds after creation could already be on eno's Facebook Page. Each
   // check catches its own errors, so allSettled is belt and braces.
+  // The photo pass too (listing-photo-pass.ts): a listing it holds is not syndicated either.
   after(async () => {
-    await Promise.allSettled([moderateListingById(listing.id), indexAndCheckProvenance(listing.id)])
+    await Promise.allSettled([moderateListingById(listing.id), indexAndCheckProvenance(listing.id), photoPassById(listing.id, input.imported ? 'sweep' : 'pass')])
     await syndicateListingIfPublic({
       id: listing.id,
       title: listing.title,

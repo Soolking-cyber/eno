@@ -19,6 +19,7 @@ import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhook
 import { after } from 'next/server'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import { isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
+import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
@@ -525,6 +526,8 @@ export const TOOLS: McpTool[] = [
       // A hiring post's edit the job-text screen refused (2026-10-18): its rule's sentence, and `detail` '<field>:<snippet>'.
       if (!res.ok) {
         if (isJobTextBlockCode(res.error)) throw new ToolError(res.error, JOB_TEXT_REFUSAL[res.error].en, res.detail)
+        // A refused photo: the sentence, and `detail` '<rule>:<url> …' naming the images to drop.
+        if (res.error === 'photo_not_allowed') throw new ToolError(res.error, publishBlockedApiMessage(res.error, res.detail), res.detail)
         throw new ToolError(res.error, res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en : res.error)
       }
       // `held`: an e-Visa / Legal & permits listing still waiting for eno's licence check — unpublished, as on /api/v1.

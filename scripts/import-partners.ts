@@ -56,6 +56,7 @@ import { PARTNER_STORES } from '../src/lib/partner-stores'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import { isUsedTitle } from '../src/lib/used-signal'
 import { blockedAsDeclaredNew, blockedCreate, declaresBrandNew, isLiveForRefresh } from '../src/lib/partner-import-rules'
 import { decideTitleMaterial, titleMaterialFill } from '../src/lib/furniture-material'
@@ -176,6 +177,8 @@ async function main() {
   console.log()
 
   let seen = 0, created = 0, updated = 0, skipped = 0, imaged = 0, rehostKept = 0
+  // Rows written with their photos, for the photo check (listing-photo-queue.ts).
+  const photoIds = new Set<string>()
   const failures: string[] = []
   const dropped: Record<string, number> = {}
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
@@ -185,20 +188,25 @@ async function main() {
   const noteMaterial = (kind: 'new' | 'filled', value: string) => { materials[`${kind}:${value}`] = (materials[`${kind}:${value}`] || 0) + 1 }
   const screen = new ImportScreen('partners', { db })
 
-  for (let i = 0; i < rows.length; i += CONCURRENCY) {
-    await Promise.all(rows.slice(i, i + CONCURRENCY).map(async (r) => {
-      /**
-       * ⛔ THE WHOLE ROW IS GUARDED, NOT JUST THE UPSERT. The retry below wrapped the write alone,
-       * while the `existing` lookup and every `hostImage` call sat outside it — so a dropped SSH
-       * tunnel (`ConnectionClosed`) during either rejected `Promise.all`, exited the process, and
-       * orphaned the images its siblings had just uploaded. Three reviewers found it. The run is
-       * idempotent, so counting a row as skipped and carrying on is always the better failure.
-       */
-      try { await importRow(r) } catch (e) { skipped++; failures.push((e as Error).message.slice(0, 80)) }
-    }))
-    if (seen % 200 < CONCURRENCY || seen >= rows.length) {
-      console.log(`  ${seen}/${rows.length}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+  try {
+    for (let i = 0; i < rows.length; i += CONCURRENCY) {
+      await Promise.all(rows.slice(i, i + CONCURRENCY).map(async (r) => {
+        /**
+         * ⛔ THE WHOLE ROW IS GUARDED, NOT JUST THE UPSERT. The retry below wrapped the write alone,
+         * while the `existing` lookup and every `hostImage` call sat outside it — so a dropped SSH
+         * tunnel (`ConnectionClosed`) during either rejected `Promise.all`, exited the process, and
+         * orphaned the images its siblings had just uploaded. Three reviewers found it. The run is
+         * idempotent, so counting a row as skipped and carrying on is always the better failure.
+         */
+        try { await importRow(r) } catch (e) { skipped++; failures.push((e as Error).message.slice(0, 80)) }
+      }))
+      if (seen % 200 < CONCURRENCY || seen >= rows.length) {
+        console.log(`  ${seen}/${rows.length}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+      }
     }
+  } finally {
+    // A throw out of the loop still queues the rows already written for the photo check.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
 
   async function importRow(r: Staged) {
@@ -482,6 +490,7 @@ async function main() {
           if (existing) {
             if (!(await refreshLive())) { drop('not live at write time — left untouched'); return }
             await fillMaterial()
+            photoIds.add(existing.id)
           } else {
             /**
              * ⛔ A PLAIN CREATE, AND A LOST RACE FALLS BACK TO THE SAME CONDITIONAL REFRESH (commit-gate
@@ -490,7 +499,8 @@ async function main() {
              * been refreshed — `updatedAt` bumped, its rollback lost.
              */
             try {
-              await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
+              const made = await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
+              photoIds.add(made.id)
               created++
               if (newMaterial?.write) noteMaterial('new', newMaterial.material)
               return

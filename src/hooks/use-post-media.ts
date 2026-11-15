@@ -6,15 +6,15 @@
 // wizard file keeps only the wizard state machine and composition. Everything here
 // closes over this hook's own state exactly as it did inline; the only new surface
 // is the explicit `edit`/`t` params and the returned bundle. `uploadPhotos` /
-// `resolveVideoUrl` throw the same error codes ('upload' / 'video' / 'video_hevc')
-// that the wizard's submit catch maps to user-facing copy.
+// `resolveVideoUrl` throw the same error codes ('upload' / 'video' / 'video_hevc', and
+// 'upload_photo_refused' since the photo check) that the wizard's submit catch maps to user-facing copy.
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { compressVideo, VIDEO_PICK_MAX_BYTES, videoCompressionSupported } from '@/lib/video-compress'
 import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
-import { uploadInBatches } from '@/lib/upload-client'
+import { PhotoRefusedError, uploadInBatches, type PhotoRefusal } from '@/lib/upload-client'
 import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
 export type PostMedia = ReturnType<typeof usePostMedia>
@@ -28,7 +28,7 @@ export function usePostMedia({
 }: {
   // Structural subset of ListingEditData (post-wizard.tsx) — typed locally so this
   // hook stays import-acyclic with the wizard.
-  edit?: { images?: string[]; video?: string | null }
+  edit?: { images?: string[]; video?: string | null; photoRefused?: { url: string; rule: PhotoRefusal }[] }
   t: (vi: string, en: string) => string
 }) {
   // In edit mode, existing images seed as URL-only entries (no File); new uploads add a
@@ -46,6 +46,17 @@ export function usePostMedia({
   // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on the listing card + in the feed.
   const [video, setVideo] = useState<{ url: string; file?: File; hevc?: boolean } | null>(() => (edit?.video ? { url: edit.video } : null))
   const [videoBusy, setVideoBusy] = useState(false)
+  // ⛔ PHOTOS THE LISTING PHOTO CHECK REFUSED (owner, 2026-11-15: no flyers, no contact details) — keyed by the File itself
+  // (a hosted photo: its URL), NEVER by tile index: tiles reorder and are keyed by index. Remove and Undo keep the File, so
+  // the mark goes with it; a crop is a new File, unmarked until Publish checks it again. The edit page seeds the hosted ones
+  // whose refusal is confirmed (listing-photo-refusal.ts).
+  const [refusals, setRefusals] = useState<ReadonlyMap<File | string, PhotoRefusal>>(() => new Map(edit?.photoRefused?.map((r) => [r.url, r.rule]) ?? []))
+  // A flyer mark does not count in jobs, where the flyer rule is off (listing-photo-check.ts flyerRuleFor); a contact one does.
+  const refusalOf = (p: { url: string; file?: File }, category?: string) => {
+    const r = refusals.get(p.file ?? p.url)
+    return r === 'flyer' && category === 'jobs' ? undefined : r
+  }
+  const markRefused = (marks: Iterable<[File | string, PhotoRefusal]>) => setRefusals((m) => new Map([...m, ...marks]))
 
   const [converting, setConverting] = useState(false)
   // Drag-to-reorder photos (touch + mouse) — index 0 is the cover.
@@ -287,17 +298,25 @@ export function usePostMedia({
   // does not exist yet), so a kept URL stays valid for the page's life — revisit this if one is ever added.
   // `onProgress(done, total)` counts the NEW photos, already-hosted ones included in `done`.
   const hosted = useRef(new WeakMap<File, string>())
-  const uploadPhotos = async (onProgress?: (done: number, total: number) => void): Promise<string[]> => {
+  // `category` (the wizard's): each new photo is checked for it at upload (`from`: its aisle and storefront, for the
+  // exemptions). A marked photo stops Publish before any upload.
+  const uploadPhotos = async (onProgress?: (done: number, total: number) => void, category?: string, from?: { subcategory?: string | null; seller?: string | null }): Promise<string[]> => {
+    if (photos.some((p) => refusalOf(p, category))) throw new PhotoRefusedError(new Map())
     const fresh = photos.filter((p) => p.file)
     const pending = fresh.filter((p) => !hosted.current.has(p.file!))
     let done = fresh.length - pending.length
     if (fresh.length) onProgress?.(done, fresh.length)
     if (pending.length) {
-      await uploadInBatches(pending.map((p) => p.file!), (files, urls) => {
-        files.forEach((f, i) => { if (urls[i]) hosted.current.set(f, urls[i]) })
-        done += files.length
-        onProgress?.(done, fresh.length)
-      })
+      try {
+        await uploadInBatches(pending.map((p) => p.file!), (files, urls) => {
+          files.forEach((f, i) => { if (urls[i]) hosted.current.set(f, urls[i]) })
+          done += files.length
+          onProgress?.(done, fresh.length)
+        }, category ? { check: { category, ...from } } : {})
+      } catch (e) {
+        if (e instanceof PhotoRefusedError) markRefused(e.refused)
+        throw e
+      }
     }
     if (fresh.some((p) => !hosted.current.has(p.file!))) throw new Error('upload')
     return photos.map((p) => (p.file ? hosted.current.get(p.file)! : p.url))
@@ -329,9 +348,17 @@ export function usePostMedia({
     return null
   }
 
+  /** The save refused these photos (`photo_not_allowed`, by the URL each was sent as): mark their tiles. */
+  const markRefusedUrls = (byUrl: Map<string, PhotoRefusal>) => markRefused(photos.flatMap((p): [File | string, PhotoRefusal][] => {
+    const rule = byUrl.get(p.file ? hosted.current.get(p.file) ?? '' : p.url)
+    return rule ? [[p.file ?? p.url, rule]] : []
+  }))
+
   return {
     photos,
     setPhotos,
+    refusalOf,
+    markRefusedUrls,
     addPhotos,
     restorePhotos,
     applySquareCrop,

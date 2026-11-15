@@ -57,6 +57,7 @@ import { importableCampaign, retiredImportReason } from '../src/lib/retired-impo
 import { usedForShelf } from '../src/lib/accesstrade-restore'
 import { isEnoRunPartner } from '../src/lib/eno-run-partners'
 import { CAMPAIGN_SELLER_IDS } from '../src/lib/accesstrade-removal'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import { closeSync, openSync, readFileSync, unlinkSync } from 'node:fs'
 import { isNewGoodsTitle, readHoangHaUsed, readShopDunkUsed, type CrawlRead, type CrawlRow } from '../src/lib/accesstrade-crawl'
 import { trackingLink } from '../src/lib/accesstrade-crawl-feed'
@@ -331,6 +332,8 @@ async function main() {
    * file is rewritten whole through a temp file and a rename, so it is never torn.
    */
   const createdRows: { id: string; status: string; updatedAt: string }[] = []
+  // Rows written with their photos, for the photo check (listing-photo-queue.ts).
+  const photoIds = new Set<string>()
   /**
    * ⛔ THE SKU GOES TO DISK BEFORE ITS CREATE (opus, diff review round 2): the database assigns the id, so a crash after
    * the commit — or a failed stamp read — would otherwise leave a live row in no journal. (sellerId, externalId) is
@@ -374,319 +377,325 @@ async function main() {
   }
   const screen = new ImportScreen(`accesstrade-${CAMPAIGN}`, { db })
   const PAGE = 200
-  for (let page = 1; seen < total; page++) {
-    /**
-     * ⛔ THE LIMIT MUST NEVER SHRINK — offsets are limit-relative, so a smaller last page RE-READS
-     * the middle of the feed and the tail is never fetched. Measured: with total=9,728 and a
-     * `Math.min(200, total - seen)` limit, page 49 asked for limit=128, i.e. offset (49-1)*128 =
-     * 6,144 — rows 6,145-6,272 again — while rows 9,601-9,728 were never requested at all, and the
-     * progress line still printed "9728/9728". Ask for a full page every time and trim here.
-     */
-    const { data: raw } = crawlFeed ? { data: crawlFeed.slice((page - 1) * PAGE, page * PAGE) } : await feedPage(page, PAGE)
-    if (!raw?.length) break
-    const data = raw.slice(0, Math.max(0, total - seen))
-    if (!data.length) break
+  try {
+    for (let page = 1; seen < total; page++) {
+      /**
+       * ⛔ THE LIMIT MUST NEVER SHRINK — offsets are limit-relative, so a smaller last page RE-READS
+       * the middle of the feed and the tail is never fetched. Measured: with total=9,728 and a
+       * `Math.min(200, total - seen)` limit, page 49 asked for limit=128, i.e. offset (49-1)*128 =
+       * 6,144 — rows 6,145-6,272 again — while rows 9,601-9,728 were never requested at all, and the
+       * progress line still printed "9728/9728". Ask for a full page every time and trim here.
+       */
+      const { data: raw } = crawlFeed ? { data: crawlFeed.slice((page - 1) * PAGE, page * PAGE) } : await feedPage(page, PAGE)
+      if (!raw?.length) break
+      const data = raw.slice(0, Math.max(0, total - seen))
+      if (!data.length) break
 
-    // Bounded concurrency: the merchant CDN and our storage both dislike 200 parallel round trips.
-    for (let i = 0; i < data.length; i += CONCURRENCY) {
-      await Promise.all(data.slice(i, i + CONCURRENCY).map(async (p) => {
-        seen++
-        // The DECODED name everywhere below: rules, brand/model, screening and the stored text all read the same words.
-        const name = decodeEntities(p.name)
-        // ⛔ THE FIRST PRICED SIGHTING OF A SKU DECIDES IT — here and in the nightly walk (fetchFeedPrices) alike (codex,
-        // gate rounds 11–12): a SKU listed twice is one task, judged once, so the import and the nightly reprice can never
-        // disagree on whether it is used. (Rows run in feed order: the claim is taken before the first await, and before
-        // --match / --cate, so a filtered run still judges a SKU by its first priced row — codex, gate round 13.)
-        if (SPEC.usedOnly) {
-          const sku = String(p.sku || p.product_id || '').slice(0, 190)
-          // feedPrice — the nightly walk's own rule for "priced", so both pick the same twin (opus, gate round 14).
-          if (sku && feedPrice(p) != null) { if (claimed.has(sku)) { alreadyHeld++; return } claimed.add(sku) }
-        }
-        if (MATCH && !MATCH.test(name)) return
-        if (CATE && (p as { cate?: string }).cate !== CATE) return
-        // ⛔ USED-ONLY (src/lib/retired-imports.ts): a row the shop does not call second-hand is not this import's —
-        // not created, and not refreshed either (a live row's price is the nightly job's).
-        // (A crawl campaign's section IS the evidence — its titles do not say "cũ"; the reader left out new-goods titles.)
-        if (SPEC.usedOnly && !crawlFeed && !usedForShelf(p.name, p.url)) { notUsed++; return }
-        matched++
-        // feedPrice: the one rule for "priced", the nightly walk's and the SKU claim's (opus, gate round 15).
-        const price = feedPrice(p)
-        // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
-        if (price == null) { skipped++; return }
-        if (!p.image) { skipped++; return }
-        const affiliateUrl = crawlFeed ? (() => { try { return trackingLink(campaignId, p.url) } catch { return null } })() : repairAffLink(p.aff_link, campaignId)
-        if (!affiliateUrl) { skipped++; return }
-        const slug = categoryFor(name)
-        const categoryId = catId.get(slug)
-        if (!categoryId) { skipped++; return }
-        const externalId = String(p.sku || p.product_id || '').slice(0, 190)
-        if (!externalId) { skipped++; return }
-        // (One task per SKU per run, claimed above: a twin that hit P2002 after the first had stamped the row would leave
-        // that SKU "pending" for good, and `--undo --hide` could be pointed at a row the stamp guard protects — opus, round 11.)
-        // ⚠️ The dry run queries too, or it reports every row as "created" forever and can never
-        // show that a refresh is an UPDATE — which is the thing worth previewing on a re-run.
-        const existing = seller
-          // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
-          // wrote (see the searchText build below), not just to decide create-vs-update.
-          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, status: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
-          : null
-        // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
-        if (existing?.status === 'removed') { skipped++; return }
-        // ⛔ AND A ROW THAT IS NOT LIVE IS LEFT AS IT IS — hidden (a journaled hide: ad-ban, import screen,
-        // the 2026-10-03 new-goods retirement), stale, expired. A Prisma write here bumps `updatedAt`, and a
-        // row touched after its hide is one the hide's --rollback refuses; the refresh has no business there.
-        if (existing && existing.status !== 'active' && existing.status !== 'sold') { skipped++; return }
-        // ⛔ USED-ONLY CAMPAIGNS ARE CREATE-ONLY (see the header): a live row we hold is not touched — not refreshed, not screened.
-        if (existing && SPEC.usedOnly) { alreadyHeld++; return }
-        // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
-        // advertising-banned product (Tiki's spirits, formula, feeding bottles, NexGard…) is never
-        // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
-        // ambiguous one goes to the review file — and, if already live, is refreshed as normal rather
-        // than frozen on a stale price. Runs in the dry run too (which hides nothing).
-        // ⛔ Screened DECODED, the form that is stored: an entity-encoded banned word must not pass as "&#…;".
-        if (!(await screen.check({ title: name, description: decodeEntities(p.desc ?? ''), category: slug, subcategory: subcategoryFor(slug, name), merchant: merchantName, externalId, url: p.url }, existing ? { id: existing.id, status: existing.status } : null))) {
-          skipped++; return
-        }
-        // Stored text that still prints "&amp;": decoded in place, even in the create-only columns.
-        const repairs = existing ? entityRepairs(existing) : {}
-        if (!APPLY) { if (Object.keys(repairs).length) entityRows++; existing ? updated++ : created++; return }
-        let images = existing?.images
-        const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
-        if (!hasImage) {
-          // A crawl row carries its gallery (≤5, the reader's order: the first is the cover); a feed row one image.
-          const sources = crawlFeed ? ((p as Feed & { images?: string[] }).images ?? []).slice(0, 5) : [p.image]
-          const hosted: string[] = []
-          for (const src of sources) { const url = src ? await hostImage(src, slug) : null; if (url) hosted.push(url) }
-          if (hosted.length) { images = JSON.stringify(hosted); imaged++ }
-        }
-        if (!images || images === '[]') { skipped++; return }
-
-        const feedTitle = cutText(name, 180)
-        // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
-        const placed = refreshPlacement(
-          existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
-          { categorySlug: slug, subcategorySlug: subcategoryFor(slug, name) },
-        )
-        // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
-        // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
-        // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
-        // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
-        const effBrand = existing ? existing.brandSlug : brandFor(name)
-        const effModel = existing ? existing.model : modelFor(name)
-        // A crawl row keeps its line breaks (crawlDescription): one fact per line, never "KHÔNG" + "Bảo hành 6 tháng" run together.
-        // (Crawl campaigns are used-only = CREATE-ONLY — an existing row returned as alreadyHeld above — so this never rewrites a
-        // stored row; the rows imported before it were repaired from the staged crawls, 2026-11-15.)
-        const feedDesc = crawlFeed ? crawlDescription(p.desc || p.name) : feedDescription(p.desc || p.name)
-        // The row's current text, with any entity decoded: what the searchText blob folds below.
-        const cur = existing && {
-          title: repairs.title?.to ?? existing.title, titleVi: repairs.titleVi?.to ?? existing.titleVi,
-          description: repairs.description?.to ?? existing.description, descriptionVi: repairs.descriptionVi?.to ?? existing.descriptionVi,
-        }
-        const fields = {
-          title: feedTitle, description: feedDesc,
-          // ⚠️ THE MERCHANT'S OWN WORDS ALWAYS LIVE IN THE *Vi COLUMNS. `title`/`description` are
-          // the PRIMARY (English) slots that translate-imported-listings.ts fills; keeping the
-          // source separately is what lets a refresh update the source without destroying the
-          // translation, and what lets the translator re-run from a clean original.
-          titleVi: feedTitle, descriptionVi: feedDesc,
-          /**
-           * ⛔ THE SYMBOL '₫', NOT THE ISO STRING 'VND'. Three separate features key on
-           * `currency === '₫'` and silently treat anything else as a FOREIGN currency:
-           *   · price.tsx skips the "≈ $" dual-currency line entirely (owner, 2026-08-25:
-           *     "where equivalent prices in usd gone? for all products") and prints
-           *     "VND18,290,000" instead of the đồng format "18.290.000 đ";
-           *   · listings/[id]/page.tsx picks the OFFER currency from it;
-           *   · api/track/view reports the value to Meta CAPI as USD — so 9,726 products were
-           *     sending eighteen-million-DOLLAR view events into ad optimisation.
-           * Only 47 pre-existing listings were right and 9,726 imported ones were wrong, which is
-           * how a one-character mistake stayed invisible: every page still rendered a price.
-           */
-          price, priceUnit: '', currency: '₫', negotiable: false, condition: SPEC.usedOnly ? 'used' : 'new',
-          images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
-          // Brand/model: set on create only — see effBrand above.
-          subcategorySlug: placed.subcategorySlug, brandSlug: effBrand, model: effModel,
-          /**
-           * ⛔ WITHOUT THIS EVERY IMPORTED PRODUCT IS INVISIBLE TO SEARCH. feed-query.ts matches
-           * keywords against this folded blob, and it is built in core/listings.ts on the POST
-           * path — which a direct Prisma write never runs, so the column keeps its @default("").
-           * Measured on production: all 9,726 imports had an empty one, and a catalogue holding
-           * 1,193 phone cases returned nothing for "iphone case".
-           * ⚠️ Built from the FEED's Vietnamese here because that is all this script knows. After
-           * translate-imported-listings.ts fills the English slots, run rebuild-search-text.ts —
-           * it folds both languages in, which is what makes "ốp lưng" and "case" find one product.
-           */
-          /**
-           * ⛔ FOLD THE ROW'S CURRENT TEXT, NOT ONLY THE FEED'S. `searchText` is in the refresh set,
-           * so on every re-import this line decides what the whole catalogue is searchable by. Built
-           * from feed values alone it collapses the blob to the merchant's VIETNAMESE title — which
-           * silently destroys the bilingual index that exists today (measured: 400/400 sampled rows
-           * currently contain every word of their English title) and any description a model wrote.
-           * ⚠️ AND THE REPAIR PATH CANNOT SEE IT: scripts/rebuild-search-text.ts selects
-           * `where: { searchText: '' }`, and a clobbered blob is wrong, not empty — so nothing in
-           * the repo could detect or fix it. Preserving here is cheaper than detecting later.
-           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi` stays refreshable, so a
-           * create-only blob would silently stop matching a renamed product. Brand and model are the row's
-           * STORED values (title rules only for a new product), so the blob and columns agree. The CATEGORY token is the row's
-           * effective placement (refreshPlacement), never the title rule's guess over a re-filed row.
-           */
-          // ⚠️ BOTH DESCRIPTION COLUMNS. Folding only the English one dropped the model's
-          // VIETNAMESE prose out of the blob on every re-import — silently un-indexing the text
-          // most buyers actually read, with nothing to re-select the row afterwards.
-          searchText: buildSearchText([
-            cur?.title ?? feedTitle, feedTitle,
-            cur?.titleVi ?? feedTitle,
-            cur?.description ?? feedDesc, feedDesc,
-            cur?.descriptionVi ?? feedDesc,
-            MERCHANT_CITY, placed.categorySlug, effBrand, effModel,
-          ]),
-          affiliateUrl, verified: true, status: 'active',
-          /**
-           * ⛔ WITHOUT THIS EVERY IMPORTED LISTING IS INVISIBLE UNTIL THE NIGHTLY CRON. `rankScore`
-           * defaults to 0 in the schema and this importer never set it, so the 152 rows of the
-           * first partner import all sat at 0.0000 — dead last in a browse feed ordered by
-           * rankScore desc — while every other seller scored 0.48–0.58. Measured on production
-           * 2026-09-07, an hour after the import. `recomputeRankScoreAllActive()` in the
-           * daily-reminders cron repairs it, but "correct within 24 hours" is not correct for the
-           * listings a merchant just handed us.
-           *
-           * ⚠️ CREATE-ONLY, like `verified` and `status` below. A nightly price refresh must not
-           * reset the score — the cron owns re-decay, and `browseRankScore` at age 0 is only the
-           * right value at the moment of creation. Same helper the post wizard uses
-           * (core/listings.ts), so an imported listing and a human's listing start comparable.
-           */
-          // ⚠️ `seller?.` NOT `seller!.` — on a DRY RUN for a storefront that does not exist yet, the
-          // create is skipped and `seller` is null, so the non-null assertion threw a TypeError and
-          // killed the preview on its first row. `!` is a compile-time claim with no runtime effect;
-          // a reviewer caught it before it shipped. 100 is the schema default a new seller gets.
-          rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
-        }
-        /**
-         * ⛔ `status` IS SET ONLY ON CREATE — A REFRESH MUST NOT RESURRECT A MODERATED LISTING.
-         * An admin who deactivates one of these (complaint, wrong price, takedown) would otherwise
-         * have it silently republished by the next nightly run, with no record that it happened.
-         *
-         * ⚠️ AND THIS IS AN UPSERT, NOT find-then-create. With CONCURRENCY parallel tasks, a feed
-         * that repeats a SKU lets two of them both see `existing === null` and both insert, which
-         * violates @@unique([sellerId, externalId]) and rejects the whole Promise.all — killing the
-         * run thousands of products in. The compound key makes it one atomic statement.
-         */
-        /**
-         * ⛔ `title`/`description` ARE CREATE-ONLY, AND THIS IS THE EXPENSIVE BUG THE REVIEW CAUGHT.
-         * They hold the ENGLISH translation once translate-imported-listings.ts has run. Leaving
-         * them in the refresh set meant the next nightly import wrote the merchant's Vietnamese
-         * back over the English — while `titleVi` stayed set, so the translator's own idempotency
-         * check skipped every one of those rows and could never repair them. Vietnamese in all four
-         * slots, English readers seeing Vietnamese, and the translation spend silently lost.
-         *
-         * ⛔ `verified` AND `status` ARE CREATE-ONLY FOR THE SAME REASON as each other: both are
-         * moderation state. An admin who un-verifies or deactivates one of these must not have the
-         * next run quietly re-stamp it.
-         *
-         * A refresh therefore updates: price, images, affiliateUrl, a MISSING category or
-         * subcategory (refreshPlacement), and the merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
-         */
-        /**
-         * ⛔ `descriptionVi` IS CREATE-ONLY TOO. It was refreshable, so a re-import overwrote it with
-         * the feed's `desc` — which is the title repeated. The damage is invisible and permanent:
-         * `description` is create-only so English readers keep the good prose, while `useLocalized`
-         * serves `descriptionVi` verbatim to every Vietnamese reader (the dominant traffic), and the
-         * describe script's resume predicate is "description still equals title" — which is now
-         * false — so it would never re-select the row to repair it.
-         */
-        // ⛔ `condition` IS CREATE-ONLY TOO (2026-10-03, commit-gate review): this importer hard-codes 'new',
-        // and on a refresh that would relabel a row a human marked used — the second-hand focus kept 1,264
-        // such CellphoneS rows. Moot for the four refused campaigns; not for the next one added.
-        const { status, verified, title, description, descriptionVi, rankScore, condition: _condition, ...refreshable } = fields
-        /**
-         * ⛔ THE ONE EXCEPTION TO CREATE-ONLY: an entity decode of the STORED value. It keeps every word
-         * a translator or a model wrote and only stops "&amp;" printing, so the next refresh repairs the
-         * 1,576 live rows without touching what the comment above protects.
-         */
-        /**
-         * ⚠️ THE CACHE IS CARRIED FIRST, AND THE DECODE WAITS FOR IT. Once a stored column is decoded, the old
-         * key is gone from the row, and no later run could find it to copy (review). So the copies go in
-         * first (insert-only; harmless if the listing write then fails). If one fails, this run leaves the
-         * stored text encoded, including titleVi, and the next run tries again.
-         * titleVi is refreshed from the feed name anyway. Its old key is carried only when the stored value
-         * becomes the decoded old text; a renamed product is a different text, and its translation
-         * does not belong to it.
-         */
-        const carryOk = !Object.keys(repairs).length || await carryTranslations(
-          Object.entries(repairs).filter(([k, r]) => k !== 'titleVi' || r!.to === feedTitle).map(([, r]) => r!))
-        const decoded = carryOk ? {
-          ...(repairs.title ? { title: repairs.title.to } : {}),
-          ...(repairs.description ? { description: repairs.description.to } : {}),
-          ...(repairs.descriptionVi ? { descriptionVi: repairs.descriptionVi.to } : {}),
-        } : (repairs.titleVi ? { titleVi: repairs.titleVi.from } : {})
-        /**
-         * ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,728-ROW RUN. This job talks to the database over
-         * an SSH tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed` — which,
-         * unguarded inside Promise.all, rejected the whole batch and ended the import at 8,354 with
-         * a stack trace and no summary. Retry once (the adapter reconnects), then count it as
-         * skipped and keep going; the run is idempotent, so a later pass picks it up.
-         */
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            /**
-             * ⛔ A REFRESH LANDS ON A LIVE ROW ONLY, RE-CHECKED IN ITS OWN WHERE (2026-10-03, commit-gate
-             * review — the same fix as import-partners.ts). The `existing.status` read above can be stale; an
-             * upsert's `update` branch is unconditional, so a row hidden in between would be rewritten and
-             * its `updatedAt` bumped, which is what a journaled hide's rollback refuses. A create that loses a
-             * race to a duplicate SKU falls back to the same conditional write.
-             */
-            const refresh = () => db.listing.updateMany({
-              where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'] } },
-              data: { ...refreshable, ...decoded },
-            })
-            // A create that lost the race is counted as the refresh it became, through the same tail.
-            let refreshed = !!existing
-            if (existing) {
-              if (!(await refresh()).count) { skipped++; return }
-            } else {
-              try {
-                pendingExternalIds.add(externalId)
-                writeCreatedJournal()
-                /**
-                 * ⛔ THE STAMP IS READ INSIDE THE CREATE'S OWN TRANSACTION (codex, diff review round 4). Read after the create
-                 * committed, another writer could change the row in between and the journal would adopt THEIR status and
-                 * updatedAt — which --undo would then hide. Uncommitted, the row is invisible to every other session, so the
-                 * stamp is exactly what this create wrote. A failed read rolls the create back: the SKU stays pending, no row.
-                 */
-                const { id, stamp } = await db.$transaction(async (tx) => {
-                  const { id } = await tx.listing.create({ data: { ...fields, ...(ENO_RUN ? { affiliateUrl: null } : {}), sellerId: seller!.id, externalId }, select: { id: true } })
-                  // An eno-run partner's link: staff-only, in the create's own transaction (no row is ever public with it).
-                  if (ENO_RUN) await tx.partnerPurchaseLink.create({ data: { listingId: id, url: affiliateUrl } })
-                  const [stamp] = await tx.$queryRawUnsafe<{ status: string; updatedAt: string }[]>(
-                    `SELECT status, "updatedAt"::text AS "updatedAt" FROM "Listing" WHERE id = $1`, id)
-                  if (!stamp?.updatedAt) throw new Error(`created ${id} but read no stamp`)
-                  return { id, stamp }
-                  // Room for a remote database at concurrency 6 (opus, gate round 20): Prisma's 2 s / 5 s defaults turn a
-                  // busy pool into P2028s. A failure still rolls back and leaves the SKU pending.
-                }, { maxWait: 15_000, timeout: 30_000 })
-                createdRows.push({ id, status: stamp.status, updatedAt: stamp.updatedAt }); pendingExternalIds.delete(externalId)
-                writeCreatedJournal()
-              } catch (e) {
-                // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
-                if ((e as { code?: string }).code !== 'P2002') throw e
-                // Another task of THIS run created it first (a SKU twice in one batch): a used-only import never refreshes, so it
-                // is held now. ⛔ The SKU stays pending — it is the other task's row, still ours to undo, and deleting it here
-                // could drop it before that task stamps it (opus, diff review round 3). --undo only lists a pending SKU.
-                if (SPEC.usedOnly) { alreadyHeld++; return }
-                if (!(await refresh()).count) { skipped++; return }
-                refreshed = true
-              }
-            }
-            refreshed ? updated++ : created++
-            if (Object.keys(repairs).length && carryOk) entityRows++
-            return
-          } catch (e) {
-            if (attempt === 1) { skipped++; failures.push((e as Error).message.slice(0, 80)); return }
-            await new Promise((r) => setTimeout(r, 1500))
+      // Bounded concurrency: the merchant CDN and our storage both dislike 200 parallel round trips.
+      for (let i = 0; i < data.length; i += CONCURRENCY) {
+        await Promise.all(data.slice(i, i + CONCURRENCY).map(async (p) => {
+          seen++
+          // The DECODED name everywhere below: rules, brand/model, screening and the stored text all read the same words.
+          const name = decodeEntities(p.name)
+          // ⛔ THE FIRST PRICED SIGHTING OF A SKU DECIDES IT — here and in the nightly walk (fetchFeedPrices) alike (codex,
+          // gate rounds 11–12): a SKU listed twice is one task, judged once, so the import and the nightly reprice can never
+          // disagree on whether it is used. (Rows run in feed order: the claim is taken before the first await, and before
+          // --match / --cate, so a filtered run still judges a SKU by its first priced row — codex, gate round 13.)
+          if (SPEC.usedOnly) {
+            const sku = String(p.sku || p.product_id || '').slice(0, 190)
+            // feedPrice — the nightly walk's own rule for "priced", so both pick the same twin (opus, gate round 14).
+            if (sku && feedPrice(p) != null) { if (claimed.has(sku)) { alreadyHeld++; return } claimed.add(sku) }
           }
-        }
-      }))
+          if (MATCH && !MATCH.test(name)) return
+          if (CATE && (p as { cate?: string }).cate !== CATE) return
+          // ⛔ USED-ONLY (src/lib/retired-imports.ts): a row the shop does not call second-hand is not this import's —
+          // not created, and not refreshed either (a live row's price is the nightly job's).
+          // (A crawl campaign's section IS the evidence — its titles do not say "cũ"; the reader left out new-goods titles.)
+          if (SPEC.usedOnly && !crawlFeed && !usedForShelf(p.name, p.url)) { notUsed++; return }
+          matched++
+          // feedPrice: the one rule for "priced", the nightly walk's and the SKU claim's (opus, gate round 15).
+          const price = feedPrice(p)
+          // ⛔ A ZERO PRICE RENDERS AS "Free / Miễn phí" (src/components/marketplace/price.tsx).
+          if (price == null) { skipped++; return }
+          if (!p.image) { skipped++; return }
+          const affiliateUrl = crawlFeed ? (() => { try { return trackingLink(campaignId, p.url) } catch { return null } })() : repairAffLink(p.aff_link, campaignId)
+          if (!affiliateUrl) { skipped++; return }
+          const slug = categoryFor(name)
+          const categoryId = catId.get(slug)
+          if (!categoryId) { skipped++; return }
+          const externalId = String(p.sku || p.product_id || '').slice(0, 190)
+          if (!externalId) { skipped++; return }
+          // (One task per SKU per run, claimed above: a twin that hit P2002 after the first had stamped the row would leave
+          // that SKU "pending" for good, and `--undo --hide` could be pointed at a row the stamp guard protects — opus, round 11.)
+          // ⚠️ The dry run queries too, or it reports every row as "created" forever and can never
+          // show that a refresh is an UPDATE — which is the thing worth previewing on a re-run.
+          const existing = seller
+            // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
+            // wrote (see the searchText build below), not just to decide create-vs-update.
+            ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, status: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
+            : null
+          // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
+          if (existing?.status === 'removed') { skipped++; return }
+          // ⛔ AND A ROW THAT IS NOT LIVE IS LEFT AS IT IS — hidden (a journaled hide: ad-ban, import screen,
+          // the 2026-10-03 new-goods retirement), stale, expired. A Prisma write here bumps `updatedAt`, and a
+          // row touched after its hide is one the hide's --rollback refuses; the refresh has no business there.
+          if (existing && existing.status !== 'active' && existing.status !== 'sold') { skipped++; return }
+          // ⛔ USED-ONLY CAMPAIGNS ARE CREATE-ONLY (see the header): a live row we hold is not touched — not refreshed, not screened.
+          if (existing && SPEC.usedOnly) { alreadyHeld++; return }
+          // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
+          // advertising-banned product (Tiki's spirits, formula, feeding bottles, NexGard…) is never
+          // created; if it is already LIVE it is not refreshed and finish() hides it (journaled). An
+          // ambiguous one goes to the review file — and, if already live, is refreshed as normal rather
+          // than frozen on a stale price. Runs in the dry run too (which hides nothing).
+          // ⛔ Screened DECODED, the form that is stored: an entity-encoded banned word must not pass as "&#…;".
+          if (!(await screen.check({ title: name, description: decodeEntities(p.desc ?? ''), category: slug, subcategory: subcategoryFor(slug, name), merchant: merchantName, externalId, url: p.url }, existing ? { id: existing.id, status: existing.status } : null))) {
+            skipped++; return
+          }
+          // Stored text that still prints "&amp;": decoded in place, even in the create-only columns.
+          const repairs = existing ? entityRepairs(existing) : {}
+          if (!APPLY) { if (Object.keys(repairs).length) entityRows++; existing ? updated++ : created++; return }
+          let images = existing?.images
+          const hasImage = (() => { try { return JSON.parse(images || '[]').length > 0 } catch { return false } })()
+          if (!hasImage) {
+            // A crawl row carries its gallery (≤5, the reader's order: the first is the cover); a feed row one image.
+            const sources = crawlFeed ? ((p as Feed & { images?: string[] }).images ?? []).slice(0, 5) : [p.image]
+            const hosted: string[] = []
+            for (const src of sources) { const url = src ? await hostImage(src, slug) : null; if (url) hosted.push(url) }
+            if (hosted.length) { images = JSON.stringify(hosted); imaged++ }
+          }
+          if (!images || images === '[]') { skipped++; return }
+
+          const feedTitle = cutText(name, 180)
+          // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
+          const placed = refreshPlacement(
+            existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
+            { categorySlug: slug, subcategorySlug: subcategoryFor(slug, name) },
+          )
+          // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
+          // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
+          // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
+          // the title rules name a brand/model only for a product seen for the first time (reviewers, three rounds).
+          const effBrand = existing ? existing.brandSlug : brandFor(name)
+          const effModel = existing ? existing.model : modelFor(name)
+          // A crawl row keeps its line breaks (crawlDescription): one fact per line, never "KHÔNG" + "Bảo hành 6 tháng" run together.
+          // (Crawl campaigns are used-only = CREATE-ONLY — an existing row returned as alreadyHeld above — so this never rewrites a
+          // stored row; the rows imported before it were repaired from the staged crawls, 2026-11-15.)
+          const feedDesc = crawlFeed ? crawlDescription(p.desc || p.name) : feedDescription(p.desc || p.name)
+          // The row's current text, with any entity decoded: what the searchText blob folds below.
+          const cur = existing && {
+            title: repairs.title?.to ?? existing.title, titleVi: repairs.titleVi?.to ?? existing.titleVi,
+            description: repairs.description?.to ?? existing.description, descriptionVi: repairs.descriptionVi?.to ?? existing.descriptionVi,
+          }
+          const fields = {
+            title: feedTitle, description: feedDesc,
+            // ⚠️ THE MERCHANT'S OWN WORDS ALWAYS LIVE IN THE *Vi COLUMNS. `title`/`description` are
+            // the PRIMARY (English) slots that translate-imported-listings.ts fills; keeping the
+            // source separately is what lets a refresh update the source without destroying the
+            // translation, and what lets the translator re-run from a clean original.
+            titleVi: feedTitle, descriptionVi: feedDesc,
+            /**
+             * ⛔ THE SYMBOL '₫', NOT THE ISO STRING 'VND'. Three separate features key on
+             * `currency === '₫'` and silently treat anything else as a FOREIGN currency:
+             *   · price.tsx skips the "≈ $" dual-currency line entirely (owner, 2026-08-25:
+             *     "where equivalent prices in usd gone? for all products") and prints
+             *     "VND18,290,000" instead of the đồng format "18.290.000 đ";
+             *   · listings/[id]/page.tsx picks the OFFER currency from it;
+             *   · api/track/view reports the value to Meta CAPI as USD — so 9,726 products were
+             *     sending eighteen-million-DOLLAR view events into ad optimisation.
+             * Only 47 pre-existing listings were right and 9,726 imported ones were wrong, which is
+             * how a one-character mistake stayed invisible: every page still rendered a price.
+             */
+            price, priceUnit: '', currency: '₫', negotiable: false, condition: SPEC.usedOnly ? 'used' : 'new',
+            images, categoryId: catId.get(placed.categorySlug) ?? categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
+            // Brand/model: set on create only — see effBrand above.
+            subcategorySlug: placed.subcategorySlug, brandSlug: effBrand, model: effModel,
+            /**
+             * ⛔ WITHOUT THIS EVERY IMPORTED PRODUCT IS INVISIBLE TO SEARCH. feed-query.ts matches
+             * keywords against this folded blob, and it is built in core/listings.ts on the POST
+             * path — which a direct Prisma write never runs, so the column keeps its @default("").
+             * Measured on production: all 9,726 imports had an empty one, and a catalogue holding
+             * 1,193 phone cases returned nothing for "iphone case".
+             * ⚠️ Built from the FEED's Vietnamese here because that is all this script knows. After
+             * translate-imported-listings.ts fills the English slots, run rebuild-search-text.ts —
+             * it folds both languages in, which is what makes "ốp lưng" and "case" find one product.
+             */
+            /**
+             * ⛔ FOLD THE ROW'S CURRENT TEXT, NOT ONLY THE FEED'S. `searchText` is in the refresh set,
+             * so on every re-import this line decides what the whole catalogue is searchable by. Built
+             * from feed values alone it collapses the blob to the merchant's VIETNAMESE title — which
+             * silently destroys the bilingual index that exists today (measured: 400/400 sampled rows
+             * currently contain every word of their English title) and any description a model wrote.
+             * ⚠️ AND THE REPAIR PATH CANNOT SEE IT: scripts/rebuild-search-text.ts selects
+             * `where: { searchText: '' }`, and a clobbered blob is wrong, not empty — so nothing in
+             * the repo could detect or fix it. Preserving here is cheaper than detecting later.
+             * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi` stays refreshable, so a
+             * create-only blob would silently stop matching a renamed product. Brand and model are the row's
+             * STORED values (title rules only for a new product), so the blob and columns agree. The CATEGORY token is the row's
+             * effective placement (refreshPlacement), never the title rule's guess over a re-filed row.
+             */
+            // ⚠️ BOTH DESCRIPTION COLUMNS. Folding only the English one dropped the model's
+            // VIETNAMESE prose out of the blob on every re-import — silently un-indexing the text
+            // most buyers actually read, with nothing to re-select the row afterwards.
+            searchText: buildSearchText([
+              cur?.title ?? feedTitle, feedTitle,
+              cur?.titleVi ?? feedTitle,
+              cur?.description ?? feedDesc, feedDesc,
+              cur?.descriptionVi ?? feedDesc,
+              MERCHANT_CITY, placed.categorySlug, effBrand, effModel,
+            ]),
+            affiliateUrl, verified: true, status: 'active',
+            /**
+             * ⛔ WITHOUT THIS EVERY IMPORTED LISTING IS INVISIBLE UNTIL THE NIGHTLY CRON. `rankScore`
+             * defaults to 0 in the schema and this importer never set it, so the 152 rows of the
+             * first partner import all sat at 0.0000 — dead last in a browse feed ordered by
+             * rankScore desc — while every other seller scored 0.48–0.58. Measured on production
+             * 2026-09-07, an hour after the import. `recomputeRankScoreAllActive()` in the
+             * daily-reminders cron repairs it, but "correct within 24 hours" is not correct for the
+             * listings a merchant just handed us.
+             *
+             * ⚠️ CREATE-ONLY, like `verified` and `status` below. A nightly price refresh must not
+             * reset the score — the cron owns re-decay, and `browseRankScore` at age 0 is only the
+             * right value at the moment of creation. Same helper the post wizard uses
+             * (core/listings.ts), so an imported listing and a human's listing start comparable.
+             */
+            // ⚠️ `seller?.` NOT `seller!.` — on a DRY RUN for a storefront that does not exist yet, the
+            // create is skipped and `seller` is null, so the non-null assertion threw a TypeError and
+            // killed the preview on its first row. `!` is a compile-time claim with no runtime effect;
+            // a reviewer caught it before it shipped. 100 is the schema default a new seller gets.
+            rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
+          }
+          /**
+           * ⛔ `status` IS SET ONLY ON CREATE — A REFRESH MUST NOT RESURRECT A MODERATED LISTING.
+           * An admin who deactivates one of these (complaint, wrong price, takedown) would otherwise
+           * have it silently republished by the next nightly run, with no record that it happened.
+           *
+           * ⚠️ AND THIS IS AN UPSERT, NOT find-then-create. With CONCURRENCY parallel tasks, a feed
+           * that repeats a SKU lets two of them both see `existing === null` and both insert, which
+           * violates @@unique([sellerId, externalId]) and rejects the whole Promise.all — killing the
+           * run thousands of products in. The compound key makes it one atomic statement.
+           */
+          /**
+           * ⛔ `title`/`description` ARE CREATE-ONLY, AND THIS IS THE EXPENSIVE BUG THE REVIEW CAUGHT.
+           * They hold the ENGLISH translation once translate-imported-listings.ts has run. Leaving
+           * them in the refresh set meant the next nightly import wrote the merchant's Vietnamese
+           * back over the English — while `titleVi` stayed set, so the translator's own idempotency
+           * check skipped every one of those rows and could never repair them. Vietnamese in all four
+           * slots, English readers seeing Vietnamese, and the translation spend silently lost.
+           *
+           * ⛔ `verified` AND `status` ARE CREATE-ONLY FOR THE SAME REASON as each other: both are
+           * moderation state. An admin who un-verifies or deactivates one of these must not have the
+           * next run quietly re-stamp it.
+           *
+           * A refresh therefore updates: price, images, affiliateUrl, a MISSING category or
+           * subcategory (refreshPlacement), and the merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
+           */
+          /**
+           * ⛔ `descriptionVi` IS CREATE-ONLY TOO. It was refreshable, so a re-import overwrote it with
+           * the feed's `desc` — which is the title repeated. The damage is invisible and permanent:
+           * `description` is create-only so English readers keep the good prose, while `useLocalized`
+           * serves `descriptionVi` verbatim to every Vietnamese reader (the dominant traffic), and the
+           * describe script's resume predicate is "description still equals title" — which is now
+           * false — so it would never re-select the row to repair it.
+           */
+          // ⛔ `condition` IS CREATE-ONLY TOO (2026-10-03, commit-gate review): this importer hard-codes 'new',
+          // and on a refresh that would relabel a row a human marked used — the second-hand focus kept 1,264
+          // such CellphoneS rows. Moot for the four refused campaigns; not for the next one added.
+          const { status, verified, title, description, descriptionVi, rankScore, condition: _condition, ...refreshable } = fields
+          /**
+           * ⛔ THE ONE EXCEPTION TO CREATE-ONLY: an entity decode of the STORED value. It keeps every word
+           * a translator or a model wrote and only stops "&amp;" printing, so the next refresh repairs the
+           * 1,576 live rows without touching what the comment above protects.
+           */
+          /**
+           * ⚠️ THE CACHE IS CARRIED FIRST, AND THE DECODE WAITS FOR IT. Once a stored column is decoded, the old
+           * key is gone from the row, and no later run could find it to copy (review). So the copies go in
+           * first (insert-only; harmless if the listing write then fails). If one fails, this run leaves the
+           * stored text encoded, including titleVi, and the next run tries again.
+           * titleVi is refreshed from the feed name anyway. Its old key is carried only when the stored value
+           * becomes the decoded old text; a renamed product is a different text, and its translation
+           * does not belong to it.
+           */
+          const carryOk = !Object.keys(repairs).length || await carryTranslations(
+            Object.entries(repairs).filter(([k, r]) => k !== 'titleVi' || r!.to === feedTitle).map(([, r]) => r!))
+          const decoded = carryOk ? {
+            ...(repairs.title ? { title: repairs.title.to } : {}),
+            ...(repairs.description ? { description: repairs.description.to } : {}),
+            ...(repairs.descriptionVi ? { descriptionVi: repairs.descriptionVi.to } : {}),
+          } : (repairs.titleVi ? { titleVi: repairs.titleVi.from } : {})
+          /**
+           * ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,728-ROW RUN. This job talks to the database over
+           * an SSH tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed` — which,
+           * unguarded inside Promise.all, rejected the whole batch and ended the import at 8,354 with
+           * a stack trace and no summary. Retry once (the adapter reconnects), then count it as
+           * skipped and keep going; the run is idempotent, so a later pass picks it up.
+           */
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              /**
+               * ⛔ A REFRESH LANDS ON A LIVE ROW ONLY, RE-CHECKED IN ITS OWN WHERE (2026-10-03, commit-gate
+               * review — the same fix as import-partners.ts). The `existing.status` read above can be stale; an
+               * upsert's `update` branch is unconditional, so a row hidden in between would be rewritten and
+               * its `updatedAt` bumped, which is what a journaled hide's rollback refuses. A create that loses a
+               * race to a duplicate SKU falls back to the same conditional write.
+               */
+              const refresh = () => db.listing.updateMany({
+                where: { sellerId: seller!.id, externalId, status: { in: ['active', 'sold'] } },
+                data: { ...refreshable, ...decoded },
+              })
+              // A create that lost the race is counted as the refresh it became, through the same tail.
+              let refreshed = !!existing
+              if (existing) {
+                if (!(await refresh()).count) { skipped++; return }
+                photoIds.add(existing.id)
+              } else {
+                try {
+                  pendingExternalIds.add(externalId)
+                  writeCreatedJournal()
+                  /**
+                   * ⛔ THE STAMP IS READ INSIDE THE CREATE'S OWN TRANSACTION (codex, diff review round 4). Read after the create
+                   * committed, another writer could change the row in between and the journal would adopt THEIR status and
+                   * updatedAt — which --undo would then hide. Uncommitted, the row is invisible to every other session, so the
+                   * stamp is exactly what this create wrote. A failed read rolls the create back: the SKU stays pending, no row.
+                   */
+                  const { id, stamp } = await db.$transaction(async (tx) => {
+                    const { id } = await tx.listing.create({ data: { ...fields, ...(ENO_RUN ? { affiliateUrl: null } : {}), sellerId: seller!.id, externalId }, select: { id: true } })
+                    // An eno-run partner's link: staff-only, in the create's own transaction (no row is ever public with it).
+                    if (ENO_RUN) await tx.partnerPurchaseLink.create({ data: { listingId: id, url: affiliateUrl } })
+                    const [stamp] = await tx.$queryRawUnsafe<{ status: string; updatedAt: string }[]>(
+                      `SELECT status, "updatedAt"::text AS "updatedAt" FROM "Listing" WHERE id = $1`, id)
+                    if (!stamp?.updatedAt) throw new Error(`created ${id} but read no stamp`)
+                    return { id, stamp }
+                    // Room for a remote database at concurrency 6 (opus, gate round 20): Prisma's 2 s / 5 s defaults turn a
+                    // busy pool into P2028s. A failure still rolls back and leaves the SKU pending.
+                  }, { maxWait: 15_000, timeout: 30_000 })
+                  createdRows.push({ id, status: stamp.status, updatedAt: stamp.updatedAt }); pendingExternalIds.delete(externalId); photoIds.add(id)
+                  writeCreatedJournal()
+                } catch (e) {
+                  // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
+                  if ((e as { code?: string }).code !== 'P2002') throw e
+                  // Another task of THIS run created it first (a SKU twice in one batch): a used-only import never refreshes, so it
+                  // is held now. ⛔ The SKU stays pending — it is the other task's row, still ours to undo, and deleting it here
+                  // could drop it before that task stamps it (opus, diff review round 3). --undo only lists a pending SKU.
+                  if (SPEC.usedOnly) { alreadyHeld++; return }
+                  if (!(await refresh()).count) { skipped++; return }
+                  refreshed = true
+                }
+              }
+              refreshed ? updated++ : created++
+              if (Object.keys(repairs).length && carryOk) entityRows++
+              return
+            } catch (e) {
+              if (attempt === 1) { skipped++; failures.push((e as Error).message.slice(0, 80)); return }
+              await new Promise((r) => setTimeout(r, 1500))
+            }
+          }
+        }))
+      }
+      if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}  matched=${matched} not-used=${notUsed} already-held=${alreadyHeld}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
     }
-    if (page % 2 === 0 || seen >= total) console.log(`  ${seen}/${total}  matched=${matched} not-used=${notUsed} already-held=${alreadyHeld}  created=${created} updated=${updated} images=${imaged} skipped=${skipped}`)
+  } finally {
+    // A throw out of the loop still queues the rows already written for the photo check.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped, ${notUsed} not second-hand (left out), ${alreadyHeld} already held (left as they are)`)
   if (APPLY && (createdRows.length || pendingExternalIds.size)) console.log(`  created rows journaled: ${join(JOURNAL_DIR!, journalName)} (+ ~/eno-journals/accesstrade/)`)

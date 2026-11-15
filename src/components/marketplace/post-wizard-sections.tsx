@@ -92,7 +92,7 @@ export function MediaSection({
   /** The section's phone state (✓ / "Needed"), built by post-wizard.tsx from its publish steps — Section's `mark`. */
   mark?: React.ReactNode
 }) {
-  const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo, removePhoto } = media
+  const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo, removePhoto, refusalOf } = media
   // Which photo's square-reframe dialog is open (index), or null.
   const [cropIndex, setCropIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -190,12 +190,17 @@ export function MediaSection({
         onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
         className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'bg-brand/5 ring-2 ring-brand/40', errPhoto && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
       >
-        {photos.map((p, i) => (
+        {photos.map((p, i) => {
+          // Refused by the photo check (use-post-media.ts): a red ring and one line; the bottom chips give way to it. A job
+          // may show a logo, so its line names contact details only (listing-photo-check.ts flyerRuleFor).
+          const refused = !!refusalOf(p, categorySlug)
+          return (
           <div
             key={i}
             {...bindPhoto(i)}
             className={cn(
               'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[scale,box-shadow]',
+              refused && 'ring-2 ring-destructive',
               // Lifted (mid-drag) affordance: the grabbed tile rises above the grid.
               draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
             )}
@@ -203,9 +208,17 @@ export function MediaSection({
             {/* object-contain: the tile shows the WHOLE photo that will be uploaded, never a crop of it (owner, 2026-11-12:
                 "do not crop but fit in"; use-post-media.ts). A square photo still fills the tile. */}
             <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-contain" />
+            {refused && (
+              // The meta role, not the chips' 10px: copy a seller has to read to act (design-lint sub13Type).
+              <span className="absolute inset-x-0 bottom-0 bg-black/55 px-1.5 py-1 text-center text-t-meta font-bold text-white">
+                {categorySlug === 'jobs'
+                  ? t('Không để số điện thoại hay thông tin liên hệ trên ảnh', 'No phone numbers or contact details on photos')
+                  : t('Dùng ảnh chụp thật — không dùng tờ rơi hay số điện thoại', 'Use a real photo — no flyers or phone numbers')}
+              </span>
+            )}
             {i === 0 ? (
               <span className="absolute left-1.5 top-1.5 rounded-lg bg-primary px-1.5 py-0.5 text-3xs font-bold text-white">{t('Bìa', 'Cover')}</span>
-            ) : (
+            ) : refused ? null : (
               // transition-opacity is load-bearing: it must beat the base
               // transition-all, or the tile's drag transform animates.
               // ⛔ pointer-events-none UNTIL HOVER — AN INVISIBLE BUTTON MUST NOT BE PRESSABLE. On a
@@ -235,7 +248,7 @@ export function MediaSection({
             <CloseButton size="2xs" variant="overlay" label={t('Xóa ảnh', 'Remove photo')} onClick={() => removePhoto(i)} className="absolute right-1 top-1" />
             {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
                 to re-crop). Always visible (mobile can't hover); the label says the current state. */}
-            {p.original && (
+            {p.original && !refused && (
               <button
                 type="button"
                 onClick={() => setCropIndex(i)}
@@ -251,7 +264,8 @@ export function MediaSection({
               </button>
             )}
           </div>
-        ))}
+          )
+        })}
         {/* Native only — the direct camera. Sits BEFORE the library tile: photographing the item
             you're holding is the primary act on a phone, picking an old screenshot is not. */}
         {nativeCamera && photos.length < 6 && (

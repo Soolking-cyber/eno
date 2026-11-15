@@ -42,15 +42,19 @@ export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'vi
   // case's evidence window closes; cleared when a statement attaches it (dispute.ts addPartyStatementOnce). One never
   // attached is swept by the evidence bucket's rule once the case can take no more statements.
   | 'evidence_upload_pending'
+  // A photo the listing photo check removed from a listing (owner, 2026-11-15 — listing-photo-pass.ts): kept 180 days so
+  // "Photo is fine" can put it back (the restore deletes this row); account erasure re-tombstones it at once.
+  | 'listing_photo_stripped'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction
  *  client when the referencing rows die in a transaction, so the tombstones commit with them.
  *  Idempotent on rows — an existing tombstone for the same object gets the NEW reason and a fresh
- *  grace clock (see below). Returns the number of tombstones written or refreshed. */
-export async function writeTombstones(tx: Writer, refs: TombstoneRef[], reason: TombstoneReason, now = new Date()): Promise<number> {
+ *  grace clock (see below). Returns the number of tombstones written or refreshed.
+ *  `graceMs`: a longer wait than the hour, for an object kept on purpose (never shorter). */
+export async function writeTombstones(tx: Writer, refs: TombstoneRef[], reason: TombstoneReason, now = new Date(), opts: { graceMs?: number } = {}): Promise<number> {
   const seen = new Set<string>()
-  const notBefore = new Date(now.getTime() + TOMBSTONE_GRACE_MS)
+  const notBefore = new Date(now.getTime() + Math.max(TOMBSTONE_GRACE_MS, opts.graceMs ?? 0))
   const data: Array<{ bucket: string; path: string; reason: TombstoneReason; notBefore: Date }> = []
   for (const r of refs) {
     if (!r.bucket || !r.path) continue

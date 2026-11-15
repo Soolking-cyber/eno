@@ -57,6 +57,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { makeImageHost } from '../src/lib/host-product-image'
 import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { browseRankScore } from '../src/lib/ranking-formula'
+import { enqueuePhotoChecks } from '../src/lib/listing-photo-queue'
 import { journalDirProblem, sellerRefusal } from '../src/lib/honeycomb-listing'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
@@ -382,53 +383,61 @@ async function main() {
 
   const stat = { created: 0, updated: 0, uploadFailed: 0, raced: 0, errored: 0, hidden: 0, sightings: 0, sightingsDeleted: 0 as number | null, sightingsBlanked: 0 as number | null }
   const touched: string[] = []
+  const photoIds: string[] = []
   /** externalId → its eno listing, for the history log: the rows already stored (any status), then the ones created below. */
   const listingIdOf = new Map(stored.map((s) => [s.externalId!, s.id]))
-  for (const p of toUpdate) {
-    try {
-      const data: Partial<Mutable> = {}
-      for (const f of p.changed!) Object.assign(data, { [f]: p.mutable[f] })
-      await db.listing.update({ where: { id: p.s!.id }, data })
-      touched.push(p.s!.id)
-      stat.updated++
-    } catch (e) { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
-  }
-  for (const p of toCreate) {
-    try {
-      /** ⛔ The cover is uploaded FIRST and recorded before it is judged; no row is born imageless. */
-      let image: string | null
-      if (PREVIEW_COVERS) {
-        const dir = resolve('public', PREVIEW_COVERS)
-        mkdirSync(dir, { recursive: true })
-        const name = `${p.k.externalId.replace(/[^a-z0-9]+/gi, '-')}.png`
-        copyFileSync(p.k.coverPath, join(dir, name))
-        image = `/${PREVIEW_COVERS}/${name}`
-      } else {
-        image = await host!.fromBuffer(readFileSync(p.k.coverPath), `job-${p.k.externalId.replace(/[^a-z0-9]+/gi, '-')}`)
-        if (image) recordDurably(UPLOADED!, image)
-        if (!image || !isOverlayImageUrl(image)) { stat.uploadFailed++; continue }
-      }
-      const created = await db.listing.create({
-        data: {
-          ...p.mutable,
-          externalId: p.k.externalId,
-          /** ⛔ CREATE-ONLY: `verified` is the PUBLICATION GATE (feed-query.ts); status and images belong to
-           *  this create and to moderation — a refresh never resets them. */
-          status: 'active', verified: true,
-          images: JSON.stringify([image]),
-          postedAt: p.k.postedAt,
-          rankScore: browseRankScore({ sellerTrustScore: await trustOf(p.k.sellerId), postedAt: p.k.postedAt, featured: false }),
-        },
-        select: { id: true },
-      })
-      if (CREATED) recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId }))
-      listingIdOf.set(p.k.externalId, created.id)
-      stat.created++
-    } catch (e) {
-      /** P2002 = the unique (sellerId, externalId): another run created it between read and write. */
-      if ((e as { code?: string }).code === 'P2002') stat.raced++
-      else { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
+  try {
+    for (const p of toUpdate) {
+      try {
+        const data: Partial<Mutable> = {}
+        for (const f of p.changed!) Object.assign(data, { [f]: p.mutable[f] })
+        await db.listing.update({ where: { id: p.s!.id }, data })
+        touched.push(p.s!.id)
+        stat.updated++
+      } catch (e) { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
     }
+    for (const p of toCreate) {
+      try {
+        /** ⛔ The cover is uploaded FIRST and recorded before it is judged; no row is born imageless. */
+        let image: string | null
+        if (PREVIEW_COVERS) {
+          const dir = resolve('public', PREVIEW_COVERS)
+          mkdirSync(dir, { recursive: true })
+          const name = `${p.k.externalId.replace(/[^a-z0-9]+/gi, '-')}.png`
+          copyFileSync(p.k.coverPath, join(dir, name))
+          image = `/${PREVIEW_COVERS}/${name}`
+        } else {
+          image = await host!.fromBuffer(readFileSync(p.k.coverPath), `job-${p.k.externalId.replace(/[^a-z0-9]+/gi, '-')}`)
+          if (image) recordDurably(UPLOADED!, image)
+          if (!image || !isOverlayImageUrl(image)) { stat.uploadFailed++; continue }
+        }
+        const created = await db.listing.create({
+          data: {
+            ...p.mutable,
+            externalId: p.k.externalId,
+            /** ⛔ CREATE-ONLY: `verified` is the PUBLICATION GATE (feed-query.ts); status and images belong to
+             *  this create and to moderation — a refresh never resets them. */
+            status: 'active', verified: true,
+            images: JSON.stringify([image]),
+            postedAt: p.k.postedAt,
+            rankScore: browseRankScore({ sellerTrustScore: await trustOf(p.k.sellerId), postedAt: p.k.postedAt, featured: false }),
+          },
+          select: { id: true },
+        })
+        if (CREATED) recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId }))
+        listingIdOf.set(p.k.externalId, created.id)
+        photoIds.push(created.id)
+        stat.created++
+      } catch (e) {
+        /** P2002 = the unique (sellerId, externalId): another run created it between read and write. */
+        if ((e as { code?: string }).code === 'P2002') stat.raced++
+        else { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
+      }
+    }
+  } finally {
+    // The new covers, for the photo check (contact rule only on jobs — listing-photo-check.ts) — in a finally, so a throw
+    // out of the loops still queues the rows already written.
+    if (APPLY) await enqueuePhotoChecks(db, photoIds)
   }
   // ── D3: the job-ad history log — after the listing writes (so it knows the new ids), before anything that can throw.
   // ⛔ NEVER THROWS (src/lib/job-ad-sightings.ts): a failure is warned on stderr and the import goes on.

@@ -36,6 +36,7 @@ import pg from 'pg'
 import { identityGateEnforced } from '../src/lib/compliance/account-state'
 import { licenceCleared, licenceClearedSql } from '../src/lib/licence-stamp'
 import { notAReviewSeatsListingSql } from '../src/lib/review-seat-accounts'
+import { notPhotoHeldSql } from '../src/lib/listing-photo-hold'
 
 const APPLY = process.argv.includes('--apply')
 const ACK_OFF = process.argv.includes('--gate-is-off')
@@ -83,8 +84,9 @@ const ACK_OFF = process.argv.includes('--gate-is-off')
     // DATABASE_URL, and an UPDATE queued behind a long transaction must give up, not stall the site.
     await c.query('BEGIN')
     await c.query(`SET LOCAL lock_timeout = '5s'`)
-    // …and never a review seat's row (src/lib/review-seat-accounts.ts): nothing parks one, and this write says so anyway.
-    const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE "identityHold" AND id = ANY($1::text[]) AND ${licenceClearedSql()} AND ${notAReviewSeatsListingSql()} RETURNING id`, [releasable])
+    // …and never a review seat's row (src/lib/review-seat-accounts.ts) nor a photo-held one (src/lib/listing-photo-hold.ts):
+    // nothing parks either, and this write says so anyway.
+    const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE "identityHold" AND id = ANY($1::text[]) AND ${licenceClearedSql()} AND ${notAReviewSeatsListingSql()} AND ${notPhotoHeldSql()} RETURNING id`, [releasable])
     await c.query('COMMIT')
     const ids = res.rows.map((r) => r.id as string)
     console.log(`RELEASED ${res.rowCount} listing(s):`)

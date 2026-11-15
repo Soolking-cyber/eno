@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NOT_PHOTO_HELD } from '@/lib/listing-photo-hold'
 import { licenceClearedWhere } from './licence-stamp'
 
 // ── Enforcement restores and the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts) ───────────────────────
@@ -79,8 +80,8 @@ vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => {
 const { liftAction, expireEnforcement, applyEnforcement } = await import('./enforcement')
 
 const action = (pulled: string[]) => ({ id: 'a1', profileId: 'p1', state: 'held', reason: 'admin_manual', status: 'active', pulledListingIds: JSON.stringify(pulled), appealedAt: null, appealOutcome: null })
-const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
-const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false, AND: [GUARD] }, data: { identityHold: true }, select: { id: true } })
+const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false, AND: [GUARD, NOT_PHOTO_HELD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
+const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false, AND: [GUARD, NOT_PHOTO_HELD] }, data: { identityHold: true }, select: { id: true } })
 /** Every id a write touched, whichever write. */
 const written = () => h.updates.flatMap((u) => u.where.id.in as string[])
 
