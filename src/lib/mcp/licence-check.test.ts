@@ -63,9 +63,9 @@ describe('update_listing', () => {
 
   it('⛔ a listing still waiting for eno’s licence check answers held — an agent must not read "ok" as live', async () => {
     h.update = { ok: true, held: true }
-    expect(await run()).toEqual({ ok: true, held: true, unpublished: false, listing: null })
+    expect(await run()).toEqual({ held: true, unpublished: false, listing: null })
     h.update = { ok: true }
-    expect(await run()).toEqual({ ok: true, held: false, unpublished: false, listing: null })
+    expect(await run()).toEqual({ held: false, unpublished: false, listing: null })
   })
 
   it('the description says so, and that the tool cannot change a subcategory or the licence values', () => {

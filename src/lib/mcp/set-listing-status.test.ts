@@ -69,7 +69,7 @@ describe('set_listing_status', () => {
   })
 
   it('success is unchanged', async () => {
-    expect(await run()).toEqual({ ok: true, status: 'active' })
+    expect(await run()).toEqual({ id: 'L1', status: 'active' })
   })
 })
 

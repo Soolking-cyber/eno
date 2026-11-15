@@ -104,7 +104,8 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // Closed is safe only because every answer is built KEY BY KEY by the projections below (never a spread of a core's
 // object), each pinned at compile time to its schema. The conformance tests (output-schemas*.test.ts) also parse every
 // handler's answer with these strict schemas, so an extra or a missing key fails there before any client sees it.
-const OK = z.literal(true).describe('Always true: a change eno refuses comes back as a tool error with the reason instead')
+// No always-true `ok` flag in any answer (removed 2026-11-15): a change eno refuses comes back as a tool error with the reason,
+// so a write answers with what it saved instead, as the best-scoring update tools on Manufact's board do.
 const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
 // The bounds live on the server (pagination.ts parsePageParams parseInt()s and clamps to PAGE_MAX, PAGE_DEFAULT when left out;
 // zod's .int() would publish ±2^53 bounds), not in the
@@ -285,8 +286,8 @@ const ANALYTICS_ROW_OUT = z.strictObject({
 
 const DELETE_HOLD_REASONS = ['account_held', 'account_suspended', 'open_report'] as const satisfies readonly DeleteHoldReason[]
 const deletedOut = (hold: DeleteHoldReason | null) => hold
-  ? { ok: true as const, deleted: false, hidden: true, reason: hold, message: DELETE_HOLD_MESSAGE[hold] as string | null }
-  : { ok: true as const, deleted: true, hidden: false, reason: null, message: null }
+  ? { deleted: false, hidden: true, reason: hold, message: DELETE_HOLD_MESSAGE[hold] as string | null }
+  : { deleted: true, hidden: false, reason: null, message: null }
 
 // ⛔ COMPILE-TIME PINS (2026-11-15): each projection's type must EQUAL the type of the schema published for it, checked
 // both ways, so a field that turns nullable, changes type, goes missing OR is added without the schema fails `tsc` HERE,
@@ -337,10 +338,10 @@ export const TOOLS: McpTool[] = [
   {
     name: 'update_shop',
     title: 'Update shop details',
-    description: 'Change this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone. Send only the fields to change; the others stay as they are (get_shop shows the current values). Long text is shortened to fit: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`. Returns `ok: true` and `shop`, the profile as it now stands (the same fields as get_shop).',
+    description: 'Change this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone. Send only the fields to change; the others stay as they are (get_shop shows the current values). Long text is shortened to fit: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`. Changes are saved immediately. Returns `shop`, the saved profile (the same fields as get_shop).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ ok: OK, shop: SHOP_OUT.nullable().describe('The profile after your change, the same fields get_shop returns: the fields you sent now read as saved. null only if it could not be read back; the change is saved either way') }).describe('Confirms the change and shows the profile after it'),
+    output: z.strictObject({ shop: SHOP_OUT.nullable().describe('The saved shop profile after the update, the same fields get_shop returns; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings. Leave it out to keep the current name'),
       bio: z.string().optional().describe('About the shop in a few sentences, shown on its page: what it sells and how it serves buyers. Send an empty string to clear it, or leave it out to keep it'),
@@ -354,7 +355,7 @@ export const TOOLS: McpTool[] = [
       // The change is SAVED: a read-back that fails (or would not fit SHOP_OUT) answers null, never an error the agent
       // would retry.
       const shop = await readShop(auth.sellerId).then((x) => (SHOP_OUT.safeParse(x).success ? x : null)).catch(() => null)
-      return { ok: true as const, shop }
+      return { shop }
     },
   },
   {
@@ -462,11 +463,10 @@ export const TOOLS: McpTool[] = [
     title: 'Update eno.vn listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
-    description: 'Change one of this shop\'s listings when the seller asks for a new price, better text, another district or new photos. Send the listing\'s id and only the fields to change; the rest stay as they are (get_listing shows the current values). Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. Returns `ok: true`, `listing` as it now stands, and `held` and `unpublished`, which say when the saved edit is not public yet: `held: true` while the listing waits for eno\'s licence check. This tool cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).',
+    description: 'Change one of this shop\'s listings when the seller asks for a new price, better text, another district or new photos. Send the listing\'s id and only the fields to change; the rest stay as they are (get_listing shows the current values). Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. Changes are saved immediately. Returns `listing` as it now stands, and `held` and `unpublished`, which say when the saved edit is not public yet: `held: true` while the listing waits for eno\'s licence check. This tool cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
-      ok: OK,
       held: z.boolean().describe('true when the edit is saved but the listing stays unpublished until eno\'s licence check approves it; false otherwise'),
       unpublished: z.boolean().describe('true when the listing belongs to an account whose listings are not shown publicly; false otherwise'),
       listing: LISTING_OUT.nullable().describe('The listing as it now stands, the same fields get_listing returns; null only if it could not be read back'),
@@ -506,16 +506,16 @@ export const TOOLS: McpTool[] = [
       const listing = await db.listing.findUnique({ where: { id }, include: LISTING_INCLUDE })
         .then((row) => { const out = row ? listingOut(row) : null; return out && LISTING_OUT.safeParse(out).success ? out : null })
         .catch(() => null)
-      return { ok: true as const, held: res.held === true, unpublished: res.unpublished === true, listing }
+      return { held: res.held === true, unpublished: res.unpublished === true, listing }
     },
   },
   {
     name: 'set_listing_status',
     title: 'Set eno.vn listing status',
-    description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns `ok: true` and the `status` the listing now has.',
+    description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns the listing\'s `id` and the `status` it now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ ok: OK, status: LISTING_STATUS_SET }).describe('Confirms the change and the listing\'s status now'),
+    output: z.strictObject({ id: z.string().describe('The listing that was changed, as you passed it'), status: LISTING_STATUS_SET }).describe('The listing and the status it has now'),
     // `status` is checked by setStatusCore (invalid_status, worded below), not by an enum: an enum input is the one field the
     // reviewers flag as "validation repeated" whatever its prose says (2026-11-15).
     input: z.object({ id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings, get_listing or create_listing'), status: z.string().describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), or active to put it back on sale') }),
@@ -542,17 +542,16 @@ export const TOOLS: McpTool[] = [
         throw new ToolError(res.error, message, res.detail)
       }
       // The status echoed is the one asked for, which the input enum limits to the three (setStatusCore checks it too).
-      return { ok: true as const, status: res.status as ListingStatusOut }
+      return { id, status: res.status as ListingStatusOut }
     },
   },
   {
     name: 'delete_listing',
     title: 'Delete eno.vn listing',
-    description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). Returns `deleted: true` once the listing is gone. While the shop or the listing is under review (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false` and `hidden: true`, with the `reason` code and a `message` to show the seller. Every answer carries all five fields: `ok`, `deleted`, `hidden`, `reason` and `message`.',
+    description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). Returns `deleted: true` once the listing is gone. While the shop or the listing is under review (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false` and `hidden: true`, with the `reason` code and a `message` to show the seller. Every answer carries all four fields: `deleted`, `hidden`, `reason` and `message`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
-      ok: OK,
       deleted: z.boolean().describe('true when the listing was deleted; false when it was hidden instead'),
       hidden: z.boolean().describe('true when it was hidden instead of deleted because the shop or listing is under review; false when it was deleted'),
       reason: z.enum(DELETE_HOLD_REASONS).nullable().describe('Why it was hidden instead. account_held or account_suspended: the account is under review. open_report: a report about it or the shop is still open. null when it was deleted'),
@@ -721,16 +720,16 @@ export const TOOLS: McpTool[] = [
   {
     name: 'delete_webhook',
     title: 'Delete webhook',
-    description: 'Remove one of this shop\'s webhook endpoints, e.g. one you no longer run or whose secret may have leaked; eno stops sending it events at once. To change which events an endpoint gets, register it again with the new list, then delete the old one. It cannot be undone: registering the address again gives a new id and a new secret. Returns `ok: true` once it is gone.',
+    description: 'Remove one of this shop\'s webhook endpoints, e.g. one you no longer run or whose secret may have leaked; eno stops sending it events at once. To change which events an endpoint gets, register it again with the new list, then delete the old one. It cannot be undone: registering the address again gives a new id and a new secret. Returns the removed webhook\'s `id`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-    output: z.strictObject({ ok: OK }).describe('Confirms the webhook is gone'),
+    output: z.strictObject({ id: z.string().describe('The webhook that was removed, as you passed it; eno sends it no more events') }).describe('The webhook that was removed'),
     input: z.object({ id: z.string().describe('The webhook to remove: its id (such as `cmh0q2x8f0001...`), from list_webhooks or register_webhook') }),
     handler: async (auth, args) => {
       const hook = await db.webhookEndpoint.findUnique({ where: { id: String(args.id) }, select: { sellerId: true } })
       if (!hook || hook.sellerId !== auth.sellerId) throw new ToolError('not_found', 'Webhook not found.')
       await db.webhookEndpoint.delete({ where: { id: String(args.id) } })
-      return { ok: true }
+      return { id: String(args.id) }
     },
   },
 ]
