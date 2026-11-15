@@ -70,6 +70,26 @@ for (const lang of ['en', 'vi'] as const) {
       expect(Math.round(logo.width)).toBe(36)
     })
 
+    // ⛔ Owner, 2026-11-15: "search pill on mobile is not good" — open, the search is the whole screen under the bar.
+    test('the open search fills the screen under the bar: Back + the field, no logo, nothing of the page beside it', async ({ page, baseURL }) => {
+      await open(page, '/', lang, baseURL)
+      await page.locator('#app-header input[name="q"]').tap()
+      const win = page.locator('#app-header form div.overflow-y-auto')
+      await expect(win).toBeVisible()
+      await expect(page.locator('#app-header [data-header-logo]')).toBeHidden()
+      const vp = page.viewportSize()!
+      const header = (await page.locator('#app-header').boundingBox())!
+      await expect.poll(async () => {
+        const w = (await win.boundingBox())!
+        return [Math.round(w.x), Math.round(w.width), Math.abs(w.y + w.height - vp.height) <= 1, Math.abs(w.y - (header.y + header.height)) <= 4]
+      }).toEqual([0, vp.width, true, true])
+      // Back cancels it: the page is back, and scrolls again.
+      await page.locator('#app-header form').getByRole('button', { name: /^(Back|Quay lại)$/ }).tap()
+      await expect(win).toBeHidden()
+      await expect(page.locator('#app-header [data-header-logo]')).toBeVisible()
+      expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
+    })
+
     for (const path of FOOTER_PAGES) {
       test(`${path}: 24px from the end of <main> to the footer's hairline`, async ({ page, baseURL }) => {
         await open(page, path, lang, baseURL)

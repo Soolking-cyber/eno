@@ -293,3 +293,126 @@ describe('build 8: the home route\'s phone header', () => {
     expect(line('/help')).not.toContain('max-sm:hidden')
   })
 })
+
+// ⛔ The open phone search is the whole screen (owner, 2026-11-15: "search pill on mobile is not good").
+describe('the open phone search is the whole screen', () => {
+  const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  const pill = () => field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
+
+  it('open on /: Back + a flat left-aligned field; logo and actions step out; the window fills the screen; the page is held', async () => {
+    h.pathname.value = '/'
+    const main = document.body.appendChild(Object.assign(document.createElement('main'), { id: 'main' }))
+    const { unmount } = render(<Header />)
+    act(() => field().focus())
+    await waitFor(() => expect(panel()).not.toBeNull())
+    expect(tokens(document.getElementById('app-header'))).toContain('max-sm:z-overlay')
+    expect(tokens(document.querySelector('[data-header-logo]'))).toContain('max-sm:hidden')
+    expect(tokens(screen.getByRole('button', { name: 'Notifications' }).closest('div.shrink-0'))).toContain('max-sm:hidden')
+    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy()
+    const p = tokens(pill())
+    expect(p).toContain('max-sm:h-11.5')
+    for (const gone of ['max-sm:shadow-search', 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]']) expect(p).not.toContain(gone)
+    expect(tokens(document.querySelector('[data-search-placeholder]'))).not.toContain('max-sm:justify-center')
+    const w = tokens(panel())
+    expect(w).toEqual(expect.arrayContaining(['max-sm:inset-x-0', 'max-sm:max-h-none', 'max-sm:rounded-none', 'max-sm:bg-background', 'overscroll-contain', 'kb-pad']))
+    expect(w).not.toContain('shadow-pop')
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(document.documentElement.hasAttribute('data-phone-search')).toBe(true)
+    expect(main.inert).toBe(true)
+    unmount()
+    expect(main.inert).toBe(false)
+    expect(document.documentElement.hasAttribute('data-phone-search')).toBe(false)
+    main.remove()
+  })
+
+  it('✕ empties the field and keeps the search open; Back cancels it, restores the page\'s query and frees the page', async () => {
+    window.history.replaceState(null, '', '/?q=iphone')
+    try {
+      h.pathname.value = '/'
+      render(<Header />)
+      act(() => field().focus())
+      fireEvent.change(field(), { target: { value: 'ipho' } })
+      await waitFor(() => expect(panel()).not.toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+      expect(field().value).toBe('')
+      expect(h.push).not.toHaveBeenCalled()
+      expect(panel()).not.toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await waitFor(() => expect(panel()).toBeNull())
+      expect(field().value).toBe('iphone')
+      expect(document.body.style.overflow).toBe('')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('closed any other way without a search (Escape), the emptied field goes back to the page\'s query too', async () => {
+    window.history.replaceState(null, '', '/?q=iphone')
+    try {
+      h.pathname.value = '/'
+      render(<Header />)
+      act(() => field().focus())
+      fireEvent.change(field(), { target: { value: 'ipho' } })
+      await waitFor(() => expect(panel()).not.toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+      fireEvent.keyDown(field(), { key: 'Escape' })
+      await waitFor(() => expect(panel()).toBeNull())
+      expect(field().value).toBe('iphone')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('a search committed at desktop width does not stop a later phone search from restoring on Back', async () => {
+    window.history.replaceState(null, '', '/?q=honda')
+    try {
+      h.pathname.value = '/'
+      h.phone.value = false
+      localStorage.setItem('eno:recent_searches', JSON.stringify(['honda']))
+      const { rerender } = render(<Header />)
+      act(() => field().focus())
+      fireEvent.change(field(), { target: { value: 'honda' } })
+      fireEvent.submit(field().closest('form')!)
+      act(() => field().blur())
+      h.phone.value = true
+      rerender(<Header />)
+      act(() => field().focus())
+      await waitFor(() => expect(panel()).not.toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      await waitFor(() => expect(panel()).toBeNull())
+      expect(field().value).toBe('honda')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('a rotation past 640px mid-typing keeps the draft (the restore is for a closed search only)', async () => {
+    window.history.replaceState(null, '', '/?q=iphone')
+    try {
+      h.pathname.value = '/'
+      const { rerender } = render(<Header />)
+      act(() => field().focus())
+      fireEvent.change(field(), { target: { value: 'ipho' } })
+      await waitFor(() => expect(panel()).not.toBeNull())
+      h.phone.value = false
+      rerender(<Header />)
+      expect(field().value).toBe('ipho')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('off a phone the window is the dropdown it was: the popover shadow, no page hold', async () => {
+    h.phone.value = false
+    localStorage.setItem('eno:recent_searches', JSON.stringify(['honda']))
+    render(<Header />)
+    act(() => field().focus())
+    await waitFor(() => expect(panel()).not.toBeNull())
+    expect(tokens(panel())).toContain('shadow-pop')
+    expect(tokens(panel())).not.toContain('kb-pad')
+    expect(document.body.style.overflow).toBe('')
+    // Only the installed app's own header Back (CSS-gated), never the search's.
+    expect(screen.queryAllByRole('button', { name: 'Back' }).every((b) => b.hasAttribute('data-header-back'))).toBe(true)
+  })
+})

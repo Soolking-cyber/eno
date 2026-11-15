@@ -474,9 +474,9 @@ costs conversions. It stays a separate, owner-reviewed decision.
   (use-header-pin.ts; it still slides on a directed feed and from `sm`), its search pill the one primary action — 46px,
   `shadow-search`, the empty state a centred bold ink "Search" beside its own magnifier; ✨, bell and download muted (bell
   and download 22px) — with no hairline under it. The category pills **pin under it** while the lanes scroll (sticky inside
-  the ladder's head, so they let go with the last lane, before the feed's strip) with one hairline once pinned: **whole pills
-  only**, laid out as pages (a one-column multicol box, no measuring), the first page ending 8px or more before the 40px
-  grey More disc on the 12px edge; 26px art. Pinned chrome 56 + 52 = 108px. Every lane: the heading and a **32px round
+  the ladder's head, so they let go with the last lane, before the feed's strip) with one hairline once pinned: **one flex
+  line, pills 8px apart** (2026-11-15: pages bunched them mid-swipe), ending 8px before the 40px grey More disc on the
+  12px edge; 26px art. Pinned chrome 56 + 52 = 108px. Every lane: the heading and a **32px round
   grey arrow disc** for See all (its words its accessible name), 16 heading → photos, 40 between lanes. Order: Trending, the
   product category lanes, **Partners** (three whole raised tiles across the text column, nothing of the fourth),
   Outstanding businesses, then **Services** (by slug). The tab bar's Post is the 26px outline add-circle (ink-3 at rest).

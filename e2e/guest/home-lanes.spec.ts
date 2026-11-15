@@ -89,10 +89,11 @@ test.describe('Guest · home lanes', () => {
   })
 
   // ⛔ Build 8 (owner-approved 2026-11-15, cook r08 home): the header stays put and the category pills pin under it while the
-  // lanes scroll — whole pills ending 8px or more before the More disc, one hairline once pinned — and let go before the
+  // lanes scroll — one flex line, pills 8px apart, ending 8px before the More disc (owner, 2026-11-15: "the pills stick
+  // together on wider phones": no more pages), one hairline once pinned — and let go before the
   // feed's own sticky strip; every lane's See all is the 32px arrow disc; Partners and the flyer lanes come after the
   // product lanes.
-  test('build 8: the pinned search + pills bar, whole pills before the disc, arrow discs, product lanes first', async ({ page }) => {
+  test('build 8: the pinned search + pills bar, an even pill row before the disc, arrow discs, product lanes first', async ({ page }) => {
     test.skip(!phone(page.viewportSize()?.width), 'phone only')
     await page.goto('/')
     await expect(page.locator('[data-home-lanes]')).toBeVisible()
@@ -102,7 +103,7 @@ test.describe('Guest · home lanes', () => {
       const scroller = rail.querySelector<HTMLElement>('[role="group"]')!
       const disc = rail.querySelector<HTMLElement>('button[aria-label="More"]')!.getBoundingClientRect()
       const pills = [...scroller.querySelectorAll<HTMLElement>('[data-cat],[data-shortcut],[data-intent]')].map((p) => p.getBoundingClientRect())
-      const shown = pills.filter((r) => r.right > 0 && r.left < innerWidth)
+      const sc = scroller.getBoundingClientRect()
       // Trending and Outstanding businesses are the two Shelf lanes (data-shelf), told apart by their place in the server's
       // fixed set: Trending leads, the businesses shelf comes after Partners (this spec runs in English).
       const lanes = [...document.querySelectorAll('[data-home-lanes] > *')].map((el) => {
@@ -118,8 +119,10 @@ test.describe('Guest · home lanes', () => {
         railTop: Math.round(rail.getBoundingClientRect().top), headerBottom: Math.round(header.bottom), railH: Math.round(rail.getBoundingClientRect().height),
         position: getComputedStyle(rail).position,
         disc: { left: disc.left, right: disc.right, w: disc.width },
-        lastWholeRight: Math.max(...shown.map((r) => r.right)),
-        cut: shown.filter((r) => r.left < innerWidth && r.right > innerWidth).length,
+        scRight: sc.right, display: getComputedStyle(scroller).display,
+        gaps: pills.slice(1).map((r, i) => Math.round(r.left - pills[i].right)),
+        // Every pill keeps its whole word on one line (a flex item must not shrink it).
+        oneLine: [...scroller.querySelectorAll<HTMLElement>('[data-cat],[data-shortcut],[data-intent]')].every((p) => p.scrollWidth <= p.clientWidth + 1 && (p.lastElementChild as HTMLElement).getBoundingClientRect().height <= 21),
         pillH: Math.round(pills[0].height),
         lanes, seeAll, stuck: rail.hasAttribute('data-stuck'),
       }
@@ -130,8 +133,18 @@ test.describe('Guest · home lanes', () => {
     expect(rest.pillH).toBe(40)
     expect(rest.disc.w).toBe(40)
     expect(rest.disc.right).toBeCloseTo(page.viewportSize()!.width - 12, 0)
-    expect(rest.cut, 'no pill is cut at rest').toBe(0)
-    expect(rest.disc.left - rest.lastWholeRight).toBeGreaterThanOrEqual(8)
+    expect(rest.display).toBe('flex')
+    expect(rest.disc.left - rest.scRight).toBeCloseTo(8, 0)
+    expect(new Set(rest.gaps), 'every pill 8px from the next: no clumps').toEqual(new Set([8]))
+    expect(rest.oneLine, 'no pill squeezed or wrapped').toBe(true)
+    // A tap on the disc brings the pill its edge cut to the start, whole, one gap in; nothing of the one before it shows.
+    await page.locator('[data-category-rail] button[aria-label="More"]').click()
+    await expect.poll(() => page.evaluate(() => {
+      const sc = document.querySelector('[data-category-rail] [role="group"]')!.getBoundingClientRect()
+      const first = [...document.querySelectorAll<HTMLElement>('[data-category-rail] [role="group"] > *')].map((p) => p.getBoundingClientRect()).find((r) => r.right > sc.left + 0.5)!
+      return Math.round(first.left - sc.left)
+    })).toBe(8)
+    await page.evaluate(() => { document.querySelector('[data-category-rail] [role="group"]')!.scrollLeft = 0 })
     expect(rest.stuck).toBe(false)
     expect(rest.lanes[0]).toBe('trending')
     expect(rest.lanes.indexOf('partners')).toBeLessThan(rest.lanes.indexOf('business'))

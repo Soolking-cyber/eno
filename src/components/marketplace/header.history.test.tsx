@@ -157,11 +157,15 @@ describe('NAV-1: Back closes the phone search panel', () => {
     card.remove()
   })
 
-  it('the header\'s own Back is a traversal, not a push: a press on it pops the panel\'s entry (opus, gate)', async () => {
+  // The open phone search is the whole screen (owner, 2026-11-15): its own Back replaces the installed app's header Back
+  // (which steps out with the logo), cancels the search and pops the panel's entry.
+  it('the open search\'s Back is a traversal, not a push: it closes the panel and pops its entry (opus, gate)', async () => {
     await openPanel()
     const back = screen.getByRole('button', { name: 'Back' })
-    expect(back.hasAttribute('data-header-back')).toBe(true)
+    expect(back.hasAttribute('data-header-back')).toBe(false)
+    expect(document.querySelector('[data-header-back]')).toBeNull()
     fireEvent.mouseDown(back)
+    fireEvent.click(back)
     await waitFor(() => expect(panel()).toBeNull())
     await waitFor(() => expect(mark()).toBeUndefined()) // popped — never left behind as a dead entry
   })

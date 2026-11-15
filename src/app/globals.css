@@ -1837,6 +1837,9 @@ html.kb-open .mobile-nav {
   pointer-events: none;
 }
 html.kb-open .bottom-nav-spacer { display: none; }
+/* The open phone search covers the tab bar (header.tsx `phoneSearch`); hidden, it also leaves the focus order and the
+   accessibility tree for the search's whole life, keyboard up or not. */
+html[data-phone-search] .mobile-nav { visibility: hidden; }
 
 @media (max-width: 1023px) {
   /* (1) DOCUMENT LOCK while inside a thread. Suppressing single-finger PANNING on <body>

@@ -397,12 +397,56 @@ export function Header() {
    * ⚠️ Back closes the panel with the field still focused, and the panel opens on FOCUS — so the field is
    * blurred too, or tapping it again would fire nothing and show nothing (review).
    */
-  const { release: releaseSearchPanel } = useBackToClose(isPhone && panelOpen, () => {
+  // Back (the gesture or the bar's chevron) cancels a phone search (the field's restore: `phoneSearch`, below).
+  const cancelPhoneSearch = () => {
     setShowSuggestions(false)
     const field = searchFormRef.current?.elements.namedItem('q')
     if (field instanceof HTMLInputElement) field.blur()
-  }, 'search')
+  }
+  const { release: releaseSearchPanel } = useBackToClose(isPhone && panelOpen, cancelPhoneSearch, 'search')
   useEffect(() => { releaseSearchRef.current = releaseSearchPanel }, [releaseSearchPanel])
+  /**
+   * ⛔ BELOW 640px THE OPEN SEARCH IS THE WHOLE SCREEN (owner, 2026-11-15: "search pill on mobile is not good"). The floating
+   * window left the page showing beside and under it. Open, the bar is Back + the field (logo and actions step out, the label
+   * leaves the centre) and the window fills the screen under it on the page's own background; the page behind is held and inert.
+   */
+  const phoneSearch = isPhone && panelOpen
+  const centred = homePill && !phoneSearch
+  // Closed without a search, the field goes back to the query on screen: ✕ no longer submits on a phone (below), so an
+  // emptied field must never be left over a results page. A search or a visual search marks itself committed.
+  // Keyed on the panel CLOSING (not on leaving the phone layout: a rotation past 640px mid-typing must keep the draft).
+  const committedRef = useRef(false)
+  const openedOnPhone = useRef(false)
+  useEffect(() => {
+    if (panelOpen) {
+      // Each opening is a new search: a search committed in an earlier one (at any width) says nothing about this one.
+      committedRef.current = false
+      if (isPhone) openedOnPhone.current = true
+      return
+    }
+    if (!openedOnPhone.current) return
+    openedOnPhone.current = false
+    if (!committedRef.current) setSearchVal(new URLSearchParams(window.location.search).get('q') || '')
+  }, [panelOpen, isPhone])
+  useEffect(() => {
+    if (!phoneSearch) return
+    const html = document.documentElement
+    html.setAttribute('data-phone-search', '')
+    const b = document.body.style
+    const prev = [b.overflow, b.overscrollBehavior] as const
+    b.overflow = 'hidden'
+    b.overscrollBehavior = 'none'
+    // What the window covers is inert too, so a screen reader or a keyboard cannot wander behind it (review); the tab bar
+    // is hidden by `html[data-phone-search]` (globals.css), since mobile-nav.tsx owns its own `inert`.
+    const behind = [document.getElementById('main'), document.getElementById('app-footer')].filter((el): el is HTMLElement => !!el && !el.inert)
+    for (const el of behind) el.inert = true
+    return () => {
+      html.removeAttribute('data-phone-search')
+      b.overflow = prev[0]
+      b.overscrollBehavior = prev[1]
+      for (const el of behind) el.inert = false
+    }
+  }, [phoneSearch])
   // The search window is ONE element for both panels (see its comment below), so it keeps its
   // scrollTop across the switch — two separate mounts used to start each panel at the top. Reset it
   // before paint when the contents switch, or the instant results open scrolled past their top rows.
@@ -559,6 +603,7 @@ export function Header() {
   }, [pathname])
 
   const submitSearch = (raw: string) => {
+    committedRef.current = true
     const q = raw.trim()
     if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: q } }))
@@ -574,6 +619,7 @@ export function Header() {
   const submitVisual = (r: { query: string; category?: string | null; brand?: string | null }) => {
     const q = (r.query || '').trim()
     if (!q) return
+    committedRef.current = true
     if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:visual-search', { detail: r }))
     } else {
@@ -628,11 +674,11 @@ export function Header() {
   // no label and no glyph (review); the overlay carries its own glyph and its word truncates at worst. MT languages unchanged.
   const placeholderFit =
     lang === 'vi'
-      ? homePill
+      ? centred
         ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[5.55em]/q:flex', long: 'sm:@min-[8.7em]/q:block', short: 'sm:@min-[8.7em]/q:hidden' }
         : { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: '@min-[8.7em]/q:block', short: '@min-[8.7em]/q:hidden' }
       : lang === 'en'
-        ? homePill
+        ? centred
           ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[4.55em]/q:flex', long: 'sm:@min-[8.6em]/q:block', short: 'sm:@min-[8.6em]/q:hidden' }
           : { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
         : { overlay: 'peer-placeholder-shown:@min-[15em]/q:flex', long: 'block', short: 'hidden' }
@@ -707,7 +753,8 @@ export function Header() {
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         // ⛔ …but not below `sm` on the home page's lanes (`pinned`, owner-approved 2026-11-15 (build 8)): the media query
         // comes later in the sheet than the plain utilities, so there the bar stays where it is.
-        hidden ? cn('-translate-y-full opacity-0', pinned && 'max-sm:translate-y-0 max-sm:opacity-100') : 'translate-y-0 opacity-100',
+        hidden && !phoneSearch ? cn('-translate-y-full opacity-0', pinned && 'max-sm:translate-y-0 max-sm:opacity-100') : 'translate-y-0 opacity-100',
+        phoneSearch && 'max-sm:z-overlay',
       )}
     >
       {/* ⚠️ NO HORIZONTAL PADDING, DELIBERATELY — the logo and the action buttons sit flush to the
@@ -764,7 +811,7 @@ export function Header() {
             client (HOME_PATHS), so the SSR HTML already carries the button.
             ChevronLeftIcon, NOT ChevronLeft: the header is on every page and only the former is in the
             core sprite (scripts/critical-icons.mjs). */}
-        {backable && (
+        {backable && !phoneSearch && (
           <IconButton
             size="lg"
             onClick={onBack}
@@ -792,6 +839,7 @@ export function Header() {
             className={cn(
               'flex shrink-0 items-center transition-transform duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96]',
               railOpen && 'lg:hidden',
+              phoneSearch && 'max-sm:hidden',
             )}
           aria-label={SITE_NAME}
         >
@@ -911,7 +959,10 @@ export function Header() {
               'max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background',
               // The leading glyph steps out only where the centred label replaces it: English and Vietnamese. The nine
               // machine-translated languages' label shows only from 15em, so a narrow pill there kept no label AND no glyph (review).
-              homePill ? cn('max-sm:h-11.5 max-sm:shadow-search', (lang === 'en' || lang === 'vi') && 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]') : 'max-sm:h-11 max-sm:shadow-raised',
+              // Open on a phone the pill is a flat field (no lift): the whole screen is the search then.
+              homePill ? 'max-sm:h-11.5' : 'max-sm:h-11',
+              !phoneSearch && (homePill ? 'max-sm:shadow-search' : 'max-sm:shadow-raised'),
+              centred && (lang === 'en' || lang === 'vi') && 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]',
               panelOpen
                 // Open (sm+) = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
                 // suggestions panel it fuses with (bottom flattened where they join), so the
@@ -931,7 +982,20 @@ export function Header() {
                   typed before hydration brings it back too. `visibility`, NOT `display` (the mock's): the glyph keeps its
                   34px, so the first typed letter does not shove the caret 34px right, and the centred label sits nearer the
                   pill's own centre (the ✨ takes the right end). */}
-              <Search className={cn('pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground', homePill && 'max-sm:[visibility:var(--lead-glyph,visible)]')} strokeWidth={STROKE} />
+              {phoneSearch ? (
+                <IconButton
+                  size="md"
+                  aria-label={tr('Back', 'Quay lại')}
+                  // Held off the field so the tap cannot blur it first; cancelling blurs it, and useBackToClose pops its entry.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelPhoneSearch}
+                  className="ml-0.5 shrink-0 text-foreground"
+                >
+                  <ChevronLeftIcon className="h-6 w-6" strokeWidth={STROKE} aria-hidden />
+                </IconButton>
+              ) : (
+                <Search className={cn('pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground', centred && 'max-sm:[visibility:var(--lead-glyph,visible)]')} strokeWidth={STROKE} />
+              )}
               {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
               <div className="@container/q relative flex min-w-0 flex-1 self-stretch text-base">
@@ -1023,9 +1087,9 @@ export function Header() {
                 data-search-placeholder=""
                 // `text-t-card` (15/20, the redesign's muted placeholder): the rungs' thresholds are em of the slot's own
                 // 16px (`text-base` above), so painting the copy 1px smaller only ever leaves MORE room — it never truncates.
-                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay, homePill && (lang === 'en' || lang === 'vi') && 'max-sm:left-0 max-sm:right-0 max-sm:justify-center max-sm:gap-2 max-sm:font-bold max-sm:text-foreground')}
+                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay, centred && (lang === 'en' || lang === 'vi') && 'max-sm:left-0 max-sm:right-0 max-sm:justify-center max-sm:gap-2 max-sm:font-bold max-sm:text-foreground')}
               >
-                {homePill && (lang === 'en' || lang === 'vi') && <Search aria-hidden className="hidden h-5 w-5 shrink-0 max-sm:block" strokeWidth={STROKE} />}
+                {centred && (lang === 'en' || lang === 'vi') && <Search aria-hidden className="hidden h-5 w-5 shrink-0 max-sm:block" strokeWidth={STROKE} />}
                 <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Search eno…', 'Tìm trên eno…')}</span>
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
               </span>
@@ -1044,7 +1108,9 @@ export function Header() {
               {showSuggestions ? (searchVal ? (
                 <IconButton
                   size="md"
-                  onClick={() => { setSearchVal(''); submitSearch('') }}
+                  // On a phone the open search is the whole screen: ✕ empties the field and keeps it, as a search app does.
+                  onMouseDown={isPhone ? (e) => e.preventDefault() : undefined}
+                  onClick={() => { setSearchVal(''); if (!isPhone) submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
                   // tap-48 overrides the IconButton's baked-in tap-44 (defined later in the sheet)
                   // for a 48px hit area — forgiving for kids / fast scrollers — with no size change.
@@ -1155,7 +1221,11 @@ export function Header() {
               <div
                 ref={searchWindowRef}
                 className={cn(
-                  'fixed inset-x-2 top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))-0.75rem))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
+                  'fixed inset-x-2 top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))-0.75rem))] overflow-y-auto rounded-2xl bg-popover transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
+                  // ⛔ PHONE: THE WHOLE SCREEN UNDER THE BAR (phoneSearch, above). A height, never bottom-0: the header's
+                  // will-change makes it this fixed window's containing block. `kb-pad` keeps the last row above the keyboard.
+                  'max-sm:inset-x-0 max-sm:h-[calc(100dvh-var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem)))] max-sm:max-h-none max-sm:rounded-none max-sm:bg-background overscroll-contain',
+                  isPhone ? 'kb-pad' : 'shadow-pop',
                   suggestOpen ? 'space-y-4 p-4' : 'p-3',
                 )}
               >
@@ -1337,7 +1407,7 @@ export function Header() {
 
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className={cn('flex shrink-0 items-center gap-1 sm:gap-2', phoneSearch && 'max-sm:hidden')}>
           {/* ⛔ THE DESKTOP LANGUAGE BUTTON (owner, 2026-10-18: "go on apply all recommended" — the before/after
               report's "add a small language button to the desktop header"). The same day the `/vi` pilot's "Tiếng
               Việt" link left the first screen for the end of home and category pages (lang-pilot-switch.tsx).

@@ -79,32 +79,17 @@ function TileLabel({ en, vi }: { en: string; vi?: string | null }) {
  *   432-639px → 4px gap (440: 64 shown, 20 cut)
  * ⛔ NOT AN EDGE FADE: the owner removed the fade from THIS rail on 2026-08-26 ("remove these effects on sides of category
  *   model rails the cloudy effect" — the note on the scroller below). The edge hard-clips; the clip IS the cue.
- * ⛔ …EXCEPT THE HOME PAGE'S PILL ROW (`pills`), WHICH SHOWS WHOLE PILLS AND THE MORE DISC (owner-approved 2026-11-15
- *   (build 8), cook r08 home; it reverses there the clipped cue above and build 7's "a cut pill is the cue when part of its
- *   word shows"). No pill is ever cut at rest: the row is laid out in PAGES (PILL_PAGES, below), and the More disc is
- *   always the cue. Nothing is measured or tuned at run time.
+ * ⛔ …EXCEPT THE HOME PAGE'S PILL ROW (`pills`), WHOSE CUE IS THE MORE DISC (owner-approved build 8, 2026-11-15; PILL_ROW).
  */
 const PHONE_GAP = 'max-[23.25rem]:gap-x-1 min-[23.25rem]:max-[27rem]:gap-x-0 min-[27rem]:max-sm:gap-x-1'
 
 /**
- * ⛔ THE HOME'S PILL ROW IS LAID OUT IN PAGES OF WHOLE PILLS (owner-approved 2026-11-15 (build 8), cook r08 home: "the strip
- * ends on whole pills and the rail's own More disc (no art-only peek)"). Below 640px the scroller is a ONE-COLUMN MULTICOL
- * box one pill tall (`columns-1`, `column-fill: auto`, a fixed 52px: 6px over the 40px pills and 6 under them), and the pills are
- * inline boxes in one line of text: a pill that does not fit the line in full goes to the next line, which is the next
- * column — the next page — so the first screen ends on a whole pill, 8px or more before the disc, at every width, language,
- * font and text size, with no measuring and nothing moved after the first paint. The column box runs from the 12px text
- * edge to the disc's left edge (`pr-13`: the 12px edge + the 40px disc), and a pill's own 8px right margin is its gap, so
- * the last whole pill always ends 8px or more before the disc. The column gap is 64px, so the next page starts 12px past the
- * screen edge (nothing peeks), and one page is exactly the scroller's width: the disc steps one page (`pagePills`). A swipe
- * scrolls freely, as the rail always has (no snap points); between pages it shows the air the mock's own push left.
- * The cue is the disc (below), never a cut pill. From 640px the scroller is the grid above, untouched.
- * ⚠️ THE COLUMN IS 44px, NOT 40 — 4px taller than its one line (`pt-1.5 pb-0.5`: 6 over the pills, the column's own 4px + 2
- * under them). With the column exactly as tall as the line, WebKit lays out one more, EMPTY column after the last pill, so a
- * swipe on an iPhone ended on a blank page (measured, Playwright WebKit and Chromium, 320-430px, EN and VI, 2026-11-15: at
- * 40px WebKit's scroll width was one page longer than Chromium's; from 41px both end on the last pill). Two lines need 80px,
- * so 44 still holds exactly one.
+ * ⛔ THE HOME'S PILL ROW IS ONE FLEX LINE (owner, 2026-11-15: "the pills stick together on wider phones weird experience").
+ * It reverses build 8's pages of whole pills, which bunched the pills between pages mid-swipe; the More disc stays.
+ * Below 640px the pills sit 8px apart (`gap-x-2`) in a 52px row, from the 12px text edge to 8px before the disc
+ * (`mr-15` = the 12px edge + the 40px disc + 8). The row scrolls freely, and its edge hard-clips (no fade: note above).
  */
-const PILL_PAGES = 'max-sm:block max-sm:h-13 max-sm:columns-1 max-sm:gap-x-16 max-sm:[column-fill:auto] max-sm:overflow-y-hidden max-sm:pt-1.5 max-sm:pb-0.5 max-sm:pl-3 max-sm:pr-13 max-sm:leading-none'
+const PILL_ROW = 'max-sm:flex max-sm:h-13 max-sm:overflow-y-hidden max-sm:py-1.5 max-sm:pl-3 max-sm:mr-15'
 
 /**
  * Does the scroller's VISIBLE right edge, where the row is now, cut a child — a tile, or the subcategory box — with at
@@ -112,7 +97,7 @@ const PILL_PAGES = 'max-sm:block max-sm:h-13 max-sm:columns-1 max-sm:gap-x-16 ma
  * picked category slid to the left edge with its box beside it, the edge can land between tiles even at a width
  * PHONE_GAP covers at rest. `null` when there is no layout to read (every child 0px wide): the caller keeps what it had.
  * Where it reads false — those positions, and widths PHONE_GAP does not cover (round 4: 280, 464, 552px) — the phone
- * row's More arrow comes back. (Not asked on the home's pill row: there the disc is always the cue — PILL_PAGES.)
+ * row's More arrow comes back. (Not asked on the home's pill row: there the disc is always the cue — PILL_ROW.)
  */
 export function edgeClipsChild(el: HTMLElement): boolean | null {
   const edge = el.clientWidth
@@ -284,7 +269,7 @@ export function CategoryRail({
    * gap every few pixels, never blinks the arrow — and again on a resize, when the subcategory box's slide-in ends (it
    * moves while it animates), and when the row's content changes (counts arriving widen the chips without resizing the
    * scroller). Left alone where there is no layout (jsdom, display:none).
-   * Not on the home's pill row (`pills`): no pill is cut there and the disc is always the cue (PILL_PAGES).
+   * Not on the home's pill row (`pills`): the disc is always the cue there (PILL_ROW).
    */
   const [edgeClip, setEdgeClip] = useState(true)
   useEffect(() => {
@@ -315,7 +300,7 @@ export function CategoryRail({
     }
   }, [railRef, canRight, activeCategory, allCategories.length, lang, pills])
   /**
-   * The home's pill row draws its More disc from the server's HTML on (PILL_PAGES: the first page always ends before it), so
+   * The home's pill row draws its More disc from the server's HTML on (PILL_ROW: the scroller ends 8px before it), so
    * it is there in the first frame instead of arriving with the first measurement; from then on `canRight` decides, as on
    * every other row, so it leaves at the row's end. `measured` is false on the server and in the hydration render.
    */
@@ -352,10 +337,16 @@ export function CategoryRail({
       window.removeEventListener('resize', onScroll)
     }
   }, [pills])
-  /** The pill row's disc steps one PAGE (PILL_PAGES: a page is exactly the scroller's width); every other row keeps `page`. */
+  /** The pill row's disc steps to the pill its edge cuts (PILL_ROW); every other row keeps `page`. */
   const pagePills = () => {
     const el = railRef.current
-    if (el) el.scrollBy({ left: el.clientWidth, behavior: scrollBehavior() })
+    if (!el) return
+    // To the pill the right edge cuts, so it comes back whole on the left (a whole-width step cut it again there, review),
+    // one gap in from the edge: the pill before it then ends exactly at the edge, no sliver of it left showing.
+    const box = el.getBoundingClientRect()
+    const cut = Array.from(el.children).find((c) => c.getBoundingClientRect().right > box.right + 1)
+    const step = cut ? cut.getBoundingClientRect().left - box.left - (parseFloat(getComputedStyle(el).columnGap) || 0) : 0
+    el.scrollBy({ left: step > 0 ? step : el.clientWidth, behavior: scrollBehavior() })
   }
 
   // When a category is chosen, slide the rail so that category sits at the left edge
@@ -557,14 +548,13 @@ export function CategoryRail({
    * things that float (§3b). The row itself bleeds to the screen edges with the 12px text edge as its padding, sits 6px
    * under the header and 12px over the first lane (the rail's root and scroller, below).
    * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): the art is 26px with 6px to its word and 12px after it (the mock's
-   * pill), and each pill is an INLINE box with its 8px gap as its own right margin — the row is pages of whole pills
-   * (PILL_PAGES), so a pill is never cut and the row ends on the More disc. The row pins under the header (`stuck`, below)
+   * pill), a flex item 8px from the next that never shrinks or wraps its word (PILL_ROW), and the row ends on the More disc. The row pins under the header (`stuck`, below)
    * and the first lane starts 18px under the pills.
    */
-  const PILL_TILE = 'relative tap-44 max-sm:inline-flex max-sm:h-10 max-sm:w-auto max-sm:mr-2 max-sm:align-top max-sm:flex-row max-sm:justify-start max-sm:gap-1.5 max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background max-sm:pl-1.5 max-sm:pr-3 max-sm:shadow-chip max-sm:active:bg-tint'
+  const PILL_TILE = 'relative tap-44 max-sm:h-10 max-sm:w-auto max-sm:shrink-0 max-sm:flex-row max-sm:justify-start max-sm:gap-1.5 max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background max-sm:pl-1.5 max-sm:pr-3 max-sm:shadow-chip max-sm:active:bg-tint'
   const PILL_GLYPH_BOX = 'max-sm:size-6.5 max-sm:p-0 max-sm:rounded-none max-sm:bg-transparent'
   const PILL_GLYPH = 'max-sm:size-6.5'
-  const PILL_LABEL = 'max-sm:w-auto max-sm:overflow-visible max-sm:text-sm max-sm:leading-5'
+  const PILL_LABEL = 'max-sm:w-auto max-sm:overflow-visible max-sm:whitespace-nowrap max-sm:text-sm max-sm:leading-5'
   /** A tile's classes, as a pill on the home's phone row (`pills`); `on`: the current one wears an ink rim there. */
   const tileClass = (span: string, on = false) =>
     pills ? cn('whitespace-normal', tileCls, span, PILL_TILE, on && 'max-sm:border-foreground') : cn('whitespace-normal', tileCls, span)
@@ -870,9 +860,8 @@ export function CategoryRail({
          `grid-rows-1` is `repeat(1,minmax(0,1fr))`, and in this auto-height scroller an fr row with
          indefinite free space resolves to its tallest item's max-content (CSS Grid §12.7.1) — exactly
          `auto`, so the row is the 63px tile; the token form keeps it beside `grid-rows-6`.
-         The home's pill row (`pills`): pages of whole pills (PILL_PAGES — a one-column multicol box, not this grid), from the
-         12px text edge to the More disc, 6px above and below for the pills' lift. */
-      className={`grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 max-sm:grid-rows-1 ${pills ? PILL_PAGES : `${PHONE_GAP} max-sm:py-0`} max-sm:gap-y-0 md:grid-rows-2 md:gap-x-3 md:gap-y-2`}
+         The home's pill row (`pills`): one flex line, pills 8px apart, from the 12px text edge to 8px before the More disc (PILL_ROW). */
+      className={`grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 max-sm:grid-rows-1 ${pills ? PILL_ROW : `${PHONE_GAP} max-sm:py-0`} max-sm:gap-y-0 md:grid-rows-2 md:gap-x-3 md:gap-y-2`}
     >
       {/* ⛔ NO "ALL" TILE (owner, 2026-09-18: "remove All category from both desktop and mobile").
           Clearing a category is still one tap — a category tile is a TOGGLE, `onCategory(isActive ?
@@ -1141,8 +1130,8 @@ export function CategoryRail({
         * ⛔ ON THE HOME'S PILL ROW IT IS ALWAYS THE CUE (owner-approved 2026-11-15 (build 8), cook r08 home: "the strip ends on
         * whole pills and the rail's own More disc"; it reverses there "below 640px only as a fallback" and build 7's "a cut
         * pill whose word shows is the cue"): a 40px grey disc with an ink arrow — the same disc every lane's See all is
-        * (shelf.tsx LANE_SEE_ALL) — on the 12px edge, centred on the pills, 8px or more after the last whole pill
-        * (PILL_PAGES). It is in the server's HTML (`measured`), and a tap steps one page of pills (`pagePills`). At the
+        * (shelf.tsx LANE_SEE_ALL) — on the 12px edge, centred on the pills, 8px after the scroller
+        * (PILL_ROW). It is in the server's HTML (`measured`), and a tap brings the cut pill to the start (`pagePills`). At the
         * row's end (`canRight` false) it goes, as everywhere.
         * display:none takes it out of the tab order too, which costs nothing: every tile is a real
         * link/button and a focused one scrolls into view.
@@ -1156,7 +1145,7 @@ export function CategoryRail({
           // Here it lands in the gap beside the second row's art, and it is solid: a glass disc over a label read as a layout bug.
           // On the one-row phone rail (the fallback above) it centres on the 44px glyph discs instead; on the home's pill row
           // (`pills`) it is the 40px grey disc on the 12px edge, centred on the pills (build 8). Until measured it shows on a
-          // phone only (`sm:hidden`), where the first page always ends before it.
+          // phone only (`sm:hidden`), where the scroller ends 8px before it.
           className={cn(
             'absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-5.5 pc:hidden',
             pills ? cn('max-sm:right-3 max-sm:top-1/2 max-sm:size-10 max-sm:border-0 max-sm:bg-tint max-sm:text-foreground max-sm:active:bg-line-strong', !measured && 'sm:hidden') : edgeClip && 'max-sm:hidden',

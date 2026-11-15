@@ -453,10 +453,9 @@ describe('<CategoryRail> subcategory plate', () => {
  * undirected home, below 640px, every tile is a 40px pill: its art beside its 14/20 bold word, raised like the header's search
  * pill, the row bled to the screen edges. Every class is `max-sm:`, so the 640px+ grid pins above stand; a rail without
  * `pills` (a storefront, a directed feed's folded panel) is exactly the tile row above.
- * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): the row is PAGES OF WHOLE PILLS (PILL_PAGES — a one-column multicol box
- * one pill tall; a pill that does not fit the page in full starts the next one) ending on the More disc, always the cue; the
- * art is 26px with 6px to its word; the row pins under the header (sticky) with one hairline once pinned. Build 7's
- * "a cut pill whose word shows is the cue" (PILL_LABEL_SHOWN) is gone with it.
+ * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): the More disc is always the cue; the art is 26px with 6px to its word;
+ * the row pins under the header (sticky) with one hairline once pinned. Its pages of whole pills are gone (owner, 2026-11-15:
+ * "the pills stick together on wider phones"): ONE FLEX LINE, pills 8px apart, ending 8px before the disc (PILL_ROW).
  */
 describe('<CategoryRail pills> — the home page\'s phone row', () => {
   const renderPills = (pills: boolean) => {
@@ -484,15 +483,11 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
     expect(root.hasAttribute('data-stuck')).toBe(false)
   })
 
-  // ⚠️ The column is 44px (52 less 6 + 2 of padding), 4px taller than its one line: at exactly 40 WebKit adds an empty column
-  // after the last pill (a swipe ended on a blank page — measured in Playwright WebKit, 2026-11-15).
-  it('the scroller is pages of whole pills: one 52px multicol box (a 44px column) from the 12px edge to the disc, pages 64px apart', () => {
+  it('the scroller is one 52px flex line from the 12px edge to 8px before the disc, pills 8px apart', () => {
     const { grid } = renderPills(true)
     const g = tokens(grid)
-    expect(g).toEqual(expect.arrayContaining([
-      'max-sm:block', 'max-sm:h-13', 'max-sm:columns-1', 'max-sm:gap-x-16', 'max-sm:[column-fill:auto]', 'max-sm:overflow-y-hidden',
-      'max-sm:pt-1.5', 'max-sm:pb-0.5', 'max-sm:pl-3', 'max-sm:pr-13', 'max-sm:leading-none',
-    ]))
+    expect(g).toEqual(expect.arrayContaining(['max-sm:flex', 'max-sm:h-13', 'max-sm:overflow-y-hidden', 'max-sm:py-1.5', 'max-sm:pl-3', 'max-sm:mr-15', 'gap-x-2']))
+    for (const gone of ['max-sm:block', 'max-sm:columns-1', 'max-sm:gap-x-16', 'max-sm:[column-fill:auto]', 'max-sm:pr-13', 'max-sm:leading-none']) expect(g).not.toContain(gone)
     // No width-ranged gap and no tile-row padding: nothing is tuned by width or at run time.
     expect(g.some((t) => /^(?:max|min)-\[/.test(t))).toBe(false)
     expect(g).not.toContain('max-sm:py-0')
@@ -500,14 +495,13 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
     expect(g).toEqual(expect.arrayContaining(['grid', 'grid-rows-6', 'md:grid-rows-2', 'gap-x-2', 'py-1']))
   })
 
-  it('each tile is an inline 40px pill — its 26px art 6px from its whole 14/20 word, its 8px gap its own margin; from 640px unchanged', () => {
+  it('each tile is a 40px pill — its 26px art 6px from its whole 14/20 word; from 640px unchanged', () => {
     const { tiles } = renderPills(true)
     expect(tiles.length).toBeGreaterThan(3)
     for (const t of tiles) {
       const c = tokens(t)
-      expect(c).toEqual(expect.arrayContaining(['relative', 'tap-44', 'max-sm:inline-flex', 'max-sm:align-top', 'max-sm:mr-2', 'max-sm:h-10', 'max-sm:w-auto', 'max-sm:flex-row', 'max-sm:gap-1.5', 'max-sm:rounded-full', 'max-sm:border', 'max-sm:border-search-edge', 'max-sm:bg-background', 'max-sm:pl-1.5', 'max-sm:pr-3', 'max-sm:shadow-chip']))
-      expect(c).not.toContain('max-sm:w-21')
-      expect(c).not.toContain('max-sm:gap-2')
+      expect(c).toEqual(expect.arrayContaining(['relative', 'tap-44', 'max-sm:h-10', 'max-sm:shrink-0', 'max-sm:w-auto', 'max-sm:flex-row', 'max-sm:gap-1.5', 'max-sm:rounded-full', 'max-sm:border', 'max-sm:border-search-edge', 'max-sm:bg-background', 'max-sm:pl-1.5', 'max-sm:pr-3', 'max-sm:shadow-chip']))
+      for (const gone of ['max-sm:w-21', 'max-sm:gap-2', 'max-sm:inline-flex', 'max-sm:mr-2']) expect(c).not.toContain(gone)
       // The 640px+ tile: its span and its width.
       expect(c.some((x) => /^row-span-[23]$/.test(x)), t.className).toBe(true)
       expect(c.some((x) => x.startsWith('w-[calc(')), t.className).toBe(true)
@@ -515,7 +509,7 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
       expect(tokens(box)).toEqual(expect.arrayContaining(['max-sm:size-6.5', 'max-sm:p-0', 'max-sm:rounded-none', 'max-sm:bg-transparent']))
       expect(tokens(box.querySelector('img,svg'))).toContain('max-sm:size-6.5')
       const label = t.lastElementChild!
-      expect(tokens(label)).toEqual(expect.arrayContaining(['max-sm:w-auto', 'max-sm:overflow-visible', 'max-sm:text-sm', 'max-sm:leading-5', 'font-bold', 'text-foreground']))
+      expect(tokens(label)).toEqual(expect.arrayContaining(['max-sm:w-auto', 'max-sm:overflow-visible', 'max-sm:whitespace-nowrap', 'max-sm:text-sm', 'max-sm:leading-5', 'font-bold', 'text-foreground']))
     }
   })
 
@@ -524,7 +518,7 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
     expect(tokens(root)).toEqual(['relative'])
     expect(root.querySelector(':scope > span[aria-hidden]')).toBeNull()
     expect(tokens(grid)).toEqual(expect.arrayContaining(['max-[23.25rem]:gap-x-1', 'max-sm:py-0']))
-    expect(tokens(grid)).not.toContain('max-sm:columns-1')
+    expect(tokens(grid)).not.toContain('max-sm:flex')
     for (const t of tiles) {
       expect(tokens(t)).toContain('max-sm:w-21')
       expect(tokens(t)).not.toContain('max-sm:h-10')
@@ -533,7 +527,7 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
     }
   })
 
-  it('the More disc is always the cue: the 40px grey arrow disc on the 12px edge, centred on the pills; one tap is one page', async () => {
+  it('the More disc is always the cue: the 40px grey arrow disc on the 12px edge, centred on the pills; one tap steps to the cut pill (the visible width where nothing is laid out)', async () => {
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 390 })
     Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => 1200 })
     const mm = window.matchMedia
