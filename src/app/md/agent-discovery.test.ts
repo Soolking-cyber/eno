@@ -199,13 +199,19 @@ describe('the markdown documents — shared header contract', () => {
        * do create is handled in src/app/robots.txt/route.ts, where it can be aimed at the right URLs.
        */
       expect(res.headers.get('x-robots-tag')).toBeNull()
+      // /auth.md opens with its heading and no block: ora's auth-md-exists check needs the heading first (2026-11-16).
+      if (name === '/auth.md') {
+        expect(body.startsWith('# ')).toBe(true)
+        expect(body.length).toBeGreaterThan(600)
+        return
+      }
       // A real document, not a stub: a frontmatter block (ora's "Markdown frontmatter metadata", 2026-11-16) made from the
       // document's own H1 — never typed — then the document, which still opens with that `# ` heading.
       const fm = body.match(/^---\ntitle: ("[^\n]*")\n(?:description: "[^\n]*"\n)?canonical: "([^"\n]+)"\n---\n\n/)
       expect(fm).not.toBeNull()
       const doc = body.slice(fm![0].length)
       expect(doc.startsWith(`# ${JSON.parse(fm![1])}\n`)).toBe(true)
-      expect(fm![2]).toMatch(/^https?:\/\/[^/]+\/(agents\.md|auth\.md)?$/)
+      expect(fm![2]).toMatch(/^https?:\/\/[^/]+\/(agents\.md)?$/)
       expect(doc.length).toBeGreaterThan(600)
     })
 
