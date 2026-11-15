@@ -172,15 +172,18 @@ function provenance(data: VehicleHubData, lang: Lang): ArticleSection {
             </li>
           )}
         </Ul>
+        {refNote || data.linked > 0 || data.lastChange ? <P>
+          {/* ⛔ THE WEEKLY RE-CHECK IS THE IMPORT'S (the SEO pass the owner asked for, 2026-11-15): with no linked row — every
+              bike posted on eno by its shop since 2026-11-04 — nothing is re-checked against a source, so the page must not
+              say it is; on a partly linked hub it is said of the reference listings only (commit-gate review). */}
+          {lang === 'vi'
+            ? <>{refNote}{state === 'all' ? 'Danh sách được đối chiếu lại với các nguồn mỗi tuần; tin nào nguồn gỡ xuống thì được ẩn khỏi trang này.' : state === 'some' ? 'Các tin tham khảo được đối chiếu lại với nguồn mỗi tuần; tin nào nguồn gỡ xuống thì được ẩn khỏi trang này.' : ''}{data.lastChange ? <>{data.linked > 0 ? ' ' : ''}Lần cập nhật gần nhất được ghi nhận: {date(data.lastChange, lang)}.</> : null}</>
+            : <>{refNote}{state === 'all' ? 'The list is re-checked against the sources every week, and a listing the source takes down is hidden here.' : state === 'some' ? 'The reference listings are re-checked against their sources every week, and one the source takes down is hidden here.' : ''}{data.lastChange ? <>{data.linked > 0 ? ' ' : ''}Most recent change recorded: {date(data.lastChange, lang)}.</> : null}</>}
+        </P> : null}
         <P>
           {lang === 'vi'
-            ? <>{refNote}Danh sách được đối chiếu lại với các nguồn mỗi tuần; tin nào nguồn gỡ xuống thì được ẩn khỏi trang này.{data.lastChange ? <> Lần cập nhật gần nhất được ghi nhận: {date(data.lastChange, lang)}.</> : null}</>
-            : <>{refNote}The list is re-checked against the sources every week, and a listing the source takes down is hidden here.{data.lastChange ? <> Most recent change recorded: {date(data.lastChange, lang)}.</> : null}</>}
-        </P>
-        <P>
-          {lang === 'vi'
-            ? <>Cách tính giá ở trên: chỉ dùng giá niêm yết của các tin đang hiển thị; giá theo ngày và theo tháng tính riêng, không bao giờ suy ra từ nhau. Nhóm có từ {BAND_MIN} xe trở lên thì ghi trung vị và khoảng của một nửa số xe ở giữa; nhóm từ {RANGE_MIN} đến {BAND_MIN - 1} xe chỉ ghi giá thấp nhất và cao nhất; ít hơn nữa thì không ghi. Giá làm tròn tới 1.000 đ. Một chiếc xe đăng trên hai nguồn sẽ được đếm hai lần, vì các nguồn không công bố thông tin để nhận ra điều đó.{data.kind === 'motorbike' ? ' Cửa hàng báo giá bằng đô la Mỹ được quy đổi theo tỷ giá ngày nhập, và trang của từng xe ghi rõ giá gốc.' : ''}</>
-            : <>How the prices above are worked out: only the listed prices of the listings shown here; day and month prices are kept separate and never derived from each other. A group of {BAND_MIN} or more gets a median and the range of its middle half; {RANGE_MIN} to {BAND_MIN - 1} gets only its lowest and highest price; fewer gets no figure. Prices are shown to the nearest 1,000 đ. A vehicle listed on two sources is counted twice — the sources do not publish anything that would let us tell.{data.kind === 'motorbike' ? ' Shops that quote in US dollars are converted at the rate on the day of import, and each listing shows the shop’s own figure.' : ''}</>}
+            ? <>Cách tính giá ở trên: chỉ dùng giá niêm yết của các tin đang hiển thị; giá theo ngày và theo tháng tính riêng, không bao giờ suy ra từ nhau. Nhóm có từ {BAND_MIN} xe trở lên thì ghi trung vị và khoảng của một nửa số xe ở giữa; nhóm từ {RANGE_MIN} đến {BAND_MIN - 1} xe chỉ ghi giá thấp nhất và cao nhất; ít hơn nữa thì không ghi. Giá làm tròn tới 1.000 đ.{data.linked > 0 ? ' Một chiếc xe đăng trên hai nguồn sẽ được đếm hai lần, vì các nguồn không công bố thông tin để nhận ra điều đó.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Cửa hàng báo giá bằng đô la Mỹ được quy đổi theo tỷ giá ngày nhập, và trang của từng xe ghi rõ giá gốc.' : ''}</>
+            : <>How the prices above are worked out: only the listed prices of the listings shown here; day and month prices are kept separate and never derived from each other. A group of {BAND_MIN} or more gets a median and the range of its middle half; {RANGE_MIN} to {BAND_MIN - 1} gets only its lowest and highest price; fewer gets no figure. Prices are shown to the nearest 1,000 đ.{data.linked > 0 ? ' A vehicle listed on two sources is counted twice — the sources do not publish anything that would let us tell.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Shops that quote in US dollars are converted at the rate on the day of import, and each listing shows the shop’s own figure.' : ''}</>}
         </P>
       </>
     ),
@@ -284,6 +287,8 @@ function bikeSections(data: VehicleHubData, lang: Lang): ArticleSection[] {
   const vi = lang === 'vi'
   const day = vi ? 'ngày' : 'day'
   const month = vi ? 'tháng' : 'month'
+  const hasDaily = (data.counts.daily ?? 0) > 0
+  const hasMonthly = (data.counts.monthly ?? 0) > 0
   return [
     {
       id: vi ? 'xe-dang-cho-thue' : 'motorbikes-available-now',
@@ -295,22 +300,39 @@ function bikeSections(data: VehicleHubData, lang: Lang): ArticleSection[] {
       title: vi ? 'Thuê xe máy giá bao nhiêu' : 'What a motorbike costs to rent',
       body: (
         <>
-          <P>{vi ? 'Thuê theo ngày:' : 'By the day:'}</P>
-          <Ul>
-            <li>{vi ? 'Tất cả xe' : 'All bikes'}: {summaryText(c['daily-all'], day, lang)}.</li>
-            <li>{vi ? 'Xe ga (tự động)' : 'Automatic scooters'}: {summaryText(c['daily-automatic'], day, lang)}.</li>
-            <li>{vi ? 'Xe số và xe côn tay' : 'Manual and semi-automatic'}: {summaryText(c['daily-manual'], day, lang)}.</li>
-          </Ul>
-          <P>{vi ? 'Thuê theo tháng:' : 'By the month:'}</P>
-          <Ul>
-            <li>{vi ? 'Tất cả xe' : 'All bikes'}: {summaryText(c['monthly-all'], month, lang)}.</li>
-            <li>{vi ? 'Xe ga (tự động)' : 'Automatic scooters'}: {summaryText(c['monthly-automatic'], month, lang)}.</li>
-            <li>{vi ? 'Xe số và xe côn tay' : 'Manual and semi-automatic'}: {summaryText(c['monthly-manual'], month, lang)}.</li>
-          </Ul>
+          {/* The same rule for the day: a hub with no bike priced by the day prints no "By the day" block of "none listed". */}
+          {hasDaily ? (
+            <>
+              <P>{vi ? 'Thuê theo ngày:' : 'By the day:'}</P>
+              <Ul>
+                <li>{vi ? 'Tất cả xe' : 'All bikes'}: {summaryText(c['daily-all'], day, lang)}.</li>
+                <li>{vi ? 'Xe ga (tự động)' : 'Automatic scooters'}: {summaryText(c['daily-automatic'], day, lang)}.</li>
+                <li>{vi ? 'Xe số và xe côn tay' : 'Manual and semi-automatic'}: {summaryText(c['daily-manual'], day, lang)}.</li>
+              </Ul>
+            </>
+          ) : null}
+          {/* ⛔ NO "NONE LISTED" THREE TIMES (the SEO pass the owner asked for, 2026-11-15). A page titled "by the day or the
+              month" printed "Thuê theo tháng: hiện chưa có xe nào" on three lines. With no row PRICED by the month (periodOf —
+              the one count the period bullet and its filter link use too, so the two never disagree) the block is one sentence;
+              the month cohort itself is still never derived from a day price (vehicle-hub-stats.ts). */}
+          {hasMonthly ? (
+            <>
+              <P>{vi ? 'Thuê theo tháng:' : 'By the month:'}</P>
+              <Ul>
+                <li>{vi ? 'Tất cả xe' : 'All bikes'}: {summaryText(c['monthly-all'], month, lang)}.</li>
+                <li>{vi ? 'Xe ga (tự động)' : 'Automatic scooters'}: {summaryText(c['monthly-automatic'], month, lang)}.</li>
+                <li>{vi ? 'Xe số và xe côn tay' : 'Manual and semi-automatic'}: {summaryText(c['monthly-manual'], month, lang)}.</li>
+              </Ul>
+            </>
+          ) : null}
           <P>
-            {vi
-              ? 'Giá theo tháng không phải giá ngày nhân ba mươi: đó là giá riêng mà cửa hàng niêm yết cho thuê dài hạn. Tiền cọc, giấy tờ cần để lại và phí giao xe do từng cửa hàng quy định.'
-              : 'A month price is not a day price times thirty: it is the separate long-term rate the shop lists. Deposit, the documents a shop keeps and any delivery fee are set by each shop.'}
+            {hasMonthly
+              ? vi
+                ? 'Giá theo tháng không phải giá ngày nhân ba mươi: đó là giá riêng mà cửa hàng niêm yết cho thuê dài hạn. Tiền cọc, giấy tờ cần để lại và phí giao xe do từng cửa hàng quy định.'
+                : 'A month price is not a day price times thirty: it is the separate long-term rate the shop lists. Deposit, the documents a shop keeps and any delivery fee are set by each shop.'
+              : vi
+                ? 'Thuê theo tháng: chưa xe nào ở đây niêm yết giá riêng theo tháng; nhắn tin hỏi cửa hàng giá thuê dài ngày. Tiền cọc, giấy tờ cần để lại và phí giao xe do từng cửa hàng quy định.'
+                : 'By the month: no bike here is priced by the month yet; message the shop for a longer-rental rate. Deposit, the documents a shop keeps and any delivery fee are set by each shop.'}
           </P>
         </>
       ),
@@ -328,12 +350,24 @@ function bikeSections(data: VehicleHubData, lang: Lang): ArticleSection[] {
             <HereLink href={explorer('motorbike', '&attr_transmission=manual')}>{vi ? 'Xe số và côn tay' : 'Manual and semi-automatic bikes'}</HereLink>{' '}
             — {count(data.counts.manual ?? 0, lang)} {vi ? 'xe; hợp người đã quen xe và các chuyến đi xa.' : 'listed; for experienced riders and longer trips.'}
           </li>
-          <li>
-            <HereLink href={explorer('motorbike', '&attr_rentalPeriod=daily')}>{vi ? 'Thuê theo ngày' : 'Priced by the day'}</HereLink>{' '}
-            — {count(data.counts.daily ?? 0, lang)} {vi ? 'xe' : 'bikes'};{' '}
-            <HereLink href={explorer('motorbike', '&attr_rentalPeriod=monthly')}>{vi ? 'thuê theo tháng' : 'priced by the month'}</HereLink>{' '}
-            — {count(data.counts.monthly ?? 0, lang)} {vi ? 'xe.' : 'bikes.'}
-          </li>
+          {/* Each period's half only when that period has bikes: "priced by the month — 0 bikes" linked an empty filter
+              (2026-11-15), and the day half keeps its link when no bike is priced by the month (commit-gate review). */}
+          {hasDaily || hasMonthly ? (
+            <li>
+              {hasDaily ? (
+                <>
+                  <HereLink href={explorer('motorbike', '&attr_rentalPeriod=daily')}>{vi ? 'Thuê theo ngày' : 'Priced by the day'}</HereLink>{' '}
+                  — {count(data.counts.daily ?? 0, lang)} {vi ? 'xe' : data.counts.daily === 1 ? 'bike' : 'bikes'}{hasMonthly ? '; ' : '.'}
+                </>
+              ) : null}
+              {hasMonthly ? (
+                <>
+                  <HereLink href={explorer('motorbike', '&attr_rentalPeriod=monthly')}>{hasDaily ? (vi ? 'thuê theo tháng' : 'priced by the month') : (vi ? 'Thuê theo tháng' : 'Priced by the month')}</HereLink>{' '}
+                  — {count(data.counts.monthly ?? 0, lang)} {vi ? 'xe.' : data.counts.monthly === 1 ? 'bike.' : 'bikes.'}
+                </>
+              ) : null}
+            </li>
+          ) : null}
         </Ul>
       ),
     },

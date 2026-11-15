@@ -24,8 +24,21 @@ import { APPLE_VN_FROM_PRICE, APPLE_VN_DUO_2TB_PRICE } from './price-guard'
 export const revalidate = 3600
 
 const TITLE = `iPhone 18 Price in Vietnam — Pro, Pro Max & iPhone Duo | ${SITE_NAME}`
+/**
+ * ⚠️ THE PRICES FIRST, IN THE SNIPPET TOO (2026-11-15): Search Console showed 0 clicks in 28 days on searches like
+ * "iphone 18 pro max price in vietnam 256gb" where the page sat at positions 4–10 — the result named prices it did
+ * not show. Apple Vietnam's price for each model's cheapest tier ("from"), from the one table every price page reads
+ * (price-guard.ts), through formatMoneyFull like every printed price (design-lint). ⛔ A model missing from that table
+ * fails the BUILD rather than putting "NaN ₫" in a Google result (commit-gate review). The table is static (price-guard.ts).
+ * ~160 characters, prices first: Google cuts a snippet near there, and the Duo's price is the last thing it must keep.
+ */
+const fromPrice = (model: 'iPhone 18 Pro' | 'iPhone 18 Pro Max' | 'iPhone Duo') => {
+  const p = APPLE_VN_FROM_PRICE[model]
+  if (typeof p !== 'number' || !Number.isFinite(p) || p <= 0) throw new Error(`price-guard.ts has no Apple Vietnam price for ${model}`)
+  return formatMoneyFull(p, '₫')
+}
 const DESCRIPTION =
-  'What an iPhone 18 costs in Vietnam: Apple Vietnam’s official Pro, Pro Max and Duo prices, what second-hand iPhone 18 and iPhone 17 units are listed for here, launch dates, and what “chính hãng VN/A” means when you buy as a foreigner.'
+  `Apple Vietnam prices: iPhone 18 Pro from ${fromPrice('iPhone 18 Pro')}, Pro Max from ${fromPrice('iPhone 18 Pro Max')}, iPhone Duo from ${fromPrice('iPhone Duo')}. Second-hand prices today, and what VN/A means.`
 
 export const metadata: Metadata = {
   title: TITLE,
