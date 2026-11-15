@@ -44,7 +44,7 @@ vi.mock('@/lib/supabase-admin', () => ({
   } }) } }),
 }))
 
-const { listingPhotoVerdict, rememberPhotoKey, sha256 } = await import('./listing-photo-verdict')
+const { clearPhotoContent, listingPhotoVerdict, photoClearances, rememberPhotoKey, sha256 } = await import('./listing-photo-verdict')
 const { PHOTO_MODEL } = await import('./listing-photo-check')
 const { GEMINI_MODEL } = await import('@/lib/gemini-model')
 
@@ -139,6 +139,55 @@ describe('listingPhotoVerdict — override, cache, budget, model', () => {
     expect(h.sets).toEqual([{ key: keyKey(KEY), value: { sha: 'abc' }, ex: DAY180 }])
     h.kvSetThrows = true
     await expect(rememberPhotoKey(KEY, 'abc')).resolves.toBeUndefined()
+  })
+})
+
+describe('clearPhotoContent — "Photo is fine" clears the bytes of the rule that refused them, for anyone', () => {
+  const both = (f: PhotoFacts) => ({ reads: [{ facts: f, model: FL, at: 'x' }, { facts: f, model: HY, at: 'x' }] })
+
+  it('⛔ a refused sha → an admin clears its key of flyer → the same bytes uploaded again are accepted, and on a new key at save', async () => {
+    const sha = sha256(h.bytes)
+    await rememberPhotoKey(KEY, sha)
+    h.cache.set(shaKey(sha), both(FLYER))
+    const upload = { lane: 'upload' as const, flyerRule: true, confirm: 'parallel' as const }
+    await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, upload)).resolves.toMatchObject({ rule: 'flyer', confirmed: true })
+    await expect(clearPhotoContent(await photoClearances(KEY, ['flyer']), 'mod@eno.vn')).resolves.toBe(true)
+    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(true)
+    await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, upload)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
+    // The re-upload is stored under a new key pointing at the same bytes: the save-time screen (cache only) accepts it.
+    await rememberPhotoKey('bulk/new.webp', sha)
+    await expect(listingPhotoVerdict({ key: 'bulk/new.webp' }, { ...ON, cacheOnly: true })).resolves.toMatchObject({ rule: 'ok' })
+    expect(h.calls).toEqual([])
+  })
+
+  it('⛔ cleared on a JOB listing (only contact refuses there): the same bytes are still a flyer in another category', async () => {
+    const sha = sha256(h.bytes)
+    await rememberPhotoKey(KEY, sha)
+    h.cache.set(shaKey(sha), both(facts({ kind: 'designed_graphic', advertises: true, contact: ['phone'] })))
+    const jobs = { ...ON, flyerRule: false }
+    await expect(listingPhotoVerdict({ key: KEY }, jobs)).resolves.toMatchObject({ rule: 'contact', confirmed: true })
+    // The job listing's audit says contact: that rule alone is cleared.
+    await clearPhotoContent(await photoClearances(KEY, ['contact']), 'mod@eno.vn')
+    await expect(listingPhotoVerdict({ key: KEY }, jobs)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
+    await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, { lane: 'upload', flyerRule: true, confirm: 'parallel' })).resolves.toMatchObject({ rule: 'flyer', confirmed: true })
+    expect(h.calls).toEqual([])
+  })
+
+  it('⛔ a contact clearance lets the same bytes through for contact only — never a flyer clearance', async () => {
+    const sha = sha256(h.bytes)
+    await rememberPhotoKey(KEY, sha)
+    h.cache.set(shaKey(sha), both(facts({ contact: ['phone'] })))
+    await clearPhotoContent(await photoClearances(KEY, ['contact']), 'mod@eno.vn')
+    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(false)
+    await expect(listingPhotoVerdict({ key: KEY }, ON)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
+    // Other bytes, cleared of nothing, still show their contact.
+    h.cache.set(shaKey('other'), both(facts({ contact: ['phone'] })))
+    await expect(listingPhotoVerdict({ sha: 'other' }, ON)).resolves.toMatchObject({ rule: 'contact', confirmed: true })
+  })
+
+  it('no key → sha pointer known: nothing cleared (the per-listing override still holds)', async () => {
+    expect(await photoClearances('unknown.webp', ['flyer'])).toEqual([])
+    await expect(clearPhotoContent([], 'mod@eno.vn')).resolves.toBe(false)
   })
 })
 

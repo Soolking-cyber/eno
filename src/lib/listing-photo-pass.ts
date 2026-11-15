@@ -15,7 +15,7 @@ import { REVIEW_SEAT_HELD_NOTE } from '@/lib/review-seat-accounts'
 import { writeTombstones } from '@/lib/core/storage-tombstones'
 import { OPEN_CASE, OWNER_PULLED, publishListings } from '@/lib/core/publish-listings'
 import { flyerRuleFor, photoCheckExempt } from '@/lib/listing-photo-check'
-import { listingPhotoVerdict } from '@/lib/listing-photo-verdict'
+import { listingPhotoVerdict, type PhotoClearance } from '@/lib/listing-photo-verdict'
 import { PHOTO_HELD_NOTE, strippedPhotosOf, type StrippedPhotos } from '@/lib/listing-photo-hold'
 import { enqueuePhotoChecks, photoCheckDone, photoRulesLive } from '@/lib/listing-photo-hooks'
 import { isPhotoDeskSeller } from '@/lib/listing-photo-desk'
@@ -147,6 +147,7 @@ const trippedKey = (sellerId: string) => `listing-photo:tripped:${sellerId}`
  * ⛔ THE BREAKER (A12), for every caller: a storefront whose holds and strips over 7 days would pass the larger of 10 and
  * a quarter of its rows TRIPS, recorded in kv with no expiry, and nothing more is held or stripped there until a sweep
  * passes ?allow=<sellerId>, which clears it. Passes running at once can each pass the line once.
+ * Whoever trips it, the next cron run reports it once (api/cron/listing-photos, its kv mark).
  */
 async function storefrontMayWrite(sellerId: string, allow?: ReadonlySet<string>): Promise<boolean> {
   if (allow?.has(sellerId)) { await kv.del(trippedKey(sellerId)); return true }
@@ -202,10 +203,11 @@ async function strip(row: Row, images: string[], verdicts: PhotoVerdict[], remov
   const now = new Date()
   const done = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('lock_timeout', '5000ms', true)`
-    // A verified row's stale photo mark goes in the same write (on exactly the row as read).
+    // On exactly the row as read, its publication too: a row an admin hid or unverified, or moderation held, meanwhile is
+    // theirs — no strip, tombstone or bell. A verified row's stale photo mark goes in the same write.
     const stale = row.verified && row.verificationNotes === PHOTO_HELD_NOTE
     const { count } = await tx.listing.updateMany({
-      where: { id: row.id, ...NOT_REMOVED, images: row.images, ...(stale ? { verified: true, verificationNotes: PHOTO_HELD_NOTE } : {}) },
+      where: { id: row.id, ...NOT_REMOVED, images: row.images, status: row.status, verified: row.verified, identityHold: row.identityHold, verificationNotes: row.verificationNotes },
       data: { images: kept, ...(stale ? { verificationNotes: null } : {}) },
     })
     if (count !== 1) return false
@@ -299,10 +301,11 @@ export function restoreOrder(current: string[], strips: StrippedPhotos[], keys: 
 /**
  * "Photo is fine" (A13): the admin's override of these keys (audit `listing.photo.override`), and the photos the pass
  * removed from this listing under them put back, within the 180 days they are kept, their tombstones cancelled — one
- * transaction, a compare-and-set on the images it read, so a failed restore records no override.
+ * transaction, a compare-and-set on the images it read, so a failed restore records no override. With the override, an
+ * audit `listing.photo.cleared` {key, sha, rule} per clearance the caller then puts in the shared cache (clearPhotoContent).
  * The urls put back ([] for none), or null when the row is gone or changed under it (try again).
  */
-export async function restoreStrippedPhotos(listingId: string, keys: string[], admin: string): Promise<string[] | null> {
+export async function restoreStrippedPhotos(listingId: string, keys: string[], admin: string, clearances: PhotoClearance[] = []): Promise<string[] | null> {
   // A day short of the tombstone's clock: an object about to be swept is not put back.
   const since = new Date(Date.now() - STRIPPED_KEEP_MS + 24 * 3600_000)
   const put = await db.$transaction(async (tx) => {
@@ -315,7 +318,10 @@ export async function restoreStrippedPhotos(listingId: string, keys: string[], a
     })
     const strips = audits.map((a) => strippedPhotosOf(a.detail)).filter((s): s is StrippedPhotos => !!s)
     const { images, restored } = restoreOrder(parseImages(row.images), strips, keys)
-    const override = async () => { for (const key of keys) await appendAudit(tx, { actorType: 'admin', actorId: admin, action: 'listing.photo.override', subjectType: 'listing', subjectId: listingId, detail: { key }, legalBasis: 'ecommerceLaw' }) }
+    const override = async () => {
+      for (const key of keys) await appendAudit(tx, { actorType: 'admin', actorId: admin, action: 'listing.photo.override', subjectType: 'listing', subjectId: listingId, detail: { key }, legalBasis: 'ecommerceLaw' })
+      for (const { key, sha, rule } of clearances) await appendAudit(tx, { actorType: 'admin', actorId: admin, action: 'listing.photo.cleared', subjectType: 'listing', subjectId: listingId, detail: { key, sha, rule }, legalBasis: 'ecommerceLaw' })
+    }
     if (!restored.length) { await override(); return [] }
     const { count } = await tx.listing.updateMany({ where: { id: listingId, ...NOT_REMOVED, images: row.images }, data: { images: JSON.stringify(images) } })
     if (count !== 1) return null

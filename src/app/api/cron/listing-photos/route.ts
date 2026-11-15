@@ -38,8 +38,11 @@ export const maxDuration = 900
  * strips, releases and bells nothing, and answers what it WOULD do, per outcome and per storefront. ?dryRun=1 forces
  * one. A dry run keeps its own cursor and watermark, so the first real run still sees every row.
  * ⛔ THE BREAKER (A12): a storefront the pass's breaker tripped (listing-photo-pass.ts storefrontMayWrite — it stays
- * tripped) or any hold or strip past 100 in one run writes nothing more: 500 `mass_hold`, its rows queued for the next
- * run. ?allow=<sellerId>[,…] lifts the storefront's trip only.
+ * tripped, by ANY caller: this sweep, a seller's edit, the admin override, a bulk import) or any hold or strip past 100 in
+ * one run writes nothing more, its rows queued for the next run. 500 `mass_hold` when the cap is hit or a tripped
+ * storefront has not been reported yet (a kv mark, set then); later runs answer 200 and list it under `tripped` (still
+ * writing nothing for it), so the cron is red once per trip, not every hour. ?allow=<sellerId>[,…] lifts the storefront's
+ * trip, and its mark.
  * Bounded by ?limit images (600; at most 5,000) and 780 s, and stops at a spent sweep lane (`stopped: 'budget'`, the
  * cursor before the rows it could not read); one run per mode at a time. Marketplace only (one database).
  * The answer names listing and seller ids — never a name or a photo.
@@ -64,6 +67,7 @@ type Mode = 'dry' | 'write'
 const walkKey = (m: Mode) => `listing-photo:walk:${m}`
 const recentKey = (m: Mode) => `listing-photo:recent:${m}`
 const runKey = (m: Mode) => `listing-photo:run:${m}`
+const reportedKey = (sellerId: string) => `listing-photo:tripped-reported:${sellerId}`
 
 /** What the pass may act on: live or identity-parked, or photo-held — never a teacher (the teacher check owns them). */
 const CHECKED: Prisma.ListingWhereInput = {
@@ -96,10 +100,14 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
     const run = makeRun({ dryRun, limit, deadline: start + BUDGET_MS, allow })
     const recent = scope === null || scope === 'recent' ? await sweepRecent(run, mode, start, limit) : undefined
     const walk = scope === 'recent' ? undefined : await sweepWalk(run, mode, scope === null ? 'due' : scope === 'full' ? 'restart' : 'continue')
-    const massHold = run.tripped.size > 0 || run.runCapped()
+    if (!dryRun) await Promise.all([...allow].map((s) => kv.del(reportedKey(s)).catch((e) => logError(e, { op: 'listing-photos.reported' }))))
+    // A dry run never spends the one-time alert: its marks are the write runs' (gate review).
+    const unreported = dryRun ? [] : await reportTrips(run.tripped)
+    const massHold = unreported.length > 0 || run.runCapped()
     const body = {
       ok: !run.counts.failed && !massHold,
-      ...(massHold ? { refused: 'mass_hold', sellers: [...run.tripped], runCapped: run.runCapped() } : {}),
+      ...(massHold ? { refused: 'mass_hold', sellers: unreported, runCapped: run.runCapped() } : {}),
+      ...(run.tripped.size ? { tripped: [...run.tripped] } : {}),
       dryRun, scope: scope ?? 'timer', limit, listings: run.seen.size, images: run.images(), stopped: run.stopped(),
       outcomes: run.counts, storefronts: run.storefronts(), ...(recent ? { recent } : {}), ...(walk ? { walk } : {}),
     }
@@ -108,6 +116,18 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
     await kv.del(runKey(mode)).catch((e) => logError(e, { op: 'listing-photos.release' }))
   }
 })
+
+/** The tripped storefronts no run has reported yet, marked reported now. A kv error reports it (again): red, never silent. */
+async function reportTrips(tripped: ReadonlySet<string>): Promise<string[]> {
+  const out: string[] = []
+  for (const s of tripped) {
+    const seen = await kv.get(reportedKey(s)).catch(() => null)
+    if (seen) continue
+    out.push(s)
+    await kv.set(reportedKey(s), { at: new Date().toISOString() }).catch((e) => logError(e, { op: 'listing-photos.reported' }))
+  }
+  return out
+}
 
 /** What one pass did (or, dry, would do) — a listing can be stripped AND released, or stripped and still pending. */
 function outcomesOf(r: PhotoPassResult): string[] {

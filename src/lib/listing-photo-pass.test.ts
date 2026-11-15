@@ -393,6 +393,20 @@ describe('the strip', () => {
     expect(photos()).toEqual(['b'])
     expect(h.audits).toEqual([]); expect(h.tombstones).toEqual([])
   })
+
+  it('⛔ another takedown during the check (Unverify, Hide, a moderation hold): no strip, no tombstone, no bell', async () => {
+    for (const change of [
+      (r: Row) => Object.assign(r, { verified: false, verificationNotes: null }), // admin Unverify
+      (r: Row) => { r.status = 'hidden' }, // hidden
+      (r: Row) => Object.assign(r, { verified: false, verificationNotes: 'ai:held' }), // a moderation hold
+    ]) {
+      h.rows = [listing('L1', ['F1', 'a'])]; h.audits = []; h.bells = []; h.tombstones = []
+      h.duringVerdict = () => change(row())
+      expect(await photoPassById('L1', 'pass')).toMatchObject({ wrote: [] })
+      expect(photos()).toEqual(['F1', 'a'])
+      expect(h.audits).toEqual([]); expect(h.tombstones).toEqual([]); expect(h.bells).toEqual([])
+    }
+  })
 })
 
 describe('the self-release', () => {
@@ -578,5 +592,14 @@ describe('restoreStrippedPhotos (A13) — "Photo is fine"', () => {
     h.rows = [listing('L1', ['F1'])]
     expect(await restoreStrippedPhotos('L1', ['F1.webp'], 'mod@eno.vn')).toEqual([])
     expect(h.audits).toEqual([expect.objectContaining({ action: 'listing.photo.override', detail: { key: 'F1.webp' } })])
+  })
+
+  it('⛔ each clearance is audited with the override, actor the admin: key, sha, rule', async () => {
+    h.rows = [listing('L1', ['F1'])]
+    expect(await restoreStrippedPhotos('L1', ['F1.webp'], 'mod@eno.vn', [{ key: 'F1.webp', sha: 'abc', rule: 'contact' }])).toEqual([])
+    expect(h.audits).toEqual([
+      expect.objectContaining({ action: 'listing.photo.override', detail: { key: 'F1.webp' } }),
+      expect.objectContaining({ action: 'listing.photo.cleared', actorType: 'admin', actorId: 'mod@eno.vn', subjectId: 'L1', detail: { key: 'F1.webp', sha: 'abc', rule: 'contact' } }),
+    ])
   })
 })

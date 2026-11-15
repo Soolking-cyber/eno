@@ -204,8 +204,8 @@
  * And 2026-11-15, listing photos (owner, 2026-11-15: no flyers and no contact details in listing photos — src/lib/listing-photo-
  * check.ts): "Publish checks" gains the AI photo check at Publish (signed in, or a photo checked before; a refusal needs two
  * checks that agree; on jobs only contact details), and "AI moderation" the same check on published listings — the hold
- * until a real photo, removed photos kept up to 180 days, the seller told each time. No new recipient (the Google row
- * already names listing photos for moderation). ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that
+ * until a real photo, a removed photo no longer shown on the site but kept up to 180 days to restore, then deleted, the
+ * seller told each time. No new recipient (the Google row already names listing photos for moderation). ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that
  * carries it runs, then retake the fingerprint.
  * And 2026-11-15, ora (owner, 2026-11-15: connect ora "report only", then "Minimal: no personal data"): the recipients table
  * gains ora (era labs) on eno.vn — which page views of public pages by signed-out visitors are counted and the exact fields (a known crawler or AI agent by name, otherwise “browser” or “other”; a known referring AI or search site by name, otherwise “other”; the kind of page from a fixed list, never its address; the time sent without the seconds),
@@ -221,4 +221,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-15'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'bfed73aed40af36c'
+export const PRIVACY_TEXT_FINGERPRINT = 'e8133ce8bd7aa353'

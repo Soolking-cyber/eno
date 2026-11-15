@@ -749,7 +749,9 @@ describe('/privacy — the listing photo check', () => {
       const en = await policy(site)
       for (const s of [
         'An AI model (Google Gemini) also looks at each photo you add — when you are signed in, or when the same photo was checked before — for a flyer or other advertisement, or a phone number or other contact details on it (on a job listing, only contact details count); a photo is refused only when two separate checks agree, and it is marked so you can replace it.',
-        'a listing whose photos are all flyers or show contact details may be hidden until its seller adds a real photo — it then goes live again by itself — and in any other listing such photos may be removed and kept for up to 180 days',
+        'a listing whose photos are all flyers or show contact details may be hidden until its seller adds a real photo — it then goes live again by itself — and in any other listing such photos may be removed.',
+        // Plain about where a removed photo is: off the site, kept, then deleted — never "removed and kept" alone.
+        `A removed photo is no longer shown on ${site === 'services' ? 'eno.forum' : 'eno.vn'}; it is kept for up to 180 days so that our team can restore it if the check was wrong, then deleted.`,
         'The seller is notified each time and can ask from the Help page for a member of our team to look again.',
       ]) expect(en, `${site}: ${s}`).toContain(s)
       cleanup()
@@ -757,7 +759,8 @@ describe('/privacy — the listing photo check', () => {
       for (const s of [
         'ảnh chỉ bị từ chối khi hai lần kiểm tra riêng biệt cùng kết luận, và được đánh dấu để bạn thay ảnh khác.',
         'có thể bị ẩn cho đến khi người bán thêm một ảnh chụp thật — sau đó tin tự hiển thị lại',
-        'được lưu tối đa 180 ngày',
+        `Ảnh đã bị gỡ không còn được hiển thị trên ${site === 'services' ? 'eno.forum' : 'eno.vn'}; ảnh được lưu tối đa 180 ngày`,
+        'nếu việc kiểm tra bị nhầm, sau đó bị xóa.',
       ]) expect(vi, `${site}: ${s}`).toContain(s)
       cleanup()
     }

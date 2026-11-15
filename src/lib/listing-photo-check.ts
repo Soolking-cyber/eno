@@ -83,9 +83,11 @@ export type PhotoRule = 'ok' | 'flyer' | 'contact'
  * THE DECISION. Contact everywhere; flyer only where the flyer rule is on (every category but jobs — a job may show a
  * company logo, owner 2026-11-15). A flyer is an ad or a page of added text, never a camera photo of the thing itself:
  * a product photo with a caption, a price tag or a printed poster for sale stays ok.
+ * `contactRule: false` only for bytes an admin cleared of it (listing-photo-verdict.ts clearPhotoContent).
  */
-export function photoRule(f: PhotoFacts, o: { flyerRule: boolean }): PhotoRule {
-  if (sellerContact(f).length) return 'contact'
+export type RuleOptions = { flyerRule: boolean; contactRule?: boolean }
+export function photoRule(f: PhotoFacts, o: RuleOptions): PhotoRule {
+  if (o.contactRule !== false && sellerContact(f).length) return 'contact'
   if (o.flyerRule && f.kind !== 'camera_photo' && (f.advertises || f.overlayText === 'large')) return 'flyer'
   return 'ok'
 }
@@ -98,7 +100,7 @@ export type PhotoDecision = { rule: 'ok' } | { rule: 'flyer' | 'contact'; confir
  * read's reason); one read refusing, no other answer yet → unconfirmed (no caller acts on it); another model saying ok →
  * ok. Callers refuse, hold or strip only on `confirmed`.
  */
-export function decideReads(reads: PhotoRead[], o: { flyerRule: boolean }): PhotoDecision {
+export function decideReads(reads: PhotoRead[], o: RuleOptions): PhotoDecision {
   const refusing = reads.flatMap((r) => { const rule = photoRule(r.facts, o); return rule === 'ok' ? [] : [{ model: r.model, rule }] })
   if (!refusing.length) return { rule: 'ok' }
   if (new Set(refusing.map((r) => r.model)).size >= 2) return { rule: refusing[0].rule, confirmed: true }

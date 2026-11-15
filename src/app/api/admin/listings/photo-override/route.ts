@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { strippedPhotosOf } from '@/lib/listing-photo-hold'
 import { photoPassById, restoreStrippedPhotos } from '@/lib/listing-photo-pass'
+import { clearPhotoContent, photoClearances } from '@/lib/listing-photo-verdict'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,11 @@ export const dynamic = 'force-dynamic'
  *     before the cache (listing-photo-verdict.ts photoOverridden; THIS LISTING ONLY, never the shared cache), and the
  *     restore: a removed photo goes back where it was, around the seller's later edits, its tombstone cancelled. A
  *     restore that fails records no override, so the tab still offers the button;
- *  2. the pass again — a held listing whose photos are now all fine is released (writes as PHOTO_RULES_WRITE says).
+ *  2. the photo's bytes cleared in the shared cache (clearPhotoContent) of the RULE that refused them here (the audits'
+ *     flyer or contact; audit `listing.photo.cleared`, written with the override): the same file uploaded again — by
+ *     anyone — and the save-time screen pass that rule, never the listing's other one (a photo cleared of contact on a job
+ *     listing is still a flyer elsewhere);
+ *  3. the pass again — a held listing whose photos are now all fine is released (writes as PHOTO_RULES_WRITE says).
  */
 export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   const body = (await req.json().catch(() => null)) as { listingId?: unknown; key?: unknown } | null
@@ -30,14 +35,16 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     where: { action: { in: ['listing.photo.held', 'listing.photo.stripped'] }, subjectType: 'listing', subjectId: listingId },
     select: { action: true, detail: true },
   })
-  const refused = audits.some((a) => a.action === 'listing.photo.held'
-    ? ((a.detail as { photos?: Array<{ key?: unknown }> } | null)?.photos ?? []).some((p) => p?.key === key)
-    : !!strippedPhotosOf(a.detail)?.removed.some((r) => r.key === key))
-  if (!refused) throw new ApiError('not_found', 404)
+  const refusals = audits.flatMap((a): Array<{ key?: unknown; rule?: unknown } | null> => a.action === 'listing.photo.held'
+    ? ((a.detail as { photos?: Array<{ key?: unknown; rule?: unknown }> } | null)?.photos ?? [])
+    : (strippedPhotosOf(a.detail)?.removed ?? [])).filter((p) => p?.key === key)
+  if (!refusals.length) throw new ApiError('not_found', 404)
+  const clearances = await photoClearances(key, refusals.flatMap((p) => (p?.rule === 'flyer' || p?.rule === 'contact' ? [p.rule] : [])))
 
   // A compare-and-set: an edit landing under it is read again once; then tap again.
-  const restored = (await restoreStrippedPhotos(listingId, [key], admin)) ?? (await restoreStrippedPhotos(listingId, [key], admin))
+  const restored = (await restoreStrippedPhotos(listingId, [key], admin, clearances)) ?? (await restoreStrippedPhotos(listingId, [key], admin, clearances))
   if (restored === null) throw new ApiError('retry', 409)
+  await clearPhotoContent(clearances, admin)
   const pass = await photoPassById(listingId, 'pass')
   return { ok: true, restored: restored.length, pass: 'skip' in pass ? { skip: pass.skip } : { dryRun: pass.dryRun, wrote: pass.wrote } }
 })

@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // /api/cron/listing-photos — the photo sweep over listings already on the site (owner, 2026-11-15). Writes are OFF unless
 // PHOTO_RULES_WRITE=1 (A16): a dry run checks, writes nothing and answers per outcome and per storefront. The walk goes
 // home cards → in-app by rank → the rest, and resumes from its cursor; recent reads the queue (a third of the run at most),
-// then what changed; a storefront the pass's breaker tripped answers 500 mass_hold (A12), and a spent lane stops the run.
+// then what changed; a storefront the pass's breaker tripped (any caller) answers 500 mass_hold once (A12), then 200 under
+// `tripped`, and a spent lane stops the run.
 // The pass itself is a stand-in here (listing-photo-pass.test.ts).
 type Row = Record<string, any>
 const h = vi.hoisted(() => ({
@@ -230,20 +231,36 @@ describe('/api/cron/listing-photos', () => {
     expect(h.calls.every((c) => c.dryRun === false && c.mayWrite)).toBe(true)
   })
 
-  it('⛔ A12: a storefront the pass\'s breaker tripped → 500 mass_hold naming it; ?allow=<sellerId> goes to the pass', async () => {
+  it('⛔ A12: a storefront tripped by a non-cron pass → the next run 500 mass_hold naming it; the run after 200 listing it under `tripped`, writing nothing for it; ?allow goes to the pass', async () => {
     vi.stubEnv('PHOTO_RULES_WRITE', '1')
     h.rows = [listing('N1'), listing('N2'), listing('M1', { sellerId: 's2' })]
     h.results = { N1: { plan: { hold: true } }, N2: { plan: { strip: [0] } }, M1: { plan: { hold: true } } }
+    // A seller's edit (the 'pass' lane) tripped s1: the cron's own passes only ever see it tripped already.
     h.tripped.add('s1')
+    const reported = 'listing-photo:tripped-reported:s1'
+    const nextHour = () => { for (const k of [...h.kv.keys()]) if (k !== reported) h.kv.delete(k); h.calls = [] }
+    // A dry run first: it never spends the one-time alert (gate review).
+    await call('?scope=backfill&dryRun=1')
+    expect(h.kv.has(reported)).toBe(false)
+    nextHour()
     const tripped = await call('?scope=backfill')
     expect(tripped.status).toBe(500)
-    expect(tripped.body).toMatchObject({ ok: false, refused: 'mass_hold', sellers: ['s1'], runCapped: false, outcomes: { held: 1, breaker: 2 } })
+    expect(tripped.body).toMatchObject({ ok: false, refused: 'mass_hold', sellers: ['s1'], tripped: ['s1'], runCapped: false, outcomes: { held: 1, breaker: 2 } })
 
-    h.kv.clear(); h.calls = []
+    // The next hour: still tripped, still nothing written for s1 — reported already, so not red.
+    nextHour()
+    const later = await call('?scope=backfill')
+    expect(later.status).toBe(200)
+    expect(later.body).toMatchObject({ ok: true, tripped: ['s1'], outcomes: { held: 1, breaker: 2 } })
+    expect(later.body.refused).toBeUndefined()
+
+    nextHour()
     const allowed = await call('?scope=backfill&allow=s1')
     expect(allowed.status).toBe(200)
     expect(allowed.body).toMatchObject({ ok: true, outcomes: { held: 2, stripped: 1 } })
     expect(h.calls.every((c) => c.allow.join() === 's1')).toBe(true)
+    // The allow lifts the mark too: a later trip is red again.
+    expect(h.kv.has(reported)).toBe(false)
   })
 
   it('⛔ A12: past 100 holds and strips in one run, nothing more is written — 500, runCapped', async () => {

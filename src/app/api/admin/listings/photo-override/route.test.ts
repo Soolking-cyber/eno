@@ -23,8 +23,12 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Record<string, unknown>) => { h.written.push(input) } }))
 vi.mock('@/lib/listing-photo-pass', () => ({
-  restoreStrippedPhotos: async (id: string, keys: string[], admin: string) => { h.order.push(`restore:${id}:${keys.join(',')}:${admin}`); return h.restores.length ? h.restores.shift()! : [] },
+  restoreStrippedPhotos: async (id: string, keys: string[], admin: string, cs: Array<{ rule: string }>) => { h.order.push(`restore:${id}:${keys.join(',')}:${admin}:${cs.map((c) => c.rule).join(',')}`); return h.restores.length ? h.restores.shift()! : [] },
   photoPassById: async (id: string, lane: string) => { h.order.push(`pass:${id}:${lane}`); return { plan: { release: true }, dryRun: false, wrote: ['released'] } },
+}))
+vi.mock('@/lib/listing-photo-verdict', () => ({
+  photoClearances: async (key: string, rules: Iterable<string>) => [...new Set(rules)].map((rule) => ({ key, sha: `sha-${key}`, rule })),
+  clearPhotoContent: async (cs: Array<{ key: string; rule: string }>, admin: string) => { h.order.push(`clear:${cs.map((c) => `${c.key}/${c.rule}`).join(',')}:${admin}`); return true },
 }))
 
 const { POST } = await import('./route')
@@ -40,7 +44,13 @@ describe('POST /api/admin/listings/photo-override', () => {
     const res = await call({ listingId: LISTING, key: KEY })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, restored: 0, pass: { dryRun: false, wrote: ['released'] } })
-    expect(h.order).toEqual([`restore:${LISTING}:${KEY}:mod@eno.vn`, `pass:${LISTING}:pass`])
+    // The bytes are cleared for anyone too, of the rule that held them here only (listing-photo-verdict.test.ts); its
+    // audit goes with the override (restoreStrippedPhotos).
+    expect(h.order).toEqual([`restore:${LISTING}:${KEY}:mod@eno.vn:flyer`, `clear:${KEY}/flyer:mod@eno.vn`, `pass:${LISTING}:pass`])
+  })
+  it('⛔ the clearance is per RULE: a photo removed here for contact is cleared of contact only', async () => {
+    await call({ listingId: LISTING, key: 'b.webp' })
+    expect(h.order.slice(0, 2)).toEqual([`restore:${LISTING}:b.webp:mod@eno.vn:contact`, 'clear:b.webp/contact:mod@eno.vn'])
   })
   it('a removed photo goes back (restoreStrippedPhotos), and a restore that lost a race is read again once', async () => {
     h.restores = [null, ['u1']]
@@ -51,7 +61,7 @@ describe('POST /api/admin/listings/photo-override', () => {
   it('⛔ a restore that keeps losing → 409 retry; no override is written outside it, nothing else runs', async () => {
     h.restores = [null, null]
     expect((await call({ listingId: LISTING, key: 'b.webp' })).status).toBe(409)
-    expect(h.order.some((o) => o.startsWith('pass'))).toBe(false)
+    expect(h.order.some((o) => o.startsWith('pass') || o.startsWith('clear'))).toBe(false)
     expect(h.written).toEqual([])
   })
   it('⛔ only a key the check held or removed on THIS listing — 404 otherwise, nothing written', async () => {
