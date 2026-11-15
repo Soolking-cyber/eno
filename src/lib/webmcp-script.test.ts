@@ -1,43 +1,42 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { buildWebmcpScript, WEBMCP_HEADERS, type WebMcpDescriptor } from './webmcp-script'
 
 /**
- * WebMCP (public/webmcp.js, loaded by a stamped <script src> in src/app/[lang]/layout.tsx): the public search MCP server's
- * tools, offered to a browser agent on the page. These tests RUN THAT FILE. Pinned here: nothing at all happens without
- * `modelContext`; ONE loop per document (however often the script runs); the tools are the server's own read-only ones,
- * each registered once; every call is a cookie-less tools/call on /api/mcp/search; any failure waits (1 min doubling to
- * 15, timers only) and tries again until every tool is in, at most ten attempts.
+ * WebMCP (/webmcp.js, built by src/lib/webmcp-script.ts from the search server's tool list, loaded by a plain <script src>
+ * in src/app/[lang]/layout.tsx). These tests RUN the generated script. Pinned: nothing at all without `modelContext` or
+ * inside a frame; the read-only tools only, each registered once per document, exactly as the server describes them;
+ * every call a cookie-less tools/call on /api/mcp/search; the shape ora.ai's reader credits (a local read from
+ * `document.modelContext || navigator.modelContext`, then `mc.registerTool({...})` with literal objects).
  */
 
-const SOURCE = readFileSync('public/webmcp.js', 'utf8')
+vi.mock('@/lib/db', () => ({ db: {} }))
 
-const TOOLS = [
-  { name: 'search_listings', description: 'Search', inputSchema: { type: 'object', properties: { q: { type: 'string' } } }, annotations: { readOnlyHint: true } },
-  { name: 'get_listing_details', description: 'Details', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, annotations: { readOnlyHint: true } },
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+const TOOLS: WebMcpDescriptor[] = [
+  { name: 'search_listings', description: 'Search', inputSchema: { type: 'object', properties: { q: { type: 'string' } } }, annotations: { title: 'Search', ...READ } },
+  { name: 'get_listing_details', description: 'Details', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, annotations: { title: 'Details', ...READ } },
   // A tool the server does NOT mark read-only: never offered to the page's agent.
   { name: 'post_listing', description: 'Writes', inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: false } },
 ]
 
 function okFetch() {
   return vi.fn(async (_url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body)) as { method: string; params: { name?: string } }
-    const result = body.method === 'tools/list'
-      ? { tools: TOOLS }
-      : { content: [{ type: 'text', text: `called ${body.params.name}` }], structuredContent: { ok: true } }
+    const body = JSON.parse(String(init.body)) as { params: { name: string } }
+    const result = { content: [{ type: 'text', text: `called ${body.params.name}` }], structuredContent: { ok: true } }
     return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }), { headers: { 'content-type': 'application/json' } })
   })
 }
-const listCalls = (fetch: ReturnType<typeof vi.fn>) =>
-  fetch.mock.calls.filter(([, init]) => JSON.parse(String((init as RequestInit).body)).method === 'tools/list').length
 const names = (registerTool: ReturnType<typeof vi.fn>) => registerTool.mock.calls.map((c) => c[0].name)
-const flush = () => vi.advanceTimersByTimeAsync(0)
 
-/** A fresh document's first run of the script (its loop and registry start clean). */
-function fresh() {
+/** A fresh document's run of the script built from `tools`. */
+function run(tools: WebMcpDescriptor[] = TOOLS) {
   delete (window as unknown as { __enoWebMcp?: boolean }).__enoWebMcp
-  return { startWebMcp: () => new Function(SOURCE)() }
+  const source = buildWebmcpScript(tools)
+  const start = () => new Function(source)()
+  start()
+  return { again: start }
 }
 function withContext(registerTool: ReturnType<typeof vi.fn>, on: 'document' | 'navigator' = 'document') {
   ;((on === 'document' ? document : navigator) as unknown as { modelContext: unknown }).modelContext = { registerTool }
@@ -52,220 +51,143 @@ afterEach(() => {
   delete (navigator as unknown as { modelContext?: unknown }).modelContext
 })
 
-describe('WebMCP', () => {
-  it('does nothing — not one request — in a browser without modelContext', async () => {
+describe('WebMCP script', () => {
+  it('does nothing — not one request, not one registration — in a browser without modelContext', async () => {
     const fetch = okFetch()
     vi.stubGlobal('fetch', fetch)
-    fresh().startWebMcp()
+    run()
     await vi.advanceTimersByTimeAsync(20 * 60_000)
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('registers the server\'s read-only tools once each — never a writing one — and calls them cookie-less', async () => {
+  it('registers the read-only tools once each, as the server describes them — never a writing one — with no request first', async () => {
     const fetch = okFetch()
     vi.stubGlobal('fetch', fetch)
     const registerTool = vi.fn()
     withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    startWebMcp() // the script run again in the same document (a second tag, a soft navigation): still one loop
-    startWebMcp()
-    await vi.advanceTimersByTimeAsync(20 * 60_000)
+    const { again } = run()
+    again() // the script run again in the same document: still once
+    await vi.advanceTimersByTimeAsync(5 * 60_000) // the late checks fire too
     expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
-    expect(listCalls(fetch)).toBe(1)
-
+    expect(fetch).not.toHaveBeenCalled() // literal definitions: nothing fetched to register
     const tool = registerTool.mock.calls[0][0]
+    expect(tool.description).toBe('Search')
     expect(tool.inputSchema).toEqual(TOOLS[0].inputSchema)
-    expect(tool.annotations.readOnlyHint).toBe(true) // the server's own label
-    expect((await tool.execute({ q: 'iphone' })).content[0].text).toBe('called search_listings')
-    for (const [url, init] of fetch.mock.calls) {
-      expect(url).toBe('/api/mcp/search')
-      expect((init as RequestInit).credentials).toBe('omit')
-    }
-    expect(JSON.parse(String((fetch.mock.calls.at(-1)![1] as RequestInit).body)).params).toEqual({ name: 'search_listings', arguments: { q: 'iphone' } })
+    expect(tool.annotations.readOnlyHint).toBe(true)
   })
 
-  it('a modelContext that appears a moment after load is still found', async () => {
-    vi.stubGlobal('fetch', okFetch())
-    const registerTool = vi.fn()
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await vi.advanceTimersByTimeAsync(5_000)
-    withContext(registerTool) // the agent extension arrives
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(registerTool).toHaveBeenCalledTimes(2)
-  })
-
-  it('reads every page of tools/list (nextCursor)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
-      const { params } = JSON.parse(String(init.body)) as { params: { cursor?: string } }
-      const result = params.cursor === 'p2' ? { tools: [TOOLS[1]] } : { tools: [TOOLS[0]], nextCursor: 'p2' }
-      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }), { headers: { 'content-type': 'application/json' } })
-    }))
-    const registerTool = vi.fn()
-    withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
-  })
-
-  it('a failure that never changes ends after ten attempts', async () => {
-    const fetch = vi.fn(async () => new Response('nope', { status: 400 }))
-    vi.stubGlobal('fetch', fetch)
-    withContext(vi.fn())
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000)
-    expect(fetch).toHaveBeenCalledTimes(10)
-  })
-
-  it('a registerTool that returns a rejected Promise counts as refused — retried, not taken as registered', async () => {
-    vi.stubGlobal('fetch', okFetch())
-    let refuse = true
-    const registerTool = vi.fn(async (tool: { name: string }) => { if (tool.name === 'search_listings' && refuse) throw new Error('async refusal') })
-    withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    refuse = false
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details', 'search_listings'])
-  })
-
-  it('a document.modelContext without registerTool does not hide a usable navigator one', async () => {
-    vi.stubGlobal('fetch', okFetch())
-    const registerTool = vi.fn()
-    ;(document as unknown as { modelContext: unknown }).modelContext = {}
-    withContext(registerTool, 'navigator')
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(registerTool).toHaveBeenCalledTimes(2)
-  })
-
-  it('⛔ a failing endpoint: one tools/list per window, doubling to 15 min — and the tools arrive when it recovers, with no navigation', async () => {
-    let down = true
-    const ok = okFetch()
-    const fetch = vi.fn(async (url: string, init: RequestInit) => (down ? new Response('slow down', { status: 429 }) : ok(url, init)))
-    vi.stubGlobal('fetch', fetch)
-    const registerTool = vi.fn()
-    withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(fetch).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(59_000)
-    expect(fetch).toHaveBeenCalledTimes(1) // inside the first window
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(fetch).toHaveBeenCalledTimes(2) // 1 min
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(fetch).toHaveBeenCalledTimes(3) // + 2 min
-    await vi.advanceTimersByTimeAsync(240_000 + 480_000)
-    expect(fetch).toHaveBeenCalledTimes(5) // + 4, + 8
-    await vi.advanceTimersByTimeAsync(15 * 60_000)
-    expect(fetch).toHaveBeenCalledTimes(6) // capped at 15
-    down = false
-    await vi.advanceTimersByTimeAsync(15 * 60_000)
-    expect(registerTool).toHaveBeenCalledTimes(2) // the 7th attempt: well inside the ten
-  })
-
-  it('offline or a timeout, then back: the same loop recovers on its own', async () => {
-    let offline = true
-    const ok = okFetch()
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
-      if (offline) throw new TypeError('offline')
-      return ok(url, init)
-    }))
-    const registerTool = vi.fn()
-    withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(registerTool).not.toHaveBeenCalled()
-    offline = false
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(registerTool).toHaveBeenCalledTimes(2)
-  })
-
-  it('one tool the browser refuses never stops the others; it is tried again later, never twice once in', async () => {
+  it('every call is a cookie-less tools/call on /api/mcp/search, answered with the server\'s result', async () => {
     const fetch = okFetch()
     vi.stubGlobal('fetch', fetch)
-    let refuse = true
-    const registerTool = vi.fn((tool: { name: string }) => { if (tool.name === 'search_listings' && refuse) throw new Error('schema rejected') })
+    const registerTool = vi.fn()
     withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
-    refuse = false
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details', 'search_listings'])
-    await vi.advanceTimersByTimeAsync(60 * 60_000)
-    expect(listCalls(fetch)).toBe(2) // all in: the loop has stopped
+    run()
+    const result = await registerTool.mock.calls[0][0].execute({ q: 'iphone' })
+    expect(result.content[0].text).toBe('called search_listings')
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/mcp/search')
+    expect(init.credentials).toBe('omit')
+    expect(JSON.parse(String(init.body))).toMatchObject({ method: 'tools/call', params: { name: 'search_listings', arguments: { q: 'iphone' } } })
   })
 
-  it('an SSE stream the server keeps OPEN after its reply still answers at once', async () => {
-    const reply = `event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: TOOLS } })}\n\n`
-    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(reply)) /* never closed */ } })
+  it('a failed call answers as a tool error, never a thrown promise', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'rate limited' } }))))
+    const registerTool = vi.fn()
+    withContext(registerTool)
+    run()
+    const result = await registerTool.mock.calls[0][0].execute({ q: 'x' })
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('rate limited')
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+    expect((await registerTool.mock.calls[1][0].execute({ id: 'x' })).isError).toBe(true)
+  })
+
+  it('a call that throws before it is sent (input that will not serialise) is a tool error; a "signal" that is not one is ignored', async () => {
+    vi.stubGlobal('fetch', okFetch())
+    const registerTool = vi.fn()
+    withContext(registerTool)
+    run()
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    expect((await registerTool.mock.calls[0][0].execute(circular)).isError).toBe(true)
+    expect((await registerTool.mock.calls[0][0].execute({ q: 'x' }, { signal: 'not a signal' })).content[0].text).toBe('called search_listings')
+  })
+
+  it('an SSE answer the server keeps OPEN after its reply still resolves at once; a notification before it is skipped', async () => {
+    const reply = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: 'sse' }] } }, null, 2)
+    const sse = `event: message\ndata: {"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n\nevent: message\n${reply.split('\n').map((l) => `data: ${l}`).join('\n')}\n\n`
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(sse)) /* never closed */ } })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } })))
     const registerTool = vi.fn()
     withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
+    run()
+    expect((await registerTool.mock.calls[0][0].execute({})).content[0].text).toBe('sse')
+  })
+
+  it('a modelContext that appears a moment after load is still found (and used once)', async () => {
+    const registerTool = vi.fn()
+    run()
+    await vi.advanceTimersByTimeAsync(5_000)
+    withContext(registerTool) // the agent extension arrives
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+  })
+
+  it('a document.modelContext without registerTool does not hide a usable navigator one', () => {
+    const registerTool = vi.fn()
+    ;(document as unknown as { modelContext: unknown }).modelContext = {}
+    withContext(registerTool, 'navigator')
+    run()
     expect(registerTool).toHaveBeenCalledTimes(2)
   })
 
-  it('reads SSE events by the format: multi-line data joined, a notification before the reply skipped', async () => {
-    const reply = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { tools: TOOLS } }, null, 2) // spans many lines
-    const sse = `event: message\ndata: {"jsonrpc":"2.0","method":"notifications/progress","params":{}}\n\nevent: message\n${reply.split('\n').map((l) => `data: ${l}`).join('\n')}\n\n`
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(sse, { headers: { 'content-type': 'text/event-stream' } })))
+  it('one tool the browser refuses — by throwing or by a rejected promise — never stops the others, and is tried again', async () => {
+    let refuse = true
+    const registerTool = vi.fn((tool: { name: string }) => {
+      if (!refuse) return undefined
+      if (tool.name === 'search_listings') throw new Error('schema rejected')
+      return Promise.reject(new Error('async refusal'))
+    })
+    withContext(registerTool)
+    run()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    refuse = false // the agent extension has finished starting up
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details', 'search_listings', 'get_listing_details'])
+    await vi.advanceTimersByTimeAsync(30 * 60_000)
+    expect(registerTool).toHaveBeenCalledTimes(4) // in now: never registered again
+  })
+
+  it('a registerTool that has not settled is never called a second time; when it lands it counts', async () => {
+    let resolveFirst: () => void = () => {}
+    const registerTool = vi.fn((tool: { name: string }) =>
+      tool.name === 'search_listings' && registerTool.mock.calls.length === 1 ? new Promise<void>((r) => { resolveFirst = r }) : undefined)
+    withContext(registerTool)
+    run()
+    await vi.advanceTimersByTimeAsync(100_000) // passes at 2 s, 10 s, 30 s, 90 s while it hangs
+    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    resolveFirst()
+    await vi.advanceTimersByTimeAsync(30 * 60_000)
+    expect(registerTool).toHaveBeenCalledTimes(2)
+  })
+
+  it('every call ends within 10 s even when the caller passes a signal of its own', async () => {
+    // jsdom's AbortSignal.timeout runs on a real timer the fake clock cannot advance: drive it by the fake clock here.
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const c = new AbortController()
+      setTimeout(() => c.abort(new DOMException('timed out', 'TimeoutError')), ms)
+      return c.signal
+    })
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')))
+    })))
     const registerTool = vi.fn()
     withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    expect(registerTool).toHaveBeenCalledTimes(2)
-  })
-
-  it('a registerTool that never settles does not stall the others: they register, and it is never called twice', async () => {
-    vi.stubGlobal('fetch', okFetch())
-    const registerTool = vi.fn((tool: { name: string }) => (tool.name === 'search_listings' ? new Promise(() => {}) : undefined))
-    withContext(registerTool)
-    fresh().startWebMcp()
+    run()
+    const pending = registerTool.mock.calls[0][0].execute({ q: 'x' }, { signal: new AbortController().signal })
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
-    await vi.advanceTimersByTimeAsync(60 * 60_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details']) // still pending: not registered again
-  })
-
-  it('⛔ a registerTool that succeeds AFTER the 10 s is recorded then — never registered a second time (commit gate, codex)', async () => {
-    const fetch = okFetch()
-    vi.stubGlobal('fetch', fetch)
-    const registerTool = vi.fn((tool: { name: string }) =>
-      tool.name === 'search_listings' ? new Promise<void>((resolve) => setTimeout(resolve, 15_000)) : undefined)
-    withContext(registerTool)
-    fresh().startWebMcp()
-    await vi.advanceTimersByTimeAsync(10_000) // timed out: the loop moves on and schedules a retry in 1 min
-    await vi.advanceTimersByTimeAsync(5_000) // the late success lands
-    await vi.advanceTimersByTimeAsync(60 * 60_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
-    expect(listCalls(fetch)).toBe(2) // the retry found everything in and stopped
-  })
-
-  it('a registerTool that refuses AFTER the 10 s frees the name: it is tried again', async () => {
-    vi.stubGlobal('fetch', okFetch())
-    let late = true
-    const registerTool = vi.fn((tool: { name: string }) =>
-      tool.name === 'search_listings' && late ? new Promise<void>((_, reject) => setTimeout(() => reject(new Error('no')), 15_000)) : undefined)
-    withContext(registerTool)
-    fresh().startWebMcp()
-    await vi.advanceTimersByTimeAsync(20_000)
-    late = false
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details', 'search_listings'])
+    expect((await pending).isError).toBe(true)
   })
 
   it('⛔ never in a frame: inside an iframe the script does nothing at all', async () => {
@@ -276,39 +198,63 @@ describe('WebMCP', () => {
     const top = Object.getOwnPropertyDescriptor(window, 'top')
     Object.defineProperty(window, 'top', { configurable: true, get: () => ({}) })
     try {
-      fresh().startWebMcp()
-      await vi.advanceTimersByTimeAsync(20 * 60_000)
+      run()
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
     } finally {
       if (top) Object.defineProperty(window, 'top', top)
     }
-    expect(fetch).not.toHaveBeenCalled()
     expect(registerTool).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('a failed call answers as a tool error, never a thrown promise', async () => {
-    const fetch = okFetch()
-    vi.stubGlobal('fetch', fetch)
-    const registerTool = vi.fn()
-    withContext(registerTool)
-    const { startWebMcp } = fresh()
-    startWebMcp()
-    await flush()
-    fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'rate limited' } })))
-    const result = await registerTool.mock.calls[0][0].execute({ q: 'x' })
-    expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('rate limited')
+  it('⛔ keeps the shape ora.ai\'s reader credits: a local from document/navigator modelContext, then mc.registerTool on literal objects', () => {
+    // ora, 2026-11-16, on the version that registered what tools/list returned: "found no registerTool() call that runs on
+    // a modelContext read from document or navigator". Its own pages use exactly this shape.
+    const source = buildWebmcpScript(TOOLS)
+    expect(source).toContain('var mc = document.modelContext || navigator.modelContext;')
+    expect(source).toContain('mc.registerTool(tool)')
+    expect(source).toContain('register({"name":"search_listings","description":"Search",')
+    expect(source).not.toContain('post_listing')
+    expect(() => new Function(source)).not.toThrow() // valid JavaScript
   })
 })
 
-describe('WebMCP — how the page loads it', () => {
-  it('⛔ the layout loads /webmcp.js by a plain <script src> carrying the CURRENT hash of the file', () => {
-    // A plain same-origin <script src> in the HTML is what agent-readiness checkers read (ora: "scanned 2 of 2 same-origin
-    // script bundle(s)"); a client component rode a chunk only the RSC payload loads, and was never seen. The stamp makes a
-    // changed file a changed URL.
+// A cold import of the search tools reaches the PDP and feed modules: 30 s, like search.test.ts's 20 s per test.
+describe('/webmcp.js — the route and the page that loads it', { timeout: 30_000 }, () => {
+  it('serves the script built from the search server\'s OWN tool list, as JavaScript', async () => {
+    const { GET } = await import('@/app/webmcp.js/route')
+    const { searchToolDescriptors } = await import('@/app/api/mcp/search/tools')
+    const res = GET()
+    expect(res.headers.get('content-type')).toBe(WEBMCP_HEADERS['content-type'])
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300, s-maxage=3600')
+    const body = await res.text()
+    expect(body).toBe(buildWebmcpScript(searchToolDescriptors()))
+    for (const t of searchToolDescriptors()) {
+      if (t.annotations.readOnlyHint === true) expect(body).toContain(`register({"name":${JSON.stringify(t.name)},`)
+    }
+  })
+
+  it('⛔ the script registers EXACTLY what /api/mcp/search answers tools/list with (name, description, input schema)', async () => {
+    const { POST } = await import('@/app/api/mcp/search/route')
+    const res = await POST(new Request('https://eno.vn/api/mcp/search', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    }))
+    const listed = ((await res.json()) as { result: { tools: WebMcpDescriptor[] } }).result.tools
+    const { GET } = await import('@/app/webmcp.js/route')
+    const registerTool = vi.fn()
+    withContext(registerTool)
+    delete (window as unknown as { __enoWebMcp?: boolean }).__enoWebMcp
+    new Function(await GET().text())()
+    const registered = registerTool.mock.calls.map((c) => ({ name: c[0].name, description: c[0].description, inputSchema: c[0].inputSchema, annotations: c[0].annotations }))
+    const readOnly = listed.filter((t) => t.annotations?.readOnlyHint === true)
+    expect(readOnly.length).toBeGreaterThan(0)
+    expect(registered).toEqual(readOnly.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })))
+  })
+
+  it('⛔ the layout loads it by a plain <script src> — what agent-readiness checkers read', () => {
     const layout = readFileSync('src/app/[lang]/layout.tsx', 'utf8')
-    const want = createHash('sha256').update(readFileSync('public/webmcp.js')).digest('hex').slice(0, 8)
-    const m = layout.match(/<script src="\/webmcp\.js\?v=([0-9a-f]{8})" async \/>/)
-    expect(m, 'layout.tsx lost the <script src="/webmcp.js?v=…" async /> tag').not.toBeNull()
-    expect(m![1], `public/webmcp.js now hashes to ${want}: bump the stamp in src/app/[lang]/layout.tsx`).toBe(want)
+    expect(layout).toContain('<script src="/webmcp.js" async />')
   })
 })
