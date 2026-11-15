@@ -45,8 +45,7 @@ const statusConstraints = (w: Row): Row[] => [
 ]
 
 describe('list_listings', () => {
-  it.each([undefined, 'active', 'sold', 'hidden', 'removed'])('status %s → the not-removed guard is still in the where', async (status) => {
-    // 'removed' cannot pass the zod enum over the wire; the handler is called directly here on purpose.
+  it.each([undefined, 'active', 'sold', 'hidden'])('status %s → the not-removed guard is still in the where', async (status) => {
     await tool('list_listings').handler(AUTH as never, (status ? { status } : {}) as never)
     const where = h.finds[0].where
     expect(statusConstraints(where)).toContainEqual(NOT_REMOVED.status)
@@ -54,8 +53,9 @@ describe('list_listings', () => {
     if (status) expect(where.AND).toContainEqual({ status })
   })
 
-  it('the wire still refuses status "removed" (zod enum)', () => {
-    expect(tool('list_listings').input.safeParse({ status: 'removed' }).success).toBe(false)
+  it('status "removed" is refused by the handler before any query runs (checkStatusArg; no enum on the wire since 11-16)', async () => {
+    await expect(tool('list_listings').handler(AUTH as never, { status: 'removed' } as never)).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(h.finds).toHaveLength(0)
   })
 })
 

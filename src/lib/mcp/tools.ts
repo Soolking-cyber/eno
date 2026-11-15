@@ -144,6 +144,20 @@ const LISTING_STATUS_SET = z.enum(LISTING_STATUS).describe('The status the listi
 const LISTING_STATUS_OUT = z.string().describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted; set_listing_status moves a listing between these three. Any other value, such as expired or stale, means eno took the listing off the site')
 const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'] as const
 
+// Inputs carry no enum and no integer/minimum constraint: the reviewers flag a constrained field as "validation repeated"
+// (12% of plain fields vs ~50% of constrained ones on Manufact's board). Each handler refuses a bad value HERE, before
+// anything is written, and names the valid ones (input-checks.test.ts).
+function checkStatusArg(v: unknown, where = ''): void {
+  if (v !== undefined && !(LISTING_STATUS as readonly unknown[]).includes(v)) throw new ToolError('invalid_input', `${where}status must be active, sold or hidden.`)
+}
+function checkSalaryArg(v: unknown): void {
+  if (v === undefined || v === null) return
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 0) throw new ToolError('invalid_input', 'salaryM must be a whole number of millions of VND, 0 or more: 25 means 25.000.000 đ a month.')
+  // createListingCore/updateListingCore clamp it to the job facet's range (taxonomy.ts: 0–100 or 0–150, clampRangeFacets),
+  // so nothing overflows; above 150 every value would be silently cut to the top (a salary sent in đồng, typically).
+  if (v > 150) throw new ToolError('invalid_input', 'salaryM is in millions of VND and at most 150 (150.000.000 đ a month): send 25 for 25.000.000 đ.')
+}
+
 /** The listing as MCP answers it: the fields a seller's agent acts on, by name (serializeListing writes ~60, most for the
  *  web page), photos as full URLs, and the page link. list_listings and get_listing never reach a tombstone
  *  (NOT_REMOVED, listingOwnedBy), so the status is one of the three; update_listing's read-back is checked against
@@ -398,8 +412,9 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
-    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find listings taken down; leave it out to see every listing') }),
+    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.string().optional().describe('Show only listings in one state: active (on sale), sold, or hidden (taken off the site), e.g. sold to review what has sold. Leave it out to see every listing') }),
     handler: async (auth, args) => {
+      checkStatusArg(args.status)
       const sp = new URLSearchParams()
       const asked = pageLimitArg(args.limit)
       if (asked) sp.set('limit', asked)
@@ -407,8 +422,8 @@ export const TOOLS: McpTool[] = [
       const { limit, cursorId } = parsePageParams(sp)
       // Never a tombstone (src/lib/listing-removed.ts); an explicit status (active|sold|hidden) narrows further.
       // ⛔ AND-ed, NOT spread: `{ ...NOT_REMOVED, status }` let a caller's `status` REPLACE the guard
-      // (status:'removed' listed the tombstones). The zod enum refuses 'removed' today; the AND keeps the
-      // guard standing even if the enum ever widens or a caller reaches the handler unvalidated.
+      // (status:'removed' listed the tombstones). checkStatusArg refuses 'removed' today; the AND keeps the
+      // guard standing even if the check ever widens or a caller reaches the handler unvalidated.
       const where = { AND: [{ sellerId: auth.sellerId }, NOT_REMOVED, ...(args.status ? [{ status: String(args.status) }] : [])] }
       const rows = await db.listing.findMany({ where, orderBy: { id: 'desc' }, ...pageQuery(limit, cursorId), include: LISTING_INCLUDE })
       const { items, nextCursor } = buildPage(rows, limit)
@@ -443,9 +458,10 @@ export const TOOLS: McpTool[] = [
       listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs); otherwise the category\'s usual one is used'),
       brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands. Leave it out when the item has none'),
       model: z.string().optional().describe('The model within that brand; kept only when the brand was recognised. Leave it out when unknown'),
-      salaryM: z.number().int().nonnegative().optional().describe('A job\'s monthly salary in millions of VND (category "jobs"); leave it out when the pay is agreed with the candidate'),
+      salaryM: z.number().optional().describe('A job\'s monthly salary in millions of VND, as a whole number: 25 means 25.000.000 đ a month (category "jobs"). Leave it out when the pay is agreed with the candidate'),
     }),
     handler: async (auth, args) => {
+      checkSalaryArg(args.salaryM)
       const title = cutText(String(args.title || '').trim(), 140)
       // A job is paid a salary: its price is derived from `salaryM` in createListingCore (taxonomy.ts
       // paysSalary), so it needs no price — one it sends is passed on and read as the salary there.
@@ -513,9 +529,10 @@ export const TOOLS: McpTool[] = [
       district: z.string().optional().describe('Where the item is, as a district or area. Send an empty string to clear it, or leave it out to keep it'),
       condition: z.string().optional().describe('The item\'s condition in words. Send an empty string to clear it, or leave it out to keep it'),
       images: z.array(z.string()).optional().describe('The complete new set of photos as public image URLs, in display order; it replaces the current photos. To add a photo, send the current `images` from get_listing plus the new URL. Leave it out to keep the photos as they are'),
-      salaryM: z.number().int().nonnegative().nullable().optional().describe('A job\'s monthly salary in millions of VND; it wins over `price`. Send null to remove it (pay agreed with the candidate), or leave it out to keep the current salary'),
+      salaryM: z.number().nullable().optional().describe('A job\'s monthly salary in millions of VND, as a whole number (25 means 25.000.000 đ a month); it wins over `price`. Send null to remove it (pay agreed with the candidate), or leave it out to keep the current salary'),
     }),
     handler: async (auth, args) => {
+      checkSalaryArg(args.salaryM)
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
       const body: Record<string, unknown> = {}
@@ -653,7 +670,7 @@ export const TOOLS: McpTool[] = [
       mode: z.string().optional().describe(`How to treat your listings missing from this payload. Left out, partial: they stay as they are, for sending only the rows that changed; full hides each active one whose externalId you did not send, so eno mirrors your whole catalogue. Full compares against this one payload alone, so use it only when the whole catalogue fits in one call (${SYNC_MAX_ROWS} rows); a bigger catalogue syncs in partial mode, since full calls split across a catalogue each hide the rows the others carry. Listings without an externalId are never touched`),
       listings: z.array(listingItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
-        status: z.enum(['active', 'sold', 'hidden']).optional().describe('Puts an existing listing on sale (active), marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
+        status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
       })).min(1).max(SYNC_MAX_ROWS).describe('Your catalogue rows, each matched to its listing by externalId. For a known externalId, the fields you leave out keep their current values'),
     }),
     handler: async (auth, args) => {
@@ -662,6 +679,7 @@ export const TOOLS: McpTool[] = [
       // `mode` is a described string (an enum input is what the reviewers flag); anything but the two is refused here, before
       // any row is touched, so a typo can never fall through to a different sync.
       if (args.mode !== undefined && args.mode !== 'partial' && args.mode !== 'full') throw new ToolError('invalid_input', 'mode must be partial or full.')
+      for (const [i, r] of (args.listings as SyncRow[]).entries()) checkStatusArg(r.status, `Row ${i + 1}: `)
       const mode = args.mode === 'full' ? 'full' : 'partial'
       const out = await syncListingsCore(seller, args.listings as SyncRow[], mode)
       // A partial success, not a tool error: edits and sold/hidden rows applied. But the identity
