@@ -118,6 +118,14 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       ...[...(s.anyOf ?? []), ...(s.oneOf ?? []), ...(s.allOf ?? [])].flatMap((x) => undescribed(x, at)),
     ]
     expect(result.tools.flatMap((t: { name: string; inputSchema: Schema }) => undescribed(t.inputSchema, t.name))).toEqual([])
+    type Obj = Schema & { required?: string[]; additionalProperties?: unknown }
+    const looseOrOptional = (s: Obj | undefined, at: string): string[] => !s ? [] : [
+      ...(s.properties && s.additionalProperties !== false ? [`${at}: open object`] : []),
+      ...Object.keys(s.properties ?? {}).filter((k) => !(s.required ?? []).includes(k)).map((k) => `${at}.${k}: optional`),
+      ...Object.entries(s.properties ?? {}).flatMap(([k, p]) => looseOrOptional(p as Obj, `${at}.${k}`)),
+      ...looseOrOptional(s.items as Obj | undefined, `${at}[]`),
+      ...[...(s.anyOf ?? []), ...(s.oneOf ?? []), ...(s.allOf ?? [])].flatMap((x) => looseOrOptional(x as Obj, at)),
+    ]
     for (const t of result.tools) {
       const scope = TOOLS.find((x) => x.name === t.name)!.scope
       // A hint is not enforcement (the key's scopes are), but a read hint on a write tool would let a client skip asking.
@@ -131,10 +139,12 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       // Only delete_webhook, which forgets an endpoint, and the reads stay closed.
       expect(t.annotations.openWorldHint, `${t.name}: openWorldHint`).toBe(!t.annotations.readOnlyHint && t.name !== 'delete_webhook')
       expect(t.title, `${t.name} needs a title`).toBeTruthy()
-      // structuredContent MUST conform to the outputSchema: a closed object (additionalProperties:false) anywhere in it
-      // would make a validating client reject the day a result gains a field.
+      // THE OUTPUT FORMAT (2026-11-15, tools.ts "Output schemas"): every object is closed, every key required (a value
+      // that does not apply is null), every field described. Safe because each answer is built key by key by a projection
+      // pinned to its schema at compile time, and output-schemas*.test.ts parses every handler's answer with it.
       expect(t.outputSchema?.type, `${t.name} needs an outputSchema`).toBe('object')
-      expect(JSON.stringify(t.outputSchema), `${t.name}: output objects stay open`).not.toContain('"additionalProperties":false')
+      expect(looseOrOptional(t.outputSchema, t.name), `${t.name}: every output object closed, every key required`).toEqual([])
+      expect(undescribed(t.outputSchema, `${t.name}→`), `${t.name}: every output field described`).toEqual([])
       expect(t.outputSchema.$schema, `${t.name}: no meta-schema URI for a client validator to choke on`).toBeUndefined()
       expect(t.title.length, `${t.name}: a title is a short label`).toBeLessThanOrEqual(40)
     }

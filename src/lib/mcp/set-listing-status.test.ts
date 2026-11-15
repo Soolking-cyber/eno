@@ -89,6 +89,6 @@ describe('create_listing — the released-charge cap is a coded tool error, not 
   })
 
   it('success is unchanged', async () => {
-    expect(await go()).toEqual({ listing: { id: 'new', verified: true } })
+    expect(await go()).toEqual({ listing: { id: 'new', verified: true, held: false, url: expect.stringMatching(/\/listings\/new$/) } })
   })
 })

@@ -19,10 +19,17 @@ function parseDay(s: string | null | undefined): Date | null {
  * consecutive cumulative snapshots; a pre-`from` baseline seeds the first in-range delta,
  * and a first observation with no baseline reports 0 (a daily delta is unknown there).
  */
+/** One listing's figures as GET /api/v1/analytics/listings and the MCP tool answer them (typed 2026-11-15 so the MCP
+ *  output schema is pinned to it at compile time — src/lib/mcp/tools.ts). */
+export type AnalyticsListingRow = {
+  id: string; external_id: string | null; title: string; status: string; views_total: number; leads_total: number
+  daily: { day: string; views: number; leads: number }[]
+}
+
 export async function getListingAnalytics(
   sellerId: string,
   opts: { from?: string; to?: string; limit?: string | number; cursor?: string } = {},
-): Promise<{ range: { from: string; to: string }; listings: unknown[]; next_cursor: string | null } | { error: { code: string; message: string } }> {
+): Promise<{ range: { from: string; to: string }; listings: AnalyticsListingRow[]; next_cursor: string | null } | { error: { code: string; message: string } }> {
   const today = new Date(); today.setUTCHours(0, 0, 0, 0)
   const to = parseDay(opts.to) ?? today
   let from = parseDay(opts.from) ?? new Date(to.getTime() - 30 * DAY_MS)

@@ -18,7 +18,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/serialize', () => ({
   serializeListing: () => ({
     id: 'l1', images: ['/listings/a.png', 'https://sb.eno.vn/storage/b.jpg', '//cdn.example/c.png'], video: '/listings/v.mp4',
-    seller: { id: 's1', name: 'Shop', avatarUrl: '/avatars/s1.png' },
+    seller: { id: 's1', name: 'Shop', avatarUrl: '/avatars/s1.png' }, category: { slug: 'electronics', name: 'Electronics' },
   }),
 }))
 
@@ -35,12 +35,15 @@ describe('MCP output names photos in full', () => {
     expect(absoluteAssetUrl(null)).toBeNull()
   })
 
-  it('list_listings and get_listing both return full photo URLs', async () => {
-    const list = (await tool('list_listings').handler(AUTH as never, {} as never)) as { listings: { images: string[] }[] }
+  it('list_listings and get_listing both return full photo URLs and the full page link', async () => {
+    const list = (await tool('list_listings').handler(AUTH as never, {} as never)) as { listings: { images: string[]; url: string }[] }
     expect(list.listings[0].images).toEqual(WANT)
-    const one = (await tool('get_listing').handler(AUTH as never, { id: 'l1' } as never)) as { listing: { images: string[]; video: string; seller: { avatarUrl: string } } }
+    expect(list.listings[0].url).toBe('https://eno.vn/listings/l1')
+    const one = (await tool('get_listing').handler(AUTH as never, { id: 'l1' } as never)) as { listing: { images: string[]; url: string } }
     expect(one.listing.images).toEqual(WANT)
-    expect(one.listing.video).toBe('https://eno.vn/listings/v.mp4')
-    expect(one.listing.seller.avatarUrl).toBe('https://eno.vn/avatars/s1.png')
+    expect(one.listing.url).toBe('https://eno.vn/listings/l1')
+    expect((one.listing as unknown as { video: string }).video).toBe('https://eno.vn/listings/v.mp4')
+    // The listing is answered field by field (tools.ts listingOut, 2026-11-15): the web page's extras stay out.
+    expect(one.listing).not.toHaveProperty('seller')
   })
 })

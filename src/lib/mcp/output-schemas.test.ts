@@ -46,7 +46,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/serialize', () => ({
   serializeListing: (l: Row) => ({
     id: l.id, title: 't', description: '', price: 1, priceUnit: 'VND', negotiable: true, status: 'active', verified: true, listingType: 'sell',
-    condition: null, location: 'Thảo Điền', district: null, city: 'Hồ Chí Minh', images: [], category: { slug: 'electronics', name: 'Electronics' },
+    condition: null, location: 'Thảo Điền', district: null, city: 'Hồ Chí Minh', images: [], video: null, category: { slug: 'electronics', name: 'Electronics' },
     subcategorySlug: null, postedAt: '2026-11-13T00:00:00.000Z', views: 0, contactCount: 0,
   }),
 }))

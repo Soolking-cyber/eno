@@ -17,7 +17,7 @@ vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
 vi.mock('next/server', () => ({ after: () => {} }))
 
 const { serializeListing } = await import('@/lib/serialize')
-const { TOOLS } = await import('./tools')
+const { TOOLS, listingOut } = await import('./tools')
 
 const at = new Date('2026-11-01T03:04:05.000Z')
 const category = { id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone', color: 'blue', description: null, sortOrder: 0, createdAt: at, updatedAt: at }
@@ -53,7 +53,8 @@ const sparse = { ...sparseRow, category: { ...category, id: 'c2', slug: 'jobs', 
 
 describe('listing tools — outputSchema vs the real serializer', () => {
   for (const [label, row] of [['a full row', full], ['a sparse row', sparse]] as const) {
-    const listing = serializeListing(row as never)
+    // What MCP answers: tools.ts listingOut over the REAL serializer.
+    const listing = listingOut(row as never)
 
     it(`list_listings fits ${label}`, () => {
       const out = { listings: [listing], next_cursor: null }
@@ -68,19 +69,20 @@ describe('listing tools — outputSchema vs the real serializer', () => {
 
     // update_listing answers with the row read back after the edit (2026-11-15): the same serializer, its own wrapper.
     it(`update_listing's read-back fits ${label}`, () => {
-      const r = TOOLS.find((t) => t.name === 'update_listing')!.output.safeParse({ ok: true, listing })
+      const r = TOOLS.find((t) => t.name === 'update_listing')!.output.safeParse({ ok: true, held: false, unpublished: false, listing })
       expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
     })
   }
 
-  it('every field list_listings documents is really in the serializer\'s output — none is advertised and missing', () => {
+  it('every field list_listings documents comes from the serializer (url is built from the id) — none is advertised and missing', () => {
     const tool = TOOLS.find((t) => t.name === 'list_listings')!
     const schema = z.toJSONSchema(tool.output) as unknown as { properties: { listings: { items: { properties: Record<string, unknown> } } } }
     const documented = Object.keys(schema.properties.listings.items.properties)
     expect(documented.length).toBeGreaterThan(10)
     for (const row of [full, sparse]) {
       const l = serializeListing(row as never) as Record<string, unknown>
-      expect(documented.filter((k) => !(k in l))).toEqual([])
+      expect(documented.filter((k) => k !== 'url' && !(k in l))).toEqual([])
+      expect(Object.keys(listingOut(row as never)).sort()).toEqual([...documented].sort())
     }
   })
 
