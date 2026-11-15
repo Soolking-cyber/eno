@@ -103,9 +103,17 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // handler's answer with these strict schemas, so an extra or a missing key fails there before any client sees it.
 const OK = z.literal(true).describe('Always true: a change eno refuses comes back as a tool error with the reason instead')
 const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
-// The bounds live on the server (pagination.ts parsePageParams clamps to PAGE_MAX, PAGE_DEFAULT when left out), not in the
+// The bounds live on the server (pagination.ts parsePageParams parseInt()s and clamps to PAGE_MAX, PAGE_DEFAULT when left out;
+// zod's .int() would publish ±2^53 bounds), not in the
 // schema: Manufact's judge flags a bounded `limit` as "validation repeated" whatever its prose says (2026-11-15 data).
-const PAGE_SIZE = z.number().int().optional().describe('How many listings to return in this call. Leave it out for a normal-size answer; the server caps a very large number. To go through every listing, call again with `next_cursor` until it comes back null')
+/** `limit` as the pager reads it: a whole number written out in digits. parseInt() reads 1e21 as "1e+21" → 1 and 1e-7 as
+ *  "1e-7" → 1, so a number is truncated and bounded here first; parsePageParams then clamps it to 1..PAGE_MAX. */
+export const pageLimitArg = (v: unknown): string | undefined => {
+  if (v === undefined || v === null) return undefined
+  const n = Math.trunc(Number(v))
+  return Number.isFinite(n) ? String(Math.max(1, Math.min(n, 1000))) : undefined
+}
+const PAGE_SIZE = z.number().optional().describe('How many listings to return in this call. Leave it out for a normal-size answer; the server caps a very large number. To go through every listing, call again with `next_cursor` until it comes back null')
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
@@ -187,21 +195,33 @@ const WEBHOOK_OUT = z.strictObject({
   last_delivery_at: z.string().nullable().describe('When an event was last delivered (ISO 8601); null before the first one'),
   created_at: z.string().describe('When it was registered (ISO 8601)'),
 }).describe('A webhook endpoint registered for this shop')
+// register_webhook's answer: the same fields written for a webhook that was just made, plus its one-time secret (pinned below).
+const REGISTERED_WEBHOOK_OUT = z.strictObject({
+  id: z.string().describe('The new webhook\'s id; pass it to delete_webhook to stop the events'),
+  url: z.string().describe('The address eno will POST each event to, as you gave it'),
+  events: z.array(z.string()).describe('The events it will receive, as you chose them; ["*"] means every event'),
+  enabled: z.boolean().describe('true: eno sends events from now on. It turns false by itself if deliveries keep failing'),
+  failure_count: z.number().describe('0 for a new webhook; later, how many deliveries in a row have failed'),
+  last_error: z.string().nullable().describe('null for a new webhook; later, why the last delivery failed'),
+  last_delivery_at: z.string().nullable().describe('null until the first event is delivered; then when the last one was (ISO 8601)'),
+  created_at: z.string().describe('When it was registered, which is now (ISO 8601)'),
+  secret: z.string().describe('The signing secret, shown only this once: store it now to verify each event\'s signature; eno cannot show it again'),
+}).describe('The webhook just registered')
 
 // The storefront as get_shop reads it, and as update_shop answers after a change (only bio/location/phone/avatarUrl are
 // nullable columns on Seller in prisma/schema.prisma; the tier is written by trust-math.ts tierFor alone).
 const SHOP_OUT = z.strictObject({
-  id: z.string().describe('The shop id; every tool on this connection acts on this one shop'),
+  id: z.string().describe('The shop id; every tool on this connection reads and changes this one shop, so there is no shop id to pass anywhere'),
   name: z.string().describe('The shop\'s public name, shown on its page and beside each of its listings; change it with update_shop'),
-  bio: z.string().nullable().describe('About the shop, as shown on its page; null when it has none'),
-  location: z.string().nullable().describe('Where the shop is, as shown on its page; null when not set'),
+  bio: z.string().nullable().describe('About the shop, as shown on its page; null when it has none, which update_shop can fill'),
+  location: z.string().nullable().describe('Where the shop is, as shown on its page; null when not set, which update_shop can fill'),
   phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page; null when not set'),
-  avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL; null when it has none'),
+  avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, ready to show; null when it has none'),
   trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150: higher is more trusted'),
   trust_tier: z.string().describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
   response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations'),
   member_since: z.string().describe('When the shop joined eno (ISO 8601)'),
-  active_listings: z.number().describe('How many of its listings buyers can see on the site now; analytics_summary counts every status'),
+  active_listings: z.number().describe('How many of its listings buyers can see on the site now; the rest are sold, hidden, expired or waiting for eno\'s check'),
 }).describe('The storefront this connection acts for')
 
 /** get_shop's answer, and update_shop's after a change. Same rule as GET /api/v1/shop: a GONE storefront
@@ -275,11 +295,12 @@ const PINS: [
   Fits<ReturnType<typeof listingOut>, typeof LISTING_OUT>,
   Fits<Awaited<ReturnType<typeof readShop>>, typeof SHOP_OUT>,
   Fits<ReturnType<typeof webhookOut>, typeof WEBHOOK_OUT>,
+  Fits<ReturnType<typeof webhookOut> & { secret: string }, typeof REGISTERED_WEBHOOK_OUT>,
   Fits<ReturnType<typeof createdOut>, typeof CREATED_OUT>,
   Fits<ReturnType<typeof bulkRowOut>, typeof BULK_ROW_OUT>,
   Fits<ReturnType<typeof syncRowOut>, typeof SYNC_ROW_OUT>,
   Fits<ReturnType<typeof analyticsRowOut>, typeof ANALYTICS_ROW_OUT>,
-] = [true, true, true, true, true, true, true]
+] = [true, true, true, true, true, true, true, true]
 void PINS
 
 export type McpTool = {
@@ -312,7 +333,7 @@ export const TOOLS: McpTool[] = [
     description: 'Change this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone. Send only the fields to change; the others stay as they are (get_shop shows the current values). Long text is shortened to fit: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`. Returns `ok: true` and `shop`, the profile as it now stands (the same fields as get_shop).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ ok: OK, shop: SHOP_OUT.nullable().describe('The shop profile as it now stands, the same fields get_shop reads; null only if it could not be read back') }).describe('Confirms the change and shows the profile after it'),
+    output: z.strictObject({ ok: OK, shop: SHOP_OUT.nullable().describe('The profile after your change, the same fields get_shop returns: the fields you sent now read as saved. null only if it could not be read back; the change is saved either way') }).describe('Confirms the change and shows the profile after it'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings. Leave it out to keep the current name'),
       bio: z.string().optional().describe('About the shop, shown on its page. Send an empty string to clear it, or leave it out to keep it'),
@@ -339,7 +360,8 @@ export const TOOLS: McpTool[] = [
     input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(['active', 'sold', 'hidden']).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find listings taken down; leave it out to see every listing') }),
     handler: async (auth, args) => {
       const sp = new URLSearchParams()
-      if (args.limit != null) sp.set('limit', String(args.limit))
+      const asked = pageLimitArg(args.limit)
+      if (asked) sp.set('limit', asked)
       if (args.cursor) sp.set('cursor', String(args.cursor))
       const { limit, cursorId } = parsePageParams(sp)
       // Never a tombstone (src/lib/listing-removed.ts); an explicit status (active|sold|hidden) narrows further.
@@ -358,7 +380,7 @@ export const TOOLS: McpTool[] = [
     description: 'Read one of this shop\'s listings by id, in any status. Returns `listing` with its title, text, price, status, category, location, photos, views, leads and page `url`. Use it to see the current values before update_listing; to see every listing at once, use list_listings instead. Fails with `not_found` when the id is not one of this shop\'s listings. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.strictObject({ listing: LISTING_OUT.nullable().describe('The listing; null only if it was removed a moment ago') }).describe('The listing asked for'),
+    output: z.strictObject({ listing: LISTING_OUT.nullable().describe('The listing as it stands now, including the title, text, price, district, condition and photos update_listing can change; null only if it was removed a moment ago') }).describe('The listing asked for'),
     input: z.object({ id: z.string().describe('The listing to read, by the id list_listings or create_listing gave') }),
     handler: async (auth, args) => {
       await ownedListing(String(args.id), auth.sellerId)
@@ -647,7 +669,7 @@ export const TOOLS: McpTool[] = [
       cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'),
     }),
     handler: async (auth, args) => {
-      const out = await getListingAnalytics(auth.sellerId, { from: args.from as string, to: args.to as string, limit: args.limit as number, cursor: args.cursor as string })
+      const out = await getListingAnalytics(auth.sellerId, { from: args.from as string, to: args.to as string, limit: pageLimitArg(args.limit), cursor: args.cursor as string })
       if ('error' in out) throw new ToolError(out.error.code, out.error.message)
       return { range: { from: out.range.from, to: out.range.to }, listings: out.listings.map(analyticsRowOut), next_cursor: out.next_cursor }
     },
@@ -671,7 +693,7 @@ export const TOOLS: McpTool[] = [
     description: 'Register an HTTPS endpoint of yours that eno will POST signed events to when this shop\'s listings are created, updated, change status or are deleted. Returns `webhook` with its id, events and signing `secret`, shown only this once: store it to verify each event\'s signature. A shop can have up to 10 webhooks.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ webhook: z.strictObject({ ...WEBHOOK_OUT.shape, secret: z.string().describe('The signing secret, shown only this once: store it to verify each event\'s signature') }).describe('The webhook just registered') }).describe('The new webhook and its one-time signing secret'),
+    output: z.strictObject({ webhook: REGISTERED_WEBHOOK_OUT }).describe('The new webhook and its one-time signing secret'),
     input: z.object({ url: z.string().describe('Your public HTTPS address that will receive the events'), events: z.array(z.enum(WEBHOOK_EVENTS)).optional().describe('The changes to be told about, e.g. only listing.status_changed to hear when something sells; leave it out to receive every event') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
