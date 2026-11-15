@@ -162,16 +162,16 @@ const LISTING_OUT = z.strictObject({
   id: z.string().describe('The listing id (such as `cmh0q2x8f0001...`); pass it to get_listing, update_listing, set_listing_status or delete_listing'),
   title: z.string().describe('The headline buyers see in search and on the listing page'),
   description: z.string().describe('The text on the listing page; an empty string when the seller wrote none'),
-  price: z.number().describe('The asking price in VND; for a job, its monthly salary in VND'),
+  price: z.number().describe('The asking price in Vietnamese đồng (VND); for a job, its monthly salary in VND. Show it with priceUnit, formatted as VND (e.g. 12.000.000 đ)'),
   priceUnit: z.string().describe('What the price is for, e.g. "VND" or "VND/month"; show it beside the price'),
   negotiable: z.boolean().describe('Whether buyers may send offers below the price; always false for a job or a wanted ad'),
   status: LISTING_STATUS_OUT,
   verified: z.boolean().describe('false while the listing waits for eno\'s check and is not public yet; true once eno has published it'),
   listingType: z.string().describe('What the listing offers, e.g. "sell", "rent", "job" or "wanted"'),
   condition: z.string().nullable().describe('The item\'s condition in words, e.g. "like new"; null when none was given'),
-  location: z.string().describe('Where it is, as shown on the listing page'),
+  location: z.string().describe('The place as shown on the listing page, for display; use district and city to compare or filter listings'),
   district: z.string().nullable().describe('Its district or area; null when none was given'),
-  city: z.string().describe('Its city or province'),
+  city: z.string().describe('Its city or province, e.g. "Hồ Chí Minh"'),
   images: z.array(z.string()).describe('Photo URLs in display order. To keep them through an edit, send this list back to update_listing'),
   video: z.string().nullable().describe('The listing\'s video as a full URL; null when it has none'),
   category: z.strictObject({
@@ -179,9 +179,9 @@ const LISTING_OUT = z.strictObject({
     name: z.string().describe('The category\'s English name'),
   }).describe('The category it is filed under'),
   subcategorySlug: z.string().nullable().describe('Its subcategory; null when it has none'),
-  postedAt: z.string().describe('When it was listed (ISO 8601)'),
-  views: z.number().describe('How many times its page has been viewed since it was listed'),
-  contactCount: z.number().describe('Leads: how many signed-in buyers opened the seller\'s contact from it'),
+  postedAt: z.string().describe('When it was listed, as an ISO 8601 UTC timestamp'),
+  views: z.number().describe('How many times its page has been viewed since it was listed, all time'),
+  contactCount: z.number().describe('Leads, all time: how many different signed-in buyers opened the seller\'s contact from it'),
   url: z.string().describe('Its page on eno; share it with buyers once the listing is public'),
 }).describe('One of this shop\'s listings')
 
@@ -249,12 +249,12 @@ const SHOP_OUT = z.strictObject({
   name: z.string().describe('The shop\'s public name, shown on its page and beside each of its listings; change it with update_shop'),
   bio: z.string().nullable().describe('About the shop, as shown on its page; null when it has none, which update_shop can fill'),
   location: z.string().nullable().describe('Where the shop is, as shown on its page; null when not set, which update_shop can fill'),
-  phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page; null when not set'),
+  phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page, so do not repeat it in anything public; null when not set'),
   avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, ready to show; null when it has none'),
   trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150: higher is more trusted'),
   trust_tier: z.string().describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
   response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations'),
-  member_since: z.string().describe('When the shop joined eno (ISO 8601)'),
+  member_since: z.string().describe('When the shop joined eno, as an ISO 8601 UTC timestamp'),
   active_listings: z.number().describe('How many of its listings buyers can see on the site now; the rest are sold, hidden, expired or waiting for eno\'s check'),
 }).describe('The storefront this connection acts for')
 
@@ -275,7 +275,7 @@ const createdOut = (c: Awaited<ReturnType<typeof createListingCore>>) => ({
 const CREATED_OUT = z.strictObject({
   id: z.string().describe('The new listing\'s id; pass it to update_listing or set_listing_status'),
   verified: z.boolean().describe('true when the listing was published at once; false while it waits for eno\'s check and is not public yet'),
-  held: z.boolean().describe('true while it waits for eno\'s licence check and is not public yet; false otherwise'),
+  held: z.boolean().describe('true while it waits for eno\'s licence check, and verified is then false; false otherwise. Tell the seller it goes live if eno approves the licence'),
   url: z.string().describe('Its page on eno; share it with buyers once the listing is public'),
 }).describe('The listing just created')
 
@@ -305,12 +305,12 @@ const ANALYTICS_ROW_OUT = z.strictObject({
   external_id: z.string().nullable().describe('Your own id for it; null when it has none'),
   title: z.string().describe('Its headline'),
   status: LISTING_STATUS_OUT,
-  views_total: z.number().describe('Views of its page since it was listed, not only in the range'),
-  leads_total: z.number().describe('Leads since it was listed: times a buyer opened contact'),
+  views_total: z.number().describe('Views of its page since it was listed, all time, not only in the range'),
+  leads_total: z.number().describe('Leads since it was listed, all time: how many different signed-in buyers opened the seller\'s contact'),
   daily: z.array(z.strictObject({
     day: z.string().describe('The day, a UTC date written YYYY-MM-DD'),
-    views: z.number().describe('Views of its page that day'),
-    leads: z.number().describe('Times a buyer opened contact that day'),
+    views: z.number().describe('Views of its page during that UTC day; 0 on a day without views'),
+    leads: z.number().describe('How many more signed-in buyers opened the seller\'s contact from it during that UTC day; 0 on a day without any'),
   }).describe('One day\'s figures')).describe('One entry per day in the range, oldest first'),
 }).describe('One listing\'s figures')
 
@@ -711,8 +711,8 @@ export const TOOLS: McpTool[] = [
       next_cursor: CURSOR_OUT,
     }).describe('Views and leads per listing per day over the range actually used'),
     input: z.object({
-      from: z.string().optional().describe('The first day of the period to report, a UTC date written YYYY-MM-DD; left out, the 30 days before `to`. A period longer than 92 days is shortened to its last 92'),
-      to: z.string().optional().describe('The last day of the period to report, a UTC date written YYYY-MM-DD; left out, today'),
+      from: z.string().meta({ format: 'date' }).optional().describe('The first day of the period to report, in UTC. Left out, the 30 days before `to`; a period longer than 92 days is cut to its last 92'),
+      to: z.string().meta({ format: 'date' }).optional().describe('The last day of the period to report, in UTC. Left out, today'),
       limit: PAGE_SIZE,
       cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'),
     }),
