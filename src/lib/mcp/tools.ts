@@ -204,7 +204,7 @@ const LISTING_SUMMARY_OUT = z.strictObject({
   verified: LISTING_OUT.shape.verified,
   district: LISTING_OUT.shape.district,
   city: LISTING_OUT.shape.city,
-  cover: z.string().nullable().describe('Its first photo as a full URL, the one shown on cards; null when it has none'),
+  cover: z.string().nullable().describe('Its first photo as a full URL, the one buyers see first; show it as the listing\'s picture. null when it has none'),
   photos: z.number().describe('How many photos it has; get_listing returns them all'),
   categorySlug: z.string().describe('Its category slug, as create_listing takes it; get_listing gives the category\'s name too'),
   postedAt: LISTING_OUT.shape.postedAt,
@@ -223,39 +223,40 @@ const WEBHOOK_OUT = z.strictObject({
   id: z.string().describe('The webhook id; pass it to delete_webhook'),
   url: z.string().describe('The HTTPS address the events are posted to'),
   events: z.array(z.string()).describe('The events it receives: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
-  enabled: z.boolean().describe('Whether events are being delivered; false once deliveries kept failing'),
-  failure_count: z.number().describe('Failed deliveries in a row since the last success; 0 when the last one worked'),
-  last_error: z.string().nullable().describe('Why the last delivery failed; null when it worked or none was sent yet'),
-  last_delivery_at: z.string().nullable().describe('When an event was last delivered (ISO 8601); null before the first one'),
-  created_at: z.string().describe('When it was registered (ISO 8601)'),
+  enabled: z.boolean().describe('Whether events are being delivered. eno turns it false after 15 failed deliveries in a row; to resume, register the address again (a new webhook with a new secret) and delete this one'),
+  failure_count: z.number().describe('Failed deliveries in a row since the last success, 0 to 15; one successful delivery resets it to 0'),
+  last_error: z.string().nullable().describe('Why the last delivery failed, as the endpoint answered or the network error; null when the last one worked or none was sent yet'),
+  last_delivery_at: z.string().nullable().describe('When an event was last delivered, as an ISO 8601 UTC timestamp; null before the first one'),
+  created_at: z.string().describe('When it was registered, as an ISO 8601 UTC timestamp'),
 }).describe('A webhook endpoint registered for this shop')
-// register_webhook's answer: the same fields written for a webhook that was just made, plus its one-time secret (pinned below).
+// register_webhook's answer: what means something for a webhook just made (no delivery history yet), plus its one-time secret.
+const registeredOut = (h: WebhookRow, secret: string) => {
+  const w = webhookOut(h)
+  return { id: w.id, url: w.url, events: w.events, enabled: w.enabled, created_at: w.created_at, secret }
+}
 const REGISTERED_WEBHOOK_OUT = z.strictObject({
-  id: z.string().describe('The new webhook\'s id; pass it to delete_webhook to stop the events'),
+  id: z.string().describe('The new webhook\'s id; pass it to delete_webhook to stop the events, and list_webhooks shows its delivery health later'),
   url: z.string().describe('The address eno will POST each event to, as you gave it'),
   events: z.array(z.string()).describe('The events it will receive, as you chose them; ["*"] means every event'),
-  enabled: z.boolean().describe('true: eno sends events from now on. It turns false by itself if deliveries keep failing'),
-  failure_count: z.number().describe('0 for a new webhook; later, how many deliveries in a row have failed'),
-  last_error: z.string().nullable().describe('null for a new webhook; later, why the last delivery failed'),
-  last_delivery_at: z.string().nullable().describe('null until the first event is delivered; then when the last one was (ISO 8601)'),
-  created_at: z.string().describe('When it was registered, which is now (ISO 8601)'),
-  secret: z.string().describe('The signing secret, shown only this once: store it now to verify each event\'s signature; eno cannot show it again'),
+  enabled: z.boolean().describe('true: eno sends events from now on'),
+  created_at: z.string().describe('When it was registered, which is now, as an ISO 8601 UTC timestamp'),
+  secret: z.string().describe('The signing secret, shown only this once: store it now in your own system to verify each event\'s signature; eno cannot show it again'),
 }).describe('The webhook just registered')
 
 // The storefront as get_shop reads it, and as update_shop answers after a change (only bio/location/phone/avatarUrl are
 // nullable columns on Seller in prisma/schema.prisma; the tier is written by trust-math.ts tierFor alone).
 const SHOP_OUT = z.strictObject({
-  id: z.string().describe('The shop id; every tool on this connection reads and changes this one shop, so there is no shop id to pass anywhere'),
-  name: z.string().describe('The shop\'s public name, shown on its page and beside each of its listings; change it with update_shop'),
+  id: z.string().describe('The shop id, for your records only: every tool on this connection reads and changes this one shop, so no tool takes it'),
+  name: z.string().describe('The shop\'s public name as buyers see it on its page and beside each listing; use it when you speak of the shop. Change it with update_shop'),
   bio: z.string().nullable().describe('About the shop, as shown on its page; null when it has none, which update_shop can fill'),
   location: z.string().nullable().describe('Where the shop is, as shown on its page; null when not set, which update_shop can fill'),
   phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page, so do not repeat it in anything public; null when not set'),
   avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, ready to show; null when it has none'),
-  trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150: higher is more trusted'),
+  trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150, higher meaning more trusted; below 60 the shop is restricted (see trust_tier). It changes with the shop\'s record, not through any tool here'),
   trust_tier: z.string().describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
-  response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations'),
+  response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations, so a new shop shows 100'),
   member_since: z.string().describe('When the shop joined eno, as an ISO 8601 UTC timestamp'),
-  active_listings: z.number().describe('How many of its listings buyers can see on the site now; the rest are sold, hidden, expired or waiting for eno\'s check'),
+  active_listings: z.number().describe('How many of its listings buyers can see on the site now (on sale and checked by eno); the rest are sold, hidden, expired or waiting for eno\'s check, and analytics_summary counts them by status'),
 }).describe('The storefront this connection acts for')
 
 /** get_shop's answer, and update_shop's after a change. Same rule as GET /api/v1/shop: a GONE storefront
@@ -284,7 +285,7 @@ const BULK_ROW_OUT = z.strictObject({
   row: z.number().describe('The row\'s position in your list, from 1'),
   id: z.string().nullable().describe('The new listing\'s id; null when the row failed'),
   external_id: z.string().nullable().describe('Your own id for the row, echoed back; null when you sent none'),
-  error: z.string().nullable().describe('Why the row failed, in words to show the seller; null when it was created'),
+  error: z.string().nullable().describe('Why the row failed, in words to show the seller; fix that row and send it again on its own. null when it was created'),
 }).describe('What happened to one row')
 
 const syncRowOut = (r: SyncRowResult) => ({ external_id: r.external_id, id: r.id ?? null, action: r.action, error: r.error ?? null, detail: r.detail ?? null })
@@ -292,7 +293,7 @@ const SYNC_ROW_OUT = z.strictObject({
   external_id: z.string().nullable().describe('Your own id for the row; null when the row had none'),
   id: z.string().nullable().describe('The listing the row created or updated; null when a new row failed'),
   action: z.enum(['created', 'updated', 'failed']).describe('created: a new listing was posted. updated: the existing listing was changed. failed: nothing was changed for this row, see error'),
-  error: z.string().nullable().describe('Why the row failed, as a reason code or a sentence; null when it succeeded'),
+  error: z.string().nullable().describe('Why the row failed, as a reason code or a sentence to show the seller; fix the row and sync it again. null when it succeeded'),
   detail: z.string().nullable().describe('More about the failure when there is more, e.g. the words to take out of a job post; null otherwise'),
 }).describe('What happened to one catalogue row')
 
@@ -330,7 +331,7 @@ const PINS: [
   Fits<ReturnType<typeof listingSummaryOut>, typeof LISTING_SUMMARY_OUT>,
   Fits<Awaited<ReturnType<typeof readShop>>, typeof SHOP_OUT>,
   Fits<ReturnType<typeof webhookOut>, typeof WEBHOOK_OUT>,
-  Fits<ReturnType<typeof webhookOut> & { secret: string }, typeof REGISTERED_WEBHOOK_OUT>,
+  Fits<ReturnType<typeof registeredOut>, typeof REGISTERED_WEBHOOK_OUT>,
   Fits<ReturnType<typeof createdOut>, typeof CREATED_OUT>,
   Fits<ReturnType<typeof bulkRowOut>, typeof BULK_ROW_OUT>,
   Fits<ReturnType<typeof syncRowOut>, typeof SYNC_ROW_OUT>,
@@ -679,13 +680,13 @@ export const TOOLS: McpTool[] = [
     scope: 'analytics:read',
     annotations: READ_ONLY,
     output: z.strictObject({ summary: z.strictObject({
-      total_listings: z.number().describe('All of the shop\'s listings, in any status'),
-      total_views: z.number().describe('Views across all its listings'),
-      total_leads: z.number().describe('Leads across all its listings: times a buyer opened contact'),
-      active: z.number().describe('Listings on sale'),
-      sold: z.number().describe('Listings marked sold'),
-      hidden: z.number().describe('Listings hidden from the site'),
-      held: z.number().describe('Active listings still waiting for eno\'s check'),
+      total_listings: z.number().describe('All of the shop\'s listings that are not deleted, in any status, expired ones included; so it can be more than active + sold + hidden'),
+      total_views: z.number().describe('Page views across all its listings, all time'),
+      total_leads: z.number().describe('Leads across all its listings, all time: signed-in buyers who opened the seller\'s contact, counted once per listing'),
+      active: z.number().describe('Listings on sale now, checked or still waiting for eno\'s check'),
+      sold: z.number().describe('Listings marked sold, still shown on the site as sold'),
+      hidden: z.number().describe('Listings taken off the site but not deleted; set_listing_status active can put one back unless eno took it down'),
+      held: z.number().describe('Of the active listings, those still waiting for eno\'s check and not yet public'),
     }).describe('The shop\'s totals') }).describe('The shop\'s listing counts, views and leads'),
     input: z.object({}),
     handler: async (auth) => {
@@ -754,7 +755,7 @@ export const TOOLS: McpTool[] = [
       const events = Array.isArray(args.events) && args.events.length ? (args.events as string[]).join(' ') : '*'
       const secret = generateWebhookSecret()
       const hook = await db.webhookEndpoint.create({ data: { sellerId: auth.sellerId, url, events, secret }, select: { id: true, url: true, events: true, enabled: true, failureCount: true, lastError: true, lastDeliveryAt: true, createdAt: true } })
-      return { webhook: { ...webhookOut(hook), secret } }
+      return { webhook: registeredOut(hook, secret) }
     },
   },
   {
