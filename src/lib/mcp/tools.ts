@@ -121,12 +121,13 @@ export function absoluteAssetUrl<T extends string | null | undefined>(u: T): T {
 const listingPageUrl = (id: string) => `${OAUTH_ISSUER}/listings/${id}`
 
 // ⛔ A value READ FROM THE DATABASE is a described string, never a closed enum: a stored value the enum does not list would
-// make a validating client reject the whole answer. Measured 2026-11-15: listings also hold 'stale' (Rever rentals,
-// scripts/retire-rever-rentals.ts), which no tool writes. Enums stay only where this code makes the value itself.
+// make a validating client reject the whole answer. Measured 2026-11-15 on all 151,351 live rows (read-only sweep): besides
+// active/sold/hidden, 27,917 are 'expired' and 22,038 'stale' (Rever rentals, scripts/retire-rever-rentals.ts) — no tool
+// writes either. Enums stay only where this code makes the value itself.
 const LISTING_STATUS = ['active', 'sold', 'hidden'] as const
 type ListingStatusOut = (typeof LISTING_STATUS)[number]
 const LISTING_STATUS_SET = z.enum(LISTING_STATUS).describe('The status the listing has now. active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted')
-const LISTING_STATUS_OUT = z.string().describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted; set_listing_status moves a listing between these three. Any other value, such as stale, means eno took the listing off the site')
+const LISTING_STATUS_OUT = z.string().describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted; set_listing_status moves a listing between these three. Any other value, such as expired or stale, means eno took the listing off the site')
 const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'] as const
 
 /** The listing as MCP answers it: the fields a seller's agent acts on, by name (serializeListing writes ~60, most for the
