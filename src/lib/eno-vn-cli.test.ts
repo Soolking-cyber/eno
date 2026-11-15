@@ -356,7 +356,7 @@ describe('eno-vn: what goes on the wire', () => {
 
   it('analytics-listings --all pages on the `listings` key the endpoint returns (src/lib/listing-analytics.ts)', async () => {
     const src = readFileSync(join(process.cwd(), 'src/lib/listing-analytics.ts'), 'utf8')
-    expect(src).toMatch(/listings: unknown\[\]; next_cursor: string \| null/)
+    expect(src).toMatch(/listings: AnalyticsListingRow\[\]; next_cursor: string \| null/)
     const f = fakeFetch([
       { body: { range: { from: 'a', to: 'b' }, listings: [{ id: 1 }], next_cursor: 'c1' } },
       { body: { range: { from: 'a', to: 'b' }, listings: [{ id: 2 }], next_cursor: null } },
