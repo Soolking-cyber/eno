@@ -100,8 +100,13 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // gpt-6.1-sol at medium answered "VERDICT: CONFIRMED" (4,402 tokens), three days before its stated reset. The panel is
 // codex + opus again (as 2026-09-29..11-12) and the minimum is two labs, with no clock. agy stays skipped: its Google
 // quota resets ≈ 2026-11-17 08:00, and it comes back only on the owner's word.
+// ⏸ codex OUT AGAIN 2026-11-16 ~02:00 ICT — "You've hit your usage limit … try again at Nov 20th, 2026 9:37 PM", so the
+// gate wrote no receipt anywhere. Owner, asked (agy stands in / wait / opus alone): "agy stands in for codex". agy probed
+// first (answered a one-line prompt on 'Gemini 3.8 Flash (High)'), so the panel is agy + opus, two labs, agy the
+// independent vote. ⛔ RESTORE ON/AFTER 2026-11-20 21:37 ICT: put 'codex' back in place of 'agy' (its seat below is
+// untouched), after one probe that codex answers, and tell every session.
 const MIN_LABS = 2
-const REVIEWER_NAMES = ['codex', 'opus']
+const REVIEWER_NAMES = ['agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
