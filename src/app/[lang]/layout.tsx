@@ -4,7 +4,6 @@ import "../globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
-import { WebMcpTools } from "@/components/marketplace/webmcp-tools";
 import { Providers } from "./providers";
 import { fxSeedUsd } from "@/lib/fx-seed";
 import { notFound } from "next/navigation";
@@ -703,8 +702,10 @@ export default async function RootLayout({
           <AnalyticsTags />
           <AttributionCapture />
           {/* WebMCP: the public search tools for a browser agent; does nothing without `modelContext`. Not in the
-              concierge's frame: the page around it already offers them. */}
-          <WebMcpTools />
+              concierge's frame: the page around it already offers them. ⛔ A PLAIN <script src>, not a client component:
+              agent-readiness checkers read only the scripts the HTML names (public/webmcp.js says why). The `?v=` is the
+              file's hash — src/lib/webmcp-script.test.ts holds it current. */}
+          <script src="/webmcp.js?v=45ff6fa3" async />
         </OutsideConciergeFrame>
       </body>
     </html>
