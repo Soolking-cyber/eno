@@ -1485,6 +1485,27 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Content-Security-Policy", value: cspClassroom }],
       })),
       /**
+       * ── RFC 8288 `Link:` ON THE HOME PAGE (ora's "HTTP Link headers", 2026-11-16) ─────────────────────────────
+       * The discovery documents an agent would otherwise have to guess at, in one header: the sitemap, the home page's
+       * markdown twin (the same /index.md its <link rel="alternate" type="text/markdown"> names — home-metadata.ts), the
+       * llms.txt index, the RFC 9727 API catalog and the OpenAPI description. Relative targets, so each edition names its
+       * own host (every one of these paths is served on both). ⚠️ BOTH SPELLINGS, as the classroom rule above: the public
+       * `/` and the proxy's `/en`|`/vi` rewrite of it — the preview's curl decides which one fires.
+       */
+      ...["/", "/:lang(en|vi)"].map((source) => ({
+        source,
+        headers: [{
+          key: "Link",
+          value: [
+            '</sitemap.xml>; rel="sitemap"; type="application/xml"',
+            '</index.md>; rel="alternate"; type="text/markdown"',
+            '</llms.txt>; rel="describedby"; type="text/plain"',
+            '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+            '</openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json"',
+          ].join(", "),
+        }],
+      })),
+      /**
        * ── `Vary: Accept` IS DELIBERATELY *NOT* SET ON `/`, `/privacy` AND `/terms` ──────────────
        *
        * These three URLs DO negotiate on Accept (see the ACCEPT_MARKDOWN block and

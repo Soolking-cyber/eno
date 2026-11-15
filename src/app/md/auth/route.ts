@@ -1,7 +1,7 @@
 import { OAUTH_SCOPES, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT, TOKEN_RATE_WINDOW_SEC } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { SITE_NAME } from '@/lib/edition'
-import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
+import { markdownResponse, SITE_ORIGIN, withFrontmatter } from '../markdown-response'
 
 /**
  * `/auth.md` — how a machine authenticates here, reached by an `afterFiles` rewrite in
@@ -163,5 +163,5 @@ first, and the Developers section appears once it is.
 - [\`/developers\`](${SITE_ORIGIN}/developers) — the same material for a human, with copy-pasteable requests.
 `
 
-  return markdownResponse(body)
+  return markdownResponse(withFrontmatter(body, new URL('/auth.md', SITE_ORIGIN).href))
 }

@@ -199,9 +199,14 @@ describe('the markdown documents — shared header contract', () => {
        * do create is handled in src/app/robots.txt/route.ts, where it can be aimed at the right URLs.
        */
       expect(res.headers.get('x-robots-tag')).toBeNull()
-      // A real document, not a stub.
-      expect(body.startsWith('# ')).toBe(true)
-      expect(body.length).toBeGreaterThan(600)
+      // A real document, not a stub: a frontmatter block (ora's "Markdown frontmatter metadata", 2026-11-16) made from the
+      // document's own H1 — never typed — then the document, which still opens with that `# ` heading.
+      const fm = body.match(/^---\ntitle: ("[^\n]*")\n(?:description: "[^\n]*"\n)?canonical: "([^"\n]+)"\n---\n\n/)
+      expect(fm).not.toBeNull()
+      const doc = body.slice(fm![0].length)
+      expect(doc.startsWith(`# ${JSON.parse(fm![1])}\n`)).toBe(true)
+      expect(fm![2]).toMatch(/^https?:\/\/[^/]+\/(agents\.md|auth\.md)?$/)
+      expect(doc.length).toBeGreaterThan(600)
     })
 
     it(`${name} never names the other edition`, async () => {
@@ -274,9 +279,42 @@ describe('/index.md', () => {
    * defect waiting for someone to edit one and not the other. This is the assertion that keeps it
    * that way; if it ever fails, the fix is to delete the divergence, not to update the expectation.
    */
-  it('is byte-identical to /llms.txt', async () => {
+  it('is byte-identical to /llms.txt after its frontmatter, and the frontmatter is llms.txt\'s own H1 and summary', async () => {
     const { body } = await md(await load.index())
     const llms = await (await load.llms()).GET().text()
-    expect(body).toBe(llms)
+    const end = body.indexOf('\n---\n\n')
+    expect(body.startsWith('---\n')).toBe(true)
+    expect(body.slice(end + '\n---\n\n'.length)).toBe(llms)
+    const title = llms.split('\n')[0].slice(2)
+    expect(body.slice(0, end)).toContain(`title: ${JSON.stringify(title)}`)
+    // llms.txt itself never gets a frontmatter block: that format opens with its H1.
+    expect(llms.startsWith('# ')).toBe(true)
+  })
+})
+
+describe('withFrontmatter', () => {
+  it('takes the title from the first H1 and the description from the summary lines under it, and keeps the body', async () => {
+    const { withFrontmatter } = await import('./markdown-response')
+    const doc = '# Title: "quoted"\n\n> First line of the summary,\n> second line.\n\n## Section\n\nBody text.\n'
+    const out = withFrontmatter(doc, 'https://example.test/')
+    expect(out).toBe(
+      '---\ntitle: "Title: \\"quoted\\""\ndescription: "First line of the summary, second line."\ncanonical: "https://example.test/"\n---\n\n' + doc,
+    )
+  })
+  it('leaves a document with no H1 untouched, and omits an absent summary', async () => {
+    const { withFrontmatter } = await import('./markdown-response')
+    expect(withFrontmatter('no heading here\n', 'https://example.test/')).toBe('no heading here\n')
+    expect(withFrontmatter('# Only a title\n\nText.\n', 'https://example.test/')).toBe('---\ntitle: "Only a title"\ncanonical: "https://example.test/"\n---\n\n# Only a title\n\nText.\n')
+  })
+  it('the negotiated `/` (/md/home) is still llms.txt byte for byte, with no block', async () => {
+    const home = await (await (await import('./home/route')).GET()).text()
+    const llms = await (await load.llms()).GET().text()
+    expect(home).toBe(llms)
+  })
+  it('the real /index.md description is llms.txt\'s own summary', async () => {
+    const { body } = await md(await load.index())
+    const llms = await (await load.llms()).GET().text()
+    const summary = llms.split('\n').filter((l) => l.startsWith('>')).slice(0, 1)[0]!.replace(/^>\s?/, '').trim()
+    expect(body.split('\n---\n\n')[0]).toContain(`description: ${JSON.stringify(summary).slice(0, 40)}`)
   })
 })

@@ -32,9 +32,20 @@ export const HOME_DESCRIPTION_VI = `${SITE_NAME} là chợ rao vặt${POSTING_IS
  * (CS-3 V3b-2), which the plain URL never does. With `/` not in the list, `langAlternates` is null and this
  * returns exactly what V2 did.
  */
+/**
+ * The home page's markdown twin, advertised as `<link rel="alternate" type="text/markdown" href="…/index.md">` (ora's
+ * "Markdown alternate link", 2026-11-16). /index.md is the document `Accept: text/markdown` on `/` returns
+ * (llms.txt's bytes) with a frontmatter block on top (src/app/md/index/route.ts), so the advertised URL really serves
+ * markdown, and its frontmatter names `/` as canonical.
+ * The HTTP `Link:` header on `/` (next.config.ts headers()) advertises the same twin.
+ */
+export const HOME_MARKDOWN_TWIN = { 'text/markdown': '/index.md' } as const
+
 export function homeMetadata(lang: string): Metadata {
   const pilot = IS_SERVICES ? null : langAlternates('/', lang, siteOrigin())
-  const base: Metadata = pilot ? { alternates: { canonical: pilot.canonical, languages: pilot.languages } } : { alternates: { canonical: '/' } }
+  const base: Metadata = pilot
+    ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_MARKDOWN_TWIN } }
+    : { alternates: { canonical: '/', types: HOME_MARKDOWN_TWIN } }
   if (IS_SERVICES || lang !== 'vi') {
     return pilot ? { ...base, ...pageShare({ title: SITE_TITLE, description: MARKETPLACE_TAGLINE, url: pilot.canonical }) } : base
   }

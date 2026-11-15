@@ -28,14 +28,14 @@ afterEach(() => { edition.services = false; pilot.on = false; vi.unstubAllEnvs()
 describe('homeMetadata (marketplace)', () => {
   it('the vi variant gets the Vietnamese title and description, the canonical kept', () => {
     expect(homeMetadata('vi')).toEqual({
-      alternates: { canonical: '/' },
+      alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } },
       title: 'eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt',
       description: 'eno.vn là chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam: nhà cho thuê, việc làm, nội thất, đồ điện tử và nhiều hơn nữa.',
     })
   })
 
   it('the en variant sets only the canonical — the layout keeps the English title and description', () => {
-    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/' } })
+    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } } })
   })
 
   it('stays within the lengths CS-3 measured (title 60, description 142) and claims no trust', () => {
@@ -46,7 +46,7 @@ describe('homeMetadata (marketplace)', () => {
 
   it('eno.forum keeps the layout title and description on both variants', () => {
     edition.services = true
-    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/' } })
+    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } } })
   })
 })
 
@@ -55,7 +55,7 @@ describe('homeMetadata under the /vi pilot (V3b, lists on)', () => {
     pilot.on = true
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     const m = homeMetadata('en')
-    expect(m.alternates).toEqual({ canonical: 'https://eno.vn', languages: { en: 'https://eno.vn', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn' } })
+    expect(m.alternates).toEqual({ canonical: 'https://eno.vn', languages: { en: 'https://eno.vn', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn' }, types: { 'text/markdown': '/index.md' } })
     expect(m.title).toBeUndefined() // the layout's English title stays
     expect(m.openGraph).toMatchObject({ url: 'https://eno.vn', locale: 'en_US', title: 'eno.vn — free classifieds for expats and locals in Vietnam' })
     expect(m.twitter).toMatchObject({ title: 'eno.vn — free classifieds for expats and locals in Vietnam' })
@@ -71,13 +71,13 @@ describe('homeMetadata under the /vi pilot (V3b, lists on)', () => {
   })
 
   it('lists off: exactly V2 (no hreflang, no card)', () => {
-    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/' } })
+    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } } })
     expect(Object.keys(homeMetadata('vi')).sort()).toEqual(['alternates', 'description', 'title'])
   })
 
   it('eno.forum: nothing, even with the list on', () => {
     pilot.on = true
     edition.services = true
-    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/' } })
+    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md' } } })
   })
 })

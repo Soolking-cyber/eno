@@ -2,7 +2,7 @@ import { OAUTH_SCOPES } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { toolDescriptors } from '@/lib/mcp/tools'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
+import { markdownResponse, SITE_ORIGIN, withFrontmatter } from '../markdown-response'
 
 /**
  * `/agents.md` — what an agent can do on this deployment, reached by an `afterFiles` rewrite in
@@ -148,5 +148,5 @@ Something wrong in this document, or a capability you need that is not here — 
 for this deployment is on [\`/contact\`](${SITE_ORIGIN}/contact).
 `
 
-  return markdownResponse(body)
+  return markdownResponse(withFrontmatter(body, new URL('/agents.md', SITE_ORIGIN).href))
 }

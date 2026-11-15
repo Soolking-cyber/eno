@@ -1,5 +1,5 @@
 import { GET as llmsTxt } from '@/app/llms.txt/route'
-import { markdownResponse } from '../markdown-response'
+import { markdownResponse, SITE_ORIGIN, withFrontmatter } from '../markdown-response'
 
 /**
  * `/index.md` — the markdown index of this site, reached by an `afterFiles` rewrite in
@@ -30,7 +30,10 @@ import { markdownResponse } from '../markdown-response'
  *    documented at the top of src/app/sitemap.xml/route.ts, which happened there and shipped.
  *
  * So `/index.md`, `/md/home` and `/llms.txt` are BYTE-IDENTICAL by construction. There is nothing
- * to keep in sync because there is only one document.
+ * to keep in sync because there is only one document. ⚠️ Since 2026-11-16 `/index.md` alone opens with a `---`
+ * frontmatter block made FROM that document's own H1 and summary (withFrontmatter() in ../markdown-response); after it
+ * the bytes are still llms.txt's, and `/md/home` (the negotiated `/`) and `/llms.txt` carry no block — the test pins
+ * all three. The block is metadata derived from the text, not a second copy of it.
  *
  * ── ON DUPLICATE CONTENT, WHICH IS A REAL QUESTION AND HAS A DELIBERATE ANSWER ──────────────────
  * `src/app/robots.txt/route.ts` carries `Disallow: /md/`, and it is there because `/md/home`, `/md/privacy`
@@ -66,5 +69,6 @@ export async function GET() {
   // llmsTxt() builds a fresh NextResponse per call, so consuming the body stream here cannot
   // starve a concurrent request for /llms.txt itself.
   const body = await llmsTxt().text()
-  return markdownResponse(body)
+  // The home page is the HTML this is the markdown twin of (its <link rel="alternate" type="text/markdown"> points here).
+  return markdownResponse(withFrontmatter(body, new URL('/', SITE_ORIGIN).href))
 }

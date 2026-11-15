@@ -69,6 +69,32 @@ export const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NA
  * uppercase `Accept: TEXT/MARKDOWN` therefore still matches the cache rule — fail-SOFT (that client
  * may get cached HTML), and the dangerous direction is held by the `no-store` above, not by the rule.
  */
+/**
+ * A `---` frontmatter block for a served markdown document, built FROM the document (owner's ora pass, 2026-11-16: "Markdown
+ * frontmatter metadata" — agents read title/description/canonical as document metadata without scraping).
+ *
+ * ⛔ NOTHING IN IT IS TYPED. `title` is the document's own first `# ` heading and `description` its own `> ` summary lines,
+ * so the block cannot drift from, or fork by edition away from, the text under it — the reason /index.md re-serves
+ * llms.txt's bytes rather than paraphrasing them. Everything after the block is the unchanged document, byte for byte
+ * (agent-discovery.test.ts pins that), and `/llms.txt` itself never gets one: that format opens with its H1.
+ * Values are JSON strings, which are valid double-quoted YAML scalars, so no heading text can break the block.
+ */
+export function withFrontmatter(body: string, canonical: string): string {
+  const lines = body.split('\n')
+  const h1 = lines.find((l) => l.startsWith('# '))?.slice(2).trim()
+  if (!h1) return body
+  const at = lines.findIndex((l) => l.startsWith('# '))
+  const summary: string[] = []
+  for (const l of lines.slice(at + 1)) {
+    if (l.trim() === '' && summary.length === 0) continue
+    if (!l.startsWith('>')) break
+    summary.push(l.replace(/^>\s?/, '').trim())
+  }
+  const description = summary.join(' ').replace(/\s+/g, ' ').trim()
+  const fields = [`title: ${JSON.stringify(h1)}`, ...(description ? [`description: ${JSON.stringify(description)}`] : []), `canonical: ${JSON.stringify(canonical)}`]
+  return `---\n${fields.join('\n')}\n---\n\n${body}`
+}
+
 export function markdownResponse(body: string): NextResponse {
   return new NextResponse(body, {
     headers: {
