@@ -316,10 +316,14 @@ export type McpTool = {
   handler: (auth: ApiAuth, args: Record<string, unknown>) => Promise<unknown>
 }
 
+// Titles (2026-11-15, Manufact's 5,419 reviewed tools): naming the platform scores 100 for a connected store's own items
+// ("List WooCommerce products", "List Stripe products"), where no bare "listing" title reached 100; "details" reaches 100 at
+// 38% vs "profile" 15%; "my"/"your" titles score below average. No "Sync X" title has reached 100 yet: "Sync eno.vn
+// catalogue" names the platform the same way, the one change tried there. The webhook titles score 100 and stay as they are (owner).
 export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
-    title: 'Get shop profile',
+    title: 'Get shop details',
     description: "Read the storefront this connection acts for. Returns `shop`: its id, name, bio, location, phone, logo, trust score and tier, response rate, member-since date and how many listings are live now. Use it to confirm which shop this connection acts for, or to read the current profile before update_shop. Changes nothing.",
     scope: 'listings:read',
     annotations: READ_ONLY,
@@ -329,7 +333,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_shop',
-    title: 'Update shop profile',
+    title: 'Update shop details',
     description: 'Change this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone. Send only the fields to change; the others stay as they are (get_shop shows the current values). Long text is shortened to fit: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`. Returns `ok: true` and `shop`, the profile as it now stands (the same fields as get_shop).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -352,7 +356,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'list_listings',
-    title: 'List shop listings',
+    title: 'List eno.vn listings',
     description: 'List this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden. Returns `listings`, each with its price, status, category, photos and page `url`, and `next_cursor` to fetch the next page. Use get_listing to read one listing by id. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
@@ -376,7 +380,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'get_listing',
-    title: 'Get listing details',
+    title: 'Get eno.vn listing',
     description: 'Read one of this shop\'s listings by id, in any status. Returns `listing` with its title, text, price, status, category, location, photos, views, leads and page `url`. Use it to see the current values before update_listing; to see every listing at once, use list_listings instead. Fails with `not_found` when the id is not one of this shop\'s listings. Changes nothing.',
     scope: 'listings:read',
     annotations: READ_ONLY,
@@ -390,7 +394,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'create_listing',
-    title: 'Create listing',
+    title: 'Create eno.vn listing',
     description: 'Post one new listing for this shop when the seller asks to sell, rent out or advertise something, or to post a job. Give a category, a title, the price in VND (a job gives its monthly salary in `salaryM` instead) and the district where it is; text, condition, brand and model are optional. Photos are public image URLs that eno copies to its own storage (the first 8 are used): most categories need at least 3 photos of different angles, services need 1 and jobs none. Longer text is cut to fit: title 140 characters, description 5,000, district 80, condition 60. The listing goes live at once unless eno must check it first (`verified: false` in the result). Refused with a reason code, and nothing created, when photos or the district are missing (`photos_min`, `photo_required`, `location_required`), the text holds a phone number, the category is unknown or the account may not post right now. Returns `listing` with the new `id` (for update_listing and set_listing_status), `verified` (true when it is already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many listings at once, use bulk_create_listings.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -452,7 +456,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'update_listing',
-    title: 'Update listing',
+    title: 'Update eno.vn listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
     description: 'Change one of this shop\'s listings when the seller asks for a new price, better text, another district or new photos. Send the listing\'s id and only the fields to change; the rest stay as they are (get_listing shows the current values). Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. Returns `ok: true`, `listing` as it now stands, and `held` and `unpublished`, which say when the saved edit is not public yet: `held: true` while the listing waits for eno\'s licence check. This tool cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).',
@@ -504,7 +508,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'set_listing_status',
-    title: 'Set listing status',
+    title: 'Set eno.vn listing status',
     description: 'Put one of this shop\'s listings on sale (active), mark it sold, or hide it from the site without deleting it. Use sold when the item is gone and hidden to take it down for now; either can be undone by setting active again. Re-activating is refused with a reason when the account is held or suspended, or with `licence_check_required` while the listing waits for eno\'s licence check. Returns `ok: true` and the `status` the listing now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -535,7 +539,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'delete_listing',
-    title: 'Delete listing',
+    title: 'Delete eno.vn listing',
     description: 'Permanently delete one of this shop\'s listings; it cannot be undone (use set_listing_status hidden to take it down instead). Returns `deleted: true` once the listing is gone. While the shop or the listing is under review (an open report, or the account is held or suspended) it is hidden instead of deleted: the result then says `deleted: false` and `hidden: true`, with the `reason` code and a `message` to show the seller. Every answer carries all five fields: `ok`, `deleted`, `hidden`, `reason` and `message`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -560,7 +564,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'bulk_create_listings',
-    title: 'Create listings in bulk',
+    title: 'Bulk create eno.vn listings',
     description: `Post many new listings in one call, one row each (category, title, price in VND, optional text and photos as public image URLs), e.g. to move a stock list or spreadsheet onto eno. Rows are independent: a bad row fails alone and the others are created. Returns \`created\` and \`failed\` counts and \`results\`, one per row in the order sent, with the new \`id\` or the \`error\`. To keep eno matched to your own system by your own ids, use sync_catalogue instead.`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -588,7 +592,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'sync_catalogue',
-    title: 'Sync catalogue',
+    title: 'Sync eno.vn catalogue',
     description: `Make this shop's listings match your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row's status can mark it sold or hidden. In mode "full", every active listing whose externalId is missing from this payload is also hidden (listings without an externalId, such as ones posted on the website, are never touched). Returns counts of \`created\`, \`updated\`, \`retired\` and \`failed\` rows and \`results\`, one per row; when the account may not publish new listings, new rows are refused while edits still apply, and \`publish_blocked\` says why (null otherwise). Not for a one-off post (use create_listing) or a batch of new listings without your own ids (use bulk_create_listings).`,
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
@@ -626,7 +630,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'analytics_summary',
-    title: 'Get shop analytics',
+    title: 'Get shop analytics summary',
     description: 'Read this shop\'s totals in one call. Returns `summary`: how many listings it has, how many are active, sold or hidden, how many still wait for eno\'s check, and the total views and leads (times a buyer opened contact) across all of them. For per-listing, per-day figures use analytics_listings. Changes nothing.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
@@ -653,7 +657,7 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: 'analytics_listings',
-    title: 'Get listing analytics',
+    title: 'Get daily listing analytics',
     description: 'Read views and leads (times a buyer opened contact) per listing per day over a date range, the last 30 days unless you choose one, with each listing\'s all-time totals. Returns the `range` actually used, `listings` (a page at a time, each with its totals and `daily` figures) and `next_cursor` for the next page. Use analytics_summary for the shop\'s overall totals. Changes nothing.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
