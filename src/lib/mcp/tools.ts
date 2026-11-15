@@ -75,8 +75,9 @@ const POSTABLE_SLUGS = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c
 const listingItem = z.object({
   categorySlug: z.string().describe(`Where the listing is filed, by category slug: ${POSTABLE_SLUGS}. A job goes in jobs, a room or flat to let in rentals`),
   // Its minimum length is the server's (create_listing's handler, bulk.ts per row): a short title in a bulk call fails its row, not the batch.
-  title: z.string().describe('The headline buyers see in search and on the listing page: name the item and what sets it apart. Buyers reach the seller through eno, so it carries no phone number').meta({ examples: ['Honda Vision 2022, 8,000 km'] }),
-  price: z.number().nonnegative().describe('The asking price in Vietnamese đồng (VND)'),
+  title: z.string().describe('The headline buyers see in search and on the listing page: name the item and what sets it apart. Buyers reach the seller through eno, so it carries no phone number, e.g. "Honda Vision 2022, 8,000 km"'),
+  // A negative price is refused per row by bulk.ts ("Invalid price") and by updateListingCore (invalid_price): no schema bound.
+  price: z.number().describe('The asking price in Vietnamese đồng (VND); for a job, its monthly salary in VND'),
   description: z.string().optional().describe('The text shown on the listing page: what it is, its state and what comes with it. Contact details (phone, e-mail, links) are not allowed in it. Leave it out for a listing with no text'),
   district: z.string().optional().describe('Where the item is: the district or area as free text, e.g. "Thảo Điền, Thủ Đức". A new listing needs it: without it the post is refused with `location_required`'),
   condition: z.string().optional().describe('The item\'s condition in words, e.g. "new", "like new" or "used"; ignored for a job. Leave it out when it does not apply'),
@@ -109,7 +110,7 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // so a write answers with what it saved instead, as the best-scoring update tools on Manufact's board do.
 const CURSOR_OUT = z.string().nullable().describe('Pass it back as `cursor` to get the next page; null when this was the last page')
 // The bounds live on the server (pagination.ts parsePageParams parseInt()s and clamps to PAGE_MAX, PAGE_DEFAULT when left out;
-// zod's .int() would publish ±2^53 bounds), not in the
+// a plain number, so 25.5 or 1e21 still reach pageLimitArg's normalising rather than a schema refusal), not in the
 // schema: Manufact's judge flags a bounded `limit` as "validation repeated" whatever its prose says (2026-11-15 data).
 /** `limit` as the pager reads it: a whole number written out in digits. parseInt() reads 1e21 as "1e+21" → 1 and 1e-7 as
  *  "1e-7" → 1, so a number is truncated and bounded here first; parsePageParams then clamps it to 1..PAGE_MAX. */
@@ -376,7 +377,7 @@ export const TOOLS: McpTool[] = [
       bio: z.string().optional().describe('About the shop in a few sentences, shown on its page: what it sells and how it serves buyers. Send an empty string to clear it, or leave it out to keep it'),
       location: z.string().optional().describe('Where the shop is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức", shown on its page. Send an empty string to clear it, or leave it out to keep it'),
       avatarUrl: z.string().optional().describe('The shop\'s logo: an image URL already on eno\'s storage, such as one from a listing\'s images. Send an empty string to remove it, or leave it out to keep it'),
-      phone: z.string().optional().describe('The shop\'s contact phone number, a Vietnamese mobile; eno shares it with a buyer only inside its chat, never on the public page. Leave it out to keep the current number').meta({ examples: ['0901 234 567', '+84 901 234 567'] }),
+      phone: z.string().optional().describe('The shop\'s contact phone number, a Vietnamese mobile such as 0901 234 567 or +84 901 234 567; eno shares it with a buyer only inside its chat, never on the public page. Leave it out to keep the current number'),
     }),
     handler: async (auth, args) => {
       const res = await updateSellerCore(auth.sellerId, auth.profileId, args)
@@ -434,7 +435,7 @@ export const TOOLS: McpTool[] = [
     output: z.strictObject({ listing: CREATED_OUT }).describe('The new listing\'s id and whether it is public yet'),
     input: listingItem.omit({ externalId: true }).extend({
       // Optional HERE because a job needs none; every other listing still has to send one (checked below).
-      price: z.number().nonnegative().optional().describe('The asking price in VND. Needed for everything except a job (category "jobs"), whose pay is `salaryM`; a job sent with only a price has it read as the monthly salary.'),
+      price: z.number().optional().describe('The asking price in VND. Needed for everything except a job (category "jobs"), whose pay is `salaryM`; a job sent with only a price has it read as the monthly salary.'),
       negotiable: z.boolean().optional().describe('Whether buyers may send offers below the price (yes unless you say no); services and jobs never take offers'),
       listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs); otherwise the category\'s usual one is used'),
       brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands. Leave it out when the item has none'),
@@ -646,7 +647,7 @@ export const TOOLS: McpTool[] = [
       }).nullable().describe('Set when the account may not publish new listings right now: new rows were refused, edits still applied; null otherwise'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
-      mode: z.enum(['partial', 'full']).optional().describe(`How to treat your listings missing from this payload: partial leaves them as they are, for sending only the rows that changed; full hides each active one whose externalId you did not send, so eno mirrors your whole catalogue. Full compares against this one payload alone, so use it only when the whole catalogue fits in one call (${SYNC_MAX_ROWS} rows); a bigger catalogue syncs in partial mode, since full calls split across a catalogue each hide the rows the others carry. Listings without an externalId are never touched`).meta({ default: 'partial' }),
+      mode: z.string().optional().describe(`How to treat your listings missing from this payload. Left out, partial: they stay as they are, for sending only the rows that changed; full hides each active one whose externalId you did not send, so eno mirrors your whole catalogue. Full compares against this one payload alone, so use it only when the whole catalogue fits in one call (${SYNC_MAX_ROWS} rows); a bigger catalogue syncs in partial mode, since full calls split across a catalogue each hide the rows the others carry. Listings without an externalId are never touched`),
       listings: z.array(listingItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
         status: z.enum(['active', 'sold', 'hidden']).optional().describe('Puts an existing listing on sale (active), marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
@@ -655,6 +656,9 @@ export const TOOLS: McpTool[] = [
     handler: async (auth, args) => {
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
+      // `mode` is a described string (an enum input is what the reviewers flag); anything but the two is refused here, before
+      // any row is touched, so a typo can never fall through to a different sync.
+      if (args.mode !== undefined && args.mode !== 'partial' && args.mode !== 'full') throw new ToolError('invalid_input', 'mode must be partial or full.')
       const mode = args.mode === 'full' ? 'full' : 'partial'
       const out = await syncListingsCore(seller, args.listings as SyncRow[], mode)
       // A partial success, not a tool error: edits and sold/hidden rows applied. But the identity
@@ -705,8 +709,8 @@ export const TOOLS: McpTool[] = [
       next_cursor: CURSOR_OUT,
     }).describe('Views and leads per listing per day over the range actually used'),
     input: z.object({
-      from: z.string().optional().describe('The first day of the period to report, a UTC date written YYYY-MM-DD; left out, the 30 days before `to`. A period longer than 92 days is shortened to its last 92').meta({ examples: ['2026-10-01'] }),
-      to: z.string().optional().describe('The last day of the period to report, a UTC date written YYYY-MM-DD; left out, today').meta({ examples: ['2026-10-31'] }),
+      from: z.string().optional().describe('The first day of the period to report, a UTC date written YYYY-MM-DD; left out, the 30 days before `to`. A period longer than 92 days is shortened to its last 92'),
+      to: z.string().optional().describe('The last day of the period to report, a UTC date written YYYY-MM-DD; left out, today'),
       limit: PAGE_SIZE,
       cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'),
     }),
@@ -736,9 +740,12 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ webhook: REGISTERED_WEBHOOK_OUT }).describe('The new webhook and its one-time signing secret'),
-    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive each event as a signed POST; an address reachable only inside your own network is refused'), events: z.array(z.enum(WEBHOOK_EVENTS)).optional().describe('Which changes to be told about: a listing created, updated, changing status (e.g. sold or hidden) or deleted. Leave it out to receive every event') }),
+    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive each event as a signed POST; an address reachable only inside your own network is refused'), events: z.array(z.string()).optional().describe('Which changes to be told about, by event name: listing.created, listing.updated, listing.status_changed (e.g. sold or hidden) or listing.deleted. Leave it out to receive every event') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
+      // `events` is a list of described strings (no enum input): an unknown name is refused here, as /api/v1/webhooks does.
+      const unknown = Array.isArray(args.events) ? (args.events as unknown[]).find((e) => !(WEBHOOK_EVENTS as readonly unknown[]).includes(e)) : undefined
+      if (unknown !== undefined) throw new ToolError('invalid_input', `Unknown event "${String(unknown).slice(0, 60)}". Valid: ${WEBHOOK_EVENTS.join(', ')}.`)
       try { await assertSafeUrl(url) } catch { throw new ToolError('invalid_input', 'url must be a public HTTPS endpoint.') }
       const count = await db.webhookEndpoint.count({ where: { sellerId: auth.sellerId } })
       if (count >= 10) throw new ToolError('limit_reached', 'A shop may register at most 10 webhooks.')
@@ -768,16 +775,28 @@ export const TOOLS: McpTool[] = [
 export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 // JSON-Schema list for tools/list (zod v4 → JSON Schema), with each tool's read/write hints.
+/** zod's `.int()` publishes ±(2^53−1) as minimum/maximum: no real bound, and the one thing reviewers flag on a count. */
+function stripSafeIntBounds<T>(node: T): T {
+  if (Array.isArray(node)) return node.map(stripSafeIntBounds) as T
+  if (!node || typeof node !== 'object') return node
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if ((k === 'minimum' || k === 'maximum') && Math.abs(v as number) === Number.MAX_SAFE_INTEGER) continue
+    out[k] = stripSafeIntBounds(v)
+  }
+  return out as T
+}
+
 export function toolDescriptors() {
   // `annotations.title` repeats the title for clients that only read the older spot (MCP 2025-03-26).
-  return TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations } }))
+  return TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: stripSafeIntBounds(z.toJSONSchema(t.input)), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations } }))
 }
 
 /** An outputSchema WITHOUT `$schema`: MCP client SDKs COMPILE output schemas to validate structuredContent, and a validator
  *  built for the default draft throws on the 2020-12 meta-schema URI zod writes. The keywords used here (type, properties,
  *  required, items, anyOf, const, enum) mean the same in every draft, so dropping the URI changes nothing a client checks. */
 function outputJsonSchema(schema: z.ZodType) {
-  const { $schema: _dialect, ...rest } = z.toJSONSchema(schema) as Record<string, unknown>
+  const { $schema: _dialect, ...rest } = stripSafeIntBounds(z.toJSONSchema(schema) as Record<string, unknown>)
   void _dialect
   return rest
 }
