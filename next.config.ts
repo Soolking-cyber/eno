@@ -5,7 +5,9 @@ import { TWIN_DENY } from "./src/lib/markdown-twin";
 /** The root pages that get a `.md` twin: this edition's root pages outside TWIN_DENY (src/lib/markdown-twin.ts).
  * ONE list for both guards — the rewrite's source below and the route's own check (env ENO_TWIN_ROOTS). */
 function twinRoots(roots: string[]): string[] {
-  return roots.filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
+  // `sellers` has no page of its own (only /sellers/<id>), so appRootSegments does not list it; a storefront's twin is
+  // allowed since 2026-11-16 (owner) — /sellers/<id> exactly, never a teacher's (src/app/md/twin/route.ts checks both).
+  return [...new Set([...roots, "sellers"])].filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
 }
 /** The twin rewrite's source: `/<allowed root page>[/<slug>…].md`. Lower-case slugs only. */
 function twinSource(allowed: string[]): string {

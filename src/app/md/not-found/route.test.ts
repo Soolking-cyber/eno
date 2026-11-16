@@ -75,8 +75,9 @@ describe('the llms.txt family reaches its handlers (ora.ai, 2026-11-15)', () => 
     const at = rewrites.afterFiles.findIndex((r) => r.destination === '/md/twin?p=:p')
     expect(at).toBeGreaterThan(-1)
     const source = rewrites.afterFiles[at].source
-    for (const ok of ['about', 'hcmc-rent-index', 'mua-dien-thoai-tra-gop', 'guides', 'developers']) expect(source, ok).toMatch(new RegExp(`[:|]${ok}[|)]`))
-    for (const no of ['listings', 'sellers', 'admin', 'dashboard', 'messages', 'account', 'post', 'signin', 'api', 'brands', 'ask', 'concierge']) {
+    // 'sellers' since 2026-11-16 (owner): a storefront's twin, /sellers/<id> only, never a teacher's — the route checks.
+    for (const ok of ['about', 'hcmc-rent-index', 'mua-dien-thoai-tra-gop', 'guides', 'developers', 'sellers']) expect(source, ok).toMatch(new RegExp(`[:|]${ok}[|)]`))
+    for (const no of ['listings', 'admin', 'dashboard', 'messages', 'account', 'post', 'signin', 'api', 'brands', 'ask', 'concierge']) {
       expect(source, no).not.toMatch(new RegExp(`[:|]${no}[|)]`))
     }
     // The route's own allowlist is the same list, inlined at build (commit gate, opus).

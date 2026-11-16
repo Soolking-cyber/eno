@@ -11,9 +11,10 @@
 
 /**
  * Root pages that never get a twin — accounts, sign-in, admin, people, posting, API-like routes, and the browse surfaces
- * that ARE listings (a listing, a storefront, a category, a brand, the teachers directory). An article or index page
- * that quotes a few listings (a guide, the rent index) is content and keeps its twin; any seller text on it is escaped
- * like all page text. Read by next.config.ts to build the twin rewrite's allowlist (every OTHER root page of this
+ * that ARE listings (a listing, a category, a brand, the teachers directory). An article or index page that quotes a few
+ * listings (a guide, the rent index) is content and keeps its twin; any seller text on it is escaped like all page text.
+ * ⛔ A STOREFRONT HAS ONE SINCE 2026-11-16 (owner: "resolve my decision with recommended" — ora sampled /sellers/<id>):
+ * `/sellers/<id>` exactly, never a teacher's (a person's profile, as the teachers directory is); the route checks both. Read by next.config.ts to build the twin rewrite's allowlist (every OTHER root page of this
  * edition), and inlined into the route as its own check.
  * ⚠️ Limit: a twin is the page's server-rendered <main>. A section that streams in after </main> (a Suspense boundary on a
  * dynamic page) is not in it; the content pages measured (about, the rent index, the guides) render whole.
@@ -21,7 +22,7 @@
 export const TWIN_DENY: ReadonlySet<string> = new Set([
   'account', 'account-deletion', 'admin', 'api', 'app', 'ask', 'auth', 'brands', 'c', 'classroom', 'concierge', 'dashboard',
   'disputes', 'dispute', 'forum', 'listing-images', 'listings', 'md', 'messages', 'oauth', 'og', 'onboard', 'post', 'reports',
-  'saved', 'search', 'sellers', 'signin', 'signup', 'sitemaps', 'teacher', 'teachers', 'unsubscribe', '_next',
+  'saved', 'search', 'signin', 'signup', 'sitemaps', 'teacher', 'teachers', 'unsubscribe', '_next',
 ])
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'", '#x27': "'", '#x2F': '/' }

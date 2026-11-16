@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** /<page>.md → /md/twin?p=<page>: only this app's own page, signed out, 200 HTML with a <main> and an H1, rate-limited. */
-const h = vi.hoisted(() => ({ limited: false }))
+const h = vi.hoisted(() => ({ limited: false, teacherRow: null as null | { id: string } | 'error', asked: [] as unknown[] }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn(async () => ({ success: !h.limited })) }))
+vi.mock('@/lib/db', () => ({
+  db: { seller: { findFirst: vi.fn(async (q: unknown) => { h.asked.push(q); if (h.teacherRow === 'error') throw new Error('db down'); return h.teacherRow }) } },
+}))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.9' }))
 
 const PAGE = '<html><body><main><h1>About eno.vn</h1><p>Classifieds.</p></main></body></html>'
 const get = async (p: string) => (await import('./route')).GET(new Request(`https://eno.vn/md/twin?p=${encodeURIComponent(p)}`))
 
-beforeEach(() => { h.limited = false; vi.stubEnv('ENO_TWIN_ROOTS', 'about,guides,hcmc-rent-index') })
+beforeEach(() => { h.limited = false; h.teacherRow = null; h.asked = []; vi.stubEnv('ENO_TWIN_ROOTS', 'about,guides,hcmc-rent-index') })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('/md/twin', () => {
@@ -18,6 +21,7 @@ describe('/md/twin', () => {
     vi.stubGlobal('fetch', fetch)
     const res = await get('about')
     expect(res.status).toBe(200)
+    expect(h.asked).toEqual([]) // a content page asks the database nothing
     expect(res.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
     expect(res.headers.get('x-robots-tag')).toBe('noindex')
     expect(res.headers.get('cache-control')).toBe('no-store')
@@ -40,6 +44,32 @@ describe('/md/twin', () => {
     // …and the same guards hold on that path.
     expect((await GET(new Request('https://eno.vn/admin.md'))).status).toBe(404)
     expect((await GET(new Request('https://eno.vn/some-shop.md'))).status).toBe(404)
+  })
+
+  it('a storefront: /sellers/<id> exactly gets its twin — ⛔ never a teacher\'s, never when the check fails, never deeper', async () => {
+    vi.stubEnv('ENO_TWIN_ROOTS', 'about,sellers')
+    const fetch = vi.fn(async () => new Response('<main><h1>Saigon Moving</h1><p>Movers.</p></main>', { headers: { 'content-type': 'text/html' } }))
+    vi.stubGlobal('fetch', fetch)
+    const res = await get('sellers/cmv9r2gxe003801mur0rho9b7')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text.startsWith('# Saigon Moving\n')).toBe(true)
+    expect(text.trimEnd().endsWith('Its text is written by the seller, not by eno.vn.')).toBe(true)
+    // A teacher = an owner with a teacher profile (any state) OR any teacher row.
+    expect(h.asked[0]).toEqual({
+      where: { id: 'cmv9r2gxe003801mur0rho9b7', OR: [{ owner: { teacherProfile: { isNot: null } } }, { listings: { some: { listingType: 'teacher' } } }] },
+      select: { id: true },
+    })
+    h.teacherRow = { id: 't1' }
+    expect((await get('sellers/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    h.teacherRow = 'error'
+    expect((await get('sellers/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    h.teacherRow = null
+    h.asked = []
+    for (const p of ['sellers', 'sellers/abc/reviews', `sellers/${'a'.repeat(41)}`]) expect((await get(p)).status, p).toBe(404)
+    expect(h.asked).toEqual([])
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('⛔ refuses every path that is not a plain lower-case slug — before fetching anything', async () => {
