@@ -42,6 +42,9 @@ describe('MCP Apps resources', () => {
 
   it('the page never writes HTML from data, and its script parses', () => {
     expect(page).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/)
+    // The page has light and dark colours (chosen by the host's theme, with its own background), and tells the browser it
+    // supports both schemes (ora mcp-apps-ui-quality).
+    expect(page).toContain('<meta name="color-scheme" content="light dark">')
     expect(() => new Function(script)).not.toThrow()
   })
 })

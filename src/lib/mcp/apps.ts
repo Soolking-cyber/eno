@@ -81,6 +81,7 @@ export function listingCardsHtml(): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>${SITE_NAME} listings</title>
 <style>
 :root{--bg:var(--color-background-primary,#fff);--fg:var(--color-text-primary,#1a1a1a);--muted:var(--color-text-secondary,#5f6368);--line:var(--color-border-primary,#e3e3e3);--accent:#d9480f;--radius:var(--border-radius-md,12px);font-family:var(--font-sans,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif)}
