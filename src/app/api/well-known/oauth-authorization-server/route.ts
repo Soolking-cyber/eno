@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { CLAIM_GRANT, CLAIM_PATH, IDENTITY_PATH, JWT_BEARER_GRANT } from '@/lib/api/agent-auth'
 
 // ── RFC 8414 · OAuth 2.0 Authorization Server Metadata ────────────────────────────
 // Served at /.well-known/oauth-authorization-server via a rewrite in next.config.ts. It lives
@@ -61,7 +62,9 @@ export async function GET() {
       // PUBLIC clients identified by a Client ID Metadata Document (an https client_id). The two CIMD
       // values below are the pair Claude reads to prefer CIMD; no dynamic registration is offered.
       authorization_endpoint: `${OAUTH_ISSUER}/oauth/authorize`,
-      grant_types_supported: ['client_credentials', 'authorization_code', 'refresh_token'],
+      // + the two agent registration grants (src/lib/api/agent-auth.ts): the claim poll and the exchange of the
+      // identity_assertion this server issues (jwt-bearer; an ID-JAG from an agent provider is not accepted).
+      grant_types_supported: ['client_credentials', 'authorization_code', 'refresh_token', CLAIM_GRANT, JWT_BEARER_GRANT],
       code_challenge_methods_supported: ['S256'],
       client_id_metadata_document_supported: true,
       authorization_response_iss_parameter_supported: true,
@@ -81,6 +84,15 @@ export async function GET() {
       // Listing the alg here is informational only; do not add a `jwks_uri`, there is nothing
       // publishable behind one.
       service_documentation: `${OAUTH_ISSUER}/developers`,
+      // The auth.md profile (https://github.com/workos/auth.md): agent registration by the service_auth claim ceremony
+      // ONLY — no `anonymous`, no `identity_assertion` (no ID-JAG provider is trusted), so no `identity_assertion` block,
+      // no `events_endpoint`. Both endpoints exist and answer OPTIONS. src/lib/api/agent-auth.ts says why.
+      agent_auth: {
+        skill: `${OAUTH_ISSUER}/auth.md`,
+        identity_endpoint: `${OAUTH_ISSUER}${IDENTITY_PATH}`,
+        claim_endpoint: `${OAUTH_ISSUER}${CLAIM_PATH}`,
+        identity_types_supported: ['service_auth'],
+      },
     },
     {
       headers: {

@@ -592,6 +592,15 @@ const SECTIONS: Section[] = [
         vi: 'Nếu bạn chọn Google trong trình duyệt tích hợp của một ứng dụng (như của Facebook hay Zalo), nơi Google không cho đăng nhập, trang sẽ được mở bằng trình duyệt của điện thoại; trên biểu mẫu hồ sơ giáo viên, các câu trả lời bạn đã đưa ra (nơi bạn sống, loại công việc bạn muốn, bạn có sẵn sàng chuyển đi không và đi đâu) đi cùng — chúng tôi chỉ giữ chúng trên máy chủ cho đến khi trình duyệt đó nhận qua một liên kết trong địa chỉ trang, có hiệu lực 30 phút, rồi xóa ngay, hoặc nếu không thì trong vòng một giờ.',
       },
       {
+        // Connected apps and AI agents (2026-11-16, owner "plan well and build" — agent registration, src/lib/api/agent-auth.ts;
+        // Sign in with eno, src/lib/api/oauth-grant.ts): the grant row (shop, scopes, made / last used) until Disconnect, the
+        // 180-day cap or the shop no longer eligible; an agent's login_hint only as a labelled hash in kv_store, for the
+        // registration's 30 minutes (REGISTRATION_TTL_SECONDS) then gone at the kv_store sweep — "within an hour"; eno sends
+        // no email about it.
+        en: 'Connected apps and AI agents: if you connect an app or an AI agent to your shop (with Sign in with eno, or by typing an agent’s code on eno), we keep a record of that connection, meaning which shop, what it may do, and when it was made and last used, until you disconnect it in Dashboard › Developers, it ends after 180 days, or your shop can no longer be connected. When an AI agent asks to connect using your email address, we keep only a one-way coded form (a hash) of that address, so that the request is shown to you alone, and delete it within an hour. We never email you about it.',
+        vi: 'Ứng dụng và trợ lý AI đã kết nối: nếu bạn kết nối một ứng dụng hoặc trợ lý AI với cửa hàng của mình (bằng Đăng nhập với eno, hoặc bằng cách nhập mã của trợ lý trên eno), chúng tôi lưu bản ghi về kết nối đó, gồm cửa hàng nào, được phép làm gì, thời điểm tạo và lần dùng gần nhất, cho đến khi bạn ngắt kết nối trong Bảng điều khiển › Nhà phát triển, kết nối hết hạn sau 180 ngày, hoặc cửa hàng của bạn không còn đủ điều kiện kết nối. Khi một trợ lý AI xin kết nối bằng địa chỉ email của bạn, chúng tôi chỉ lưu dạng mã hóa một chiều (hàm băm) của địa chỉ đó, để yêu cầu chỉ hiện ra với riêng bạn, và xóa nó trong vòng một giờ. Chúng tôi không bao giờ gửi email cho bạn về việc này.',
+      },
+      {
         en: 'Listing information: the title, description, price, photos, location and contact phone number you choose to include when you post a listing. What you put in a listing is published, so treat that field as public.',
         vi: 'Thông tin tin đăng: tiêu đề, mô tả, giá, ảnh, vị trí và số điện thoại liên hệ bạn chọn đưa vào khi đăng tin. Nội dung tin đăng được công khai, vì vậy hãy coi đó là thông tin công khai.',
       },

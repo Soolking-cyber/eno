@@ -21,8 +21,10 @@ const h = vi.hoisted(() => ({
 }))
 
 const same = (a: unknown, b: unknown) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b)
-const matches = (r: Row, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => {
+const matches = (r: Row, where: Record<string, unknown>): boolean => Object.entries(where).every(([k, v]) => {
+  if (k === 'NOT') return !matches(r, v as Record<string, unknown>)
   const cur = (r as Record<string, unknown>)[k]
+  if (v && typeof v === 'object' && 'startsWith' in (v as object)) return typeof cur === 'string' && cur.startsWith((v as { startsWith: string }).startsWith)
   if (v === null) return cur === null
   if (v instanceof Date) return same(cur, v)
   if (v && typeof v === 'object' && 'not' in (v as object)) return (v as { not: unknown }).not === null ? cur !== null : !same(cur, (v as { not: unknown }).not)

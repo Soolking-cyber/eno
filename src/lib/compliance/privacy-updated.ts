@@ -211,6 +211,11 @@
  * gains ora (era labs) on eno.vn — which page views of public pages by signed-out visitors are counted and the exact fields (a known crawler or AI agent by name, otherwise “browser” or “other”; a known referring AI or search site by name, otherwise “other”; the kind of page from a fixed list, never its address; the time sent without the seconds),
  * never an IP, cookie, account or identifier. No personal data, so no new cross-border recipient. ⛔ THE PLANNED DAY, like
  * the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-16, connected apps and AI agents (owner, 2026-11-16: "plan well and build" — agent registration,
+ * src/lib/api/agent-auth.ts; the plan review asked for this line): "What personal data we collect" gains the connection
+ * record (Sign in with eno and agent registration: shop, access, made / last used, until Disconnect, 180 days or the shop
+ * no longer eligible) and the agent's email kept only as a hash, deleted within an hour, never emailed. No new recipient.
+ * ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
 export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-16'
 
@@ -221,4 +226,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '62788a2203641c5f'
+export const PRIVACY_TEXT_FINGERPRINT = '074e6dc2738fda2d'

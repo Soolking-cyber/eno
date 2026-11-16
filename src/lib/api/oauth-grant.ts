@@ -58,6 +58,19 @@ export const labelledHash = (label: string, secret: string) => sha256hex(`${labe
 export const clientBinding = (clientId: string) => sha256hex(`client:${OAUTH_ISSUER}:${clientId}`).slice(0, 10)
 /** A sign-in grant ends this long after it was made, however often it is refreshed: then the person signs in again. */
 export const GRANT_MAX_AGE_SECONDS = 180 * 24 * 3600
+/**
+ * The grant rows of AGENT REGISTRATION (src/lib/api/agent-auth.ts, the auth.md service_auth ceremony): `oag_` like every
+ * sign-in grant (so the client_credentials grant refuses them by name and Disconnect lists them), with a binding hashed
+ * from a URN no client ID metadata document can be (clientIdShapeOk wants an https URL). rotateRefresh refuses them by
+ * this prefix, and the consent prune leaves them alone: their ceremony runs up to 30 minutes, not 10.
+ */
+export const AGENT_CLIENT_LABEL = 'urn:eno:agent-auth:service_auth'
+/** Every agent grant row, on EITHER edition (both share one database): what the consent prune and rotateRefresh exclude
+ *  (commit gate, opus: a per-issuer prefix let the other edition's prune delete this one's pending agent rows). */
+export const AGENT_GRANT_FAMILY = `${GRANT_PREFIX}${sha256hex(`agent-family:${AGENT_CLIENT_LABEL}`).slice(0, 10)}`
+/** This edition's agent grant rows: the family + a 4-hex issuer tag, so an assertion one site issued never works at the
+ *  other's token endpoint. Then 8 random hex — 26 characters, the length of every `oag_` prefix. */
+export const AGENT_GRANT_PREFIX = `${AGENT_GRANT_FAMILY}${sha256hex(`issuer:${OAUTH_ISSUER}`).slice(0, 4)}`
 
 let cachedKey: Buffer | null = null
 /** A key for consent tickets and codes only — HKDF from the same root as access tokens, under its own label. */
@@ -69,14 +82,14 @@ function grantKey(): Buffer | null {
   return cachedKey
 }
 
-function seal(typ: 'consent' | 'code', claims: Record<string, unknown>): string | null {
+function seal(typ: 'consent' | 'code' | 'agent', claims: Record<string, unknown>): string | null {
   const key = grantKey()
   if (!key) return null
   const payload = b64url(JSON.stringify({ ...claims, typ }))
   return `${payload}.${crypto.createHmac('sha256', key).update(`${typ}.${payload}`).digest('base64url')}`
 }
 
-function open<T>(typ: 'consent' | 'code', token: string, now: number, opts: { allowExpired?: boolean } = {}): T | null {
+function open<T>(typ: 'consent' | 'code' | 'agent', token: string, now: number, opts: { allowExpired?: boolean } = {}): T | null {
   const key = grantKey()
   if (!key || typeof token !== 'string') return null
   const [payload, sig, extra] = token.split('.')
@@ -284,6 +297,41 @@ export async function releaseConsent(t: Pick<ConsentClaims, 'nonce'>): Promise<v
   await kv.del(`oauth:consent:${t.nonce}`).catch((e) => logError(e, { op: 'oauth-grant.releaseConsent' }))
 }
 
+// ── Agent ticket: binds the agent registration a person looked up to that person (src/lib/api/agent-auth.ts) ──────────
+
+export type AgentTicket = { iss: string; reg: string; n: number; pid: string; sid: string; exp: number; nonce: string }
+
+/** Sealed into /oauth/agent's confirmation: the attempt the person's code found, the person, their shop. Its own type. */
+export function issueAgentTicket(t: Omit<AgentTicket, 'iss' | 'exp' | 'nonce'>, now: number, ttl: number): string | null {
+  return seal('agent', { ...t, iss: OAUTH_ISSUER, exp: now + ttl, nonce: crypto.randomUUID() })
+}
+
+export function openAgentTicket(ticket: string, now: number): AgentTicket | null {
+  const t = open<AgentTicket>('agent', ticket, now)
+  // Sealed by the other edition (both derive the key from one secret): not this site's.
+  return t && t.iss === OAUTH_ISSUER && typeof t.reg === 'string' && typeof t.n === 'number' && typeof t.pid === 'string' && typeof t.sid === 'string' ? t : null
+}
+
+/** One answer per agent confirmation screen (a reposted form makes no second grant or flips no Cancel to Allow). */
+export async function consumeAgentTicket(t: Pick<AgentTicket, 'nonce'>): Promise<boolean> {
+  return (await kv.set(`oauth:agent-ticket:${t.nonce}`, '1', { nx: true, ex: 15 * 60 })) === 'OK'
+}
+
+/** Frees a confirmation whose Allow failed on our side, so pressing it again works. */
+export async function releaseAgentTicket(t: Pick<AgentTicket, 'nonce'>): Promise<void> {
+  await kv.del(`oauth:agent-ticket:${t.nonce}`).catch((e) => logError(e, { op: 'oauth-grant.releaseAgentTicket' }))
+}
+
+/** The signed-in person (confirmed by the auth server) and their CONFIRMED email, if any — the claim page matches on it. */
+export async function verifiedPerson(): Promise<{ profileId: string; email: string | null } | null> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase.auth.getUser()
+  const u = data.user
+  if (!u) return null
+  const confirmed = !!u.email && !!u.email_confirmed_at
+  return { profileId: u.id, email: confirmed ? u.email!.trim().toLowerCase() : null }
+}
+
 // ── Code: approve → pending grant row + 60-second code ────────────────────────────────────────────────────────────────
 
 type CodeClaims = { kid: string; cid: string; ruri: string; chal: string; scope: string; res: string; exp: number }
@@ -292,7 +340,8 @@ type CodeClaims = { kid: string; cid: string; ruri: string; chal: string; scope:
 export async function approve(t: ConsentClaims, sellerId: string, clientName: string, now: number): Promise<string | null> {
   // Pending rows whose code was never redeemed are dropped after ten minutes, so abandoned sign-ins do not pile up.
   // Everyone's, not only this person's: a sign-in someone abandons is cleared by the next sign-in anyone makes (review).
-  await db.apiKey.deleteMany({ where: { revokedAt: PENDING_AT, lastUsedAt: null, createdAt: { lt: new Date((now - CONSENT_TTL_SECONDS) * 1000) } } })
+  // Never an agent registration's pending row: its ceremony may run 30 minutes (agent-auth.ts prunes its own).
+  await db.apiKey.deleteMany({ where: { revokedAt: PENDING_AT, lastUsedAt: null, createdAt: { lt: new Date((now - CONSENT_TTL_SECONDS) * 1000) }, NOT: { prefix: { startsWith: AGENT_GRANT_FAMILY } } } })
     .catch((e) => logError(e, { op: 'oauth-grant.prunePending' }))
   const row = await db.apiKey.create({
     data: {
@@ -373,6 +422,9 @@ export async function rotateRefresh(p: { refreshToken: string; clientId: string;
   const keyId = m[1]
   const row = await db.apiKey.findUnique({ where: { id: keyId }, select: { sellerId: true, profileId: true, scopes: true, prefix: true, hashedKey: true, revokedAt: true, createdAt: true } })
   if (!row || row.revokedAt || !row.prefix.startsWith(GRANT_PREFIX)) return { ok: false, error: 'invalid_grant', description: 'The grant was revoked.' }
+  // An agent registration's grant is never refreshed here (its hash is an identity_assertion's, under another label, so
+  // nothing could match anyway — refused by name too, before its binding could be compared with a client_id).
+  if (row.prefix.startsWith(AGENT_GRANT_FAMILY)) return { ok: false, error: 'invalid_grant', description: 'The refresh token is invalid.' }
   // Client binding first, so a request from a stranger never revokes someone else's grant.
   if (row.prefix.slice(GRANT_PREFIX.length, GRANT_PREFIX.length + 10) !== clientBinding(p.clientId)) {
     return { ok: false, error: 'invalid_grant', description: 'The refresh token was issued to another client.' }

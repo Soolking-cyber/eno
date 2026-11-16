@@ -1,6 +1,10 @@
 import { OAUTH_SCOPES, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT, TOKEN_RATE_WINDOW_SEC } from '@/lib/api/oauth'
 import { ANON_RATE_PER_MIN, API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { CODE_TTL_SECONDS, CONSENT_TTL_SECONDS, DEFAULT_SIGN_IN_SCOPES, GRANT_MAX_AGE_SECONDS, MCP_RESOURCE } from '@/lib/api/oauth-grant'
+import {
+  ATTEMPT_TTL_SECONDS, CLAIM_GRANT, CLAIM_PATH, IDENTITY_PATH, IDENTITY_RATE_PER_IP, JWT_BEARER_GRANT, MAX_ATTEMPTS,
+  POLL_INTERVAL_SECONDS, REGISTRATION_TTL_SECONDS, VERIFICATION_PATH,
+} from '@/lib/api/agent-auth'
 import { SITE_NAME } from '@/lib/edition'
 import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
 
@@ -27,8 +31,9 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * revocation, and ora.ai scores that structure. The facts are unchanged in kind — still read out of the code — but the
  * document now also covers "Sign in with eno" (authorization code + PKCE, refresh rotation: src/lib/api/oauth-grant.ts),
  * which it had not since 11-14 and wrongly said had "no refresh token" and "no consent screen". ⛔ Where eno has no
- * equivalent of a step (an `agent_auth` block, agent self-registration, a claim ceremony, a revocation endpoint), the
- * step SAYS SO — it never names an endpoint that does not answer.
+ * equivalent of a step (anonymous or ID-JAG registration, a revocation endpoint), the step SAYS SO — it never names an
+ * endpoint that does not answer. Since 2026-11-16 agent registration exists: the `service_auth` claim ceremony
+ * (src/lib/api/agent-auth.ts), with its `agent_auth` block in the AS metadata.
  *
  * ⚠️ THIS IS EDITION-NEUTRAL BY CONSTRUCTION, WHICH IS WHY IT NEEDS NO GATE. The partner API, the
  * token endpoint, the MCP server and both .well-known documents are served IDENTICALLY by eno.vn
@@ -56,10 +61,11 @@ export async function GET() {
 
   const body = `# Authentication — ${SITE_NAME} Partner API
 
-> Three ways in, one shop per credential: a long-lived API key, a short-lived OAuth 2.0 access token
-> minted from that key (client credentials), or "Sign in with ${SITE_NAME}" (OAuth 2.1 authorization
-> code with PKCE) for an MCP client a shop owner connects. Every one is sent as
-> \`Authorization: Bearer …\`.
+> Four ways in, one shop per credential: a long-lived API key, a short-lived OAuth 2.0 access token
+> minted from that key (client credentials), "Sign in with ${SITE_NAME}" (OAuth 2.1 authorization
+> code with PKCE) for an MCP client a shop owner connects, or **agent registration** — an AI agent
+> that knows only its person's email asks, and the person types a code on ${SITE_NAME}. Every one is
+> sent as \`Authorization: Bearer …\`.
 
 A credential acts for exactly one shop and only ever sees that shop's data. The steps below follow the
 order of the [auth.md convention](https://github.com/workos/auth.md) — discover, pick a method,
@@ -80,12 +86,21 @@ A call to an \`/api/v1\` endpoint that needs a credential, sent without one, ans
 
 [\`/.well-known/oauth-authorization-server\`](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — the
 issuer, the token endpoint, the authorization endpoint, the grants (\`client_credentials\`,
-\`authorization_code\`, \`refresh_token\`), PKCE \`S256\`, client ID metadata documents, and the scopes.
+\`authorization_code\`, \`refresh_token\`, \`${CLAIM_GRANT}\`, \`${JWT_BEARER_GRANT}\`), PKCE
+\`S256\`, client ID metadata documents, the scopes, and the **\`agent_auth\`** block:
 
-⚠️ There is **no \`agent_auth\` block** in that document and **no agent registration endpoint**
-(\`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`): an agent cannot register itself here
-with an identity assertion (ID-JAG), a verified email, \`service_auth\` or anonymously. Steps 3 and 4 say
-what replaces them.
+\`\`\`json
+"agent_auth": {
+  "skill": "${SITE_ORIGIN}/auth.md",
+  "identity_endpoint": "${SITE_ORIGIN}${IDENTITY_PATH}",
+  "claim_endpoint": "${SITE_ORIGIN}${CLAIM_PATH}",
+  "identity_types_supported": ["service_auth"]
+}
+\`\`\`
+
+⚠️ Only **\`service_auth\`** (the verified-email claim ceremony). An agent cannot register here
+anonymously or with an identity assertion from an agent provider (ID-JAG): no provider is trusted, so
+there is no \`identity_assertion\` block and no \`events_endpoint\`.
 
 ## Step 2 — Pick a method
 
@@ -94,6 +109,7 @@ what replaces them.
 | API key | a shop's own scripts and servers | \`eno_live_…\` from Dashboard › Developers |
 | Client credentials | the same, without the long-lived key on every request | the key, exchanged for a ${TOKEN_TTL_SECONDS}-second token |
 | Sign in with ${SITE_NAME} | an MCP client (Claude, ChatGPT and similar) a shop owner connects | a refresh token from the owner's consent; MCP only |
+| Agent registration (\`service_auth\`) | an AI agent that knows its person's email and cannot open a browser redirect | an \`identity_assertion\` after the person types your code on ${SITE_NAME}; MCP only |
 
 ## Step 3 — Register
 
@@ -119,9 +135,48 @@ no sandbox**. Every documented request acts on real data in a real shop.
 **client ID metadata document** — its \`client_id\` is an \`https\` URL that serves its own metadata,
 including the \`redirect_uris\` it may return to. Dynamic client registration is not offered.
 
+**Agents (\`service_auth\`).** Register with the email of the ${SITE_NAME} account you act for:
+
+\`\`\`
+POST ${SITE_ORIGIN}${IDENTITY_PATH}
+Content-Type: application/json
+
+{ "type": "service_auth", "login_hint": "owner@example.com" }
+\`\`\`
+
+\`\`\`json
+{
+  "registration_id": "reg_…",
+  "registration_type": "service_auth",
+  "claim_url": "${CLAIM_PATH}",
+  "claim_token": "clm_…",
+  "claim_token_expires": "<${REGISTRATION_TTL_SECONDS / 60} minutes from now>",
+  "post_claim_scopes": ${JSON.stringify(DEFAULT_SIGN_IN_SCOPES)},
+  "claim": { "user_code": "123456", "verification_uri": "${SITE_ORIGIN}${VERIFICATION_PATH}", "expires_in": ${ATTEMPT_TTL_SECONDS}, "interval": ${POLL_INTERVAL_SECONDS} }
+}
+\`\`\`
+
+- Every well-formed email gets this same answer, whether or not it has an account: who can connect is
+  decided by the signed-in person on ${SITE_NAME}, never told to the agent.
+- Keep \`claim_token\` secret; it is shown once. At most ${IDENTITY_RATE_PER_IP} registrations per hour per
+  caller IP (\`429 rate_limited\` with \`Retry-After\`).
+- Any other \`type\` returns \`400 unsupported_identity_type\`; a bad \`login_hint\`, \`400 invalid_request\`.
+
 ## Step 4 — Claim
 
-There is no claim ceremony, because nothing is registered anonymously first. The human step is the
+**Agents.** Show your person the \`user_code\` and the \`verification_uri\`. They open
+\`${SITE_ORIGIN}${VERIFICATION_PATH}\` themselves, signed in to ${SITE_NAME} with the email you registered, type
+the code, see their shop and the access you ask for, and press **Allow**. The address carries no request on
+purpose: send the code and the address, never a link with the code in it.
+
+- A code lives ${ATTEMPT_TTL_SECONDS / 60} minutes. For a new one while the registration is open
+  (${REGISTRATION_TTL_SECONDS / 60} minutes), \`POST ${SITE_ORIGIN}${CLAIM_PATH}\` with
+  \`{ "claim_token": "clm_…", "email": "<the same login_hint>" }\`: the old code stops working; at most
+  ${MAX_ATTEMPTS} codes per registration.
+- Only the owner of a shop on a **business** account that is not held or suspended can allow it, and
+  only when their account's confirmed email is the one you registered.
+
+**Sign-in clients.** The human step is the
 **consent page** at \`${SITE_ORIGIN}/oauth/authorize\`: the shop owner, signed in to ${SITE_NAME}, sees which
 app is asking and for which scopes, and allows or refuses it.
 
@@ -142,7 +197,7 @@ GET ${SITE_ORIGIN}/oauth/authorize?response_type=code
 
 ## Step 5 — Exchange
 
-All three grants use one endpoint:
+All five grants use one endpoint:
 
 \`\`\`
 POST ${SITE_ORIGIN}/api/v1/oauth/token
@@ -202,6 +257,39 @@ grant_type=refresh_token&refresh_token=<eno_rt_…>&client_id=<your client ID me
 - A connection ends ${GRANT_MAX_AGE_SECONDS / 86400} days after the owner allowed it, however often it is
   refreshed; then the owner signs in again.
 
+### 5d. Agent claim poll
+
+\`\`\`
+grant_type=${CLAIM_GRANT}&claim_token=<clm_…>
+\`\`\`
+
+Poll every \`interval\` (${POLL_INTERVAL_SECONDS} s) until the person answers:
+
+| \`error\` | Meaning |
+| --- | --- |
+| \`authorization_pending\` | Not answered yet. Keep polling. |
+| \`slow_down\` | Faster than \`interval\`. Add ${POLL_INTERVAL_SECONDS} seconds. |
+| \`access_denied\` | The person pressed Cancel. Stop. |
+| \`expired_token\` | The registration is unknown or past its ${REGISTRATION_TTL_SECONDS / 60} minutes. Register again. |
+| \`invalid_grant\` | Already collected (see below), or the shop can no longer be connected. |
+
+Once allowed, the poll answers the four fields of 5a plus \`identity_assertion\` (\`eno_ia_…\`) and
+\`assertion_expires\`. ⚠️ **It answers once.** A claim_token presented again after that is a replay: the
+connection is ended. If you lose that answer, register again.
+
+### 5e. Agent refresh (jwt-bearer)
+
+\`\`\`
+grant_type=${JWT_BEARER_GRANT}&assertion=<identity_assertion>&scope=<optional, narrower>
+\`\`\`
+
+- The \`identity_assertion\` is an **opaque** secret issued here (not a JWT you can read or an ID-JAG):
+  re-present the same one for each new access token until \`assertion_expires\`. There is no
+  \`refresh_token\` on the agent grants.
+- Assertions from agent providers (ID-JAGs) are not accepted: \`invalid_grant\`.
+- Every exchange checks the connection again: revoked, past ${GRANT_MAX_AGE_SECONDS / 86400} days, or a shop that
+  can no longer be connected → \`invalid_grant\`; then register again.
+
 ## Step 6 — Use the access_token
 
 \`\`\`
@@ -213,7 +301,7 @@ Authorization: Bearer <access_token or API key>
 ${scopeRows}
 
 - An API key and a client-credentials token work on \`/api/v1\` and on \`/api/mcp\`. A **sign-in token**
-  is issued for \`${MCP_RESOURCE}\` only (its \`aud\`) and is refused on \`/api/v1\`.
+  — and an **agent's** — is issued for \`${MCP_RESOURCE}\` only (its \`aud\`) and is refused on \`/api/v1\`.
 - On \`/api/v1\`, a request missing the scope its handler requires returns **403 \`insufficient_scope\`**.
 - On \`/api/mcp\`, the connection authenticates with **no** required scope; each \`tools/call\` then
   checks the scope that tool declares. So a read-only key connects successfully and is refused at
@@ -224,6 +312,8 @@ ${scopeRows}
 | \`/api/v1\` and \`/api/mcp\`, authenticated | ${API_RATE_PER_MIN} requests / ${API_RATE_WINDOW_SEC}s | the credential: an API key and the tokens minted from it share one bucket; each sign-in connection has its own |
 | \`POST /api/v1/oauth/token\` | ${TOKEN_RATE_PER_IP} / ${TOKEN_RATE_WINDOW_SEC}s | caller IP |
 | \`POST /api/v1/oauth/token\`, client credentials only | ${TOKEN_RATE_PER_CLIENT} / ${TOKEN_RATE_WINDOW_SEC}s | \`client_id\` (the key prefix) — the sign-in grants are limited per IP only, since a sign-in client's id is public |
+| \`POST ${IDENTITY_PATH}\` | ${IDENTITY_RATE_PER_IP} / hour | caller IP |
+| Agent claim poll | one per ${POLL_INTERVAL_SECONDS}s | the registration (\`slow_down\`) |
 
 ⚠️ The \`RateLimit\` headers on a token response describe the **token endpoint's own** policy, which
 is deliberately far tighter than the API budget it hands out tokens for — it is the
@@ -238,7 +328,7 @@ Token endpoint (RFC 6749 §5.2):
 
 | Status | \`error\` | When |
 | --- | --- | --- |
-| 400 | \`unsupported_grant_type\` | \`grant_type\` is not \`client_credentials\`, \`authorization_code\` or \`refresh_token\`. Checked before credentials. |
+| 400 | \`unsupported_grant_type\` | \`grant_type\` is none of the five in Step 5. Checked before credentials. |
 | 401 | \`invalid_client\` | Client credentials: missing or malformed \`client_secret\`, an unknown or revoked key, or a \`client_id\` that does not match the key. |
 | 400 | \`invalid_request\` | A sign-in grant without \`client_id\`. (A \`client_id\` the code or refresh token was not issued to is \`invalid_grant\`.) |
 | 400 | \`invalid_grant\` | A code that is wrong, expired, already used or issued to another client or site; a PKCE verifier or \`redirect_uri\` that does not match; a refresh token that is invalid, replayed or revoked; a connection that has expired or no longer exists; a shop that can no longer be connected (its owner held or suspended, off the business tier, or without the shop). |
@@ -262,6 +352,9 @@ Dashboard › Developers:
   YYYY-MM-DD)" with an \`oag_\` prefix. **Revoke** it there, and its refresh token and its access tokens
   stop at once — a sign-in token is checked against its connection on every call. A suspension, leaving
   the business tier or losing the shop ends a connection the same way.
+- **A connected agent** (agent registration): the same list, named "AI agent (connected YYYY-MM-DD)".
+  Revoking it ends its \`identity_assertion\` and its access tokens at once. The owner is told in
+  ${SITE_NAME}'s notifications whenever an agent is connected.
 
 ## Discovery documents
 

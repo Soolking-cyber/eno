@@ -246,9 +246,13 @@ describe('/auth.md', () => {
     expect(body).toContain(`lives\n  ${g.CODE_TTL_SECONDS} seconds`)
     expect(body).toContain(`${g.GRANT_MAX_AGE_SECONDS / 86400} days`)
     expect(body).toContain(g.DEFAULT_SIGN_IN_SCOPES.join(' '))
-    // ⛔ What eno does NOT run is said, never advertised as an endpoint: no agent_auth block, no registration endpoint.
-    expect(body).toContain('no `agent_auth` block')
-    expect(body).not.toMatch(/\/agent\/(identity|event)/)
+    // Agent registration (2026-11-16): the service_auth ceremony, documented as the code runs it — and what eno does NOT
+    // run is said, never advertised as an endpoint: no anonymous or ID-JAG registration, no events endpoint.
+    const a = await import('@/lib/api/agent-auth')
+    for (const t of [a.IDENTITY_PATH, a.CLAIM_PATH, a.VERIFICATION_PATH, a.CLAIM_GRANT, a.JWT_BEARER_GRANT, '"identity_types_supported": ["service_auth"]', 'authorization_pending', 'slow_down', 'access_denied', 'expired_token']) expect(body).toContain(t)
+    expect(body).toContain('**It answers once.**')
+    expect(body).toContain('no `identity_assertion` block and no `events_endpoint`')
+    expect(body).not.toMatch(/\/agent\/event/)
     // Still a heading first: ora's auth-md-exists check.
     expect(body.startsWith('# ')).toBe(true)
   })
@@ -258,6 +262,15 @@ describe('/auth.md', () => {
     const meta = await (await (await import('@/app/api/well-known/oauth-authorization-server/route')).GET()).json()
     for (const g of meta.grant_types_supported as string[]) expect(body).toContain(`\`${g}\``)
     expect(meta.grant_types_supported).toEqual(expect.arrayContaining(['client_credentials', 'authorization_code', 'refresh_token']))
+    // The auth.md agent_auth block: service_auth only, both endpoints this server runs, the skill is this document.
+    const a = await import('@/lib/api/agent-auth')
+    expect(meta.grant_types_supported).toEqual(expect.arrayContaining([a.CLAIM_GRANT, a.JWT_BEARER_GRANT]))
+    expect(meta.agent_auth).toEqual({
+      skill: `${meta.issuer}/auth.md`,
+      identity_endpoint: `${meta.issuer}${a.IDENTITY_PATH}`,
+      claim_endpoint: `${meta.issuer}${a.CLAIM_PATH}`,
+      identity_types_supported: ['service_auth'],
+    })
     expect(meta.code_challenge_methods_supported).toEqual(['S256'])
     expect(meta.client_id_metadata_document_supported).toBe(true)
     expect(body).toContain(new URL(meta.authorization_endpoint).pathname)

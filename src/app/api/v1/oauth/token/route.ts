@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
 import { canSignAccessTokens, issueAccessToken, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT } from '@/lib/api/oauth'
 import { GRANT_PREFIX, MCP_RESOURCE, redeemCode, rotateRefresh, type GrantResult } from '@/lib/api/oauth-grant'
+import { CLAIM_GRANT, exchangeAssertion, JWT_BEARER_GRANT, pollClaim, type AgentTokens } from '@/lib/api/agent-auth'
 import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { rateLimitHeaders, tightestRate } from '@/lib/api/respond'
 import { clientIp } from '@/lib/client-ip'
@@ -68,9 +69,11 @@ export async function POST(req: NextRequest) {
   } catch { /* empty/invalid body → handled by missing-field checks below */ }
 
   const grantType = String(body.grant_type || '')
+  // Before the sign-in branch, which requires a client_id: an agent registration has none (plan review 2026-11-16).
+  if (grantType === CLAIM_GRANT || grantType === JWT_BEARER_GRANT) return agentGrant(req, body, grantType)
   if (grantType === 'authorization_code' || grantType === 'refresh_token') return signInGrant(req, body, grantType)
   if (grantType !== 'client_credentials') {
-    return oauthError(400, 'unsupported_grant_type', 'grant_type must be client_credentials, authorization_code or refresh_token.')
+    return oauthError(400, 'unsupported_grant_type', `grant_type must be client_credentials, authorization_code, refresh_token, ${CLAIM_GRANT} or ${JWT_BEARER_GRANT}.`)
   }
 
   const { id: clientId, secret: clientSecret } = readCredentials(req, body)
@@ -171,6 +174,50 @@ async function signInGrant(req: NextRequest, body: Record<string, string>, grant
   if (!token) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.', tokenRate)
   return NextResponse.json(
     { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: g.scopes.join(' '), refresh_token: g.refreshToken },
+    { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache', ...rateLimitHeaders(tokenRate) } },
+  )
+}
+
+/** Per caller IP: polls at the advertised 5-second interval and hourly refreshes from hosted agents' shared IP pools fit
+ *  well inside; a claim_token or identity_assertion is 32 random bytes, so these only bound load, not guessing. The
+ *  real pacing of a poll is per registration (agent-auth.ts: slow_down). */
+const AGENT_POLLS_PER_IP = 300
+const AGENT_EXCHANGES_PER_IP = 120
+
+/**
+ * The agent registration grants (src/lib/api/agent-auth.ts): the claim poll — authorization_pending until the person
+ * allows on /oauth/agent, then ONE answer with an access token and the identity_assertion — and jwt-bearer, which
+ * exchanges that assertion for a fresh access token. No client_id, no refresh_token. The access token is the sign-in's:
+ * 1 hour, `aud` = the MCP server, checked against its grant on every call.
+ */
+async function agentGrant(req: NextRequest, body: Record<string, string>, grantType: typeof CLAIM_GRANT | typeof JWT_BEARER_GRANT): Promise<NextResponse> {
+  const claim = grantType === CLAIM_GRANT
+  const tokenRate = await rateLimit(claim ? 'oauth-agent-poll' : 'oauth-agent-exchange', clientIp(req), claim ? AGENT_POLLS_PER_IP : AGENT_EXCHANGES_PER_IP, '1 m')
+  if (!tokenRate.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.', tokenRate)
+  // Before anything is consumed: a claim is collected once, so it must only be collected when the answer can be signed.
+  if (!canSignAccessTokens()) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.', tokenRate)
+  const now = Math.floor(Date.now() / 1000)
+  let grant: AgentTokens
+  let extra: Record<string, string> = {}
+  try {
+    if (claim) {
+      const r = await pollClaim(body.claim_token, now)
+      if (!r.ok) return oauthError(400, r.error, r.description, tokenRate)
+      grant = r.grant
+      extra = { identity_assertion: r.identityAssertion, assertion_expires: new Date(r.assertionExpires * 1000).toISOString() }
+    } else {
+      const r = await exchangeAssertion(body.assertion, body.scope, now)
+      if (!r.ok) return oauthError(400, r.error, r.description, tokenRate)
+      grant = r.grant
+    }
+  } catch (e) {
+    logError(e, { op: `oauth.agent.${claim ? 'claim' : 'exchange'}` })
+    return oauthError(503, 'temporarily_unavailable', 'The agent sign-in service is temporarily unavailable.', tokenRate)
+  }
+  const token = issueAccessToken({ keyId: grant.keyId, sellerId: grant.sellerId, profileId: grant.profileId, scopes: grant.scopes, aud: MCP_RESOURCE }, now)
+  if (!token) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.', tokenRate)
+  return NextResponse.json(
+    { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: grant.scopes.join(' '), ...extra },
     { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache', ...rateLimitHeaders(tokenRate) } },
   )
 }
