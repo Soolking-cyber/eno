@@ -50,6 +50,8 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { BusinessRail } from './business-rail'
 import { TeacherShelf } from './teacher-shelf'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, ShelfSkeleton } from './shelf'
+import { HOME_ORIGIN, homeItemListsJsonLd, jsonLdText } from '@/lib/home-item-lists'
+import { CATEGORY_ENTRY_LABELS } from '@/lib/category-entry-label'
 import { CategoryLane, CategoryRails, useFreshCategoryLanes, visibleCategoryRails, type CategoryLaneData, type CategoryRailData } from './category-rails'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
@@ -650,6 +652,8 @@ type Props = {
    * that page passes nothing (crawler-visible-html-contract.test.ts pins that it does not).
    */
   siteHeading?: boolean
+  /** The home page only ((home)/page.tsx): its lists as ItemList JSON-LD (src/lib/home-item-lists.ts). */
+  homeItemLists?: boolean
 }
 
 
@@ -763,6 +767,7 @@ export function ListingsExplorer({
   sellerId,
   serverDirected = false,
   siteHeading = !sellerId,
+  homeItemLists = false,
 }: Props) {
   // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
   useRegisterExplorer()
@@ -1446,6 +1451,25 @@ export function ListingsExplorer({
   // with nothing to click and no error. Reading showDiscovery instead means opening a takeover
   // view counts as directing the feed, which is what it is.
   const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
+  // ⛔ THE HOME PAGE'S LISTS AS ItemList JSON-LD (owner 2026-11-16 — the Elementor / ora agent-ready scan; src/lib/home-item-lists.ts):
+  // built from the SAME server-known arrays the rails draw, at each rail's own floor (MIN_RAIL_ITEMS, as Shelf and
+  // showTeacherShelf apply it), under the heading each shows, so it names only what the page shows. The undirected home
+  // only, as the rails themselves. A plain render value from props: no effect, nothing on screen, no layout.
+  const homeItemListsLd = useMemo(() => {
+    if (!homeItemLists || !showDiscovery || sellerId || startedOffSeed) return null
+    const drawn = <T,>(xs: readonly T[] | undefined): readonly T[] => (xs && xs.length >= MIN_RAIL_ITEMS ? xs : [])
+    // The headings through the SAME tr() calls the rails' own titles use (for-you-rail, business-rail, teacher-shelf, the
+    // feed's heading), so a curated Vietnamese title never drifts from its markup (commit gate, opus). serverCategoryLanes
+    // is visibleCategoryRails' output: already at its floor and deduped, as the lanes draw it.
+    const vi = lang === 'vi'
+    return homeItemListsJsonLd([
+      { name: tr('Trending now', 'Đang thịnh hành'), items: drawn(initialTrending) },
+      { name: tr('Outstanding businesses', 'Doanh nghiệp nổi bật'), items: drawn(dedupedBusinesses) },
+      ...serverCategoryLanes.map((l) => ({ name: vi ? (l.cat.nameVi || l.cat.name) : l.cat.name, items: l.items })),
+      { name: tr(CATEGORY_ENTRY_LABELS.teachers.name, CATEGORY_ENTRY_LABELS.teachers.nameVi ?? CATEGORY_ENTRY_LABELS.teachers.name), items: drawn(initialTeachers) },
+      { name: tr('Recommended', 'Đề xuất'), items: initialListings },
+    ], HOME_ORIGIN)
+  }, [homeItemLists, showDiscovery, sellerId, startedOffSeed, lang, tr, initialTrending, dedupedBusinesses, serverCategoryLanes, initialTeachers, initialListings])
   /**
    * A storefront's phone results row is sr-only while the shop is undirected (UI climb r12 S3, the `#results` row's note). A
    * COLD directed link (`serverDirected`: `?q=`, `?category=`, `?view=map` …) still paints its first frame undirected — the URL
@@ -5172,6 +5196,7 @@ export function ListingsExplorer({
               ST-HEADER): there the shop's name in its SellerCard is the H1.
               Text and sr-only are unchanged, so the brand-review record above still holds. */}
           {siteHeading && <h1 className="sr-only">{SITE_NAME}</h1>}
+          {homeItemListsLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeItemListsLd) }} />}
           {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
               decoration, so anyone restoring copy to this hero should know what it was doing.
               Google's OAuth brand review rejected this page with "Your home page does not explain

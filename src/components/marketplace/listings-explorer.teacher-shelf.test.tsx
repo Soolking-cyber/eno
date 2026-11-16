@@ -171,6 +171,61 @@ afterEach(() => {
   window.history.replaceState({}, '', '/')
 })
 
+describe('the home page\'s ItemList JSON-LD (home-item-lists.ts)', () => {
+  const ldOf = (root: ParentNode) => {
+    const el = root.querySelector('script[type="application/ld+json"]')
+    return el ? (JSON.parse(el.textContent || '{}') as { '@graph': Array<{ name: string; itemListElement: Array<{ position: number; url: string }> }> }) : null
+  }
+  const ids = (list: { itemListElement: Array<{ url: string }> }) => list.itemListElement.map((i) => i.url.replace(/^.*\/listings\//, ''))
+
+  it('in the SERVER HTML: one ItemList per drawn list, the arrays the rails draw, URL-only; it hydrates with no recoverable error', async () => {
+    const TRENDING = () => catalogue.slice(12, 16)
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={[]} initialListings={SEED()} initialTotal={catalogue.length} initialTeachers={TEACHERS()} initialTrending={TRENDING()} homeItemLists siteHeading={false} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    const errors: unknown[] = []
+    let root: Root | null = null
+    try {
+      container.innerHTML = renderToString(el)
+      const ld = ldOf(container)!
+      const { CATEGORY_ENTRY_LABELS } = await import('@/lib/category-entry-label')
+      expect(ld['@graph'].map((l) => l.name)).toEqual(['Trending now', CATEGORY_ENTRY_LABELS.teachers.name, 'Recommended'])
+      const [trending, teachers, recommended] = ld['@graph']
+      expect(ids(trending)).toEqual(TRENDING().map((l) => l.id))
+      expect(ids(teachers)).toEqual(['t0', 't1', 't2'])
+      expect(ids(recommended)).toEqual(SEED().map((l) => l.id))
+      // ⛔ Only what the page draws: every teacher and feed item is a card in this same server HTML.
+      const drawn = new Set([...container.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id')))
+      for (const id of [...ids(teachers), ...ids(recommended)]) expect(drawn.has(id), id).toBe(true)
+      expect(recommended.itemListElement[0]).toEqual({ '@type': 'ListItem', position: 1, url: expect.stringMatching(/^https?:\/\/[^/]+\/listings\/r0$/) })
+      await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
+      expect(errors).toEqual([])
+    } finally {
+      act(() => root?.unmount())
+      container.remove()
+    }
+  })
+
+  it('a rail under its draw floor is not listed; nothing at all without homeItemLists or on a storefront', () => {
+    const html = (props: Partial<React.ComponentProps<typeof ListingsExplorer>>) => {
+      const div = document.createElement('div')
+      div.innerHTML = renderToString(
+        <QueryClientProvider client={newClient()}>
+          <ListingsExplorer categories={[]} initialListings={SEED()} initialTotal={catalogue.length} {...props} />
+        </QueryClientProvider>,
+      )
+      return div
+    }
+    const thin = ldOf(html({ homeItemLists: true, siteHeading: false, initialTrending: catalogue.slice(12, 14), initialTeachers: TEACHERS(2) }))!
+    expect(thin['@graph'].map((l) => l.name)).toEqual(['Recommended'])
+    expect(ldOf(html({ initialTrending: catalogue.slice(12, 16) }))).toBeNull()
+    expect(ldOf(html({ homeItemLists: true, sellerId: 'shop1', initialTrending: catalogue.slice(12, 16) }))).toBeNull()
+  })
+})
+
 describe('the server HTML and its hydration', () => {
   it('the shelf is the row right after the twelfth card and before the capture row; it hydrates with no recoverable error', async () => {
     const el = (

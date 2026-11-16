@@ -194,6 +194,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       initialTeachers={teachers}
       initialCategoryRails={categoryRails}
       siteHeading={false}
+      homeItemLists
     />
   )
 }
