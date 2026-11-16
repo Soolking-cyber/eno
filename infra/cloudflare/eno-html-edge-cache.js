@@ -810,6 +810,19 @@ export default {
   },
 };
 
+/** The AI fetchers and crawlers that get markdown for a negotiated page (see the bypass in handle()). */
+const AGENT_MARKDOWN_UA = /\b(?:ChatGPT-User|OAI-SearchBot|GPTBot|Claude-User|Claude-SearchBot|ClaudeBot|Perplexity-User|PerplexityBot)\b/i;
+const AGENT_MARKDOWN_PATHS = new Set(["/", "/terms", "/privacy"]);
+
+function agentWantsMarkdown(request, url) {
+  // eno.vn's hosts: www.eno.forum now only redirects to eno.vn (the forum is retired), so it has no page to describe.
+  if (url.hostname !== "eno.vn" && url.hostname !== "www.eno.vn") return false;
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  // The bare page only: `/?category=…` or `/?q=…` is a filtered view the markdown does not describe (commit gate, opus).
+  if (!AGENT_MARKDOWN_PATHS.has(url.pathname) || url.search || request.headers.has("rsc")) return false;
+  return AGENT_MARKDOWN_UA.test(request.headers.get("user-agent") || "");
+}
+
 /** The cache itself — unchanged by the ora report above, which only reads the request and the response's status. */
 async function handle(request, env, ctx, url) {
     if (!cacheablePath(url.pathname)) return fetch(request);
@@ -872,6 +885,24 @@ async function handle(request, env, ctx, url) {
      * worst an Accept that merely MENTIONS markdown loses edge caching, which is harmless.
      */
     if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
+    /**
+     * ⛔ AN AI FETCHER ASKING FOR A PAGE THE ORIGIN ALSO SERVES AS MARKDOWN GETS THE MARKDOWN (ora.ai agent-ua-markdown,
+     * owner 2026-11-16 "do recommended"): ChatGPT-User, Claude-User, Perplexity-User and their crawlers send Accept:
+     * text/html, so the negotiation above never fires for them. ONLY the three paths the origin negotiates (`/`, `/terms`,
+     * `/privacy` — next.config.ts ACCEPT_MARKDOWN), only on eno.vn's own hosts, and NEVER Google's or Bing's crawler
+     * (Googlebot, bingbot are not on the list): their index keeps the HTML. The AI assistants' own search crawlers
+     * (OAI-SearchBot, Claude-SearchBot, PerplexityBot) ARE on it, deliberately — markdown is what they read. Same bypass as
+     * above — never stored here, and the origin's markdown is `no-store` + `vary: accept` (markdown-response.ts).
+     */
+    if (agentWantsMarkdown(request, url)) {
+      const headers = new Headers(request.headers);
+      headers.set("accept", "text/markdown");
+      const md = await fetch(new Request(request, { headers }));
+      // The answer depends on who asked as well as what they accepted (commit gate, opus): say so to any cache downstream.
+      const out = new Response(md.body, md);
+      out.headers.set("vary", "accept, user-agent");
+      return out;
+    }
 
     const variant = variantOf(url, request);
     const key = cacheKeyFor(url, variant, rsc);

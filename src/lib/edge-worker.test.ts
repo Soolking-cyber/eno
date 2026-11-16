@@ -246,6 +246,37 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
     await call('/', { accept: 'TEXT/MARKDOWN' })
     expect(h.matched).toEqual([])
   })
+
+  it('⛔ an AI fetcher asking for /, /terms or /privacy with Accept: text/html is sent to the origin asking for markdown', async () => {
+    await call('/') // plant an HTML entry
+    for (const [ua, path] of [['Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)', '/'], ['Claude-User/1.0', '/terms'], ['Perplexity-User/1.0', '/privacy'], ['GPTBot/1.2', '/']]) {
+      h.matched = []
+      h.origin = []
+      h.respond = () => ({ html: '# eno.vn', headers: { 'content-type': 'text/markdown; charset=utf-8' } })
+      const r = await call(path, { 'user-agent': ua, accept: 'text/html' })
+      expect(r.headers.get('content-type'), `${ua} ${path}`).toMatch(/markdown/)
+      expect(h.matched).toEqual([]) // never the stored HTML
+      expect(h.origin.at(-1)!.headers.get('accept')).toBe('text/markdown')
+      expect(r.headers.get('vary')).toBe('accept, user-agent')
+    }
+    h.respond = () => ({})
+  })
+
+  it('⛔ never for a search engine\'s crawler, a browser, another path or the forum\'s zone', async () => {
+    // The origin answers markdown ONLY when asked for it: if the Worker wrongly asked, the response turns markdown and
+    // this fails, whether or not the request was answered from the cache (commit gate, opus).
+    h.respond = (req: Request) => (req.headers.get('accept') === 'text/markdown' ? { html: '# md', headers: { 'content-type': 'text/markdown; charset=utf-8' } } : {})
+    for (const [ua, path, host] of [['Mozilla/5.0 (compatible; Googlebot/2.1)', '/', 'eno.vn'], ['Mozilla/5.0 (compatible; bingbot/2.0)', '/', 'eno.vn'],
+      ['Mozilla/5.0 (Macintosh) Safari/605.1.15', '/terms', 'eno.vn'], ['ChatGPT-User/1.0', '/c/rentals', 'eno.vn'], ['ChatGPT-User/1.0', '/', 'www.eno.forum'],
+      ['ChatGPT-User/1.0', '/?category=teachers', 'eno.vn']]) {
+      const r = await worker.fetch(new Request(`https://${host}${path}`, { headers: { 'user-agent': ua, accept: 'text/html' } }), {}, ctx)
+      expect(r.headers.get('content-type') ?? '', `${ua} ${host}${path}`).not.toMatch(/markdown/)
+    }
+    // …and the same responder DOES give an agent markdown, so the check above can fail.
+    const agent = await worker.fetch(new Request('https://eno.vn/terms', { headers: { 'user-agent': 'ChatGPT-User/1.0', accept: 'text/html' } }), {}, ctx)
+    expect(agent.headers.get('content-type')).toMatch(/markdown/)
+    h.respond = () => ({})
+  })
 })
 
 /**
