@@ -19,10 +19,13 @@ import { OPERATORS } from './site-legal'
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the Organization entity fields', () => {
-  it('sameAs is every profile eno OWNS — the eight socials plus the entity profiles, never the community group', () => {
+  it('sameAs is every profile eno OWNS — the eight socials plus the entity profiles (GitHub org included), never the community group', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f.sameAs).toEqual([...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES])
-    expect(f.sameAs).toHaveLength(10)
+    expect(f.sameAs).toHaveLength(11)
+    // eno's GitHub organisation (the agent-skills repo's owner) — never a personal account.
+    expect(f.sameAs).toContain('https://github.com/eno-vn')
+    expect(f.sameAs.filter((u) => u.startsWith('https://github.com/'))).toEqual(['https://github.com/eno-vn'])
     expect(f.sameAs).toContain('https://www.crunchbase.com/organization/eno-vn-9f19')
     expect(f.sameAs).toContain('https://www.pinterest.com/enovietnam/')
     expect(new Set(f.sameAs).size).toBe(f.sameAs.length)
