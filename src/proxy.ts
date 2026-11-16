@@ -641,7 +641,8 @@ export const config = {
     // handle is reserved in handle-format.ts for the same reason `listing-images` is. `og/` likewise
     // (the teach guides' share cards, src/app/og/teach-in-vietnam — every one a `.png`); it needs no
     // reserving, because a handle is three characters at least (HANDLE_RE).
-    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|sitemaps(?:/|$)|og(?:/|$)|.*\\.).*)',
+    // `ask$` is NLWeb's POST /ask (src/app/ask/route.ts, 2026-11-16), root-level like `app` and reserved as a handle the same way.
+    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|ask/?$|listing-images(?:/|$)|sitemaps(?:/|$)|og(?:/|$)|.*\\.).*)',
     // ⛔ EVERY path on an underscore host (I2b): the entry above skips `/llms.txt` and the other dotted
     // files, and `sdc_store.eno.vn/llms.txt` is the URL Search Console had crawled. Next anchors the
     // value (`^…$`) against the Host header's lowercased hostname, port removed.

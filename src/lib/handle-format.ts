@@ -107,6 +107,9 @@ const RESERVED = new Set([
   // handle-format.test.ts caught it — the test reads the route tree, which is exactly why it exists.
   // A member holding @app would have shadowed the one URL the download QR encodes.
   'app',
+  // NLWeb's POST /ask (src/app/ask/route.ts, 2026-11-16): a root route like `app`. Unclaimed when reserved (measured
+  // 2026-11-16: eno.vn/ask 404 for GET and POST).
+  'ask',
   // ⚠️ `rentals` IS THE AVAILABILITY-CHECK PAGE (src/app/[lang]/rentals/check, 2026-09-25). Only the
   // nested /rentals/check is a route, but a member holding @rentals would own /rentals itself and
   // read as the rentals section of the site. The route-tree test cannot see it (`rentals/` has no

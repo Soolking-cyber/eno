@@ -35,7 +35,8 @@ describe('the [lang] segment', () => {
     // `og` holds only `.png` route handlers, like `sitemaps` its `.xml` ones: the teach guides' share cards
     // (/og/teach-in-vietnam/<slug>/1200x630.png, src/lib/teach-guides/share-cards.ts); the matcher skips `og/` itself too.
     // `webmcp.js` is the WebMCP script's route handler (src/lib/webmcp-script.ts) — dotted, so the matcher skips it too.
-    const ALLOWED = new Set(['[lang]', 'api', 'app', 'md', 'llms.txt', 'webmcp.js', 'openapi.json', 'robots.txt', 'sitemap.xml', 'sitemaps', 'hcmc-rent-index.csv', 'hcmc-teacher-cost-pay-index.csv',
+    // `ask` is NLWeb's POST /ask handler (src/app/ask/route.ts) — excluded from the matcher by name, like `app`.
+    const ALLOWED = new Set(['[lang]', 'api', 'app', 'ask', 'md', 'llms.txt', 'webmcp.js', 'openapi.json', 'robots.txt', 'sitemap.xml', 'sitemaps', 'hcmc-rent-index.csv', 'hcmc-teacher-cost-pay-index.csv',
       'manifest.ts', 'icon.svg', 'apple-icon.png', 'favicon.ico', 'global-error.tsx', 'globals.css', 'listing-images', 'og'])
     const extra = readdirSync('src/app').filter((n) => !ALLOWED.has(n))
     // A new root entry either belongs under [lang] (a page) or must be excluded in proxy.ts's matcher.
