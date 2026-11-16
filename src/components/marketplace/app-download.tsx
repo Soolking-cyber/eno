@@ -18,9 +18,12 @@ import { cn } from '@/lib/utils'
  * both" and "something like this qr and it redirects to relevant device store to download make it a
  * download icon").
  *
- * One control, which is why it satisfies both placements the owner described: mounted between the
- * notification bell and the Post button, so on a phone — where Post lives in the bottom nav — it sits
- * immediately right of the bell, and on desktop immediately left of Post.
+ * One control, mounted between the notification bell and the Post button: on desktop it is immediately left of Post.
+ * ⛔ NOT IN THE PHONE HEADER (owner, 2026-11-16, hub Q12: "yes if they are related to visual change"; cook r11 labdl +0.12 to
+ * +0.23). It REVERSES, below `sm` only, 2026-09-16's "on a phone … immediately right of the bell": `max-sm:hidden` on both
+ * branches, every route. A phone still reaches the apps without it, through the same module (src/lib/app-store-links.ts):
+ * the footer's "Get the app" row on every page that has a footer — the compact one too, so /dashboard/account and /saved —
+ * which a phone sees with only its own store (footer.tsx); the engagement-gated install card (install-hint.tsx); and /app.
  *
  * ON BOTH EDITIONS — the owner's standing decision ("put on both", 2026-09-16); do not re-gate it without
  * asking. Since 2026-10-06 (owner: "ship both with eno.vn") the apps render https://eno.vn
@@ -33,10 +36,7 @@ import { cn } from '@/lib/utils'
  * (that class is set by layout.tsx's pre-paint script) — a render-time `window` check instead would
  * make the server and client markup disagree.
  */
-export function AppDownload({ quiet = false }: {
-  /** The home route's phone header (owner-approved 2026-11-15 (build 8), header.tsx `homePill`): muted ink, 22px, below `sm` — the bell's own `quiet`. */
-  quiet?: boolean
-} = {}) {
+export function AppDownload() {
   const { tr } = useLanguage()
   const [inApp, setInApp] = useState(false)
   /**
@@ -112,9 +112,11 @@ export function AppDownload({ quiet = false }: {
       // opens the Play app directly on Android, and a store link belongs in the page's link graph.
       // The shell classes are IconButton's own (rounded-full, tap-44, its `lg` box) so the two glyphs in
       // this header stay identical; keep them in step if that primitive's sizes change.
-      <Button asChild variant="bare" size="none" className={cn('relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}>
+      // `max-sm:hidden` (the phone header's ruling, top of this file) rides the BUTTON, not the child: a render child's class is
+      // concatenated, not merged (CLAUDE.md), and this branch is the one a phone renders.
+      <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] max-sm:hidden">
         <a href={storeHref} data-app-download="" aria-label={label}>
-          <Download className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', quiet && 'max-sm:size-5.5')} strokeWidth={1.75} />
+          <Download className="h-7 w-7" strokeWidth={1.75} />
         </a>
       </Button>
     )
@@ -137,10 +139,11 @@ export function AppDownload({ quiet = false }: {
             data-app-download=""
             aria-label={tr('Download the eno app', 'Tải ứng dụng eno')}
             // Matches the bell's press feel exactly — they are neighbours, and a different scale or
-            // duration on one of two adjacent header glyphs reads as a bug.
-            className={cn('text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}
+            // duration on one of two adjacent header glyphs reads as a bug. `max-sm:hidden`: a narrow window with a mouse
+            // is a phone-width header too (the note at the top).
+            className="text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] max-sm:hidden"
           >
-            <Download className={cn('h-7 w-7 max-sm:h-6 max-sm:w-6', quiet && 'max-sm:size-5.5')} strokeWidth={1.75} />
+            <Download className="h-7 w-7" strokeWidth={1.75} />
           </IconButton>
         }
       />

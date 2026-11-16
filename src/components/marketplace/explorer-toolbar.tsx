@@ -304,24 +304,21 @@ export function SortStrip({
   phoneScope?: React.ReactNode
   /**
    * ⛔ 'goods' — THE GOODS SEARCH'S STRIP ON A PHONE (owner-approved 2026-11-14, cook r06 goods; src/lib/goods-surface.ts). Below
-   * `sm` only:
-   *   · OPAQUE: the page's white, no blur (it reverses, there, the frosted in-flow bar) — a grid passing under it must not
-   *     show through;
-   *   · NO RULE UNDER IT WHILE IT SITS IN PLACE: the hairline goes transparent and keeps its 1px, so the strip's height never
-   *     moves on the flip. ⛔ …ONCE PINNED, ITS ONE HAIRLINE (owner-approved 2026-11-15 (build 8), cook r08 goods): while the
-   *     grid slides beneath the stuck strip (`useStuck` — a colour, never a box) the line is the border's own colour again;
-   *   · at the default order the sort pill drops the ⇅ (it reverses there the UI climb 2026-11-05 "glyph beside the word"): the
-   *     row is words and chevrons, one glyph family. A price order keeps its ↑/↓, the pill's only sign of direction.
-   *     ⛔ …AND IT PRINTS ITS STATE, "Relevance" / "Liên quan" (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses
-   *     there the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'" and r06's "Sort" alone): the order's own name,
-   *     which the pill already carried for a screen reader, shown — as /c/electronics' strip already does. No new words;
-   *   · ⛔ FILLED PILLS (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses, in this strip below sm, ui/chip-style's
-   *     "WHITE + HAIRLINE" of 2026-11-14 and the 2026-10-18 one chip style): `data-pills="filled"` — every resting pill in the
-   *     row is the field grey with no edge, pressed or open a step deeper, applied still the ink fill (globals.css, the goods
-   *     strip's filled pills — one rule for every pill the row holds, its own or handed in);
-   *   · ⛔ IT STAYS PINNED (owner-approved 2026-11-15 (build 8), cook r08 goods — the explorer passes `stayPinned` with it; the
-   *     note there).
-   * From `sm`, and on every other feed, the strip is exactly as below.
+   * `sm` only it is OPAQUE: the page's white, no blur (it reverses, there, the frosted in-flow bar) — a grid passing under it
+   * must not show through; and IT STAYS PINNED (owner-approved 2026-11-15 (build 8), cook r08 goods — the explorer passes
+   * `stayPinned` with it; the note there). From `sm`, and on every other feed, the strip is exactly as below.
+   * ⛔ WHAT WAS THE GOODS STRIP'S ALONE IS EVERY PHONE STRIP'S NOW (owner, 2026-11-16, hub Q15: "one chip look … filled strips on
+   * the feeds"; cook r12 R2, rentals +0.34/+0.37 with R1). It reverses, below `sm` on every feed, r05's white + hairline pills
+   * (2026-11-14) and the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'"; build 8 (2026-11-15) had done it for
+   * the goods search alone:
+   *   · ⛔ FILLED PILLS: `data-pills="filled"` on every strip — every resting pill in the row is the field grey with no edge,
+   *     pressed or open a step deeper, applied still the ink fill (globals.css, the filled strips — one rule for every pill the
+   *     row holds, its own or handed in). Server-rendered, so a cold link's first frame is already filled;
+   *   · THE SORT PILL NAMES ITS ORDER: at the default order "Relevance" / "Liên quan" — the label the pill always carried for a
+   *     screen reader, shown — with no ⇅ and no "Sort" word; any other order keeps its glyph (a price order's ↑/↓ is its only
+   *     sign of direction);
+   *   · THE HAIRLINE ONLY WHILE STUCK: transparent (its 1px kept, so the height never moves) while the strip sits in place, the
+   *     border's own colour once it is pinned over the grid (`useStuck` — a colour, never a box).
    */
   look?: 'goods'
   /**
@@ -351,9 +348,9 @@ export function SortStrip({
   const headerHidden = useHideOnScroll() && !headerPinned
   useLayoutEffect(() => { onHeaderHidden?.(headerHidden) }, [headerHidden, onHeaderHidden])
   const goods = look === 'goods'
-  // The goods strip's hairline shows once it is pinned (`look`'s note): the strip's own sticky box, read only on that strip.
+  // Every phone strip's hairline shows once it is pinned (`look`'s note, 2026-11-16): the strip's own sticky box, read on a phone.
   const rootRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(rootRef, goods)
+  const stuck = useStuck(rootRef, isPhone)
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
   // The strip is a real ARIA tablist (ui/tabs → Base UI Tabs), driven by the URL/parent state, so
   // it uses the CONTROLLED api: value + onValueChange. The two price directions collapse onto ONE
@@ -380,8 +377,8 @@ export function SortStrip({
     ? (salary ? tr('Salary', 'Lương') : tr('Price', 'Giá'))
     : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
   const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
-  // The goods strip's sort pill at the default order: the order's name alone, no ⇅ (`look`'s note).
-  const sortGlyphShown = !(goods && sort === 'newest')
+  // Every phone strip's sort pill at the default order: the order's name alone, no ⇅ (`look`'s note, 2026-11-16).
+  const sortGlyphShown = sort !== 'newest'
   // The phone row's scroller, for the edge "›" (category-rail.tsx's pattern — see below). `page` is the
   // desktop arrows' own step (85% of the row), so the phone button scrolls exactly as "Scroll right" does.
   const { scrollerRef: phoneRowRef, canRight: phoneRowCanRight, page: pagePhoneRow } = useScrollArrows<HTMLDivElement>({ watch: sort })
@@ -402,9 +399,9 @@ export function SortStrip({
       id="explorer-toolbar"
       ref={rootRef}
       data-stay-pinned={stayPinned || undefined}
-      // The goods strip's filled pills (`look`'s note; globals.css). Only where the explorer draws the goods strip: a cold goods
-      // link's first frame reaches the same rule through the pre-paint fold mark instead.
-      data-pills={goods ? 'filled' : undefined}
+      // Every strip's filled pills (`look`'s note, owner 2026-11-16; globals.css, below 40rem only). In the server HTML, so a
+      // cold link's first frame is filled too.
+      data-pills="filled"
       value={activeTab}
       onValueChange={(value) => {
         const next = value as SortTab
@@ -494,11 +491,11 @@ export function SortStrip({
           the outer box at the content's width; the scroller inside bleeds to the screen edges
           (`-mx-3 px-3`, the facet row's own bleed) so pills slide out under the edge rather than being
           sliced at the gutter. From sm the scroller classes are inert and the row is the old one. */}
-      {/* The goods strip (`look`): no rule under it on a phone while it sits in place — transparent, never removed, so the strip
-          keeps its 1px — and the line back once it is pinned over the grid (`stuck`, build 8). */}
-      <div className={cn('relative border-b border-border', goods && !stuck && 'max-sm:border-b-transparent')}>
+      {/* Every phone strip (`look`'s note, owner 2026-11-16): no rule under it while it sits in place — transparent, never
+          removed, so the strip keeps its 1px — and the line back once it is pinned over the grid (`stuck`). */}
+      <div className={cn('relative border-b border-border', !stuck && 'max-sm:border-b-transparent')}>
       {/* ⚠️ `max-sm:py-1` IS THE PILLS' HIT AREA AND THEIR AIR. Since the one chip style (owner, 2026-10-18) the
-          phone pills are 36px chips (white + hairline since 2026-11-14) with a 44px `tap-44` hit area; this row is their scroller, and a
+          phone pills are 36px chips (filled grey since 2026-11-16) with a 44px `tap-44` hit area; this row is their scroller, and a
           scroller clips both axes, so without 4px above and below them the hit area is cut back to 36. It also
           keeps the tinted pills off the hairline. 36 + 8 = the 44px row the old flush pills drew — the strip,
           the reservation around FacetBar (listings-explorer.tsx) and FacetBarFallback did not move. */}
@@ -513,25 +510,18 @@ export function SortStrip({
       {/* ⛔ THE APPLIED CHIPS LEAD THE PHONE ROW, Clear all first (owner, 2026-11-10: "2 yes"; result-line.tsx PhoneFilterChips). */}
       {phoneLead}
       {/* THE PHONE SORT PILL — first in the row (after any applied chips, owner 2026-11-10) so the order is visible without a swipe. A facet pill
-          (ui/chip-style PILL_*, ⌄), with the order's glyph in front (⇅, or the price direction). White at rest like
-          every pill on the row; the ink fill once an order other than Relevance is picked (owner-approved 2026-11-14). */}
+          (ui/chip-style PILL_*, ⌄). Filled grey at rest like every pill on the row (2026-11-16); the ink fill once an order
+          other than Relevance is picked (owner-approved 2026-11-14). */}
       <CustomSelect
         value={sort}
         onChange={(v) => onPickSort(v as SortKey)}
         options={sortOptions}
         label={tr('Sort by', 'Sắp xếp theo')}
         triggerLabel={sortPillLabel}
-        // AT THE DEFAULT ORDER THE PILL SAYS "Sort" (UI climb 2026-11-05): "Relevance" says nothing a buyer acts on and cost the
-        // first screen one filter, while a glyph alone was less clear to both judges. Any other order names itself, tinted.
-        // The order's name stays for assistive tech either way.
-        // ⛔ The goods strip drops the ⇅ at the default order (owner-approved 2026-11-14, cook r06 goods — `look`) ⛔ and prints the
-        // order's own name there, "Relevance" (owner-approved 2026-11-15 (build 8), cook r08 goods — it reverses "Sort" on that
-        // strip): the sr-only label shown, no "Sort" beside it.
-        // `sort-glyph-default`, `sort-word-default`, `sort-label-default`: a cold goods link's first frame paints this pill as the
-        // goods strip will — no ⇅, no "Sort", the label shown (globals.css, the goods cold-link rules) — so the pills after it do
-        // not move when the fold draws the goods strip.
-        icon={<>{sortGlyphShown && <SortGlyph className={cn('size-4 shrink-0', sort === 'newest' && 'sort-glyph-default text-ink-3')} />}{sort === 'newest' && !goods && <span aria-hidden className="sort-word-default">{tr('Sort', 'Sắp xếp')}</span>}</>}
-        labelClassName={sort === 'newest' && !goods ? 'sr-only sort-label-default' : undefined}
+        // ⛔ THE PILL NAMES ITS ORDER ON EVERY STRIP (owner, 2026-11-16, hub Q15 — `look`'s note): "Relevance" at the default
+        // order, with no ⇅ and no "Sort" word. It reverses the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'"
+        // everywhere (build 8 had for the goods strip). Any other order keeps its glyph in front of its name.
+        icon={sortGlyphShown ? <SortGlyph className="size-4 shrink-0" /> : undefined}
         indicator="down"
         searchable={false}
         className={cn(PILL_BOX, sort === 'newest' && PILL_REST, PILL_OPEN_ATTR)}

@@ -16,8 +16,8 @@ Identity in one line: **flat white marketplace — one white canvas (#ffffff) on
 an ink ladder (#141414 / #3d3d3d / #5e5e5e), ONE accent (#0060df, press #004bb0) for actions,
 links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, a closed type
 scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header with
-one raised 44px search pill and a docked white tab bar, one primary + one secondary button, white
-hairline chips (a clipped one at the edge says the row swipes).**
+one raised 44px search pill and a docked white tab bar of five labelled tabs, one primary + one secondary button, white
+hairline chips — field-grey filled in a phone feed's control strip — (a clipped one at the edge says the row swipes).**
 
 ⚠️ **The 2026-11-14 redesign is owner-approved** (cook r05: *"after this cook round build all best
 options and deploy"*). It reversed, in one change: the blue wash floor (09-18 / 09-19) → white; the
@@ -336,13 +336,20 @@ The sticky action bar (`ui/sticky-action-bar`) is the exception that keeps the c
 cook r05: "the tab bar's twin … white, top hairline, soft lift") it is OPAQUE `bg-background` with its top hairline and
 `shadow-bar` (0 −2 12 / 4%, the one upward shadow) — no translucency, no backdrop blur.
 
-- **The mobile tab bar is DOCKED and icon-only** (owner-approved 2026-11-14, cook r05; it was the floating pill of
+- **The mobile tab bar is DOCKED** (owner-approved 2026-11-14, cook r05; it was the floating pill of
   2026-09-26): full width at bottom 0, 56px + the home-indicator band it pads by (`--tabbar-inset`), opaque
   `bg-background`, `border-t border-border` and the `shadow-bar` lift — the sticky action bar's twin, no blur, no radius.
-  On a touch tablet the five tabs sit centred in a `max-w-md` row. Labels are visual only — each tab keeps its
-  `aria-label`. Location = the accent bold cut (the sprite's `.i-on` on `aria-current`); idle glyphs `text-muted-foreground`
-  at 26px; Post = the bold add-circle in ink, 38px, at rest too (`.icon-solid`, `icon-own-ink`). Its footprint stays
-  inside the 4.5rem + safe area every bottom-anchored surface clears. It retracts on scroll as before (07-16).
+  On a touch tablet the five tabs sit centred in a `max-w-md` row. **All five labelled since 2026-11-16** (owner, hub Q12;
+  it was icon-only from 09-26): each tab prints its own `aria-label` words, 11/16 (500; 600 in the accent when current)
+  under its glyph, one line ending in an ellipsis (each tab `min-w-0`) — the label aria-hidden, so the name is said once.
+  The 16px line is what Open Runde's stacked capitals (Ẫ Ổ Ữ) need inside `truncate`'s overflow box (a 12px one clipped
+  them, and every descender); the text sits where a 2px gap over a 12px line put it. Glyph and label are BOTTOM-anchored
+  (`pb-1`), so the five labels share one baseline under the 24px glyphs and the taller Post disc. Location = the accent
+  bold cut (the sprite's `.i-on` on `aria-current`); idle glyphs `text-muted-foreground`. **Post = a 32px grey disc
+  (`bg-tint`, `line-strong` pressed) with the bare ink + (`BarePlus`, a line mark: the mock's 16x2 round-capped bars at
+  40, scaled — 12.8 x 1.6) over its "Post" label** (owner, 2026-11-16, hub Q14 — YouTube's centre slot; it was the 26px
+  outline add-circle of build 8; 32, not the mock's 40, so disc + label stand in the bar). Its footprint stays inside the
+  4.5rem + safe area every bottom-anchored surface clears. It retracts on scroll as before (07-16).
 - ⚠️ **Edge a floating surface with `border`, not `ring-1`, when it also wears `shadow-pop`/
   `shadow-overlay`.** Those are unlayered `box-shadow` rules and a Tailwind ring is a box-shadow,
   so the ring is silently overwritten (measured on the tab bar: no line in either theme).
@@ -420,11 +427,16 @@ costs conversions. It stays a separate, owner-reviewed decision.
   `sm`); the photo multiplied onto the grey tile (light mode only) with no ring; no fade-in on scroll. A search with no
   category opens on ONE title line (since build 7: the count at the h3 role, `t-h3` 17/24, then "Save search" in words —
   accent label text after its 20px bookmark, no fill) and ONE control row led by the view pick (a 36px circle) and the
-  "All categories" scope chip (the ladder opens under it). The control row — the search's and a goods category's — STAYS
+  "All categories" scope chip (the ladder opens under it) — **and since 2026-11-16 (owner, hub Q17) so does every bare
+  category feed** (`/?category=…` with no words, brand or model; not Teachers or Jobs, whose compact row leads with the
+  teacher door): the chip names the category ("Electronics ⌄"), its subcategories in the ladder it opens. The control row
+  — the search's and a goods category's — STAYS
   PINNED when the header leaves (build 8), is opaque with no rule while it sits in place and one hairline once it is stuck,
   and its pills are FILLED (build 8: field grey, no edge, `--secondary` pressed or open, ink when applied —
   `data-pills="filled"`, ui/chip-style.ts); the sort pill prints its order ("Relevance", build 8) with no glyph at the
-  default, and the pills read Price, Condition, Type, Area. The guest capture row in that grid is one calm row in a field
+  default, and the pills read Price, Condition, Type, Area. **Since 2026-11-16 (owner, hub Q15) the filled pills, the
+  "Relevance" sort pill and the hairline-only-once-stuck are EVERY phone feed strip's** (the explorer's SortStrip on every
+  feed and shop, and every pinned /c strip), not the goods strips' alone. The guest capture row in that grid is one calm row in a field
   panel on the gutter (build 8: the title and "Join free", no bullets). A thin search's "More in …" continues the grid. A
   goods category page wraps its display H1, drops the masthead rule, keeps its strip's count, puts its lede (whole, 14/20
   muted) right after the grid, and lists Guides as plain 48px rows (no blurb below `sm`). Reversed for goods: the
@@ -472,14 +484,16 @@ costs conversions. It stays a separate, owner-reviewed decision.
   lane's price and title sit above the tab bar.
   **Build 8 (owner-approved 2026-11-15, cook r08 home):** the home route's phone header **stays put** while the lanes are drawn
   (use-header-pin.ts; it still slides on a directed feed and from `sm`), its search pill the one primary action — 46px,
-  `shadow-search`, the empty state a centred bold ink "Search" beside its own magnifier; ✨, bell and download muted (bell
-  and download 22px) — with no hairline under it. The category pills **pin under it** while the lanes scroll (sticky inside
+  `shadow-search`, the empty state a centred bold ink "Search" beside its own magnifier; ✨ and bell muted (the bell 22px;
+  the download glyph beside it, muted and 22px in build 8, left the phone header on every route 2026-11-16 — owner, hub
+  Q12) — with no hairline under it. The category pills **pin under it** while the lanes scroll (sticky inside
   the ladder's head, so they let go with the last lane, before the feed's strip) with one hairline once pinned: **one flex
   line, pills 8px apart** (2026-11-15: pages bunched them mid-swipe), ending 8px before the 40px grey More disc on the
   12px edge; 26px art. Pinned chrome 56 + 52 = 108px. Every lane: the heading and a **32px round
   grey arrow disc** for See all (its words its accessible name), 16 heading → photos, 40 between lanes. Order: Trending, the
   product category lanes, **Partners** (three whole raised tiles across the text column, nothing of the fourth),
-  Outstanding businesses, then **Services** (by slug). The tab bar's Post is the 26px outline add-circle (ink-3 at rest).
+  Outstanding businesses, then **Services** (by slug). (The tab bar's Post was the 26px outline add-circle until 2026-11-16 —
+  now the labelled 32px grey disc above, hub Q14.)
 
 **Layers — the z ladder.** One ordered scale, named by role (`@theme { --z-index-* }` in
 globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows them):

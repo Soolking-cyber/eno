@@ -485,8 +485,13 @@
    * options and deploy"). The tokens stay, so every `bg-cta` / `text-cta-ink` / `bg-cta-50` follows with no markup
    * change: the Post fill is the ONE accent (#0060df, white 5.62:1), its press #004bb0 (white 7.97:1, the same in
    * both themes, so `hover:bg-cta-dark` is the safe hover for any white-label accent button), commerce TEXT is ink
-   * (#141414) and the commerce tint is gone (transparent — its only consumer, the phone Post coin, is the tab-bar
-   * area's). Everything below this paragraph is the orange's history, kept for the measurements.
+   * (#141414) and the commerce tint is gone (transparent).
+   * ⚠️ WHAT STILL READS THEM (measured 2026-11-16): `bg-cta` — ui/button's `commerce`, whose one consumer is the header's
+   * desktop Post; `text-cta` — open-in-browser.tsx's escape pointer; `cta-dark` — the primary buttons' hover and press.
+   * NOTHING reads `bg-cta-50` or `text-cta-ink` any more: the tint's last consumer, the phone Post coin's plate, left with
+   * the coin (the docked tab bar, 2026-11-14), and the phone's Post is now a grey disc with an ink + (`bg-tint`,
+   * mobile-nav.tsx; owner, 2026-11-16, hub Q14) — no orange and no accent fill. Those two stay as names only
+   * (tokens-contrast.test.ts pins them). Everything below this paragraph is the orange's history, kept for the measurements.
    * ⛔ (history) THE COMMERCE ORANGE — 58同城's HUE, AND IT IS NOT THE BRAND. The whole app wore this for one
    * preview and the owner pulled it back to the blue the same afternoon: "revert only prices orange
    * and free post and some important parts orange rest previous blue" (2026-09-18). So it is scoped
@@ -510,8 +515,8 @@
    */
   --cta: #0060df;        /* fills: the Post button — the one accent, white ink 5.62:1 */
   --cta-dark: #004bb0;   /* hover/pressed — the action press, white ink 7.97:1 */
-  --cta-ink: #141414;    /* text: commerce badges — ink, like the price */
-  --cta-50: transparent; /* no commerce tint: a badge sits on the page */
+  --cta-ink: #141414;    /* text: ink, like the price — no consumer today (the note above) */
+  --cta-50: transparent; /* no commerce tint — no consumer today (the note above) */
 
   /**
    * ⛔ THE GROUND IS WHITE SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this cook round build all
@@ -4847,34 +4852,18 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
 .view-pick-reserve {
   display: none;
 }
-/* …and on every cold goods link (a goods category, `all`, an unknown one, or none — the four left out are goods-surface.ts
-   NOT_GOODS_CATEGORIES; goods-surface.test.ts holds the lists equal) the sort pill is the goods strip's from the first frame:
-   no ⇅, and — since owner-approved 2026-11-15 (build 8), cook r08 goods — no "Sort" either, its own sr-only label shown
-   ("Relevance": SortStrip `look` prints it), so the pills after it stay where they are when the fold draws that strip. The
-   label's box is Tailwind's `not-sr-only` but for `overflow` and `white-space`, which stay the label's own `truncate`. */
-@media (width < 40rem) {
-  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar :is(.sort-glyph-default, .sort-word-default) {
-    display: none;
-  }
-  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .sort-label-default {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    clip-path: none;
-  }
-}
-/* ⛔ THE GOODS STRIPS' PILLS ARE FILLED (owner-approved 2026-11-15 (build 8), cook r08 goods — ui/chip-style.ts has the rule; it
-   reverses, in these strips below 40rem, the 2026-11-14 white + 1px line-strong pill): a resting pill (`.pill-rest`) is the field
+/* ⛔ EVERY PHONE FEED STRIP'S PILLS ARE FILLED (owner, 2026-11-16, hub Q15: "one chip look … filled strips on the feeds"; cook r12
+   R2 — ui/chip-style.ts has the rule, and which strips: not a storefront's or a vehicle hub's, which never pin). It reverses, below 40rem in every feed strip, the 2026-11-14 white + 1px line-strong pill; build
+   8 (owner-approved 2026-11-15, cook r08 goods) had done it for the goods strips alone. A resting pill (`.pill-rest`) is the field
    grey with no edge — the 1px border stays, transparent, so no pill grows and forced colours still outline it — and pressed or
    open (`:active`, Base UI's `data-popup-open`, PILL_OPEN's `.pill-open`) one step deeper, `--secondary`. An applied pill keeps
    the ink fill (PILL_ON carries no `.pill-rest`); a pressed toggle (`data-pressed`: Good price's green) is left to its own look.
-   The strips say so themselves (`data-pills="filled"`: SortStrip and PinnedStrip with `look="goods"`); a cold goods link's
-   first frame — the ISR home's strip under the pre-paint mask — takes the same look from the fold mark, so the fold changes
-   nothing a reader sees. Unlayered, so it beats the pills' own background and border utilities. */
+   The strips say so themselves, in their server HTML (`data-pills="filled"`: SortStrip always, PinnedStrip always), so a cold
+   link's first frame is already filled — the fold-keyed copies of these selectors, and the cold goods link's sort-label rules,
+   went with the goods-only look (SortStrip prints "Relevance" with no ⇅ and no "Sort" on every strip now). Unlayered, so it
+   beats the pills' own background and border utilities. */
 @media (width < 40rem) {
-  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]),
-  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar .pill-rest:not([data-pressed]) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]) {
     border-color: transparent;
     background-color: var(--muted);
   }
@@ -4882,8 +4871,7 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
   :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]) svg {
     color: var(--ink-3);
   }
-  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open, .pill-on[data-popup-open]),
-  html[data-explorer-fold]:not([data-explorer-cat="rentals"], [data-explorer-cat="jobs"], [data-explorer-cat="teachers"], [data-explorer-cat="services"]) #explorer-toolbar :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open, .pill-on[data-popup-open]) {
     border-color: transparent;
     background-color: var(--secondary);
   }
@@ -4908,8 +4896,19 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
     visibility: hidden;
   }
 }
+/* ⛔ …AND A COLD CATEGORY LINK THE EXPLORER OPENS THE SAME WAY (owner, 2026-11-16, hub Q17 — listings-explorer.tsx `catRow`;
+   the pre-paint script marks it, explorer-url.ts CAT_ROW_ATTR): its results row leaves the box tree too, and `.ladder-row-reserve`'s
+   36px stands in for its title line as above. Its control row cannot be held by a reserve — the chip names the category, a width
+   only the explorer knows — so the strip waits unseen (visibility, its box kept) until the commit that draws the chip drops the
+   fold mark: the pills paint once, where they stay. */
 @media (width < 40rem) {
-  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) #results {
+  html[data-explorer-fold][data-explorer-cat-row] #explorer-toolbar {
+    visibility: hidden;
+  }
+}
+@media (width < 40rem) {
+  html[data-explorer-fold]:is(:not([data-explorer-cat]), [data-explorer-cat="all"]) #results,
+  html[data-explorer-fold][data-explorer-cat-row] #results {
     position: absolute;
     width: 1px;
     height: 1px;

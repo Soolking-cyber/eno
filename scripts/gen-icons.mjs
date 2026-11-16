@@ -761,20 +761,50 @@ const layer = (solar, style, { jsx = true } = {}) => {
 }
 
 /**
+ * ⛔ A BARE LINE MARK (`line` on a BARE_MARKS row): Solar's own CENTRELINE, from its LINEAR weight, drawn at a reach and a
+ * weight of our choosing. Introduced 2026-11-16 for the tab bar's Post plus (owner, hub Q14; cook r12 H6, "16x2 round-capped
+ * bars at the 40px disc"): the OUTLINE weight's plus is a filled outline 7.5 units across with a 1.5 stroke — 5:1, too short
+ * and too heavy for the mock's 8:1 — and a filled outline can only be fattened (`bold`), never thinned or lengthened. A
+ * centreline can be both, and stays Solar's drawing: same arms, same round caps, only scaled about the grid centre and
+ * re-stroked.
+ * ⚠️ IT REBUILDS THE TAG FROM NUMBERS ALONE. normalise() refuses stroke paint (an Outline/Bold glyph has none), so a linear
+ * shape cannot go through it; instead the sha (bareMark) pins the whole source tag, the exact shape below is required, and the
+ * `d` must be absolute M/L pairs only — so nothing from the vendor's bytes but those numbers reaches the sprite. The emitted
+ * paint is `currentColor` / `none`, the sanitiser's own guarantee.
+ */
+const lineMark = (lucide, { line, dx }, tag) => {
+  const { scale, stroke } = line ?? {}
+  if (!(scale > 0) || !(stroke > 0)) fail(`bare line mark ${lucide}: \`line\` needs a positive scale and stroke, got ${JSON.stringify(line)}`)
+  const m = tag.match(/^<path d="([^"]+)" stroke="currentColor" stroke-linecap="round"\/>$/)
+  if (!m) fail(`bare line mark ${lucide}: the source shape is not a plain round-capped stroked <path>: ${tag.slice(0, 80)}`)
+  const pairs = [...m[1].matchAll(/([ML])\s*(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)\s*/g)]
+  if (pairs.map((p) => p[0]).join('') !== m[1]) fail(`bare line mark ${lucide}: \`d\` is not absolute M/L pairs only: ${m[1]}`)
+  // About the 24-unit grid's centre, so a mark that was centred stays centred (dx still applies after).
+  const at = (v) => String(parseFloat((12 + (Number(v) - 12) * scale).toFixed(2)))
+  const d = pairs.map(([, c, x, y]) => `${c}${at(x)} ${at(y)}`).join('')
+  const path = `<path d="${d}" fill="none" stroke="currentColor" stroke-width="${stroke}" stroke-linecap="round"/>`
+  return dx === 0 ? path : `<g transform="translate(${dx},0)">${path}</g>`
+}
+
+/**
  * One BARE MARK: a single shape lifted out of an enclosed glyph, centred, and used for BOTH
  * weights. See `BARE_MARKS` in lucide-solar-map.mjs for why the set exists and how `dx` was
  * measured — this function is only the extraction, and every guard below protects `dx`.
  */
 const bareMark = (lucide, spec, { jsx = true } = {}) => {
   const { from, shape, shapes, dx, sha } = spec
-  if (!available.outline.has(from)) fail(`bare mark ${lucide} -> solar "${from}" is not in the outline style`)
+  // A LINE mark (`line`, lineMark below) is read from Solar's LINEAR weight — a stroked centreline — and every other bare mark
+  // from the OUTLINE weight, a filled outline.
+  const style = spec.line ? 'linear' : 'outline'
+  const file = join(SRC, style, `${from}.svg`)
+  if (spec.line ? !existsSync(file) : !available.outline.has(from)) fail(`bare mark ${lucide} -> solar "${from}" is not in the ${style} style`)
 
   // Guard on the RAW file, before normalise/quantise rewrites the numbers: `sha` was taken from
   // Solar's own bytes, and comparing anything else would drift the moment the generator changes.
-  const raw = readFileSync(join(SRC, 'outline', `${from}.svg`), 'utf8')
+  const raw = readFileSync(file, 'utf8')
   const rawShapes = raw.match(/<(?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*>/g) ?? []
   if (rawShapes.length !== shapes) {
-    fail(`bare mark ${lucide}: solar outline/${from} now has ${rawShapes.length} shapes, expected ${shapes}.\n` +
+    fail(`bare mark ${lucide}: solar ${style}/${from} now has ${rawShapes.length} shapes, expected ${shapes}.\n` +
          `  The shape index and dx were measured against the old drawing — re-measure both.`)
   }
   /**
@@ -786,12 +816,16 @@ const bareMark = (lucide, spec, { jsx = true } = {}) => {
    * missing `d`.
    */
   const raw0 = rawShapes[shape]
-  if (!raw0) fail(`bare mark ${lucide}: solar outline/${from} has no shape at index ${shape}`)
+  if (!raw0) fail(`bare mark ${lucide}: solar ${style}/${from} has no shape at index ${shape}`)
   const got = createHash('sha256').update(raw0).digest('hex').slice(0, 16)
   if (got !== sha) {
-    fail(`bare mark ${lucide}: solar outline/${from} shape ${shape} was redrawn (sha ${got}, expected ${sha}).\n` +
+    fail(`bare mark ${lucide}: solar ${style}/${from} shape ${shape} was redrawn (sha ${got}, expected ${sha}).\n` +
          `  dx=${dx} was measured against the OLD geometry and is now meaningless. Re-measure the\n` +
          `  shape's getBBox() centre in a browser, then update dx AND sha together — never sha alone.`)
+  }
+  if (spec.line) {
+    const mark = lineMark(lucide, spec, raw0)
+    return { rest: mark, on: mark, why: `Solar \`${from}\` (linear) #${shape} — a BARE LINE mark, re-reached x${spec.line.scale} and re-stroked ${spec.line.stroke} (${spec.why}) Same drawing at rest and pressed.` }
   }
 
   // Take the SANITISED shape, so a bare mark gets the same colour/markup checks as every other

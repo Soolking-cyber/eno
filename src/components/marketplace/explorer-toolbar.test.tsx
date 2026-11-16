@@ -348,18 +348,23 @@ describe('SortStrip look="goods" and phoneScope', () => {
     expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2) // ↑ and ⌄
   })
 
-  it('without the look the strip is as it was: the frosted bar, its rule, the ⇅ and "Sort" — marked for the cold goods link\'s first frame', () => {
+  it('⛔ without the look (rentals, jobs, the home, a shop) the strip keeps its frosted bar — and since 2026-11-16 (owner, hub Q15) it is filled, its rule waits for the pin, and its pill says "Relevance" with no ⇅ and no "Sort"', () => {
     const { container } = render(strip('newest'))
     const bar = container.querySelector('#explorer-toolbar')!
     expect(tokens(bar)).not.toContain('max-sm:bg-background')
-    expect(bar.hasAttribute('data-pills')).toBe(false)
-    expect(tokens(bar.querySelector('.border-b')!)).not.toContain('max-sm:border-b-transparent')
+    expect(bar.getAttribute('data-pills')).toBe('filled')
+    expect(tokens(bar.querySelector('.border-b')!)).toContain('max-sm:border-b-transparent')
     const pill = screen.getByRole('combobox', { name: /Sort by/ })
-    expect(pill.querySelectorAll('svg').length).toBe(2)
-    // "Sort" shown, "Relevance" sr-only — each marked, so globals.css can paint a cold goods link's seed as the goods pill.
-    expect(pill.querySelector('.sort-word-default')!.textContent).toBe('Sort')
-    expect(tokens(pill.querySelector('.sort-label-default')!)).toEqual(expect.arrayContaining(['sr-only', 'truncate']))
-    expect(pill.querySelector('.sort-label-default')!.textContent).toBe('Relevance')
+    expect(pill.textContent).toBe('Relevance')
+    expect(pill.querySelectorAll('svg').length).toBe(1) // the ⌄ alone
+    const label = [...pill.querySelectorAll('span')].find((e) => e.textContent === 'Relevance')!
+    expect(tokens(label)).not.toContain('sr-only')
+    // The cold goods link's markers are gone with the goods-only look.
+    expect(pill.querySelector('.sort-word-default, .sort-label-default, .sort-glyph-default')).toBeNull()
+    cleanup()
+    render(strip('recent'))
+    // Any other order keeps its glyph in front of its name.
+    expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg').length).toBe(2)
   })
 
   it('⛔ the goods strip says its pills are filled (build 8, owner-approved 2026-11-15, cook r08 goods; globals.css paints them)', () => {
@@ -373,7 +378,7 @@ describe('SortStrip look="goods" and phoneScope', () => {
     expect(tokens(screen.getByRole('combobox', { name: /Sort by/ }))).not.toContain('pill-rest')
   })
 
-  it('globals.css: the filled look below 40rem — field grey, no edge, a step deeper pressed or open — in the goods strips and a cold goods link\'s seed only', () => {
+  it('globals.css: the filled look below 40rem — field grey, no edge, a step deeper pressed or open — keyed on the strips\' own mark, no fold-keyed copy', () => {
     const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
     const at = css.indexOf('#explorer-toolbar[data-pills="filled"]')
     expect(at).toBeGreaterThan(0)
@@ -384,6 +389,10 @@ describe('SortStrip look="goods" and phoneScope', () => {
     expect(block).toMatch(/\.pill-rest\[data-popup-open\], \.pill-open[^{]*\{\s*border-color: transparent;\s*background-color: var\(--secondary\);/)
     // A pressed toggle (Good price's green) is never repainted.
     expect(block).not.toMatch(/\.pill-rest(?!:not\(\[data-pressed\]\))(?![\[]data-popup-open)[ ,{:]/)
+    // Every strip is filled in its own server HTML now: no fold-keyed copy, no cold goods link's sort-label rules.
+    const plain = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(plain).not.toMatch(/html\[data-explorer-fold\][^{]*\.pill-rest/)
+    expect(plain).not.toMatch(/sort-(glyph|word|label)-default/)
   })
 
   it('phoneScope is the row\'s FIRST item, before the applied chips and the sort pill (DOM order = visual order)', () => {

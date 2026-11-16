@@ -202,6 +202,11 @@ export const LUCIDE_TO_SOLAR = {
   Play: 'play',
   Plug: 'plug-circle',
   Plus: 'add-circle',
+  // ⛔ NOT A LUCIDE NAME, ON PURPOSE (the `SupportDialog` precedent above): the tab bar's Post plus, drawn bare inside its own
+  // grey disc (owner, 2026-11-16, hub Q14 — mobile-nav.tsx). lucide's `Plus` is already this map's ENCLOSED add-circle and every
+  // call site uses it that way, so the bare + needs a name of its own; its geometry is a BARE_MARKS row below (a LINE mark,
+  // from the linear weight).
+  BarePlus: 'add-circle',
   Presentation: 'presentation-graph',
   Receipt: 'bill-list',
   RefreshCw: 'refresh',
@@ -315,6 +320,8 @@ export const LUCIDE_TO_SOLAR = {
  *
  * So each row here names a source glyph and ONE shape index within its OUTLINE weight — the tick
  * out of `check-read`, the bar out of `minus-circle` — and the generator emits that shape alone.
+ * (A row with `line` reads the LINEAR weight instead — a stroked centreline it may re-reach and re-stroke; BarePlus, 2026-11-16,
+ * and gen-icons.mjs lineMark say why.)
  *
  * ⚠️ `dx` IS MEASURED WITH getBBox() IN A REAL BROWSER, NOT COMPUTED. The tick shares its source
  * box with a second tick, so it sits left of centre and has to be nudged back. A first draft had
@@ -359,6 +366,14 @@ export const BARE_MARKS = {
     // thicker than the glyphs around it for no reason anyone asked for. Same source shape,
     // different job, different weight.
     why: 'The separator between OTP groups (ui/input-otp) — a dash, never a circled minus.' },
+  // ⛔ A LINE MARK (`line`, gen-icons.mjs lineMark): Solar's LINEAR add-circle #1, the plus as a round-capped centreline
+  // (`M15 12L12 12M12 12L9 12M12 12L12 9M12 12L12 15` — arms 3 units from the grid centre, so dx 0 by construction), NOT the
+  // outline weight's filled plus: that one is 7.5 units across at a 1.5 stroke (5:1), and the mock it must match is 8:1 —
+  // cook r12 H6, "two 2px round-capped bars, 16px" on the 40px disc. The disc is 32px since 2026-11-16 (so the label fits
+  // under it, mobile-nav.tsx), so the mock scales to 12.8px across at a 1.6px stroke; drawn at the disc's own 32px (1 unit =
+  // 1.333px) that is 9.6 units across at 1.2: arms 3 -> 4.2 (x1.4), the round caps' 0.6 each end making up the rest.
+  BarePlus: { from: 'add-circle', shape: 1, shapes: 2, dx: 0, sha: 'bc5f07561ac2d751', line: { scale: 1.4, stroke: 1.2 },
+    why: 'The tab bar\'s Post plus, drawn inside its own 32px grey disc (owner, 2026-11-16, hub Q14) — a ring inside the disc would be two rings.' },
 }
 
 /**

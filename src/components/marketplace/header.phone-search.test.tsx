@@ -214,7 +214,8 @@ describe('the header bar: 56px, no glow; a 40px tint field + 40px logo from sm, 
 /**
  * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): on the home route's phone header the search pill is the one primary
  * action — 46px, a stronger lift, an empty state that is a centred bold ink label beside its own magnifier (the ONE-word rung:
- * the mock's centred "Search eno…" read as cut copy), the ✨ / bell / download muted — and the bar stays put while the home
+ * the mock's centred "Search eno…" read as cut copy), the ✨ / bell muted (the download glyph too, until it left the phone header
+ * on 2026-11-16 — owner, hub Q12, app-download.tsx) — and the bar stays put while the home
  * lanes are drawn (use-header-pin.ts), with no hairline under it (the pinned pills carry the one). Every other route is the
  * r05 header, class for class (the pins above run on /help).
  */

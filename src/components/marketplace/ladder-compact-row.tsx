@@ -30,8 +30,12 @@ import type { FacetCounts } from '@/lib/facet-counts'
  * is DIRECTED those tiles have done their job; the answer is what the reader came for.
  *
  * ⛔ EXCEPT A SEARCH WITH NO CATEGORY PICKED, ON A PHONE (owner-approved 2026-11-14, cook r06 goods): there this row is not drawn —
- * the scope chip joins the sticky filter row (ScopeChip, below) and the quick chips are what it opens. Everything below holds
- * with a category picked, and from sm.
+ * the scope chip joins the sticky filter row (ScopeChip, below) and the quick chips are what it opens.
+ * ⛔ …AND A CATEGORY FEED, ON A PHONE (owner, 2026-11-16, hub Q17; cook r12 R1 — listings-explorer.tsx `catRow`): a category (or
+ * a subcategory) picked with no words, no brand and no model is not drawn as this row either — the chip names the category
+ * there ("Electronics ⌄", ScopeChip `label`) and the subcategory chips wait in the ladder it opens. It reverses the 09-24 row on
+ * those feeds. Everything below still holds on Teachers and Jobs (their teacher door leads this row), for a search or a brand
+ * inside a category, and from sm.
  * WHAT THE ROW HOLDS (one line, horizontally scrollable, nothing wraps):
  *   · the SCOPE button first — the current category (or "All categories"), highlighted, with a
  *     chevron: tap it and the full ladder (tile grid + brands) opens below it, tap again and it folds
@@ -267,14 +271,23 @@ export const LADDER_PANEL = 'mt-4 space-y-4 transition-opacity duration-150 ease
  * search with no category picked (listings-explorer.tsx `oneRow`) has ONE control row: this chip first, then Sort and the
  * filter pills — the sticky filter row (SortStrip `phoneScope`); since build 7 (owner-approved 2026-11-15, cook r07 goods) the
  * view circle leads the row, right before this chip (SortStrip `phoneView`). The quick category and intent chips are not drawn there:
- * they are what this chip opens (the full ladder, in the panel right under the row). With a category picked the compact row
- * above is unchanged.
- * A plain chip like its neighbours (ui/chip-style PILL_* — white, the 1px line-strong edge, ink label): "All categories" is
- * not a choice the reader made, so it is not the ink fill the compact row's scope pill wears. Words and a chevron only — the
+ * they are what this chip opens (the full ladder, in the panel right under the row). ⛔ Since 2026-11-16 (owner, hub Q17) a
+ * category feed draws it too, naming the category (`label`); with words or a brand inside a category the compact row above holds.
+ * A plain chip like its neighbours (ui/chip-style PILL_* — the field grey of the filled strip since 2026-11-16, hub Q15; ink
+ * label): "All categories" is not a choice the reader made, so it is not the ink fill the compact row's scope pill wears. Words and a chevron only — the
  * row's one glyph family (no grid glyph). A Base UI Collapsible trigger: aria-expanded and aria-controls come from the
  * library, from the root on `[data-ladder]`. `relative tap-44`: 36px seen, 44 to the thumb (the row's `py-1` leaves room).
  */
-export function ScopeChip({ expanded }: { expanded: boolean }) {
+export function ScopeChip({ expanded, label }: {
+  expanded: boolean
+  /**
+   * ⛔ The category feed's chip (owner, 2026-11-16, hub Q17 — listings-explorer.tsx `catRow`): the deepest rung picked, the
+   * category's own name ("Electronics") or the subcategory's, already translated. A plain chip still — the field grey of the
+   * filled strip it sits in (hub Q15), not the folded row's ink: the words say what is picked. `max-w-[10rem] truncate`, the
+   * compact row's own cap. Omitted: "All categories".
+   */
+  label?: string
+}) {
   const { tr } = useLanguage()
   return (
     <CollapsibleTrigger
@@ -282,7 +295,7 @@ export function ScopeChip({ expanded }: { expanded: boolean }) {
       // The look on the <Button> itself (a render child's className is concatenated, not merged — CLAUDE.md).
       render={<Button variant="bare" size="none" className={SCOPE_CHIP} />}
     >
-      {tr('All categories', 'Tất cả danh mục')}
+      {label ? <span className="max-w-[10rem] truncate">{label}</span> : tr('All categories', 'Tất cả danh mục')}
       <ChevronDown aria-hidden className={cn(SCOPE_CHEVRON, expanded && 'rotate-180')} />
     </CollapsibleTrigger>
   )

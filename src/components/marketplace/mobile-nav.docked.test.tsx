@@ -3,13 +3,15 @@ import * as React from 'react'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { BARE_MARKS } from '../../../scripts/lucide-solar-map.mjs'
 
 /**
  * ⛔ THE DOCKED TAB BAR (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and deploy").
  * It reverses the 2026-09-26 floating pill, its tinted capsule and the Post coin's orange plate: full width at bottom 0,
  * 56px + the home-indicator band it pads by, white, a top hairline, idle glyphs muted, the current one the accent bold
- * cut, Post the bold add-circle in ink — since build 8 (owner-approved 2026-11-15, cook r08 home) the OUTLINE add-circle at the
- * other tabs' 26px, in the stronger ink at rest. jsdom has no layout, so the classes and the stylesheet rules are the contract.
+ * cut, Post the bold add-circle in ink — build 8 (owner-approved 2026-11-15) the outline add-circle — and since 2026-11-16 (owner,
+ * hub Q14) a 32px grey disc with an ink +, labelled "Post" like its neighbours (hub Q12). jsdom has no layout, so the classes and
+ * the stylesheet rules are the contract.
  * ⚠️ EXPLICIT CLEANUP — no vitest `globals`.
  */
 
@@ -65,25 +67,41 @@ describe('the bar is docked, not a floating pill', () => {
     expect(tokens(explore)).toContain('text-muted-foreground')
   })
 
-  it('⛔ Post (build 8): the outline add-circle at the other tabs\' 26px, the stronger ink at rest — no solid disc, no plate', () => {
+  it('⛔ Post (owner, 2026-11-16, hub Q14): a 32px grey disc with the bare ink + — no ring glyph, no orange — and "Post" under it', () => {
     render(<MobileNav />)
     const post = screen.getByLabelText('Post')
     expect(tokens(post)).not.toContain('icon-own-ink')
     expect(post.querySelector('.icon-solid')).toBeNull()
-    const glyph = post.querySelector('svg')!
-    expect(tokens(glyph)).toEqual(expect.arrayContaining(['h-6.5', 'w-6.5', 'text-ink-3']))
-    // The same size as its neighbours (the Saved heart), so the five read as one family.
-    const heart = screen.getByLabelText('Saved').querySelector('svg')!
-    expect(tokens(heart)).toEqual(expect.arrayContaining(['h-6.5', 'w-6.5']))
-    expect(post.innerHTML).not.toMatch(/bg-cta-50|text-brand|size-10|rounded-full/)
+    const disc = post.querySelector('[data-post-disc]')!
+    expect(tokens(disc)).toEqual(expect.arrayContaining(['size-8', 'rounded-full', 'bg-tint', 'group-active/post:bg-line-strong']))
+    expect(tokens(disc)).not.toContain('size-10')
+    expect(tokens(post)).toContain('group/post')
+    // The plus is the sprite's BARE LINE mark (no ring inside the disc; its geometry is generated — lucide-solar-map.mjs
+    // BARE_MARKS), at the disc's own 32px, in ink at rest.
+    const glyph = disc.querySelector('svg')!
+    expect(glyph.querySelector('use')!.getAttribute('href')).toMatch(/#BarePlus-r$/)
+    expect(tokens(glyph)).toEqual(expect.arrayContaining(['size-8', 'text-foreground']))
+    expect(post.innerHTML).not.toMatch(/#Plus-r|bg-cta|text-brand|text-commerce/)
+    expect(post.querySelector('[data-tab-label]')!.textContent).toBe('Post')
   })
 
-  it('Post on /post: the accent cut like every current tab — the stronger ink is its resting state only', () => {
+  it('⛔ the + is the mock\'s (cook r12 H6: 16x2 round-capped bars on a 40px disc), scaled to the 32px disc — 12.8 across, 1.6 thick', () => {
+    // Read from the generator's own inputs, not the gitignored sprite: the BARE_MARKS row and Solar's linear centreline it scales.
+    const { from, shape, line } = BARE_MARKS.BarePlus as { from: string; shape: number; line: { scale: number; stroke: number } }
+    const tag = readFileSync(`node_modules/@solar-icons/static/dist/icons/linear/${from}.svg`, 'utf8').match(/<(?:path|circle)\b[^>]*>/g)![shape]
+    const coords = [...tag.match(/ d="([^"]+)"/)![1].matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]))
+    const arm = Math.max(...coords.map((v) => Math.abs(v - 12)))
+    const px = 32 / 24 // the glyph is drawn at the disc's own size-8
+    expect((2 * arm * line.scale + line.stroke) * px).toBeCloseTo(16 * (32 / 40), 5)
+    expect(line.stroke * px).toBeCloseTo(2 * (32 / 40), 5)
+  })
+
+  it('Post on /post: the accent like every current tab — the ink is its resting state only', () => {
     nav.pathname = '/post'
     render(<MobileNav />)
     const post = screen.getByLabelText('Post')
     expect(post.getAttribute('aria-current')).toBe('page')
-    expect(tokens(post.querySelector('svg')!)).not.toContain('text-ink-3')
+    expect(tokens(post.querySelector('svg')!)).not.toContain('text-foreground')
     expect(tokens(post.firstElementChild!)).toContain('text-accent-foreground')
   })
 

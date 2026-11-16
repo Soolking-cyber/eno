@@ -24,12 +24,13 @@ const SRC = 'src/components/marketplace/mobile-nav.tsx'
 
 describe('bottom nav: lit means location', () => {
   const code = readFileSync(SRC, 'utf8')
-  const glyphs = [...code.matchAll(/<(Heart|MessageSquare|User|Plus)\s+([^>]*?)\/>/g)].map((m) => ({ name: m[1], props: m[2].replace(/\s+/g, ' ').trim() }))
+  // Post's glyph is the bare + inside its grey disc since 2026-11-16 (owner, hub Q14): `BarePlus`, the sprite's ringless mark.
+  const glyphs = [...code.matchAll(/<(Heart|MessageSquare|User|BarePlus)\s+([^>]*?)\/>/g)].map((m) => ({ name: m[1], props: m[2].replace(/\s+/g, ' ').trim() }))
   const compass = [...code.matchAll(/<CategoryGlyphArt\s+([^>]*?)\/>/g)].map((m) => m[1].replace(/\s+/g, ' ').trim())
 
   it('finds all five tabs as Solar glyphs, and no 3D art', () => {
     expect(compass.filter((c) => c.includes('Icon={Compass}')), 'Explore renders the Compass duotone').toHaveLength(1)
-    for (const name of ['Heart', 'MessageSquare', 'User', 'Plus']) {
+    for (const name of ['Heart', 'MessageSquare', 'User', 'BarePlus']) {
       expect(glyphs.filter((g) => g.name === name), `exactly one <${name}> in ${SRC}`).toHaveLength(1)
     }
     expect(code, 'the bar went back to Solar v2 glyphs; a <NavArt> here means the 3D art crept back').not.toMatch(/<NavArt\b/)
@@ -37,7 +38,7 @@ describe('bottom nav: lit means location', () => {
 
   it('never lights a glyph from a count, an unread total or anything but the active state', () => {
     for (const { name, props } of glyphs) {
-      if (name === 'Plus') continue // Post is an ACTION, not a place: its coin is always brand, by design
+      if (name === 'BarePlus') continue // Post is an ACTION, not a place: its own disc and ink, by design
       expect(
         props,
         `<${name} ${props}/> carries a fill or colour. Colour in this bar means "you are here" and nothing ` +

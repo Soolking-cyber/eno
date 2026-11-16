@@ -203,10 +203,9 @@ From the canon, with 16px dominant. Constants: `ICON_SIZE` in `icon-tokens.ts`.
 | `h-4 w-4` | 16 | **the default** — buttons, rows, menus (ui/button injects it via a zero-specificity `:where` rule; any class on the icon wins) |
 | `h-5 w-5` | 20 | inputs, list leads, PDP action row |
 | `h-5 w-5` (search) | 20 | the header's search glass, ink (owner-approved 2026-11-14) |
-| `h-6 w-6` | 24 | header map/✕; on a phone the header's bell and download glyphs (`max-sm:h-6 max-sm:w-6`, ink, 2026-11-14) |
-| `h-6.5 w-6.5` | 26 | bottom-nav tabs (the docked bar, owner-approved 2026-11-14; 28 on the 2026-09-26 pill) |
+| `h-6 w-6` | 24 | header map/✕; on a phone the header's bell (`max-sm:h-6 max-sm:w-6`, ink, 2026-11-14 — the download glyph beside it left the phone header 2026-11-16, owner, hub Q12); the bottom-nav tab glyphs over their labels (owner, 2026-11-16, hub Q12; 26 on the icon-only docked bar of 2026-11-14, 28 on the 2026-09-26 pill) |
 | `h-7 w-7` | 28 | bell, download and header account from sm |
-| `size-9.5` | 38 | the bottom nav's Post: the bold add-circle in ink (`.icon-solid`), the bar's one solid mark |
+| `size-8` | 32 | the bottom nav's Post: its grey disc (`bg-tint`) and the bare + drawn at the disc's own size (`BarePlus`, a line mark: 12.8 across, 1.6 thick — the mock's 16x2 on a 40px disc, scaled), "Post" under it (owner, 2026-11-16, hub Q14). It was the 38px bold add-circle (2026-11-14), then the 26px outline one (build 8) |
 | `h-11 w-11`+ | 44+ | category tiles — display tier ONLY, always through `CategoryIcon` |
 
 **DO** put the size class on the svg. **DON'T** use arbitrary `h-[19px]` sizes or
@@ -260,12 +259,17 @@ fills for counts — the counter Badge carries the number.
   was three densities in one row.
 - **There are exactly TWO sanctioned coins** (a `rounded-full` span behind a
   glyph, where the component owns a real container — EmptyState's badge, the
-  bottom-nav Post chip, the enforcement banner's report lead). Never behind inline
-  icons, and never a third recipe:
+  enforcement banner's report lead). Never behind inline icons, and never a third
+  recipe:
   | Coin | Recipe | When |
   |---|---|---|
-  | **chrome** | `bg-brand-50` disc + `text-brand` glyph | the ordinary case: an empty list, a "nothing here yet", the Post chip |
+  | **chrome** | `bg-brand-50` disc + `text-brand` glyph | the ordinary case: an empty list, a "nothing here yet" |
   | **fault** | `bg-secondary` (NEUTRAL) disc + the fault ink on the glyph — `text-destructive` for a failure, `text-warning` for a caution | something went wrong or needs the user's attention |
+
+  ⛔ The bottom nav's Post is NOT a coin (it wore the chrome coin as the 09-26 pill's Post chip; the docked bar of
+  2026-11-14 dropped it): since 2026-11-16 (owner, hub Q14) it is a CONTROL's own surface — a 32px field-grey disc
+  (`bg-tint`, `line-strong` pressed, the grey See-all / More discs' family) with the ink bare + (`BarePlus`), its label
+  under it (§4, §9). It is not a recipe to reuse behind a glyph.
 
   The two inks are NOT a per-call-site choice: `<EmptyState variant="fault">` only ever
   renders a failure, so it fixes its ink at `text-destructive` and exposes no tone prop —
@@ -408,10 +412,14 @@ one 28px glyph.
 
 - The CSS-ring `<Spinner>` vs `Loader2` split in ui/* is intentional — keep both.
 - Checkbox/OTP marks stay `STROKE_MARK` (3).
-- The mobile nav is a floating, icon-only pill (2026-09-26) that retracts on
-  scroll-down and for the keyboard; STROKE_NAV on all five tabs; the Post chip is
-  a flat coin (`bg-cta-50 text-brand` at rest; the plate drops away when active,
-  since the solid glyph already says "you are here") — no FAB, no shadow.
+- The mobile nav is a DOCKED white bar (owner-approved 2026-11-14; the floating,
+  icon-only pill of 2026-09-26 is gone) that retracts on scroll-down and for the
+  keyboard; STROKE_NAV on all five tabs; all five LABELLED, each label the tab's own
+  aria-label words, on one baseline (owner, 2026-11-16, hub Q12); Post is a 32px
+  grey disc with the ink bare + and its label under it (owner, 2026-11-16, hub Q14 —
+  no orange plate, no coin, no FAB, no shadow); colour means "you are here" only.
+  The rules and their history: docs/design-language.md (the tab bar) and
+  mobile-nav.tsx.
 - Mascot + the eno seal (eno-seal.tsx, consumed by trust-score.tsx) are bespoke
   first-party art on the "one line + wash" language; do not lucide-ify them,
   and never fork the seal's paths (§0b).

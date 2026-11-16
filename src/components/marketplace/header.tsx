@@ -159,8 +159,9 @@ export function Header() {
    * ⛔ THE HOME ROUTE'S PHONE HEADER (owner-approved 2026-11-15 (build 8), cook r08 home: "the raised search pill as the one
    * primary action"): below `sm` on `/` (HOME_PATHS — a test that agrees on the server and the client, so no hydration gate),
    * the pill is 46px with a stronger lift (`shadow-search`), its empty state a centred bold ink label beside its own
-   * magnifier, and the ✨, bell and download glyphs step back to the muted ink. Every other route keeps the r05 pill (its ⛔
-   * note on the pill, below). A search or a filter on `/` keeps the same pill, so submitting never morphs the header.
+   * magnifier, and the ✨ and the bell step back to the muted ink (the download glyph beside them left the phone header on every
+   * route on 2026-11-16 — owner, hub Q12, app-download.tsx). Every other route keeps the r05 pill (its ⛔ note on the pill,
+   * below). A search or a filter on `/` keeps the same pill, so submitting never morphs the header.
    */
   const homePill = !!pathname && HOME_PATHS.has(pathname)
   /**
@@ -1428,9 +1429,10 @@ export function Header() {
                 `pc` is ≥64rem AND a fine pointer (globals.css): phones and touch tablets keep Account › Language, every
                 desktop gets this — never both, never neither. Guests and members alike (a member's rail has a picker
                 too, but only while it is expanded).
-              · FIRST IN THE ROW, between the search pill and the glyphs: "Get the app" keeps both of the owner's
-                placements (right of the bell on a phone, immediately left of Post on a member's desktop — 2026-09-16),
-                the heart, bell and app glyphs stay one group, and Sign in + Post keep the end.
+              · FIRST IN THE ROW, between the search pill and the glyphs: "Get the app" keeps the owner's desktop
+                placement (immediately left of Post on a member's desktop — 2026-09-16; its phone place right of the bell
+                went on 2026-11-16, hub Q12 — app-download.tsx), the heart, bell and app glyphs stay one group, and Sign in
+                + Post keep the end.
               · THE SIGN IN LINK'S BOX (h-9 rounded-xl px-2.5, text-sm font-semibold text-foreground, hover:bg-accent) through
                 ui/button, whose base carries the same press (scale 0.97, 60ms) and a focus ring; `relative tap-48` as
                 there, since a 2-in-1 laptop matches `pc` and takes taps.
@@ -1530,13 +1532,12 @@ export function Header() {
             </Tooltip>
           )}
           {/* ⛔ `quiet` ON THE HOME ROUTE (owner-approved 2026-11-15 (build 8), cook r08 home — `homePill`): below `sm` the bell
-              and the download glyph step back to the muted ink at 22px, so the search pill is the header's one loud object. */}
+              steps back to the muted ink at 22px, so the search pill is the header's one loud object. */}
           <NotificationBell quiet={homePill} />
-          {/* "Get the app" — ONE control placed to satisfy both placements the owner asked for
-              (2026-09-16): on a phone, where Post lives in the bottom nav, it lands immediately to the
-              RIGHT OF THE BELL; on desktop it is the control immediately LEFT OF POST. Renders nothing
-              inside the native shell. */}
-          <AppDownload quiet={homePill} />
+          {/* "Get the app" — on desktop the control immediately LEFT OF POST (owner, 2026-09-16). Renders nothing inside the
+              native shell. ⛔ NOT IN THE PHONE HEADER (owner, 2026-11-16, hub Q12 — it reverses 09-16's "right of the bell" below
+              `sm`, on every route): the control hides itself there; where a phone gets the app instead is in app-download.tsx. */}
+          <AppDownload />
           {/* Signed-in users reach their account via the persistent LEFT nav rail (desktop) / the
               bottom-nav Account tab (mobile/tablet) — no header avatar (owner 2026-07-17). Guests
               still get a Sign in link here. */}
@@ -1598,10 +1599,13 @@ export function Header() {
                 prop, which CONCATENATES classNames — only the Button's own className is
                 twMerged. On the child these were decided by stylesheet order instead of
                 intent (base gap-2 beat the child's gap-1.5). */}
-            {/* ⛔ `commerce`, NOT `cta` — THIS BUTTON IS THE ORANGE ONE (owner, 2026-09-18: "prices
-                orange and free post … orange"). `cta` is the shared primary-action variant behind 128
-                controls and stays brand blue; the commerce orange is scoped to this Post button, the
-                bottom nav's Post coin and the price. See the variant's own ⛔ note in ui/button. */}
+            {/* ⛔ `commerce`, NOT `cta` — THIS WAS THE ORANGE BUTTON (owner, 2026-09-18: "prices orange
+                and free post … orange"), and it is the variant's ONLY consumer. The orange is retired
+                (owner-approved 2026-11-14, cook r05 — globals.css's ⛔ note on the token): `--cta` is the
+                one accent #0060df, so this rests and hovers like `cta`, the shared primary-action variant
+                behind 128 controls. No commerce orange remains anywhere: the price is ink, and a phone's
+                Post is the bottom nav's grey disc with an ink + (mobile-nav.tsx; owner, 2026-11-16, hub
+                Q14), which has no accent fill. See the variant's own ⛔ note in ui/button. */}
             <Button asChild variant="commerce" size="none" className="gap-1.5 font-semibold">
               <Link
                 href={user ? '/dashboard?tab=post' : '/post'}

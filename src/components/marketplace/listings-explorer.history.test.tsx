@@ -570,11 +570,13 @@ describe('the phone "Save search" pill (JOIN-SAVE)', () => {
     expect(circle()!.className).not.toEqual(expect.stringContaining('bg-primary'))
   })
 
-  it('…and with one category alone', async () => {
+  it('…and with one category alone — since 2026-11-16 (owner, hub Q17: the category feed opens like the goods search) at the title line\'s end too', async () => {
     freshTop('/?category=rentals')
     mount(client())
     await waitFor(() => expect(cardIds()[0]).toBe('rent-0'))
-    await waitFor(() => expect(pill()).not.toBeNull())
+    await waitFor(() => expect(circle()).not.toBeNull())
+    expect(circle()!.textContent).toBe('Save search')
+    expect(pill()).toBeNull()
   })
 
   it('NOT for an area alone: a saved search cannot keep a province, so it would alert on everything', async () => {

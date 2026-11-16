@@ -815,9 +815,13 @@ const RATCHETS = {
    * outside admin, and repainting them all at once is a migration nobody can review — so each area moves its own
    * surfaces onto the meta role and the count can only fall. Admin is EN staff chrome, exempt by path.
    * Baseline measured on main 067c07f5c (2026-11-14): 1,002.
+   * ⚠️ 967 → 968 (2026-11-16), THE ONE RISE, AND IT IS AN OWNER RULING, NOT DRIFT: the tab bar's labels (mobile-nav.tsx
+   * TabFace, `text-2xs leading-4`, 11/16 — one site for all five tabs, Post's too) — owner, hub Q12 ("yes if they are related
+   * to visual change"), approved on the cook r11 stills at that size; a tab label under its glyph is the one native slot set
+   * under 13 (iOS 10pt, Material 12sp). Every other site still only falls.
    */
   'sub13Type': {
-    baseline: 967,
+    baseline: 968,
     what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
     fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
   },

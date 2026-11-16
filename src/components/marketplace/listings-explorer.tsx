@@ -55,7 +55,7 @@ import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
 import { warmListing } from '@/lib/warm-listing'
 import { isFocusVisible } from '@/lib/focus-visible'
-import { applyFilterParams, FOLD_ATTR, isSeededFeed, LANES_OFF_ATTR, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
+import { applyFilterParams, CAT_ROW_ATTR, FOLD_ATTR, isSeededFeed, LANES_OFF_ATTR, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -101,7 +101,7 @@ import { AISearchButton } from './ai-concierge'
 import { useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste, RECENT_LOCATIONS_KEY } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
-import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { TEACHER_DOOR_CATEGORIES, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 // Custom filters → the request / URL is `applyFilterParams` (src/lib/explorer-url.ts, moved there 2026-10-09 beside its
@@ -663,12 +663,14 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   /** The goods search's control row (`oneRow`, phone only — the title line's until build 7): the ONE view pick as a 36px circle
    *  (ViewSwitch `variant`), and no desktop toggles — that row exists below `sm` alone. */
   circle?: boolean
-  /** The rentals feed's results line (the note above): past it, the phone's Map toggle floats. */
+  /** The rentals feed's results line (the note above): past it, the phone's Map toggle floats. ⛔ With `circle` too since the
+   *  rentals feed opens on the one control row (owner, 2026-11-16, hub Q17 — listings-explorer `catRow`): the circle is the
+   *  pick, and the floated Map (build 8, owner-approved 2026-11-15) keeps its host beside it, every other toggle `max-sm:hidden`. */
   floatMapAfter?: RefObject<HTMLElement | null>
   /** SortStrip's hide-on-scroll value (the explorer's `headerHiddenSignal`): the floated Map rides the bars with it. */
   barsHidden?: HeaderHiddenSignal
 }) {
-  const floatMap = !!floatMapAfter && showMap && !circle
+  const floatMap = !!floatMapAfter && showMap
   const away = useScrolledPast(floatMapAfter, floatMap)
   const hidden = useSyncExternalStore(barsHidden?.subscribe ?? NO_BARS_SUBSCRIBE, barsHidden?.get ?? NO_BARS_HIDDEN, NO_BARS_HIDDEN)
   const basket = useRentalBasketCount() > 0
@@ -692,7 +694,20 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   })
   // An open Video view keeps its own tab, whatever the probe says about the next filter.
   const showVideo = viewMode === 'video' || (videoAvail?.total ?? 0) > 0
-  if (circle) return <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" />
+  if (circle) {
+    return (
+      <>
+        <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" />
+        {/* The floated Map's host (`floatMapAfter`): `max-sm:contents`, its toggles all `max-sm:hidden` until the Map one floats
+            out, fixed, over the tab bar — so it adds nothing to the row. The circle only exists below `sm`. */}
+        {floatMap && (
+          <div {...mapFloatHost(away, hidden, basket)} className={cn(MAP_FLOAT_HOST, 'max-sm:contents')}>
+            <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} floatMap />
+          </div>
+        )}
+      </>
+    )
+  }
   return (
     <>
       {/* `floatMap`: `max-sm:contents` instead of `max-sm:hidden` — the box keeps no box of its own on a phone (the cluster's
@@ -1487,13 +1502,13 @@ export function ListingsExplorer({
   // fold (measured in review). The URL reading itself never disagrees with the mark (explorerUrlFolds is held to
   // readExplorerUrl), and the explorer keeps an unknown category as directed; the mask's lift (below) is the backstop.
   useLayoutEffect(() => {
-    if (collapseLadder) document.documentElement.removeAttribute(FOLD_ATTR)
+    if (collapseLadder) { document.documentElement.removeAttribute(FOLD_ATTR); document.documentElement.removeAttribute(CAT_ROW_ATTR) }
   }, [collapseLadder])
   // …and at once where this mount did NOT arm from it (a desktop, which the CSS never touched): a window then narrowed
   // to phone width must not hide its rails behind a row that is never coming (review r4).
   const armedAtMount = useRef(foldArmed)
   useLayoutEffect(() => {
-    if (!armedAtMount.current) document.documentElement.removeAttribute(FOLD_ATTR)
+    if (!armedAtMount.current) { document.documentElement.removeAttribute(FOLD_ATTR); document.documentElement.removeAttribute(CAT_ROW_ATTR) }
   }, [])
   const liveCollapseRef = useRef(liveCollapse)
   useEffect(() => { liveCollapseRef.current = liveCollapse }, [liveCollapse])
@@ -2112,7 +2127,7 @@ export function ListingsExplorer({
     // Anything else (a client mount, or no mark) must not leave one behind.
     const root = document.documentElement
     const masked = coldLoad && root.hasAttribute('data-explorer-directed')
-    if (!masked) { root.removeAttribute('data-explorer-directed'); root.removeAttribute(FOLD_ATTR); root.removeAttribute(LANES_OFF_ATTR) }
+    if (!masked) { root.removeAttribute('data-explorer-directed'); root.removeAttribute(FOLD_ATTR); root.removeAttribute(CAT_ROW_ATTR); root.removeAttribute(LANES_OFF_ATTR) }
     const mountSearch = window.location.search
     const found = areaForLocation(readExplorerUrl(mountSearch), window.history.state)
     /** The URL is read (once): its params applied, the writer released, the mask armed for its answer. */
@@ -3588,6 +3603,7 @@ export function ListingsExplorer({
     document.documentElement.removeAttribute('data-explorer-directed')
     // A page that did not fold after all (a wider screen than the mark expected) gets its rails back with the answer.
     document.documentElement.removeAttribute(FOLD_ATTR)
+    document.documentElement.removeAttribute(CAT_ROW_ATTR)
     // …and a link the explorer left undirected after all gets its phone lanes back with it (explorer-url.ts LANES_OFF_ATTR).
     document.documentElement.removeAttribute(LANES_OFF_ATTR)
     setSeedMasked(false)
@@ -4130,12 +4146,26 @@ export function ListingsExplorer({
    *   (the skip link's and the chip removal's focus target, ResultLine's one live count), sr-only. ⚠️ DERIVED FROM
    *   `collapseLadder` IN THE SAME RENDER, so the commit that folds — whose layout effect drops the pre-paint fold mark — is
    *   the commit that draws the title line: the CSS that held a cold link's geometry (globals.css, the goods cold-link rules)
-   *   is replaced by the real thing in one frame. With a category picked the compact row is unchanged.
+   *   is replaced by the real thing in one frame. With a category picked, see `catRow`.
+   * · ⛔ `catRow`: A CATEGORY FEED OPENS THE SAME WAY (owner, 2026-11-16, hub Q17: "yes if they are related to visual change";
+   *   cook r12 R1, goods +0.30/+0.45 and rentals +0.34/+0.37 with R2 + H6). It REVERSES, there, the 09-24 "collapse to one
+   *   compact row" (ladder-compact-row.tsx): a category picked (a subcategory too), no words, no brand and no model — the title
+   *   line (the count, Save search), then the control row: the view circle, the CATEGORY CHIP ("Electronics ⌄", the deepest rung
+   *   it names; ScopeChip `label`), sort and the filters. The chip keeps the compact row's one job — it opens the ladder, whose
+   *   rails (the subcategories, the brands) wait in the same panel under the row; the row's quick chips are not drawn. The first
+   *   card starts ~56pt higher (r12: ~177 against live 233 at 390×844). ⛔ NOT ON TEACHERS OR JOBS (TEACHER_DOOR_CATEGORIES): their
+   *   compact row leads with the teacher form's door (owner, 2026-10-09: "first, so a phone shows it without a swipe"), which
+   *   Q17's mocks never showed — those two keep it. A cold link paints this from its first frame (explorer-url.ts CAT_ROW_ATTR).
    */
   const goodsLook = !smUp && collapseLadder && !showDiscovery && !sellerId && goodsScope(activeCategory)
   const gridIsSeed = seedMasked && (!urlApplied || awaitingUrlAnswer || gridListings !== shownListings)
   const goodsGrid = goodsLook && !gridIsSeed
-  const oneRow = !smUp && collapseLadder && !sellerId && activeCategory === 'all' && activeSubcategory === 'all' && ladderCrumbs.length === 0
+  const searchRow = !smUp && collapseLadder && !sellerId && activeCategory === 'all' && activeSubcategory === 'all' && ladderCrumbs.length === 0
+  const catRow = !smUp && collapseLadder && !sellerId && activeCategory !== 'all' && !TEACHER_DOOR_CATEGORIES.includes(activeCategory)
+    && !debouncedQuery.trim() && activeBrand === 'all' && activeModel === 'all'
+  const oneRow = searchRow || catRow
+  /** The category chip's words on a category feed (`catRow`): the deepest rung — the subcategory once one is picked. */
+  const scopeLabel = catRow ? ladderCrumbs[ladderCrumbs.length - 1]?.label : undefined
   /**
    * The ladder opened from the scope chip of a STUCK strip (`oneRow`): its panel mounts under the strip's place in the page,
    * far above the screen, and scroll anchoring keeps the reader where they were — so the open looked like nothing happened.
@@ -5363,8 +5393,10 @@ export function ListingsExplorer({
             // (ViewSwitch `circle`, ScopeChip — the view pick left the title line in build 7, owner-approved 2026-11-15, cook r07
             // goods). Until then their invisible places, which only a cold no-category search link's first frame shows
             // (ViewPickReserve, ScopeChipReserve).
-            phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle /> : sellerId ? undefined : <ViewPickReserve />}
-            phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} /> : sellerId ? undefined : <ScopeChipReserve />}
+            // ⛔ A category feed (`catRow`, owner 2026-11-16, hub Q17) opens the row the same way, its chip naming the category; on
+            // the rentals feed's one-column grid the circle's host also keeps build 8's floating Map (ViewChoices `floatMapAfter`).
+            phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle floatMapAfter={rentalsWide ? resultsRowRef : undefined} barsHidden={rentalsWide ? headerHiddenSignal : undefined} /> : sellerId ? undefined : <ViewPickReserve />}
+            phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} label={scopeLabel} /> : sellerId ? undefined : <ScopeChipReserve />}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
             leading={
@@ -5534,11 +5566,13 @@ export function ListingsExplorer({
               grew to 62px — an 18px shift of the whole grid (CLS 0.018 at 390×844, 2026-09-30). The
               CSS rule is also gated on `html:not([data-explorer-directed])`, the pre-paint mask
               (E-SSR), so a directed URL paints the flex row from its first frame and never moves. */}
-          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods): this row's count, heading and
-              controls are the title line at the top of the ladder now (ResultsTitle). The row stays THE SAME ELEMENT — the skip
-              link's and a chip removal's focus target, holding ResultLine's one always-mounted live count — sr-only, holding no
-              heading (the h2 is the title line's), no Save search and no view pick, so nothing focusable sits in a row nobody
-              sees. `data-results-hidden`: the cold-link reserve (globals.css) skips it. */}
+          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods — and a category feed, `catRow`, since
+              owner 2026-11-16, hub Q17): this row's count, heading and controls are the title line at the top of the ladder now
+              (ResultsTitle). The row stays THE SAME ELEMENT — the skip link's and a chip removal's focus target, holding
+              ResultLine's one always-mounted live count — sr-only, holding no heading (the h2 is the title line's), no Save
+              search, no view pick, no chips (they lead the strip, `chipsInStrip`) and a category path in words, not buttons (the
+              `crumbs` below), so nothing focusable sits in a row nobody sees. `data-results-hidden`: the cold-link reserve
+              (globals.css) skips it. */}
           <div ref={resultsRowRef} id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', oneRow && 'max-sm:sr-only')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
@@ -5613,7 +5647,11 @@ export function ListingsExplorer({
               // See `resultLineCount`: null while there is no answer to state (a failed page 1, a cold
               // deep link still on the seed, a skeleton-first client mount), else the deferred count.
               count={resultLineCount}
-              crumbs={ladderCrumbs}
+              // ⛔ WORDS, NOT BUTTONS, WHILE THIS ROW IS SR-ONLY (`oneRow` — the note above the row): on a category feed (`catRow`)
+              // the path is "Electronics › Phones", and ResultLine draws a rung with a handler as a focusable <Button> — a Tab stop
+              // with a clipped, invisible focus ring (WCAG 2.4.7). The handlers go; a handler-less rung is text (result-line.tsx),
+              // so the path is still read out. The category chip in the strip is the visible way up — its ladder holds the rails.
+              crumbs={oneRow ? ladderCrumbs.map(({ label }) => ({ label })) : ladderCrumbs}
               filters={chipsInStrip ? [] : resultFilters}
               appliedCount={chipsInStrip ? 0 : appliedChips.length}
               onClearAll={!chipsInStrip && appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined}

@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useVisitorEngaged } from '@/lib/visitor-engaged'
 import { hapticTap } from '@/lib/haptics'
-import { Compass, Heart, Plus, User, MessageSquare } from '@/components/ui/icons'
+import { BarePlus, Compass, Heart, User, MessageSquare } from '@/components/ui/icons'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
@@ -48,17 +48,22 @@ const preloadGuestSheet = () => { void import('./guest-account-sheet') }
  * One uniform stroke across the bar (STROKE_NAV, docs/icon-language.md §2, shared with the header) keeps all five
  * tabs at one visual weight.
  *
- * ⛔ A DOCKED, ICON-ONLY BAR (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
+ * ⛔ A DOCKED BAR (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
  * deploy"). This REVERSES the floating pill (owner, 2026-09-26: "minimal and sleek pill shaped"), its tinted "you are
  * here" capsule and the Post coin's orange plate. What the redesign's System section asks, and what it keeps:
  *   · DOCKED: full width at bottom 0, 56px + the home-indicator band (`--tabbar-inset`, globals.css), which it PADS by
  *     instead of floating over it. White, a top hairline, the soft `shadow-bar` lift the sticky action bars share, no
  *     blur, no radius. On a touch tablet the five tabs sit centred in a `max-w-md` row inside the full-width bar.
- *   · "YOU ARE HERE" IS THE ACCENT BOLD CUT ALONE: idle glyphs are muted, the current one turns accent and goes Bold
- *     (the sprite's .i-on layer on `aria-current`). No capsule. Post was the bold add-circle in ink, 38px, at rest too —
- *     ⛔ since owner-approved 2026-11-15 (build 8), cook r08 home, it is the outline add-circle at the other tabs' 26px in
- *     the stronger ink (the Post tab's note, below).
- *   · KEPT from 2026-09-26: NO VISIBLE LABELS (every tab carries its `aria-label`, the active one `aria-current`).
+ *   · "YOU ARE HERE" IS THE ACCENT BOLD CUT: idle glyphs and labels are muted, the current tab's glyph turns accent and goes
+ *     Bold (the sprite's .i-on layer on `aria-current`) and its label turns accent at 600. No capsule.
+ *   · ⛔ LABELS UNDER THE GLYPHS, ON ALL FIVE TABS (owner, 2026-11-16, hub Q12: "yes if they are related to visual change";
+ *     cook r11 home-lab +0.13 to +0.24 — the still shows "Post" labelled too). It REVERSES 2026-09-26's "no visible labels".
+ *     Each tab prints the words of its own `aria-label` (no new copy) at 11px, 500, under its glyph, the five labels on one
+ *     baseline (the label slot's note, below); the label is aria-hidden, so the name is said once.
+ *   · ⛔ POST IS A 32px GREY DISC WITH AN INK + (owner, 2026-11-16, hub Q14; cook r12 H6 — YouTube's centre slot), its label
+ *     under it like every tab's. It reverses build 8's outline add-circle (owner-approved 2026-11-15), itself after r05's bold
+ *     add-circle and 09-18's orange plate. The mock's disc was 40px with no label; 32 is what lets disc + label stand in the
+ *     bar's 56px with the label on the others' baseline (the Post tab's note, below).
  *   · KEPT: it auto-hides on scroll like a native app (owner 2026-07-16) and steps aside for the keyboard.
  *   · ⚠️ THE FOOTPRINT STILL FITS: 56px + inset sits inside the 4.5rem (72px) + inset that <BottomNavSpacer/>, the
  *     `html.native` spacer rule, the sticky action bars, the install hint, the offline banner and the back-to-top /
@@ -73,7 +78,9 @@ const STROKE = STROKE_NAV
 // ⚠️ `relative` + the `after:` strip: THE TAP AREA RUNS DOWN TO THE SCREEN EDGE. The bar pads by the home-indicator band
 // (`--tabbar-inset`), and each tab's invisible strip fills that band, so a thumb landing under Explore opens Explore,
 // never the listing scrolling past. `pointer-events: none` on the retracted <nav> is inherited, so the strips go dead with it.
-const TAB = 'relative flex flex-1 cursor-pointer after:absolute after:inset-x-0 after:top-full after:h-(--tabbar-inset) transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.92] active:duration-[60ms] [touch-action:manipulation]'
+// ⚠️ `min-w-0`: a flex item's automatic minimum is its min-content, i.e. its whole one-line label, so without it a long
+// machine-translated label widened its tab past a fifth of the bar (at 320px) instead of ending in the label's ellipsis.
+const TAB = 'relative flex min-w-0 flex-1 cursor-pointer after:absolute after:inset-x-0 after:top-full after:h-(--tabbar-inset) transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.92] active:duration-[60ms] [touch-action:manipulation]'
 
 // PREFETCH (2026-07-21): every tab used to carry `prefetch={false}`, so the five most-travelled
 // destinations in the app were the only ones that paid a full cold round-trip on tap — the
@@ -111,24 +118,29 @@ const TAB = 'relative flex flex-1 cursor-pointer after:absolute after:inset-x-0 
 // visitor who taps this tab before scrolling, or just after, gets the unwarmed tap above, warmed only by that finger.
 // Explore, Messages and Account keep auto: they get walked between.
 
-// ⛔ NO LABEL SLOT ANY MORE (owner, 2026-09-26 — see the note at the top). The micro-label
-// stack that lived here bottom-anchored a `text-3xs` label under each glyph so five labels
-// shared one baseline beside the taller Post coin; with the labels gone the glyph simply
-// centres in the tab, and the Post glyph and the others share one centre line (all 26px since build 8, 2026-11-15).
-// The accessible name never lived in that label — it is the tab's `aria-label` — so nothing
-// a screen reader or a test reads changed with it.
+// ⛔ THE LABEL SLOT IS BACK (owner, 2026-11-16, hub Q12 — the note at the top; it reverses 2026-09-26's removal). Each tab is
+// its glyph over its label, the pair BOTTOM-anchored (`justify-end pb-1`), so the five labels share one baseline whatever
+// stands over them: the 24px glyphs, and the Post tab's 32px disc rising 8px above them — 32 + 16 = 48 of the tab's 55px (the
+// bar's 56 less its top hairline), 3px clear of the hairline and 4 over the home-indicator band.
+// ⚠️ THE LABEL'S LINE BOX IS 16px FOR 11px TYPE (`leading-4`), AND THAT IS NOT AIR: `truncate` is `overflow: hidden`, which
+// clips at the line box, and Open Runde's stacked capitals (Ẫ Ổ Ữ) ink 11.3px above the baseline in a 14px content area —
+// measured in Chromium at 11px: a 12px line clipped them by 1.3px and every descender (Explore, Đăng tin) by 0.4; 15 is the
+// first that clips nothing, 16 the step on the scale. No gap between glyph and label: the box's 1px half-leading puts the
+// text exactly where r11's 2px gap over a 12px line did.
+// ⚠️ THE ACCESSIBLE NAME STAYS THE TAB'S `aria-label`, and the label is aria-hidden: the visible words ARE that name
+// (WCAG 2.5.3, label in name), so a voice user says what they see and a screen reader hears it once.
 // ⚠️ The glyph's wrapper stays `relative`: it is the anchor the count badges hang off.
 function TabGlyph({ icon }: { icon: React.ReactNode }) {
   return <span className="relative flex items-center justify-center">{icon}</span>
 }
 
-const STACK = 'relative flex h-full w-full items-center justify-center transition-colors'
+const STACK = 'relative flex h-full w-full flex-col items-center justify-end pb-1 transition-colors'
 
 type TabIcon = React.ReactNode | ((on: boolean) => React.ReactNode)
 
-/** What a tab PAINTS: the glyph, centred; muted at rest, accent + wash when `on`.
+/** What a tab PAINTS: the glyph over its label, bottom-anchored (STACK); muted at rest, accent + wash when `on`.
  *  Presentational only, so the navigating tab (TabBody) and the sign-in-gated button share it. */
-function TabFace({ on, icon, stack = STACK }: { on: boolean; icon: TabIcon; stack?: string }) {
+function TabFace({ on, icon, label, stack = STACK }: { on: boolean; icon: TabIcon; /** The tab's own aria-label words, shown under the glyph. */ label?: string; stack?: string }) {
   // Location-active = soft duotone (icon-language §5): the ink turns accent AND the glyph fills
   // its whole body with brand-100 — the same rule the category tiles and the dashboard rail
   // follow, so one selection language runs across every nav surface. The
@@ -140,13 +152,16 @@ function TabFace({ on, icon, stack = STACK }: { on: boolean; icon: TabIcon; stac
   return (
     <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in') : 'text-muted-foreground')}>
       <TabGlyph icon={typeof icon === 'function' ? icon(on) : icon} />
+      {/* `truncate`: a machine-translated label longer than the tab's fifth of the bar ends in an ellipsis, never a second line
+          (TAB's `min-w-0` is what holds the tab to that fifth). `leading-4`: the line box the stacked marks need (the slot's note). */}
+      {label && <span aria-hidden data-tab-label="" className={cn('max-w-full truncate px-0.5 text-2xs leading-4', on ? 'font-semibold' : 'font-medium')}>{label}</span>}
     </span>
   )
 }
 
 /** Content of a navigating tab. Lives INSIDE <Link> so useLinkStatus lights it the instant it's
  *  tapped — feedback before the destination loads. */
-function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; stack?: string }) {
+function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; label?: string; stack?: string }) {
   const { pending } = useLinkStatus()
   return <TabFace on={active || pending} {...face} />
 }
@@ -218,10 +233,10 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
       // `focus-visible:ring-0`: ui/button's base adds a 3px `ring-ring/50` halo on top of the global
       // outline, so these two tabs showed a different focus style from the three links beside them.
       // ⚠️ IT STILL SHOWS LOCATION. A guest can stand on /messages (the page renders its own sign-in
-      // prompt), and with no labels in the bar an idle glyph there left nothing saying where they
-      // were. The accent ink + `aria-current` come back; the tap still opens the card.
+      // prompt), and an idle tab there left nothing saying where they were (the bar was icon-only
+      // then). The accent ink + `aria-current` come back; the tap still opens the card.
       <Button type="button" variant="bare" size="none" onPointerDown={() => { preloadSignIn(); onGuestIntent?.() }} onClick={() => (onGuest ? onGuest() : openSignIn(signInNote ? { note: signInNote } : undefined))} aria-haspopup={onGuest ? 'dialog' : undefined} aria-label={label} aria-current={active ? 'page' : undefined} className={cn(TAB, 'focus-visible:ring-0')}>
-        <TabFace on={active} icon={icon} stack={stack} />
+        <TabFace on={active} icon={icon} label={label} stack={stack} />
       </Button>
     )
   }
@@ -246,7 +261,7 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
         onClick(e)
       }}
     >
-      <TabBody active={active} icon={icon} stack={stack} />
+      <TabBody active={active} icon={icon} label={label} stack={stack} />
     </Link>
   )
 }
@@ -328,8 +343,8 @@ export function MobileNav() {
   const warmPost = useWarmOnIntent('/post', at('/post'))
   const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
   // ⛔ EXPLORE LIGHTS ACROSS THE BROWSE SURFACES, NOT ONLY ON `/` (NAV-5, UX3 2026-10-05): a category, a
-  // listing, a seller, a storefront or /brands is where exploring took you, and with an icon-only bar
-  // nothing else says so (research R9). Only the LIGHT widened: the tab still links the home root, its
+  // listing, a seller, a storefront or /brands is where exploring took you, and on the icon-only bar of the time
+  // nothing else said so (research R9; the labels came back 2026-11-16 and the light stays). Only the LIGHT widened: the tab still links the home root, its
   // prefetch and its re-tap-to-top stay keyed on the EXACT home path (`at('/')`), and `aria-current` says
   // "page" only there — elsewhere "true", the current item of the bar, not the current page.
   // src/lib/browse-surface.ts holds the list.
@@ -338,8 +353,8 @@ export function MobileNav() {
   // section you reached from it (codex, plan review).
   const accountActive = mounted && (pathname?.startsWith('/dashboard') ?? false)
   // ⚠️ …AND IT LIGHTS (ONLY LIGHTS) ON THE ACCOUNT TOOLS REACHED FROM IT OUTSIDE /dashboard (UI climb 2026-11-09, phone UX
-  // hunt): on /disputes, /account, /account-deletion and a teacher's own tools no tab said where you were, and with an
-  // icon-only bar nothing else does. Like `accountActive` on /dashboard it says which SECTION this is, signed in or not (a
+  // hunt): on /disputes, /account, /account-deletion and a teacher's own tools no tab said where you were, and on the
+  // icon-only bar of the time nothing else did. Like `accountActive` on /dashboard it says which SECTION this is, signed in or not (a
   // guest there meets the sign-in prompt, and the tab opens the guest sheet). The LIGHT only: a tap there still goes to /dashboard/account — the way back — instead of
   // scrolling to the top, so `accountActive` (re-tap) is untouched. Exact segments: /teachers/join (public sign-up) is not one.
   const accountToolHere = mounted && ACCOUNT_TOOL_PATHS.some((p) => pathname === p || (pathname?.startsWith(`${p}/`) ?? false))
@@ -456,7 +471,8 @@ export function MobileNav() {
             (Heart, MessageSquare, User) have no self-covering child and stay single-svg. */}
         <TabBody
           active={exploreHere}
-          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-6.5 w-6.5" />}
+          label={tr('Explore', 'Khám phá')}
+          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-6 w-6" />}
         />
       </Link>
 
@@ -465,6 +481,7 @@ export function MobileNav() {
       <Link href="/saved" prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
+          label={tr('Saved', 'Đã lưu')}
           icon={(
             <>
               {/* ⛔ COLOUR MEANS "YOU ARE HERE", AND NOTHING ELSE — owner, 2026-08-28: "only blue if button
@@ -472,7 +489,7 @@ export function MobileNav() {
                   glyph carried `count > 0 && 'fill-brand text-brand'`; it is not restored with the glyph.
                   The COUNT BADGE says there is something to see. Location comes from TabBody's wash and the
                   link's aria-current (Solar Bold). */}
-              <Heart className="h-6.5 w-6.5" strokeWidth={STROKE} />
+              <Heart className="h-6 w-6" strokeWidth={STROKE} />
               {/* `ring-(--tab-surface)` — a 2px cut-out in the colour of the bar under the badge (set on the <nav>). */}
               {/* (HISTORY — reverted below) GREY, NOT RED (owner, O-08 G-SAVED-BADGE): the Saved count is a tally of a list the visitor
                   built, not news — `counter-neutral`. Red stays for the one count that IS news, Messages.
@@ -512,20 +529,27 @@ export function MobileNav() {
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}
         aria-current={at('/post') ? 'page' : undefined}
-        className={TAB}
+        className={cn(TAB, 'group/post')}
         onClick={(e) => onTabClick(e, false)}
       >
         <TabBody
           active={at('/post')}
+          label={tr('Post', 'Đăng tin')}
           icon={
-            /* ⛔ THE OUTLINE ADD-CIRCLE, ONE OF FIVE CALM GLYPHS (owner-approved 2026-11-15 (build 8), cook r08 home: "Post is an
-               outline add-circle, not a black disc"). It REVERSES the bold add-circle in ink, 38px, at rest too (owner-approved
-               2026-11-14, cook r05), which had itself reversed the orange plate under a blue plus (owner, 2026-09-18): Post is
-               now the same family, size and stroke as the other four tabs — Solar's `add-circle` OUTLINE at 26px (the sprite's
-               .i-rest layer; no `icon-solid`), the Bold cut and the accent only when it is the current page, exactly like
-               them. It keeps one step of emphasis: the stronger ink (`text-ink-3`, 10.7:1 on white) at rest where the other
-               four are muted. Applied to the bar everywhere it shows, not only on the home page: one tab bar, one glyph. */
-            (on) => <Plus className={cn('h-6.5 w-6.5 shrink-0', !on && 'text-ink-3')} strokeWidth={STROKE} />
+            /* ⛔ A 32px GREY DISC WITH AN INK +, LABELLED (owner, 2026-11-16, hub Q14: "yes if they are related to visual change";
+               cook r12 H6, YouTube's centre slot — and hub Q12's r11 still, where "Post" is labelled like its neighbours). It
+               REVERSES build 8's outline add-circle at 26px in `text-ink-3` (owner-approved 2026-11-15, cook r08 home), after r05's
+               bold add-circle and 09-18's orange plate. The field grey (`bg-tint`), no ring, no orange, a step deeper under the
+               press (`line-strong`). 32px, not the mock's 40: disc + label (32 + 16) is what stands in the tab with the label on
+               the other four's baseline (the label slot's note). The plus is the sprite's BARE LINE mark (`BarePlus` — add-circle's
+               own centreline without its ring, re-reached and thinned to the mock's 16x2 at 40 scaled to this disc:
+               scripts/lucide-solar-map.mjs), drawn at the disc's own 32px, in ink at rest and the accent on the current page like
+               every tab. */
+            (on) => (
+              <span data-post-disc="" className="flex size-8 items-center justify-center rounded-full bg-tint transition-colors duration-100 group-active/post:bg-line-strong">
+                <BarePlus className={cn('size-8 shrink-0', !on && 'text-foreground')} />
+              </span>
+            )
           }
         />
       </Link>
@@ -548,7 +572,7 @@ export function MobileNav() {
           <>
             {/* Same rule as Saved: colour is location only — the pre-2026-08-28 unread fill is not restored;
                 unread is the badge's job. */}
-            <MessageSquare className="h-6.5 w-6.5" strokeWidth={STROKE} />
+            <MessageSquare className="h-6 w-6" strokeWidth={STROKE} />
             {user && unread > 0 && (
               <Badge variant="counter" size="count" className="absolute -right-2 -top-1 ring-2 ring-(--tab-surface)">
                 {unread > 9 ? '9+' : unread}
@@ -581,7 +605,7 @@ export function MobileNav() {
         signInNote={tr('Sign in to manage your listings, messages and alerts.', 'Đăng nhập để quản lý tin đăng, tin nhắn và thông báo của bạn.')}
         onGuest={openGuestSheet}
         onGuestIntent={warmGuestSheet}
-        icon={<User className="h-6.5 w-6.5" strokeWidth={STROKE} />}
+        icon={<User className="h-6 w-6" strokeWidth={STROKE} />}
       />
       </div>
       {/* Portaled by ui/drawer, so its place inside the <nav> costs it nothing — and it does not inherit

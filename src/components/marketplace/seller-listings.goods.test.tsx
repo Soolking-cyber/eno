@@ -5,7 +5,9 @@
  * sort pill's words alone at the page's own order, the count muted at the strip's end, 12px from the strip to the grid, and the
  * goods cards in rows 40px apart (build 8; 20 in build 7, 32 in r06). ⛔ Since build 8 (owner-approved 2026-11-15, cook r08
  * goods) the strip STAYS PINNED, its pills are FILLED (`data-pills`), and its hairline is back once it is stuck (`data-stuck`).
- * Every class `max-sm:`; without the look nothing changes.
+ * ⛔ Since 2026-11-16 (owner, hub Q15) the filled pills, the hairline only while stuck and the words-alone sort pill are every
+ * PINNED strip's (`pinStrip`, the /c pages), with or without the look; a strip that never pins is as before.
+ * Every class `max-sm:`; without the look and without `pinStrip` nothing changes.
  */
 import React from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -76,18 +78,37 @@ describe('SellerListings look="goods"', () => {
     for (const p of drawn()) expect(p.look).toBe('goods')
   })
 
-  it('without the look: the rule, the glyph, the 12px count and the shell cards, as before', () => {
+  it('without the look: the 12px count and the shell cards as before, and the strip leaves with the header', () => {
     const { container } = render(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} />)
-    expect(tokens(container.querySelector('[data-slot="tabs"]'))).not.toContain('max-sm:border-b-transparent')
-    expect(screen.getByRole('combobox', { name: /Sort by/ }).querySelectorAll('svg')).toHaveLength(2)
     expect(tokens(grid(container))).not.toContain('max-sm:gap-y-10')
     for (const p of drawn()) expect(p.look).toBeUndefined()
-    // …and the strip leaves with the header, white bordered pills, no stuck read at all.
     const bar = container.querySelector('[data-pinned-strip]')!
     expect(bar.hasAttribute('data-stay-pinned')).toBe(false)
-    expect(bar.hasAttribute('data-pills')).toBe(false)
-    expect(tokens(bar)).not.toContain('group/pin')
-    expect(stuckNow.on.every((on) => on === false)).toBe(true)
+  })
+
+  it('⛔ every pinned strip, with or without the look (owner, 2026-11-16, hub Q15): filled, its rule only once stuck, "Relevance" with no ⇅', () => {
+    const { container } = render(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} />)
+    const bar = container.querySelector('[data-pinned-strip]')!
+    expect(bar.getAttribute('data-pills')).toBe('filled')
+    expect(tokens(bar)).toContain('group/pin')
+    expect(stuckNow.on).toContain(true)
+    expect(tokens(container.querySelector('[data-slot="tabs"]'))).toEqual(expect.arrayContaining(['max-sm:border-b-transparent', 'max-sm:group-data-[stuck]/pin:border-b-border']))
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(pill.textContent).toBe('Relevance')
+    expect(pill.querySelectorAll('svg')).toHaveLength(1) // the ⌄ alone
+    expect(tokens(pill)).toContain('pill-rest')
+  })
+
+  it('a strip that never pins (storefronts, vehicle hubs) is as before: its rule (nothing to be stuck to), and its muted ⇅ at its own order', () => {
+    const { container } = render(<SellerListings listings={MANY} sortable serverScope={SCOPE} />)
+    expect(container.querySelector('[data-pinned-strip]')).toBeNull()
+    expect(tokens(container.querySelector('[data-slot="tabs"]'))).not.toContain('max-sm:border-b-transparent')
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(pill.textContent).toBe('Relevance')
+    // ⚠️ Q15's words-alone pill is the pinned strips' (the /c pages); the storefront batch owns these strips.
+    const glyphs = pill.querySelectorAll('svg')
+    expect(glyphs).toHaveLength(2) // the ⇅ and the ⌄
+    expect(tokens(glyphs[0])).toEqual(expect.arrayContaining(['size-3.5', 'text-ink-4']))
   })
 
   it('⛔ the strip stays pinned below sm while the header is hidden (build 8): it reverses the 08-12 rule on a goods category', () => {

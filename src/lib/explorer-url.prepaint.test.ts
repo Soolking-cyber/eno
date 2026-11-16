@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { FOLD_ATTR, LANES_OFF_ATTR, MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlFolds, explorerUrlHidesLanes, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
+import { CAT_ROW_ATTR, FOLD_ATTR, LANES_OFF_ATTR, MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlCatRow, explorerUrlFolds, explorerUrlHidesLanes, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
 import { RECENT_SEARCHES_KEY } from './reco-signals'
 
 /**
@@ -141,6 +143,46 @@ describe('the returning-visitor recents reservation (E-RETURNING, O-16)', () => 
 describe('recentSearchTerms — no duplicate chips (gate 2026-09-30)', () => {
   it('dedupes case-insensitively after trimming, first wins', () => {
     expect(recentSearchTerms(['sofa', 'sofa ', 'Sofa', 'honda'])).toEqual(['sofa', 'honda'])
+  })
+})
+
+describe('the category one-row mark (owner, 2026-11-16, hub Q17) — a cold category feed paints its one control row from the first frame', () => {
+  const marks = (search: string) => runScript(search).attrs.has(CAT_ROW_ATTR)
+  it('the script marks exactly what explorerUrlCatRow says', () => {
+    const urls = ['?category=electronics', '?category=rentals', '?category=rentals&subcategory=apartment-rental', '?category=rentals&district=q1',
+      '?category=rentals&sort=price-low', '?category=services', '?category=%20electronics%20', '?category=electronics&q=iphone',
+      '?category=electronics&q=%20', '?category=electronics&brand=apple', '?category=electronics&brand=all', '?category=electronics&model=x',
+      '?category=electronics&model=all', '?category=teachers', '?category=jobs', '?category=all', '?category=', '?q=iphone', '?brand=apple',
+      '?subcategory=apartment-rental', '', '?sort=recent', '?category=all&category=electronics', '?category=electronics&category=all',
+      '?category=electronics&view=map', '?category=electronics&view=compact']
+    for (const u of urls) expect(marks(u), u).toBe(explorerUrlCatRow(u))
+  })
+  it('a category with no words, no brand and no model; never Teachers or Jobs (their row leads with the teacher door)', () => {
+    expect(explorerUrlCatRow('?category=electronics')).toBe(true)
+    expect(explorerUrlCatRow('?category=rentals&subcategory=apartment-rental')).toBe(true)
+    expect(explorerUrlCatRow('?category=rentals&district=q1&priceMax=9000000')).toBe(true)
+    expect(explorerUrlCatRow('?category=electronics&q=iphone')).toBe(false)
+    expect(explorerUrlCatRow('?category=electronics&brand=apple')).toBe(false)
+    expect(explorerUrlCatRow('?category=electronics&model=iphone-15')).toBe(false)
+    expect(explorerUrlCatRow('?category=teachers')).toBe(false)
+    expect(explorerUrlCatRow('?category=jobs')).toBe(false)
+    expect(explorerUrlCatRow('?category=all')).toBe(false)
+    expect(explorerUrlCatRow('?q=iphone')).toBe(false)
+  })
+  it('only with the fold mark (no fold, no row), and the 15 s net lifts it with the fold', () => {
+    const { attrs, timers } = runScript('?category=rentals')
+    expect(attrs.has(FOLD_ATTR)).toBe(true)
+    expect(attrs.has(CAT_ROW_ATTR)).toBe(true)
+    timers.forEach((fn) => fn())
+    expect(attrs.has(CAT_ROW_ATTR)).toBe(false)
+    expect(attrs.has(FOLD_ATTR)).toBe(false)
+    for (const u of ['?ref=email', '?sort=price-low']) expect(runScript(u).attrs.has(CAT_ROW_ATTR), u).toBe(false)
+  })
+  it('the explorer drops it wherever it drops the fold mark (listings-explorer.tsx)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/marketplace/listings-explorer.tsx'), 'utf8')
+    const folds = src.match(/removeAttribute\(FOLD_ATTR\)/g)!.length
+    expect(folds).toBeGreaterThan(0)
+    expect(src.match(/removeAttribute\(CAT_ROW_ATTR\)/g)!.length).toBe(folds)
   })
 })
 

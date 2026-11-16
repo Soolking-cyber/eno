@@ -9,7 +9,7 @@
  * follows the cards ON SCREEN, so a category change never re-lays the previous feed's cards in the next feed's shape.
  */
 import React from 'react'
-import { act, cleanup, configure, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
@@ -183,6 +183,25 @@ describe('the rentals feed on a phone: one column of large square cards (owner-a
     const bar = document.getElementById('explorer-toolbar')!
     expect(bar.getAttribute('data-stay-pinned')).toBe('true')
     expect(bar.getAttribute('data-pills')).toBe('filled')
+  })
+
+  it('⛔ the one control row (owner, 2026-11-16, hub Q17): the view circle leads the pinned strip, and build 8\'s floating Map keeps its host beside it', async () => {
+    const { MAP_FLOAT } = await import('./map-float')
+    mountAt('/?category=rentals')
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    const bar = document.getElementById('explorer-toolbar')!
+    await waitFor(() => expect(bar.querySelector('[data-scope-chip]')).not.toBeNull())
+    expect(bar.querySelector('[data-scope-chip]')!.textContent).toBe('Rentals')
+    expect(within(bar).getByRole('combobox', { name: /View/ })).toBeTruthy()
+    // The floated Map: the same "Map view" toggle, in a `group/mapfloat` host that has no box of its own on a phone.
+    const host = bar.querySelector<HTMLElement>('.group\\/mapfloat')!
+    expect(host.className).toContain('max-sm:contents')
+    const map = within(host).getByRole('button', { name: 'Map view' })
+    for (const c of MAP_FLOAT.split(' ').slice(0, 3)) expect(map.className).toContain(c)
+    // Every other desktop toggle steps down on a phone.
+    for (const name of ['List view', 'Grid view']) expect(within(host).getByRole('button', { name }).className).toContain('max-sm:hidden')
+    // The results row holds no second copy.
+    expect(document.querySelector('#results [data-view-cluster]')).toBeNull()
   })
 
   it('the list view of rentals is not the wide grid', async () => {

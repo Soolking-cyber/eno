@@ -20,18 +20,24 @@
  * and deploy"). It reverses the 2026-10-18 tinted pill with the brand-tint selection: the redesign's chips are "36
  * visible / 44 tap, white, 1px line-strong, ink 700 14/20; selected = ink fill, white text; pressed = field". The 1px
  * border sits inside min-h-9 (34px of content + 2), so nothing grows. Dark: #f0f0f0 fill under #1c1d1f ink.
- * ⛔ …EXCEPT IN THE GOODS STRIPS ON A PHONE: FILLED (owner-approved 2026-11-15 (build 8), cook r08 goods — StockX's pills; it
- * reverses, there, the white + hairline above and the 2026-10-18 one chip style): a strip that carries `data-pills="filled"`
- * (explorer-toolbar.tsx SortStrip and seller-listings.tsx PinnedStrip, each with `look="goods"`) paints every RESTING pill in it
- * the field grey with no edge (the 1px stays, transparent, so nothing grows and forced colours still draw it), pressed or open
- * one step deeper (`--secondary`); an applied pill keeps the ink fill. One globals.css rule reaches every pill the strip holds —
- * its own, the facet bar's, the scope chip, the view pick — through the markers below (`pill-rest`, `pill-open`), so no pill
- * component needs to know which strip it is in. Below 40rem only; every other strip, and every width from sm, is as above.
+ * ⛔ …EXCEPT IN THE FEED STRIPS ON A PHONE: FILLED (owner, 2026-11-16, hub Q15: "one chip look … filled strips on the feeds";
+ * cook r12 R2 — build 8, owner-approved 2026-11-15, had done it for the goods strips alone, StockX's pills; it reverses, there,
+ * the white + hairline above and the 2026-10-18 one chip style): a strip that carries `data-pills="filled"` paints every
+ * RESTING pill in it the field grey with no edge (the 1px stays, transparent, so nothing grows and forced colours still draw
+ * it), pressed or open one step deeper (`--secondary`); an applied pill keeps the ink fill. Two strips carry it, always:
+ *   · explorer-toolbar.tsx SortStrip — every ListingsExplorer feed: the home and its searches and category feeds, and a shop's
+ *     /s/[handle] grid (the explorer with `sellerId`);
+ *   · seller-listings.tsx PinnedStrip — a SellerListings with `pinStrip`: the /c category and /c district pages.
+ * ⚠️ NOT FILLED: a SellerListings strip without `pinStrip` — the storefronts (/[handle], /sellers/[id], seller-storefront.tsx)
+ * and the vehicle hubs keep the white + hairline pills above. (Q15 on the storefront strips belongs to the storefront batch.)
+ * One globals.css rule reaches every pill a filled strip holds — its own, the facet bar's, the scope chip, the view pick —
+ * through the markers below (`pill-rest`, `pill-open`), so no pill component needs to know which strip it is in. Below 40rem
+ * only; a chip outside those strips, and every width from sm, is as above.
  * ⚠️ A PLAIN MODULE, NOT ui/chip.tsx: that file is `'use client'`, and a server component that imports a constant
  * from a client module gets a client reference, not the string — the /c landing page (a server page) wears these.
  */
 export const PILL_BOX = 'relative tap-44 min-h-9 rounded-full px-3.5 text-sm font-bold'
-// `pill-rest`: the marker the goods strips' filled look keys on (the note above) — it styles nothing by itself.
+// `pill-rest`: the marker the filled strips' look keys on (the note above) — it styles nothing by itself.
 export const PILL_REST = 'pill-rest border border-line-strong bg-background text-foreground hover:bg-muted active:bg-muted'
 // The ON look owns its hover and press too (commit review): beside PILL_REST's `hover:bg-muted` a plain ink fill turned grey
 // under the pointer while its label stayed white — the label vanished.

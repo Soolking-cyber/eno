@@ -161,6 +161,12 @@ export const CRITICAL_GLYPHS = [
    * `LogIn`, `Copy`; those five and Ban together are +3.4 KB gzip on every page) until page views say they pay for it.
    */
   'Ban',
+  /**
+   * ⛔ 2026-11-16 (owner, hub Q14): `BarePlus` — the tab bar's Post plus inside its 32px grey disc (mobile-nav.tsx), on every
+   * page with the bar. mobile-nav.tsx is in the guard's ON_ARRIVAL list, so it has to be here or that test fails. One small
+   * stroked path (a BARE LINE mark, lucide-solar-map.mjs), the same drawing for both weights.
+   */
+  'BarePlus',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */

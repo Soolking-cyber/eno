@@ -113,6 +113,7 @@ const cardIds = () => screen.queryAllByTestId('card').map((c) => c.getAttribute(
 const saveOffers = () => screen.queryAllByRole('button').filter((b) => /Save (this )?search|Create an alert/.test(b.textContent ?? ''))
 /** The phone's pill at the end of the count row (JOIN-SAVE) and the labelled button beside the view modes. */
 const phonePill = () => document.querySelector('[data-slot="result-line"] button.sm\\:hidden')
+const titleSave = () => document.querySelector('[data-results-title] [data-save-search]')
 const viewModesButton = () => Array.from(document.querySelectorAll('[data-view-cluster] button')).find((b) => b.textContent?.includes('Save search')) ?? null
 
 beforeEach(() => {
@@ -134,8 +135,10 @@ describe('the teachers feed offers no saved search', () => {
     // Category + subcategory: two crumbs, which is what the labelled button waits for (shouldOfferSaveSearch).
     const rentals = mountAt('/?category=rentals&subcategory=apartment-rental')
     await waitFor(() => expect(cardIds()[0]).toBe('rent-0'))
-    await waitFor(() => expect(phonePill()).not.toBeNull())
-    expect(viewModesButton()).not.toBeNull()
+    // ⛔ On a phone a bare category feed opens like the goods search (owner, 2026-11-16, hub Q17 — `catRow`): its one offer is
+    // at the title line's end (the view cluster with the labelled button is not drawn in that state).
+    await waitFor(() => expect(titleSave()).not.toBeNull())
+    expect(phonePill()).toBeNull()
     rentals.unmount()
 
     mountAt('/?category=teachers&subcategory=english')

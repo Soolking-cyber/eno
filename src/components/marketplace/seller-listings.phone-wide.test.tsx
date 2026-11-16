@@ -61,12 +61,18 @@ describe('SellerListings phoneWide', () => {
     expect(drawn().map((p) => p.priority)).toEqual([true, true, true, true, false, false, false, false, false, false])
   })
 
-  it('the one row: bled to the screen edges with 8px of air, an 18px ink sort glyph — all max-sm:', () => {
+  it('the one row: bled to the screen edges with 8px of air, an 18px ink sort glyph once the order is not the page\'s own — all max-sm:', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
     const { container } = render(<SellerListings listings={MANY} sortable pinStrip serverScope={SCOPE} phoneOneRow={ONE_ROW} phoneWide />)
     const tabs = container.querySelector('[data-pinned-strip] [data-slot="tabs"]')!
     expect(tokens(tabs)).toEqual(expect.arrayContaining(['max-sm:-mx-3', 'max-sm:px-3', 'max-sm:py-2', 'border-b']))
     expect(tokens(tabs)).not.toContain('max-sm:py-1')
-    const glyph = tabs.querySelector('button svg')!
+    // ⛔ At the page's own order the pill is its words alone, "Relevance ⌄" (owner, 2026-11-16, hub Q15): the ⌄ is its one glyph.
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(pill.textContent).toBe('Relevance')
+    expect(pill.querySelectorAll('svg')).toHaveLength(1)
+    await act(async () => { fireEvent.click(screen.getByRole('tab', { name: 'Newest' })) })
+    const glyph = screen.getByRole('combobox', { name: /Sort by/ }).querySelector('svg')!
     expect(tokens(glyph)).toContain('size-4.5')
     expect(tokens(glyph)).not.toContain('text-ink-4')
   })

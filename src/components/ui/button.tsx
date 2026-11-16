@@ -162,10 +162,11 @@ const buttonVariants = cva(
          * was a misread of minified text. The `(hover: hover)` gate is real; it just cannot see the
          * 2-in-1 below.)
          * PHONES ARE OUT: this button sits in `mobile:hidden pc:contents`, and `pc` is
-         * `(min-width: 64rem) and (pointer: fine)`, so a phone never renders it — it gets the
-         * bottom-nav Post coin. A TOUCHSCREEN LAPTOP IS NOT: `pointer: fine` describes the PRIMARY
-         * pointer, so a 2-in-1 with a trackpad matches `pc` AND takes taps, and a tap there strands
-         * the blue until something else is tapped.
+         * `(min-width: 64rem) and (pointer: fine)`, so a phone never renders it — it gets the bottom
+         * nav's Post tab, a grey disc with an ink + (mobile-nav.tsx; owner, 2026-11-16, hub Q14), which
+         * wears neither this variant nor any hover fill. A TOUCHSCREEN LAPTOP IS NOT: `pointer: fine`
+         * describes the PRIMARY pointer, so a 2-in-1 with a trackpad matches `pc` AND takes taps, and a
+         * tap there strands the blue until something else is tapped.
          * ⛔ ACCEPTED, NOT OVERLOOKED, AND THE COST IS WHY. It is cosmetic — the label stays white at
          * 7.97:1 — and every hover fill strands in exactly the same way. The fix would be `@media (any-pointer: coarse)` (NOT `hover-pointer:`, which a
          * 2-in-1 also matches), and it would take the blue hover away from every 2-in-1 user driving

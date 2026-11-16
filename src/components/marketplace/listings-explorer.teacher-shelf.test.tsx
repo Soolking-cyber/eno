@@ -471,7 +471,9 @@ describe('the home page\'s phone lanes', () => {
     render(<Probe />)
     // The explorer is gone: nothing pins the header.
     expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
-    window.history.replaceState({}, '', '/?category=rentals')
+    // A feed that keeps its compact row (Jobs — its teacher door; since 2026-11-16 a bare category feed opens on the goods
+    // search's title line instead, owner hub Q17 — listings-explorer.tsx `catRow`).
+    window.history.replaceState({}, '', '/?category=jobs')
     mount(newClient(), homeProps)
     await waitFor(() => expect(document.querySelector('[data-home-lanes]')).toBeNull())
     expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')

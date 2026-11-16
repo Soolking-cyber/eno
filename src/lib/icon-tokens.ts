@@ -109,7 +109,8 @@ export const CLOSE_GLYPH = {
  *   X             29/33/38/42 — the ghost ✕ rule above, still hand-typed where CloseButton has not
  *                 reached yet; 34 — the lightbox close on its overlay plate (listing-gallery.tsx).
  *   Plus          29 — the add-circle on the 28px avatar/logo plate (profile editors), same arithmetic;
- *                 42 — the Post coin's plus on its 40px disc (mobile-nav.tsx).
+ *                 42 — the Post coin's plus on its 40px disc (mobile-nav.tsx) — RETIRED with that coin; today's Post
+ *                 disc (32px, 2026-11-16) draws `BarePlus` at the disc's own size-8, on the ladder.
  *   SupportDialog 46 — the floating support mark (support-button.tsx; dialog-2 needed 46, see
  *                 ui/icon-button.tsx).
  * ⚠️ design-lint PARSES THIS LITERAL (it is an .mjs and cannot import TypeScript): keep it one
