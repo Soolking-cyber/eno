@@ -11,14 +11,16 @@
  * ⚠️ `fetch` never answers here, so nothing but the phone rows can be what opened the panel.
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => {
   const push = vi.fn()
   const router = { push, prefetch: () => {}, replace: () => {}, refresh: () => {}, back: () => {} }
-  const tr = (en: string) => en
-  const language = { lang: 'en', t: (k: string) => k, tr, setLang: () => {} }
+  // English unless a test switches `language.lang` (reset in beforeEach): a Vietnamese test reads the Vietnamese copy.
+  const language = { lang: 'en' as string, t: (k: string) => k, tr: (en: string, vi?: string) => (language.lang === 'vi' && vi ? vi : en), setLang: () => {} }
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
   const phone = { value: true }
   const pathname = { value: '/help' }
@@ -46,7 +48,11 @@ vi.mock('./app-download', () => ({ AppDownload: () => null }))
 // The header's own slide, held still unless a test asks for it (the real hook only moves on scroll, which nothing here does).
 vi.mock('@/hooks/use-hide-on-scroll', () => ({ useHideOnScroll: () => h.hidden.value }))
 vi.mock('@/hooks/use-is-phone', () => ({ useIsPhone: () => h.phone.value }))
-vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" />, GuideMark: () => null }))
+// The header's classes on the ✨ ride through (the real button merges them onto its own), so the phone look is pinned here.
+vi.mock('./ai-concierge', () => ({
+  AISearchButton: ({ className, active }: { className?: string; active?: boolean }) => <button type="button" aria-label="AI" className={className} aria-current={active ? 'page' : undefined} />,
+  GuideMark: () => null,
+}))
 
 import { Header } from './header'
 import { setHeaderPinned } from '@/hooks/use-header-pin'
@@ -71,6 +77,7 @@ beforeEach(() => {
   h.phone.value = true
   h.pathname.value = '/help'
   h.hidden.value = false
+  h.language.lang = 'en'
 })
 afterEach(() => {
   cleanup()
@@ -177,92 +184,195 @@ describe('the phone panel follows the header, wherever the header is', () => {
 })
 
 /**
- * ⛔ "SLIMMER + CALM" (owner, 2026-10-18): a 56px bar and no glow. From sm up a 40px logo mark matches the 40px tint
- * field beside it (the owner's 2026-08-02 rule). ON A PHONE (owner-approved 2026-11-14, the redesign) the field is a
- * 44px round, white, raised pill with a 1px edge and the mark is 36px — every geometry class behind `max-sm:`.
- * jsdom has no layout, so the classes that make the geometry are what is pinned.
+ * ⛔ "SLIMMER + CALM" (owner, 2026-10-18): a 56px bar and no glow. A 40px logo mark matches the 40px field beside it (the
+ * owner's 2026-08-02 rule) — from sm the 40px tint pill, and ON A PHONE SINCE ROUND 13 (owner, 2026-11-17: "mobile top search
+ * bar is not in harmony with logo on left lets make sure it looks part of app") a 40px grey tile of the mark's shape, painted by
+ * `search-tile` inside the field's 44px tap box. It reverses r05's 44px round, white, raised pill beside a 36px mark
+ * (owner-approved 2026-11-14). jsdom has no layout, so the classes that make the geometry are what is pinned; the tile's own
+ * paint is pinned from globals.css below, and its contrast in src/lib/tokens-contrast.test.ts.
  */
-describe('the header bar: 56px, no glow; a 40px tint field + 40px logo from sm, a 44px raised pill + 36px logo on a phone', () => {
-  it('h-14 bar, a 36/40px logo, a py-2 field that keeps text-base (iOS zooms under 16px)', () => {
+describe('the header bar: 56px, no glow; a 40px logo beside a 40px field at every width', () => {
+  it('h-14 bar, a 40px logo at every width, a py-2 field that keeps text-base (iOS zooms under 16px)', () => {
     render(<Header />)
     const header = document.getElementById('app-header')!
     const bar = header.querySelector(':scope > div') as HTMLElement
     expect(bar.className.split(/\s+/)).toContain('h-14')
     expect(bar.className.split(/\s+/)).not.toContain('h-16')
     const logo = header.querySelector('[data-header-logo] img') as HTMLImageElement
-    expect(logo.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-9', 'w-9', 'sm:h-10', 'sm:w-10']))
+    expect(logo.className.split(/\s+/)).toEqual(['h-10', 'w-10'])
     const input = field().className.split(/\s+/)
     expect(input).toEqual(expect.arrayContaining(['py-2', 'text-base']))
     expect(input).not.toContain('py-3')
   })
 
-  it('the idle pill: a raised white 44px pill on a phone, the bare tint from sm — and never a search-beam', () => {
+  it('the idle field: a 44px tap box wearing the search tile on a phone — no rim, no lift, no pill; the bare tint from sm; never a search-beam', () => {
     render(<Header />)
     const pill = field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
     const cls = pill.className.split(/\s+/)
-    expect(cls).toEqual(expect.arrayContaining([
-      'max-sm:h-11', 'max-sm:rounded-full', 'max-sm:border', 'max-sm:border-search-edge', 'max-sm:bg-background', 'max-sm:shadow-raised',
-      'sm:rounded-2xl', 'sm:bg-tint',
-    ]))
+    expect(cls).toEqual(expect.arrayContaining(['max-sm:h-11', 'max-sm:search-tile', 'sm:rounded-2xl', 'sm:bg-tint']))
     expect(cls).not.toContain('search-beam')
-    // Every edge and lift is phone-only: from sm the idle pill is still bare tint (owner, 2026-10-18).
+    // r05's pill and build 8's are gone: no round shape, rim, fill or lift of its own below sm (the tile paints itself).
+    expect(cls.filter((c) => /^max-sm:(rounded|border|bg|shadow|ring)/.test(c))).toEqual([])
+    expect(cls).not.toContain('max-sm:h-11.5')
+    // From sm the idle pill is still bare tint (owner, 2026-10-18): no edge or lift at any width.
     expect(cls.some((c) => /^(ring|border|shadow)(-|$)/.test(c))).toBe(false)
     expect(cls.some((c) => /^sm:(ring|border|shadow)/.test(c))).toBe(false)
+  })
+
+  it('the tile (globals.css `search-tile`): 2px inside the 44px box, the 8px tier, flat grey (dark one step up), a transparent 1px edge for forced colours; a 2px ring while focused; the whole 44px box only while the phone search is open', () => {
+    const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
+    const start = css.indexOf('@utility search-tile {')
+    expect(start).toBeGreaterThan(-1)
+    const tile = css.slice(start, css.indexOf('\n}', start)).replace(/\s+/g, ' ')
+    expect(tile).toContain('isolation: isolate;')
+    expect(tile).toMatch(/&::before \{ content: ''; position: absolute; inset: 2px 0; z-index: -1; border: 1px solid transparent; border-radius: var\(--radius-lg\); background-color: var\(--tint\); pointer-events: none; \}/)
+    expect(tile).toContain('&:is(.dark *)::before { background-color: var(--secondary); }')
+    // The ring follows focus; the 44px fill follows the OPEN phone search (`data-search-open`), never focus — a submitted search
+    // closes the panel and keeps the field focused, and a focus-keyed 44px tile sat beside the 40px mark (review, 2026-11-17).
+    // Open, the Clear ✕'s 34px ring keeps 5px of grey all round (measured at 3x, 320/390/412, both themes).
+    expect(tile).toContain('&:has(input:focus-visible)::before { outline: 2px solid var(--ring); }')
+    expect(tile).toContain('&[data-search-open]::before { inset: 0; }')
+    expect(tile).not.toMatch(/focus-visible\)::before \{[^}]*inset/)
+    // Flat: no lift and no ring at rest — the only outline is the focus one.
+    expect(tile).not.toMatch(/box-shadow|search-edge/)
+    expect(tile.match(/outline/g)).toHaveLength(1)
+    expect(css).toMatch(/--radius-lg: 8px;/)
   })
 })
 
 /**
- * ⛔ BUILD 8 (owner-approved 2026-11-15, cook r08 home): on the home route's phone header the search pill is the one primary
- * action — 46px, a stronger lift, an empty state that is a centred bold ink label beside its own magnifier (the ONE-word rung:
- * the mock's centred "Search eno…" read as cut copy), the ✨ / bell muted (the download glyph too, until it left the phone header
- * on 2026-11-16 — owner, hub Q12, app-download.tsx) — and the bar stays put while the home
- * lanes are drawn (use-header-pin.ts), with no hairline under it (the pinned pills carry the one). Every other route is the
- * r05 header, class for class (the pins above run on /help).
+ * ⛔ ROUND 13 (owner, 2026-11-17; hub round 13): ONE PHONE HEADER ON EVERY ROUTE. The field's two ends are 40px squares — the
+ * magnifier at the left (a label for the input, so its square types too), the ✨ flush at the right — and everything inside is
+ * one muted grey until typed; the empty field says the one word ("Search" / "Tìm kiếm", the field's aria-label), left, where
+ * typed text starts. Build 8's home-only phone pill (owner-approved 2026-11-15 — 46px, `shadow-search`, a centred bold ink
+ * label beside its own magnifier, the ✨ muted on home only) is gone; what build 8 kept for the home route is the bar that
+ * stays put over the lanes with no hairline (use-header-pin.ts), still pinned below — AND ITS QUIET BELL: round 13 did not
+ * touch the bell, so it still follows the route (`quiet={homeRoute}`: build 8's 22px muted bell on home, r05's 24px ink bell
+ * elsewhere), its row overhanging the gutter by 11px / 10px so either glyph's paint keeps the mark's 12px edge.
  */
-describe('build 8: the home route\'s phone header', () => {
+describe('round 13: the phone header is the same on every route', () => {
   const pill = () => field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
   const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
   const hairline = () => document.querySelector('#app-header > div > span[aria-hidden].absolute')!
-
-  it('on /: a 46px pill with the stronger lift; the leading magnifier steps out while the field is empty', () => {
-    h.pathname.value = '/'
-    render(<Header />)
-    const cls = tokens(pill())
-    expect(cls).toEqual(expect.arrayContaining(['max-sm:h-11.5', 'max-sm:shadow-search', 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]', 'max-sm:rounded-full', 'max-sm:border-search-edge', 'sm:rounded-2xl', 'sm:bg-tint']))
-    expect(cls).not.toContain('max-sm:h-11')
-    expect(cls).not.toContain('max-sm:shadow-raised')
-    // The pill says when its field is empty (a :has() on itself); the leading glyph reads it.
-    expect(tokens(pill().querySelector(':scope > svg'))).toContain('max-sm:[visibility:var(--lead-glyph,visible)]')
+  const lead = () => pill().querySelector(':scope > label[data-search-lead]') as HTMLLabelElement
+  const overlay = () => document.querySelector('[data-search-placeholder]')!
+  const ai = () => screen.getByRole('button', { name: 'AI' })
+  const bell = () => screen.getByRole('button', { name: 'Notifications' })
+  const actions = () => bell().closest('div.shrink-0')!
+  // Everything a route could change but the bell's row (the bell follows the route — its own test below), as one picture.
+  const look = () => ({
+    pill: tokens(pill()),
+    lead: tokens(lead()),
+    glyph: tokens(lead().querySelector('svg')),
+    input: tokens(field()),
+    overlay: tokens(overlay()),
+    long: tokens(overlay().querySelector('[data-rung="long"]')),
+    short: tokens(overlay().querySelector('[data-rung="short"]')),
+    ai: tokens(ai()),
+    logo: tokens(document.querySelector('[data-header-logo] img')),
   })
 
-  it('on /: the empty label is centred, bold ink, beside its own magnifier, and it is the one-word rung below sm', () => {
+  it('parity: the home route and every other route render the phone search field class for class', () => {
+    const at = (path: string) => {
+      h.pathname.value = path
+      const { unmount } = render(<Header />)
+      const l = look()
+      unmount()
+      return l
+    }
+    const home = at('/')
+    for (const path of ['/help', '/c/rentals', '/listings/abc', '/vi']) expect(at(path), path).toEqual(home)
+  })
+
+  it('the magnifier: a full-height label for the input, its glyph centred in the left 40px square and muted below sm', () => {
+    render(<Header />)
+    expect(lead().htmlFor).toBe(field().id)
+    expect(tokens(lead())).toEqual(expect.arrayContaining(['self-stretch', 'shrink-0', 'pl-3.5', 'max-sm:pl-2.5']))
+    expect(tokens(lead().querySelector('svg'))).toEqual(expect.arrayContaining(['h-5', 'w-5', 'pointer-events-none', 'text-foreground', 'max-sm:text-muted-foreground']))
+    // A tap on the magnifier's square reaches the input (label activation; a browser also focuses it there, which jsdom does
+    // not model — measured in Chromium: a tap at x 75 focuses #header-search-input).
+    const reached = vi.fn()
+    field().addEventListener('click', reached)
+    fireEvent.click(lead())
+    expect(reached).toHaveBeenCalledTimes(1)
+    // Always there: build 8's `--lead-glyph` step-out is gone.
+    expect(look().pill.some((c) => c.includes('lead-glyph') || c.includes('placeholder-shown'))).toBe(false)
+    expect(tokens(lead().querySelector('svg')).some((c) => c.includes('visibility'))).toBe(false)
+  })
+
+  it('the empty field says the one word, left, where typed text starts, 16px regular muted — no centred label, no second magnifier', () => {
+    render(<Header />)
+    const o = tokens(overlay())
+    expect(o).toEqual(expect.arrayContaining(['left-2', 'max-sm:left-2.5', 'max-sm:text-base', 'text-t-card', 'text-muted-foreground', 'peer-placeholder-shown:@min-[4.55em]/q:flex']))
+    for (const gone of ['max-sm:justify-center', 'max-sm:font-bold', 'max-sm:text-foreground', 'max-sm:left-0', 'max-sm:peer-placeholder-shown:flex']) expect(o).not.toContain(gone)
+    expect(overlay().querySelector('svg')).toBeNull()
+    // The overlay's left edge is the typed text's: the input's left padding below sm is the same 10px.
+    expect(tokens(field())).toEqual(expect.arrayContaining(['pl-2', 'max-sm:pl-2.5']))
+    // The long rung waits for sm on every route; below sm the short rung is the label, and it is the field's own name.
+    expect(look().long).toEqual(expect.arrayContaining(['hidden', 'sm:@min-[8.6em]/q:block']))
+    expect(look().long).not.toContain('@min-[8.6em]/q:block')
+    expect(look().short).toContain('sm:@min-[8.6em]/q:hidden')
+    expect(overlay().querySelector('[data-rung="short"]')!.textContent).toBe(field().getAttribute('aria-label'))
+  })
+
+  it('in Vietnamese the one word is "Tìm kiếm", on its own measured thresholds', () => {
+    h.language.lang = 'vi'
     h.pathname.value = '/'
     render(<Header />)
-    const overlay = document.querySelector('[data-search-placeholder]')!
-    expect(tokens(overlay)).toEqual(expect.arrayContaining(['max-sm:left-0', 'max-sm:right-0', 'max-sm:justify-center', 'max-sm:gap-2', 'max-sm:font-bold', 'max-sm:text-foreground', 'text-t-card']))
-    expect(tokens(overlay.querySelector(':scope > svg'))).toEqual(expect.arrayContaining(['hidden', 'max-sm:block']))
-    // The long rung waits for sm; the short rung ("Search" — the field's own name) is the phone's label.
-    const long = overlay.querySelector('[data-rung="long"]')!
-    const short = overlay.querySelector('[data-rung="short"]')!
-    expect(tokens(long)).toEqual(expect.arrayContaining(['hidden', 'sm:@min-[8.6em]/q:block']))
-    expect(tokens(long)).not.toContain('@min-[8.6em]/q:block')
-    expect(tokens(short)).toContain('sm:@min-[8.6em]/q:hidden')
+    expect(tokens(overlay())).toContain('peer-placeholder-shown:@min-[5.55em]/q:flex')
+    expect(look().long).toEqual(expect.arrayContaining(['hidden', 'sm:@min-[8.7em]/q:block']))
+    expect(look().short).toContain('sm:@min-[8.7em]/q:hidden')
+    const short = overlay().querySelector('[data-rung="short"]')!
+    expect(short.textContent).toBe('Tìm kiếm')
     expect(short.textContent).toBe(field().getAttribute('aria-label'))
-    // The bell steps back with the rest.
-    expect(screen.getByRole('button', { name: 'Notifications' }).hasAttribute('data-quiet')).toBe(true)
   })
 
-  it('off /: the r05 pill, the ladder and the bell exactly as they were', () => {
+  it('the nine machine-translated languages keep their ladder: the long copy only, from 15em', () => {
+    h.language.lang = 'fr'
     render(<Header />)
-    expect(tokens(pill())).toEqual(expect.arrayContaining(['max-sm:h-11', 'max-sm:shadow-raised']))
-    expect(tokens(pill())).not.toContain('max-sm:shadow-search')
-    expect(tokens(pill().querySelector(':scope > svg'))).not.toContain('max-sm:[visibility:var(--lead-glyph,visible)]')
-    expect(tokens(pill()).some((c) => c.includes('placeholder-shown'))).toBe(false)
-    const overlay = document.querySelector('[data-search-placeholder]')!
-    expect(overlay.querySelector(':scope > svg')).toBeNull()
-    expect(tokens(overlay)).not.toContain('max-sm:font-bold')
-    expect(tokens(overlay.querySelector('[data-rung="long"]'))).toContain('@min-[8.6em]/q:block')
-    expect(screen.getByRole('button', { name: 'Notifications' }).hasAttribute('data-quiet')).toBe(false)
+    expect(tokens(overlay())).toContain('peer-placeholder-shown:@min-[15em]/q:flex')
+    expect(look().long).toContain('block')
+    expect(look().long).not.toContain('hidden')
+    expect(look().short).toContain('hidden')
+  })
+
+  it('the ✨: muted below sm on every route, flush to the tile\'s right end; ink from sm; the accent (and no override) on /messages/ai', () => {
+    render(<Header />)
+    expect(look().ai).toEqual(expect.arrayContaining(['h-10', 'w-10', 'tap-48', 'relative', 'ml-2', 'mr-2', 'max-sm:ml-1', 'max-sm:mr-0', 'text-foreground', 'max-sm:text-muted-foreground']))
+    cleanup()
+    h.pathname.value = '/messages/ai'
+    render(<Header />)
+    expect(ai().getAttribute('aria-current')).toBe('page')
+    expect(look().ai.some((c) => /^(max-sm:)?text-/.test(c))).toBe(false)
+    expect(look().ai).toEqual(expect.arrayContaining(['max-sm:ml-1', 'max-sm:mr-0']))
+  })
+
+  // ⛔ KEEP r05's BELL (owner-approved 2026-11-14) AND build 8's QUIET ONE ON HOME (2026-11-15): `quiet={homeRoute}`.
+  it('the bell: quiet on the home route only (r05\'s ink bell elsewhere), its row overhanging the gutter by 11px / 10px below sm', () => {
+    const overhang = (cls: string[]) => cls.filter((c) => /^max-sm:-?m[rx]-/.test(c))
+    for (const path of ['/', '/vi']) {
+      h.pathname.value = path
+      const { unmount } = render(<Header />)
+      expect(bell().hasAttribute('data-quiet'), path).toBe(true)
+      expect(overhang(tokens(actions())), path).toEqual(['max-sm:-mr-[11px]'])
+      unmount()
+    }
+    for (const path of ['/help', '/c/rentals', '/c/phones', '/listings/abc', '/messages/ai']) {
+      h.pathname.value = path
+      const { unmount } = render(<Header />)
+      expect(bell().hasAttribute('data-quiet'), path).toBe(false)
+      expect(overhang(tokens(actions())), path).toEqual(['max-sm:-mr-2.5'])
+      unmount()
+    }
+  })
+
+  it('the bell\'s row overhang is phone-only: from sm the row sits inside the bar\'s gutter on every route', () => {
+    for (const path of ['/', '/help']) {
+      h.pathname.value = path
+      const { unmount } = render(<Header />)
+      expect(tokens(actions()).filter((c) => /(^|:)-m[rx]-/.test(c) && !c.startsWith('max-sm:')), path).toEqual([])
+      unmount()
+    }
   })
 
   it('pinned by the home lanes: the bar does not slide away below sm (it still does from sm), and draws no hairline', () => {
@@ -300,7 +410,7 @@ describe('the open phone search is the whole screen', () => {
   const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
   const pill = () => field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
 
-  it('open on /: Back + a flat left-aligned field; logo and actions step out; the window fills the screen; the page is held', async () => {
+  it('open on /: Back + the same grey tile, left-aligned; logo and actions step out; the window fills the screen; the page is held', async () => {
     h.pathname.value = '/'
     const main = document.body.appendChild(Object.assign(document.createElement('main'), { id: 'main' }))
     const { unmount } = render(<Header />)
@@ -310,9 +420,13 @@ describe('the open phone search is the whole screen', () => {
     expect(tokens(document.querySelector('[data-header-logo]'))).toContain('max-sm:hidden')
     expect(tokens(screen.getByRole('button', { name: 'Notifications' }).closest('div.shrink-0'))).toContain('max-sm:hidden')
     expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy()
+    // Back takes the magnifier's square; the tile is the same 40px grey tile open as closed (its focus ring is CSS).
+    expect(pill().querySelector(':scope > label[data-search-lead]')).toBeNull()
     const p = tokens(pill())
-    expect(p).toContain('max-sm:h-11.5')
-    for (const gone of ['max-sm:shadow-search', 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]']) expect(p).not.toContain(gone)
+    expect(p).toEqual(expect.arrayContaining(['max-sm:h-11', 'max-sm:search-tile']))
+    expect(p.filter((c) => /^max-sm:(rounded|border|bg|shadow)/.test(c))).toEqual([])
+    // Open: the box carries `data-search-open`, which the tile's 44px fill keys on (never focus — globals.css search-tile).
+    expect(pill().hasAttribute('data-search-open')).toBe(true)
     expect(tokens(document.querySelector('[data-search-placeholder]'))).not.toContain('max-sm:justify-center')
     const w = tokens(panel())
     expect(w).toEqual(expect.arrayContaining(['max-sm:inset-x-0', 'max-sm:max-h-none', 'max-sm:rounded-none', 'max-sm:bg-background', 'overscroll-contain', 'kb-pad']))
@@ -334,6 +448,8 @@ describe('the open phone search is the whole screen', () => {
       act(() => field().focus())
       fireEvent.change(field(), { target: { value: 'ipho' } })
       await waitFor(() => expect(panel()).not.toBeNull())
+      // Round 13: 4px off the tile's end below sm (2px from sm, unchanged), so in the 44px typing tile its ring has 5px all round.
+      expect(tokens(screen.getByRole('button', { name: 'Clear search' }))).toEqual(expect.arrayContaining(['mr-0.5', 'max-sm:mr-1', 'h-9', 'w-9', 'tap-48']))
       fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
       expect(field().value).toBe('')
       expect(h.push).not.toHaveBeenCalled()
@@ -359,6 +475,9 @@ describe('the open phone search is the whole screen', () => {
       fireEvent.keyDown(field(), { key: 'Escape' })
       await waitFor(() => expect(panel()).toBeNull())
       expect(field().value).toBe('iphone')
+      // Closed with the field still focused: the box drops `data-search-open`, so the tile is the 40px one on the mark's lines.
+      expect(document.activeElement).toBe(field())
+      expect(pill().hasAttribute('data-search-open')).toBe(false)
     } finally {
       window.history.replaceState(null, '', '/')
     }

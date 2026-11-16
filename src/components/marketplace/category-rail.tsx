@@ -538,7 +538,8 @@ export function CategoryRail({
    * ⛔ THE HOME PAGE'S PILLS (owner-approved 2026-11-15 (build 7), cook r07 home: "build 7"; `pills`). Below 640px, merged
    * over the tile's own classes, so from 640px the tile is exactly as above:
    *   the pill   40px tall, as wide as its art and word (6px before the art, 8 between, 14 after the word), fully round,
-   *              white, raised like the header's search pill above it — its 1px `search-edge` rim and the rail's own lift
+   *              white and raised — the 1px `search-edge` rim (the header's search pill wore it until round 13, 2026-11-17,
+   *              when that field went flat) and the rail's own lift
    *              (`shadow-chip`, the More disc's). A press fills it with the field grey. `tap-44`: a 44px hit area (WCAG 2.5.8).
    *   the art    28px, beside the word, on no disc (PILL_GLYPH) — 26px since build 8 (below).
    *   the word   14/20 bold ink, whole: the pill grows to fit it, so it never truncates (PILL_LABEL).

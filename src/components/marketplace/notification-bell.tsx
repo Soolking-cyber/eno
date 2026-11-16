@@ -36,9 +36,10 @@ import { moneyLocale } from '@/lib/vnd'
  *  `PopoverHeader`, which the sheet drops (it draws its own). */
 export function NotificationBell({ quiet = false }: {
   /**
-   * The home route's phone header (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homePill`): below `sm` the
-   * glyph steps back to the muted ink (6.48:1 on white) at 22px, so the search pill is the header's one loud object.
-   * An unread bell keeps its brand fill — that is the user's own state, not chrome.
+   * The home route's phone header (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homeRoute`): below `sm`
+   * the glyph steps back to the muted ink (6.48:1 on white) at 22px. Every other route keeps r05's 24px ink bell
+   * (owner-approved 2026-11-14); round 13 (2026-11-17) left both as they were. An unread bell keeps its brand fill — that is
+   * the user's own state, not chrome.
    */
   quiet?: boolean
 } = {}) {
@@ -116,10 +117,21 @@ export function NotificationBell({ quiet = false }: {
             // active:scale-[0.96] is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.
-            className={cn('text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]', quiet && 'max-sm:text-muted-foreground')}
+            // ⛔ `max-sm:focus-visible:-outline-offset-2!` — THE KEYBOARD RING INSIDE THE BUTTON ON A PHONE (round 13, 2026-11-17).
+            // Below `sm` the header's actions row overhangs the bar's 12px gutter so the glyph keeps the mark's edge (header.tsx,
+            // the note on that row): this 40px box ends 1–2px from the screen edge, and the app-wide ring (globals.css
+            // `button:focus-visible`, 2px at a +2px offset) lost its right side off the screen. At −2px the whole 2px ring is
+            // drawn just inside the box's own edge. `!` because that rule is unlayered (and its `[tabindex]` arm, which this
+            // Base UI button matches, is (0,6,0)): a layered utility cannot outrank it any other way.
+            // ⛔ `max-sm:before:-translate-x-px` ON THE QUIET BELL: its 22px glyph sits 1px further inside the 40px box than the
+            // 24px one, so the header overhangs the home route's row 1px more (11px, header.tsx) and the box ends 1px from the
+            // screen edge. The centred 44px hit area (`tap-44`, globals.css — unlayered, so it is nudged with `translate`, which
+            // composes with its `transform`, never overridden) then ran 1px off the screen and the page scrolled sideways by 1px
+            // (measured: scrollWidth 391 at 390). Moved 1px left it ends exactly on the edge and still starts 1px after the ✨'s.
+            className={cn('text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] max-sm:focus-visible:-outline-offset-2!', quiet && 'max-sm:text-muted-foreground max-sm:before:-translate-x-px')}
           >
             {/* 28px from sm up — the Saved/Messages action icons on desktop (one consistent nav scale); 24px ink on a
-                phone, the redesign's header glyph beside the 44px pill (owner-approved 2026-11-14).
+                phone (owner-approved 2026-11-14), 22px muted when `quiet` — the home route's (build 8, 2026-11-15).
                 STROKE_NAV: the bell is h-7 header chrome (§2 — it was the one chrome
                 glyph in the header still on lucide's default 2). The solid fill-brand
                 when unread is USER-state (§5) — something is yours/waiting. */}

@@ -125,6 +125,41 @@ describe('the redesign, as tokens', () => {
   })
 })
 
+/**
+ * ⛔ THE PHONE HEADER'S SEARCH TILE (round 13, owner 2026-11-17; globals.css `@utility search-tile`): the field grey in light, the
+ * dark `--secondary` in dark — one step above the tint, which sat 1.11:1 on the dark header (the r13 judges: the field vanished).
+ * Its fill is read from the utility itself, so a fill moved there without these numbers is caught here.
+ */
+describe('the phone header search tile', () => {
+  const tile = css.slice(css.indexOf('@utility search-tile {'), css.indexOf('\n}', css.indexOf('@utility search-tile {')))
+  const fill = (theme: 'light' | 'dark') => {
+    const m = theme === 'dark'
+      ? tile.match(/&:is\(\.dark \*\)::before\s*\{\s*background-color:\s*var\(--([\w-]+)\)/)
+      : tile.match(/&::before\s*\{[^}]*background-color:\s*var\(--([\w-]+)\)/)
+    expect(m, `${theme} tile fill`).not.toBeNull()
+    return m![1]
+  }
+  it('light is the field grey (--tint), dark the one-step-up --secondary', () => {
+    expect(fill('light')).toBe('tint')
+    expect(fill('dark')).toBe('secondary')
+    expect(token('light', fill('light'))).toBe('#f3f3f3')
+    expect(token('dark', fill('dark'))).toBe('#303030')
+  })
+  for (const theme of ['light', 'dark'] as const) {
+    it(`${theme} · the placeholder, glyphs and typed text clear AA on the tile`, () => {
+      for (const ink of ['muted-foreground', 'foreground']) expect(contrast(token(theme, ink), token(theme, fill(theme))), ink).toBeGreaterThanOrEqual(AA)
+    })
+    it(`${theme} · the focus ring clears 3:1 (WCAG 1.4.11) against the header it is drawn on`, () => {
+      expect(contrast(token(theme, 'ring'), token(theme, 'background'))).toBeGreaterThanOrEqual(3)
+    })
+  }
+  it('dark · the tile stands further off the header than the tint did', () => {
+    const bar = token('dark', 'background')
+    expect(contrast(token('dark', fill('dark')), bar)).toBeGreaterThan(contrast(token('dark', 'tint'), bar))
+    expect(contrast(token('dark', fill('dark')), bar)).toBeGreaterThanOrEqual(1.25)
+  })
+})
+
 describe('the contrast helper itself', () => {
   it('matches WCAG reference ratios', () => {
     expect(contrast('#ffffff', '#000000')).toBeCloseTo(21, 5)

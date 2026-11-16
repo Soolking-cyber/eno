@@ -230,7 +230,8 @@
      only, so no layout moves. `sm`/`md` stay banned bare by design-lint, `3xl` has no consumer. */
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 8px;   /* small thumbs ≤64px, compact controls ≤28px, menu items */
+  --radius-lg: 8px;   /* small thumbs ≤64px, compact controls ≤28px, menu items, and the phone header's 40px search tile
+                         (`search-tile`, round 13: the logo mark's own corner, 8.75px at 40, scans equal to it) */
   --radius-xl: 12px;  /* buttons, inputs, selects — capped by the pill cliff above */
   --radius-2xl: 16px; /* cards, panels, dialogs, popovers, non-photo media ≥96px */
   --radius-3xl: 26px; /* sheets and drawers (no consumer in src/ today — headroom) */
@@ -293,7 +294,7 @@
   --color-body: var(--body);             /* neutral-600 secondary body text */
   --color-tint: var(--tint);             /* neutral-100 tint surfaces / chips */
   --color-line-strong: var(--line-strong); /* neutral-300 stronger borders/inputs */
-  --color-search-edge: var(--search-edge); /* the phone header search pill's 1px edge (owner-approved 2026-11-14) */
+  --color-search-edge: var(--search-edge); /* a raised white chip's 1px edge (owner-approved 2026-11-14; the phone header pill's until round 13) */
   --color-verified: var(--verified);
   --color-pending: var(--pending);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -762,16 +763,19 @@
   --knob: #ffffff;
   --line-strong: #d6d6d6; /* the stronger line (owner-approved 2026-11-14) */
   /* The app chrome's own lifts (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and
-     deploy"). --search-edge is the phone header search pill's 1px edge, a step softer than --line-strong because the
-     raised shadow already lifts it. --shadow-raised is that pill's lift; --shadow-chip the home rail's More disc. Both
-     exposed through @utility (below the ELEVATION block), so the max-sm: variants exist. */
+     deploy"). --search-edge is a raised white chip's 1px edge (the home rail's category pills and partner tiles), a step
+     softer than --line-strong because the lift already raises it; --shadow-chip is their lift and the More disc's. Both
+     exposed through @utility (below the ELEVATION block), so the max-sm: variants exist.
+     ⚠️ THE PHONE HEADER'S SEARCH PILL WORE --search-edge AND --shadow-raised (r05) / --shadow-search (build 8) UNTIL ROUND 13
+     (owner, 2026-11-17): it is a flat tile now (`search-tile`, below the ELEVATION block). --shadow-raised has no consumer
+     since; it is kept as the one-edit way back. */
   --search-edge: #e2e2e2;
   /* One layer, from above: the mock's extra `0 0 1px` ring is a halo (see ELEVATION's one-light-source note), and the
      pill's own 1px --search-edge already draws that edge. */
   --shadow-raised: 0 2px 10px rgb(0 0 0 / 0.08);
   --shadow-chip: 0 1px 4px rgb(0 0 0 / 0.08);
-  /* The home route's phone search pill (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homePill`): the page's
-     one primary action, so a stronger lift than --shadow-raised — a near contact shadow and a soft 14px fall, both from above. */
+  /* A near contact shadow and a soft 14px fall, both from above: the phone map button's float (map-float.ts). It was the home
+     route's phone search pill's lift too (build 8, owner-approved 2026-11-15) until round 13 made that field flat. */
   --shadow-search: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 14px rgb(0 0 0 / 0.1);
   /* The rental sheet's rounded edge over its photo (owner-approved 2026-11-14, cook r05 "rental-c"; src/lib/rental-sheet.ts
      SHEET_PHOTO): a lift cast UPWARD onto the photo, pulled in 6px so it never shows past the strip's sides. */
@@ -1719,13 +1723,59 @@
    "Show all" chip) — see --shadow-plate. And the sticky action bar's lift — see --shadow-bar. */
 .shadow-plate { box-shadow: var(--shadow-plate); }
 .shadow-bar { box-shadow: var(--shadow-bar); }
-/* @utility, not a plain class like the four above: the header pill wears its lift on a phone only (`max-sm:`), and a
-   plain class has no variants. Layered, so an unlayered .shadow-pop (the open search window) still wins. */
+/* @utility, not a plain class like the four above, so the `max-sm:` variants exist: the home rail's raised pills and More
+   disc wear `max-sm:shadow-chip` (category-rail.tsx), and the phone map button its float, `shadow-search` (map-float.ts).
+   `shadow-raised` HAS NO CONSUMER SINCE ROUND 13 (owner, 2026-11-17): it was the phone header search pill's lift (r05), and
+   that field is a flat tile now (`search-tile`, below). Kept with its token as the one-edit way back. Layered, so an
+   unlayered .shadow-pop (the open search window) still wins over any of them. */
 @utility shadow-raised { box-shadow: var(--shadow-raised); }
 @utility shadow-chip { box-shadow: var(--shadow-chip); }
 @utility shadow-search { box-shadow: var(--shadow-search); }
 /* The rental sheet's edge over the photo, worn by an `after:` pseudo (src/lib/rental-sheet.ts SHEET_PHOTO). */
 @utility shadow-sheet { box-shadow: var(--shadow-sheet); }
+
+/* ⛔ THE PHONE HEADER'S SEARCH FIELD IS A SECOND TILE OF THE LOGO'S SHAPE (owner, 2026-11-17: "mobile top search bar is not in
+   harmony with logo on left lets make sure it looks part of app"; cook round 13, direction v2 + the judges' fixes, approved
+   2026-11-16 and written 2026-11-17 — hub round 13). header.tsx wears it as `max-sm:search-tile` on the field's box, which
+   stays the 44px tap height (the input fills all of it, so the whole field types); this paints the 40px tile inside it, on
+   the 40px mark's top and bottom lines (y 8–48 of the 56px bar). It reverses, below 640px, r05's raised white pill (owner-
+   approved 2026-11-14) and build 8's home pill (2026-11-15): docs/design-language.md, the header paragraph.
+   · The `lg` tier's 8px corner. The mark's own corner is 112/512 of its side (8.75px at 40), and a corner-profile scan at
+     3x put the two arcs within one device pixel, so the canon tier stands. An arc, never squircled: the mark is an arc.
+   · Flat field grey (`--tint`, the fill of round 12's feed pills, so header and feed controls are one material): no rim,
+     no shadow. ⛔ DARK TAKES `--secondary` (#303030), ONE STEP UP: the tint (#262626) sat 1.11:1 on the dark header and the
+     field all but vanished (both r13 judges). #303030 on the #1c1d1f header is 1.28:1; the muted placeholder on it 6.65:1,
+     typed text 11.58:1. (Light: #f3f3f3 on white 1.11:1, the placeholder 5.84:1 — the edge is the glyphs', as in a feed pill.)
+   · A 1px TRANSPARENT border: nothing here, the field's edge in forced colours, which force it to the system ink and drop
+     the fill — r05's real border used to be that edge.
+   · A 2px ring in the focus colour (`--ring`) while its field types, none at rest — 5.62:1 on the bar in both themes. An
+     outline, not a box-shadow: forced colours drop shadows and keep outlines. The :has() is on the element it styles
+     (design-lint rule 7); a text input matches :focus-visible on every focus, tap included.
+   · WHILE THE PHONE SEARCH IS OPEN THE TILE FILLS ITS WHOLE 44px BOX (`inset: 0`, y 6–50; the ring then sits at y 4–52):
+     header.tsx sets `data-search-open` from `phoneSearch`, where the logo and the bell have stepped out, so there is no
+     mark's line to keep. ⛔ KEYED ON THE OPEN STATE, NEVER ON FOCUS (review, 2026-11-17): a submitted search, a tapped
+     suggestion or Escape closes the panel and keeps the field focused, and a focus-keyed 44px tile then sat beside the
+     40px mark on the results page. Closed and focused, the ring stays on the 40px tile. The open field's Clear ✕ (Solar close-circle drawn at 38px in a
+     36px button: a 34px ring) had 3px of grey above and below it in the 40px tile, the ring pressing on it; in 44 it has
+     5px above, below and right (its `max-sm:mr-1`; measured at 3x, 320/390/412, both themes).
+   ::before, not the box's own background, so the tile can be 4px shorter than the tap box around it. `isolation` keeps the
+   pseudo's z-index -1 inside the field: it paints under the magnifier, the input and the assistant, never under the bar. */
+@utility search-tile {
+  isolation: isolate;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 2px 0;
+    z-index: -1;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    background-color: var(--tint);
+    pointer-events: none;
+  }
+  &:is(.dark *)::before { background-color: var(--secondary); }
+  &:has(input:focus-visible)::before { outline: 2px solid var(--ring); }
+  &[data-search-open]::before { inset: 0; }
+}
 
 /* ============================================================
    TRUE HAIRLINES — one DEVICE pixel, at any density

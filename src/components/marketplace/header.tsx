@@ -162,14 +162,16 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
   // below `sm` — the explorer says when (use-header-pin.ts). From `sm`, and on every other view, it slides as above.
   const pinned = useHeaderPinned()
   /**
-   * ⛔ THE HOME ROUTE'S PHONE HEADER (owner-approved 2026-11-15 (build 8), cook r08 home: "the raised search pill as the one
-   * primary action"): below `sm` on `/` (HOME_PATHS — a test that agrees on the server and the client, so no hydration gate),
-   * the pill is 46px with a stronger lift (`shadow-search`), its empty state a centred bold ink label beside its own
-   * magnifier, and the ✨ and the bell step back to the muted ink (the download glyph beside them left the phone header on every
-   * route on 2026-11-16 — owner, hub Q12, app-download.tsx). Every other route keeps the r05 pill (its ⛔ note on the pill,
-   * below). A search or a filter on `/` keeps the same pill, so submitting never morphs the header.
+   * The home route (HOME_PATHS — a test that agrees on the server and the client, so no hydration gate). Below `sm` its header
+   * stays put over the lanes and draws no hairline there (build 8, `pinned` above and `headerLineOff` below).
+   * ⛔ ITS SEARCH FIELD AND ✨ ARE EVERY ROUTE'S SINCE ROUND 13 (owner, 2026-11-17: "mobile top search bar is not in harmony
+   * with logo on left lets make sure it looks part of app"; hub round 13). Build 8 (owner-approved 2026-11-15) gave the home
+   * route its own phone pill — 46px, `shadow-search`, a centred bold ink "Search" beside its own magnifier, the ✨ and bell
+   * muted — while other routes kept r05's raised white pill; now one quiet tile serves every route (the ⛔ note on the field).
+   * ⛔ THE BELL STILL FOLLOWS THE ROUTE: build 8's quiet 22px muted bell here, r05's 24px ink bell everywhere else (owner-approved
+   * 2026-11-14 / 2026-11-15; round 13 did not ask to change it) — `quiet={homeRoute}` and the actions row's overhang, below.
    */
-  const homePill = !!pathname && HOME_PATHS.has(pathname)
+  const homeRoute = !!pathname && HOME_PATHS.has(pathname)
   /**
    * ⛔ NO HAIRLINE UNDER THE HEADER WHILE THE HOME LANES PIN THE CATEGORY PILLS UNDER IT (owner-approved 2026-11-15 (build 8),
    * cook r08 home: the header and the pills read as one top block; the one hairline is under the pills once they pin —
@@ -177,7 +179,7 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
    * the explorer cannot say yet, so the home route's server HTML already leaves it out; a directed `/?…` link gets it back
    * once hydrated (a 1px line appearing, never a shift).
    */
-  const headerLineOff = pinned || (!hydrated && homePill)
+  const headerLineOff = pinned || (!hydrated && homeRoute)
 
   // Notch/Dynamic-Island handling for the installed PWA (and any web target with a real
   // safe-area inset). The prelaunch banner sits above the header and clears the notch
@@ -414,11 +416,12 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
   useEffect(() => { releaseSearchRef.current = releaseSearchPanel }, [releaseSearchPanel])
   /**
    * ⛔ BELOW 640px THE OPEN SEARCH IS THE WHOLE SCREEN (owner, 2026-11-15: "search pill on mobile is not good"). The floating
-   * window left the page showing beside and under it. Open, the bar is Back + the field (logo and actions step out, the label
-   * leaves the centre) and the window fills the screen under it on the page's own background; the page behind is held and inert.
+   * window left the page showing beside and under it. Open, the bar is Back + the field (logo and actions step out; Back takes
+   * the magnifier's place) and the window fills the screen under it on the page's own background; the page behind is held and
+   * inert. Since round 13 the field keeps its grey tile open too — grown to its whole 44px box while it types, inside the 2px
+   * focus ring (`search-tile`).
    */
   const phoneSearch = isPhone && panelOpen
-  const centred = homePill && !phoneSearch
   // Closed without a search, the field goes back to the query on screen: ✕ no longer submits on a phone (below), so an
   // emptied field must never be left over a results page. A search or a visual search marks itself committed.
   // Keyed on the panel CLOSING (not on leaving the phone layout: a rotation past 640px mid-typing must keep the draft).
@@ -675,19 +678,17 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
    * The placeholder ladder's container-query classes per language — see the note on the overlay in
    * the search field. Whole literals, so Tailwind sees every class it has to generate.
    */
-  // The home route's phone pill (`homePill`, owner-approved 2026-11-15 (build 8)) labels itself with the one-word rung: there the
-  // long rung waits for `sm`, where the ladder runs as everywhere else. Below `sm` its overlay shows with NO width threshold: the
-  // leading glyph steps out whenever the field is empty, so a threshold (a narrow phone, enlarged text) would leave the pill with
-  // no label and no glyph (review); the overlay carries its own glyph and its word truncates at worst. MT languages unchanged.
+  // ⛔ BELOW `sm`, ENGLISH AND VIETNAMESE SAY THE ONE WORD ON EVERY ROUTE (round 13, owner 2026-11-17): "Search" / "Tìm kiếm", the
+  // field's aria-label, left where typed text starts. The long rung waits for `sm`, where the ladder runs as it always did. Keyed on
+  // the language only — build 8 (2026-11-15) gave the one word to the home route's centred label alone, and showed it with no width
+  // threshold because that label's own magnifier replaced the leading one; the leading magnifier always shows now, so the
+  // ladder's own rule is back at every width: no word below the room it needs. The nine machine-translated languages are
+  // unchanged: their long copy only, from 15em.
   const placeholderFit =
     lang === 'vi'
-      ? centred
-        ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[5.55em]/q:flex', long: 'sm:@min-[8.7em]/q:block', short: 'sm:@min-[8.7em]/q:hidden' }
-        : { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: '@min-[8.7em]/q:block', short: '@min-[8.7em]/q:hidden' }
+      ? { overlay: 'peer-placeholder-shown:@min-[5.55em]/q:flex', long: 'sm:@min-[8.7em]/q:block', short: 'sm:@min-[8.7em]/q:hidden' }
       : lang === 'en'
-        ? centred
-          ? { overlay: 'max-sm:peer-placeholder-shown:flex sm:peer-placeholder-shown:@min-[4.55em]/q:flex', long: 'sm:@min-[8.6em]/q:block', short: 'sm:@min-[8.6em]/q:hidden' }
-          : { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
+        ? { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: 'sm:@min-[8.6em]/q:block', short: 'sm:@min-[8.6em]/q:hidden' }
         : { overlay: 'peer-placeholder-shown:@min-[15em]/q:flex', long: 'block', short: 'hidden' }
 
   /**
@@ -875,9 +876,11 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
           {/* h-10 = 40px from sm up, matching the header search pill's height exactly (owner, 2026-08-02: "make logo
               mark as tall as the searchbar next to it"); both came down from 48 together with the bar (owner, 2026-10-18:
               "slimmer + calm"). Square, so it costs its width — the search form is `min-w-0 flex-1` and absorbs it.
-              ⛔ ON A PHONE THE MARK IS 36px BESIDE A 44px RAISED PILL (owner-approved 2026-11-14, cook r05): the redesign
-              makes the search pill the header's one loud object, so the mark no longer matches its height there. */}
-          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-9 w-9 sm:h-10 sm:w-10" />
+              ⛔ 40px ON A PHONE TOO, AGAIN (round 13, owner 2026-11-17: "mobile top search bar is not in harmony with logo on
+              left"): the search field is a second tile of the mark's shape there, 40px on the mark's top and bottom lines
+              (globals.css `search-tile`). It reverses r05's 36px mark beside a 44px raised pill (owner-approved 2026-11-14),
+              which made the pill the header's one loud object. Resized, never redrawn. */}
+          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-10 w-10" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never
@@ -956,27 +959,29 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                 is paint only — the fill, the shadow, the bottom radius. `all` also caught the layout
                 that re-flows inside on focus (the input grows 76→180px while the AI and Map buttons
                 unmount), so opening the field could animate geometry nobody asked to see. */}
-            {/* ⛔ ON A PHONE, A 44px ROUND, WHITE, RAISED PILL (owner-approved 2026-11-14, cook r05: "after this cook round
-                build all best options and deploy") — the redesign's one loud object in the header: 1px `search-edge`, the
-                `shadow-raised` lift, an ink glass. It reverses, below 640px only, the 2026-10-18 bare tint ("do not add a
-                border here"). It stays the same pill while the panel is open: the phone's panel is a separate fixed window.
+            {/* ⛔ ON A PHONE, A SECOND TILE OF THE LOGO'S SHAPE (round 13, owner 2026-11-17: "mobile top search bar is not in
+                harmony with logo on left lets make sure it looks part of app"; direction v2 + the judges' fixes, hub round 13).
+                Beside the 40px blue mark, a 40px grey tile on the mark's top and bottom lines (y 8–48), the 8px `lg` corner the
+                mark's own corner scans equal to, the flat field grey (`--tint`; dark `--secondary`, one step up so it separates
+                from the dark bar), no rim, no shadow. Its two ends are 40px squares, like the mark holding its "e": the 20px
+                magnifier centred at the left, the assistant flush at the right; everything inside one muted grey until typed.
+                `search-tile` (globals.css) paints it on a ::before 2px inside this 44px box, so the tap height stays 44px and
+                the input fills all of it — the whole field types, with no dead band. A 2px ring in the focus colour while the
+                field is focused; none at rest. While the phone's search is OPEN (`data-search-open`, `phoneSearch`) the tile
+                fills the whole 44px box — no mark beside it to line up with, and the Clear ✕ gets 5px of grey all round. Keyed
+                on the open state, NOT on focus (review, 2026-11-17): a submitted search or a tapped suggestion closes the panel
+                and keeps the field focused, and a focus-keyed 44px tile then sat beside the 40px mark on every results page.
+                It reverses, below 640px: r05's 44px round, white, raised pill — 1px `search-edge`, the `shadow-raised` lift,
+                beside a 36px mark (owner-approved 2026-11-14) — and build 8's home pill (owner-approved 2026-11-15): 46px,
+                `shadow-search`, a centred bold ink "Search" beside its own magnifier, the page's one primary action. The blue
+                mark is the bar's one colour now. (r05 had itself reversed the 2026-10-18 bare tint, "do not add a border here",
+                which this returns to in spirit.)
                 From sm up nothing changed: the 40px tint pill, and the fused window when open. `isPhone` picks the open
                 shadow because `.shadow-pop` is an unlayered class with no `sm:` form; the panel is never open in the SSR
-                HTML, so that read cannot mismatch hydration. `border-radius` left the transition list with the morph.
-                ⛔ ON THE HOME ROUTE, 46px WITH A STRONGER LIFT (owner-approved 2026-11-15 (build 8), cook r08 home — `homePill`):
-                the pill is the page's one primary action there, so it is 2px taller and wears `shadow-search` (a near
-                contact shadow and a soft 14px fall) over the same `search-edge` rim. Other routes keep the 44px r05 pill.
-                While its field is empty the pill sets `--lead-glyph: hidden` (a :has() on the pill itself), which the leading
-                magnifier reads (below). */}
-            <div className={cn(
+                HTML, so that read cannot mismatch hydration. `border-radius` left the transition list with the morph. */}
+            <div data-search-open={phoneSearch || undefined} className={cn(
               'relative z-50 flex items-center transition-[background-color,box-shadow] duration-200 ease-[var(--ease-out-strong)]',
-              'max-sm:rounded-full max-sm:border max-sm:border-search-edge max-sm:bg-background',
-              // The leading glyph steps out only where the centred label replaces it: English and Vietnamese. The nine
-              // machine-translated languages' label shows only from 15em, so a narrow pill there kept no label AND no glyph (review).
-              // Open on a phone the pill is a flat field (no lift): the whole screen is the search then.
-              homePill ? 'max-sm:h-11.5' : 'max-sm:h-11',
-              !phoneSearch && (homePill ? 'max-sm:shadow-search' : 'max-sm:shadow-raised'),
-              centred && (lang === 'en' || lang === 'vi') && 'max-sm:has-[input:placeholder-shown]:[--lead-glyph:hidden]',
+              'max-sm:h-11 max-sm:search-tile',
               panelOpen
                 // Open (sm+) = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
                 // suggestions panel it fuses with (bottom flattened where they join), so the
@@ -987,15 +992,20 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                 // jump on open) and PURE bg-tint — zero border, zero ring, and NO bg swap on focus.
                 // ⛔ NO GLOW. The orange `search-beam` that breathed three times on every load (and again
                 // on every close of the panel) is gone — owner, 2026-10-18: "slimmer + calm"; a pulsing
-                // edge read as promotion, not as a search box. Still none on the phone pill: its edge is static.
+                // edge read as promotion, not as a search box. Still none on the phone tile: its focus ring is not a glow.
                 : 'sm:rounded-2xl sm:bg-tint',
             )}
             >
-              {/* ⛔ ON THE HOME ROUTE'S PHONE PILL IT STEPS OUT WHILE THE FIELD IS EMPTY (owner-approved 2026-11-15 (build 8)):
-                  the label below is centred beside its own magnifier then. Read from the field's `:placeholder-shown`, so text
-                  typed before hydration brings it back too. `visibility`, NOT `display` (the mock's): the glyph keeps its
-                  34px, so the first typed letter does not shove the caret 34px right, and the centred label sits nearer the
-                  pill's own centre (the ✨ takes the right end). */}
+              {/* The leading magnifier ALWAYS shows (round 13). On a phone it is the 20px glyph centred in the tile's left 40px
+                  square (10px either side), muted like the placeholder beside it; from sm the 14px inset and ink, unchanged.
+                  Build 8 hid it on the home route while the field was empty (`--lead-glyph`), for the centred label's own.
+                  ⚠️ A <label> FOR THE INPUT, FULL HEIGHT, SO THE MAGNIFIER'S SQUARE TYPES TOO. The glyph was `pointer-events-none`
+                  on the bare box, so a tap on it (x 60–89 at 390, measured by an elementFromPoint sweep) landed on nothing and
+                  the field stayed shut; the label hands the tap to the input, as a native field does. Its padding is the inset
+                  the glyph's margin was. The input keeps its aria-label (which wins over a label for the accessible name).
+                  ⚠️ FROM sm TOO, DELIBERATELY: the label is not phone-only, so on a desktop a click on the magnifier (its 14px
+                  inset included) now focuses the field and opens the panel, where it used to land on the bare box and do
+                  nothing. Same glyph, same place, same look from sm — only that dead zone is gone. */}
               {phoneSearch ? (
                 <IconButton
                   size="md"
@@ -1008,7 +1018,9 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                   <ChevronLeftIcon className="h-6 w-6" strokeWidth={STROKE} aria-hidden />
                 </IconButton>
               ) : (
-                <Search className={cn('pointer-events-none ml-3.5 h-5 w-5 shrink-0 text-foreground', centred && 'max-sm:[visibility:var(--lead-glyph,visible)]')} strokeWidth={STROKE} />
+                <label htmlFor={HEADER_SEARCH_INPUT_ID} data-search-lead="" className="flex shrink-0 cursor-text items-center self-stretch pl-3.5 max-sm:pl-2.5">
+                  <Search className="pointer-events-none h-5 w-5 shrink-0 text-foreground max-sm:text-muted-foreground" strokeWidth={STROKE} />
+                </label>
               )}
               {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
@@ -1060,8 +1072,10 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                 // that the rule for every engine, not a behaviour we happened to measure).
                 // ⚠️ `py-2`: a 24px line + 16px = the 40px field the logo matches (owner, 2026-10-18). The type
                 // stays `text-base` — anything under 16px and iOS Safari zooms the page on focus. On a phone its slot
-                // stretches to fill the 44px pill inside its 1px border (`self-stretch`, 42px), so the whole pill types.
-                className="peer w-full min-w-0 bg-transparent py-2 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
+                // stretches to the field's whole 44px box (`self-stretch`; the 40px tile is painted inside it), so every pixel
+                // of the tile types. `max-sm:pl-2.5`: typed text starts 10px after the magnifier's square, where the placeholder
+                // sits (round 13), so the first keystroke does not move the word.
+                className="peer w-full min-w-0 bg-transparent py-2 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none max-sm:pl-2.5"
               />
               {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29).
                   ⚠️ SINCE O-03 (2026-09-30) ✨ AND MAP ARE OUT OF THE PILL BELOW 640px, so the numbers in the
@@ -1090,20 +1104,20 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                   ⚠️ The nine machine-translated languages have no width we can know ahead of time,
                   so they get only the long copy, and only with 224px of room — never a guess that
                   might be cut. `truncate` on each rung is a backstop for a fallback face, not a mode. */}
-              {/* ⛔ ON THE HOME ROUTE'S PHONE PILL, A CENTRED BOLD INK LABEL BESIDE ITS OWN MAGNIFIER (owner-approved
-                  2026-11-15 (build 8), cook r08 home — `homePill`): the leading glyph steps out (above) and the label is the
-                  pill's action, 15/20 bold ink. It is the ONE-WORD rung there ("Search" / "Tìm kiếm", the field's aria-label):
-                  the mock's centred "Search eno…" ended in its ellipsis right beside ✨ and both blind critics read it as cut
-                  copy (opus: broken), so the whole word, with air either side, is the label. The ladder's rule stands — no
-                  rung below the room it needs — and machine-translated languages keep their long copy only (`placeholderFit`). */}
+              {/* ⛔ ON A PHONE, THE ONE WORD, LEFT, WHERE TYPED TEXT STARTS (round 13, owner 2026-11-17; hub round 13): "Search" /
+                  "Tìm kiếm" (the field's aria-label), 16/24 regular muted — the typed text's own size and x (`max-sm:left-2.5`
+                  = the input's `max-sm:pl-2.5`), so nothing jumps from a label to a caret. On every route (`placeholderFit`).
+                  It reverses build 8's centred bold ink label beside its own magnifier on the home route (owner-approved
+                  2026-11-15; there the mock's centred "Search eno…" had read as cut copy, which is why the one word). On a
+                  phone the label's left inset is 10px, not 8, so the thresholds above leave 2px less for the fallback face
+                  (2.2px for "Search", 2.6px for "Tìm kiếm") — the room at 320px is ~130px, never near them. */}
               <span
                 aria-hidden="true"
                 data-search-placeholder=""
-                // `text-t-card` (15/20, the redesign's muted placeholder): the rungs' thresholds are em of the slot's own
+                // `text-t-card` (15/20, the redesign's muted placeholder) from sm: the rungs' thresholds are em of the slot's own
                 // 16px (`text-base` above), so painting the copy 1px smaller only ever leaves MORE room — it never truncates.
-                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground', placeholderFit.overlay, centred && (lang === 'en' || lang === 'vi') && 'max-sm:left-0 max-sm:right-0 max-sm:justify-center max-sm:gap-2 max-sm:font-bold max-sm:text-foreground')}
+                className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-t-card text-muted-foreground max-sm:left-2.5 max-sm:text-base', placeholderFit.overlay)}
               >
-                {centred && (lang === 'en' || lang === 'vi') && <Search aria-hidden className="hidden h-5 w-5 shrink-0 max-sm:block" strokeWidth={STROKE} />}
                 <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Search eno…', 'Tìm trên eno…')}</span>
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
               </span>
@@ -1149,7 +1163,10 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                   // ⚠️ DO NOT GO LOWER FOR LOOKS. This is the only "clear" affordance while the
                   // search panel is open, and it is the tap that stops the next one landing on ✨.
                   // Hover and focus restore full ink, so the softening costs nothing on approach.
-                  className="mr-0.5 tap-48 text-ink-4/75 transition-[color,background-color,scale] duration-150 active:duration-[60ms] active:scale-[0.96] hover:bg-muted hover:text-foreground focus-visible:text-foreground"
+                  // ⛔ `max-sm:mr-1` (round 13, 2026-11-17): on a phone the ✕ sits in the grey tile's right end, and the tile
+                  // fills its 44px box while the field types (`search-tile`), so 4px off the end leaves its ring 5px of grey
+                  // above, below and right — with `mr-0.5` in the 40px tile it was 3px, the focus ring then pressing on it.
+                  className="mr-0.5 tap-48 text-ink-4/75 transition-[color,background-color,scale] duration-150 active:duration-[60ms] active:scale-[0.96] hover:bg-muted hover:text-foreground focus-visible:text-foreground max-sm:mr-1"
                 >
                   <X className="h-[38px] w-[38px] shrink-0" strokeWidth={STROKE} />
                 </IconButton>
@@ -1173,9 +1190,16 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                        still overhung the search input on the left, which owns those pixels, so this
                        button measured 38px — under the 44px minimum. Margin on both sides gives the
                        hit area room in both directions. */
-                    // Ink at rest, like every glyph in the header (owner-approved 2026-11-14); accent while on /messages/ai.
-                    // ⛔ Muted on the home route's phone pill (owner-approved 2026-11-15 (build 8), `homePill`): the label is the loud part.
-                    className={cn('relative ml-2 mr-2 flex h-10 w-10 tap-48', pathname !== '/messages/ai' && 'text-foreground', homePill && 'max-sm:text-muted-foreground')}
+                    /* Ink at rest from sm (owner-approved 2026-11-14); accent while on /messages/ai, at every width.
+                       ⛔ ON A PHONE, MUTED AT REST ON EVERY ROUTE AND FLUSH TO THE TILE'S RIGHT END (round 13, owner 2026-11-17;
+                       hub round 13): everything inside the tile is one grey until typed, and the button is the tile's right 40px
+                       square, as the magnifier's is its left. It reverses, below sm, the 11-14 "ink at rest" off the home route
+                       (build 8 had muted it on the home route only). Only its colour: the owner's glyph (Solar user-speak-rounded,
+                       its pulsing waves and two tones, 2026-10-29) is untouched. `max-sm:mr-0` is safe because Map is sm+ only:
+                       nothing sits right of it inside the field, and its 48px hit area overhangs the tile by 4px and stops short
+                       of the bell's (measured, the bell's note below). `max-sm:ml-1`: its hit area overhangs 4px to the left too,
+                       so a 4px margin meets the input exactly — with `ml-2` a 4px strip between them took taps for nothing. */
+                    className={cn('relative ml-2 mr-2 flex h-10 w-10 tap-48 max-sm:ml-1 max-sm:mr-0', pathname !== '/messages/ai' && 'text-foreground max-sm:text-muted-foreground')}
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -1421,7 +1445,18 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
 
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
-        <div className={cn('flex shrink-0 items-center gap-1 sm:gap-2', phoneSearch && 'max-sm:hidden')}>
+        {/* ⛔ EVEN EDGES ON A PHONE, BY PAINT (round 13, owner 2026-11-17; the judges' fix to v2): the bell is the only control in
+            this row below sm, and its glyph's PAINTED right edge sits ~12px from the screen edge, as the mark's left edge is 12px.
+            The row overhangs the bar's 12px gutter by a whole number of px per bell (the glyph is centred in its 40px box and
+            inks a little inside its own square, so the box ends past the 12px line):
+              · r05's 24px ink bell, every route but home — 10px (`max-sm:-mr-2.5`): box ends 2px from the edge, paint 12.0px;
+              · build 8's quiet 22px bell, the home route (`homeRoute`) — 11px (`max-sm:-mr-[11px]`): its glyph sits 1px further
+                inside the box, so the box ends 1px from the edge, paint 11.7px. Its centred 44px hit area would then end 1px
+                past the screen and scroll the page sideways, so the quiet bell nudges it 1px back (notification-bell.tsx).
+            Either way the hit area ends exactly on the screen edge (scrollWidth = the screen, at 320, 390 and 412) and starts
+            after the ✨'s 48px one ends; the field → bell box gap stays the bar's 8px (the field takes the 1px). Paint is a 3x
+            50%-coverage scan of the glyph, not its box. The bell's keyboard ring is drawn inside its box for the same overhang. */}
+        <div className={cn('flex shrink-0 items-center gap-1 sm:gap-2', homeRoute ? 'max-sm:-mr-[11px]' : 'max-sm:-mr-2.5', phoneSearch && 'max-sm:hidden')}>
           {/* ⛔ THE DESKTOP LANGUAGE BUTTON (owner, 2026-10-18: "go on apply all recommended" — the before/after
               report's "add a small language button to the desktop header"). The same day the `/vi` pilot's "Tiếng
               Việt" link left the first screen for the end of home and category pages (lang-pilot-switch.tsx).
@@ -1544,9 +1579,11 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
             </Button>
             </Tooltip>
           )}
-          {/* ⛔ `quiet` ON THE HOME ROUTE (owner-approved 2026-11-15 (build 8), cook r08 home — `homePill`): below `sm` the bell
-              steps back to the muted ink at 22px, so the search pill is the header's one loud object. */}
-          <NotificationBell quiet={homePill} />
+          {/* ⛔ `quiet` ON THE HOME ROUTE ONLY (owner-approved 2026-11-15 (build 8), cook r08 home — `homeRoute`): below `sm` the
+              bell steps back to the muted ink at 22px there. Every other route keeps r05's 24px ink bell (owner-approved
+              2026-11-14). Round 13 (2026-11-17) changed the field and the ✨, not the bell: nobody asked, so it stays as approved.
+              Its row's overhang follows the route too, so either glyph keeps the mark's 12px edge (the note on the row, above). */}
+          <NotificationBell quiet={homeRoute} />
           {/* "Get the app" — on desktop the control immediately LEFT OF POST (owner, 2026-09-16). Renders nothing inside the
               native shell. ⛔ NOT IN THE PHONE HEADER (owner, 2026-11-16, hub Q12 — it reverses 09-16's "right of the bell" below
               `sm`, on every route): the control hides itself there; where a phone gets the app instead is in app-download.tsx. */}

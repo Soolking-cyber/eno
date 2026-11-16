@@ -75,6 +75,38 @@ describe('NotificationBell · phone', () => {
   })
 })
 
+/**
+ * ⛔ THE PHONE HEADER'S TWO BELLS (header.tsx passes `quiet={homeRoute}`): build 8's quiet 22px muted bell on the home route
+ * (owner-approved 2026-11-15), r05's 24px ink bell on every other route (owner-approved 2026-11-14) — round 13 (2026-11-17)
+ * left both as they were. Below `sm` the header overhangs the bell's row so its painted glyph keeps the mark's 12px edge; the
+ * keyboard ring is drawn inside the box (it lost its right side off the screen), and the quiet bell — 1px further out —
+ * nudges its 44px hit area 1px back so it ends on the screen edge. jsdom has no layout: the classes are what is pinned here,
+ * the geometry in e2e/guest/chrome-phone.spec.ts.
+ */
+describe('NotificationBell · the phone header\'s quiet and ink bells', () => {
+  const tokens = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  beforeEach(() => { h.user = null })
+
+  it('quiet: 22px and muted below sm, its hit area nudged 1px back, the keyboard ring inside the box', () => {
+    render(<LanguageProvider><NotificationBell quiet /></LanguageProvider>)
+    expect(tokens(bell())).toEqual(expect.arrayContaining(['h-10', 'w-10', 'tap-44', 'text-foreground', 'max-sm:text-muted-foreground', 'max-sm:before:-translate-x-px', 'max-sm:focus-visible:-outline-offset-2!']))
+    // 28px from sm; below sm the 22px `size-5.5` (tailwind-merge drops the 24px `max-sm:h-6 max-sm:w-6` it replaces).
+    const g = tokens(bell().querySelector('svg'))
+    expect(g).toEqual(expect.arrayContaining(['h-7', 'w-7', 'max-sm:size-5.5']))
+    expect(g).not.toContain('max-sm:h-6')
+  })
+
+  it('not quiet (every route but home): r05\'s 24px ink bell, its hit area centred — only the inside keyboard ring added', () => {
+    render(<LanguageProvider><NotificationBell /></LanguageProvider>)
+    const b = tokens(bell())
+    expect(b).toEqual(expect.arrayContaining(['text-foreground', 'max-sm:focus-visible:-outline-offset-2!']))
+    expect(b.filter((c) => c === 'max-sm:text-muted-foreground' || c.startsWith('max-sm:before:'))).toEqual([])
+    const g = tokens(bell().querySelector('svg'))
+    expect(g).toEqual(expect.arrayContaining(['max-sm:h-6', 'max-sm:w-6']))
+    expect(g).not.toContain('max-sm:size-5.5')
+  })
+})
+
 describe('NotificationBell · desktop', () => {
   it('keeps the anchored panel with its own header row', async () => {
     render(<LanguageProvider><NotificationBell /></LanguageProvider>)

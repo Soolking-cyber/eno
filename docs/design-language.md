@@ -17,7 +17,7 @@ an ink ladder (#141414 / #3d3d3d / #5e5e5e), ONE accent (#0060df, press #004bb0)
 links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, a closed type
 scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header (in a phone browser, the post
 flow's task bar instead — §1) with
-one raised 44px search pill and a docked white tab bar of five labelled tabs, one primary + one secondary button, white
+a 40px grey search tile beside the 40px mark and a docked white tab bar of five labelled tabs, one primary + one secondary button, white
 hairline chips — field-grey filled in a phone feed's control strip — (a clipped one at the edge says the row swipes).**
 
 ⚠️ **The 2026-11-14 redesign is owner-approved** (cook r05: *"after this cook round build all best
@@ -28,7 +28,7 @@ accent; the resting wells (`tint` / `muted`) → field grey (the blue selection 
 18 → 16; the photo corner 8/14 (10-18) → 16/20; tracked capitals → sentence case; and the CHROME: the floating
 pill tab bar + its tinted capsule + the orange-plated Post coin (09-26 / 09-18) → a docked white bar, muted glyphs, the
 accent bold cut, an ink add-circle; the phone header's bare tint field (10-18) → a 44px raised white pill beside a 36px
-mark; the tinted chip with a brand-tint selection (10-18) → white + hairline, ink fill selected (the clipped tile / pill
+mark (itself reversed in round 13, 2026-11-17: a flat 40px grey tile beside a 40px mark — §4, "The header is 56px"); the tinted chip with a brand-tint selection (10-18) → white + hairline, ink fill selected (the clipped tile / pill
 stays the swipe cue, 11-05 / 11-12: a whole-chip fit was tried and dropped in review); the grey `secondary` button → the ink
 outline. Kept: the flat
 canvas (07-24), popover = canvas (07-13), header = page (09-19), two weights (08-13), no slashed
@@ -188,11 +188,11 @@ Three tiers, the pill, and one photo corner: **8 / 12 / 16 / full, photos 16** (
 
 | Utility | Value | Use for |
 |---|---|---|
-| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons, rail tiles and the search field (a pill is `rounded-full` at source — the squircle never touches it) |
+| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons and rail tiles (a pill is `rounded-full` at source — the squircle never touches it) |
 | `rounded-media` | 16px round / 20px squircle | **EVERY photo, at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame), the native shell's `.ph`. ⏳ The PDP gallery and banners move onto it in the redesign's next step (cards and photos), so a 16px squircle never sits beside the 20px one |
 | `rounded-2xl` | 16px | cards, panels, dialogs, popovers, menus, sheets' tops, non-photo surfaces ≥ ~96px |
 | `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls |
-| `rounded-lg` | 8px | small non-photo boxes ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
+| `rounded-lg` | 8px | small non-photo boxes ≤ ~64px, tiny nested boxes, compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items), and **the phone header's search field**: the mark's own tile corner beside it (112/512 of 40px = 8.75, scanned equal to this tier at 3x; `search-tile`, round 13 — it was `rounded-full`). From `sm` the field is `rounded-2xl`, the panel it fuses with |
 
 **Banned:** bare `rounded`, `rounded-sm`, `rounded-md` (map: tiny element →
 `lg`, control → `xl`). Directional variants (`rounded-t-*` for sheets/drawers)
@@ -484,7 +484,7 @@ costs conversions. It stays a separate, owner-reviewed decision.
   other category lanes; the teacher shelf keeps its place after card 12 in the lane look. From `sm` the block is hidden and
   the shelves sit under the feed as before (where they are `max-sm:hidden`).
   **Build 7 (owner-approved 2026-11-15, cook r07 home):** the category row above the lanes is one row of **40px pills**, the
-  28px art beside the 14/20 bold word, raised like the header's search pill (`search-edge` rim, `shadow-chip`), 8px apart,
+  28px art beside the 14/20 bold word, raised (`search-edge` rim, `shadow-chip`; the header's search pill wore that rim until round 13), 8px apart,
   bled to the edges (`<CategoryRail pills>`; the More disc comes back over a pill the edge cuts through its art). The first
   lane **leads**: its heading is the page's one `text-t-display` (28/34). No swipe beam on a lane; cards hold their own
   height; lane card text 8px under the photo, 4 between price, title and info line (still a 76px body); no video / saved
@@ -493,10 +493,11 @@ costs conversions. It stays a separate, owner-reviewed decision.
   → rail, 24 between lanes, 48 to the toolbar — so at 390×844 Trending shows whole, info line included, and the second
   lane's price and title sit above the tab bar.
   **Build 8 (owner-approved 2026-11-15, cook r08 home):** the home route's phone header **stays put** while the lanes are drawn
-  (use-header-pin.ts; it still slides on a directed feed and from `sm`), its search pill the one primary action — 46px,
-  `shadow-search`, the empty state a centred bold ink "Search" beside its own magnifier; ✨ and bell muted (the bell 22px;
-  the download glyph beside it, muted and 22px in build 8, left the phone header on every route 2026-11-16 — owner, hub
-  Q12) — with no hairline under it. The category pills **pin under it** while the lanes scroll (sticky inside
+  (use-header-pin.ts; it still slides on a directed feed and from `sm`) with no hairline under it. (Its own search pill —
+  46px, `shadow-search`, a centred bold ink "Search" beside its own magnifier, the ✨ muted — gave way in round 13,
+  2026-11-17, to the one search tile every route wears: "The header is 56px", below. Its quiet 22px muted bell stays, on the
+  home route only.) (The download glyph beside the bell
+  left the phone header on every route 2026-11-16 — owner, hub Q12.) The category pills **pin under it** while the lanes scroll (sticky inside
   the ladder's head, so they let go with the last lane, before the feed's strip) with one hairline once pinned: **one flex
   line, pills 8px apart** (2026-11-15: pages bunched them mid-swipe), ending 8px before the 40px grey More disc on the
   12px edge; 26px art. Pinned chrome 56 + 52 = 108px. Every lane: the heading and a **32px round
@@ -523,7 +524,20 @@ A new floating thing picks its row; it does not invent a number between two.
 
 **The header is 56px** (`h-14`, owner 2026-10-18: "slimmer + calm"): a 40px logo mark the same
 height as the 40px search field beside it (the owner's 2026-08-02 rule — the match, not the number),
-and no glow on the field. Everything that sticks under it offsets by `3.5rem` + the safe-area inset
+and no glow on the field. **On a phone the field is a second tile of the mark's shape** (round 13, owner 2026-11-17:
+"mobile top search bar is not in harmony with logo on left lets make sure it looks part of app"): 40px on the mark's
+top and bottom lines (y 8–48), the mark's corner (`rounded-lg`), flat field grey (`--tint`; dark `--secondary`, one step
+up from the bar) with no rim and no shadow, painted by `search-tile` inside a 44px tap box the input fills. Its ends are
+40px squares — the 20px magnifier (a label for the input) and the ✨ flush right — and everything in it is one muted grey
+until typed; empty, it says the one word ("Search" / "Tìm kiếm", 16/24 regular) where typed text starts. A 2px `--ring`
+outline while it types, none at rest; typing, the tile fills its whole 44px box (the open search, where the mark has
+stepped out), so the Clear ✕ keeps 5px of grey all round. One search field on every route. **The bell is unchanged by round
+13** — build 8's quiet 22px muted bell on the home route, r05's 24px ink bell on every other (owner-approved 2026-11-15 /
+2026-11-14) — and aligned by paint: its row overhangs the 12px gutter by 11px / 10px, so either glyph's painted right edge
+is ~12px from the screen edge as the mark's left edge is 12px, its 44px hit area ending exactly on the screen edge (the
+quiet bell's nudged 1px back to do so) and its keyboard ring drawn inside its box. It reverses r05's 44px raised white pill
+beside a 36px mark (2026-11-14), build 8's home pill (2026-11-15) and, below `sm`, the 11-14 ink ✨ off the home route.
+Everything that sticks under it offsets by `3.5rem` + the safe-area inset
 (the explorer's filter strip, the dashboard's SectionHeader, the desktop map's `--map-top`); the phone
 search panel hangs from its measured bottom, falling back to `3.25rem`. Move them with it.
 
