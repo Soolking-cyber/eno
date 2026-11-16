@@ -74,7 +74,7 @@ const POSTABLE_SLUGS = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c
 
 // One partner-supplied listing item → BulkRow (shared by bulk + sync mapping).
 const listingItem = z.object({
-  categorySlug: z.string().describe(`Category slug: ${POSTABLE_SLUGS} (a job: jobs; a room or flat to let: rentals)`),
+  categorySlug: z.string().describe(`Category slug: ${POSTABLE_SLUGS} (rooms and flats to let: rentals)`),
   // Its minimum length is the server's (create_listing's handler, bulk.ts per row): a short title in a bulk call fails its row, not the batch.
   title: z.string().describe('The headline buyers see: the item and what sets it apart, e.g. "Honda Vision 2022, 8,000 km". No phone number; cut at 140 characters'),
   // A negative price is refused per row by bulk.ts ("Invalid price") and by updateListingCore (invalid_price): no schema bound.
@@ -82,7 +82,7 @@ const listingItem = z.object({
   description: z.string().optional().describe('The listing page\'s text: what it is, its state, what comes with it. No contact details (phone, e-mail, links); cut at 5,000 characters. Leave it out for no text'),
   district: z.string().optional().describe('The district or area as free text, e.g. "Thảo Điền, Thủ Đức" (cut at 80 characters). A new listing needs it (else `location_required`)'),
   condition: z.string().optional().describe('The item\'s condition in words (cut at 60 characters), e.g. "new", "like new" or "used"; ignored for a job. Leave it out when it does not apply'),
-  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies them to its storage and uses the first 8. Most categories need 3 of different angles (else `photos_min`), services 1 (else `photo_required`), jobs none. On a new listing, leave it out only for a job'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies them and uses the first 8. Most categories need 3 of different angles (else `photos_min`), services 1 (else `photo_required`), jobs none. On a new listing, leave it out only for a job'),
   externalId: z.string().optional().describe('Your own id for this listing, such as your SKU, echoed back in the results so you can match each row to your system; leave it out if you have none'),
 })
 
@@ -120,7 +120,7 @@ export const pageLimitArg = (v: unknown): string | undefined => {
   const n = Math.trunc(Number(v))
   return Number.isFinite(n) ? String(Math.max(1, Math.min(n, 1000))) : undefined
 }
-const PAGE_SIZE = z.number().optional().describe('How many listings to return. Leave it out for a normal-size page; a very large number is capped. To read them all, call again with `next_cursor` until it is null')
+const PAGE_SIZE = z.number().optional().describe('How many listings to return in this call. Leave it out for a normal-size answer; the server caps a very large number. To go through every listing, call again with `next_cursor` until it comes back null')
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
