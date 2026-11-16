@@ -34,9 +34,18 @@ const RESOURCES: Record<string, { name: string; description: string }> = {
   [SHOP_UI_URI]: { name: `${SITE_NAME} shop listing cards`, description: 'Shows the shop\'s listings and one listing as cards: photo, title, price in VND, status and a link to the listing page.' },
 }
 
-/** The `_meta` a tool carries to name its UI: the MCP Apps key, plus ChatGPT's older alias for the same resource. */
-export function toolUiMeta(uri: string) {
-  return { ui: { resourceUri: uri }, 'openai/outputTemplate': uri }
+/**
+ * The `_meta` a tool carries to name its UI: the MCP Apps key, ChatGPT's alias for the same resource, and the status labels
+ * ChatGPT shows while the tool runs and after (flat keys from OpenAI's docs, nested as Manufact's checker reads them).
+ */
+export function toolUiMeta(uri: string, labels: { invoking: string; invoked: string }) {
+  return {
+    ui: { resourceUri: uri },
+    'openai/outputTemplate': uri,
+    'openai/toolInvocation/invoking': labels.invoking,
+    'openai/toolInvocation/invoked': labels.invoked,
+    'openai/toolInvocation': { invoking: labels.invoking, invoked: labels.invoked },
+  }
 }
 
 /** `resources/list` entries for the URIs a server serves. */
@@ -52,7 +61,14 @@ export function uiResourceRead(uri: unknown, uris: readonly string[]) {
       uri,
       mimeType: UI_MIME,
       text: listingCardsHtml(),
-      _meta: { ui: { csp: { resourceDomains: RESOURCE_DOMAINS, connectDomains: [] }, prefersBorder: true } },
+      // ⚠️ The view's domain goes in ChatGPT's own key, never `ui.domain`: Claude requires its own hashed
+      // *.claudemcpcontent.com form there and refuses any other ("Invalid ui.domain format"); ChatGPT reads either and
+      // wants one exact https origin for every view of the app (Manufact view-domain-present, 2026-11-16).
+      _meta: {
+        ui: { csp: { resourceDomains: RESOURCE_DOMAINS, connectDomains: [] }, prefersBorder: true },
+        'openai/widgetDomain': SITE_ORIGIN,
+        'openai/widgetDescription': RESOURCES[uri].description,
+      },
     }],
   }
 }

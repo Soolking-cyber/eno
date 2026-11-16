@@ -251,7 +251,11 @@ export const SEARCH_TOOLS: SearchTool[] = [
 export const SEARCH_TOOLS_BY_NAME = new Map(SEARCH_TOOLS.map((t) => [t.name, t]))
 
 /** tools/list for the search server; output schemas without `$schema` (see outputJsonSchema in src/lib/mcp/tools.ts). */
-const CARD_TOOLS: ReadonlySet<string> = new Set(['search_listings', 'get_listing_details'])
+/** The tools whose results the card page renders, with the status labels ChatGPT shows while each runs and after. */
+const CARD_TOOLS: ReadonlyMap<string, { invoking: string; invoked: string }> = new Map([
+  ['search_listings', { invoking: 'Searching listings…', invoked: 'Found listings' }],
+  ['get_listing_details', { invoking: 'Opening the listing…', invoked: 'Opened the listing' }],
+])
 
 export function searchToolDescriptors() {
   return SEARCH_TOOLS.map((t) => {
@@ -259,6 +263,6 @@ export function searchToolDescriptors() {
     void _dialect
     // MCP Apps (src/lib/mcp/apps.ts): the two listing tools show their listings as cards where the host renders a ui://
     // resource. list_categories answers categories, not listings, so it carries no card page.
-    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { title: t.title, ...t.annotations }, ...(CARD_TOOLS.has(t.name) ? { _meta: toolUiMeta(SEARCH_UI_URI) } : {}) }
+    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { title: t.title, ...t.annotations }, ...(CARD_TOOLS.has(t.name) ? { _meta: toolUiMeta(SEARCH_UI_URI, CARD_TOOLS.get(t.name)!) } : {}) }
   })
 }

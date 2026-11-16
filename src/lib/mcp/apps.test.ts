@@ -31,7 +31,13 @@ describe('MCP Apps resources', () => {
     for (const d of read.contents[0]._meta.ui.csp.resourceDomains) expect(d).toMatch(/^https:\/\/[a-z0-9.-]+$/)
     expect(uiResourceRead('ui://eno/other.html', [SHOP_UI_URI])).toBeNull()
     expect(uiResourceRead(SEARCH_UI_URI, [SHOP_UI_URI])).toBeNull()
-    expect(toolUiMeta(SEARCH_UI_URI)).toEqual({ ui: { resourceUri: SEARCH_UI_URI }, 'openai/outputTemplate': SEARCH_UI_URI })
+    const meta = toolUiMeta(SEARCH_UI_URI, { invoking: 'Searching…', invoked: 'Searched' })
+    expect(meta).toMatchObject({ ui: { resourceUri: SEARCH_UI_URI }, 'openai/outputTemplate': SEARCH_UI_URI, 'openai/toolInvocation/invoking': 'Searching…', 'openai/toolInvocation/invoked': 'Searched', 'openai/toolInvocation': { invoking: 'Searching…', invoked: 'Searched' } })
+    // ChatGPT's view domain: one exact https origin, in its own key; never `ui.domain`, whose format Claude dictates.
+    const m = read.contents[0]._meta as Record<string, unknown> & { ui: Record<string, unknown> }
+    expect(m['openai/widgetDomain']).toMatch(/^https:\/\/[a-z0-9.-]+$/)
+    expect(m.ui.domain).toBeUndefined()
+    expect(typeof m['openai/widgetDescription']).toBe('string')
   })
 
   it('the page never writes HTML from data, and its script parses', () => {
