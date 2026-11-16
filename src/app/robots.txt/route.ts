@@ -101,7 +101,7 @@ Disallow: /reports
 Disallow: /unsubscribe
 
 # AI-training + pure-scraper crawlers that ingest our content (incl. listing photos)
-# but send no traffic back — blocked entirely. AI *search / answer* crawlers
+# but send no traffic back — blocked entirely (the assistants' own training crawlers get the brand pages: next group). AI *search / answer* crawlers
 # (OAI-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
 # link-preview bots) are intentionally NOT listed here, so they fall under
 # "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
@@ -111,16 +111,48 @@ Disallow: /unsubscribe
 # Google's documentation it governs Gemini model TRAINING as well as grounding in
 # Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Left
 # unlisted, both uses are allowed.
-User-agent: GPTBot
 User-agent: CCBot
-User-agent: ClaudeBot
-User-agent: anthropic-ai
 User-agent: Bytespider
 User-agent: ImagesiftBot
 User-agent: img2dataset
 User-agent: Diffbot
 User-agent: Omgilibot
+Disallow: /
+
+# AI-training crawlers of the assistants people use (OpenAI, Anthropic, Apple, Meta) may learn what ${SITE_NAME} IS —
+# from the pages about it, never from the listings (owner, 2026-11-16: "Brand pages only"). The listings, the
+# storefronts, the photos and the home page (a listing feed: 68 listings and ~360 photo URLs measured that day) stay
+# closed to them; search and answer crawlers are unaffected (they fall under "User-agent: *"). Each page is pinned
+# EXACTLY ('$') or as a directory ('/'): a storefront lives at /<handle>, so a bare '/guides' prefix would also open a
+# shop called 'guidesxyz'. ⛔ /teach-in-vietnam is its landing page ONLY: every article under it carries a rail of 72
+# teacher-profile photos (measured 2026-11-16), and those are people's listings. Every other opened page was scanned
+# for listing links and photos that day: none, bar two example photo URLs in the /developers API reference. Precedence is longest-match-wins (RFC 9309), so every Allow below beats 'Disallow: /'.
+# Meta-ExternalAgent is Meta's training crawler; Meta's link-preview fetcher is a different agent and is not listed.
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
 User-agent: Applebot-Extended
+User-agent: Meta-ExternalAgent
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /about$
+Allow: /developers$
+Allow: /developers/
+Allow: /guides$
+Allow: /guides/
+Allow: /huong-dan$
+Allow: /huong-dan/
+Allow: /help$
+Allow: /help/
+Allow: /teach-in-vietnam$
+Allow: /trust$
+Allow: /safety$
+Allow: /partners$
+Allow: /hcmc-rent-index$
+Allow: /llms.txt$
+Allow: /index.md$
+Allow: /agents.md$
+Allow: /auth.md$
+Allow: /pricing.md$
 Disallow: /
 
 # ⛔ NO 'Agentmap:' DIRECTIVE HERE. IT WAS ADDED 2026-08-23 AND REMOVED THE SAME DAY, BECAUSE
