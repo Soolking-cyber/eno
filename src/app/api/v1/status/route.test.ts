@@ -144,7 +144,7 @@ describe('GET /api/v1/status', () => {
     expect(body.documentation).toEqual({
       openapi: 'https://www.eno.forum/openapi.json',
       oauth_authorization_server: 'https://www.eno.forum/.well-known/oauth-authorization-server',
-      oauth_protected_resource: 'https://www.eno.forum/.well-known/oauth-protected-resource',
+      oauth_protected_resource: 'https://www.eno.forum/.well-known/oauth-protected-resource/api/v1',
       developers: 'https://www.eno.forum/developers',
       llms_txt: 'https://www.eno.forum/llms.txt',
       api_catalog: 'https://www.eno.forum/.well-known/api-catalog',

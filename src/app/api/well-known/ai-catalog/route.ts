@@ -196,7 +196,7 @@ export async function GET() {
           identifier: urn('metadata', 'oauth-protected-resource'),
           displayName: 'OAuth 2.0 Protected Resource Metadata',
           type: 'application/json',
-          url: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource`,
+          url: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/v1`,
           description:
             'RFC 9728 metadata: which resource a token is for, and which authorization server issues it. An agent that receives a 401 reads this to find its way in.',
           tags: ['oauth2', 'rfc9728', 'auth'],

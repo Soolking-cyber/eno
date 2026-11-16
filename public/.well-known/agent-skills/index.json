@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "eno-search-listings",
+      "type": "skill-md",
+      "description": "Search live listings on eno.vn, Vietnam's marketplace for expats and locals (apartments and rooms, motorbikes and cars, electronics, furniture, jobs, services), with prices in VND and a link to each listing. Use when someone wants to rent, buy or find something or a job in Vietnam. No account needed.",
+      "url": "/.well-known/agent-skills/eno-search-listings/SKILL.md",
+      "digest": "sha256:69360aa1a6d3b7ae8ba9d46b3bae694df694ac9ae4d822b322040e7d22877de9"
+    },
+    {
+      "name": "eno-shop-listings",
+      "type": "skill-md",
+      "description": "Manage one eno.vn shop's listings from an AI agent through eno.vn's Partner MCP server: create, edit, mark sold or hidden, delete, bulk-create from a stock list, and sync with your own catalogue by externalId. Use when a seller wants to put their stock on eno.vn or keep it up to date.",
+      "url": "/.well-known/agent-skills/eno-shop-listings/SKILL.md",
+      "digest": "sha256:9fc58ed5123cae17fa04a0e2c088465b6cca4e863c809f07ce431df1371c9d76"
+    },
+    {
+      "name": "eno-shop-analytics",
+      "type": "skill-md",
+      "description": "Read an eno.vn shop's views and leads, and manage its webhooks, from an AI agent through eno.vn's Partner MCP server. Use when a seller asks how their listings are doing on eno.vn or wants their own system told when a listing changes.",
+      "url": "/.well-known/agent-skills/eno-shop-analytics/SKILL.md",
+      "digest": "sha256:ae5fd5ec5ca4c9e76a43ad6c9dd4ea040bd3682f2c25a6514444bd13427decef"
+    }
+  ]
+}

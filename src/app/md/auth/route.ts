@@ -59,7 +59,7 @@ const SCOPE_NOTES = {
 export async function GET() {
   const scopeRows = OAUTH_SCOPES.map((s) => `| \`${s}\` | ${SCOPE_NOTES[s]} |`).join('\n')
 
-  const body = `# Authentication — ${SITE_NAME} Partner API
+  const body = `# ${SITE_NAME} auth.md — authentication for the Partner API
 
 > Four ways in, one shop per credential: a long-lived API key, a short-lived OAuth 2.0 access token
 > minted from that key (client credentials), "Sign in with ${SITE_NAME}" (OAuth 2.1 authorization
@@ -76,7 +76,7 @@ step says so rather than leaving you to probe for it.
 
 ### 1a. Protected Resource Metadata (RFC 9728)
 
-- [\`/.well-known/oauth-protected-resource/api/v1\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource/api/v1) — the REST API (\`${SITE_ORIGIN}/api/v1\`). Also served at [\`/.well-known/oauth-protected-resource\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource).
+- [\`/.well-known/oauth-protected-resource/api/v1\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource/api/v1) — the REST API (\`${SITE_ORIGIN}/api/v1\`).
 - [\`/.well-known/oauth-protected-resource/api/mcp\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource/api/mcp) — the MCP server (\`${MCP_RESOURCE}\`).
 
 A call to an \`/api/v1\` endpoint that needs a credential, sent without one, answers \`401\` with
@@ -359,7 +359,7 @@ Dashboard › Developers:
 ## Discovery documents
 
 - [\`/.well-known/oauth-authorization-server\`](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414.
-- [\`/.well-known/oauth-protected-resource\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728. Which resource a token is for, and which server issues it. Read this after a 401.
+- [\`/.well-known/oauth-protected-resource\`](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728 for the origin (\`${SITE_ORIGIN}\`): the same authorization server and scopes as the two resource documents in Step 1. After a 401, read the one its challenge names.
 - [\`/.well-known/ai-catalog.json\`](${SITE_ORIGIN}/.well-known/ai-catalog.json) — the whole agentic surface in one document.
 - [\`/openapi.json\`](${SITE_ORIGIN}/openapi.json) — OpenAPI 3.1, every endpoint and every error shape.
 - [\`/agents.md\`](${SITE_ORIGIN}/agents.md) — what an agent can do here, with and without credentials.

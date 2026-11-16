@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
     documentation: {
       openapi: `${OAUTH_ISSUER}/openapi.json`,
       oauth_authorization_server: `${OAUTH_ISSUER}/.well-known/oauth-authorization-server`,
-      oauth_protected_resource: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource`,
+      oauth_protected_resource: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/v1`,
       developers: `${OAUTH_ISSUER}/developers`,
       llms_txt: `${OAUTH_ISSUER}/llms.txt`,
       // Added 2026-11-11 (additive, like every v1 change): the three documents in src/lib/api/discovery-links.ts.

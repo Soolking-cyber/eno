@@ -55,6 +55,12 @@ const BODY = `# Public marketplace pages (home, listings, categories, seller sto
 # opposite call: keeping crawlers out entirely outweighs that trade-off there.
 User-agent: *
 Allow: /
+# Content Signals (contentsignals.org; IETF draft-romm-aipref-contentsignals): the policy the groups in
+# this file already enforce, stated as a preference. search=yes and ai-input=yes: search and AI answer
+# engines may use the public pages, as this group allows. ai-train=no: not for model training, as the
+# training-crawler group below says. Unlike 'Agentmap:' (see below), Lighthouse accepts this line:
+# 'content-signal' is in its robots.txt safelist since 13.2, and PageSpeed ran 13.6.0 on 2026-11-16.
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 Disallow: /admin
 Disallow: /api
 # ⛔ …EXCEPT THE ONE API PATH THAT EXISTS FOR CRAWLERS AND AGENTS. /api/v1/status needs no

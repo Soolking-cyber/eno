@@ -99,7 +99,7 @@ const DEVELOPER_SECTION = `## For developers and agents
   MCP server), each with its spec, docs and status links.
 - [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. The same document is also served at [/api/v1/openapi.json](${SITE_ORIGIN}/api/v1/openapi.json).
 - [OAuth authorization server metadata](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414: token endpoint, grant, scopes.
-- [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728: which resource a token is for.
+- [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource/api/v1) — RFC 9728: which resource a token is for.
 - [MCP Server Card](${SITE_ORIGIN}/.well-known/mcp.json) — the manifest for the hosted Model Context
   Protocol server: transport, supported protocol versions, and the header to connect with. The same
   document also answers at [/.well-known/mcp-server-card.json](${SITE_ORIGIN}/.well-known/mcp-server-card.json)

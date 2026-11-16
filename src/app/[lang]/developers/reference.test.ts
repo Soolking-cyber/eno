@@ -69,7 +69,7 @@ const REQUIRED_LINKS = [
   '/openapi.json',
   '/api/v1/openapi.json',
   '/.well-known/oauth-authorization-server',
-  '/.well-known/oauth-protected-resource',
+  '/.well-known/oauth-protected-resource/api/v1',
   '/.well-known/mcp.json',
   '/.well-known/api-catalog',
   '/llms.txt',

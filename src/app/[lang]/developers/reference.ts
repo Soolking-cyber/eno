@@ -69,7 +69,7 @@ export const SCOPES = OAUTH_SCOPES
  *   /api/v1/openapi.json                         200 application/json
  *   /llms.txt                                    200 text/plain
  *   /.well-known/oauth-authorization-server      200 application/json
- *   /.well-known/oauth-protected-resource        200 application/json
+ *   /.well-known/oauth-protected-resource/api/v1 200 application/json  (the bare path names the origin since 2026-11-16)
  *   /sitemap.xml                                 200 application/xml
  *
  * ⚠️ ONE ENTRY IS AN EXCEPTION AND IT IS FLAGGED RATHER THAN QUIETLY ADDED, BECAUSE THE RULE ABOVE
@@ -128,8 +128,8 @@ export const DISCOVERY: ReadonlyArray<{ href: string; label: string; note: strin
     note: 'RFC 8414 metadata: the token endpoint, the supported grant, and the scope list.',
   },
   {
-    href: '/.well-known/oauth-protected-resource',
-    label: '/.well-known/oauth-protected-resource',
+    href: '/.well-known/oauth-protected-resource/api/v1',
+    label: '/.well-known/oauth-protected-resource/api/v1',
     note: 'RFC 9728 metadata: which resource the token is for, and which server issues it. An agent that gets a 401 reads this to find its way in.',
   },
   {

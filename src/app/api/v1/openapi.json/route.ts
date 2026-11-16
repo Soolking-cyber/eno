@@ -283,7 +283,7 @@ export const SPEC = {
       `- \`${CANONICAL_ORIGIN}/api/v1/status\` — unauthenticated service document: which edition answered, the API version, and a machine-readable index of every link below. Start here.`,
       `- \`${CANONICAL_ORIGIN}/openapi.json\` — this document (also at \`${CANONICAL_ORIGIN}/api/v1/openapi.json\`).`,
       `- \`${CANONICAL_ORIGIN}/.well-known/oauth-authorization-server\` — RFC 8414 authorization-server metadata for the token endpoint below.`,
-      `- \`${CANONICAL_ORIGIN}/.well-known/oauth-protected-resource\` — RFC 9728 metadata for this API as a protected resource.`,
+      `- \`${CANONICAL_ORIGIN}/.well-known/oauth-protected-resource/api/v1\` — RFC 9728 metadata for this API as a protected resource.`,
       `- \`${CANONICAL_ORIGIN}/.well-known/api-catalog\` — RFC 9727 catalogue of this host's APIs (this one and the MCP server).`,
       `- \`${CANONICAL_ORIGIN}/llms.txt\` — site index for agents.`,
       `- \`${CANONICAL_ORIGIN}/developers\` — the human guide, with worked examples.`,

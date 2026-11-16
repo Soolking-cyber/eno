@@ -167,7 +167,8 @@ describe('/.well-known/ai-catalog.json — ARD catalogue', () => {
     expect(paths).toEqual([
       '/.well-known/mcp.json',
       '/.well-known/oauth-authorization-server',
-      '/.well-known/oauth-protected-resource',
+      // The API's own RFC 9728 document since 2026-11-16 (the bare path names the origin); curled 200 live that day.
+      '/.well-known/oauth-protected-resource/api/v1',
       '/agents.md',
       '/api/v1/status',
       '/auth.md',

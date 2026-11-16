@@ -45,7 +45,7 @@ const BASE = API_BASE
  * protocol files between a reader and Authentication. Still real anchors in the server HTML (the header note: agents and
  * crawlers follow an <a href>, and a closed <details> keeps its children in the document); opening it runs no script.
  */
-const TUCKED = new Set(['/api/v1/openapi.json', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource', '/.well-known/mcp.json', DOC_PATHS.apiCatalog])
+const TUCKED = new Set(['/api/v1/openapi.json', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource/api/v1', '/.well-known/mcp.json', DOC_PATHS.apiCatalog])
 
 /** One discovery document: its path as the link, what it is under it. */
 function DiscoveryItem({ href, label, note }: { href: string; label: string; note: string }) {
@@ -221,7 +221,7 @@ export default function DevelopersPage() {
             scope list are published at{' '}
             <a href="/.well-known/oauth-authorization-server" className="font-mono font-semibold text-accent-foreground hover:underline">/.well-known/oauth-authorization-server</a>,
             and the resource those tokens are for at{' '}
-            <a href="/.well-known/oauth-protected-resource" className="font-mono font-semibold text-accent-foreground hover:underline">/.well-known/oauth-protected-resource</a>.
+            <a href="/.well-known/oauth-protected-resource/api/v1" className="font-mono font-semibold text-accent-foreground hover:underline">/.well-known/oauth-protected-resource/api/v1</a>.
           </p>
           <div className="mt-3"><Code>{`curl -X POST ${BASE}/oauth/token \\
   -d grant_type=client_credentials \\

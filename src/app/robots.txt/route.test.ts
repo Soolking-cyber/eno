@@ -29,6 +29,8 @@ describe('/robots.txt', () => {
     expect(rules).toEqual([
       'User-agent: *',
       'Allow: /',
+      // Content Signals (2026-11-16): the file's existing policy as a preference — search and AI answers yes, training no.
+      'Content-Signal: search=yes, ai-input=yes, ai-train=no',
       'Disallow: /admin',
       'Disallow: /api',
       'Allow: /api/v1/status',

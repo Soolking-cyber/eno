@@ -1186,14 +1186,16 @@ const nextConfig: NextConfig = {
          * suffix and answer the same document — there is exactly one protected resource here, and
          * answering a client that guessed a different shape beats 404ing it.
          *
-         * The bare entries are redundant (a `:path*` also matches zero segments) and are kept
-         * anyway: the bare form is the one the scanner fetches, and an explicit line is cheaper to
-         * read than an argument about wildcard arity. The four sources are disjoint, so order does
-         * not matter.
+         * The bare authorization-server entry is redundant (a `:path*` also matches zero segments) and
+         * is kept anyway: an explicit line is cheaper to read than an argument about wildcard arity.
+         * ⛔ THE BARE PROTECTED-RESOURCE ENTRY IS NOT REDUNDANT (2026-11-16): it goes to its own route,
+         * which names the ORIGIN (RFC 9728 §3.1: no path suffix = the resource with no path). It must
+         * stay ABOVE the `:path*` catch-all, which would otherwise match it with zero segments and
+         * answer /api/v1 — src/lib/api/protected-resource.ts.
          */
         { source: "/.well-known/oauth-authorization-server", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/well-known/oauth-authorization-server" },
-        { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource" },
+        { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource/origin" },
         // The MCP server's own document (RFC 9728 §3.3: its resource is …/api/mcp), by an EXPLICIT rule — first, so it wins
         // over the catch-all below. ⛔ To its own PATH, never a destination query: a route handler does not see a rewrite's
         // destination query, and the 11-14 deploy answered /api/v1 here (src/lib/api/protected-resource.ts).
