@@ -17,7 +17,7 @@ vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
 vi.mock('next/server', () => ({ after: () => {} }))
 
 const { serializeListing } = await import('@/lib/serialize')
-const { TOOLS, listingOut, listingSummaryOut } = await import('./tools')
+const { TOOLS, listingOut, listingSummaryOut, savedListingOut } = await import('./tools')
 
 const at = new Date('2026-11-01T03:04:05.000Z')
 const category = { id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone', color: 'blue', description: null, sortOrder: 0, createdAt: at, updatedAt: at }
@@ -68,9 +68,10 @@ describe('listing tools — outputSchema vs the real serializer', () => {
       expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
     })
 
-    // update_listing answers with the row read back after the edit (2026-11-15): the same serializer, its own wrapper.
+    // update_listing answers with the row read back after the edit (2026-11-15), cut to the fields an edit changes plus
+    // status, verified and url (2026-11-16): the same serializer, its own projection.
     it(`update_listing's read-back fits ${label}`, () => {
-      const r = TOOLS.find((t) => t.name === 'update_listing')!.output.safeParse({ held: false, unpublished: false, listing })
+      const r = TOOLS.find((t) => t.name === 'update_listing')!.output.safeParse({ held: false, unpublished: false, listing: savedListingOut(listing) })
       expect(r.success, JSON.stringify(r.error?.issues)).toBe(true)
     })
   }
