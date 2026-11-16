@@ -8,7 +8,8 @@
  * Defended: a row runs its onClick once and closes the sheet; `closeOnClick={false}` keeps it open; a label outside a
  * Group renders (Base UI's throws); separators and destructive rows draw; the title falls back to the trigger's name;
  * a caller's `onOpenChange` hears the open (trip-cards loads its list on it) and can refuse it; `sheet={false}` keeps
- * the popover on a phone; a row marked `navigates` releases the sheet's history entry instead of popping it.
+ * the popover on a phone; a row marked `navigates` releases the sheet's history entry instead of popping it; a row marked
+ * `opensLayer` leaves the focus in the dialog it opens.
  */
 import * as React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from './dropdown-menu'
 import { Button } from './button'
+import { Dialog, DialogContent, DialogTitle } from './dialog'
 
 beforeAll(() => installDrawerPolyfills())
 
@@ -150,4 +152,61 @@ describe('ui/dropdown-menu · phone', () => {
     expect(await screen.findByRole('menu')).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+})
+
+/**
+ * ⛔ `opensLayer` (2026-11-17 — the storefront ⋯'s Report / Block, measured on live): a row that opens a dialog leaves the focus
+ * in that dialog. Without it the phone sheet, whose `finalFocus` is an explicit ref to the trigger, put focus back on the
+ * trigger BEHIND the dialog when its exit animation ended. The dialog's own close returns focus to the trigger.
+ */
+function DialogRowMenu() {
+  const [open, setOpen] = React.useState(false)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  return (
+    <LanguageProvider>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button ref={triggerRef} aria-label="More actions">…</Button>} />
+        <DropdownMenuContent>
+          <DropdownMenuItem opensLayer onClick={() => setOpen(true)}>{L.del}</DropdownMenuItem>
+          <DropdownMenuItem>{L.hide}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent finalFocus={triggerRef}>
+          <DialogTitle>{L.listing}</DialogTitle>
+          <Button>{L.preview}</Button>
+        </DialogContent>
+      </Dialog>
+    </LanguageProvider>
+  )
+}
+
+describe('ui/dropdown-menu · a row that opens a layer (`opensLayer`)', () => {
+  for (const viewport of ['phone', 'desktop'] as const) {
+    it(`${viewport}: focus stays in the dialog after the menu has closed, and goes back to the trigger when it closes`, async () => {
+      setViewport(viewport)
+      const user = userEvent.setup()
+      render(<DialogRowMenu />)
+      await user.click(trigger())
+      const row = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'More actions' })).getByRole('button', { name: L.del })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: L.del })
+      await user.click(row)
+      const dialog = await screen.findByRole('dialog', { name: L.listing })
+      await waitFor(() => expect(screen.queryByRole(viewport === 'phone' ? 'dialog' : 'menu', viewport === 'phone' ? { name: 'More actions' } : undefined)).toBeNull())
+      await new Promise((r) => setTimeout(r, 50))
+      expect(dialog.contains(document.activeElement)).toBe(true)
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(trigger()))
+      // The next open is an ordinary one: a plain row's close returns focus to the trigger again.
+      await user.click(trigger())
+      const plain = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'More actions' })).getByRole('button', { name: L.hide })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: L.hide })
+      await user.click(plain)
+      await waitFor(() => expect(screen.queryByRole(viewport === 'phone' ? 'dialog' : 'menu')).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(trigger()))
+    })
+  }
 })

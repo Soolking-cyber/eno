@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Ban, Flag, MoreHorizontal } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -23,6 +23,9 @@ import { STORE_QUIET } from './store-pair'
  * not the viewer's own shop). Pinned by storefront-more-menu.test.tsx and both storefronts' report-block tests.
  * A Base UI Menu through ui/dropdown-menu: the anchored popup from sm, the action sheet on a phone (that primitive's rule).
  * The dialogs live OUTSIDE the menu, so closing the menu on a row's tap never unmounts the dialog it opens.
+ * ⛔ FOCUS (WCAG 2.4.3; measured on live 2026-11-17, Playwright iPhone 13): the rows are `opensLayer`, so the closing menu
+ * leaves focus in the dialog — it used to put it back on the ⋯ BEHIND the open dialog — and each dialog (and the guest's
+ * sign-in card) returns it to the ⋯ on close (`finalFocus`), which a tap on iOS never focused.
  * The trigger's name reuses the menu sheet's own "More actions" / "Thêm thao tác" (ui/dropdown-menu): no new copy.
  */
 export function StorefrontMoreMenu({ sellerId, shopOnly = false, name, className }: {
@@ -37,12 +40,14 @@ export function StorefrontMoreMenu({ sellerId, shopOnly = false, name, className
   const canBlock = useCanBlock({ sellerId })
   const [reportOpen, setReportOpen] = useState(false)
   const [blockOpen, setBlockOpen] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
+              ref={moreRef}
               type="button"
               variant="bare"
               size="none"
@@ -55,18 +60,18 @@ export function StorefrontMoreMenu({ sellerId, shopOnly = false, name, className
           }
         />
         <DropdownMenuContent align="end" sideOffset={6} className="min-w-44">
-          <DropdownMenuItem variant="destructive" onClick={() => setReportOpen(true)} className="rounded-lg">
+          <DropdownMenuItem variant="destructive" opensLayer onClick={() => setReportOpen(true)} className="rounded-lg">
             <Flag aria-hidden /> {tr('Report', 'Báo cáo')}
           </DropdownMenuItem>
           {canBlock && (
-            <DropdownMenuItem onClick={() => setBlockOpen(true)} className="rounded-lg">
+            <DropdownMenuItem opensLayer onClick={() => setBlockOpen(true)} className="rounded-lg">
               <Ban aria-hidden /> {tr('Block', 'Chặn')}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <ReportButton sellerId={sellerId} open={reportOpen} onOpenChange={setReportOpen} />
-      {canBlock && <BlockUserButton sellerId={sellerId} shopOnly={shopOnly} name={name} open={blockOpen} onOpenChange={setBlockOpen} />}
+      <ReportButton sellerId={sellerId} open={reportOpen} onOpenChange={setReportOpen} finalFocus={moreRef} />
+      {canBlock && <BlockUserButton sellerId={sellerId} shopOnly={shopOnly} name={name} open={blockOpen} onOpenChange={setBlockOpen} finalFocus={moreRef} />}
     </>
   )
 }

@@ -124,6 +124,12 @@ export type SignInContext = {
    * 2026-10-17: "Email code now" — over an unverified phone number).
    */
   emailLead?: boolean
+  /**
+   * The control a gate asked from, when this card takes over from a layer that has already closed (the storefront ⋯'s
+   * Report, report-button.tsx): the card's close returns focus there. Without it Base UI returns focus to whatever had it
+   * before the card opened — a row of a menu that is gone, and on iOS (no focus on a tap) nothing: <body>.
+   */
+  finalFocus?: React.RefObject<HTMLElement | null>
 }
 
 /** The join presentation's two hooks back to the prompt that opened it. */
@@ -967,6 +973,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           gate={signInCtx?.gate}
           resume={signInCtx?.resume ?? null}
           emailLead={signInCtx?.emailLead}
+          finalFocus={signInCtx?.finalFocus}
         />
       )}
     </AuthContext.Provider>

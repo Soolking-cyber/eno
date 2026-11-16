@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, type RefObject } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { SignInCard } from '@/components/marketplace/sign-in-card'
 import type { SignInPrompt } from '@/context/auth-context'
@@ -28,6 +28,8 @@ type Props = {
   resume?: PendingIntent | null
   /** Facebook just shared no email — the email field takes the focus (see SignInContext.emailLead). */
   emailLead?: boolean
+  /** Where focus goes when the card closes (see SignInContext.finalFocus). */
+  finalFocus?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -71,7 +73,7 @@ const JOIN_FRAME = [
  * "Continue with email or phone", both of which only opened this dialog — a whole extra tap and a
  * second decision in front of a visitor who had already decided.
  */
-export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt, gate, resume, emailLead }: Props) {
+export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt, gate, resume, emailLead, finalFocus }: Props) {
   // A new prompt object is a new ask (signup-prompt.tsx builds one per ask) — a fresh key per ask.
   const askKey = useMemo(() => (prompt ? `ask-${Math.random().toString(36).slice(2)}` : 'none'), [prompt])
   // Whether the join presentation acts on presses yet. Starts false and drops back on every close, so
@@ -132,7 +134,7 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           ⚠️ AND NEVER TALLER THAN THE SCREEN (sweep, 2026-10-22): the base clamps height only while the keyboard is up, so
           on a landscape phone (390px tall) the ✕ and the title sat above the screen and the legal line below it, with the
           page scroll-locked. A card that fits renders identically; one that does not scrolls inside itself. */}
-      <DialogContent ref={popupRef} initialFocus={initialFocus} className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
+      <DialogContent ref={popupRef} initialFocus={initialFocus} finalFocus={finalFocus} className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
         {/*
           ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
           description, and `SignInCard` is title AND the whole form — so wrapping it put the email

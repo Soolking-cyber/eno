@@ -8,7 +8,7 @@
  */
 import * as React from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LanguageProvider } from '@/context/language-context'
 import { __resetBackToCloseForTests } from '@/lib/back-to-close'
@@ -121,5 +121,63 @@ describe('StorefrontMoreMenu — Report and Block behind the ⋯', () => {
     expect(within(sheet).getAllByRole('button').map((b) => b.textContent?.trim())).toEqual(expect.arrayContaining(['Report', 'Block']))
     await user.click(within(sheet).getByRole('button', { name: 'Report' }))
     expect(await screen.findByRole('dialog', { name: 'Report this seller' })).toBeTruthy()
+  })
+})
+
+/**
+ * ⛔ FOCUS (WCAG 2.4.3 — measured on live 2026-11-17, Playwright iPhone 13): the phone sheet, closing after a row's tap, put
+ * focus back on the ⋯ BEHIND the Report / Block dialog that had just taken it. The rows are `opensLayer` now (the closing
+ * menu returns no focus) and each dialog returns focus to the ⋯ itself. The real-browser proof, both widths, touch, mouse
+ * and keys, is the esbuild + Playwright harness of the 2026-11-17 fix; these pin the wiring in jsdom.
+ */
+describe('StorefrontMoreMenu — focus goes into the dialog a row opens, and back to the ⋯ when it closes', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 50))
+  for (const viewport of ['phone', 'desktop'] as const) {
+    it(`${viewport}: Report — focus stays in the form after the menu has gone; Escape puts it back on the ⋯`, async () => {
+      setViewport(viewport)
+      const user = userEvent.setup()
+      mount()
+      await user.click(more())
+      const row = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'More actions' })).getByRole('button', { name: 'Report' })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Report' })
+      await user.click(row)
+      const dialog = await screen.findByRole('dialog', { name: 'Report this seller' })
+      await waitFor(() => expect(screen.queryByRole(viewport === 'phone' ? 'dialog' : 'menu', viewport === 'phone' ? { name: 'More actions' } : undefined)).toBeNull())
+      await settle()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Report this seller' })).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(more()))
+    })
+
+    it(`${viewport}: Block — focus stays in the confirmation; Cancel puts it back on the ⋯`, async () => {
+      setViewport(viewport)
+      const user = userEvent.setup()
+      mount()
+      await user.click(more())
+      const row = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'More actions' })).getByRole('button', { name: 'Block' })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Block' })
+      await user.click(row)
+      const confirm = await screen.findByRole('alertdialog', { name: 'Block VinWonders?' })
+      await waitFor(() => expect(screen.queryByRole(viewport === 'phone' ? 'dialog' : 'menu', viewport === 'phone' ? { name: 'More actions' } : undefined)).toBeNull())
+      await settle()
+      expect(confirm.contains(document.activeElement)).toBe(true)
+      await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(more()))
+    })
+  }
+
+  it('a guest\'s sign-in card is handed the ⋯ to return focus to', async () => {
+    h.auth = { user: null, loading: false, sellerId: null, openSignIn: vi.fn() }
+    const user = userEvent.setup()
+    mount()
+    await user.click(more())
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Report' }))
+    await vi.waitFor(() => expect(h.auth.openSignIn).toHaveBeenCalledTimes(1))
+    const ctx = (h.auth.openSignIn as ReturnType<typeof vi.fn>).mock.calls[0][0] as { finalFocus?: React.RefObject<HTMLElement | null> }
+    expect(ctx.finalFocus?.current).toBe(more())
   })
 })

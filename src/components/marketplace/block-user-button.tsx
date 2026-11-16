@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { toast } from 'sonner'
 import { Ban } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { useAuth } from '@/context/auth-context'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { hiddenSellersOwner, hideSellerNow, syncHiddenSellers } from '@/lib/hidden-sellers'
 import { cn } from '@/lib/utils'
+import { returnFocusTo } from './report-button'
 
 /**
  * Whether Block is offered here at all: the `ugc-safety` gate is on, there is a thread or a shop to name, and it is not the
@@ -50,7 +51,7 @@ export function useCanBlock({ conversationId, sellerId }: { conversationId?: str
  * ⛔ ON A STOREFRONT THE PAIR IS IN THE ⋯ MENU (owner, 2026-11-16 — hub Q21): storefront-more-menu.tsx opens this same
  * confirmation through `open` / `onOpenChange`, one tap from the shop page. Listing pages and the chat keep the pill.
  */
-export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly = false, name, className, onBlocked, open: openProp, onOpenChange }: {
+export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly = false, name, className, onBlocked, open: openProp, onOpenChange, finalFocus }: {
   conversationId?: string
   sellerId?: string
   /** The listing page this was tapped on (with `sellerId`) — the moderator note names it. */
@@ -72,6 +73,8 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
    */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** The caller's control that opened the triggerless confirmation: focus goes back to it on close (ReportButton's prop). */
+  finalFocus?: RefObject<HTMLElement | null>
 }) {
   const { tr } = useLanguage()
   const { openSignIn, user } = useAuth()
@@ -82,6 +85,9 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
   const setOpen = controlled ? onOpenChange : setOpenState
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // A 401 hands this close over to the sign-in card (report-button.tsx `returnFocusTo`). Every open starts without it.
+  const handingOff = useRef(false)
+  useEffect(() => { if (open) handingOff.current = false }, [open])
   if (!canBlock) return null
 
   const run = async () => {
@@ -93,7 +99,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...(conversationId ? { conversationId } : { sellerId, ...(listingId ? { listingId } : {}) }), blocked: true }),
       })
-      if (res.status === 401) { setOpen(false); openSignIn(); return }
+      if (res.status === 401) { handingOff.current = true; setOpen(false); openSignIn(finalFocus ? { finalFocus } : undefined); return }
       if (!res.ok) {
         const code = ((await res.json().catch(() => null)) as { error?: string } | null)?.error
         setError(code === 'cannot_block_self'
@@ -151,7 +157,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
         <Ban className="h-3.5 w-3.5" /> {tr('Block', 'Chặn')}
       </AlertDialogTrigger>
       )}
-      <AlertDialogContent>
+      <AlertDialogContent finalFocus={returnFocusTo(finalFocus, handingOff)}>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
             <Ban />

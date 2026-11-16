@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Flag, CheckCircle2 } from '@/components/ui/icons'
@@ -40,6 +40,22 @@ type Props = {
    */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /**
+   * The caller's control that opened this triggerless dialog (the storefront's ⋯): focus goes back to it when the dialog
+   * closes, or when the sign-in card a guest is sent to instead closes. Base UI's own return finds no trigger in
+   * controlled mode — and on iOS, where a tapped button never takes focus, nothing to fall back to: focus fell to <body>.
+   */
+  finalFocus?: RefObject<HTMLElement | null>
+}
+
+/**
+ * A triggerless dialog's `finalFocus` (ReportButton, BlockUserButton): the caller's control while it is on the page, Base UI's
+ * own choice when it is gone, and NONE for a close that hands over to the sign-in card — the card returns focus to the
+ * control itself (`openSignIn({ finalFocus })`), and an explicit return here would land behind it.
+ */
+export function returnFocusTo(control: RefObject<HTMLElement | null> | undefined, handingOff: RefObject<boolean>) {
+  if (!control) return undefined
+  return () => (handingOff.current ? false : control.current?.isConnected ? control.current : true)
 }
 
 const REASONS: { value: string; vi: string; en: string }[] = [
@@ -55,7 +71,7 @@ const REASONS: { value: string; vi: string; en: string }[] = [
 // comment or help post is the same: there is no item to call sold, duplicate or counterfeit.
 const CHAT_REASON_VALUES = new Set(['scam', 'offensive', 'other'])
 
-export function ReportButton({ listingId, sellerId, conversationId, reviewId, commentId, postId, className, open: openProp, onOpenChange }: Props) {
+export function ReportButton({ listingId, sellerId, conversationId, reviewId, commentId, postId, className, open: openProp, onOpenChange, finalFocus }: Props) {
   const { tr } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
   const { user, loading: authLoading, openSignIn } = useAuth()
@@ -73,6 +89,9 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
   // message grows the Help link its own copy promises.
   const [blocked, setBlocked] = useState(false)
   const isContent = !!(reviewId || commentId || postId)
+  // This close hands over to the sign-in card (see `returnFocusTo`). Every open starts without it.
+  const handingOff = useRef(false)
+  useEffect(() => { if (open) handingOff.current = false }, [open])
 
   /**
    * ⚠️ A GUEST SIGNS IN BEFORE THE REPORT FORM (sweep, 2026-10-22). A report needs an account: a guest used to fill in the
@@ -81,8 +100,10 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
    * so it holds for the built-in trigger, for every caller that opens this dialog itself (`open`/`onOpenChange`), and
    * for a tap made while the session was still resolving (the form closes the moment it resolves to a guest).
    */
-  const askGuestToSignIn = () =>
-    openSignIn({ note: t('Sign in to report — a report is tied to an account so it can be reviewed.', 'Đăng nhập để báo cáo — báo cáo gắn với tài khoản để được xem xét.') })
+  const askGuestToSignIn = () => {
+    handingOff.current = true
+    openSignIn({ note: t('Sign in to report — a report is tied to an account so it can be reviewed.', 'Đăng nhập để báo cáo — báo cáo gắn với tài khoản để được xem xét.'), finalFocus })
+  }
   // …and a known guest's dialog never renders open, not even for the frame before this effect closes it.
   useEffect(() => {
     if (open && !authLoading && !user) {
@@ -103,8 +124,9 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
       // Reporting requires an account. The trigger already asks a guest to sign in first; a session that expired
       // meanwhile lands here — and is TOLD the report was not sent, instead of a bare sign-in sheet.
       if (res.status === 401) {
+        handingOff.current = true
         setOpen(false)
-        openSignIn({ note: t('Your report was not sent. Sign in, then send it again.', 'Báo cáo chưa được gửi. Hãy đăng nhập rồi gửi lại.') })
+        openSignIn({ note: t('Your report was not sent. Sign in, then send it again.', 'Báo cáo chưa được gửi. Hãy đăng nhập rồi gửi lại.'), finalFocus })
         return
       }
       if (res.status === 429) {
@@ -208,7 +230,7 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
       )}
 
       <Dialog open={open && (authLoading || !!user)} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
-        <DialogContent className="bg-popover rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+        <DialogContent finalFocus={returnFocusTo(finalFocus, handingOff)} className="bg-popover rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">
               {title}

@@ -44,6 +44,8 @@ type MenuChangeDetails = MenuPrimitive.Root.ChangeEventDetails
  *   · ⛔ BACK CLOSES IT (useSheetHistory). A row that LEAVES the page must release the sheet's history entry first or
  *     the sheet's own `history.back()` would race the navigation: links do it automatically, an `onClick` that
  *     routes says so with `navigates`.
+ *   · ⛔ A ROW THAT OPENS A DIALOG SAYS SO WITH `opensLayer` (see DropdownMenuItem) — at both widths, or the menu's
+ *     close puts focus back on its trigger BEHIND the dialog that just took it.
  *   · `sheet={false}` keeps the anchored popover at every width — admin (EN-only, desktop-first, and the moderation
  *     queue uses a submenu, which a sheet does not do).
  */
@@ -59,6 +61,9 @@ type MenuSheet = {
   openFrom: (e: React.SyntheticEvent<HTMLElement>, keyboard: boolean) => void
   close: (event?: Event) => void
   release: () => void
+  /** A row marked `opensLayer` was pressed: this close returns no focus — the layer it opened has it. */
+  handingOff: boolean
+  handOff: () => void
 }
 const MenuSheetContext = React.createContext<MenuSheet | null>(null)
 /** True for the parts drawn INSIDE a menu's sheet: they render as action rows, not as Base UI menu parts. */
@@ -131,6 +136,11 @@ function DropdownMenu({
   const { release } = useSheetHistory(sheetOpen, close, "menu")
   const triggerRef = React.useRef<HTMLElement | null>(null)
   const [opened, setOpened] = React.useState({ keyboard: false, title: "" })
+  // State, not a ref: Base UI reads `finalFocus` from the last render when the close COMPLETES (after the exit
+  // animation), so the render this sets must reach the sheet and the popup first. Every open starts without it.
+  const [handingOff, setHandingOff] = React.useState(false)
+  React.useEffect(() => { if (isOpen) setHandingOff(false) }, [isOpen])
+  const handOff = React.useCallback(() => setHandingOff(true), [])
   const ctx = React.useMemo<MenuSheet>(() => ({
     isPhone,
     surface,
@@ -140,12 +150,14 @@ function DropdownMenu({
     triggerRef,
     close,
     release,
+    handingOff,
+    handOff,
     openFrom: (e, keyboard) => {
       triggerRef.current = e.currentTarget
       setOpened({ keyboard, title: accessibleNameOf(e.currentTarget) })
       setOpen(true, sheetChangeDetails<MenuChangeDetails>("trigger-press", e.nativeEvent, e.currentTarget))
     },
-  }), [isPhone, surface, sheetOpen, opened, close, release, setOpen])
+  }), [isPhone, surface, sheetOpen, opened, close, release, handingOff, handOff, setOpen])
 
   return (
     <MenuSheetContext.Provider value={ctx}>
@@ -198,7 +210,9 @@ function MenuSheetBody({ sheet, title, children }: { sheet: MenuSheet; title?: R
         open={sheet.sheetOpen}
         onOpenChange={(next) => { if (!next) sheet.close() }}
         title={title ?? (sheet.title || tr("More actions", "Thêm thao tác"))}
-        finalFocus={sheet.triggerRef}
+        // An explicit ref, because a tapped button never takes focus on iOS — so Base UI's own "focus moved on,
+        // leave it" check does not run here, and a row that opened a dialog must say so (`opensLayer`).
+        finalFocus={sheet.handingOff ? false : sheet.triggerRef}
         initialFocus={sheet.keyboard ? () => firstFocusable(listRef.current) ?? true : undefined}
         onNavigate={sheet.release}
       >
@@ -215,6 +229,7 @@ function DropdownMenuContent({
   sideOffset = 4,
   className,
   sheetTitle,
+  finalFocus,
   ...props
 }: MenuPrimitive.Popup.Props &
   Pick<
@@ -270,6 +285,9 @@ function DropdownMenuContent({
           // transition Base UI waited out — a pointer-opened menu closed by Escape sat on screen
           // 160–220ms (measured). Keyboard-initiated, so it should go at once.
           className={cn("z-overlay max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover p-1 text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-out-strong data-closed:duration-75 outline-none transition-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=inline-end]:data-closed:slide-out-to-left-2 data-[side=inline-start]:data-closed:slide-out-to-right-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:ease-out-strong data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95 data-instant:duration-0!", className )}
+          // Base UI's own return (undefined) already leaves focus that moved on — when the dialog took it before the
+          // popup's exit ended. `opensLayer` makes that certain rather than a race (see DropdownMenuItem).
+          finalFocus={sheet?.handingOff ? false : finalFocus}
           {...props}
         />
       </MenuPrimitive.Positioner>
@@ -320,15 +338,17 @@ type SheetRowProps = {
 /**
  * One action row of the sheet. Honours the item's `render` (a <Link>, a caller's own <Button>): the row's props are
  * merged onto that element, its own onClick still runs. Releases the sheet's history entry before an action that
- * leaves the page — a link, or an item marked `navigates` — so the sheet's close never races the navigation.
+ * leaves the page — a link, or an item marked `navigates` — so the sheet's close never races the navigation; an item
+ * marked `opensLayer` leaves the focus to the layer it opens.
  */
 function SheetRow({
-  sheet, row, closeOnClick, navigates, pressed, trailing, onActivate,
+  sheet, row, closeOnClick, navigates, opensLayer, pressed, trailing, onActivate,
 }: {
   sheet: MenuSheet
   row: SheetRowProps
   closeOnClick: boolean
   navigates?: boolean
+  opensLayer?: boolean
   pressed?: boolean
   trailing?: React.ReactNode
   onActivate?: () => void
@@ -338,6 +358,7 @@ function SheetRow({
     // A rendered element (a <Link>) has no native `disabled` to stop the click: refuse it here.
     if (disabled) { e.preventDefault(); return }
     if (navigates || (e.currentTarget as Element).closest("a[href]")) sheet.release()
+    if (opensLayer) sheet.handOff()
     theirs?.(e)
     onClick?.(e)
     onActivate?.()
@@ -368,6 +389,7 @@ function DropdownMenuItem({
   inset,
   variant = "default",
   navigates,
+  opensLayer,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean
@@ -377,6 +399,15 @@ function DropdownMenuItem({
    * so the sheet's own `history.back()` cannot undo the navigation (src/lib/back-to-close.ts). Links need no flag.
    */
   navigates?: boolean
+  /**
+   * ⛔ The row's `onClick` OPENS A LAYER THAT TAKES FOCUS — a dialog, an alert dialog, the sign-in card. The menu's close
+   * then returns NO focus, and that layer's own close returns it to this menu's trigger (pass it the trigger as
+   * `finalFocus`). Without it the phone sheet, which returns focus to the trigger by an explicit ref when its exit
+   * animation ends, put focus on the trigger BEHIND the dialog that had just taken it — measured on live, 2026-11-17,
+   * the storefront ⋯'s Report and Block (storefront-more-menu.tsx): the dialog open, focus outside it (WCAG 2.4.3).
+   * Only on a row whose layer really takes focus: a row marked so that opens nothing leaves focus on <body>.
+   */
+  opensLayer?: boolean
 }) {
   const sheet = React.useContext(MenuSheetContext)
   if (React.useContext(InMenuSheetContext) && sheet) {
@@ -384,6 +415,7 @@ function DropdownMenuItem({
       <SheetRow
         sheet={sheet}
         navigates={navigates}
+        opensLayer={opensLayer}
         closeOnClick={props.closeOnClick !== false}
         row={{
           ...(props as SheetRowProps),
@@ -402,6 +434,7 @@ function DropdownMenuItem({
         className
       )}
       {...props}
+      onClick={opensLayer && sheet ? (e) => { sheet.handOff(); props.onClick?.(e) } : props.onClick}
     />
   )
 }
