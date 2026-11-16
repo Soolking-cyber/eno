@@ -57,6 +57,7 @@ export async function GET(req: Request) {
     // (in any state, a draft too) OR a shop with any teacher row (commit gate, opus: a row alone missed a profile with no
     // listing yet). A failed check is a refusal (fail closed). A shop with a handle redirects to /<handle>, which this
     // route never follows: 404.
+    // edition-lint-allow: an existence check that can only REFUSE a twin (select id; nothing rendered or returned).
     const teacher = await db.seller.findFirst({
       where: { id: storefront, OR: [{ owner: { teacherProfile: { isNot: null } } }, { listings: { some: { listingType: TEACHER_LISTING_TYPE } } }] },
       select: { id: true },
