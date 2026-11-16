@@ -30,8 +30,9 @@ import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import { storefrontHandleFromHost } from '@/lib/storefront-host'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
-import { ReportButton } from '@/components/marketplace/report-button'
-import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { StorefrontMoreMenu } from '@/components/marketplace/storefront-more-menu'
+import { lastSeenBucket } from '@/lib/last-seen'
+import { readExplorerUrl } from '@/lib/explorer-url'
 import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { isShopOnlyBlock } from '@/lib/user-blocks'
@@ -71,7 +72,11 @@ import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
  */
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ lang?: string; handle: string }> }
+type Props = {
+  params: Promise<{ lang?: string; handle: string }>
+  /** The request's query: a directed link (`?q=`, `?category=`, `?view=`…) — ListingsExplorer `serverDirected`. */
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params
@@ -251,8 +256,12 @@ async function getData(sellerId: string): Promise<{
   }
 }
 
-export default async function Storefront({ params }: Props) {
+export default async function Storefront({ params, searchParams }: Props) {
   const { handle } = await params
+  // The query this request names, read as the explorer will read it after hydration (src/lib/explorer-url.ts).
+  const query = new URLSearchParams()
+  for (const [k, v] of Object.entries((await searchParams) ?? {})) for (const one of [v ?? []].flat()) query.append(k, one)
+  const serverDirected = readExplorerUrl(query).directed
   const shop = await storefrontByLabel(handle)
   /**
    * ⛔ THE SELLER-LEVEL EDITION GATE, WHICH THIS ROUTE DID NOT HAVE — measured against production
@@ -382,37 +391,44 @@ export default async function Storefront({ params }: Props) {
             to chat from (the cookie is scoped to the canonical host), so it is a link that crosses to
             the listing there — `chatOrigin`. Affiliate-only shops and the visa desk get null and no
             button at all (owner, 2026-08-24). The count is the shop's whole scoped stock, as in the grid. */}
-        <div className="flex items-start justify-between gap-3 pb-4 pt-3 md:items-end">
-          <div className="min-w-0 max-w-md flex-1">
+        {/* ⛔ ONE BLOCK, THEN ONE ROW (owner, 2026-11-16 — hub Q21; UI climb r12, cook store-r12c S2, the storefront batch +0.90 /
+            +0.50 over live, blind): the identity at the column's full width, then [Chat now][Share][⋯] under it — Chat and Share
+            an equal pair, the ⋯ holding Report and Block (StorefrontSellerCard `actions`). It reverses the 10-06 right-hand column
+            (history below), which also squeezed the identity to ~140px on a 360px phone.
+            REPORT AND BLOCK, IN THE ⋯ (App Store Guideline 1.2; audit 1.5, 2026-10-06). eno.vn/<handle>
+            renders this body in place, so it is the storefront a /sellers/<id> link lands on (the PDP's
+            and the inbox's, in the apps too) — and it had neither. The same pair, on the same rules, as
+            the path storefront (seller-storefront.tsx): Report AND Block on every shop, Block only while
+            `ugc-safety` is on (storefront-more-menu.tsx `useCanBlock`). ⛔ BLOCK ON AN IMPORTED SHOP TOO (Apple's 2026-10-28
+            rejection was a "Linked shop" with Report and no Block): a shop nobody blockable runs is blocked as a shop
+            (src/lib/user-blocks.ts). ⛔ NEVER REMOVED: the ⋯ is one tap from the page, and its rows open the same dialogs with
+            the same words (report-block.test.ts pins it).
+            ⛔ NOT ON THE SHOP'S OWN HOST. Both are writes: proxy.ts refuses one whose Origin is
+            `<handle>.eno.vn`, and there is no session there to send it with, so each would only ever say
+            "try again" — the reason chat becomes a link to the canonical host there. The apps never
+            open that host in the WebView: capacitor.config.ts allowNavigation holds only the canonical ones.
+            (history) 2026-10-06 to 2026-11-16: a column of Share · Report · Block beside the card (`gap-2` the floor between the
+            pills' tap-44 areas), a row on the card's bottom line from md (2026-11-06 audit).
+            ⚠️ `presenceDue`: whether the card's phone facts line keeps its 20px for presence drawn after mount — decided here, on
+            the server, at request time (seen in the last 30 days), so a dormant shop draws no empty line. */}
+        <div className="pb-4 pt-3">
+          <div className="min-w-0 max-w-md">
             <StorefrontSellerCard
               seller={card.cardSeller}
               metrics={card.metrics}
               chatListingId={chatListingId}
               chatOrigin={onShopHost ? origin : undefined}
               listingCount={total}
+              presenceDue={lastSeenBucket(card.metrics.lastSeenDay).key !== null}
+              actions={
+                <>
+                  {/* The shop's Share, Chat's equal (`shape="pair"`: its word at every width) — and at its own width when no Chat is
+                      drawn (affiliate-only shops, the visa desk: `alone`, store-pair.ts; review 2026-11-16). */}
+                  <ShareButton url={canonical} title={shop.name} shape="pair" alone={!chatListingId} />
+                  {!onShopHost && <StorefrontMoreMenu sellerId={shop.sellerId} shopOnly={blockShopOnly} name={shop.name} />}
+                </>
+              }
             />
-          </div>
-          {/* REPORT AND BLOCK, UNDER SHARE (App Store Guideline 1.2; audit 1.5, 2026-10-06). eno.vn/<handle>
-              renders this body in place, so it is the storefront a /sellers/<id> link lands on (the PDP's
-              and the inbox's, in the apps too) — and it had neither. The same pair, on the same rules, as
-              the path storefront (seller-storefront.tsx): Report AND Block on every shop, and nothing while
-              `ugc-safety` is off. ⛔ BLOCK ON AN IMPORTED SHOP TOO (Apple's 2026-10-28 rejection was a "Linked shop"
-              with Report and no Block): a shop nobody blockable runs is blocked as a shop (src/lib/user-blocks.ts).
-              ⛔ NOT ON THE SHOP'S OWN HOST. Both are writes: proxy.ts refuses one whose Origin is
-              `<handle>.eno.vn`, and there is no session there to send it with, so each would only ever say
-              "try again" — the reason chat above becomes a link to the canonical host there. The apps never
-              open that host in the WebView: capacitor.config.ts allowNavigation holds only the canonical ones.
-              ⚠️ A COLUMN, NOT A ROW: three controls beside the card leave it ~140px on a 360px phone. And
-              `gap-2` is the floor — each pill's tap-44 hit area reaches 8px past it, so any less and Block's
-              swallows the bottom of Report.
-              ⚠️ FROM md, A ROW ON THE CARD'S BOTTOM LINE (2026-11-06 audit): there is room for one there, and as a column it
-              floated at the top right, apart from "Chat now". Share · Report · Block now end Chat's line, at the far side. */}
-          <div className="flex shrink-0 flex-col items-end gap-2 md:flex-row md:items-center">
-            {/* The page-ground Share (2026-11-06 audit), in Report's own pill: a glyph on a phone, "Share" from sm. `compact` is the
-                over-photo control, and on the page it drew a grey disc beside two flush text pills. */}
-            <ShareButton url={canonical} title={shop.name} className="rounded-full px-2.5 py-1.5 text-xs" />
-            {!onShopHost && <ReportButton sellerId={shop.sellerId} />}
-            {!onShopHost && <BlockUserButton sellerId={shop.sellerId} shopOnly={blockShopOnly} name={shop.name} />}
           </div>
         </div>
         {/* Seller information (owner, 2026-10-01) — the same block, from the same builder, as eno.vn/<handle>. */}
@@ -477,6 +493,8 @@ export default async function Storefront({ params }: Props) {
            * listing card), so passing it to the client leaks nothing the page does not already show.
            */
           sellerId={shop.sellerId}
+          // A directed link draws its phone results row from the first frame (ListingsExplorer `serverDirected`).
+          serverDirected={serverDirected}
         />
         )}
 
@@ -491,8 +509,11 @@ export default async function Storefront({ params }: Props) {
         {/* ⚠️ NO SECOND PAGE FRAME: <main> above already is `max-w-7xl px-3 sm:px-6 lg:px-8`, and this
             section restating it indented the heading 12–32px past the shop's name (C1-HAIRLINE). The
             hairline and the heading say the seller changed (ST-HEADER), as on the path storefront. */}
+        {/* ⛔ 24 ABOVE ITS HAIRLINE AND 24 UNDER IT ON A PHONE (UI climb r12, cook store-r12c S7 — the storefront batch +0.90 / +0.50
+            over live, blind): a short shop's last card sat 92px over this line. Its count sentence is announced, not printed, there
+            (`quietCount`). From sm the 48 / 32 stand. */}
         {otherTotal > 0 && (
-          <section className="mt-12 space-y-4 border-t border-border pb-10 pt-8">
+          <section className="mt-6 space-y-4 border-t border-border pb-10 pt-6 sm:mt-12 sm:pt-8">
             <h2 className="h-section text-foreground"><Bilingual en="More from other sellers" vi="Tin từ người bán khác" /></h2>
             <SellerListings
               listings={otherListings}
@@ -510,6 +531,7 @@ export default async function Storefront({ params }: Props) {
                  the same question. */
               initialSort="relevance"
               serverScope={{ params: { excludeSeller: shop.sellerId }, total: otherTotal, pageSize: OTHER_LISTINGS }}
+              quietCount
             />
           </section>
         )}

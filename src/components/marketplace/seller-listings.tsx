@@ -45,6 +45,17 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
 
 /**
+ * The filled pill on an IN-FLOW filled strip (SellerListings `strip="filled"` — a storefront's), below sm: globals.css's filled
+ * rule ("THE GOODS STRIPS' PILLS ARE FILLED") keys on `#explorer-toolbar` / `[data-pinned-strip]`, which an in-flow strip is
+ * not, so its values ride the pill itself. At rest the field grey with no edge (the 1px kept, transparent), the ⌄ `ink-3`,
+ * pressed or hovered a step deeper (`--secondary`); open, the same step deeper (CustomSelect drops `activeClassName` while
+ * open, so that half is on the trigger's own class). An applied order keeps PILL_ON's ink fill. Every value is the rule's,
+ * and every variant here is emitted after the PILL_* one it overrides (checked against Tailwind's compiled order).
+ */
+const FILLED_PILL_REST = 'max-sm:border-transparent max-sm:bg-muted max-sm:hover:bg-secondary max-sm:active:bg-secondary max-sm:[&_svg]:text-ink-3'
+const FILLED_PILL_OPEN = 'max-sm:data-popup-open:border-transparent max-sm:data-popup-open:bg-secondary'
+
+/**
  * THE /c PAGES' PINNED SORT STRIP (`pinStrip`) — Home's pinned bar exactly (explorer-toolbar.tsx, where every one of these is
  * measured and explained): the frosted in-flow bar, `top` as the ONLY moving property (a sticky top is a no-op until it sticks;
  * -9rem clears a two-row strip with room), the visible pin at the safe-area inset + the 56px header, back at the inset when focus
@@ -125,6 +136,9 @@ export function SellerListings({
   phoneWide = false,
   phoneHead,
   look,
+  quietCount = false,
+  ownShop = false,
+  strip,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -253,8 +267,38 @@ export function SellerListings({
    * From sm, and without it, nothing changes.
    */
   look?: 'goods'
+  /**
+   * ⛔ THE COUNT SENTENCE IS ANNOUNCED, NOT PRINTED, BELOW sm (UI climb r12, cook store-r12c S7 — the storefronts' "More from other
+   * sellers"): "Showing 24 of 9,841 listings." stood between that heading and its first cards, a figure nobody compares a
+   * continuation by. It stays the same `aria-live` node, `sr-only` on a phone, so a screen reader still hears it and every
+   * Show more updates it. From sm, and without the prop, it is printed as before. A sortable strip has its own phone count.
+   */
+  quietCount?: boolean
+  /**
+   * The grid is the shop's own, on its storefront (seller-storefront.tsx): no partner shield on its cards or rows — the header
+   * says "Official partner" once (owner, 2026-11-16 — hub Q21b; ListingCard / CompactListingRow `ownShop`).
+   */
+  ownShop?: boolean
+  /**
+   * ⛔ 'filled' — A STOREFRONT'S STRIP IS THE FILLED STRIP (owner, 2026-11-16 — hub Q15, "the strip in the filled grey look with
+   * the sort pill naming its order"; review 2026-11-16: the path storefront, seller-storefront.tsx, still drew the white strip
+   * while /s/[handle]'s explorer strip is filled — ListingsExplorer hands its toolbar `look="goods"` on a storefront). Below sm,
+   * the goods strip's look and nothing else of `look`: the sort pill names the page's own order with no glyph, filled pills
+   * (the field grey with no edge, a step deeper pressed, hovered or open; another order keeps the ink fill), and no rule under
+   * the strip. The cards stay the shop's own, not the goods card. From sm nothing changes.
+   * ⚠️ The path storefront's own order IS the newest — seller-storefront.tsx orders its rows by `postedAt` desc, `id` desc, the
+   * API's 'recent' (feed-query.ts buildFeedOrderBy) — so it names it "Newest" (`initialSort="recent"`); /s/[handle]'s explorer
+   * order is the rank blend and says "Relevance". Each strip names the order it shows.
+   * ⚠️ IN FLOW, SO THE GREY RIDES THE PILL (`FILLED_PILL_*`): globals.css paints a filled strip's pills only under
+   * `#explorer-toolbar` and `[data-pinned-strip]`, and a storefront's strip is neither (it does not pin, `pinStrip`'s note).
+   */
+  strip?: 'filled'
 }) {
   const goods = look === 'goods'
+  /** The filled look: every pinned strip (hub Q15, 2026-11-16) and a storefront's in-flow one (`strip`). */
+  const filledStrip = pinStrip || strip === 'filled'
+  /** …in flow, where globals.css's filled rule does not reach the pills (`strip`'s note). */
+  const filledInFlow = filledStrip && !pinStrip
   const router = useRouter()
   const { tr, lang } = useLanguage()
   // One identity per card handler: inline closures re-rendered every memoized card on each render here (typing in the
@@ -508,16 +552,16 @@ export function SellerListings({
       triggerLabel={sortPillLabel}
       // The rentals phone row's glyphs are 18px ink (owner-approved 2026-11-14, cook r06 rentals-a: "one accent — never an icon",
       // one glyph size on the row); every other strip keeps its 14px, muted while the page's own order is on.
-      // ⛔ AT THE PAGE'S OWN ORDER, THE WORDS ALONE ON EVERY PINNED STRIP (owner, 2026-11-16, hub Q15: "the sort pill names its
-      // order"; build 8 had it for a goods category's strip only): "Relevance ⌄", no ⇅ — the filled strips `pinStrip` draws, the
-      // /c category and /c district pages. Any other order keeps its glyph. ⚠️ A strip that never pins (the storefronts, the
-      // vehicle hubs) keeps its muted ⇅ at its own order: Q15 on those strips is the storefront batch's.
-      icon={pinStrip && sort === initialSort ? undefined : <SortGlyph className={cn(phoneWide && phoneOneRow ? 'size-4.5' : 'size-3.5', 'shrink-0', !(phoneWide && phoneOneRow) && sort === initialSort && 'text-ink-4')} />}
+      // ⛔ AT THE PAGE'S OWN ORDER, THE WORDS ALONE ON EVERY FILLED STRIP (owner, 2026-11-16, hub Q15: "the sort pill names its
+      // order"; build 8 had it for a goods category's strip only): "Relevance ⌄" / "Newest ⌄", no ⇅ — every pinned strip (the /c
+      // category and district pages) and a storefront's in-flow one (`strip="filled"`). Any other order keeps its glyph; a strip
+      // that is neither (the vehicle hubs) keeps its muted ⇅ at its own order.
+      icon={filledStrip && sort === initialSort ? undefined : <SortGlyph className={cn(phoneWide && phoneOneRow ? 'size-4.5' : 'size-3.5', 'shrink-0', !(phoneWide && phoneOneRow) && sort === initialSort && 'text-ink-4')} />}
       indicator="down"
       searchable={false}
-      className={cn(PILL_BOX, PILL_OPEN_ATTR)}
+      className={cn(PILL_BOX, PILL_OPEN_ATTR, filledInFlow && FILLED_PILL_OPEN)}
       // CustomSelect paints every value but 'all' / 'newest' as applied; here "applied" means "not the page's own order".
-      activeClassName={sort === initialSort ? PILL_REST : PILL_ON}
+      activeClassName={sort === initialSort ? cn(PILL_REST, filledInFlow && FILLED_PILL_REST) : PILL_ON}
       wrapperClassName="w-auto shrink-0 sm:hidden"
     />
   )
@@ -596,10 +640,11 @@ export function SellerListings({
         // header's full-bleed hairline, not under an invisible gutter, and 8px above and below give the 36px chips air and their
         // 44px hit area inside the scroller's clip. The first chip still starts on the 12px gutter (`px-3`).
         phoneWide && phoneOneRow && 'max-sm:-mx-3 max-sm:px-3 max-sm:py-2',
-        // Every PINNED phone strip (owner, 2026-11-16, hub Q15; a goods category's alone since build 8): no rule under it —
-        // transparent, the 1px kept — until it is pinned over the grid (PinnedStrip marks `data-stuck`): then the border's own
-        // colour again. A strip that never pins (`pinStrip` false) keeps its line.
-        pinStrip && 'max-sm:border-b-transparent max-sm:group-data-[stuck]/pin:border-b-border',
+        // Every filled phone strip (owner, 2026-11-16, hub Q15; a goods category's alone since build 8): no rule under it —
+        // transparent, the 1px kept — until a pinned one is pinned over the grid (PinnedStrip marks `data-stuck`): then the
+        // border's own colour again. A storefront's is in flow and never sticks: no rule under it on a phone. A strip that is
+        // neither keeps its line.
+        filledStrip && 'max-sm:border-b-transparent max-sm:group-data-[stuck]/pin:border-b-border',
       )}
     >
       {!phoneHead && sortPill}
@@ -664,7 +709,7 @@ export function SellerListings({
   // and the grid on a desktop, for the one figure a reader compares the page by. The phone twin keeps 12px (the sort row's
   // budget) in the same ink.
   const serverNote = serverMode && !loadError && (
-    <p className={cn('text-sm text-body', sortable && 'max-sm:hidden')} aria-live="polite">
+    <p className={cn('text-sm text-body', sortable ? 'max-sm:hidden' : quietCount && 'max-sm:sr-only')} aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
         : (shown.length >= resultTotal
@@ -682,7 +727,7 @@ export function SellerListings({
       <div data-phone-rows="" className={cn(JOB_CARD_LIST, 'sm:hidden')}>
         {shown.map((l, i) => (
           <div key={l.id} data-sid={l.sellerId}>
-            <PhoneRow listing={l} index={i} onOpen={openCard} onPrefetch={prefetchCard} onLocate={locateRow} clockInHtml lazyThumb />
+            <PhoneRow listing={l} index={i} onOpen={openCard} onPrefetch={prefetchCard} onLocate={locateRow} clockInHtml lazyThumb ownShop={ownShop} />
           </div>
         ))}
       </div>
@@ -696,7 +741,7 @@ export function SellerListings({
         // every width (a desktop's first row is four), so a one-column phone also loads cards 3–4 with the page, below its first
         // screen — the trade the part plan accepted for desktop parity (seller-listings.test.tsx pins the desktop half).
         <div key={l.id} id={i === Math.min(3, shown.length - 1) ? 'first-screen-end' : undefined} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={rowsOnPhone ? i === 0 : i < 4} lcp={i === 0 && !remote} holdPhoto={i >= (phoneWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} wide={phoneWide} sizes={phoneWide ? WIDE_CARD_SIZES : undefined} look={look} />
+          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={rowsOnPhone ? i === 0 : i < 4} lcp={i === 0 && !remote} holdPhoto={i >= (phoneWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} wide={phoneWide} sizes={phoneWide ? WIDE_CARD_SIZES : undefined} look={look} ownShop={ownShop} />
         </div>
       ))}
     </div>

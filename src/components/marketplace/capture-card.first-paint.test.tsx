@@ -51,8 +51,9 @@ describe('CaptureCard', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/marketplace/listings-explorer.tsx'), 'utf8')
     expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && jobsRows && <CaptureCard jobs />}')
     // `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a), keyed on the one-column rentals grid.
-    // …and `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods), keyed on the goods grid.
-    expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid} />}')
+    // …and `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods), keyed on the goods grid — and on
+    // a storefront's (UI climb r12, cook store-r12c S6: the same calm row in a shop's grid).
+    expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}')
     expect(src).not.toMatch(/<CaptureCard \/>/)
   })
 

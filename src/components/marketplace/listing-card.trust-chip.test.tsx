@@ -114,6 +114,18 @@ describe('ListingCard — no tile draws the trust number; the partner chip is th
     expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(1)
   })
 
+  it('⛔ inside the partner\'s OWN shop (`ownShop`, owner 2026-11-16 — hub Q21b): no partner chip on the card, the name still announced', () => {
+    const partner = { seller: { trustScore: 100, isBusiness: true, officialPartner: true } }
+    const c = render(<ListingCard listing={{ ...BASE, ...partner } as SerializedListingCard} onOpen={vi.fn()} ownShop />).container
+    expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
+    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
+    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent === 'Official partner')).toBe(true)
+    cleanup()
+    // …and the wide card's photo plate goes with it.
+    const wide = render(<ListingCard listing={{ ...BASE, ...partner } as SerializedListingCard} onOpen={vi.fn()} wide ownShop />).container
+    expect(wide.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
+  })
+
   // Owner, 2026-10-01: an ownerless storefront that is not a partner (`seller.unrated`, serialize.ts) shows
   // no trust number anywhere — a shop's affiliate catalogue (Tiki, CellphoneS) included, whose id is NOT in
   // IMPORT_SELLERS, which is exactly why the old rule missed it.

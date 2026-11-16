@@ -1,12 +1,12 @@
 'use client'
 
-import { fillTemplate } from '@/lib/i18n/placeholders'
+import { fillTemplate, safeTemplate } from '@/lib/i18n/placeholders'
 import Link from 'next/link'
 import { MessageCircle, Store, Star } from "@/components/ui/icons"
 import { useLanguage } from '@/context/language-context'
 import { BusinessVerifiedBadge } from '@/components/marketplace/business-verified-badge'
 import { PartnerBadge } from './partner-badge'
-import { PartnerListingCount } from './partner-listing-count'
+import { PartnerListingCount, PartnerListingWords } from './partner-listing-count'
 import { LinkedShopChip } from './linked-shop-chip'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
@@ -15,6 +15,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { storeMember } from './store-pair'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { useMounted } from '@/hooks/use-mounted'
 import type { SellerMetrics } from '@/lib/seller-metrics'
@@ -79,7 +80,42 @@ export type SellerCardProps = {
   storefrontHref?: string
   /** Optional "{N} listings" strip item (e.g. the storefront's active count). */
   listingCount?: number
+  /**
+   * Storefront only — the page's own controls after "Chat now", in its row: Share and the ⋯ menu holding Report and Block
+   * (owner, 2026-11-16 — hub Q21; s/[handle]/page.tsx, seller-storefront.tsx). With them, Chat and Share are an equal pair.
+   * ⚠️ They LEAD WITH SHARE, Chat's partner (the one caller, s/[handle]/page.tsx, always draws it): Chat takes the pair's
+   * share of the row with `actions` and its own width without them (store-pair.ts `storeMember`). A Share drawn with no
+   * Chat (no `onChat`) is told so by the page (ShareButton `alone`).
+   */
+  actions?: React.ReactNode
+  /**
+   * Storefront only — decided ON THE SERVER at request time (a storefront renders per request): presence will be drawn
+   * (`lastSeenBucket(lastSeenDay).key` is not null — seen in the last 30 days). The phone's facts line holds its 20px from the
+   * first paint only then; a dormant shop with no response figure draws no empty line (review, 2026-11-16). Omitted: any
+   * stored presence day counts, as before.
+   */
+  presenceDue?: boolean
   className?: string
+}
+
+/**
+ * One stat cell of the storefront's phone header (S1, in SellerCard): the numeral in the price role, whole (`text-t-price`,
+ * 17/22 bold ink — a figure, not a heading), over its label (the meta role, muted). Cells share the row's width from their
+ * content (`flex-auto`), so a long label ("listings on eno.vn") wraps inside its own cell rather than squeezing a short one.
+ * ⚠️ NO `min-w-0`: a cell never shrinks below its numeral or its longest word (min-content), or a partner WITH reviews squeezed
+ * "2026" / "Joined" 12–14px past its 29px cell into the next one at 320px (measured in Chromium with Open Runde and the app's
+ * compiled CSS, 2026-11-16). The three cells' min-contents (about 180px with the gaps) fit the 196px a 320px phone leaves.
+ * `labelFirst`: a template whose words come before the number ("Joined {year}") keeps that reading order, and the number is
+ * still drawn on top.
+ */
+function StatCell({ kind, num, label, labelFirst = false }: { kind: string; num: React.ReactNode; label: React.ReactNode; labelFirst?: boolean }) {
+  return (
+    <div data-store-stat={kind} className="flex flex-auto flex-col">
+      {labelFirst && <span className="text-t-meta text-muted-foreground">{label}</span>}
+      <span className="order-first text-t-price text-foreground">{num}</span>
+      {!labelFirst && <span className="text-t-meta text-muted-foreground">{label}</span>}
+    </div>
+  )
 }
 
 /**
@@ -95,10 +131,14 @@ export function SellerCard({
   onChat,
   storefrontHref,
   listingCount,
+  actions,
+  presenceDue,
   className,
 }: SellerCardProps) {
   const { tr } = useLanguage()
   const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
+  const storefront = variant === 'storefront'
+  const hasListingCount = typeof listingCount === 'number' && listingCount > 0
 
   // Presence, bucketed from the day-coarse date (never a raw timestamp) — computed
   // client-side so a stale ISR PDP can only under-claim, and rendered only AFTER
@@ -107,42 +147,66 @@ export function SellerCard({
   const mounted = useMounted()
   const lastSeen = mounted ? lastSeenBucket(lastSeenDay) : { key: null as null, en: '', vi: '' }
 
-  // Metrics strip leaves — build only the ones that exist, join with middots.
-  const strip: React.ReactNode[] = []
-  if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
-  if (lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
-  strip.push(fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) }))
+  // Metrics strip leaves — build only the ones that exist, join with middots. `stat`: on a storefront's phone the leaf is one of
+  // the header's stat cells instead (below), so the strip leaves it out there.
+  const strip: { node: React.ReactNode; stat?: true }[] = []
+  if (responseBucket.key) strip.push({ node: tr(responseBucket.en, responseBucket.vi) })
+  if (lastSeen.key) strip.push({ node: tr(lastSeen.en, lastSeen.vi) })
+  strip.push({ node: fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) }), stat: true })
   if (reviewCount > 0) {
-    strip.push(
-      // lucide Star (rating fill), NOT the '★' text glyph — one rating mark across
-      // the strip, the reviews header and the review rows (icon-language §1: the
-      // base set is lucide; a font glyph drifts per-platform and takes no tokens).
-      <span key="reviews" className="inline-flex items-center gap-1">
-        <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
-        <RatingValue value={rating} /> · <CountValue value={reviewCount} />{' '}
-        {/* "1 review", not "1 reviews" (break-ui, 2026-10-05); Vietnamese has no plural to fork. */}
-        {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}
-      </span>,
-    )
+    strip.push({
+      stat: true,
+      node: (
+        // lucide Star (rating fill), NOT the '★' text glyph — one rating mark across
+        // the strip, the reviews header and the review rows (icon-language §1: the
+        // base set is lucide; a font glyph drifts per-platform and takes no tokens).
+        <span key="reviews" className="inline-flex items-center gap-1">
+          <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
+          <RatingValue value={rating} /> · <CountValue value={reviewCount} />{' '}
+          {/* "1 review", not "1 reviews" (break-ui, 2026-10-05); Vietnamese has no plural to fork. */}
+          {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}
+        </span>
+      ),
+    })
   }
-  if (typeof listingCount === 'number' && listingCount > 0) {
-    strip.push(
-      // An official partner reads '{n} listings on eno.vn' (owner, 2026-09-30, K-TRUST-BADGE option D):
-      // it carries no trust score, so the count is what sizes the partner claim. Everyone else keeps
-      // the bare count.
-      seller.officialPartner
-        ? <PartnerListingCount key="listings" n={listingCount} />
-        : (
-          <span key="listings">
-            <CountValue value={listingCount} /> {listingCount === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}
-          </span>
-        ),
-    )
+  if (hasListingCount) {
+    strip.push({
+      stat: true,
+      node:
+        // An official partner reads '{n} listings on eno.vn' (owner, 2026-09-30, K-TRUST-BADGE option D):
+        // it carries no trust score, so the count is what sizes the partner claim. Everyone else keeps
+        // the bare count.
+        seller.officialPartner
+          ? <PartnerListingCount key="listings" n={listingCount} />
+          : (
+            <span key="listings">
+              <CountValue value={listingCount} /> {listingCount === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}
+            </span>
+          ),
+    })
   }
+  /**
+   * ⛔ THE STOREFRONT'S PHONE HEADER IS A STAT HEADER (UI climb r12, cook store-r12c S1 — the storefront batch measured +0.90 /
+   * +0.50 over live, blind; Instagram's profile and FB Marketplace's seller page were the references). Below sm: the avatar at
+   * 84px beside numeral-over-label cells, then the shop's <h1> at full width with its badge or trust chip, then ONE muted facts
+   * line (response, presence). From sm the identity is as it was, its initials on the h3 role (17px, was an off-scale 18) — and
+   * the [Chat][Share][⋯] row under it is every width's (`actions`, owner 2026-11-16 hub Q21).
+   * ⛔ ONLY FACTS THE STRIP ALREADY SHOWS, IN ITS OWN WORDS: the listing count ("5,379" over "listings on eno.vn" for a partner,
+   * "listings" for everyone else), the year over "Joined" (the strip's own template, split at its number), and the rating over
+   * "12 reviews" ONLY when the shop has reviews — never a zero, never a figure eno does not hold. Each is a leaf the strip drops
+   * on a phone (`stat`), so a screen reader meets it once at any width.
+   * ⚠️ The facts line keeps its 20px from the first paint when presence WILL arrive (its words are drawn after mount, see
+   * `lastSeen`) — the page decided that on the server (`presenceDue`) — so nothing under the header moves when they do; with
+   * neither fact it is not drawn on a phone, a dormant shop (seen over 30 days ago) included.
+   */
+  const phoneFacts = !!responseBucket.key || (presenceDue ?? !!lastSeenDay)
+  const joinedTpl = safeTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}')
+  const [joinedBefore = '', joinedAfter = ''] = joinedTpl.split('{memberSinceYear}').map((s) => s.trim())
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
-      <div className="flex items-center gap-3">
+    // 16px from the identity to the storefront's [Chat][Share][⋯] row on a phone (cook store-r12c S2); 12 from sm and beside a listing.
+    <div className={cn('flex flex-col gap-3', storefront && 'max-sm:gap-4', className)}>
+      <div className={cn('flex items-center gap-3', storefront && 'max-sm:grid max-sm:grid-cols-[5.25rem_minmax(0,1fr)] max-sm:gap-x-4 max-sm:gap-y-3')}>
         {/* ⚠️ `title` IS THE SIGHTED COUNTERPART OF THE sr-only BELOW, not a duplicate of it.
             With the badge gone the ring is the only thing on screen, and a ring means nothing
             to someone who has not been told what it is — including everyone who cannot
@@ -150,10 +214,31 @@ export function SellerCard({
             self-explaining without reinstating the chip the owner removed. */}
         <span title={seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined} className="flex shrink-0">
           {/* 64px on the storefront, where this card IS the page's identity block; 48px beside a
-              listing, where it is one fact among many (ST-HEADER, 2026-09-29). */}
-          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={variant === 'storefront' ? 'h-16 w-16 text-lg' : undefined} />
+              listing, where it is one fact among many (ST-HEADER, 2026-09-29). 84px on a storefront's phone (S1, above). Its
+              initials on the closed type scale: the display role (28px) in 84, the h3 role (17px) in 64 — a third of the disc,
+              as `lg`'s 16 in 48. */}
+          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={storefront ? 'size-21 text-t-display sm:size-16 sm:text-t-h3' : undefined} />
         </span>
-        <div className="min-w-0 flex-1">
+        {storefront && (
+          <div data-store-stats="" className="flex min-w-0 gap-4 sm:hidden">
+            {hasListingCount && (
+              <StatCell
+                kind="listings"
+                num={<CountValue value={listingCount} />}
+                label={seller.officialPartner ? <PartnerListingWords n={listingCount} /> : listingCount === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}
+              />
+            )}
+            <StatCell kind="joined" num={memberSinceYear} label={[joinedBefore, joinedAfter].filter(Boolean).join(' ')} labelFirst={!!joinedBefore} />
+            {reviewCount > 0 && (
+              <StatCell
+                kind="reviews"
+                num={<span className="inline-flex items-center gap-1"><Star className="size-4 shrink-0 fill-rating text-rating" aria-hidden /><RatingValue value={rating} /></span>}
+                label={<><CountValue value={reviewCount} /> {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}</>}
+              />
+            )}
+          </div>
+        )}
+        <div className={cn('min-w-0 flex-1', storefront && 'max-sm:col-span-2')}>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* On the storefront this IS the page's main heading (the listing title owns
                 the PDP's <h1>), so it must be an <h1> and read as a title, not 14px body —
@@ -165,8 +250,12 @@ export function SellerCard({
                 is exactly one — this one. */}
             {/* Two lines, then clamped, with the full name on hover (break-ui, 2026-10-05): `truncate`
                 left a 120-character shop name (updateSeller's cap) unreadable anywhere on its own page. */}
+            {/* On a storefront's phone the h2 role, whole (S1, above: 22/28 bold, the rental sheet's phone H1 too): `.h-title` is
+                unlayered, so a plain utility loses to it and its own 1.22 line height would ride any size it is given (24/29.3);
+                the role is applied `!important` below sm, which a layered declaration needs to beat an unlayered one. From sm the
+                title tier as before. */}
             {variant === 'storefront' ? (
-              <h1 title={seller.name} className="h-title line-clamp-2 text-foreground [overflow-wrap:anywhere]">{seller.name}</h1>
+              <h1 title={seller.name} className="h-title line-clamp-2 text-foreground [overflow-wrap:anywhere] max-sm:text-t-h2!">{seller.name}</h1>
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
@@ -237,7 +326,7 @@ export function SellerCard({
             )}
           </div>
           {strip.length > 0 && (
-            <div className="mt-1 overflow-x-clip">
+            <div className={cn('mt-1 overflow-x-clip', storefront && !phoneFacts && 'max-sm:hidden')}>
               {/* overflow-x-clip, not overflow-hidden: only the side edge has to cut the dots; the links' focus rings and
                   tap-44 areas above and below stay whole (2026-11-06 review). */}
               {/* 2026-11-06 audit: no wrapped line starts on a separator ("· 4,728 listings on eno.vn" on a phone). Every item
@@ -245,9 +334,10 @@ export function SellerCard({
                   first item of EVERY line — not only the first line — has its dot cut off at the edge. */}
               {/* 2026-11-07 audit: 14px in body ink from lg, as the PDP's shop row (pdp-shop-link.tsx): at 12px in the quietest grey
                   the storefront's activity and listing count read as fine print beside a desktop's title-size name. */}
-              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body">
-                {strip.map((node, i) => (
-                  <span key={i} className="inline-flex items-center gap-1.5">
+              {/* A storefront's phone: the one facts line at 14/20, its stat leaves in the cells above (S1). */}
+              <div className={cn('-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body', storefront && 'max-sm:min-h-5 max-sm:text-sm')}>
+                {strip.map(({ node, stat }, i) => (
+                  <span key={i} className={cn('inline-flex items-center gap-1.5', storefront && stat && 'max-sm:hidden')}>
                     <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
                     {node}
                   </span>
@@ -258,8 +348,11 @@ export function SellerCard({
         </div>
       </div>
 
-      {(onChat || (variant === 'pdp' && storefrontHref)) && (
-        <div className="flex items-center gap-2">
+      {/* ⛔ A STOREFRONT'S ROW IS [Chat now][Share][⋯] (owner, 2026-11-16 — hub Q21; UI climb r12 cook store-r12c S2, the storefront
+          batch +0.90 / +0.50 over live, blind): Chat and Share an equal pair (STORE_PAIR), then the 44px ⋯ that holds Report and
+          Block (storefront-more-menu.tsx) — `actions`, from the page. It replaces the page's right-hand column (10-06). */}
+      {(onChat || (storefront && actions) || (variant === 'pdp' && storefrontHref)) && (
+        <div data-store-actions={storefront ? '' : undefined} className="flex items-center gap-2">
           {onChat && (
             <Button
               type="button"
@@ -274,14 +367,17 @@ export function SellerCard({
               // button's 0.97 simply wins and there is nothing left to cancel; the class would
               // now genuinely suppress the press feel on this CTA instead of being a no-op.
               //
-              // flex-1 only on the PDP, where it splits the row with "View shop". On the
-              // storefront the button is ALONE — flex-1 stretched it edge to edge (owner
-              // 2026-07-23: "chat button too long"); content width + padding reads right.
-              className={cn('press gap-1.5 py-2.5', variant === 'pdp' ? 'flex-1' : 'px-8')}
+              // flex-1 on the PDP, where it splits the row with "View shop". On the storefront it
+              // was ALONE — flex-1 stretched it edge to edge (owner 2026-07-23: "chat button too
+              // long"); content width + padding read right. (owner, 2026-11-16, Q21) With Share
+              // beside it the two are an equal pair (STORE_PAIR) in the card's max-w-md column;
+              // a storefront card with no `actions` keeps the lone content-width button (STORE_LONE).
+              className={cn('press gap-1.5 py-2.5', variant === 'pdp' ? 'flex-1' : storeMember(!!actions))}
             >
               <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
             </Button>
           )}
+          {storefront && actions}
           {variant === 'pdp' && storefrontHref && (
             <Link
               href={storefrontHref}

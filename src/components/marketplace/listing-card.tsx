@@ -187,6 +187,13 @@ type Props = {
    * size are the shell card's, unchanged.
    */
   look?: 'goods' | 'tile'
+  /**
+   * ⛔ A CARD INSIDE ITS OWN SHOP'S GRID (owner, 2026-11-16 — hub Q21b, UI climb r12 cook store-r12c S5): the storefront's
+   * explorer passes it. No partner shield on the card — not the info line's, not the wide card's photo plate — because the
+   * shop's header says "Official partner" once for every card under it. The name stays announced (the sr-only line), so a
+   * screen reader still hears whose card it is. Every other surface keeps the 11-10 rule (the note at the info line's end).
+   */
+  ownShop?: boolean
   /** False for a card in HTML that lives for weeks (a listing page's shelf): its "x ago" waits for the clock, not a baked claim. ("Just in" is gone since 2026-11-14: card-badges.tsx.) */
   clockInHtml?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
@@ -235,6 +242,7 @@ function ListingCardImpl({
   holdPhoto = false,
   wide = false,
   look,
+  ownShop = false,
   clockInHtml = true,
   sizes = LISTING_CARD_SIZES,
   onLocate,
@@ -556,7 +564,9 @@ function ListingCardImpl({
    * also tells that line to step its own partner mark down below `sm`, so the phone has one.
    */
   const checkApplies = rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true)
-  const photoPartner = wide && listing.seller.officialPartner && !listing.isSponsored
+  // `partnerMark`: the shield is drawn at all — not on a card inside its own shop's grid (`ownShop`, owner 2026-11-16).
+  const partnerMark = listing.seller.officialPartner && !listing.isSponsored && !ownShop
+  const photoPartner = wide && partnerMark
   // The wide card's photo band (build 8): its top-left status and its top-right check in one grid — only when there is a check
   // or a plate to place; otherwise the badge alone, as on every card.
   const photoTop = wide && (photoPartner || checkApplies)
@@ -1830,11 +1840,14 @@ function ListingCardImpl({
               poor grade (A/B against today's tiles: codex 6.87 to 7.04, Fable 7.13 to 7.41). The worded marks stay where
               they were (Official partner, a teacher's Identity verified, the Ad label); the number stays on the listing
               page and the seller's page, which have room to say what it measures (pdp-shop-link, seller-card, /trust).
-              src/lib/linked-seller.ts cardHidesTrust is no longer asked here. */}
+              src/lib/linked-seller.ts cardHidesTrust is no longer asked here.
+              ⛔ …EXCEPT INSIDE THE PARTNER'S OWN SHOP (owner, 2026-11-16 — hub Q21b; it reverses item 4's "the worded marks stay"
+              there only): no shield on a card in its own storefront's grid (`ownShop` → `partnerMark`); the header's says it once.
+              The sr-only name above still announces it. */}
           {/* Below `sm` a wide card's partner mark is the plate on the photo (`photoPartner`). The badge applies `className` to
               its inner plate, not to its role="img" root, so a class there left a 0x0 "Official partner" in the accessibility tree
               beside the plate's (two announcements): the wrapper takes the whole badge out below `sm`, display:contents above. */}
-          {listing.seller.officialPartner && !listing.isSponsored && (photoPartner
+          {partnerMark && (photoPartner
             ? <span className="contents max-sm:hidden"><PartnerBadge asLink={false} className="shrink-0" /></span>
             : <PartnerBadge asLink={false} className="shrink-0" />)}
         </div>

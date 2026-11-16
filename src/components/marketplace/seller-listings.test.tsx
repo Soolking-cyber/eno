@@ -362,6 +362,22 @@ describe('SellerListings on a phone: a sort pill, the Filters chip and the count
     render(<SellerListings listings={PAGE} initialSort="relevance" serverScope={{ params: { excludeSeller: 's1' }, total: 76000, pageSize: 60 }} />)
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(tokens(screen.getByText('Showing 60 of 76,000 listings.'))).not.toContain('max-sm:hidden')
+    expect(tokens(screen.getByText('Showing 60 of 76,000 listings.'))).not.toContain('max-sm:sr-only')
+  })
+
+  it('⛔ `quietCount` (a storefront\'s "More from other sellers", UI climb r12 S7): the same live sentence, sr-only below sm', async () => {
+    const user = userEvent.setup()
+    const more = card('more-1', 1_000)
+    stubFetch(() => ({ listings: [more], total: 76000 }))
+    render(<SellerListings listings={PAGE} initialSort="relevance" quietCount serverScope={{ params: { excludeSeller: 's1' }, total: 76000, pageSize: 60 }} />)
+    const note = screen.getByText('Showing 60 of 76,000 listings.')
+    expect(note.getAttribute('aria-live')).toBe('polite')
+    expect(tokens(note)).toContain('max-sm:sr-only')
+    expect(tokens(note)).not.toContain('max-sm:hidden')
+    // Still announced as Show more grows the grid: the same node, a new sentence.
+    await user.click(screen.getByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(note.textContent).toBe('Showing 61 of 76,000 listings.'))
+    expect(note.isConnected).toBe(true)
   })
 })
 

@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation'
 import { MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+import { cn } from '@/lib/utils'
+import { storeMember } from './store-pair'
 
 /**
  * The storefront's "Chat now", lifted OUT of SellerCard so it can share a row with the
@@ -18,7 +20,11 @@ import { useLanguage } from '@/context/language-context'
  * PDP contact anchor. It stays a client leaf for the same reason that wrapper exists — the
  * storefront itself is a server component and cannot hand down a callback.
  */
-export function StorefrontChatButton({ chatListingId }: { chatListingId: string | null }) {
+export function StorefrontChatButton({ chatListingId, alone = false }: {
+  chatListingId: string | null
+  /** No Share beside it (a shop with no handle has no address to hand out): its own width, never the row's (store-pair.ts). */
+  alone?: boolean
+}) {
   const router = useRouter()
   const { tr } = useLanguage()
   if (!chatListingId) return null
@@ -27,22 +33,14 @@ export function StorefrontChatButton({ chatListingId }: { chatListingId: string 
       variant="cta"
       size="none"
       onClick={() => router.push(`/listings/${chatListingId}#contact`)}
-      // Matches the chip row's rhythm rather than the card's full-width CTA: `rounded-full`
-      // and the chips' vertical padding, so the row reads as one band of controls instead of
-      // a button that wandered in. It stays the only `variant="cta"` on the row, which is what
-      // keeps it obviously primary next to two quiet chips.
-      // ⚠️ `tap-44 relative` IS REQUIRED, AND THE `relative` IS HALF OF IT. Sizing this to the
-      // chip row makes it 28px tall — measured — and 28px is well under the touch minimum for
-      // what is the storefront's PRIMARY action. tap-44 grows the HIT AREA to 44px via an
-      // absolutely-positioned ::before while leaving the visual at chip height.
-      // The `relative` is not decoration: on an UNPOSITIONED element that pseudo-element
-      // resolves against the nearest positioned ANCESTOR instead, so it silently covers a
-      // chunk of the row and starts swallowing taps meant for the chips beside it. That trap
-      // is already recorded in this codebase; ReportButton on this same row carries the pair
-      // for the same reason.
-      className="tap-44 relative gap-1.5 rounded-full px-4 py-1.5 text-xs"
+      // ⛔ SHARE'S EQUAL, 44px (owner, 2026-11-16 — hub Q21; store-pair.ts): the path storefront's row leads with
+      // [Chat now][Share][⋯], as the subdomain storefront's does. It stays the only `variant="cta"` on the row.
+      // (history) 2026-08-11 to 2026-11-16 it matched the chip row's rhythm: `rounded-full`, the chips' 28px with a
+      // `tap-44 relative` hit area — the `relative` because an unpositioned element's ::before resolves against the
+      // nearest positioned ancestor and swallows taps meant for its neighbours. At 44px it needs neither.
+      className={cn('press gap-1.5 py-2.5', storeMember(!alone))}
     >
-      <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+      <MessageCircle className="h-4 w-4" aria-hidden />
       {tr('Chat now', 'Nhắn tin')}
     </Button>
   )

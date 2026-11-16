@@ -93,3 +93,21 @@ describe('ShareButton shape="round"', () => {
     expect(await screen.findByText('Share this listing')).toBeTruthy()
   })
 })
+
+/** `shape="pair"` (owner, 2026-11-16 — hub Q21; store-pair.ts): Chat now's equal on a storefront — or, alone, its own width. */
+describe('ShareButton shape="pair"', () => {
+  it('beside Chat: half the row (flex-1), 44px, its word at every width, its glyph 18px; a long word wraps inside 12px sides', () => {
+    wrap(<ShareButton url={URL_} title="Shop" shape="pair" />)
+    const btn = screen.getByRole('button', { name: 'Share' })
+    expect(btn.className.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-w-0', 'min-h-11', 'px-3', 'whitespace-normal', 'text-center']))
+    expect(btn.querySelector('span')!.className).toBe('')
+    expect(btn.querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
+  })
+
+  it('⛔ alone (no Chat: an affiliate-only partner, the visa desk): its own width, never stretched across the row (review, 2026-11-16)', () => {
+    wrap(<ShareButton url={URL_} title="Shop" shape="pair" alone />)
+    const btn = screen.getByRole('button', { name: 'Share' })
+    expect(btn.className.split(' ')).toEqual(expect.arrayContaining(['min-h-11', 'px-8', 'rounded-xl']))
+    expect(btn.className.split(' ')).not.toContain('flex-1')
+  })
+})

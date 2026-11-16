@@ -12,6 +12,7 @@ import { copyText } from '@/lib/copy-text'
 import { hapticTap } from '@/lib/haptics'
 import { isNativeShell, openExternal } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
+import { storeMember, STORE_QUIET } from './store-pair'
 import { toast } from 'sonner'
 
 // Brand glyphs (single-path, 24² viewBox). Rendered white on a brand-colour chip.
@@ -117,7 +118,7 @@ function useShare(url: string, shareText: string) {
  * 2026-10-18: "also mobile all dropdowns should be bottom up card style like the filter card"),
  * titled with the same heading; the channels, Copy link and More… are unchanged inside it.
  */
-export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing', shape }: {
+export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing', shape, alone = false }: {
   url: string; title: string; price?: number; currency?: string
   /** The stored unit ('VND/hour', 'VND/month'…): a RATE is shared with its period, or "150,000 đ" reads as a flat price. */
   priceUnit?: string | null
@@ -130,8 +131,16 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
   /**
    * 'round' — a 44px white plate on the page ground (1px line-strong ring, ink 20px glyph, the word its name only): the role's
    * line on a linked job's page below md (owner-approved 2026-11-14, cook r06 jobs). Not over media (that is `compact`).
+   * 'pair' — Chat now's equal on a storefront (owner, 2026-11-16 — hub Q21; seller-card.tsx STORE_PAIR): a 44px field-grey
+   * button sharing the row, its 18px ink glyph and its own "Share" word at every width (the labelled pill hides the word
+   * below sm).
    */
-  shape?: 'round'
+  shape?: 'round' | 'pair'
+  /**
+   * `shape="pair"` with no Chat beside it (an affiliate-only partner, the visa desk — owner, 2026-08-24): the same 44px box at
+   * its own width, never stretched across the row (store-pair.ts STORE_LONE, review 2026-11-16).
+   */
+  alone?: boolean
 }) {
   const { lang, tr } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -209,12 +218,16 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
               aria-label={label ?? tr('Share', 'Chia sẻ')}
               className={cn(
                 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-[0.96] tap-44 relative',
-                open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
+                // The pair (`shape`): its own fill in every state, never the pill's accent-when-open (no blue beside the blue CTA).
+                shape === 'pair'
+                  ? cn(storeMember(!alone), STORE_QUIET, 'icon-own-ink font-bold', open && 'bg-secondary')
+                  : open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
                 className,
               )}
             >
-              <Share2 className="h-4 w-4" />
-              <span className={label ? undefined : 'hidden sm:inline'}>{label ?? tr('Share', 'Chia sẻ')}</span>
+              {/* The pair's glyph is 18px, as the mock's (cook store-r12c S2); the pill keeps 16. */}
+              <Share2 className={shape === 'pair' ? 'size-4.5' : 'h-4 w-4'} />
+              <span className={label || shape === 'pair' ? undefined : 'hidden sm:inline'}>{label ?? tr('Share', 'Chia sẻ')}</span>
             </Button>
           )
         }

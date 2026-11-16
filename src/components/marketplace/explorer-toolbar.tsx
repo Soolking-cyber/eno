@@ -307,6 +307,9 @@ export function SortStrip({
    * `sm` only it is OPAQUE: the page's white, no blur (it reverses, there, the frosted in-flow bar) — a grid passing under it
    * must not show through; and IT STAYS PINNED (owner-approved 2026-11-15 (build 8), cook r08 goods — the explorer passes
    * `stayPinned` with it; the note there). From `sm`, and on every other feed, the strip is exactly as below.
+   * ⛔ A SHOP'S STRIP (/s/[handle], the explorer with `sellerId`) passes it too (owner, 2026-11-16, hub Q15 "filled strips on
+   * feeds and shops" — the storefront batch, cook store-r12c S3): opaque on a phone, WITHOUT `stayPinned` — it leaves with the
+   * header as below.
    * ⛔ WHAT WAS THE GOODS STRIP'S ALONE IS EVERY PHONE STRIP'S NOW (owner, 2026-11-16, hub Q15: "one chip look … filled strips on
    * the feeds"; cook r12 R2, rentals +0.34/+0.37 with R1). It reverses, below `sm` on every feed, r05's white + hairline pills
    * (2026-11-14) and the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'"; build 8 (2026-11-15) had done it for

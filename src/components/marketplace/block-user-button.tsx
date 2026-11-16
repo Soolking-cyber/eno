@@ -23,6 +23,16 @@ import { hiddenSellersOwner, hideSellerNow, syncHiddenSellers } from '@/lib/hidd
 import { cn } from '@/lib/utils'
 
 /**
+ * Whether Block is offered here at all: the `ugc-safety` gate is on, there is a thread or a shop to name, and it is not the
+ * viewer's OWN shop or listing (the server would only answer cannot_block_self). BlockUserButton renders nothing otherwise, and
+ * a caller drawing its own way in (the storefront's ⋯ menu) asks the same question so it never offers a Block that cannot run.
+ */
+export function useCanBlock({ conversationId, sellerId }: { conversationId?: string; sellerId?: string }): boolean {
+  const { sellerId: ownSellerId } = useAuth()
+  return appReviewGate('ugc-safety') && (!!conversationId || !!sellerId) && !(!!sellerId && sellerId === ownSellerId)
+}
+
+/**
  * "Block" — the sibling of <ReportButton> wherever Report stands on someone else's content: the chat header, every
  * storefront and every listing page (App Store Guideline 1.2, plan R3). Renders NOTHING unless the `ugc-safety` review
  * gate is on (src/lib/app-review-gates.ts).
@@ -37,8 +47,10 @@ import { cn } from '@/lib/utils'
  *
  * Styled as Report's quiet sibling: the same flush pill, in the muted ink rather than the red, so the
  * two read as a pair without Block shouting as loudly as a report.
+ * ⛔ ON A STOREFRONT THE PAIR IS IN THE ⋯ MENU (owner, 2026-11-16 — hub Q21): storefront-more-menu.tsx opens this same
+ * confirmation through `open` / `onOpenChange`, one tap from the shop page. Listing pages and the chat keep the pill.
  */
-export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly = false, name, className, onBlocked }: {
+export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly = false, name, className, onBlocked, open: openProp, onOpenChange }: {
   conversationId?: string
   sellerId?: string
   /** The listing page this was tapped on (with `sellerId`) — the moderator note names it. */
@@ -53,14 +65,24 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
   name?: string | null
   className?: string
   onBlocked?: () => void
+  /**
+   * CONTROLLED, TRIGGERLESS MODE — the confirmation with no pill of its own, opened by a caller's control: the storefront's ⋯
+   * menu (storefront-more-menu.tsx, owner 2026-11-16 — hub Q21). The same dialog, words and request as the pill. Like
+   * ReportButton's pair, ALL-OR-NOTHING: the pill is dropped only when both are passed. The caller asks `useCanBlock` first.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const { tr } = useLanguage()
-  const { openSignIn, user, sellerId: ownSellerId } = useAuth()
-  const [open, setOpen] = useState(false)
+  const { openSignIn, user } = useAuth()
+  const canBlock = useCanBlock({ conversationId, sellerId })
+  const controlled = openProp !== undefined && onOpenChange !== undefined
+  const [openState, setOpenState] = useState(false)
+  const open = controlled ? openProp : openState
+  const setOpen = controlled ? onOpenChange : setOpenState
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // Not on the viewer's OWN shop or listing — the server would only answer cannot_block_self.
-  if (!appReviewGate('ugc-safety') || (!conversationId && !sellerId) || (!!sellerId && sellerId === ownSellerId)) return null
+  if (!canBlock) return null
 
   const run = async () => {
     const uid = user?.id ?? null
@@ -112,6 +134,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
 
   return (
     <AlertDialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) setError('') }}>
+      {!controlled && (
       <AlertDialogTrigger
         render={
           <Button
@@ -127,6 +150,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
       >
         <Ban className="h-3.5 w-3.5" /> {tr('Block', 'Chặn')}
       </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">

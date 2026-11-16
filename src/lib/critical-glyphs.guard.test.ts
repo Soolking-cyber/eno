@@ -99,6 +99,9 @@ const ON_ARRIVAL = [
   // of every non-teacher listing page and storefront, so a deferred glyph in either pulls the whole deferred file there.
   'src/components/marketplace/block-user-button.tsx',
   'src/components/marketplace/blocked-seller-notice.tsx',
+  // UI climb r12 (owner, 2026-11-16 — hub Q21): the storefront's ⋯ holding Report and Block is in the server HTML of every
+  // storefront on the canonical host — its MoreHorizontal trigger, and the Flag and Ban of its rows.
+  'src/components/marketplace/storefront-more-menu.tsx',
 ]
 
 function iconImports(file: string): string[] {

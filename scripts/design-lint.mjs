@@ -818,10 +818,11 @@ const RATCHETS = {
    * ⚠️ 967 → 968 (2026-11-16), THE ONE RISE, AND IT IS AN OWNER RULING, NOT DRIFT: the tab bar's labels (mobile-nav.tsx
    * TabFace, `text-2xs leading-4`, 11/16 — one site for all five tabs, Post's too) — owner, hub Q12 ("yes if they are related
    * to visual change"), approved on the cook r11 stills at that size; a tab label under its glyph is the one native slot set
-   * under 13 (iOS 10pt, Material 12sp). Every other site still only falls.
+   * under 13 (iOS 10pt, Material 12sp). Every other site still only falls: 966 the same day, the storefront's stat header and
+   * avatar initials (round 12) moving onto the scale.
    */
   'sub13Type': {
-    baseline: 968,
+    baseline: 966,
     what: 'a sub-13px type step (text-xs / text-2xs / text-3xs) outside admin',
     fix: 'use the meta role, text-t-meta (13/18), or a larger step — docs/design-language.md §1',
   },

@@ -2,6 +2,7 @@
 
 import { HELD_FROM_CARD, HELD_FROM_WIDE } from '@/lib/image-hold'
 import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
+import { extendSpread, resumeSpread, shrinkSpread, spreadTwins } from '@/lib/spread-twins'
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
@@ -189,6 +190,11 @@ type FeedSnap = {
   unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null
   /** A history-entry snapshot (this map), as opposed to the card tap's — applied now or dropped, never kept waiting. */
   fromHistory?: boolean
+  /**
+   * A shop's twin spread (S4): the ids in the order the grid DREW them, so Back restores that order exactly (`resumeSpread`)
+   * instead of laying the rows out afresh. Absent where nothing was spread.
+   */
+  drawn?: string[]
 }
 const entrySnaps = new Map<string, FeedSnap>()
 const ENTRY_SNAP_CAP = 20
@@ -606,6 +612,13 @@ type Props = {
    * a shop's own storefront "show me everything" means everything THEY sell.
    */
   sellerId?: string
+  /**
+   * A storefront's request named a search, filter or view (`readExplorerUrl(…).directed`, read by the page on the server —
+   * a storefront renders per request). The first frame is the unfiltered shop either way (`urlInit`'s note), so this is what
+   * tells it the URL will direct the feed once read: the phone's results row is then drawn from the first paint instead of
+   * appearing under the strip after hydration (UI climb r12 S3 — the `#results` row's note).
+   */
+  serverDirected?: boolean
   // Server render timestamp of initialListings (Date.now() in the RSC). The homepage is 6h-ISR:
   // stamping the seed with CLIENT Date.now() marked hours-old snapshot data as fresh (within the
   // 30s staleTime), so React Query never revalidated it. With the true age, a stale snapshot
@@ -655,7 +668,7 @@ const NO_BARS_HIDDEN = () => false
  * flip) and ViewToggles' Map leaves for the ink pill over the tab bar. The state lives HERE, so the explorer never re-renders
  * for it. Below sm the box is `display: contents`, so nothing in the results line moves: the other toggles stay hidden as before.
  */
-function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle = false, floatMapAfter, barsHidden }: {
+function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle = false, className, floatMapAfter, barsHidden }: {
   viewMode: ViewMode
   onViewMode: (m: ViewMode) => void
   showMap: boolean
@@ -663,6 +676,8 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   /** The goods search's control row (`oneRow`, phone only — the title line's until build 7): the ONE view pick as a 36px circle
    *  (ViewSwitch `variant`), and no desktop toggles — that row exists below `sm` alone. */
   circle?: boolean
+  /** The circle's wrapper: `sm:hidden` on a storefront, whose strip draws it at every width (the storefront's phone row). */
+  className?: string
   /** The rentals feed's results line (the note above): past it, the phone's Map toggle floats. ⛔ With `circle` too since the
    *  rentals feed opens on the one control row (owner, 2026-11-16, hub Q17 — listings-explorer `catRow`): the circle is the
    *  pick, and the floated Map (build 8, owner-approved 2026-11-15) keeps its host beside it, every other toggle `max-sm:hidden`. */
@@ -697,7 +712,7 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   if (circle) {
     return (
       <>
-        <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" />
+        <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} variant="circle" className={className} />
         {/* The floated Map's host (`floatMapAfter`): `max-sm:contents`, its toggles all `max-sm:hidden` until the Map one floats
             out, fixed, over the tab bar — so it adds nothing to the row. The circle only exists below `sm`. */}
         {floatMap && (
@@ -746,6 +761,7 @@ export function ListingsExplorer({
   initialCategoryRails,
   listingsRef,
   sellerId,
+  serverDirected = false,
   siteHeading = !sellerId,
 }: Props) {
   // Tell the header an explorer is here to receive its search/area/map events (explorer-presence.ts).
@@ -1164,6 +1180,37 @@ export function ListingsExplorer({
       ? shownListings
       : deferredListings
   /**
+   * ⛔ A SHOP'S DEFAULT ORDER SPREADS ITS IDENTICAL TWINS (UI climb r12, cook store-r12c S4: the storefront batch measured +0.90 /
+   * +0.50 over live, blind) — src/lib/spread-twins.ts: a REORDER of these rows, never a filter. A storefront (`sellerId`) in its
+   * default order ('newest', "Relevance") only: any order the reader picks is theirs, and the marketplace feed already
+   * interleaves sellers (diversifyBySeller).
+   * ⛔ A DRAWN CARD NEVER MOVES (review, 2026-11-16): the order is REMEMBERED here (`twinRun.drawn`) and only EXTENDED when a page
+   * appends — the cards on screen keep their places and the new rows are spread among themselves, after them (`extendSpread`).
+   * Fixed 12-row blocks re-laid a card already on screen whenever a deduped page left the drawn count off a multiple of 12.
+   * ⚠️ DECIDED ONCE PER DRAWN SET, not off `sort`: a sort tap keeps the old rows on screen (dimmed) until its answer lands, and
+   * reading `sort` would re-lay those stale rows the moment it was tapped. The set's identity is what changes when rows land.
+   * ⛔ BACK PUTS BACK THE ORDER DRAWN (review, 2026-11-16): both snapshots save it (`FeedSnap.drawn`, ids) and the restore hands
+   * it back here (`resumeSpread`) with the rows — a fresh layout of rows that arrived page by page can differ from the order
+   * drawn, and the cards round the one the reader came back to would stand in another order.
+   */
+  const spreadOn = !!sellerId && sort === 'newest'
+  const [twinRun, setTwinRun] = useState(() => ({ rows: gridListings, on: spreadOn, drawn: spreadOn ? spreadTwins(gridListings) : gridListings }))
+  // Only a storefront keeps this state — in every order, so a tap back to the default order finds the rows on screen already
+  // tracked and never re-lays them (decided per drawn set, above). Every other feed draws its rows as they come, with no
+  // render-phase update (commit gate: an extra urgent render on every append of the home feed).
+  const twinTracked = !!sellerId
+  let drawnRows = twinTracked ? twinRun.drawn : gridListings
+  if (twinTracked && twinRun.rows !== gridListings) {
+    const prevRun = spreadOn && twinRun.on ? { source: twinRun.rows, drawn: twinRun.drawn } : null
+    // A frame a page behind (a deferred render after a restore): the drawn order, shorter, and the state kept (shrinkSpread).
+    const shrunk = shrinkSpread(prevRun, gridListings)
+    if (shrunk) drawnRows = shrunk
+    else {
+      drawnRows = spreadOn ? extendSpread(prevRun, gridListings) : gridListings
+      setTwinRun({ rows: gridListings, on: spreadOn, drawn: drawnRows })
+    }
+  }
+  /**
    * ⛔ JOBS READ AS ROWS ON A PHONE (owner, 2026-11-10: "1-6 1 by one go", item 2 of the decision scorecard). A job has no
    * photo: its card is a square poster of words the title repeats, two to a row, four jobs to a screen. The list row (which
    * b54 taught to read like a job ad: employer, role, place, age, type) shows eight. Blind A/B on this feed: codex 6.65 to
@@ -1399,6 +1446,18 @@ export function ListingsExplorer({
   // with nothing to click and no error. Reading showDiscovery instead means opening a takeover
   // view counts as directing the feed, which is what it is.
   const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
+  /**
+   * A storefront's phone results row is sr-only while the shop is undirected (UI climb r12 S3, the `#results` row's note). A
+   * COLD directed link (`serverDirected`: `?q=`, `?category=`, `?view=map` …) still paints its first frame undirected — the URL
+   * is read after hydration — so without this the row shipped sr-only and then dropped in under the strip, moving the grid
+   * (review, 2026-11-16). Held drawn from the first frame until the explorer has read the URL (`showDiscovery` false once);
+   * after that the row follows `showDiscovery` alone.
+   * ⛔ …AND RELEASED ONCE THE URL HAS BEEN READ, WHATEVER IT SET (review, 2026-11-16): a link the server calls directed can
+   * direct nothing here — a cold `?province=999` names no province the explorer knows, sets no area, and `showDiscovery`
+   * never went false, so the hold stuck and the undirected shop drew the row for good. Released beside `urlApplied` (below),
+   * which lands in the same render as the URL's own state.
+   */
+  const [storeRowHold, setStoreRowHold] = useState(() => !!sellerId && serverDirected)
 
   /**
    * ⛔ ON A PHONE, A DIRECTED FEED FOLDS ITS CATEGORY LADDER INTO ONE ROW (owner decision, mobile audit
@@ -1459,6 +1518,7 @@ export function ListingsExplorer({
    */
   const [seedMasked, setSeedMasked] = useState(false)
   const [urlApplied, setUrlApplied] = useState(urlInit !== null)
+  if (storeRowHold && (!showDiscovery || urlApplied)) setStoreRowHold(false)
   const ladderSig = JSON.stringify([
     activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince?.code ?? null,
     activeWard?.code ?? null, nearby ? 1 : 0, conditionFilter, goodPriceOnly, listingType, query, priceRange, customFilters, viewMode,
@@ -3288,6 +3348,10 @@ export function ListingsExplorer({
         anchorTop: typeof snap.anchorTop === 'number' ? snap.anchorTop : 0,
       }
       setListings(snap.listings)
+      // A shop's twin spread comes back in the order it was DRAWN (`twinRun`'s note): these very rows are what the grid reads
+      // next (`restoring`), so the order is handed over with them. No saved order (or one that does not fit) → laid out as before.
+      const resumed = spreadOn ? resumeSpread(snap.listings, snap.drawn) : null
+      if (resumed) setTwinRun({ rows: snap.listings, on: true, drawn: resumed })
       // The grid renders these rows in THIS commit, not a deferred one later — see `restoring`.
       setRestoring(true)
       setRestoreSettled(false)
@@ -3819,14 +3883,14 @@ export function ListingsExplorer({
    * (the sentinel's setPage, then the append's setListings), and every memoized card re-rendered twice per page, in urgent
    * renders that are not time-sliced (Android scroll audit 2026-10-29, rank 4; listings-explorer.feed-ux.test.tsx).
    */
-  const tapSnapRef = useRef({ listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling })
+  const tapSnapRef = useRef({ listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, drawnRows, twinOn: twinRun.on })
   useLayoutEffect(() => {
-    tapSnapRef.current = { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling }
+    tapSnapRef.current = { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, drawnRows, twinOn: twinRun.on }
   })
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
   const handleOpen = useCallback((l: SerializedListingCard, opts?: { anchored?: boolean }) => {
-    const { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling } = tapSnapRef.current
+    const { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, drawnRows, twinOn } = tapSnapRef.current
     // Snapshot the feed so a back-nav lands the buyer exactly where they left off
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
@@ -3857,6 +3921,8 @@ export function ListingsExplorer({
           // can hold it (feed-restore.ts runRestore). Every other caller is unchanged.
           anchorId: opts?.anchored === false ? null : l.id,
           anchorTop: card ? card.getBoundingClientRect().top : null,
+          // A shop's twin spread: the order the grid drew (`twinRun`), restored exactly (`resumeSpread`).
+          drawn: twinOn ? drawnRows.map((r) => r.id) : undefined,
         }))
         // A snapshot now waits for this entry: hold the browser's own scroll restoration off it, or on
         // Back it clamps the old offset against the short document and shows the FOOTER first
@@ -3893,6 +3959,7 @@ export function ListingsExplorer({
       return {
         sig: feedSig, rowsSig: rowsSigRef.current, listings: [...listings], page, totalCount, scrollY: window.scrollY,
         ts: Date.now(), unlocked: feedUnlocked, ceiling: autoLoadCeiling, anchorId, anchorTop,
+        drawn: twinRun.on ? drawnRows.map((r) => r.id) : undefined,
       }
     }
   })
@@ -4973,7 +5040,9 @@ export function ListingsExplorer({
     // footer still cannot rise into the first screen.
     // ⛔ `max-sm:pb-0` on the goods phone page (`goodsLook`, owner-approved 2026-11-14, cook r06 goods): the shell's page end (main's
     // 24px above the footer) closes it, with no band of this section's own before it.
-    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh max-sm:min-h-[calc(100svh-4.5rem)]', goodsLook && 'max-sm:pb-0')}>
+    // ⛔ A storefront's phone section ends on its last row too (UI climb r12, cook store-r12c S7): the page's "More from other sellers"
+    // carries the 24px over its hairline (s/[handle]/page.tsx), so the shop's 2 cards are no longer 92px above it.
+    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh max-sm:min-h-[calc(100svh-4.5rem)]', (goodsLook || sellerId) && 'max-sm:pb-0')}>
       <TeacherFlagsReader onChange={setTeacherFlags} />
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
@@ -5388,14 +5457,21 @@ export function ListingsExplorer({
             stayPinned={rentalsWide || goodsLook}
             // ⛔ The goods search's phone strip (owner-approved 2026-11-14, cook r06 goods — `goodsLook`): opaque, no rule until it is
             // pinned (build 8), filled pills, and the sort pill names its order ("Relevance", build 8).
-            look={goodsLook ? 'goods' : undefined}
+            // ⛔ …and a storefront's (owner, 2026-11-16 — hub Q15, UI climb r12 cook store-r12c S3: "the strip in the filled grey look
+            // with the sort pill naming its order"). Not `stayPinned`: that was not asked for a shop, so its strip still leaves with
+            // the header (the 08-12 rule).
+            look={goodsLook || sellerId ? 'goods' : undefined}
             // …and with no category picked (`oneRow`) the view circle and the ladder's way in open the row: [▦] "All categories ⌄"
             // (ViewSwitch `circle`, ScopeChip — the view pick left the title line in build 7, owner-approved 2026-11-15, cook r07
             // goods). Until then their invisible places, which only a cold no-category search link's first frame shows
             // (ViewPickReserve, ScopeChipReserve).
             // ⛔ A category feed (`catRow`, owner 2026-11-16, hub Q17) opens the row the same way, its chip naming the category; on
             // the rentals feed's one-column grid the circle's host also keeps build 8's floating Map (ViewChoices `floatMapAfter`).
-            phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle floatMapAfter={rentalsWide ? resultsRowRef : undefined} barsHidden={rentalsWide ? headerHiddenSignal : undefined} /> : sellerId ? undefined : <ViewPickReserve />}
+            // ⛔ …and on a storefront's phone the view circle opens the row too (UI climb r12, cook store-r12c S3: the storefront
+            // batch +0.90 / +0.50 over live, blind): the same select, moved out of the results row (which a phone no longer draws on
+            // an undirected storefront, below). Every width gets it in the server HTML and a class keeps it to phones, as the row's
+            // other phone-only pills do. Its look is the goods circle, filled like every pill of the shop's strip (`look`, above).
+            phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle floatMapAfter={rentalsWide ? resultsRowRef : undefined} barsHidden={rentalsWide ? headerHiddenSignal : undefined} /> : sellerId ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle className="sm:hidden" /> : <ViewPickReserve />}
             phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} label={scopeLabel} /> : sellerId ? undefined : <ScopeChipReserve />}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
@@ -5573,7 +5649,14 @@ export function ListingsExplorer({
               search, no view pick, no chips (they lead the strip, `chipsInStrip`) and a category path in words, not buttons (the
               `crumbs` below), so nothing focusable sits in a row nobody sees. `data-results-hidden`: the cold-link reserve
               (globals.css) skips it. */}
-          <div ref={resultsRowRef} id="results" tabIndex={-1} data-home-row={showDiscovery ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', oneRow && 'max-sm:sr-only')}>
+          {/* ⛔ …AND AN UNDIRECTED STOREFRONT ON A PHONE (`sellerId` + `showDiscovery`; UI climb r12, cook store-r12c S3): the "All listings
+              · 5,379 listings" row goes the same way — sr-only, the same element, its h2 and its live count kept, no view pick in it (the
+              circle leads the strip, above). The shop's count is the header's own stat (seller-card.tsx). A search or filter inside
+              the shop brings the row back: its count and path answer what the reader asked — and a cold link that already names one
+              draws it from the first frame (`storeRowHold`), so it never drops in after hydration — in the directed row's flex shape,
+              not the undirected home's grid (`data-home-row`, globals.css), which would re-lay it on the answer. From sm nothing
+              changes. */}
+          <div ref={resultsRowRef} id="results" tabIndex={-1} data-home-row={showDiscovery && !storeRowHold ? '' : undefined} data-results-hidden={oneRow || undefined} className={cn(SECTION_HEADER_ROW, 'scroll-mt-40 select-none max-sm:flex-wrap max-sm:gap-y-1.5 sm:scroll-mt-32', (oneRow || (sellerId && showDiscovery && !storeRowHold)) && 'max-sm:sr-only')}>
             {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
                 nested — heading and line inside one `flex-1` box — and a nested child cannot
                 reorder past its parent's SIBLING, so the line could never get below the toggles.
@@ -5719,7 +5802,8 @@ export function ListingsExplorer({
             {/* ⛔ Not on the goods search's phone (`oneRow`): its Save search ends the title line and its view pick leads the control
                 row (build 7). */}
             {!oneRow && (
-            <div data-view-cluster="" className={cn('order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto', chipsInStrip && 'max-sm:order-5')}>
+            // A storefront's phone picks its view in the strip (S3, `phoneView` above): this cluster's phone pill is not drawn there.
+            <div data-view-cluster="" className={cn('order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto', chipsInStrip && 'max-sm:order-5', sellerId && 'max-sm:hidden')}>
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
                   SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
                   levels because the breadcrumb beside it already names them — printing "Honda"
@@ -5908,8 +5992,10 @@ export function ListingsExplorer({
                    every phone height — it is not fitted to any screen's fold.
                    The guest capture row is a field panel there (CaptureCard `panel`): one calm row on the 12px gutter (its own
                    8px margin), so the grid's 8px padding-back onto the gutter skips it (`:not([data-capture-panel])`). */
-                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : goodsGrid ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-10')}>
-                  {gridListings.map((l, index) => (
+                /* A storefront's guest row is the same calm panel (UI climb r12, cook store-r12c S6), so its padding-back skips it too. */
+                /* `drawnRows`: `gridListings`, its identical twins spread on a storefront's default order (S4, beside `gridListings`). */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : (goodsGrid || sellerId) ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-10')}>
+                  {drawnRows.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
                           effect realigns this exact element, which is what makes "put me
@@ -5985,7 +6071,9 @@ export function ListingsExplorer({
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && (showHomeLanes && phoneTrendingSeeded ? SM_UP_MEDIA : true)} holdPhoto={index >= (rentalsWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} onLocate={locateListing} wide={rentalsWide} sizes={rentalsWide ? WIDE_CARD_SIZES : undefined} look={goodsGrid ? 'goods' : undefined} />
+                        {/* `ownShop`: a shop's own grid, so no partner shield on its cards — the header carries it once (owner,
+                            2026-11-16, hub Q21b; listing-card.tsx). The same in the map and list views below. */}
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && (showHomeLanes && phoneTrendingSeeded ? SM_UP_MEDIA : true)} holdPhoto={index >= (rentalsWide ? HELD_FROM_WIDE : HELD_FROM_CARD)} onLocate={locateListing} wide={rentalsWide} sizes={rentalsWide ? WIDE_CARD_SIZES : undefined} look={goodsGrid ? 'goods' : undefined} ownShop={!!sellerId} />
                       </div>
                       {/* ⛔ NO PARTNER ROW IN THE GRID SINCE 2026-11-14 (owner-approved, cook r04 home-b): the phone's partner band,
                           a full-width row after the fourth card from 2026-11-10, is the Partners lane among the phone's lanes
@@ -6013,7 +6101,9 @@ export function ListingsExplorer({
                       )}
                       {/* `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a): one line, the house button.
                           `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods): one field panel. */}
-                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid} />}
+                      {/* ⛔ …and on a storefront's phone (UI climb r12, cook store-r12c S6): the approved calm row of /?category=electronics,
+                          in place of the stacked card with its three bullets and two hairlines between a shop's own cards. */}
+                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}
                       {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
                           1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
                           "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
@@ -6024,7 +6114,7 @@ export function ListingsExplorer({
                           the capture row, not before it, so `[data-teacher-shelf] + …` still lands on that row — signed
                           in, on this heading, where `border-top-width: 0` changes nothing. Never in the server HTML: the
                           seed is exactly one page. */}
-                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && index < gridListings.length - 1 && (
+                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && index < drawnRows.length - 1 && (
                         <h2 className="sr-only">{homeFeedHeading}</h2>
                       )}
                     </Fragment>
@@ -6185,7 +6275,7 @@ export function ListingsExplorer({
                       >
                         {/* MAP_CARD_SIZES: this list is one full-width column below lg, so the grid's
                             half-width default under-resolved every phone photo here. */}
-                        <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} sizes={MAP_CARD_SIZES} />
+                        <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} sizes={MAP_CARD_SIZES} ownShop={!!sellerId} />
                       </div>
                     ))}
                     {/* The list's infinite-scroll sentinel — observed against the WINDOW since E-MAP (the
@@ -6282,7 +6372,7 @@ export function ListingsExplorer({
                    skeleton (compact-listing-row-skeleton.tsx) — a replacement needs the same
                    pair or the column collapses and rebounds while the chunk arrives. */
                 <div data-feed-restoring={restoring || undefined} className={cn(COMPACT_LIST_GRID, jobsOnScreen && JOB_ROWS_RULED)}>
-                  {gridListings.map((l, index) => (
+                  {drawnRows.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore anchor (see the grid above). */}
                       <div data-feed-card={l.id} data-sid={l.sellerId}>
@@ -6292,6 +6382,7 @@ export function ListingsExplorer({
                           onOpen={handleOpen}
                           onPrefetch={prefetchListing}
                           onLocate={locateOnMap}
+                          ownShop={!!sellerId}
                         />
                       </div>
                       {/* No partner row in the list either (2026-11-14): on a phone the Partners lane above the feed is shown in
@@ -6332,7 +6423,8 @@ export function ListingsExplorer({
                 // ⛔ The goods phone page (`goodsLook`, owner-approved 2026-11-14, cook r06 goods): once nothing more will page in, the
                 // sentinel gives up its 24px top margin (a thin search's "More in …" then sits 24px under the last result, the end of
                 // the grid on the page's own 24 above the footer). Its margin only — it stays mounted, never hidden (landmine).
-                <div ref={loadMoreRef} className={cn('mt-6 select-none', goodsLook && !hasMore && 'max-sm:mt-0', hasMore && !(showDiscovery && !feedUnlocked) && listings.length < autoLoadCeiling && 'min-h-svh')}>
+                // ⛔ …and a storefront's (UI climb r12, cook store-r12c S7) when nothing more pages in and no end line follows (≤ 24).
+                <div ref={loadMoreRef} className={cn('mt-6 select-none', (goodsLook || (sellerId && totalCount <= 24)) && !hasMore && 'max-sm:mt-0', hasMore && !(showDiscovery && !feedUnlocked) && listings.length < autoLoadCeiling && 'min-h-svh')}>
                   {pageWithoutAnswer && queryError && <div className="border-t border-border pt-6">{renderMoreError()}</div>}
                   {/* ⚠️ THE BUTTON AND THE SPINNER ARE MUTUALLY EXCLUSIVE AND BOTH KEY OFF THE SAME
                       CONDITION, or the footer swaps a 44px button for a ~19px spinner and shifts the

@@ -15,18 +15,25 @@ import { CountValue } from './rating-value'
  * attributes: the element's text stays "5,379 listings on eno.vn" for a screen reader and for copy.
  */
 export function PartnerListingCount({ n, layout = 'inline' }: { n: number; layout?: 'inline' | 'lead' }) {
-  const { tr } = useLanguage()
-  const words = n === 1 ? tr('listing on', 'tin đăng trên') : tr('listings on', 'tin đăng trên')
   if (layout === 'lead') {
     return (
       <span data-partner-listing-count className="min-w-0">
-        <span className="font-bold tabular-nums text-foreground"><CountValue value={n} /></span> {words} {SITE_NAME}
+        <span className="font-bold tabular-nums text-foreground"><CountValue value={n} /></span> <PartnerListingWords n={n} />
       </span>
     )
   }
   return (
     <span data-partner-listing-count>
-      <CountValue value={n} /> {words} {SITE_NAME}
+      <CountValue value={n} /> <PartnerListingWords n={n} />
     </span>
   )
+}
+
+/**
+ * The words after the number — 'listings on eno.vn' / 'tin đăng trên eno.vn', the singular for one — for a caller that sets the
+ * number apart from them: the storefront header's stat cell on a phone (seller-card.tsx, UI climb r12 store-r12c S1).
+ */
+export function PartnerListingWords({ n }: { n: number }) {
+  const { tr } = useLanguage()
+  return <>{n === 1 ? tr('listing on', 'tin đăng trên') : tr('listings on', 'tin đăng trên')} {SITE_NAME}</>
 }

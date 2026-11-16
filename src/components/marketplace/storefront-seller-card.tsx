@@ -8,6 +8,8 @@ import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { SellerCard, type SellerCardSeller } from '@/components/marketplace/seller-card'
 import type { SellerMetrics } from '@/lib/seller-metrics'
+import { cn } from '@/lib/utils'
+import { storeMember } from './store-pair'
 
 /**
  * Client boundary for the storefront header. The storefront body is a server
@@ -26,6 +28,8 @@ export function StorefrontSellerCard({
   chatListingId,
   chatOrigin,
   listingCount,
+  actions,
+  presenceDue,
 }: {
   seller: SellerCardSeller
   metrics: SellerMetrics
@@ -38,30 +42,47 @@ export function StorefrontSellerCard({
    */
   chatOrigin?: string
   listingCount?: number
+  /**
+   * The page's own controls after Chat — Share and the ⋯ (SellerCard `actions`, owner 2026-11-16 hub Q21). They lead with Share,
+   * Chat's partner: with them Chat is the pair's half, without them its own width (store-pair.ts `storeMember`).
+   */
+  actions?: React.ReactNode
+  /** Presence will be drawn, decided by the page on the server (SellerCard `presenceDue`). */
+  presenceDue?: boolean
 }) {
   const router = useRouter()
+  const crossHost = !!chatListingId && !!chatOrigin
   const card = (
     <SellerCard
       seller={seller}
       metrics={metrics}
       variant="storefront"
       listingCount={listingCount}
+      presenceDue={presenceDue}
       onChat={chatListingId && !chatOrigin ? () => router.push(`/listings/${chatListingId}#contact`) : undefined}
+      // On the shop's own host the row is drawn below, after the cross-host Chat link.
+      actions={crossHost ? undefined : actions}
     />
   )
-  if (!chatListingId || !chatOrigin) return card
+  if (!crossHost) return card
   return (
-    // The same column and gap SellerCard gives its own CTA row, so the two hosts' headers line up.
-    <div className="flex flex-col gap-3">
+    // The same column and gap SellerCard gives its own CTA row (16px under the identity on a storefront's phone), so the two
+    // hosts' headers line up.
+    <div className="flex flex-col gap-3 max-sm:gap-4">
       {card}
-      <div className="flex items-center gap-2">
+      <div data-store-actions="" className="flex items-stretch gap-2">
         {/* ⚠️ The className sits on the BUTTON, not the <Link>: a class on an asChild child is
-            concatenated, not merged (CLAUDE.md). Same shape as SellerCard's storefront CTA. */}
-        <Button variant="cta" size="none" className="press gap-1.5 px-8 py-2.5" asChild>
-          <Link href={`${chatOrigin.replace(/\/$/, '')}/listings/${chatListingId}#contact`}>
+            concatenated, not merged (CLAUDE.md). Same shape as SellerCard's storefront CTA: with the page's
+            Share beside it, the equal pair (store-pair.ts, owner 2026-11-16 hub Q21).
+            ⛔ ITS LABEL MAY WRAP, ITS 12px SIDES MAY NOT (review, 2026-11-16): "Chat trên eno.vn" is the longest label any of the
+            rows holds — below ~350px it takes two centred lines inside the pair's 12px (STORE_PAIR, measured there), and Share
+            stands as tall beside it (`items-stretch`). This row has no ⋯ (no writes on the shop's own host). */}
+        <Button variant="cta" size="none" className={cn('press gap-1.5 py-2.5', storeMember(!!actions))} asChild>
+          <Link href={`${chatOrigin!.replace(/\/$/, '')}/listings/${chatListingId}#contact`}>
             <MessageCircle className="h-4 w-4" aria-hidden /> <Bilingual en="Chat on {site}" vi="Chat trên {site}" values={{ site: SITE_NAME }} />
           </Link>
         </Button>
+        {actions}
       </div>
     </div>
   )

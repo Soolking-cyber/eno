@@ -167,6 +167,14 @@ export const CRITICAL_GLYPHS = [
    * stroked path (a BARE LINE mark, lucide-solar-map.mjs), the same drawing for both weights.
    */
   'BarePlus',
+  /**
+   * ⛔ ADDED AT BUILD, 2026-11-16 (UI climb r12, the storefront's ⋯ — owner, hub Q21): `MoreHorizontal` is the trigger of the
+   * menu that holds Report and Block (storefront-more-menu.tsx), in the server HTML of every storefront on the canonical host —
+   * the same reason `Ban` joined above, and those storefronts drew nothing else from the deferred file once it had. Not yet
+   * measured on production (the build is not deployed); re-derive after it ships. The menu's Flag and Ban were core already.
+   * The file is in the guard's ON_ARRIVAL list (src/lib/critical-glyphs.guard.test.ts).
+   */
+  'MoreHorizontal',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */

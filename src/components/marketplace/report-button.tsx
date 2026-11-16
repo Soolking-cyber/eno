@@ -186,7 +186,11 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
           (no border, no fill), red flag + label so it's the recognisable red sibling of the
           blue "Safe trading tips" link; colour fills in only on hover. font-semibold + red
           keep it findable without a box. text-destructive passes AA on the bg-destructive/10
-          hover tint (it carries its own dark value — no dark: twin). */}
+          hover tint (it carries its own dark value — no dark: twin).
+          ⛔ NOT ON A STOREFRONT ANY MORE (owner, 2026-11-16 — hub Q21; it reverses the visible red Report there only): the
+          shop page's Report is a red row of its ⋯ menu (storefront-more-menu.tsx), which opens this dialog through
+          `open` / `onOpenChange` — behind the page's one ⋯ tap, the same words and the same request. Listing pages and chat keep
+          this pill. */}
       {!controlled && (
         <Button
           type="button"

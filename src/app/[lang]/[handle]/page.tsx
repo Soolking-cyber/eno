@@ -31,7 +31,11 @@ import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ lang?: string; handle: string }> }
+type Props = {
+  params: Promise<{ lang?: string; handle: string }>
+  /** Handed to the in-place storefront, which reads a directed link off it (s/[handle]/page.tsx `serverDirected`). */
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
 
 // Shared by generateMetadata + the page (one DB round-trip per request). Accepts the
 // bare handle; a leading "@" (legacy links) is tolerated and stripped.
@@ -121,7 +125,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function HandlePage({ params }: Props) {
+export default async function HandlePage({ params, searchParams }: Props) {
   const { handle } = await params
   const decoded = decodeURIComponent(handle)
   // Normalize legacy eno.vn/@name links to the clean eno.vn/name URL.
@@ -182,7 +186,7 @@ export default async function HandlePage({ params }: Props) {
        * brand slug), so a shop that page would 404 keeps the profile-shaped storefront below.
        * The hidden check above still runs first.
        */
-      if (await storefrontByHandle(row.handle)) return <SubdomainStorefront params={Promise.resolve({ handle: row.handle })} />
+      if (await storefrontByHandle(row.handle)) return <SubdomainStorefront params={Promise.resolve({ handle: row.handle })} searchParams={searchParams} />
     }
     return <SellerStorefront id={sellerId} />
   }

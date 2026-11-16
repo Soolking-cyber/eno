@@ -28,8 +28,10 @@
  *   · explorer-toolbar.tsx SortStrip — every ListingsExplorer feed: the home and its searches and category feeds, and a shop's
  *     /s/[handle] grid (the explorer with `sellerId`);
  *   · seller-listings.tsx PinnedStrip — a SellerListings with `pinStrip`: the /c category and /c district pages.
- * ⚠️ NOT FILLED: a SellerListings strip without `pinStrip` — the storefronts (/[handle], /sellers/[id], seller-storefront.tsx)
- * and the vehicle hubs keep the white + hairline pills above. (Q15 on the storefront strips belongs to the storefront batch.)
+ * …and one in flow: a storefront's (/[handle], /sellers/[id] — seller-storefront.tsx passes SellerListings `strip="filled"`, hub
+ *   Q15 "filled strips on feeds and shops"). It neither pins nor sits under #explorer-toolbar, so the rule below does not reach
+ *   it: the same values ride its sort pill (seller-listings.tsx `FILLED_PILL_*`).
+ * ⚠️ NOT FILLED: the vehicle hubs' SellerListings strip (no `pinStrip`, no `strip`) keeps the white + hairline pills above.
  * One globals.css rule reaches every pill a filled strip holds — its own, the facet bar's, the scope chip, the view pick —
  * through the markers below (`pill-rest`, `pill-open`), so no pill component needs to know which strip it is in. Below 40rem
  * only; a chip outside those strips, and every width from sm, is as above.

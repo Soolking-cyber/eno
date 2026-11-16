@@ -55,13 +55,16 @@ export type CompactListingRowProps = {
   clockInHtml?: boolean
   /** The thumbnail never loads eagerly: this list may be the one a wider screen hides, and an eager image loads hidden or not. */
   lazyThumb?: boolean
+  /** A row inside its own shop's list (the storefront explorer): no partner shield — the header says it once (owner, 2026-11-16,
+   *  hub Q21b; ListingCard `ownShop`). The name stays announced, sr-only, in the phone slot. */
+  ownShop?: boolean
 }
 
 // Compact list row (bonbanh-style): thumbnail + title + price/location/trust meta
 // + locate/favorite actions. Memoized — compact is the default view mode, so every
 // row would otherwise re-render on any explorer state change (hover, page, filters).
 // All callbacks passed in are stable useCallback handlers in the explorer.
-export const CompactListingRow = memo(function CompactListingRow({ listing: l, index, onOpen, onPrefetch, onLocate, clockInHtml = false, lazyThumb = false }: CompactListingRowProps) {
+export const CompactListingRow = memo(function CompactListingRow({ listing: l, index, onOpen, onPrefetch, onLocate, clockInHtml = false, lazyThumb = false, ownShop = false }: CompactListingRowProps) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const cover = l.images[0]
@@ -292,7 +295,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* Ad wins over the partner plate when both apply — ListingCard has the note; the PDP and storefront keep it.
               The status is still ANNOUNCED (sr-only, zero width): this row has no other partner line. One slot only. */}
           {l.seller.officialPartner ? (
-            l.isSponsored
+            l.isSponsored || ownShop
               ? <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
               : <PartnerBadge className={cn('relative z-[2] ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
           ) : null}
@@ -373,7 +376,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           )}
           {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}
           {l.seller.officialPartner ? (
-            l.isSponsored ? null : <PartnerBadge className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+            l.isSponsored || ownShop ? null : <PartnerBadge className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           ) : null}
         </div>
         {/* PHONES: where and how fresh, on a line of its own — the facts the desktop meta line carries

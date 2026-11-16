@@ -20,8 +20,8 @@ import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { RichText } from '@/components/marketplace/listing-content'
-import { ReportButton } from '@/components/marketplace/report-button'
-import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { StorefrontMoreMenu } from '@/components/marketplace/storefront-more-menu'
+import { lastSeenBucket } from '@/lib/last-seen'
 import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { isShopOnlyBlock } from '@/lib/user-blocks'
@@ -420,6 +420,11 @@ export async function SellerStorefront({ id }: { id: string }) {
   // statement without depending on having loaded them all — `every` over a capped page would call
   // a mixed seller a pure affiliate partner.
   const isAffiliatePartner = seller._count.listings > 0 && chatListingId === null
+  /**
+   * Is "Chat now" drawn on the row? Only then is Share its equal (store-pair.ts): a lone Chat or a lone Share keeps its own
+   * width, never the row's (review, 2026-11-16 — the owner's 07-23 "chat button too long").
+   */
+  const chatShown = !isVisaDesk && !isAffiliatePartner && !!chatListingId
   // Who a Block here reaches (only the dialog's words depend on it): the shop itself when nobody blockable runs it.
   const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(seller.ownerId) : false
 
@@ -441,7 +446,8 @@ export async function SellerStorefront({ id }: { id: string }) {
             bio, the "report a business" control) sit alongside it. */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-3">
-            <div className="max-w-md">
+            {/* 16px from the identity to the [Chat][Share][⋯] row on a phone, as on /s/[handle] (SellerCard; cook store-r12c S2). */}
+            <div className="max-w-md max-sm:mb-4">
               <StorefrontSellerCard
                 seller={cardSeller}
                 metrics={metrics}
@@ -458,6 +464,8 @@ export async function SellerStorefront({ id }: { id: string }) {
                 // does not take a generic chat, its threads ARE applications.
                 chatListingId={null}
                 listingCount={seller._count.listings}
+                // The phone facts line's reserve, decided here at request time (SellerCard `presenceDue`).
+                presenceDue={lastSeenBucket(metrics.lastSeenDay).key !== null}
               />
             </div>
             {/* ONE LINE: the identity chips and the (rare) Report action share a row instead of
@@ -486,18 +494,32 @@ export async function SellerStorefront({ id }: { id: string }) {
                 (the guard grew the last when "Chat now" moved onto this row), so a handle-less, ownerless shop
                 with nothing to chat about — an imported linked shop, reached at /sellers/<id> — lost "Report this
                 seller" with the rest of the row. Every item on it carries its own condition; with none of them
-                true the row is Report alone, at its end. Block stays on a shop a person runs. */}
+                true the row is the ⋯ alone. Block stays wherever the pill rendered (the ⋯'s `useCanBlock`).
+                ⛔ [Chat now][Share][⋯] LEADS IT (owner, 2026-11-16 — hub Q21, as the subdomain storefront's row: store-pair.ts):
+                Chat and Share an equal pair in the card's max-w-md, the ⋯ holding Report and Block — one tap from the
+                page, the same dialogs and words (storefront-more-menu.tsx). It reverses here "Report rides the END of this line"
+                and the 07-08 visible red Report; the chips follow the pair, beside it where they fit. */}
             <div className="flex flex-wrap items-center gap-2">
               {/* One line, mobile and desktop (owner, 2026-08-11). `flex-wrap` is deliberate
                   and is NOT a second row in disguise: at 320px the chips + CTA + Report cannot
                   fit, and forcing them to would either overflow the viewport or shrink the
                   primary action below a 44px target. Wrapping degrades to two lines only where
-                  one is physically impossible; everywhere else it is the single row asked for. */}
-              {!isVisaDesk && !isAffiliatePartner && <StorefrontChatButton chatListingId={chatListingId} />}
+                  one is physically impossible; everywhere else it is the single row asked for.
+                  (2026-11-16) The pair takes a phone's whole width, so a chip wraps under it there. ⚠️ `w-full max-w-md` is RIGHT at every
+                  width: a wrapping row breaks its lines on the item's size clamped by max-width (448px), so from sm the chips sit
+                  beside it where they fit; a content-width wrapper wrapped Chat and Share's words instead (flex-1, basis 0). */}
+              <div data-store-actions="" className="flex w-full max-w-md items-center gap-2">
+                {/* The pair only when both are drawn (`chatShown`, a handle for Share): alone, each keeps its own width. */}
+                {chatShown && <StorefrontChatButton chatListingId={chatListingId} alone={!shareUrl} />}
+                {/* Share hands out the SUBDOMAIN (owner, 2026-09-13: "when user selects to share storefront
+                    use slug like vietkite.eno.vn or vietkite.eno.forum") — this edition's own domain. */}
+                {shareUrl && <ShareButton url={shareUrl} title={seller.name} shape="pair" alone={!chatShown} />}
+                {/* Report and Block (App Store gate `ugc-safety` for Block) — on EVERY shop: one nobody blockable runs
+                    (imported, partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts). Apple's 2026-10-28
+                    rejection was exactly that storefront with Report and no Block. */}
+                <StorefrontMoreMenu sellerId={seller.id} shopOnly={blockShopOnly} name={seller.name} />
+              </div>
               {seller.handle && <HandleChip handle={seller.handle.handle} />}
-              {/* Share hands out the SUBDOMAIN (owner, 2026-09-13: "when user selects to share storefront
-                  use slug like vietkite.eno.vn or vietkite.eno.forum") — this edition's own domain. */}
-              {shareUrl && <ShareButton url={shareUrl} title={seller.name} compact />}
               {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
                   A business that passed the >=2-channel verification shows "Business
                   verified"; everyone else shows just "Active account". The standalone
@@ -531,15 +553,6 @@ export async function SellerStorefront({ id }: { id: string }) {
               {cardSeller.businessVerified && (
                 <Badge variant="success" size="md"><ShieldCheck aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
               )}
-              {/* Report rides the END of this line. It is a rare, secondary action — as its
-                  own red block under the CTA it read as loud as "Chat now". */}
-              <span className="ml-auto flex items-center">
-                <ReportButton sellerId={seller.id} />
-                {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — on EVERY shop: one nobody
-                    blockable runs (imported, partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts).
-                    Apple's 2026-10-28 rejection was exactly that storefront with Report and no Block. */}
-                <BlockUserButton sellerId={seller.id} shopOnly={blockShopOnly} name={seller.name} />
-              </span>
             </div>
             {/* ⚠️ A <div>, NOT THE <p> THIS WAS. RichText emits <p>/<ul> blocks, and a block inside
                 a <p> is invalid HTML the browser silently re-parents — the server tree and the
@@ -641,7 +654,7 @@ export async function SellerStorefront({ id }: { id: string }) {
         {teacherListings.length > 0 && (
           <section className="mt-10 space-y-4">
             <h2 className="h-section text-foreground"><Bilingual en="Teacher profile" vi="Hồ sơ giáo viên" /></h2>
-            <SellerListings listings={teacherListings} />
+            <SellerListings listings={teacherListings} ownShop />
           </section>
         )}
 
@@ -659,8 +672,13 @@ export async function SellerStorefront({ id }: { id: string }) {
               listings={listings}
               searchable
               sortable
+              // "Newest" IS this grid's order: the rows above are `postedAt` desc, `id` desc — the API's 'recent'.
               initialSort="recent"
               serverScope={{ params: { seller: seller.id }, total: seller._count.listings, pageSize: STOREFRONT_LISTINGS }}
+              // The shop's own cards: no partner shield on them (owner, 2026-11-16 — hub Q21b); the header carries it.
+              ownShop
+              // The filled strip, its sort pill naming the order — as /s/[handle]'s (owner, 2026-11-16 — hub Q15; SellerListings `strip`).
+              strip="filled"
             />
           </section>
         )}
@@ -678,8 +696,10 @@ export async function SellerStorefront({ id }: { id: string }) {
             <shop>" the continuation read as more of the shop — same grid, same cards, a heading
             ("More on eno.vn") that did not say the seller changed. The hairline closes the shop;
             the heading names the change of seller. */}
+        {/* 24 / 24 on a phone and the count sentence announced, not printed, there — the subdomain storefront's rule (UI climb r12,
+            cook store-r12c S7; s/[handle]/page.tsx), so the two storefront bodies end alike. From sm the 48 / 32 stand. */}
         {otherCount > 0 && (
-          <section className="mt-12 space-y-4 border-t border-border pt-8">
+          <section className="mt-6 space-y-4 border-t border-border pt-6 sm:mt-12 sm:pt-8">
             <h2 className="h-section text-foreground"><Bilingual en="More from other sellers" vi="Tin từ người bán khác" /></h2>
             {/* Server-rendered like the grid above, and see OTHER_LISTINGS for why it is 24 rather
                 than 60: this is the continuation, not the reason the visitor came. */}
@@ -695,6 +715,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                  under. 'recent' here would disable the interleave on every Show-more. */
               initialSort="relevance"
               serverScope={{ params: { excludeSeller: seller.id }, total: otherCount, pageSize: OTHER_LISTINGS }}
+              quietCount
             />
           </section>
         )}
