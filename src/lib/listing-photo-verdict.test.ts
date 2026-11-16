@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   laneOpen: true,
   override: null as null | { id: bigint },
   overrideThrows: false,
+  clearedAudits: [] as Array<{ detail: { key: string; sha: string; rule: string }; at: Date }>,
+  auditReads: 0,
+  auditThrows: false,
   cache: new Map<string, unknown>(),
   kvGetThrows: false,
   kvSetThrows: false,
@@ -26,7 +29,16 @@ vi.mock('@/lib/gemini', () => ({
 }))
 vi.mock('@/lib/ai-guard', () => ({ chargeAiPhotoCheck: async (lane: string) => { h.lanes.push(lane); return h.budget }, photoLaneOpen: async () => h.laneOpen }))
 vi.mock('@/lib/sharp-lazy', () => ({ getSharp: async () => sharpLib }))
-vi.mock('@/lib/db', () => ({ db: { complianceAudit: { findFirst: async () => { if (h.overrideThrows) throw new Error('db'); return h.override } } } }))
+vi.mock('@/lib/db', () => ({ db: { complianceAudit: { findFirst: async (a: { where: { action: string; occurredAt?: { gte: Date }; AND?: Array<{ detail: { path: string[]; equals: string } }> } }) => {
+  if (a.where.action === 'listing.photo.cleared') {
+    h.auditReads++
+    if (h.auditThrows) throw new Error('db')
+    // Matched by PATH against the writer's own detail shape ({ key, sha, rule }, listing-photo-pass.ts restoreStrippedPhotos).
+    const since = a.where.occurredAt?.gte ?? new Date(0)
+    return h.clearedAudits.some((c) => c.at >= since && (a.where.AND ?? []).every(({ detail: d }) => (c.detail as Record<string, unknown>)[d.path.join('.')] === d.equals)) ? { id: BigInt(9) } : null
+  }
+  if (h.overrideThrows) throw new Error('db'); return h.override
+} } } }))
 vi.mock('@/lib/ratelimit', () => ({
   kv: {
     get: async (k: string) => { if (h.kvGetThrows) throw new Error('kv'); return h.cache.get(k) ?? null },
@@ -58,9 +70,11 @@ const DAY180 = 180 * 24 * 3600
 const shaKey = (sha: string) => `listing-photo:v1:sha:${sha}`
 const keyKey = (k: string) => `listing-photo:v1:key:${k}`
 const ON = { lane: 'pass' as const, flyerRule: true }
+/** A `listing.photo.cleared` audit as restoreStrippedPhotos writes it, `days` old. */
+const cleared = (sha: string, rule: string, days = 0) => ({ detail: { key: KEY, sha, rule }, at: new Date(Date.now() - days * 86_400_000) })
 
 beforeEach(async () => {
-  Object.assign(h, { client: true, calls: [], lanes: [], budget: true, laneOpen: true, override: null, overrideThrows: false, kvGetThrows: false, kvSetThrows: false, sets: [], download: 'ok', downloads: 0 })
+  Object.assign(h, { client: true, calls: [], lanes: [], budget: true, laneOpen: true, override: null, overrideThrows: false, clearedAudits: [], auditReads: 0, auditThrows: false, kvGetThrows: false, kvSetThrows: false, sets: [], download: 'ok', downloads: 0 })
   h.answers = { [FL]: say(facts()), [HY]: say(facts()) }
   h.cache.clear()
   h.bytes = await sharpLib({ create: { width: 40, height: 30, channels: 3, background: '#336699' } }).png().toBuffer()
@@ -183,6 +197,36 @@ describe('clearPhotoContent — "Photo is fine" clears the bytes of the rule tha
     // Other bytes, cleared of nothing, still show their contact.
     h.cache.set(shaKey('other'), both(facts({ contact: ['phone'] })))
     await expect(listingPhotoVerdict({ sha: 'other' }, ON)).resolves.toMatchObject({ rule: 'contact', confirmed: true })
+  })
+
+  it('⛔ the audit is the clearance: a kv write that failed (or a kv that forgot) never brings the refusal back', async () => {
+    const sha = sha256(h.bytes)
+    h.cache.set(shaKey(sha), both(FLYER))
+    h.kvSetThrows = true
+    await expect(clearPhotoContent([{ key: KEY, sha, rule: 'flyer' }], 'mod@eno.vn')).resolves.toBe(false)
+    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(false)
+    // The override's transaction wrote the audit (listing-photo-pass.ts restoreStrippedPhotos).
+    h.clearedAudits = [cleared(sha, 'flyer')]
+    await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, { lane: 'upload', flyerRule: true, confirm: 'parallel' })).resolves.toEqual({ rule: 'ok', sha, overridden: true })
+    expect(h.calls).toEqual([])
+  })
+
+  it('⛔ the audit clears its own rule only, a DB error clears nothing, and a photo that passes never asks', async () => {
+    const sha = sha256(h.bytes)
+    h.cache.set(shaKey(sha), both(facts({ kind: 'designed_graphic', advertises: true, contact: ['phone'] })))
+    h.clearedAudits = [cleared(sha, 'contact')]
+    await expect(listingPhotoVerdict({ sha }, ON)).resolves.toMatchObject({ rule: 'flyer', confirmed: true })
+    h.clearedAudits = [cleared(sha, 'contact'), cleared(sha, 'flyer', 181)]
+    // A clearance runs out with the cached one's 180 days.
+    await expect(listingPhotoVerdict({ sha }, ON)).resolves.toMatchObject({ rule: 'flyer', confirmed: true })
+    h.clearedAudits = [cleared(sha, 'contact'), cleared(sha, 'flyer', 179)]
+    await expect(listingPhotoVerdict({ sha }, ON)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
+    h.auditThrows = true
+    await expect(listingPhotoVerdict({ sha }, ON)).resolves.toMatchObject({ rule: expect.stringMatching(/^(flyer|contact)$/), confirmed: true })
+    h.auditReads = 0
+    h.cache.set(shaKey('fine'), both(facts()))
+    await expect(listingPhotoVerdict({ sha: 'fine' }, ON)).resolves.toEqual({ rule: 'ok', sha: 'fine' })
+    expect(h.auditReads).toBe(0)
   })
 
   it('no key → sha pointer known: nothing cleared (the per-listing override still holds)', async () => {

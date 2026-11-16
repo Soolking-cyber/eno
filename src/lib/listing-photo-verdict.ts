@@ -92,8 +92,8 @@ export async function photoClearances(key: string, rules: Iterable<Refusal>): Pr
 
 /**
  * The clearances, in the shared cache: the same bytes uploaded again, or saved on another listing, pass THAT rule (the
- * listing's other rules still apply). False when there is none, or kv failed. Best effort.
- * ⚠️ kv is UNLOGGED: a crash forgets it (the audit stays), and the bytes are judged afresh.
+ * listing's other rules still apply). False when there is none, or kv failed. Best effort: the clearance itself is the
+ * `listing.photo.cleared` audit, written with the override in its transaction; kv only saves the lookup (clearedInAudit).
  */
 export async function clearPhotoContent(clearances: PhotoClearance[], admin: string): Promise<boolean> {
   if (!clearances.length) return false
@@ -106,6 +106,25 @@ export async function clearPhotoContent(clearances: PhotoClearance[], admin: str
 async function lessCleared(o: VerdictOptions, sha: string): Promise<Rules> {
   const off = await Promise.all(REFUSALS.map((r) => kv.get(clearedCacheKey(r, sha)).then((c) => (c ? r : null), () => null)))
   return { ...o, flyerRule: o.flyerRule && !off.includes('flyer'), contactRule: !off.includes('contact') }
+}
+
+/**
+ * ⛔ THE AUDIT IS THE CLEARANCE, kv ITS CACHE: a refusal kv shows no clearance for is looked up in the durable
+ * `listing.photo.cleared` audits, so a kv write that failed, or a kv that forgot, never brings back a refusal an admin
+ * cleared. Asked only for a would-be refusal (rare; the action index). A DB error clears nothing: the rule then applies.
+ * ⚠️ FOR AS LONG AS THE CACHED CLEARANCE LIVES (180 days), not for ever: a clearance given by mistake runs out as it did.
+ */
+async function clearedInAudit(sha: string, rule: Refusal): Promise<boolean> {
+  try {
+    const row = await db.complianceAudit.findFirst({
+      where: {
+        action: 'listing.photo.cleared', occurredAt: { gte: new Date(Date.now() - CACHE_TTL_S * 1000) },
+        AND: [{ detail: { path: ['sha'], equals: sha } }, { detail: { path: ['rule'], equals: rule } }],
+      },
+      select: { id: true },
+    })
+    return !!row
+  } catch (e) { logError(e, { op: 'listing-photo.cleared-audit' }); return false }
 }
 
 /** A kv error is a miss: the check then runs, never a guess. */
@@ -199,7 +218,12 @@ async function verdictNow(src: PhotoSource, o: VerdictOptions): Promise<ListingP
   if (src.key && sha && !pointed) await rememberPhotoKey(src.key, sha)
   if (spent && !enough(reads, rules)) return 'budget'
   if (!reads.length || (o.confirm === 'both' && !enough(reads, rules))) return 'unavailable'
-  const d = decide(reads, rules)
+  let d = decide(reads, rules)
+  // A refusal kv shows no clearance for: the audit's word (clearedInAudit) — once per rule.
+  for (let n = 0; n < REFUSALS.length && sha && d.rule !== 'ok' && (await clearedInAudit(sha, d.rule)); n++) {
+    rules = d.rule === 'flyer' ? { ...rules, flyerRule: false } : { ...rules, contactRule: false }
+    d = decide(reads, rules)
+  }
   // A refusal only a clearance dropped is the admin's call, like an override.
   return d.rule === 'ok' && decide(reads, o).rule !== 'ok' ? { ...d, sha, overridden: true } : { ...d, sha }
 }
