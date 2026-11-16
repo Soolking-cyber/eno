@@ -42,6 +42,8 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'kinh-nghiem-thue-xe-may-viet-nam', lang: 'vi', published: '2026-11-12', reviewed: '2026-11-12', reviewedDigest: '0c042467d3e69bdf', pair: 'renting-a-motorbike-in-vietnam' },
   { slug: 'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city', lang: 'en', published: '2026-11-12', reviewed: '2026-11-12', reviewedDigest: 'dce10898cc7119b1', pair: 'thue-xe-dien-vinfast-tphcm' },
   { slug: 'bang-lai-xe-quoc-te-lai-xe-o-viet-nam', lang: 'vi', published: '2026-11-13', reviewed: '2026-11-13', reviewedDigest: 'f26d76244d1693c5', pair: 'international-driving-permit-vietnam' },
+  { slug: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm', lang: 'vi', published: '2026-11-17', reviewed: '2026-11-16', reviewedDigest: '7141633f7ee81bc4', pair: 'car-rental-with-driver-ho-chi-minh-city' },
+  { slug: 'car-rental-with-driver-ho-chi-minh-city', lang: 'en', published: '2026-11-17', reviewed: '2026-11-16', reviewedDigest: '7d1800be5a9fbb3f', pair: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm' },
   // </generated-guides>
 ]
 
