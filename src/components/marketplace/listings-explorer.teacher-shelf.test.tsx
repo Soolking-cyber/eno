@@ -209,6 +209,27 @@ describe('the home page\'s ItemList JSON-LD (home-item-lists.ts)', () => {
     }
   })
 
+  it('⛔ only rails drawn in the server HTML: the first product lane, never a gated lane, a late lane or the businesses', () => {
+    const cats = ['services', 'rentals', 'electronics'].map((slug) => ({ slug, name: slug[0].toUpperCase() + slug.slice(1), nameVi: slug, icon: '', count: 9 }))
+    const div = document.createElement('div')
+    div.innerHTML = renderToString(
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer
+          categories={cats as never} initialListings={SEED()} initialTotal={catalogue.length} homeItemLists siteHeading={false}
+          initialBusinesses={catalogue.slice(16, 20)}
+          initialCategoryRails={[
+            { slug: 'services', listings: catalogue.slice(20, 23) },
+            { slug: 'rentals', listings: catalogue.slice(23, 26) },
+            { slug: 'electronics', listings: catalogue.slice(26, 29) },
+          ] as never}
+        />
+      </QueryClientProvider>,
+    )
+    const el = div.querySelector('script[type="application/ld+json"]')!
+    const graph = (JSON.parse(el.textContent || '{}') as { '@graph': Array<{ name: string }> })['@graph']
+    expect(graph.map((l) => l.name)).toEqual(['Rentals', 'Recommended'])
+  })
+
   it('a rail under its draw floor is not listed; nothing at all without homeItemLists or on a storefront', () => {
     const html = (props: Partial<React.ComponentProps<typeof ListingsExplorer>>) => {
       const div = document.createElement('div')
