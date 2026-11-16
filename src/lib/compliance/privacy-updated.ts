@@ -212,7 +212,7 @@
  * never an IP, cookie, account or identifier. No personal data, so no new cross-border recipient. ⛔ THE PLANNED DAY, like
  * the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-15'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-16'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -221,4 +221,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-15'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'e8133ce8bd7aa353'
+export const PRIVACY_TEXT_FINGERPRINT = '62788a2203641c5f'
