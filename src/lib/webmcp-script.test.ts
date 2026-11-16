@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { buildWebmcpScript, WEBMCP_HEADERS, type WebMcpDescriptor } from './webmcp-script'
+import { buildWebmcpScript, SITE_TEXT_ONLY_TOOLS, WEBMCP_HEADERS, type WebMcpDescriptor } from './webmcp-script'
 
 /**
  * WebMCP (/webmcp.js, built by src/lib/webmcp-script.ts from the search server's tool list, loaded by a plain <script src>
@@ -74,6 +74,16 @@ describe('WebMCP script', () => {
     expect(tool.description).toBe('Search')
     expect(tool.inputSchema).toEqual(TOOLS[0].inputSchema)
     expect(tool.annotations.readOnlyHint).toBe(true)
+  })
+
+  it('every tool says its answer may carry others\' text (untrustedContentHint) — only a site-text-only tool is exempt', () => {
+    const registerTool = vi.fn()
+    withContext(registerTool)
+    run()
+    for (const c of registerTool.mock.calls) expect(c[0].annotations, c[0].name).toMatchObject({ readOnlyHint: true, untrustedContentHint: true })
+    // Fails closed: a tool nobody listed is marked; the exempt one is not.
+    expect(buildWebmcpScript([{ name: 'list_seller_reviews', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).toContain('"untrustedContentHint":true')
+    expect(buildWebmcpScript([{ name: 'list_categories', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).not.toContain('untrustedContentHint')
   })
 
   it('every call is a cookie-less tools/call on /api/mcp/search, answered with the server\'s result', async () => {
@@ -250,7 +260,13 @@ describe('/webmcp.js — the route and the page that loads it', { timeout: 30_00
     const registered = registerTool.mock.calls.map((c) => ({ name: c[0].name, description: c[0].description, inputSchema: c[0].inputSchema, annotations: c[0].annotations }))
     const readOnly = listed.filter((t) => t.annotations?.readOnlyHint === true)
     expect(readOnly.length).toBeGreaterThan(0)
-    expect(registered).toEqual(readOnly.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })))
+    // The server's own annotations, plus WebMCP's untrustedContentHint on the tools that answer with sellers' text.
+    expect(registered).toEqual(readOnly.map((t) => ({
+      name: t.name, description: t.description, inputSchema: t.inputSchema,
+      annotations: SITE_TEXT_ONLY_TOOLS.has(t.name) ? t.annotations : { ...t.annotations, untrustedContentHint: true },
+    })))
+    // The real server today: the two listing tools carry sellers' text; list_categories is the site's own taxonomy.
+    expect(registered.filter((t) => t.annotations.untrustedContentHint).map((t) => t.name).sort()).toEqual(['get_listing_details', 'search_listings'])
   })
 
   it('⛔ the layout loads it by a plain <script src> — what agent-readiness checkers read', () => {

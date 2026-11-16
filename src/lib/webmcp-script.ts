@@ -27,9 +27,19 @@ export type WebMcpDescriptor = {
   annotations?: Record<string, unknown>
 }
 
+/**
+ * WebMCP's `untrustedContentHint: true` (owner 2026-11-16 "do small fixes"; ora.ai's WebMCP trust rows; the annotation
+ * name the ax auditor reads): the tool's answer carries text this site did not write — listing titles and descriptions,
+ * by their sellers — so a browser agent reads it as data, never as instructions.
+ * ⛔ EVERY TOOL GETS IT BUT THESE (commit gate, opus: an allowlist fails open — a new tool returning reviews or a seller's
+ * bio would have been marked trusted): only a tool that answers with nothing but the site's own text is exempt.
+ */
+export const SITE_TEXT_ONLY_TOOLS: ReadonlySet<string> = new Set(['list_categories'])
+
 /** One `register({...})` call: a JSON object literal (valid JS) plus the `execute` that sends it to the server. */
 function registration(t: WebMcpDescriptor): string {
-  const json = JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })
+  const annotations = SITE_TEXT_ONLY_TOOLS.has(t.name) ? t.annotations : { ...t.annotations, untrustedContentHint: true }
+  const json = JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations })
   return `    register(${json.slice(0, -1)},"execute":function (input, opts) { return call(${JSON.stringify(t.name)}, input, opts); }});`
 }
 
