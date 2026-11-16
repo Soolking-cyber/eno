@@ -33,8 +33,14 @@ export const dynamic = 'force-dynamic'
 // model only sees tool names, schemas, and results. JSON-RPC requests get JSON responses
 // (no SSE needed — every tool is request/response). Auth + per-key rate limit reuse resolveApiKey.
 
-const PROTOCOL_VERSION = '2025-06-18'
-const SUPPORTED = new Set(['2025-06-18', '2025-03-26', '2024-11-05'])
+// MCP 2025-11-25 (2026-11-16, owner "try"): the revision that defines `icons` on serverInfo and tools. What it asks of a
+// stateless tools-only server this one already does: validation failures are tool errors (isError), the 401 names
+// resource_metadata and scope, and the schemas are 2020-12. Origin: every Origin is valid for this server (bearer-only, no
+// cookies, CORS *), so none is refused. A client that asks for an older revision still gets it. ⚠️ An unknown
+// MCP-Protocol-Version header is NOT refused here (lenient, as before 2025-11-25): this server is stateless, cannot tell
+// a handshake-less client from a negotiated one, and Claude, ChatGPT, Grok and Muse all call it (review 2026-11-16).
+const PROTOCOL_VERSION = '2025-11-25'
+const SUPPORTED = new Set(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'])
 
 const CORS = {
   'Access-Control-Allow-Origin': '*', // token-auth (no cookies) → safe to allow any origin for web MCP clients

@@ -97,13 +97,13 @@ const RDNS = SITE_NAME.split('.').reverse().join('.')
 const SERVER_VERSION = '1.0.1'
 
 /**
- * ⛔ THE THREE VALUES IN `SUPPORTED` IN route.ts, IN ITS ORDER, NEWEST FIRST. `initialize` echoes
- * the client's requested version when it is in this set and otherwise falls back to 2025-06-18.
+ * ⛔ THE VALUES IN `SUPPORTED` IN route.ts, IN ITS ORDER, NEWEST FIRST. `initialize` echoes
+ * the client's requested version when it is in this set and otherwise falls back to 2025-11-25 (since 2026-11-16).
  * ⚠️ THIS IS NOT THE LATEST MCP REVISION AND MUST NOT BE "UPDATED" HERE. The spec is at 2026-07-28;
  * our server does not implement it, and advertising it would make a conforming client negotiate a
- * version the server then silently downgrades. Add it here only after route.ts speaks it.
+ * version the server then silently downgrades. Add one here only after route.ts speaks it.
  */
-const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
+const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
 
 function serverCard() {
   return {

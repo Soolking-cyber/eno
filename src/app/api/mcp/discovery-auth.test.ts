@@ -190,6 +190,23 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     expect(keyed.status).toBe(405)
   })
 
+  it('speaks MCP 2025-11-25 and negotiates any requested revision and stays lenient on the version header', async () => {
+    const { POST } = await import('./route')
+    const init = (v?: string) => POST(post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { ...(v ? { protocolVersion: v } : {}), capabilities: {}, clientInfo: { name: 't', version: '1' } } }) as never)
+    expect((await (await init('2025-11-25')).json()).result.protocolVersion).toBe('2025-11-25')
+    expect((await (await init('2025-06-18')).json()).result.protocolVersion).toBe('2025-06-18')
+    expect((await (await init('1999-01-01')).json()).result.protocolVersion).toBe('2025-11-25')
+    // A newer client may send its own version as a header on `initialize`: it still negotiates, never a 400 (review).
+    const initWithHeader = new Request('https://eno.vn/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json', 'mcp-protocol-version': '2099-01-01' }, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2099-01-01', capabilities: {}, clientInfo: { name: 't', version: '1' } } }) })
+    const r = await POST(initWithHeader as never)
+    expect(r.status).toBe(200)
+    expect((await r.json()).result.protocolVersion).toBe('2025-11-25')
+    // Lenient on the header, as before: a request naming any version is still served.
+    const later = (v: string) => new Request('https://eno.vn/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json', 'mcp-protocol-version': v }, body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'ping' }) })
+    expect((await POST(later('2025-11-25') as never)).status).toBe(200)
+    expect((await POST(later('2099-01-01') as never)).status).toBe(200)
+  })
+
   it('ping answers without a credential', async () => {
     const { POST } = await import('./route')
     expect((await POST(post({ jsonrpc: '2.0', id: 3, method: 'ping' }))).status).toBe(200)

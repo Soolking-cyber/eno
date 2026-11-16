@@ -24,8 +24,9 @@ export const dynamic = 'force-dynamic'
  * POST is never edge-cached). Nothing is cached: each answer is the live state (see tools/call).
  */
 
-const PROTOCOL_VERSION = '2025-06-18'
-const SUPPORTED = new Set(['2025-06-18', '2025-03-26', '2024-11-05'])
+// 2025-11-25 since 2026-11-16, as /api/mcp (its route.ts says why).
+const PROTOCOL_VERSION = '2025-11-25'
+const SUPPORTED = new Set(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'])
 const MAX_BATCH = 8
 /** Requests of any kind per IP (initialize, tools/list, ping are cheap). */
 const REQUESTS_PER_IP_PER_MIN = 600
