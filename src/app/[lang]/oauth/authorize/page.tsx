@@ -8,6 +8,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { consentIdentityHost } from '@/lib/api/oauth-hosted-clients'
 import { checkAuthRequest, eligibleShop, issueConsentTicket, verifiedProfileId } from '@/lib/api/oauth-grant'
 
 /**
@@ -72,6 +73,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   const { req, client } = check
   const ret = new URL(req.redirectUri)
   const returnHost = ['localhost', '127.0.0.1', '[::1]'].includes(ret.hostname) ? null : ret.host
+  // A client document eno serves itself (Grok's) names an app on another site: that site is what the person must recognise.
+  const identityHost = consentIdentityHost(client.clientId, client.host, returnHost)
   const elig = await eligibleShop(profileId)
   const shop = elig.ok ? elig.shop : null
   const ticket = shop ? issueConsentTicket(req, profileId, [shop.id], Math.floor(Date.now() / 1000)) : null
@@ -81,10 +84,10 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
       <p className="text-sm font-semibold text-body"><Tr text="Sign in with eno" /></p>
       <h1 className="mt-1 h-title text-foreground">{client.name}</h1>
       {/* The name is the app's own claim; the address is not. Shown so a look-alike name cannot pass for a real app. */}
-      <p className="mt-2 text-sm leading-relaxed text-body"><Tr text="Check that this is the app you started from:" /> <strong className="font-mono text-foreground">{client.host}</strong></p>
+      <p className="mt-2 text-sm leading-relaxed text-body"><Tr text="Check that this is the app you started from:" /> <strong className="font-mono text-foreground">{identityHost}</strong></p>
       {/* Where the code goes, when that is another site than the app's own address (a shared host can serve anyone's
           metadata document) — a desktop app's own computer (loopback) is not another site. */}
-      {returnHost && returnHost !== client.host ? (
+      {returnHost && returnHost !== identityHost ? (
         <p className="mt-1 text-sm leading-relaxed text-body"><Tr text="It will send you back to:" /> <strong className="font-mono text-foreground">{returnHost}</strong></p>
       ) : null}
       {shop && ticket ? (

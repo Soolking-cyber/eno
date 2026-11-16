@@ -24,6 +24,13 @@ describe('/developers/mcp', () => {
     expect(PAGE).not.toMatch(/'get_shop'/)
   })
 
+  it('Grok: the steps name the server URL and the client ID eno publishes for Grok, never a literal copy of it', () => {
+    expect(PAGE).toContain("import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'")
+    expect(PAGE).toContain('<C>{GROK_CLIENT_ID}</C>')
+    expect(PAGE).toContain('<C>{ENDPOINT}</C>')
+    expect(PAGE).not.toContain('/api/mcp/clients/grok')
+  })
+
   it('stays a server component, and /developers links to it', () => {
     expect(PAGE).not.toMatch(/^['"]use client['"]/m)
     expect(DEV).toContain('<Link href={DOC_PATHS.mcp}')

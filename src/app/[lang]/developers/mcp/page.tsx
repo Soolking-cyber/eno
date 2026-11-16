@@ -12,6 +12,7 @@ import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
 import { MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
+import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
 
 /**
  * /developers/mcp — THE HOSTED MCP SERVER'S OWN PAGE (2026-11-11).
@@ -126,6 +127,29 @@ Authorization: Bearer eno_live_…`}</Code></div>
             Clients that take a JSON file (Cursor&apos;s <C>mcp.json</C>, for example) need the URL and the header:
           </p>
           <div className="mt-3"><Code>{JSON.stringify({ mcpServers: { [CLIENT_NAME]: { url: ENDPOINT, headers: { Authorization: 'Bearer eno_live_…' } } } }, null, 2)}</Code></div>
+
+          {/* Grok (2026-11-16): no directory to list in, so the person adds the server. Its custom connector asks for a client
+              ID, which eno publishes for it (src/lib/api/oauth-hosted-clients.ts). Steps from docs.x.ai/grok/connectors and
+              the form fields from docs.x.com/x-ads-api/mcp. */}
+          <h3 className="mt-6 text-base font-semibold text-foreground">Grok</h3>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            On grok.com, open <a href="https://grok.com/connectors" className="font-semibold text-accent-foreground underline">Connectors</a>, choose{' '}
+            <strong className="text-foreground">New Connector</strong>, then <strong className="text-foreground">Custom</strong>, and fill in:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>• <strong className="text-foreground">Server URL:</strong> <C>{ENDPOINT}</C></li>
+            <li>• <strong className="text-foreground">Client ID:</strong> <C>{GROK_CLIENT_ID}</C></li>
+            <li>
+              • <strong className="text-foreground">Client Secret:</strong> leave it empty, with the token auth method <C>none</C> (PKCE only).
+            </li>
+            <li>
+              • Keep the endpoints and scopes Grok fills in, press <strong className="text-foreground">Connect</strong>, then sign in with your{' '}
+              {SITE_NAME} shop and press <strong className="text-foreground">Allow</strong>.
+            </li>
+          </ul>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            On Grok Business or Enterprise, a team admin adds the connector first. The listing search below needs only its URL as the Server URL.
+          </p>
         </section>
 
         <section className="mt-8">

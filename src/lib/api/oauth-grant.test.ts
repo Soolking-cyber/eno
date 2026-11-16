@@ -397,3 +397,31 @@ describe('the token endpoint and the access token', () => {
     }
   })
 })
+
+describe('the client document eno publishes for Grok', () => {
+  it('passes the same checks as any client document, and only grok.com\'s callback can receive a code', async () => {
+    const { GET } = await import('@/app/api/mcp/clients/grok/route')
+    const { GROK_CLIENT_ID, GROK_REDIRECT_URI } = await import('./oauth-hosted-clients')
+    const res = GET()
+    expect(res.headers.get('content-type')).toMatch(/^application\/json/)
+    h.docs.set(GROK_CLIENT_ID, { status: 200, body: await res.text() })
+    expect(await G.loadClient(GROK_CLIENT_ID)).toMatchObject({ clientId: GROK_CLIENT_ID, name: 'Grok', redirectUris: [GROK_REDIRECT_URI, 'https://grok.com/connectors-oauth-exchange-code'] })
+    for (const redirect_uri of [GROK_REDIRECT_URI, 'https://grok.com/connectors-oauth-exchange-code']) {
+      expect((await G.checkAuthRequest(q({ client_id: GROK_CLIENT_ID, redirect_uri }))).ok).toBe(true)
+    }
+    for (const redirect_uri of ['https://grok.com/connectors-oauth-exchange-code//', 'http://127.0.0.1:8080/callback', 'https://evil.example/cb', 'https://grok.com.evil.example/connectors-oauth-exchange-code/']) {
+      expect((await G.checkAuthRequest(q({ client_id: GROK_CLIENT_ID, redirect_uri }))).ok).toBe(false)
+    }
+  })
+  it('the consent screen asks the person to recognise grok.com, not eno\'s own host', async () => {
+    const { consentIdentityHost, GROK_CLIENT_ID } = await import('./oauth-hosted-clients')
+    const { OAUTH_ISSUER } = await import('./oauth')
+    const own = new URL(OAUTH_ISSUER).host
+    expect(consentIdentityHost(GROK_CLIENT_ID, own, 'grok.com')).toBe('grok.com')
+    // Any OTHER document on eno's own host keeps eno's host: the swap is by exact client_id, never by host.
+    expect(consentIdentityHost(`${OAUTH_ISSUER}/api/something-else`, own, 'evil.example')).toBe(own)
+    expect(consentIdentityHost('https://claude.ai/oauth/claude-code-client-metadata', 'claude.ai', 'claude.ai')).toBe('claude.ai')
+    expect(consentIdentityHost('https://client.example/meta', 'client.example', 'other.example')).toBe('client.example')
+    expect(consentIdentityHost(GROK_CLIENT_ID, own, null)).toBe(own)
+  })
+})
