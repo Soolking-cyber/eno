@@ -18,8 +18,9 @@ export const dynamic = 'force-dynamic'
  * ⛔ KEPT OUT OF THE STORE AND DIRECTORY SUBMISSIONS unless the owner says otherwise (owner + mk1e3-26, 2026-11-16).
  */
 
-const PROTOCOL_VERSION = '2025-06-18'
-const SUPPORTED = new Set(['2025-06-18', '2025-03-26', '2024-11-05'])
+// 2025-11-25 since 2026-11-16, like /api/mcp and /api/mcp/search (40ee0e54b): the three servers speak the same revisions.
+const PROTOCOL_VERSION = '2025-11-25'
+const SUPPORTED = new Set(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'])
 const MAX_BATCH = 8
 /** Requests of any kind per IP (initialize, tools/list, ping are cheap). */
 const REQUESTS_PER_IP_PER_MIN = 600

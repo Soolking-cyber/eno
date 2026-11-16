@@ -28,9 +28,12 @@ describe('docs MCP server', () => {
     for (const t of tools) expect(t.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false })
   })
 
-  it('initialize names the docs server, never the search one', async () => {
-    const info = (await rpc('initialize', { protocolVersion: '2025-06-18' })).result!.serverInfo as { name: string }
-    expect(info.name).toMatch(/ Docs$/)
+  it('initialize names the docs server, never the search one, and speaks 2025-11-25 like the other two servers', async () => {
+    const init = (await rpc('initialize', { protocolVersion: '2025-06-18' })).result!
+    expect((init.serverInfo as { name: string }).name).toMatch(/ Docs$/)
+    expect(init.protocolVersion).toBe('2025-06-18')
+    expect((await rpc('initialize', { protocolVersion: '2025-11-25' })).result!.protocolVersion).toBe('2025-11-25')
+    expect((await rpc('initialize', { protocolVersion: '1999-01-01' })).result!.protocolVersion).toBe('2025-11-25')
   })
 
   it('search_docs finds the matching section, heading first, with its document\'s URL', async () => {
@@ -91,6 +94,9 @@ describe('docs MCP server card', () => {
     expect(card.remotes[0].url).toMatch(/\/api\/mcp\/docs$/)
     expect(card.name).toMatch(/\/docs$/)
     expect(card.description.length).toBeLessThanOrEqual(100)
-    expect(card.remotes[0].supportedProtocolVersions).toEqual(['2025-06-18', '2025-03-26', '2024-11-05'])
+    expect(card.remotes[0].supportedProtocolVersions).toEqual(['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'])
+    // …and they are the versions its initialize accepts (the same list as the search server's card).
+    const { searchServerCard } = await import('@/lib/mcp/search-server-card')
+    expect(card.remotes[0].supportedProtocolVersions).toEqual(searchServerCard().remotes[0].supportedProtocolVersions)
   })
 })

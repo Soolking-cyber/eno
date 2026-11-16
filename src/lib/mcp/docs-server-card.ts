@@ -22,7 +22,7 @@ export function docsServerCard() {
       {
         type: 'streamable-http',
         url: `${OAUTH_ISSUER}/api/mcp/docs`,
-        supportedProtocolVersions: ['2025-06-18', '2025-03-26', '2024-11-05'],
+        supportedProtocolVersions: ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'],
       },
     ],
   }
