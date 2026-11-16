@@ -142,9 +142,12 @@ describe('useFreshCategoryLanes + CategoryLane — the check after the paint', (
 
   it('a lane asks only once its cards are drawn: behind its gate, nothing until it nears the screen', async () => {
     // A later lane alone (no `initialShow`): its gate is closed until the observer says it nears the screen.
+    // The render time stamped ONCE, as the server's is: a fresh Date.now() per render made the answer's re-render a new
+    // snapshot that asked again a tick later (the CI flake, 2026-11-17).
+    const renderedAt = Date.now() - 6 * 3600_000
     function Gated() {
       const server = useMemo(() => visibleCategoryRails(SERVER, cats), [])
-      const { lanes, check } = useFreshCategoryLanes(server, Date.now() - 6 * 3600_000)
+      const { lanes, check } = useFreshCategoryLanes(server, renderedAt)
       return <CategoryLane cat={lanes[1].cat} listings={lanes[1].items} onCategory={() => {}} look="lane" onDrawn={check} liveMedia={PHONE} />
     }
     render(<Gated />)
