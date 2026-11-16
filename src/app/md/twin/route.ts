@@ -21,8 +21,20 @@ const PER_IP_PER_MIN = 30
 
 const notFound = () => new NextResponse('Not found', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })
 
+/**
+ * ⛔ THE PAGE COMES FROM THE PATH, NOT FROM THE REWRITE'S `?p=` (measured live 2026-11-16, the same trap as
+ * src/app/api/indexnow-key/route.ts): behind an `afterFiles` rewrite `req.url` is the visitor's ORIGINAL request —
+ * `/about.md` — so the destination's `p=:p` never arrives, and every twin answered 404. `?p=` counts only on a direct
+ * /md/twin request.
+ */
+function requestedPage(req: Request): string {
+  const u = new URL(req.url)
+  if (u.pathname.endsWith('.md')) return u.pathname.slice(1, -'.md'.length)
+  return u.pathname === '/md/twin' ? (u.searchParams.get('p') ?? '') : ''
+}
+
 export async function GET(req: Request) {
-  const p = new URL(req.url).searchParams.get('p') ?? ''
+  const p = requestedPage(req)
   // The rewrite only sends allowed pages; this repeats the hard part of that rule for a direct /md/twin?p= request.
   const first = p.split('/')[0]
   // ONLY a root page on the build's allowlist (next.config.ts twinRoots → env ENO_TWIN_ROOTS): never a storefront

@@ -30,6 +30,18 @@ describe('/md/twin', () => {
     expect(init.redirect).toBe('manual')
   })
 
+  it('⛔ behind the rewrite req.url is the ORIGINAL /about.md: the page comes from the path (measured live)', async () => {
+    const fetch = vi.fn(async () => new Response(PAGE, { headers: { 'content-type': 'text/html' } }))
+    vi.stubGlobal('fetch', fetch)
+    const { GET } = await import('./route')
+    const res = await GET(new Request('https://eno.vn/guides/renting-in-hcmc.md'))
+    expect(res.status).toBe(200)
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toMatch(/\/guides\/renting-in-hcmc$/)
+    // …and the same guards hold on that path.
+    expect((await GET(new Request('https://eno.vn/admin.md'))).status).toBe(404)
+    expect((await GET(new Request('https://eno.vn/some-shop.md'))).status).toBe(404)
+  })
+
   it('⛔ refuses every path that is not a plain lower-case slug — before fetching anything', async () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
