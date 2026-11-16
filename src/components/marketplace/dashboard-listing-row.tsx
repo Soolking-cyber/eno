@@ -1,7 +1,7 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -39,6 +39,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // The price-cut dialog, opened from the overflow menu (inbox-12). It lives OUTSIDE the menu: Base UI
   // unmounts a closed menu's popup, and a dialog rendered inside it would die the moment the menu shut.
   const [discountOpen, setDiscountOpen] = useState(false)
+  // ⛔ FOCUS (WCAG 2.4.3): the Discount row is `opensLayer`, so the closing menu leaves focus in the dialog (the phone sheet
+  // put it back on the ⋯ BEHIND it), and the dialog gives it back to the ⋯ on close (`finalFocus`).
+  const moreRef = useRef<HTMLButtonElement>(null)
   // B6: "Mark sold" on a SALE opens "Who bought it?" (mark-sold-flow.tsx) — when the server can PROVE nobody
   // ever messaged about it, "someone not on eno" is already picked, so it is still one tap; when it cannot,
   // nothing is picked and the seller says it. Any other listing keeps the instant flip.
@@ -245,7 +248,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="bare" size="none" aria-label={tr('More actions', 'Thêm thao tác')} className={cn(chip, 'relative tap-44 px-2.5')}>
+            <Button ref={moreRef} variant="bare" size="none" aria-label={tr('More actions', 'Thêm thao tác')} className={cn(chip, 'relative tap-44 px-2.5')}>
               <MoreHorizontal className="size-4" />
             </Button>
           }
@@ -253,7 +256,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         {/* On a phone this is an action sheet titled with the listing (ui/dropdown-menu, owner 2026-10-18). */}
         <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44" sheetTitle={title}>
           {canDiscount && (
-            <DropdownMenuItem onClick={() => setDiscountOpen(true)}><TrendingDown /> {tr('Discount', 'Giảm giá')}</DropdownMenuItem>
+            <DropdownMenuItem opensLayer onClick={() => setDiscountOpen(true)}><TrendingDown /> {tr('Discount', 'Giảm giá')}</DropdownMenuItem>
           )}
           {canShare && (
             <DropdownMenuItem onClick={share}><Share2 /> {tr('Share', 'Chia sẻ')}</DropdownMenuItem>
@@ -282,6 +285,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           trigger={false}
           open={discountOpen}
           onOpenChange={setDiscountOpen}
+          finalFocus={moreRef}
         />
       )}
       {/* Outside the `status === 'active'` branch on purpose: confirming flips the row to Sold at once

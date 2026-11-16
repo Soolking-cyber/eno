@@ -402,8 +402,9 @@ function DropdownMenuItem({
   /**
    * ⛔ The row's `onClick` OPENS A LAYER THAT TAKES FOCUS — a dialog, an alert dialog, the sign-in card. The menu's close
    * then returns NO focus, and that layer's own close returns it to this menu's trigger (pass it the trigger as
-   * `finalFocus`). Without it the phone sheet, which returns focus to the trigger by an explicit ref when its exit
-   * animation ends, put focus on the trigger BEHIND the dialog that had just taken it — measured on live, 2026-11-17,
+   * `finalFocus` — src/lib/return-focus.ts `returnFocusTo`). Without it the phone sheet, which returns focus to the
+   * trigger by an explicit ref when its exit animation ends, put focus on the trigger BEHIND the dialog that had just
+   * taken it — measured on live, 2026-11-17,
    * the storefront ⋯'s Report and Block (storefront-more-menu.tsx): the dialog open, focus outside it (WCAG 2.4.3).
    * Only on a row whose layer really takes focus: a row marked so that opens nothing leaves focus on <body>.
    */

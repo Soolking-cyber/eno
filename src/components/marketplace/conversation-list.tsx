@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -14,6 +14,7 @@ import { DashboardFetchError, useSignInAgain } from '@/components/marketplace/da
 import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal, AlertTriangle } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { isFocusVisible } from '@/lib/focus-visible'
 import { askForHelp } from '@/lib/concierge/client'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { Avatar } from '@/components/ui/avatar'
@@ -49,6 +50,25 @@ export function ConversationList() {
   const signInAgain = useSignInAgain(pathname || '/messages')
   const aiActive = pathname === '/messages/ai'
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  /**
+   * ⛔ FOCUS FOLLOWS THE DELETE CONFIRM (WCAG 2.4.3, 2026-11-17). The ⋯ (or the hover trash) that opens it unmounts with the
+   * tap — the confirm takes its place — so focus fell to <body>: a keyboard or VoiceOver user was sent back to the top of the
+   * page, the confirm never announced. Opening it focuses its Cancel (the safe answer: a key held through the open can only
+   * cancel); Cancel puts focus back on the row's control this device draws — the ⋯ on touch, always; the hover trash only
+   * after a KEYBOARD Cancel. The trash is drawn only under the pointer or with a focus ring, and its slot stays open while
+   * it holds focus: given focus after a mouse Cancel it left an empty 48px gap in the row once the pointer moved on
+   * (measured, Chromium and WebKit) — a mouse Cancel leaves focus where it was before this fix.
+   * The ⋯'s row is `opensLayer` (ui/dropdown-menu): the confirm, not the closing menu, has the focus.
+   */
+  const confirmRef = useRef<HTMLDivElement>(null)
+  const cancelled = useRef<{ row: HTMLElement | null; keyboard: boolean } | null>(null)
+  useEffect(() => {
+    if (confirmId) { confirmRef.current?.querySelector<HTMLElement>('[data-delete-cancel]')?.focus(); return }
+    const from = cancelled.current
+    cancelled.current = null
+    const back = from?.row ? [...from.row.querySelectorAll<HTMLElement>('[data-delete-control]')].find((el) => el.getClientRects().length > 0) : null
+    if (back && (from?.keyboard || back.dataset.deleteControl === 'more')) back.focus()
+  }, [confirmId])
   /**
    * Rows on their way out. A confirmed delete used to remove the row in the same commit, so it
    * vanished and every row below jumped up a slot. It now fades and collapses its height over 150ms
@@ -271,6 +291,7 @@ export function ConversationList() {
                 )}
               >
               <div
+                data-convo-row=""
                 onMouseEnter={() => prefetchThread(c.id)}
                 onFocus={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
@@ -428,9 +449,9 @@ export function ConversationList() {
                   )}
                 </Link>
                 {confirmId === c.id ? (
-                  <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
+                  <div ref={confirmRef} className="flex shrink-0 items-center gap-1 pr-2 pl-1">
                     <Button variant="destructive" size="none" onClick={() => removeRow(c.id)} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
-                    <CloseButton size="xs" onClick={() => setConfirmId(null)} label={tr('Cancel', 'Hủy')} />
+                    <CloseButton data-delete-cancel="" size="xs" onClick={(e) => { cancelled.current = { row: e.currentTarget.closest<HTMLElement>('[data-convo-row]'), keyboard: isFocusVisible(e.currentTarget) }; setConfirmId(null) }} label={tr('Cancel', 'Hủy')} />
                   </div>
                 ) : (
                   <>
@@ -441,6 +462,7 @@ export function ConversationList() {
                     <span className="hidden shrink-0 overflow-x-clip hover-pointer:flex hover-pointer:w-0 hover-pointer:group-hover:w-12 hover-pointer:focus-within:w-12">
                       <IconButton
                         size="sm"
+                        data-delete-control="trash"
                         onClick={() => setConfirmId(c.id)}
                         aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
                         // Hidden-until-hover only where a fine pointer can hover it back (see the same
@@ -462,6 +484,7 @@ export function ConversationList() {
                         render={
                           <IconButton
                             size="sm"
+                            data-delete-control="more"
                             aria-label={tr('More actions', 'Thêm thao tác')}
                             className="mr-2 ml-1 text-body transition hover:bg-muted hover-pointer:hidden"
                           >
@@ -472,7 +495,7 @@ export function ConversationList() {
                       />
                       {/* A phone action sheet titled with who the chat is with (ui/dropdown-menu, owner 2026-10-18). */}
                       <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44" sheetTitle={c.counterpart.name || undefined}>
-                        <DropdownMenuItem variant="destructive" onClick={() => setConfirmId(c.id)}>
+                        <DropdownMenuItem variant="destructive" opensLayer onClick={() => setConfirmId(c.id)}>
                           <Trash2 /> {tr('Delete conversation', 'Xóa cuộc trò chuyện')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>

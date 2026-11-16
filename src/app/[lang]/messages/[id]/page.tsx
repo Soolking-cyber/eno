@@ -19,6 +19,7 @@ import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, Alert
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { returnFocusTo } from '@/lib/return-focus'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
@@ -783,6 +784,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const [dealBusy, setDealBusy] = useState(false)
   // Open/closed apart from the snapshot, so the dialog's words stay put through its own close animation.
   const [dealDialogOpen, setDealDialogOpen] = useState(false)
+  // ⛔ FOCUS (WCAG 2.4.3, 2026-11-17): the deal menu's rows are `opensLayer` — the closing menu (a sheet on a phone) used to
+  // put focus back on this pill BEHIND the dialog the row had opened — and both dialogs give it back here on close. (Its
+  // "Who bought it?" branch never runs while the menu is up: a deal listing is never a goods sale, service-deal.ts.)
+  const stripMenuRef = useRef<HTMLButtonElement>(null)
   // B6: on a SALE the strip's 'Đã bán', the "Deal!" chip and the post-accept prompt all open "Who bought it?",
   // about the sale as it stood at the tap — thread, listing, agreed price and whether there was a deal (see
   // openSoldSheet).
@@ -2876,9 +2881,11 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   <DropdownMenuTrigger
                     render={
                       <Button
+                        ref={stripMenuRef}
                         variant="cta"
                         size="none"
-                        disabled={markingSold || dealBusy}
+                        // `loading`, not disabled: a dialog's Confirm / Withdraw returns focus here while it saves.
+                        loading={markingSold || dealBusy}
                         className="relative shrink-0 gap-1 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
                       >
                         {stripRental ? tr('Mark rented', 'Đã cho thuê') : tr('Mark sold', 'Đã bán')}
@@ -2895,7 +2902,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                       </DropdownMenuItem>
                     ) : thread.deal?.state === 'confirmed' ? (
                       dealCanUndo ? (
-                        <DropdownMenuItem onClick={() => openDealDialog('withdraw')} className="rounded-lg">
+                        <DropdownMenuItem opensLayer onClick={() => openDealDialog('withdraw')} className="rounded-lg">
                           <Undo2 /> {tr('Withdraw confirmation', 'Rút lại xác nhận')}
                         </DropdownMenuItem>
                       ) : (
@@ -2904,11 +2911,11 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                         </DropdownMenuItem>
                       )
                     ) : (
-                      <DropdownMenuItem onClick={() => openDealDialog('confirm')} className="rounded-lg">
+                      <DropdownMenuItem opensLayer onClick={() => openDealDialog('confirm')} className="rounded-lg">
                         <Check /> {dealMenuLabel}
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => (soldSheetFits ? openSoldSheet() : setConfirmSoldOpen(true))} className="rounded-lg">
+                    <DropdownMenuItem opensLayer onClick={() => (soldSheetFits ? openSoldSheet() : setConfirmSoldOpen(true))} className="rounded-lg">
                       {stripRental ? tr('Mark as rented', 'Đánh dấu đã cho thuê') : tr('Mark as sold', 'Đánh dấu đã bán')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -2958,7 +2965,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   The action returns nothing, so the dialog closes on the tap and the strip flips at once
                   (markSoldFromStrip is optimistic); a refused POST repaints through its refetch. */}
               <AlertDialog open={confirmSoldOpen} onOpenChange={setConfirmSoldOpen}>
-                <AlertDialogContent size="sm">
+                <AlertDialogContent size="sm" finalFocus={returnFocusTo(stripMenuRef)}>
                   <AlertDialogHeader>
                     {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
                     <AlertDialogTitle className="[overflow-wrap:anywhere]">{(stripRental ? tr('Mark "{title}" as rented?', 'Đánh dấu "{title}" là đã cho thuê?') : tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?')).replace('{title}', () => stripTitle)}</AlertDialogTitle>
@@ -2974,7 +2981,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   the tap (dealDialog), so a retarget by the poll cannot change what is being confirmed. 'Rút lại xác nhận',
                   never 'Hủy' — that is the dialog's own Cancel. */}
               <AlertDialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
-                <AlertDialogContent size="sm">
+                <AlertDialogContent size="sm" finalFocus={returnFocusTo(stripMenuRef)}>
                   {dealDialog?.mode === 'withdraw' ? (
                     <>
                       <AlertDialogHeader>

@@ -21,7 +21,7 @@ import { useAuth } from '@/context/auth-context'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { hiddenSellersOwner, hideSellerNow, syncHiddenSellers } from '@/lib/hidden-sellers'
 import { cn } from '@/lib/utils'
-import { returnFocusTo } from './report-button'
+import { returnFocusTo } from '@/lib/return-focus'
 
 /**
  * Whether Block is offered here at all: the `ugc-safety` gate is on, there is a thread or a shop to name, and it is not the
@@ -85,7 +85,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
   const setOpen = controlled ? onOpenChange : setOpenState
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // A 401 hands this close over to the sign-in card (report-button.tsx `returnFocusTo`). Every open starts without it.
+  // A 401 hands this close over to the sign-in card (src/lib/return-focus.ts `returnFocusTo`). Every open starts without it.
   const handingOff = useRef(false)
   useEffect(() => { if (open) handingOff.current = false }, [open])
   if (!canBlock) return null

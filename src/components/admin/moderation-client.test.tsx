@@ -14,7 +14,8 @@
  * ⚠️ EXPLICIT CLEANUP: no vitest `globals`, so Testing Library registers no afterEach of its own.
  */
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const nav = vi.hoisted(() => ({ refresh: vi.fn() }))
@@ -145,6 +146,33 @@ describe('moderation case card: "Undo the seller\'s confirmation"', () => {
     expect(init.method).toBe('POST')
     expect(JSON.parse(String(init.body))).toEqual({ action: 'withdraw-deal', id: 'r9', confirmedAt: CONFIRMED_AT })
     expect(toastMock.success).toHaveBeenCalledWith("Seller's confirmation withdrawn — the buyer can no longer review this chat.")
+  })
+
+  /**
+   * ⛔ FOCUS (WCAG 2.4.3, 2026-11-17): the item is `opensLayer` and the question gives focus back to this card's ⋯ on close.
+   * It has no trigger of its own: where a press never focuses the ⋯ (Safari's mouse — a prevented mousedown here) its close
+   * used to drop focus on <body>. The real-browser proof is the 2026-11-17 Playwright harness.
+   */
+  it('focus: the question takes it, and Cancel gives it back to the ⋯ (a press that never focused the ⋯)', async () => {
+    answer(200, { ok: true })
+    const noFocusOnPress = (e: MouseEvent) => { if ((e.target as Element).closest?.('button,[role="menuitem"]')) e.preventDefault() }
+    document.addEventListener('mousedown', noFocusOnPress, true)
+    try {
+      const user = userEvent.setup()
+      render(<ModerationClient cases={[chatCase()]} resolved={[]} />)
+      const more = screen.getByRole('button', { name: 'More' })
+      await user.click(more)
+      await user.click(await screen.findByRole('menuitem', { name: ITEM }))
+      const dialog = await screen.findByRole('alertdialog', { name: "Undo the seller's confirmation?" })
+      await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+      await new Promise((r) => setTimeout(r, 50))
+      expect(dialog.contains(document.activeElement)).toBe(true)
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(more))
+    } finally {
+      document.removeEventListener('mousedown', noFocusOnPress, true)
+    }
   })
 
   it('without the field the item is absent (the menu still opens)', async () => {

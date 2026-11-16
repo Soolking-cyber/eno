@@ -2,6 +2,8 @@
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { setViewport } from '@/test/drawer-env'
 
 /**
  * THE THREAD PAGE'S SERVICE-DEAL CONTROL (src/lib/service-deal.ts, owner 2026-11-11) — against the real landmine page with
@@ -85,6 +87,7 @@ const W = {
 type Row = Record<string, any>
 let threadBody: Row = {}
 let dealReply: { status: number; body: unknown } = { status: 200, body: {} }
+let dealHold: Promise<void> | null = null
 let calls: { url: string; method: string; body?: unknown }[] = []
 
 const json = (status: number, body: unknown) => ({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) }) as unknown as Response
@@ -121,12 +124,13 @@ beforeEach(() => {
   calls = []
   threadBody = sellerThread()
   dealReply = { status: 200, body: { deal: { kind: 'rental', state: 'confirmed', confirmsLeft: 1 } } }
+  dealHold = null
   vi.stubGlobal('fetch', vi.fn((input: string, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
     calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
     if (method === 'GET' && url.split('?')[0] === '/api/conversations/c1') return Promise.resolve(json(200, { ...threadBody, notificationsCleared: 0, openCleared: true }))
-    if (url === '/api/conversations/c1/deal' && method === 'POST') return Promise.resolve(json(dealReply.status, dealReply.body))
+    if (url === '/api/conversations/c1/deal' && method === 'POST') return dealHold ? dealHold.then(() => json(dealReply.status, dealReply.body)) : Promise.resolve(json(dealReply.status, dealReply.body))
     if (url === '/api/conversations/c1/sale-question' && method === 'GET') return Promise.resolve(json(200, { questions: [] }))
     return Promise.resolve(json(200, {}))
   }))
@@ -314,4 +318,73 @@ describe('the deal lines read in the viewer\'s language', () => {
     expect(screen.getByText('✅ Đã xác nhận cho thuê')).toBeTruthy()
     expect(screen.getByText('↩️ Đã rút lại xác nhận')).toBeTruthy()
   })
+})
+
+/**
+ * ⛔ FOCUS (WCAG 2.4.3, 2026-11-17 — the storefront ⋯'s bug, here since the deal menu shipped): the menu's rows are
+ * `opensLayer`, so the closing menu — the action sheet on a phone, whose return to the pill is an explicit ref — leaves focus
+ * in the dialog the row opened instead of putting it back on the pill BEHIND it; and each dialog gives it back to the pill on
+ * close (`finalFocus`, src/lib/return-focus.ts) — a dialog opened this way has no trigger of its own. The real-browser proof
+ * (Chromium and WebKit, touch, mouse and keys) is the 2026-11-17 Playwright harness; these pin the wiring in jsdom.
+ */
+describe('⛔ focus: a deal-menu row opens its dialog WITH the focus, and the dialog gives it back to the pill', () => {
+  afterEach(() => setViewport('desktop'))
+  const pill = () => screen.getByRole('button', { name: W.markRented })
+  const rows = [
+    { deal: 'none', item: W.confirmRented, dialog: 'Confirm Buyer rented "Studio D3"?', close: 'Cancel' },
+    { deal: 'none', item: W.markAsRented, dialog: 'Mark "Studio D3" as rented?', close: 'Escape' },
+    { deal: 'confirmed', item: W.withdrawItem, dialog: 'Withdraw your confirmation?', close: 'Cancel' },
+  ] as const
+  for (const viewport of ['phone', 'desktop'] as const) {
+    for (const r of rows) {
+      it(`${viewport}: "${r.item}" → focus in "${r.dialog}" once the menu has gone; ${r.close} → back on the pill`, async () => {
+        setViewport(viewport)
+        if (r.deal === 'confirmed') threadBody = sellerThread({ deal: { kind: 'rental', state: 'confirmed', confirmsLeft: 1, withdrawUntil: new Date(Date.now() + 5 * 60_000).toISOString() } })
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        await openThread()
+        await user.click(pill())
+        const item = viewport === 'phone'
+          ? within(await screen.findByRole('dialog', { name: 'Studio D3' })).getByRole('button', { name: r.item })
+          : within(await screen.findByRole('menu')).getByRole('menuitem', { name: r.item })
+        await user.click(item)
+        const dialog = await screen.findByRole('alertdialog', { name: r.dialog })
+        await waitFor(() => expect(viewport === 'phone' ? screen.queryByRole('dialog', { name: 'Studio D3' }) : screen.queryByRole('menu')).toBeNull())
+        await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+        expect(dialog.contains(document.activeElement)).toBe(true)
+        if (r.close === 'Cancel') await user.click(within(dialog).getByRole('button', { name: W.cancel }))
+        else await user.keyboard('{Escape}')
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+        await waitFor(() => expect(document.activeElement).toBe(pill()))
+        expect(dealPosts()).toEqual([])
+      })
+    }
+    // The dialog's own action: the pill is BUSY while the deal saves (ui/button `loading`), not natively disabled — a
+    // disabled pill cannot take focus, so Confirm dropped it on <body> (review, 2026-11-17).
+    it(`${viewport}: Confirm → focus back on the pill while the deal saves; a press then opens nothing`, async () => {
+      setViewport(viewport)
+      let release = () => {}
+      dealHold = new Promise((r) => { release = r })
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      await openThread()
+      await user.click(pill())
+      const item = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'Studio D3' })).getByRole('button', { name: W.confirmRented })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: W.confirmRented })
+      await user.click(item)
+      await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: W.confirm }))
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+      await waitFor(() => expect(document.activeElement).toBe(pill()))
+      expect(pill().getAttribute('aria-busy')).toBe('true')
+      await user.click(pill())
+      await user.keyboard('{Enter}')
+      await user.keyboard(' ')
+      await user.keyboard('{ArrowDown}')
+      expect(screen.queryByRole('menu')).toBeNull()
+      expect(screen.queryByRole('dialog', { name: 'Studio D3' })).toBeNull()
+      await act(async () => { release(); await vi.advanceTimersByTimeAsync(50) })
+      await waitFor(() => expect(pill().getAttribute('aria-busy')).toBeNull())
+      expect(document.activeElement).toBe(pill())
+      expect(dealPosts()).toHaveLength(1)
+    })
+  }
 })

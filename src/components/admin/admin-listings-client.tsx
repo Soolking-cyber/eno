@@ -23,6 +23,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { shortDate } from '@/lib/dates'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { returnFocusTo } from '@/lib/return-focus'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 import { LISTING_STATUS, LISTING_VERIFIED } from './listing-filters'
 
@@ -125,6 +126,10 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
   // render React may abandon or replay under concurrent rendering (both reviewers flagged it).
   // The dialog copy still stays stable while it animates out, which is all this ref is for.
   useEffect(() => { if (pendingDelete) lastDelete.current = pendingDelete }, [pendingDelete])
+  // ⛔ FOCUS (WCAG 2.4.3): a row's Remove is `opensLayer` (ui/dropdown-menu), and the confirm gives focus back to THAT row's
+  // ⋯ on close (`removeFrom`); it has no trigger of its own, so a Safari click (which never focuses) left focus on <body>.
+  const rowMenus = useRef(new Map<string, HTMLElement>())
+  const removeFrom = useRef<HTMLElement | null>(null)
 
   // Stale-async guard (audit Phase 2): typing 'iph' → 'iphone' (or a filter switch
   // during a slow query) put two requests in flight; the EARLIER response landing
@@ -168,9 +173,9 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
 
   // Runs the batch action for `ids` (defaults to the current selection — row-level
   // menu actions pass a single id). Delete detours through the confirm dialog.
-  const act = async (action: string, ids: string[] = [...sel]) => {
+  const act = async (action: string, ids: string[] = [...sel], from: HTMLElement | null = null) => {
     if (!ids.length) return
-    if (action === 'delete') { setPendingDelete(ids); return }
+    if (action === 'delete') { removeFrom.current = from; setPendingDelete(ids); return }
     await run(action, ids)
   }
 
@@ -304,7 +309,7 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
           <div className="flex justify-end">
             {/* Admin keeps the popover at every width (EN-only, desktop-first) — ui/dropdown-menu's phone sheet is consumer chrome. */}
             <DropdownMenu sheet={false}>
-              <DropdownMenuTrigger render={<IconButton size="xs" tapTarget={false} aria-label="More actions" className="rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
+              <DropdownMenuTrigger ref={(el: HTMLButtonElement | null) => { if (el) rowMenus.current.set(row.original.id, el); else rowMenus.current.delete(row.original.id) }} render={<IconButton size="xs" tapTarget={false} aria-label="More actions" className="rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -317,7 +322,7 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.feature} onClick={() => act('feature', [row.original.id])}><Star /> Feature</DropdownMenuItem>
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.verify} onClick={() => act('verify', [row.original.id])}><Check /> Publish</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" disabled={busy} title={ACTION_HINT.delete} onClick={() => act('delete', [row.original.id])}><Trash2 /> Remove</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" opensLayer disabled={busy} title={ACTION_HINT.delete} onClick={() => act('delete', [row.original.id], rowMenus.current.get(row.original.id) ?? null)}><Trash2 /> Remove</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -437,7 +442,7 @@ export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = '
 
       {/* Destructive confirm. A removal is a tombstone (kept as evidence), not a delete — the copy says so. */}
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null) }}>
-        <AlertDialogContent>
+        <AlertDialogContent finalFocus={returnFocusTo(removeFrom)}>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove listings</AlertDialogTitle>
             <AlertDialogDescription>{`Remove ${(pendingDelete ?? lastDelete.current).length} listing(s)? They leave the site and the seller's dashboard for good; the records are kept as evidence.`}</AlertDialogDescription>

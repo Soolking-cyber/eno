@@ -1,7 +1,7 @@
 'use client'
 import { moderationHotkey } from './moderation-hotkeys'
 
-import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode, type Ref } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
@@ -10,6 +10,7 @@ import { STROKE_MARK } from '@/lib/icon-tokens'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { returnFocusTo } from '@/lib/return-focus'
 import { MOD_MACROS } from '@/lib/admin-macros'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { shortDate } from '@/lib/dates'
@@ -198,13 +199,13 @@ function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) =>
 
 // Overflow menu for secondary actions (delete listing, notify, dismiss-all). Keeps the
 // decision surface at exactly three buttons — everything else lives behind one "More".
-function MoreMenu({ children }: { children: ReactNode }) {
+function MoreMenu({ children, triggerRef }: { children: ReactNode; triggerRef?: Ref<HTMLButtonElement> }) {
   return (
     <span className="inline-block" onClick={(e) => e.stopPropagation()}> {/* design-lint-allow */}
       {/* Admin keeps the popover at every width (EN-only, desktop-first), and this menu nests a submenu (NotifyMenu),
           which ui/dropdown-menu's phone action sheet does not do. */}
       <DropdownMenu sheet={false}>
-        <DropdownMenuTrigger title="More actions" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
+        <DropdownMenuTrigger ref={triggerRef} title="More actions" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
           <MoreHorizontal className="h-3.5 w-3.5" /> More
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64 p-1.5">
@@ -365,7 +366,8 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   onAction: (action: string, id: string, severity?: string) => void
   onListing: (action: string, listingId: string) => void
   onDismissTarget: (id: string) => void
-  onWithdrawDeal: (c: ModCase) => void
+  /** `from`: this card's ⋯, which the confirmation gives focus back to on close. */
+  onWithdrawDeal: (c: ModCase, from: HTMLElement | null) => void
   refresh: () => void
 }) {
   const t = c.target
@@ -375,6 +377,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   // "Use suggestion" pre-selects the AI's severity + focuses/highlights the matching
   // decision button — it NEVER submits. The admin makes the final call.
   const decisionRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const moreRef = useRef<HTMLButtonElement>(null)
   const [aiFocus, setAiFocus] = useState<AiReview['outcome'] | null>(null)
   const useSuggestion = (r: AiReview) => {
     if (r.outcome === 'confirm' && r.severity && PENALTY[r.severity]) onSeverity(c.id, r.severity)
@@ -523,12 +526,12 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
             <span className="ml-auto inline-flex items-center gap-1.5">
               <Button size="none" variant="ghost" ref={(el) => { decisionRefs.current.abusive = el }} onClick={(e) => { e.stopPropagation(); onAction('abusive-report', c.id) }} disabled={busy} className={cn('rounded-lg px-2 py-1 text-2xs font-semibold text-warning hover:bg-warning/10 hover:text-warning disabled:opacity-40 cursor-pointer', aiFocus === 'abusive' && 'ring-2 ring-brand ring-offset-1')} title="False/abusive report — strike the reporter">Abusive</Button>
               <NoteEditor caseId={c.id} initial={c.internalNote} onSaved={refresh} />
-              <MoreMenu>
+              <MoreMenu triggerRef={moreRef}>
                 {isListing && <DropdownMenuItem variant="destructive" onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><X className="size-3" /> Remove listing (kept as evidence)</DropdownMenuItem>}
                 {c.communityCount > 1 && <DropdownMenuItem onClick={() => onDismissTarget(c.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Users className="size-3" /> Dismiss all {c.communityCount} on this target</DropdownMenuItem>}
                 {/* A live confirmation past the seller's own 10-minute undo: withdrawn here, the buyer's review card closes.
                     The case stays open — Confirm / Dismiss still decide it. */}
-                {c.dealConfirmation && <DropdownMenuItem variant="destructive" onClick={() => onWithdrawDeal(c)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Undo2 className="size-3" /> Undo the seller&apos;s confirmation ({c.dealConfirmation.kind})</DropdownMenuItem>}
+                {c.dealConfirmation && <DropdownMenuItem variant="destructive" opensLayer onClick={() => onWithdrawDeal(c, moreRef.current)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Undo2 className="size-3" /> Undo the seller&apos;s confirmation ({c.dealConfirmation.kind})</DropdownMenuItem>}
                 {(isListing || c.communityCount > 1 || c.dealConfirmation) && (msgTargets.length > 0 || t.isGuest) && <DropdownMenuSeparator />}
                 {msgTargets.map((m) => <MacroSender key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
                 {t.isGuest && <p className="px-2 py-1 text-3xs italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
@@ -664,6 +667,9 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
   // thread's confirm budget is spent, so the seller cannot confirm it again — so one misclick in the ⋯ menu must not
   // cost a genuine buyer their review. The menu item only opens this question; the dialog's button sends the request.
   const [withdrawAsk, setWithdrawAsk] = useState<ModCase | null>(null)
+  // ⛔ FOCUS (WCAG 2.4.3): the ⋯ row that asks is `opensLayer` (ui/dropdown-menu); the question gives focus back to that
+  // card's ⋯ on close — it has no trigger of its own, so a Safari click (which never focuses) left focus on <body>.
+  const withdrawFrom = useRef<HTMLElement | null>(null)
   const withdrawDeal = async (c: ModCase) => {
     if (!c.dealConfirmation) return
     setBusyId(c.id)
@@ -751,7 +757,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       onAction={act}
       onListing={listingAct}
       onDismissTarget={dismissTarget}
-      onWithdrawDeal={setWithdrawAsk}
+      onWithdrawDeal={(c, from) => { withdrawFrom.current = from; setWithdrawAsk(c) }}
       refresh={refresh}
     />
   )
@@ -759,7 +765,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
   return (
     <div>
       <AlertDialog open={withdrawAsk !== null} onOpenChange={(open) => { if (!open) setWithdrawAsk(null) }}>
-        <AlertDialogContent size="sm">
+        <AlertDialogContent size="sm" finalFocus={returnFocusTo(withdrawFrom)}>
           <AlertDialogHeader>
             <AlertDialogTitle>Undo the seller&apos;s confirmation?</AlertDialogTitle>
             <AlertDialogDescription>

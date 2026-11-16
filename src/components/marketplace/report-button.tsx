@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, Radio, RadioDot } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { returnFocusTo } from '@/lib/return-focus'
 
 type Props = {
   listingId?: string
@@ -48,16 +49,6 @@ type Props = {
   finalFocus?: RefObject<HTMLElement | null>
 }
 
-/**
- * A triggerless dialog's `finalFocus` (ReportButton, BlockUserButton): the caller's control while it is on the page, Base UI's
- * own choice when it is gone, and NONE for a close that hands over to the sign-in card — the card returns focus to the
- * control itself (`openSignIn({ finalFocus })`), and an explicit return here would land behind it.
- */
-export function returnFocusTo(control: RefObject<HTMLElement | null> | undefined, handingOff: RefObject<boolean>) {
-  if (!control) return undefined
-  return () => (handingOff.current ? false : control.current?.isConnected ? control.current : true)
-}
-
 const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'scam', vi: 'Lừa đảo', en: 'Scam' },
   { value: 'counterfeit', vi: 'Hàng giả / nhái', en: 'Counterfeit / fake goods' },
@@ -89,7 +80,8 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
   // message grows the Help link its own copy promises.
   const [blocked, setBlocked] = useState(false)
   const isContent = !!(reviewId || commentId || postId)
-  // This close hands over to the sign-in card (see `returnFocusTo`). Every open starts without it.
+  // This close hands over to the sign-in card (src/lib/return-focus.ts `returnFocusTo`): the card returns focus to the
+  // control itself (`openSignIn({ finalFocus })`), and a return here would land behind it. Every open starts without it.
   const handingOff = useRef(false)
   useEffect(() => { if (open) handingOff.current = false }, [open])
 

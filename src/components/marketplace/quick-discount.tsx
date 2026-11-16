@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useState, type RefObject } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendingDown, Sparkles } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { subtleToast } from '@/lib/subtle-toast'
+import { returnFocusTo } from '@/lib/return-focus'
 
 // Discount % model shared by the single-listing dialog + the bulk-discount bar.
 export const DISCOUNT_PRESETS = [10, 20, 30] as const
@@ -94,6 +95,7 @@ export function QuickDiscount({
   trigger = true,
   open: openProp,
   onOpenChange,
+  finalFocus,
 }: {
   listing: { id: string; price: number; currency: string }
   onChanged: () => void
@@ -104,6 +106,9 @@ export function QuickDiscount({
   /** Controlled open state; omit to let the chip own it (every caller before inbox-12). */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** With `trigger={false}`: the caller's control that opened the dialog (the row's ⋯ — its Discount row is `opensLayer`,
+   *  ui/dropdown-menu). Focus goes back to it on close (src/lib/return-focus.ts). */
+  finalFocus?: RefObject<HTMLElement | null>
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // amounts + live grouping follow the viewer's language
@@ -204,7 +209,7 @@ export function QuickDiscount({
       )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
-        <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+        <DialogContent finalFocus={returnFocusTo(finalFocus)} className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">
               {tr('Lower the price', 'Giảm giá')}

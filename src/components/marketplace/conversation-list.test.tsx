@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
+import { installDrawerPolyfills, setViewport } from '@/test/drawer-env'
+import { __resetBackToCloseForTests } from '@/lib/back-to-close'
+
+// Was the Cancel press a keyboard one? (the browser's own :focus-visible, which jsdom does not model — src/lib/focus-visible.ts)
+const focusRing = vi.hoisted(() => ({ visible: false }))
+vi.mock('@/lib/focus-visible', () => ({ isFocusVisible: () => focusRing.visible }))
 
 /**
  * A CONFIRMED DELETE LEAVES, THEN IS DELETED. The row used to be removed in the same commit as the
@@ -137,6 +144,74 @@ describe('ConversationList rows (inbox-02)', () => {
     expect(trash.className).toMatch(/(^|\s)hidden(\s|$)/)
     expect(trash.className).toContain('hover-pointer:flex')
   })
+})
+
+/**
+ * ⛔ FOCUS FOLLOWS THE DELETE CONFIRM (WCAG 2.4.3, 2026-11-17). The control that opens it — the ⋯ on touch, the hover trash
+ * with a mouse — unmounts with the tap (the confirm takes its place), and focus used to fall to <body>. Opening it now focuses
+ * its Cancel; Cancel puts focus back on the row's control this device draws (CSS decides which one is drawn, so the test says
+ * which one is "drawn" through getClientRects, the check the list itself makes). The real-browser proof (Chromium and
+ * WebKit, touch, mouse and keys) is the 2026-11-17 Playwright harness; these pin the wiring in jsdom.
+ */
+describe('ConversationList — focus through the delete confirm', () => {
+  beforeAll(() => installDrawerPolyfills())
+  afterEach(() => { __resetBackToCloseForTests(); setViewport('desktop'); vi.restoreAllMocks() })
+  /** Only the controls named `drawn` have a box, as the device's CSS would leave it. */
+  const drawn = (name: string) => vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) {
+    return (this.getAttribute('aria-label') === name ? [{}] : []) as unknown as DOMRectList
+  })
+  const rowOf = (id: string) => document.querySelector(`a[href="/messages/${id}"]`)!.closest<HTMLElement>('div.group')!
+  const cancelIn = (id: string) => within(rowOf(id)).getByRole('button', { name: 'Cancel' })
+
+  afterEach(() => { focusRing.visible = false })
+
+  it('the keyboard: the hover trash → focus on the confirm\'s Cancel → Cancel → focus back on that row\'s trash; Delete still deletes', async () => {
+    drawn('Delete conversation')
+    focusRing.visible = true
+    const user = userEvent.setup()
+    render(<ConversationList />)
+    within(rowOf('c1')).getByRole('button', { name: 'Delete conversation' }).focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(cancelIn('c1')))
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(within(rowOf('c1')).getByRole('button', { name: 'Delete conversation' })))
+    // The confirm's own Delete is untouched: it still leaves and deletes.
+    await user.click(within(rowOf('c1')).getByRole('button', { name: 'Delete conversation' }))
+    chat.deleteConvo.mockClear()
+    await user.click(within(rowOf('c1')).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(chat.deleteConvo).toHaveBeenCalledExactlyOnceWith('c1'))
+  })
+
+  it('a mouse: Cancel does NOT hand focus to the hover trash — focused, its slot would stay open, empty, once the pointer left', async () => {
+    drawn('Delete conversation')
+    const user = userEvent.setup()
+    render(<ConversationList />)
+    await user.click(within(rowOf('c1')).getByRole('button', { name: 'Delete conversation' }))
+    await waitFor(() => expect(document.activeElement).toBe(cancelIn('c1')))
+    await user.click(cancelIn('c1'))
+    await waitFor(() => expect(within(rowOf('c1')).queryByRole('button', { name: 'Cancel' })).toBeNull())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(document.activeElement).not.toBe(within(rowOf('c1')).getByRole('button', { name: 'Delete conversation' }))
+  })
+
+  for (const viewport of ['phone', 'desktop'] as const) {
+    it(`touch (${viewport === 'phone' ? 'the action sheet' : 'a tablet\'s popup'}): ⋯ → Delete conversation → focus on Cancel → Cancel → focus back on that row's ⋯`, async () => {
+      setViewport(viewport)
+      drawn('More actions')
+      const user = userEvent.setup()
+      render(<ConversationList />)
+      await user.click(within(rowOf('c2')).getByRole('button', { name: 'More actions' }))
+      const item = viewport === 'phone'
+        ? within(await screen.findByRole('dialog', { name: 'Binh' })).getByRole('button', { name: 'Delete conversation' })
+        : within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Delete conversation' })
+      await user.click(item)
+      await waitFor(() => expect(document.activeElement).toBe(cancelIn('c2')))
+      await new Promise((r) => setTimeout(r, 50))
+      expect(document.activeElement).toBe(cancelIn('c2'))
+      await user.click(cancelIn('c2'))
+      await waitFor(() => expect(document.activeElement).toBe(within(rowOf('c2')).getByRole('button', { name: 'More actions' })))
+    })
+  }
 })
 
 describe('ConversationList header (inbox-01)', () => {
