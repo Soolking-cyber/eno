@@ -173,6 +173,11 @@ describe('eno-vn-mcp: the package', () => {
     expect(pkg.dependencies).toBeUndefined()
     expect(pkg.files).toContain('bin/eno-vn-mcp.mjs')
   })
+  it('names its official MCP Registry entry (mcpName): the registry checks it to tie the npm package to vn.eno/search', () => {
+    // The default server without a key is search, so the package is that entry's local form (owner 2026-11-16 "yes").
+    expect(pkg.mcpName).toBe('vn.eno/search')
+    expect(pickServer([], {}).name).toBe('search')
+  })
   it('its version is the one the program reports', () => {
     expect(readFileSync(new URL('../../packages/eno-vn-mcp/bin/eno-vn-mcp.mjs', import.meta.url), 'utf8')).toContain(`export const VERSION = '${pkg.version}'`)
   })

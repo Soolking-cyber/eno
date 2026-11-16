@@ -50,3 +50,5 @@ Node 18 or later. No dependencies.
 ## Licence
 
 MIT. Docs: <https://eno.vn/developers/mcp>. Support: support@eno.vn.
+
+Also in the official MCP Registry as [vn.eno/search](https://registry.modelcontextprotocol.io/v0/servers?search=vn.eno).

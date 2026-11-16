@@ -8,7 +8,7 @@ import { createInterface } from 'node:readline'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const VERSION = '1.0.0'
+export const VERSION = '1.0.1'
 
 /** The hosted servers. Only `shop` needs a key, and only `shop` is ever sent one. */
 export const SERVERS = {
