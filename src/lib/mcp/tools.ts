@@ -341,52 +341,18 @@ const deletedOut = (hold: DeleteHoldReason | null) => hold
 // not in a client validating structuredContent after a write has landed. (A conditional that resolves to `never` cannot
 // hold `true`; the tuple wraps stop it distributing over a union.) Values read from the database are plain strings in
 // both the projection and the schema (see LISTING_STATUS_OUT), so no cast can hide a stored value the schema refuses.
-// ── WHAT AN EDIT ANSWERS: THE FIELDS IT CAN CHANGE, AS SAVED, PLUS THE ID AND THE STATE THAT MATTERS (2026-11-16) ──────
-// Measured on Manufact's board: of 1,916 write tools with an output schema, the 17 whose output scores 95+ all answer a
-// small result about the write (1–7 fields), never the whole record; get_shop and update_shop answered the SAME 11-field
-// shop and scored 92 vs 85. So update_shop answers the profile fields it edits and update_listing the listing fields it
-// edits plus status, verified and url; get_shop / get_listing still return everything.
-const SAVED_SHOP_OUT = z.strictObject({
-  id: SHOP_OUT.shape.id,
-  name: z.string().describe('The shop\'s public name as now saved, shown on its page and beside each listing'),
-  bio: z.string().nullable().describe('About the shop as now saved; null when it has none'),
-  location: z.string().nullable().describe('Where the shop is as now saved; null when not set'),
-  phone: z.string().nullable().describe('The contact phone as now saved, which eno shares with a buyer only inside its chat, so do not repeat it in anything public; null when not set'),
-  avatar_url: z.string().nullable().describe('The logo as now saved, a full image URL; null when it has none'),
-}).describe('The profile fields update_shop changes, as now saved')
-const savedShopOut = (s: z.infer<typeof SHOP_OUT>) => ({ id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: s.avatar_url })
-const SAVED_LISTING_OUT = z.strictObject({
-  id: LISTING_OUT.shape.id,
-  title: LISTING_OUT.shape.title,
-  description: LISTING_OUT.shape.description,
-  price: LISTING_OUT.shape.price,
-  priceUnit: LISTING_OUT.shape.priceUnit,
-  district: LISTING_OUT.shape.district,
-  condition: LISTING_OUT.shape.condition,
-  images: LISTING_OUT.shape.images,
-  status: LISTING_OUT.shape.status,
-  verified: LISTING_OUT.shape.verified,
-  url: LISTING_OUT.shape.url,
-}).describe('The listing fields update_listing changes, as now saved, with its status and page')
-export const savedListingOut = (l: ReturnType<typeof listingOut>) => ({
-  id: l.id, title: l.title, description: l.description, price: l.price, priceUnit: l.priceUnit, district: l.district,
-  condition: l.condition, images: l.images, status: l.status, verified: l.verified, url: l.url,
-})
-
 type Fits<T, S extends z.ZodType> = [T] extends [z.infer<S>] ? ([z.infer<S>] extends [T] ? true : never) : never
 const PINS: [
   Fits<ReturnType<typeof listingOut>, typeof LISTING_OUT>,
   Fits<ReturnType<typeof listingSummaryOut>, typeof LISTING_SUMMARY_OUT>,
   Fits<Awaited<ReturnType<typeof readShop>>, typeof SHOP_OUT>,
-  Fits<ReturnType<typeof savedShopOut>, typeof SAVED_SHOP_OUT>,
-  Fits<ReturnType<typeof savedListingOut>, typeof SAVED_LISTING_OUT>,
   Fits<ReturnType<typeof webhookOut>, typeof WEBHOOK_OUT>,
   Fits<ReturnType<typeof registeredOut>, typeof REGISTERED_WEBHOOK_OUT>,
   Fits<ReturnType<typeof createdOut>, typeof CREATED_OUT>,
   Fits<ReturnType<typeof bulkRowOut>, typeof BULK_ROW_OUT>,
   Fits<ReturnType<typeof syncRowOut>, typeof SYNC_ROW_OUT>,
   Fits<ReturnType<typeof analyticsRowOut>, typeof ANALYTICS_ROW_OUT>,
-] = [true, true, true, true, true, true, true, true, true, true, true]
+] = [true, true, true, true, true, true, true, true, true]
 void PINS
 
 export type McpTool = {
@@ -421,10 +387,10 @@ export const TOOLS: McpTool[] = [
   {
     name: 'update_shop',
     title: 'Update shop',
-    description: 'Update this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat.\n\nSend only the fields to change; the others stay as they are. Changes are saved immediately. Long text is shortened to fit: name 120 characters, bio 1,000, location 120, and a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the fields an update changes as now saved: `id`, `name`, `bio`, `location`, `phone` and `avatar_url` (get_shop has the trust and listing figures). Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.',
+    description: 'Update this shop\'s profile: the name, bio, location and logo buyers see on its page, and the contact phone eno shares with a buyer inside its chat.\n\nSend only the fields to change; the others stay as they are. Changes are saved immediately. Long text is shortened to fit: name 120 characters, bio 1,000, location 120, and a name needs at least 2. A phone number another shop already uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`, as get_shop. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ shop: SAVED_SHOP_OUT.nullable().describe('The profile fields the update changes, as now saved; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
+    output: z.strictObject({ shop: SHOP_OUT.nullable().describe('The saved shop profile after the update, the same fields get_shop returns; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings. Leave it out to keep the current name'),
       bio: z.string().optional().describe('About the shop in a few sentences, shown on its page: what it sells and how it serves buyers. Send an empty string to clear it, or leave it out to keep it'),
@@ -435,9 +401,9 @@ export const TOOLS: McpTool[] = [
     handler: async (auth, args) => {
       const res = await updateSellerCore(auth.sellerId, auth.profileId, args)
       if (!res.ok) throw new ToolError(res.error, res.error)
-      // The change is SAVED: a read-back that fails (or would not fit SHOP_OUT or SAVED_SHOP_OUT) answers null, never an error the agent
+      // The change is SAVED: a read-back that fails (or would not fit SHOP_OUT) answers null, never an error the agent
       // would retry.
-      const shop = await readShop(auth.sellerId).then((x) => { const out = SHOP_OUT.safeParse(x).success ? savedShopOut(x) : null; return out && SAVED_SHOP_OUT.safeParse(out).success ? out : null }).catch(() => null)
+      const shop = await readShop(auth.sellerId).then((x) => (SHOP_OUT.safeParse(x).success ? x : null)).catch(() => null)
       return { shop }
     },
   },
@@ -548,13 +514,13 @@ export const TOOLS: McpTool[] = [
     title: 'Update marketplace listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
-    description: 'Update one of this shop\'s listings: its title, text, price, district, condition, photos or a job\'s salary.\n\nSend the listing\'s id and only the fields to change; the rest stay as they are. Changes are saved immediately. Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. A refused edit changes nothing and comes back with its reason code, such as `title_too_short` or `invalid_price`.\n\nIt cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).\n\nReturns `held` and `unpublished`, which say when the saved edit is not public yet (`held: true` while the listing waits for eno\'s licence check), and `listing` as it now stands: `id`, `title`, `description`, `price`, `priceUnit`, `district`, `condition`, `images`, `status`, `verified` and `url`. Use it when the seller asks for a new price, better text, another district or new photos.',
+    description: 'Update one of this shop\'s listings: its title, text, price, district, condition, photos or a job\'s salary.\n\nSend the listing\'s id and only the fields to change; the rest stay as they are. Changes are saved immediately. Photos you send replace the whole set (public URLs are copied to eno\'s storage; the first 8 are used), and text is cut to the same lengths as create_listing. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. A refused edit changes nothing and comes back with its reason code, such as `title_too_short` or `invalid_price`.\n\nIt cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).\n\nReturns `held` and `unpublished`, which say when the saved edit is not public yet (`held: true` while the listing waits for eno\'s licence check), and `listing` as it now stands: `id`, `title`, `description`, `price`, `priceUnit`, `district`, `condition`, `images`, `status`, `verified`, `url` and the rest of get_listing\'s fields. Use it when the seller asks for a new price, better text, another district or new photos.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
       held: z.boolean().describe('true when the edit is saved but the listing stays unpublished until eno\'s licence check approves it; false otherwise'),
       unpublished: z.boolean().describe('true when the listing belongs to an account whose listings are not shown publicly; false otherwise'),
-      listing: SAVED_LISTING_OUT.nullable().describe('The fields the edit changes, as now saved, with the listing\'s status, verified flag and page url; null only if it could not be read back'),
+      listing: LISTING_OUT.nullable().describe('The listing as it now stands, the same fields get_listing returns; null only if it could not be read back'),
     }).describe('Confirms the edit and shows the listing after it'),
     input: z.object({
       id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings or create_listing'),
@@ -589,10 +555,10 @@ export const TOOLS: McpTool[] = [
       // `held`: an e-Visa / Legal & permits listing still waiting for eno's licence check — unpublished, as on /api/v1.
       // `unpublished`: a store-review seat's listing that is not public (round 5 — review-seat-accounts.ts), as on /api/v1.
       // `listing`: the row as it now stands (2026-11-15), so the agent can confirm the change without a second call.
-      // The edit is SAVED: a read-back that fails (the query, the serializer, or SAVED_LISTING_OUT) answers null, never an error
+      // The edit is SAVED: a read-back that fails (the query, the serializer, or LISTING_OUT) answers null, never an error
       // the agent would retry.
       const listing = await db.listing.findUnique({ where: { id }, include: LISTING_INCLUDE })
-        .then((row) => { const out = row ? savedListingOut(listingOut(row)) : null; return out && SAVED_LISTING_OUT.safeParse(out).success ? out : null })
+        .then((row) => { const out = row ? listingOut(row) : null; return out && LISTING_OUT.safeParse(out).success ? out : null })
         .catch(() => null)
       return { held: res.held === true, unpublished: res.unpublished === true, listing }
     },
