@@ -787,6 +787,36 @@ const lineMark = (lucide, { line, dx }, tag) => {
 }
 
 /**
+ * LENGTHENS A HORIZONTAL BAR WITHOUT TOUCHING ITS ENDS — the `stretch` of a BARE_MARKS row. Every point left of the box's
+ * centre line (x = 12) moves `by` further left and every point right of it `by` further right, so the two round caps keep
+ * their exact Solar curves and only the straight run between them grows. A scale() would do neither: it would thicken
+ * the bar with its length (Solar's 1.5 becomes 3+ at the ✕'s size) and stretch the caps into ovals.
+ * ⚠️ IT ONLY UNDERSTANDS A BAR, AND REFUSES ANYTHING ELSE. A point ON the centre line has no side to move to; a shape
+ * taller than 2 units is not a bar; an arc (A) carries flags among its numbers. Each fails the build rather than
+ * producing a mark nobody drew. Commands are absolute (quantise() already refuses relative ones).
+ */
+function stretchBar(lucide, tag, by) {
+  const m = tag.match(/\sd="([^"]*)"/)
+  if (!m) fail(`bare mark ${lucide}: \`stretch\` needs a <path d>, got ${tag.slice(0, 60)}`)
+  const round = (n) => String(parseFloat(n.toFixed(2)))
+  const ys = []
+  const d = m[1].replace(/([MLHVCSQTAZ])([^MLHVCSQTAZ]*)/g, (_all, cmd, args) => {
+    if (cmd === 'A') fail(`bare mark ${lucide}: \`stretch\` cannot move an arc's end point safely`)
+    const nums = (args.match(/-?\d*\.?\d+/g) ?? []).map(Number)
+    // Which of a command's numbers are x: every one for H, none for V/Z, the even ones (x y pairs) otherwise.
+    const isX = (i) => (cmd === 'H' ? true : cmd === 'V' || cmd === 'Z' ? false : i % 2 === 0)
+    const out = nums.map((n, i) => {
+      if (!isX(i)) { ys.push(n); return round(n) }
+      if (n === 12) fail(`bare mark ${lucide}: a point on the centre line (x = 12) has no side to stretch to`)
+      return round(n < 12 ? n - by : n + by)
+    })
+    return cmd + out.join(' ')
+  })
+  if (ys.length && Math.max(...ys) - Math.min(...ys) > 2) fail(`bare mark ${lucide}: \`stretch\` source is not a horizontal bar (y spans ${Math.max(...ys) - Math.min(...ys)})`)
+  return tag.replace(m[0], ` d="${d}"`)
+}
+
+/**
  * One BARE MARK: a single shape lifted out of an enclosed glyph, centred, and used for BOTH
  * weights. See `BARE_MARKS` in lucide-solar-map.mjs for why the set exists and how `dx` was
  * measured — this function is only the extraction, and every guard below protects `dx`.
@@ -850,11 +880,18 @@ const bareMark = (lucide, spec, { jsx = true } = {}) => {
   // mark that looks like nobody applied the setting. Every other invariant in this function
   // calls fail(); this one used to degrade quietly, which reviewers caught.
   let stroked = clean[shape]
+  if (spec.stretch) stroked = stretchBar(lucide, stroked, spec.stretch)
   if (spec.bold) {
     if (!stroked.endsWith('/>')) fail(`bare mark ${lucide}: shape ${shape} is not self-closing, so \`bold\` cannot be applied: ${stroked.slice(0, 80)}`)
     stroked = stroked.replace(/\/>$/, ` stroke="currentColor" stroke-width="${spec.bold}" stroke-linejoin="round" stroke-linecap="round"/>`)
   }
-  const mark = dx === 0 ? stroked : `<g transform="translate(${dx},0)">${stroked}</g>`
+  // `turns`: one copy of the (stretched, weighted) shape per angle, each rotated about the box centre — two bars at ±45°
+  // are the bare ✕ (XBare in lucide-solar-map.mjs). One layer, one fill, so the overlap at the crossing never darkens.
+  if (spec.turns && (!Array.isArray(spec.turns) || !spec.turns.length || spec.turns.some((a) => !Number.isFinite(a)))) {
+    fail(`bare mark ${lucide}: \`turns\` must be a non-empty list of angles in degrees`)
+  }
+  const turned = spec.turns ? spec.turns.map((a) => `<g transform="rotate(${a} 12 12)">${stroked}</g>`).join('') : stroked
+  const mark = dx === 0 ? turned : `<g transform="translate(${dx},0)">${turned}</g>`
 
   // ⚠️ THE SAME DRAWING FOR BOTH WEIGHTS — that is what "bare mark" means. The two symbols are
   // still emitted separately so every glyph in the sprite has the identical `-r` / `-o` pair and

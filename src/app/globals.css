@@ -65,6 +65,17 @@
    gutters arrive after auth, as before. Written in `pc`'s own shape (one @media, min-width + pointer:fine), the shape
    the built CSS already carries for `pc` with its selectors intact; the integrated build's CSS must still be read. */
 @custom-variant rail-hint { @media (min-width: 73rem) and (pointer: fine) { &:is(.rail-hint *) { @slot; } } }
+/* ⛔ `post-bar:` — THE POST FLOW'S PHONE TASK BAR (owner-approved 2026-11-16 on the hub, Q22: "yes if they are related to
+   visual change"; cook r12 post-r12c, +0.54 and +0.66 same-run). It reverses r05's "the app header on every page" on
+   /post and /listings/<id>/edit only. Below 40rem (`max-sm`), in a browser (`html:not(.native)`: the store apps keep their
+   header, as on the photo-first listing page below) and until the success screen (`data-post-done`, post-wizard.tsx), the
+   app header stands down (header.tsx, only where the page shell passes `<Header postBar />` — never a 404 or error
+   screen), <main> pads for the fixed bar (post/page.tsx, listings/[id]/edit/page.tsx, the /post skeleton) and the wizard's
+   own Exit + h1 become that bar. ⛔ EVERY OTHER r12 PHONE CHANGE TO THE WIZARD (P2 chips, P4 photos, P5 copy, P8 fields)
+   RIDES THIS SAME VARIANT, NOT `max-sm`, so the store apps keep today's form whole (review, 2026-11-16). A class the
+   pre-paint script writes and an attribute written only after a Publish: no :has(), nothing measured, nothing moves on
+   load. */
+@custom-variant post-bar { @media (width < 40rem) { &:is(html:not(.native):not([data-post-done]) *) { @slot; } } }
 
 /* THE ANDROID FALLBACK FACE (speed plan R64, audit media-05). next/font's adjusted "openRunde Fallback" is
    `local(Arial)`, and Chrome on Android (WebView too) matches local() against full and PostScript names only: there is

@@ -55,15 +55,18 @@ const html = (edit?: ListingEditData) => renderToString(<PostWizard categories={
 
 afterEach(() => { h.auth.user = null })
 
-const marksIn = (page: string) => (page.match(/<span class="lg:hidden"><span class="text-xs font-medium text-ink-4">Needed<\/span><\/span>/g) ?? []).length
+// "Needed" is hidden on a phone in a browser since 2026-11-16 (owner-approved, hub Q22 / P5: the ✓ alone there; the `post-bar`
+// variant, so the store apps keep it) — from sm to lg it shows.
+const NEEDED = '<span class="lg:hidden"><span class="text-xs font-medium text-ink-4 post-bar:hidden">Needed</span></span>'
+const marksIn = (page: string) => page.split(NEEDED).length - 1
 
 describe('post wizard — section marks on a phone', () => {
-  it('a fresh guest form: the open sections say "Needed", phone only', () => {
+  it('a fresh guest form: the open sections say "Needed", below lg except a phone browser', () => {
     const page = html()
     expect(marksIn(page)).toBeGreaterThanOrEqual(3)
     // Photos and Category lead the form; both are open on a fresh form.
-    expect(page).toMatch(/>Photos<\/h2><span class="lg:hidden"><span class="text-xs font-medium text-ink-4">Needed/)
-    expect(page).toMatch(/>Category<\/h2><span class="lg:hidden"><span class="text-xs font-medium text-ink-4">Needed/)
+    expect(page).toContain(`>Photos</h2>${NEEDED}`)
+    expect(page).toContain(`>Category</h2>${NEEDED}`)
   })
 
   it('before a category, the photo step names no number', () => {

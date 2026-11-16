@@ -15,7 +15,8 @@ same change.
 Identity in one line: **flat white marketplace — one white canvas (#ffffff) on every surface,
 an ink ladder (#141414 / #3d3d3d / #5e5e5e), ONE accent (#0060df, press #004bb0) for actions,
 links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, a closed type
-scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header with
+scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header (in a phone browser, the post
+flow's task bar instead — §1) with
 one raised 44px search pill and a docked white tab bar of five labelled tabs, one primary + one secondary button, white
 hairline chips — field-grey filled in a phone feed's control strip — (a clipped one at the edge says the row swipes).**
 
@@ -147,7 +148,7 @@ link `font-bold text-accent-foreground underline decoration-1 underline-offset-3
 change together).
 
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
-category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
+category, SEO, /post; the phone exceptions below) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
 display-size greeting — or `sr-only` where a mobile SectionHeader carries the visible title. Reach for `<PageHeader>` (ui/page-header: title +
 meta line + actions) rather than hand-typing `text-xl font-bold`; that is how eight different
 h1 styles happened. The PDP headline is the one owner exception (price-first). design-lint
@@ -158,6 +159,15 @@ phone's first screen).** Below `sm` the `/c/*` H1 keeps `.h-display` but takes t
 size — `--text-display` re-pointed at `--text-title` on the element (`(index)/layout.tsx`), never a
 `text-*` utility, which the unlayered class would beat — and holds one line, a long headline
 truncated (the whole H1 stays in the HTML). Its lede is one line there too, with "Show more".
+
+**Phone exception — the post flow's task bar (owner-approved 2026-11-16, hub Q22; cook r12 post-r12c).** On `/post` and
+`/listings/<id>/edit`, below `sm` in a browser (the `post-bar` variant in globals.css: never the store apps, never the
+success screen), the white header stands down and the wizard's own 56px task bar frames the page: a bare ✕ (Exit) at the
+start and the H1 centred on one line at 17px, truncated. The H1 keeps `.h-display` and takes its size the `/c/*` way —
+`--text-display` re-pointed at `--text-t-h3` on the element (`post-wizard.tsx`), no `text-*` utility — and keeps its own
+700 (the stills' 600 has no cut: the family ships 400 and 700, so `font-semibold` is 700 here). Its 56px line and −0.01em
+tracking stay `!` utilities: `.h-display` writes both as literal values, so there is no variable to re-point, and a
+layered utility cannot otherwise beat the unlayered class.
 
 **No kicker eyebrows.** A small uppercase label that restates the heading under it ("Error
 404", "New") is retired (owner, 2026-08-05). The survivors are the SEO *topic · place* lines

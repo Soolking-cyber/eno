@@ -26,7 +26,7 @@ const chip = 'relative rounded-full bg-tint px-2.5 py-1 text-xs font-semibold te
  * "= 12 triệu đồng" readability helper. Emits a digits-only string.
  */
 export function VndInput({
-  value, onChange, presets, placeholder, autoFocus, id, className, invalid, unit,
+  value, onChange, presets, placeholder, autoFocus, id, className, fieldClassName, invalid, unit,
   maxFactor = 1_000_000_000,
   'aria-label': ariaLabel, 'aria-describedby': describedBy, 'aria-required': ariaRequired,
 }: {
@@ -37,6 +37,9 @@ export function VndInput({
   autoFocus?: boolean
   id?: string
   className?: string
+  /** Extra classes for the amount <input> itself (`className` lands on the wrapper) — the post wizard's phone field look
+   *  (post-wizard-parts.tsx PHONE_FIELD_LINE: borderless, 52px, the solid brand focus ring). */
+  fieldClassName?: string
   invalid?: boolean
   /** VndInput renders a <div>, so it is NOT a labelable control and cannot sit in a <FieldControl>.
    *  Its inner <input> therefore has no way to acquire a name or a reason on its own — these two
@@ -104,7 +107,7 @@ export function VndInput({
           aria-required={ariaRequired || undefined}
           // pr-20 / pr-32 are LOAD-BEARING: they reserve the room for the Clear button AND the "đ"
           // suffix (plus the period, when there is one) — without it the digits run under them.
-          className={cn('py-2.5 pl-3.5 text-lg font-bold tabular-nums focus:ring-brand/20', unit ? 'pr-32' : 'pr-20', invalid && 'ring-2 ring-destructive/60')}
+          className={cn('py-2.5 pl-3.5 text-lg font-bold tabular-nums focus:ring-brand/20', unit ? 'pr-32' : 'pr-20', fieldClassName, invalid && 'ring-2 ring-destructive/60 post-bar:focus:ring-destructive/60')}
         />
         {/* The right-hand adornments, laid out as ONE row so a longer suffix ("đ / tháng") pushes
             Clear left instead of running under it. pointer-events-none so a tap on the suffix still

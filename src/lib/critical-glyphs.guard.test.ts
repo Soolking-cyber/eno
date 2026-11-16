@@ -171,3 +171,33 @@ describe("the teacher form's step rail stays inside the core sprite", () => {
     expect(stepRailGlyphs().filter((g) => !critical.has(g))).toEqual([])
   })
 })
+
+/**
+ * ⛔ THE POST FLOW'S PHONE TASK BAR PAINTS ON ARRIVAL (owner-approved 2026-11-16, hub Q22; cook r12 post-r12c). On a phone
+ * in a browser the wizard's Exit link IS the bar's ✕ — its word is sr-only there and the chevron hidden — so a deferred ✕
+ * was a blank 44px button on /post and /listings/<id>/edit until the deferred file landed (5.9-7.3 s on the audience's
+ * profile). post-wizard.tsx cannot join ON_ARRIVAL as a whole: it also imports glyphs drawn only later (Loader2 on a busy
+ * Publish, Sparkles). So the bar's own markup is read, from the file, and every glyph in it that a phone SHOWS
+ * (`post-bar:block`) must be core; the chevron (`post-bar:hidden`, beside the visible word from sm up) is not asked.
+ */
+const POST_WIZARD = 'src/components/marketplace/post-wizard.tsx'
+
+function postBarPhoneGlyphs(): string[] {
+  const src = readFileSync(join(process.cwd(), POST_WIZARD), 'utf8')
+  const start = src.indexOf('<div data-post-bar')
+  const end = start < 0 ? -1 : src.indexOf('</h1>', start)
+  if (end < 0) throw new Error('the data-post-bar block (Exit + h1) not found in post-wizard.tsx — update this guard')
+  const imported = new Set(iconImports(POST_WIZARD))
+  return [...src.slice(start, end).matchAll(/<([A-Z][A-Za-z0-9]*)\b[^>]*\spost-bar:block\b/g)].map((m) => m[1]).filter((g) => imported.has(g))
+}
+
+describe("the post flow's phone task bar stays inside the core sprite", () => {
+  it('finds the ✕ it is guarding', () => {
+    expect(postBarPhoneGlyphs()).toContain('XBare')
+  })
+
+  it('draws no glyph that lives in the deferred sprite', () => {
+    const critical = new Set(CRITICAL_GLYPHS)
+    expect(postBarPhoneGlyphs().filter((g) => !critical.has(g))).toEqual([])
+  })
+})

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck, User } from "@/components/ui/icons"
+import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck, User, XBare } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import { subtleToast } from '@/lib/subtle-toast'
 import type { SerializedCategory } from '@/lib/types'
@@ -43,7 +43,7 @@ import { variantOfLanguage } from '@/lib/lang-variant'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { parsePhotoRefusalDetail, type PhotoRefusal } from '@/lib/upload-client'
-import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
+import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice, PHONE_FIELD, PHONE_FIELD_LINE, FIELD_INVALID } from './post-wizard-parts'
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess, notPublicSavedLine } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
 import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
@@ -597,7 +597,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // (an effect-driven hide shifted the header ~105px after hydration — review, 2026-09-29); this lets
   // it back where posting another IS the next step. Written only after a user's Publish, never on load.
   // A subject-position hook rather than a `body:has(…)` selector (see the note in header.tsx).
-  useEffect(() => {
+  // A LAYOUT effect since the phone task bar (owner-approved 2026-11-16; `post-bar` in globals.css): the same attribute
+  // brings the whole header back on a phone, and it has to land before the success screen's first paint, or that frame
+  // shows the screen with neither the bar nor the header over it.
+  useLayoutEffect(() => {
     if (!submitted) return
     const root = document.documentElement
     root.setAttribute('data-post-done', '')
@@ -1199,6 +1202,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    * while one is open — a display-only view of the same `steps` the badge counts, so a heading cannot disagree with the gate.
    * Nothing on an edit (the listing exists; "Needed" would read as broken) or before the count is ready; nothing for a section
    * with no step of its own (Salary, a guest's Contact). Section shows it below lg only: desktop has the checklist.
+   * ⛔ ON A PHONE IN A BROWSER THE ✓ ALONE (owner-approved 2026-11-16, hub Q22 with P5, cook r12 post-r12c): "Needed" is
+   * `post-bar:hidden`, where the Publish button's "N items left" already counts what is open; from sm to lg, and in the
+   * store apps, it still shows.
    */
   const sectionMark = (...keys: string[]): React.ReactNode => {
     if (edit || !countReady) return undefined
@@ -1206,7 +1212,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (!mine.length) return undefined
     return mine.every((st) => st.ok)
       ? <span className="inline-flex text-success"><Check className="size-4" aria-hidden /><span className="sr-only">{t('Đã xong', 'Done')}</span></span>
-      : <span className="text-xs font-medium text-ink-4">{t('Cần điền', 'Needed')}</span>
+      : <span className="text-xs font-medium text-ink-4 post-bar:hidden">{t('Cần điền', 'Needed')}</span>
   }
 
   // On-blur inline validation for the high-traffic fields — errors surface as the
@@ -1876,17 +1882,37 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // <StickyActionBarSpacer /> at the end of this tree reserves exactly that, chips or no chips.
   return (
     <div>
-      {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
-          HTTP load of the live site — blank screen, full document teardown. The draft is
-          already autosaved to localStorage, so a soft nav loses nothing.
-          ⛔ A VIETNAMESE SELLER EXITS TO `/vi` (nav audit N6b): the plain `/` is the English-pinned pilot
-          path (lang-pinned.ts), so `href="/"` dropped them on the English home. */}
+      {/* ⛔ ON A PHONE THESE TWO ARE THE TASK BAR (owner-approved 2026-11-16 on the hub, Q22: "yes if they are related to
+          visual change"; cook r12 post-r12c). Below sm in a browser (the `post-bar` variant, globals.css) the Exit link and
+          the h1 become one fixed 56px bar — × at the start, the title centred at 17px semibold — and the app header (header.tsx),
+          this Exit row and the subtitle below go. It reverses r05's "the app header on every page" on the post flow only.
+          The SAME two nodes at every width, so nothing is re-created: on a phone the link's word is sr-only and its name
+          stays "Exit"; from sm up, and in the store apps (html.native), both are what they were. The h1 keeps `.h-display`
+          and takes its 17px the canon's way (docs/design-language.md §1, as the /c/* phone H1 does): `--text-display`
+          re-pointed at `--text-t-h3` on the element, never a `text-*` utility. Its weight is `.h-display`'s own 700, the
+          app's semibold (the family ships 400 and 700 only, globals.css; the stills' 600 lands on that cut too). Its 56px
+          line and −0.01em tracking are `!` utilities, because `.h-display` writes both as literal values — there is no
+          variable to re-point, and a layered utility cannot beat the unlayered class any other way. */}
       {!embedded && (
-        <Link href={localizedHref('/', variantOfLanguage(lang))} onClick={dropPublishIntent} className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
-          <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
-        </Link>
+        <div data-post-bar className="post-bar:fixed post-bar:inset-x-0 post-bar:top-0 post-bar:z-40 post-bar:flex post-bar:h-[calc(3.5rem+env(safe-area-inset-top))] post-bar:items-center post-bar:bg-background post-bar:shadow-[inset_0_-1px_0_var(--color-border)] post-bar:px-1.5 post-bar:pt-[env(safe-area-inset-top)]">
+          {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
+              HTTP load of the live site — blank screen, full document teardown. The draft is
+              already autosaved to localStorage, so a soft nav loses nothing.
+              ⛔ A VIETNAMESE SELLER EXITS TO `/vi` (nav audit N6b): the plain `/` is the English-pinned pilot
+              path (lang-pinned.ts), so `href="/"` dropped them on the English home. */}
+          <Link href={localizedHref('/', variantOfLanguage(lang))} onClick={dropPublishIntent} className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44 post-bar:size-11 post-bar:justify-center post-bar:rounded-full post-bar:text-foreground post-bar:active:bg-tint">
+            <ChevronLeft className="h-4 w-4 post-bar:hidden" />
+            {/* ⛔ THE BARE ✕ THE OWNER SAW ON THE STILLS (cook r12 post-r12c), NOT `X`: `X` is the ringed close-circle every
+                dialog and sheet draws. `XBare` is Solar's own bar crossed at ±45° through the icon pipeline
+                (scripts/lucide-solar-map.mjs BARE_MARKS) — 14 of the 24 units, 2-unit arms, the stills' mark. Decorative:
+                the link's name stays "Exit", from the sr-only word beside it. ⛔ In the CORE sprite (scripts/critical-icons.mjs):
+                it is all a phone sees of Exit, painted on arrival, so a deferred ✕ was a blank 44px button for seconds. */}
+            <XBare aria-hidden className="hidden size-6 post-bar:block" />
+            <span className="post-bar:sr-only">{t('Thoát', 'Exit')}</span>
+          </Link>
+          <h1 className="mt-3 h-display text-foreground post-bar:absolute post-bar:inset-x-14 post-bar:bottom-0 post-bar:mt-0 post-bar:h-14 post-bar:truncate post-bar:text-center post-bar:[--text-display:var(--text-t-h3)] post-bar:leading-14! post-bar:tracking-[-0.01em]!">{edit ? t('Chỉnh sửa tin đăng', 'Edit listing') : t('Tạo tin đăng', 'Create a listing')}</h1>
+        </div>
       )}
-      {!embedded && <h1 className="mt-3 h-display text-foreground">{edit ? t('Chỉnh sửa tin đăng', 'Edit listing') : t('Tạo tin đăng', 'Create a listing')}</h1>}
       {/* ⚠️ THE PREVIEW HALF OF THIS SENTENCE IS DESKTOP-ONLY, BECAUSE THE PREVIEW IS.
           The `<Preview>` aside is `hidden lg:block` (line ~1090), so on a phone this line
           promised a thing the viewport cannot show — the seller reads "your preview updates
@@ -1901,16 +1927,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           have matched, so the pre-warmed dictionary and any curated vi-override would silently
           no-op for the ~11 machine-translated languages and fall back to the lazy path. A
           reviewer caught it. Keep translated strings free of leading/trailing whitespace. */}
-      <p className={cn('text-base text-body', !embedded && 'mt-1')}>
+      {/* ⛔ `post-bar:hidden` — on a phone in a browser this line gives way to the task bar, and its guest half ("sign-in
+          comes last") is said once, in the Contact section's one line, which is `post-bar:block` on the SAME variant
+          (post-wizard-sections.tsx). Never `max-sm` on either side: the store apps (html.native) keep this line and never
+          get that one, so no width or shell shows both or neither. Unconditional, not `!embedded`-gated, so an embedded
+          wizard pairs the same way. */}
+      <p className={cn('text-base text-body post-bar:hidden', !embedded && 'mt-1')}>
         {t('Điền các mục bên dưới', 'Fill in the sections below')}
         {' — '}
         <span className="hidden lg:inline">{t('bản xem trước cập nhật ngay.', 'your preview updates live.')}</span>
         {/* A guest's phone line says what desktop says under Publish (UI climb 2026-11-09): sign-in comes last. It was only in two
-            grey Contact paragraphs at the very end. Signed in, the section marks now show what each section still needs. */}
+            grey Contact paragraphs at the very end. Signed in, the section marks now show what each section still needs.
+            On a phone in a browser the whole line is hidden (`post-bar`, above) and a guest reads "Sign in when you
+            publish" in Contact instead; from sm to lg, and in the store apps at any width, it stands. */}
         <span className="lg:hidden">{isGuest ? t('đăng nhập ở bước cuối, khi bạn đăng tin.', 'sign-in comes last, when you publish.') : t('kiểm tra lại từng mục trước khi đăng.', 'check each section before you publish.')}</span>
       </p>
+      {/* `post-bar:mt-0`: under the phone task bar the subtitle above is gone, so the first block starts at <main>'s own reserve. */}
       {draftNotice && (
-        <div className="mt-4">
+        <div className={cn('mt-4', !embedded && 'post-bar:mt-0')}>
           <DraftNotice photosKept={draftNotice.photosKept} askPhotos={draftNotice.askPhotos} onDiscard={discardDraft} onDismiss={() => setDraftNotice(null)} t={t} />
         </div>
       )}
@@ -1918,14 +1952,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           role="status" so a screen reader hears it arrive without the urgency of the primitive's default
           role="alert"; the button consumes the intent before it submits. */}
       {resumeCanPublish && (
-        <Alert role="status" tone="success" appearance="flat" size="md" icon={<Check className="h-4 w-4" />} title={t('Đã đăng nhập', 'You are signed in')} className="mt-4 max-w-xl">
+        <Alert role="status" tone="success" appearance="flat" size="md" icon={<Check className="h-4 w-4" />} title={t('Đã đăng nhập', 'You are signed in')} className={cn('mt-4 max-w-xl', !embedded && !draftNotice && 'post-bar:mt-0')}>
           <Button variant="cta" size="sm" type="button" className="mt-1.5" onClick={publishFromResume}>
             {t('Đăng tin ngay', 'Publish now')}
           </Button>
         </Alert>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_19rem]">
+      <div className={cn('mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_19rem]', !embedded && !draftNotice && !resumeCanPublish && 'post-bar:mt-0')}>
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}
@@ -1940,7 +1974,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     aria-label because Field's `group` wrapper labels a role="group", which cannot
                     name the radiogroup nested inside it. `switchIntent` already early-returns when
                     `to === intent`, which is exactly the radio contract (re-selecting the checked
-                    option fires nothing) — so the swap is behaviour-for-behaviour identical. */}
+                    option fires nothing) — so the swap is behaviour-for-behaviour identical.
+                    ⛔ UNCHANGED BY r12 (review, 2026-11-16): P5 gave the PRICE TYPE this pair's tint track, not the reverse,
+                    and the owner never saw this pair restyled, so it keeps its blue-filled pick at every width. */}
                 <RadioGroup
                   value={intent}
                   onValueChange={(v) => switchIntent(v as 'sell' | 'rent')}
@@ -2061,11 +2097,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       onClick={() => chooseCategory(c.slug)}
                       // Same target recipe as <Chips> (post-wizard-parts): py-2.5 draws 40px, tap-44
                       // adds 2px each way — inside the row's 8px gap, so no chip reaches another.
-                      // `icon-own-ink`: the selected pill is a solid bg-primary, so its glyph takes the
-                      // label's white instead of the global accent recolour — accent on accent measured
+                      // `icon-own-ink`: the selected pill is a solid fill, so its glyph takes the label's own
+                      // light ink instead of the global accent recolour — accent on the blue fill measured
                       // rgb(10,102,194) on rgb(10,102,194), an invisible icon (owner, 2026-09-27).
-                      // Resting `bg-tint` pill, same states as <Chips> — see the note there.
-                      className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
+                      // ⛔ THE PICK IS INK ON A PHONE IN A BROWSER (`post-bar`; owner-approved 2026-11-16, hub Q15: "ink
+                      // for a picked /post chip"; cook r12 post-r12c): the same fill as <Chips>' pick, so the form has one
+                      // selected look there. This grid alone keeps WRAPPING (it is the form's first choice, read whole);
+                      // from sm up, and in the store apps, the 09-27 blue stays. Resting `bg-tint` pill, same states as
+                      // <Chips> — see the note there.
+                      className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white post-bar:bg-foreground post-bar:font-bold post-bar:text-background' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
                     >
                       {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
                           when selected, not as default"). `selected` is the SAME boolean that
@@ -2080,7 +2120,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                         name={c.icon}
                         stroke={STROKE_UI}
                         selected={categorySlug === c.slug}
-                        className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')}
+                        className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white post-bar:text-background' : 'text-body')}
                       />
                       {tr(c.name, c.nameVi)}
                     </Button>
@@ -2265,7 +2305,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // The example is the category's own (src/lib/post-copy.ts) — a phone title under
                     // Jobs taught sellers the wrong listing.
                     placeholder={tr(copy.title, copy.titleVi)}
-                    className={cn('max-w-2xl', (err.title || !!titleNote) && 'ring-2 ring-destructive/60')}
+                    // PHONE_FIELD_LINE: on a phone in a browser the filled, borderless 52px field (owner-approved 2026-11-16, P8).
+                    className={cn('max-w-2xl', PHONE_FIELD_LINE, (err.title || !!titleNote) && FIELD_INVALID)}
                   />
                 }
               />
@@ -2350,7 +2391,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // label row carries tap-44, whose hit area reaches ~4px past the 6px gap into this
                     // box, and a positioned pseudo paints (and hit-tests) above an unpositioned sibling.
                     // A tap on the field's top edge must focus it, never rewrite the description with AI.
-                    className={cn('relative max-w-2xl resize-none', (err.description || !!descNote) && 'ring-2 ring-destructive/60')}
+                    className={cn('relative max-w-2xl resize-none', PHONE_FIELD, (err.description || !!descNote) && FIELD_INVALID)}
                   />
                 }
               />

@@ -141,9 +141,26 @@ describe('post wizard — goods (sell-09 / sell-15)', () => {
     expect(phone).toContain('Shots buyers look for')
     expect(phone).toContain('Battery health screen')
     expect(phone).toContain('Urgent sale')
-    // The cover sentence is said once, in the section hint — not again under the grid.
-    expect(phone.split('The first is your cover').length - 1).toBe(1)
-    expect(phone).not.toContain('First photo is your cover')
+    // The cover sentence is HEARD once in each shell — not again under the grid. CASE-INSENSITIVE (review, 2026-11-16): the
+    // phone's counter line says "the first is your cover" in lower case, and a case-sensitive count walked straight past it.
+    // The markup holds three copies, and each shell reads exactly one:
+    //   · the section hint — `post-bar:hidden`, so it is the copy from sm up and in the store apps;
+    //   · #pw-photo-hint's span — `hidden post-bar:inline`, sr-only there: the phone browser's copy (owner-approved
+    //     2026-11-16, P4);
+    //   · the counter line — `hidden post-bar:block` and aria-hidden: seen on the phone, never read.
+    expect(phone.split(/the first is your cover/i).length - 1).toBe(3)
+    const d = new DOMParser().parseFromString(phone, 'text/html')
+    const copies = [...d.querySelectorAll('#pw-photo p, #pw-photo span')].filter((el) => !el.children.length && /the first is your cover/i.test(el.textContent ?? ''))
+    expect(copies).toHaveLength(3)
+    const shown = (el: Element) => (el.getAttribute('class') ?? '').split(' ').filter((c) => /^(hidden|post-bar:hidden|post-bar:inline|post-bar:block|max-sm:.*|sm:.*)$/.test(c)).sort()
+    expect(copies.map(shown)).toEqual([['post-bar:hidden'], ['hidden', 'post-bar:inline'], ['hidden', 'post-bar:block']])
+    expect(copies[1].closest('#pw-photo-hint')).not.toBeNull()
+    // the visible counter is not read: it repeats #pw-photo-hint, which the grid's aria-describedby already reads
+    expect(copies[2].hasAttribute('data-photo-counter')).toBe(true)
+    expect(copies[2].getAttribute('aria-hidden')).toBe('true')
+    // so outside aria-hidden, each shell's readable copies are one apiece
+    expect(copies.filter((el) => !el.closest('[aria-hidden="true"]'))).toHaveLength(2)
+    expect(phone).not.toMatch(/first photo is your cover/i)
   })
 })
 

@@ -111,7 +111,13 @@ const HOME_PATHS = new Set(['/', ...LANG_VARIANTS.map((v) => `/${v}`)])
  */
 export { isPostFlowPath }
 
-export function Header() {
+/**
+ * `postBar`: passed ONLY by the post flow's own page shells (post/page.tsx, post/loading.tsx, listings/[id]/edit/page.tsx).
+ * There the wizard's phone task bar stands in for this header (the note at the `post-bar:hidden` below). A prop, never the
+ * pathname: a 404 or an error screen under those paths (not-found.tsx, error.tsx) renders <Header /> with no wizard and
+ * no bar, so it must keep the header.
+ */
+export function Header({ postBar = false }: { postBar?: boolean } = {}) {
   const { t, tr, lang, setLang } = useLanguage()
   // The server variant this page renders in: every explorer-bound link goes to its `/vi` twin on a
   // Vietnamese page, so a search, brand pick or map tap never lands on the English-pinned `/?…`
@@ -756,6 +762,13 @@ export function Header() {
         // comes later in the sheet than the plain utilities, so there the bar stays where it is.
         hidden && !phoneSearch ? cn('-translate-y-full opacity-0', pinned && 'max-sm:translate-y-0 max-sm:opacity-100') : 'translate-y-0 opacity-100',
         phoneSearch && 'max-sm:z-overlay',
+        // ⛔ NOT ON THE POST FLOW ON A PHONE (owner-approved 2026-11-16, hub Q22; the `post-bar` variant in globals.css):
+        // the wizard's one 56px task bar (× + "Create a listing") stands in for this header there. Decided by the
+        // `postBar` prop, which only the page shells that render the wizard pass — NOT by the pathname, which a 404 or an
+        // error screen under /post or /listings/<id>/edit shares while it has no bar to stand in (review, 2026-11-16). A
+        // server prop, so the server HTML is already right; the success screen (`data-post-done`) and the store apps
+        // (html.native) keep the header.
+        postBar && 'post-bar:hidden',
       )}
     >
       {/* ⚠️ NO HORIZONTAL PADDING, DELIBERATELY — the logo and the action buttons sit flush to the

@@ -28,8 +28,11 @@ export default async function PostPage() {
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      {/* `postBar` + `post-bar:` (globals.css): on a phone in a browser the header stands down for the wizard's fixed 56px
+          task bar (owner-approved 2026-11-16, hub Q22), so <main> clears the bar plus the 20px the header's gap gave, and
+          the status-bar inset the header used to pad. Only this shell, the edit page and post/loading.tsx pass `postBar`. */}
+      <Header postBar />
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12 post-bar:pt-[calc(4.75rem+env(safe-area-inset-top))]">
         {/* The wizard is fully client-side — without JS the page is blank. noscript
             can't run the language hook, so static EN + VI. */}
         <noscript>

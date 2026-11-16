@@ -175,6 +175,16 @@ export const CRITICAL_GLYPHS = [
    * The file is in the guard's ON_ARRIVAL list (src/lib/critical-glyphs.guard.test.ts).
    */
   'MoreHorizontal',
+  /**
+   * ⛔ ADDED 2026-11-16 WITH THE POST FLOW'S PHONE TASK BAR (owner-approved, hub Q22; cook r12 post-r12c), NOT BY A SWEEP.
+   * On a phone in a browser the bar's Exit is the bare ✕ (`XBare`, post-wizard.tsx) and nothing else: its word "Exit" is
+   * sr-only there and the chevron is hidden. Deferred, the ✕ would arrive with the rest of the sprite (5.9-7.3 s on the
+   * profile above), so a first visit to /post or /listings/<id>/edit showed a blank 44px button at the top left for that
+   * long. It is in the server HTML of both pages, painted on arrival, so it belongs here by the rule above; the guard
+   * (src/lib/critical-glyphs.guard.test.ts) reads every glyph the bar shows on a phone from the file. The add tiles' glyphs
+   * further down the form (`ImagePlus`, `SquarePlay`) sit beside visible words and stay deferred, as they were.
+   */
+  'XBare',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
@@ -187,9 +197,10 @@ export const CRITICAL_MEASUREMENT = {
    * Camera 3,088 + ExternalLink 2,197, both weights), 46.9 → 49.5 KB gzip, against the deferred file's 191 KB gzip on
    * both teacher landings. 2026-11-10 (`Ban`, the last re-derivation above): 163,036 → 163,949 B raw, gzip -9
    * 49,544 → 49,757 B (production served the old file at 49,528), against the deferred file's 202 KB gzip on every
-   * non-rental, non-teacher listing page and storefront.
+   * non-rental, non-teacher listing page and storefront. 2026-11-16 (`XBare`, the post flow's phone task bar, the last
+   * entry above): 163,949 → 165,283 B raw (+1,334, both weights), gzip -9 49,757 → 49,933 B (+176), on every page.
    */
-  coreBytes: { raw: 163_949, gzip: 49_757, on: '2026-11-10' },
+  coreBytes: { raw: 165_283, gzip: 49_933, on: '2026-11-16' },
   /** The latest re-derivation (the routes and counts below are still the 2026-09-06 sweep's). */
   rederivedOn: '2026-11-10',
   /**

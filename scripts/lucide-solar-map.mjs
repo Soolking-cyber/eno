@@ -291,6 +291,10 @@ export const LUCIDE_TO_SOLAR = {
   WifiOff: 'wi-fi-router-minimalistic',
   Wrench: 'settings',
   X: 'close-circle',
+  // ⚠️ NOT A LUCIDE NAME. lucide's own `X` is bare, but this app's `X` is the ENCLOSED close every dialog, sheet and
+  // CloseButton draws (CLOSE_GLYPH's 0.9 fill factor is measured on it), so the bare ✕ needs a name of its own. Drawn as
+  // two of minus-circle's bars, not from close-circle — see BARE_MARKS below.
+  XBare: 'minus-circle',
   XCircle: 'close-circle',
   Zap: 'bolt',
 
@@ -322,6 +326,10 @@ export const LUCIDE_TO_SOLAR = {
  * out of `check-read`, the bar out of `minus-circle` — and the generator emits that shape alone.
  * (A row with `line` reads the LINEAR weight instead — a stroked centreline it may re-reach and re-stroke; BarePlus, 2026-11-16,
  * and gen-icons.mjs lineMark say why.)
+ * Two optional fields build a mark Solar draws no part of from one it does (gen-icons.mjs, `stretchBar` and `bareMark`):
+ * `stretch` lengthens a horizontal bar by moving its two round caps outward (the caps keep Solar's curve, the arm keeps
+ * its weight), and `turns` emits the shape once per angle, rotated about the box centre. `XBare` (the bare ✕) is the one
+ * row that uses them.
  *
  * ⚠️ `dx` IS MEASURED WITH getBBox() IN A REAL BROWSER, NOT COMPUTED. The tick shares its source
  * box with a second tick, so it sits left of centre and has to be nudged back. A first draft had
@@ -374,6 +382,20 @@ export const BARE_MARKS = {
   // 1.333px) that is 9.6 units across at 1.2: arms 3 -> 4.2 (x1.4), the round caps' 0.6 each end making up the rest.
   BarePlus: { from: 'add-circle', shape: 1, shapes: 2, dx: 0, sha: 'bc5f07561ac2d751', line: { scale: 1.4, stroke: 1.2 },
     why: 'The tab bar\'s Post plus, drawn inside its own 32px grey disc (owner, 2026-11-16, hub Q14) — a ring inside the disc would be two rings.' },
+  /**
+   * ⛔ THE BARE ✕ (owner-approved 2026-11-16, cook r12 post-r12c: the /post phone task bar's Exit is "the bare × the owner
+   * saw in the stills", not the ringed close-circle). Solar has no bare ✕ — and close-circle's own ✕ (#0) is the wrong
+   * thing to lift: it spans 6.6 of the 24 units, so drawn at the stills' 14 it would have to be scaled 2.1×, and a scale
+   * thickens its 1.5-unit arms to 3.2. So it is built from Solar's own bar instead: minus-circle #0 (the same shape and sha
+   * as `Minus`), lengthened by `stretch` (each round cap moved 5.49 out, so the caps keep Solar's curve) and drawn twice by
+   * `turns`, at +45° and −45° about the centre. `bold` 0.5 takes the arms from 1.5 to 2 — the stills' weight.
+   * Measured against the stills' mock (a 24-box ✕ from 6,6 to 18,18 at stroke 2, round caps): the centre line here runs
+   * 12 ± 6.0 on each diagonal (3 + 5.49 = 8.49 along the arm), so the mark covers x/y 5.0 → 19.0, as the mock's does, at
+   * the same 2-unit arm. dx 0: the bar is centred in its box (minus-circle#0's getBBox centre is 12.0, above), the stretch
+   * is symmetric and the turns are about 12,12.
+   */
+  XBare: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, sha: '09fec1411a24c650', stretch: 5.49, turns: [45, -45], bold: 0.5,
+    why: 'The bare close mark with no ring: the /post phone task bar\'s Exit (post-wizard.tsx). Two of minus-circle\'s bars, lengthened and crossed.' },
 }
 
 /**

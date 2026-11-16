@@ -33,7 +33,7 @@ import { moneyLocale, compactPrice, formatMoneyFull } from '@/lib/vnd'
 import { salaryPriceFor, parseSalaryInput, type RangeMeta } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import type { PostMedia } from '@/hooks/use-post-media'
-import { Section, Field } from './post-wizard-parts'
+import { Section, Field, PHONE_FIELD_LINE } from './post-wizard-parts'
 import { licenceHeldSuccessBody, type LicenceSlot } from './post-wizard-evisa'
 import { VndInput } from './vnd-input'
 import { Mascot } from './mascot'
@@ -61,6 +61,23 @@ export function shotListFor(categorySlug: string | undefined, subcategorySlug: s
   }
   return null
 }
+
+/**
+ * ⛔ THE PHONE'S PHOTO TILES ARE SOLID (owner-approved 2026-11-16 on the hub, Q22 with P4; cook r12 post-r12c). On a phone in
+ * a browser (`post-bar`, globals.css) every empty tile (Add, Add video; the native camera and camcorder tiles carry the same
+ * classes so the grid can never mix the two looks, though they only mount in the apps) is the field grey with no dashed edge, the 16px card
+ * corner, a 28px ink-3 glyph and a 15/600 ink label; its
+ * small second line ("up to 6 photos", "optional · 60s") goes sr-only, because the counter line under the grid says it. Same
+ * 3-column size; a press goes one step deeper. From sm up, and in the store apps (where the native camera and camcorder
+ * tiles live), the dashed tiles stand, second lines and all.
+ * ⛔ ONLY THE EMPTY TILES. A real photo or video tile is a photo, and every photo takes the photo corner, `rounded-media`
+ * (docs/design-language.md §2, owner-approved 2026-11-14) — 16px round, as the stills show it beside these tiles, and
+ * Chromium's compensated 20px squircle — never the card tier: `post-bar:rounded-media` on both (below). The grid's own
+ * `rounded-xl` from sm up and in the store apps is older than the canon and not this batch's to move.
+ */
+const PHONE_TILE = 'post-bar:rounded-2xl post-bar:border-0 post-bar:bg-tint post-bar:text-ink-3 post-bar:active:bg-line-strong'
+const PHONE_TILE_GLYPH = 'post-bar:size-7'
+const PHONE_TILE_LABEL = 'post-bar:text-t-card post-bar:font-semibold post-bar:text-foreground'
 
 /* Photos (+ optional video) — everything media lives in the usePostMedia bundle. */
 export function MediaSection({
@@ -157,24 +174,53 @@ export function MediaSection({
     }
   }
 
+  const hint = !categorySlug
+    // ⚠️ NEUTRAL UNTIL A CATEGORY IS CHOSEN (sell-08): the minimum IS the category's (jobs 0,
+    // services 1, goods 3), so "At least 3 photos" before the pick told a job poster or a tutor
+    // something false on the very first screen.
+    ? t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Số ảnh tối thiểu tuỳ danh mục bạn chọn bên dưới.', 'Up to 6 photos. The first is your cover. The minimum depends on the category you pick below.')
+    : minPhotos === 0
+    // Jobs (publish-guard.ts minPhotosFor = 0): nothing to photograph, so nothing is required —
+    // a logo or the workplace is what an employer actually has.
+    ? t('Không bắt buộc — logo công ty hoặc ảnh nơi làm việc, tối đa 6. Ảnh đầu là ảnh bìa.', 'Optional — a company logo or a photo of the workplace, up to 6. The first is your cover.')
+    : minPhotos === 1
+    // Services: one photo is enough, but say that more still help — the ask is
+    // "optional", not "don't bother".
+    ? t('Cần 1 ảnh, tối đa 6. Ảnh đầu là ảnh bìa. Thêm ảnh là tuỳ chọn nhưng tin nhiều ảnh được xem nhiều hơn hẳn.', 'One photo is enough, up to 6. The first is your cover. More are optional, but listings with more photos get far more views.')
+    : t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')
+  /**
+   * ⛔ THE PHONE DROPS "FAR MORE VIEWS" (owner-approved 2026-11-16, P4: "Drop the unmeasured 'Listings with more photos get
+   * far more views'"). The phone's hint (`post-bar`, read sr-only from #pw-photo-hint below) is the same sentences without
+   * that claim; the neutral and job hints never made it, so they are shared. From sm up, and in the store apps, `hint`
+   * stands as it was.
+   */
+  const phoneHint = !categorySlug || minPhotos === 0
+    ? hint
+    : minPhotos === 1
+    ? t('Cần 1 ảnh, tối đa 6. Ảnh đầu là ảnh bìa. Thêm ảnh là tuỳ chọn.', 'One photo is enough, up to 6. The first is your cover. More are optional.')
+    : t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa.', 'At least 3 photos from different angles, up to 6. The first is your cover.')
+  /**
+   * ⛔ THE PHONE'S ONE COUNTER LINE (owner-approved 2026-11-16 on the hub, Q22 with P4; cook r12 post-r12c). On a phone in a
+   * browser (`post-bar`) the hint above and the video sentence stop being two grey paragraphs: both go sr-only into
+   * #pw-photo-hint (the grid's aria-describedby, so a screen reader still hears every word, the cover sentence once), and
+   * one 13px line under the grid says the same in counts the page already holds: "0/6 photos · 0/1 video · the first is
+   * your cover", plus "· at least 3" when the chosen category asks for photos (minPhotosFor: goods 3, services 1, jobs
+   * none). The line is aria-hidden, as the mock had it: everything in it is in #pw-photo-hint already, so a screen reader
+   * reading on would hear "the first is your cover" twice. 6 and 1 are this grid's own caps (the add tiles go at 6 photos
+   * and at one video). Templates, so the sentence is translated whole and the numbers stay outside it.
+   */
+  const counts = { photos: String(photos.length), videos: String(video ? 1 : 0), min: String(minPhotos) }
+  const counterLine = categorySlug && minPhotos > 0
+    ? fillTemplate(t('{photos}/6 ảnh · {videos}/1 video · ảnh đầu là ảnh bìa · tối thiểu {min}', '{photos}/6 photos · {videos}/1 video · the first is your cover · at least {min}'), '{photos}/6 photos · {videos}/1 video · the first is your cover · at least {min}', counts)
+    : fillTemplate(t('{photos}/6 ảnh · {videos}/1 video · ảnh đầu là ảnh bìa', '{photos}/6 photos · {videos}/1 video · the first is your cover'), '{photos}/6 photos · {videos}/1 video · the first is your cover', counts)
+
   return (
     <Section mark={mark}
       id="pw-photo"
       title={t('Ảnh', 'Photos')}
-      hint={!categorySlug
-        // ⚠️ NEUTRAL UNTIL A CATEGORY IS CHOSEN (sell-08): the minimum IS the category's (jobs 0,
-        // services 1, goods 3), so "At least 3 photos" before the pick told a job poster or a tutor
-        // something false on the very first screen.
-        ? t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Số ảnh tối thiểu tuỳ danh mục bạn chọn bên dưới.', 'Up to 6 photos. The first is your cover. The minimum depends on the category you pick below.')
-        : minPhotos === 0
-        // Jobs (publish-guard.ts minPhotosFor = 0): nothing to photograph, so nothing is required —
-        // a logo or the workplace is what an employer actually has.
-        ? t('Không bắt buộc — logo công ty hoặc ảnh nơi làm việc, tối đa 6. Ảnh đầu là ảnh bìa.', 'Optional — a company logo or a photo of the workplace, up to 6. The first is your cover.')
-        : minPhotos === 1
-        // Services: one photo is enough, but say that more still help — the ask is
-        // "optional", not "don't bother".
-        ? t('Cần 1 ảnh, tối đa 6. Ảnh đầu là ảnh bìa. Thêm ảnh là tuỳ chọn nhưng tin nhiều ảnh được xem nhiều hơn hẳn.', 'One photo is enough, up to 6. The first is your cover. More are optional, but listings with more photos get far more views.')
-        : t('Tối thiểu 3 ảnh từ các góc khác nhau, tối đa 6. Ảnh đầu là ảnh bìa. Tin nhiều ảnh được xem nhiều hơn hẳn.', 'At least 3 photos from different angles, up to 6. The first is your cover. Listings with more photos get far more views.')}
+      hint={hint}
+      // On a phone in a browser the hint is read from #pw-photo-hint instead (the counter line above).
+      hintClassName="post-bar:hidden"
     >
       {/* A photo grid is not a labelable control, so it can't go in a <Field>. Same
           contract by hand: it names itself, reports invalid, and points at its error. */}
@@ -199,7 +245,8 @@ export function MediaSection({
             key={i}
             {...bindPhoto(i)}
             className={cn(
-              'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[scale,box-shadow]',
+              // `post-bar:rounded-media`: a photo's corner on a phone in a browser, never PHONE_TILE's card tier (see there).
+              'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[scale,box-shadow] post-bar:rounded-media',
               refused && 'ring-2 ring-destructive',
               // Lifted (mid-drag) affordance: the grabbed tile rises above the grid.
               draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
@@ -276,27 +323,29 @@ export function MediaSection({
             onClick={() => { void takeNativePhoto() }}
             disabled={capturing}
             aria-label={t('Chụp ảnh', 'Take photo')}
-            className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground"
+            className={cn('flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground', PHONE_TILE)}
           >
-            {capturing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
-            <span className="px-1 text-center text-sm font-bold leading-tight">{t('Chụp ảnh', 'Take photo')}</span>
-            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
+            {capturing ? <Loader2 className={cn('h-6 w-6 animate-spin', PHONE_TILE_GLYPH)} /> : <Camera className={cn('h-6 w-6', PHONE_TILE_GLYPH)} />}
+            <span className={cn('px-1 text-center text-sm font-bold leading-tight', PHONE_TILE_LABEL)}>{t('Chụp ảnh', 'Take photo')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4 post-bar:sr-only">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
           </Button>
         )}
         {/* ⚠️ Optical pairing (R2, blind critic): every empty tile in this grid keeps the SAME
             three-row stack (glyph · label · hint) so the glyphs sit on one shared centerline —
             the photo tile used to be two rows, which floated its glyph lower than the video
-            tile's. The hint line is real copy, not a spacer.
+            tile's. The hint line is real copy, not a spacer. (On a phone in a browser every tile drops it to sr-only
+            together, PHONE_TILE 2026-11-16, so the glyphs still share one centreline, as glyph · label; the store apps
+            keep it.)
             Label 14px bold, hint 11px: at 10px both were below the type scale's floor for copy a
             seller has to read to act, on the first thing the form asks for. `px-1 text-center
             leading-tight` lets a long label (Vietnamese, or "Processing…") wrap inside a 106px
             tile at 360px instead of overflowing it. The colour stays on the <label>, so the hover
             recolour still reaches the text. */}
         {photos.length < 6 && (
-          <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
-            {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
-            <span className="px-1 text-center text-sm font-bold leading-tight">{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
-            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
+          <label className={cn('flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground', PHONE_TILE)}>
+            {converting ? <Loader2 className={cn('h-6 w-6 animate-spin', PHONE_TILE_GLYPH)} /> : <ImagePlus className={cn('h-6 w-6', PHONE_TILE_GLYPH)} />}
+            <span className={cn('px-1 text-center text-sm font-bold leading-tight', PHONE_TILE_LABEL)}>{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4 post-bar:sr-only">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
             <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
           </label>
         )}
@@ -323,11 +372,12 @@ export function MediaSection({
             className={cn(
               'flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors',
               videoBusy ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-brand hover:text-accent-foreground',
+              PHONE_TILE,
             )}
           >
-            <Video className="h-6 w-6" />
-            <span className="px-1 text-center text-sm font-bold leading-tight">{t('Quay video', 'Record video')}</span>
-            <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tối đa 60 giây', 'stop before 60s')}</span>
+            <Video className={cn('h-6 w-6', PHONE_TILE_GLYPH)} />
+            <span className={cn('px-1 text-center text-sm font-bold leading-tight', PHONE_TILE_LABEL)}>{t('Quay video', 'Record video')}</span>
+            <span className="px-1 text-center text-2xs leading-tight text-ink-4 post-bar:sr-only">{t('tối đa 60 giây', 'stop before 60s')}</span>
             {/* `accept` must literally contain `video/*` and `capture` must be present, or
                 Capacitor's Android bridge silently opens the file picker instead. */}
             <input
@@ -345,7 +395,8 @@ export function MediaSection({
 
         <div className="aspect-square">
           {video ? (
-            <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
+            // The video takes the photo corner too on a phone in a browser (PHONE_TILE's note): it is media, not a card.
+            <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black post-bar:rounded-media">
               <video src={video.url} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
               <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white material backdrop-blur-[2px]">
                 <Video className="h-3 w-3" /> {t('Video', 'Video')}
@@ -362,6 +413,7 @@ export function MediaSection({
               className={cn(
                 'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors',
                 videoBusy ? 'pointer-events-none' : 'cursor-pointer hover:border-brand hover:text-accent-foreground',
+                PHONE_TILE,
               )}
             >
               {/* SquarePlay, not Video (R2, blind critic): lucide Video's artwork is a 20×12
@@ -372,11 +424,11 @@ export function MediaSection({
                   badges, view toggles, the feed). The pair now reads at one optical size.
                   The Android camcorder tile keeps the camera-bodied Video glyph — record
                   vs pick is a real distinction there. */}
-              {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <SquarePlay className="h-6 w-6" />}
+              {videoBusy ? <Loader2 className={cn('h-6 w-6 animate-spin', PHONE_TILE_GLYPH)} /> : <SquarePlay className={cn('h-6 w-6', PHONE_TILE_GLYPH)} />}
               {/* Relabelled when the camcorder tile is beside it, so the two tiles read as
                   "record" vs "pick" rather than two identical "Add video"s. */}
-              <span className="px-1 text-center text-sm font-bold leading-tight">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
-              <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
+              <span className={cn('px-1 text-center text-sm font-bold leading-tight', PHONE_TILE_LABEL)}>{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
+              <span className="px-1 text-center text-2xs leading-tight text-ink-4 post-bar:sr-only">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
               {/* disabled, not just pointer-events-none: the label can also be reached by
                   keyboard, and only a disabled input refuses to open the picker. */}
               <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" disabled={videoBusy} onClick={unlockCompressionAudio} onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
@@ -387,8 +439,17 @@ export function MediaSection({
       {errPhoto && <p id="pw-photo-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
       {/* Media hint covers the video square in the grid above. No "on hover": the card clip
           autoplays once the card settles in view, on every device (listing-card's CardVideo). */}
-      {/* The cover sentence lives in the section hint above; it was said twice (sell-15). */}
-      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Video (tùy chọn) tự phát trên thẻ tin đăng và trong mục Video.', 'A video (optional) plays on your listing card and in the Video tab.')}</p>
+      {/* The cover sentence lives in the section hint above; it was said twice (sell-15).
+          ⛔ ON A PHONE IN A BROWSER (`post-bar`) THIS IS SR-ONLY AND HOLDS THE SECTION HINT TOO (owner-approved 2026-11-16,
+          P4 — counterLine above): the grid's description keeps every word but the dropped "far more views" claim
+          (phoneHint), and the one visible line is the counter after it, aria-hidden so the cover sentence is heard once.
+          Everywhere else (sm up, the store apps) the hint shows under the heading as before, so its copy here is
+          display:none there and is not read twice, and the counter is display:none. */}
+      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4 post-bar:sr-only">
+        <span className="hidden post-bar:inline">{phoneHint} </span>
+        {t('Video (tùy chọn) tự phát trên thẻ tin đăng và trong mục Video.', 'A video (optional) plays on your listing card and in the Video tab.')}
+      </p>
+      <p data-photo-counter aria-hidden className="mt-2 hidden text-t-meta text-ink-4 post-bar:block">{counterLine}</p>
       {(() => {
         const shots = shotListFor(categorySlug, subcategorySlug, t)
         // Static pills (ui/badge), not buttons: a suggestion of what to photograph, never a checklist.
@@ -480,7 +541,8 @@ export function PriceSection({
   return (
     <Section mark={mark} id="pw-price" title={heading}>
       <div onBlur={() => touch('price')}>
-        <div className="flex max-w-xs items-center gap-2">
+        {/* `post-bar:max-w-none`: the full-width price field on a phone in a browser (owner-approved 2026-11-16, P8 — PHONE_FIELD). */}
+        <div className="flex max-w-xs items-center gap-2 post-bar:max-w-none">
           {/* VndInput renders a <div> (input + VND suffix + preset chips), so it is not a
               labelable control and cannot go inside a <FieldControl>. The Section's heading
               "Giá/Price" is a heading, not a label — so the name and the reason have to be
@@ -499,6 +561,7 @@ export function PriceSection({
               aria-required
               maxFactor={maxFactor}
               unit={priceUnit || undefined}
+              fieldClassName={PHONE_FIELD_LINE}
             />
           </div>
         </div>
@@ -513,9 +576,15 @@ export function PriceSection({
             category all products non negotiable"). The server forces the same two values,
             so hiding the control is presentation, never the enforcement. */}
         {/* ⚠️ A PAIR, SO IT IS LAID OUT AS ONE: two equal columns. As wrapping pills they measured
-            159px and 200px wide on two rows, which read as two unrelated buttons, not a choice. */}
+            159px and 200px wide on two rows, which read as two unrelated buttons, not a choice.
+            ⛔ ON A PHONE IN A BROWSER (`post-bar`) IT IS A SEGMENTED CONTROL, LABELS ONLY (owner-approved 2026-11-16 on the
+            hub, Q22 with P5; cook r12 post-r12c, as the stills show it): the For sale / For rent pair's tint track with its
+            4px inset (post-wizard.tsx), here 44px tall and full width; the pick a white segment with ui/segmented's lift and
+            an ink label, the other label ink-3. The For sale / For rent radios themselves keep their own look — the owner
+            never saw them changed. Each option's hint goes sr-only, so it is still read as part of the button's name. Still
+            two aria-pressed toggles; from sm up, and in the store apps, the blue-filled two-line cells stand. */}
         {!fixedPriceOnly && (
-        <div className="mt-3 grid max-w-md grid-cols-2 gap-2" role="group" aria-label={t('Kiểu giá', 'Price type')}>
+        <div className="mt-3 grid max-w-md grid-cols-2 gap-2 post-bar:h-11 post-bar:max-w-none post-bar:gap-0 post-bar:rounded-xl post-bar:bg-tint post-bar:p-1" role="group" aria-label={t('Kiểu giá', 'Price type')}>
           {[
             { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
             { val: false, label: t('Giá cố định', 'Fixed price'), hint: t('Không nhận trả giá', 'No offers — ask & buy directly') },
@@ -531,14 +600,17 @@ export function PriceSection({
                 // Stacked two-line label: `block` (the base is inline-flex) and
                 // `whitespace-normal` (the base nowrap inherits into the hint line).
                 // `h-full w-full`: both cells match the taller one when a hint wraps.
-                'block h-full w-full whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer',
-                negotiable === opt.val ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-muted',
+                // `relative tap-44`: the phone's 36px segment keeps a 44px target, inside the track's 4px. Not a look: where
+                // the cell is its 52px self the pseudo is just the cell, so nothing changes outside `post-bar`.
+                'relative block h-full w-full whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer tap-44',
+                'post-bar:flex post-bar:items-center post-bar:justify-center post-bar:rounded-lg post-bar:py-0 post-bar:text-center post-bar:text-t-card',
+                negotiable === opt.val ? 'bg-primary text-white post-bar:bg-background post-bar:text-foreground post-bar:shadow-sm' : 'bg-tint text-body hover:bg-muted post-bar:bg-transparent post-bar:text-ink-3',
               )}
             >
               {opt.label}
               {/* text-primary-foreground (white), NOT white/80: the translucent hint composited to
                   #cee0f3 on the brand blue, 4.23:1 — under AA for 12px text. White is 5.69:1. */}
-              <span className={cn('block text-xs font-medium', negotiable === opt.val ? 'text-primary-foreground' : 'text-ink-4')}>{opt.hint}</span>
+              <span className={cn('block text-xs font-medium post-bar:sr-only', negotiable === opt.val ? 'text-primary-foreground' : 'text-ink-4')}>{opt.hint}</span>
             </Button>
           ))}
         </div>
@@ -565,6 +637,7 @@ export function PriceSection({
             onChange={(next) => { setUrgent(next); if (next) setNegotiable(true) }}
             label={t('Bán gấp', 'Urgent sale')}
             hint={t('Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá', 'Highlighted for 7 days — sell fast, open to offers')}
+            phoneHint={t('Nổi bật 7 ngày.', 'Highlighted for 7 days.')}
           />
         )}
       </div>
@@ -624,6 +697,7 @@ export function SalarySection({
         onChange={setUrgent}
         label={t('Tuyển gấp', 'Urgent hiring')}
         hint={t('Nổi bật 7 ngày — cho vị trí cần tuyển nhanh', 'Highlighted for 7 days — for roles you need to fill fast')}
+        phoneHint={t('Nổi bật 7 ngày.', 'Highlighted for 7 days.')}
       />
     </Section>
   )
@@ -631,15 +705,22 @@ export function SalarySection({
 
 /* The urgent switch row — shared by PriceSection ("Bán gấp", Urgent SALE) and SalarySection ("Tuyển gấp",
    urgent HIRING). One flag, one server mechanism (src/lib/urgent.ts: 7 days, auto-expiry, 2 per seller);
-   only the words and what it is coupled to differ, so the caller passes both. */
-function UrgentRow({ checked, onChange, label, hint }: { checked: boolean; onChange: (next: boolean) => void; label: string; hint: string }) {
+   only the words and what it is coupled to differ, so the caller passes both.
+   ⛔ `phoneHint` ON A PHONE IN A BROWSER (`post-bar`; owner-approved 2026-11-16 on the hub, Q22 with P5; cook r12
+   post-r12c): one 13px line, "Highlighted for 7 days.", with no em dash; the longer hint stays from sm up and in the store
+   apps. Both live inside #pw-urgent-hint, and the one that is display:none there is not part of the switch's description,
+   so it is never read twice. */
+function UrgentRow({ checked, onChange, label, hint, phoneHint }: { checked: boolean; onChange: (next: boolean) => void; label: string; hint: string; phoneHint: string }) {
   return (
     <label data-state={checked ? 'checked' : 'unchecked'} className="mt-3 flex max-w-md cursor-pointer items-center justify-between gap-3 rounded-xl bg-tint px-3.5 py-3 transition-colors hover:bg-muted">
       <span className="flex min-w-0 items-start gap-2">
         <Zap className="mt-0.5 h-4 w-4 shrink-0 text-ink-4" />
         <span>
           <span id="pw-urgent-label" className="block text-sm font-semibold text-foreground">{label}</span>
-          <span id="pw-urgent-hint" className="block text-xs text-ink-4">{hint}</span>
+          <span id="pw-urgent-hint" className="block text-xs text-ink-4 post-bar:text-t-meta">
+            <span className="post-bar:hidden">{hint}</span>
+            <span className="hidden post-bar:inline">{phoneHint}</span>
+          </span>
         </span>
       </span>
       {/* ⚠️ aria-labelledby IS LOAD-BEARING, NOT REDUNDANT WITH aria-label. With no explicit
@@ -799,6 +880,14 @@ export function ContactSection({
       hint={candidates
         ? t('Ứng viên nhắn tin cho bạn trong ứng dụng; số của bạn chỉ hiện sau khi bạn trả lời.', 'Candidates message you in-app; your number is revealed only after you reply.')
         : t('Số của bạn được giữ kín — người mua nhắn tin trong ứng dụng, chỉ hiện số sau khi bạn trả lời.', 'Your number stays private — buyers message you in-app; it’s revealed only after you reply.')}
+      // ⛔ A GUEST ON A PHONE IN A BROWSER HEARS ALL OF THIS ONCE (owner-approved 2026-11-16 on the hub, Q22 with P5; cook
+      // r12 post-r12c): there (`post-bar`) this hint and the guest paragraph below give way to one 13px muted line — when
+      // to sign in, and that the number stays private until the seller replies — in the hint's own place, mt-0.5 under the
+      // heading (Section's `phoneHint`), as the stills set it. It also carries the subtitle's "sign-in comes last", because
+      // the subtitle is `post-bar:hidden` on the SAME variant (post-wizard.tsx). One variant on both sides, so they can
+      // never show together: from sm up and in the store apps (html.native) the subtitle, this hint and the paragraph
+      // stand and the line is display:none. Full stops, no em dashes.
+      phoneHint={isGuest ? t('Đăng nhập khi bạn đăng tin. Số điện thoại của bạn được giữ kín cho đến khi bạn trả lời.', 'Sign in when you publish. Your number stays private until you reply.') : undefined}
     >
       {!meLoaded ? (
         <div className="h-5 w-56 rounded-lg shimmer" />
@@ -806,7 +895,8 @@ export function ContactSection({
         // Draft-first guests: contact comes from the account they'll sign in
         // with at Publish — no fields to type here. It used to promise the NUMBER came from the account
         // too, and most new accounts have none, so the phone question arrived as a surprise after sign-in.
-        <p className="text-sm text-muted-foreground">
+        // `post-bar:hidden`: on a phone in a browser the section's one line (`phoneHint`, above) says it instead.
+        <p className="text-sm text-muted-foreground post-bar:hidden">
           {candidates
             ? t('Tên được lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm số ở đây — ứng viên chỉ thấy số này sau khi bạn trả lời.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — candidates only see it after you reply.')
             : t('Tên được lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm số ở đây — người mua chỉ thấy số này sau khi bạn trả lời.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — buyers only see it after you reply.')}

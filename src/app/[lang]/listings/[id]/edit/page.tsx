@@ -140,8 +140,11 @@ export default async function EditListingPage({ params }: Props) {
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
-      <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      {/* `postBar` + `post-bar:` (globals.css): the wizard's phone task bar stands in for the header here too (owner-approved
+          2026-11-16, hub Q22) — the same reserve as /post. A notFound() here renders not-found.tsx, whose <Header /> has no
+          `postBar`, so a 404 keeps its header. */}
+      <Header postBar />
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12 post-bar:pt-[calc(4.75rem+env(safe-area-inset-top))]">
         <PostWizard categories={categories} edit={edit} />
       </main>
       <Footer />

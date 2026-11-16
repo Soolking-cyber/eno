@@ -73,6 +73,39 @@ describe('the Post button in the server-rendered header', () => {
     for (const p of ['/', '/help', '/listings/cmx1']) expect(postWrapperClass(p), p).toBe('mobile:hidden pc:contents')
   })
 
+  it('⛔ the whole header stands down on a phone only where the shell passes `postBar` (the wizard\'s task bar, owner-approved 2026-11-16) — from the first byte', () => {
+    const headerClass = (pathname: string, postBar?: boolean) => {
+      h.pathname = pathname
+      return new DOMParser().parseFromString(renderToString(<Header postBar={postBar} />), 'text/html').getElementById('app-header')!.className.split(/\s+/)
+    }
+    for (const p of ['/post', '/vi/post', '/listings/cmx1/edit']) expect(headerClass(p, true), p).toContain('post-bar:hidden')
+    // ⛔ NOT BY PATHNAME (review, 2026-11-16): a bare <Header /> on the post flow's own paths — a 404 or an error screen
+    // there — keeps its header, because no wizard is on that page to give it a task bar.
+    for (const p of ['/post', '/vi/post', '/listings/cmx1/edit', '/', '/help', '/listings/cmx1', '/dashboard']) expect(headerClass(p), p).not.toContain('post-bar:hidden')
+  })
+
+  it('⛔ a 404 under the edit path (a bad listing id → notFound()) renders the real 404 page WITH its header', async () => {
+    h.pathname = '/listings/nope/edit'
+    const { default: NotFound } = await import('@/app/[lang]/not-found')
+    const doc = new DOMParser().parseFromString(renderToString(<NotFound />), 'text/html')
+    const header = doc.getElementById('app-header')
+    expect(header).not.toBeNull()
+    expect(header!.className.split(/\s+/)).not.toContain('post-bar:hidden')
+    // …and it is the 404 page, not the wizard: no task bar to stand in for it.
+    expect(doc.querySelector('[data-error-page]')).not.toBeNull()
+    expect(doc.querySelector('[data-post-bar]')).toBeNull()
+  })
+
+  it('only the three shells that render the wizard pass `postBar`; the 404 and error screens do not', () => {
+    for (const f of ['src/app/[lang]/post/page.tsx', 'src/app/[lang]/post/loading.tsx', 'src/app/[lang]/listings/[id]/edit/page.tsx'])
+      expect(readFileSync(f, 'utf8'), f).toMatch(/<Header postBar \/>/)
+    for (const f of ['src/app/[lang]/not-found.tsx', 'src/app/[lang]/error.tsx']) {
+      const src = readFileSync(f, 'utf8')
+      expect(src, f).toMatch(/<Header \/>/)
+      expect(src, f).not.toContain('postBar')
+    }
+  })
+
   it('the wizard writes only the success hook, and only after a Publish — no load-time attribute is left', () => {
     const wizard = readFileSync('src/components/marketplace/post-wizard.tsx', 'utf8')
     expect(wizard).not.toContain('data-post-wizard')

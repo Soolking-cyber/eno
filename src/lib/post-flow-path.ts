@@ -8,7 +8,10 @@ import { LANG_VARIANTS } from '@/lib/lang-variant'
  * the same. So chrome can decide at RENDER time with no hydration gate and no layout jump.
  *
  * Who asks (keep this list true):
- *   · header.tsx — the orange Post button stands down (a second "Free Post" over the form reads as a restart);
+ *   · header.tsx — the orange Post button stands down (a second "Free Post" over the form reads as a restart). The WHOLE
+ *     header standing down on a phone for the wizard's task bar (owner-approved 2026-11-16, the `post-bar` variant) is
+ *     NOT asked here: it is header.tsx's `postBar` prop, passed only by the shells that render the wizard, because a 404
+ *     or an error screen on these paths has no bar to stand in for it;
  *   · footer.tsx — the footer stands down (O-30 W-CHROME: nothing below a form that ends in a Publish bar);
  *   · back-to-top.tsx — the support FAB stands down (O-30: it sat over the wizard's sticky Publish bar).
  * The tab bar STAYS on these pages (owner, O-30).

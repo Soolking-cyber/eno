@@ -5,7 +5,7 @@
 // component identity across the wizard's frequent re-renders (a keystroke must not remount
 // these subtrees). No behaviour change from the in-file versions.
 
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { Cog, Ellipsis, ImagePlus } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY, STROKE_UI } from '@/lib/icon-tokens'
@@ -34,6 +34,7 @@ import { useLanguage } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
 import { CategoryGlyphArt } from './category-glyph'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 /**
  * "Draft restored" — INLINE, at the top of the form (si-10). It used to be a toast, which on a phone
@@ -213,11 +214,19 @@ export function PublishLabel({
  * `mark`: the section's state on a PHONE (UI climb 2026-11-09, phone UX hunt) — a ✓ when its publish steps are done, "Needed"
  * while one is open. Desktop has the checklist under Publish; the phone had only "N items left" naming the first, and its
  * "Still needed" chips appear only after a failed Publish (they stay out of the bar — post-wizard.tsx). The caller builds the
- * mark from the same `steps` the badge counts, so a heading can never disagree with the gate; `lg:hidden` here.
+ * mark from the same `steps` the badge counts, so a heading can never disagree with the gate; `lg:hidden` here. On a phone
+ * in a browser (`post-bar`) only the ✓ shows (owner-approved 2026-11-16, hub Q22: "Needed" is hidden; post-wizard.tsx
+ * sectionMark); the store apps keep "Needed".
+ * `hintClassName`: a phone-only (`post-bar:`) treatment of the hint (the Photos hint goes sr-only into #pw-photo-hint —
+ * post-wizard-sections.tsx).
+ * `phoneHint`: the line that stands in for the hint on a phone in a browser (`post-bar`) — a guest's Contact, said once
+ * (post-wizard-sections.tsx). It sits in the hint's own place, `mt-0.5` under the heading like every section hint (the
+ * stills put it as close as Category's), not in the section body, where `space-y-3` dropped it 12px lower. 13px there; the
+ * hint is display:none under `post-bar` and this line display:none everywhere else, so neither is ever read twice.
  */
-export function Section({ title, hint, children, id, mark }: { title: string; hint?: string; children: React.ReactNode; id?: string; mark?: React.ReactNode }) {
+export function Section({ title, hint, hintClassName, phoneHint, children, id, mark }: { title: string; hint?: string; hintClassName?: string; phoneHint?: string; children: React.ReactNode; id?: string; mark?: React.ReactNode }) {
   return (
-    <section id={id} className="space-y-3 scroll-mt-24">
+    <section id={id} className="space-y-3 scroll-mt-24 post-bar:scroll-mt-[calc(6rem+env(safe-area-inset-top))]">
       <div>
         {mark ? (
           <div className="flex items-baseline gap-2">
@@ -227,7 +236,8 @@ export function Section({ title, hint, children, id, mark }: { title: string; hi
         ) : (
           <h2 className="h-section text-foreground">{title}</h2>
         )}
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+        {hint && <p className={cn('mt-0.5 text-xs text-muted-foreground', phoneHint && 'post-bar:hidden', hintClassName)}>{hint}</p>}
+        {phoneHint && <p data-phone-hint className="mt-0.5 hidden text-t-meta text-muted-foreground post-bar:block">{phoneHint}</p>}
       </div>
       {children}
     </section>
@@ -272,6 +282,14 @@ export function Section({ title, hint, children, id, mark }: { title: string; hi
  *
  *  `labelAction` rides at the right of the label row, before the counter (the description's
  *  "Polish with AI"), so the action no longer needs a row of its own between label and field.
+ *
+ *  ⛔ ON A PHONE IN A BROWSER THE COUNTER SITS UNDER THE FIELD (owner-approved 2026-11-16 on the hub, Q22 with P8; cook r12
+ *  post-r12c): right-aligned at 13px ink-4, beside the hint when there is one ("Min. 20 characters · 0" under the
+ *  description), so the label row holds only the label and its action. A field with a counter becomes a two-column grid
+ *  there — label | action, the control across both, hint | counter, then the error — with the label row and the right
+ *  cluster as `display: contents`, so the Base UI wiring is untouched (the control's wrapper is `contents` everywhere else).
+ *  It is the `post-bar` variant (globals.css), not `max-sm`: from sm up, in the store apps, and for a field with no counter,
+ *  nothing changes.
  */
 export function Field({ id, label, counter, hint, error, group, optional, labelAction, className, children }: { id?: string; label: string; counter?: string; hint?: string; error?: string; group?: boolean; optional?: boolean; labelAction?: React.ReactNode; className?: string; children: React.ReactNode }) {
   const uid = useId()
@@ -282,14 +300,21 @@ export function Field({ id, label, counter, hint, error, group, optional, labelA
   // The space sits OUTSIDE the translated string on purpose: gen-ui-strings trims what it harvests,
   // so a string with a leading space would never match its own catalogue key.
   const optionalMark = optional ? <span className="font-normal text-ink-4"> {tr('(optional)', '(tùy chọn)')}</span> : null
+  // The phone's counter-under-the-field grid (the note above) — only a non-group field that has a counter.
+  const phoneGrid = !group && !!counter
   // `flex-wrap` + `ml-auto` on the right cluster: at 390px an action AND a counter beside a label is
   // close to the row's width, and a longer machine-translated label must wrap the cluster onto its
   // own right-aligned line rather than push the counter out of the column.
+  // The two wrappers the grid needs are `contents` wherever `post-bar` does not match (`post-bar:flex` makes them grid
+  // items there — flex, not block, so no line box adds a descender gap under the button or the control), so outside it
+  // the tree lays out exactly as it did before them.
   const trailing = labelAction || counter
     ? (
-      <div className="ml-auto flex items-center gap-3">
-        {labelAction}
-        {counter && <span className="text-2xs text-ink-4">{counter}</span>}
+      <div className={cn('ml-auto flex items-center gap-3', phoneGrid && 'post-bar:contents')}>
+        {labelAction && phoneGrid
+          ? <span className="contents post-bar:col-start-2 post-bar:row-start-1 post-bar:flex post-bar:self-center post-bar:justify-self-end">{labelAction}</span>
+          : labelAction}
+        {counter && <span className={cn('text-2xs text-ink-4', phoneGrid && 'post-bar:col-start-2 post-bar:row-start-3 post-bar:self-start post-bar:justify-self-end post-bar:whitespace-nowrap post-bar:text-t-meta')}>{counter}</span>}
       </div>
     )
     : null
@@ -317,20 +342,41 @@ export function Field({ id, label, counter, hint, error, group, optional, labelA
   }
 
   return (
-    <UiField id={id} invalid={!!error} className={className}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <FieldLabel className="font-semibold">{label}{optionalMark}</FieldLabel>
+    <UiField id={id} invalid={!!error} className={cn(phoneGrid && 'post-bar:grid post-bar:grid-cols-[minmax(0,1fr)_auto] post-bar:gap-x-3', className)}>
+      <div className={cn('flex flex-wrap items-center justify-between gap-x-3 gap-y-1', phoneGrid && 'post-bar:contents')}>
+        <FieldLabel className={cn('font-semibold', phoneGrid && 'post-bar:col-start-1 post-bar:row-start-1')}>{label}{optionalMark}</FieldLabel>
         {trailing}
       </div>
-      {children}
-      {hint && <FieldDescription className="text-muted-foreground">{hint}</FieldDescription>}
+      {/* `post-bar:flex flex-col`, not `block`: a block cell puts the inline-block <textarea> on a line box, and the
+          descender under it measured 6px of phantom gap (130 for a 124 textarea) between the description and its hint. */}
+      {phoneGrid ? <div className="contents post-bar:col-span-2 post-bar:row-start-2 post-bar:flex post-bar:flex-col">{children}</div> : children}
+      {hint && <FieldDescription className={cn('text-muted-foreground', phoneGrid && 'post-bar:col-start-1 post-bar:row-start-3')}>{hint}</FieldDescription>}
       {/* FieldError has match={true} baked in — it renders whenever the CALLER says so.
           Never render it unconditionally: this app validates in React state, not native
           validity, so an always-mounted error would show an empty description. */}
-      {error && <FieldError className="font-semibold">{error}</FieldError>}
+      {error && <FieldError className={cn('font-semibold', phoneGrid && 'post-bar:col-span-2')}>{error}</FieldError>}
     </UiField>
   )
 }
+
+/**
+ * ⛔ THE PHONE'S TEXT FIELDS ARE FILLED AND BORDERLESS (owner-approved 2026-11-16 on the hub, Q22 with P8; cook r12
+ * post-r12c). On a phone in a browser (`post-bar`) the three fields P8 names — title, description and price, and no
+ * others (the signed-in contact name and phone keep ui/input's look: the owner never saw them changed) — drop ui/input's
+ * 1px line-strong edge and keep the field grey at the 12px input corner; focus is a 2px solid brand ring (#0060df: 5.62:1 on
+ * white, 5.06:1 on the grey; dark #3b8ee6 4.98:1), so the focused state clears WCAG 1.4.11's 3:1. At rest the field is
+ * identified by its visible label above it (and the description's hint), not by an edge — the edge it drops measured
+ * 1.45:1 on white and 1.31:1 on the grey (the grey itself 1.11:1), so it never met 3:1 either. Single-line fields are
+ * 52px. From sm up, and in the store apps, the `filled` look stands; the Brand and Model comboboxes were already borderless.
+ */
+export const PHONE_FIELD = 'post-bar:shadow-none post-bar:focus:ring-2 post-bar:focus:ring-brand'
+/**
+ * A phone field's INVALID ring, focus included (commit gate, 2026-11-16): PHONE_FIELD's `post-bar:focus:ring-brand` outranked
+ * the plain `ring-destructive/60`, so a seller tapping the title Publish had refused saw its red ring turn blue. Listed after
+ * PHONE_FIELD in one cn(), tailwind-merge drops the brand focus colour for this one.
+ */
+export const FIELD_INVALID = 'ring-2 ring-destructive/60 post-bar:focus:ring-destructive/60'
+export const PHONE_FIELD_LINE = `${PHONE_FIELD} post-bar:h-13`
 
 /** R2 semantic fixes for the vehicles subcategory row (blind critic 2026-08-06;
  *  lead ruling 2026-08-07). 'Xe máy' (was a speedometer) is fixed AT THE REGISTRY —
@@ -369,18 +415,54 @@ function PickerGlyph({ slug, name, className, stroke, selected }: { slug: string
   return <CategoryGlyphArt Icon={Fix} className={className} stroke={stroke} selected={selected} />
 }
 
+/**
+ * Brings a chip wholly into its swipe row (the phone's one-row option groups, below). Only the ROW's scrollLeft moves —
+ * never scrollIntoView, whose block axis would also scroll the page to a chip a restored draft picked far down the form.
+ * A row that wraps (sm and up, and in the store apps) has nothing to scroll and is left alone. 12px: the row's own inline padding, so the chip
+ * stops at the gutter, not on the screen edge.
+ */
+function revealChip(row: HTMLElement, chip: HTMLElement, instant: boolean) {
+  if (row.scrollWidth <= row.clientWidth) return
+  const r = row.getBoundingClientRect()
+  const c = chip.getBoundingClientRect()
+  const dx = c.right > r.right - 12 ? c.right - r.right + 12 : c.left < r.left + 12 ? c.left - r.left - 12 : 0
+  if (!dx) return
+  const left = row.scrollLeft + dx
+  if (typeof row.scrollTo === 'function') row.scrollTo({ left, behavior: instant ? 'instant' : scrollBehavior() })
+  else row.scrollLeft = left
+}
+
 /** Single-pick chip row. `icon` (a CategoryIcon registry name — subcategories and
  *  listing types carry one in the taxonomy) renders the same glyph family the home
  *  grid and browse rail use, at the §4 chip step (14px) re-tiered to the UI stroke.
  *  Text-only options (condition, attribute facets) simply pass no icon.
  *  ⛔ A LIST `value` MAKES IT A MULTI-PICK ROW (apartment amenities, owner 2026-10-20): several chips pressed at once, each
  *  its own aria-pressed toggle — the Filter panel's multi chips (facet-bar.tsx), in this form's chip style. `onPick`
- *  still names the one option tapped; the caller toggles it in or out of the list. */
+ *  still names the one option tapped; the caller toggles it in or out of the list.
+ *  ⛔ ONE SWIPE ROW ON A PHONE, THE PICK IN INK (owner-approved 2026-11-16 on the hub, Q22 + Q15: "ink for a picked /post
+ *  chip"; cook r12 post-r12c). On a phone in a browser (`post-bar`) every chip group that goes through here (listing type, subcategory, condition, the
+ *  facets, amenities) is one horizontal row bled to the screen edges: whole chips, no fade, no arrow, 4px above and below
+ *  so the overflow clip leaves tap-44's 2px reach whole (chip-style.ts's scroller rule). The picked chip is the ink fill
+ *  with a white 14/700 label, and it is brought into view — when a single pick changes (a tap, AI autofill, a restored
+ *  draft), on a tap in a multi-pick row, and on mount. The category grid keeps wrapping (post-wizard.tsx). From sm up, and
+ *  in the store apps, the row wraps and the pick stays the 09-27 blue. */
 export function Chips({ options, value, onPick }: { options: { value: string; label: string; icon?: string }[]; value: string | readonly string[]; onPick: (v: string) => void }) {
   // ONE predicate for the pill, aria-pressed and the glyph's fill, so the three can never disagree about a chip.
   const on = (v: string) => (typeof value === 'string' ? value === v : value.includes(v))
+  const multi = typeof value !== 'string'
+  const rowRef = useRef<HTMLDivElement>(null)
+  const mounted = useRef(false)
+  // A single pick re-runs this whenever it changes; a multi-pick row only on mount (its taps reveal the chip tapped, below:
+  // jumping back to the first pick would move the row away from the seller's thumb).
+  const revealKey = typeof value === 'string' ? value : null
+  useEffect(() => {
+    const row = rowRef.current
+    const picked = row?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (row && picked) revealChip(row, picked, !mounted.current)
+    mounted.current = true
+  }, [revealKey])
   return (
-    <div className="flex max-w-2xl flex-wrap gap-2">
+    <div ref={rowRef} data-chip-row className="flex max-w-2xl flex-wrap gap-2 post-bar:-mx-3 post-bar:max-w-none post-bar:flex-nowrap post-bar:overflow-x-auto post-bar:overscroll-x-contain post-bar:px-3 post-bar:py-1">
       {options.map((o) => (
         <Button
           variant="bare"
@@ -388,18 +470,26 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           key={o.value}
           type="button"
           aria-pressed={on(o.value)}
-          onClick={() => onPick(o.value)}
+          onClick={(e) => {
+            onPick(o.value)
+            // After the render the tap causes: the pick's bolder label is a few px wider.
+            const row = rowRef.current
+            const chip = e.currentTarget
+            if (multi && row) requestAnimationFrame(() => revealChip(row, chip, false))
+          }}
           // py-2.5 + tap-44: 40px drawn, 44px hit. The 2px the pseudo reaches past each edge sits
           // inside the row's 8px gap, so no chip's hit area ever lands on its neighbour's.
-          // `icon-own-ink`: a solid bg-primary pill when picked, so the glyph keeps the label's white
-          // rather than the global accent recolour, which is the pill's own blue (owner, 2026-09-27).
+          // `icon-own-ink`: the picked pill is a solid fill (ink on a phone in a browser, blue elsewhere), so the glyph keeps
+          // the label's own light ink rather than the global accent recolour, which on the blue was the pill's own colour
+          // (owner, 2026-09-27).
           // ⚠️ A RESTING `bg-tint` PILL, NOT TRANSPARENT. The borderless sweep flattened these to
           // bare text on the canvas, so an unpicked option had no edge at all and a row of them read
           // as a sentence rather than as choices. Canon §2 says chips are `rounded-full`, and §3b
           // says chips that must sit apart take `tint` — the same idiom as VndInput's unit chips.
           // No border: a canon-token border cannot reach 1.4.11's 3:1 on this canvas (line-strong
           // measures ~1.4:1), and the visible label is what identifies the control.
-          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', on(o.value) ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
+          // `post-bar:shrink-0`: in the phone's swipe row a chip keeps its whole width and the row scrolls instead.
+          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44 post-bar:shrink-0', on(o.value) ? 'bg-primary text-white post-bar:bg-foreground post-bar:font-bold post-bar:text-background' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
         >
           {o.icon && (
             // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").
