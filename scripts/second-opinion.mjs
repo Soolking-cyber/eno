@@ -105,8 +105,13 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // first (answered a one-line prompt on 'Gemini 3.8 Flash (High)'), so the panel is agy + opus, two labs, agy the
 // independent vote. ⛔ RESTORE ON/AFTER 2026-11-20 21:37 ICT: put 'codex' back in place of 'agy' (its seat below is
 // untouched), after one probe that codex answers, and tell every session.
-const MIN_LABS = 2
-const REVIEWER_NAMES = ['agy', 'opus']
+// ⏸ AND agy OUT TOO 2026-11-16 ~09:50 ICT ("RESOURCE_EXHAUSTED (429): Individual quota reached … Resets in 165h8m", ≈ 11-23)
+// — no outside lab left. Owner, asked (opus alone until codex / wait / buy credits): "Opus alone until Nov 20". So until
+// UNTIL_CODEX the panel is opus alone and one lab is enough. ⛔ IT EXPIRES BY ITSELF: from UNTIL_CODEX the minimum is two labs
+// again while the panel is still opus alone, so every commit is refused until 'codex' is put back here (after one probe).
+const UNTIL_CODEX = Date.parse('2026-11-20T21:37:00+07:00')
+const MIN_LABS = Date.now() < UNTIL_CODEX ? 1 : 2
+const REVIEWER_NAMES = ['opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -755,6 +760,7 @@ if (independentLabs.length >= 2 && new Set(independent.map((r) => r.verdict)).si
  * the property this gate exists to guarantee against.
  */
 if (labsCounted < MIN_LABS) {
+  if (Date.now() >= UNTIL_CODEX && REVIEWER_NAMES.length === 1) console.error('⛔ The no-outside-review window (owner, 2026-11-16) ENDED 2026-11-20 21:37 ICT: put codex back in REVIEWER_NAMES.')
   console.error(`⚠️  Only ${labsCounted} lab(s) reviewed the FULL diff (${counted.length} seat(s)) — that is NOT a passed`)
   console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
   console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
