@@ -78,7 +78,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-size:14px;line-height:1.
 .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .ph{aspect-ratio:4/3;width:100%;object-fit:cover;background:var(--line);display:block}
 .body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px}
-.title{font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.title{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .price{font-weight:700;color:var(--accent)}
 .place{color:var(--muted);font-size:12px}
 .tags{display:flex;gap:6px;flex-wrap:wrap}
