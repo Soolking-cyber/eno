@@ -151,8 +151,10 @@ export const GuideFace = forwardRef<GuideHandle, {
     )
   }
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <span className={cn('rounded-full p-2 ring-primary-foreground/20 transition-[box-shadow] duration-300 motion-reduce:transition-none', speaking ? 'ring-8' : 'ring-0')}>
+    // In the tile's top half, under the controls and clear of the word plate (2026-11-16).
+    <div className="flex h-full w-full items-start justify-center pt-12">
+      {/* The breathing ring in the one blue: a white one vanished on the light ground (2026-11-16). */}
+      <span className={cn('rounded-full p-2 ring-brand/25 transition-[box-shadow] duration-300 motion-reduce:transition-none', speaking ? 'ring-8' : 'ring-0')}>
         <Avatar name={name} url={portrait} size="lg" />
       </span>
     </div>

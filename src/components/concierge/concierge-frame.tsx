@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Mic, MicOff } from '@/components/ui/icons'
+import { Keyboard, Mic, MicOff } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
 import { framedByHost } from '@/lib/concierge/frame-head'
@@ -88,6 +88,10 @@ function toHost(m: ConciergeMessage): void {
 export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceConfig | null; open: boolean }) {
   const { tr, lang } = useLanguage()
   const [phase, setPhase] = useState<Phase>('intro')
+  // While she talks the host lights the window's edge (concierge-host.tsx data-speaking); off again when this page goes.
+  const talking = phase === 'speaking'
+  useEffect(() => { toHost({ type: 'eno-concierge:speaking', on: talking }) }, [talking])
+  useEffect(() => () => toHost({ type: 'eno-concierge:speaking', on: false }), [])
   const [mode, setMode] = useState<'avatar' | 'voice'>(initialFace ? 'avatar' : 'voice')
   const [prep, setPrep] = useState<'drawing' | 'ready'>(initialFace ? 'drawing' : 'ready')
   const [muted, setMuted] = useState(false)
@@ -118,9 +122,12 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
    * never a feature eno.vn does not have.
    */
   const facts = [
-    tr('Browsing, posting and messaging sellers on eno are currently free, and eno takes no commission on a sale.', 'Xem tin, đăng tin và nhắn tin cho người bán trên eno hiện đều miễn phí, eno không thu hoa hồng khi bán.'),
-    tr("Pick up to 5 rentals and tap Check these for me: eno's team asks the landlords for you, free.", 'Chọn tối đa 5 căn cho thuê rồi bấm Kiểm tra giúp tôi: đội ngũ eno hỏi chủ nhà giúp bạn, miễn phí.'),
-    tr('The HCMC Rent Index shows the median asking rent in each district, updated daily.', 'Chỉ số giá thuê nhà TP.HCM cho biết giá chào thuê trung vị ở từng quận, cập nhật mỗi ngày.'),
+    // ⚠️ SHORT FOR THE TILE (2026-11-16, the 192 px portrait window): at 13 px each fits about four lines; never clamped (a cut
+    // could drop the wording that matters, in a machine translation too); the same facts.
+    // ⛔ "CURRENTLY" AND "ON A SALE" STAY (the Operating Regulations' price article: free now, any price announced ahead).
+    tr('Browsing, posting and messaging on eno are currently free, with no commission on a sale.', 'Xem tin, đăng tin và nhắn tin trên eno hiện đều miễn phí, không thu hoa hồng khi bán.'),
+    tr('Pick up to 5 rentals and tap Check these for me: eno asks the landlords, free.', 'Chọn tối đa 5 căn rồi bấm Kiểm tra giúp tôi: eno hỏi chủ nhà giúp bạn, miễn phí.'),
+    tr("The HCMC Rent Index shows each district's median asking rent, updated daily.", 'Chỉ số giá thuê TP.HCM: giá chào thuê trung vị từng quận, cập nhật mỗi ngày.'),
     tr('See schools rated by teachers at eno.vn/schools.', 'Xem các trường được giáo viên đánh giá tại eno.vn/schools.'),
     tr('eno works in 11 languages, and chats are translated for you.', 'eno có 11 ngôn ngữ, và tin nhắn được dịch tự động cho bạn.'),
     tr('Make an offer in the chat: the seller can accept, decline or counter.', 'Trả giá ngay trong chat: người bán có thể đồng ý, từ chối hoặc trả giá lại.'),
@@ -779,10 +786,12 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
   const chatButton = (
     <Button size="sm" variant="secondary" onClick={toChat}>{tr('Chat with eno AI', 'Chat với eno AI')}</Button>
   )
+  /** The text assistant, one tap away (owner, 2026-10-28: "the message one is fallback") — a keyboard key, its words its name. */
+  const typeInstead = tr('Prefer typing? Chat with eno AI', 'Muốn gõ chữ? Chat với eno AI')
 
   if (!open) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-primary-foreground/80">
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-t-meta text-muted-foreground">
         {tr('The voice guide is not available for this account.', 'Trợ lý giọng nói chưa mở cho tài khoản này.')}
         {chatButton}
       </div>
@@ -790,7 +799,28 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
   }
   /** Nothing to retry: the account's day, or the site's, is used up — only the text assistant is offered. */
   const capped = phase === 'refused' && (refusal === 'limit_reached' || refusal === 'guide_busy')
+  /** The panel under the words: the page's own surface (white; the dark canvas in dark mode, where the white photo plate would
+   *  put light text on white), lifted by the plate's shadow. The controls over her picture keep the white plate (the ✕'s). */
+  // ⛔ NEVER OVER THE CAPSULE (commit review): the panel stops 3rem under the tile's top, below the controls, and scrolls
+  // inside if a long notice, a long translation or the landscape tile asks for more.
+  const PLATE = 'max-h-[calc(100%-3rem)] overflow-y-auto overscroll-contain rounded-xl bg-background p-2.5 shadow-plate'
+  /** The five dots (Meta AI's meter): they ripple while she listens, fade in turn while she thinks or connects. */
+  const dotsFor = phase === 'listening' || phase === 'hearing' ? 'listening' : phase === 'thinking' || (phase === 'connecting' && waiting) ? 'thinking' : null
+  const intro = phase === 'intro' || phase === 'refused' || phase === 'mic_denied'
+  const message = phase === 'intro' ? facts[fact % facts.length]
+    : phase === 'refused' ? (refusal === 'limit_reached' ? tr("You've used today's 10 minutes with the guide.", 'Bạn đã dùng hết 10 phút hôm nay với trợ lý.')
+      : refusal === 'guide_busy' ? tr('The voice guide is busy today.', 'Trợ lý giọng nói hôm nay đang bận.')
+        : tr("The guide couldn't start — try again.", 'Không bắt đầu được — hãy thử lại.'))
+      : tr('Allow the microphone to talk to the guide.', 'Hãy cho phép micro để nói với trợ lý.')
+  const words = (phase === 'thinking' || phase === 'hearing') && heardLine ? heardLine : caption
 
+  /*
+   * ⛔ THE PREMIUM WINDOW (owner, 2026-11-16: "make it best looking one it should feel premium just like rest of the app";
+   * references and the blind A/B: ~/eno-ui-climb-work.noindex/concierge). A light studio ground (the page's .concierge-ground),
+   * every word on a white plate at the app's reading sizes (13/18 and 15/20 — never 3xs over her face), the controls in one
+   * capsule top-left (mute, type instead), the state shown, not said: five dots while she listens or thinks, the window's
+   * edge lit while she talks (the host's data-speaking); the status words stay for screen readers (sr-only, polite).
+   */
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0">
@@ -806,80 +836,69 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
         />
       </div>
 
-      {live && (
-        <div className="absolute left-1 top-1 flex items-center gap-1">
+      <p className="sr-only" aria-live="polite">{phase === 'connecting' && waiting ? tr('Connecting…', 'Đang kết nối…') : status}</p>
+
+      {/* One capsule, top-left, in every state: mute and the dots while she is live, and always the keyboard key — the text
+          assistant one tap away (owner, 2026-10-28: "the message one is fallback"). */}
+      <div className="absolute left-2 top-2 flex h-8 items-center gap-0.5 rounded-full bg-plate-fill px-0.5 text-on-plate shadow-plate">
+        {live && (
           <IconButton
             size="sm"
-            variant="overlay"
             aria-pressed={muted}
             aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
             onClick={toggleMute}
-            className={cn(phase === 'hearing' && !muted && 'ring-2 ring-primary-foreground')}
+            className={cn('size-7', muted && 'bg-on-plate text-plate-fill hover:bg-on-plate', phase === 'hearing' && !muted && 'text-brand')}
           >
             {muted ? <MicOff /> : <Mic />}
           </IconButton>
-          <span className="rounded-full bg-brand-deeper/70 px-1.5 py-0.5 text-3xs font-medium text-primary-foreground">{status}</span>
-        </div>
-      )}
+        )}
+        {dotsFor && (
+          <span data-dots={muted && dotsFor === 'listening' ? undefined : dotsFor} aria-hidden className="flex h-7 items-center gap-1 px-1">
+            {[0, 1, 2, 3, 4].map((i) => <span key={i} className={cn('concierge-dot block size-1.5 rounded-full', muted && dotsFor === 'listening' ? 'bg-ink-4' : 'bg-brand')} />)}
+          </span>
+        )}
+        {/* Without her ears (deaf, or the microphone down) the key turns blue: typing is the way now. */}
+        <IconButton size="sm" aria-label={typeInstead} onClick={toChat} className={cn('size-7', (deaf || micDown) && 'text-brand')}>
+          <Keyboard />
+        </IconButton>
+      </div>
 
-      {(phase === 'intro' || phase === 'refused' || phase === 'mic_denied') && (
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-brand-deeper/90 to-transparent p-2 pt-6 text-center">
-          {phase === 'intro' && (
-            <p key={fact % facts.length} className="text-3xs leading-snug text-primary-foreground/85">{facts[fact % facts.length]}</p>
-          )}
-          {phase === 'refused' && (
-            <p className="text-3xs leading-snug text-primary-foreground/85">
-              {refusal === 'limit_reached' ? tr("You've used today's 10 minutes with the guide.", 'Bạn đã dùng hết 10 phút hôm nay với trợ lý.')
-                : refusal === 'guide_busy' ? tr('The voice guide is busy today.', 'Trợ lý giọng nói hôm nay đang bận.')
-                  : tr("The guide couldn't start — try again.", 'Không bắt đầu được — hãy thử lại.')}
-            </p>
-          )}
-          {phase === 'mic_denied' && (
-            <p className="text-3xs leading-snug text-primary-foreground/85">
-              {tr('Allow the microphone to talk to the guide.', 'Hãy cho phép micro để nói với trợ lý.')}
-            </p>
-          )}
-          {!capped && (
-            <Button size="sm" variant="cta" disabled={prep !== 'ready'} onClick={() => void begin()}>
+      {intro && (
+        <div className={cn('absolute inset-x-2 bottom-2 flex flex-col gap-2.5', PLATE)}>
+          <p key={phase === 'intro' ? fact % facts.length : phase} className="text-pretty text-t-meta text-muted-foreground">{message}</p>
+          {capped ? chatButton : (
+            <Button variant="cta" disabled={prep !== 'ready'} onClick={() => void begin()} className="h-10 self-stretch rounded-xl px-3 text-t-card font-bold">
+              <Mic aria-hidden />
               {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : tr('Start talking', 'Bắt đầu nói')}
             </Button>
           )}
-          {phase !== 'intro' && chatButton}
-          {/* The text assistant one tap away from the start too — the fallback, never only for a failure (owner, 2026-10-28:
-              "the message one is fallback"). */}
-          {phase === 'intro' && (
-            <Button size="none" variant="link" className="text-3xs font-normal text-primary-foreground/85 underline" onClick={toChat}>
-              {tr('Prefer typing? Chat with eno AI', 'Muốn gõ chữ? Chat với eno AI')}
-            </Button>
-          )}
+          {phase !== 'intro' && !capped && chatButton}
         </div>
       )}
 
-      {phase === 'connecting' && waiting && (
-        <div className="absolute inset-x-0 bottom-2 text-center text-3xs text-primary-foreground/85">{tr('Connecting…', 'Đang kết nối…')}</div>
-      )}
-
-      {live && (
-        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-brand-deeper/90 to-transparent p-1.5 pt-6">
-          {noticeText && <p className="text-3xs leading-snug text-primary-foreground">{noticeText}</p>}
-          {(deaf || micDown) && phase !== 'hearing' && (
-            <Button size="sm" variant="secondary" className="h-6 min-h-6 self-start rounded-full px-2 text-3xs" onClick={toChat}>
-              {tr('Chat with eno AI', 'Chat với eno AI')}
-            </Button>
-          )}
-          {(phase === 'thinking' || phase === 'hearing') && heardLine
-            ? <p className="line-clamp-2 text-3xs italic leading-snug text-primary-foreground/80">{heardLine}</p>
-            : caption && (
-              <div className="flex items-start gap-1">
-                <p className="line-clamp-3 min-w-0 flex-1 text-2xs leading-snug text-primary-foreground">{caption}</p>
-                {/* Report what is on screen (Google Play, AI-Generated Content — src/lib/ai-report.ts). */}
-                <GuideLineFlag line={caption} href={parentHref} />
+      {live && (words || noticeText || chips.length > 0 || ((deaf || micDown) && phase !== 'hearing')) && (
+        <div className={cn('absolute inset-x-2 bottom-2 flex flex-col gap-2', PLATE)}>
+          {noticeText && <p className="text-t-meta text-ink-3">{noticeText}</p>}
+          {/* Without her ears the way out is said in words too, not only the blue key (commit review). */}
+          {(deaf || micDown) && phase !== 'hearing' && <div>{chatButton}</div>}
+          {words && (
+            // The newest words stay in view: three lines at most (two over a row of chips), earlier ones leave by the top; the flag beside HER words only —
+            // what is reported is what is on screen (the person's own words show in thinking/hearing).
+            <div className="flex items-start gap-1">
+              <div className={cn('flex min-w-0 flex-1 flex-col justify-end overflow-hidden', chips.length > 0 && phase !== 'hearing' ? 'max-h-10' : 'max-h-15')}>
+                <p className={cn('text-pretty text-t-card', words === caption ? 'text-foreground' : 'text-ink-3')}>{words}</p>
               </div>
-            )}
+              {/* Report what is on screen (Google Play, AI-Generated Content — src/lib/ai-report.ts). */}
+              {words === caption && <span className="-mr-1 flex shrink-0 items-center gap-1"><GuideLineFlag line={caption} href={parentHref} /></span>}
+            </div>
+          )}
           {chips.length > 0 && phase !== 'hearing' && (
-            <div className="flex flex-wrap gap-1">
+            // ⛔ HER FACE STAYS IN VIEW: on a touch screen one row that swipes (her words two lines over it); with a mouse the
+            // chips wrap, so a wheel never has to scroll sideways to reach one (commit review). ⚠️ `pointer: fine`, never `pc`: a media
+            // query in this frame measures the FRAME (≤ 256 px), so a width breakpoint never matches here.
+            <div className="concierge-chips -mx-2.5 flex gap-1.5 overflow-x-auto px-2.5 [@media(pointer:fine)]:mx-0 [@media(pointer:fine)]:flex-wrap [@media(pointer:fine)]:overflow-visible [@media(pointer:fine)]:px-0">
               {chips.map((c) => (
-                <Button key={c} size="sm" variant="secondary" className="h-6 min-h-6 rounded-full px-2 text-3xs" onClick={() => sendChip(c)}>{c}</Button>
+                <Button key={c} size="none" variant="outline" className="h-8 shrink-0 rounded-full border-line-strong px-3 text-t-meta font-bold" onClick={() => sendChip(c)}>{c}</Button>
               ))}
             </div>
           )}

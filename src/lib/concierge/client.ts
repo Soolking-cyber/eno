@@ -224,6 +224,8 @@ export type ConciergeMessage =
    * chat").
    */
   | { type: 'eno-concierge:chat' }
+  /** The guide is talking (true) or has stopped (false): the host lights the window's edge (concierge-host.tsx). */
+  | { type: 'eno-concierge:speaking'; on: boolean }
 
 /**
  * The paths a `go` may open — the explorer (`/`, `/vi`) with any query, a listing, or one of the fixed pages

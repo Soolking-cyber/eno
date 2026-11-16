@@ -49,7 +49,10 @@ export function ConciergeHost() {
   const router = useRouter()
   const { tr, lang } = useLanguage()
   const [open, setOpen] = useState(false)
+  /** The guide is talking: the window's edge lights (globals.css `[data-concierge-popup][data-speaking]`). */
+  const [speaking, setSpeaking] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
+  useEffect(() => { if (!open) setSpeaking(false) }, [open])
 
   // May this account open it? Asked once after the page settles, and again when the tab comes back to the front — at most
   // every CONFIG_EVERY_MS (review, opus: a phone that switches apps asked on every return). Never on eno.forum, which has
@@ -217,6 +220,7 @@ export function ConciergeHost() {
       if (!m || typeof m !== 'object') return
       if (m.type === 'eno-concierge:close') { setOpen(false); return }
       if (m.type === 'eno-concierge:chat') { setOpen(false); router.push('/messages/ai'); return }
+      if (m.type === 'eno-concierge:speaking') { setSpeaking(m.on === true); return }
       if (m.type !== 'eno-concierge:go') return
       const href = safeConciergeHref(m.href)
       if (!href) return
@@ -238,16 +242,25 @@ export function ConciergeHost() {
             codex): a hidden window would keep its microphone listening — it stays where it is, under the keyboard.
             ⛔ IT RIDES ABOVE THE FIRST-VISIT CONSENT BAR (--consent-clearance, as lang-suggestion-banner.tsx): at 390x844 the bar,
             four seconds in, covered the whole window, Start and ✕ included, until it was answered (measured 2026-11-02). Capped at
-            what keeps the top on screen (18rem + the safe area = the bottom offset + the window + a breath): a landscape phone keeps
-            its ✕, and answering the bar brings the window back down. */}
+            what keeps the top on screen (22rem + the safe area = the bottom offset + the window + a breath): a landscape phone keeps
+            its ✕, and answering the bar brings the window back down.
+            ⛔ A PORTRAIT TILE ON A LIGHT GROUND (owner, 2026-11-16: "make it best looking one it should feel premium just like rest
+            of the app"; references: FaceTime's picture-in-picture, Siri's edge glow, Meta AI's voice screen): 192×256 (3:4) on a
+            phone, 256×320 from pc, the app's floating-surface finish (hairline, shadow-overlay, rounded-2xl) — never the navy
+            square of 2026-10-27. The pale `brand-50` under the frame is what shows before it paints. While the guide talks the
+            edge lights in the one blue (`data-speaking`, set from the frame's `eno-concierge:speaking`). A landscape phone (under
+            480 px tall) keeps the old 192 px height, so the ✕ and the capsule stay on screen (commit review). */}
         <DialogPrimitive.Popup
           aria-label={name}
-          className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab size-48 -translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-18rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] overflow-hidden rounded-2xl border border-foreground/10 bg-brand-deeper shadow-overlay transition-[translate] duration-150 ease-out-strong pc:bottom-6 pc:right-6 pc:size-64"
+          data-concierge-popup=""
+          data-speaking={speaking ? '' : undefined}
+          className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab h-64 w-48 [@media(max-height:480px)]:h-48 [@media(max-height:480px)]:-translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-18rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] -translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-22rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] overflow-hidden rounded-2xl border border-border bg-brand-50 shadow-overlay transition-[translate,border-color,box-shadow] duration-150 ease-out-strong dark:bg-brand-deeper pc:bottom-6 pc:right-6 pc:h-80 pc:w-64"
         >
           <DialogPrimitive.Title className="sr-only">{name}</DialogPrimitive.Title>
-          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
+          {/* A frame that (re)loads starts quiet: an unload with no goodbye never leaves the edge lit (commit review). */}
+          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" onLoad={() => setSpeaking(false)} {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
           <DialogPrimitive.Close
-            render={<CloseButton size="sm" variant="overlay" label={tr('Close the guide', 'Đóng trợ lý')} className="absolute right-1 top-1" />}
+            render={<CloseButton size="sm" variant="overlay" label={tr('Close the guide', 'Đóng trợ lý')} className="absolute right-2 top-2" />}
           />
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>

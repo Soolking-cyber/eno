@@ -37,18 +37,19 @@ export function GuideLineFlag({ line, href }: { line: string; href: () => string
   }
   return (
     <>
-      {state === 'sent' && <span className="shrink-0 text-3xs text-primary-foreground/85">{tr('Reported', 'Đã báo cáo')}</span>}
-      {state === 'failed' && <span className="shrink-0 text-3xs text-primary-foreground/85">{tr('Not sent', 'Chưa gửi')}</span>}
+      {/* On the window's white plate since 2026-11-16 (the premium window): the app's meta line, a quiet ghost flag. */}
+      {state === 'sent' && <span className="shrink-0 text-t-meta text-ink-3">{tr('Reported', 'Đã báo cáo')}</span>}
+      {state === 'failed' && <span className="shrink-0 text-t-meta text-ink-3">{tr('Not sent', 'Chưa gửi')}</span>}
       <IconButton
         size="xs"
-        variant="overlay"
+        className="text-ink-3"
         disabled={state === 'sending'}
         aria-label={state === 'failed'
           ? tr('Not sent — report this answer again', 'Chưa gửi — báo cáo lại câu trả lời này')
           : tr('Report this answer', 'Báo cáo câu trả lời này')}
         onClick={() => void flag()}
       >
-        <Flag className="size-3" aria-hidden />
+        <Flag className="size-4" aria-hidden />
       </IconButton>
     </>
   )

@@ -105,9 +105,12 @@ export async function createGuide(el: HTMLElement, modelUrl: string, onLost: (wh
       audioCtx: ctx,
       // ⛔ No lip-sync modules: TalkingHead would import() them by a computed path at runtime (and HeadAudio drives the mouth).
       lipsyncModules: [],
-      // Head and shoulders, closer than TalkingHead's "upper" (the window is 192–256 px): the face reads, the badge shows.
+      // Head and shoulders in the 3:4 portrait tile (192×256 on a phone, 256×320 from pc — 2026-11-16): a little wider and
+      // lower than TalkingHead's "upper", so her face sits in the top third, clear of the word plate (measured in the cook
+      // harness, ~/eno-ui-climb-work.noindex/concierge: crown ≈ 9 %, eyes ≈ 25 %, chin ≈ 36 %).
       cameraView: 'upper',
-      cameraDistance: -0.55,
+      cameraDistance: 0.4,
+      cameraY: 0.55,
       cameraRotateEnable: false, cameraPanEnable: false, cameraZoomEnable: false,
       modelFPS: 30,
       // ⚠️ MULTIPLIED BY devicePixelRatio inside TalkingHead (its README says "sets"): 1 would draw 3× on an iPhone. ≤ 1.5×.

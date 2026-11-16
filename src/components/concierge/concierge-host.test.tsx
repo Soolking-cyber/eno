@@ -131,6 +131,30 @@ describe('the website — no notice, as before', () => {
     await act(async () => { openConcierge() })
     expect(windowOpen()).toBe(true)
   })
+
+  it('the window\'s edge lights while she talks — only on its OWN frame\'s word, and goes out with the window', async () => {
+    ua(BROWSER)
+    mount()
+    await act(async () => { openConcierge() })
+    const popup = () => document.querySelector('[data-concierge-popup]')
+    const frameWin = (document.querySelector('iframe[data-concierge-window]') as HTMLIFrameElement).contentWindow
+    const say = (on: unknown, source: unknown = frameWin, origin = window.location.origin) =>
+      act(async () => { window.dispatchEvent(new MessageEvent('message', { data: { type: 'eno-concierge:speaking', on }, origin, source: source as Window })) })
+    expect(popup()?.hasAttribute('data-speaking')).toBe(false)
+    await say(true, window)
+    expect(popup()?.hasAttribute('data-speaking')).toBe(false)
+    await say(true, frameWin, 'https://evil.example')
+    expect(popup()?.hasAttribute('data-speaking')).toBe(false)
+    await say(true)
+    expect(popup()?.hasAttribute('data-speaking')).toBe(true)
+    await say('yes')
+    expect(popup()?.hasAttribute('data-speaking')).toBe(false)
+    await say(true)
+    await act(async () => { window.dispatchEvent(new MessageEvent('message', { data: { type: 'eno-concierge:close' }, origin: window.location.origin, source: frameWin })) })
+    expect(popup()).toBeNull()
+    await act(async () => { openConcierge() })
+    expect(popup()?.hasAttribute('data-speaking')).toBe(false)
+  })
 })
 
 describe('`?guide=1`: the link that opens the guide', () => {

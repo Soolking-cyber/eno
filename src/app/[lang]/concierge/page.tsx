@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 
 export default function ConciergePage() {
   return (
-    <div data-concierge-frame="" className="fixed inset-0 z-overlay bg-brand-deeper text-primary-foreground">
+    // The light studio ground (globals.css .concierge-ground; owner, 2026-11-16 "premium"); dark mode keeps brand-deeper.
+    <div data-concierge-frame="" className="concierge-ground fixed inset-0 z-overlay text-foreground">
       <ConciergeFrameShell />
     </div>
   )

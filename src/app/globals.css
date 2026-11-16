@@ -5230,6 +5230,67 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
   display: none;
 }
 
+/* ── THE GUIDE'S WINDOW, PREMIUM (owner, 2026-11-16: "make it best looking one it should feel premium just like rest of the
+   app"; references: FaceTime picture-in-picture, Siri's edge glow, Meta AI's voice dots; cook harness
+   ~/eno-ui-climb-work.noindex/concierge). The light ground replaces the navy of 2026-10-27: a pale brand wash with a white key
+   light behind her head, so the blue eno shirt reads as the one blue. Only the CSS ground changes — TalkingHead's lights stay
+   (talking-guide.ts: the shirt's blue is calibrated for them). Dark mode keeps brand-deeper. */
+.concierge-ground {
+  background:
+    radial-gradient(70% 50% at 50% 28%, color-mix(in oklab, var(--background) 90%, transparent), transparent),
+    linear-gradient(180deg, var(--brand-50), var(--brand-100));
+}
+.dark .concierge-ground {
+  background:
+    radial-gradient(70% 50% at 50% 28%, color-mix(in oklab, var(--brand-deep) 70%, transparent), transparent),
+    var(--brand-deeper);
+}
+/* While she talks the window's own edge lights in the one blue (the host's `data-speaking`): a crisp ring and a soft glow
+   that breathes — never a haze over her face. Reduced motion: the ring alone, still. */
+@keyframes concierge-breathe {
+  0%, 100% { box-shadow: var(--shadow-overlay), 0 0 0 1px var(--brand), 0 0 8px 1px color-mix(in oklab, var(--brand) 30%, transparent); }
+  50% { box-shadow: var(--shadow-overlay), 0 0 0 1px var(--brand), 0 0 20px 3px color-mix(in oklab, var(--brand) 42%, transparent); }
+}
+[data-concierge-popup][data-speaking] {
+  border-color: var(--brand);
+  animation: concierge-breathe 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-concierge-popup][data-speaking] {
+    animation: none;
+    box-shadow: var(--shadow-overlay), 0 0 0 1px var(--brand);
+  }
+}
+/* Listening: five brand dots (Meta AI's meter) that ripple; thinking: they fade in turn. The words live in an sr-only line. */
+@keyframes concierge-dot-listen {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(2); }
+}
+@keyframes concierge-dot-think {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.concierge-dot { transform-origin: center; }
+[data-dots='listening'] .concierge-dot { animation: concierge-dot-listen 1.2s ease-in-out infinite; }
+[data-dots='thinking'] .concierge-dot { animation: concierge-dot-think 1.2s ease-in-out infinite; }
+[data-dots] .concierge-dot:nth-child(2) { animation-delay: 0.12s; }
+[data-dots] .concierge-dot:nth-child(3) { animation-delay: 0.24s; }
+[data-dots] .concierge-dot:nth-child(4) { animation-delay: 0.36s; }
+[data-dots] .concierge-dot:nth-child(5) { animation-delay: 0.48s; }
+@media (prefers-reduced-motion: reduce) {
+  [data-dots] .concierge-dot { animation: none; }
+}
+/* The reply chips on a touch screen: one row that swipes, the last chip fading at the edge as the cue (with a mouse they wrap). */
+.concierge-chips {
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+}
+.concierge-chips::-webkit-scrollbar { display: none; }
+/* `pointer: fine` alone: inside the frame a width query measures the frame (≤ 256 px), never the screen. */
+@media (pointer: fine) {
+  .concierge-chips { mask-image: none; }
+}
+
 /* ── THE HOME PAGE'S PARTNER STRIP (src/components/marketplace/partner-strip.tsx; roster src/lib/partner-strip.ts) ──
    Owner, 2026-11-09: official partner logos scrolling right to left, one word each, "super professional minimal".
    Since 2026-11-14 ("8 still band") that is from `sm` up only: the phone's copy holds still (below the viewport rule).
