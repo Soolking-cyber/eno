@@ -6,8 +6,8 @@ import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
 
 /**
  * ⛔ eno's OWN e-Visa / trip desk is EXEMPT from the listing photo check — pass, sweep, upload and save — like the
- * protected stores (listing-photo-check.ts PHOTO_CHECK_EXEMPT). PENDING THE OWNER'S CALL: the desk's flyers are
- * forum-only inventory in the shared database, and whether eno.vn's check may hold or strip them is the owner's to say.
+ * protected stores (listing-photo-check.ts PHOTO_CHECK_EXEMPT). The owner's call, 2026-11-16: "visa desk yes exempt" (the
+ * desk's flyers are forum-only inventory in the shared database).
  * The desk = the storefronts owned by HIDDEN_DESK_OWNER_EMAILS, VISA_SHOP_OWNER_EMAIL(S) and TRIP_DESK_OWNER_EMAIL(S),
  * resolved read-only by owner email and cached for 10 minutes. A failed read throws (and is not cached): the pass then
  * writes nothing for that row.

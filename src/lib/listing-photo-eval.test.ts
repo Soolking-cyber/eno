@@ -16,8 +16,8 @@ beforeEach(() => {
 })
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); vi.restoreAllMocks() })
 
-const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, overlayText: 'none', contact: [], websites: [], ...o })
-const FLYER = facts({ kind: 'designed_graphic', advertises: true })
+const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, promotes: 'none', overlayText: 'none', contact: [], websites: [], ...o })
+const FLYER = facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller' })
 const [A, B] = PHOTO_MODELS
 const read = (model: string, f: PhotoFacts): PhotoRead => ({ model, facts: f })
 

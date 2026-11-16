@@ -7,14 +7,14 @@ import {
 import { GEMINI_MODEL } from '@/lib/gemini-model'
 
 /** The model describes; this code decides (owner, 2026-11-15: no flyers, no contact details in listing photos). */
-const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, overlayText: 'none', contact: [], websites: [], ...o })
+const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, promotes: 'none', overlayText: 'none', contact: [], websites: [], ...o })
 const ON = { flyerRule: true }
 const JOBS = { flyerRule: flyerRuleFor('jobs') }
 
 describe('photoRule — the decision table', () => {
   it('flyers: an ad, a printed flyer, a page of added text', () => {
     expect(photoRule(facts({ kind: 'photo_of_printed_matter', advertises: true }), ON)).toBe('flyer')
-    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true }), ON)).toBe('flyer')
+    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller' }), ON)).toBe('flyer')
     expect(photoRule(facts({ kind: 'designed_graphic', overlayText: 'large' }), ON)).toBe('flyer')
     expect(photoRule(facts({ kind: 'screenshot', overlayText: 'large' }), ON)).toBe('flyer')
     expect(photoRule(facts({ kind: 'collage', advertises: true, overlayText: 'small' }), ON)).toBe('flyer')
@@ -36,10 +36,20 @@ describe('photoRule — the decision table', () => {
     expect(photoRule(facts({ kind: 'designed_graphic', advertises: false, overlayText: 'small' }), ON)).toBe('ok')
     expect(photoRule(facts({ kind: 'photo_of_printed_matter', advertises: false }), ON)).toBe('ok')
   })
+  it('⛔ a maker\'s own product ad is not a flyer (owner, 2026-11-16) — an ad for the seller\'s shop or offer still is, and contact on either is refused', () => {
+    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, promotes: 'product', overlayText: 'large' }), ON)).toBe('ok')
+    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller', overlayText: 'large' }), ON)).toBe('flyer')
+    expect(photoRule(facts({ kind: 'photo_of_printed_matter', advertises: true, promotes: 'seller' }), ON)).toBe('flyer')
+    expect(photoRule(facts({ kind: 'designed_graphic', overlayText: 'large' }), ON)).toBe('flyer')
+    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, promotes: 'product', contact: ['phone'] }), ON)).toBe('contact')
+  })
+  it('the prompt tells a maker\'s product ad from the seller\'s own: a price, a sale or the shop\'s name makes it the seller\'s', () => {
+    for (const s of ['promotes', "maker's or brand's own marketing picture", 'names the seller\'s shop, a price or how to buy']) expect(LISTING_PHOTO_INSTRUCTION).toContain(s)
+  })
   it('jobs: a company logo or a job poster is fine (flyer rule off), contact still is not', () => {
     expect(JOBS.flyerRule).toBe(false)
     expect(flyerRuleFor('rentals')).toBe(true)
-    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true }), JOBS)).toBe('ok')
+    expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller' }), JOBS)).toBe('ok')
     expect(photoRule(facts({ kind: 'designed_graphic', overlayText: 'large' }), JOBS)).toBe('ok')
     expect(photoRule(facts({ kind: 'designed_graphic', advertises: true, contact: ['phone'] }), JOBS)).toBe('contact')
   })
@@ -68,12 +78,12 @@ describe('the prompt names every negative the eval keeps', () => {
 
 describe('parsePhotoFacts', () => {
   it('reads a well-formed answer, contact de-duplicated', () => {
-    expect(parsePhotoFacts({ kind: 'screenshot', advertises: true, overlayText: 'large', contact: ['phone', 'phone'], websites: ['a.vn'] }))
-      .toEqual({ kind: 'screenshot', advertises: true, overlayText: 'large', contact: ['phone'], websites: ['a.vn'] })
+    expect(parsePhotoFacts({ kind: 'screenshot', advertises: true, promotes: 'seller', overlayText: 'large', contact: ['phone', 'phone'], websites: ['a.vn'] }))
+      .toEqual({ kind: 'screenshot', advertises: true, promotes: 'seller', overlayText: 'large', contact: ['phone'], websites: ['a.vn'] })
   })
   it('⛔ anything not the shape asked for is null ("could not check") — never a refusal', () => {
-    const ok = { kind: 'camera_photo', advertises: false, overlayText: 'none', contact: [], websites: [] }
-    for (const bad of [null, [], 'x', { ...ok, kind: 'drawing' }, { ...ok, advertises: 'no' }, { ...ok, overlayText: 'huge' },
+    const ok = { kind: 'camera_photo', advertises: false, promotes: 'none', overlayText: 'none', contact: [], websites: [] }
+    for (const bad of [null, [], 'x', { ...ok, kind: 'drawing' }, { ...ok, advertises: 'no' }, { ...ok, promotes: 'brand' }, { ...ok, promotes: undefined }, { ...ok, overlayText: 'huge' },
       { ...ok, contact: ['fax'] }, { ...ok, contact: 'phone' }, { ...ok, websites: [1] }, { kind: 'camera_photo' }]) {
       expect(parsePhotoFacts(bad)).toBeNull()
     }
@@ -81,7 +91,7 @@ describe('parsePhotoFacts', () => {
 })
 
 describe('decideReads — a refusal stands only on two reads that agree', () => {
-  const flyer = facts({ kind: 'designed_graphic', advertises: true })
+  const flyer = facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller' })
   it('two models refuse: confirmed, with the first read\'s reason', () => {
     expect(decideReads([{ facts: facts({ contact: ['phone'] }), model: PHOTO_MODEL }, { facts: flyer, model: GEMINI_MODEL }], ON))
       .toEqual({ rule: 'contact', confirmed: true })

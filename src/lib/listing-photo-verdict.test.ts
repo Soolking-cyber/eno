@@ -62,13 +62,13 @@ const { GEMINI_MODEL } = await import('@/lib/gemini-model')
 
 const FL = PHOTO_MODEL
 const HY = GEMINI_MODEL
-const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, overlayText: 'none', contact: [], websites: [], ...o })
-const FLYER = facts({ kind: 'designed_graphic', advertises: true })
+const facts = (o: Partial<PhotoFacts> = {}): PhotoFacts => ({ kind: 'camera_photo', advertises: false, promotes: 'none', overlayText: 'none', contact: [], websites: [], ...o })
+const FLYER = facts({ kind: 'designed_graphic', advertises: true, promotes: 'seller' })
 const say = (f: PhotoFacts) => async () => ({ text: JSON.stringify(f) })
 const KEY = 'bulk/1791898094623-rh7bov-h0000000929000801.webp'
 const DAY180 = 180 * 24 * 3600
-const shaKey = (sha: string) => `listing-photo:v1:sha:${sha}`
-const keyKey = (k: string) => `listing-photo:v1:key:${k}`
+const shaKey = (sha: string) => `listing-photo:v2:sha:${sha}`
+const keyKey = (k: string) => `listing-photo:v2:key:${k}`
 const ON = { lane: 'pass' as const, flyerRule: true }
 /** A `listing.photo.cleared` audit as restoreStrippedPhotos writes it, `days` old. */
 const cleared = (sha: string, rule: string, days = 0) => ({ detail: { key: KEY, sha, rule }, at: new Date(Date.now() - days * 86_400_000) })
@@ -166,7 +166,7 @@ describe('clearPhotoContent — "Photo is fine" clears the bytes of the rule tha
     const upload = { lane: 'upload' as const, flyerRule: true, confirm: 'parallel' as const }
     await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, upload)).resolves.toMatchObject({ rule: 'flyer', confirmed: true })
     await expect(clearPhotoContent(await photoClearances(KEY, ['flyer']), 'mod@eno.vn')).resolves.toBe(true)
-    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(true)
+    expect(h.cache.has(`listing-photo:v2:cleared:flyer:${sha}`)).toBe(true)
     await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, upload)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
     // The re-upload is stored under a new key pointing at the same bytes: the save-time screen (cache only) accepts it.
     await rememberPhotoKey('bulk/new.webp', sha)
@@ -192,7 +192,7 @@ describe('clearPhotoContent — "Photo is fine" clears the bytes of the rule tha
     await rememberPhotoKey(KEY, sha)
     h.cache.set(shaKey(sha), both(facts({ contact: ['phone'] })))
     await clearPhotoContent(await photoClearances(KEY, ['contact']), 'mod@eno.vn')
-    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(false)
+    expect(h.cache.has(`listing-photo:v2:cleared:flyer:${sha}`)).toBe(false)
     await expect(listingPhotoVerdict({ key: KEY }, ON)).resolves.toEqual({ rule: 'ok', sha, overridden: true })
     // Other bytes, cleared of nothing, still show their contact.
     h.cache.set(shaKey('other'), both(facts({ contact: ['phone'] })))
@@ -204,7 +204,7 @@ describe('clearPhotoContent — "Photo is fine" clears the bytes of the rule tha
     h.cache.set(shaKey(sha), both(FLYER))
     h.kvSetThrows = true
     await expect(clearPhotoContent([{ key: KEY, sha, rule: 'flyer' }], 'mod@eno.vn')).resolves.toBe(false)
-    expect(h.cache.has(`listing-photo:v1:cleared:flyer:${sha}`)).toBe(false)
+    expect(h.cache.has(`listing-photo:v2:cleared:flyer:${sha}`)).toBe(false)
     // The override's transaction wrote the audit (listing-photo-pass.ts restoreStrippedPhotos).
     h.clearedAudits = [cleared(sha, 'flyer')]
     await expect(listingPhotoVerdict({ bytes: h.bytes, sha }, { lane: 'upload', flyerRule: true, confirm: 'parallel' })).resolves.toEqual({ rule: 'ok', sha, overridden: true })

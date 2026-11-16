@@ -30,7 +30,8 @@ import {
  */
 
 /** Bump to forget every cached read (a change of the prompt or the facts). */
-const VERSION = 'v1'
+// v2 (2026-11-16): the facts gained `promotes` (a maker's product ad is not a flyer), so every v1 read is read again.
+const VERSION = 'v2'
 /** /privacy says "up to 180 days". */
 const CACHE_TTL_S = 180 * 24 * 3600
 const shaCacheKey = (sha: string) => `listing-photo:${VERSION}:sha:${sha}`
