@@ -21,6 +21,8 @@ export function searchServerCard() {
     description: 'Search live listings: housing, vehicles, jobs, services and second-hand goods. No sign-in.',
     title: `${SITE_NAME} Search`,
     websiteUrl: `${OAUTH_ISSUER}/developers/mcp#search`,
+    // The same icon the server's initialize names (serverInfo.icons, MCP 2025-11-25 Implementation shape).
+    icons: [{ src: `${OAUTH_ISSUER}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] }],
     remotes: [
       {
         type: 'streamable-http',

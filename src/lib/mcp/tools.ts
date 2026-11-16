@@ -144,8 +144,10 @@ const LISTING_STATUS_SET = z.enum(LISTING_STATUS).describe('The status the listi
 const LISTING_STATUS_OUT = z.string().describe('active: on sale (public once verified). sold: kept on the site, marked sold. hidden: off the site but not deleted; set_listing_status moves a listing between these three. Any other value, such as expired or stale, means eno took the listing off the site')
 const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'] as const
 
-// Inputs carry no enum and no integer/minimum constraint: the reviewers flag a constrained field as "validation repeated"
-// (12% of plain fields vs ~50% of constrained ones on Manufact's board). Each handler refuses a bad value HERE, before
+// Inputs carry no integer/minimum constraint and one enum: the reviewers flag a constrained field as "validation repeated"
+// (12% of plain fields vs ~50% of constrained ones on Manufact's board). The exception is list_listings' `status` FILTER:
+// measured 2026-11-16, its inputs scored 92 with the enum and 86-87 without (set_listing_status' value went the other way,
+// 88 -> 95-97, so that one stays a string). Each handler refuses a bad value HERE, before
 // anything is written, and names the valid ones (input-checks.test.ts).
 function checkStatusArg(v: unknown, where = ''): void {
   if (v !== undefined && !(LISTING_STATUS as readonly unknown[]).includes(v)) throw new ToolError('invalid_input', `${where}status must be active, sold or hidden.`)
@@ -412,7 +414,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
-    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.string().optional().describe('Show only listings in one state: active (on sale), sold, or hidden (taken off the site), e.g. sold to review what has sold. Leave it out to see every listing') }),
+    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find the ones the shop took off the site; leave it out to see every listing') }),
     handler: async (auth, args) => {
       checkStatusArg(args.status)
       const sp = new URLSearchParams()

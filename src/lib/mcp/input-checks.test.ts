@@ -35,9 +35,10 @@ describe('described-string inputs are checked by the handler', () => {
       await expect(tool('update_listing').handler(AUTH, { id: 'L1', salaryM })).rejects.toMatchObject({ code: 'invalid_input' })
     }
   })
-  it('no published input carries an enum, a minimum or an integer type', () => {
+  it('no published input carries a minimum or an integer type, and the only enum is list_listings\' status filter', () => {
     const json = JSON.stringify(toolDescriptors().map((d) => d.inputSchema))
-    expect(json).not.toContain('"enum"')
+    expect(JSON.stringify(toolDescriptors().filter((d) => d.name !== 'list_listings').map((d) => d.inputSchema))).not.toContain('"enum"')
+    expect(JSON.stringify(toolDescriptors().find((d) => d.name === 'list_listings')!.inputSchema)).toContain('"enum":["active","sold","hidden"]')
     expect(json).not.toContain('"minimum"')
     expect(json).not.toContain('"integer"')
   })

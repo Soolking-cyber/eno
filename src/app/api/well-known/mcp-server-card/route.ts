@@ -127,6 +127,9 @@ function serverCard() {
     description: 'Manage one storefront: listings, bulk catalogue sync, analytics and webhooks.',
     title: `${SITE_NAME} Partner API`,
     websiteUrl: `${OAUTH_ISSUER}/developers`,
+    // The site's 512px icon, in the `icons` shape of the MCP spec's Implementation (2025-11-25: src, mimeType, sizes) that the
+    // registry's server.json shares; ora's registry-branding check reads it here (2026-11-16).
+    icons: [{ src: `${OAUTH_ISSUER}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] }],
     remotes: [
       {
         /**
