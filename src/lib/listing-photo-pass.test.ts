@@ -316,9 +316,24 @@ describe('who the pass never touches', () => {
     ['ENO Trading, by handle', { seller: { handle: { handle: 'eno-trading' } } }],
     ['an eSIM carrier\'s storefront (ownerless)', { category: { slug: 'services' }, subcategorySlug: 'esim', seller: { ownerId: null, owner: null } }],
     ['O2: eno\'s own e-Visa / trip desk (pending the owner\'s call)', { sellerId: 'desk' }],
+    ['an OFFICIAL PARTNER (owner 16 Nov: "partners skipped") — the flag on its storefront', { seller: { officialPartner: true } }],
+    ['an ownerless official partner (CellphoneS before its claim)', { seller: { officialPartner: true, ownerId: null, owner: null } }],
+    ['the lawyer\'s seat: a real partner storefront (Luật Hoàng Phi), not a store seat', { seller: { officialPartner: true, owner: { enforcementState: 'good_standing', email: 'lawyer-review@eno.vn', locale: 'vi' } } }],
   ])('⛔ %s: exempt, never even checked', async (_name, o) => {
     h.rows = [listing('L1', ['F1'], o)]
     expect(await photoPassById('L1', 'pass')).toEqual({ skip: 'exempt' })
+    expect(h.verdictCalls).toEqual([])
+  })
+
+  it.each(['ai-review@eno.vn', 'AI-Review-2@eno.vn', 'app-review@eno.vn', 'play-review@eno.forum'])(
+    '⛔ a store-review seat\'s storefront is checked, partner flag and all (the flag is its password key): %s', async (email) => {
+      h.rows = [listing('L1', ['F1'], { seller: { officialPartner: true, owner: { enforcementState: 'good_standing', email, locale: 'en' } } })]
+      expect(await photoPassById('L1', 'pass')).toMatchObject({ wrote: ['held'] })
+    })
+
+  it('⛔ a held partner listing is released, never read (the photos are the partner\'s own)', async () => {
+    h.rows = [listing('L1', ['F1'], { ...HELD, seller: { officialPartner: true } })]
+    expect(await photoPassById('L1', 'pass')).toMatchObject({ plan: { release: true }, wrote: ['released'] })
     expect(h.verdictCalls).toEqual([])
   })
 

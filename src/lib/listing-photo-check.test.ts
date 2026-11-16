@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import sharpLib from 'sharp'
 import {
-  decideReads, flyerRuleFor, hedgedRead, parsePhotoFacts, photoCheckExempt, photoForCheck, photoRule, readPhoto,
+  decideReads, flyerRuleFor, hedgedRead, parsePhotoFacts, partnerPhotoExempt, photoCheckExempt, photoForCheck, photoRule, readPhoto,
   LISTING_PHOTO_INSTRUCTION, PHOTO_MODEL, type PhotoFacts,
 } from './listing-photo-check'
 import { GEMINI_MODEL } from '@/lib/gemini-model'
@@ -193,13 +193,39 @@ describe('photoCheckExempt — never touched by the pass or the sweep (amendment
     expect(photoCheckExempt(l({ handle: 'eno-trading' }))).toBe(true)
     expect(photoCheckExempt(l({ category: 'services', subcategory: 'esim', ownerless: true }))).toBe(true)
   })
-  it('everyone else is checked — partners, jobs, other services', () => {
+  it('everyone else is checked — jobs, other services, a partner\'s HANDLE without its flag', () => {
     expect(photoCheckExempt(l())).toBe(false)
     expect(photoCheckExempt(l({ category: 'jobs' }))).toBe(false)
     expect(photoCheckExempt(l({ category: 'services', subcategory: 'visa-legal' }))).toBe(false)
     expect(photoCheckExempt(l({ category: 'electronics', subcategory: 'esim', ownerless: true }))).toBe(false)
     // A member's own storefront in the eSIM aisle is checked: the exemption is the carriers' storefronts, not the aisle.
     expect(photoCheckExempt(l({ category: 'services', subcategory: 'esim', ownerless: false }))).toBe(false)
+    // Never by a name or a handle: a freed "goplus" handle claimed by a stranger carries no flag.
     expect(photoCheckExempt(l({ handle: 'goplus' }))).toBe(false)
+  })
+})
+
+describe('partnerPhotoExempt — official partners skipped (owner 2026-11-16: "partners skipped")', () => {
+  const l = (o: Partial<Parameters<typeof photoCheckExempt>[0]> = {}) => ({ category: 'rentals', subcategory: 'apartment', sellerId: 's1', handle: null, ...o })
+  it('the RAW Seller.officialPartner flag exempts the storefront, owned or ownerless, in any category', () => {
+    expect(partnerPhotoExempt({ officialPartner: true, ownerEmail: 'goplus@goplus.com.vn' })).toBe(true)
+    expect(partnerPhotoExempt({ officialPartner: true, ownerEmail: null })).toBe(true)
+    expect(partnerPhotoExempt({ officialPartner: true })).toBe(true)
+    expect(photoCheckExempt(l({ officialPartner: true, ownerless: true }))).toBe(true)
+    expect(photoCheckExempt(l({ category: 'electronics', subcategory: 'phones', officialPartner: true, ownerEmail: 'support+hoangha@eno.vn' }))).toBe(true)
+  })
+  it('no flag, no exemption — false, null or missing', () => {
+    expect(partnerPhotoExempt({ officialPartner: false, ownerEmail: 'x@y.vn' })).toBe(false)
+    expect(partnerPhotoExempt({ officialPartner: null })).toBe(false)
+    expect(partnerPhotoExempt({})).toBe(false)
+    expect(photoCheckExempt(l({ officialPartner: false }))).toBe(false)
+  })
+  it.each(['play-review@eno.forum', 'app-review@eno.vn', 'ai-review@eno.vn', 'ai-review-2@eno.vn', ' AI-Review@eno.vn '])(
+    '⛔ a store-review seat holds the flag as its password key, so its storefront is still checked: %s', (email) => {
+      expect(partnerPhotoExempt({ officialPartner: true, ownerEmail: email })).toBe(false)
+      expect(photoCheckExempt(l({ officialPartner: true, ownerEmail: email }))).toBe(false)
+    })
+  it('the lawyer\'s seat is not a store seat: its real partner storefront (Luật Hoàng Phi) is exempt like any partner', () => {
+    expect(partnerPhotoExempt({ officialPartner: true, ownerEmail: 'lawyer-review@eno.vn' })).toBe(true)
   })
 })

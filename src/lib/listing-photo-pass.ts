@@ -32,8 +32,9 @@ import { isPhotoDeskSeller } from '@/lib/listing-photo-desk'
  *  · a photo it could not decide, or a release refused for now (a report open, the owner held) → no release (A9) and the
  *    row joins the pending set for the cron.
  * ⛔ A PHOTO THAT HELD ITS LISTING STAYS REFUSED until an admin says it is fine or both models now say ok (heldKeysOf).
- * ⛔ Exempt, never read (listing-photo-check.ts PHOTO_CHECK_EXEMPT): teachers and the owner's protected stores, and eno's
- *    own e-Visa / trip desk (listing-photo-desk.ts, pending the owner's call) — a held one is released.
+ * ⛔ Exempt, never read (listing-photo-check.ts PHOTO_CHECK_EXEMPT): teachers and the owner's protected stores, eno's
+ *    own e-Visa / trip desk (listing-photo-desk.ts) and the official partners (partnerPhotoExempt; never a store-review
+ *    seat) — a held one is released.
  * ⛔ HELD = the photo mark AND not verified. A verified row still carrying the mark is live: judged as any live row, and
  *    the stale mark is cleared in the same compare-and-set as whatever the pass writes.
  * ⛔ THE BREAKER (storefrontMayWrite) bounds every caller's holds and strips.
@@ -75,7 +76,7 @@ export type PhotoPassResult =
 const ROW = {
   id: true, images: true, status: true, verified: true, identityHold: true, verificationNotes: true, sellerId: true, subcategorySlug: true,
   category: { select: { slug: true } },
-  seller: { select: { ownerId: true, handle: { select: { handle: true } }, owner: { select: { locale: true } } } },
+  seller: { select: { ownerId: true, officialPartner: true, handle: { select: { handle: true } }, owner: { select: { locale: true, email: true } } } },
 } satisfies Prisma.ListingSelect
 type Row = Prisma.ListingGetPayload<{ select: typeof ROW }>
 
@@ -92,8 +93,10 @@ async function pass(id: string, lane: PhotoCheckLane, o: PhotoPassOptions): Prom
   const row = await db.listing.findUnique({ where: { id }, select: ROW })
   if (!row || row.status === LISTING_REMOVED) return { skip: 'gone' }
   const held = row.verificationNotes === PHOTO_HELD_NOTE && !row.verified
-  const exempt = photoCheckExempt({ category: row.category.slug, subcategory: row.subcategorySlug, sellerId: row.sellerId, handle: row.seller.handle?.handle ?? null, ownerless: !row.seller.ownerId })
-    || (await isPhotoDeskSeller(row.sellerId))
+  const exempt = photoCheckExempt({
+    category: row.category.slug, subcategory: row.subcategorySlug, sellerId: row.sellerId, handle: row.seller.handle?.handle ?? null,
+    ownerless: !row.seller.ownerId, officialPartner: row.seller.officialPartner, ownerEmail: row.seller.owner?.email ?? null,
+  }) || (await isPhotoDeskSeller(row.sellerId))
   if (exempt && !held) return { skip: 'exempt' }
   if (row.verificationNotes === LICENCE_HELD_NOTE || row.verificationNotes === REVIEW_SEAT_HELD_NOTE) return { skip: 'marked' }
   if (!held && !row.verified && !row.identityHold) return { skip: 'not_public' }

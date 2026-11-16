@@ -117,6 +117,23 @@ try {
     const upd = await c.query(`update "Seller" set "officialPartner" = $1 where id = $2`, [next, s.id])
     if (upd.rowCount !== 1) throw new Error(`expected to update 1 row, updated ${upd.rowCount}`)
 
+    // ⛔ A REVOKE QUEUES THE STOREFRONT'S LISTINGS FOR THE PHOTO CHECK (owner 2026-11-16, "partners skipped"): while it was a
+    // partner the check skipped it (src/lib/listing-photo-check.ts partnerPhotoExempt) and the sweep's walk passed it by, so
+    // without this its photos would wait for the weekly full walk. The cron's `recent` scope reads the queue; a row it may
+    // not act on simply leaves it. Key and 30-day TTL: src/lib/listing-photo-queue.ts (PENDING_PHOTO_PREFIX / _TTL_S).
+    // Best effort — the flag is already off; a failed queue is the full walk's.
+    if (OFF) {
+      try {
+        const q = await c.query(
+          `select kv_set('listing-photo:pending:' || l.id, '1'::jsonb, $2::int, false) from "Listing" l where l."sellerId" = $1 and l.status <> 'removed'`,
+          [s.id, 30 * 24 * 3600],
+        )
+        console.log(`  photo check queued: ${q.rowCount} listing(s)`)
+      } catch (e) {
+        console.warn(`  ⚠️ photo check queue failed (${e.message}) — the weekly full walk will check them`)
+      }
+    }
+
     // ⚠️ THE FLAG IS INSTANT; THE PAGES ARE NOT. Three different caches, measured 2026-08-10, and
     // an earlier version of this message named only the first — which is the shape that makes an
     // operator flip the flag, see the storefront update, and conclude the whole thing shipped.

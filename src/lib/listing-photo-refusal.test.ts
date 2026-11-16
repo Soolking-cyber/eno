@@ -15,6 +15,9 @@ const h = vi.hoisted(() => {
     overrideThrows: false,
     handle: null as string | null,
     ownerId: 'p1' as string | null,
+    officialPartner: false,
+    ownerEmail: 'seller@x.vn' as string | null,
+    sellerThrows: false,
     verdictThrows: false,
   }
 })
@@ -22,7 +25,10 @@ vi.mock('@/lib/log', () => ({ logError: () => {} }))
 vi.mock('@/lib/db', () => ({
   db: {
     seller: {
-      findUnique: async () => ({ ownerId: h.ownerId, handle: h.handle ? { handle: h.handle } : null }),
+      findUnique: async () => {
+        if (h.sellerThrows) throw new Error('db')
+        return { ownerId: h.ownerId, officialPartner: h.officialPartner, handle: h.handle ? { handle: h.handle } : null, owner: h.ownerId ? { email: h.ownerEmail } : null }
+      },
       findFirst: async ({ where }: { where: { id: string; ownerId: string } }) => (where.id === 'mine' && where.ownerId === 'p1' ? { id: 'mine' } : null),
     },
   },
@@ -47,7 +53,7 @@ const RENTAL = { category: 'rentals', subcategory: 'apartment', sellerId: 's1' }
 
 afterEach(() => vi.unstubAllEnvs())
 beforeEach(() => {
-  Object.assign(h, { verdicts: {}, calls: [], overridden: new Set(), overrideThrows: false, handle: null, ownerId: 'p1', verdictThrows: false })
+  Object.assign(h, { verdicts: {}, calls: [], overridden: new Set(), overrideThrows: false, handle: null, ownerId: 'p1', officialPartner: false, ownerEmail: 'seller@x.vn', sellerThrows: false, verdictThrows: false })
 })
 
 describe('assertNoRefusedPhotos', () => {
@@ -106,6 +112,30 @@ describe('assertNoRefusedPhotos', () => {
     await expect(assertNoRefusedPhotos([url('a.webp')], esim)).rejects.toMatchObject({ code: 'photo_not_allowed' })
     h.ownerId = null
     await expect(assertNoRefusedPhotos([url('a.webp')], esim)).resolves.toBeUndefined()
+  })
+
+  it('⛔ exempt: an OFFICIAL PARTNER\'s storefront, by its flag (owner 16 Nov: "partners skipped") — owned or ownerless', async () => {
+    h.verdicts = { 'a.webp': { rule: 'flyer', confirmed: true } }
+    h.officialPartner = true
+    await expect(assertNoRefusedPhotos([url('a.webp')], RENTAL)).resolves.toBeUndefined()
+    h.ownerId = null
+    await expect(photoRefusalsFor([url('a.webp')], RENTAL)).resolves.toEqual([])
+    // The lawyer's seat owns a real partner storefront (Luật Hoàng Phi): a partner like any other.
+    h.ownerId = 'p9'; h.ownerEmail = 'lawyer-review@eno.vn'
+    await expect(photoRefusalsFor([url('a.webp')], RENTAL)).resolves.toEqual([])
+  })
+
+  it.each(['ai-review@eno.vn', 'App-Review@eno.vn', 'play-review@eno.forum', 'ai-review-2@eno.vn'])(
+    '⛔ NOT exempt: a store-review seat\'s storefront, flag and all (the flag is its password key) — %s', async (email) => {
+      h.verdicts = { 'a.webp': { rule: 'flyer', confirmed: true } }
+      Object.assign(h, { officialPartner: true, ownerEmail: email })
+      await expect(assertNoRefusedPhotos([url('a.webp')], RENTAL)).rejects.toMatchObject({ code: 'photo_not_allowed' })
+    })
+
+  it('⛔ a storefront that cannot be read exempts nothing: the screen runs', async () => {
+    h.verdicts = { 'a.webp': { rule: 'flyer', confirmed: true } }
+    Object.assign(h, { officialPartner: true, sellerThrows: true })
+    await expect(assertNoRefusedPhotos([url('a.webp')], RENTAL)).rejects.toMatchObject({ code: 'photo_not_allowed' })
   })
 
   it('⛔ O1: writes off — a photo already on the listing is never refused or marked; a NEW one still is', async () => {

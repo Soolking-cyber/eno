@@ -1,5 +1,6 @@
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { FLASH_LITE_MODEL, GEMINI_MODEL } from '@/lib/gemini-model'
+import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 
 /**
  * NO FLYERS AND NO CONTACT DETAILS IN LISTING PHOTOS (owner, 2026-11-15). One Gemini call per image DESCRIBES it in facts;
@@ -206,6 +207,7 @@ const SDC_STORE_SELLER_ID = 'cmtckzkuc01wm01s7ub6f0xsi'
  *  · the owner's protected stores (owner 2026-10-03, "esim vinwonders sdc store eno trading dont touch"): VinWonders and
  *    SDC_store by seller id; ENO Trading by its handle; the eSIM carriers by their storefront — ownerless, in
  *    services/esim (scripts/import-esim.ts pins them by their listings, no id in code; a member's storefront has an owner).
+ *  · eno's OFFICIAL PARTNERS (owner 2026-11-16: "partners skipped") — partnerPhotoExempt below.
  * Jobs are checked, with the flyer rule off (flyerRuleFor).
  */
 export const PHOTO_CHECK_EXEMPT = {
@@ -215,12 +217,34 @@ export const PHOTO_CHECK_EXEMPT = {
   ownerlessIn: [{ category: 'services', subcategory: 'esim' }],
 } as const
 
-export function photoCheckExempt(l: { category: string; subcategory?: string | null; sellerId: string; handle?: string | null; ownerless?: boolean }): boolean {
+/**
+ * ⛔ AN OFFICIAL PARTNER'S STOREFRONT IS NOT CHECKED (owner, 2026-11-16: "partners skipped") — pass, sweep, upload and
+ * save, like the protected stores. GoPlus, Hoàng Hà Mobile, CellphoneS, ShopDunk, Điện Thoại Vui (99% of the 53,566
+ * photos in scope, measured 16 Nov) and every other storefront the app already calls a partner.
+ * The definition is the app's own: the RAW `Seller.officialPartner` flag (a commercial agreement — only
+ * scripts/set-official-partner.mjs and claim-partner-storefront.mjs set it; never partnerShown(), which also hides the
+ * badge on a link-out listing). By the flag on the storefront's row, never by a name or a handle.
+ * ⛔ EXCEPT A STORE-REVIEW SEAT (review-seat-accounts.ts isReviewSeatEmail): the flag is also the password sign-in key
+ * (api/auth/password), so every seat's storefront carries it, and a seat's password sits in the Play, App Store, ChatGPT
+ * and Muse forms — whoever holds it must not post flyers past the check. The lawyer's seat is not a store seat: it owns a
+ * real partner storefront (Luật Hoàng Phi) and is exempt like any partner.
+ * ⚠️ The owner's call, said here so it is not missed: an exempt partner may show a hotline in its photos — the number
+ * phoneForSeller (contact.ts) keeps off its contact button.
+ */
+export function partnerPhotoExempt(s: { officialPartner?: boolean | null; ownerEmail?: string | null }): boolean {
+  return s.officialPartner === true && !isReviewSeatEmail(s.ownerEmail)
+}
+
+export function photoCheckExempt(l: {
+  category: string; subcategory?: string | null; sellerId: string; handle?: string | null; ownerless?: boolean
+  officialPartner?: boolean | null; ownerEmail?: string | null
+}): boolean {
   const x = PHOTO_CHECK_EXEMPT
   return (x.categories as readonly string[]).includes(l.category)
     || (x.sellerIds as readonly string[]).includes(l.sellerId)
     || (!!l.handle && (x.handles as readonly string[]).includes(l.handle))
     || (!!l.ownerless && x.ownerlessIn.some((s) => s.category === l.category && s.subcategory === l.subcategory))
+    || partnerPhotoExempt(l)
 }
 
 /** The flyer rule is on in every category but jobs (a job may use a company logo; contact still counts there). */

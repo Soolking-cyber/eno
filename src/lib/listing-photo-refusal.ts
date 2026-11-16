@@ -19,8 +19,8 @@ import { isPhotoDeskSeller } from '@/lib/listing-photo-desk'
  * update is never lost to it.
  * ⛔ DRY RUN IS DRY FOR EXISTING LISTINGS (A16): while writes are off (photoRulesLive), only photos NEW to the listing are
  *    screened — those already on it (`existing`) are left to the pass, and the edit page marks none.
- * Exempt (listing-photo-check.ts PHOTO_CHECK_EXEMPT): teachers and the owner's protected stores, and eno's own e-Visa /
- * trip desk (listing-photo-desk.ts, pending the owner's call).
+ * Exempt (listing-photo-check.ts PHOTO_CHECK_EXEMPT): teachers and the owner's protected stores, eno's own e-Visa /
+ * trip desk (listing-photo-desk.ts) and the official partners (partnerPhotoExempt — never a store-review seat).
  */
 
 export type ConfirmedRefusal = { url: string; rule: 'flyer' | 'contact' }
@@ -40,14 +40,20 @@ export async function confirmedPhotoRefusals(images: string[], o: { category: st
   return found.filter((r): r is ConfirmedRefusal => r !== null)
 }
 
-/** Teachers, the protected stores and the desk (the storefront is read only when the ids alone do not settle it). */
+/**
+ * Teachers, the protected stores, the desk and the official partners (the storefront is read only when the ids alone do
+ * not settle it). A failed read exempts nothing: the check then runs.
+ */
 export async function photoCheckExemptFor(l: { category: string; subcategory?: string | null; sellerId: string }): Promise<boolean> {
   if (photoCheckExempt(l)) return true
   if (!l.sellerId) return false
   if (await isPhotoDeskSeller(l.sellerId).catch(() => false)) return true
-  // edition-lint-allow: one storefront's owner and handle, to know whether the photo check skips it; nothing is rendered.
-  const s = await db.seller.findUnique({ where: { id: l.sellerId }, select: { ownerId: true, handle: { select: { handle: true } } } }).catch(() => null)
-  return !!s && photoCheckExempt({ ...l, handle: s.handle?.handle ?? null, ownerless: !s.ownerId })
+  // edition-lint-allow: one storefront's owner, handle and partner flag, to know whether the photo check skips it; nothing is rendered.
+  const s = await db.seller.findUnique({
+    where: { id: l.sellerId },
+    select: { ownerId: true, officialPartner: true, handle: { select: { handle: true } }, owner: { select: { email: true } } },
+  }).catch(() => null)
+  return !!s && photoCheckExempt({ ...l, handle: s.handle?.handle ?? null, ownerless: !s.ownerId, officialPartner: s.officialPartner, ownerEmail: s.owner?.email ?? null })
 }
 
 /** Whether `seller` is a storefront `profileId` owns — a client-sent seller counts only then (/api/upload). */

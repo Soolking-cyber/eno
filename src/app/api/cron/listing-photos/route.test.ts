@@ -19,11 +19,16 @@ const h = vi.hoisted(() => ({
   errors: [] as unknown[],
 }))
 
-const OPS = ['in', 'notIn', 'not', 'gt', 'gte', 'lt']
+const OPS = ['in', 'notIn', 'not', 'gt', 'gte', 'lt', 'mode']
+const lower = (x: any): any => (typeof x === 'string' ? x.toLowerCase() : Array.isArray(x) ? x.map(lower) : x)
 function cond(v: any, c: any): boolean {
   if (c === null) return v == null
   if (c instanceof Date) return v instanceof Date && v.getTime() === c.getTime()
   if (typeof c !== 'object') return v === c
+  if (c.mode === 'insensitive') {
+    const { mode: _mode, ...rest } = c
+    return cond(lower(v), Object.fromEntries(Object.entries(rest).map(([op, x]) => [op, lower(x)])))
+  }
   const n = (x: any) => (x instanceof Date ? x.getTime() : x)
   return Object.entries(c).every(([op, x]: [string, any]) => {
     if (op === 'in') return x.includes(v)
@@ -192,6 +197,29 @@ describe('/api/cron/listing-photos', () => {
     expect(ids()).toEqual(['H1', 'H2', 'A', 'B', 'C'])
     // A rail that failed is logged, never a failed walk.
     expect(h.errors).toHaveLength(2)
+  })
+
+  it('⛔ partners skipped (owner 16 Nov): an official partner\'s storefront is never walked — unless photo-held (the pass releases it); a store-review seat\'s flag exempts nothing', async () => {
+    const partner = (owner: Row | null) => ({ seller: { officialPartner: true, owner } })
+    h.rows = [
+      listing('M'),
+      listing('GP', { sellerId: 'goplus', ...partner(null) }),
+      listing('HH', { sellerId: 'hh', ...partner({ email: 'support+hoangha@eno.vn' }) }),
+      listing('NOMAIL', { sellerId: 'nm', ...partner({ email: null }) }),
+      listing('SEAT', { sellerId: 'seat', ...partner({ email: 'AI-Review@eno.vn' }) }),
+      listing('NOFLAG', { sellerId: 'x', seller: { officialPartner: false, owner: null } }),
+      listing('HELD', { sellerId: 'goplus', verified: false, verificationNotes: 'photo:held', ...partner(null) }),
+    ]
+    await call('?scope=backfill')
+    expect(ids().sort()).toEqual(['HELD', 'M', 'NOFLAG', 'SEAT'])
+    // The queue too: a queued partner row is not read, and in a real run it leaves the queue.
+    vi.stubEnv('PHOTO_RULES_WRITE', '1')
+    h.calls = []
+    h.pending = ['GP', 'M']
+    h.kv.set('listing-photo:recent:write', { at: new Date().toISOString(), id: '' })
+    await call('?scope=recent')
+    expect(ids()).toEqual(['M'])
+    expect(h.done).toContain('GP')
   })
 
   it('the timer (no scope): recent first, then the walk while one is under way or a week after the last one ended', async () => {

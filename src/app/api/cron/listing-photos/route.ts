@@ -19,6 +19,7 @@ import { PHOTO_HELD_NOTE } from '@/lib/listing-photo-hold'
 import { photoCheckDone, photoRulesLive } from '@/lib/listing-photo-hooks'
 import { PENDING_PHOTO_PREFIX } from '@/lib/listing-photo-queue'
 import { photoPassById, type PhotoPassResult } from '@/lib/listing-photo-pass'
+import { STORE_REVIEW_SEAT_EMAILS } from '@/lib/review-seat-accounts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,10 +70,27 @@ const recentKey = (m: Mode) => `listing-photo:recent:${m}`
 const runKey = (m: Mode) => `listing-photo:run:${m}`
 const reportedKey = (sellerId: string) => `listing-photo:tripped-reported:${sellerId}`
 
-/** What the pass may act on: live or identity-parked, or photo-held — never a teacher (the teacher check owns them). */
+/**
+ * An official partner's storefront — listing-photo-check.ts partnerPhotoExempt in Prisma: the flag, unless the owner is a
+ * store-review seat (case-insensitive and NULL-safe, as review-seat-accounts.ts NOT_A_REVIEW_SEATS_LISTING: an ownerless
+ * partner, or one whose owner has no email, is a partner).
+ */
+const PARTNER_STOREFRONT: Prisma.SellerWhereInput = {
+  officialPartner: true,
+  NOT: { owner: { email: { in: [...STORE_REVIEW_SEAT_EMAILS], mode: 'insensitive', not: null } } },
+}
+/**
+ * What the pass may act on: live or identity-parked, or photo-held — never a teacher (the teacher check owns them), and
+ * never an official partner's storefront (owner 2026-11-16, "partners skipped": 99% of the photos in scope) unless it
+ * still carries the photo mark, which the pass releases. A revoked partner's rows are queued by
+ * scripts/set-official-partner.mjs --off (the walk has passed them by).
+ */
 const CHECKED: Prisma.ListingWhereInput = {
   category: { slug: { notIn: [...PHOTO_CHECK_EXEMPT.categories] } },
-  OR: [{ status: 'active', OR: [{ verified: true }, { identityHold: true }] }, { verificationNotes: PHOTO_HELD_NOTE, status: { not: LISTING_REMOVED } }],
+  AND: [
+    { OR: [{ status: 'active', OR: [{ verified: true }, { identityHold: true }] }, { verificationNotes: PHOTO_HELD_NOTE, status: { not: LISTING_REMOVED } }] },
+    { OR: [{ verificationNotes: PHOTO_HELD_NOTE }, { NOT: { seller: PARTNER_STOREFRONT } }] },
+  ],
 }
 const ROW = { id: true, sellerId: true, images: true, rankScore: true, updatedAt: true, createdAt: true } satisfies Prisma.ListingSelect
 type Row = Prisma.ListingGetPayload<{ select: typeof ROW }>
