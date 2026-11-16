@@ -207,6 +207,22 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     expect((await POST(later('2099-01-01') as never)).status).toBe(200)
   })
 
+  it('MCP Apps: list_listings and get_listing name the card page; it lists and reads without a credential', async () => {
+    const { POST } = await import('./route')
+    const { SHOP_UI_URI, UI_MIME } = await import('@/lib/mcp/apps')
+    const tools = (await (await POST(post({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).json()).result.tools as Array<{ name: string; _meta?: { ui?: { resourceUri?: string } } }>
+    expect(tools.filter((t) => t._meta?.ui?.resourceUri === SHOP_UI_URI).map((t) => t.name).sort()).toEqual(['get_listing', 'list_listings'])
+    const init = (await (await POST(post({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 't', version: '1' } } }))).json()).result
+    expect(init.capabilities.resources).toBeDefined()
+    const list = (await (await POST(post({ jsonrpc: '2.0', id: 3, method: 'resources/list' }))).json()).result.resources
+    expect(list).toEqual([expect.objectContaining({ uri: SHOP_UI_URI, mimeType: UI_MIME })])
+    const read = await POST(post({ jsonrpc: '2.0', id: 4, method: 'resources/read', params: { uri: SHOP_UI_URI } }))
+    expect(read.status).toBe(200)
+    expect((await read.json()).result.contents[0].mimeType).toBe(UI_MIME)
+    const missing = (await (await POST(post({ jsonrpc: '2.0', id: 5, method: 'resources/read', params: { uri: 'ui://eno/nope.html' } }))).json())
+    expect(missing.error.code).toBe(-32002)
+  })
+
   it('ping answers without a credential', async () => {
     const { POST } = await import('./route')
     expect((await POST(post({ jsonrpc: '2.0', id: 3, method: 'ping' }))).status).toBe(200)

@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { clientIp } from '@/lib/client-ip'
 import { SEARCH_TOOLS_BY_NAME, SearchToolError, searchToolDescriptors } from './tools'
+import { SEARCH_UI_URI, uiResourceList, uiResourceRead } from '@/lib/mcp/apps'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,7 +71,8 @@ async function handleMessage(msg: Rpc, ip: string): Promise<object | null> {
       const req = typeof msg.params?.protocolVersion === 'string' ? (msg.params.protocolVersion as string) : ''
       return rpcResult(msg.id, {
         protocolVersion: SUPPORTED.has(req) ? req : PROTOCOL_VERSION,
-        capabilities: { tools: { listChanged: false } },
+        // `resources`: the MCP Apps card page (src/lib/mcp/apps.ts), read by hosts that render ui:// resources.
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         // ⛔ DERIVED from the edition, like /api/mcp's serverInfo: never a literal host.
         serverInfo: {
           name: `${SITE_NAME} Search`,
@@ -88,6 +90,15 @@ async function handleMessage(msg: Rpc, ip: string): Promise<object | null> {
       return rpcResult(msg.id, {})
     case 'tools/list':
       return rpcResult(msg.id, { tools: searchToolDescriptors() })
+    case 'resources/list':
+      return rpcResult(msg.id, { resources: uiResourceList([SEARCH_UI_URI]) })
+    // Clients that see the resources capability may ask for templates too: there are none.
+    case 'resources/templates/list':
+      return rpcResult(msg.id, { resourceTemplates: [] })
+    case 'resources/read': {
+      const read = uiResourceRead(msg.params?.uri, [SEARCH_UI_URI])
+      return read ? rpcResult(msg.id, read) : rpcError(msg.id, -32002, 'Resource not found')
+    }
     case 'tools/call': {
       // Only a string is a tool name; anything else (an object with a hostile toString, a number) is simply unknown.
       const name = typeof msg.params?.name === 'string' ? msg.params.name : ''

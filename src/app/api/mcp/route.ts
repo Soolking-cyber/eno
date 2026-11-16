@@ -10,6 +10,7 @@ import { PublishBlockedError } from '@/lib/publish-guard'
 import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import type { ApiAuth } from '@/lib/api/auth'
+import { SHOP_UI_URI, uiResourceList, uiResourceRead } from '@/lib/mcp/apps'
 
 /** Tool calls per key per minute, counted per call — not per HTTP request (security review item 13). */
 const MCP_TOOL_CALLS_PER_MIN = 120
@@ -70,7 +71,7 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       const req = typeof msg.params?.protocolVersion === 'string' ? (msg.params.protocolVersion as string) : ''
       return rpcResult(msg.id, {
         protocolVersion: SUPPORTED.has(req) ? req : PROTOCOL_VERSION,
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         // ⛔ DERIVED. This was the literal 'eno.vn Partner API', which meant the SERVICES build's
         // MCP server introduced itself as the licensed marketplace on every `initialize`. It is
         // the fifth instance of this exact leak in this repo (static llms.txt, the OpenAPI title,
@@ -97,6 +98,17 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       return rpcResult(msg.id, {})
     case 'tools/list':
       return rpcResult(msg.id, { tools: toolDescriptors() })
+    // MCP Apps (src/lib/mcp/apps.ts): the card page for list_listings / get_listing. Static HTML, no shop data: discovery,
+    // like tools/list, so no credential is needed to read it.
+    case 'resources/list':
+      return rpcResult(msg.id, { resources: uiResourceList([SHOP_UI_URI]) })
+    // Clients that see the resources capability may ask for templates too: there are none.
+    case 'resources/templates/list':
+      return rpcResult(msg.id, { resourceTemplates: [] })
+    case 'resources/read': {
+      const read = uiResourceRead(msg.params?.uri, [SHOP_UI_URI])
+      return read ? rpcResult(msg.id, read) : rpcError(msg.id, -32002, 'Resource not found')
+    }
     case 'tools/call': {
       // ⛔ THE ONLY METHOD THAT NEEDS A CREDENTIAL. `auth` is non-null by construction: POST
       // resolves a key whenever the payload contains a tools/call and returns 401 at the transport

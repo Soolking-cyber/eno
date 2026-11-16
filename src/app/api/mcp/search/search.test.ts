@@ -208,6 +208,18 @@ describe('the server', { timeout: 20_000 }, () => {
     for (const word of ['visa', 'itinerary', 'paypal']) expect(blob).not.toContain(word)
   })
 
+  it('MCP Apps: both search tools name the card page, which lists and reads', async () => {
+    const { POST } = await import('./route')
+    const { SEARCH_UI_URI, UI_MIME } = await import('@/lib/mcp/apps')
+    const tools = (await (await POST(post({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).json()).result.tools as Array<{ name: string; _meta?: { ui?: { resourceUri?: string } } }>
+    expect(tools.every((t) => t._meta?.ui?.resourceUri === SEARCH_UI_URI)).toBe(true)
+    const list = (await (await POST(post({ jsonrpc: '2.0', id: 2, method: 'resources/list' }))).json()).result.resources
+    expect(list).toEqual([expect.objectContaining({ uri: SEARCH_UI_URI, mimeType: UI_MIME })])
+    const read = (await (await POST(post({ jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: SEARCH_UI_URI } }))).json()).result
+    expect(read.contents[0].text).toContain('ui/initialize')
+    expect((await (await POST(post({ jsonrpc: '2.0', id: 4, method: 'resources/read', params: { uri: 'ui://x' } }))).json()).error.code).toBe(-32002)
+  })
+
   it('initialize names this edition\'s search server on its own host', async () => {
     const { POST } = await import('./route')
     const { SITE_NAME } = await import('@/lib/edition')

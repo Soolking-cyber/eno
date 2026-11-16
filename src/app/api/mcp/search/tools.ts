@@ -10,6 +10,7 @@ import { stripMarkdown } from '@/lib/strip-md'
 import { buildFeedPayload } from '@/app/api/listings/feed-payload'
 import { listingIsViewable } from '@/app/[lang]/listings/[id]/(pdp)/get-listing'
 import type { ToolAnnotations } from '@/lib/mcp/tools'
+import { SEARCH_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
 
 /**
  * ── THE PUBLIC BUYER SEARCH SERVER's TOOLS (https://<site>/api/mcp/search, owner 2026-11-13) ─────────────────────────
@@ -254,6 +255,7 @@ export function searchToolDescriptors() {
   return SEARCH_TOOLS.map((t) => {
     const { $schema: _dialect, ...outputSchema } = z.toJSONSchema(t.output) as Record<string, unknown>
     void _dialect
-    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { title: t.title, ...t.annotations } }
+    // MCP Apps (src/lib/mcp/apps.ts): both tools show their listings as cards where the host renders a ui:// resource.
+    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { title: t.title, ...t.annotations }, _meta: toolUiMeta(SEARCH_UI_URI) }
   })
 }

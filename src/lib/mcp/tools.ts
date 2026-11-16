@@ -29,6 +29,7 @@ import type { AnalyticsListingRow } from '@/lib/listing-analytics'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { cutText } from '@/lib/feed-text'
+import { SHOP_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -810,9 +811,16 @@ function stripSafeIntBounds<T>(node: T): T {
   return out as T
 }
 
+/** The partner tools whose results the MCP Apps card page renders (src/lib/mcp/apps.ts). */
+const UI_TOOLS: ReadonlySet<string> = new Set(['list_listings', 'get_listing'])
+
 export function toolDescriptors() {
   // `annotations.title` repeats the title for clients that only read the older spot (MCP 2025-03-26).
-  return TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: stripSafeIntBounds(z.toJSONSchema(t.input)), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations } }))
+  return TOOLS.map((t) => ({
+    name: t.name, title: t.title, description: t.description, inputSchema: stripSafeIntBounds(z.toJSONSchema(t.input)), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations },
+    // MCP Apps (src/lib/mcp/apps.ts): the two listing reads show their listings as cards where the host renders ui:// resources.
+    ...(UI_TOOLS.has(t.name) ? { _meta: toolUiMeta(SHOP_UI_URI) } : {}),
+  }))
 }
 
 /** An outputSchema WITHOUT `$schema`: MCP client SDKs COMPILE output schemas to validate structuredContent, and a validator
