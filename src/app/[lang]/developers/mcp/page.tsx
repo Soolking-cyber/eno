@@ -128,27 +128,28 @@ Authorization: Bearer eno_live_…`}</Code></div>
           </p>
           <div className="mt-3"><Code>{JSON.stringify({ mcpServers: { [CLIENT_NAME]: { url: ENDPOINT, headers: { Authorization: 'Bearer eno_live_…' } } } }, null, 2)}</Code></div>
 
-          {/* Grok (2026-11-16): no directory to list in, so the person adds the server. Its custom connector asks for a client
-              ID, which eno publishes for it (src/lib/api/oauth-hosted-clients.ts). Steps from docs.x.ai/grok/connectors and
-              the form fields from docs.x.com/x-ads-api/mcp. */}
+          {/* Grok (2026-11-16): no directory to list in, so the person adds the server. MEASURED in Grok's web app that day:
+              Connect Apps › "Add a custom connector" offers Name, Server URL and Headers only, lists the tools without a
+              credential, and on a tool call's 401 does NOT start a sign-in (no OAuth discovery request reached us). So the web
+              app uses the API key as a header. The Client ID route (oauth-hosted-clients.ts) is for the Grok surfaces whose
+              form asks for one (docs.x.com/x-ads-api/mcp). */}
           <h3 className="mt-6 text-base font-semibold text-foreground">Grok</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
             On grok.com, open <a href="https://grok.com/connectors" className="font-semibold text-accent-foreground underline">Connectors</a>, choose{' '}
-            <strong className="text-foreground">New Connector</strong>, then <strong className="text-foreground">Custom</strong>, and fill in:
+            <strong className="text-foreground">Add a custom connector</strong> and fill in:
           </p>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>• <strong className="text-foreground">Name:</strong> {SITE_NAME}</li>
             <li>• <strong className="text-foreground">Server URL:</strong> <C>{ENDPOINT}</C></li>
-            <li>• <strong className="text-foreground">Client ID:</strong> <C>{GROK_CLIENT_ID}</C></li>
             <li>
-              • <strong className="text-foreground">Client Secret:</strong> leave it empty, with the token auth method <C>none</C> (PKCE only).
-            </li>
-            <li>
-              • Keep the endpoints and scopes Grok fills in, press <strong className="text-foreground">Connect</strong>, then sign in with your{' '}
-              {SITE_NAME} shop and press <strong className="text-foreground">Allow</strong>.
+              • <strong className="text-foreground">Headers:</strong> key <C>Authorization</C>, value <C>Bearer eno_live_…</C> with your API key.
             </li>
           </ul>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            On Grok Business or Enterprise, a team admin adds the connector first. The listing search below needs only its URL as the Server URL.
+            Press <strong className="text-foreground">Add MCP</strong>, then ask Grok to use {SITE_NAME}. Where Grok asks for an OAuth{' '}
+            <strong className="text-foreground">Client ID</strong> instead, enter <C>{GROK_CLIENT_ID}</C> with no client secret and the token auth
+            method <C>none</C>, then sign in with your {SITE_NAME} shop and press <strong className="text-foreground">Allow</strong>. On Grok Business or
+            Enterprise, a team admin adds the connector first. The listing search below needs only its URL, with no header.
           </p>
         </section>
 
