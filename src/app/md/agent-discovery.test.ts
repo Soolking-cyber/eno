@@ -276,6 +276,13 @@ describe('/auth.md', () => {
 })
 
 describe('/agents.md', () => {
+  it('/agents.md says when to use these interfaces, with the search server\'s own URL, and what they are not for', async () => {
+    const { body } = await md(await load.agents())
+    expect(body).toContain('## When to use these interfaces')
+    expect(body).toMatch(/at the listing search MCP server, `https:\/\/[^`]+\/api\/mcp\/search`/)
+    expect(body).toContain('There is no checkout')
+  })
+
   it('names every MCP tool the server exposes', async () => {
     const { body } = await md(await load.agents())
     for (const t of toolDescriptors()) expect(body).toContain(`\`${t.name}\``)

@@ -58,6 +58,16 @@ export async function GET() {
 [\`/llms.txt\`](${SITE_ORIGIN}/llms.txt). That document is the one place this deployment describes
 its own catalogue; this one describes its interfaces.
 
+## When to use these interfaces
+
+- **A person wants to find something on ${SITE_NAME}** (somewhere to rent, something to buy, a job): search the
+  live listings with no account at the listing search MCP server, \`${SITE_ORIGIN}/api/mcp/search\`, and send them
+  to each listing's page to contact the seller there.
+- **A seller wants their stock on ${SITE_NAME}, kept current, or measured**: use the Partner API or the shop MCP
+  server, \`${SITE_ORIGIN}/api/mcp\`, with that shop's credential (see "With a credential" below).
+- **Not for**: paying, holding money or contacting a seller outside the site. There is no checkout, and contact
+  details are exchanged in the in-app chat only (see Rules).
+
 ## Without a credential
 
 Everything here is public, unauthenticated and safe to fetch:
