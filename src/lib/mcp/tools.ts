@@ -120,7 +120,7 @@ export const pageLimitArg = (v: unknown): string | undefined => {
   const n = Math.trunc(Number(v))
   return Number.isFinite(n) ? String(Math.max(1, Math.min(n, 1000))) : undefined
 }
-const PAGE_SIZE = z.number().optional().describe('How many to return. Leave it out for a normal-size page; a very large number is capped. To read them all, call again with `next_cursor` until it is null')
+const PAGE_SIZE = z.number().optional().describe('How many listings to return. Leave it out for a normal-size page; a very large number is capped. To read them all, call again with `next_cursor` until it is null')
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
