@@ -31,6 +31,13 @@ describe('/developers/mcp', () => {
     expect(PAGE).not.toContain('/api/mcp/clients/grok')
   })
 
+  it('links the npm bridge by the name its package.json publishes (ora.ai ties the package to the site through it)', () => {
+    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../../../../../packages/eno-vn-mcp/package.json', import.meta.url)), 'utf8'))
+    expect(PAGE).toContain(`const MCP_NPM_PACKAGE = '${pkg.name}'`)
+    expect(PAGE).toContain('href={MCP_NPM_URL}')
+    expect(pkg.homepage).toBe('https://eno.vn/developers/mcp')
+  })
+
   it('stays a server component, and /developers links to it', () => {
     expect(PAGE).not.toMatch(/^['"]use client['"]/m)
     expect(DEV).toContain('<Link href={DOC_PATHS.mcp}')

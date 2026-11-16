@@ -43,6 +43,9 @@ const SEARCH_ENDPOINT = `${SITE_ORIGIN}/api/mcp/search`
 
 /** The client-side name in the examples: the site's first label, e.g. `eno`. */
 const CLIENT_NAME = SITE_NAME.split('.')[0]
+/** The stdio bridge on npm (packages/eno-vn-mcp; its package.json name — mcp-page.test.ts holds the two together). */
+const MCP_NPM_PACKAGE = 'eno-vn-mcp'
+const MCP_NPM_URL = `https://www.npmjs.com/package/${MCP_NPM_PACKAGE}`
 
 export default function McpServerPage() {
   return (
@@ -127,6 +130,15 @@ Authorization: Bearer eno_live_…`}</Code></div>
             Clients that take a JSON file (Cursor&apos;s <C>mcp.json</C>, for example) need the URL and the header:
           </p>
           <div className="mt-3"><Code>{JSON.stringify({ mcpServers: { [CLIENT_NAME]: { url: ENDPOINT, headers: { Authorization: 'Bearer eno_live_…' } } } }, null, 2)}</Code></div>
+
+          {/* The npm bridge (packages/eno-vn-mcp, owner 2026-11-16): for clients that only start a local command. Linked here so
+              a scanner can tie the package to this site (ora.ai mcp-registry-listed); its own homepage is this page. */}
+          <h3 className="mt-6 text-base font-semibold text-foreground">Clients that start a local server</h3>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            The <a href={MCP_NPM_URL} className="font-semibold text-accent-foreground underline">{MCP_NPM_PACKAGE}</a> package runs these servers as a
+            local command. As below it opens the listing search; add <C>{'"env": { "ENO_API_KEY": "eno_live_…" }'}</C> for your shop.
+          </p>
+          <div className="mt-3"><Code>{JSON.stringify({ mcpServers: { [CLIENT_NAME]: { command: 'npx', args: ['-y', MCP_NPM_PACKAGE] } } }, null, 2)}</Code></div>
 
           {/* Grok (2026-11-16): no directory to list in, so the person adds the server. MEASURED in Grok's web app that day:
               Connect Apps › "Add a custom connector" offers Name, Server URL and Headers only, lists the tools without a

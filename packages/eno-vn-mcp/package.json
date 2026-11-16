@@ -1,0 +1,14 @@
+{
+  "name": "eno-vn-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for eno.vn, Vietnam's classifieds marketplace: search live listings, read the docs for agents, or manage your shop with an API key. A stdio bridge to eno.vn's hosted MCP servers.",
+  "keywords": ["mcp", "mcp-server", "model-context-protocol", "eno", "eno.vn", "vietnam", "marketplace", "classifieds"],
+  "homepage": "https://eno.vn/developers/mcp",
+  "bugs": { "email": "support@eno.vn" },
+  "license": "MIT",
+  "author": "ENO Company Limited <support@eno.vn>",
+  "type": "module",
+  "bin": { "eno-vn-mcp": "bin/eno-vn-mcp.mjs" },
+  "files": ["bin/eno-vn-mcp.mjs", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" }
+}
