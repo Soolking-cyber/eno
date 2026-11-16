@@ -388,7 +388,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'update_shop',
     title: 'Update shop',
-    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat.\n\nSend only the fields to change; changes are saved at once. Long text is shortened: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`.',
+    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat.\n\nSend only the fields to change; changes are saved at once. Long text is shortened: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ shop: SHOP_OUT.nullable().describe('The saved shop profile after the update, the same fields get_shop returns; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
@@ -436,7 +436,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'get_listing',
     title: 'Get shop listing details',
-    description: 'Get one of this shop\'s listings by id, in any status: its title, text, price, photos, views, leads and page `url`. Fails with `not_found` for another shop\'s or a deleted listing. Returns `listing`: `id`, `title`, `description`, `price` and `priceUnit`, `negotiable`, `status`, `verified`, `listingType`, `condition`, `location`, `district`, `city`, `images`, `video`, `category` (`slug`, `name`), `subcategorySlug`, `postedAt`, `views`, `contactCount` and `url`. Read it before update_listing to see the current values.',
+    description: 'Get one of this shop\'s listings by id, in any status. Fails with `not_found` for another shop\'s or a deleted listing. Returns `listing`: `id`, `title`, `description`, `price` and `priceUnit`, `negotiable`, `status`, `verified`, `listingType`, `condition`, `location`, `district`, `city`, `images`, `video`, `category` (`slug`, `name`), `subcategorySlug`, `postedAt`, `views`, `contactCount` and `url`. Read it before update_listing to see the current values.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listing: LISTING_OUT.nullable().describe('The listing as it stands now, including the title, text, price, district, condition and photos update_listing can change; null only if it was removed a moment ago') }).describe('The listing asked for'),
