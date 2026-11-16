@@ -7,7 +7,7 @@ import { normalizeBrand } from '@/lib/brand-normalize'
 import { rateLimit } from '@/lib/ratelimit'
 import { route } from '@/lib/api/handler'
 import { hasPlainTextFallback, inferDistrictFromQuery, type DistrictInference } from '@/lib/district-query'
-import { districtScopeForSlug } from '@/lib/district-slug'
+import { searchDistrictScopeForSlug } from '@/lib/district-slug'
 import { textClauses } from '@/lib/search-match'
 import { parseSearchQuery } from '@/lib/text-relevance'
 import { splitConditionWords } from '@/lib/search-synonyms'
@@ -85,7 +85,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     // Condition words filter nothing; ALONE they are the feed's goods browse — the items for sale
     // (feed-query.ts `saleScopeFromWords`; no explicit type chip exists here).
     if (askedCondition && !textFor(reading)) searchAnd.push({ listingType: 'sell' })
-    const districtScope = reading ? await districtScopeForSlug(reading.slug) : null
+    const districtScope = reading ? await searchDistrictScopeForSlug(reading.slug) : null
     if (districtScope) searchAnd.push(districtScope)
     return scopedListingWhere({ verified: true, status: 'active', AND: searchAnd })
   }

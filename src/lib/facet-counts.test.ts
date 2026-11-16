@@ -266,6 +266,12 @@ describe('conditionBucket — mirrors the NEWISH predicate in buildFeedFilters',
 })
 
 describe('districtSlugsFor — mirrors buildDistrictFilter', () => {
+  it('a Thủ Đức row also counts for the d2 and d9 chips, which search widens to Thủ Đức (owner 2026-11-16)', () => {
+    const slugs = districtSlugsFor({ district: 'TP. Thủ Đức', location: '' })
+    expect(slugs).toEqual(expect.arrayContaining(['thu-duc', 'd2', 'd9']))
+    expect(districtSlugsFor({ district: 'Quận 7', location: '' })).not.toContain('d2')
+  })
+
   it('matches on the district column or the location column', () => {
     expect(districtSlugsFor({ district: 'Bình Thạnh', location: 'x' })).toContain('binh-thanh')
     expect(districtSlugsFor({ district: null, location: 'Phú Mỹ Hưng' })).toContain('d7')

@@ -89,6 +89,18 @@ export function districtTextMatches(hay: string, m: string): boolean {
 }
 
 /**
+ * ⛔ IN SEARCH, DISTRICT 2 AND DISTRICT 9 ALSO MEAN THỦ ĐỨC (owner, 2026-11-16: "Search only → Thủ Đức").
+ * Measured that day: no live listing stores "Quận 2", "District 2", "Quận 9" or "Thảo Điền" in `district` or
+ * `location` any more; they say "Thủ Đức" (289 live), the city both were folded into in 2021. So a typed "căn hộ
+ * quận 2" or a d2/d9 pick in search matched nothing. Search (the feed, its suggestions and the district chips'
+ * counts) widens d2/d9 to their own spellings PLUS Thủ Đức's; the strict scope stays for the district landing
+ * pages, the sitemap and the rent index (districtScopeForSlug), so no page duplicates Thủ Đức's or labels its
+ * prices "District 2".
+ */
+// ⚠️ A Map, never a plain object: `?district=constructor` must not find Object.prototype's (review 2026-11-16).
+export const SEARCH_WIDENED_DISTRICTS: ReadonlyMap<string, string> = new Map([['d2', 'thu-duc'], ['d9', 'thu-duc']])
+
+/**
  * The OTHER curated spellings that one of `slug`'s spellings is a strict prefix of — for `d1`, the
  * "Quận 10/11/12" and "District 10/11/12" families. The feed (district-slug.ts) refuses a row whose
  * canonical `district` column contains one of these, and the chip counts (facet-counts.ts) mirror it

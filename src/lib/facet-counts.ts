@@ -9,7 +9,7 @@ import { VIDEO_FACET_KEY, VIDEO_FACET_ON, videoFilterOn } from '@/lib/video-filt
 import { MULTI_SEP, multiFacetValues } from '@/lib/multi-facet'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
-import { districtTextMatches, longerDistrictSpellings } from '@/lib/district-match'
+import { districtTextMatches, longerDistrictSpellings, SEARCH_WIDENED_DISTRICTS } from '@/lib/district-match'
 import { inferDistrictFromQuery } from '@/lib/district-query'
 
 /**
@@ -268,6 +268,9 @@ export function districtSlugsFor(row: { district?: string | null; location?: str
     if (longerDistrictSpellings(d.slug).some((l) => (row.district ?? '').includes(l))) continue
     out.push(d.slug)
   }
+  // Search widens d2/d9 to Thủ Đức (SEARCH_WIDENED_DISTRICTS): a Thủ Đức row counts for their chips too, so each
+  // chip's count still equals its tap.
+  for (const [narrow, wide] of SEARCH_WIDENED_DISTRICTS) if (out.includes(wide) && !out.includes(narrow)) out.push(narrow)
   return out
 }
 

@@ -3,7 +3,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { slugify } from '@/lib/slug'
 import type { Prisma } from '@/generated/prisma/client'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
-import { districtMatchWhere, longerDistrictSpellings } from '@/lib/district-match'
+import { districtMatchWhere, longerDistrictSpellings, SEARCH_WIDENED_DISTRICTS } from '@/lib/district-match'
 
 /**
  * RESOLVES A SEO DISTRICT SLUG BACK TO THE DISTRICT VALUES LISTINGS ACTUALLY CARRY.
@@ -117,6 +117,19 @@ export async function districtScopeForSlug(slug: string): Promise<Prisma.Listing
     return scope
   }
   return { district: { in: await districtNamesForSlug(value) } }
+}
+
+/**
+ * The district scope SEARCH applies (the feed and its suggestions): districtScopeForSlug, except that d2 and d9 also
+ * take in Thủ Đức (SEARCH_WIDENED_DISTRICTS, district-match.ts says why). Landing pages, the sitemap and the rent
+ * index keep districtScopeForSlug, the strict definition.
+ */
+export async function searchDistrictScopeForSlug(slug: string): Promise<Prisma.ListingWhereInput | null> {
+  const own = await districtScopeForSlug(slug)
+  const wider = SEARCH_WIDENED_DISTRICTS.get(slug.trim())
+  if (!wider) return own
+  const umbrella = await districtScopeForSlug(wider)
+  return own && umbrella ? { OR: [own, umbrella] } : (own ?? umbrella)
 }
 
 /** The name to show for a district slug: the curated label when there is one. */

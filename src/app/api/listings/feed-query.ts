@@ -19,7 +19,7 @@ import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
 import { IDS_FAST_PATH_MAX, SAVED_KEEPABLE_STATUSES } from '@/lib/listing-ids'
-import { districtScopeForSlug } from '@/lib/district-slug'
+import { searchDistrictScopeForSlug } from '@/lib/district-slug'
 import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDistrict, type DistrictInference } from '@/lib/district-query'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
@@ -381,7 +381,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   const explicitDistrict = district && district !== 'all' ? district : undefined
   const phrase: DistrictInference | null = q && opts.inferDistrict !== false ? inferDistrictFromQuery(q) : null
   const inferred = explicitDistrict ? null : phrase
-  const districtFilter = await districtScopeForSlug(explicitDistrict ?? inferred?.slug ?? 'all')
+  // Search's scope: d2/d9 also take in Thủ Đức (SEARCH_WIDENED_DISTRICTS, owner 2026-11-16).
+  const districtFilter = await searchDistrictScopeForSlug(explicitDistrict ?? inferred?.slug ?? 'all')
   if (districtFilter) {
     andFilters.push(districtFilter)
   }

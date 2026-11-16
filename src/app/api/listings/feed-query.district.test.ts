@@ -37,7 +37,7 @@ vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCar
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (l: any) => l }))
 
 import { buildFeedFilters, resetExistsCache, resolveFeedFilters } from './feed-query'
-import { resetDistrictNameCache, districtScopeForSlug } from '@/lib/district-slug'
+import { resetDistrictNameCache, districtScopeForSlug, searchDistrictScopeForSlug } from '@/lib/district-slug'
 
 /** The district clause `buildFeedFilters` produced, whatever shape it took. */
 async function districtClause(param: string) {
@@ -129,11 +129,20 @@ describe('a district typed into the query', () => {
     expect(r.q).toBe('căn hộ')
   })
 
-  it('"2pn quận 2" → the Quận 2 scope (d2, narrower than the Thủ Đức umbrella) plus the text "2pn"', async () => {
+  it('"2pn quận 2" → the d2 reading, which search widens to Quận 2 OR Thủ Đức (owner 2026-11-16), plus the text "2pn"', async () => {
     const r = await build(`q=${encodeURIComponent('2pn quận 2')}`)
-    expect(r.andFilters).toContainEqual(await districtScopeForSlug('d2'))
+    expect(r.andFilters).toContainEqual({ OR: [await districtScopeForSlug('d2'), await districtScopeForSlug('thu-duc')] })
+    expect(r.andFilters).toContainEqual(await searchDistrictScopeForSlug('d2'))
     expect(tokens(r.pgTextFilter)).toEqual(['2pn'])
     expect(r.inferredDistrict).toBe('d2')
+  })
+
+  it('an explicit d9 pick searches Quận 9 OR Thủ Đức too; d7 stays exactly its own scope', async () => {
+    expect((await build('district=d9')).andFilters).toContainEqual({ OR: [await districtScopeForSlug('d9'), await districtScopeForSlug('thu-duc')] })
+    expect(await searchDistrictScopeForSlug('d7')).toEqual(await districtScopeForSlug('d7'))
+    expect(await searchDistrictScopeForSlug('thu-duc')).toEqual(await districtScopeForSlug('thu-duc'))
+    // A prototype key is no district to widen (a plain-object map would have crashed here).
+    for (const k of ['constructor', 'toString', '__proto__']) expect(await searchDistrictScopeForSlug(k)).toEqual(await districtScopeForSlug(k))
   })
 
   it.each(['iphone 7', '7 triệu'])('%j infers no district and is searched as typed', async (q) => {
