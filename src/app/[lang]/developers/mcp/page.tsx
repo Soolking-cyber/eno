@@ -10,6 +10,7 @@ import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
 import { MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
+import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
 
 /**
@@ -104,6 +105,15 @@ Authorization: Bearer eno_live_…`}</Code></div>
                 • <strong className="text-foreground">MCP Registry:</strong>{' '}
                 <a href={MCP_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground hover:underline">{MCP_REGISTRY_NAME}</a> — the
                 official registry entry, published under the eno.vn domain namespace.
+              </li>
+            )}
+            {/* eno.vn's agent-skills repo (src/lib/agent-skills.ts): linked so a scanner can tie it to this site. */}
+            {!IS_SERVICES && (
+              <li>
+                • <strong className="text-foreground">Agent skills:</strong>{' '}
+                <a href={AGENT_SKILLS_REPO_URL} className="font-mono font-semibold text-accent-foreground hover:underline">eno-agent-skills</a> — skills
+                for searching the listings and running a shop, an AGENTS.md for coding agents and an Agent Plugin manifest; also
+                on <a href={AGENT_SKILLS_SH_URL} className="font-semibold text-accent-foreground hover:underline">skills.sh</a>.
               </li>
             )}
           </ul>

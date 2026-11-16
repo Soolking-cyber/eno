@@ -98,10 +98,29 @@ const MEASURED: SiteFacts = {
   },
 }
 
+describe('/llms.txt on the services edition', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
+    h.facts = MEASURED
+  })
+
+  it('⛔ never links eno.vn\'s agent-skills repo (or any GitHub account)', async () => {
+    const body = await bodyOf()
+    expect(body).not.toContain('eno-agent-skills')
+    expect(body).not.toContain('github.com/')
+  })
+})
+
 describe('/llms.txt on the marketplace', () => {
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
     h.facts = MEASURED
+  })
+
+  it('links eno.vn\'s agent-skills repo and its skills.sh page (ora: a repo counts once the site links it)', async () => {
+    const body = await bodyOf()
+    expect(body).toContain('- [Agent skills](https://github.com/eno-vn/eno-agent-skills)')
+    expect(body).toContain('[skills.sh](https://skills.sh/eno-vn/eno-agent-skills)')
   })
 
   it('⛔ NAMES eno.vn, NOT THE OTHER EDITION', async () => {
