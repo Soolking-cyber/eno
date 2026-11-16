@@ -29,6 +29,7 @@ type RewriteEntry = {
 type Rewrites = { beforeFiles: RewriteEntry[]; afterFiles: RewriteEntry[]; fallback: RewriteEntry[] }
 
 let rewrites: Rewrites
+let config: { env?: Record<string, string> }
 
 beforeAll(async () => {
   // `www.eno.forum` is the host next.config.ts demands for the 'services' edition vitest pins.
@@ -43,8 +44,9 @@ beforeAll(async () => {
   // ⛔ DO NOT "FIX" A FUTURE FAILURE HERE BY SOFTENING THE THROW IN next.config.ts. The guard is
   // the point; satisfying it in the one test that inspects the config is the cheap side.
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://sb.eno.vn'
-  const mod = (await import('../../../../next.config')) as { default: { rewrites: () => Promise<Rewrites> } }
+  const mod = (await import('../../../../next.config')) as { default: { rewrites: () => Promise<Rewrites>; env?: Record<string, string> } }
   rewrites = await mod.default.rewrites()
+  config = mod.default
 })
 
 /**
@@ -69,6 +71,21 @@ describe('the llms.txt family reaches its handlers (ora.ai, 2026-11-15)', () => 
    * excludes every dotted path, or the proxy rewrites them into [lang] and they 404 — and (2) be rewritten in afterFiles,
    * which Next evaluates before any dynamic route, to their md/ handlers. Pinned against the real config and matcher.
    */
+  it('⛔ the .md twin rewrite: this edition\'s own content pages only, after every named .md file', () => {
+    const at = rewrites.afterFiles.findIndex((r) => r.destination === '/md/twin?p=:p')
+    expect(at).toBeGreaterThan(-1)
+    const source = rewrites.afterFiles[at].source
+    for (const ok of ['about', 'hcmc-rent-index', 'mua-dien-thoai-tra-gop', 'guides', 'developers']) expect(source, ok).toMatch(new RegExp(`[:|]${ok}[|)]`))
+    for (const no of ['listings', 'sellers', 'admin', 'dashboard', 'messages', 'account', 'post', 'signin', 'api', 'brands', 'ask', 'concierge']) {
+      expect(source, no).not.toMatch(new RegExp(`[:|]${no}[|)]`))
+    }
+    // The route's own allowlist is the same list, inlined at build (commit gate, opus).
+    expect(config.env?.ENO_TWIN_ROOTS?.split(',')).toEqual(source.replace(/^\/:p\(\(\?:/, '').replace(/\)\(\?:.*$/, '').split('|'))
+    for (const named of ['/index.md', '/agents.md', '/auth.md', '/pricing.md']) {
+      expect(rewrites.afterFiles.findIndex((r) => r.source === named), named).toBeLessThan(at)
+    }
+  })
+
   it('afterFiles maps each dotted file to its md/ handler, and the proxy never sees them', async () => {
     const pairs = rewrites.afterFiles.map((r) => [r.source, r.destination])
     expect(pairs).toEqual(expect.arrayContaining([

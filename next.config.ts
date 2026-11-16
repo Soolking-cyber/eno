@@ -1,5 +1,16 @@
 import { join } from "node:path";
 import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
+import { TWIN_DENY } from "./src/lib/markdown-twin";
+
+/** The root pages that get a `.md` twin: this edition's root pages outside TWIN_DENY (src/lib/markdown-twin.ts).
+ * ONE list for both guards — the rewrite's source below and the route's own check (env ENO_TWIN_ROOTS). */
+function twinRoots(roots: string[]): string[] {
+  return roots.filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
+}
+/** The twin rewrite's source: `/<allowed root page>[/<slug>…].md`. Lower-case slugs only. */
+function twinSource(allowed: string[]): string {
+  return `/:p((?:${allowed.join("|")})(?:/[a-z0-9-]+)*)\\.md`
+}
 import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
 import { retiredCategoryRedirects } from "./src/lib/retired-categories";
 import { forumTeacherRedirects } from "./src/lib/teachers/surface-redirects";
@@ -379,6 +390,9 @@ const MAC_BUILD_CPUS = 4
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
+  // The `.md` twins' allowlist, inlined at build for the route's own check (src/app/md/twin/route.ts): a direct
+  // /md/twin?p=<handle> request must be refused as surely as the rewrite never sends one (commit gate, opus).
+  env: { ENO_TWIN_ROOTS: twinRoots(appRootSegments(PAGE_EXTENSIONS)).join(",") },
   /**
    * ⚠️ OPT-IN BUILD-DIRECTORY ISOLATION, SO TWO SERVERS CAN SHARE ONE CHECKOUT.
    *
@@ -1239,6 +1253,12 @@ const nextConfig: NextConfig = {
         { source: "/auth.md", destination: "/md/auth" },
         // What using the marketplace costs (ora.ai pricing-md, 2026-11-16): marketplace only, from the fees clauses.
         { source: "/pricing.md", destination: "/md/pricing" },
+        // Every other content page's markdown twin (ora.ai markdown-url-fallback, 2026-11-16; src/app/md/twin/route.ts):
+        // `/about.md` → /about's own <main> as markdown. AFTER every named `.md` above, which win; lower-case slugs only.
+        // ⛔ ONLY THIS EDITION'S OWN ROOT PAGES, MINUS TWIN_DENY (accounts, admin, people, listings, posting — commit gate,
+        // opus): the allowlist is derived from the app tree like markdown404Source, never typed out, so a new SEO page gets a
+        // twin and a storefront handle, an /api path or /admin never does.
+        { source: twinSource(twinRoots(appRootSegments(PAGE_EXTENSIONS))), destination: "/md/twin?p=:p" },
         // The llms.txt family (ora.ai, 2026-11-15; src/lib/llms-txt.ts): the root index stays under 30,000 characters, the
         // full document and the two long sections answer at their own dotted paths. Route handlers under md/ like the twins
         // above — never new root directories, because /guides and /teach-in-vietnam are PAGE paths the proxy rewrites into
