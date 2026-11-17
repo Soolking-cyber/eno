@@ -222,15 +222,15 @@
  * with the kind of place and the time for the same hour. And the places that ask gain the page for importing from Facebook (the
  * ad landing, src/lib/fb-import/landing.ts). Same anonymous daily totals.
  * ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
- * And 2026-11-20 (planned — the deploy day of agent chat, owner 2026-11-17: "ok to agents for all", privacy "add the
- * line"; branch feat/agent-messaging, held for its non-Anthropic review): the "Connected apps and AI agents" paragraph now
+ * And 2026-11-17 too (the deploy day of agent chat — owner 2026-11-17: "ok to agents for all", privacy "add the line",
+ * then "deploy skip codex review", the same day): the "Connected apps and AI agents" paragraph now
  * covers an account as well as a shop, Settings › Privacy as the place to disconnect, and an app allowed to chat — it reads
  * the conversations, the other people's words included, and sends messages, offers, counter-offers and declines in the
  * person's name, each marked as an AI assistant's; its offer binds if accepted; accepting stays with the person; what it
  * reads goes to the app's company, possibly abroad, under its own terms; and the other side of a conversation is told the
  * same. ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-20'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -239,4 +239,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-20'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '8fb95d77f0473fae'
+export const PRIVACY_TEXT_FINGERPRINT = '67353f6aeb3db566'
