@@ -7,6 +7,15 @@ const { AiAppsConnect } = await import('./ai-apps-connect')
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('Settings › Developers: connect an AI app (owner 2026-11-17)', () => {
+  it('its own heading in Developers; none where a settings group already captions it (Privacy)', () => {
+    const { unmount } = render(<AiAppsConnect />)
+    expect(screen.getByRole('heading', { name: 'Connect an AI app' })).toBeTruthy()
+    unmount()
+    render(<AiAppsConnect heading={false} />)
+    expect(screen.queryByRole('heading', { name: 'Connect an AI app' })).toBeNull()
+    expect(screen.getByRole('link', { name: /Claude/ })).toBeTruthy()
+  })
+
   it('Claude opens its eno.vn listing in a new tab — one click', () => {
     render(<AiAppsConnect />)
     const claude = screen.getByRole('link', { name: /Claude/ })

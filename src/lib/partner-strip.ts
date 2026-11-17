@@ -69,11 +69,9 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'karplus', name: 'KarPlus', logo: { src: '/partners/karplus.webp', width: 198, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'square', dark: true },
   { handle: 'ankhanhtravel', name: 'An Khánh Travel', logo: { src: '/partners/ankhanhtravel.webp', width: 554, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'wide' },
   { handle: 'quehuong', name: 'Quê Hương Group', logo: { src: '/partners/quehuong.webp', width: 101, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'square' },
-  // …and the two official partners the strip had left out (same day): Luật Hoàng Phi's HP mark on its blue, SDC's (Sowgatlar
-  // Dunyasi, a gift shop) on its red, both cut from their storefront avatars above the "eno.vn" mark the app stamped on SDC's
-  // upload, corners rounded.
+  // …and an official partner the strip had left out (same day): Luật Hoàng Phi's HP mark on its blue, cut from its storefront
+  // avatar, corners rounded. ⛔ SDC (sdc_store, a gift shop) is NOT a partner (owner 2026-11-17: "remove sdc store from partners").
   { handle: 'luathoangphi', name: 'Luật Hoàng Phi', logo: { src: '/partners/luathoangphi.webp', width: 96, height: 96 }, label: { en: 'Legal', vi: 'Pháp lý' }, size: 'square' },
-  { handle: 'sdc_store', name: 'SDC', logo: { src: '/partners/sdc_store.webp', width: 149, height: 96 }, label: { en: 'Gifts', vi: 'Quà tặng' }, size: 'square' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

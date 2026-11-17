@@ -7,17 +7,21 @@ import { useLanguage } from '@/context/language-context'
 import { CHAT_APPS } from '@/lib/ai-chat-connect'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 
-/** Settings › Developers: connect this shop to an AI chat app — src/lib/ai-chat-connect.ts says which app connects how. */
-export function AiAppsConnect() {
+/**
+ * Connect eno.vn to an AI chat app — src/lib/ai-chat-connect.ts says which app connects how. In Settings › Developers (business
+ * accounts, its own heading) and Settings › Privacy above Connected apps (every account — owner 2026-11-17 "yes"; there the settings
+ * group's caption is the heading, so `heading={false}`).
+ */
+export function AiAppsConnect({ heading = true }: { heading?: boolean } = {}) {
   const { tr } = useLanguage()
   const [pasting, setPasting] = useState<string | null>(null)
   const paste = CHAT_APPS.find((a) => a.how === 'paste' && a.app === pasting)
 
   return (
     <div>
-      <h2 className="h-section text-foreground">{tr('Connect an AI app', 'Kết nối ứng dụng AI')}</h2>
-      <p className="mt-1 text-sm leading-relaxed text-body">
-        {tr('Manage this shop from your AI chat: sign in with eno.vn there and press Allow.', 'Quản lý gian hàng ngay trong ứng dụng AI: đăng nhập eno.vn ở đó và nhấn Cho phép.')}
+      {heading && <h2 className="h-section mb-1 text-foreground">{tr('Connect an AI app', 'Kết nối ứng dụng AI')}</h2>}
+      <p className="text-sm leading-relaxed text-body">
+        {tr('Use eno.vn from your AI chat: sign in with eno.vn there and press Allow.', 'Dùng eno.vn ngay trong ứng dụng AI: đăng nhập eno.vn ở đó và nhấn Cho phép.')}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {CHAT_APPS.map((a) =>

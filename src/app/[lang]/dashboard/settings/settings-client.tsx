@@ -24,6 +24,7 @@ import { PushEventList } from '@/components/marketplace/push-opt-in-card'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { BlockedUsers } from '@/components/marketplace/blocked-users'
 import { ConnectedApps } from '@/components/marketplace/connected-apps'
+import { AiAppsConnect } from '@/components/marketplace/ai-apps-connect'
 import { FacebookConnectRow } from '@/components/marketplace/facebook-connect-row'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
@@ -239,6 +240,11 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
                 <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
               </Button>
             </SettingsGroup>
+          )}
+          {/* Connect an AI app (owner 2026-11-17: "1 click connect with claude chatgpt grok", then "yes" to every account): above the
+              list of what is already connected. src/components/marketplace/ai-apps-connect.tsx. */}
+          {section === 'privacy' && (
+            <SettingsGroup caption={tr('Connect an AI app', 'Kết nối ứng dụng AI')}><AiAppsConnect heading={false} /></SettingsGroup>
           )}
           {/* Connected apps (2026-11-17, owner "ok to agents for all"): every app and AI assistant this account connected, with
               Disconnect — on every account, shop or not (src/components/marketplace/connected-apps.tsx). */}
