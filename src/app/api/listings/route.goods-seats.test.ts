@@ -140,7 +140,7 @@ vi.mock('@/lib/categories', () => ({ getCategoriesByDemand: async () => [] }))
 vi.mock('@/lib/core/business-rail', () => ({ topBusinessListings: async () => [] }))
 vi.mock('@/lib/core/trending-rail', () => ({ trendingRailListings: async (o: { excludeIds: Promise<string[]> }) => { await o.excludeIds; return [] } }))
 vi.mock('@/components/marketplace/listings-explorer', () => ({ ListingsExplorer: () => null }))
-vi.mock('@/app/[lang]/(home)/home-metadata', () => ({ homeMetadata: () => ({}) }))
+vi.mock('@/app/[lang]/(home)/home-metadata', () => ({ homeMetadata: () => ({}), homeWebPageJsonLd: () => ({ '@type': 'WebPage' }) }))
 
 import { NextRequest } from 'next/server'
 import { GET } from './route'
@@ -202,8 +202,13 @@ async function apiPage(qs: string): Promise<Row[]> {
 }
 /** What the home page server-renders: the real page component's seed (and total) for the explorer. */
 async function ssrSeed(): Promise<{ initialListings: Row[]; initialTotal: number }> {
-  const el = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: { initialListings: Row[]; initialTotal: number } }
-  return el.props
+  // The page returns the explorer inside a fragment beside its WebPage JSON-LD: read the explorer's props wherever it sits.
+  type Seed = { initialListings: Row[]; initialTotal: number }
+  const root = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: Partial<Seed> & { children?: unknown } }
+  const els = [root, ...[root.props.children].flat()] as { props?: Partial<Seed> }[]
+  const explorer = els.find((e) => e && typeof e === 'object' && Array.isArray(e.props?.initialListings))
+  if (!explorer) throw new Error('the home page rendered no explorer seed')
+  return explorer.props as Seed
 }
 async function ssrPage(): Promise<Row[]> {
   return (await ssrSeed()).initialListings
