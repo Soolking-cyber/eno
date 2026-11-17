@@ -130,7 +130,7 @@ export const SEARCH_TOOLS: SearchTool[] = [
       subcategory: z.string().max(60).optional().describe('A subcategory slug of that category, from list_categories'),
       province: z.string().max(60).optional().describe('City or province name, e.g. "Ho Chi Minh", "Ha Noi", "Da Nang"'),
       type: z.enum(['sell', 'rent', 'job', 'wanted']).optional().describe('What the listing offers: for sale, for rent, a job, or a wanted ad'),
-      condition: z.string().max(30).optional().describe('Item condition, e.g. "new" or "used"'),
+      condition: z.string().max(30).optional().describe('Item condition: "new" (includes like_new items) or "used"; other values do not filter'),
       price_min: z.number().int().nonnegative().optional().describe('Lowest price in VND'),
       price_max: z.number().int().nonnegative().optional().describe('Highest price in VND'),
       sort: z.enum(['best', 'recent', 'price-low', 'price-high']).optional().describe('"best" (the default) ranks by relevance and freshness; "recent" is newest first'),
@@ -150,7 +150,7 @@ export const SEARCH_TOOLS: SearchTool[] = [
       const p = new URLSearchParams()
       const set = (k: string, v: unknown) => { if (v !== undefined && v !== null && String(v).trim() !== '') p.set(k, String(v).trim()) }
       set('q', args.q); set('category', args.category); set('subcategory', args.subcategory); set('province', args.province)
-      set('type', args.type); set('condition', args.condition); set('priceMin', args.price_min); set('priceMax', args.price_max)
+      set('type', args.type); set('condition', String(args.condition ?? '').trim().toLowerCase() === 'like_new' ? 'new' : args.condition); set('priceMin', args.price_min); set('priceMax', args.price_max)
       set('sort', args.sort === 'best' ? undefined : args.sort); set('lang', args.lang ?? 'en')
       p.set('limit', String(limit)); p.set('offset', String(offset)); p.set('facets', '0')
       // ⛔ The teachers directory is people (see the head of this file): refused, never silently mixed in — judged on the

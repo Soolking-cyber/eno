@@ -79,3 +79,16 @@ describe('the Google Shopping feed', () => {
     expect(meta, 'the Meta feed must keep affiliate rows').not.toContain('affiliateUrl: null')
   })
 })
+
+/**
+ * ⛔ LIKE_NEW GOES OUT AS USED (owner, 2026-11-17: the post form's third word). Merchant Center and Meta both take "new" for
+ * brand-new goods only; the feeds name new by EQUALITY, so the stored like_new falls through to used. A tidy-up to
+ * `includes('new')` would publish every like-new item as new.
+ */
+describe('the condition both feeds publish', () => {
+  it.each(['src/app/api/feeds/google-shopping/route.ts', 'src/app/api/feeds/facebook-catalog/route.ts'])('%s names new by equality only', (path) => {
+    const src = stripComments(read(path))
+    expect(src).toContain("listing.condition === 'new'")
+    expect(src).not.toMatch(/includes\(\s*'new'\s*\)/)
+  })
+})

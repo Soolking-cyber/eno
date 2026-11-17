@@ -270,4 +270,17 @@ describe('a hiring post’s text as its page prints it — paragraphs, attribute
     })
     expect(h.creates[0].condition).toBe('Insured team')
   })
+
+  it('a condition word is stored as its value (listing-condition.ts canonicalCondition) — create and edit', async () => {
+    const services = { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }
+    await core.createListingCore({
+      seller: SELLER, guestCreate: false, category: services as typeof JOBS, title: 'Weekly home cleaning', price: 300_000,
+      body: { listingType: 'service', subcategorySlug: 'cleaning', description: 'Two cleaners, three hours, all supplies included.', district: 'Quận 7', images: ['https://cdn.eno.vn/l/clean-1.jpg'], condition: 'Like new' },
+      headers: new Headers(),
+    })
+    expect(h.creates[0].condition).toBe('like_new')
+    h.current = jobRow({ category: services, listingType: 'service', subcategorySlug: 'cleaning', salaryM: null, priceUnit: null, attributes: null })
+    expect(await core.updateListingCore('listing-1', { condition: 'like new' })).toEqual({ ok: true })
+    expect(h.updates[0]).toMatchObject({ condition: 'like_new' })
+  })
 })

@@ -77,6 +77,17 @@ describe('search_listings', { timeout: 20_000 }, () => {
     expect(opts).toEqual({ noAi: true })
   })
 
+  it('a condition of like_new is searched as "new" (which takes in like_new rows), never dropped as an unknown value', async () => {
+    for (const condition of ['like_new', ' Like_New ']) {
+      h.feedCalls = []
+      expect((await call('search_listings', { condition })).body.result.isError).toBeUndefined()
+      expect(h.feedCalls[0].params.get('condition'), condition).toBe('new')
+    }
+    h.feedCalls = []
+    await call('search_listings', { condition: 'used' })
+    expect(h.feedCalls[0].params.get('condition')).toBe('used')
+  })
+
   it('refuses more than 20 rows or an offset past 200 instead of quietly honouring it', async () => {
     expect((await call('search_listings', { limit: 100 })).body.result.isError).toBe(true)
     expect((await call('search_listings', { offset: 5000 })).body.result.isError).toBe(true)

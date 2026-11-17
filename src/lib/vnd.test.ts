@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, rateCompactAbove, RATE_COMPACT_VND, vndWords } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, compactVndRange, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, rateCompactAbove, RATE_COMPACT_VND, vndWords } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -50,6 +50,24 @@ describe('compactPrice', () => {
     expect(compactPrice(51_000_000, 'vi')).toBe('51tr')
     expect(compactPrice(1_200_000_000, 'vi')).toBe('1,2 tỷ')
     expect(compactPrice(500_000, 'vi')).toBe('500k')
+  })
+})
+
+describe('compactVndRange (model price pages)', () => {
+  it('en keeps đ; vi drops it after tr and keeps it on tỷ', () => {
+    expect(compactVndRange(8_200_000, 9_600_000)).toBe('8.2M–9.6M đ')
+    expect(compactVndRange(8_200_000, 9_600_000, 'vi')).toBe('8,2tr–9,6tr')
+    expect(compactVndRange(1_200_000_000, 1_500_000_000, 'vi')).toBe('1,2 tỷ–1,5 tỷ đ')
+  })
+
+  it('prints one figure when both ends round to it', () => {
+    expect(compactVndRange(8_210_000, 8_190_000)).toBe('8.2M đ')
+    expect(compactVndRange(8_200_000, 8_200_000, 'vi')).toBe('8,2tr')
+  })
+
+  it('under a million', () => {
+    expect(compactVndRange(450_000, 600_000)).toBe('450K–600K đ')
+    expect(compactVndRange(450_000, 600_000, 'vi')).toBe('450k–600k')
   })
 })
 

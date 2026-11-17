@@ -656,7 +656,7 @@ export const SPEC = {
           location: { type: 'string', maxLength: 120, description: 'Free-text display location. Defaults to `district` or `city`.' },
           lat: { type: 'number', minimum: -90, maximum: 90 },
           lng: { type: 'number', minimum: -180, maximum: 180 },
-          condition: { type: 'string', maxLength: 60 },
+          condition: { type: 'string', maxLength: 60, description: '"new", "like_new" or "used"; other words are kept as written.' },
           listingType: { type: 'string', description: 'sell | rent, where the category allows it.' },
           subcategorySlug: {
             type: 'string',
@@ -715,7 +715,7 @@ export const SPEC = {
           city: { type: 'string', maxLength: 80, description: 'Only written when truthy: sending `""` or `null` leaves the stored city unchanged rather than clearing it.' },
           lat: { type: ['number', 'null'], minimum: -90, maximum: 90, description: 'Out-of-range or unparseable values are stored as null, not refused.' },
           lng: { type: ['number', 'null'], minimum: -180, maximum: 180, description: 'Out-of-range or unparseable values are stored as null, not refused.' },
-          condition: { type: ['string', 'null'], maxLength: 60, description: 'Empty string or null clears it.' },
+          condition: { type: ['string', 'null'], maxLength: 60, description: '"new", "like_new" or "used"; other words are kept as written. Empty string or null clears it.' },
           images: {
             type: 'array',
             maxItems: 8,
@@ -756,7 +756,7 @@ export const SPEC = {
           description: { type: 'string' },
           price: { type: 'number', minimum: 0, maximum: 1e12, description: 'In VND. A row in the jobs category is stored as a job and this is its MONTHLY SALARY (whole millions, rounded down; under 1,000,000 states none) — its price is derived from that.' },
           district: { type: 'string' },
-          condition: { type: 'string' },
+          condition: { type: 'string', description: '"new", "like_new" or "used"; other words are kept as written.' },
           images: {
             type: 'array',
             items: { type: 'string', format: 'uri' },
@@ -776,7 +776,7 @@ export const SPEC = {
           description: { type: 'string' },
           price: { type: 'number', minimum: 0, maximum: 1e12, description: 'In VND. On a row in the jobs category it is the MONTHLY SALARY, as in bulk — on create and on update alike (whole millions, rounded down).' },
           district: { type: 'string' },
-          condition: { type: 'string' },
+          condition: { type: 'string', description: '"new", "like_new" or "used"; other words are kept as written.' },
           images: { type: 'array', items: { type: 'string', format: 'uri' }, description: 'Remote URLs are re-hosted first-party, as in bulk.' },
           status: { type: 'string', enum: ['active', 'sold', 'hidden'], description: 'Sets availability on an existing row.' },
         },

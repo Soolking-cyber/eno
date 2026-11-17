@@ -6,7 +6,7 @@
  *   · the category grid leads with the curated rank and keeps the unlinked shelves behind "More…";
  *   · a rent price wears the period the seller picked, INSIDE the field, and a rental has no "Urgent
  *     sale" row, a "Looking to rent" Wanted chip and a vehicle-brand example;
- *   · the condition chips use the taxonomy's own labels ("New / Like new");
+ *   · the condition chips are the three words "New · Like new · Used" (owner, 2026-11-17);
  *   · the shot-list hints follow the shelf; the success screen offers "List another item".
  */
 import { readFileSync } from 'node:fs'
@@ -132,9 +132,9 @@ describe('post wizard — goods (sell-09 / sell-15)', () => {
     condition: 'used', brand: 'Apple', model: 'iPhone 13', attributes: {}, price: 9_000_000,
   })
 
-  it('labels the condition chips with the taxonomy wording', () => {
-    expect(phone).toContain('New / Like new')
-    expect(phone).toContain('Used')
+  it('offers the condition as three words, in order, inside the condition field', () => {
+    expect(phone).toMatch(/id="pw-condition"[\s\S]*?>New<[\s\S]*?>Like new<[\s\S]*?>Used</)
+    expect(phone).not.toContain('New / Like new')
   })
 
   it('shows the shot list for the shelf, once, and still offers the urgent row on a sale', () => {

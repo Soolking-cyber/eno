@@ -142,7 +142,7 @@ describe('GET /api/account/export — the consent records', () => {
     const res = await GET()
     expect(res.status).toBe(200)
     expect(h.consentQuery?.where.actorId).toBe('p1')
-    expect(h.consentQuery?.where.action.in).toEqual(['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result', 'teacher.optins.default'])
+    expect(h.consentQuery?.where.action.in).toEqual(['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result', 'teacher.optins.default', 'saved.price_alerts.on', 'saved.price_alerts.off'])
   })
 
   it('⚖️ a default left on (owner, 2026-10-22) is handed back like the others: which switch, under which AI notice', async () => {

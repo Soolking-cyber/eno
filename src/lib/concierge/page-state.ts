@@ -15,6 +15,7 @@ import { cutText } from '@/lib/feed-text'
 import { fold } from '@/lib/fold'
 import { HIDDEN_SELLERS_PARAM, MAX_HIDDEN_IN_QUERY, SELLER_ID_RE } from '@/lib/hidden-sellers'
 import { pinnedVariant, stripViPrefix } from '@/lib/lang-pinned'
+import { conditionChoice } from '@/lib/listing-condition'
 import { logError } from '@/lib/log'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
@@ -612,7 +613,7 @@ function cardFacts(card: SerializedListingCard, extra: RowExtra | undefined): st
     const named = values.slice(0, MAX_MULTI).map((v) => facet.options.find((o) => o.value === v)?.label ?? (facet.range?.unit ? `${v} ${facet.range.unit}` : v))
     out.push(`${facet.label}: ${named.join(', ')}${values.length > MAX_MULTI ? ' and more' : ''}`)
   }
-  if (card.condition) out.push(`Condition: ${card.condition}`)
+  if (card.condition) out.push(`Condition: ${conditionChoice(card.condition)?.label ?? card.condition}`)
   const brand = [card.brandSlug, card.model].filter(Boolean).join(' ')
   if (brand) out.push(`Brand: ${brand}`)
   if (card.goodPrice) out.push('Good price')

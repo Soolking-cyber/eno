@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { actingAccountMismatch } from '@/lib/api/acting-account'
+import { RECORD_ONLY_NOTIFICATION_TYPES } from '@/lib/notification-scope'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,7 @@ export const DELETE = route({ auth: 'userId' }, async ({ req, params, userId }) 
   // showing one account while another tab switched the shared cookie must not read or delete the OTHER account's
   // notifications. Absent header = an older client: allowed, as before.
   if (actingAccountMismatch(req, userId)) throw new ApiError('account_changed', 409)
-  await db.notification.deleteMany({ where: { id: params.id, recipientId: userId } })
+  // A record row is not the bell's to delete (notification-scope.ts RECORD_ONLY_NOTIFICATION_TYPES — "never ask twice").
+  await db.notification.deleteMany({ where: { id: params.id, recipientId: userId, type: { notIn: [...RECORD_ONLY_NOTIFICATION_TYPES] } } })
   return new NextResponse(null, { status: 204 })
 })

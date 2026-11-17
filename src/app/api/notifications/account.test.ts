@@ -45,4 +45,13 @@ describe('DELETE /api/notifications and /api/notifications/[id] (F6)', () => {
     expect((await removeOne(req('http://x/api/notifications/n1'), { params: Promise.resolve({ id: 'n1' }) } as never)).status).toBe(204)
     expect(h.deletes).toHaveLength(2)
   })
+
+  it('⛔ neither delete touches a record row (the Trustpilot invite\'s "asked once" — deleting it would ask again)', async () => {
+    await clearAll(req('http://x/api/notifications'), { params: Promise.resolve({}) } as never)
+    await removeOne(req('http://x/api/notifications/n1'), { params: Promise.resolve({ id: 'n1' }) } as never)
+    expect(h.deletes).toEqual([
+      { where: { recipientId: 'user-1', type: { notIn: ['trustpilot_invited'] } } },
+      { where: { id: 'n1', recipientId: 'user-1', type: { notIn: ['trustpilot_invited'] } } },
+    ])
+  })
 })

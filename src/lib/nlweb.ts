@@ -84,6 +84,7 @@ export function parseAsk(body: unknown, accept: string | null, acceptLanguage: s
 const CONDITIONS: Record<string, string> = {
   new: 'https://schema.org/NewCondition',
   used: 'https://schema.org/UsedCondition',
+  like_new: 'https://schema.org/UsedCondition',
   refurbished: 'https://schema.org/RefurbishedCondition',
 }
 /** The period in a price unit ("VND/month") as schema.org's unitText for a salary (MONTH, WEEK, DAY, HOUR, YEAR). */

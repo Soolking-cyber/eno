@@ -41,9 +41,10 @@ describe('batch 89 — the facts line', () => {
     expect(PAGE).not.toMatch(/<Badge[^>]*>\s*<Tag /)
   })
 
-  it('the condition keeps its job gate and prints the seller\'s words through <Tr>, never cut', () => {
+  it('the condition keeps its job gate, prints one of the three words as its pair, else the seller\'s words through <Tr>, never cut', () => {
     expect(BUILD).toContain("if (listing.condition && rawListing.category.slug !== 'jobs') {")
-    expect(BUILD).toContain("<Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />")
+    expect(BUILD).toContain('const word = conditionChoice(listing.condition)')
+    expect(BUILD).toContain("facts.push({ key: 'condition', node: word ? tr(word.label, word.labelVi) : <Tr text={listing.condition} /> })")
     expect(LINE).toContain('[overflow-wrap:anywhere]')
     expect(LINE).not.toMatch(/truncate|line-clamp|text-ellipsis|whitespace-nowrap/)
   })

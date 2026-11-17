@@ -58,6 +58,7 @@ import { LocalizedNav } from '@/components/ui/localized-nav'
 import { minPhotosFor } from '@/lib/publish-guard'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { Tr } from '@/context/language-context'
+import { conditionChoice } from '@/lib/listing-condition'
 import { LocalizedTitle, LocalizedTitleHeading, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
@@ -121,6 +122,7 @@ import { currencyCode } from '@/lib/analytics'
 import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
+import { modelPagePath, modelPageSlugFor } from '@/lib/model-pages'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
 import { COUNSEL_BLOCK, COUNSEL_INFO, COUNSEL_REPORT, COUNSEL_STRIP, COUNSEL_WELL_ALONE, COUNSEL_WELL_JOINED, GOODS_BAND, GOODS_DESC_SECTION, GOODS_DETAILS_ROWS, GOODS_DETAILS_TWIN, GOODS_FACT, GOODS_FACTS, GOODS_HEAD, GOODS_MAP_BOX, GOODS_NOTE, GOODS_PHOTO, GOODS_PLATES_GAP, GOODS_PRICE, GOODS_PRICE_ROW, GOODS_SECTION, GOODS_SECTION_TITLE, GOODS_SHELF_GAP, GOODS_TITLE, PIN_TIER, isGoodsSheet, pinsAction } from '@/lib/goods-sheet'
@@ -556,7 +558,7 @@ export default async function ListingPage({ params }: Props) {
   // and the seller's 90d conversation count — the honest denominator behind the
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount] = await Promise.all([
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
@@ -577,6 +579,9 @@ export default async function ListingPage({ params }: Props) {
     listing.seller.officialPartner
       ? scopedListingWhere({ sellerId: listing.sellerId, verified: true, status: 'active' }).then((where) => db.listing.count({ where }))
       : Promise.resolve(null),
+    // The model's price page, for the "Market price" label's link (src/lib/model-pages.ts): live sale on its home shelf only,
+    // so a sold PDP (ISR for 30 days) never links to a page that may 404. A failed read is no link, never a broken PDP.
+    modelPageSlugFor({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, status: rawListing.status }).catch(() => null),
   ])
   /**
    * The gallery's photo names and its lightbox's name follow the variant too (viTitle above): on the Vietnamese page a
@@ -1091,7 +1096,8 @@ export default async function ListingPage({ params }: Props) {
     // job-text screen never read; a row written before that rule prints none either. (The line itself is never on a job; the
     // gate stays, so moving the line can never print one.)
     if (listing.condition && rawListing.category.slug !== 'jobs') {
-      facts.push({ key: 'condition', node: <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} /> })
+      const word = conditionChoice(listing.condition)
+      facts.push({ key: 'condition', node: word ? tr(word.label, word.labelVi) : <Tr text={listing.condition} /> })
     }
     // The brand links into the brand-filtered feed (resolved in the parallel batch above), in the reader's language
     // (localizedHref, disc-missed) — an inline link now, in ink and ⛔ ALWAYS UNDERLINED: a link inside a run of text must not
@@ -1977,7 +1983,7 @@ export default async function ListingPage({ params }: Props) {
                   fold there too (844x390 has 390px of height for everything). */}
               {priceBand && (
                 <div data-market-price className="order-6 lg:order-3">
-                  <MarketPrice price={listing.price} band={priceBand} />
+                  <MarketPrice price={listing.price} band={priceBand} href={priceBand.basis === 'model' && modelSlug ? modelPagePath(modelSlug, pageVariant) : undefined} />
                 </div>
               )}
 

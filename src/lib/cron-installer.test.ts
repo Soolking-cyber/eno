@@ -68,6 +68,13 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(SCRIPT).toMatch(/^\s*\[teacher-job-dms\]="\*-\*-\* 01\.\.13:00,30:00 UTC"$/m)
   })
 
+  it('⛔ trustpilot-invite (2026-11-17) is POLICY — it bells real accounts — daily 10:15 ICT, on eno.vn only', () => {
+    expect(list('POLICY').words).toContain('trustpilot-invite')
+    for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('trustpilot-invite')
+    expect(SCRIPT).toMatch(/^\s*\[trustpilot-invite\]="\*-\*-\* 03:15:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = trustpilot-invite ] && TARGET="eno.vn 3001"')
+  })
+
   it('⛔ licence-holds (2026-10-14) is SAFE — any full re-run enables it — at 00:00 ICT sharp, once, on eno.vn', () => {
     // Without the timer VietKite's grandfather never ends, so the job may not drift into a list a re-run leaves off.
     expect(list('SAFE').words).toContain('licence-holds')

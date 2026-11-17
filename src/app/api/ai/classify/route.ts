@@ -85,7 +85,7 @@ ${TAXONOMY_TEXT}
 
 Then fill:
 - "listingType": one of the category's listed types; default "sell".
-- "condition": "new" or "used", or "" if not a physical item / can't tell.
+- "condition": "new" only if sealed or in unopened packaging, "like_new" if it shows no visible wear, otherwise "used"; "" if not a physical item / can't tell.
 - "brandConfident": be STRICT. true ONLY when you can identify the exact brand with ~95%+ certainty — from a clearly legible logo, brand name or model text ON the product, OR a truly unmistakable iconic design. If the brand is not clearly legible and you would be guessing, set false. NEVER infer a premium or luxury brand (e.g. TAG Heuer, Rolex, Omega, Apple) from a generic shape — many smartwatches, watches and gadgets look alike. When unsure, false.
 - "brand": the canonical English brand name (e.g. "Apple", "Huawei", "Honda", "Samsung") ONLY when brandConfident is true; otherwise "".
 - "model": the specific model/line WITHOUT the brand word (e.g. brand "Apple" → model "iPhone 14 Pro"; brand "Honda" → model "Wave Alpha"; brand "Kia" → model "Sorento"). Only when you can read or clearly recognize it; otherwise "". Never guess a model.
@@ -154,7 +154,7 @@ Return ONLY JSON.`
   if (!cat) return NextResponse.json({ categorySlug: null, subcategorySlug: null, listingType: null, condition: null, title: null, brand: null, description: null })
   const sub = cat.subcategories.find((s) => s.slug === parsed.subcategory)
   const listingType = cat.types.includes(parsed.listingType as never) ? parsed.listingType : 'sell'
-  const condition = parsed.condition === 'new' || parsed.condition === 'used' ? parsed.condition : null
+  const condition = parsed.condition === 'new' || parsed.condition === 'like_new' || parsed.condition === 'used' ? parsed.condition : null
   const title = (parsed.title || '').trim().slice(0, 140) || null
   // Brand only when the model is genuinely confident (~95%+) — never a guess. The
   // model was confidently mislabelling look-alikes (a Huawei watch → "TAG Heuer").

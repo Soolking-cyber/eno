@@ -82,7 +82,8 @@ export function SignInCard({
           * ⛔ EVERY LINE HERE IS SOMETHING ONLY AN ACCOUNT DOES — CHECKED IN THE CODE, NOT ASSUMED.
           * · Messaging a seller needs an account (the composer opens THIS popup for a guest), and a
           *   price drop is pushed to the buyers who messaged or revealed the contact on that listing
-          *   (price-drop.ts notifyPriceDrop) — so "on what you ask about", never "on saved items".
+          *   (price-drop.ts notifyPriceDrop) — so "on what you ask about", never "on saved items" (and savers who opted
+          *   in — an opt-in, so the line still says "on what you ask about").
           * · New-listing alerts are saved searches (SavedSearch + the saved-search-alerts cron).
           * · Posting needs an account and costs nothing (no commission, no paid bumps).
           * ⛔ NOT "save listings": guests save too (on their device). Since 2026-11-09 an account's saves DO

@@ -11,6 +11,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { SavedSearches } from '@/components/marketplace/saved-searches'
+import { PriceAlertsButton } from '@/components/marketplace/price-alerts-button'
 import { SavedUnavailableSection } from '@/components/marketplace/saved-unavailable'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
@@ -50,7 +51,9 @@ export default function SavedPage() {
             src/lib/saved-sync.ts), so the line says so and opens the ONE sign-in popup (owner 2026-08-28), in the same
             row, no new one. Signed in but the account list unavailable here (the table missing, a failed first read): "on
             this device only", true again. While auth is still booting (lazily), only the count — the reader may well be
-            signed in. */}
+            signed in.
+            Price-drop alerts (owner 2026-11-17, Reverb study): a header action, never a row — the account's saves only; a guest's
+            hearts are on the device and get no alerts. */}
         <PageHeader
           className="mb-6"
           title={tr('Saved', 'Tin đã lưu')}
@@ -73,6 +76,7 @@ export default function SavedPage() {
               )}
             </>
           }
+          actions={synced ? <PriceAlertsButton hasSaves={count > 0} /> : undefined}
         />
 
         {/* Saved searches (alerts on new matches) — hidden when signed out / none */}

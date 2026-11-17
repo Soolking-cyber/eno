@@ -274,8 +274,9 @@ export function SellerListings({
    * sellers"): "Showing 24 of 9,841 listings." stood between that heading and its first cards, a figure nobody compares a
    * continuation by. It stays the same `aria-live` node, `sr-only` on a phone, so a screen reader still hears it and every
    * Show more updates it. From sm, and without the prop, it is printed as before. A sortable strip has its own phone count.
+   * 'always': announced at every width — a model price page's line already prints "· N listings" (src/lib/model-pages.ts).
    */
-  quietCount?: boolean
+  quietCount?: boolean | 'always'
   /**
    * The grid is the shop's own, on its storefront (seller-storefront.tsx): no partner shield on its cards or rows — the header
    * says "Official partner" once (owner, 2026-11-16 — hub Q21b; ListingCard / CompactListingRow `ownShop`).
@@ -714,7 +715,7 @@ export function SellerListings({
   // and the grid on a desktop, for the one figure a reader compares the page by. The phone twin keeps 12px (the sort row's
   // budget) in the same ink.
   const serverNote = serverMode && !loadError && (
-    <p className={cn('text-sm text-body', sortable ? 'max-sm:hidden' : quietCount && 'max-sm:sr-only')} aria-live="polite">
+    <p className={cn('text-sm text-body', sortable ? 'max-sm:hidden' : quietCount === 'always' ? 'sr-only' : quietCount && 'max-sm:sr-only')} aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
         : (shown.length >= resultTotal

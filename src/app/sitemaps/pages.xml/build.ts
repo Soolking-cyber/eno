@@ -22,6 +22,7 @@ import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-co
 // Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
 import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, usedPriceWhere } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
+import { modelPagePath, submittableModelPages } from '@/lib/model-pages'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import type { RentIndex } from '@/lib/rent-index'
 import { TEACHER_COST_INDEX_PATH, editionPageLastmod, editionPath, seriesLastmod } from '@/lib/teacher-cost-index'
@@ -631,6 +632,16 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    */
   for (const path of PHONE_GUIDE_PATHS) {
     urls.push(`  <url><loc>${hostUrl}/${path}</loc>${lm(guideLastmod(path))}</url>\n`)
+  }
+
+  /**
+   * The model price pages (src/lib/model-pages.ts), both languages. ⛔ RULE A, as for district pages: only a page whose
+   * band claims a market AND that PRICE_STAT_MIN_SAMPLE of OUR OWN listings stand behind, dated by our own rows — never
+   * a page of someone else's catalogue. A page under that is indexable but unsubmitted (I-g: noindex only after 14 days).
+   * ⚠️ NO .catch: a failed read fails this build, so the last good pages.xml stays and IndexNow pings no removals.
+   */
+  for (const p of await submittableModelPages()) {
+    for (const l of ['vi', 'en'] as const) urls.push(`  <url><loc>${hostUrl}${modelPagePath(p.slug, l)}</loc>${lm(p.lastmod ?? undefined)}</url>\n`)
   }
 
   /**

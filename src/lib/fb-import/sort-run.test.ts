@@ -42,6 +42,12 @@ describe('sortPendingItems', () => {
     await sortPendingItems()
     expect(h.items.updateMany.mock.calls[0][0].where).toEqual({ id: 'i1', status: 'raw' })
   })
+  it('keeps the form\'s third word: an answer of like_new is stored like_new', async () => {
+    h.luna.mockResolvedValue(JSON.stringify({ ...answer, condition: 'like_new' }))
+    h.items.findMany.mockResolvedValue([item()])
+    await sortPendingItems()
+    expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ condition: 'like_new' })
+  })
   it('takes the area from the text when Facebook’s line had none', async () => {
     h.luna.mockResolvedValue(JSON.stringify({ ...answer, area: 'Thảo Điền' }))
     h.items.findMany.mockResolvedValue([item({ district: null })])

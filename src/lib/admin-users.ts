@@ -145,7 +145,8 @@ export async function getAdminUserDetail(id: string): Promise<AdminUserDetail | 
       select: { id: true, state: true, reason: true, status: true, decidedBy: true, createdAt: true, expiresAt: true, liftedAt: true, adminNote: true },
     }),
     db.complianceAudit.findMany({
-      where: { subjectType: 'profile', subjectId: id },
+      // The price-drop alerts switch (src/lib/price-alerts.ts) left out: its toggles must not crowd identity and enforcement rows out of the 15.
+      where: { subjectType: 'profile', subjectId: id, action: { notIn: ['saved.price_alerts.on', 'saved.price_alerts.off'] } },
       orderBy: { occurredAt: 'desc' },
       take: 15,
       select: { occurredAt: true, actorType: true, actorId: true, action: true },

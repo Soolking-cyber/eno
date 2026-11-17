@@ -17,6 +17,7 @@ import { timeAgo } from '@/lib/types'
 import { hrefHere } from '@/lib/lang-pinned'
 import { cn } from '@/lib/utils'
 import { notificationTextAsWritten } from '@/lib/notification-text'
+import { handleExternalClick } from '@/lib/native-browser'
 import { localizeOfferLine, offerLineKind } from '@/lib/offer-lines'
 import { moneyLocale } from '@/lib/vnd'
 
@@ -218,8 +219,12 @@ export function NotificationBell({ quiet = false }: {
                 <div key={n.id} className={cn('group relative transition-colors', n.read ? 'hover:bg-muted' : 'bg-accent/60 hover:bg-accent')}>
                   <Link
                     href={href}
-                    onClick={() => {
+                    // The Trustpilot invite (src/lib/trustpilot-invite.ts) leaves eno: a new tab on the web, the in-app
+                    // browser in the iOS/Android shell (handleExternalClick); `noreferrer` sends Trustpilot no eno path.
+                    {...(n.type === 'trustpilot_invite' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    onClick={(e) => {
                       markRead(n.id); setOpen(false)
+                      if (n.type === 'trustpilot_invite') { handleExternalClick(e); return }
                       // Home-filter deep-links (saved-search alerts → `/?<filters>`) are a
                       // soft nav the in-page explorer can't see when we're already on `/`;
                       // tell it to apply the filters. Harmless on other routes (no listener).
@@ -235,7 +240,7 @@ export function NotificationBell({ quiet = false }: {
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                          <span className="truncate">{n.type === 'offer' ? offerHeadline(n.body) : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('New message about your teacher profile', 'Tin nhắn mới về hồ sơ giáo viên') : n.type === 'teacher_jobs' ? tr('Jobs that match your profile', 'Việc làm phù hợp với bạn') : n.type === 'teacher_jobs_invite' ? tr('Get matching jobs in eno chat', 'Nhận việc làm phù hợp qua tin nhắn eno') : n.type === 'teacher_checkin' ? tr('Your teacher profile: weekly check-in', 'Hồ sơ giáo viên: kiểm tra hằng tuần') : n.type === 'teacher_zalo_seen' ? tr('A school saw your Zalo number', 'Một trường đã xem số Zalo của bạn') : n.type === 'teacher_zalo_invite' ? tr('Zalo for urgent cover', 'Zalo cho dạy thay khẩn') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
+                          <span className="truncate">{n.type === 'offer' ? offerHeadline(n.body) : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('New message about your teacher profile', 'Tin nhắn mới về hồ sơ giáo viên') : n.type === 'teacher_jobs' ? tr('Jobs that match your profile', 'Việc làm phù hợp với bạn') : n.type === 'teacher_jobs_invite' ? tr('Get matching jobs in eno chat', 'Nhận việc làm phù hợp qua tin nhắn eno') : n.type === 'teacher_checkin' ? tr('Your teacher profile: weekly check-in', 'Hồ sơ giáo viên: kiểm tra hằng tuần') : n.type === 'teacher_zalo_seen' ? tr('A school saw your Zalo number', 'Một trường đã xem số Zalo của bạn') : n.type === 'teacher_zalo_invite' ? tr('Zalo for urgent cover', 'Zalo cho dạy thay khẩn') : n.type === 'trustpilot_invite' ? tr('Review eno on Trustpilot?', 'Đánh giá eno trên Trustpilot?') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>

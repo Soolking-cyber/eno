@@ -37,7 +37,7 @@ const EVENTS_EN = [
   'Someone sends you an offer or a counter-offer, or accepts or declines yours',
   'Your listings need an availability check (at most once a day)',
   'A saved search has new matches',
-  'The price drops on a listing you messaged about or whose contact you viewed',
+  'The price drops on a listing you messaged about, whose contact you viewed, or that you saved (with Price-drop alerts on)',
   'A dispute case you are part of is updated',
   'Our moderation team sends a notice about your account (a pause, a review, an appeal decision)',
   'Your identity or storefront verification is reviewed',

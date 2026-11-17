@@ -78,6 +78,39 @@ describe('/privacy — the voice guide (owner, 2026-10-28: "processor not import
   })
 })
 
+describe('/privacy — the Trustpilot invite (owner, 2026-11-17: one in-app note, nothing sent to Trustpilot)', () => {
+  it('names the one ask, that Trustpilot gets nothing, and the record that stops a second ask — both languages', async () => {
+    const en = await policy('marketplace')
+    for (const t of [
+      'one notification on eno.vn asks whether you would review eno on Trustpilot',
+      'we send Trustpilot nothing about you',
+      'so we never ask twice',
+    ]) expect(en, t).toContain(t)
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    for (const t of ['đánh giá eno trên Trustpilot', 'không bao giờ hỏi lại']) expect(vi, t).toContain(t)
+  })
+})
+
+describe('/privacy — price-drop alerts for saved listings (owner, 2026-11-17: explicit opt-in)', () => {
+  it('names the switch, the channels, the night rule, the per-listing cap, the record — and a consent purpose; both languages', async () => {
+    const en = await policy('marketplace')
+    for (const t of [
+      'If you switch on “Tell me when a saved listing drops in price” on the Saved page, we also use them to tell you when one drops in price',
+      'but never by push between 22:00 and 07:00 Vietnam time — at most once a day for each listing',
+      'and we keep when you switched it on or off and the version of the words you were shown.',
+      'With your consent only, given with its own switch on the Saved page: to tell you when a listing you saved drops in price (see “Saved listings”).',
+    ]) expect(en, t).toContain(t)
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    for (const t of [
+      'Nếu bạn bật “Báo cho tôi khi tin đã lưu giảm giá” tại trang Tin đã lưu',
+      'nhưng không gửi thông báo đẩy từ 22:00 đến 07:00 giờ Việt Nam',
+      'Chỉ khi có sự đồng ý của bạn, được đưa ra bằng công tắc riêng tại trang Tin đã lưu',
+    ]) expect(vi, t).toContain(t)
+  })
+})
+
 describe('/privacy — its text and its date move together (commit gate B2)', () => {
   it('⛔ the policy as rendered matches PRIVACY_TEXT_FINGERPRINT — a change to the text must decide its date', async () => {
     // The build-time switches the page reads, pinned empty (commit gate B4, opus): a shell or CI env that sets them

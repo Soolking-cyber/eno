@@ -119,6 +119,18 @@ export function compactPrice(n: number, locale: MoneyLocale = 'en'): string {
   return EN.format(n)
 }
 
+/**
+ * A model price page's typical-ask range (src/lib/model-pages.ts): the PDP band's one-decimal form
+ * (market-price.tsx), with the mark §7 keeps — en "8.2M–9.6M đ"; vi "8,2tr–9,6tr" (no đ after tr, the
+ * owner's 2026-10-18 exception) but "1,2 tỷ–1,5 tỷ đ". Equal ends print one figure.
+ */
+export function compactVndRange(lo: number, hi: number, locale: MoneyLocale = 'en'): string {
+  const a = compactPrice(lo, locale)
+  const b = compactPrice(hi, locale)
+  const range = a === b ? a : `${a}–${b}`
+  return locale === 'en' || hi >= 1_000_000_000 ? `${range} đ` : range
+}
+
 /** Compact COUNT label (views, saves, followers…): 1200 → "1.2k" (en) /
  *  "1,2k" (vi); millions "3.4M" (en) / "3,4tr" (vi). Not for money — prices
  *  use formatMoneyFull/compactPrice. */

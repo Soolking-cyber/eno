@@ -30,8 +30,9 @@ vi.mock('@/components/ui/icons', () => {
   const Icon = (props: React.SVGProps<SVGSVGElement>) => <svg {...props} />
   return { Heart: Icon, Building2: Icon, MapPin: Icon, MessageCircle: Icon, Tag: Icon, Play: Icon, ArrowRight: Icon }
 })
+const L = vi.hoisted(() => ({ lang: 'en' as 'en' | 'vi' }))
 vi.mock('@/context/language-context', () => ({
-  useLanguage: () => ({ lang: 'en', t: (k: string) => k, tr: (en: string) => en }),
+  useLanguage: () => ({ lang: L.lang, t: (k: string) => k, tr: (en: string, vi: string) => (L.lang === 'vi' ? vi : en) }),
   useTr: (s: string) => s,
 }))
 vi.mock('./listing-content', () => ({
@@ -221,6 +222,18 @@ describe('ListingCard look="goods"', () => {
     expect(span.textContent).toBe(' · 2h ago · Apple · iPhone 16')
     // Still ONE truncating line: no wrap, no second meta row.
     expect(classes(span.parentElement)).toEqual(expect.arrayContaining(['min-w-0', 'flex-1', 'truncate']))
+  })
+
+  it('a like_new card\'s info line leads with the form\'s word (listing-condition.ts), in each language', () => {
+    const lead = () => card({ condition: 'like_new' }).querySelector('div.text-t-meta')!.textContent!
+    expect(lead()).toMatch(/^Like new · HCM/)
+    cleanup()
+    L.lang = 'vi'
+    try {
+      expect(lead()).toMatch(/^Như mới · TP\.HCM/)
+    } finally {
+      L.lang = 'en'
+    }
   })
 
   it('…a goods card with no brand has no tail; a shell card keeps the time sm-only, its text unchanged', () => {

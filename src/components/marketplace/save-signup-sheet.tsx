@@ -21,8 +21,8 @@ import { useLanguage } from '@/context/language-context'
  * sheet in front of it.
  * ⛔ THE NOTE MAY ONLY PROMISE WHAT SIGNING IN ACTUALLY DOES. Since 2026-11-09 a signed-in account's
  * saves live on the server and a guest's move into it at sign-in (src/lib/saved-sync.ts), so "keep your
- * saves on every device" is now true and leads. "Price-drop alerts on saved items" is still false
- * (price-drop.ts notifies buyers who messaged, not savers) — never promise it here.
+ * saves on every device" is now true and leads. "Price-drop alerts on saved items" is true only for an
+ * account that switches it on at /saved (price-alerts.ts) — never promise it here.
  *
  * ⚠️ THE COMPONENT RENDERS NOTHING and is still mounted in providers.tsx on purpose: it is a
  * listener, not a UI. Deleting it would silently drop the first-save prompt altogether.

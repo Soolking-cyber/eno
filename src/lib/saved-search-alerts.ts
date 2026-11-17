@@ -42,8 +42,8 @@
 // ── WHAT DOES NOT EXIST, AND WHAT THIS MODULE DOES ABOUT IT ───────────────────────────────────
 // SAVES REACH THE SERVER ONLY FOR SIGNED-IN PEOPLE (SavedListing, 2026-11-09 — src/lib/saved-listings.ts); a
 // guest's hearts live in `localStorage` (`eno:favorites`), and `POST /api/listings/[id]/save` only bumps the
-// aggregate `Listing.savedCount`. Telling savers about a price drop is not built (`src/lib/price-drop.ts`'s
-// audience is conversations + contact reveals) — it would need its own notice and consent.
+// aggregate `Listing.savedCount`. Telling savers about a price drop is built in `src/lib/price-drop.ts` for savers
+// who switched 'Price-drop alerts' on (`src/lib/price-alerts.ts` — its own notice and consent).
 //
 // So "a price drop on a saved listing" is not fanned out from a cron today. The closest thing
 // that IS reachable — and it is a good approximation, because a saved search is a stronger

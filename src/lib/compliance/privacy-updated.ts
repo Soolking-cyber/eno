@@ -229,6 +229,17 @@
  * person's name, each marked as an AI assistant's; its offer binds if accepted; accepting stays with the person; what it
  * reads goes to the app's company, possibly abroad, under its own terms; and the other side of a conversation is told the
  * same. ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-17, the Trustpilot invite (owner, 2026-11-17 — src/lib/trustpilot-invite.ts: "not material", one in-app note,
+ * the bell only, nothing sent to Trustpilot): "Why we use your data" gains the one ask per account, a week after the first
+ * message about a listing or the first listing live, and the record that it was asked, deleted with the account. No new
+ * recipient. ⛔ THE PLANNED DAY, like the rest: re-date it — and TRUSTPILOT_INVITE.startsAt with it — to the day the
+ * deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-17, price-drop alerts for saved listings (owner, 2026-11-17 — Reverb study, "explicit opt-in";
+ * src/lib/price-alerts.ts): 'Saved listings' gains the switch on the Saved page — in-app and push, never push 22:00–07:00
+ * ICT, at most once a day per listing, off until switched on, the on/off record with the words'
+ * version — and a consent purpose. Live with the deploy: a new opt-in, off until switched on (job messages' precedent,
+ * above). ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the
+ * fingerprint — the amendment gate passes an unchanged date as routine, so a forgotten re-date is NOT caught.
  */
 export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
 
@@ -239,4 +250,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '67353f6aeb3db566'
+export const PRIVACY_TEXT_FINGERPRINT = '351c2ee0df6324d5'

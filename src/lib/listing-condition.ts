@@ -59,7 +59,8 @@ const NEWISH = {
  * an explicit `undefined` return is what lets a caller write `if (!w) return` and mean it.
  */
 export function conditionWhere(condition?: string | null): ConditionWhere | undefined {
-  if (condition === 'new') return NEWISH
+  // like_new is filed under the "new" bucket (owner, 2026-11-17: browse keeps two chips), so a like_new filter narrows like one.
+  if (condition === 'new' || condition === 'like_new') return NEWISH
   if (condition === 'used') return { AND: [{ condition: { not: null } }, { NOT: NEWISH }] }
   /**
    * ⛔ ANYTHING ELSE IS NO FILTER — AN ALLOW-LIST, NOT A FALL-THROUGH, and this is the whole
@@ -73,3 +74,26 @@ export function conditionWhere(condition?: string | null): ConditionWhere | unde
    */
   return undefined
 }
+
+/** The three words a seller picks (owner, 2026-11-17), stored as `value`. ⛔ Browse filters two: like_new counts under
+ *  "New / Like new" only because NEWISH is `contains 'new'` — an equality there files every like_new row under "Used". */
+export const CONDITION_CHOICES = [
+  { value: 'new', label: 'New', labelVi: 'Mới' },
+  { value: 'like_new', label: 'Like new', labelVi: 'Như mới' },
+  { value: 'used', label: 'Used', labelVi: 'Đã dùng' },
+] as const
+export type ConditionValue = (typeof CONDITION_CHOICES)[number]['value']
+// ⛔ A Map, never an object literal: 'constructor' / 'toString' / '__proto__' would read Object.prototype and crash cutText.
+const CONDITION_WORDS = new Map<string, ConditionValue>([
+  ['new', 'new'], ['brand new', 'new'], ['mới', 'new'],
+  ['like new', 'like_new'], ['used like new', 'like_new'], ['như mới', 'like_new'],
+  ['used', 'used'], ['đã dùng', 'used'], ['đã qua sử dụng', 'used'],
+])
+/** A seller's word for one of the three → its stored value; any other text is kept as written, trimmed. */
+export function canonicalCondition(raw: string): string {
+  const t = raw.trim()
+  return CONDITION_WORDS.get(t.normalize('NFC').toLocaleLowerCase('vi').replace(/[\s_-]+/g, ' ')) ?? t
+}
+/** The choice a stored value names, or undefined for the seller's own words. */
+export const conditionChoice = (raw: string | null | undefined) =>
+  raw ? CONDITION_CHOICES.find((o) => o.value === canonicalCondition(raw)) : undefined

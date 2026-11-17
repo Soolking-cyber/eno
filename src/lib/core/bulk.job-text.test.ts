@@ -125,6 +125,13 @@ describe('bulkImportCore — a Jobs row gets the job-text screen', () => {
     expect(h.creates.map((d) => d.condition)).toEqual([null, 'Insured team'])
   })
 
+  it('a row\'s condition word is stored as its value (the CSV sample\'s "used-like-new" → like_new); other words as written', async () => {
+    const row = (title: string, condition: string) => ({ category_slug: 'services', title, description: 'Two cleaners, three hours.', price: 300_000, image_urls: 'https://cdn.eno.test/a.jpg', condition })
+    const r = await bulk.marketplace(SELLER, [row('Home cleaning', 'used-like-new'), row('Office cleaning', 'Insured team')])
+    expect(r.results).toEqual([{ row: 1, id: 'new1' }, { row: 2, id: 'new2' }])
+    expect(h.creates.map((d) => d.condition)).toEqual(['like_new', 'Insured team'])
+  })
+
   it('a row carries no attributes: { visaSponsorship: "yes" } sent beside one is never stored, so no job page can print it', async () => {
     const r = await bulk.marketplace(SELLER, [{ ...job('English teacher, District 3'), attributes: { visaSponsorship: 'yes' } } as never])
     expect(r.results).toEqual([{ row: 1, id: 'new1' }])

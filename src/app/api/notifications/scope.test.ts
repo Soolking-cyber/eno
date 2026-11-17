@@ -28,8 +28,16 @@ describe('notificationScope', () => {
   })
 
   it('hides the marketplace-only teacher job messages on the services edition, and only there', () => {
-    expect((notificationScope('u1', false) as { type: { notIn: string[] } }).type.notIn).toEqual(['teacher_jobs', 'teacher_jobs_invite'])
+    expect((notificationScope('u1', false) as { type: { notIn: string[] } }).type.notIn).toEqual(['teacher_jobs', 'teacher_jobs_invite', 'trustpilot_invited'])
     expect((notificationScope('u1', true) as { type: { notIn: string[] } }).type.notIn).not.toContain('teacher_jobs')
+  })
+
+  it('⛔ the Trustpilot invite\'s "asked once" record is hidden on BOTH editions — list, count and badge share this predicate', () => {
+    for (const isMarketplace of [true, false]) {
+      expect((notificationScope('u1', isMarketplace) as { type: { notIn: string[] } }).type.notIn).toContain('trustpilot_invited')
+      // The bell row itself is shown.
+      expect((notificationScope('u1', isMarketplace) as { type: { notIn: string[] } }).type.notIn).not.toContain('trustpilot_invite')
+    }
   })
 
   it('always scopes to the recipient, in both editions', () => {

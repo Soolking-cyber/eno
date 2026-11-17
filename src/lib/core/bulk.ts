@@ -26,6 +26,7 @@ import { isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, paysSalary, resolveLis
 import { isHiringPost, JOB_TEXT_REFUSAL, jobTextProblem } from '@/lib/job-listing'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { cutText } from '@/lib/feed-text'
+import { canonicalCondition } from '@/lib/listing-condition'
 import { REVIEW_SEAT_HELD_NOTE } from '@/lib/review-seat-accounts'
 import { ownerIsReviewSeat } from '@/lib/review-seat-listings'
 
@@ -242,7 +243,7 @@ export async function bulkImportCore(
       const title = cutText(String(r.title || '').trim(), 140)
       const description = cutText(String(r.description || '').trim(), 5000)
       const district = r.district ? cutText(String(r.district).trim(), 80) : null
-      const condition = r.condition ? cutText(String(r.condition).trim(), 60) : null
+      const condition = r.condition ? cutText(canonicalCondition(String(r.condition)), 60) : null
       // Numbers (API JSON) pass through; STRINGS (CSV) parse via the canonical
       // digits-only parseVnd — '9.500' is 9,500 đ dot-thousands, never 9.5 (audit P2).
       const price = typeof r.price === 'number' ? r.price : parseVnd(String(r.price ?? ''))

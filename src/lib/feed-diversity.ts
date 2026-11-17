@@ -314,7 +314,7 @@ export const DEFAULT_FEED_SORT = 'newest'
  * promise "second-hand goods" / "đồ đã qua sử dụng" in these seats, and only the stored condition says so: the
  * commit gate (codex + opus, 2026-10-05) refuted the first version, which counted any `sell` row here, because
  * one new-stock shop or a new car would have taken a seat the regulations call second-hand. A like-new item
- * (the wizard stores "Mới / Như mới" as `new`) still ranks exactly where it ranked — it just cannot claim a
+ * (stored like_new, or new before 2026-11-17) still ranks exactly where it ranked — it just cannot claim a
  * reserved seat. Measured read-only 2026-10-05: 7,763 of the 7,885 live goods rows are `used` (55 `new`, 67
  * unset), and every top-ranked goods shop is entirely `used`, so the seats always fill. (Search is a different
  * call: feed-query.ts deliberately does NOT filter "đồ cũ" by condition — recall there, a promise here.)

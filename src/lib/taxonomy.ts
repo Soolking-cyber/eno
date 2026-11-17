@@ -281,6 +281,7 @@ export type CategoryDef = {
 }
 
 // Exported for the facet bar's quick "Condition" pill, which also offers it on the "all" browse state (no category).
+// The post form asks three words (listing-condition.ts CONDITION_CHOICES); like_new counts as 'new' here.
 export const CONDITION_FACET: FacetDef = {
   key: 'condition',
   label: 'Condition',

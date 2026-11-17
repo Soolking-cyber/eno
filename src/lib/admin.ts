@@ -18,7 +18,7 @@ import { phoneConfirmationTrusted } from '@/lib/auth-policy'
  * ⛔ CHANGED IT? Re-run infra/vn-node/apply-facebook-signin.sh once "Continue with Facebook" is on: it copies this list
  * into the database guard that keeps a Facebook identity off an operator's address (auth.eno_facebook_refused_emails).
  */
-function adminEmails(): string[] {
+export function adminEmails(): string[] {
   return (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())

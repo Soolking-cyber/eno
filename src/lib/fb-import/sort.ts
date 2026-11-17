@@ -35,7 +35,7 @@ Pick the single best category and subcategory, using these exact slugs:
 ${SHELF_TEXT}
 - vehicles is ONLY for means of transport — motorbikes, bicycles, cars, e-bikes and scooters, trucks, vans, boats, trailers — and the parts, accessories and riding gear made for them (a helmet, tyres, a tyre inflator, a car head-unit screen, a vehicle GPS tracker go to vehicles › parts-gear). A machine, appliance or piece of shop, kitchen or business equipment that carries no people or goods and is not a part made for a vehicle is NEVER vehicles, whatever it is called and whatever brand made it: a vending machine, coffee or ice machine, freezer, display fridge, water dispenser, generator, water pump, workshop air compressor, washing or cleaning machine goes to furniture-appliances (white-goods); a till, scanner, printer, monitor or screen goes to electronics.
 - listingType: one of that category's types: "sell" for selling, "rent" for offering a rental. Default to the first type listed.
-- condition: "new" or "used", from what the listing says, else "unknown".
+- condition: "new", "like_new" or "used", from what the listing says, else "unknown".
 - brand and model: only if the listing states them, else "".
 - languages: write the title and description TWICE, as two proper versions of the same listing: "title" and "description" in natural, fluent English, and "title_vi" and "description_vi" in natural, fluent Vietnamese with full diacritics. Whichever language the seller wrote in, both say the same thing: keep every fact and add none. Keep brand names, model codes, sizes and numbers exactly as written. Never translate a place name (a district, ward, street, city or province such as Thủ Đức, Bình Thạnh, Thảo Điền): in the Vietnamese version write it with full diacritics ("Thủ Đức"), in the English version without them ("Thu Duc"), never as English words.
 - title (and title_vi): a clear title, under 80 characters. Name the item. No prices, no emoji, no phone numbers.
@@ -51,7 +51,7 @@ const shelfSchema = {
     subcategory: { type: Type.STRING },
     listingType: { type: Type.STRING },
     // ⛔ NEVER "" IN AN enum: Vertex refuses the whole request (400 "enum[2]: cannot be empty"), measured 2026-11-04.
-    condition: { type: Type.STRING, enum: ['new', 'used', 'unknown'] },
+    condition: { type: Type.STRING, enum: ['new', 'like_new', 'used', 'unknown'] },
     priceUnit: { type: Type.STRING, enum: [...PRICE_UNITS] },
     area: { type: Type.STRING },
     brand: { type: Type.STRING },
@@ -258,7 +258,7 @@ export async function sortPendingItems(limit = 25): Promise<{ sorted: number; st
           status: 'draft', ...shelf, title, description, titleVi, descriptionVi,
           price: priceFromUnit(raw.priceAmount, raw.currency, a.priceUnit),
           ...(item.district ? {} : areaFromTyped(String(a.area ?? '').slice(0, 80), item.city)),
-          condition: a.condition === 'new' || a.condition === 'used' ? a.condition : null,
+          condition: a.condition === 'new' || a.condition === 'like_new' || a.condition === 'used' ? a.condition : null,
           brand: String(a.brand ?? '').trim().slice(0, 60) || null,
           model: String(a.model ?? '').trim().slice(0, 80) || null,
           attributes: chips.attributes as Prisma.InputJsonValue,

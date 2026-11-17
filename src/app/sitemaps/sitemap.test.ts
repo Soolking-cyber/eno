@@ -62,6 +62,8 @@ const h = vi.hoisted(() => ({
   // The Teacher Cost & Pay Index's editions, newest first, and its errata, when a test swaps in its own (null = the real files).
   costEditions: null as { edition: string; frozenAt: string }[] | null,
   costErrata: null as { edition: string; at: string; text: string }[] | null,
+  modelPages: [] as { slug: string; lastmod: Date | null }[],
+  failModelPages: false,
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
@@ -219,6 +221,15 @@ vi.mock('@/lib/vehicle-hubs', () => ({
   },
 }))
 
+/** The model price pages pages.xml submits (src/lib/model-pages.ts has its own suite): a list per test, or a failed read. */
+vi.mock('@/lib/model-pages', () => ({
+  submittableModelPages: async () => {
+    if (h.failModelPages) throw new Error('model pages read failed')
+    return h.modelPages
+  },
+  modelPagePath: (slug: string, lang: string) => (lang === 'vi' ? `/gia/${slug}` : `/price/${slug}`),
+}))
+
 /** The newest value of each asked-for date field over `rows`, folded into `acc`. */
 function maxOf(rows: Row[], fields: Partial<Record<keyof Row, true>>, acc: Record<string, Date | null> = {}) {
   const out: Record<string, Date | null> = {}
@@ -331,6 +342,8 @@ beforeEach(() => {
   h.awardYears = []
   h.costEditions = null
   h.costErrata = null
+  h.modelPages = []
+  h.failModelPages = false
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -873,6 +886,27 @@ describe('the pages child: lastmod from what each page shows', () => {
  * IndexNow cron can read it in-process). `'require'` is the route's own mode; `'optional'` differs only
  * when the rent snapshot is unknown, and then only by the rent index's URL, which it FREEZES.
  */
+describe('the model price pages in the pages child (src/lib/model-pages.ts, rule A)', () => {
+  it('submits both languages of every submittable page, dated by its own rows', async () => {
+    h.modelPages = [{ slug: 'apple-iphone-13', lastmod: new Date('2026-11-10T00:00:00Z') }, { slug: 'honda-wave-alpha', lastmod: null }]
+    const xml = await (await pagesGET()).text()
+    expect(xml).toContain(`<loc>${HOST}/gia/apple-iphone-13</loc><lastmod>2026-11-10T00:00:00.000Z</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/price/apple-iphone-13</loc><lastmod>2026-11-10T00:00:00.000Z</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/gia/honda-wave-alpha</loc></url>`)
+    expect(xml).toContain(`<loc>${HOST}/price/honda-wave-alpha</loc></url>`)
+  })
+
+  it('submits none when there are none', async () => {
+    expect(locs(await (await pagesGET()).text()).filter((l) => /\/(gia|price)\//.test(l))).toEqual([])
+  })
+
+  it('⛔ a failed read rejects the build (the last good copy stays; IndexNow pings no removals)', async () => {
+    h.failModelPages = true
+    await expect(buildPagesSitemap({ rentIndex: 'require' })).rejects.toThrow(/model pages read failed/)
+    await expect(pagesGET()).rejects.toThrow(/model pages read failed/)
+  })
+})
+
 describe('the pages builder and the IndexNow collector', () => {
   const fixture = () => [
     row({ id: 'own-1', district: 'Quận 1', categoryId: 'cat-electronics' }),

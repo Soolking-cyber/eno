@@ -47,6 +47,12 @@ describe('POST /ask (NLWeb v0.55)', () => {
     expect(phone).toMatchObject({ '@type': 'Product', itemCondition: 'https://schema.org/UsedCondition', sponsored: true }) // a paid or commission listing says so
   })
 
+  it('a like_new row (the post form\'s third word) is a used item to schema.org, which has no like-new', async () => {
+    h.handler.mockResolvedValue({ total: 1, listings: [{ ...ROWS[2], condition: 'like_new' }] })
+    const body = await (await ask({ query: { text: 'iphone' } })).json()
+    expect(body.results[0].itemCondition).toBe('https://schema.org/UsedCondition')
+  })
+
   it('mode "summarize" leads with a COUNTED summary, never generated text', async () => {
     const body = await (await ask({ query: { text: 'iphone' }, prefer: { mode: 'list, summarize' } })).json()
     expect(body.results[0]).toEqual({ '@type': 'SearchSummary', text: `3 of about 42 live listings on ${SITE_NAME} match the question; each links to its page, where the photos are and the seller is contacted.` })

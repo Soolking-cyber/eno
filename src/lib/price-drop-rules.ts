@@ -30,3 +30,12 @@ export const DROP = {
   RECIPIENT_DAILY_CAP: 5,     // max price_drop notifications per recipient per 24h
   AUDIENCE_CAP: 100,          // fan-out bound per drop event
 } as const
+
+/**
+ * The words beside "Tell me when a saved listing drops in price" (/saved header — price-alerts-button.tsx). An ON counts only under
+ * THIS version (src/lib/price-alerts.ts): change what the notice says is used, for what, or how it reaches you, and bump it — every
+ * earlier ON then stops counting (JOB_DM_NOTICE_VERSION's rule). The per-listing cap and the night rule are NOT in the notice (they
+ * are /privacy's): changing either needs a /privacy re-date, never a bump. RECIPIENT_DAILY_CAP is an internal best-effort limit that
+ * /privacy does not promise (the gate, 2026-11-17: a count of deletable bell rows cannot back a hard promise).
+ */
+export const PRICE_ALERT_NOTICE_VERSION = '2026-11-18' // the day the words are final; a label, not the deploy day

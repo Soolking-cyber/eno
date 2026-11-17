@@ -64,6 +64,12 @@ describe('pinnedRoute', () => {
   it('⛔ never reads the prototype', () => {
     for (const p of ['/constructor', '/__proto__', '/toString', '/hasOwnProperty']) expect(pinnedRoute(p), p).toBeNull()
   })
+
+  it('pins a model price page by its address: /gia/<slug> vi, /price/<slug> en', () => {
+    expect(pinnedRoute('/gia/apple-iphone-13')).toEqual({ variant: 'vi', internalPath: '/gia/apple-iphone-13' })
+    expect(pinnedRoute('/price/apple-iphone-13')).toEqual({ variant: 'en', internalPath: '/price/apple-iphone-13' })
+    for (const p of ['/gia', '/gia/', '/gia/X', '/gia/a/b', '/price', '/price/', '/price/a--b', '/price/-a']) expect(pinnedRoute(p), p).toBeNull()
+  })
 })
 
 describe('pinnedPair', () => {
@@ -73,6 +79,20 @@ describe('pinnedPair', () => {
     expect(pinnedPair('/dang-tin-ban-hang-mien-phi')).toBeNull()
     expect(pinnedPair('/c/rentals')).toBeNull()
     expect(pinnedPair('/constructor')).toBeNull()
+  })
+
+  it('pairs a model price page with the same slug at the other address', () => {
+    expect(pinnedPair('/gia/apple-iphone-13')).toBe('/price/apple-iphone-13')
+    expect(pinnedPair('/price/apple-iphone-13')).toBe('/gia/apple-iphone-13')
+    expect(pinnedPair('/gia/X')).toBeNull()
+    expect(pinnedPair('/gia')).toBeNull()
+  })
+
+  it('localizedHref leaves a model price page as it is', () => {
+    for (const v of ['vi', 'en']) {
+      expect(localizedHref('/gia/apple-iphone-13', v, ON)).toBe('/gia/apple-iphone-13')
+      expect(localizedHref('/price/apple-iphone-13', v, ON)).toBe('/price/apple-iphone-13')
+    }
   })
 })
 

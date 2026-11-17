@@ -20,6 +20,7 @@ vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth }))
 vi.mock('@/components/marketplace/header', () => ({ Header: () => null }))
 vi.mock('@/components/marketplace/footer', () => ({ Footer: () => null }))
 vi.mock('@/components/marketplace/saved-searches', () => ({ SavedSearches: () => null }))
+vi.mock('@/components/marketplace/price-alerts-button', () => ({ PriceAlertsButton: () => null }))
 vi.mock('@/components/marketplace/mascot', () => ({ Mascot: () => null }))
 vi.mock('@/components/marketplace/listing-card', () => ({ ListingCard: ({ listing }: { listing: { id: string } }) => <div data-testid="card">{listing.id}</div> }))
 vi.mock('@/components/marketplace/saved-unavailable', () => ({

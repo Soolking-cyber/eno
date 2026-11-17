@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { TAXONOMY, LISTING_TYPES, categoryHasBrand, NON_POSTING_CATEGORIES, isLicenceCheckSlot } from '@/lib/taxonomy'
 import { route } from '@/lib/api/handler'
+import { CONDITION_CHOICES } from '@/lib/listing-condition'
 
 // Lightweight taxonomy read for client surfaces that can't receive categories
 // as server props (the account panel's bulk-upload section, the native iOS
@@ -70,7 +71,8 @@ export const GET = route({ auth: 'public' }, async () => {
           // MULTI-SELECT (FacetDef.multi — apartment amenities, 2026-10-19): a browse filter on it is a comma list of
           // option values, every one required (src/lib/multi-facet.ts). ADDITIVE and a real boolean, like `optional`.
           multi: f.multi === true,
-          options: f.options.map((o) => ({ value: o.value, label: o.label, labelVi: o.labelVi })),
+          // The post schema offers the form's three condition words (listing-condition.ts), not browse's two.
+          options: (f.key === 'condition' ? CONDITION_CHOICES : f.options as readonly { value: string; label: string; labelVi: string }[]).map((o) => ({ value: o.value, label: o.label, labelVi: o.labelVi })),
           range: f.range
             ? { min: f.range.min, max: f.range.max, step: f.range.step, unit: f.range.unit ?? null, column: f.range.column }
             : null,

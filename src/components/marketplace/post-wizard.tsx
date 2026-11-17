@@ -37,7 +37,8 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isLicenceCheckSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, detailRowLabel } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isLicenceCheckSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, suggestSubcategory, subcategoryMatchesText, detailRowLabel } from '@/lib/taxonomy'
+import { CONDITION_CHOICES } from '@/lib/listing-condition'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -2408,10 +2409,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             <Section title={t('Thông số', 'Specifics')} mark={sectionMark('specifics')}>
               {hasCondition && (
                 <Field group id="pw-condition" label={t('Tình trạng', 'Condition')} error={err.condition ? t('Hãy chọn tình trạng', 'Pick the condition') : undefined}>
-                  {/* The taxonomy's own labels (sell-09): the stored value 'new' covers "like new" too, and
-                      browse already names it "Mới / Như mới" — a bare "Mới" here pushed a barely-used item
-                      into "Đã dùng". A graded scale is owner decision C6. */}
-                  <Chips options={(catFacets.find((f) => f.key === 'condition') ?? CONDITION_FACET).options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={condition} onPick={setCondition} />
+                  {/* The three words (owner, 2026-11-17); browse files like_new under "New / Like new". */}
+                  <Chips options={CONDITION_CHOICES.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={condition} onPick={setCondition} />
                 </Field>
               )}
               {/* REQUIRED FACETS FIRST, then the optional ones marked "(optional)". Taxonomy order put

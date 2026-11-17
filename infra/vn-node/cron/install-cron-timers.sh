@@ -138,6 +138,9 @@ declare -A SCHED=(
   # The one-time bell invite to switch on job messages (src/app/api/cron/job-dms-invite): daily 03:00 UTC = 10:00 ICT, so
   # a teacher who published since yesterday is invited once. POLICY too.
   [job-dms-invite]="*-*-* 03:00:00 UTC"
+  # The Trustpilot invite (owner, 2026-11-17 — src/lib/trustpilot-invite.ts): daily 03:15 UTC = 10:15 ICT, one in-app bell
+  # per account a week after its first buyer message or first live listing, never twice, no push. POLICY too.
+  [trustpilot-invite]="*-*-* 03:15:00 UTC"
   # In-app calls (src/app/api/cron/calls-sweep/route.ts, 2026-10-21): every minute, ends calls nobody is touching any more
   # (ringing past 45 s, a side silent for 45 s, past the 2 h cap) and, with the switch OFF, every live call. Writes only
   # the call rows, their thread records and missed-call bells; nothing depends on it for correctness (the routes check
@@ -258,7 +261,9 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 #   systemctl enable --now eno-cron-teacher-job-dms.timer eno-cron-job-dms-invite.timer
 # listing-photos (2026-11-15): POLICY — it holds listings and bells sellers; enable it after the dry runs:
 #   systemctl enable --now eno-cron-listing-photos.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep listing-photos)
+# trustpilot-invite (2026-11-17): POLICY — it bells real accounts; enable after its dry run:
+#   systemctl enable --now eno-cron-trustpilot-invite.timer
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep listing-photos trustpilot-invite)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -340,6 +345,8 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ The teacher job DMs too — teachers are eno.vn's; both routes answer {skipped:'marketplace_only'} on eno.forum.
   [ "$job" = teacher-job-dms ] && TARGET="eno.vn 3001"
   [ "$job" = job-dms-invite ] && TARGET="eno.vn 3001"
+  # ⚠️ trustpilot-invite too: one sender, eno.vn (the route answers {skipped:'marketplace_only'} on eno.forum).
+  [ "$job" = trustpilot-invite ] && TARGET="eno.vn 3001"
   # ⚠️ licence-holds runs ONCE, on eno.vn, whatever host this installer was run for: the listings and the ISR
   # invalidations are in the shared database, so a pull there is a pull on both sites; a second run would find nothing.
   [ "$job" = licence-holds ] && TARGET="eno.vn 3001"

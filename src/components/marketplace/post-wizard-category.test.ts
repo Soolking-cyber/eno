@@ -71,6 +71,14 @@ describe('post wizard — a SUBCATEGORY change (the picker and the "Gợi ý" su
     expect(subcategoryChangeReset({ ...phone, attrs: {} }, 'laptops', { brandShown: true }).lost).toBe(false)
   })
 
+  // The form's third word (owner, 2026-11-17) is no facet option ("New / Like new" files it), so the reset keeps it by the
+  // form's own three words — it used to wipe a picked like_new on every subcategory change.
+  it('keeps a picked like_new where the new shelf asks condition, and drops it — with Undo — where it does not', () => {
+    expect(subcategoryChangeReset({ ...phone, attrs: {}, condition: 'like_new' }, 'laptops', { brandShown: true })).toMatchObject({ condition: 'like_new', lost: false })
+    const food = { categorySlug: 'pets', attrs: {}, ranges: {} as Record<string, number | null>, condition: 'like_new', brand: '', model: '' }
+    expect(subcategoryChangeReset(food, 'dogs', { brandShown: false })).toMatchObject({ condition: '', lost: true })
+  })
+
   it('rentals: an apartment’s rooms, furnishing and size go; the rental period stays', () => {
     const flat = { categorySlug: 'rentals', attrs: { rentalPeriod: 'monthly', bedrooms: '2', furnishing: 'fully' }, ranges: { areaM2: 45 } as Record<string, number | null>, condition: '', brand: '', model: '' }
     const r = subcategoryChangeReset(flat, 'motorbike-rental', { brandShown: true })

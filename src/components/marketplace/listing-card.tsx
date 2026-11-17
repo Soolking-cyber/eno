@@ -34,6 +34,7 @@ import { useLanguage } from '@/context/language-context'
 import { usePlaceText } from './place-name'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
 import { cardTitle, cardJobType } from '@/lib/card-title'
+import { conditionChoice } from '@/lib/listing-condition'
 import { CARD_APPROX, CARD_BODY, GOODS_CELL_FLOOR, CARD_META, CARD_PRICE, CARD_WAS, CARD_WAS_APPROX, GOODS_BODY, GOODS_CARD_META, GOODS_CARD_TITLE, GOODS_PRICE_ROW, GOODS_SALE_PRICE, LANE_BODY, LANE_META, TEACHER_BODY, TEACHER_NO_RATE, TEACHER_PROOF, TEACHER_RATE, TEACHER_RATE_UNIT, TEACHER_TITLE_LINE, TITLE_LINE, WIDE_BODY, WIDE_META, WIDE_PRICE, WIDE_PRICE_ROW, WIDE_TITLE, WIDE_UNIT } from '@/lib/card-text'
 import { isGoodsCategory } from '@/lib/goods-surface'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -358,11 +359,9 @@ function ListingCardImpl({
   const translatedLocation = usePlaceText(isHcmc(listing.location) ? '' : listing.location)
   // English reads the stored value through cardAreaEn, as always — it never went through machine translation.
   const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : lang === 'en' ? cardAreaEn(cardArea(listing.location)) : cardArea(translatedLocation)
-  // Condition badge text for the metadata line. new/used are the canonical facet values
-  // (verified in prod); an unexpected value is shown verbatim rather than dropped.
-  const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')
-    : listing.condition === 'used' ? tr('Used', 'Đã dùng')
-    : listing.condition || null
+  // The info line's condition: one of the three words (listing-condition.ts), else the seller's own words verbatim.
+  const conditionWord = conditionChoice(listing.condition)
+  const conditionLabel = conditionWord ? tr(conditionWord.label, conditionWord.labelVi) : listing.condition || null
   // Desktop quick-offer (hover bar): slide a discount, hand off to the PDP composer
   // in offer mode via ?offer=N#contact. null = collapsed.
   const [quickOffer, setQuickOffer] = useState<number | null>(null)

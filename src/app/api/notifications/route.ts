@@ -5,7 +5,7 @@ import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { isCurrentUserAdminByClaims } from '@/lib/admin'
 import { conversationUnread } from '@/lib/unread'
 import { IS_MARKETPLACE } from '@/lib/edition'
-import { notificationScope } from '@/lib/notification-scope'
+import { RECORD_ONLY_NOTIFICATION_TYPES, notificationScope } from '@/lib/notification-scope'
 
 /**
  * ⚠️ THE PREDICATE MOVED TO `src/lib/notification-scope.ts` AND IS RE-EXPORTED HERE. It had to: the
@@ -85,6 +85,7 @@ export const DELETE = route({ auth: 'userId' }, async ({ req, userId }) => {
   // showing one account while another tab switched the shared cookie must not read or delete the OTHER account's
   // notifications. Absent header = an older client: allowed, as before.
   if (actingAccountMismatch(req, userId)) throw new ApiError('account_changed', 409)
-  await db.notification.deleteMany({ where: { recipientId: userId } })
+  // A record row is not the bell's to delete (notification-scope.ts RECORD_ONLY_NOTIFICATION_TYPES — "never ask twice").
+  await db.notification.deleteMany({ where: { recipientId: userId, type: { notIn: [...RECORD_ONLY_NOTIFICATION_TYPES] } } })
   return new NextResponse(null, { status: 204 })
 })

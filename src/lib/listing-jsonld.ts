@@ -190,7 +190,7 @@ function conditionOf(condition: string | null): string | null {
   const c = condition.toLowerCase()
   if (c === 'new' || c.includes('mới')) return 'https://schema.org/NewCondition'
   if (c.includes('refurb')) return 'https://schema.org/RefurbishedCondition'
-  if (c === 'used') return 'https://schema.org/UsedCondition'
+  if (c === 'used' || c === 'like_new') return 'https://schema.org/UsedCondition'
   return null
 }
 

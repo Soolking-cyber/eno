@@ -62,6 +62,7 @@ import { POSTED_FACET_KEY } from '@/lib/posted-filter'
 import { VIDEO_FACET_KEY } from '@/lib/video-filter'
 import { isMultiFacetKey, sellerFacetTokens } from '@/lib/multi-facet'
 import { cutText } from '@/lib/feed-text'
+import { canonicalCondition } from '@/lib/listing-condition'
 import { REACTIVATION_SALE_RESET, type MarkSoldPatch } from '@/lib/trade-loop'
 import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
 import type { Prisma } from '@/generated/prisma/client'
@@ -908,7 +909,7 @@ export async function updateListingCore(
     // cleared, keep the existing location (a non-nullable column — never write null).
     data.location = district || current.location
   }
-  if (body.condition !== undefined) data.condition = body.condition && storesCondition(current.category.slug) ? cutText(String(body.condition).trim(), 60) : null
+  if (body.condition !== undefined) data.condition = body.condition && storesCondition(current.category.slug) ? cutText(canonicalCondition(String(body.condition)), 60) : null
   // ⛔ A job has no condition (taxonomy.ts storesCondition): one written before the rule is cleared by the next edit.
   if (!storesCondition(current.category.slug) && current.condition != null) data.condition = null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
@@ -1804,7 +1805,7 @@ export async function createListingCore(input: {
   // or partner-API caller could smuggle "Zalo 090… - bán súng đạn" past the gate —
   // 2026-07-06 launch audit; the UI wizard sends controlled geo names).
   // ⛔ None on a job (taxonomy.ts storesCondition): a job page prints no condition, so a Jobs post stores none.
-  const conditionText = body.condition && storesCondition(categorySlug) ? cutText(String(body.condition).trim(), 60) : null
+  const conditionText = body.condition && storesCondition(categorySlug) ? cutText(canonicalCondition(String(body.condition)), 60) : null
   assertCleanTexts([
     district, conditionText, model, city, location,
     body.brand ? String(body.brand) : undefined,

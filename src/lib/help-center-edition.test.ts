@@ -75,6 +75,8 @@ vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (where: unknow
 vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({
   loadRentIndex: async () => ({ known: true, index: { computedAt: '2026-09-29T01:00:00.000Z', districts: [] } }),
 }))
+/** The model price pages read through the feed's builder, which this fake scope does not carry (sitemap.test.ts covers them). */
+vi.mock('@/lib/model-pages', () => ({ submittableModelPages: async () => [], modelPagePath: (slug: string) => `/price/${slug}` }))
 
 /** One published ForumPost row, shaped for `serializeForumPost`. */
 function post(id: string, communitySlug: string, official = true) {

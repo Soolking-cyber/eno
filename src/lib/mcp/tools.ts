@@ -84,7 +84,7 @@ const listingItem = z.object({
   price: z.number().describe('The asking price in Vietnamese đồng (VND); for a job, its monthly salary in VND'),
   description: z.string().optional().describe('The listing page\'s text, in the seller\'s words: what it is, its state and what comes with it. Leave it out for no text'),
   district: z.string().optional().describe('Where the item is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức". A new listing needs it (else `location_required`)'),
-  condition: z.string().optional().describe('The item\'s condition in words, e.g. "new", "like new" or "used"; ignored for a job. Leave it out when it does not apply'),
+  condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used" (other words are kept as written); ignored for a job. Leave it out when it does not apply'),
   images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies them and uses the first 8. Most categories need 3 of different angles (else `photos_min`), services 1 (else `photo_required`), jobs none. On a new listing, leave it out only for a job'),
   externalId: z.string().optional().describe('Your own id for this listing, such as your SKU, echoed back in the results so you can match each row to your system; leave it out if you have none'),
 })
@@ -204,7 +204,7 @@ const LISTING_OUT = z.strictObject({
   status: LISTING_STATUS_OUT,
   verified: z.boolean().describe('false while the listing waits for eno\'s check and is not public yet; true once eno has published it'),
   listingType: z.enum(LISTING_TYPES).describe('What the listing offers. sell: an item for sale. rent: for rent. free: given away. wanted: someone looking to buy or rent. wholesale: sold in bulk. service: a service. job: a job opening. event: an event. teacher: a teacher\'s profile'),
-  condition: z.string().nullable().describe('The item\'s condition as the seller wrote it, e.g. "new", "like new" or "used"; null when none was given, as for a job or a service. update_listing can set it'),
+  condition: z.string().nullable().describe('The item\'s condition, e.g. "new", "like_new" or "used" (the three a seller picks on eno; an older listing may carry the seller\'s own words); null when none was given, as for a job or a service. update_listing can set it'),
   location: z.string().describe('The place as shown on the listing page, for display; use district and city to compare or filter listings'),
   district: z.string().nullable().describe('The district or area the item is in, as buyers search by it, e.g. "Thảo Điền, Thủ Đức"; null when none was given, which update_listing can fill'),
   city: z.string().describe('The city or province the listing is in, e.g. "Hồ Chí Minh" or "Hà Nội"; with district it says where a buyer would collect or view the item'),
@@ -550,7 +550,7 @@ export const TOOLS: McpTool[] = [
       // A negative price is refused by updateListingCore (`invalid_price`), so the schema carries no bound to repeat.
       price: z.number().optional().describe('The new asking price in VND (for a job: its monthly salary in VND). Leave it out to keep the current price'),
       district: z.string().optional().describe('Where the item is, as a district or area. Send an empty string to clear it, or leave it out to keep it'),
-      condition: z.string().optional().describe('The item\'s condition in words. Send an empty string to clear it, or leave it out to keep it'),
+      condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used". Send an empty string to clear it, or leave it out to keep it'),
       images: z.array(z.string()).optional().describe('The complete new set of photo URLs, in display order; it replaces the current photos. To add one, send the current `images` from get_listing plus the new URL. Leave it out to keep them'),
       salaryM: z.number().nullable().optional().describe('A job\'s monthly salary in whole millions of VND (25 = 25.000.000 đ); it wins over `price`. Send null to remove it, or leave it out to keep it'),
     }),

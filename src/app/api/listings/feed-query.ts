@@ -393,9 +393,9 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    * ⛔ CONDITION WORDS LEAVE THE TEXT — AND FILTER NOTHING (field-03; search-synonyms.ts
    * splitConditionWords). "second hand furniture" found 2 unrelated rows because `second` and `hand`
    * had to appear in the text; now it is "furniture".
-   * ⛔ NO CONDITION NARROWING (decision at the commit gate, 2026-10-04): the post wizard labels the stored
-   * value 'new' "Mới / Như mới" (new / LIKE NEW), so members' like-new second-hand items are stored as
-   * condition='new'. A "not new" filter dropped exactly those from "iphone cũ" and "second hand
+   * ⛔ NO CONDITION NARROWING (decision at the commit gate, 2026-10-04): members' like-new second-hand items
+   * are stored like_new (or new before 2026-11-17), both new-ish to listing-condition.ts. A "not new" filter
+   * dropped exactly those from "iphone cũ" and "second hand
    * furniture" — backwards on a second-hand catalogue. The words are simply not text.
    * A query that was ONLY condition words ("second hand", "đồ cũ") is the goods browse: the items for
    * sale (`listingType: 'sell'`), whatever their condition — not rentals, jobs or services.

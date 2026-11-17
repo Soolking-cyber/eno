@@ -1,5 +1,6 @@
 import { facetsFor, freeTextAttributesFor, typesFor } from '@/lib/taxonomy'
 import { MULTI_SEP } from '@/lib/multi-facet'
+import { CONDITION_CHOICES } from '@/lib/listing-condition'
 import { providerLicenceKeysFor } from '@/lib/provider-licence'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 
@@ -87,8 +88,9 @@ export function subcategoryChangeReset<R>(
     facets.some((f) => f.key === k && f.kind !== 'range' && (f.options.length === 0 || offered(f, v)))
   const attrs = Object.fromEntries(Object.entries(cur.attrs).filter(([k, v]) => asked(k, v)))
   const ranges = Object.fromEntries(Object.entries(cur.ranges).filter(([k]) => facets.some((f) => f.key === k && f.kind === 'range'))) as Record<string, R>
-  const conditionFacet = facets.find((f) => f.key === 'condition')
-  const condition = cur.condition && conditionFacet?.options.some((o) => o.value === cur.condition) ? cur.condition : ''
+  // The form's three words (listing-condition.ts), not the facet's two: the facet has no like_new to keep.
+  const conditionAsked = facets.some((f) => f.key === 'condition')
+  const condition = cur.condition && conditionAsked && CONDITION_CHOICES.some((o) => o.value === cur.condition) ? cur.condition : ''
   const brand = opts.brandShown ? cur.brand : ''
   const model = opts.brandShown ? cur.model : ''
   const lost =

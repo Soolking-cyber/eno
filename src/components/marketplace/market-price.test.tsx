@@ -141,3 +141,18 @@ describe('the sample size is a grouped number, like every other count on the pag
     expect(text('vi', 2_500_000, { ...MODEL, n: 1234 })).toContain('Dựa trên 1.234 tin tương tự')
   })
 })
+
+describe('the label links to the model price page (src/lib/model-pages.ts)', () => {
+  const link = (band: React.ComponentProps<typeof MarketPrice>['band'], href?: string) =>
+    render(<LanguageProvider><LangSwitch to="en" /><MarketPrice price={2_500_000} band={band} href={href} /></LanguageProvider>).container.querySelector('a')
+  it('a brand+model band with an href: the label is the link', () => {
+    const a = link(MODEL, '/price/apple-iphone-13')
+    expect(a?.getAttribute('href')).toBe('/price/apple-iphone-13')
+    expect(a?.textContent).toBe('Market price')
+  })
+  it('never on a fallback band, nor without an href', () => {
+    expect(link(SIMILAR, '/price/apple-iphone-13')).toBeNull()
+    cleanup()
+    expect(link(MODEL)).toBeNull()
+  })
+})

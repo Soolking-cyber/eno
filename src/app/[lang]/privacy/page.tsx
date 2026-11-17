@@ -654,8 +654,10 @@ const SECTIONS: Section[] = [
         // Saves across devices (owner, 2026-11-09: "3 ok"): the SavedListing table (scripts/saved-listings-ddl.mjs) —
         // listing id + when, per account; /api/saved-listings; a guest's device list moves in at sign-in
         // (src/lib/saved-sync.ts); unsave = delete; account erasure cascades; in the data export (account/export).
-        en: 'Saved listings: when you are signed in, the listings you save are kept with your account, so they are there on any device where you sign in. Listings you saved on a device before signing in are added to your account when you sign in there. Unsaving a listing removes it, and deleting your account removes them all.',
-        vi: 'Tin đã lưu: khi bạn đã đăng nhập, các tin bạn lưu được giữ cùng tài khoản, để bạn thấy chúng trên mọi thiết bị mà bạn đăng nhập. Các tin bạn đã lưu trên một thiết bị trước khi đăng nhập sẽ được thêm vào tài khoản khi bạn đăng nhập trên thiết bị đó. Bỏ lưu một tin sẽ xóa tin đó khỏi tài khoản, và xóa tài khoản sẽ xóa toàn bộ.',
+        // Price-drop alerts (owner, 2026-11-17 — explicit opt-in): src/lib/price-alerts.ts (compliance_audit saved.price_alerts.*);
+        // the caps are DROP.NOTIFY_COOLDOWN_MS / RECIPIENT_DAILY_CAP (price-drop-rules.ts), the night rule ALERTS.QUIET_* (saved-search-alerts.ts).
+        en: 'Saved listings: when you are signed in, the listings you save are kept with your account, so they are there on any device where you sign in. Listings you saved on a device before signing in are added to your account when you sign in there. Unsaving a listing removes it, and deleting your account removes them all. If you switch on “Tell me when a saved listing drops in price” on the Saved page, we also use them to tell you when one drops in price: in your notifications, and by push where you turned notifications on — but never by push between 22:00 and 07:00 Vietnam time — at most once a day for each listing. It stays off until you switch it on, you can switch it off there at any time, and we keep when you switched it on or off and the version of the words you were shown.',
+        vi: 'Tin đã lưu: khi bạn đã đăng nhập, các tin bạn lưu được giữ cùng tài khoản, để bạn thấy chúng trên mọi thiết bị mà bạn đăng nhập. Các tin bạn đã lưu trên một thiết bị trước khi đăng nhập sẽ được thêm vào tài khoản khi bạn đăng nhập trên thiết bị đó. Bỏ lưu một tin sẽ xóa tin đó khỏi tài khoản, và xóa tài khoản sẽ xóa toàn bộ. Nếu bạn bật “Báo cho tôi khi tin đã lưu giảm giá” tại trang Tin đã lưu, chúng tôi cũng dùng các tin này để báo cho bạn khi một tin giảm giá: trong mục thông báo, và bằng thông báo đẩy nếu bạn đã bật thông báo — nhưng không gửi thông báo đẩy từ 22:00 đến 07:00 giờ Việt Nam — mỗi tin tối đa một lần mỗi ngày. Mục này tắt cho đến khi bạn bật, bạn có thể tắt tại đó bất cứ lúc nào, và chúng tôi lưu thời điểm bạn bật hoặc tắt cùng phiên bản nội dung bạn đã xem.',
       },
       {
         // ⛔ NO "SORTS LISTINGS BY DISTANCE": buildFeedOrderBy (api/listings/feed-query.ts:639) has no
@@ -758,8 +760,19 @@ const SECTIONS: Section[] = [
       { en: 'To translate listing and interface content into the language you choose.', vi: 'Để dịch nội dung tin đăng và giao diện sang ngôn ngữ bạn chọn.' },
       { en: 'To answer your questions, reports and support requests.', vi: 'Để trả lời câu hỏi, báo cáo và yêu cầu hỗ trợ của bạn.' },
       {
+        // The Trustpilot invite (owner, 2026-11-17 — not material, in-app bell only): src/lib/trustpilot-invite.ts (who,
+        // when, the 'trustpilot_invited' record) and /api/cron/trustpilot-invite. No new recipient: nothing goes to Trustpilot.
+        en: 'Once per account, as part of the service: from a week after your first message about a listing or after you first post a listing that is then published, whichever comes first, one notification on eno.vn asks whether you would review eno on Trustpilot. Nothing is offered for a review, and we send Trustpilot nothing about you. We keep a record that we asked — even if you delete the notification — so we never ask twice; it is deleted with your account.',
+        vi: 'Mỗi tài khoản một lần, như một phần của dịch vụ: từ một tuần sau khi bạn gửi tin nhắn đầu tiên về một tin đăng hoặc sau khi bạn đăng tin đầu tiên mà sau đó được hiển thị (tùy việc nào đến trước), một thông báo trên eno.vn hỏi bạn có muốn đánh giá eno trên Trustpilot không. Không có quà tặng hay ưu đãi nào cho việc đánh giá, và chúng tôi không gửi cho Trustpilot bất kỳ dữ liệu nào về bạn. Chúng tôi lưu lại việc đã hỏi — kể cả khi bạn xóa thông báo — để không bao giờ hỏi lại; bản ghi này bị xóa cùng tài khoản của bạn.',
+      },
+      {
         en: 'With your consent only, asked for separately: to personalise what you see using your own activity on this site; to measure the service with Google Analytics; and to send advertising measurement signals to Meta and TikTok (and to Google, when Analytics is on as well). Those three are described under “Cookies, tracking and your device”.',
         vi: 'Chỉ khi có sự đồng ý của bạn, được hỏi riêng cho từng mục: cá nhân hóa nội dung bạn thấy dựa trên chính hoạt động của bạn trên website; đo lường dịch vụ bằng Google Analytics; và gửi tín hiệu đo lường quảng cáo cho Meta và TikTok (và cho Google, khi Phân tích cũng được bật). Ba mục này được trình bày tại phần “Cookie, theo dõi và thiết bị của bạn”.',
+      },
+      // Price-drop alerts for saved listings (owner, 2026-11-17 — explicit opt-in): src/lib/price-alerts.ts.
+      {
+        en: 'With your consent only, given with its own switch on the Saved page: to tell you when a listing you saved drops in price (see “Saved listings”).',
+        vi: 'Chỉ khi có sự đồng ý của bạn, được đưa ra bằng công tắc riêng tại trang Tin đã lưu: để báo cho bạn khi một tin bạn đã lưu được giảm giá (xem mục “Tin đã lưu”).',
       },
       ...(IS_SERVICES ? PRIVACY_SERVICES_PURPOSES : []),
       {

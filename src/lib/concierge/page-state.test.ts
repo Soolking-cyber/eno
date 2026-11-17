@@ -203,6 +203,13 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
     expect(h.logError).toHaveBeenCalledWith(expect.any(Error), { op: 'concierge.page-state' })
   })
 
+  it('a stored condition value is said as the form\'s word: like_new → "Like new"', async () => {
+    h.payload.mockResolvedValue(feed(1, [rental({ condition: 'like_new' })]))
+    h.findMany.mockResolvedValue(rows([{ id: 'cl-r' }]))
+    const s = await pageStateFor('/?q=desk', { lang: 'en' })
+    expect(s.cards[0].facts).toContain('Condition: Like new')
+  })
+
   it('prices in words through vnd.ts — a teacher\'s figure said for what it is: the expected monthly salary, or the hourly rate for cover lessons', async () => {
     h.payload.mockResolvedValue(feed(5, [
       card({ id: 't-salary', price: 30_000_000, priceUnit: 'VND/month' }),

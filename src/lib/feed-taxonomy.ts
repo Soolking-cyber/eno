@@ -706,7 +706,7 @@ const BRAND_RE_G = new RegExp(BRAND_RE.source, 'gi')
  * target rather than the maker.
  */
 /** Shelves whose products are made FOR another device — a product line named there is the target. */
-const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
+export const ACCESSORY_SHELVES = new Set(['phone-cases', 'screen-protectors', 'cables-chargers', 'power-banks', 'accessories'])
 
 /**
  * What follows a device maker's name when the name refers to the DEVICE ("Samsung Galaxy S26",

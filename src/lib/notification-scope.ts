@@ -42,6 +42,12 @@ export const SERVICES_ONLY_NOTIFICATION_TYPES = [
 export const MARKETPLACE_ONLY_NOTIFICATION_TYPES = ['teacher_jobs', 'teacher_jobs_invite'] as const
 
 /**
+ * Rows no bell shows or deletes — a record kept with the account (the Trustpilot invite's "asked once",
+ * src/lib/trustpilot-invite.ts). ⛔ Any future retention/prune job must keep them.
+ */
+export const RECORD_ONLY_NOTIFICATION_TYPES = ['trustpilot_invited'] as const
+
+/**
  * ⛔ ONE PREDICATE, USED BY EVERY QUERY THAT COUNTS OR LISTS NOTIFICATIONS. The list, the unread
  * COUNT and the native badge must filter identically or a badge shows a number the feed cannot show
  * and the user cannot clear — and a badge that cannot be cleared teaches people to ignore the badge.
@@ -51,6 +57,6 @@ export const MARKETPLACE_ONLY_NOTIFICATION_TYPES = ['teacher_jobs', 'teacher_job
 export function notificationScope(userId: string, isMarketplace: boolean) {
   return {
     recipientId: userId,
-    type: { notIn: isMarketplace ? [...SERVICES_ONLY_NOTIFICATION_TYPES] : [...MARKETPLACE_ONLY_NOTIFICATION_TYPES] },
+    type: { notIn: [...(isMarketplace ? SERVICES_ONLY_NOTIFICATION_TYPES : MARKETPLACE_ONLY_NOTIFICATION_TYPES), ...RECORD_ONLY_NOTIFICATION_TYPES] },
   }
 }

@@ -251,7 +251,8 @@ describe('releasedParams', () => {
 })
 
 describe('conditionBucket — mirrors the NEWISH predicate in buildFeedFilters', () => {
-  it.each([['new', 'new'], ['New', 'new'], ['Like new', 'new'], ['Mới', 'new'], ['như mới', 'new']])(
+  // like_new (the post form's third word, 2026-11-17) is new-ish only through `includes('new')`.
+  it.each([['new', 'new'], ['New', 'new'], ['Like new', 'new'], ['like_new', 'new'], ['Mới', 'new'], ['như mới', 'new']])(
     '%s is new-ish', (input, expected) => expect(conditionBucket(input)).toBe(expected),
   )
 

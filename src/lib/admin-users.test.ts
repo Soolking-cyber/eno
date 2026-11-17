@@ -10,11 +10,16 @@ const h = vi.hoisted(() => ({
   audits: [] as Array<Record<string, unknown>>,
   recomputed: [] as string[],
   recomputeResult: { status: 'revoked', sourceId: 'v1', changed: true } as Record<string, unknown>,
+  auditQuery: null as null | { where: Record<string, unknown> },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({
   db: {
     profile: { findUnique: async () => h.profile },
+    identityVerification: { findMany: async () => [] },
+    report: { count: async () => 0 },
+    enforcementAction: { findMany: async () => [] },
+    complianceAudit: { findMany: async (q: { where: Record<string, unknown> }) => { h.auditQuery = q; return [] } },
     $transaction: async (fn: (tx: unknown) => Promise<void>) => fn({
       $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { h.steps.push(`${strings.join('?')} ${String(values[0])}`); return 1 },
       identityVerification: { updateMany: async ({ where, data }: { where: unknown; data: unknown }) => { h.steps.push('updateMany'); h.updates.push({ where, data }); return { count: 1 } } },
@@ -24,7 +29,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Record<string, unknown>) => { h.audits.push(input) } }))
 vi.mock('@/lib/compliance/recompute-verification', () => ({ recomputeVerification: async (id: string) => { h.recomputed.push(id); return h.recomputeResult } }))
 
-const { revokeIdentity } = await import('./admin-users')
+const { revokeIdentity, getAdminUserDetail } = await import('./admin-users')
 
 beforeEach(() => { h.profile = { id: 'p1', verificationStatus: 'verified' }; h.updates = []; h.steps = []; h.audits = []; h.recomputed = []; h.recomputeResult = { status: 'revoked', sourceId: 'v1', changed: true } })
 
@@ -57,5 +62,13 @@ describe('revokeIdentity and the teacher DM ladder', () => {
   it('⛔ takes the account\'s teacher-DM lock BEFORE it writes, so a thread being opened on the old rung commits first and one opened after sees the revocation (codex, gate 2026-10-13)', async () => {
     await revokeIdentity({ profileId: 'p1', admin: 'admin@eno.vn', reason: 'passport reported stolen' })
     expect(h.steps).toEqual(['select pg_advisory_xact_lock(hashtext(?)) teacher-dm:p1', 'updateMany', 'updateMany'])
+  })
+})
+
+describe('getAdminUserDetail — the account\'s last 15 audit rows', () => {
+  it('leaves the price-drop alerts switch out, so its toggles never crowd identity and enforcement rows away', async () => {
+    h.profile = { id: 'p1', verificationStatus: 'verified', createdAt: new Date('2026-11-01T00:00:00Z'), seller: null } as never
+    await getAdminUserDetail('p1')
+    expect(h.auditQuery?.where).toEqual({ subjectType: 'profile', subjectId: 'p1', action: { notIn: ['saved.price_alerts.on', 'saved.price_alerts.off'] } })
   })
 })

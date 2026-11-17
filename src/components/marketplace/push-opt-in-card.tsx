@@ -255,7 +255,7 @@ export function PushEventList({ className }: { className?: string }) {
     tr('Someone sends you an offer or a counter-offer, or accepts or declines yours', 'Có người trả giá hoặc trả giá lại với bạn, hoặc chấp nhận hay từ chối giá bạn đưa ra'),
     tr('Your listings need an availability check (at most once a day)', 'Tin đăng của bạn cần xác nhận còn hàng (tối đa mỗi ngày một lần)'),
     tr('A saved search has new matches', 'Tìm kiếm đã lưu có tin mới phù hợp'),
-    tr('The price drops on a listing you messaged about or whose contact you viewed', 'Tin bạn từng nhắn hỏi hoặc đã xem liên hệ được giảm giá'),
+    tr('The price drops on a listing you messaged about, whose contact you viewed, or that you saved (with Price-drop alerts on)', 'Tin bạn từng nhắn hỏi, đã xem liên hệ, hoặc đã lưu (khi bật Báo giảm giá) được giảm giá'),
     tr('A dispute case you are part of is updated', 'Hồ sơ khiếu nại liên quan đến bạn có cập nhật'),
     tr('Our moderation team sends a notice about your account (a pause, a review, an appeal decision)', 'Đội kiểm duyệt gửi thông báo về tài khoản của bạn (tạm dừng, xem xét, kết quả khiếu nại)'),
     tr('Your identity or storefront verification is reviewed', 'Hồ sơ xác minh danh tính hoặc gian hàng của bạn được xét duyệt'),

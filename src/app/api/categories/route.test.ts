@@ -72,3 +72,13 @@ describe('GET /api/categories — multi', () => {
     expect((amenities.options as Row[]).slice(0, 2).map((o) => o.value)).toEqual(['no-landlord', 'car-alley'])
   })
 })
+
+// Owner, 2026-11-17: the post form asks three condition words; the post schema offers the same three (browse keeps two).
+describe('GET /api/categories — condition', () => {
+  it('offers new, like_new and used, each with both labels', async () => {
+    const electronics = (await categories()).find((c) => c.slug === 'electronics')!
+    const condition = (electronics.facets as Row[]).find((f) => f.key === 'condition')!
+    expect((condition.options as Row[]).map((o) => o.value)).toEqual(['new', 'like_new', 'used'])
+    expect((condition.options as Row[])[1]).toEqual({ value: 'like_new', label: 'Like new', labelVi: 'Như mới' })
+  })
+})

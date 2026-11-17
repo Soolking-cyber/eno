@@ -206,6 +206,8 @@ describe('goods → Product', () => {
     expect(offersOf(ld(input({ condition: null })))).not.toHaveProperty('itemCondition')
     expect(offersOf(ld(input({ condition: '' })))).not.toHaveProperty('itemCondition')
     expect(offersOf(ld(input({ condition: 'used' }))).itemCondition).toBe('https://schema.org/UsedCondition')
+    // The form's like_new is used to schema.org (it has no like-new), as the feeds send it.
+    expect(offersOf(ld(input({ condition: 'like_new' }))).itemCondition).toBe('https://schema.org/UsedCondition')
     expect(offersOf(ld(input({ condition: 'refurb' }))).itemCondition).toBe('https://schema.org/RefurbishedCondition')
     expect(offersOf(ld(input({ condition: 'Refurbished' }))).itemCondition).toBe('https://schema.org/RefurbishedCondition')
     expect(offersOf(ld(input({ condition: 'Mới 99%' }))).itemCondition).toBe('https://schema.org/NewCondition')

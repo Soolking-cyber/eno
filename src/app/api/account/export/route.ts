@@ -115,10 +115,11 @@ export async function GET() {
   // never a value from the CV (src/app/api/teachers/me/import) — and (2026-10-21) "Improve with AI" on the About text:
   // the notice version and its hash, what was sent as counts and flags, the outcome, never the text
   // (src/app/api/teachers/me/bio-rewrite) — and (2026-10-22) which opt-ins a new teacher profile was saved with still at
-  // their default ON ('teacher.optins.default' — src/lib/teachers/publish.ts saveTeacherProfile). (Sign in with LinkedIn, removed 2026-10-16, was never switched on, so no
+  // their default ON ('teacher.optins.default' — src/lib/teachers/publish.ts saveTeacherProfile) — and (2026-11-17) the
+  // price-drop alerts switch on and off, with the notice version (src/lib/price-alerts.ts). (Sign in with LinkedIn, removed 2026-10-16, was never switched on, so no
   // LinkedIn consent row exists to list.)
   const consentRecords = await db.complianceAudit.findMany({
-    where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result', 'teacher.optins.default'] } },
+    where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result', 'teacher.optins.default', 'saved.price_alerts.on', 'saved.price_alerts.off'] } },
     orderBy: { occurredAt: 'asc' },
     select: { action: true, occurredAt: true, detail: true },
   })

@@ -381,6 +381,14 @@ describe('SellerListings on a phone: a sort pill, the Filters chip and the count
     await waitFor(() => expect(note.textContent).toBe('Showing 61 of 76,000 listings.'))
     expect(note.isConnected).toBe(true)
   })
+
+  it('`quietCount="always"` (a model price page, whose line prints the count): the live sentence is sr-only at every width', () => {
+    render(<SellerListings listings={PAGE} initialSort="price-low" quietCount="always" serverScope={{ params: { brand: 'apple' }, total: 76000, pageSize: 60 }} />)
+    const note = screen.getByText('Showing 60 of 76,000 listings.')
+    expect(note.getAttribute('aria-live')).toBe('polite')
+    expect(tokens(note)).toContain('sr-only')
+    expect(tokens(note).filter((t) => t.startsWith('max-sm:'))).toEqual([])
+  })
 })
 
 /**

@@ -60,9 +60,8 @@ export function unitsFor(foldedTokens: readonly string[]): SearchUnit[] {
  * CONDITION WORDS ARE NOT A UNIT (field-03, UX program 2). "second hand furniture" — the exact slug of
  * our own SEO hub — found 2 unrelated rows while "furniture" found hundreds: as units, `second` and
  * `hand` had to appear in the row's text, and almost no used sofa says "second hand". So the words
- * leave the text — and filter NOTHING (commit gate, 2026-10-04): the post wizard labels the stored value
- * 'new' "Mới / Như mới" (new / like new), so a "not new" filter would drop members' like-new second-hand
- * items. A query of condition words ONLY is the goods browse — items for sale (feed-query.ts).
+ * leave the text — and filter NOTHING (commit gate, 2026-10-04): members' like-new second-hand items are
+ * stored like_new (or new before 2026-11-17), so a "not new" filter would drop them. A query of condition words ONLY is the goods browse — items for sale (feed-query.ts).
  * ⛔ NOT A SYNONYM GROUP: groups OR their terms, which would leave `hand` free to match on its own.
  * ⛔ MATCHED ON THE WORDS AS TYPED, BEFORE fold(): fold() makes "cũ" (used) and "củ" (Củ Chi, an HCMC
  * district — and rentals are most of the stock) the same `cu`. Only the ACCENTED "cũ" is a condition

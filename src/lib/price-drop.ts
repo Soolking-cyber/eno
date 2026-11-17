@@ -3,6 +3,8 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { formatMoneyFull, dropPercent } from '@/lib/vnd'
+import { priceAlertSavers } from '@/lib/price-alerts'
+import { isQuietHour } from '@/lib/saved-search-alerts'
 
 // ── Price-drop rules engine (anti-fake-discount, 2026-07-07) ─────────────────────
 //
@@ -113,12 +115,12 @@ export async function priceChangeEffects(
 
 /**
  * Fan the drop out to buyers who showed real intent on THIS listing: open
- * conversations + contact reveals. (Signed-in saves reach the DB since 2026-11-09 — SavedListing —
- * but telling savers about a drop is not built: it would need its own notice and consent.) Deduped, seller excluded, capped at AUDIENCE_CAP, and
+ * conversations + contact reveals, and people who saved it with 'Price-drop alerts' switched on (src/lib/price-alerts.ts —
+ * their own consent; a guest's hearts are device-only and get nothing; no push 22:00–07:00 ICT for them). Deduped, seller excluded, capped at AUDIENCE_CAP, and
  * each recipient is protected by a 5-per-24h cap so power-browsers aren't blasted.
  * Best-effort: runs via after(), every failure is swallowed.
  */
-async function notifyPriceDrop(listingId: string, fromPrice: number, toPrice: number): Promise<void> {
+export async function notifyPriceDrop(listingId: string, fromPrice: number, toPrice: number): Promise<void> {
   try {
     /**
      * ⚠️ SUPPRESSED AT THE SOURCE, NOT AT THE URL. A price-drop push carries a RELATIVE link, so it
@@ -133,13 +135,18 @@ async function notifyPriceDrop(listingId: string, fromPrice: number, toPrice: nu
     if (!listing || listing.status !== 'active' || !listing.verified) return
     const sellerProfileId = listing.seller.ownerId
 
-    const [convos, reveals] = await Promise.all([
+    const [convos, reveals, savers] = await Promise.all([
       db.conversation.findMany({ where: { listingId }, select: { buyerProfileId: true }, orderBy: { createdAt: 'desc' }, take: 200 }),
       db.contactReveal.findMany({ where: { listingId }, select: { viewerId: true }, orderBy: { createdAt: 'desc' }, take: 200 }),
+      priceAlertSavers(listingId, DROP.AUDIENCE_CAP).catch(() => [] as string[]), // a failed consent read = no saver alert (fails closed)
     ])
-    const candidateIds = [...new Set([...convos.map((c) => c.buyerProfileId), ...reveals.map((r) => r.viewerId)])]
+    // The night rule is for people who are here ONLY because they saved the listing: a buyer or a revealer who also saved keeps
+    // the push they had before alerts existed (the commit gate, 2026-11-17 — switching alerts on must never take a channel away).
+    const intent = new Set<string>([...convos.map((c) => c.buyerProfileId), ...reveals.map((r) => r.viewerId)].filter((id): id is string => !!id))
+    const saverSet = new Set(savers.filter((id) => !intent.has(id)))
+    const candidateIds = [...new Set([...convos.map((c) => c.buyerProfileId), ...reveals.map((r) => r.viewerId), ...savers])]
       .filter((id): id is string => !!id && id !== sellerProfileId)
-      .slice(0, DROP.AUDIENCE_CAP)
+      .slice(0, DROP.AUDIENCE_CAP) // stronger intent first: buyers and revealers fill the cap before savers
     if (!candidateIds.length) return
 
     // ContactReveal.viewerId (and, rarely, a conversation buyer) can point at a
@@ -176,7 +183,9 @@ async function notifyPriceDrop(listingId: string, fromPrice: number, toPrice: nu
       })),
     })
     // Best-effort web push, one tag per listing so repeat drops replace, not stack.
+    const quiet = isQuietHour(new Date())
     for (const rid of recipients) {
+      if (quiet && saverSet.has(rid)) continue // planPriceDropAlert's rule: a drop can't wait, so a saver's row is written and only the buzz is skipped
       try {
         await sendPushToProfile(rid, { title: 'Giảm giá · Price drop', body, url: `/listings/${listingId}`, tag: `price-drop-${listingId}` })
       } catch { /* push is optional */ }

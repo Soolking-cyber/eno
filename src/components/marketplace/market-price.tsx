@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import type { PriceBandBasis } from '@/lib/price-fallback'
 import { compactPrice, formatInteger, moneyLocale } from '@/lib/vnd'
@@ -35,7 +36,8 @@ type Band = { n: number; p25: number; median: number; p75: number; basis?: Price
  */
 export const FALLBACK_BELOW_CREDIBLE_FRACTION = 0.5
 
-export function MarketPrice({ price, band }: { price: number; band: Band }) {
+/** `href`: the model's price page (src/lib/model-pages.ts) — the label links there, on a brand+model band only. */
+export function MarketPrice({ price, band, href }: { price: number; band: Band; href?: string }) {
   const { tr, lang } = useLanguage()
   const loc = moneyLocale(lang)
   const pos = price < band.p25 ? 'low' : price > band.p75 ? 'high' : 'typical'
@@ -66,7 +68,9 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-muted-foreground">{tr('Market price', 'Giá thị trường')}</span>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {href && !similar ? <Link href={href} prefetch={false} className="underline underline-offset-4 hover:text-foreground">{tr('Market price', 'Giá thị trường')}</Link> : tr('Market price', 'Giá thị trường')}
+        </span>
         {/* `data-fab-avoid` on the verdict and the range: the support bubble rested over 'Giá phổ biến'
             on first paint (pdp-01) — it yields to them now (back-to-top.tsx OBSTACLES). */}
         {label && (
