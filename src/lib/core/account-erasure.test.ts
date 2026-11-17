@@ -11,6 +11,7 @@ afterEach(() => { vi.stubEnv('NEXT_PUBLIC_APPLE_SIGNIN', '') })
  * response-path purge runs after the transaction and clears what it settled.
  */
 const h = vi.hoisted(() => ({
+  apiKeyDeletes: [] as unknown[],
   profile: null as null | { id: string; avatarUrl: string | null; enforcementState: string; email: string | null },
   openReports: 0,
   seller: null as null | { id: string; avatarUrl: string | null; bannerUrl: string | null },
@@ -118,6 +119,8 @@ vi.mock('@/lib/db', () => {
     $queryRaw: async (strings: TemplateStringsArray) =>
       strings.join('?').includes('DealConfirmation') ? [{ deals: h.dealTables, events: h.dealTables }] : [{ ok: h.callTables }],
     dealConfirmation: { deleteMany: async ({ where }: { where: unknown }) => { h.dealDeletes.push({ table: 'DealConfirmation', where }); h.events.push('deal-rows'); return { count: 1 } } },
+    // Every sign-in grant of the person, a person-only (no shop) one included (2026-11-17).
+    apiKey: { deleteMany: async ({ where }: { where: unknown }) => { h.apiKeyDeletes.push(where); return { count: 0 } } },
     dealConfirmationEvent: {
       deleteMany: async () => { h.dealEventDeletes++; h.events.push('deal-events-deleted'); return { count: 0 } },
       // Prisma's updateMany on a flat equality where, applied to the in-memory rows.
@@ -308,6 +311,12 @@ describe('eraseAccount', () => {
     h.openReports = 0; h.profile!.enforcementState = 'suspended'
     expect(await eraseAccount('p1', { kind: 'self' })).toEqual({ ok: false, code: 'under_review' })
     expect(h.events).toEqual([])
+  })
+
+  it('⛔ every sign-in grant of the person goes, a chat-only one (no shop, so no storefront cascade) included', async () => {
+    h.apiKeyDeletes = []
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.apiKeyDeletes).toEqual([{ profileId: 'p1', OR: [{ sellerId: null }, { prefix: { startsWith: 'oag_' } }] }])
   })
 
   it('unknown account → not_found', async () => {

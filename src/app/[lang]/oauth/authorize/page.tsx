@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { consentIdentityHost } from '@/lib/api/oauth-hosted-clients'
-import { checkAuthRequest, eligibleShop, issueConsentTicket, verifiedProfileId } from '@/lib/api/oauth-grant'
+import { alreadyGranted, checkAuthRequest, connectTarget, issueConsentTicket, verifiedProfileId } from '@/lib/api/oauth-grant'
+import { db } from '@/lib/db'
 
 /**
  * /oauth/authorize — "SIGN IN WITH ENO", THE CONSENT SCREEN (2026-11-13; src/lib/api/oauth-grant.ts is the mechanism).
@@ -77,9 +78,17 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
   const returnHost = ['localhost', '127.0.0.1', '[::1]'].includes(ret.hostname) ? null : ret.host
   // A client document eno serves itself (Grok's) names an app on another site: that site is what the person must recognise.
   const identityHost = consentIdentityHost(client.clientId, client.host, returnHost)
-  const elig = await eligibleShop(profileId)
-  const shop = elig.ok ? elig.shop : null
-  const ticket = shop ? issueConsentTicket(req, profileId, [shop.id], Math.floor(Date.now() / 1000)) : null
+  // Who this connects (owner 2026-11-17, "ok to agents for all"): the shop, or the person alone with the chat scopes —
+  // oauth-grant.ts connectTarget, the same call the Allow repeats. The ticket seals the scopes THIS screen lists.
+  const target = await connectTarget(profileId, req.scopes)
+  const shop = target.ok && target.kind === 'shop' ? target.shop : null
+  const ticket = target.ok ? issueConsentTicket({ ...req, scopes: target.scopes }, profileId, shop ? [shop.id] : [], Math.floor(Date.now() / 1000)) : null
+  // ONE TAP when this app already holds all of it for this account (a reconnect): the same sealed form, shorter words.
+  // ⛔ Never skipped altogether — alreadyGranted says why.
+  const again = target.ok ? await alreadyGranted(profileId, client.clientId, shop ? shop.id : null, target.scopes) : false
+  // Which account this connects, so a person with two never connects the wrong one without seeing it.
+  const me = await db.profile.findUnique({ where: { id: profileId }, select: { displayName: true, email: true } })
+  const who = me?.displayName || me?.email || null
 
   return (
     <Shell>
@@ -92,27 +101,37 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
       {returnHost && returnHost !== identityHost ? (
         <p className="mt-1 text-sm leading-relaxed text-body"><Tr text="It will send you back to:" /> <strong className="font-mono text-foreground">{returnHost}</strong></p>
       ) : null}
-      {shop && ticket ? (
+      {who ? <p className="mt-1 text-sm leading-relaxed text-body"><Tr text="Signed in as" /> <strong className="text-foreground">{who}</strong></p> : null}
+      {target.ok && ticket ? (
         <>
-          <p className="mt-5 text-sm leading-relaxed text-body"><Tr text="wants to manage your eno shop for you:" /> <strong className="text-foreground">{shop.name}</strong></p>
+          {again ? (
+            <p className="mt-5 text-sm leading-relaxed text-body"><Tr text="is already connected to your account with these permissions:" />{shop ? <> <strong className="text-foreground">{shop.name}</strong></> : null}</p>
+          ) : shop ? (
+            <p className="mt-5 text-sm leading-relaxed text-body"><Tr text="wants to manage your eno shop for you:" /> <strong className="text-foreground">{shop.name}</strong></p>
+          ) : (
+            <p className="mt-5 text-sm leading-relaxed text-body"><Tr text="wants to chat for you on eno:" /></p>
+          )}
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
-            {req.scopes.map((s) => <li key={s}>• {SCOPE_TEXT[s] ? <Bilingual {...SCOPE_TEXT[s]} /> : s}</li>)}
+            {target.scopes.map((s) => <li key={s}>• {SCOPE_TEXT[s] ? <Bilingual {...SCOPE_TEXT[s]} /> : s}</li>)}
           </ul>
+          {target.kind === 'person' && target.narrowed ? (
+            <p className="mt-3 text-sm leading-relaxed text-body"><Tr text="Without a business shop, it can only chat for you." /></p>
+          ) : null}
           <p className="mt-4 text-xs leading-relaxed text-body">
-            <Tr text="Only allow apps you trust. You can disconnect it at any time in Dashboard › Developers." />
+            <Tr text="Only allow apps you trust. You can disconnect it at any time in Settings › Privacy." />
           </p>
           {/* Each button carries the sealed ticket as its own value, so the form needs no hidden field. */}
           <form method="post" action="/api/oauth/authorize" className="mt-6 flex flex-wrap gap-3">
-            <Button type="submit" name="allow" value={ticket} variant="cta"><Tr text="Allow" /></Button>
+            <Button type="submit" name="allow" value={ticket} variant="cta">{again ? <Tr text="Continue" /> : <Tr text="Allow" />}</Button>
             <Button type="submit" name="deny" value={ticket} variant="outline"><Tr text="Cancel" /></Button>
           </form>
         </>
       ) : (
         <>
           <p className="mt-5 text-sm leading-relaxed text-body">
-            {!elig.ok && elig.reason === 'not_business'
+            {!target.ok && target.reason === 'not_business'
               ? <Tr text="Connecting an app needs a business account, where you can also disconnect it later. Switch your account to business, then start the connection again." />
-              : !elig.ok && elig.reason === 'restricted'
+              : !target.ok && target.reason === 'restricted'
                 ? <Tr text="Your account cannot connect apps right now." />
                 : <Tr text="You need an eno shop to connect an app. Open your shop from your account first, then start the connection again." />}
           </p>

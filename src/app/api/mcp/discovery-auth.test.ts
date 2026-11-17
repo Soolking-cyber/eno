@@ -241,7 +241,7 @@ describe('MCP execution stays closed', () => {
     // The challenge points MCP clients at "Sign in with eno" (RFC 9728 §5.1): Claude's and ChatGPT's connectors find
     // the authorization server only through it, and a browser client must be allowed to read it.
     const { OAUTH_ISSUER } = await import('@/lib/api/oauth')
-    expect(res.headers.get('www-authenticate')).toBe(`Bearer resource_metadata="${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp", scope="listings:read listings:write analytics:read"`)
+    expect(res.headers.get('www-authenticate')).toBe(`Bearer resource_metadata="${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp", scope="listings:read listings:write analytics:read messages:read messages:write"`)
     expect(res.headers.get('access-control-expose-headers')).toContain('WWW-Authenticate')
   })
 

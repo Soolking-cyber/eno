@@ -624,8 +624,11 @@ model Handle {
 // `scopes` is space-separated (listings:read, analytics:read, …). Revoke = set revokedAt.
 model ApiKey {
   id         String    @id @default(cuid())
-  sellerId   String
-  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  /// NULL = a PERSON-ONLY sign-in grant (2026-11-17, owner "ok to agents for all"): an app connected to an account with
+  /// no shop in it, holding only the messaging scopes (src/lib/api/oauth-grant.ts connectTarget). Every API key and every
+  /// shop grant has a shop. Applied by scripts/apikey-person-grant-ddl.mjs, never `db push`.
+  sellerId   String?
+  seller     Seller?   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   profileId  String    @db.Uuid // owning account (audit; FK omitted — scoping is by seller)
   name       String
   prefix     String    @unique

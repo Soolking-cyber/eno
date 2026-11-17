@@ -1,5 +1,5 @@
 import 'server-only'
-import { eligibleShop, GRANT_MAX_AGE_SECONDS } from '@/lib/api/oauth-grant'
+import { grantEligible, GRANT_MAX_AGE_SECONDS } from '@/lib/api/oauth-grant'
 import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
@@ -127,8 +127,8 @@ export async function resolveApiKey(req: Request, requiredScope?: string, opts: 
       try {
         const grant = await db.apiKey.findUnique({ where: { id: tok.keyId }, select: { revokedAt: true, createdAt: true, profileId: true, sellerId: true } })
         if (grant && !grant.revokedAt && grant.createdAt.getTime() / 1000 + GRANT_MAX_AGE_SECONDS > Date.now() / 1000) {
-          const elig = await eligibleShop(grant.profileId)
-          live = elig.ok && elig.shop.id === grant.sellerId
+          // A shop grant while its person still has THAT shop; a person-only grant (no shop) while the account may connect.
+          live = await grantEligible(grant.profileId, grant.sellerId)
           // Revoked when a call sees it, not merely refused: restoring the account afterwards does not revive it (review).
           // (A change nobody's call or refresh sees in between is caught at the next one, which then revokes.)
           if (!live) await db.apiKey.updateMany({ where: { id: tok.keyId, revokedAt: null }, data: { revokedAt: new Date() } })
@@ -173,7 +173,7 @@ export async function resolveApiKey(req: Request, requiredScope?: string, opts: 
     // A credential of the wrong shape is a bad token; no credential at all is no error code (RFC 6750 §3.1).
     return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.', rate: rl, challenge: raw ? { error: 'invalid_token' } : undefined }
   }
-  let key: { id: string; sellerId: string; profileId: string; scopes: string; revokedAt: Date | null } | null = null
+  let key: { id: string; sellerId: string | null; profileId: string; scopes: string; revokedAt: Date | null } | null = null
   try {
     key = await db.apiKey.findUnique({
       where: { hashedKey: hashApiKey(raw) },
@@ -182,7 +182,8 @@ export async function resolveApiKey(req: Request, requiredScope?: string, opts: 
   } catch {
     return { ok: false, status: 503, code: 'unavailable', message: 'Authentication is temporarily unavailable.' }
   }
-  if (!key || key.revokedAt) {
+  // A raw key always has a shop; a row without one is a person-only sign-in grant, whose hash is never a key's anyway.
+  if (!key || key.revokedAt || !key.sellerId) {
     /**
      * ⛔ THE SAME LIMITER AS THE MALFORMED PATH, AND CODEX WAS RIGHT THAT WITHOUT IT THE GUARD WAS
      * THEATRE. A real key-space probe does not send garbage — it sends WELL-FORMED `eno_live_…`
@@ -215,7 +216,7 @@ export async function resolveApiKey(req: Request, requiredScope?: string, opts: 
   // ⚠️ `rate: rl` — the limiter's own snapshot, not a re-derived `{ limit, remaining }` pair. The
   // reset it carries was measured by the same SQL statement that did the check (see
   // src/lib/ratelimit.ts), and rebuilding the object here is how that field silently gets lost.
-  return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId, profileId: key.profileId, scopes }, rate: rl }
+  return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId as string, profileId: key.profileId, scopes }, rate: rl }
 }
 
 // Confirm a listing belongs to the key's shop — the v1 write/mutate guard (RLS is

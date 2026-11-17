@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   const tokenRate = tightestRate(byIp, byClient)
   if (!byIp.success || !byClient.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.', tokenRate)
 
-  let key: { id: string; sellerId: string; profileId: string; scopes: string; prefix: string; revokedAt: Date | null } | null = null
+  let key: { id: string; sellerId: string | null; profileId: string; scopes: string; prefix: string; revokedAt: Date | null } | null = null
   try {
     key = await db.apiKey.findUnique({
       where: { hashedKey: hashApiKey(clientSecret) },
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
   if (!key || key.revokedAt) return oauthError(401, 'invalid_client', 'Invalid or revoked client credentials.')
   // A sign-in grant row is never a client_credentials client (its hash is a refresh token's, under another label —
   // oauth-grant.ts): refused by name too, so no future hashing change can turn a refresh token into a key.
-  if (key.prefix.startsWith(GRANT_PREFIX)) return oauthError(401, 'invalid_client', 'Invalid or revoked client credentials.')
+  if (key.prefix.startsWith(GRANT_PREFIX) || !key.sellerId) return oauthError(401, 'invalid_client', 'Invalid or revoked client credentials.')
   // If a client_id is supplied it must match the key's prefix (constant-time).
   if (clientId) {
     const a = Buffer.from(clientId), b = Buffer.from(key.prefix)

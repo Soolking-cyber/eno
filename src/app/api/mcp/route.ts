@@ -21,7 +21,10 @@ const MCP_TOOL_CALLS_PER_MIN = 120
  * could finish. With "Sign in with eno" (src/lib/api/oauth-grant.ts) it can, and Claude's and ChatGPT's connectors
  * discover the authorization server only through this header (RFC 9728 §5.1, MCP authorization). An API key still works.
  */
-const CHALLENGE = `Bearer resource_metadata="${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp", scope="listings:read listings:write analytics:read"`
+// The scopes a client asks for at connect (MCP authorization: the challenge's `scope` comes before scopes_supported): the
+// shop tools' and the chat tools' (2026-11-17), so ONE consent covers both and nobody is asked twice. A person with no
+// shop is offered the chat ones alone (oauth-grant.ts connectTarget).
+const CHALLENGE = `Bearer resource_metadata="${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp", scope="listings:read listings:write analytics:read messages:read messages:write"`
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -121,7 +124,13 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       const name = String(msg.params?.name || '')
       const tool = TOOLS_BY_NAME.get(name)
       if (!tool) return rpcError(msg.id, -32602, `Unknown tool: ${name}`)
-      if (!auth.scopes.has(tool.scope)) return toolErr(msg.id, 'insufficient_scope', `This key is missing the "${tool.scope}" scope.`)
+      if (!auth.scopes.has(tool.scope)) {
+        // A chat-only connection (person-only grant: sellerId '') asking for a SHOP tool: say what would fix it.
+        if (!auth.sellerId && !tool.scope.startsWith('messages:')) {
+          return toolErr(msg.id, 'no_shop', 'This connection is for chat only. To manage a shop, connect again with a business account that has a shop, and allow the shop permissions.')
+        }
+        return toolErr(msg.id, 'insufficient_scope', `This key is missing the "${tool.scope}" scope.`)
+      }
       const parsed = tool.input.safeParse(msg.params?.arguments ?? {})
       if (!parsed.success) {
         return toolErr(msg.id, 'invalid_input', parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; '))

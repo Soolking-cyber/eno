@@ -295,6 +295,12 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
       await tx.dealConfirmationEvent.updateMany({ where: { buyerProfileId: profile.id }, data: { buyerProfileId: NIL_UUID } })
     }
     appleQueue = await queueTokensForErasure(tx, profile.id)
+    // Every sign-in grant of this person, a person-only one included (2026-11-17): ApiKey.profileId has no foreign key, and
+    // the storefront cascade above reaches only grants WITH a shop — a chat-only connection would outlive its account.
+    // Scoped to what is the PERSON's: their sign-in grants and any shop-less row — never an API key a surviving shop
+    // depends on (ApiKey.profileId is audit, the scoping is by shop; the shop's own keys went with its cascade above).
+    // 'oag_' = oauth-grant.ts GRANT_PREFIX, spelled out: this module runs from scripts too, and oauth-grant is server-only.
+    await tx.apiKey.deleteMany({ where: { profileId: profile.id, OR: [{ sellerId: null }, { prefix: { startsWith: 'oag_' } }] } })
     await tx.profile.delete({ where: { id: profile.id } })
   }, { timeout: 30_000 }) // an account with hundreds of listings writes hundreds of tombstones; Prisma's 5s default is for a form save
 

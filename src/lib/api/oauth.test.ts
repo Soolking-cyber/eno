@@ -22,6 +22,14 @@ describe('issue/verify roundtrip', () => {
     expect([...v!.scopes].sort()).toEqual(['analytics:read', 'listings:read'])
   })
 
+  it('a person-only grant\'s token (no shop: sid \'\') verifies — the verifier wants a string, never a non-empty one (2026-11-17)', () => {
+    const tok = issueAccessToken({ ...claims, sellerId: '', scopes: ['messages:read', 'messages:write'], aud: 'https://eno.vn/api/mcp' }, NOW)!
+    const v = verifyAccessToken(tok, NOW)
+    expect(v).not.toBeNull()
+    expect(v!.sellerId).toBe('')
+    expect([...v!.scopes].sort()).toEqual(['messages:read', 'messages:write'])
+  })
+
   it('is a 3-segment JWT and recognised as an access token', () => {
     const tok = issueAccessToken(claims, NOW)!
     expect(tok.split('.')).toHaveLength(3)

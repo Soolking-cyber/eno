@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { kv } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { safeFetch } from '@/lib/ssrf'
-import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
+import { MESSAGING_SCOPES, OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
 /**
@@ -267,6 +267,66 @@ export async function eligibleShop(profileId: string): Promise<{ ok: true; shop:
   return { ok: true, shop }
 }
 
+/** A person-only connection's gate (2026-11-17, owner "ok to agents for all"): the account exists and is not held or suspended. */
+export async function eligiblePerson(profileId: string): Promise<boolean> {
+  const p = await db.profile.findUnique({ where: { id: profileId }, select: { enforcementState: true } })
+  return !!p && p.enforcementState !== 'held' && p.enforcementState !== 'suspended'
+}
+
+const MESSAGING = new Set<string>(MESSAGING_SCOPES)
+
+/**
+ * ── WHAT A SIGN-IN CONNECTS (owner, 2026-11-17: "ok to agents for all") ───────────────────────────────────────────────
+ *  · ONLY chat scopes asked → the PERSON (any account, business or not): a grant with no shop (ApiKey.sellerId NULL). A
+ *    business account's chat-only connection is person-only too, so switching the account type never cuts it.
+ *  · Any shop scope asked, and the person has a connectable shop → that SHOP, with every scope asked.
+ *  · Shop scopes asked but no connectable shop, and chat scopes asked too → the PERSON with the chat scopes only (the
+ *    screen says so). No chat scope asked → refused, with today's reason (no shop / not business / restricted).
+ * One function decides it for the consent page, the Allow and every later check (grantEligible), so they cannot disagree.
+ */
+export type ConnectTarget =
+  | { ok: true; kind: 'shop'; shop: { id: string; name: string }; scopes: string[]; narrowed: false }
+  | { ok: true; kind: 'person'; scopes: string[]; narrowed: boolean }
+  | { ok: false; reason: 'no_shop' | 'not_business' | 'restricted' }
+export async function connectTarget(profileId: string, asked: string[]): Promise<ConnectTarget> {
+  const chat = asked.filter((s) => MESSAGING.has(s))
+  if (chat.length === asked.length) {
+    return (await eligiblePerson(profileId)) ? { ok: true, kind: 'person', scopes: chat, narrowed: false } : { ok: false, reason: 'restricted' }
+  }
+  const elig = await eligibleShop(profileId)
+  if (elig.ok) return { ok: true, kind: 'shop', shop: elig.shop, scopes: asked, narrowed: false }
+  if (chat.length && elig.reason !== 'restricted' && (await eligiblePerson(profileId))) return { ok: true, kind: 'person', scopes: chat, narrowed: true }
+  return { ok: false, reason: elig.reason }
+}
+
+/** Is a grant still allowed to act — at redemption, at every refresh and on every call? A shop grant while its person
+ *  still has THAT connectable shop; a person-only grant while the account may connect at all. */
+export async function grantEligible(profileId: string, sellerId: string | null): Promise<boolean> {
+  if (sellerId === null) return eligiblePerson(profileId)
+  const elig = await eligibleShop(profileId)
+  return elig.ok && elig.shop.id === sellerId
+}
+
+/** At most this many live grants per app, person and shop-or-person: a reconnect retires the oldest beyond it, so grants
+ *  never pile up (nor count a shop out of its API keys), while two devices of one app can stay connected. */
+export const LIVE_GRANTS_PER_APP = 3
+
+/**
+ * Does this app already hold, for this person and target, every scope it is asking for now? Then the consent screen is
+ * the one-tap "Continue" form (page.tsx). ⛔ NEVER an automatic approval (plan review 2026-11-17): the big apps share one
+ * client id across all their users and desktop apps return to any localhost port, so a zero-click code would let someone
+ * else's connector be attached to this account by a link. One tap on eno's own page is the floor.
+ */
+export async function alreadyGranted(profileId: string, clientId: string, sellerId: string | null, scopes: string[]): Promise<boolean> {
+  const rows = await db.apiKey.findMany({
+    where: { profileId, sellerId, revokedAt: null, prefix: { startsWith: `${GRANT_PREFIX}${clientBinding(clientId)}` }, createdAt: { gt: new Date(Date.now() - GRANT_MAX_AGE_SECONDS * 1000) } },
+    orderBy: { createdAt: 'desc' },
+    select: { scopes: true },
+    take: LIVE_GRANTS_PER_APP,
+  })
+  return rows.some((r) => { const has = new Set(r.scopes.split(/\s+/)); return scopes.every((s) => has.has(s)) })
+}
+
 // ── Consent ticket: binds what was SHOWN to who saw it ────────────────────────────────────────────────────────────────
 
 type ConsentClaims = AuthRequest & { pid: string; sellers: string[]; exp: number; nonce: string }
@@ -336,8 +396,9 @@ export async function verifiedPerson(): Promise<{ profileId: string; email: stri
 
 type CodeClaims = { kid: string; cid: string; ruri: string; chal: string; scope: string; res: string; exp: number }
 
-/** Approve: a PENDING grant row for the chosen shop, and a code bound to it and to the request. */
-export async function approve(t: ConsentClaims, sellerId: string, clientName: string, now: number): Promise<string | null> {
+/** Approve: a PENDING grant row for the chosen shop (or, `sellerId` null, for the person alone), and a code bound to it
+ *  and to the request. The ticket's scopes are what the screen listed — already narrowed for a person-only connection. */
+export async function approve(t: ConsentClaims, sellerId: string | null, clientName: string, now: number): Promise<string | null> {
   // Pending rows whose code was never redeemed are dropped after ten minutes, so abandoned sign-ins do not pile up.
   // Everyone's, not only this person's: a sign-in someone abandons is cleared by the next sign-in anyone makes (review).
   // Never an agent registration's pending row: its ceremony may run 30 minutes (agent-auth.ts prunes its own).
@@ -366,6 +427,8 @@ export function pkceOk(verifier: string, challenge: string): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
+/** `sellerId` is '' for a person-only grant (ApiKey.sellerId NULL): the token's `sid` claim must be a string, and ''
+ *  never matches a shop id; such a grant holds only messaging scopes, which no shop tool or /api/v1 route accepts. */
 export type GrantTokens = { keyId: string; sellerId: string; profileId: string; scopes: string[]; refreshToken: string }
 export type GrantResult = { ok: true; grant: GrantTokens } | { ok: false; error: 'invalid_grant' | 'invalid_client' | 'invalid_target' | 'invalid_scope'; description: string }
 
@@ -398,8 +461,7 @@ export async function redeemCode(p: { code: string; verifier: string; redirectUr
   if (!row || !row.prefix.startsWith(GRANT_PREFIX)) return { ok: false, error: 'invalid_grant', description: 'The grant no longer exists.' }
   // Eligibility again at redemption: the person may have been suspended, left the business tier or lost the shop in the
   // seconds since Allow (review 2026-11-13). Nothing is activated then.
-  const elig = await eligibleShop(row.profileId)
-  if (!elig.ok || elig.shop.id !== row.sellerId) return { ok: false, error: 'invalid_grant', description: 'This shop can no longer be connected.' }
+  if (!(await grantEligible(row.profileId, row.sellerId))) return { ok: false, error: 'invalid_grant', description: row.sellerId ? 'This shop can no longer be connected.' : 'This account can no longer connect apps.' }
   const refreshToken = newRefreshToken(c.kid)
   const live = await db.apiKey.updateMany({
     where: { id: c.kid, lastUsedAt: null, revokedAt: PENDING_AT },
@@ -411,7 +473,23 @@ export async function redeemCode(p: { code: string; verifier: string; redirectUr
     return { ok: false, error: 'invalid_grant', description: 'The code was already used.' }
   }
   await db.apiKey.update({ where: { id: c.kid }, data: { name: row.name.replace(' (sign-in pending)', ` (signed in ${new Date(now * 1000).toISOString().slice(0, 10)})`) } }).catch((e) => logError(e, { op: 'oauth-grant.renameGrant' }))
-  return { ok: true, grant: { keyId: c.kid, sellerId: row.sellerId, profileId: row.profileId, scopes: row.scopes.split(/\s+/).filter(Boolean), refreshToken } }
+  await retireOldGrants(row.prefix, row.profileId, row.sellerId, now)
+  return { ok: true, grant: { keyId: c.kid, sellerId: row.sellerId ?? '', profileId: row.profileId, scopes: row.scopes.split(/\s+/).filter(Boolean), refreshToken } }
+}
+
+/** Keeps the newest LIVE_GRANTS_PER_APP live grants of one app for one person and target; revokes the rest. Best-effort. */
+async function retireOldGrants(prefix: string, profileId: string, sellerId: string | null, now: number): Promise<void> {
+  try {
+    const app = prefix.slice(0, GRANT_PREFIX.length + 10)
+    if (prefix.startsWith(AGENT_GRANT_FAMILY)) return
+    const live = await db.apiKey.findMany({
+      where: { profileId, sellerId, revokedAt: null, prefix: { startsWith: app } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+    const old = live.slice(LIVE_GRANTS_PER_APP).map((r) => r.id)
+    if (old.length) await db.apiKey.updateMany({ where: { id: { in: old }, revokedAt: null }, data: { revokedAt: new Date(now * 1000) } })
+  } catch (e) { logError(e, { op: 'oauth-grant.retireOldGrants' }) }
 }
 
 /** refresh_token: client-bound, scope may only narrow, rotation by compare-and-swap; a replay revokes the grant. */
@@ -431,11 +509,10 @@ export async function rotateRefresh(p: { refreshToken: string; clientId: string;
   }
   // Re-authorised on every refresh, not only at consent: the grant ends after GRANT_MAX_AGE_SECONDS, and when the person
   // no longer owns the shop, leaves the business tier or is held or suspended (review 2026-11-13).
-  const elig = await eligibleShop(row.profileId)
   const expired = row.createdAt.getTime() / 1000 + GRANT_MAX_AGE_SECONDS < now
-  if (expired || !elig.ok || elig.shop.id !== row.sellerId) {
+  if (expired || !(await grantEligible(row.profileId, row.sellerId))) {
     await db.apiKey.updateMany({ where: { id: keyId, revokedAt: null }, data: { revokedAt: new Date(now * 1000) } })
-    return { ok: false, error: 'invalid_grant', description: expired ? 'This connection has expired; sign in again.' : 'This shop can no longer be connected; sign in again.' }
+    return { ok: false, error: 'invalid_grant', description: expired ? 'This connection has expired; sign in again.' : row.sellerId ? 'This shop can no longer be connected; sign in again.' : 'This account can no longer connect apps; sign in again.' }
   }
   const granted = row.scopes.split(/\s+/).filter(Boolean)
   const asked = (p.scope || '').split(/\s+/).filter(Boolean)
@@ -469,5 +546,5 @@ export async function rotateRefresh(p: { refreshToken: string; clientId: string;
     if (replay) await db.apiKey.updateMany({ where: { id: keyId, revokedAt: null }, data: { revokedAt: new Date(now * 1000) } })
     return { ok: false, error: 'invalid_grant', description: replay ? 'The refresh token was already used; sign in again.' : 'The refresh token is invalid.' }
   }
-  return { ok: true, grant: { keyId, sellerId: row.sellerId, profileId: row.profileId, scopes: asked.length ? asked : granted, refreshToken: next } }
+  return { ok: true, grant: { keyId, sellerId: row.sellerId ?? '', profileId: row.profileId, scopes: asked.length ? asked : granted, refreshToken: next } }
 }

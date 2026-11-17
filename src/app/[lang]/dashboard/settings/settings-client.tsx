@@ -23,6 +23,7 @@ import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { PushEventList } from '@/components/marketplace/push-opt-in-card'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { BlockedUsers } from '@/components/marketplace/blocked-users'
+import { ConnectedApps } from '@/components/marketplace/connected-apps'
 import { FacebookConnectRow } from '@/components/marketplace/facebook-connect-row'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
@@ -238,6 +239,11 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
                 <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
               </Button>
             </SettingsGroup>
+          )}
+          {/* Connected apps (2026-11-17, owner "ok to agents for all"): every app and AI assistant this account connected, with
+              Disconnect — on every account, shop or not (src/components/marketplace/connected-apps.tsx). */}
+          {section === 'privacy' && (
+            <SettingsGroup caption={tr('Connected apps', 'Ứng dụng đã kết nối')}><ConnectedApps /></SettingsGroup>
           )}
           {/* Connect Facebook (owner, 2026-11-04): renders nothing unless it can run here and now. */}
           {section === 'privacy' && <FacebookConnectRow />}

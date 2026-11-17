@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
-import { approve, consumeConsent, CONSENT_TTL_SECONDS, releaseConsent, eligibleShop, loadClient, openConsentTicket, redirectMatches, verifiedProfileId } from '@/lib/api/oauth-grant'
+import { consentIdentityHost } from '@/lib/api/oauth-hosted-clients'
+import { approve, connectTarget, consumeConsent, CONSENT_TTL_SECONDS, releaseConsent, loadClient, openConsentTicket, redirectMatches, verifiedProfileId } from '@/lib/api/oauth-grant'
 import { kv, rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 
@@ -88,8 +89,12 @@ export async function POST(req: Request) {
     if (!(await consumeConsent(t))) return answered()
     return answer(forwardUrl(t.redirectUri, { error: 'access_denied', state: t.state }))
   }
-  const elig = await eligibleShop(profileId)
-  if (!elig.ok || !t.sellers.includes(elig.shop.id)) return stop(403, 'This shop can no longer be connected.', 'Không thể kết nối cửa hàng này nữa.')
+  // The same decision the screen made (oauth-grant.ts connectTarget), on the scopes the screen LISTED (the ticket's): the
+  // shop it named, or the person alone when it named no shop. Anything else changed in between, and nothing is granted.
+  const target = await connectTarget(profileId, t.scopes)
+  const same = target.ok && target.scopes.length === t.scopes.length
+    && (target.kind === 'shop' ? t.sellers.includes(target.shop.id) : t.sellers.length === 0)
+  if (!same || !target.ok) return stop(403, 'This connection is no longer possible. Start again from the app.', 'Không thể kết nối nữa. Hãy bắt đầu lại từ ứng dụng.')
   const client = await loadClient(t.clientId)
   if (!client || !redirectMatches(client.redirectUris, t.redirectUri)) return stop(400, 'The app could not be confirmed. Start again from the app.', 'Không xác nhận được ứng dụng. Hãy bắt đầu lại từ ứng dụng.')
   // Consumed only now, right before the grant: a check that fails above (a metadata blip) leaves the screen usable.
@@ -97,7 +102,12 @@ export async function POST(req: Request) {
   // A failure on our side made no grant: the screen is freed, so pressing Allow again works once we recover.
   const unavailable = async () => { await releaseConsent(t); return stop(503, 'Sign-in is temporarily unavailable. Press Allow again in a moment.', 'Đăng nhập tạm thời không khả dụng. Hãy bấm Cho phép lại sau giây lát.') }
   try {
-    const code = await approve(t, elig.shop.id, client.name, now)
+    // The app's claimed name AND the address the consent screen showed (consentIdentityHost), so Settings › Connected apps
+    // can tell two apps that both call themselves "Claude" apart.
+    const ret = new URL(t.redirectUri)
+    const returnHost = ['localhost', '127.0.0.1', '[::1]'].includes(ret.hostname) ? null : ret.host
+    const label = `${client.name} · ${consentIdentityHost(client.clientId, client.host, returnHost)}`.slice(0, 90)
+    const code = await approve(t, target.kind === 'shop' ? target.shop.id : null, label, now)
     if (!code) return unavailable()
     return answer(forwardUrl(t.redirectUri, { code, state: t.state }))
   } catch (e) {
