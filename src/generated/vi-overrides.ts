@@ -15,7 +15,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "This sign-in link does not work": "Liên kết đăng nhập này không dùng được",
   "Go back to the app and start the connection again.": "Hãy quay lại ứng dụng và bắt đầu kết nối lại.",
   "wants to manage your eno shop for you:": "muốn quản lý cửa hàng eno của bạn:",
-  "Only allow apps you trust. You can disconnect it at any time in Dashboard › Developers.": "Chỉ cho phép những ứng dụng bạn tin tưởng. Bạn có thể ngắt kết nối bất cứ lúc nào trong Bảng điều khiển › Nhà phát triển.",
   "Only allow apps you trust. You can disconnect it at any time in Settings › Privacy.": "Chỉ cho phép những ứng dụng bạn tin tưởng. Bạn có thể ngắt kết nối bất cứ lúc nào trong Cài đặt › Quyền riêng tư.",
   "wants to chat for you on eno:": "muốn trò chuyện thay bạn trên eno:",
   "Without a business shop, it can only chat for you.": "Không có cửa hàng doanh nghiệp, ứng dụng chỉ có thể trò chuyện thay bạn.",
