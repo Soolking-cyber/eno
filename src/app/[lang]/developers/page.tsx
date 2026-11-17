@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { ChevronDown } from '@/components/ui/icons'
 import { API_BASE, API_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPORT_EMAIL } from './reference'
 import { Code } from './doc-parts'
+import { ChatAppConnect } from './chat-connect'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { TOOLS } from '@/lib/mcp/tools'
 
@@ -98,6 +99,8 @@ export default function DevelopersPage() {
           <a href="#authentication" className="font-semibold text-accent-foreground hover:underline">bearer-key auth</a>, supporting{' '}
           <strong className="text-foreground">read and write</strong>.
         </p>
+        {/* One click into a chat app's own eno.vn listing (owner 2026-11-17): src/lib/ai-chat-connect.ts. */}
+        <ChatAppConnect className="mt-4" />
 
         <section className="mt-8">
           <h2 className="h-section text-foreground">Base URL</h2>
