@@ -658,7 +658,7 @@ export const TOOLS: McpTool[] = [
       }).nullable().describe('Set when the account may not publish new listings right now: new rows were refused, edits still applied; null otherwise'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
-      mode: z.string().optional().describe(`Your listings missing from this payload. partial (when left out): they stay as they are. full: each active one whose externalId you did not send is hidden, so eno mirrors your catalogue; use it only when the whole catalogue fits in one call (${SYNC_MAX_ROWS} rows); a bigger one syncs in partial, since separate full calls hide each other's rows`),
+      mode: z.string().optional().describe(`Your listings missing from this payload. partial (when left out): they stay as they are. full: each active one whose externalId you did not send is hidden, so eno mirrors your catalogue; use it only when the whole catalogue fits in one call; a bigger one syncs in partial, since separate full calls hide each other's rows`),
       listings: z.array(listingItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
         status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
@@ -716,7 +716,10 @@ export const TOOLS: McpTool[] = [
     scope: 'analytics:read',
     annotations: READ_ONLY,
     output: z.strictObject({
-      range: z.strictObject({ from: z.string().describe('First day used (YYYY-MM-DD)'), to: z.string().describe('Last day used (YYYY-MM-DD)') }).describe('The date range actually used'),
+      range: z.strictObject({
+        from: z.string().describe('The first day reported, YYYY-MM-DD: your `from`, the 30 days before `to` when you left it out, or later when the period was longer than 92 days'),
+        to: z.string().describe('The last day reported, YYYY-MM-DD: your `to`, or today when you left it out'),
+      }).describe('The period the daily figures cover'),
       listings: z.array(ANALYTICS_ROW_OUT).describe('This page of listings with their daily figures'),
       next_cursor: CURSOR_OUT,
     }).describe('Views and leads per listing per day over the range actually used'),
