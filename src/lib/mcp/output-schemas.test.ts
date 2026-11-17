@@ -27,7 +27,7 @@ vi.mock('@/lib/db', () => ({
     },
     category: { findUnique: async () => ({ id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }) },
     profile: { findUnique: async () => ({ email: 'buyer@example.com' }) },
-    conversation: { findMany: async () => [{ id: 'cv1', buyerProfileId: 'p1', sellerId: 's2', listing: { listingType: 'sell' } }], findFirst: async () => null },
+    conversation: { findMany: async () => [{ id: 'cv1', buyerProfileId: 'p1', sellerId: 's2', listing: { listingType: 'sell', price: 5_000_000, negotiable: true } }], findFirst: async () => null },
     listing: {
       findMany: async () => [{ id: 'l1' }, { id: 'l2' }],
       findUnique: async () => ({ id: 'l1' }),

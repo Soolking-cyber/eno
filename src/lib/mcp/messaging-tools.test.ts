@@ -19,7 +19,7 @@ vi.mock('@/lib/log', () => ({ logInfo: () => {}, logError: () => {}, logWarn: ()
 vi.mock('@/lib/db', () => ({
   db: {
     profile: { findUnique: async () => ({ email: h.email }) },
-    listing: { findFirst: async () => h.listing },
+    listing: { findFirst: async () => h.listing, findUnique: async () => ({ listingType: h.listing?.listingType ?? 'sell' }) },
     conversation: { findMany: async () => [], findFirst: async ({ where }: { where: { listingId?: unknown } }) => (typeof where.listingId === 'string' ? h.sameListing : h.existing) },
   },
 }))
@@ -119,6 +119,14 @@ describe('the chat tools', () => {
       h.thread = THREAD(over)
       expect(await code(call('get_conversation', { conversation_id: 'cv1' }))).toBe('not_available_to_agents')
     }
+  })
+
+  it('say takes_offers by the same rule contact_seller enforces: never on a wanted ad or a job, whatever negotiable says', async () => {
+    const takes = async () => ((await call('get_conversation', { conversation_id: 'cv1' })) as { listing: { takes_offers: boolean } }).listing.takes_offers
+    expect(await takes()).toBe(true)
+    for (const listingType of ['wanted', 'job']) { h.listing = { ...h.listing, listingType }; expect(await takes()).toBe(false) }
+    h.listing = { ...h.listing, listingType: 'sell' }; h.thread = THREAD({ listing: { id: 'l1', title: 'x', price: 1, negotiable: false } })
+    expect(await takes()).toBe(false)
   })
 
   it('refuse contact and payment details before anything is sent', async () => {

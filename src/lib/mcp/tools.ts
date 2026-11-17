@@ -33,6 +33,7 @@ import { cutText } from '@/lib/feed-text'
 import { SHOP_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
 import { ToolError, type ToolAnnotations, type McpTool } from './tool-types'
 import { MESSAGING_TOOLS } from './messaging-tools'
+import { logWarn } from '@/lib/log'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -250,14 +251,27 @@ const LISTING_SUMMARY_OUT = z.strictObject({
 
 /** A webhook as list_webhooks and register_webhook answer it. Events are stored as typed by register_webhook (the enum). */
 type WebhookRow = { id: string; url: string; events: string; enabled: boolean; failureCount: number; lastError: string | null; lastDeliveryAt: Date | null; createdAt: Date }
+/** Events as a closed set: every stored name was validated against the same four on registration (WEBHOOK_EVENTS here,
+ *  VALID_EVENTS in /api/v1/webhooks). A name outside it (only if one is renamed or retired later) is left out of the
+ *  answer rather than failing the whole call, and logged so the drift is seen. */
+const WEBHOOK_EVENT_OUT = ['*', ...WEBHOOK_EVENTS] as const
+type WebhookEventOut = (typeof WEBHOOK_EVENT_OUT)[number]
+const isEventOut = (e: string): e is WebhookEventOut => (WEBHOOK_EVENT_OUT as readonly string[]).includes(e)
+function eventsOut(h: WebhookRow): WebhookEventOut[] {
+  if (h.events === '*') return ['*']
+  const names = h.events.split(/\s+/).filter(Boolean)
+  const dropped = names.filter((e) => !isEventOut(e))
+  if (dropped.length) logWarn('mcp webhook: stored event names outside the known set', { webhookId: h.id, dropped: dropped.join(' ').slice(0, 200) })
+  return names.filter(isEventOut)
+}
 const webhookOut = (h: WebhookRow) => ({
-  id: h.id, url: h.url, events: h.events === '*' ? ['*'] : h.events.split(/\s+/).filter(Boolean),
+  id: h.id, url: h.url, events: eventsOut(h),
   enabled: h.enabled, failure_count: h.failureCount, last_error: h.lastError, last_delivery_at: iso(h.lastDeliveryAt), created_at: h.createdAt.toISOString(),
 })
 const WEBHOOK_OUT = z.strictObject({
   id: z.string().describe('The webhook\'s id (such as `cmh0q2x8f0001...`); pass it to delete_webhook to stop the events this address receives'),
   url: z.string().describe('The HTTPS address eno posts each event to, as a signed POST; it is the endpoint in your own system that register_webhook was given'),
-  events: z.array(z.string()).describe('The events it receives: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
+  events: z.array(z.enum(WEBHOOK_EVENT_OUT).describe('One event: listing.created (a new listing), listing.updated (an edit), listing.status_changed (sold, hidden or back on sale), listing.deleted; "*" alone means every event')).describe('The events this address receives; ["*"] means every event'),
   enabled: z.boolean().describe('Whether events are being delivered. eno turns it false after 15 failed deliveries in a row; to resume, register the address again (a new webhook with a new secret) and delete this one'),
   failure_count: z.number().describe('Failed deliveries in a row since the last success, 0 to 15; one successful delivery resets it to 0'),
   last_error: z.string().nullable().describe('Why the last delivery failed, as the endpoint answered or the network error; null when the last one worked or none was sent yet'),
@@ -272,7 +286,7 @@ const registeredOut = (h: WebhookRow, secret: string) => {
 const REGISTERED_WEBHOOK_OUT = z.strictObject({
   id: z.string().describe('The new webhook\'s id; pass it to delete_webhook to stop the events, and list_webhooks shows its delivery health later'),
   url: z.string().describe('The HTTPS address eno will POST each event to, signed with the secret below, exactly as you gave it to register_webhook'),
-  events: z.array(z.string()).describe('The events it will receive, as you chose them: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
+  events: z.array(z.enum(WEBHOOK_EVENT_OUT).describe('One event: listing.created (a new listing), listing.updated (an edit), listing.status_changed (sold, hidden or back on sale), listing.deleted; "*" alone means every event')).describe('The events it will receive, as you chose them; ["*"] means every event'),
   enabled: z.boolean().describe('true: eno sends events to this address from now on. It turns false only after 15 failed deliveries in a row, which list_webhooks then shows'),
   created_at: z.string().describe('When the webhook was registered, which is now, as an ISO 8601 UTC timestamp; list_webhooks shows it with its delivery history later'),
   secret: z.string().describe('The signing secret, shown only this once: store it now in your own system to verify each event\'s signature; eno cannot show it again'),
