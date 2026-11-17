@@ -119,7 +119,10 @@ describe('ListingCard — no tile draws the trust number; the partner chip is th
     const c = render(<ListingCard listing={{ ...BASE, ...partner } as SerializedListingCard} onOpen={vi.fn()} ownShop />).container
     expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
     expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
-    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent === 'Official partner')).toBe(true)
+    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent?.trim() === 'Official partner')).toBe(true)
+    // The name opens with a space inside its sr-only span, so text read straight off the card never glues it to the time
+    // before it ("6h agoOfficial partner", the AEO checker's top keyword, 2026-11-17).
+    expect(Array.from(c.querySelectorAll('.sr-only')).find((e) => e.textContent?.trim() === 'Official partner')?.textContent).toBe(' Official partner')
     cleanup()
     // …and the wide card's photo plate goes with it.
     const wide = render(<ListingCard listing={{ ...BASE, ...partner } as SerializedListingCard} onOpen={vi.fn()} wide ownShop />).container
@@ -153,7 +156,7 @@ describe('ListingCard — the Ad marker', () => {
     expect(c.querySelectorAll('[data-ad-marker]')).toHaveLength(1)
     expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
     expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
-    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent === 'Official partner')).toBe(true)
+    expect(Array.from(c.querySelectorAll('.sr-only')).some((e) => e.textContent?.trim() === 'Official partner')).toBe(true)
   })
 
   it('a partner card WITHOUT a commission link keeps its plate', () => {

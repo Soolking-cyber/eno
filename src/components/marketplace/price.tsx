@@ -426,7 +426,9 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
       {/* `spoken` (batch 94): the full figure for assistive tech FIRST, then each visible text run aria-hidden INSIDE its
           nowrap span — so the runs, the break between them and `glued`'s own sr-only "/ month" (never under an aria-hidden
           parent) are exactly as before. Without `spoken` the markup is byte-identical to before. */}
-      {spoken && <span className="sr-only">{spoken}</span>}
+      {/* The trailing space is inside the sr-only run, so it paints nothing; without it a text extractor read the spoken
+          figure glued to the visible one, "1,200,000 đ1.2M đ" (AEO checker, 2026-11-17). */}
+      {spoken && <span className="sr-only">{spoken}{' '}</span>}
       {(() => {
         const run = (s: string) => (spoken ? <span aria-hidden="true">{s}</span> : s)
         const cut = amount.lastIndexOf(' ')

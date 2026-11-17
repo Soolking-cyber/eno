@@ -1782,8 +1782,11 @@ function ListingCardImpl({
               below `sm` the mark is back on the photo, as the white "Official partner" plate (`photoPartner`, the photo above),
               seen and announced, so this name and the shield below step down there (display:none — one "Official partner" in
               the accessibility tree per width). From `sm`, and on every other card, this row carries it as before. */}
+          {/* ⚠️ THE LEADING SPACE IS INSIDE THE sr-only SPAN (2026-11-17): the span is clipped, so it paints nothing, but a text
+              extractor reads it — without it every partner card said "6h agoOfficial partner" to AI crawlers and the AEO checker
+              (its top "keyword" was "agoofficial"). A space between the two spans instead could widen this measured line. */}
           {listing.seller.officialPartner ? (
-            <span className={cn('sr-only', photoPartner && 'max-sm:hidden')}>{tr('Official partner', 'Đối tác chính thức')}</span>
+            <span className={cn('sr-only', photoPartner && 'max-sm:hidden')}>{' '}{tr('Official partner', 'Đối tác chính thức')}</span>
           ) : listing.seller.isBusiness && (
             /* ⚠️ `hidden sm:inline-flex` — THE GLYPH YIELDS ITS WIDTH TO THE FACTS ON THE LEFT
                BELOW sm. Measured on the real feed at 320px and 360px, the truncating span was

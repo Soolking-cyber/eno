@@ -236,7 +236,10 @@ describe('a card\'s sale price in millions (batch 94)', () => {
     expect(heard(sale(12_800_000, 'VND', true))).toBe('12,800,000 đ')
     cleanup()
     const { container } = render(sale(12_800_000))
-    expect(container.querySelector('.sr-only')?.textContent).toBe('12,800,000 đ')
+    expect(container.querySelector('.sr-only')?.textContent?.trim()).toBe('12,800,000 đ')
+    // A text extractor (AI crawlers, the AEO checker, 2026-11-17) reads the spoken run and the visible one in a row: a space
+    // inside the sr-only run keeps them apart, never "12,800,000 đ12.8M".
+    expect(container.textContent).toMatch(/^12,800,000 đ 12\.8M/)
     expect(container.querySelector('[aria-label]')).toBeNull()
     // The figure's runs keep their nowrap spans: "12.8M" and "đ", each with its aria-hidden text inside.
     const runs = [...container.querySelectorAll('span.whitespace-nowrap')]

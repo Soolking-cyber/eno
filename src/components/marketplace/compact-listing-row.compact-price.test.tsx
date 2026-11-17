@@ -91,7 +91,7 @@ describe('the list row reads the card\'s price form (batch 94)', () => {
     expect(priceSeen()).toBe('12.8M đ')
     cleanup()
     const c = render(<CompactListingRow listing={SALE} index={0} onOpen={vi.fn()} onPrefetch={vi.fn()} onLocate={vi.fn()} />).container
-    expect(c.querySelector('.text-price .sr-only')?.textContent).toBe('12,800,000 đ')
+    expect(c.querySelector('.text-price .sr-only')?.textContent?.trim()).toBe('12,800,000 đ')
   })
   it('a rent of a million or more: "8.5M đ / month" in English, "8,5 triệu / tháng" in Vietnamese', () => {
     expect(priceSeen(RENT)).toBe('8.5M đ / month')

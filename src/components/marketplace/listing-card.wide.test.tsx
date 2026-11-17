@@ -150,7 +150,7 @@ describe('ListingCard wide — the text block', () => {
     const meta = body(c).lastElementChild!
     // The WHOLE badge steps down below sm (its wrapper), so its role="img" name is not announced beside the plate's.
     expect(tokens(meta.querySelector('[data-partner-badge="plate"]')!.parentElement)).toEqual(expect.arrayContaining(['contents', 'max-sm:hidden']))
-    const name = [...meta.querySelectorAll('.sr-only')].find((e) => e.textContent === 'Official partner')!
+    const name = [...meta.querySelectorAll('.sr-only')].find((e) => e.textContent?.trim() === 'Official partner')!
     expect(tokens(name)).toContain('max-sm:hidden')
   })
 
