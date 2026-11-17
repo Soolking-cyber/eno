@@ -105,15 +105,22 @@ describe('/.well-known/ai-catalog.json — ARD catalogue', () => {
   })
 
   /**
-   * ⛔ NO COMPLIANCE CLAIMS. `trustManifest` carries attestations — SOC2, SPIFFE, GDPR — and this
-   * deployment holds none; the services edition's operating entity is still pending. This is the
-   * single worst field in the schema to fill in speculatively, so its absence is pinned rather than
-   * left to a reviewer to notice.
+   * ⛔ NO COMPLIANCE CLAIMS. A trust manifest can carry attestations — SOC2, SPIFFE, GDPR — and this
+   * deployment holds none, so no attestation (nor a signature or trust schema implying one) is ever
+   * published; that is pinned rather than left to a reviewer to notice. Since 2026-11-17 (ora, owner "ship")
+   * the MCP server entry carries ONE manifest of provenance only — where the server is published, which
+   * anyone can check — and nothing else.
    */
-  it('publishes no trustManifest anywhere', async () => {
-    const raw = await (await (await load.catalog()).GET()).text()
-    expect(raw).not.toContain('trustManifest')
+  it('publishes no attestation anywhere: a trust manifest names only where the server is published', async () => {
+    const body = await (await (await load.catalog()).GET()).json()
+    const raw = JSON.stringify(body)
     expect(raw).not.toContain('attestations')
+    expect(raw).not.toContain('trustSchema')
+    expect(raw).not.toContain('"signature"')
+    const manifests = body.entries.flatMap((e: { trustManifests?: unknown[] }) => e.trustManifests ?? [])
+    expect(manifests).toHaveLength(1)
+    expect(raw).not.toContain('"trustManifest"')
+    for (const m of manifests) expect(Object.keys(m as object).sort()).toEqual(['contributor', 'provenance'])
   })
 
   /**

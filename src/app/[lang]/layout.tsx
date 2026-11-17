@@ -230,12 +230,14 @@ const OG_IMAGE = { ...SHARE_CARD, alt: SHARE_CARD_ALT };
  * ⛔ NOT "THE COMMUNITY KEEPS LISTINGS HONEST" (SEO wave B, V2; CS-3 claim 7, owner 2026-10-01): an outcome
  * no code measures. What the code does is let a signed-in member report a listing (api/report/route.ts).
  * ⛔ AND NO TRUST-SCORE CLAUSE (owner 2026-10-04): "sellers who post here build public trust scores" left
- * out the official partners, who show a partner badge instead. The sentence is the owner's approved
- * report sentence, verbatim — the same one the category pages close on (category-copy.ts REPORT_SENTENCE).
+ * out the official partners, who show a partner badge instead. Until 2026-11-17 it ended on the owner's approved
+ * report sentence, verbatim — the one the category pages still close on (category-copy.ts REPORT_SENTENCE).
+ * ⛔ 160 CHARACTERS AT MOST, SO THE REPORT SENTENCE STAYS ON THE CATEGORY PAGES, NOT HERE (owner 2026-11-17, "ok … go", after
+ * Framer's AEO check "Meta description (50–160 chars)" and search snippets cutting at ~155): this was 210. layout-description.test.ts.
  */
 const SITE_DESCRIPTION = IS_SERVICES
   ? SERVICES_SITE_DESCRIPTION
-  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more. Members can report any listing that breaks the rules.`;
+  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more.`;
 
 /** The short form, for the OG and Twitter cards. */
 const SITE_TAGLINE = IS_SERVICES ? SERVICES_SITE_TAGLINE : MARKETPLACE_TAGLINE;
