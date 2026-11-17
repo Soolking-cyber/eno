@@ -1193,6 +1193,8 @@ const nextConfig: NextConfig = {
          * stay ABOVE the `:path*` catch-all, which would otherwise match it with zero segments and
          * answer /api/v1 — src/lib/api/protected-resource.ts.
          */
+        // Web Bot Auth key directory (src/lib/web-bot-auth.ts): a route, because the directory's response carries a signature header.
+        { source: "/.well-known/http-message-signatures-directory", destination: "/api/well-known/http-message-signatures-directory" },
         { source: "/.well-known/oauth-authorization-server", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/well-known/oauth-authorization-server" },
         { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource/origin" },
