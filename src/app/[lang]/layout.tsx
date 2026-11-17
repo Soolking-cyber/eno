@@ -21,7 +21,7 @@ import { STORE_OS_HEAD_JS } from "@/lib/app-store-links";
 import { SESSION_COOKIE_NAME_JS } from "@/lib/supabase/session-cookie";
 import { MARKETPLACE_TAGLINE, SITE_TITLE } from "@/lib/site-title";
 // The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
-import { marketplaceOrganizationFields, ogLocaleFor, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, SHARE_CARD_ALT, toE164VN, websiteId } from "@/lib/site-identity";
+import { marketplaceOrganizationFields, ogLocaleFor, organizationAliasNode, organizationBrandFields, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, SHARE_CARD_ALT, toE164VN, websiteId } from "@/lib/site-identity";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
 import { ICON_SPRITE_CORE } from "@/components/ui/icons";
@@ -596,10 +596,8 @@ export default async function RootLayout({
                  its own profiles here; if it is the same business trading under two domains, counsel
                  should say so before we re-link them. Omitting is the reversible choice. */
               ...(IS_SERVICES ? {} : marketplaceOrganizationFields(SITE_ORIGIN)),
-              name: SITE_NAME,
+              ...organizationBrandFields(SITE_ORIGIN),
               alternateName: ["ENO"],
-              url: SITE_ORIGIN,
-              logo: `${SITE_ORIGIN}/logo.svg`,
               /* ⚠️ THE SERVICES BRANCH IS THE ALIASED CONSTANT, NEVER A LITERAL. It used to be an
                  inline string here, and it was wrong twice over. (1) LEAK: this file is shared, so
                  the literal compiled into the marketplace build and "Vietnam e-visa assistance"
@@ -659,6 +657,13 @@ export default async function RootLayout({
             }).replace(/</g, "\\u003c"),
           }}
         />
+        {/* The same node typed plain Organization, for readers that match the type string (organizationAliasNode). */}
+        {!IS_SERVICES && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationAliasNode(SITE_ORIGIN)).replace(/</g, "\\u003c") }}
+          />
+        )}
         {/* WebSite entity + SearchAction → eligible for Google's sitelinks search box. Target is the
             real ?q= search on THIS origin — pointing it at the other domain would hand the sitelinks
             box, and the query, to the wrong site. */}

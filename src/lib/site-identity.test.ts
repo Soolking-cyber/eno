@@ -6,6 +6,7 @@ import {
   ENTITY_PROFILES,
   marketplaceOrganizationFields,
   ORGANIZATION_TYPE,
+  organizationAliasNode,
   organizationId,
   registeredOperatorFields,
   siteOrigin,
@@ -15,6 +16,7 @@ import {
 import { SOCIALS } from './socials'
 import { LANGS } from './i18n/langs'
 import { OPERATORS } from './site-legal'
+import { SITE_NAME } from './edition'
 
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -41,6 +43,21 @@ describe('the Organization entity fields', () => {
     expect(f.areaServed).toEqual({ '@type': 'Country', name: 'Vietnam' })
     expect(f.knowsLanguage).toEqual([...LANGS])
     expect(f.knowsLanguage).toHaveLength(11)
+  })
+})
+
+describe('organizationAliasNode', () => {
+  it('is the layout node under its own @id, typed plain Organization, with the same name, logo and sameAs', () => {
+    const n = organizationAliasNode('https://eno.vn')
+    expect(n).toEqual({
+      '@context': 'https://schema.org', '@type': 'Organization', '@id': organizationId('https://eno.vn'),
+      name: SITE_NAME, url: 'https://eno.vn', logo: 'https://eno.vn/logo.svg', sameAs: marketplaceOrganizationFields('https://eno.vn').sameAs,
+    })
+  })
+  it('the layout emits it after the main node, on the marketplace only', () => {
+    const src = readFileSync(join(__dirname, '../app/[lang]/layout.tsx'), 'utf8')
+    expect(src).toContain('...organizationBrandFields(SITE_ORIGIN),')
+    expect(src).toMatch(/\{!IS_SERVICES && \(\s*<script\s+type="application\/ld\+json"\s+dangerouslySetInnerHTML=\{\{ __html: JSON\.stringify\(organizationAliasNode\(SITE_ORIGIN\)\)/)
   })
 })
 

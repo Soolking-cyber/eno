@@ -126,6 +126,26 @@ export function marketplaceOrganizationFields(origin: string) {
   }
 }
 
+/** The brand's name, url and logo, as the layout's Organization node and its plain-typed alias both state them. */
+export function organizationBrandFields(origin: string) {
+  return { name: SITE_NAME, url: origin, logo: `${origin}/logo.svg` }
+}
+
+/**
+ * THE SAME ENTITY AGAIN, TYPED PLAIN `Organization` (owner 2026-11-17, "go" on the AEO checker's +8). The layout's node
+ * stays ORGANIZATION_TYPE, the most specific true type, as Google asks. This block repeats its `@id`, so any JSON-LD
+ * reader merges the two into ONE node typed both — it is an Organization — and Google sees nothing new. Its only purpose
+ * is readers that match the literal type string: aeo.js (check.aeojs.org) looks for `@type === 'Organization'` on a
+ * top-level block and scored eno.vn "Organization name / logo missing" though both were there.
+ * ⚠️ MARKETPLACE ONLY, as the @id and sameAs are (the layout says why); eno.forum's node is plain Organization already.
+ * Name, url and logo come from organizationBrandFields, which the layout node spreads too.
+ */
+export function organizationAliasNode(origin: string) {
+  const { '@id': id, sameAs } = marketplaceOrganizationFields(origin)
+  return { '@context': 'https://schema.org', '@type': 'Organization', '@id': id, ...organizationBrandFields(origin), sameAs }
+}
+
+
 /**
  * ⛔ WHAT USING THE MARKETPLACE COSTS A BUYER OR SELF-POSTER, AS DATA: 0 VND, on eno.vn only and only while POSTING_IS_FREE
  * (ora.ai pricing-info, 2026-11-16: "schema.org/Offer structured data that carries a price and currency"). It states

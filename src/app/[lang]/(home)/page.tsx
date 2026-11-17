@@ -15,7 +15,8 @@ import { homeCategoryRails, type CategoryRailRow } from '@/lib/core/category-rai
 import { logError } from '@/lib/log'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
-import { homeMetadata } from './home-metadata'
+import { homeMetadata, homeWebPageJsonLd } from './home-metadata'
+import { jsonLdText } from '@/lib/home-item-lists'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 21600 // 6h — the client explorer fetches live listings via /api/listings, so the ISR HTML is just first-paint+SEO. Home is a HOT page that regenerates per edge region, so a 6h window (vs 1h) cuts ISR writes ~6× with zero UX/speed change
@@ -182,6 +183,9 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
    * explorer's own copy is for `/s/[handle]`, which has none.
    */
   return (
+    <>
+    {/* The page itself as a WebPage (home-metadata.ts homeWebPageJsonLd); its lists are ItemLists from the explorer. */}
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeWebPageJsonLd(lang)) }} />
     <ListingsExplorer
       categories={categories}
       initialListings={listings}
@@ -196,5 +200,6 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       siteHeading={false}
       homeItemLists
     />
+    </>
   )
 }

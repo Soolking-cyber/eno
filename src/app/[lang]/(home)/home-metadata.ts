@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { langAlternates } from '@/lib/lang-pinned'
-import { POSTING_IS_FREE, pageShare, siteOrigin } from '@/lib/site-identity'
+import { POSTING_IS_FREE, organizationId, pageShare, siteOrigin, websiteId } from '@/lib/site-identity'
 import { MARKETPLACE_TAGLINE, SITE_TITLE } from '@/lib/site-title'
 
 /**
@@ -54,5 +54,28 @@ export function homeMetadata(lang: string): Metadata {
     title: HOME_TITLE_VI,
     description: HOME_DESCRIPTION_VI,
     ...(pilot ? pageShare({ title: HOME_TITLE_VI, description: HOME_DESCRIPTION_VI, url: pilot.canonical }) : {}),
+  }
+}
+
+/**
+ * The home page as a schema.org WebPage (owner 2026-11-17, "go" on the AEO checker's "Article/WebPage schema" item): the
+ * home page declared the site (WebSite) and its lists (ItemList), never itself. Its name is the title the variant
+ * shows (homeMetadata's rule: Vietnamese only on the marketplace's vi variant), its url the canonical. It points at the
+ * layout's WebSite and Organization nodes by @id on the marketplace, where those carry one (layout.tsx).
+ */
+export function homeWebPageJsonLd(lang: string): Record<string, unknown> {
+  const origin = siteOrigin().replace(/\/+$/, '')
+  const vi = !IS_SERVICES && lang === 'vi'
+  // Under the /vi pilot each variant has its own canonical, so each is its own page: the @id follows the url. `href`
+  // normalises the pilot's bare origin ("https://eno.vn") to "https://eno.vn/", so the fragment sits on a path.
+  const url = new URL((IS_SERVICES ? null : langAlternates('/', lang, origin))?.canonical ?? `${origin}/`).href
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${url}#webpage`,
+    url,
+    name: vi ? HOME_TITLE_VI : SITE_TITLE,
+    inLanguage: lang === 'vi' ? 'vi' : 'en',
+    ...(IS_SERVICES ? {} : { isPartOf: { '@id': websiteId(origin) }, about: { '@id': organizationId(origin) } }),
   }
 }
