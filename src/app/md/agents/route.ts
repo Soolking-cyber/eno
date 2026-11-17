@@ -2,6 +2,8 @@ import { OAUTH_SCOPES } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { toolDescriptors } from '@/lib/mcp/tools'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
+import { AGENT_SKILLS_REPO_URL } from '@/lib/agent-skills'
 import { markdownResponse, SITE_ORIGIN, withFrontmatter } from '../markdown-response'
 
 /**
@@ -152,7 +154,13 @@ real URLs instead of probing.
 - **Write access is your own shop only.** There is no API that mutates another seller's listings,
   and ownership is re-checked server-side on every write.
 
-## Contact
+${IS_SERVICES ? '' : `## Packages and registries
+
+- npm: [\`${MCP_NPM_PACKAGE}\`](${MCP_NPM_URL}) — the MCP servers as a local (stdio) command, \`npx -y ${MCP_NPM_PACKAGE}\`.
+- Official MCP Registry: [\`${MCP_REGISTRY_NAME}\`](${MCP_REGISTRY_URL}) and [\`${MCP_SEARCH_REGISTRY_NAME}\`](${MCP_SEARCH_REGISTRY_URL}), under the eno.vn domain namespace.
+- Agent skills, an AGENTS.md and an Agent Plugin manifest: [eno-agent-skills](${AGENT_SKILLS_REPO_URL}).
+
+`}## Contact
 
 Something wrong in this document, or a capability you need that is not here — the support address
 for this deployment is on [\`/contact\`](${SITE_ORIGIN}/contact).

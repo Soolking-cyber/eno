@@ -8,7 +8,7 @@ import { guideBlurb, guideLabel, guidePath, liveGuides } from '@/lib/guides/regi
 import { TEACHER_COST_INDEX_CSV_PATH, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
-import { MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
@@ -106,6 +106,10 @@ const DEVELOPER_SECTION = `## For developers and agents
   and [/.well-known/mcp/server-card.json](${SITE_ORIGIN}/.well-known/mcp/server-card.json).${!IS_SERVICES ? `
 - [MCP Registry entry ${MCP_REGISTRY_NAME}](${MCP_REGISTRY_URL}) — the hosted MCP server's record in the official MCP
   Registry, published under the eno.vn domain namespace.
+- [MCP Registry entry ${MCP_SEARCH_REGISTRY_NAME}](${MCP_SEARCH_REGISTRY_URL}) — the listing search server's record, with the
+  npm package below as its local form.
+- [npm package ${MCP_NPM_PACKAGE}](${MCP_NPM_URL}) — the MCP servers as a local (stdio) command for clients that start one:
+  \`npx -y ${MCP_NPM_PACKAGE}\` (the listing search; with \`ENO_API_KEY\`, your shop).
 - [Agent skills](${AGENT_SKILLS_REPO_URL}) — eno.vn's own skills for searching the listings and running a shop, an
   AGENTS.md for AI coding agents and an Agent Plugin manifest; also on [skills.sh](${AGENT_SKILLS_SH_URL}).` : ''}
 - Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an

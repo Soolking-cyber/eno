@@ -31,11 +31,17 @@ describe('/developers/mcp', () => {
     expect(PAGE).not.toContain('/api/mcp/clients/grok')
   })
 
-  it('links the npm bridge by the name its package.json publishes (ora.ai ties the package to the site through it)', () => {
+  it('links the npm bridge by the name its package.json publishes (ora.ai ties the package to the site through it)', async () => {
     const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../../../../../packages/eno-vn-mcp/package.json', import.meta.url)), 'utf8'))
-    expect(PAGE).toContain(`const MCP_NPM_PACKAGE = '${pkg.name}'`)
+    const { MCP_NPM_PACKAGE } = await import('@/lib/mcp-registry')
+    expect(MCP_NPM_PACKAGE).toBe(pkg.name)
     expect(PAGE).toContain('href={MCP_NPM_URL}')
     expect(pkg.homepage).toBe('https://eno.vn/developers/mcp')
+  })
+
+  it('/developers (the docs entry page) links the npm package, both registry records and the skills repo — eno.vn only', () => {
+    expect(DEV).toContain('{!IS_SERVICES && (')
+    for (const t of ['href={MCP_NPM_URL}', 'href={MCP_REGISTRY_URL}', 'href={MCP_SEARCH_REGISTRY_URL}', 'href={AGENT_SKILLS_REPO_URL}']) expect(DEV).toContain(t)
   })
 
   it('stays a server component, and /developers links to it', () => {

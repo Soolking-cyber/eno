@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { OAUTH_SCOPES, OAUTH_ISSUER } from '@/lib/api/oauth'
 import { toolDescriptors } from '@/lib/mcp/tools'
 
@@ -256,6 +256,21 @@ describe('/auth.md', () => {
     expect(body).not.toMatch(/\/agent\/event/)
     // Still a heading first: ora's auth-md-exists check.
     expect(body.startsWith('# ')).toBe(true)
+  })
+
+  it('/agents.md lists the npm package, both registry records and the skills repo — on eno.vn only', async () => {
+    expect((await md(await load.agents())).body).not.toContain('## Packages and registries')
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    vi.resetModules()
+    try {
+      const body = await (await (await import('./agents/route')).GET()).text()
+      expect(body).toContain('## Packages and registries')
+      for (const t of ['https://www.npmjs.com/package/eno-vn-mcp', 'vn.eno/partner-api', 'vn.eno/search', 'https://github.com/eno-vn/eno-agent-skills']) expect(body).toContain(t)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 
   it('describes the authorization server the way its RFC 8414 metadata does', async () => {

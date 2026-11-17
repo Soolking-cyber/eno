@@ -9,7 +9,7 @@ import { TOOLS } from '@/lib/mcp/tools'
 import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
-import { MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
 import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
@@ -43,9 +43,7 @@ const SEARCH_ENDPOINT = `${SITE_ORIGIN}/api/mcp/search`
 
 /** The client-side name in the examples: the site's first label, e.g. `eno`. */
 const CLIENT_NAME = SITE_NAME.split('.')[0]
-/** The stdio bridge on npm (packages/eno-vn-mcp; its package.json name — mcp-page.test.ts holds the two together). */
-const MCP_NPM_PACKAGE = 'eno-vn-mcp'
-const MCP_NPM_URL = `https://www.npmjs.com/package/${MCP_NPM_PACKAGE}`
+
 
 export default function McpServerPage() {
   return (

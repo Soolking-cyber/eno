@@ -104,6 +104,12 @@ describe('/llms.txt on the services edition', () => {
     h.facts = MEASURED
   })
 
+  it('⛔ never names eno.vn\'s npm package or registry records on the other edition', async () => {
+    const body = await bodyOf()
+    expect(body).not.toContain('eno-vn-mcp')
+    expect(body).not.toContain('vn.eno/search')
+  })
+
   it('⛔ never links eno.vn\'s agent-skills repo (or any GitHub account)', async () => {
     const body = await bodyOf()
     expect(body).not.toContain('eno-agent-skills')
@@ -121,6 +127,16 @@ describe('/llms.txt on the marketplace', () => {
     const body = await bodyOf()
     expect(body).toContain('- [Agent skills](https://github.com/eno-vn/eno-agent-skills)')
     expect(body).toContain('[skills.sh](https://skills.sh/eno-vn/eno-agent-skills)')
+  })
+
+  it('links the npm package and BOTH registry records (ora mcp-registry-listed: "link the registry entry or package")', async () => {
+    const body = await bodyOf()
+    expect(body).toContain('- [npm package eno-vn-mcp](https://www.npmjs.com/package/eno-vn-mcp)')
+    expect(body).toContain('- [MCP Registry entry vn.eno/search](https://registry.modelcontextprotocol.io/v0.1/servers/vn.eno%2Fsearch/versions/latest)')
+    expect(body).toContain('- [MCP Registry entry vn.eno/partner-api](')
+    const { MCP_NPM_PACKAGE } = await import('@/lib/mcp-registry')
+    const pkg = JSON.parse((await import('node:fs')).readFileSync('packages/eno-vn-mcp/package.json', 'utf8'))
+    expect(MCP_NPM_PACKAGE).toBe(pkg.name)
   })
 
   it('⛔ NAMES eno.vn, NOT THE OTHER EDITION', async () => {
