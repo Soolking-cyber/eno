@@ -283,6 +283,21 @@ Authorization: Bearer eno_live_…`}</Code></div>
           </p>
         </section>
 
+        {/* 2026-11-17: the public listing search as an A2A agent (src/lib/a2a/agent.ts). Every claim here is one the card makes. */}
+        <section id="a2a" className="mt-8 scroll-mt-24 border-t border-border pt-6">
+          <h2 className="h-section text-foreground">Search with an A2A agent</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            The listing search also answers over <a href="https://a2a-protocol.org" className="font-semibold text-accent-foreground underline">Agent2Agent (A2A)</a>,
+            JSON-RPC, versions 1.0 and 0.3, with no key. Its Agent Card is at{' '}
+            <a href="/.well-known/agent-card.json" className="font-mono font-semibold text-accent-foreground underline">/.well-known/agent-card.json</a>.
+            Send a text part (what to look for, or a listing&apos;s URL) or a data part with the search fields. The answer is one message: a short summary and the results as JSON.
+            Read-only: no sign-in, no tasks, no streaming.
+          </p>
+          <div className="mt-3"><Code>{`POST ${SITE_ORIGIN}/api/a2a
+A2A-Version: 1.0
+{"jsonrpc":"2.0","id":1,"method":"SendMessage","params":{"message":{"messageId":"1","role":"ROLE_USER","parts":[{"text":"honda vision district 3"}]}}}`}</Code></div>
+        </section>
+
         <section className="mt-8">
           <h2 className="h-section text-foreground">Conventions</h2>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">

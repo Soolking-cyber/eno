@@ -12,9 +12,10 @@ export function apiCatalog() {
   const catalog = docUrl(DOC_PATHS.apiCatalog)
   const rest = docUrl('/api/v1')
   const mcp = docUrl('/api/mcp')
+  const a2a = docUrl('/api/a2a')
   return {
     linkset: [
-      { anchor: catalog, item: [{ href: rest }, { href: mcp }] },
+      { anchor: catalog, item: [{ href: rest }, { href: mcp }, { href: a2a }] },
       {
         anchor: rest,
         'service-desc': [{ href: docUrl(DOC_PATHS.openapi), type: OPENAPI_MEDIA_TYPE }],
@@ -28,6 +29,12 @@ export function apiCatalog() {
         // The MCP Server Card: transport, protocol versions, the header to connect with.
         'service-desc': [{ href: docUrl('/.well-known/mcp.json'), type: 'application/json' }],
         'service-doc': [{ href: docUrl(DOC_PATHS.mcp), type: 'text/html' }],
+      },
+      {
+        anchor: a2a,
+        // The A2A Agent Card (src/lib/a2a/agent.ts): the JSON-RPC interface, versions and skills.
+        'service-desc': [{ href: docUrl('/.well-known/agent-card.json'), type: 'application/json' }],
+        'service-doc': [{ href: docUrl(`${DOC_PATHS.developers}#a2a`), type: 'text/html' }],
       },
     ],
   }

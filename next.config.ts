@@ -1248,6 +1248,11 @@ const nextConfig: NextConfig = {
         // RFC 9727 API catalogue (2026-11-11; src/app/api/well-known/api-catalog/route.ts). The exact well-known name,
         // no extension — the RFC registers `api-catalog`, and a `.json` alias would be a second document to keep equal.
         { source: "/.well-known/api-catalog", destination: "/api/well-known/api-catalog" },
+        // A2A Agent Card (2026-11-17; src/lib/a2a/agent.ts): the 1.0 name, and the 0.2 name older clients still fetch.
+        { source: "/.well-known/agent-card.json", destination: "/api/well-known/agent-card" },
+        { source: "/.well-known/agent.json", destination: "/api/well-known/agent-card" },
+        // Personal Agent Protocol discovery, website-only (2026-11-17; src/app/api/well-known/poppy/route.ts says why).
+        { source: "/.well-known/poppy.json", destination: "/api/well-known/poppy" },
         // OpenAI's domain check for the ChatGPT plugin (2026-11-14): the exact token, as plain text.
         { source: "/.well-known/openai-apps-challenge", destination: "/api/well-known/openai-apps-challenge" },
         // Muse's domain check for the connector (2026-11-14): that exact path only, answered as plain text.

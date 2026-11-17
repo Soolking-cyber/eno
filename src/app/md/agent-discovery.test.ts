@@ -165,6 +165,8 @@ describe('/.well-known/ai-catalog.json — ARD catalogue', () => {
      * `/.well-known/mcp.json`).
      */
     expect(paths).toEqual([
+      // The A2A Agent Card (2026-11-17, src/app/api/well-known/agent-card): served by this build, pinned in src/lib/a2a.
+      '/.well-known/agent-card.json',
       '/.well-known/mcp.json',
       '/.well-known/oauth-authorization-server',
       // The API's own RFC 9728 document since 2026-11-16 (the bare path names the origin); curled 200 live that day.

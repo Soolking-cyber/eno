@@ -39,11 +39,11 @@ describe('/.well-known/api-catalog (RFC 9727)', () => {
     for (const h of ['content-type', 'link', 'cache-control', 'access-control-allow-origin']) expect(head.headers.get(h)).toBe(GET().headers.get(h))
   })
 
-  it('links both API endpoints from the catalogue anchor, and describes each (§4.1)', async () => {
+  it('links every API endpoint from the catalogue anchor, and describes each (§4.1)', async () => {
     const { GET } = await load()
     const { linkset } = (await GET().json()) as { linkset: Ctx[] }
     const self = linkset.find((c) => c.anchor === 'https://eno.vn/.well-known/api-catalog')!
-    expect((self.item as Link[]).map((l) => l.href)).toEqual(['https://eno.vn/api/v1', 'https://eno.vn/api/mcp'])
+    expect((self.item as Link[]).map((l) => l.href)).toEqual(['https://eno.vn/api/v1', 'https://eno.vn/api/mcp', 'https://eno.vn/api/a2a'])
     const rest = linkset.find((c) => c.anchor === 'https://eno.vn/api/v1')!
     expect(rest['service-desc']).toEqual([{ href: 'https://eno.vn/openapi.json', type: 'application/vnd.oai.openapi+json' }])
     expect(rest['service-doc']).toEqual([{ href: 'https://eno.vn/developers', type: 'text/html' }])
@@ -51,6 +51,8 @@ describe('/.well-known/api-catalog (RFC 9727)', () => {
     expect(rest['service-meta']).toEqual([{ href: 'https://eno.vn/.well-known/oauth-protected-resource/api/v1', type: 'application/json' }])
     const mcp = linkset.find((c) => c.anchor === 'https://eno.vn/api/mcp')!
     expect(mcp['service-doc']).toEqual([{ href: 'https://eno.vn/developers/mcp', type: 'text/html' }])
+    const a2a = linkset.find((c) => c.anchor === 'https://eno.vn/api/a2a')!
+    expect(a2a['service-desc']).toEqual([{ href: 'https://eno.vn/.well-known/agent-card.json', type: 'application/json' }])
   })
 
   it("names only the edition's own origin", async () => {

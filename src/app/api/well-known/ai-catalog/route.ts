@@ -37,10 +37,9 @@ import { SITE_NAME } from '@/lib/edition'
 // audit posture, which is the single worst field in this schema to bluff, and the operating entity
 // behind the services edition is still pending (see src/lib/site-legal.ts).
 //
-// ⛔ AND NO `agent` OR `skill` ENTRIES. The auditor probes /.well-known/agent-skills and
-// /.well-known/agent-skills/index.json fifteen times each; we serve neither, because there is no
-// A2A agent card and no skills endpoint behind this domain. Every entry below was curled on the
-// live deployment before it was written down (see the table on VERIFIED, further down).
+// ONE `agent` ENTRY (2026-11-17): the A2A Agent Card at /.well-known/agent-card.json, for the read-only search agent
+// at /api/a2a (src/lib/a2a/agent.ts). No `skill` entries: the agent-skills index is its own document. Every entry
+// below names a document this deployment serves (see the table on VERIFIED, further down).
 //
 // ⚠️ THE CONTENT TYPE IS `application/json`, NOT `application/ai-catalog+json`. The spec uses the
 // latter as the `type` of a NESTED catalogue entry; nothing in it mandates a response content type
@@ -183,6 +182,17 @@ export async function GET() {
             'create a listing for a used motorbike with photos',
             'how many views and leads did my listings get last week',
           ],
+        },
+        {
+          identifier: urn('agent', 'marketplace-search'),
+          displayName: `${SITE_NAME} marketplace search agent (A2A)`,
+          // The Agent Card itself, not the JSON-RPC endpoint: a GET on /api/a2a answers 405 (the MCP entry's rule above).
+          type: 'application/json',
+          url: `${OAUTH_ISSUER}/.well-known/agent-card.json`,
+          description: `A2A agent at ${OAUTH_ISSUER}/api/a2a — JSON-RPC, A2A 1.0 and 0.3, no sign-in. Finds live listings for sale or rent in Vietnam, one listing's details, and the categories. Read-only.`,
+          tags: ['a2a', 'agent', 'search', 'marketplace'],
+          capabilities: ['find-listings', 'listing-details', 'categories'],
+          representativeQueries: ['2 bedroom apartment in district 7 under 20 million', 'used honda motorbike in district 3', 'what categories can I search'],
         },
         {
           identifier: urn('metadata', 'oauth-authorization-server'),

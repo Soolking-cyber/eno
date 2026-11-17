@@ -88,6 +88,8 @@ const DEVELOPER_SECTION = `## For developers and agents
   storefront: the endpoint, the header, and every tool with the scope it needs.
 - [Listing search MCP server](${SITE_ORIGIN}/developers/mcp#search): \`${SITE_ORIGIN}/api/mcp/search\`, open to any MCP client with
   no key: search the listings, read one listing's details, list the categories. Read-only; every result links to its page.
+- [A2A agent](${SITE_ORIGIN}/.well-known/agent-card.json): \`${SITE_ORIGIN}/api/a2a\`, an Agent2Agent (JSON-RPC, A2A 1.0
+  and 0.3) agent open to any A2A client with no key: the same listing search, listing details and categories. Read-only.
 - Docs MCP server: \`${SITE_ORIGIN}/api/mcp/docs\`, open to any MCP client with no key: search this site's documentation and
   read one whole document, such as this index or the authentication guide. Read-only.
 - [eno-vn CLI](${SITE_ORIGIN}/developers/cli) — the command-line client on npm (${SITE_ORIGIN === 'https://eno.vn' ? '' : `\`export ENO_BASE_URL=${SITE_ORIGIN}\` then `}\`npx eno-vn status\`): listings,
@@ -95,8 +97,8 @@ const DEVELOPER_SECTION = `## For developers and agents
   follows every page).
 - [Versioning and deprecation policy](${SITE_ORIGIN}/developers/versioning) — URL-path versioning, what may change
   inside v1 without notice, and the Deprecation / Sunset headers that announce a removal.
-- [API catalogue](${SITE_ORIGIN}/.well-known/api-catalog) — RFC 9727 Linkset of this host's APIs (the REST API and the
-  MCP server), each with its spec, docs and status links.
+- [API catalogue](${SITE_ORIGIN}/.well-known/api-catalog) — RFC 9727 Linkset of this host's APIs (the REST API, the
+  MCP server and the A2A agent), each with its spec, docs and status links.
 - [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. The same document is also served at [/api/v1/openapi.json](${SITE_ORIGIN}/api/v1/openapi.json).
 - [OAuth authorization server metadata](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414: token endpoint, grant, scopes.
 - [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource/api/v1) — RFC 9728: which resource a token is for.
