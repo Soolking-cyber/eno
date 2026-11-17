@@ -6,8 +6,9 @@ import { useLanguage } from '@/context/language-context'
 import { trustScoreColor } from '@/lib/trust-score'
 /* The two shields ONLY — not UI_ART, which is every UI glyph in one object and put ~118 KB of path
    data on the first load of every page with a card. See ui-art-shields.ts / scripts/gen-icons.mjs. */
-import { SHIELD_VERIFIED, TRUST_SHIELD } from '@/generated/ui-art-shields'
+import { TRUST_SHIELD } from '@/generated/ui-art-shields'
 import { cn } from '@/lib/utils'
+import { ShieldVerifiedGlyph } from '@/components/marketplace/shield-verified-glyph'
 
 type Props = {
   score: number
@@ -122,17 +123,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
 
             Painted with `fill`, not `stroke` — Solar's Outline weight is a filled ring, which
             holds its exact weight at 11px where a stroked path would thin out. */}
-        <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-          {SHIELD_VERIFIED.rest.map((p, i) => (
-            <path
-              key={i}
-              d={p.d}
-              fill="currentColor"
-              fillRule={p.evenOdd ? 'evenodd' : undefined}
-              clipRule={p.evenOdd ? 'evenodd' : undefined}
-            />
-          ))}
-        </svg>
+        <ShieldVerifiedGlyph size={11} className="shrink-0" />
         {n}
       </span>
     )

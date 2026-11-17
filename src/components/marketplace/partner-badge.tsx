@@ -3,9 +3,9 @@ import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
-import { SHIELD_VERIFIED } from '@/generated/ui-art-shields'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { ShieldVerifiedGlyph } from '@/components/marketplace/shield-verified-glyph'
 
 /**
  * THE OFFICIAL-PARTNER BADGE — a shield plate (icon only since 2026-09-30) in partner green that explains itself when tapped.
@@ -131,11 +131,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true, onPhoto = 
             {/* The same Solar shield, 16px, in the partner green. ⚠️ `--partner-solid`, NOT `--partner-ink`: the plate is white in
                 BOTH themes (globals.css `--plate-fill`), and `--partner-ink` re-themes to #4ade80 in dark — 1.6:1 on white.
                 `--partner-solid` (#15803d) is one value in both themes: 5.0:1 on the plate. */}
-            <svg width={16} height={16} viewBox="0 0 24 24" className="size-4 shrink-0" style={{ color: 'var(--partner-solid)' }} aria-hidden="true">
-              {SHIELD_VERIFIED.rest.map((p, i) => (
-                <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
-              ))}
-            </svg>
+            <ShieldVerifiedGlyph size={16} className="size-4 shrink-0" style={{ color: 'var(--partner-solid)' }} />
             <span className="whitespace-nowrap">{full}</span>
           </>
         ) : (
@@ -161,11 +157,7 @@ export function PartnerBadge({ size = 'sm', className, asLink = true, onPhoto = 
           style={{ '--plate-tint': 'var(--partner-ink)', '--plate-ink': 'var(--partner-ink)' } as React.CSSProperties}
         >
           {/* The trust chip's exact glyph — Solar shield-verified at 11px, painted the same way (trust-score.tsx mini). */}
-          <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-            {SHIELD_VERIFIED.rest.map((p, i) => (
-              <path key={i} d={p.d} fill="currentColor" fillRule={p.evenOdd ? 'evenodd' : undefined} clipRule={p.evenOdd ? 'evenodd' : undefined} />
-            ))}
-          </svg>
+          <ShieldVerifiedGlyph size={11} className="shrink-0" />
         </span>
         )}
       </LinkOrSpan>
