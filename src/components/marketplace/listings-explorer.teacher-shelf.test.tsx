@@ -230,6 +230,54 @@ describe('the home page\'s ItemList JSON-LD (home-item-lists.ts)', () => {
     expect(graph.map((l) => l.name)).toEqual(['Rentals', 'Recommended'])
   })
 
+  // ⛔ THE SLIM PAGE (owner, 2026-11-17 — src/lib/home-lanes.ts slimHomeRails): every rail card the first paint does not draw
+  // goes as its id. The ItemList, the drawn cards and the hydration are exactly the whole page's.
+  it('⛔ the slim page lists and draws exactly what the whole one did, and hydrates with no recoverable error', async () => {
+    const { slimHomeRails } = await import('@/lib/home-lanes')
+    const cats = ['services', 'rentals', 'electronics'].map((slug) => ({ slug, name: slug[0].toUpperCase() + slug.slice(1), nameVi: slug, icon: '', count: 9 }))
+    // Trending claims r12-r14, the businesses r15-r17 (r12-r14 dedup against Trending): r13 and r16 leave the rentals rail.
+    const whole = {
+      initialTrending: catalogue.slice(12, 15),
+      initialBusinesses: catalogue.slice(12, 18),
+      initialCategoryRails: [
+        { slug: 'services', listings: catalogue.slice(20, 23) },
+        { slug: 'rentals', listings: [catalogue[13], ...catalogue.slice(23, 26), catalogue[16]] },
+        { slug: 'electronics', listings: catalogue.slice(26, 29) },
+      ],
+    }
+    const slim = slimHomeRails({ categories: cats as never, trending: whole.initialTrending, businesses: whole.initialBusinesses, rails: whole.initialCategoryRails })
+    // Only the first product lane's three cards go whole; every business card is an id.
+    expect(slim.rails.flatMap((r) => r.listings.filter((l) => 'title' in l).map((l) => l.id))).toEqual(['r23', 'r24', 'r25'])
+    expect(slim.businesses.some((b) => 'title' in b)).toBe(false)
+    const el = (props: Partial<React.ComponentProps<typeof ListingsExplorer>>) => (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={cats as never} initialListings={SEED()} initialTotal={catalogue.length} homeItemLists siteHeading={false} {...props} />
+      </QueryClientProvider>
+    )
+    const htmlOf = (props: Partial<React.ComponentProps<typeof ListingsExplorer>>) => { const d = document.createElement('div'); d.innerHTML = renderToString(el(props)); return d }
+    const slimProps = { ...whole, initialBusinesses: slim.businesses, initialCategoryRails: slim.rails }
+    const a = htmlOf(whole)
+    const b = htmlOf(slimProps)
+    const ldText = (d: Element) => d.querySelector('script[type="application/ld+json"]')!.textContent
+    expect(ldText(b)).toBe(ldText(a))
+    expect(ldOf(b)!['@graph'].map((l) => l.name)).toEqual(['Trending now', 'Rentals', 'Recommended'])
+    expect(ids(ldOf(b)!['@graph'][1])).toEqual(['r23', 'r24', 'r25'])
+    const cardsIn = (d: Element) => [...d.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id'))
+    expect(cardsIn(b)).toEqual(cardsIn(a))
+    expect(cardsIn(b)).toEqual(expect.arrayContaining(['r23', 'r24', 'r25']))
+    const container = document.body.appendChild(document.createElement('div'))
+    const errors: unknown[] = []
+    let root: Root | null = null
+    try {
+      container.innerHTML = renderToString(el(slimProps))
+      await act(async () => { root = hydrateRoot(container, el(slimProps), { onRecoverableError: (e) => errors.push(e) }) })
+      expect(errors).toEqual([])
+    } finally {
+      act(() => root?.unmount())
+      container.remove()
+    }
+  })
+
   it('a rail under its draw floor is not listed; nothing at all without homeItemLists or on a storefront', () => {
     const html = (props: Partial<React.ComponentProps<typeof ListingsExplorer>>) => {
       const div = document.createElement('div')
@@ -645,6 +693,29 @@ describe('the home page\'s phone lanes', () => {
       mount(newClient(), { ...homeProps, initialFetchedAt: OLD() })
       await act(async () => { await new Promise((r) => setTimeout(r, 800)) })
       expect(railsAsks().slice(before)).toEqual([])
+    })
+
+    // ⛔ THE SLIM PAGE ON A DESKTOP (commit gate, 2026-11-17 — src/lib/home-lanes.ts slimHomeRails): the lanes sent as ids fill in
+    // the shelves under the feed too — DeferredCategoryRails → CategoryRails → each CategoryLane with `onDrawn={checkCategoryLanes}`
+    // and no media of its own — from the same one check; the phone's copies (display:none here) ask nothing.
+    it('on a desktop: the shelves under the feed draw the lanes sent as ids, from one check', async () => {
+      const io = installFakeIntersectionObserver() // installDomStubs' matchMedia matches nothing: a desktop's widths
+      vi.stubGlobal('requestIdleCallback', (cb: () => void) => setTimeout(cb, 0) as unknown as number)
+      vi.stubGlobal('cancelIdleCallback', (id: number) => clearTimeout(id))
+      const { slimHomeRails } = await import('@/lib/home-lanes')
+      const slim = slimHomeRails({ categories: cats, trending: homeProps.initialTrending, businesses: homeProps.initialBusinesses, rails })
+      // Only the first product lane (rentals) goes whole; the other three lanes are ids.
+      expect(slim.rails.map((r) => [r.slug, r.listings.every((l) => 'title' in l)])).toEqual([['rentals', true], ['services', false], ['fashion-beauty', false], ['furniture-appliances', false]])
+      railsAnswer = { rails }
+      mount(newClient(), { ...homeProps, initialBusinesses: slim.businesses, initialCategoryRails: slim.rails, initialFetchedAt: OLD() })
+      const shelves = () => [...document.querySelectorAll('.space-y-7 > section')].filter((s) => !s.closest('[data-home-lanes]'))
+        .map((s) => [...s.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id')))
+      expect(shelves()).toEqual([]) // deferred under the feed: not drawn yet
+      io.scrollToSentinel() // the shelves' place is on screen: due (and armed at the next idle moment)
+      await waitFor(() => expect(shelves()).toHaveLength(4))
+      io.scrollToSentinel() // each shelf nears the screen: its gate opens
+      await waitFor(() => expect(shelves()).toEqual(rails.map((r) => r.listings.map((l) => l.id))))
+      expect(railsAsks()).toEqual(['?lang=en'])
     })
   })
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Children, useEffect, useState } from 'react'
-import type { CSSProperties, RefObject } from 'react'
+import type { CSSProperties, Ref, RefObject } from 'react'
 import { ArrowRight, ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -18,11 +18,8 @@ import { cn } from '@/lib/utils'
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
 
-/** Sparse-catalogue floor for a curated rail (wow pass, 2026-08-06). Below three items a
- *  horizontal rail is two cards and a void — it manufactures the look of a dead shop.
- *  Rails hide themselves under this floor; the feed grid below still shows every listing,
- *  so nothing becomes unreachable. One constant so every rail agrees on "sensible minimum". */
-export const MIN_RAIL_ITEMS = 3
+/** The sparse-catalogue floor every rail shares — in src/lib/home-lanes.ts since 2026-11-17, so (home)/page.tsx reads the same one. */
+export { MIN_RAIL_ITEMS } from '@/lib/home-lanes'
 
 /** How many card placeholders a rail draws while its own fetch is in flight.
  *  FOUR, because RAIL_CARD_W makes a card exactly one feed-grid column and the widest
@@ -199,6 +196,30 @@ export function useLaneGate(scrollerRef: RefObject<HTMLDivElement | null>, initi
 }
 
 /**
+ * ⛔ A RAIL WHOSE CARDS COULD NOT BE FETCHED NEVER KEEPS ITS PLACEHOLDERS FOR THE VISIT (commit gate, 2026-11-17). The home page
+ * sends some rails' cards as ids (src/lib/home-lanes.ts slimHomeRails); when every ask for them has failed (`lost`), the rail
+ * LEAVES the first time it is wholly BELOW the screen — taking it out there moves only what the reader has not reached, so
+ * nothing on screen shifts — and each time it comes back ON screen it asks once more (`onBack`; the asker decides whether
+ * another try is allowed). On screen or above it, it stays: removing it there would move what the reader is looking at.
+ * Returns true once it has left.
+ */
+export function useLostPlace(ref: RefObject<HTMLElement | null>, lost: boolean, onBack?: () => void) {
+  const [gone, setGone] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!lost || gone || !el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => {
+      if (!e) return
+      if (e.isIntersecting) onBack?.()
+      else if (e.boundingClientRect.height > 0 && e.boundingClientRect.top >= (e.rootBounds?.bottom ?? window.innerHeight)) setGone(true)
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [ref, lost, gone, onBack])
+  return gone
+}
+
+/**
  * ⛔ A RAIL THAT IS NOT DRAWN YET SHOWS ITS SHAPE, NEVER AN EMPTY PAGE (owner, 2026-11-12: "on mobile landing page from
  * services downwards loads slow and upon scroll user sees big blank page"). Home holds the place of the shelves under its
  * feed from the first byte (listings-explorer.tsx DeferredShelf / DeferredCategoryRails) and draws them later; that place
@@ -333,6 +354,8 @@ export function Shelf({
   look = 'rail',
   lead = false,
   deferCards,
+  onShown,
+  sectionRef,
   phoneGrid = false,
   children,
 }: {
@@ -365,6 +388,10 @@ export function Shelf({
    * row (the server renders the header and the placeholders). For a home lane below the first screen.
    */
   deferCards?: number
+  /** Told once the cards are due (the gate open; at once without `deferCards`): a rail whose cards come later asks for them then. */
+  onShown?: () => void
+  /** The rail's `<section>`, for a caller that watches where it is (useLostPlace). */
+  sectionRef?: Ref<HTMLElement>
   /**
    * ⛔ BELOW sm, A TWO-COLUMN GRID INSTEAD OF THE RAIL (owner-approved 2026-11-14, cook r06 "item": the goods listing page's
    * shelves; src/lib/goods-sheet.ts). The same cards in the same scroller, laid out as the feed's grid — the same bleed
@@ -401,6 +428,7 @@ export function Shelf({
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
   // A deferred lane (`deferCards`): placeholders at the card's own geometry until it nears the screen, then the cards.
   const shown = useLaneGate(scrollerRef, deferCards === undefined)
+  useEffect(() => { if (shown) onShown?.() }, [shown, onShown])
   const items = shown
     ? children
     : Array.from({ length: Math.min(deferCards ?? 0, RAIL_SKELETON_COUNT) }, (_, i) => (
@@ -410,7 +438,7 @@ export function Shelf({
   return (
     // `data-shelf` / `data-shelf-items`: a shelf whose every item is a shop the viewer blocked goes as a whole — heading
     // and all — rather than leaving a title over an empty scroller (src/lib/hidden-sellers.ts, App Store 1.2).
-    <section data-shelf="" data-lane={lane ? '' : undefined} className={sectionClassName}>
+    <section ref={sectionRef} data-shelf="" data-lane={lane ? '' : undefined} className={sectionClassName}>
       <div className={lane ? LANE_HEADER_ROW : SECTION_HEADER_ROW}>
         <div className="flex min-w-0 items-center gap-2">
           {Icon && <Icon className={cn('h-4 w-4 shrink-0 text-accent-foreground', (lane || phoneGrid === 'goods') && LANE_ICON_HIDE)} />}

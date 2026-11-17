@@ -84,7 +84,7 @@ const SM_UP = '(min-width: 40rem)'
  * (globals.css `.partner-strip-feed`).
  * ⛔ AFTER THE PRODUCT LANES, BEFORE OUTSTANDING BUSINESSES AND SERVICES; EXACT THIRDS, RAISED (owner-approved 2026-11-15
  * (build 8), cook r08 home — it reverses build 7's place before the second category lane and its 24px edge of the fourth
- * tile): the lane closes the product lanes and opens the flyer lanes (listings-explorer.tsx LATE_LANE_SLUGS); its three
+ * tile): the lane closes the product lanes and opens the flyer lanes (src/lib/home-lanes.ts LATE_LANE_SLUGS); its three
  * whole tiles fill the text column and nothing of the fourth shows (the blind critics marked that cut tile broken); each
  * tile is raised like the category pills (globals.css `.partner-strip-feed`). The still band itself is unchanged.
  */

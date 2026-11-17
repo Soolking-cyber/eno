@@ -1719,6 +1719,8 @@ export const VI_OVERRIDES: Record<string, string> = {
   "e.g. iPhone 14 Pro": "VD: iPhone 14 Pro",
   "eno needs camera access — turn it on in Settings to take photos.": "eno cần quyền máy ảnh — bật trong Cài đặt để chụp ảnh.",
   "eno will never ask you for this code by phone, chat or email.": "eno sẽ không bao giờ hỏi bạn mã này qua điện thoại, tin nhắn hay email.",
+  "eno.vn — free classifieds for expats and locals in Vietnam.": "eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt.",
+  "eno.vn — classifieds for expats and locals in Vietnam.": "eno.vn — rao vặt cho người nước ngoài và người Việt.",
   "eno.vn is a free classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes.": "eno.vn là chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam. Tìm hiểu mọi điều bạn cần chỉ trong vài phút.",
   "eno.vn is a classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes.": "eno.vn là chợ rao vặt cho người nước ngoài và người Việt tại Việt Nam. Tìm hiểu mọi điều bạn cần chỉ trong vài phút.",
   "explains what we check and what to watch for when meeting or paying.": "giải thích những gì chúng tôi kiểm tra và điều cần lưu ý khi gặp mặt hoặc thanh toán.",

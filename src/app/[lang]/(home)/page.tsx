@@ -17,6 +17,7 @@ import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { homeMetadata, homeWebPageJsonLd } from './home-metadata'
 import { jsonLdText } from '@/lib/home-item-lists'
+import { slimHomeRails } from '@/lib/home-lanes'
 
 // ISR: near-static homepage data, refreshed at most once a minute (better LCP/TTFB).
 export const revalidate = 21600 // 6h — the client explorer fetches live listings via /api/listings, so the ISR HTML is just first-paint+SEO. Home is a HOT page that regenerates per edge region, so a 6h window (vs 1h) cuts ISR writes ~6× with zero UX/speed change
@@ -175,6 +176,10 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
    */
   const { lang } = await params
   const { categories, listings, total, businesses, trending, teachers, categoryRails } = await getData(lang === 'vi' ? 'vi' : undefined)
+  // ⚡ PAYLOAD (owner, 2026-11-17): the rail cards this page's first paint does not draw go as their ids, in their places —
+  // every Outstanding-businesses card and every category-lane card but the first product lane's (src/lib/home-lanes.ts has
+  // the rule and how each rail draws them later). The CHOICE is unchanged: the explorer dedups and floors the same ids.
+  const slim = slimHomeRails({ categories, trending, businesses, rails: categoryRails })
 
   /**
    * ⛔ THE WRAPPER, HEADER, `<main>`, H1 AND FOOTER ARE IN `(home)/layout.tsx` SINCE SEO WAVE B, H1c,
@@ -193,10 +198,10 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       // Baked at ISR regeneration time — tells the client explorer the seed's TRUE age
       // so a 6h-old snapshot revalidates in the background instead of posing as fresh.
       initialFetchedAt={Date.now()}
-      initialBusinesses={businesses}
+      initialBusinesses={slim.businesses}
       initialTrending={trending}
       initialTeachers={teachers}
-      initialCategoryRails={categoryRails}
+      initialCategoryRails={slim.rails}
       siteHeading={false}
       homeItemLists
     />

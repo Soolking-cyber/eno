@@ -6,6 +6,8 @@ import { VI_PILOT } from '@/lib/lang-pinned'
 import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
 import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
 import { PartnerStrip } from '@/components/marketplace/partner-strip'
+import { Tr } from '@/context/language-context'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 /**
  * ⛔ THE `/vi` PILOT'S SWITCHER AND BANNER (SEO wave B, V3b) MOUNT ONLY WHILE `/` IS A LIVE PILOT PATH —
@@ -27,7 +29,7 @@ const PILOTED = VI_PILOT.live.includes('/')
  * own folder, so what renders here is in place in the first chunk.
  * The feed keeps its skeleton (owner's hybrid, 2026-09-27); only the listing page lost its skeleton.
  *
- * ⛔ NO DATA. The H1 is the constant `SITE_NAME`, sr-only as it has been since 2026-08-02 (owner), and
+ * ⛔ NO DATA. The H1 is the site's title opening on the constant `SITE_NAME` (2026-11-17; before, the bare name), sr-only as it has been since 2026-08-02 (owner), and
  * nothing here awaits anything: whatever a layout awaits delays the whole first chunk.
  * ⚠️ THE ONE H1 IS THIS ONE. `<ListingsExplorer>` renders the same sr-only heading by default when it is
  * not seller-scoped; `(home)/page.tsx` turns it off with `siteHeading={false}`. Both at once is two H1s
@@ -69,7 +71,10 @@ export default function HomeLayout({ children, params }: { children: React.React
           header keeps the top and its notch inset (why: partner-strip.tsx). Static roster, no data — this layout awaits nothing. */}
       <PartnerStrip />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
-        <h1 className="sr-only">{SITE_NAME}</h1>
+        {/* The site's own title in words, as the footer prints it ("free" follows POSTING_IS_FREE), not the bare name (owner
+            2026-11-17: "Single H1 with reasonable length — only 6 characters … worth it?"). It still opens on SITE_NAME, the name
+            Google's brand review reads; <Tr> gives the Vietnamese page the curated line (vi-overrides). Static: nothing awaited. */}
+        <h1 className="sr-only"><Tr text={POSTING_IS_FREE ? `${SITE_NAME} — free classifieds for expats and locals in Vietnam.` : `${SITE_NAME} — classifieds for expats and locals in Vietnam.`} /></h1>
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {/* ⛔ THE FIRST PAINT WAITS FOR THE RESULTS ROW (speed audit, 2026-11-03). A 40 KB page arrives over several packets and the browser paints between them, so a
             phone watched the header's icons slide over, a filter chip grow from 14 px to 91 px and rows appear one by one. Everything above the feed is the first 9 KB:

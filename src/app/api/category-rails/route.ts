@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { LANGS, type Lang } from '@/lib/i18n/langs'
+import { siteLangParam } from '@/lib/i18n/langs'
 import { route } from '@/lib/api/handler'
 import { homeCategoryRails } from '@/lib/core/category-rails'
 
@@ -10,21 +10,6 @@ export const runtime = 'nodejs'
 // in-app caller is the home lanes' freshness check: the server's lanes are checked against this once their cards are
 // drawn, and the cards this no longer carries leave (category-rails.tsx useFreshCategoryLanes) — which is why the
 // Cache-Control below stays short. It also answers any page served before the move. Public, lightly cached.
-
-/**
- * `?lang`, ONLY AS ONE OF THE SITE'S OWN CODES (LANGS, src/lib/i18n/langs.ts), or undefined — the every-language answer.
- * ⛔ AN ALLOWLIST, BECAUSE THE ROUTE IS PUBLIC AND EVERY MISS RUNS THE GROUPBY AND ~10 FINDMANY: an unknown value (`xx`,
- * `ko-KR`, `constructor`, an empty or blank one) must not become its own answer. It answers exactly like no `lang`, so the
- * route has twelve possible bodies whatever the URL says (commit gate, 2026-11-11). Before this, `lang=xx` was a thirteenth
- * (no titles at all) and `lang=constructor` embedded `Object` as a "translation" (`"titleI18n":{}` on every card).
- * Case-blind and trimmed, like every other reader of a language tag here (matchSupportedLanguage in lang-variant.ts,
- * language-context's matchLanguage), returning the canonical spelling: `ZH-HANS` is `zh-Hans`. ⚠️ NO REGION FALLBACK:
- * `ko-KR` and `zh` are not codes (the client only ever sends a code, from useLanguage()).
- */
-function readerLang(raw: string | null): Lang | undefined {
-  const lc = raw?.trim().toLowerCase()
-  return lc ? LANGS.find((code) => code.toLowerCase() === lc) : undefined
-}
 
 // ⚠️ WS6 MIGRATION. `auth: 'public'` — the home page calls this logged-out; there was never an auth
 // preamble and adding one would 401 every guest. No rate limit and no body were added either: this
@@ -43,8 +28,8 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
   // cookie-read variant would poison the shared entry with whichever language came first (audit P2, as on
   // the feed — feed-payload.ts). With `lang` the answer carries that one language's titles, and none for
   // en/vi (the row has both). Without it, every language. Only a site language counts; anything else is no
-  // `lang` (readerLang above).
-  const rails = await homeCategoryRails(readerLang(new URL(req.url).searchParams.get('lang')))
+  // `lang` (siteLangParam, src/lib/i18n/langs.ts).
+  const rails = await homeCategoryRails(siteLangParam(new URL(req.url).searchParams.get('lang')))
   return NextResponse.json(
     { rails },
     { headers: { 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=900' } },

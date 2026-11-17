@@ -72,6 +72,11 @@ Disallow: /api
 # ⚠️ Allow must be MORE SPECIFIC than the Disallow it overrides: robots.txt precedence is
 # longest-match-wins (RFC 9309 §2.2.2), so this 16-character rule beats the 4-character one.
 Allow: /api/v1/status
+# …and the two the home page fills its later rows from (2026-11-17, the home slimming: the server sends those rows' cards
+# as ids). A renderer that may not fetch them — Googlebot's — would see placeholders where it used to see the listings.
+# Both are public, read-only card lists (browser-cached; Cloudflare does not cache them).
+Allow: /api/category-rails
+Allow: /api/home/cards
 # ⛔ /md/* ARE THE MARKDOWN REPRESENTATIONS OF '/', '/privacy' AND '/terms', AND THEY ARE REAL,
 # DIRECTLY FETCHABLE URLs — not merely internal rewrite destinations. 'GET /md/home' with no Accept
 # header returns 200 text/markdown carrying the same content as the home page. Without this line
@@ -127,9 +132,8 @@ Disallow: /
 # shop called 'guidesxyz'. ⛔ /teach-in-vietnam is its landing page ONLY: every article under it carries a rail of 72
 # teacher-profile photos (measured 2026-11-16), and those are people's listings. Every other opened page was scanned
 # for listing links and photos that day: none, bar two example photo URLs in the /developers API reference. Precedence is longest-match-wins (RFC 9309), so every Allow below beats 'Disallow: /'.
-# ⛔ Since 2026-11-17 GPTBot, ClaudeBot and Meta-ExternalAgent are not in this group (owner: "allow these too"): they read
-# the public pages under "User-agent: *". It still holds anthropic-ai (a retired Anthropic token) and Applebot-Extended.
-User-agent: anthropic-ai
+# ⛔ Since 2026-11-17 GPTBot, ClaudeBot, Meta-ExternalAgent and anthropic-ai are not in this group (owner: "allow these
+# too", then "robots.txt blocks: anthropic-ai"): they read the public pages under "User-agent: *". It holds Applebot-Extended.
 User-agent: Applebot-Extended
 Content-Signal: search=yes, ai-input=yes, ai-train=yes
 Allow: /about$

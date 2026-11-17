@@ -8,8 +8,8 @@ import { fetchTimeLimit } from '@/lib/fetch-time-limit'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
 import {
-  RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam,
-  LANE_CARD_W, LANE_SCROLLER, LANE_CARD_SIZES, LANE_HEADER_ROW, LANE_TITLE, LANE_ICON_HIDE, LANE_SEE_ALL, LaneSeeAllFace, LEAD_TITLE, RAIL_BEAM_LANE, useLaneGate, type RailLook,
+  RAIL_CARD_W, RAIL_SCROLLER, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam,
+  LANE_CARD_W, LANE_SCROLLER, LANE_CARD_SIZES, LANE_HEADER_ROW, LANE_TITLE, LANE_ICON_HIDE, LANE_SEE_ALL, LaneSeeAllFace, LEAD_TITLE, RAIL_BEAM_LANE, useLaneGate, useLostPlace, type RailLook,
 } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -18,11 +18,12 @@ import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { allCards, isCard, withTitles, type CategoryLaneData, type HomeCard } from '@/lib/home-lanes'
+import { isMtLanguage } from '@/lib/i18n/langs'
+import type { CategoryRailRow } from '@/lib/core/category-rails'
 
-/** One category's rail as the server reads it (src/lib/core/category-rails.ts `CategoryRailRow`). */
-export type CategoryRailData = { slug: string; listings: SerializedListingCard[] }
-/** A rail that will draw: its category, and the cards left after the dedup. */
-export type CategoryLaneData = { cat: SerializedCategory; items: SerializedListingCard[]; slug: string }
+// The lane data and the rule for which lanes draw are shared with (home)/page.tsx since 2026-11-17 (src/lib/home-lanes.ts).
+export { visibleCategoryRails, type CategoryLaneData, type CategoryRailData } from '@/lib/home-lanes'
 
 /**
  * ⛔ THE RAILS COME FROM THE SERVER (owner-approved 2026-11-14, cook r04 home-b "lanes as rails"). They used to be asked of
@@ -34,31 +35,9 @@ export type CategoryLaneData = { cat: SerializedCategory; items: SerializedListi
  * CHECK AFTER the paint (useFreshCategoryLanes below).
  * ⛔ THE PHONE'S LANE ORDER IS NO LONGER r04's FIXED ONE (owner-approved 2026-11-15 (build 8), cook r08 home): the explorer
  * draws the category lanes in the server's order but splits them BY SLUG — the flyer-heavy ones (Services) after Partners and
- * Outstanding businesses (listings-explorer.tsx LATE_LANE_SLUGS). The server still decides which rails exist and their order.
- *
- * Which rails draw, decided ONCE from props (so the server render and hydration agree on every lane and its place):
- * drop the cards the rails ABOVE already showed (`excludeIds`: Trending / Outstanding businesses — on a 13-listing catalogue
- * the same card in three adjacent rails reads as padding, not supply), then hide a rail under the shared sparse floor
- * (MIN_RAIL_ITEMS — a category heading over one or two cards is manufactured density, and every listing still appears in
- * the feed grid). A slug this edition does not list draws nothing.
+ * Outstanding businesses (src/lib/home-lanes.ts LATE_LANE_SLUGS). The server still decides which rails exist and their order.
+ * Which rails draw, and the lane data: src/lib/home-lanes.ts (visibleCategoryRails), shared with the server since 2026-11-17.
  */
-export function visibleCategoryRails(
-  rails: readonly CategoryRailData[],
-  categories: readonly SerializedCategory[],
-  excludeIds?: readonly string[],
-): CategoryLaneData[] {
-  const bySlug = new Map(categories.map((c) => [c.slug, c]))
-  const exclude = new Set(excludeIds ?? [])
-  const out: CategoryLaneData[] = []
-  for (const rail of rails) {
-    const cat = bySlug.get(rail.slug)
-    if (!cat) continue
-    const items = rail.listings.filter((l) => !exclude.has(l.id))
-    if (items.length < MIN_RAIL_ITEMS) continue
-    out.push({ cat, items, slug: rail.slug })
-  }
-  return out
-}
 
 /**
  * ⛔ THE SERVER'S LANES ARE CHECKED ONCE AFTER THE PAINT (commit review, 2026-11-14). They ride the home page's ISR document,
@@ -67,6 +46,11 @@ export function visibleCategoryRails(
  * ask per visit the old shelves made) is asked once, and every card its answer no longer carries leaves (freshenLanes).
  * ⚠️ NO AGE GATE ON THE BROWSER'S CLOCK: an earlier "only past a minute" skipped the check on a device whose clock ran
  * slow, and never re-checked a page that was young when drawn (commit review). The ask is cheap; always making it is simpler.
+ * ⛔ THE SAME ANSWER DRAWS THE CARDS THE PAGE SENT AS IDS (2026-11-17, src/lib/home-lanes.ts slimHomeRails): only the first
+ * product lane's cards come whole in the HTML; every other lane's are ids, in their places, and freshenLanes fills each from
+ * this answer (the same function the server read them with, homeCategoryRails) — still ONE ask per snapshot, no second
+ * request. A lane whose cards are ids asks the moment it opens, not at the idle after `load` (CategoryLane): its
+ * placeholders wait on the answer.
  */
 
 /**
@@ -82,17 +66,21 @@ export function visibleCategoryRails(
  * (CategoryLane draws nothing for it: a heading over an empty row is worse than the shift, and every card of a lane taken
  * down within six hours is rare). It keeps its entry here, so the lanes after it keep their places in the phone's order
  * (listings-explorer.tsx `data-home-lanes` draws them by slug, the first product lane with its cards from the server).
+ * A card the page sent as its id takes the answer's copy the same way, or leaves with the rest (it was never drawn).
  */
-export function freshenLanes(lanes: readonly CategoryLaneData[], fresh: readonly CategoryRailData[]): CategoryLaneData[] {
+export function freshenLanes(lanes: readonly CategoryLaneData[], fresh: readonly CategoryRailRow[]): CategoryLaneData[] {
   const live = new Map<string, SerializedListingCard>()
   for (const rail of fresh) for (const l of rail.listings ?? []) live.set(l.id, l)
   // The answer carries only the asking reader's title translations (its `lang`); the server's copy carries every one, so they
   // are kept under the answer's: a reader who switches language afterwards still gets the titles (commit review).
   return lanes.map((lane) => ({ ...lane, items: lane.items.flatMap((l) => {
     const f = live.get(l.id)
-    return f ? [{ ...f, titleI18n: { ...l.titleI18n, ...f.titleI18n } }] : []
+    return f ? [{ ...f, titleI18n: { ...(isCard(l) ? l.titleI18n : undefined), ...f.titleI18n } }] : []
   }) }))
 }
+
+/** The most asks for a snapshot whose lanes hold ids: the two of any snapshot, then lost lanes back on screen (below). */
+const MAX_ID_TRIES = 4
 
 /**
  * The server's lanes, and `check` — the one ask that keeps them honest (above). Hand `check` to the lanes (CategoryLane
@@ -101,39 +89,77 @@ export function freshenLanes(lanes: readonly CategoryLaneData[], fresh: readonly
  * lanes drawing while it is in flight share it; a failed ask is tried once more by itself 5 s later, and never again; new
  * server lanes (a refresh) start over, and an answer is applied only to the snapshot it was asked for. Until an answer lands
  * the lanes are the server's own, so the hydration render agrees with the HTML.
+ * ⛔ WHILE A LANE HOLDS IDS (slimHomeRails), NOT ONLY TWICE: after the two tries above it is LOST (`lost` on each such lane,
+ * shelf.tsx useLostPlace — it leaves once wholly below the screen), and a lost lane coming back on screen may ask again, at
+ * most MAX_ID_TRIES in all and never sooner than 5 s after a failure. A snapshot of whole lanes keeps exactly two.
+ * ⛔ …AND ONCE PER MACHINE-TRANSLATED LANGUAGE THE READER SWITCHES TO (commit gate, 2026-11-17): the answer carries only the
+ * asker's title translations, where the page's own copy of a card carried every one (freshenLanes keeps those) — so a card that
+ * came as an id would lose its title translations on a switch. The ask is made again in the new language and ONLY the titles
+ * are taken from it (withTitles: no card comes, goes or moves). Never on the normal path: a reader who does not switch asks
+ * once, and asking every language up front instead measured 30.7 KB br against 12.4 KB (2026-11-17) — more than the page saved.
  */
 export function useFreshCategoryLanes(lanes: readonly CategoryLaneData[], renderedAt: number | undefined) {
   const { lang } = useLanguage()
-  const [fresh, setFresh] = useState<{ at: number; rails: readonly CategoryRailData[] } | null>(null)
-  const ask = useRef<{ at: number; done: boolean; busy: boolean; tries: number } | null>(null)
+  const [fresh, setFresh] = useState<{ at: number; rails: readonly CategoryRailRow[]; lang: string } | null>(null)
+  const [titles, setTitles] = useState<{ at: number; cards: readonly SerializedListingCard[] } | null>(null)
+  const titled = useRef<{ at: number; langs: Set<string> } | null>(null)
+  const ask = useRef<{ at: number; done: boolean; busy: boolean; tries: number; failedAt: number } | null>(null)
+  const [lost, setLost] = useState<number | null>(null)
+  const holdsIds = useMemo(() => lanes.some((l) => !allCards(l.items)), [lanes])
   const retry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const latest = useRef<() => void>(() => {})
   useEffect(() => () => clearTimeout(retry.current), [])
   const check = useCallback(() => {
     if (renderedAt === undefined || lanes.length === 0) return
-    if (ask.current?.at !== renderedAt) { clearTimeout(retry.current); ask.current = { at: renderedAt, done: false, busy: false, tries: 0 } }
+    if (ask.current?.at !== renderedAt) { clearTimeout(retry.current); ask.current = { at: renderedAt, done: false, busy: false, tries: 0, failedAt: 0 } }
     const a = ask.current
-    if (a.done || a.busy || a.tries >= 2) return
+    if (a.done || a.busy || a.tries >= (holdsIds ? MAX_ID_TRIES : 2) || (a.tries >= 2 && Date.now() - a.failedAt < 5000)) return
     a.busy = true
     a.tries += 1
+    clearTimeout(retry.current) // an ask made meanwhile replaces the one queued by a failure
+    const asked = lang
     // ⛔ `lang` IN THE URL, as the ask always sent it: the answer then carries only this reader's title translations, and
-    // any shared cached copy is keyed by it (route.ts readerLang).
+    // any shared cached copy is keyed by it (route.ts, siteLangParam).
     void fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { rails?: unknown } | null) => {
         if (!d || !Array.isArray(d.rails)) return
         a.done = true
         // Only the snapshot still shown: an older snapshot's late answer must not overwrite a newer one's (commit review).
-        if (ask.current === a) setFresh({ at: a.at, rails: d.rails as CategoryRailData[] })
+        if (ask.current === a) setFresh({ at: a.at, rails: d.rails as CategoryRailRow[], lang: asked })
       })
       .catch(() => {})
       .finally(() => {
         a.busy = false
-        if (!a.done && a.tries < 2 && ask.current === a) retry.current = setTimeout(() => latest.current(), 5000)
+        if (a.done || ask.current !== a) return
+        a.failedAt = Date.now()
+        if (a.tries < 2) retry.current = setTimeout(() => latest.current(), 5000)
+        else setLost(a.at)
       })
-  }, [renderedAt, lanes.length, lang])
+  }, [renderedAt, lanes.length, lang, holdsIds])
   useEffect(() => { latest.current = check }, [check])
-  const shown = useMemo(() => (fresh && fresh.at === renderedAt ? freshenLanes(lanes, fresh.rails) : lanes), [lanes, fresh, renderedAt])
+  // The language switch (above): once per machine-translated language, only for a snapshot whose lanes held ids.
+  useEffect(() => {
+    if (!fresh || fresh.at !== renderedAt || !holdsIds || !isMtLanguage(lang)) return
+    if (titled.current?.at !== fresh.at) titled.current = { at: fresh.at, langs: new Set([fresh.lang]) }
+    const t = titled.current
+    if (t.langs.has(lang)) return
+    t.langs.add(lang)
+    void fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { rails?: unknown } | null) => {
+        if (!d || !Array.isArray(d.rails)) throw new Error('titles')
+        if (titled.current !== t) return
+        const more = (d.rails as CategoryRailRow[]).flatMap((r) => r.listings ?? [])
+        setTitles((prev) => ({ at: t.at, cards: [...(prev?.at === t.at ? prev.cards : []), ...more] }))
+      })
+      .catch(() => { t.langs.delete(lang) }) // switching back to it later may ask again
+  }, [fresh, renderedAt, holdsIds, lang])
+  const shown = useMemo(() => {
+    let out = fresh && fresh.at === renderedAt ? freshenLanes(lanes, fresh.rails) : lanes
+    if (titles && titles.at === renderedAt) out = out.map((l) => ({ ...l, items: withTitles(l.items, titles.cards) }))
+    return lost === renderedAt ? out.map((l) => (allCards(l.items) ? l : { ...l, lost: true })) : out
+  }, [lanes, fresh, renderedAt, lost, titles])
   return { lanes: shown, check }
 }
 
@@ -162,18 +188,23 @@ function afterLoadIdle(run: () => void): () => void {
  * `onDrawn`: told once the cards are drawn (the gate open), at the first idle moment after `load` — useFreshCategoryLanes'
  * `check` — and only while `liveMedia` matches, when given (the ForYouRail `liveMedia` rule: the home page draws these
  * lanes twice, and the copy hidden at this width never asks). A lane whose every card left (freshenLanes) draws nothing.
+ * ⛔ A LANE WHOSE CARDS THE PAGE SENT AS IDS (src/lib/home-lanes.ts slimHomeRails) keeps its placeholders, open or not, until
+ * the check's answer makes them whole — and it asks the moment it opens, not after `load`: nothing else draws them.
+ * `lost`: every ask for those ids failed (useFreshCategoryLanes) — the lane leaves once wholly below the screen and asks again
+ * each time it comes back on it (shelf.tsx useLostPlace), so its placeholders never stay for the visit.
  * `lead`: the home page's first lane when Trending does not draw — its heading the page's one display line (shelf.tsx
  * LEAD_TITLE, owner-approved 2026-11-15 (build 7)).
  */
-export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = false, initialShow = false, onDrawn, liveMedia }: {
+export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = false, initialShow = false, onDrawn, liveMedia, lost = false }: {
   cat: SerializedCategory
-  listings: readonly SerializedListingCard[]
+  listings: readonly HomeCard[]
   onCategory: (slug: string) => void
   look?: RailLook
   lead?: boolean
   initialShow?: boolean
   onDrawn?: () => void
   liveMedia?: string
+  lost?: boolean
 }) {
   const { tr } = useLanguage()
   const router = useRouter()
@@ -181,17 +212,21 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
   const cardW = lane ? LANE_CARD_W : RAIL_CARD_W
   // The scroller ref is shared: the hook drives the ← / → arrows AND the lazy-mount IntersectionObserver. `watch`: the
   // cards can leave after the paint (freshenLanes), and only the scroller's content changes then (shelf.tsx `watch`).
-  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch: listings.length })
+  const whole = allCards(listings)
+  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch: whole ? listings.length : -1 })
   const show = useLaneGate(scrollerRef, initialShow)
   useEffect(() => {
     if (!show || !onDrawn) return
     if (liveMedia && typeof window.matchMedia === 'function' && !window.matchMedia(liveMedia).matches) return
+    if (!whole) { onDrawn(); return }
     return afterLoadIdle(onDrawn)
-  }, [show, onDrawn, liveMedia])
+  }, [show, onDrawn, liveMedia, whole])
+  const sectionRef = useRef<HTMLElement>(null)
+  const gone = useLostPlace(sectionRef, lost && !whole, onDrawn)
 
-  if (listings.length === 0) return null
+  if (listings.length === 0 || gone) return null
   return (
-    <section data-lane={lane ? '' : undefined}>
+    <section ref={sectionRef} data-lane={lane ? '' : undefined}>
       {/* The header is the SHARED treatment (SECTION_* from shelf.tsx) so this rail cannot
           drift from the <Shelf> rails around it — it hand-rolled the same row before and had
           already drifted. The h2 WRAPS the button (heading > button is valid phrasing
@@ -229,7 +264,7 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
           or, as a phone lane, 220px cards bled to the screen edges (LANE_*). */}
       <div className="relative">
         <div ref={scrollerRef} className={lane ? LANE_SCROLLER : RAIL_SCROLLER}>
-          {show
+          {show && whole
             ? listings.map((l) => (
                 <div key={l.id} data-sid={l.sellerId} className={cardW}>
                   <ListingCard
@@ -260,8 +295,8 @@ export function CategoryRails({ lanes, onCategory, onDrawn }: { lanes: readonly 
   if (lanes.length === 0) return null
   return (
     <div className="space-y-7">
-      {lanes.map(({ cat, items, slug }) => (
-        <CategoryLane key={slug} cat={cat} listings={items} onCategory={onCategory} onDrawn={onDrawn} />
+      {lanes.map(({ cat, items, slug, lost }) => (
+        <CategoryLane key={slug} cat={cat} listings={items} onCategory={onCategory} onDrawn={onDrawn} lost={lost} />
       ))}
     </div>
   )

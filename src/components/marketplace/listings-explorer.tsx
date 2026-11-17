@@ -53,6 +53,7 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, ShelfSkeleton } from
 import { HOME_ORIGIN, homeItemListsJsonLd, jsonLdText } from '@/lib/home-item-lists'
 import { CATEGORY_ENTRY_LABELS } from '@/lib/category-entry-label'
 import { CategoryLane, CategoryRails, useFreshCategoryLanes, visibleCategoryRails, type CategoryLaneData, type CategoryRailData } from './category-rails'
+import { LATE_LANE_SLUGS, allCards, homeRailClaims, type HomeCard } from '@/lib/home-lanes'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
@@ -332,12 +333,6 @@ function releaseFeedEntry() {
 /** The home page's phone lanes are shown below `sm` (`sm:hidden`); these name the two sides for a media query in JS. */
 const PHONE_MEDIA = '(max-width: 39.99rem)'
 const SM_UP_MEDIA = '(min-width: 40rem)'
-/**
- * The category lanes that go LAST among the home page's phone lanes, after Partners and Outstanding businesses (owner-approved
- * 2026-11-15 (build 8), cook r08 home: "the flyer-heavy lanes ... move below the product lanes"): Services, a lane of sellers'
- * flyers. A taxonomy slug, so the order holds in every language and survives a renamed heading.
- */
-const LATE_LANE_SLUGS: readonly string[] = ['services']
 
 /**
  * ⛔ HOW FAR AHEAD THE SHELVES UNDER THE FEED START (owner, 2026-11-12: "on mobile landing page from services downwards loads
@@ -412,6 +407,8 @@ function CategoryRailsSkeleton() {
  * a screen or more below the fold, and hydrating them was over half of the component work in the longest task of a phone's load: the page froze for shelves nobody could
  * see yet. They render in a transition, so a scroll that reaches them is not held up. Their data stays in the page, so they are instant when they come; a crawler that runs
  * JavaScript gets them, one that does not still has the grid's links and the sitemap.
+ * ⚠️ EXCEPT OUTSTANDING BUSINESSES' SINCE 2026-11-17 (src/lib/home-lanes.ts slimHomeRails): its cards come as ids and are asked of
+ * /api/home/cards when due — which robots.txt allows under its `Disallow: /api` for this reason, so a crawler that runs JavaScript gets it too.
  * The height is the rail's, measured on production per width: it only has to keep what is below off the screen until they land.
  */
 function DeferredShelf({ children, className }: { children: React.ReactNode; /** `max-sm:hidden` under the feed: a phone's copy of these rails is a lane above it. */ className?: string }) {
@@ -626,8 +623,9 @@ type Props = {
   // 30s staleTime), so React Query never revalidated it. With the true age, a stale snapshot
   // still paints instantly but refetches in the background.
   initialFetchedAt?: number
-  // Server-known rail seeds (perf Phase 1) — rail geometry decided at first paint.
-  initialBusinesses?: SerializedListingCard[]
+  // Server-known rail seeds (perf Phase 1) — rail geometry decided at first paint. On the home page every business card comes
+  // as its id (src/lib/home-lanes.ts slimHomeRails): the rail draws none at first paint and asks for them when it opens.
+  initialBusinesses?: HomeCard[]
   initialTrending?: SerializedListingCard[]
   /**
    * Home only — the "Find a teacher" shelf's cards, `homeTeacherShelf()` from (home)/page.tsx (owner, 2026-10-13). A
@@ -1378,30 +1376,11 @@ export function ListingsExplorer({
   // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
   // mobile main thread and delaying the LCP image paint (3.1s render delay).
 
-  // Sparse-catalogue rail dedup (wow pass, 2026-08-06): with ~13 live listings the three
-  // landing rails were showing the SAME cards over and over — density that reads as a
-  // dead shop. The For You seed keeps first claim (it leads), Outstanding businesses is
-  // deduped against it, and the per-category rails exclude both. Rails that fall below
-  // the shared floor hide themselves (MIN_RAIL_ITEMS in shelf.tsx); every listing still
-  // appears in the feed grid, so nothing becomes unreachable. Server seeds only — a
-  // client-side personalization upgrade may reintroduce an overlap, which is acceptable:
-  // this is best-effort de-repetition, not a uniqueness invariant.
-  // Same render-gate rule as railExcludeIds below: a For You seed too small to render its
-  // rail never showed its cards, so it may not claim them out of the businesses rail either.
-  // (If the rail later appears from a >=3-item client fetch, a card can repeat — the accepted
-  // best-effort tradeoff documented above.)
-  const dedupedBusinesses = useMemo(() => {
-    const trendingShown = initialTrending && initialTrending.length >= MIN_RAIL_ITEMS ? initialTrending : []
-    return initialBusinesses?.filter((b) => !trendingShown.some((t) => t.id === b.id))
-  }, [initialBusinesses, initialTrending])
-  // Only rails that will actually RENDER may claim their cards: a rail hidden by the
-  // MIN_RAIL_ITEMS floor never showed anything, so counting its ids here would starve the
-  // category rails below of cards nobody ever saw (external diff-review catch, 2026-08-06).
-  const railExcludeIds = useMemo(() => {
-    const trendingShown = initialTrending && initialTrending.length >= MIN_RAIL_ITEMS ? initialTrending : []
-    const businessesShown = dedupedBusinesses && dedupedBusinesses.length >= MIN_RAIL_ITEMS ? dedupedBusinesses : []
-    return [...trendingShown, ...businessesShown].map((l) => l.id)
-  }, [initialTrending, dedupedBusinesses])
+  // Sparse-catalogue rail dedup (wow pass, 2026-08-06; src/lib/home-lanes.ts homeRailClaims, the rule and its record): the
+  // For You seed keeps first claim, Outstanding businesses is deduped against it, and the per-category rails exclude both —
+  // each only once it renders. Shared with (home)/page.tsx, which decides from the same rule which rail cards to send whole.
+  // (If a rail later appears from a >=3-item client fetch, a card can repeat — the accepted best-effort tradeoff.)
+  const { businesses: dedupedBusinesses, excludeIds: railExcludeIds } = useMemo(() => homeRailClaims(initialTrending, initialBusinesses), [initialTrending, initialBusinesses])
   // The category rails that will draw (deduped against the two above, each over the sparse floor) — from props alone, so the
   // server render and hydration agree on every lane and its place (category-rails.tsx visibleCategoryRails). ONE list for the
   // phone's lanes above the feed and the desktop's shelves under it.
@@ -1467,10 +1446,12 @@ export function ListingsExplorer({
     // draws its seed), the FIRST product lane (`initialShow`, as the lanes block draws it — LATE_LANE_SLUGS excluded), Find
     // a teacher and Recommended (both in the feed grid).
     const vi = lang === 'vi'
+    // ⛔ …AND ONLY WHOLE CARDS: the page sends the others as ids (src/lib/home-lanes.ts slimHomeRails), and a lane with any
+    // draws placeholders (CategoryLane), so a first lane that is not all whole lists nothing.
     const firstLane = serverCategoryLanes.find((l) => !LATE_LANE_SLUGS.includes(l.slug))
     return homeItemListsJsonLd([
       { name: tr('Trending now', 'Đang thịnh hành'), items: drawn(initialTrending) },
-      ...(firstLane ? [{ name: vi ? (firstLane.cat.nameVi || firstLane.cat.name) : firstLane.cat.name, items: firstLane.items }] : []),
+      ...(firstLane ? [{ name: vi ? (firstLane.cat.nameVi || firstLane.cat.name) : firstLane.cat.name, items: allCards(firstLane.items) ? firstLane.items : [] }] : []),
       { name: tr(CATEGORY_ENTRY_LABELS.teachers.name, CATEGORY_ENTRY_LABELS.teachers.nameVi ?? CATEGORY_ENTRY_LABELS.teachers.name), items: drawn(initialTeachers) },
       { name: tr('Recommended', 'Đề xuất'), items: initialListings },
     ], HOME_ORIGIN)
@@ -5431,13 +5412,13 @@ export function ListingsExplorer({
               <ForYouRail initial={initialTrending} look="lane" lead={phoneTrendingSeeded} lcpMedia={PHONE_MEDIA} liveMedia={PHONE_MEDIA} />
               {/* `onDrawn` + `liveMedia`: an old ISR answer is checked once a lane's cards are drawn, on a phone only (the block is
                   display:none from sm, where the shelves under the feed ask instead) — useFreshCategoryLanes above. */}
-              {productLanes.map(({ cat, items, slug }, i) => (
-                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" lead={i === 0 && !phoneTrendingSeeded} initialShow={i === 0} onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
+              {productLanes.map(({ cat, items, slug, lost }, i) => (
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" lead={i === 0 && !phoneTrendingSeeded} initialShow={i === 0} onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
               ))}
               <PartnerStrip placement="feed" />
               <BusinessRail initial={dedupedBusinesses} look="lane" />
-              {lateLanes.map(({ cat, items, slug }) => (
-                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} />
+              {lateLanes.map(({ cat, items, slug, lost }) => (
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
               ))}
             </div>
           )}

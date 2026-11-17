@@ -33,6 +33,22 @@ export const LANGUAGES: { code: Language; label: string; native: string }[] = [
 export const LANGS: Lang[] = LANGUAGES.map((l) => l.code)
 
 /**
+ * A public, edge-cached route's `?lang` (GET /api/category-rails, GET /api/home/cards), ONLY AS ONE OF THE SITE'S OWN CODES
+ * (LANGS above), or undefined — the every-language answer. Moved here from the category-rails route on 2026-11-17.
+ * ⛔ AN ALLOWLIST, BECAUSE THE ROUTE IS PUBLIC AND EVERY MISS RUNS THE GROUPBY AND ~10 FINDMANY: an unknown value (`xx`,
+ * `ko-KR`, `constructor`, an empty or blank one) must not become its own answer. It answers exactly like no `lang`, so the
+ * route has twelve possible bodies whatever the URL says (commit gate, 2026-11-11). Before this, `lang=xx` was a thirteenth
+ * (no titles at all) and `lang=constructor` embedded `Object` as a "translation" (`"titleI18n":{}` on every card).
+ * Case-blind and trimmed, like every other reader of a language tag here (matchSupportedLanguage in lang-variant.ts,
+ * language-context's matchLanguage), returning the canonical spelling: `ZH-HANS` is `zh-Hans`. ⚠️ NO REGION FALLBACK:
+ * `ko-KR` and `zh` are not codes (the client only ever sends a code, from useLanguage()).
+ */
+export function siteLangParam(raw: string | null | undefined): Lang | undefined {
+  const lc = raw?.trim().toLowerCase()
+  return lc ? LANGS.find((code) => code.toLowerCase() === lc) : undefined
+}
+
+/**
  * The Intl locale for DATES and RELATIVE TIMES in a UI language — month names and "ago" are words, and
  * a hardcoded `lang === 'vi' ? 'vi-VN' : 'en-US'` printed them in English for all nine
  * machine-translated languages.
