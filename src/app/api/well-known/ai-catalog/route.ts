@@ -3,6 +3,8 @@ import { OAUTH_ISSUER, OAUTH_SCOPES, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { toolDescriptors } from '@/lib/mcp/tools'
 import { SITE_NAME } from '@/lib/edition'
+import { COMPANY } from '@/lib/site-legal'
+import { MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 
 // ── Agentic Resource Discovery · /.well-known/ai-catalog.json ─────────────────────
 // Served at /.well-known/ai-catalog.json via a rewrite in next.config.ts, for the same reason the
@@ -79,7 +81,9 @@ export async function GET() {
     {
       specVersion: '1.0',
       host: {
-        displayName: SITE_NAME,
+        // The publisher by its operating company, as poppy.json and the A2A card name it (site-legal.ts COMPANY): one
+        // organization across the agent surfaces (ora 2026-11-17, "PAP agrees with ARD"). `identifier` stays the host.
+        displayName: COMPANY.nameEn,
         identifier: PUBLISHER,
         documentationUrl: `${OAUTH_ISSUER}/developers`,
       },
@@ -181,6 +185,18 @@ export async function GET() {
             "list my shop's active listings",
             'create a listing for a used motorbike with photos',
             'how many views and leads did my listings get last week',
+          ],
+          /**
+           * AI Catalog trust model (ai-catalog.io §Trust Manifest; ora 2026-11-17): eno's own contribution about this server,
+           * UNSIGNED, carrying only what anyone can check — where it is published. The running server at /api/mcp, listed in
+           * the official MCP Registry under eno's namespace (MCP_REGISTRY_URL answers its record). No attestation is claimed:
+           * eno holds none for it. `contributor` is eno's origin (an absolute URI, as the spec requires).
+           */
+          trustManifests: [
+            {
+              contributor: OAUTH_ISSUER,
+              provenance: [{ relation: 'publishedFrom', sourceId: `${OAUTH_ISSUER}/api/mcp`, registryUri: MCP_REGISTRY_URL }],
+            },
           ],
         },
         {

@@ -18,6 +18,11 @@ describe('Web Bot Auth key directory', () => {
     expect(verify(null, Buffer.from(base), key, sig)).toBe(true)
   })
 
+  it('the key\'s lifetime (nbf/exp) is the directory signature\'s own created/expires', () => {
+    expect(WEB_BOT_AUTH_KEY.nbf).toBe(Number(/;created=(\d+)/.exec(DIRECTORY_SIGNATURE_INPUT)?.[1]))
+    expect(WEB_BOT_AUTH_KEY.exp).toBe(Number(/;expires=(\d+)/.exec(DIRECTORY_SIGNATURE_INPUT)?.[1]))
+  })
+
   it('still valid for at least 30 more days — re-sign from the vault before it lapses', () => {
     const expires = Number(/;expires=(\d+)/.exec(DIRECTORY_SIGNATURE_INPUT)?.[1])
     expect(expires * 1000 - Date.now()).toBeGreaterThan(30 * 86_400_000)

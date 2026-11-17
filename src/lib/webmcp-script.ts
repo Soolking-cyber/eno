@@ -122,8 +122,10 @@ export function buildWebmcpScript(tools: WebMcpDescriptor[]): string {
   var done = {};
   var pending = {};
   function registerEnoTools() {
+    /* ora's own shape: document.modelContext, navigator only as the trailing fallback. ⛔ No second assignment from navigator
+       (ora 2026-11-17 read one as "every tool registers through the deprecated navigator alias"): a document.modelContext
+       without registerTool registers nothing, and the later passes below try again. */
     var mc = document.modelContext || navigator.modelContext;
-    if (mc && typeof mc.registerTool !== "function") mc = navigator.modelContext;
     if (!mc || typeof mc.registerTool !== "function") return;
     var register = function (tool) {
       var name = tool.name;

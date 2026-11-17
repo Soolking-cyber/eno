@@ -26,6 +26,10 @@ export const WEB_BOT_AUTH_KEY = {
   kid: 'DfjoY5qxzSrJrlBCw3QQTLb3LMtdvc-4aIpcty8i7wI',
   alg: 'EdDSA',
   use: 'sig',
+  // The key's lifetime (seconds since the epoch), as the directory signature's own created/expires: Web Bot Auth directories
+  // list nbf/exp per key (ora 2026-11-17). Rotate the key and these together.
+  nbf: 1794893554,
+  exp: 1826429554,
 } as const
 
 /** Signed 2026-11-17 (created 1794893554); valid until 2027-11-17 (expires 1826429554). */

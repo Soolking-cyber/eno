@@ -143,12 +143,13 @@ describe('WebMCP script', () => {
     expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
   })
 
-  it('a document.modelContext without registerTool does not hide a usable navigator one', () => {
+  it('document.modelContext leads: never a second pick from the deprecated navigator alias (ora 2026-11-17) — one without registerTool registers nothing', () => {
     const registerTool = vi.fn()
     ;(document as unknown as { modelContext: unknown }).modelContext = {}
     withContext(registerTool, 'navigator')
     run()
-    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool).not.toHaveBeenCalled()
+    expect(buildWebmcpScript(TOOLS)).not.toMatch(/mc = navigator\.modelContext/)
   })
 
   it('one tool the browser refuses — by throwing or by a rejected promise — never stops the others, and is tried again', async () => {

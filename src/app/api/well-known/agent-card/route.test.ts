@@ -34,6 +34,28 @@ describe('/.well-known/poppy.json', () => {
   })
 })
 
+describe('one organization across the agent surfaces (ora 2026-11-17, "PAP agrees with ARD")', () => {
+  it('the ARD catalog names its host by the operating company, as poppy.json and the A2A card do', async () => {
+    const { poppy } = await load()
+    const { GET } = await import('@/app/api/well-known/ai-catalog/route')
+    const catalog = await (await GET()).json()
+    const p = await (await poppy.GET()).json()
+    expect(catalog.host.displayName).toBe(p.organization.name)
+    expect(catalog.host.identifier).toBe('eno.vn')
+  })
+
+  it('the MCP server entry carries eno\'s own unsigned trust manifest: where the server is published, nothing more', async () => {
+    await load()
+    const { GET } = await import('@/app/api/well-known/ai-catalog/route')
+    const { MCP_REGISTRY_URL } = await import('@/lib/mcp-registry')
+    const catalog = await (await GET()).json()
+    const mcp = catalog.entries.find((e: { identifier: string }) => e.identifier === 'urn:air:eno.vn:server:partner-mcp')
+    expect(mcp.trustManifests).toEqual([
+      { contributor: 'https://eno.vn', provenance: [{ relation: 'publishedFrom', sourceId: 'https://eno.vn/api/mcp', registryUri: MCP_REGISTRY_URL }] },
+    ])
+  })
+})
+
 describe('the operator these documents name', () => {
   it("is each edition's own: the services build never names eno.vn's licensed company (site-legal.ts OPERATORS)", async () => {
     const { card, poppy } = await load('services', 'https://www.eno.forum')
