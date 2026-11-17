@@ -12,7 +12,6 @@ import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
 import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
-import { ChatAppConnect } from '../chat-connect'
 import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
 
 /**
@@ -60,7 +59,6 @@ export default function McpServerPage() {
 
         <section className="mt-8">
           <h2 className="h-section text-foreground">Connect</h2>
-          <ChatAppConnect className="mt-4" />
           <h3 className="mt-4 text-base font-semibold text-foreground">Sign in with {SITE_NAME}</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
             In Claude, or any app that supports MCP sign-in, add <C>{ENDPOINT}</C> as a connector. The app opens {SITE_NAME}: sign in, check the

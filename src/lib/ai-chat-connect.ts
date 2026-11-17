@@ -1,16 +1,28 @@
 /**
- * ⛔ ONE-CLICK CONNECT FOR CHAT APPS (owner 2026-11-17: "direct connect button for major ai providers from the developers page like
- * 1 click connect to claude", then "need chat apps like claude chatgpt etc"). A chat app gets a button ONLY where one click really
- * connects: the app's own directory page for eno.vn, live, whose Connect runs "Sign in with eno.vn". Measured 2026-11-17:
- *   · Claude — claude.ai/directory/eno-vn, live since 2026-11-14.
- *   · ChatGPT — in review (estimate 2026-12-04): add its chatgpt.com/apps page here when approved.
- *   · Meta (Muse) — in review: the same, when approved.
- *   · Grok, Perplexity, Le Chat, Gemini — a custom connector by URL only, on paid plans (Le Chat signs in by Dynamic Client
- *     Registration, which eno does not offer): the MCP page's own steps cover them, no button.
- *   · Code editors (Cursor, VS Code) are not chat apps; Cursor also cannot sign in yet (no CIMD — owner: no button until it can).
- * eno.vn's listings, with no edition branch: eno.forum is gone (owner 2026-11-15 — no edition-aware wording or branches for MCP or
- * new eno.vn work). English, like the rest of the developer docs, which are not translated.
+ * ⛔ CONNECT AN AI CHAT APP, FROM THE SELLER'S OWN SETTINGS (owner 2026-11-17: "1 click connect to claude"; "need chat apps like
+ * claude chatgpt etc"; then "it should be easy connect button [dashboard/settings?tab=developers] here, remove from there [the public
+ * /developers pages] — 1 click connect with claude chatgpt grok etc"). Each app connects the way it really can, measured 2026-11-17:
+ *   · Claude — ONE CLICK: its directory page for eno.vn (live since 2026-11-14), whose Connect runs "Sign in with eno.vn".
+ *   · ChatGPT — "soon": the app is in OpenAI's review (platform.openai.com/plugins: 1.0.3, estimate 2026-11-29). When approved,
+ *     make it a `link` to its chatgpt.com/apps page. (Developer mode is beta and plan-gated: not offered to sellers.)
+ *   · Grok — no one-click exists: grok.com/connectors → New connector → Custom takes a URL and a Client ID, which eno publishes
+ *     for Grok (src/lib/api/oauth-hosted-clients.ts). So the button shows both, each with Copy.
+ *   · Perplexity, Le Chat, Gemini — custom connectors by URL on paid plans (Le Chat signs in by Dynamic Client Registration, which
+ *     eno does not offer); not offered here. Code editors (Cursor, VS Code) are not chat apps.
+ * Client code: these two addresses are literals because their server constants (MCP_RESOURCE, GROK_CLIENT_ID) live in
+ * server-only modules; ai-chat-connect.test.ts holds them equal.
  */
-export const CHAT_APP_CONNECTS: ReadonlyArray<{ app: string; href: string }> = [
-  { app: 'Claude', href: 'https://claude.ai/directory/eno-vn' },
+export const ENO_MCP_URL = 'https://eno.vn/api/mcp'
+export const ENO_GROK_CLIENT_ID = 'https://eno.vn/api/mcp/clients/grok'
+
+export type ChatAppConnect =
+  | { app: string; how: 'link'; href: string }
+  | { app: string; how: 'soon' }
+  /** `values`: what the app's own form asks for, in its own field names. */
+  | { app: string; how: 'paste'; open: string; values: ReadonlyArray<{ label: string; value: string }> }
+
+export const CHAT_APPS: ReadonlyArray<ChatAppConnect> = [
+  { app: 'Claude', how: 'link', href: 'https://claude.ai/directory/eno-vn' },
+  { app: 'ChatGPT', how: 'soon' },
+  { app: 'Grok', how: 'paste', open: 'https://grok.com/connectors', values: [{ label: 'URL', value: ENO_MCP_URL }, { label: 'Client ID', value: ENO_GROK_CLIENT_ID }] },
 ]

@@ -840,6 +840,7 @@ export const UI_STRINGS: string[] = [
   "Connect Facebook and import",
   "Connect Facebook to sign in with it too. Your current way of signing in keeps working.",
   "Connect an AI agent",
+  "Connect an AI app",
   "Connect an AI assistant (Claude and others) to run your shop in plain language — list, create, update, bulk-import, sync a catalogue, and read analytics. The assistant only ever sees tool results, never your key.",
   "Connected",
   "Connected apps",
@@ -1961,6 +1962,7 @@ export const UI_STRINGS: string[] = [
   "Male",
   "Manage",
   "Manage blocked users",
+  "Manage this shop from your AI chat: sign in with eno.vn there and press Allow.",
   "Manage your listings",
   "Manage your storefront programmatically. Authenticate requests with",
   "Manage your voice",
@@ -2416,6 +2418,7 @@ export const UI_STRINGS: string[] = [
   "Open the province list",
   "Open this item on SuperSports",
   "Open this link there to practise — your classes, reports and invites are all there.",
+  "Open {app} connectors",
   "Opening Google…",
   "Opening Messages…",
   "Opening chat…",
@@ -5136,6 +5139,7 @@ export const UI_STRINGS: string[] = [
   "sign-in comes last, when you publish.",
   "since last time",
   "slide",
+  "soon",
   "still needed",
   "stop before 60s",
   "students",
@@ -5254,5 +5258,6 @@ export const UI_STRINGS: string[] = [
   "“Send a deposit first”",
   "“Ship it before you see it”",
   "← All schools",
+  "→ New connector → Custom. Paste these, then sign in and press Allow:",
   "≈{n} available"
 ]

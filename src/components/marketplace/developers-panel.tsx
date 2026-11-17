@@ -12,6 +12,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Rows, Row } from '@/components/ui/rows'
+import { AiAppsConnect } from '@/components/marketplace/ai-apps-connect'
 
 // Dashboard "Developers" tab (business-tier). Mint / list / revoke partner API keys via
 // /api/keys. The full secret is shown ONCE at creation; afterwards only the prefix.
@@ -91,8 +92,9 @@ export function DevelopersPanel() {
     // in the 440px account rail, where two columns squeeze each to ~200px. Same
     // fix (and same reason) as the disputes list. (user-picked 2026-07-14)
     <div className="w-full">
-      {/* API keys + Webhooks */}
+      {/* AI chat apps, then API keys + Webhooks */}
       <div className="space-y-6">
+      <AiAppsConnect />
       <div>
         <h2 className="h-section text-foreground">{tr('API keys', 'Khóa API')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
