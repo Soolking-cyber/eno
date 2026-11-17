@@ -263,19 +263,22 @@ const offerStatus = (s: unknown): (typeof OFFER_STATUSES)[number] => {
   return (OFFER_STATUSES as readonly string[]).includes(v) ? (v as (typeof OFFER_STATUSES)[number]) : 'countered'
 }
 const OFFER_OUT = z.strictObject({
-  amount: z.number().describe('The offered price, in Vietnamese đồng'),
+  amount: z.number().describe('The offered price, in Vietnamese đồng (e.g. 4500000 is 4.5 million); get_conversation gives the listing\'s asking price to compare it with'),
   status: z.enum(OFFER_STATUSES).describe(OFFER_STATUS),
-  yours: z.boolean().describe('true when the person you act for made it; false when the other side did'),
-}).nullable().describe('The offer, when the last message is one; null otherwise')
+  yours: z.boolean().describe('true when the person you act for made the offer; false when the other side made it. While its status is "pending", it waits for whoever did not make it'),
+}).nullable().describe('The offer, when the conversation\'s last message is one, with its price and state; null when the last message is not an offer')
 
 const MESSAGE_OUT = z.strictObject({
-  id: z.string().describe('The message\'s id; for a pending offer from them, decline_offer takes it'),
+  id: z.string().describe('The message\'s id (such as `cmh0q2x8f0001...`); for a pending offer from them, decline_offer takes it as message_id'),
   from: z.enum(['you', 'them']).describe('"you": the person you act for (or their agent) sent it; "them": the other side did'),
-  by_ai: z.boolean().describe('true when an AI assistant wrote it: its text starts with "🤖 AI"'),
+  by_ai: z.boolean().describe('true when an AI assistant wrote it on someone\'s behalf (its text starts with "🤖 AI"); false when a person typed it themselves'),
   kind: z.enum(['text', 'offer', 'event']).describe('"text": a message; "offer": an offer, with its `offer`; "event": anything else in the chat, such as a call, a call request or a deal confirmation (read its text; there is no offer to answer)'),
   text: z.string().describe(`What it says ("" for a message its sender recalled). ${UNTRUSTED}`),
-  offer: z.strictObject({ amount: z.number().describe('The offered price, in Vietnamese đồng'), status: z.enum(OFFER_STATUSES).describe(OFFER_STATUS) }).nullable().describe('The offer this message makes; null for any other kind'),
-  sent_at: z.string().describe('When it was sent, ISO 8601 in UTC'),
+  offer: z.strictObject({
+    amount: z.number().describe('The offered price, in Vietnamese đồng (e.g. 4500000 is 4.5 million); compare it with the listing\'s asking price before you answer'),
+    status: z.enum(OFFER_STATUSES).describe(OFFER_STATUS),
+  }).nullable().describe('The offer this message makes, with its price and state, when its kind is "offer"; null for any other kind'),
+  sent_at: z.string().describe('When the message was sent, as an ISO 8601 UTC timestamp, e.g. "2026-11-17T08:30:00.000Z"; the list is in this order, oldest first'),
 }).describe('One message or offer')
 
 const scopeRead = 'messages:read' as const
@@ -302,15 +305,15 @@ export const MESSAGING_TOOLS: McpTool[] = [
     output: z.strictObject({
       conversations: z.array(z.strictObject({
         id: z.string().describe('The conversation\'s id: get_conversation, send_message and decline_offer take it'),
-        listing_id: z.string().describe('The listing the conversation is about'),
-        listing_title: z.string().describe('The listing\'s title, to name the conversation to the person'),
+        listing_id: z.string().describe('The id of the listing the conversation is about (such as `cmh0q2x8f0001...`); contact_seller and the search tools take it too'),
+        listing_title: z.string().describe('The listing\'s title, so you can tell the person which conversation it is, e.g. "the Honda Vision chat"'),
         your_role: z.enum(['buyer', 'seller']).describe('"buyer": the person asked about this listing; "seller": it is their listing'),
-        with: z.string().describe('The other person\'s display name, as eno shows it'),
-        unread: z.number().describe('How many messages the person has not read yet; 0 when nothing is new'),
+        with: z.string().describe('The other person\'s display name as eno shows it, the seller\'s shop name or the buyer\'s name; use it when you speak of them'),
+        unread: z.number().describe('How many messages in it the person has not read yet; 0 when nothing is new since they last opened it. Reading it here does not change this'),
         last_message: z.string().nullable().describe(`The last message, cut to 200 characters; null when the last thing was an app event. ${UNTRUSTED}`),
-        last_message_at: z.string().describe('When the last message was sent, ISO 8601 in UTC; the list is ordered by it'),
+        last_message_at: z.string().describe('When the last message was sent, as an ISO 8601 UTC timestamp; the list is ordered by it, newest first, unless unread_only sorts it'),
         last_offer: OFFER_OUT,
-      }).describe('One conversation')).describe('The conversations, newest first (the most unread first with unread_only)'),
+      }).describe('One conversation with a buyer or a seller about a listing')).describe('The person\'s conversations, newest first (the most unread first with unread_only); open one with get_conversation'),
     }).describe('The person\'s conversations about listings'),
     handler: async (auth, args) => {
       const { status, data } = await callRoute(ROUTES.inbox, auth, 'GET', '/api/conversations')
@@ -353,18 +356,19 @@ export const MESSAGING_TOOLS: McpTool[] = [
       conversation_id: z.string().describe('The conversation to read: its id (such as `cmh0q2x8f0001...`), from list_conversations or contact_seller'),
     }),
     output: z.strictObject({
-      id: z.string().describe('The conversation\'s id: send_message and decline_offer take it'),
+      id: z.string().describe('The conversation\'s id (such as `cmh0q2x8f0001...`): send_message takes it to reply, decline_offer to answer an offer in it'),
       listing: z.strictObject({
-        id: z.string().describe('The listing\'s id'), title: z.string().describe('The listing\'s title'),
+        id: z.string().describe('The id of the listing the conversation is about (such as `cmh0q2x8f0001...`)'),
+        title: z.string().describe('The listing\'s title, to name what is being negotiated when you report to the person'),
         price: z.number().nullable().describe('The asking price, in Vietnamese đồng; null or 0 when the seller set none (then make no offer)'),
-        price_unit: z.string().nullable().describe('"VND/month" and similar for a rent or a salary; null for a one-off price'),
-        takes_offers: z.boolean().describe('false for a fixed price: send messages only, no offer_amount'),
-        url: z.string().describe('The listing\'s page on eno, to show the person'),
-      }).describe('The listing the conversation is about'),
+        price_unit: z.string().nullable().describe('What the price is for: "VND/month" and similar for a rent or a salary; null for a one-off price. Say it with the price'),
+        takes_offers: z.boolean().describe('true when the seller takes offers below the price; false for a fixed price, so send messages only and never an offer_amount'),
+        url: z.string().describe('The listing\'s page on eno, a full https URL, to show the person the photos and details'),
+      }).describe('The listing the conversation is about: its price and whether it takes offers'),
       your_role: z.enum(['buyer', 'seller']).describe('"buyer": the person asked about this listing; "seller": it is their listing'),
-      with: z.string().describe('The other person\'s display name, as eno shows it'),
-      closed: z.boolean().describe('true when one side blocked the other: nothing more can be sent'),
-      messages: z.array(MESSAGE_OUT).describe('The latest messages and offers, oldest first'),
+      with: z.string().describe('The other person\'s display name as eno shows it, the seller\'s shop name or the buyer\'s name; use it when you speak of them'),
+      closed: z.boolean().describe('true when one side has blocked the other: nothing more can be sent, so tell the person instead of replying; false otherwise'),
+      messages: z.array(MESSAGE_OUT).describe('The conversation\'s latest messages and offers (up to 50), oldest first, so the last one is what to answer'),
       app_url: z.string().describe('The conversation\'s page in the app, where the person reads it and accepts an offer'),
     }).describe('One conversation and its latest messages'),
     handler: async (auth, args) => {
@@ -404,7 +408,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
     output: z.strictObject({
       conversation_id: z.string().describe('The conversation\'s id: get_conversation reads the seller\'s reply, send_message continues it'),
       created: z.boolean().describe('true when this started a new conversation; false when it continued the one the person already had with this seller'),
-      app_url: z.string().describe('The conversation\'s page in the app, where the person follows it'),
+      app_url: z.string().describe('The conversation\'s page in the eno app, a full https URL, where the person can read the seller\'s reply and take over'),
     }).describe('The conversation the message went to'),
     handler: async (auth, args) => {
       const listingId = idArg(args.listing_id, 'listing_id')
@@ -507,8 +511,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
       offer_amount: z.number().optional().describe('The price the person offers or counters with, in Vietnamese đồng, e.g. 4500000 for 4.5 million. Leave it out to send only the message'),
     }),
     output: z.strictObject({
-      message_id: z.string().describe('The id of the message just sent, as get_conversation lists it'),
-      kind: z.enum(['text', 'offer']).describe('"offer" when it carried an offer_amount; "text" for a message alone'),
+      message_id: z.string().describe('The id of the message just sent (such as `cmh0q2x8f0001...`), as get_conversation lists it among the messages'),
+      kind: z.enum(['text', 'offer']).describe('"offer": it carried an offer_amount, shown as an offer card the other side can accept; "text": a message alone'),
       app_url: z.string().describe('The conversation\'s page in the app, where the person sees the reply and accepts a counter-offer'),
     }).describe('What was sent'),
     handler: async (auth, args) => {
@@ -550,8 +554,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
       message_id: z.string().describe('The offer to decline: the `id` of a message in get_conversation whose `offer.status` is "pending" and which is `from` them'),
     }),
     output: z.strictObject({
-      declined: z.boolean().describe('true: the offer is now declined, and the other person sees it'),
-      offer_id: z.string().describe('The declined offer\'s message id, as get_conversation lists it'),
+      declined: z.boolean().describe('true: the offer is now declined, the other person sees it, and nobody can accept it any more; a new price needs a new offer'),
+      offer_id: z.string().describe('The id of the offer message that was declined (such as `cmh0q2x8f0001...`), as get_conversation lists it'),
       app_url: z.string().describe('The conversation\'s page in the app, where the person sees the declined offer'),
     }).describe('The offer that was declined'),
     handler: async (auth, args) => {

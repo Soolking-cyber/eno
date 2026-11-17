@@ -195,29 +195,29 @@ export const listingOut = (l: Parameters<typeof serializeListing>[0]) => {
 }
 const LISTING_OUT = z.strictObject({
   id: z.string().describe('The listing id (such as `cmh0q2x8f0001...`); pass it to get_listing, update_listing, set_listing_status or delete_listing'),
-  title: z.string().describe('The headline buyers see in search and on the listing page'),
-  description: z.string().describe('The text on the listing page; an empty string when the seller wrote none'),
+  title: z.string().describe('The headline buyers see in search results and at the top of the listing page; use it when you name the listing to the seller. update_listing changes it'),
+  description: z.string().describe('The text on the listing page, in the seller\'s own words: what it is, its state, what comes with it. An empty string when the seller wrote none; update_listing can add it'),
   price: z.number().describe('The asking price in Vietnamese đồng (VND); for a job, its monthly salary in VND. Show it with priceUnit, formatted as VND (e.g. 12.000.000 đ)'),
-  priceUnit: z.string().describe('What the price is for, e.g. "VND" or "VND/month"; show it beside the price'),
+  priceUnit: z.string().describe('What the price is for: "VND" for a one-off price, "VND/month" (and similar) for a rent or a salary. Always show it beside the price, so a monthly rent is never read as a sale price'),
   negotiable: z.boolean().describe('Whether buyers may send offers below the price; always false for a job or a wanted ad'),
   status: LISTING_STATUS_OUT,
   verified: z.boolean().describe('false while the listing waits for eno\'s check and is not public yet; true once eno has published it'),
   listingType: z.enum(LISTING_TYPES).describe('What the listing offers. sell: an item for sale. rent: for rent. free: given away. wanted: someone looking to buy or rent. wholesale: sold in bulk. service: a service. job: a job opening. event: an event. teacher: a teacher\'s profile'),
-  condition: z.string().nullable().describe('The item\'s condition in words, e.g. "like new"; null when none was given'),
+  condition: z.string().nullable().describe('The item\'s condition as the seller wrote it, e.g. "new", "like new" or "used"; null when none was given, as for a job or a service. update_listing can set it'),
   location: z.string().describe('The place as shown on the listing page, for display; use district and city to compare or filter listings'),
-  district: z.string().nullable().describe('Its district or area; null when none was given'),
-  city: z.string().describe('Its city or province, e.g. "Hồ Chí Minh"'),
+  district: z.string().nullable().describe('The district or area the item is in, as buyers search by it, e.g. "Thảo Điền, Thủ Đức"; null when none was given, which update_listing can fill'),
+  city: z.string().describe('The city or province the listing is in, e.g. "Hồ Chí Minh" or "Hà Nội"; with district it says where a buyer would collect or view the item'),
   images: z.array(z.string()).describe('Photo URLs in display order. To keep them through an edit, send this list back to update_listing'),
-  video: z.string().nullable().describe('The listing\'s video as a full URL; null when it has none'),
+  video: z.string().nullable().describe('The listing\'s video as a full URL, played on its page before the photos; null when it has none (videos are added on the site, not through these tools)'),
   category: z.strictObject({
-    slug: z.string().describe('The category slug, as create_listing takes it'),
-    name: z.string().describe('The category\'s English name'),
-  }).describe('The category it is filed under'),
-  subcategorySlug: z.string().nullable().describe('Its subcategory; null when it has none'),
-  postedAt: z.string().describe('When it was listed, as an ISO 8601 UTC timestamp'),
-  views: z.number().describe('How many times its page has been viewed since it was listed, all time'),
+    slug: z.string().describe('The category\'s slug, e.g. "electronics" or "rentals": the value create_listing takes as categorySlug, and the one to compare listings by'),
+    name: z.string().describe('The category\'s English name, as buyers see it on the site, e.g. "Electronics"; use it when you name the category to the seller'),
+  }).describe('The category the listing is filed under, which decides where buyers find it on the site'),
+  subcategorySlug: z.string().nullable().describe('The subcategory within that category, as a slug, e.g. "phones-tablets" in electronics; null when the listing is filed under the category alone'),
+  postedAt: z.string().describe('When it was first listed, as an ISO 8601 UTC timestamp, e.g. "2026-11-17T08:30:00.000Z"; buyers see newer listings first, so it tells how fresh the listing looks'),
+  views: z.number().describe('How many times its page has been viewed since it was listed, all time; with contactCount it shows how well the listing is doing, and analytics_listings gives them day by day'),
   contactCount: z.number().describe('Leads, all time: how many different signed-in buyers opened the seller\'s contact from it'),
-  url: z.string().describe('Its page on eno; share it with buyers once the listing is public'),
+  url: z.string().describe('The listing\'s page on eno, a full https URL; share it with buyers once the listing is public (verified true and status active), since before that it shows them nothing'),
 }).describe('One of this shop\'s listings')
 
 /** list_listings' item: the summary an agent scans a page by (the best list outputs on Manufact's board answer a focused
@@ -240,7 +240,7 @@ const LISTING_SUMMARY_OUT = z.strictObject({
   district: LISTING_OUT.shape.district,
   city: LISTING_OUT.shape.city,
   cover: z.string().nullable().describe('Its first photo as a full URL, the one buyers see first; show it as the listing\'s picture. null when it has none'),
-  photos: z.number().describe('How many photos it has; get_listing returns them all'),
+  photos: z.number().describe('How many photos the listing has; most categories need 3 to be published, and get_listing returns every photo URL in display order'),
   categorySlug: z.string().describe('Its category slug, as create_listing takes it; get_listing gives the category\'s name too'),
   postedAt: LISTING_OUT.shape.postedAt,
   views: LISTING_OUT.shape.views,
@@ -255,14 +255,14 @@ const webhookOut = (h: WebhookRow) => ({
   enabled: h.enabled, failure_count: h.failureCount, last_error: h.lastError, last_delivery_at: iso(h.lastDeliveryAt), created_at: h.createdAt.toISOString(),
 })
 const WEBHOOK_OUT = z.strictObject({
-  id: z.string().describe('The webhook id; pass it to delete_webhook'),
-  url: z.string().describe('The HTTPS address the events are posted to'),
+  id: z.string().describe('The webhook\'s id (such as `cmh0q2x8f0001...`); pass it to delete_webhook to stop the events this address receives'),
+  url: z.string().describe('The HTTPS address eno posts each event to, as a signed POST; it is the endpoint in your own system that register_webhook was given'),
   events: z.array(z.string()).describe('The events it receives: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
   enabled: z.boolean().describe('Whether events are being delivered. eno turns it false after 15 failed deliveries in a row; to resume, register the address again (a new webhook with a new secret) and delete this one'),
   failure_count: z.number().describe('Failed deliveries in a row since the last success, 0 to 15; one successful delivery resets it to 0'),
   last_error: z.string().nullable().describe('Why the last delivery failed, as the endpoint answered or the network error; null when the last one worked or none was sent yet'),
   last_delivery_at: z.string().nullable().describe('When an event was last delivered, as an ISO 8601 UTC timestamp; null before the first one'),
-  created_at: z.string().describe('When it was registered, as an ISO 8601 UTC timestamp'),
+  created_at: z.string().describe('When the webhook was registered, as an ISO 8601 UTC timestamp; with last_delivery_at it shows whether events have reached it since'),
 }).describe('A webhook endpoint registered for this shop')
 // register_webhook's answer: what means something for a webhook just made (no delivery history yet), plus its one-time secret.
 const registeredOut = (h: WebhookRow, secret: string) => {
@@ -271,12 +271,12 @@ const registeredOut = (h: WebhookRow, secret: string) => {
 }
 const REGISTERED_WEBHOOK_OUT = z.strictObject({
   id: z.string().describe('The new webhook\'s id; pass it to delete_webhook to stop the events, and list_webhooks shows its delivery health later'),
-  url: z.string().describe('The address eno will POST each event to, as you gave it'),
-  events: z.array(z.string()).describe('The events it will receive, as you chose them; ["*"] means every event'),
-  enabled: z.boolean().describe('true: eno sends events from now on'),
-  created_at: z.string().describe('When it was registered, which is now, as an ISO 8601 UTC timestamp'),
+  url: z.string().describe('The HTTPS address eno will POST each event to, signed with the secret below, exactly as you gave it to register_webhook'),
+  events: z.array(z.string()).describe('The events it will receive, as you chose them: listing.created, listing.updated, listing.status_changed or listing.deleted; ["*"] means every event'),
+  enabled: z.boolean().describe('true: eno sends events to this address from now on. It turns false only after 15 failed deliveries in a row, which list_webhooks then shows'),
+  created_at: z.string().describe('When the webhook was registered, which is now, as an ISO 8601 UTC timestamp; list_webhooks shows it with its delivery history later'),
   secret: z.string().describe('The signing secret, shown only this once: store it now in your own system to verify each event\'s signature; eno cannot show it again'),
-}).describe('The webhook just registered')
+}).describe('The webhook just registered, with the signing secret you must store now')
 
 // The storefront as get_shop reads it, and as update_shop answers after a change (only bio/location/phone/avatarUrl are
 // nullable columns on Seller in prisma/schema.prisma; the tier is written by trust-math.ts tierFor alone).
@@ -286,13 +286,13 @@ const SHOP_OUT = z.strictObject({
   bio: z.string().nullable().describe('About the shop, as shown on its page; null when it has none, which update_shop can fill'),
   location: z.string().nullable().describe('Where the shop is, as shown on its page; null when not set, which update_shop can fill'),
   phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page, so do not repeat it in anything public; null when not set'),
-  avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, ready to show; null when it has none'),
+  avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, shown on its page and beside its listings, ready to display; null when it has none, which update_shop can set'),
   trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150, higher meaning more trusted; below 60 the shop is restricted (see trust_tier). It changes with the shop\'s record, not through any tool here'),
   trust_tier: z.enum(TRUST_TIERS).describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
   response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations, so a new shop shows 100'),
-  member_since: z.string().describe('When the shop joined eno, as an ISO 8601 UTC timestamp'),
+  member_since: z.string().describe('When the shop joined eno, as an ISO 8601 UTC timestamp; buyers see it on the shop\'s page as how long it has been selling here'),
   active_listings: z.number().describe('How many of its listings buyers can see on the site now (on sale and checked by eno); the rest are sold, hidden, expired or waiting for eno\'s check, and analytics_summary counts them by status'),
-}).describe('The storefront this connection acts for')
+}).describe('The storefront this connection acts for: its public profile, trust standing and how many listings buyers can see')
 
 /** get_shop's answer, and update_shop's after a change. Same rule as GET /api/v1/shop: a GONE storefront
  *  (src/lib/storefront-gone.ts) is not found. */
@@ -309,24 +309,24 @@ const createdOut = (c: Awaited<ReturnType<typeof createListingCore>>) => ({
   id: c.id, verified: c.verified, held: (c as { held?: boolean }).held === true, url: listingPageUrl(c.id),
 })
 const CREATED_OUT = z.strictObject({
-  id: z.string().describe('The new listing\'s id; pass it to update_listing or set_listing_status'),
+  id: z.string().describe('The new listing\'s id (such as `cmh0q2x8f0001...`); pass it to get_listing to read it back, update_listing to change it, or set_listing_status'),
   verified: z.boolean().describe('true when the listing was published at once; false while it waits for eno\'s check and is not public yet'),
   held: z.boolean().describe('true while it waits for eno\'s licence check, and verified is then false; false otherwise. Tell the seller it goes live if eno approves the licence'),
-  url: z.string().describe('Its page on eno; share it with buyers once the listing is public'),
-}).describe('The listing just created')
+  url: z.string().describe('The listing\'s page on eno, a full https URL; share it with buyers once the listing is public (verified true and status active), since before that it shows them nothing'),
+}).describe('The listing just created: its id, whether it is public yet, and its page')
 
 const bulkRowOut = (r: BulkRowResult) => ({ row: r.row, id: r.id ?? null, external_id: r.external_id ?? null, error: r.error ?? null })
 const BULK_ROW_OUT = z.strictObject({
-  row: z.number().describe('The row\'s position in your list, from 1'),
-  id: z.string().nullable().describe('The new listing\'s id; null when the row failed'),
-  external_id: z.string().nullable().describe('Your own id for the row, echoed back; null when you sent none'),
+  row: z.number().describe('The row\'s position in the list you sent, counting from 1, so you can match each result to the row it is about'),
+  id: z.string().nullable().describe('The new listing\'s id when the row was created, for get_listing or update_listing; null when the row failed (see error)'),
+  external_id: z.string().nullable().describe('Your own id for the row, echoed back so you can match it to your system; null when the row carried none'),
   error: z.string().nullable().describe('Why the row failed, in words to show the seller; fix that row and send it again on its own. null when it was created'),
 }).describe('What happened to one row')
 
 const syncRowOut = (r: SyncRowResult) => ({ external_id: r.external_id, id: r.id ?? null, action: r.action, error: r.error ?? null, detail: r.detail ?? null })
 const SYNC_ROW_OUT = z.strictObject({
-  external_id: z.string().nullable().describe('Your own id for the row; null when the row had none'),
-  id: z.string().nullable().describe('The listing the row created or updated; null when a new row failed'),
+  external_id: z.string().nullable().describe('Your own id for the row, echoed back: the key the sync matched it to its listing by, so you can match the result to your system; null when the row had none'),
+  id: z.string().nullable().describe('The id of the listing the row created or updated, for get_listing; null when a new row failed and nothing was created'),
   action: z.enum(['created', 'updated', 'failed']).describe('created: a new listing was posted. updated: the existing listing was changed. failed: nothing was changed for this row, see error'),
   error: z.string().nullable().describe('Why the row failed, as a reason code or a sentence to show the seller; fix the row and sync it again. null when it succeeded'),
   detail: z.string().nullable().describe('More about the failure when there is more, e.g. the words to take out of a job post; null otherwise'),
@@ -337,18 +337,18 @@ const analyticsRowOut = (r: AnalyticsListingRow) => ({
   daily: r.daily.map((d) => ({ day: d.day, views: d.views, leads: d.leads })),
 })
 const ANALYTICS_ROW_OUT = z.strictObject({
-  id: z.string().describe('The listing id; pass it to get_listing or update_listing'),
-  external_id: z.string().nullable().describe('Your own id for it; null when it has none'),
-  title: z.string().describe('Its headline'),
+  id: z.string().describe('The listing\'s id (such as `cmh0q2x8f0001...`); pass it to get_listing to see the listing itself, or update_listing to improve one that gets few views'),
+  external_id: z.string().nullable().describe('Your own id for the listing, as set by sync_catalogue or bulk_create_listings, to match these figures to your system; null when it has none'),
+  title: z.string().describe('The listing\'s headline, to name it when you report its figures to the seller'),
   status: LISTING_STATUS_OUT,
-  views_total: z.number().describe('Views of its page since it was listed, all time, not only in the range'),
+  views_total: z.number().describe('Views of its page since it was listed, all time, not only in the reported range; compare it with the daily views to see the trend'),
   leads_total: z.number().describe('Leads since it was listed, all time: how many different signed-in buyers opened the seller\'s contact'),
   daily: z.array(z.strictObject({
-    day: z.string().describe('The day, a UTC date written YYYY-MM-DD'),
-    views: z.number().describe('Views of its page during that UTC day; 0 on a day without views'),
+    day: z.string().describe('The day these figures are for, a UTC date written YYYY-MM-DD, e.g. "2026-11-17"; every day of the range is present, quiet days included'),
+    views: z.number().describe('How many times its page was viewed during that UTC day; 0 on a day without views, so a run of zeros shows when buyers stopped looking'),
     leads: z.number().describe('How many more signed-in buyers opened the seller\'s contact from it during that UTC day; 0 on a day without any'),
-  }).describe('One day\'s figures')).describe('One entry per day in the range, oldest first'),
-}).describe('One listing\'s figures')
+  }).describe('One day\'s views and leads for the listing')).describe('One entry for every day in the reported range, oldest first, so the list reads as a timeline'),
+}).describe('One listing\'s figures: its all-time totals and its day-by-day views and leads')
 
 const DELETE_HOLD_REASONS = ['account_held', 'account_suspended', 'open_report'] as const satisfies readonly DeleteHoldReason[]
 const deletedOut = (hold: DeleteHoldReason | null) => hold
@@ -420,7 +420,7 @@ export const TOOLS: McpTool[] = [
     description: 'Get this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: `id`, `title`, `price` and `priceUnit`, `status`, `verified`, `district`, `city`, the `cover` photo and `photos` count, `categorySlug`, `postedAt`, `views`, `contactCount` (leads) and page `url`; and `next_cursor`. Use get_listing for one listing in full, and analytics_listings for its views and leads by day.',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
+    output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first, each in summary; call get_listing with an id for every field of one listing'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
     input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find the ones the shop took off the site; leave it out to see every listing') }),
     handler: async (auth, args) => {
       checkStatusArg(args.status)
@@ -576,7 +576,7 @@ export const TOOLS: McpTool[] = [
     description: 'Set the status of one of this shop\'s listings: active (on sale), sold, or hidden from the site without deleting it. Setting active again undoes sold or hidden, unless it is refused (a held account, a pending licence check) with a reason code; an unknown status is refused too. Returns the listing\'s `id` and the `status` it now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
-    output: z.strictObject({ id: z.string().describe('The listing that was changed, as you passed it'), status: LISTING_STATUS_SET }).describe('The listing and the status it has now'),
+    output: z.strictObject({ id: z.string().describe('The id of the listing whose status was set, as you passed it; get_listing reads the listing as it now stands'), status: LISTING_STATUS_SET }).describe('The listing and the status it has now'),
     // `status` is checked by setStatusCore (invalid_status, worded below), not by an enum: an enum input is the one field the
     // reviewers flag as "validation repeated" whatever its prose says (2026-11-15).
     input: z.object({ id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings, get_listing or create_listing'), status: z.string().describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), or active to put it back on sale') }),
@@ -637,9 +637,9 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
-      created: z.number().describe('How many listings were created'),
-      failed: z.number().describe('How many rows failed'),
-      results: z.array(BULK_ROW_OUT).describe('One result per row, in the order sent'),
+      created: z.number().describe('How many rows became new listings; with failed it adds up to the number of rows you sent'),
+      failed: z.number().describe('How many rows were refused and created nothing; each one\'s reason is in its result\'s error'),
+      results: z.array(BULK_ROW_OUT).describe('One result for every row you sent, in the same order, saying whether it was created and why not'),
     }).describe('Counts of created and failed rows, and a result per row'),
     input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
     handler: async (auth, args) => {
@@ -665,14 +665,14 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
-      created: z.number().describe('Rows that created a new listing'),
-      updated: z.number().describe('Rows that updated an existing listing'),
+      created: z.number().describe('How many rows had a new externalId and became new listings'),
+      updated: z.number().describe('How many rows matched an existing listing by externalId and changed it in place'),
       retired: z.number().describe('Listings hidden because a full sync did not include them; 0 in partial mode'),
-      failed: z.number().describe('Rows that failed'),
-      results: z.array(SYNC_ROW_OUT).describe('One result per row, in the order sent'),
+      failed: z.number().describe('How many rows were refused and changed nothing; each one\'s reason is in its result\'s error'),
+      results: z.array(SYNC_ROW_OUT).describe('One result for every row you sent, in the same order, with the action taken on it'),
       publish_blocked: z.strictObject({
-        code: z.string().describe('Why new listings may not be published, as a reason code'),
-        message: z.string().describe('A sentence to show the seller'),
+        code: z.string().describe('Why new listings may not be published, as a reason code such as identity_unverified; edits to existing listings still applied'),
+        message: z.string().describe('A sentence to show the seller, saying why new listings were held back and what to do about it'),
       }).nullable().describe('Set when the account may not publish new listings right now: new rows were refused, edits still applied; null otherwise'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
@@ -734,8 +734,11 @@ export const TOOLS: McpTool[] = [
     scope: 'analytics:read',
     annotations: READ_ONLY,
     output: z.strictObject({
-      range: z.strictObject({ from: z.string().describe('First day used (YYYY-MM-DD)'), to: z.string().describe('Last day used (YYYY-MM-DD)') }).describe('The date range actually used'),
-      listings: z.array(ANALYTICS_ROW_OUT).describe('This page of listings with their daily figures'),
+      range: z.strictObject({
+        from: z.string().describe('The first day the daily figures cover, a UTC date written YYYY-MM-DD; when you left `from` out, 30 days before `to`'),
+        to: z.string().describe('The last day the daily figures cover, a UTC date written YYYY-MM-DD; when you left `to` out, today'),
+      }).describe('The period the daily figures cover, so you can say which days you are reporting on'),
+      listings: z.array(ANALYTICS_ROW_OUT).describe('This page of the shop\'s listings, each with its all-time totals and its daily views and leads over the range'),
       next_cursor: CURSOR_OUT,
     }).describe('Views and leads per listing per day over the range actually used'),
     input: z.object({
@@ -756,7 +759,7 @@ export const TOOLS: McpTool[] = [
     description: 'List the webhook endpoints registered for this shop, with their delivery health.\n\nSigning secrets are never returned; a lost secret means registering the endpoint again.\n\nReturns `webhooks`, newest first, each with its `id`, `url`, `events`, `enabled`, `failure_count`, `last_error`, `last_delivery_at` and `created_at`. Use it to find a webhook\'s id for delete_webhook, or to see why deliveries stopped (`enabled: false` with `last_error`).',
     scope: 'listings:read',
     annotations: READ_ONLY,
-    output: z.strictObject({ webhooks: z.array(WEBHOOK_OUT).describe('Every webhook of this shop, newest first; secrets are never included') }).describe('The shop\'s webhooks'),
+    output: z.strictObject({ webhooks: z.array(WEBHOOK_OUT).describe('Every webhook registered for this shop, newest first, each with its delivery health; signing secrets are never included') }).describe('The shop\'s webhooks'),
     input: z.object({}),
     handler: async (auth) => {
       const hooks = await db.webhookEndpoint.findMany({ where: { sellerId: auth.sellerId }, orderBy: { createdAt: 'desc' }, select: { id: true, url: true, events: true, enabled: true, failureCount: true, lastError: true, lastDeliveryAt: true, createdAt: true } })
