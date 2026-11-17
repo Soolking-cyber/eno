@@ -345,7 +345,7 @@ describe('signup-prompt — the anonymous daily totals', () => {
 
 describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
   it('every gate but the timed prompt sends its own events; five actions (apple since 2026-10-08) and nothing else', () => {
-    for (const g of ['first_save', 'chat', 'offer', 'rental_check', 'save_search', 'post', 'nav', 'page', 'other']) expect(isCountedGate(g)).toBe(true)
+    for (const g of ['first_save', 'chat', 'offer', 'rental_check', 'save_search', 'post', 'nav', 'page', 'fb_import', 'other']) expect(isCountedGate(g)).toBe(true)
     for (const g of ['timed', '', 'Chat', 'checkout', null]) expect(isCountedGate(g)).toBe(false)
     for (const a of ['open', 'google', 'apple', 'email', 'completed']) expect(isGateAction(a)).toBe(true)
     for (const a of ['shown', 'Open', '', null]) expect(isGateAction(a)).toBe(false)
@@ -374,13 +374,13 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
       { key: counterKey('2026-10-05', 'marketplace', 'shown', 'browser.desktop.en'), n: 9 },
     ]
     const g = summariseGates(rows, { site: 'marketplace', days })
-    expect(g.byGate.chat).toEqual({ open: 7, google: 0, apple: 0, facebook: 0, email: 3, completed: 2 })
-    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, apple: 0, facebook: 0, email: 3, completed: 2 })
+    expect(g.byGate.chat).toEqual({ open: 7, google: 0, apple: 0, facebook: 0, email: 3, completed: 2, completed_google: 0, completed_apple: 0, completed_facebook: 0, completed_email: 0 })
+    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, apple: 0, facebook: 0, email: 3, completed: 2, completed_google: 0, completed_apple: 0, completed_facebook: 0, completed_email: 0 })
     expect(g.byGate.offer).toBeUndefined()
   })
 
   it('the timed prompt reads as a gate row from its own events', () => {
-    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, apple_click: 3, facebook_click: 4, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, apple: 3, facebook: 4, email: 1, completed: 1 })
+    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, apple_click: 3, facebook_click: 4, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, apple: 3, facebook: 4, email: 1, completed: 1, completed_google: 0, completed_apple: 0, completed_facebook: 0, completed_email: 0 })
   })
 
   it('an Apple choice is counted and read back like the others (Sign in with Apple)', () => {
@@ -411,6 +411,8 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
     expect(Object.keys(s.byContext)).toEqual(['inapp-fb.phone.en'])
     // …and the form is a sign-in gate of its own.
     expect(parseGateCounterKey(gateCounterKey('2026-10-17', 'marketplace', 'teacher', 'facebook', 'inapp-fb.phone.en'))).toMatchObject({ gate: 'teacher', action: 'facebook' })
+    // ⛔ The per-way completions (2026-11-17) carry `_`: written AND read back, or the report would never see them.
+    expect(parseGateCounterKey(gateCounterKey('2026-11-18', 'marketplace', 'page', 'completed_facebook', 'inapp-fb.phone.vi'))).toMatchObject({ gate: 'page', action: 'completed_facebook' })
   })
 
   it('a Facebook choice is counted and read back like the others (Continue with Facebook, 2026-10-16)', () => {

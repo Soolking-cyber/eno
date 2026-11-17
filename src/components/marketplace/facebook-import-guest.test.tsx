@@ -64,14 +64,41 @@ describe('Import from Facebook, not signed in', () => {
     expect(await screen.findByText('Open eno.vn in your browser to import from Facebook.')).toBeTruthy()
   })
 
-  it('while sign-in is still being read: nothing shown and nothing asked (a signed-in seller never sees the guest view flash)', async () => {
+  it('while sign-in is still being read: the intro at once, its button loading — nothing to press, nothing asked (owner 2026-11-17, "No blank import screen")', async () => {
     a.loading = true
     const f = answer({ on: true })
     vi.stubGlobal('fetch', f)
-    const { container } = render(<FacebookImportPanel />)
+    render(<FacebookImportPanel />)
+    expect(screen.getByRole('heading', { name: 'Import your Facebook Marketplace listings' })).toBeTruthy()
+    // busy, not pressable (ui/button `loading`: aria-disabled, kept focusable)
+    expect(screen.getByRole('button', { name: /Connect Facebook and import/ }).getAttribute('aria-disabled')).toBe('true')
+    // the guest's sign-in link is not there: a signed-in seller never meets it
+    expect(screen.queryByRole('link', { name: 'Connect Facebook and import' })).toBeNull()
     await new Promise((r) => setTimeout(r, 50))
-    expect(container.innerHTML).toBe('')
     expect(f).not.toHaveBeenCalled()
+  })
+
+  it('signed in, and the import fails to load: says so with Try again — never a button left loading (commit gate 2026-11-17)', async () => {
+    a.user = { id: 'u1' }
+    let ok = false
+    const f = vi.fn(async () => (ok ? new Response(JSON.stringify({ on: true, connected: false, phone: null, job: null })) : new Response('{}', { status: 500 })))
+    vi.stubGlobal('fetch', f)
+    render(<FacebookImportPanel />)
+    expect(await screen.findByText('The import didn’t load.')).toBeTruthy()
+    ok = true
+    await act(async () => { screen.getByRole('button', { name: 'Try again' }).click() })
+    expect(await screen.findByRole('button', { name: 'Connect Facebook and import' })).toBeTruthy()
+    expect(screen.queryByText('The import didn’t load.')).toBeNull()
+  })
+
+  it('while the on/off answer is on its way: the same intro, button loading — then the link', async () => {
+    let answerNow: (r: Response) => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { answerNow = r })))
+    render(<FacebookImportPanel />)
+    expect(screen.getByRole('heading', { name: 'Import your Facebook Marketplace listings' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Connect Facebook and import/ }).getAttribute('aria-disabled')).toBe('true')
+    await act(async () => { answerNow(new Response(JSON.stringify({ on: true }))) })
+    expect(await screen.findByRole('link', { name: 'Connect Facebook and import' })).toBeTruthy()
   })
 
   it('an answer that never comes settles on "isn\'t available" after 8 s — the tab is never left empty (commit gate 2026-11-13)', async () => {
@@ -80,9 +107,11 @@ describe('Import from Facebook, not signed in', () => {
       vi.stubGlobal('fetch', vi.fn((_u: string, init?: RequestInit) => new Promise((_, reject) => {
         init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
       })))
-      const { container } = render(<FacebookImportPanel />)
+      render(<FacebookImportPanel />)
       await act(async () => { await vi.advanceTimersByTimeAsync(7_000) })
-      expect(container.innerHTML).toBe('')
+      // still waiting: the intro with its button loading (2026-11-17), no link yet
+      expect(screen.getByRole('heading', { name: 'Import your Facebook Marketplace listings' })).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Connect Facebook and import' })).toBeNull()
       await act(async () => { await vi.advanceTimersByTimeAsync(1_500) })
       expect(screen.getByText('Import from Facebook isn’t available right now.')).toBeTruthy()
     } finally { vi.useRealTimers() }

@@ -218,7 +218,7 @@ describe('Continue with Facebook — dark until GoTrue has it on', () => {
     expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook', queryParams: { auth_type: 'rerequest' } } })
   })
 
-  it('…and inside Facebook\'s Android browser: the emailed code first, then Facebook', async () => {
+  it('…and inside Facebook\'s Android browser: Facebook first, the emailed code under it (owner 2026-11-17)', async () => {
     ua = FB_ANDROID
     render(
       <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
@@ -228,7 +228,7 @@ describe('Continue with Facebook — dark until GoTrue has it on', () => {
     await settle()
     const send = screen.getByRole('button', { name: 'Send code' })
     const facebook = screen.getByRole('button', { name: 'Continue with Facebook' })
-    expect(after(send, facebook)).toBe(true)
+    expect(after(facebook, send)).toBe(true)
   })
 
   it('never in the eno apps, even when on', async () => {
@@ -250,16 +250,32 @@ describe('where it sits', () => {
     expect(after(facebook, field)).toBe(true)
   })
 
-  it('Facebook\'s own in-app browser: the emailed code, then Facebook, then Google — no Apple', async () => {
+  it('Facebook\'s own in-app browser: Facebook first, then the emailed code, then Google — no Apple, no "Phone · soon" (owner 2026-11-17)', async () => {
     ua = FB_ANDROID
     popup()
     await settle()
     const send = screen.getByRole('button', { name: 'Send code' })
-    const facebook = screen.getByRole('button', { name: 'Continue with Facebook' })
+    const facebooks = screen.getAllByRole('button', { name: 'Continue with Facebook' })
+    expect(facebooks).toHaveLength(1)
     const google = screen.getByRole('button', { name: 'Continue with Google' })
-    expect(after(send, facebook)).toBe(true)
-    expect(after(facebook, google)).toBe(true)
+    expect(after(facebooks[0], send)).toBe(true)
+    expect(after(send, google)).toBe(true)
     expect(screen.queryByRole('button', { name: /Apple/ })).toBeNull()
+    // The strip's only working tab is email there: the disabled phone tab is not shown.
+    expect(screen.queryByRole('tablist')?.className ?? 'hidden').toMatch(/\bhidden\b/)
+  })
+
+  it.each([
+    ['Messenger (iOS: FBAN/MessengerForiOS)', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/MessengerForiOS;FBAV/512.0.0.42.109;FBBV/700000000;FBDV/iPhone14,5;FBMD/iPhone;FBSN/iOS;FBSV/18.5;FBSS/3;FBCR/;FBID/phone;FBLC/vi_VN;FBOP/5]'],
+    ['Instagram (Android)', 'Mozilla/5.0 (Linux; Android 13; SM-A055F Build/TKQ1.221114.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 Instagram 360.0.0.30.109 Android'],
+  ])('%s: the code still leads — Facebook leads only in Facebook\'s own app', async (_name, agent) => {
+    ua = agent
+    popup()
+    await settle()
+    const send = screen.getByRole('button', { name: 'Send code' })
+    const facebook = screen.queryByRole('button', { name: 'Continue with Facebook' })
+    if (facebook) expect(after(send, facebook)).toBe(true)
+    expect(document.querySelector('[data-leads]')).toBeNull()
   })
 
   it('in Vietnamese', async () => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { COMPLETION_WINDOW_MS } from '@/lib/signup-prompt'
-import { GATE_RECORD_KEY, NAV_PRESS_WINDOW_MS, classifyGate, noteGateMethod, noteGateOpen, pressedInChrome, settleGateSignIn, spendGateRecord } from './signin-gates'
+import { GATE_RECORD_KEY, NAV_PRESS_WINDOW_MS, classifyGate, noteGateChoice, noteGateMethod, noteGateOpen, pressedInChrome, settleGateSignIn, spendGateRecord } from './signin-gates'
 
 // ── UX3 J1: per-gate sign-in counters ─────────────────────────────────────────────────────────────
 
@@ -103,11 +103,28 @@ describe('the gate counters — open, method, completed', () => {
 
   it('⛔ a method leaves a record; the next sign-in within the hour is that gate’s completion — once', async () => {
     noteGateMethod('save_search', 'google')
-    expect(JSON.parse(localStorage.getItem(GATE_RECORD_KEY)!)).toEqual({ g: 'save_search', at: T0 })
+    expect(JSON.parse(localStorage.getItem(GATE_RECORD_KEY)!)).toEqual({ g: 'save_search', at: T0, m: 'google' })
     expect(spendGateRecord(T0 + 10 * 60_000)).toBe('save_search')
     expect(spendGateRecord(T0 + 11 * 60_000)).toBeNull()
     await flush()
-    expect(beacons.map((b) => `${b.g}:${b.a}`)).toEqual(['save_search:google', 'save_search:completed'])
+    // …and which way it finished (2026-11-17): the method rides the record into one more count.
+    expect(beacons.map((b) => `${b.g}:${b.a}`)).toEqual(['save_search:google', 'save_search:completed', 'save_search:completed_google'])
+  })
+
+  it('the way LAST chosen is credited: Facebook tapped, then the emailed code — one start, completed by email', async () => {
+    noteGateMethod('page', 'facebook')
+    noteGateChoice('page', 'email', T0 + 60_000)
+    expect(spendGateRecord(T0 + 5 * 60_000)).toBe('page')
+    await flush()
+    expect(beacons.map((b) => `${b.g}:${b.a}`)).toEqual(['page:facebook', 'page:completed', 'page:completed_email'])
+  })
+
+  it('a later choice with no current record (already spent, or another gate\'s) writes nothing — no completion without its start', async () => {
+    noteGateChoice('page', 'email')
+    expect(localStorage.getItem(GATE_RECORD_KEY)).toBeNull()
+    noteGateMethod('chat', 'google')
+    noteGateChoice('page', 'email')
+    expect(JSON.parse(localStorage.getItem(GATE_RECORD_KEY)!)).toMatchObject({ g: 'chat', m: 'google' })
   })
 
   it('a sign-in more than an hour later, or from a clock that ran backwards, is not counted — and the record is spent', async () => {

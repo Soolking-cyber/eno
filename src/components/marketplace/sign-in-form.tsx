@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { escapeInAppBrowser, googleOauthBlocked, inAppHost, isIOS, isNativeTabs, openInSystemBrowser, uaOs } from '@/lib/in-app-browser'
 import { CARRY_PARAM, teacherCarry } from '@/lib/auth/in-app-carry'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
-import { noteGateMethod } from '@/lib/signin-gates'
+import { noteGateChoice, noteGateMethod } from '@/lib/signin-gates'
 import { lastSignInMethod } from '@/lib/last-signin-method'
 import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
@@ -226,6 +226,17 @@ function handoffVia(): string | null {
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
+/** The "or" rule between sign-in ways — one shape wherever it shows. */
+function OrRule({ label, className }: { label: string; className?: string }) {
+  return (
+    <div className={cn('flex items-center gap-3', className)}>
+      <span className="h-px flex-1 bg-border" />
+      <span className="text-xs text-ink-4">{label}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  )
+}
+
 export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null, emailLead = false }: {
   className?: string
   /**
@@ -364,6 +375,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // So treat native as NOT blocked: show the normal
   // "Continue with Google" button, not the "open in your browser" fallback + hint.
   const [oauthBlocked, setOauthBlocked] = useState(false)
+  // Inside Facebook's own in-app browser: Facebook leads there (see `facebookLeads`).
+  const [inFacebookApp, setInFacebookApp] = useState(false)
   // …and of those, an APP'S BUILT-IN BROWSER (Facebook's, Zalo's, a raw Android WebView — inAppHost): Google continues in
   // the phone's own browser there (continueGoogleInBrowser), never the pairing hand-off, which stays for the one context
   // with no app around it to leave — eno.vn on an iPhone's home screen.
@@ -408,6 +421,20 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    * the hand-off. The code (not a link) is already forced here — see `autoCode`.
    */
   const emailFirst = oauthBlocked
+  /**
+   * ⛔ FACEBOOK LEADS INSIDE FACEBOOK'S OWN BROWSER (owner 2026-11-17, "Facebook first in FB's browser", after the measured ad
+   * funnel: the eno_fb_marketplace_import_10d visitors are almost all in Facebook's browser, already signed in to Facebook,
+   * and met a disabled phone tab and an emailed code first). There "Continue with Facebook" goes above the code, which
+   * stays right under it as the fallback; the disabled "Phone · soon" tab is not shown. Facebook's app ONLY — not Messenger
+   * or Instagram, whose users may have no Facebook account and would meet a password (commit gate, opus); everywhere else
+   * is unchanged (Zalo's and other webviews keep the code first — Meta stopped Facebook Login in other Android webviews). This lifts
+   * the 2026-10-16 "offered, not leading, until seen to finish" hold (src/lib/facebook-signin.ts) by the owner's word;
+   * the per-method completion counts (signin-gates.ts `completed_facebook`) now show whether it finishes there.
+   * First frame: the SSR'd /signin paints the real-browser order (providers on top), and in-app browsers re-lay it after the
+   * effect, as they always have; with Facebook leading, the top keeps one button and the rule instead of losing both, so the
+   * code field moves less than before, not more.
+   */
+  const facebookLeads = emailFirst && showFacebook && inFacebookApp
   const googleNoteId = useId()
   // The form's own box, so the fold can find its email field (ui/input takes no ref).
   const formRef = useRef<HTMLDivElement>(null)
@@ -442,7 +469,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    */
   const gateMethodReported = useRef(false)
   const reportGateMethod = (m: SignInMethod) => {
-    if (gateMethodReported.current) return
+    // A later choice is not a second start, but the sign-in that follows is credited to the way LAST chosen (signin-gates.ts).
+    if (gateMethodReported.current) { noteGateChoice(gate, m); return }
     gateMethodReported.current = true
     noteGateMethod(gate, m)
   }
@@ -458,6 +486,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const tagAnchor = (m: SignInMethod) => lastMethod === m && 'relative'
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
+    setInFacebookApp(inAppHost() === 'facebook')
     setInAppGoogle(googleOauthBlocked() && !isNativeApp() && inAppHost() !== null)
     // ⛔ ONE ANSWER FOR BOTH PROVIDERS IN THE iOS APP: `iosGoogleHidden()` and `appleAvailableHere()` both come
     // from `iosNativeAppleReady()`, so Google can never show there without Apple (Guideline 4.8). The app's
@@ -1543,6 +1572,17 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         </>
       )}
 
+      {facebookLeads && (
+        <>
+          <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('facebook'))} data-provider="facebook" data-leads="">
+            <FacebookIcon />
+            {t('Continue with Facebook', 'Tiếp tục với Facebook')}
+            {lastUsedTag('facebook')}
+          </Button>
+          <OrRule label={t('or', 'hoặc')} className="py-1" />
+        </>
+      )}
+
       {/* The join presentation's fold (`collapseEmail`): one quiet button where the email tabs go.
           `outline`, a real 44px target, and quieter than Google's — Google is the ask, email the
           alternative. Opening it renders the tabs below in this same form and moves focus into them. */}
@@ -1576,7 +1616,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           is still the way back. This is the one place the tabs migration is not pixel/behaviour
           identical, and it is an improvement. */}
       <Tabs value={tab} onValueChange={(v) => { setTab(v as 'email' | 'phone'); reset() }} className="gap-3">
-        <TabsList className={cn('flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto', gateTidy && !PHONE_OTP_ENABLED && 'native-app-hidden')}>
+        {/* Inside Meta's browsers (facebookLeads) the strip's only working tab is email: no disabled "Phone · soon" there. */}
+        <TabsList className={cn('flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto', gateTidy && !PHONE_OTP_ENABLED && 'native-app-hidden', facebookLeads && !PHONE_OTP_ENABLED && 'hidden')}>
           {(['phone', 'email'] as const).map((m) => (
             // Selecting a method is LOCATION state (icon-language §5): the active glyph takes
             // the soft duotone — SAME line, plus the brand-100 interior wash (more wash, same
@@ -1884,16 +1925,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           Facebook's own browser. No Apple here (D7): inside a webview Apple's web sign-in means typing the Apple Account
           password, and the browser hand-off cannot carry it (Apple's refresh token is kept only by the server-side
           callback exchange — TN3194). */}
-      {emailFirst && (showFacebook || !hideGoogle) && (
+      {emailFirst && ((showFacebook && !facebookLeads) || !hideGoogle) && (
         // `ios-hide-google`: the server-rendered first frame must not show Google in the iOS app either — the same
         // `ios-nosiwa-hidden` hook as the main button. Facebook is never in the apps, so it needs no hook.
         <div className="space-y-2.5 pt-1">
-          <div className={cn('flex items-center gap-3 pb-1', !showFacebook && gateGoogle && 'ios-nosiwa-hidden')}>
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          {showFacebook && (
+          <OrRule label={t('or', 'hoặc')} className={cn('pb-1', !showFacebook && gateGoogle && 'ios-nosiwa-hidden')} />
+          {showFacebook && !facebookLeads && (
             <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('facebook'))} data-provider="facebook">
               <FacebookIcon />
               {t('Continue with Facebook', 'Tiếp tục với Facebook')}

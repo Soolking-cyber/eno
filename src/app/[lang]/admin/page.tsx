@@ -11,6 +11,7 @@ import { IS_SERVICES } from '@/lib/edition'
 import { openStatuses } from '@/lib/trips/status'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { licenceGrandfatherUntilLabel, licenceQueueCounts } from '@/components/admin/licence-checks'
+import { pageLoadsLastDays } from '@/lib/rum/page-loads'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Admin — eno.vn', robots: { index: false, follow: false } }
@@ -28,6 +29,9 @@ export default async function AdminOverviewPage() {
   const admin = await getAdmin()
   if (!admin) return <AdminDenied />
   const since7d = new Date(Date.now() - 7 * DAY_MS)
+  // Real page loads, beside the accounts they turned into (src/lib/rum/page-loads.ts): the footer's "visits" count scanners too.
+  // Started with the counts below, not after them.
+  const loadsP = pageLoadsLastDays(7)
   const [pendingIdentity, pendingBusiness, openReports, appeals, underEnforcement, awaitingListings, usersTotal, users7d, listings7d, openTrips, supportUnread, licence] = await Promise.all([
     db.identityVerification.count({ where: KYC_QUEUE_WHERE }),
     db.sellerVerification.count({ where: { status: 'pending' } }),
@@ -59,6 +63,7 @@ export default async function AdminOverviewPage() {
     // A failed count must not take the whole overview down with it (commit gate): the tile says it could not count.
     licenceQueueCounts().catch(() => null),
   ])
+  const loads = await loadsP
 
   const queues = [
     { label: 'Identity checks waiting', count: pendingIdentity, href: '/admin/verification?tab=identity', hint: 'People who submitted a passport or CCCD' },
@@ -124,6 +129,15 @@ export default async function AdminOverviewPage() {
             </Link>
           </li>
         ))}
+        <li>
+          <Card className="px-4 py-3">
+            <p className="text-2xl font-bold text-foreground">{loads ? loads.phone : '—'}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">Pages opened on phones</p>
+            <p className="text-xs text-muted-foreground">
+              {loads ? `+ ${loads.other} on computers, our own test runs included. Real browsers only — the footer's visits count scanners too.` : 'Could not be read.'}
+            </p>
+          </Card>
+        </li>
       </ul>
 
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-ink-4">Sections</h2>

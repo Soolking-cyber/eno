@@ -240,8 +240,8 @@ describe('/privacy — the facts it states match the code', () => {
     const { INTENT_KEY } = await import('@/lib/pending-intent')
     const text = await policy('marketplace')
     expect(text).toContain(`Sign-up reminder (${DEVICE_KEY}, ${TAB_KEY}, ${GATE_RECORD_KEY}, ${INTENT_KEY})`)
-    expect(text).toContain('Apart from that action: timings, counts, that one yes/no and the kind of place — no page, listing or identifier.')
-    expect(text).toContain('the kind of place at your next sign-in')
+    expect(text).toContain('Apart from that action: timings, counts, that one yes/no, the kind of place and the way chosen — no page, listing or identifier.')
+    expect(text).toContain('the kind of place and the way chosen at your next sign-in')
     // UX3 J5: the pending action is disclosed, as this tab only, and its lifetime promises only what the code does
     // (pending-intent.ts: spent on use, dropped on close, read as gone after 15 minutes; sign-out-storage.ts).
     expect(text).toContain('that action — the search, the amount or the message and its listing — for this tab only')

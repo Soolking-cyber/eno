@@ -48,8 +48,44 @@ export function FacebookImportPanel() {
   const { user, loading } = useAuth()
   // Nothing until sign-in is known, so ONE panel mounts, for the right account: a panel mounted while it loads would consume a seller's
   // Connect return (?fbi=…, read once and stripped) before their own panel exists (opus commit gate 2026-11-13).
-  if (loading) return null
+  if (loading) return <ImportIntroWaiting />
   return <ImportPanel key={user?.id ?? 'guest'} />
+}
+
+/**
+ * The import's intro: what it reads and where the text goes, then one button (owner, 2026-11-13: "users should see how it looks
+ * upon landing there" from the Facebook ads).
+ */
+function ImportIntro({ cta }: { cta: ReactNode }) {
+  const { tr } = useLanguage()
+  return (
+    <section className="space-y-3">
+        <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
+        <p className="text-sm text-body">
+          {tr(
+            'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI, or Google’s if it doesn’t answer, to sort them, read the price and write the description. You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
+            'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI, hoặc của Google nếu OpenAI không phản hồi, để phân loại, đọc giá và viết mô tả. Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
+          )}
+        </p>
+        <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>
+      {cta}
+    </section>
+  )
+}
+
+/**
+ * ⛔ NO BLANK WAIT (owner 2026-11-17, "No blank import screen": a third of the ad's visitors left before this page showed anything).
+ * While sign-in, the import's on flag or a seller's import are still being read, the same intro shows at once with its button
+ * loading — never anything that can be pressed, and no other part of the import is mounted (so a seller's ?fbi= return is still
+ * read by their own panel only).
+ */
+function ImportIntroWaiting() {
+  const { tr } = useLanguage()
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <ImportIntro cta={<Button variant="cta" loading disabled>{tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Button>} />
+    </div>
+  )
 }
 
 function ImportPanel() {
@@ -95,9 +131,15 @@ function ImportPanel() {
     return words[code] ?? tr('This one couldn’t be published. Open it from the post form instead.', 'Không đăng được tin này. Hãy đăng bằng biểu mẫu.')
   }, [tr])
 
+  // A first read that fails, or does not answer in 15 s, says so with a retry — never a button left loading (commit gate, opus,
+  // 2026-11-17). A failed POLL while a job moves keeps what is shown.
+  const [loadFailed, setLoadFailed] = useState(false)
   const load = useCallback(async () => {
-    const r = await fetch('/api/fb-import', { cache: 'no-store' }).catch(() => null)
-    if (r?.ok) setState((await r.json()) as State)
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), 15_000)
+    const r = await fetch('/api/fb-import', { cache: 'no-store', signal: ctl.signal }).catch(() => null).finally(() => clearTimeout(timer))
+    const body = r?.ok ? ((await r.json().catch(() => null)) as State | null) : null
+    if (body) { setState(body); setLoadFailed(false) } else setLoadFailed(true)
   }, [])
 
   useEffect(() => { setCanRunHere(facebookAvailableHere() || facebookIosApp()); if (user) void load() }, [user, load])
@@ -263,25 +305,12 @@ function ImportPanel() {
     await load()
   }
 
-  // The import's intro: what it reads and where the text goes, then one button — Connect / Import for a signed-in seller, sign in for
-  // a visitor (owner, 2026-11-13: "users should see how it looks upon landing there" from the Facebook ads).
-  const intro = (cta: ReactNode) => (
-    <section className="space-y-3">
-        <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
-        <p className="text-sm text-body">
-          {tr(
-            'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI, or Google’s if it doesn’t answer, to sort them, read the price and write the description. You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
-            'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI, hoặc của Google nếu OpenAI không phản hồi, để phân loại, đọc giá và viết mô tả. Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
-          )}
-        </p>
-        <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>
-      {cta}
-    </section>
-  )
+  // The import's intro and its one button: Connect / Import for a signed-in seller, sign in for a visitor (ImportIntro, below).
+  const intro = (cta: ReactNode) => <ImportIntro cta={cta} />
   // ⛔ NOT SIGNED IN: the intro as a signed-in seller sees it, the button sends them to sign up or sign in and back here; nothing
   // else of the import is reachable. Waits for auth and for the import's on flag, so a signed-in seller never sees this flash.
   if (!user) {
-    if (authLoading || guestOn === null) return null
+    if (authLoading || guestOn === null) return <ImportIntroWaiting />
     if (!canRunHere) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Open eno.vn in your browser to import from Facebook.', 'Hãy mở eno.vn trong trình duyệt để nhập từ Facebook.')}</p>
     if (!guestOn) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Import from Facebook isn’t available right now.', 'Hiện chưa thể nhập từ Facebook.')}</p>
     return (
@@ -290,7 +319,15 @@ function ImportPanel() {
       </div>
     )
   }
-  if (!user || !state) return null
+  if (!state && loadFailed) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-3">
+        <p className="text-sm text-body">{tr('The import didn’t load.', 'Chưa tải được phần nhập tin.')}</p>
+        <Button variant="outline" size="sm" onClick={() => { setLoadFailed(false); void load() }}>{tr('Try again', 'Thử lại')}</Button>
+      </div>
+    )
+  }
+  if (!state) return <ImportIntroWaiting />
   if (!canRunHere) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Open eno.vn in your browser to import from Facebook.', 'Hãy mở eno.vn trong trình duyệt để nhập từ Facebook.')}</p>
   if (!state.on) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Import from Facebook isn’t available right now.', 'Hiện chưa thể nhập từ Facebook.')}</p>
 

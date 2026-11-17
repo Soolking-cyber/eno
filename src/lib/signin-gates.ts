@@ -59,15 +59,26 @@ export function classifyGate(o: {
   return 'other'
 }
 
-type GateRecord = { g: SignInGate; at: number }
+/**
+ * `m`: the way LAST chosen in the form (since 2026-11-17, /privacy says so — noteGateChoice keeps it current, so tapping Facebook,
+ * backing out and finishing with the emailed code credits email). ⛔ THE CHOICE, NOT THE SESSION: GoTrue's identities do not reliably
+ * stamp the one used (measured 11-17: an identity's last_sign_in_at matched the sign-in for Google 6/11, email 0/7, Facebook 0/1;
+ * app_metadata.provider is the FIRST provider for ever — commit gate, opus). What we ask is "pressed Facebook in Facebook's
+ * browser → signed in?", which is exactly the choice and its completion. Older records have none and complete without one.
+ */
+type GateRecord = { g: SignInGate; at: number; m: SignInMethod | null }
+
+const METHODS: readonly SignInMethod[] = ['google', 'apple', 'facebook', 'email']
 
 function readRecord(): GateRecord | null {
   try {
-    const o = JSON.parse(localStorage.getItem(GATE_RECORD_KEY) || 'null') as { g?: unknown; at?: unknown } | null
+    const o = JSON.parse(localStorage.getItem(GATE_RECORD_KEY) || 'null') as { g?: unknown; at?: unknown; m?: unknown } | null
     if (!o || !isCountedGate(o.g) || typeof o.at !== 'number' || !Number.isFinite(o.at)) return null
-    return { g: o.g, at: o.at }
+    return { g: o.g, at: o.at, m: METHODS.includes(o.m as SignInMethod) ? (o.m as SignInMethod) : null }
   } catch { return null }
 }
+
+
 
 /** The sign-in opened at this gate. */
 export function noteGateOpen(gate: SignInGate): void {
@@ -81,8 +92,24 @@ export function noteGateOpen(gate: SignInGate): void {
  */
 export function noteGateMethod(gate: SignInGate, method: SignInMethod, now: number = Date.now()): void {
   if (!isCountedGate(gate)) return
-  try { localStorage.setItem(GATE_RECORD_KEY, JSON.stringify({ g: gate, at: now })) } catch { /* private mode: the count still lands */ }
+  writeRecord(gate, method, now)
   countGateEvent(gate, method)
+}
+
+/**
+ * A later choice in the same form: no count (one start per ask) — the CURRENT record of this gate now carries this way and this
+ * time. No record (spent by a sign-in, or never written) or another gate's → nothing: a completion is never credited without its
+ * counted start (commit gate, opus).
+ */
+export function noteGateChoice(gate: SignInGate, method: SignInMethod, now: number = Date.now()): void {
+  if (!isCountedGate(gate)) return
+  const r = readRecord()
+  if (!r || r.g !== gate) return
+  writeRecord(gate, method, now)
+}
+
+function writeRecord(gate: SignInGate, method: SignInMethod, now: number): void {
+  try { localStorage.setItem(GATE_RECORD_KEY, JSON.stringify({ g: gate, at: now, m: method })) } catch { /* private mode: the count still lands */ }
 }
 
 /**
@@ -110,5 +137,8 @@ export function spendGateRecord(now: number = Date.now()): SignInGate | null {
   const since = now - r.at
   if (since < 0 || since > COMPLETION_WINDOW_MS) return null
   countGateEvent(r.g, 'completed')
+  // …and the way that had been chosen (the record's `m`): the same anonymous daily total, one more action name, never more
+  // than the gate's own completion.
+  if (r.m) countGateEvent(r.g, `completed_${r.m}`)
   return r.g
 }

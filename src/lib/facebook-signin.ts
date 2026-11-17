@@ -10,6 +10,9 @@ import { META_IN_APP_HOSTS, inAppHost, isNativeTabs } from './in-app-browser'
  * ⛔ DARK UNTIL CONFIGURED. The owner creates the Meta app and runs infra/vn-node/apply-facebook-signin.sh; until GoTrue's
  * own settings say `facebook: true` no button shows anywhere, and no deploy is needed to switch it on.
  *
+ * ✅ LEADS INSIDE FACEBOOK'S OWN BROWSER SINCE 2026-11-17 (owner, after the measured ad funnel — sign-in-form.tsx
+ * `facebookLeads`): the hold below is lifted there, the emailed code right under it; the per-method completion counts
+ * (signin-gates.ts — the way chosen, then completed; the report's "Sign-ins finished, by method") show whether it finishes. Elsewhere, as below.
  * ⚠️ OFFERED, NOT LEADING (plan v4 review, codex + opus, 2026-10-16). 85% of the teacher landings are in Facebook's
  * in-app browser, where Facebook's own sign-in is EXPECTED to know the visitor already ("Continue as …") — but nobody
  * has watched it happen on a real phone yet. Until the owner has, and the counters (signup-prompt.ts `facebook`) show

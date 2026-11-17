@@ -216,8 +216,14 @@
  * record (Sign in with eno and agent registration: shop, access, made / last used, until Disconnect, 180 days or the shop
  * no longer eligible) and the agent's email kept only as a hash, deleted within an hour, never emailed. No new recipient.
  * ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-17, sign-in counts by the way they finished (owner, 2026-11-17: Facebook first inside Facebook's browser —
+ * does it finish there?): "Sign-up reminder counts" adds, per place that asks, which of Google, Apple, Facebook or email was
+ * chosen last before the sign-in that followed; and "For any sign-in window" (stored on the device) adds that last choice, kept
+ * with the kind of place and the time for the same hour. And the places that ask gain the page for importing from Facebook (the
+ * ad landing, src/lib/fb-import/landing.ts). Same anonymous daily totals.
+ * ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-16'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -226,4 +232,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '074e6dc2738fda2d'
+export const PRIVACY_TEXT_FINGERPRINT = '917e7b6f748da8c0'

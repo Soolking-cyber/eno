@@ -202,6 +202,24 @@ async function main() {
     console.log(`  ${gate.padEnd(12)} ${cells.join('')}`)
   }
 
+  // ── Which way the sign-ins finished, by kind of browser (2026-11-17) ───────────────────────────────
+  // Facebook leads inside Facebook's own browser since 2026-11-17: does it finish there? Completions by the way last chosen
+  // before them, all gates but the timed prompt (whose own events count no method), since the record started carrying it.
+  console.log('')
+  console.log(`  Sign-ins finished, by the way last chosen and kind of browser (${days}-day; zero before this count shipped)`)
+  const mh = '  method       ' + kinds.map((k) => k.padStart(18)).join('')
+  console.log(mh)
+  console.log('  ' + '─'.repeat(mh.length - 2))
+  for (const method of ['google', 'apple', 'facebook', 'email'] as const) {
+    const key = `completed_${method}` as const
+    const cells = kinds.map((k) => {
+      let n = 0
+      for (const gate of SIGNIN_GATES) if (gate !== 'timed') n += byKind(g.byGateContext[gate]).get(k)?.[key] ?? 0
+      return (n ? String(n) : '·').padStart(18)
+    })
+    console.log(`  ${method.padEnd(12)} ${cells.join('')}`)
+  }
+
   // ── The teacher sign-up form, step by step (2026-10-16) ─────────────────────────────────────────
   // Where the 2% that reach eno.vn/teachers/join are lost: hydrated → answered → Continue (or stopped) → the `teacher`
   // gate's sign-in (above) → published. Per kind of browser, phone and desktop and both languages summed.

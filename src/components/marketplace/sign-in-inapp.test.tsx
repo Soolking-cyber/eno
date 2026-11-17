@@ -15,6 +15,7 @@ vi.mock('@/lib/google-identity', () => ({ googleFirstPartyEnabled: () => true })
 
 import { SignInDialog } from './sign-in-dialog'
 import { signInNextPath } from './sign-in-form'
+import { FB_IMPORT_LANDING_PATH } from '@/lib/fb-import/landing'
 
 const ZALO = 'Mozilla/5.0 (Linux; Android 14; SM-A546E Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 Zalo android/12210160 ZaloTheme/light ZaloLanguage/vn'
 const CHROME = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36'
@@ -168,6 +169,9 @@ describe('signInNextPath', () => {
     expect(signInNextPath({ pathname: '/c/phones', search: '?q=iphone' })).toBe('/c/phones?q=iphone')
     expect(signInNextPath({ pathname: '/signin', search: '?next=%2Fsaved' })).toBe('/saved')
     expect(signInNextPath({ pathname: '/onboard', search: '' })).toBe('/')
+    // The Facebook-import landing gets its visitor back and sends them on itself — to the import, or to /post when it is off
+    // (commit gate, opus: a fixed return to the import was a dead end whenever it is off).
+    expect(signInNextPath({ pathname: FB_IMPORT_LANDING_PATH, search: '?utm_source=fb' })).toBe(`${FB_IMPORT_LANDING_PATH}?utm_source=fb`)
     // A card's chat finishes on the listing, wherever the card was.
     expect(signInNextPath({ pathname: '/', search: '?q=sofa' }, { kind: 'chat', path: '/listings/l9' })).toBe('/listings/l9?resume=chat')
     expect(signInNextPath({ pathname: '/', search: '?q=sofa' }, { kind: 'saveSearch', path: '/?q=sofa' })).toBe('/?q=sofa&resume=saveSearch')
