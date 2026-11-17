@@ -193,9 +193,10 @@ const FOREIGN_CURRENCIES: [string, RegExp][] = [
   // 元, 块, 币 after a number only (单元 flat, 一块 a piece of…), "100多元" included; 越南盾 is the dong.
   ['yuan', new RegExp(String.raw`(?<=[\d〇一二三四五六七八九十百千万亿億]\s*[多余]?)(?:元|块钱|币)|(?<=\d\s*[多余]?)块|港元|港币|台币|新币|人民币|人民幣|(?<!\p{L})(?:yuans?|rmb|cny)(?!\p{L})|위안|юан|${TH_AMOUNT}หยวน|(?<![\p{L}\p{M}])युआन(?![\p{L}\p{M}])`, 'iu')],
   // ドル inside ベッドルーム (bedroom) and ヌードル (noodle), measured, and after the katakana that end ミドル (middle school), ハンドル,
-  // アイドル, キャンドル, ハードル, サドル, プードル, バンドル: no currency name ends in them, and nothing can sit between them and ドル.
+  // アイドル, キャンドル, ハードル, サドル, プードル, バンドル, and サルバドル (Salvador, seen 2026-11-17): no currency name ends in them, and nothing
+  // can sit between them and ドル.
   // 불 is the Korean dollar after a number ("100불"); долл. and у.е. are Russian price shorthand.
-  ['dollar', new RegExp(String.raw`\$|(?<!\p{L})(?:usd|dollars?|dolar)(?!\p{L})|달러|${KO_AMOUNT}불|(?<!ベッ|ヌー|ミ|ハン|アイ|キャン|ハー|サ|プー|バン)ドル|美元|美金|(?<!\p{L})долл|у\.\s?е\.|ดอลลาร์|डॉलर|เหรียญสหรัฐ|(?<=\d\s*)เหรียญ`, 'iu')],
+  ['dollar', new RegExp(String.raw`\$|(?<!\p{L})(?:usd|dollars?|dolar)(?!\p{L})|달러|${KO_AMOUNT}불|(?<!ベッ|ヌー|ミ|ハン|アイ|キャン|ハー|サ|プー|バン|ルバ)ドル|美元|美金|(?<!\p{L})долл|у\.\s?е\.|ดอลลาร์|डॉलर|เหรียญสหรัฐ|(?<=\d\s*)เหรียญ`, 'iu')],
   ['baht', /฿|(?<!\p{L})(?:bahts?|thb)(?!\p{L})|บาท|바트|バーツ|泰铢/iu],
   // The site's other languages' own money: roubles, rupees, ringgit (none in the 24,952 translations measured).
   ['rouble', /₽|(?<!\p{L})(?:roubles?|rubles?)(?!\p{L})|(?<!\p{L})руб(?:л\p{L}*|\.)?(?!\p{L})/iu],
@@ -238,7 +239,9 @@ function unitAt(tail: string): { mult: number; len: number } | null {
   const m = UNIT_WORD.exec(tail)
   return m ? { mult: UNIT_WORDS.find(([w]) => w === m[1].toLowerCase())?.[1] ?? 1, len: m[0].length } : null
 }
-const AMOUNT = /\d{1,3}(?:[.,\u00a0 ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g
+// A group of thousands is three digits and no more: "Inspiron 14 5441" is 14 and 5441, never 14,544 and a 1 (a Russian translation that
+// dropped the word between them was refused, 2026-11-17).
+const AMOUNT = /\d{1,3}(?:[.,\u00a0 ]\d{3}(?!\d))+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g
 /** "8.000.000" and "8,000,000" → 8000000 (groups of three are thousands); "1.5" → 1.5; "7.0" → 7. */
 function valueOf(n: string): number {
   if (/^\d{1,3}(?:[.,\u00a0 ]\d{3})+$/.test(n)) return Number(digitsOf(n))
@@ -296,11 +299,39 @@ const asciiDigits = (t: string) => t.replace(/[០-៩๐-๙०-९٠-٩۰-۹]/
   for (const zero of [0x17e0, 0x0e50, 0x0966, 0x0660, 0x06f0]) if (cp >= zero && cp <= zero + 9) return String(cp - zero)
   return c
 })
+/**
+ * A contact is its address, compared whole, with one exception: "line" is the one messenger name that is also an everyday word, and
+ * "제품 라인: iPad" is Korean for "Product line: iPad", not a LINE account (20 good Korean rows refused a day, 2026-11-17). So "line",
+ * "라인" or "ライン", a colon or a space, and an address is the source's own when the source says "line" before that same address. A LINE
+ * label on another of its words ("LINE: 0901234567" for "Zalo 0901234567") is refused, and every other messenger, a link, an email, a
+ * domain and an @handle is compared whole, as before.
+ */
+const LINE_THEN_ADDRESS = /^(?:line(?:\s*id)?|라인|ライン)(?:\s*[:：]\s*|\s+)([a-z0-9_.+-]{3,})$/u
+const trimEnd = (t: string) => t.replace(/[.,;:!?]+$/, '')
+/** Where a Latin letter meets a letter of another script (marks that ride on Latin letters, like Vietnamese tones, are Latin's). */
+const SCRIPT_SEAM = /(?<=\p{Script=Latin})(?=[\p{L}\p{M}])(?![\p{Script=Latin}\p{Script=Inherited}])|(?<=[\p{L}\p{M}])(?<![\p{Script=Latin}\p{Script=Inherited}])(?=\p{Script=Latin})/gu
+function knownContact(c: string, lower: string): boolean {
+  const said = trimEnd(c.toLowerCase())
+  if (lower.includes(said)) return true
+  const address = LINE_THEN_ADDRESS.exec(said)?.[1]
+  if (!address) return false
+  const esc = trimEnd(address).replace(/[.+]/g, '\\$&')
+  return new RegExp(String.raw`(?<!\p{L})line(?:\s*id)?\s*[:：]?\s*${esc}(?![a-z0-9_+-]|\.[a-z0-9_])`, 'u').test(lower)
+}
 export function addsToItsSource(src: string, out: string): string | null {
-  const s = asciiDigits(src.normalize('NFKC')), o = asciiDigits(out.normalize('NFKC'))
-  if (newNumbers(s, o).length) return 'a number its source does not have'
+  const plain = (t: string) => asciiDigits(t.normalize('NFKC'))
+  // A Latin word written against Thai, Khmer, Chinese or Japanese letters is still a word: "ทำVisaด่วน", "代办visa" and Khmer that had a
+  // zero-width space between them ("ធ្វើVisaរហ័ស") say visa. A space between two scripts lets the word checks below see it (Opus, 2026-11-17).
+  const apart = (t: string) => t.replace(SCRIPT_SEAM, ' ')
+  const s = apart(plain(src)), o = apart(plain(out))
+  // A Chinese comma between two numbers is a list, not a decimal point: "SM-X230，8GB" is 230 and 8, not 230.8 (NFKC alone makes it "230,8";
+  // 16 good Chinese rows refused a day, 2026-11-17). Before a group of three digits that ends the number it is a thousands separator and
+  // stays one: "8，000，000" is eight million, and "8，500，000" for "8.000.000" is refused, not read as 8, 500 and 0 (Opus, 11-17). A group
+  // followed by Latin letters is a size ("X526，128GB"). For the numbers only: contacts are compared as written ("Zalo，WhatsApp").
+  const wide = (t: string) => plain(t.replace(/，(?!\d{3}(?![\d\p{Script=Latin}]))/gu, ', '))
+  if (newNumbers(wide(src), wide(out)).length) return 'a number its source does not have'
   const lower = s.toLowerCase()
-  if ((o.match(CONTACT) ?? []).some((c) => !lower.includes(c.toLowerCase().replace(/[.,;:!?]+$/, '')))) return 'a contact its source does not have'
+  if ((o.match(CONTACT) ?? []).some((c) => !knownContact(c, lower))) return 'a contact its source does not have'
   // By kind: a source that sells e-visas (eno.vn's e-Visa aisle, the owner's exception) may say "visa" in any number of ways; a source with
   // none of a kind gets none of it.
   // A price stays in its currency: dong is eno.vn's own and may always be named; another currency only if the source names it.
@@ -330,7 +361,8 @@ function nameLike(text: string): boolean {
   const words = text.split(/\s+/).filter(Boolean)
   const named = words.filter((w) => /^\p{L}/u.test(w))
   // Longer names are written capitalised ("Jose Paolo Rumbawa Aguilon", "TEFL TESOL CELTA IELTS"): up to six words then.
-  const max = named.every((w) => /^\p{Lu}/u.test(w)) ? 6 : 3
+  // "iPhone", "eBay" are written capitalised too: a capital after any lower-case start.
+  const max = named.every((w) => /^\p{Ll}*\p{Lu}/u.test(w)) ? 6 : 3
   // Vietnamese in capitals is a listing shouted, not a name: names are written "Nguyễn Phạm Oanh", never "NGUYỄN PHẠM OANH" on eno.vn.
   const shouted = readsAsVietnamese(text) && text === text.toUpperCase()
   // …and Vietnamese with a lower-case word is a phrase ("Gia sư Toán", "Dạy tiếng Hàn"), not a name.
@@ -373,8 +405,10 @@ function englishWithVietnameseNames(text: string): boolean {
 /** Every word of the source (two or more, of two letters or more) is in the translation as written: it was copied, whatever was added. */
 function copiesEveryWord(src: string, out: string): boolean {
   const words = src.normalize('NFC').split(/[^\p{L}\p{N}]+/u).filter((w) => letters(w).length >= 2)
-  const got = new Set(out.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
-  return words.length >= 2 && words.every((w) => got.has(w))
+  // As many times as the source has it: "Xiaomi Watch 2 घड़ी" for "Watch Xiaomi Watch 2" translated one of its two "Watch" (2026-11-17).
+  const count = (ws: string[]) => ws.reduce((m, w) => m.set(w, (m.get(w) ?? 0) + 1), new Map<string, number>())
+  const want = count(words), got = count(out.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
+  return words.length >= 2 && [...want].every(([w, n]) => (got.get(w) ?? 0) >= n)
 }
 
 /**
@@ -411,9 +445,40 @@ function withoutCopiedNames(src: string, out: string): string {
     .join('')
 }
 
-/** Why a translation is refused, or null. Checked here whatever Reach checked (the header). */
+/**
+ * …and without the model codes and brand spellings it copied, whatever the source's language: a word written exactly as in the source, with
+ * no Vietnamese mark and not an everyday word in either language, that has a digit in it ("8GB", "X9d", "i7", "MTJV3ZP") or a capital after
+ * its first letter ("HONOR", "REDMI", "VN", "iPhone"). They read the same in every language: "HONOR X9d 12GB/512GB 二手" for "HONOR X9d
+ * 12GB/512GB Cũ" is translated (116 good rows refused a day, phones and laptops, 2026-11-17). A Vietnamese source's Title Case words stay
+ * (its capitals are not names, above); only these go. ⚠️ ACCEPTED RISK (translation quality, not what a row may say: numbers, contacts,
+ * currencies and visa wording are checked whatever this decides): a word in capitals outside the word lists counts as a code ("CAN HO",
+ * "SEALED"), and the share is taken on what is left, so a code-heavy title copied but for one word passes with a few letters of the target
+ * script ("HONOR X9d 12GB Cũ 二"); copiesEveryWord still refuses a whole copy. Haiku did neither in the 326 rows measured (Opus, 11-17).
+ */
+function withoutCopiedCodes(src: string, out: string): string {
+  const own = new Set(src.normalize('NFC').split(/[^\p{L}\p{N}]+/u))
+  const code = (w: string) => (/\p{N}/u.test(w) && /\p{L}/u.test(w)) || (/^\p{L}{2,}$/u.test(w) && /\p{Lu}/u.test(w.slice(1)))
+  return out.normalize('NFC').split(/([^\p{L}\p{N}]+)/u)
+    .filter((w) => !(own.has(w) && code(w) && !VI_DIACRITIC.test(w) &&
+      ![LISTING_WORDS, TITLE_WORDS, EN_GLUE, VI_UNMARKED].some((set) => set.has(w.toLowerCase()))))
+    .join('')
+}
+
+/**
+ * Khmer is written without spaces, and Haiku puts zero-width spaces between its words (2 of 40 Khmer rows, 2026-11-17; ~50 refused a day
+ * as "invisible characters"). They are not written (browsers break Khmer lines without them), and a Khmer row with them is checked twice,
+ * each must pass: with them taken out ("Pay\u200bPal" is "PayPal", a Khmer word split in two is whole) and with a space for each ("Visa"
+ * between two Khmer words). Every other language and every other invisible character is refused as before.
+ */
+const ZWSP = /\u200b/g
+export function tidied(value: unknown, target: Lang): unknown {
+  return target === 'km' && typeof value === 'string' ? value.replace(ZWSP, '') : value
+}
+
+/** Why a translation is refused, or null. Checked here whatever Reach checked (the header). A caller stores `tidied(value)`, never the value as sent. */
 export function refusal(src: string, value: unknown, target: Lang): string | null {
   if (typeof value !== 'string') return 'not text'
+  if (target === 'km' && value.includes('\u200b')) return refusal(src, value.replace(ZWSP, ''), target) ?? refusal(src, value.replace(ZWSP, ' '), target)
   const v = value.trim()
   if (!v) return 'empty'
   if (v.length > src.length * 3 + 200) return 'too long'
@@ -445,7 +510,7 @@ export function refusal(src: string, value: unknown, target: Lang): string | nul
     // with or without its marks ("Can Ho Cao Cap Quan 7 Gia Re": two of its words unmarked and no English little word).
     const srcWords = src.normalize('NFC').toLowerCase().split(/[^\p{L}]+/u)
     const viSource = readsAsVietnamese(src) || (srcWords.filter((w) => VI_UNMARKED.has(w)).length >= 2 && !srcWords.some((w) => EN_ONLY.has(w)))
-    const rest = letters(viSource ? v : withoutCopiedNames(src, v))
+    const rest = letters(withoutCopiedCodes(src, viSource ? v : withoutCopiedNames(src, v)))
     const share = (xs: string[]) => xs.filter((c) => re.test(c)).length / xs.length
     if (!ls.some((c) => re.test(c)) || (ls.length >= 12 && ((rest.length && share(rest) < 0.2) || (copiesEveryWord(src, v) && share(ls) < 0.2))) ||
       copiedEverydayRun(src, v) >= 4) {
@@ -490,7 +555,7 @@ export async function mtWrite(input: MtRowIn[]): Promise<MtWriteResult> {
     }
     const why = refusal(s.text, r.value, target as Lang)
     if (why) { rejected.push({ hash, target, why }); continue }
-    keep.set(`${hash}|${target}`, { hash, target: target as Lang, value: (r.value as string).trim() })
+    keep.set(`${hash}|${target}`, { hash, target: target as Lang, value: (tidied(r.value, target as Lang) as string).trim() })
   }
   // A row written on purpose by anyone but this job (a person's fix, the 2026-11-13 redo) is kept, whatever is sent for it.
   if (keep.size) {

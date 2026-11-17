@@ -246,6 +246,84 @@ describe('refusal', () => {
     // Vietnamese with no marks at all is never asked for in English, so it never reaches this shortcut (targetsFor).
     expect(targetsFor('Phong tro gia re for rent with ban cong', false)).not.toContain('en')
   })
+
+  // The refusals of the 2026-11-16/17 runs, re-translated with Reach's own prompt: what was good passes, the guard each one tripped still holds.
+  it('reads a group of thousands as three digits and a Chinese comma as a comma', () => {
+    expect(refusal('Dell Inspiron 14 Laptop 5441 71092476 - Activated', 'Ноутбук Dell Inspiron 14 5441 71092476 - Активирован', 'ru')).toBeNull()
+    expect(refusal('Samsung Tab S10 FE 5G Tablet, SM-X526, 128GB, Gray', '三星 Tab S10 FE 5G 平板电脑，型号 SM-X526，128GB，灰色', 'zh-Hans')).toBeNull()
+    expect(refusal('Apple Studio Display XDR 2026, a 27-inch 5K monitor', 'Apple Studio Display XDR 2026，27英寸5K显示器', 'zh-Hans')).toBeNull()
+    // …and a changed amount is still one, however it is grouped.
+    expect(refusal('Samsung Tab S10 FE, SM-X520, 128GB', '三星 Tab S10 FE，SM-X520，129GB', 'zh-Hans')).toBe('a number its source does not have')
+    expect(refusal('Giá 14 544 000 đ', 'Price 14,544,001 VND', 'en')).toBe('a number its source does not have')
+    expect(refusal('Giá 14 544 000 đ', 'Price 14,544,000 VND', 'en')).toBeNull()
+    expect(refusal('Giá 14 544 000 đ', 'Price 14,544,0001 VND', 'en')).toBe('a number its source does not have')
+    // A Chinese comma before a closing group of three is a thousands separator (Opus, 11-17).
+    expect(refusal('Studio, giá 8.000.000 đ/tháng', '单间，每月8，000，000越南盾', 'zh-Hans')).toBeNull()
+    expect(refusal('Quận 8, 500m tới chợ, cọc 0 đ, giá 8.000.000 đ', '第8郡，距市场500米，押金0盾，价格8，500，000越南盾', 'zh-Hans')).toBe('a number its source does not have')
+    expect(refusal('Samsung Tab S10 FE 5G Tablet, SM-X526, 128GB, Gray', '三星 Tab S10 FE 5G 平板电脑，SM-X526，128GB，灰色', 'zh-Hans')).toBeNull()
+  })
+  it('reads "라인" (line) before a word of the source as a word, not a LINE account', () => {
+    const src = 'Product line: iPad (A16)\n\nStorage capacity: 128GB\n\nConnectivity: Wi-Fi'
+    expect(refusal(src, '제품 라인: iPad (A16)\n\n저장 용량: 128GB\n\n연결 방식: Wi-Fi', 'ko')).toBeNull()
+    expect(refusal('Product line: iPhone 17 series', '제품 라인: iPhone 17 시리즈', 'ko')).toBeNull()
+    // An address the source does not have is still refused, and so is a link or an email built on a word it has.
+    expect(refusal(src, '제품 라인: iPad (A16)\n\n라인: scamshop88\n\n연결 방식: Wi-Fi', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Studio near Lotte Mart, see site.vn', '롯데마트 근처 스튜디오, site.vn 참고, 문의 john@site.vn', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Studio near Lotte Mart, see site.vn', '롯데마트 근처 스튜디오, https://site.vn/pay 참고', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Selling my iPad mini, zalo me', 'iPad mini 판매, zalojohn 연락', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Selling my iPad mini, ask for John', 'iPad mini 판매, telegram: john', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Selling my iPad mini', 'iPad mini 판매, 라인ipad', 'ko')).toBe('a contact its source does not have')
+    // A LINE label on another of the source's words is a new channel: the source must say "line" before that same address (Opus, 11-17).
+    expect(refusal('Studio for rent, Zalo 0901234567', '스튜디오 임대, LINE: 0901234567', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Studio for rent, email john@site.vn', '스튜디오 임대, 이메일 john@site.vn, 라인: john', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Product line: john.smith', '제품 라인: john', 'ko')).toBe('a contact its source does not have')
+    expect(refusal('Product line: iPad.', '제품 라인: iPad.', 'ko')).toBeNull()
+  })
+  it('does not count copied model codes and brand spellings as the untranslated source', () => {
+    expect(refusal('HONOR X9d 12GB/512GB Cũ', 'HONOR X9d 12GB/512GB 二手', 'zh-Hans')).toBeNull()
+    expect(refusal('realme 10 4G 8GB/256GB Used', 'realme 10 4G 8GB/256GB 중고', 'ko')).toBeNull()
+    expect(refusal('MOBILE PHONE (TEL) REDMI NOTE 14 6.67"/MTK G99 Ultra/8G/128G/108+2+2MP/20MP/5500mAh', '手机 (TEL) REDMI NOTE 14 6.67"/MTK G99 Ultra/8G/128G/108+2+2MP/20MP/5500mAh', 'zh-Hans')).toBeNull()
+    expect(refusal('Watch Xiaomi Watch 2', 'Xiaomi Watch 2 घड़ी', 'hi')).toBeNull()
+    // A product name written as it is reads the same everywhere (a capital after a lower-case start counts as a capital).
+    expect(refusal('iPhone 16 Pro 128 VN/A - Desert Gold 99%', 'iPhone 16 Pro 128 VN/A - Desert Gold 99%', 'fr')).toBeNull()
+    expect(refusal('iPhone 16 Pro 128 VN/A - Desert Gold 99%', 'iPhone 16 Pro 128 VN/A - Desert Gold 99%', 'th')).toBeNull()
+    // Codes the source does not have, words it has in lower case or with their marks, and a whole copy are still refused.
+    expect(refusal('HONOR X9d 12GB/512GB Cũ', 'Brand New Phone HONOR X9d 二手', 'zh-Hans')).toBe('not in the target script')
+    expect(refusal('Căn Hộ Cao Cấp Sang Trọng Full Nội Thất Quận 7', '아파트 Cao Cấp Sang Trọng Full Nội Thất Quận 7', 'ko')).toBe('not in the target script')
+    expect(refusal('Spacious Sunny Penthouse Overlooking Saigon River', 'Spacious Sunny Penthouse Overlooking Saigon River 豪华', 'zh-Hans')).toBe('not in the target script')
+    expect(refusal('Studio apartment for rent near the airport', '스튜디오 apartment for rent near the airport', 'ko')).toBe('not in the target script')
+    // A title shouted in English is not a code: its everyday words stay (Opus, 11-17).
+    expect(refusal('SPACIOUS SUNNY PENTHOUSE OVERLOOKING SAIGON RIVER', 'SPACIOUS SUNNY PENTHOUSE OVERLOOKING 豪华', 'zh-Hans')).toBe('not in the target script')
+  })
+  it('takes the zero-width spaces out of Khmer only, before the checks', async () => {
+    const { tidied } = await import('./mt-job')
+    expect(tidied('ស្ទូឌីយោ\u200bជួល\u200bនៅជិត Lotte Mart', 'km')).toBe('ស្ទូឌីយោជួលនៅជិត Lotte Mart')
+    expect(refusal(EN, tidied('ស្ទូឌីយោ\u200bជួល\u200bនៅជិត Lotte Mart បំពាក់\u200bគ្រឿង\u200bសង្ហារិម ៨ លាន ក្នុងមួយខែ', 'km'), 'km')).toBeNull()
+    // Joined, a split word is seen; any other language keeps the old refusal.
+    expect(refusal(EN, tidied('ស្ទូឌីយោជួលនៅជិត Lotte Mart, Pay\u200bPal, ៨ លាន', 'km'), 'km')).toBe('visa, itinerary or PayPal wording its source does not have')
+    expect(tidied('Pay\u200bPal', 'ko')).toBe('Pay\u200bPal')
+    expect(refusal(EN, tidied('롯데마트 근처 스튜디오\u200b 임대, 월 800만 동', 'ko'), 'ko')).toBe('invisible characters')
+    expect(refusal(EN, tidied('ស្ទូឌីយោជួល\u2060នៅជិត Lotte Mart ៨ លាន', 'km'), 'km')).toBe('invisible characters')
+
+    // Joined, "Visa" would sit against Khmer letters: a row with zero-width spaces is checked with them as spaces too (Opus, 11-17).
+    expect(refusal(EN, 'ស្ទូឌីយោជួលនៅជិត Lotte Mart ធ្វើ\u200bVisa\u200bរហ័ស ៨ លាន', 'km')).toBe('visa, itinerary or PayPal wording its source does not have')
+  })
+  it('reads a Latin word written against another script as a word', () => {
+    expect(refusal(EN, 'ស្ទូឌីយោជួលនៅជិត Lotte Mart ធ្វើVisaរហ័ស ៨ លាន', 'km')).toBe('visa, itinerary or PayPal wording its source does not have')
+    expect(refusal(EN, 'สตูดิโอให้เช่าใกล้ Lotte Mart ทำVisaด่วน 8 ล้าน', 'th')).toBe('visa, itinerary or PayPal wording its source does not have')
+    expect(refusal(EN, 'Lotte Mart附近的单间出租，代办visa，每月800万越南盾', 'zh-Hans')).toBe('visa, itinerary or PayPal wording its source does not have')
+    expect(refusal(EN, 'Lotte Mart附近的单间出租，可用PayPal付款，每月800万越南盾', 'zh-Hans')).toBe('visa, itinerary or PayPal wording its source does not have')
+    expect(refusal(EN, 'Lotte Mart附近的单间出租，加zalo0901234567，每月800万越南盾', 'zh-Hans')).not.toBeNull()
+    // A handle glued to a messenger's name in another script is still a contact (the space it gets is one the patterns allow).
+    expect(refusal('Studio for rent', 'スタジオ賃貸、ラインjohn99まで', 'ja')).toBe('a contact its source does not have')
+    expect(refusal('Studio for rent', 'สตูดิโอให้เช่า ติดต่อzalo johnny', 'th')).toBe('a contact its source does not have')
+    // …and a brand written against its translation is still fine.
+    expect(refusal('iPhone case, used', 'iPhoneケース、中古', 'ja')).toBeNull()
+  })
+  it('knows サルバドル (Salvador) is not a dollar', () => {
+    expect(refusal('I am Salvadoran American, 40 years old', '私はサルバドル系アメリカ人で、40歳です', 'ja')).toBeNull()
+    expect(refusal('Studio, 100 per night', 'スタジオ、1泊100ドル', 'ja')).toBe('a currency its source does not have')
+  })
 })
 
 describe('mtTodo', () => {
@@ -301,6 +379,14 @@ describe('mtWrite', () => {
     expect(hashes).toEqual([mtHash(EN)])
     expect(targets).toEqual(['ko'])
     expect(values[0]).toMatch(/^롯데마트/)
+  })
+  it('writes a Khmer row without the zero-width spaces it was checked without', async () => {
+    h.listings = [listing('a', EN, VI)]
+    const r = await mtWrite([{ hash: mtHash(EN), target: 'km', value: 'ស្ទូឌីយោ\u200bជួល\u200bនៅជិត Lotte Mart បំពាក់គ្រឿងសង្ហារិម ៨ លាន ក្នុងមួយខែ' }])
+    expect(r.written).toBe(1)
+    const [, , targets, values] = h.writes[0] as string[][]
+    expect(targets).toEqual(['km'])
+    expect(values[0]).toBe('ស្ទូឌីយោជួលនៅជិត Lotte Mart បំពាក់គ្រឿងសង្ហារិម ៨ លាន ក្នុងមួយខែ')
   })
   it('never overwrites a hand-written row; a machine\'s or its own it replaces', async () => {
     h.listings = [listing('a', EN, VI)]
