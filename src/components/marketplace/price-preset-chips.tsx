@@ -89,8 +89,10 @@ export function PricePresetChips({
             aria-pressed={on}
             className={cn(
               // py-2 (≈34px): these APPLY a range in one tap, and at py-1 they were 26px tall.
+              // Applied = the selected grey under an ink label, the border kept but transparent so nothing moves (ui/chip-style
+              // PILL_ON — owner, 2026-11-17: "Grey everywhere"; it was the brand tint under an accent-ink hairline and label).
               'rounded-full border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer',
-              on ? 'border-accent-foreground/40 bg-tint text-accent-foreground' : 'border-border text-body hover:bg-muted',
+              on ? 'border-transparent bg-line-strong text-foreground hover:bg-line-strong' : 'border-border text-body hover:bg-muted',
             )}
           >
             {label[p.key]}

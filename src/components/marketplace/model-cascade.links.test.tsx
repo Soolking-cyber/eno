@@ -102,3 +102,54 @@ describe('ModelCascade links', () => {
     expect(row.tagName).toBe('BUTTON')
   })
 })
+
+/**
+ * ⛔ GREY EVERYWHERE (owner, 2026-11-17): the line row is THE WELL (ui/chip-style WELL_*) — the field grey, its chips
+ * pills (`rounded-full`, `icon-own-ink` so the chevron keeps the label's ink), the pick a white flat segment with an ink
+ * label, the rest the body grey. A line's dropdown is a step deeper (`--secondary`); its picked row is the same white
+ * segment, and in the phone sheet (white) the selected grey instead (WELL_SHEET_PICK, `max-sm:`). None of it is the brand
+ * tint, a raised card or a blue label any more.
+ */
+describe('ModelCascade — the well\'s grey ladder', () => {
+  const tokens = (el: Element | null | undefined) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  const BLUE = ['bg-brand-50', 'bg-brand-100', 'bg-card', 'bg-accent', 'text-accent-foreground', 'hover:text-accent-foreground']
+  const PICK = ['bg-background', 'text-foreground', 'shadow-sm', 'dark:bg-line-strong', 'dark:shadow-none']
+
+  it('the row is the well; a picked one-model chip is the white pill, a resting chip the body grey', () => {
+    cascade({ activeModel: 'iPad Air' })
+    const well = screen.getByRole('group', { name: 'Product line' })
+    expect(tokens(well)).toEqual(expect.arrayContaining(['bg-muted', 'rounded-2xl', 'p-1.5']))
+    expect(tokens(well)).not.toContain('bg-brand-50')
+
+    const picked = screen.getByRole('link', { name: /iPad Air/ })
+    expect(tokens(picked)).toEqual(expect.arrayContaining(['rounded-full', 'icon-own-ink', ...PICK]))
+    for (const gone of [...BLUE, 'rounded-lg']) expect(tokens(picked), gone).not.toContain(gone)
+
+    const resting = screen.getByRole('button', { name: /iPhone/ })
+    expect(tokens(resting)).toEqual(expect.arrayContaining(['rounded-full', 'icon-own-ink', 'text-body', 'hover:bg-secondary', 'hover:text-foreground']))
+    for (const gone of [...BLUE, 'rounded-lg', 'bg-background', 'shadow-sm']) expect(tokens(resting), gone).not.toContain(gone)
+  })
+
+  it('desktop: the line menu is a step deeper; the picked model row is the white segment (the selected grey in the phone sheet)', async () => {
+    const user = userEvent.setup()
+    cascade({ activeModel: 'iPhone 15 Pro' })
+    // The line holding the picked model lights up as well.
+    const trigger = screen.getByRole('button', { name: /iPhone/ })
+    expect(tokens(trigger)).toEqual(expect.arrayContaining(PICK))
+    await user.click(trigger)
+    const menu = await screen.findByRole('menu')
+    expect(tokens(menu)).toContain('bg-secondary')
+    expect(tokens(menu)).not.toContain('bg-brand-100')
+
+    const on = screen.getByRole('menuitem', { name: /iPhone 15 Pro/ })
+    expect(tokens(on)).toEqual(expect.arrayContaining([...PICK, 'max-sm:bg-line-strong', 'max-sm:shadow-none']))
+    for (const gone of BLUE) expect(tokens(on), gone).not.toContain(gone)
+
+    // (by its link: the row's text runs its count on, "iPhone 153")
+    const off = screen.getAllByRole('menuitem').find((r) => r.getAttribute('href') === '/?brand=apple&model=iPhone 15')!
+    expect(off).toBeTruthy()
+    // A row in a dropdown that is itself `--secondary` hovers back up to the well's grey (WELL_MENU_ITEM, gate 2026-11-17).
+    expect(tokens(off)).toEqual(expect.arrayContaining(['text-body', 'hover:bg-muted', 'hover:text-foreground']))
+    for (const gone of [...BLUE, 'bg-background', 'shadow-sm', 'max-sm:bg-line-strong']) expect(tokens(off), gone).not.toContain(gone)
+  })
+})

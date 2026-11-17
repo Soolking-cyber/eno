@@ -40,7 +40,7 @@ export function JobCityChips({ cities, total, variant = 'row', className }: {
   /**
    * ⛔ 'phone' — /c/jobs' phone copy, under the heading line (owner-approved 2026-11-14, cook r06 jobs; SellerListings
    * `phoneHead.subhead`, rendered `sm:hidden` there while the page's 'row' copy is `max-sm:hidden`, so one row per width):
-   * the browse chips (PILL_BOX / PILL_REST, "All N" in PILL_ON, the counts regular — muted, white on the ink fill) in ONE row
+   * the browse chips (PILL_BOX / PILL_REST, "All N" in PILL_ON — the selected grey since 2026-11-17 —, the counts regular) in ONE row
    * of whole chips that bleeds to the screen edges, so the rest swipe in from under the edge. It reverses there the visible
    * "By city:" label (rentals-11, the 2026-11-06 audit): the label stays the group's name for a screen reader (`sr-only`), as
    * the judged mock has it. No edge fade, never touch-action on the scroller.
@@ -72,7 +72,7 @@ export function JobCityChips({ cities, total, variant = 'row', className }: {
     >
       <span id={labelId} className={phone ? 'sr-only' : 'shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4'}>{tr('By city:', 'Theo tỉnh/thành:')}</span>
       {total != null && (
-        <span aria-current="page" className={cn(chip, 'cursor-default', PILL_ON, 'hover:bg-foreground hover:text-background')}>
+        <span aria-current="page" className={cn(chip, 'cursor-default', PILL_ON)}>
           {tr('All', 'Tất cả')}
           <span className="font-normal tabular-nums">{total}</span>
         </span>

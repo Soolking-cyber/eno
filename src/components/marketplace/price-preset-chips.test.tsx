@@ -40,3 +40,25 @@ describe('<PricePresetChips> — only presets that narrow', () => {
     expect(labels()).toHaveLength(4)
   })
 })
+
+/**
+ * ⛔ GREY EVERYWHERE (owner, 2026-11-17): the applied preset is the selected grey under an ink label (ui/chip-style
+ * PILL_ON's look), its 1px border kept but transparent so the chip does not move — no longer the brand tint under an
+ * accent-ink hairline and label. aria-pressed still says which one is applied.
+ */
+describe('<PricePresetChips> — the applied preset is the selected grey', () => {
+  const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+
+  it('applied: line-strong, ink label, transparent 1px border; resting: the hairline and body ink', () => {
+    renderChips(<PricePresetChips value="500000-2000000" onChange={() => {}} />)
+    const on = screen.getByRole('button', { name: '500k–2M' })
+    expect(on.getAttribute('aria-pressed')).toBe('true')
+    expect(tokens(on)).toEqual(expect.arrayContaining(['rounded-full', 'border', 'px-3', 'py-2', 'text-xs', 'font-semibold', 'border-transparent', 'bg-line-strong', 'text-foreground', 'hover:bg-line-strong']))
+    for (const gone of ['bg-tint', 'text-accent-foreground', 'border-accent-foreground/40']) expect(tokens(on), gone).not.toContain(gone)
+
+    const off = screen.getByRole('button', { name: '<500k' })
+    expect(off.getAttribute('aria-pressed')).toBe('false')
+    expect(tokens(off)).toEqual(expect.arrayContaining(['border', 'border-border', 'text-body', 'hover:bg-muted']))
+    for (const gone of ['bg-line-strong', 'text-foreground']) expect(tokens(off), gone).not.toContain(gone)
+  })
+})

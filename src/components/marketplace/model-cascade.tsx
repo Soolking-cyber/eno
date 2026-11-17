@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { WELL, WELL_DEEP, WELL_ITEM, WELL_MENU_ITEM, WELL_PICK, WELL_SHEET_PICK } from '@/components/ui/chip-style'
 import { Button } from '@/components/ui/button'
 import { ChevronDown } from '@/components/ui/icons'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -30,9 +31,10 @@ import { linesFor, canonicalModel } from '@/generated/model-lineage'
  * finger and a mouse behave identically. `modal={false}` and the portal that escapes the rail's
  * `overflow-x-auto` clipping are still copied from `more-overflow.tsx`.
  *
- * ⚠️ THE TINT STILL DEEPENS, just across a smaller stack: the line row sits on `brand-50` and its
- * dropdown on `brand-100`, so opening one still reads as going a level in. `brand-150` is now
- * unused here; it stays defined because it is a measured, themed step someone will want again.
+ * ⚠️ THE GREY STILL DEEPENS, just across a smaller stack: the line row sits on the well (`--muted`) and
+ * its dropdown on `--secondary`, so opening one still reads as going a level in; the pick in either is a
+ * white flat segment with an ink label (ui/chip-style WELL_* — owner, 2026-11-17: "Grey everywhere"; the
+ * two were `brand-50` / `brand-100` with a raised blue-labelled pick).
  */
 
 type ModelRow = { model: string; count: number }
@@ -230,13 +232,13 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick, hrefFor }: 
         // A phone sheet titled with the line (ui/dropdown-menu, owner 2026-10-18) — the trigger's own text also
         // carries its count.
         sheetTitle={line.label}
-        // bg-brand-100: one step deeper than the brand-50 row it opens from, so the dropdown reads
+        // WELL_DEEP: one step deeper than the well it opens from, so the dropdown reads
         // as going a level IN rather than as a detached white menu floating over the rail.
         // ⚠️ THE HEIGHT IS CAPPED BY WHAT THE POSITIONER MEASURED, not by 60vh alone — the same cap
         // ui/select.tsx and area-filter.tsx use. Opened from a rail at y=410 on an 844px phone, a
         // bare 60vh (506px) ran the menu to y=916 and the last rows could never be scrolled into
         // reach. `--available-height` is Base UI's measured room below the trigger.
-        className="flex w-64 max-h-[min(60vh,var(--available-height,60vh))] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-100 p-1.5 shadow-pop ring-0"
+        className={cn('flex w-64 max-h-[min(60vh,var(--available-height,60vh))] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl p-1.5 shadow-pop ring-0', WELL_DEEP)}
       >
         {/* The whole line, stated rather than implied by tapping the chip. With `hrefFor`, a link row on the desktop
             menu (DropdownMenuLinkItem: the plain row in the phone sheet). */}
@@ -331,8 +333,8 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick, hrefFor }: 
  * see is exactly what you hit — the rule `ui/icon-button.tsx` spells out for `tapTarget`.
  */
 const menuRowCls = 'w-full shrink-0 justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 min-h-11 py-2.5 text-left text-sm font-semibold transition-colors cursor-pointer'
-const menuRowOn = 'bg-card text-accent-foreground shadow-sm'
-const menuRowOff = 'text-foreground hover:bg-card/70 hover:text-accent-foreground'
+const menuRowOn = cn(WELL_PICK, WELL_SHEET_PICK)
+const menuRowOff = WELL_MENU_ITEM
 /**
  * ⚠️ NO `tap-44` ON THE LINE CHIPS EITHER — they sit in a THREE-ROW grid with a 2px row gap, so a
  * 44px pseudo on a 28px chip overlaps its neighbours above and below and a tap near an edge opens
@@ -340,10 +342,11 @@ const menuRowOff = 'text-foreground hover:bg-card/70 hover:text-accent-foregroun
  * 44px floor: growing it changes the rail's height and is the owner's call, not a hit-area fix.
  * `active:scale-100` stays — the chip is the dropdown's anchor and a press transform would move it.
  */
-const chipCls = 'inline-flex w-full shrink-0 items-center justify-start gap-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative'
-// ⚠️ `text-foreground`, not `text-body`: measured on the tinted surfaces, `--body` falls below AA.
-const chipOn = 'bg-card text-accent-foreground shadow-sm'
-const chipOff = 'text-foreground hover:bg-card/70 hover:text-accent-foreground'
+const chipCls = 'inline-flex w-full shrink-0 items-center justify-start gap-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative icon-own-ink'
+// Resting items are the body grey (WELL_ITEM), the pick ink: #3d3d3d is 9.79:1 on the well and 8.62:1 on the dropdown's
+// `--secondary` (measured 2026-11-17; the old note that `--body` failed AA was about a lighter body grey on the blue tint).
+const chipOn = WELL_PICK
+const chipOff = WELL_ITEM
 
 export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick, hrefFor }: {
   brandSlug: string
@@ -409,7 +412,7 @@ export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick,
         // 1-row box and a 4-line brand a 3-row one — the rail jittered between hierarchy-rich and shallow
         // brands. `[grid-template-rows:repeat(3,min-content)]` + `min-h-[6.25rem]` + `content-center` reserve a
         // stable 3-row height; `overflow-x-auto` still scrolls the extra columns a deep hierarchy needs.
-        className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 overflow-x-auto scrollbar-none rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]"
+        className={cn('grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 overflow-x-auto scrollbar-none rounded-2xl p-1.5 [grid-template-rows:repeat(3,min-content)]', WELL)}
       >
         {lines.map((l) => (
           <LineChip key={l.key} line={l} lineKeys={lineKeys} activeLine={activeLine} activeModel={activeModel} onPick={onPick} hrefFor={hrefFor} />

@@ -106,9 +106,11 @@ vi.mock('./capture-card', () => ({ CaptureCard: () => null }))
 vi.mock('./brand-rail', () => ({ BrandRail: () => <div data-testid="brand-rail" /> }))
 // The category rail is a marker too, carrying three sample tiles built from the explorer's own
 // `hrefFor` — the E-TILES href contract is the explorer's, not the rail's.
+// It also carries one subcategory chip wired to the explorer's own `onSubcategory` — on a phone the subcategories wait in the
+// ladder the strip's chip opens (every phone feed one row, owner 2026-11-17), so that is where a reader narrows.
 vi.mock('./category-rail', () => ({
-  CategoryRail: ({ hrefFor }: { hrefFor?: (p: { category?: string; type?: string } | null) => string }) => (
-    <div data-testid="category-rail">
+  CategoryRail: ({ hrefFor, onSubcategory, noTeacherDoor }: { hrefFor?: (p: { category?: string; type?: string } | null) => string; onSubcategory?: (slug: string) => void; noTeacherDoor?: boolean }) => (
+    <div data-testid="category-rail" data-no-teacher-door={noTeacherDoor ? '' : undefined}>
       {hrefFor ? (
         <>
           <a data-testid="tile-category" href={hrefFor({ category: 'rentals' })} />
@@ -116,6 +118,7 @@ vi.mock('./category-rail', () => ({
           <a data-testid="tile-clear" href={hrefFor(null)} />
         </>
       ) : null}
+      {onSubcategory ? <button type="button" data-testid="tile-subcategory" aria-label="Phones (rail)" onClick={() => onSubcategory('phones-tablets')} /> : null}
     </div>
   ),
 }))
@@ -610,23 +613,37 @@ describe('Back from a listing: the browser\'s own scroll restoration is held off
   })
 })
 
-describe('on a phone, a directed feed folds its category ladder into one compact row', () => {
+describe('a directed feed folds its category ladder — on a phone into ONE title line and ONE control row (every phone feed one row, owner 2026-11-17), from sm into the compact row', () => {
   const CATS = [
     { id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone' },
     { id: 'c2', slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ', icon: 'Car' },
   ] as unknown as React.ComponentProps<typeof ListingsExplorer>['categories']
+  /** The two teacher-door feeds (TEACHER_DOOR_CATEGORIES), named as the real category list names them. */
+  const DOOR_CATS = [
+    ...CATS,
+    { id: 'c3', slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên', icon: 'GraduationCap' },
+    { id: 'c4', slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm', icon: 'Briefcase' },
+  ] as unknown as React.ComponentProps<typeof ListingsExplorer>['categories']
   const rails = () => ({ category: !!screen.queryByTestId('category-rail'), brand: !!screen.queryByTestId('brand-rail') })
   const compactRow = () => document.querySelector<HTMLElement>('[data-slot="ladder-compact-row"]')
-  const scopeButton = () => compactRow()!.querySelector('button[aria-expanded]') as HTMLButtonElement
-  /** The goods search's scope chip (`oneRow`, owner-approved 2026-11-14, cook r06 goods): first in the sticky filter row. */
+  /** The phone's scope chip (`oneRow` — the goods search's since owner-approved 2026-11-14, every phone feed's since owner
+   *  2026-11-17): in the sticky filter row, right after the view circle. */
   const scopeChip = () => document.querySelector<HTMLButtonElement>('#explorer-toolbar [data-scope-chip]')
-  /** The ladder folded, whichever shape: the compact row (a category picked) or the scope chip (none). */
+  /** The ladder folded, whichever shape: the compact row (from sm, a storefront) or the scope chip (every phone feed). */
   const folded = () => !!compactRow() || !!scopeChip()
-  function mountAt(url: string) {
+  /** The one-row shape: the title line opens the ladder and #results is the sr-only live count. */
+  const oneRowDrawn = () => {
+    expect(document.querySelector('[data-ladder]')!.firstElementChild!.hasAttribute('data-results-title')).toBe(true)
+    const results = document.getElementById('results')!
+    expect(results.getAttribute('data-results-hidden')).not.toBeNull()
+    expect(results.className).toContain('max-sm:sr-only')
+    expect(results.querySelector('p[aria-live="polite"]')).not.toBeNull()
+  }
+  function mountAt(url: string, categories = CATS) {
     window.history.replaceState({}, '', url)
     return render(
       <QueryClientProvider client={newClient()}>
-        <ListingsExplorer categories={CATS} initialListings={catalogue.slice(0, 12)} initialTotal={catalogue.length} />
+        <ListingsExplorer categories={categories} initialListings={catalogue.slice(0, 12)} initialTotal={catalogue.length} />
       </QueryClientProvider>,
     )
   }
@@ -731,23 +748,30 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).toBeNull()
   })
 
-  it('in a brand category the opened ladder carries the brand rail too', async () => {
+  it('in a brand category the ladder the strip\'s chip opens carries the brand rail too', async () => {
     mountAt('/?q=phone&category=electronics')
-    await waitFor(() => expect(compactRow()).not.toBeNull())
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
     expect(rails()).toEqual({ category: false, brand: false })
-    act(() => { scopeButton().click() })
+    act(() => { scopeChip()!.click() })
+    expect(scopeChip()!.getAttribute('aria-expanded')).toBe('true')
     expect(rails()).toEqual({ category: true, brand: true })
   })
 
-  it('words inside a category: the compact row names it and offers its subcategories; a chip narrows like the rail\'s', async () => {
+  it('⛔ words inside a category (every phone feed one row, owner 2026-11-17): the chip names it, its ladder holds the subcategories, and one picked there narrows and renames the chip', async () => {
     mountAt('/?q=phone&category=electronics')
-    await waitFor(() => expect(compactRow()).not.toBeNull())
-    expect(scopeButton().textContent).toContain('Electronics')
-    const phones = within(compactRow()!).getByRole('button', { name: 'Phones' })
-    expect(phones.getAttribute('aria-pressed')).toBe('false')
-    act(() => { phones.click() })
-    await waitFor(() => expect(window.location.search).toContain('subcategory=phones'))
-    expect(within(compactRow()!).getByRole('button', { name: 'Phones' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
+    expect(scopeChip()!.textContent).toBe('Electronics')
+    // No subcategory chips in the bar: the chip opens them (the rail's plate, under the strip).
+    expect(screen.queryByRole('button', { name: 'Phones' })).toBeNull()
+    act(() => { scopeChip()!.click() })
+    act(() => { screen.getByTestId('tile-subcategory').click() })
+    await waitFor(() => expect(window.location.search).toContain('subcategory=phones-tablets'))
+    expect(new URLSearchParams(window.location.search).get('q')).toBe('phone')
+    // The chip names the deepest rung now; still one row.
+    await waitFor(() => expect(scopeChip()!.textContent).toBe('Phones'))
+    expect(compactRow()).toBeNull()
   })
 
   /**
@@ -786,19 +810,86 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     expect(toolbar.compareDocumentPosition(screen.getByTestId('category-rail')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('⛔ a subcategory picked: the chip names the deepest rung; Teachers and Jobs keep the compact row (their teacher door)', async () => {
+  it('⛔ a subcategory picked: the chip names the deepest rung; Teachers and Jobs draw the one row too (every phone feed one row, owner 2026-11-17)', async () => {
     // The taxonomy's own subcategory (src/lib/taxonomy.ts: electronics › phones-tablets, "Phones").
     mountAt('/?category=electronics&subcategory=phones-tablets')
     await waitFor(() => expect(scopeChip()).not.toBeNull())
     expect(scopeChip()!.textContent).toBe('Phones')
-    cleanup()
-    mountAt('/?category=jobs')
-    await waitFor(() => expect(compactRow()).not.toBeNull())
-    expect(scopeChip()).toBeNull()
+    for (const [slug, name] of [['jobs', 'Jobs'], ['teachers', 'Teachers']]) {
+      cleanup()
+      mountAt(`/?category=${slug}`, DOOR_CATS)
+      await waitFor(() => expect(scopeChip()).not.toBeNull())
+      expect(scopeChip()!.textContent).toBe(name)
+      expect(compactRow()).toBeNull()
+      oneRowDrawn()
+    }
+  })
+
+  /** ⛔ (owner, 2026-11-17: "make sure mobile top navigation is consistent") — a brand inside a category is no compact row any more. */
+  it('⛔ a brand picked (every phone feed one row, owner 2026-11-17): the title line, then [view] "Apple ⌄" Sort … — no compact row', async () => {
+    mountAt('/?category=electronics&brand=apple')
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
+    expect(scopeChip()!.textContent).toBe('Apple')
+    oneRowDrawn()
+    const row = scopeChip()!.parentElement!
+    expect(row.firstElementChild!.contains(within(row).getByRole('combobox', { name: /View/ }))).toBe(true)
+    expect(row.firstElementChild!.nextElementSibling).toBe(scopeChip())
+    expect(scopeChip()!.compareDocumentPosition(within(row).getByRole('combobox', { name: /Sort by/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The rails wait in the ladder the chip opens.
+    expect(rails()).toEqual({ category: false, brand: false })
+    act(() => { scopeChip()!.click() })
+    expect(rails()).toEqual({ category: true, brand: true })
   })
 
   /**
-   * ⚠️ NOTHING FOCUSABLE IN A ROW NOBODY SEES (WCAG 2.4.7). A category feed's #results is sr-only on a phone (`catRow`), and its
+   * ⛔ THE TEACHER FORM'S DOOR FOLLOWS THE CHIP (owner, 2026-10-09: "first, so a phone shows it without a swipe"; in the strip
+   * since the compact row left the phone, owner 2026-11-17 — ladder-compact-row.tsx TeacherDoorChip). Jobs carries it as
+   * Teachers does (TEACHER_DOOR_CATEGORIES); no other feed does.
+   */
+  it('⛔ Jobs draws the one row with the teacher door right after the scope chip in the strip (owner 2026-11-17)', async () => {
+    mountAt('/?category=jobs', DOOR_CATS)
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
+    oneRowDrawn()
+    const toolbar = document.getElementById('explorer-toolbar')!
+    const door = toolbar.querySelector<HTMLAnchorElement>('a[data-cross-link="teacher-profile"]')!
+    expect(door).not.toBeNull()
+    expect(scopeChip()!.nextElementSibling).toBe(door)
+    expect(door.textContent).toBe('Create a teacher profile')
+    // One door on the page — it is not drawn twice.
+    expect(document.querySelectorAll('[data-cross-link^="teacher-profile"]')).toHaveLength(1)
+    // …and before Sort, still on the first screen.
+    expect(door.compareDocumentPosition(within(toolbar).getByRole('combobox', { name: /Sort by/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // It stays while the ladder is open — the row never slides under the thumb — and the rail is told to drop the plate's own
+    // door, so one door is on screen (the commit gate, 2026-11-17).
+    act(() => { scopeChip()!.click() })
+    await waitFor(() => expect(scopeChip()!.getAttribute('aria-expanded')).toBe('true'))
+    expect(toolbar.querySelector('[data-cross-link^="teacher-profile"]')).not.toBeNull()
+    expect(screen.getByTestId('category-rail').hasAttribute('data-no-teacher-door')).toBe(true)
+    // Not on a feed without the door.
+    cleanup()
+    mountAt('/?category=electronics', DOOR_CATS)
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(document.querySelector('[data-cross-link^="teacher-profile"]')).toBeNull()
+  })
+
+  it('⛔ words inside a category draw the one row (every phone feed one row, owner 2026-11-17): the title line for the words, "Electronics ⌄" in the strip', async () => {
+    mountAt('/?q=phone&category=electronics')
+    await waitFor(() => expect(scopeChip()).not.toBeNull())
+    expect(compactRow()).toBeNull()
+    oneRowDrawn()
+    const title = document.querySelector<HTMLElement>('[data-ladder]')!.firstElementChild as HTMLElement
+    expect(within(title).getByRole('heading', { level: 2 }).textContent).toBe('Results for “phone”')
+    expect(document.querySelectorAll('h2').length).toBe(1)
+    expect(scopeChip()!.textContent).toBe('Electronics')
+    expect(scopeChip()!.className).toContain('pill-rest')
+    const row = scopeChip()!.parentElement!
+    expect(row.firstElementChild!.nextElementSibling).toBe(scopeChip())
+  })
+
+  /**
+   * ⚠️ NOTHING FOCUSABLE IN A ROW NOBODY SEES (WCAG 2.4.7). A category feed's #results is sr-only on a phone (`oneRow`), and its
    * path "Electronics › Phones" used to draw the upper rung as a <Button>: a Tab stop with a clipped, invisible focus ring. The
    * rungs are words there (still read out, in the "Category" nav); the strip's category chip is the visible way up.
    */
@@ -907,7 +998,7 @@ describe('on a phone, a directed feed folds its category ladder into one compact
 
   it('a stale link (a category this build does not know) still folds: the explorer keeps the URL\'s category, so the mark holds', async () => {
     await coldLoad('/?category=retired-slug', ['data-explorer-fold', 'data-explorer-directed'], async () => {
-      // A bare category feed folds to the title line and the chip (`catRow`, 2026-11-16).
+      // A bare category feed folds to the title line and the chip (`oneRow`; a category feed since 2026-11-16).
       await waitFor(() => expect(scopeChip()).not.toBeNull())
       expect(rails().category).toBe(false)
       expect(document.documentElement.hasAttribute('data-explorer-fold')).toBe(false)
@@ -1431,19 +1522,29 @@ describe('on a phone the applied chips lead the filter row, and the results row 
     // Clear all (two applied filters) comes before the chips, in the same row.
     const clear = screen.getByRole('button', { name: 'Clear all' })
     expect(clear.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // ⛔ A bare category feed opens like the goods search (owner, 2026-11-16, hub Q17 — `catRow`): the view pick is the strip's
+    // ⛔ A bare category feed opens like the goods search (owner, 2026-11-16, hub Q17 — `oneRow`): the view pick is the strip's
     // first chip, so the results row (sr-only) holds no view cluster.
     await waitFor(() => expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).not.toBeNull())
     expect(document.querySelector('[data-view-cluster]')).toBeNull()
     expect(within(document.getElementById('explorer-toolbar')!).getByRole('combobox', { name: /View/ })).toBeTruthy()
   })
-  it('phone, words inside a category (the compact row holds): the view pill follows the count', async () => {
+  it('⛔ phone, words inside a category (every phone feed one row, owner 2026-11-17): the view circle leads the strip, then the chip, then the applied chips', async () => {
     window.history.replaceState({}, '', '/?q=studio&category=rentals&subcategory=apartment-rental&attr_bedrooms=2&range_areaM2=30-80')
     mount(newClient())
-    await screen.findByRole('list', { name: 'Filters' })
-    await waitFor(() => expect(document.querySelector('[data-view-cluster]')).not.toBeNull())
-    expect(document.querySelector('[data-view-cluster]')!.className).toContain('max-sm:order-5')
-    expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).toBeNull()
+    const chips = await screen.findByRole('list', { name: 'Filters' })
+    const scope = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>('#explorer-toolbar [data-scope-chip]')
+      expect(el).not.toBeNull()
+      return el!
+    })
+    // The deepest rung names the chip (the taxonomy's "Apartment"); the results row (sr-only) holds no view cluster.
+    expect(scope.textContent).toBe('Apartment')
+    expect(document.querySelector('[data-view-cluster]')).toBeNull()
+    expect(document.getElementById('results')!.className).toContain('max-sm:sr-only')
+    const row = scope.parentElement!
+    expect(row.firstElementChild!.contains(within(row).getByRole('combobox', { name: /View/ }))).toBe(true)
+    expect(row.firstElementChild!.nextElementSibling).toBe(scope)
+    expect(scope.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
   it('from sm: the chips stay on the result line, as before', async () => {
     viewport.desktop = true

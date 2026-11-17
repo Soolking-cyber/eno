@@ -82,17 +82,12 @@ const VARIANTS = {
   // gold trust pill. The ring is a hairline of the foil at low alpha, which is what keeps
   // the pill's edge legible on the dark canvas where ground and page get close.
   partner: 'bg-partner-ground text-partner ring-1 ring-partner/25',
-  // The ACTIVE-FILTER chip: brand-50 fill, brand-100 hairline, brand-dark ink. It is the
-  // only variant that tints with the BRAND ramp rather than a semantic token, and that is
-  // the message — an active filter is a choice the user made, not a status the system
-  // assigned. All three tokens have a `.dark` counterpart (globals.css re-declares
-  // --brand-50 as #17314d and --brand-dark LIGHTER at #74b3f2), so the chip inverts
-  // correctly instead of going invisible; a hand-rolled bg-card chip does not.
-  //
-  // The border is not decoration. On the flat single canvas (§3b) a 28px pill with a fill
-  // one step off the background has no edge of its own, and the chip's whole job is to be
-  // countable at a glance ("I have applied three filters").
-  removable: 'border border-brand-100 bg-brand-50 text-brand-dark',
+  // The ACTIVE-FILTER chip: the SELECTED GREY every applied chip wears (ui/chip-style PILL_ON — owner, 2026-11-17: "Grey
+  // everywhere"; it was the brand ramp: brand-50 fill, brand-100 hairline, brand-dark ink). An active filter is a choice the
+  // user made, and it now looks like every other choice. `--line-strong` is #d6d6d6 light / #414141 dark, so the fill is its
+  // own edge on the flat canvas (§3b) — the chip's whole job is to be countable at a glance ("I have applied three filters") —
+  // and the 1px border stays, transparent, so nothing moves and forced colours still outline it.
+  removable: 'border border-transparent bg-line-strong text-foreground',
 } as const
 
 const SIZES = {
@@ -292,7 +287,7 @@ export function RemovableBadge({
         // ⚠️ The chip scroller clips vertically (overflow-x forces overflow-y), so result-line.tsx
         // pads it out by the same 10px — without that this extender is cut back to the chip.
         // Press: `active:scale-[0.9]` + the hover tint, 100ms — the control answers the finger.
-        className="size-6 text-brand-dark transition-[scale,background-color] duration-100 hover:bg-brand-100 active:scale-[0.9] active:bg-brand-100 after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-[''] hover:[&_svg]:opacity-100 focus-visible:[&_svg]:opacity-100"
+        className="size-6 text-foreground transition-[scale,background-color] duration-100 hover:bg-secondary active:scale-[0.9] active:bg-secondary after:absolute after:inset-x-0 after:-inset-y-2.5 after:content-[''] hover:[&_svg]:opacity-100 focus-visible:[&_svg]:opacity-100"
       >
         {/* 14px, the chip-glyph step (docs/icon-language.md §4). Written as `size-3.5` rather
             than `h-3.5 w-3.5`: identical geometry, but it also satisfies the `[class*='size-']`
@@ -303,16 +298,11 @@ export function RemovableBadge({
         {/* ⚠️ RECEDED, BUT NOT TO THE PLATE'S OWN ALPHA — 60% IS A CONTRAST FLOOR, NOT A TASTE
             CHOICE (owner, 2026-09-14: "make this icon less noticable semitranslucent ... match
             plate translucency so it wont stick out"). `.icon-plate` is rgb(0 0 0/.45) light and
-            rgb(255 255 255/.75) dark, and matching those literally was the first version. It
-            FAILS in light: measured on the rendered chip, brand-dark rgb(3,64,120) over brand-50
-            rgb(232,241,251) at .45 composites to rgb(129,161,192) = 2.36:1, under the 3:1 that
-            WCAG 1.4.11 requires of a control's visual boundary. This is a real button, not
-            decoration, so the floor binds. 60% is the first 5% step clearing 3:1 in BOTH themes
-            (3.32:1 light, 3.16:1 dark) — and because one value serves both, the plate's
-            light/dark asymmetry drops out and this is a single utility.
-            ⚠️ DARK'S MARGIN IS THIN (3.16:1). Anything that darkens the chip ground or lightens
-            --color-brand-* eats it; re-measure the composite rather than eyeballing, and step to
-            opacity-65 (3.75/3.46) if it moves.
+            rgb(255 255 255/.75) dark, and matching those literally was the first version; it failed
+            WCAG 1.4.11's 3:1 for a control's visual boundary on the old blue chip (2.36:1). This is a
+            real button, not decoration, so the floor binds. On the selected grey (2026-11-17) the ink
+            at 60% composites to #626262 on #d6d6d6 = 4.2:1 light, and #f0f0f0 at 60% to #aaaaaa on
+            #414141 = 4.4:1 dark. Re-measure the composite if the chip's ground or the ink moves.
             ⚠️ ON THE <svg>, NOT ON `.i-on`. The two `<use>` layers are the weight grammar
             (.i-rest outline / .i-on bold) and their opacity is driven by the ancestor control's
             selection state. IconButton sets none of those attributes, so .i-on sits at opacity 0

@@ -175,8 +175,9 @@ describe('ViewToggles `floatMap`: the phone\'s Map toggle is the floating pill',
 /**
  * ⛔ ONE CHIP STYLE ON THE STRIP (owner, 2026-10-18). The strip's pills were flush text that read as a row of bold links
  * on a phone; they are ui/chip-style's PILL_* now — a 36px pill with an invisible 44px hit area (`tap-44`, which
- * needs `relative`): white with a line-strong hairline at rest, the INK FILL once something is applied, the muted fill
- * while open (owner-approved 2026-11-14; the tint and the brand-tint selection before). jsdom has no layout, so the
+ * needs `relative`): white with a line-strong hairline at rest, the SELECTED GREY (`line-strong`, ink label) once something
+ * is applied (owner, 2026-11-17: "Grey everywhere" — the ink fill from 2026-11-14), the muted fill while open (owner-approved
+ * 2026-11-14; the tint and the brand-tint selection before). jsdom has no layout, so the
  * classes are the contract.
  */
 const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
@@ -189,11 +190,14 @@ describe('the strip\'s pills: 36px, tinted, a 44px hit area', () => {
     expect(tokens(pill)).not.toContain('min-h-11')
   })
 
-  it('…and takes the ink fill for any other order', () => {
+  it('…and takes the selected grey for any other order (owner 2026-11-17, "Grey everywhere")', () => {
     render(strip('recent'))
     const pill = screen.getByRole('combobox', { name: /Sort by/ })
-    expect(tokens(pill)).toEqual(expect.arrayContaining(['pill-on', 'bg-foreground', 'text-background', 'icon-own-ink']))
+    expect(tokens(pill)).toEqual(expect.arrayContaining(['pill-on', 'bg-line-strong', 'text-foreground', 'icon-own-ink']))
     expect(tokens(pill)).not.toContain('bg-background')
+    // Never the ink fill (it was, 2026-11-14 → 11-17).
+    expect(tokens(pill)).not.toContain('bg-foreground')
+    expect(tokens(pill)).not.toContain('text-background')
   })
 
   it('the phone row leaves the 4px above and below the pills that their hit area needs inside its clip', () => {
@@ -386,9 +390,16 @@ describe('SortStrip look="goods" and phoneScope', () => {
     expect(block.startsWith('@media (width < 40rem)')).toBe(true)
     expect(block).toContain(':is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed])')
     expect(block).toMatch(/border-color: transparent;\s*background-color: var\(--muted\);/)
-    expect(block).toMatch(/\.pill-rest\[data-popup-open\], \.pill-open[^{]*\{\s*border-color: transparent;\s*background-color: var\(--secondary\);/)
+    // Open = a step deeper: a select's menu (`data-popup-open`), the scope chip's Collapsible (`data-panel-open`, 2026-11-17),
+    // PILL_OPEN's mark, and an applied pill whose menu is open (the selected grey steps back to `--secondary`).
+    expect(block).toMatch(/\.pill-rest\[data-popup-open\], \.pill-rest\[data-panel-open\], \.pill-open, \.pill-on\[data-popup-open\]\)\s*\{\s*border-color: transparent;\s*background-color: var\(--secondary\);/)
     // A pressed toggle (Good price's green) is never repainted.
-    expect(block).not.toMatch(/\.pill-rest(?!:not\(\[data-pressed\]\))(?![\[]data-popup-open)[ ,{:]/)
+    expect(block).not.toMatch(/\.pill-rest(?!:not\(\[data-pressed\]\))(?![\[]data-(popup|panel)-open)[ ,{:]/)
+    // An applied pill is grey with an ink label now (owner 2026-11-17, "Grey everywhere"): no rule turns an open applied
+    // pill's label back to ink — there is no white label left to rescue.
+    const plainCss = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(plainCss).not.toMatch(/\.pill-on\[data-popup-open\] svg/)
+    expect(plainCss).not.toMatch(/\.pill-on\[data-popup-open\][^{]*\{\s*color: var\(--foreground\)/)
     // Every strip is filled in its own server HTML now: no fold-keyed copy, no cold goods link's sort-label rules.
     const plain = css.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(plain).not.toMatch(/html\[data-explorer-fold\][^{]*\.pill-rest/)

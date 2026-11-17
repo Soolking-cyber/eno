@@ -15,6 +15,7 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
+import { WELL, WELL_ITEM, WELL_PICK } from '@/components/ui/chip-style'
 import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -141,6 +142,7 @@ export function CategoryRail({
   hrefFor,
   teacherProfile = false,
   teacherDraft = false,
+  noTeacherDoor = false,
   pills = false,
 }: {
   categories: SerializedCategory[]
@@ -220,6 +222,11 @@ export function CategoryRail({
   teacherProfile?: boolean
   /** An unfinished teacher profile is saved to this account (dash.teacherDraft): the chip continues it. */
   teacherDraft?: boolean
+  /**
+   * The plate draws no teacher door: the phone's control row already carries it (listings-explorer.tsx `stripTeacherDoor`, owner
+   * 2026-11-17 — one door on screen). The plate still opens for Teachers and Jobs ("All").
+   */
+  noTeacherDoor?: boolean
   /**
    * The undirected home page's phone row: below 640px each tile is a pill, the art beside the word (PILL_*, owner-approved
    * 2026-11-15 (build 7)). listings-explorer.tsx passes `showHomeLanes`. Without it — a storefront, a directed feed's folded
@@ -604,10 +611,11 @@ export function CategoryRail({
    * owner-approved 2026-11-15 (build 8) (28 in build 7).
    */
   /**
-   * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
-   * artwork stopped being greyscaled (category-art.tsx has the ⛔ note). The disc is the same
-   * `bg-brand-50` the app uses for every chosen-chrome surface, sized to the glyph box, so a pressed
-   * tile reads at a glance in a rail where every mark is now in colour.
+   * ⚠️ THE PRESSED TILE GETS A DISC, because colour stopped being the selection cue when the
+   * artwork stopped being greyscaled (category-art.tsx has the ⛔ note). The disc is the selected grey,
+   * `line-strong` (owner, 2026-11-17: "Grey everywhere"; it was the brand tint — the field grey was tried
+   * and is ~1.1:1 on the canvas, no visible press), sized to the glyph box, and the label steps from the
+   * body grey to ink with it, so a pressed tile reads at a glance in a rail where every mark is in colour.
    */
   const glyphBox = (big: boolean, on = false) =>
     cn(
@@ -618,7 +626,7 @@ export function CategoryRail({
          102px inside the opening tile (118px measured at 390, 2026-09-30). */
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
       big ? 'h-15 w-15 max-sm:h-11 max-sm:w-11 max-sm:p-0.5 md:h-14 md:w-14' : 'h-11 w-11 p-0.5 md:h-14 md:w-14 md:p-1',
-      on && 'bg-brand-50',
+      on && 'bg-line-strong',
       pills && PILL_GLYPH_BOX,
     )
   const glyphSize = (big: boolean) => cn(big ? 'h-13 w-13 max-sm:h-10 max-sm:w-10 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12', pills && PILL_GLYPH)
@@ -638,7 +646,7 @@ export function CategoryRail({
   }
 
   const iconCls = (active: boolean) =>
-    cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-accent-foreground' : 'text-body group-hover:text-accent-foreground')
+    cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-foreground' : 'text-body group-hover:text-foreground')
   // ⚠️ w-full + break-words. The tile is a FIXED 4.75rem column, but this span is a flex
   // item under `items-center`, so its width is fit-content — a long label (or any label
   // once OS text scaling is on) grew WIDER than the tile and spilled over its neighbours;
@@ -665,19 +673,21 @@ export function CategoryRail({
   // ⛔ …EXCEPT ON THE HOME'S PILL ROW (owner-approved 2026-11-15 (build 7) — PILL_LABEL): 14/20 bold ink, whole, the pill as
   // wide as its word. `overflow-visible` there: the word is never cut, and a 20px line must not clip a stacked Vietnamese mark.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors max-sm:block max-sm:truncate md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground', pills && PILL_LABEL)
+    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors max-sm:block max-sm:truncate md:text-sm', active || pills ? 'text-foreground' : 'text-body group-hover:text-foreground', pills && PILL_LABEL)
 
 
 
   // ⛔ A FLAT PILL, NOT A RAISED PLATE (owner, 2026-10-18: one chip style). The chosen subcategory used to lift off the
   // plate as a white card with `shadow-sm` — the one raised chip on the page, and the canon keeps shadows for things
-  // that float (§3b). It is now the browse chip's pill shape, chosen = the plate's white fill without the shadow.
+  // that float (§3b). It is now the browse chip's pill shape; chosen = ui/segmented's white pill on the grey well, its shadow
+  // back because white on the field grey alone is no visible pick (ui/chip-style WELL_PICK — owner, 2026-11-17: "Grey
+  // everywhere", mock r14 B; the well was the brand tint, the label blue).
   // (The home page's CATEGORY pills are raised — owner-approved 2026-11-15 (build 7), PILL_TILE; this chip stays flat.)
   // ⚠️ THE ROW STAYS 28px (`py-1`), NOT the chip's 36: the plate's row cap is measured against the tile rail's
-  // height (the note on its grid below — 640-767px: 6×28 + gaps ≈ 190px under a ~201px rail; below 640px: 2×28 +
-  // 4px of padding = 60px under the 63px one-row rail); a taller chip grows the rail.
+  // height (the note on its grid below — 640-767px: 6×28 + gaps ≈ 190px under a ~201px rail; below 640px: three rows,
+  // 100px, the model panel's box); a taller chip grows the rail.
   const subChip = (active: boolean) =>
-    cn('w-full shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
+    cn('w-full shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? WELL_PICK : WELL_ITEM)
 
   /**
    * ⛔ THE SUBCATEGORY PLATE IS COMPUTED ONCE FOR THE ACTIVE CATEGORY AND RENDERED BELOW THE GRID.
@@ -982,14 +992,15 @@ export function CategoryRail({
                     extra width is swiped through (`auto-cols-max` + horizontal scroll), the trade for a
                     constant height. Re-measure the 190/201 headroom before changing the cap.
                     (The six-row cap and its 190/201 numbers are 640-767px since 2026-11-12.)
-                    ⛔ BELOW 640px TWO ROWS, NO ROW GAP, 2px TOP AND BOTTOM (owner, 2026-11-12: "go all" — the
-                    rail is one row there). The rail row is a 63px tile (44 + 4 + a 15px one-line label), and
-                    the plate's base box would be 2×28 + 2 + 2×6 = 70px — taller, so opening a category would
-                    grow the rail 7px and re-centre every tile (`h-full justify-center`). With `max-sm:gap-y-0
-                    max-sm:py-0.5` it is 2×28 + 2×2 = 60px, under the tile, and `min-h-full` + `content-center`
-                    fill and centre it as above. The chips flow sideways in two rows and the rail scrolls
-                    (Electronics' ~19 cells → 10 columns), the same trade as the six-row cap, made harder. */}
-                <div role="group" aria-label={tr('Subcategories', 'Danh mục con')} className="grid min-h-full grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(6,min-content)] max-sm:gap-y-0 max-sm:py-0.5 max-sm:[grid-template-rows:repeat(2,min-content)] md:gap-y-0 md:py-1 md:[grid-template-rows:repeat(5,min-content)]">
+                    ⛔ BELOW 640px THREE ROWS IN A 100px BOX, THE MODEL PANEL'S (owner, 2026-11-17: "3 rows for subcats
+                    and models"). It reverses the 11-12 two-row plate ("go all", which kept the plate 60px under the
+                    63px one-row tile): 3×28 + 2×2 + 2×6 = 100px, `max-sm:min-h-[6.25rem]` so a sparse category's plate
+                    (Jobs: All + the door) is the same box as Electronics' — the 10-16 rule — and the rail is the
+                    plate's height while one is open, the tiles centred in it (`h-full justify-center`). On a phone
+                    the rail only shows inside the control row's open panel (listings-explorer.tsx `oneRow`), where
+                    the brand rail's model panel under it is the same 100px (model-cascade.tsx, brand-rail.tsx). The
+                    chips flow sideways in three rows and the rail scrolls (Electronics' ~19 cells → 7 columns). */}
+                <div role="group" aria-label={tr('Subcategories', 'Danh mục con')} className={cn('grid min-h-full grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl p-1.5 [grid-template-rows:repeat(6,min-content)] max-sm:min-h-[6.25rem] max-sm:[grid-template-rows:repeat(3,min-content)] md:gap-y-0 md:py-1 md:[grid-template-rows:repeat(5,min-content)]', WELL)}>
                   {/* ⚠️ `flex items-center justify-start gap-0` OVERRIDES ui/button's base
                       `inline-flex … justify-center gap-2` — without `justify-start` the row would centre,
                       without `gap-0` the base 8px gap would double the icon/count margins. An empty
@@ -1045,8 +1056,8 @@ export function CategoryRail({
                       `size-3.5` on the glyph keeps ui/button's size-4 inflation off it (CLAUDE.md).
                       JOBS carries the same door, last (owner, 2026-10-12 — TEACHER_DOOR_CATEGORIES): a teacher browsing
                       work had posted themselves as a job ad. */}
-                  {TEACHER_DOOR_CATEGORIES.includes(cat.slug) && (
-                    <Button variant="bare" size="none" asChild className={cn('flex items-center justify-start gap-0', subChip(false), 'text-accent-foreground')}>
+                  {TEACHER_DOOR_CATEGORIES.includes(cat.slug) && !noTeacherDoor && (
+                    <Button variant="bare" size="none" asChild className={cn('flex items-center justify-start gap-0', subChip(false), 'text-accent-foreground hover:text-accent-foreground')}>
                       {/* A teacher who already has a profile: theirs, on this host (owner, 2026-10-09 — "apply recommended"). */}
                       {teacherProfile ? (
                         <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
@@ -1148,7 +1159,7 @@ export function CategoryRail({
           // (`pills`) it is the 40px grey disc on the 12px edge, centred on the pills (build 8). Until measured it shows on a
           // phone only (`sm:hidden`), where the scroller ends 8px before it.
           className={cn(
-            'absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-5.5 pc:hidden',
+            'absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-[calc(50%-0.594rem)] pc:hidden',
             pills ? cn('max-sm:right-3 max-sm:top-1/2 max-sm:size-10 max-sm:border-0 max-sm:bg-tint max-sm:text-foreground max-sm:active:bg-line-strong', !measured && 'sm:hidden') : edgeClip && 'max-sm:hidden',
           )}
         >

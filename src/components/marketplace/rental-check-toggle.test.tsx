@@ -107,13 +107,18 @@ describe('card chip', () => {
     expect(chip()).toBeTruthy()
   })
 
-  it('toggles with a constant name; aria-pressed carries the state; the glyph swaps', () => {
+  it('toggles with a constant name; aria-pressed carries the state; the glyph swaps; the selected grey once added', () => {
     render(<RentalCheckToggle variant="card" listing={listing(1)} />)
+    const cls = () => chip().className.split(/\s+/)
     expect(chip().getAttribute('aria-pressed')).toBe('false')
     expect(chip().querySelector('[data-icon="clipboard-check"]')).toBeTruthy()
+    expect(cls()).toEqual(expect.arrayContaining(['bg-plate-fill', 'text-on-plate', 'shadow-plate']))
     fireEvent.click(chip())
     expect(chip().getAttribute('aria-pressed')).toBe('true')
     expect(chip().querySelector('[data-icon="check"]')).toBeTruthy()
+    // Added = the plate's selected grey under the same ink (owner 2026-11-17, "Grey everywhere"); the ink fill is gone.
+    expect(cls()).toEqual(expect.arrayContaining(['bg-plate-selected', 'text-on-plate', 'shadow-plate']))
+    for (const c of ['bg-plate-fill', 'bg-on-plate', 'text-plate-fill']) expect(cls(), c).not.toContain(c)
     // aria-pressed trips the global selected-icon rule (accent-blue Bold layer) — on the chip's own
     // brand fill that is an invisible tick unless the glyph opts out with icon-own-ink.
     expect(chip().querySelector('svg')!.getAttribute('class')).toContain('icon-own-ink')
@@ -164,11 +169,12 @@ describe('card chip', () => {
  * ⛔ THE WIDE PHONE CARD'S LABELLED CHIP (`variant="chip"`, owner-approved 2026-11-14, cook r06 rentals-a — it reverses "GLYPH-ONLY AT
  * EVERY WIDTH" on that card): the visible words ARE its name (no aria-label, no tooltip), above the card's stretched link, and the
  * same store, gate and stopPropagation as the photo chip. ⛔ Since build 8 (owner-approved 2026-11-15, cook r08 rentals) it sits on
- * the PHOTO's top-right, so it wears the photo's one white plate — ink on white, no rim — and the ink fill once added (it was the
+ * the PHOTO's top-right, so it wears the photo's one white plate — ink on white, no rim — and the plate's selected grey once
+ * added (`bg-plate-selected`, the same ink — owner, 2026-11-17: "Grey everywhere"; it was the ink fill, and before build 8 the
  * browse chip's look at the price line's end).
  */
 describe('labelled chip (the wide card\'s check, on the photo)', () => {
-  it('its name is its visible words, in each language; aria-pressed carries the state; the ink fill once added', () => {
+  it('its name is its visible words, in each language; aria-pressed carries the state; the selected grey once added', () => {
     render(<RentalCheckToggle variant="chip" listing={listing(1)} />)
     const b = chip()
     expect(b.textContent).toBe('Check availability')
@@ -182,8 +188,10 @@ describe('labelled chip (the wide card\'s check, on the photo)', () => {
     expect(chip().querySelector('svg')!.getAttribute('class')).toContain('size-4.5')
     fireEvent.click(chip())
     expect(chip().getAttribute('aria-pressed')).toBe('true')
-    expect(cls()).toEqual(expect.arrayContaining(['bg-on-plate', 'text-plate-fill', 'shadow-plate']))
+    expect(cls()).toEqual(expect.arrayContaining(['bg-plate-selected', 'text-on-plate', 'shadow-plate']))
     expect(cls()).not.toContain('bg-plate-fill')
+    // ⛔ the ink fill (owner 2026-11-17, "Grey everywhere") is gone: no inverted plate
+    for (const c of ['bg-on-plate', 'text-plate-fill', 'bg-foreground', 'text-background']) expect(cls(), c).not.toContain(c)
     expect(chip().querySelector('[data-icon="check"]')!.getAttribute('class')).toContain('icon-own-ink')
     expect(getBasket().map((i) => i.id)).toEqual(['r1'])
     cleanup()

@@ -18,8 +18,9 @@ import { CategoryRail } from './category-rail'
  * active category, in taxonomy order.
  * ⛔ BELOW 640px ONE COMPACT ROW (owner, 2026-11-12: "go all", after a blind A/B +0.15 GPT / +0.11 Opus):
  * 84px tiles with a 44px glyph and a one-line label, no More arrow, and the subcategory box directly
- * right of the pressed tile with its plate capped at two chip rows. All of it is `max-sm:` overrides,
- * so the pins for 640px and up below stand unchanged beside the phone ones.
+ * right of the pressed tile with its plate capped at three chip rows in a 100px box (owner, 2026-11-17: "3 rows for
+ * subcats and models"; it was two). All of it is `max-sm:` overrides, so the pins for 640px and up below stand unchanged
+ * beside the phone ones.
  *
  * ⚠️ THIS FILE REPLACED A GUARD ON THE SPAN SYSTEM IT SUPERSEDES. The previous layout gave the first
  * four tiles `col-span-2 row-span-3`, which needed rules about even counts and short rails; a uniform
@@ -397,19 +398,50 @@ describe('<CategoryRail> subcategory plate', () => {
   })
 
   /**
-   * ⛔ THE PHONE PLATE IS CAPPED AT TWO CHIP ROWS, NO ROW GAP, 2px TOP AND BOTTOM: 2×28 + 4 = 60px, under
-   * the 63px tile, so opening a category neither grows the one-row rail nor re-centres its tiles. The
-   * chips flow sideways. The 640px six-row and md five-row caps stay.
+   * ⛔ THE PHONE PLATE IS THREE CHIP ROWS (owner, 2026-11-17: "3 rows for subcats and models"). It reverses the 11-12
+   * two-row plate (no row gap, 2px top and bottom, 60px under the 63px tile): the row gap and the 6px padding come back,
+   * and the chips flow sideways in three rows. The 640px six-row and md five-row caps stay.
    */
-  it('caps the phone plate at two chip rows', () => {
+  it('caps the phone plate at three chip rows (owner 2026-11-17, "3 rows")', () => {
     const { container } = renderRail(cats(10), 'rentals')
     const plate = container.querySelector('[role="group"][aria-label="Subcategories"]')!
     const tokens = plate.className.split(/\s+/)
     expect(tokens).toEqual(expect.arrayContaining([
-      'max-sm:[grid-template-rows:repeat(2,min-content)]', 'max-sm:gap-y-0', 'max-sm:py-0.5',
+      'max-sm:[grid-template-rows:repeat(3,min-content)]', 'max-sm:min-h-[6.25rem]',
       '[grid-template-rows:repeat(6,min-content)]', 'md:[grid-template-rows:repeat(5,min-content)]',
       'grid-flow-col', 'auto-cols-max', 'min-h-full', 'content-center',
     ]))
+    // the two-row squeeze is gone, whole
+    for (const t of ['max-sm:[grid-template-rows:repeat(2,min-content)]', 'max-sm:gap-y-0', 'max-sm:py-0.5']) expect(tokens, t).not.toContain(t)
+  })
+
+  /**
+   * ⛔ …IN A 100px (6.25rem) MIN BOX, THE MODEL PANEL'S (owner, 2026-11-17): 3×28 + 2×2 + 2×6 = 100 — three 28px chips
+   * (`py-1` around a 20px `text-sm` line), the plate's 2px row gap and 6px padding, none of them overridden below 640px.
+   * `min-h` holds a sparse plate (Jobs: All + the teacher door) to the same box as Rentals' or Electronics' full one.
+   */
+  it('the phone plate is three rows in a 100px (6.25rem) min box, for a full category and a sparse one alike', () => {
+    for (const slug of ['rentals', 'electronics', 'jobs']) {
+      const { container } = renderRail(cats(10), slug)
+      const plate = container.querySelector('[role="group"][aria-label="Subcategories"]')!
+      expect(plate, slug).not.toBeNull()
+      const tokens = plate.className.split(/\s+/)
+      expect(tokens, slug).toEqual(expect.arrayContaining(['max-sm:min-h-[6.25rem]', 'max-sm:[grid-template-rows:repeat(3,min-content)]', 'gap-y-0.5', 'p-1.5']))
+      // nothing below 640px trims the row gap or the padding the 100px is counted from
+      expect(tokens.filter((t) => /^max-sm:(gap-y-|p[xytb]?-)/.test(t)), slug).toEqual([])
+      // every chip in it is one 28px row: py-1 (2×4px) around text-sm's 20px line
+      const chips = [...plate.children] as HTMLElement[]
+      expect(chips.length, slug).toBeGreaterThanOrEqual(2)
+      for (const c of chips) expect(c.className.split(/\s+/), `${slug} ${c.textContent}`).toEqual(expect.arrayContaining(['py-1', 'text-sm']))
+      // the sum, read off the classes themselves (Tailwind's 4px spacing unit, 16px rem): 3×28 + 2×2 + 2×6 = the min box
+      const unit = (re: RegExp, list = tokens) => Number(list.find((t) => re.test(t))!.match(re)![1])
+      const row = 2 * unit(/^py-([\d.]+)$/, chips[0].className.split(/\s+/)) * 4 + 20
+      const gap = unit(/^gap-y-([\d.]+)$/) * 4
+      const pad = unit(/^p-([\d.]+)$/) * 4
+      const minH = unit(/^max-sm:min-h-\[([\d.]+)rem\]$/) * 16
+      expect([row, gap, pad, minH], slug).toEqual([28, 2, 6, 100])
+      expect(3 * row + 2 * gap + 2 * pad, slug).toBe(minH)
+    }
   })
 
   it('shows EVERY subcategory of the active category — no More dropdown', () => {

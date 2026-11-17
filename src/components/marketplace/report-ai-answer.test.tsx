@@ -42,6 +42,11 @@ describe('ReportAiAnswer', () => {
     expect(await screen.findByRole('dialog', { name: 'Report this answer' })).toBeTruthy()
     expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['Offensive or harmful', 'Wrong or misleading', 'Something else'])
     fireEvent.click(screen.getByRole('radio', { name: 'Wrong or misleading' }))
+    // The pick is the selected grey under an ink label (owner, 2026-11-17: "Grey everywhere") — not the brand edge and blue words.
+    const picked = screen.getByRole('radio', { name: 'Wrong or misleading' }).className.split(/\s+/)
+    expect(picked).toEqual(expect.arrayContaining(['border-line-strong', 'bg-line-strong', 'font-semibold', 'text-foreground']))
+    for (const c of ['border-brand', 'text-accent-foreground', 'bg-accent']) expect(picked, c).not.toContain(c)
+    expect(screen.getByRole('radio', { name: 'Something else' }).className.split(/\s+/)).not.toContain('bg-line-strong')
     fireEvent.change(screen.getByPlaceholderText('Details (optional)'), { target: { value: 'D7 is not quiet' } })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Submit report' })) })
     const [url, init] = fetchMock.mock.calls[0]

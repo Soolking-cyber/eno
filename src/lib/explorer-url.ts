@@ -2,7 +2,6 @@ import { migrateLegacyCategoryParams, rangeFacetsFor, facetsFor, facetParamName 
 import { canonicalFacetValue } from '@/lib/multi-facet'
 import { queryForExplicitDistrict } from '@/components/marketplace/explorer-place'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
-import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 
 /**
  * WHAT THE EXPLORER'S URL SAYS, READ IN ONE PURE PASS — the single reader behind both of the
@@ -309,28 +308,23 @@ export function explorerUrlFolds(search: string | URLSearchParams): boolean {
 }
 
 /**
- * ⛔ A CATEGORY FEED OPENS LIKE THE GOODS SEARCH (owner, 2026-11-16, hub Q17: "yes if they are related to visual change"; cook r12
- * R1). On a phone the explorer draws `/?category=…` with no words, no brand and no model as ONE title line and ONE control row
- * (listings-explorer.tsx `catRow`) instead of the folded compact row; this mark tells the first frame so (globals.css, the
- * cold-link rules): the seed's results row leaves the box tree as the answer's will, and the strip waits, unseen, for the
- * category chip whose width only the explorer knows. The Teachers and Jobs feeds keep their compact row and its teacher door
- * (TEACHER_DOOR_CATEGORIES), so they are never marked. Set only with FOLD_ATTR (no fold, no row), lifted with it.
+ * ⛔ A FEED WITH A RUNG PICKED OPENS LIKE THE GOODS SEARCH (owner, 2026-11-16, hub Q17; every phone feed since 2026-11-17: "make
+ * sure mobile top navigation is consistent"). On a phone the explorer draws a folded feed that names a category, a subcategory,
+ * a brand or a model — with words or without, Teachers and Jobs too — as ONE title line and ONE control row whose chip names the
+ * deepest rung (listings-explorer.tsx `oneRow`); this mark tells the first frame so (globals.css, the cold-link rules): the
+ * seed's results row leaves the box tree as the answer's will, and the strip waits, unseen, for the chip whose width only the
+ * explorer knows. A fold with no rung keeps the reserves of "All categories" (the same globals.css block). Set only with
+ * FOLD_ATTR (no fold, no row), lifted with it.
  * ⚠️ `explorerUrlCatRow` IS THE SCRIPT'S RULE FOR RAW PARAMS (explorer-url.prepaint.test.ts holds the two together); the first
  * value of each key decides, as everywhere here.
  */
 export const CAT_ROW_ATTR = 'data-explorer-cat-row'
-/**
- * The categories whose compact row carries the teacher form's door — the explorer's own list, shared (never a copy: the cold
- * paint and the hydrated layout must agree, or the page shifts).
- */
-const CAT_ROW_SKIP: readonly string[] = TEACHER_DOOR_CATEGORIES
+/** The keys that name a rung of the ladder — the chip's words come from the deepest one. */
+const CAT_ROW_RUNGS = ['category', 'subcategory', 'brand', 'model'] as const
 export function explorerUrlCatRow(search: string | URLSearchParams): boolean {
   const p = new URLSearchParams(search)
   const v = (k: string) => (p.get(k) ?? '').trim()
-  const c = v('category')
-  if (!c || c === 'all' || CAT_ROW_SKIP.includes(c)) return false
-  if (v('q')) return false
-  for (const k of ['brand', 'model']) { const x = v(k); if (x && x !== 'all') return false }
+  if (!CAT_ROW_RUNGS.some((k) => { const x = v(k); return !!x && x !== 'all' })) return false
   return explorerUrlFolds(p)
 }
 
@@ -370,4 +364,4 @@ export function explorerUrlHidesLanes(search: string | URLSearchParams): boolean
   return off
 }
 
-export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);var FK=${JSON.stringify(FOLD_KEYS)},FA=${JSON.stringify(FOLD_ALL_DEFAULT)},f=false,P=new URLSearchParams(location.search),S={},h=false;P.forEach(function(_,k){if(S[k])return;S[k]=1;var v=(P.get(k)||'').trim();if(!v)return;if(k==='view'){if(v==='compact')f=true;else if(v==='map'||v==='video')h=true;return}if(k==='deal'){if(v==='good')h=true;return}if(k==='province'){if(/^\\d{1,6}$/.test(v))h=true;return}if(v==='all'&&FA.indexOf(k)>-1)return;if(FK.indexOf(k)>-1)h=true});if(h)f=true;if(f)d.setAttribute(${JSON.stringify(FOLD_ATTR)},'');var V=function(k){return(P.get(k)||'').trim()},cc=V('category');if(f&&cc&&cc!=='all'&&${JSON.stringify(CAT_ROW_SKIP)}.indexOf(cc)<0&&!V('q')&&(!V('brand')||V('brand')==='all')&&(!V('model')||V('model')==='all'))d.setAttribute(${JSON.stringify(CAT_ROW_ATTR)},'');if(h)d.setAttribute(${JSON.stringify(LANES_OFF_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed');d.removeAttribute(${JSON.stringify(FOLD_ATTR)});d.removeAttribute(${JSON.stringify(CAT_ROW_ATTR)})},15000)}catch(e){}})();`
+export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);var FK=${JSON.stringify(FOLD_KEYS)},FA=${JSON.stringify(FOLD_ALL_DEFAULT)},f=false,P=new URLSearchParams(location.search),S={},h=false;P.forEach(function(_,k){if(S[k])return;S[k]=1;var v=(P.get(k)||'').trim();if(!v)return;if(k==='view'){if(v==='compact')f=true;else if(v==='map'||v==='video')h=true;return}if(k==='deal'){if(v==='good')h=true;return}if(k==='province'){if(/^\\d{1,6}$/.test(v))h=true;return}if(v==='all'&&FA.indexOf(k)>-1)return;if(FK.indexOf(k)>-1)h=true});if(h)f=true;if(f)d.setAttribute(${JSON.stringify(FOLD_ATTR)},'');var R=${JSON.stringify(CAT_ROW_RUNGS)},rr=false;for(var j=0;j<R.length;j++){var x=(P.get(R[j])||'').trim();if(x&&x!=='all')rr=true}if(f&&rr)d.setAttribute(${JSON.stringify(CAT_ROW_ATTR)},'');if(h)d.setAttribute(${JSON.stringify(LANES_OFF_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed');d.removeAttribute(${JSON.stringify(FOLD_ATTR)});d.removeAttribute(${JSON.stringify(CAT_ROW_ATTR)})},15000)}catch(e){}})();`

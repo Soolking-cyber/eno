@@ -35,7 +35,9 @@ export type StepProps = {
 /**
  * A radio drawn as a chip (a row that wraps). OUTLINED, NOT A PALE TAG (2026-11-08, codex all13 on /teachers/join: the
  * neutral chip's grey fill read as a label, not a choice, and its pale checked tint as barely different): unchecked a card
- * fill inside a line-strong edge, the edge the form's fields carry; checked the selection tint inside a 2px brand edge.
+ * fill inside a line-strong edge, the edge the form's fields carry; checked the SELECTED GREY (`line-strong`, ink label) with
+ * the edge gone transparent — owner, 2026-11-17: "Grey everywhere" (ui/chip-style.ts has the ruling; it was the blue
+ * selection tint inside a 2px brand edge). The edge keeps its width, transparent, so nothing moves.
  * ⚠️ `inset-ring`, NOT `ring` (review r39): the radio's keyboard focus is `focus-visible:ring-[3px]` (ui/radio-group), and
  * a `ring-inset` edge turned that ring inward too, where the checked chip's own ring took its place. The edge lives in its
  * own inset-ring layer, so the focus ring stays outside.
@@ -43,12 +45,16 @@ export type StepProps = {
 export const RADIO_CHIP = cn(
   chipVariants({ size: 'md', tone: 'neutral' }),
   'relative tap-44 bg-card text-foreground inset-ring inset-ring-line-strong',
-  'data-checked:bg-accent data-checked:text-accent-foreground data-checked:inset-ring-2 data-checked:inset-ring-brand',
+  'data-checked:border-transparent data-checked:bg-line-strong data-checked:text-foreground data-checked:inset-ring-transparent',
   // ⛔ An unchecked radio must not hover into the checked look (ui/chip's TOGGLE_HOVER rule, for data-checked).
   'not-data-checked:hover:bg-muted not-data-checked:hover:text-foreground',
 )
-/** A radio drawn as a card with its dot — for an answer that needs a second line. */
-export const RADIO_CARD = 'flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand'
+/**
+ * A radio drawn as a card with its dot — for an answer that needs a second line. Checked = the selected grey under an ink
+ * label, its edge the same grey (owner, 2026-11-17: "Grey everywhere" — it was a brand edge); the dot keeps its own look. A
+ * muted second line steps up to `ink-3` on it (`muted-foreground` on `line-strong` is 4.46:1, under AA for 12px text).
+ */
+export const RADIO_CARD = 'flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-line-strong data-checked:bg-line-strong data-checked:text-foreground data-checked:[&_.text-muted-foreground]:text-ink-3'
 
 /** The words for an error code — field by field where a generic line would not say what to do. */
 export function makeErrText(tr: (en: string, vi: string) => string) {

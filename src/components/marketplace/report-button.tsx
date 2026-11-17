@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, Radio, RadioDot } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { SELECTED_ROW } from '@/components/ui/chip-style'
 import { returnFocusTo } from '@/lib/return-focus'
 
 type Props = {
@@ -291,7 +292,9 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
                     value={r.value}
                     className={cn(
                       'flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border px-3 py-2.5 text-left text-sm font-normal transition-colors',
-                      reason === r.value ? 'border-brand font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                      // The picked reason is the selected grey under an ink label, its edge the same grey (owner, 2026-11-17:
+                      // "Grey everywhere" — it was a brand edge around blue words); the dot keeps its own look.
+                      reason === r.value ? cn(SELECTED_ROW, 'font-semibold') : 'border-border text-foreground hover:bg-muted',
                     )}
                   >
                     <RadioDot />

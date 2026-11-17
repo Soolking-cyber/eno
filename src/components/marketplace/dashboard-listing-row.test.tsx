@@ -235,3 +235,22 @@ describe('DashboardListingRow photo that fails to load (UI climb 2026-11-09)', (
     expect(view.container.querySelector('img[data-next-image]')?.getAttribute('src')).toBe(A)
   })
 })
+
+/**
+ * A SELECTED row (select mode) is the selected grey band (owner, 2026-11-17: "Grey everywhere" — it was the blue accent tint),
+ * with a muted line in it lifted to ink-3 (muted-foreground on line-strong is 4.46:1). Unselected keeps the hover band.
+ */
+describe('DashboardListingRow selected row (select mode)', () => {
+  it('a selected row is the selected grey, never the accent tint; an unselected one only hovers', () => {
+    const { container } = render(<DashboardListingRow listing={row('https://picsum.photos/400')} onChanged={() => {}} selectable selected onSelectToggle={() => {}} />)
+    const on = (container.firstElementChild as HTMLElement).className.split(/\s+/)
+    expect(on).toEqual(expect.arrayContaining(['bg-line-strong', '[&_.text-muted-foreground]:text-ink-3']))
+    expect(on).not.toContain('bg-accent')
+    expect(on).not.toContain('hover:bg-muted')
+    cleanup()
+    const { container: c2 } = render(<DashboardListingRow listing={row('https://picsum.photos/400')} onChanged={() => {}} selectable selected={false} onSelectToggle={() => {}} />)
+    const off = (c2.firstElementChild as HTMLElement).className.split(/\s+/)
+    expect(off).toContain('hover:bg-muted')
+    expect(off).not.toContain('bg-line-strong')
+  })
+})

@@ -93,7 +93,9 @@ export type RentalCheckToggleListing = RentalCheckSource & { sellerId: string; s
  *   2026-11-14, cook r06 rentals-a): status top-left, actions top-right, so the text block under every photo is the same three
  *   lines. Over a photo it wears the shell's ONE white plate (owner-approved 2026-11-14, cook r05: "over a photo: only white
  *   plates") — `bg-plate-fill`, the ink glyph and words, the plate's own lift, no rim — 36px tall (44 to the finger, PILL_BOX's
- *   `tap-44`), 14/20 bold; added = the ink fill, as the photo's glyph chip. The plate is white in both themes, and so is its ink.
+ *   `tap-44`), 14/20 bold; added = the selected grey (`bg-plate-selected` under the same ink — owner, 2026-11-17: "Grey
+ *   everywhere"; it was the ink fill), as the photo's glyph chip. The plate is white in both themes, its selected grey is
+ *   theme-invariant too, and so is its ink.
  *
  * ⛔ NOT ON THE VIEWER'S OWN LISTING. Asking eno to check whether your own flat is free is a dead
  * end, and a seller browsing their storefront would read the chip as a control over their listing.
@@ -180,11 +182,12 @@ function CardToggle({ listing, className }: { listing: RentalCheckSource; classN
           'absolute bottom-[calc(7.9%+4px)] right-2 z-10 h-7 w-7 rounded-full tap-44',
           // ⛔ THE SHELL'S WHITE PLATE (owner-approved 2026-11-14, cook r05/r06: "over a photo: only white plates"; it reverses the
           // dark `bg-foreground/70` plate that matched the old status chips): white at 95% with an ink glyph and the plate's own
-          // lift, the same in both themes, like the heart and the `.photo-badge` chips beside it. Added = the INK fill (the
-          // shell's selected look; it was the brand fill). The keyboard ring is the accent: a white ring on a white plate is no
-          // focus indicator (WCAG 2.4.7).
+          // lift, the same in both themes, like the heart and the `.photo-badge` chips beside it. Added = the SELECTED GREY
+          // (`plate-selected`, theme-invariant like the plate, under the same ink glyph — owner, 2026-11-17: "Grey everywhere";
+          // it was the ink fill, and before that the brand fill). The keyboard ring is the accent: a white ring on a white
+          // plate is no focus indicator (WCAG 2.4.7).
           'focus-visible:ring-2 focus-visible:ring-ring',
-          added ? 'bg-on-plate text-plate-fill shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
+          added ? 'bg-plate-selected text-on-plate shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
           className,
         )}
       >
@@ -225,9 +228,10 @@ function ChipToggle({ listing, className }: { listing: RentalCheckSource; classN
       className={cn(
         PILL_BOX,
         'z-10 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap pl-3 pr-3.5 transition-[background-color,color,scale] duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring',
-        // The photo's one white plate (CardToggle's pair, above): ink on white at rest, the ink fill once added. The press is the
-        // scale alone — a grey press fill would be the dark theme's --muted under the plate's fixed ink.
-        added ? 'bg-on-plate text-plate-fill shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
+        // The photo's one white plate (CardToggle's pair, above): ink on white at rest, the selected grey (`plate-selected`, the
+        // same ink) once added — owner, 2026-11-17: "Grey everywhere"; it was the ink fill. The press is the scale alone — a
+        // themed grey press fill would be the dark theme's --muted under the plate's fixed ink.
+        added ? 'bg-plate-selected text-on-plate shadow-plate' : 'bg-plate-fill text-on-plate shadow-plate',
         className,
       )}
     >

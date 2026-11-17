@@ -92,3 +92,74 @@ describe('BrandRail chips are links', () => {
     expect(document.querySelector('[data-brand="honda"]')!.getAttribute('aria-pressed')).toBe('true')
   })
 })
+
+/**
+ * ⛔ GREY EVERYWHERE (owner, 2026-11-17): the brand rail's model box is THE WELL (ui/chip-style WELL_*) — the field grey,
+ * its pick a white flat segment with an ink label, a resting chip the body grey; "More" opens a step deeper. The picked
+ * brand says so with the well grey behind its logo and an ink name. None of it is the brand tint or its blue labels any more.
+ */
+describe('BrandRail — the well\'s grey ladder', () => {
+  const tokens = (el: Element | null | undefined) => (el?.getAttribute('class') ?? '').split(/\s+/)
+  const BLUE = ['bg-brand-50', 'bg-brand-100', 'bg-card', 'bg-accent', 'text-accent-foreground', '!text-accent-foreground']
+
+  it('the model box is the well; the picked model a white pill with an ink label, the rest body grey', async () => {
+    rail({ activeModel: 'Vision' })
+    await waitFor(() => expect(document.querySelector('[data-model="Wave"]')).not.toBeNull())
+    const well = screen.getByRole('group', { name: 'Models' })
+    expect(tokens(well)).toEqual(expect.arrayContaining(['bg-muted', 'rounded-2xl', 'p-1.5']))
+    expect(tokens(well)).not.toContain('bg-brand-50')
+
+    const picked = document.querySelector('[data-model="Vision"]')!
+    expect(picked.getAttribute('aria-current')).toBe('true')
+    expect(tokens(picked)).toEqual(expect.arrayContaining(['rounded-full', 'bg-background', 'text-foreground', 'shadow-sm', 'dark:bg-line-strong', 'dark:shadow-none']))
+    for (const gone of [...BLUE, 'rounded-lg']) expect(tokens(picked), gone).not.toContain(gone)
+
+    const resting = document.querySelector('[data-model="Wave"]')!
+    expect(tokens(resting)).toEqual(expect.arrayContaining(['rounded-full', 'text-body', 'hover:text-foreground']))
+    for (const gone of ['bg-background', 'shadow-sm', 'hover:text-accent-foreground']) expect(tokens(resting), gone).not.toContain(gone)
+  })
+
+  it('the picked brand: the selected grey behind its logo and an ink name and mark; another brand has no disc (the gate, 2026-11-17: the well grey was ~1.1:1 on the canvas)', async () => {
+    rail({ activeModel: 'all' })
+    await waitFor(() => expect(document.querySelector('[data-brand="yamaha"]')).not.toBeNull())
+    const honda = document.querySelector('[data-brand="honda"]')!
+    const disc = honda.firstElementChild!
+    expect(tokens(disc)).toEqual(expect.arrayContaining(['flex', 'h-11', 'w-full', 'rounded-2xl', 'bg-line-strong']))
+    const mark = honda.querySelector('[class*="group-hover:scale-110"]')!
+    expect(tokens(mark)).toContain('!text-foreground')
+    expect(tokens(mark)).not.toContain('!text-accent-foreground')
+    const name = honda.querySelector('.line-clamp-2')!
+    expect(tokens(name)).toContain('text-foreground')
+    for (const gone of ['text-accent-foreground', 'group-hover:text-accent-foreground']) expect(tokens(name), gone).not.toContain(gone)
+
+    const yamaha = document.querySelector('[data-brand="yamaha"]')!
+    expect(tokens(yamaha.firstElementChild)).not.toContain('bg-line-strong')
+    // …and its name is the body grey, so the pick steps body → ink as well as gaining the disc.
+    expect(tokens(yamaha.querySelector('.line-clamp-2'))).toContain('text-body')
+  })
+
+  it('"More": a body-grey pill at rest, the white pick while open, its menu a step deeper and its rows on the well ladder', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ model: `M${i + 1}`, count: 20 - i }))
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      json: () => Promise.resolve(url.includes('/models') ? { models: many } : { brands: [{ slug: 'honda', name: 'Honda', count: 80, iconPath: null }] }),
+    })))
+    const user = userEvent.setup()
+    rail({ activeModel: 'all' })
+    const more = await screen.findByRole('button', { name: /More/ })
+    expect(tokens(more)).toEqual(expect.arrayContaining(['rounded-full', 'icon-own-ink', 'text-body', 'hover:bg-secondary']))
+    for (const gone of [...BLUE, 'rounded-lg', 'bg-background']) expect(tokens(more), gone).not.toContain(gone)
+
+    await user.click(more)
+    const row = await screen.findByRole('menuitem', { name: /M12/ })
+    await waitFor(() => expect(tokens(more)).toEqual(expect.arrayContaining(['bg-background', 'text-foreground', 'shadow-sm', 'icon-own-ink'])))
+    for (const gone of BLUE) expect(tokens(more), gone).not.toContain(gone)
+
+    const menu = screen.getByRole('menu')
+    expect(tokens(menu)).toContain('bg-secondary')
+    expect(tokens(menu)).not.toContain('bg-brand-50')
+    // The active model always stays in the box (never in "More"), so every overflow row is a resting one.
+    // A row in a dropdown that is itself `--secondary` hovers back up to the well's grey (WELL_MENU_ITEM, gate 2026-11-17).
+    expect(tokens(row)).toEqual(expect.arrayContaining(['text-body', 'hover:bg-muted', 'hover:text-foreground']))
+    for (const gone of [...BLUE, 'hover:bg-secondary', 'hover:text-accent-foreground', 'hover:bg-background/70']) expect(tokens(row), gone).not.toContain(gone)
+  })
+})

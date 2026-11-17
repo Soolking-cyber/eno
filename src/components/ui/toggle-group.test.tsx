@@ -58,7 +58,9 @@ describe('ToggleGroup', () => {
   it('wears the chip toggle look and a 44px hit area', () => {
     render(<Single onValueChange={() => {}} />)
     const cls = (screen.getByRole('button', { name: 'Bachelor’s' }).getAttribute('class') ?? '').split(/\s+/)
-    // The md chip's pressed look is the ink fill since 2026-11-14 (owner-approved; it was the accent tint).
-    expect(cls).toEqual(expect.arrayContaining(['rounded-full', 'min-h-9', 'relative', 'tap-44', 'data-pressed:bg-foreground']))
+    // The md chip's pressed look is the selected grey since 2026-11-17 (owner: "Grey everywhere"; the ink fill from
+    // 2026-11-14, the accent tint before).
+    expect(cls).toEqual(expect.arrayContaining(['rounded-full', 'min-h-9', 'relative', 'tap-44', 'data-pressed:bg-line-strong', 'data-pressed:text-foreground']))
+    expect(cls).not.toContain('data-pressed:bg-foreground')
   })
 })

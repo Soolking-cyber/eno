@@ -3,7 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
+import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { Toggle } from '@/components/ui/toggle'
 import { CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown, LayoutGrid, Plus, UserRound } from '@/components/ui/icons'
@@ -31,11 +31,11 @@ import type { FacetCounts } from '@/lib/facet-counts'
  *
  * ⛔ EXCEPT A SEARCH WITH NO CATEGORY PICKED, ON A PHONE (owner-approved 2026-11-14, cook r06 goods): there this row is not drawn —
  * the scope chip joins the sticky filter row (ScopeChip, below) and the quick chips are what it opens.
- * ⛔ …AND A CATEGORY FEED, ON A PHONE (owner, 2026-11-16, hub Q17; cook r12 R1 — listings-explorer.tsx `catRow`): a category (or
- * a subcategory) picked with no words, no brand and no model is not drawn as this row either — the chip names the category
- * there ("Electronics ⌄", ScopeChip `label`) and the subcategory chips wait in the ladder it opens. It reverses the 09-24 row on
- * those feeds. Everything below still holds on Teachers and Jobs (their teacher door leads this row), for a search or a brand
- * inside a category, and from sm.
+ * ⛔ …AND A CATEGORY FEED, ON A PHONE (owner, 2026-11-16, hub Q17; cook r12 R1): a category (or a subcategory) picked is not drawn
+ * as this row either — the chip names the deepest rung there ("Electronics ⌄", ScopeChip `label`) and the subcategory chips wait
+ * in the ladder it opens. ⛔ Since 2026-11-17 EVERY phone feed (owner: "make sure mobile top navigation is consistent"): words or
+ * a brand inside a category, a model, and Teachers and Jobs, whose teacher door now follows the chip in the strip
+ * (TeacherDoorChip). This row is left to a phone storefront's directed grid and to widths from sm.
  * WHAT THE ROW HOLDS (one line, horizontally scrollable, nothing wraps):
  *   · the SCOPE button first — the current category (or "All categories"), highlighted, with a
  *     chevron: tap it and the full ladder (tile grid + brands) opens below it, tap again and it folds
@@ -109,13 +109,13 @@ export function LadderCompactRow({
 
   // One chip look for every rung — the browse chip (ui/chip-style PILL_*, owner 2026-10-18: one chip style), the same
   // 36px pill as the facet pills directly below, with an invisible 44px hit area (`tap-44`, which the
-  // scroller's `py-1` leaves room for); pressed = the INK FILL (owner-approved 2026-11-14; it was the brand tint), its
-  // glyph white with it (`icon-own-ink`).
+  // scroller's `py-1` leaves room for); pressed = the SELECTED GREY (owner, 2026-11-17: "Grey everywhere" — it was the ink
+  // fill from 11-14, the brand tint before), its glyph in the label's ink (`icon-own-ink`).
   const chipCls = cn(
     PILL_BOX,
     PILL_REST,
     'shrink-0 whitespace-nowrap transition-[background-color,color,scale] duration-150 ease-[var(--ease-out-strong)] active:scale-[0.97] motion-reduce:transition-none',
-    'data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background icon-own-ink',
+    'data-pressed:border-transparent data-pressed:bg-line-strong data-pressed:text-foreground icon-own-ink',
   )
 
   return (
@@ -124,10 +124,10 @@ export function LadderCompactRow({
           concatenated, not merged, so only the primitive's own className beats its base classes
           (CLAUDE.md — the same shape custom-select.tsx uses). */}
       <CollapsibleTrigger
-        // The folded ladder's one pill names what is chosen, so it wears the chosen look: the ink fill (owner-approved
-        // 2026-11-14; it was the brand tint). Its glyph is the plain line in the label's ink — the fill already says
-        // "selected", and the duotone's blue wash under a white line read as a stain.
-        render={<Button variant="bare" size="none" className="relative tap-44 min-h-9 shrink-0 gap-1.5 rounded-full border border-foreground bg-foreground pl-3 pr-2.5 text-sm font-bold text-background icon-own-ink" />}
+        // The folded ladder's one pill names what is chosen, so it wears the chosen look: the selected grey (owner, 2026-11-17:
+        // "Grey everywhere" — it was the ink fill from 11-14, the brand tint before). Its glyph is the plain line in the
+        // label's ink.
+        render={<Button variant="bare" size="none" className={cn(PILL_BOX, PILL_ON, 'shrink-0 gap-1.5 pl-3 pr-2.5')} />}
       >
         {active
           ? <CategoryIcon name={active.icon} stroke={STROKE_UI} className="h-4 w-4 shrink-0" />
@@ -157,26 +157,7 @@ export function LadderCompactRow({
                   without a swipe). The rail plate's last chip in this row's pill look. A link: no pressed state; in the
                   app it stays in the app (keepTeacherJoinInApp); a teacher who already has a profile gets theirs. JOBS carries the
                   same door, first too (owner, 2026-10-12 — TEACHER_DOOR_CATEGORIES). */}
-              {teacherDoor && (
-                <Button variant="bare" size="none" asChild className={cn(chipCls, 'inline-flex items-center gap-1 text-accent-foreground')}>
-                  {teacherProfile ? (
-                    <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
-                      <UserRound className="size-4 shrink-0" aria-hidden />
-                      {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
-                    </a>
-                  ) : teacherDraft ? (
-                    <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile-continue">
-                      <UserRound className="size-4 shrink-0" aria-hidden />
-                      {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')}
-                    </a>
-                  ) : (
-                    <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
-                      <Plus className="size-4 shrink-0" aria-hidden />
-                      {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
-                    </a>
-                  )}
-                </Button>
-              )}
+              {teacherDoor && <TeacherDoorChip className={chipCls} teacherProfile={teacherProfile} teacherDraft={teacherDraft} />}
               <Toggle pressed={activeSubcategory === 'all'} onPressedChange={() => onSubcategory('all')} className={chipCls}>
                 {tr('All', 'Tất cả')}
               </Toggle>
@@ -221,6 +202,46 @@ export function LadderCompactRow({
     </div>
   )
 }
+
+/**
+ * ⛔ THE TEACHER FORM'S DOOR AS A CHIP (owner, 2026-10-09: "add a button here as subcat that will redirect to teacher.eno.vn to
+ * create their profile" — first, so a phone shows it without a swipe; Jobs too since 2026-10-12, TEACHER_DOOR_CATEGORIES). The
+ * compact row leads its chips with it; on a phone feed it follows the category chip in the control row (listings-explorer.tsx
+ * `oneRow`, owner 2026-11-17), still on the first screen. A link: no pressed state; in the app it stays in the app
+ * (keepTeacherJoinInApp); a teacher who already has a profile gets theirs. `className` is the host row's chip look.
+ */
+export function TeacherDoorChip({ className, teacherProfile, teacherDraft }: {
+  className: string
+  teacherProfile: boolean
+  teacherDraft: boolean
+}) {
+  const { lang, tr } = useLanguage()
+  return (
+    <Button variant="bare" size="none" asChild className={cn(className, 'inline-flex items-center gap-1 text-accent-foreground')}>
+      {teacherProfile ? (
+        <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
+          <UserRound className="size-4 shrink-0" aria-hidden />
+          {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
+        </a>
+      ) : teacherDraft ? (
+        <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile-continue">
+          <UserRound className="size-4 shrink-0" aria-hidden />
+          {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')}
+        </a>
+      ) : (
+        <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
+          <Plus className="size-4 shrink-0" aria-hidden />
+          {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
+        </a>
+      )}
+    </Button>
+  )
+}
+/**
+ * The door's look in the phone control row: the filled strip's resting grey, written out rather than through `pill-rest` — the
+ * strip's rule greys a resting pill's glyph (`--ink-3`, globals.css), and the door's + is part of its blue label, a link.
+ */
+export const TEACHER_DOOR_STRIP = cn(PILL_BOX, 'border border-transparent bg-muted hover:bg-secondary active:bg-secondary shrink-0 whitespace-nowrap')
 
 /**
  * THE LADDER'S SLOT: the full rails (children) as they always were, or — collapsed — the compact row
@@ -272,19 +293,21 @@ export const LADDER_PANEL = 'mt-4 space-y-4 transition-opacity duration-150 ease
  * filter pills — the sticky filter row (SortStrip `phoneScope`); since build 7 (owner-approved 2026-11-15, cook r07 goods) the
  * view circle leads the row, right before this chip (SortStrip `phoneView`). The quick category and intent chips are not drawn there:
  * they are what this chip opens (the full ladder, in the panel right under the row). ⛔ Since 2026-11-16 (owner, hub Q17) a
- * category feed draws it too, naming the category (`label`); with words or a brand inside a category the compact row above holds.
+ * category feed draws it too, naming the category (`label`); since 2026-11-17 every phone feed does (owner: "make sure mobile
+ * top navigation is consistent"), naming the deepest rung — the brand, the model.
  * A plain chip like its neighbours (ui/chip-style PILL_* — the field grey of the filled strip since 2026-11-16, hub Q15; ink
- * label): "All categories" is not a choice the reader made, so it is not the ink fill the compact row's scope pill wears. Words and a chevron only — the
+ * label): "All categories" is not a choice the reader made, so it is not the selected grey (PILL_ON) the compact row's scope pill
+ * wears (owner, 2026-11-17: "Grey everywhere" — it was the ink fill). Words and a chevron only — the
  * row's one glyph family (no grid glyph). A Base UI Collapsible trigger: aria-expanded and aria-controls come from the
  * library, from the root on `[data-ladder]`. `relative tap-44`: 36px seen, 44 to the thumb (the row's `py-1` leaves room).
  */
 export function ScopeChip({ expanded, label }: {
   expanded: boolean
   /**
-   * ⛔ The category feed's chip (owner, 2026-11-16, hub Q17 — listings-explorer.tsx `catRow`): the deepest rung picked, the
-   * category's own name ("Electronics") or the subcategory's, already translated. A plain chip still — the field grey of the
-   * filled strip it sits in (hub Q15), not the folded row's ink: the words say what is picked. `max-w-[10rem] truncate`, the
-   * compact row's own cap. Omitted: "All categories".
+   * ⛔ The category feed's chip (owner, 2026-11-16, hub Q17; every phone feed since 2026-11-17 — listings-explorer.tsx
+   * `oneRow`): the deepest rung picked — the category's own name ("Electronics"), the subcategory's, the brand's ("Apple"), the
+   * model — already translated. A plain chip still — the field grey of the filled strip it sits in (hub Q15): the words say what
+   * is picked. `max-w-[10rem] truncate`, the compact row's own cap. Omitted: "All categories".
    */
   label?: string
 }) {

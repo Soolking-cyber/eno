@@ -82,14 +82,16 @@ describe('JobCityChips — "Theo tỉnh/thành / By city"', () => {
     expect(sessionStorage.getItem('eno:pending-area')).toBeNull()
   })
 
-  it('with the page\'s count, the row opens on "All N": this page, in the applied look, not a link (2026-11-06 audit)', () => {
+  it('with the page\'s count, the row opens on "All N": this page, in the applied look (the selected grey, owner 2026-11-17 "Grey everywhere"), not a link (2026-11-06 audit)', () => {
     render(<JobCityChips cities={cities} total={15} />)
     const group = screen.getByRole('group', { name: 'By city:' })
     expect(within(group).getAllByRole('link')).toHaveLength(2)
     const all = group.querySelector('[aria-current="page"]')!
     expect(all.tagName).toBe('SPAN')
     expect(all.textContent).toBe('All15')
-    expect(all.className).toMatch(/\bbg-foreground\b/) // the ink fill, the applied look since 2026-11-14 (owner-approved)
+    // The selected grey with an ink label, the applied look since 2026-11-17 (owner: "Grey everywhere" — the ink fill from 11-14).
+    expect(all.className.split(' ')).toEqual(expect.arrayContaining(['pill-on', 'bg-line-strong', 'text-foreground']))
+    expect(all.className).not.toMatch(/(^|\s)(hover:)?(bg-foreground|text-background)\b/)
     // Right after the label, ahead of every city.
     expect(group.children[1]).toBe(all)
   })
@@ -117,11 +119,12 @@ describe('JobCityChips variant="phone"', () => {
     expect(label.className).toBe('sr-only')
   })
 
-  it('the browse chips: white with a line-strong ring, "All N" in the ink fill, the counts regular', () => {
+  it('the browse chips: white with a line-strong ring, "All N" in the selected grey (owner 2026-11-17, "Grey everywhere"), the counts regular', () => {
     render(<JobCityChips cities={cities} total={54} variant="phone" />)
     const group = screen.getByRole('group')
     const all = group.querySelector('[aria-current="page"]')!
-    expect(all.className.split(' ')).toEqual(expect.arrayContaining(['pill-on', 'bg-foreground', 'text-background', 'min-h-9', 'rounded-full', 'text-sm', 'font-bold']))
+    expect(all.className.split(' ')).toEqual(expect.arrayContaining(['pill-on', 'bg-line-strong', 'text-foreground', 'min-h-9', 'rounded-full', 'text-sm', 'font-bold']))
+    expect(all.className).not.toMatch(/(^|\s)(hover:)?(bg-foreground|text-background)\b/)
     for (const a of within(group).getAllByRole('link')) {
       expect(a.className.split(' ')).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground', 'tap-44', 'shrink-0']))
       expect(a.className).not.toMatch(/\btext-xs\b/)

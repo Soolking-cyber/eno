@@ -542,7 +542,8 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
           onClick={() => setTopic(null)}
           className={cn(
             'h-10 shrink-0 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
-            topic === null ? 'border-brand bg-accent text-accent-foreground' : 'bg-transparent text-body hover:bg-muted',
+            // The selected grey (owner, 2026-11-17: "Grey everywhere" — it was the brand edge on the blue tint).
+            topic === null ? 'border-transparent bg-line-strong text-foreground' : 'bg-transparent text-body hover:bg-muted',
           )}
         >
           <Tr text="All topics" />
@@ -558,12 +559,13 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
               aria-pressed={active}
               onClick={() => setTopic(active ? null : item.slug)}
               className={cn(
-                'h-10 shrink-0 gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
+                // `icon-own-ink`: the glyph keeps the label's ink when picked, not the global pressed blue (globals.css).
+                'icon-own-ink h-10 shrink-0 gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
                 active
-                  ? // §5 location-active: accent ink on the chip; the glyph's own fill is
-                    // passed as state below, never as a class here — never a solid fill,
-                    // which is reserved for user-state.
-                    'border-brand bg-accent text-accent-foreground'
+                  ? // The selected grey under an ink label, its edge gone transparent (owner, 2026-11-17: "Grey
+                    // everywhere" — it was §5's accent ink on the blue tint inside a brand edge); the glyph's own
+                    // fill is passed as state below, never as a class here.
+                    'border-transparent bg-line-strong text-foreground'
                   : 'bg-transparent text-body hover:bg-muted',
               )}
             >

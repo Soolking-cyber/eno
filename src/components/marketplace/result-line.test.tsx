@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { LanguageProvider, useLanguage, type Language } from '@/context/language-context'
 import { formatCount } from '@/lib/vnd'
 import {
+  PhoneFilterChips,
   ResultLine,
   ResultsTitle,
   removeFilterLabel,
@@ -575,17 +576,37 @@ describe('<ResultLine> count, ladder and save-search', () => {
 })
 
 /**
- * ⛔ ONE CHIP STYLE (owner, 2026-10-18): an applied filter wears the browse chip's ON look — 36px, the brand tint and
- * accent ink, no hairline — like the applied pills on the strip above it. And the explorer can hide the live count
+ * ⛔ ONE CHIP STYLE (owner, 2026-10-18): an applied filter wears the browse chip's ON look — 36px, the selected grey and
+ * an ink label, no hairline (owner, 2026-11-17: "Grey everywhere" — it was the brand tint and accent ink) — like the
+ * applied pills on the strip above it. And the explorer can hide the live count
  * visually on its undirected phone row (`countClassName`), where the title's line pictures the number instead.
  */
 describe('ResultLine — the browse chip, and the count\'s own classes', () => {
-  it('an applied filter is a 36px brand pill with no border', () => {
+  it('an applied filter is a 36px pill in the selected grey with an ink label and no border (owner 2026-11-17, "Grey everywhere")', () => {
     renderIn('en', <ResultLine count={3} filters={[chip('district', 'Thảo Điền')]} />)
     const pill = screen.getByText('Thảo Điền').closest('[data-slot="removable-badge"]')!
     const cls = (pill.getAttribute('class') ?? '').split(/\s+/)
-    expect(cls).toEqual(expect.arrayContaining(['min-h-9', 'border-0', 'text-sm', 'bg-brand-50', 'text-accent-foreground', 'rounded-full']))
+    expect(cls).toEqual(expect.arrayContaining(['min-h-9', 'border-0', 'text-sm', 'bg-line-strong', 'text-foreground', 'rounded-full']))
+    expect(cls.join(' ')).not.toMatch(/\b(bg-brand-50|text-accent-foreground|text-brand-dark|border-brand-100)\b/)
+    // Its ✕ is ink on the grey too (it was ui/badge's dark blue).
+    const remove = pill.querySelector('[data-slot="removable-badge-remove"]')!
+    expect((remove.getAttribute('class') ?? '').split(/\s+/)).toContain('text-foreground')
+    expect(remove.getAttribute('class')).not.toMatch(/\btext-brand-dark\b/)
     expect(cls).not.toContain('min-h-7')
+  })
+
+  it('the phone filter row\'s applied chips (PhoneFilterChips) wear the same grey pill, never the accent ink', () => {
+    renderIn('en', <PhoneFilterChips filters={[chip('district', 'Thảo Điền'), chip('price', '< 500k')]} onClearAll={() => {}} />)
+    const list = document.querySelector('[data-phone-chips]')!
+    const pills = [...list.querySelectorAll('[data-slot="removable-badge"]')]
+    expect(pills).toHaveLength(2)
+    for (const pill of pills) {
+      const cls = (pill.getAttribute('class') ?? '').split(/\s+/)
+      expect(cls).toEqual(expect.arrayContaining(['min-h-9', 'border-0', 'text-sm', 'bg-line-strong', 'text-foreground', 'rounded-full']))
+      expect(cls.join(' ')).not.toMatch(/\b(bg-brand-50|text-accent-foreground|text-brand-dark|border-brand-100)\b/)
+      const remove = pill.querySelector('[data-slot="removable-badge-remove"]')!
+      expect((remove.getAttribute('class') ?? '').split(/\s+/)).toContain('text-foreground')
+    }
   })
 
   it('`countClassName` lands on the live count — and only there', () => {

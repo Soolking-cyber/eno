@@ -87,6 +87,21 @@ describe('the teachers plate: "Create a teacher profile" → the sign-up host', 
     expect(Number(box.style.getPropertyValue('--sub-col-m'))).toBeGreaterThan(1)
   })
 
+  it('⛔ `noTeacherDoor` (the phone row carries it, owner 2026-11-17): the plate keeps "All" and draws no second door', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    for (const slug of ['jobs', 'teachers']) {
+      render(
+        <LanguageProvider>
+          <CategoryRail categories={cats} activeCategory={slug} activeSubcategory="all" subcategoryCounts={{}} noTeacherDoor
+            onCategory={() => {}} onSubcategory={() => {}} />
+        </LanguageProvider>,
+      )
+      expect(screen.getByRole('group', { name: 'Subcategories' })).toBeTruthy()
+      expect(document.querySelector('[data-cross-link^="teacher-profile"]')).toBeNull()
+      cleanup()
+    }
+  })
+
   it('⛔ shown even when no teacher subcategory is offered — the plate keeps "All" and the way in', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     const zero = Object.fromEntries((SUBCATEGORIES.teachers ?? []).map((s) => [s.slug, 0]))

@@ -18,17 +18,19 @@ links, active and focus, prices in ink, grey fields (#f3f3f3) instead of tints, 
 scale, 8/12/16 corners and 16px photos, sentence case, spring motion — framed by a white header (in a phone browser, the post
 flow's task bar instead — §1) with
 a 40px grey search tile beside the 40px mark and a docked white tab bar of five labelled tabs, one primary + one secondary button, white
-hairline chips — field-grey filled in a phone feed's control strip — (a clipped one at the edge says the row swipes).**
+hairline chips — field-grey filled in a phone feed's control strip, selected grey (`line-strong`), never ink or blue — (a clipped one at the edge says the row swipes).**
 
 ⚠️ **The 2026-11-14 redesign is owner-approved** (cook r05: *"after this cook round build all best
 options and deploy"*). It reversed, in one change: the blue wash floor (09-18 / 09-19) → white; the
 FINN brand blue #0a66c2 → #0060df; the commerce orange on price and Post (09-18) → ink price and the
-accent; the resting wells (`tint` / `muted`) → field grey (the blue selection tints follow once selection is ink); muted
+accent; the resting wells (`tint` / `muted`) → field grey (the blue selection tints follow once selection is ink — reversed
+2026-11-17, owner: "Grey everywhere": selection went grey, not ink, §2); muted
 #595959 (11-12) → #5e5e5e; 12px card meta (11-05) → the 13px meta role; tiers `lg` 10 → 8 and `2xl`
 18 → 16; the photo corner 8/14 (10-18) → 16/20; tracked capitals → sentence case; and the CHROME: the floating
 pill tab bar + its tinted capsule + the orange-plated Post coin (09-26 / 09-18) → a docked white bar, muted glyphs, the
 accent bold cut, an ink add-circle; the phone header's bare tint field (10-18) → a 44px raised white pill beside a 36px
-mark (itself reversed in round 13, 2026-11-17: a flat 40px grey tile beside a 40px mark — §4, "The header is 56px"); the tinted chip with a brand-tint selection (10-18) → white + hairline, ink fill selected (the clipped tile / pill
+mark (itself reversed in round 13, 2026-11-17: a flat 40px grey tile beside a 40px mark — §4, "The header is 56px"); the tinted chip with a brand-tint selection (10-18) → white + hairline, ink fill selected (itself reversed 2026-11-17, owner:
+"Grey everywhere" — selected is the grey `line-strong`, §2) (the clipped tile / pill
 stays the swipe cue, 11-05 / 11-12: a whole-chip fit was tried and dropped in review); the grey `secondary` button → the ink
 outline. Kept: the flat
 canvas (07-24), popover = canvas (07-13), header = page (09-19), two weights (08-13), no slashed
@@ -242,9 +244,15 @@ accent #0060df. A colour class must name a real token: Tailwind emits nothing fo
   for white labels, and accent TEXT is `text-brand` (#3b8ee6, 4.98:1 on the canvas) — never
   `text-primary`, which is 3.00:1 as text there.
 - **The field grey:** `tint` and `muted` are #f3f3f3 in light (the dark `tint` #262626 in dark);
-  `secondary` stays #e5e5e5. ⚠️ `accent` / `brand-50` KEEP the blue tint (#e8f1fb; dark #12243a,
-  4.66:1 under `text-brand`) until selection moves to ink: a selected state on a grey well must not
-  be the same grey as resting (WCAG 1.4.1). Lines: `border` #ebebeb (the hairline), `input` / `line-strong` #d6d6d6.
+  `secondary` stays #e5e5e5. **⛔ SELECTION IS GREY, NEVER INK OR BLUE (owner, 2026-11-17: "the black pressed state was
+  replaced by gray all experience should follow across the app", then "Grey everywhere", /post included).** One ladder for
+  every chip: rest `muted` (filled strips) or white + hairline, pressed or open one step deeper (`muted` on white, `secondary`
+  in a filled strip), selected or applied `line-strong` (#d6d6d6; dark #414141), the label ink throughout (ui/chip-style
+  `PILL_ON`, ui/chip, ui/badge `removable`). A WELL (the category plate's subcategories, the brand and model panels) is
+  `muted`, its pick ui/segmented's: the canvas white with `shadow-sm` (dark: `line-strong`, no shadow; on a phone sheet the
+  selected grey) — chip-style `WELL_*`, never the same grey as resting (WCAG 1.4.1). `accent` / `brand-50` stay defined for what is not a
+  selection (links, the accent bold cut of the tab bar's current tab). Lines: `border` #ebebeb (the hairline), `input` /
+  `line-strong` #d6d6d6.
 - Brand ramp beyond the accent (not in the redesign, unchanged): `brand-light`, `brand-100`,
   `brand-150`, `brand-deep(er)` (fixed dark marketing panels)
 - Semantic: `primary`, `accent` (+`-foreground`), `muted`, `card`, `popover`,
@@ -303,7 +311,9 @@ accent #0060df. A colour class must name a real token: Tailwind emits nothing fo
   holds everywhere; `.plate-lg` makes it 6px only on the card photo box (18px glyphs, `ICON_SIZE.plate`, on 30px
   plates) and the listing page's hero controls (20px on 32px). ⛔ A plate host never carries `text-white`, its own
   padding, `[&_svg]:bg-*` or a drop-shadow filter (ui/plate.contract.test.ts). The one sanctioned ink override is the
-  saved heart's `text-saved` (#d92d4a, 4.75:1 on the plate).
+  saved heart's `text-saved` (#d92d4a, 4.75:1 on the plate). A plated control once SELECTED (the card's availability
+  check once added) is `bg-plate-selected` (#d6d6d6, theme-invariant like the plate; `on-plate` #141414 on it 12.7:1) under the
+  same ink — the selected grey, never the ink fill (owner, 2026-11-17: "Grey everywhere").
 - **Links in running text are underlined**: a link (or a `text-brand` action) inside a `<p>` under
   `<main>` gets a 1px underline, 3px below the baseline, from globals.css's base layer — the accent
   against body text is 1.93:1, so colour alone does not mark it. A block, flex or icon-only link
@@ -438,11 +448,14 @@ costs conversions. It stays a separate, owner-reviewed decision.
   category opens on ONE title line (since build 7: the count at the h3 role, `t-h3` 17/24, then "Save search" in words —
   accent label text after its 20px bookmark, no fill) and ONE control row led by the view pick (a 36px circle) and the
   "All categories" scope chip (the ladder opens under it) — **and since 2026-11-16 (owner, hub Q17) so does every bare
-  category feed** (`/?category=…` with no words, brand or model; not Teachers or Jobs, whose compact row leads with the
-  teacher door): the chip names the category ("Electronics ⌄"), its subcategories in the ladder it opens. The control row
+  category feed, and since 2026-11-17 EVERY folded phone feed but a storefront's** (owner: "make sure mobile top navigation
+  is consistent" — words inside a category, a brand, a model, Teachers and Jobs, whose teacher door follows the chip in the
+  row): the chip names the deepest rung ("Electronics ⌄", "Apple ⌄"), the ladder it opens holds the subcategories and the
+  brands, each panel THREE rows in a 100px box on a phone (owner, 2026-11-17: "3 rows for subcats and models"). The control row
   — the search's and a goods category's — STAYS
   PINNED when the header leaves (build 8), is opaque with no rule while it sits in place and one hairline once it is stuck,
-  and its pills are FILLED (build 8: field grey, no edge, `--secondary` pressed or open, ink when applied —
+  and its pills are FILLED (build 8: field grey, no edge, `--secondary` pressed or open, `line-strong` when applied since
+  2026-11-17 (it was ink) —
   `data-pills="filled"`, ui/chip-style.ts); the sort pill prints its order ("Relevance", build 8) with no glyph at the
   default, and the pills read Price, Condition, Type, Area. **Since 2026-11-16 (owner, hub Q15) the filled pills, the
   "Relevance" sort pill and the hairline-only-once-stuck are EVERY phone feed strip's** (the explorer's SortStrip on every
@@ -463,7 +476,8 @@ costs conversions. It stays a separate, owner-reviewed decision.
   pips shown, and ONE top band (`data-photo-top`, a grid): **status top-left, actions top-right**. Status is the Urgent /
   price-drop badge and the trust fact, the white "Official partner" plate beside the green shield (`PartnerBadge onPhoto`,
   28px, build 7), 10px under the badge; the action is the availability check as the labelled white plate (36px, 14/20
-  bold ink, no rim; ink fill once added) 12px left of the heart, on every card it applies to. On a card with both, the
+  bold ink, no rim; once added the selected grey plate, `plate-selected` #d6d6d6 under the same ink — owner, 2026-11-17:
+  "Grey everywhere"; it was the ink fill) 12px left of the heart, on every card it applies to. On a card with both, the
   partner plate takes the band's second row, 58px down; the badge's column gives way to the check (its label ellipsises
   below ~375px in Vietnamese rather than meet it). The figure is the card's one loud object, 22/28 bold ink (`WIDE_PRICE`),
   its unit 16 regular ink-3 (`WIDE_UNIT`), the ≈ $ 14/20 muted. /c/rentals' heading line is the display role with the
@@ -570,7 +584,7 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Icon-only button | `<IconButton>` (44px tap target) |
 | Close / dismiss / remove ✕ | `<CloseButton>` (ui/close-button) — sizes `2xs`–`lg`, `variant="overlay"` over media; the glyph is derived from the button (`CLOSE_GLYPH`), never hand-typed; `label` when the action is not "Close" |
 | Static chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
-| Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>`. The `md` neutral chip is THE browse chip (owner-approved 2026-11-14): white, 1px `line-strong`, ink bold 14/20, pressed = the ink fill; controls that cannot be a `<Chip>` wear ui/chip-style's `PILL_*`. A phone chip strip keeps the clipped chip at its edge as the swipe cue. |
+| Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>`. The `md` neutral chip is THE browse chip (owner-approved 2026-11-14): white, 1px `line-strong`, ink bold 14/20, pressed = the selected grey `line-strong` (owner, 2026-11-17; it was the ink fill); controls that cannot be a `<Chip>` wear ui/chip-style's `PILL_*`. A phone chip strip keeps the clipped chip at its edge as the swipe cue. |
 | Page title row | `<PageHeader>` (ui/page-header) — the h1 on the ramp + meta line + actions |
 | Text input | `<Input>` — filled tint idiom with a hairline (`rounded-xl bg-tint shadow-[inset_0_0_0_1px_var(--color-line-strong)] px-4 py-3 text-sm`: tint alone on the canvas is 1.02:1 and read as disabled; a shadow so the line takes no layout; line-strong since 2026-11-07, when the divider grey still read as inactive); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |

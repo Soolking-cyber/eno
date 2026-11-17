@@ -191,7 +191,21 @@ afterEach(() => {
 })
 
 describe('the teachers feed offers no Map view', () => {
-  it('its toolbar has no Map tab (List and Grid stay); rentals and the undirected home keep theirs, and it still opens the map', async () => {
+  it('its toolbar has no Map tab (List and Grid stay) — the phone\'s view circle neither; rentals and the undirected home keep theirs, and it still opens the map', async () => {
+    const user = userEvent.setup()
+    // ⛔ On a phone every feed opens on one control row (owner 2026-11-17): the teachers feed's view pick is the strip's circle.
+    freshTop('/?category=teachers')
+    const phone = mount(client())
+    await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
+    expect(mapTab()).toBeNull()
+    await user.click(within(document.getElementById('explorer-toolbar')!).getByRole('combobox', { name: /View/ }))
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(expect.arrayContaining(['List view', 'Grid view']))
+    expect(options).not.toContain('Map view')
+    phone.unmount()
+
+    // The toggles (from md here, where a browse keeps its rails and its results row): List and Grid, no Map.
+    vi.stubGlobal('matchMedia', media(true))
     freshTop('/?category=teachers')
     const teachers = mount(client())
     await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
@@ -199,6 +213,7 @@ describe('the teachers feed offers no Map view', () => {
     expect(screen.getByRole('button', { name: 'List view' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Grid view' })).toBeTruthy()
     teachers.unmount()
+    vi.stubGlobal('matchMedia', media(false))
 
     freshTop('/')
     const home = mount(client(), ALL.slice(0, 12))
@@ -418,14 +433,29 @@ describe('the phone results row: one view pill, the count on the title line', ()
     expect(live.className).toContain('max-sm:[html:not([data-explorer-directed])_&]:sr-only')
   })
 
-  it('a directed feed keeps its live count on screen (no sr-only), and the teachers pill offers no Map', async () => {
+  /**
+   * ⛔ EVERY PHONE FEED ONE ROW (owner, 2026-11-17: "make sure mobile top navigation is consistent") — Teachers too: its count
+   * is on screen on the title line (result-line.tsx ResultsTitle), #results stays the one live count, sr-only, and the view
+   * pick is the circle that leads the strip (no results-row cluster) — offering no Map there either.
+   */
+  it('a directed phone feed (every phone feed one row, owner 2026-11-17): the count on the title line, the live count in the sr-only results row, and the teachers circle offers no Map', async () => {
     const user = userEvent.setup()
     freshTop('/?category=teachers')
     mount(client())
     await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
     expect(document.querySelector('[data-feed-heading] span[aria-hidden]')).toBeNull()
-    expect(document.querySelector('[data-slot="result-line"] p[aria-live]')!.className).not.toContain('sr-only')
-    await user.click(pill())
+    const title = document.querySelector('[data-ladder] > [data-results-title]')!
+    expect(title).not.toBeNull()
+    await waitFor(() => expect(title.querySelector('p[aria-hidden]')!.textContent).toBe('5 listings'))
+    const results = document.getElementById('results')!
+    expect(results.getAttribute('data-results-hidden')).not.toBeNull()
+    expect(results.className).toContain('max-sm:sr-only')
+    // The live count is still the result line's own (not the home's mask-gated sr-only), inside #results.
+    const live = results.querySelector('[data-slot="result-line"] p[aria-live]')!
+    expect(live).not.toBeNull()
+    expect(live.className).not.toContain('sr-only')
+    expect(cluster()).toBeNull()
+    await user.click(within(document.getElementById('explorer-toolbar')!).getByRole('combobox', { name: /View/ }))
     const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
     expect(options).toEqual(['List view', 'Grid view', 'Video view'].filter((o) => options.includes(o)))
     expect(options).not.toContain('Map view')

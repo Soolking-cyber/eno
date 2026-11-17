@@ -21,6 +21,7 @@ import { fillTemplate } from '@/lib/i18n/placeholders'
 import { ICON_SIZE, STROKE_UI } from '@/lib/icon-tokens'
 import { hapticConfirm } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
+import { SELECTED_ROW } from '@/components/ui/chip-style'
 
 /**
  * ── <MarkSoldSheet> — the SELLER's half of the trade loop ────────────────────────────────────
@@ -186,6 +187,9 @@ const buyerValue = (id: string) => `${BUYER_PREFIX}${id}`
 const MAGNITUDE_FACTOR = 5
 
 const ROW = 'flex w-full items-center justify-start gap-3 whitespace-normal rounded-xl border px-3 py-2.5 text-left transition-colors'
+// The picked row: the selected grey under ink, its edge the same grey (owner, 2026-11-17: "Grey everywhere" — it was a brand
+// edge on the blue accent tint). The dot keeps its own look.
+const ROW_PICKED = SELECTED_ROW
 
 export function MarkSoldSheet({
   open,
@@ -532,7 +536,7 @@ function MarkSoldForm({
                 value={value}
                 className={cn(
                   ROW,
-                  choiceValue === value ? 'border-brand bg-accent' : 'border-border hover:bg-muted',
+                  choiceValue === value ? ROW_PICKED : 'border-border hover:bg-muted',
                 )}
               >
                 <RadioDot />
@@ -553,8 +557,10 @@ function MarkSoldForm({
           <Radio
             value={OFF_PLATFORM_VALUE}
             className={cn(
+              // `icon-own-ink`: the person glyph keeps the coin's ink when picked, not the global pressed blue (globals.css).
               ROW,
-              isOffPlatform ? 'border-brand bg-accent' : 'border-border hover:bg-muted',
+              'icon-own-ink',
+              isOffPlatform ? ROW_PICKED : 'border-border hover:bg-muted',
             )}
           >
             <RadioDot />

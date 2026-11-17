@@ -15,6 +15,7 @@ import { CategoryIcon } from './category-icons'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { cn } from '@/lib/utils'
+import { WELL_PICK } from '@/components/ui/chip-style'
 import { Button } from '@/components/ui/button'
 import { CloseButton } from '@/components/ui/close-button'
 import { Chip } from '@/components/ui/chip'
@@ -1987,7 +1988,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     <Radio
                       key={v}
                       value={v}
-                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors', intent === v ? 'bg-primary text-white' : 'text-body hover:text-foreground')}
+                      // The pick: the well's pick on the tint track — ui/segmented's white pill with its shadow, one step up and no
+                      // shadow in dark, where the canvas is darker than the track (ui/chip-style WELL_PICK; owner, 2026-11-17: "Grey
+                      // everywhere" → /post "Yes, follow it"; it was the blue fill).
+                      className={cn('rounded-lg px-4 py-1.5 text-sm font-bold transition-colors', intent === v ? WELL_PICK : 'text-body hover:text-foreground')}
                     >
                       {v === 'sell' ? t('Bán', 'For sale') : t('Cho thuê', 'For rent')}
                     </Radio>
@@ -2098,14 +2102,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       // Same target recipe as <Chips> (post-wizard-parts): py-2.5 draws 40px, tap-44
                       // adds 2px each way — inside the row's 8px gap, so no chip reaches another.
                       // `icon-own-ink`: the selected pill is a solid fill, so its glyph takes the label's own
-                      // light ink instead of the global accent recolour — accent on the blue fill measured
+                      // ink instead of the global accent recolour (pressed blue) — accent on the old blue fill measured
                       // rgb(10,102,194) on rgb(10,102,194), an invisible icon (owner, 2026-09-27).
-                      // ⛔ THE PICK IS INK ON A PHONE IN A BROWSER (`post-bar`; owner-approved 2026-11-16, hub Q15: "ink
-                      // for a picked /post chip"; cook r12 post-r12c): the same fill as <Chips>' pick, so the form has one
-                      // selected look there. This grid alone keeps WRAPPING (it is the form's first choice, read whole);
-                      // from sm up, and in the store apps, the 09-27 blue stays. Resting `bg-tint` pill, same states as
-                      // <Chips> — see the note there.
-                      className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-primary text-white post-bar:bg-foreground post-bar:font-bold post-bar:text-background' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
+                      // ⛔ THE PICK IS THE SELECTED GREY, AT EVERY WIDTH AND IN THE STORE APPS (owner, 2026-11-17: "Grey
+                      // everywhere" → "Yes, follow it" for /post — it reverses hub Q15's ink pick of 11-16 on a phone and
+                      // the 09-27 blue fill everywhere else): `line-strong` under an ink bold label, its glyph filled in
+                      // ink; the same as <Chips>' pick, so the form has one selected look. This grid alone keeps WRAPPING
+                      // (it is the form's first choice, read whole). Resting `bg-tint` pill, same states as <Chips> — see
+                      // the note there.
+                      className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors tap-44', categorySlug === c.slug ? 'bg-line-strong font-bold text-foreground' : 'bg-tint text-body hover:text-foreground')}
                     >
                       {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
                           when selected, not as default"). `selected` is the SAME boolean that
@@ -2120,7 +2125,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                         name={c.icon}
                         stroke={STROKE_UI}
                         selected={categorySlug === c.slug}
-                        className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white post-bar:text-background' : 'text-body')}
+                        className={cn('h-4 w-4', categorySlug === c.slug ? 'text-foreground' : 'text-body')}
                       />
                       {tr(c.name, c.nameVi)}
                     </Button>
@@ -2139,7 +2144,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                         setMoreCatsOpen(true)
                         requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-category-grid] [data-cat-slug="${first}"]`)?.focus({ preventScroll: true }))
                       }}
-                      className="relative gap-1.5 rounded-full bg-tint px-4 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground tap-44"
+                      className="relative gap-1.5 rounded-full bg-tint px-4 py-2.5 text-sm font-semibold text-body transition-colors hover:text-foreground tap-44"
                     >
                       {t('Khác…', 'More…')}
                     </Button>

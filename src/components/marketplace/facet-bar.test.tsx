@@ -299,8 +299,9 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
     /**
      * ⚠️ THE STATE EVERY OTHER TEST IN THIS FILE MISSES, and a reviewer was right to say so: they
      * all render the released state ('all'), so the selected branch of <ChipCount> — the one that
-     * has to survive `segBtn`'s `bg-primary text-white` fill — was never rendered. `text-ink-4` on
-     * brand blue is unreadable, so the counter switches to `text-white/80` exactly here.
+     * has to survive `segBtn`'s selected fill — was never rendered. That fill is the selected grey
+     * (`line-strong`, owner 2026-11-17: "Grey everywhere"; it was `bg-primary text-white` under a
+     * `text-white/80` count), and `text-ink-4` would sink into it, so the counter steps to `text-ink-3`.
      */
     const user = userEvent.setup()
     renderIn('en', <FacetBar {...props({ conditionFilter: 'used', facetCounts: COUNTS })} />)
@@ -309,16 +310,50 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
     const used = screen.getByRole('button', { name: /^Used/ })
     expect(used.getAttribute('aria-pressed')).toBe('true')
     expect(shown(used)).toBe('Used1.2k')
-    expect(used.querySelector('[aria-hidden="true"]')?.className).toContain('text-white/80')
+    // The selected chip: the selected grey under an ink label, its border kept but transparent — never the filled blue.
+    const usedCls = used.className.split(/\s+/)
+    expect(usedCls).toEqual(expect.arrayContaining(['border', 'border-transparent', 'bg-line-strong', 'text-foreground', 'hover:bg-line-strong']))
+    for (const gone of ['border-brand', 'bg-primary', 'text-white']) expect(usedCls, gone).not.toContain(gone)
+    const usedCount = used.querySelector('[aria-hidden="true"]')!.className.split(/\s+/)
+    expect(usedCount).toContain('text-ink-3')
+    expect(usedCount).not.toContain('text-white/80')
 
     // The unselected sibling keeps the muted ink, and its count is still there.
     const fresh = screen.getByRole('button', { name: /^New \/ Like new/ })
     expect(fresh.getAttribute('aria-pressed')).toBe('false')
     expect(fresh.querySelector('[aria-hidden="true"]')?.className).toContain('text-ink-4')
+    expect(fresh.className.split(/\s+/)).toEqual(expect.arrayContaining(['border-line-strong', 'text-body']))
+    expect(fresh.className.split(/\s+/)).not.toContain('bg-line-strong')
 
     // …and the picked chip carries its OWN bucket, never the group's total: `condition.all` is
     // 1400 here and nothing on this chip says so.
     expect(shown(used)).not.toContain('1.4k')
+  })
+
+  it('an applied Area or Filter pill and a picked panel select wear the selected grey, glyphs in ink — never the accent (owner 2026-11-17, "Grey everywhere")', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...props({ province: { code: '01', name: 'Hà Nội', nameEn: 'Ha Noi' }, conditionFilter: 'used', customFilters: { color: 'black' } })} />)
+    const tokens = (el: Element | null | undefined) => (el?.getAttribute('class') ?? '').split(/\s+/)
+
+    // The Area pill, a place applied: PILL_ON's grey, and its pin the label's ink.
+    const area = screen.getByRole('button', { name: /^Ha Noi$/ })
+    expect(tokens(area)).toEqual(expect.arrayContaining(['bg-line-strong', 'text-foreground', 'border-transparent']))
+    const pin = tokens(area.querySelector('svg'))
+    expect(pin).toContain('text-foreground')
+    for (const gone of ['text-accent-foreground', 'text-ink-4']) expect(pin, gone).not.toContain(gone)
+
+    // The Filter pill, filters applied: the same, its sliders glyph in ink.
+    const filter = screen.getByRole('button', { name: /^Filter/ })
+    expect(tokens(filter)).toEqual(expect.arrayContaining(['bg-line-strong', 'text-foreground']))
+    const sliders = tokens(filter.querySelector('svg'))
+    expect(sliders).toContain('text-foreground')
+    for (const gone of ['text-accent-foreground', 'text-ink-4']) expect(sliders, gone).not.toContain(gone)
+
+    // A picked select in the panel (Color: Black): the selected grey with no edge, never the accent ink under an accent hairline.
+    const panel = await openPanel(user)
+    const color = within(panel).getByRole('combobox', { name: /Color/ })
+    expect(tokens(color)).toEqual(expect.arrayContaining(['border-transparent', 'bg-line-strong', 'text-foreground']))
+    for (const gone of ['text-accent-foreground', 'border-accent-foreground/35', 'bg-accent']) expect(tokens(color), gone).not.toContain(gone)
   })
 
   it('leaves a facet with no counted dimension exactly as countless as it was', async () => {

@@ -146,7 +146,7 @@ describe('recentSearchTerms — no duplicate chips (gate 2026-09-30)', () => {
   })
 })
 
-describe('the category one-row mark (owner, 2026-11-16, hub Q17) — a cold category feed paints its one control row from the first frame', () => {
+describe('the one-row mark (owner, 2026-11-16, hub Q17; every phone feed one row since 2026-11-17) — a cold fold that names a rung paints its one control row from the first frame', () => {
   const marks = (search: string) => runScript(search).attrs.has(CAT_ROW_ATTR)
   it('the script marks exactly what explorerUrlCatRow says', () => {
     const urls = ['?category=electronics', '?category=rentals', '?category=rentals&subcategory=apartment-rental', '?category=rentals&district=q1',
@@ -154,20 +154,53 @@ describe('the category one-row mark (owner, 2026-11-16, hub Q17) — a cold cate
       '?category=electronics&q=%20', '?category=electronics&brand=apple', '?category=electronics&brand=all', '?category=electronics&model=x',
       '?category=electronics&model=all', '?category=teachers', '?category=jobs', '?category=all', '?category=', '?q=iphone', '?brand=apple',
       '?subcategory=apartment-rental', '', '?sort=recent', '?category=all&category=electronics', '?category=electronics&category=all',
-      '?category=electronics&view=map', '?category=electronics&view=compact']
+      '?category=electronics&view=map', '?category=electronics&view=compact',
+      // every rung alone, words beside a rung, Teachers and Jobs with their own filters (owner 2026-11-17)
+      '?model=iphone-15', '?brand=%20apple%20', '?brand=all', '?model=all', '?subcategory=all', '?category=all&brand=apple',
+      '?category=all&subcategory=apartment-rental', '?category=all&q=iphone', '?brand=apple&q=case', '?q=iphone&model=iphone-15',
+      '?category=electronics&brand=apple&model=iphone-15&q=case', '?category=jobs&q=english', '?category=teachers&district=q1',
+      '?category=jobs&sort=price-low', '?category=teachers&view=map',
+      // rung-less folds and unfolded links
+      '?view=compact', '?view=map', '?line=pro', '?district=q1', '?priceMin=100', '?type=free', '?condition=used', '?deal=good',
+      '?province=79', '?view=grid', '?ref=email', '?utm_source=zalo', '?category=%20&sort=price-low',
+      // the first value of each rung decides, as the explorer reads it
+      '?brand=all&brand=apple', '?brand=apple&brand=all', '?model=all&model=x', '?subcategory=x&subcategory=all']
     for (const u of urls) expect(marks(u), u).toBe(explorerUrlCatRow(u))
+    // the script's rung list is the four ladder keys, the chip's words come from the deepest one
+    expect(PREPAINT_SCRIPT).toContain(JSON.stringify(['category', 'subcategory', 'brand', 'model']))
   })
-  it('a category with no words, no brand and no model; never Teachers or Jobs (their row leads with the teacher door)', () => {
-    expect(explorerUrlCatRow('?category=electronics')).toBe(true)
-    expect(explorerUrlCatRow('?category=rentals&subcategory=apartment-rental')).toBe(true)
-    expect(explorerUrlCatRow('?category=rentals&district=q1&priceMax=9000000')).toBe(true)
-    expect(explorerUrlCatRow('?category=electronics&q=iphone')).toBe(false)
-    expect(explorerUrlCatRow('?category=electronics&brand=apple')).toBe(false)
-    expect(explorerUrlCatRow('?category=electronics&model=iphone-15')).toBe(false)
-    expect(explorerUrlCatRow('?category=teachers')).toBe(false)
-    expect(explorerUrlCatRow('?category=jobs')).toBe(false)
-    expect(explorerUrlCatRow('?category=all')).toBe(false)
-    expect(explorerUrlCatRow('?q=iphone')).toBe(false)
+  it('every fold that names a category, subcategory, brand or model — words allowed, Teachers and Jobs too (owner 2026-11-17, "every phone feed one row"); never a rung-less or unfolded link', () => {
+    for (const u of ['?category=electronics', '?category=rentals&subcategory=apartment-rental', '?category=rentals&district=q1&priceMax=9000000',
+      '?category=electronics&q=iphone', '?category=electronics&brand=apple', '?category=electronics&model=iphone-15',
+      '?category=teachers', '?category=jobs', '?brand=apple', '?subcategory=apartment-rental', '?model=iphone-15', '?category=all&brand=apple'])
+      expect(explorerUrlCatRow(u), u).toBe(true)
+    for (const u of ['?category=all', '?q=iphone', '?category=all&q=iphone', '?brand=all&q=iphone', '?view=compact', '?line=pro', '?district=q1',
+      '', '?ref=email', '?sort=price-low', '?view=grid', '?category=', '?category=%20&sort=price-low', '?category=all&category=electronics'])
+      expect(explorerUrlCatRow(u), u).toBe(false)
+  })
+  it('the script sets it, with the fold, for ?brand=apple (no category), ?category=electronics&q=iphone, ?category=jobs and ?category=teachers', () => {
+    for (const u of ['?brand=apple', '?category=electronics&q=iphone', '?category=jobs', '?category=teachers']) {
+      const { attrs } = runScript(u)
+      expect(attrs.has(FOLD_ATTR), u).toBe(true)
+      expect(attrs.has(CAT_ROW_ATTR), u).toBe(true)
+    }
+  })
+  it('the script never sets it for an unfolded link, nor for a fold that names no rung (words alone, a list view, a district, `all`)', () => {
+    for (const u of ['', '?ref=email', '?sort=price-low', '?view=grid', '?utm_source=zalo', '?category=%20&sort=price-low']) {
+      const { attrs } = runScript(u)
+      expect(attrs.has(FOLD_ATTR), u).toBe(false)
+      expect(attrs.has(CAT_ROW_ATTR), u).toBe(false)
+    }
+    for (const u of ['?q=iphone', '?view=compact', '?view=map', '?district=q1', '?line=pro', '?category=all&q=iphone', '?brand=all&q=iphone', '?category=all&category=electronics&q=x']) {
+      const { attrs } = runScript(u)
+      expect(attrs.has(FOLD_ATTR), u).toBe(true)
+      expect(attrs.has(CAT_ROW_ATTR), u).toBe(false)
+    }
+  })
+  it('its rung loop declares no global (the script is inline, sloppy-mode)', () => {
+    const before = new Set(Object.getOwnPropertyNames(globalThis))
+    for (const u of ['?brand=apple', '?category=jobs&q=english', '?q=iphone', '']) runScript(u)
+    expect(Object.getOwnPropertyNames(globalThis).filter((k) => !before.has(k))).toEqual([])
   })
   it('only with the fold mark (no fold, no row), and the 15 s net lifts it with the fold', () => {
     const { attrs, timers } = runScript('?category=rentals')

@@ -341,7 +341,7 @@ describe('SellerListings on a phone: a sort pill, the Filters chip and the count
     expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).toContain('max-sm:hidden')
   })
 
-  it('the pill rests white on the page\'s own order (ink fill otherwise, 2026-11-14), and is the same scoped query as the tabs for any other', async () => {
+  it('the pill rests white on the page\'s own order (the selected grey otherwise — owner 2026-11-17, "Grey everywhere"), and is the same scoped query as the tabs for any other', async () => {
     const user = userEvent.setup()
     const urls = stubFetch(() => ({ listings: [CHEAPEST], total: 63730 }))
     renderCategory()
@@ -354,7 +354,9 @@ describe('SellerListings on a phone: a sort pill, the Filters chip and the count
     await waitFor(() => expect(urls.length).toBe(1))
     expect(urls[0].searchParams.get('category')).toBe('electronics')
     expect(urls[0].searchParams.get('sort')).toBe('popular')
-    await waitFor(() => expect(tokens(pill())).toContain('bg-foreground'))
+    await waitFor(() => expect(tokens(pill())).toEqual(expect.arrayContaining(['pill-on', 'bg-line-strong', 'text-foreground'])))
+    expect(tokens(pill())).not.toContain('bg-foreground')
+    expect(tokens(pill())).not.toContain('text-background')
     expect(pill().textContent).toContain('Most contacted')
   })
 

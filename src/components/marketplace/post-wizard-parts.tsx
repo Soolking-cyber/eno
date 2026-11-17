@@ -439,13 +439,15 @@ function revealChip(row: HTMLElement, chip: HTMLElement, instant: boolean) {
  *  ⛔ A LIST `value` MAKES IT A MULTI-PICK ROW (apartment amenities, owner 2026-10-20): several chips pressed at once, each
  *  its own aria-pressed toggle — the Filter panel's multi chips (facet-bar.tsx), in this form's chip style. `onPick`
  *  still names the one option tapped; the caller toggles it in or out of the list.
- *  ⛔ ONE SWIPE ROW ON A PHONE, THE PICK IN INK (owner-approved 2026-11-16 on the hub, Q22 + Q15: "ink for a picked /post
- *  chip"; cook r12 post-r12c). On a phone in a browser (`post-bar`) every chip group that goes through here (listing type, subcategory, condition, the
+ *  ⛔ ONE SWIPE ROW ON A PHONE (owner-approved 2026-11-16 on the hub, Q22; cook r12 post-r12c). On a phone in a browser
+ *  (`post-bar`) every chip group that goes through here (listing type, subcategory, condition, the
  *  facets, amenities) is one horizontal row bled to the screen edges: whole chips, no fade, no arrow, 4px above and below
- *  so the overflow clip leaves tap-44's 2px reach whole (chip-style.ts's scroller rule). The picked chip is the ink fill
- *  with a white 14/700 label, and it is brought into view — when a single pick changes (a tap, AI autofill, a restored
- *  draft), on a tap in a multi-pick row, and on mount. The category grid keeps wrapping (post-wizard.tsx). From sm up, and
- *  in the store apps, the row wraps and the pick stays the 09-27 blue. */
+ *  so the overflow clip leaves tap-44's 2px reach whole (chip-style.ts's scroller rule). The picked chip is brought into
+ *  view — when a single pick changes (a tap, AI autofill, a restored draft), on a tap in a multi-pick row, and on mount.
+ *  The category grid keeps wrapping (post-wizard.tsx). From sm up, and in the store apps, the row wraps.
+ *  ⛔ THE PICK IS THE SELECTED GREY, AT EVERY WIDTH AND IN THE STORE APPS (owner, 2026-11-17: "Grey everywhere" → "Yes,
+ *  follow it" for /post): `line-strong` under an ink 14/700 label (ui/chip-style). It reverses hub Q15's ink fill with a
+ *  white label on a phone (11-16, "ink for a picked /post chip") and the 09-27 blue fill everywhere else. */
 export function Chips({ options, value, onPick }: { options: { value: string; label: string; icon?: string }[]; value: string | readonly string[]; onPick: (v: string) => void }) {
   // ONE predicate for the pill, aria-pressed and the glyph's fill, so the three can never disagree about a chip.
   const on = (v: string) => (typeof value === 'string' ? value === v : value.includes(v))
@@ -479,9 +481,9 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           }}
           // py-2.5 + tap-44: 40px drawn, 44px hit. The 2px the pseudo reaches past each edge sits
           // inside the row's 8px gap, so no chip's hit area ever lands on its neighbour's.
-          // `icon-own-ink`: the picked pill is a solid fill (ink on a phone in a browser, blue elsewhere), so the glyph keeps
-          // the label's own light ink rather than the global accent recolour, which on the blue was the pill's own colour
-          // (owner, 2026-09-27).
+          // `icon-own-ink`: the picked pill is a solid fill (the selected grey — owner, 2026-11-17, "Grey everywhere"), so the
+          // glyph keeps the label's own ink rather than the global accent recolour (pressed blue), which on the old blue fill
+          // was the pill's own colour (owner, 2026-09-27).
           // ⚠️ A RESTING `bg-tint` PILL, NOT TRANSPARENT. The borderless sweep flattened these to
           // bare text on the canvas, so an unpicked option had no edge at all and a row of them read
           // as a sentence rather than as choices. Canon §2 says chips are `rounded-full`, and §3b
@@ -489,7 +491,7 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           // No border: a canon-token border cannot reach 1.4.11's 3:1 on this canvas (line-strong
           // measures ~1.4:1), and the visible label is what identifies the control.
           // `post-bar:shrink-0`: in the phone's swipe row a chip keeps its whole width and the row scrolls instead.
-          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44 post-bar:shrink-0', on(o.value) ? 'bg-primary text-white post-bar:bg-foreground post-bar:font-bold post-bar:text-background' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
+          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44 post-bar:shrink-0', on(o.value) ? 'bg-line-strong font-bold text-foreground' : 'bg-tint text-body hover:text-foreground')}
         >
           {o.icon && (
             // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").

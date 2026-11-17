@@ -348,8 +348,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // ⚠️ FLAT, BETWEEN HAIRLINES (2026-11-07 audit): the list draws a rule between rows (listings-client.tsx), so the row has no
   // radius (a rounded box bends its rule up at the corners) and, below lg, no side padding: the photo starts on the edge the
   // greeting, the stats and the status filter start on. From lg the hover band keeps its px-3.
+  // A SELECTED row (select mode) is the selected grey band (owner, 2026-11-17: "Grey everywhere" — it was the blue accent
+  // tint); a muted line in it (the price's unit) steps up to ink-3, as `muted-foreground` on `line-strong` is 4.46:1.
   return (
-    <div className={cn('flex gap-3 py-3 transition-colors lg:items-center lg:gap-4 lg:px-3', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+    <div className={cn('flex gap-3 py-3 transition-colors lg:items-center lg:gap-4 lg:px-3', selected ? 'bg-line-strong [&_.text-muted-foreground]:text-ink-3 [&_.text-ink-4]:text-ink-3' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
       {selectable ? (
         <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24" aria-label={title}>

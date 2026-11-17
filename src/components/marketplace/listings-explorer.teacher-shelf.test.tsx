@@ -494,7 +494,7 @@ describe('the home page\'s phone lanes', () => {
   })
 
   // ⛔ The undirected home's phone category row is pills (build 7, category-rail.tsx `pills`) exactly where the lanes are: never on
-  // a storefront, and not once the feed is directed (where a phone folds the row into its compact panel).
+  // a storefront, and not once the feed is directed (where a phone folds the row into the ladder its scope chip opens).
   it('asks the category rail for pills on the undirected home only', async () => {
     mount(newClient(), homeProps)
     expect(screen.getAllByTestId('category-rail').every((r) => r.hasAttribute('data-pills'))).toBe(true)
@@ -529,8 +529,9 @@ describe('the home page\'s phone lanes', () => {
 
   // ⛔ Build 8: the pills pin under the header while the lanes scroll and let go with the last lane — their sticky box is the
   // ladder's head (the slot, the recents row, the lanes), and the feed's sticky strip is outside it. The header stays put
-  // while the lanes are drawn (use-header-pin.ts), and slides again once the feed is directed.
-  it('the ladder\'s head holds the category row and the lanes — not the toolbar; the header is pinned while the lanes are drawn', async () => {
+  // while the lanes are drawn (use-header-pin.ts), and slides again once the feed is directed. Directed, a phone draws the title
+  // line in the head's place (every phone feed one row, owner 2026-11-17); from sm the head stays, holding only the slot.
+  it('the ladder\'s head holds the category row and the lanes — not the toolbar; the header is pinned while the lanes are drawn; directed, a phone\'s title line takes its place (every phone feed one row)', async () => {
     const { useHeaderPinned } = await import('@/hooks/use-header-pin')
     const Probe = () => <i data-testid="pin-probe" data-pinned={String(useHeaderPinned())} />
     mount(newClient(), homeProps)
@@ -547,14 +548,28 @@ describe('the home page\'s phone lanes', () => {
     render(<Probe />)
     // The explorer is gone: nothing pins the header.
     expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
-    // A feed that keeps its compact row (Jobs — its teacher door; since 2026-11-16 a bare category feed opens on the goods
-    // search's title line instead, owner hub Q17 — listings-explorer.tsx `catRow`).
+    // Directed on a phone: Jobs (its teacher door) opens on the one row too since 2026-11-17 (owner: "make sure mobile top
+    // navigation is consistent" — listings-explorer.tsx `oneRow`): the title line is the ladder's first child, in the head's place.
     window.history.replaceState({}, '', '/?category=jobs')
     mount(newClient(), homeProps)
     await waitFor(() => expect(document.querySelector('[data-home-lanes]')).toBeNull())
     expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
-    // Directed, the head is still there (nothing remounts), holding only the slot.
-    expect(document.querySelector('[data-ladder] > [data-ladder-head]')).not.toBeNull()
+    await waitFor(() => expect(document.querySelector('[data-ladder] > [data-results-title]')).not.toBeNull())
+    expect(document.querySelector('[data-ladder]')!.firstElementChild!.hasAttribute('data-results-title')).toBe(true)
+    expect(document.querySelector('[data-ladder] > [data-ladder-head]')).toBeNull()
+    expect(document.querySelector('[data-slot="ladder-compact-row"]')).toBeNull()
+    cleanup()
+    __resetExplorerCommittedForTests()
+    // From sm (below md, where a directed feed still folds): the head is still there (nothing remounts), holding only the slot.
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(min-width: 40rem)', media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
+    render(<Probe />)
+    mount(newClient(), homeProps)
+    await waitFor(() => expect(document.querySelector('[data-slot="ladder-compact-row"]')).not.toBeNull())
+    expect(screen.getByTestId('pin-probe').getAttribute('data-pinned')).toBe('false')
+    const smHead = document.querySelector('[data-ladder] > [data-ladder-head]')
+    expect(smHead).not.toBeNull()
+    expect(smHead!.contains(document.querySelector('[data-slot="ladder-compact-row"]'))).toBe(true)
+    expect(document.querySelector('[data-results-title]')).toBeNull()
   })
 
   it('in the server HTML, hydrating with no recoverable error', async () => {

@@ -49,7 +49,8 @@ type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
  * rule ("THE GOODS STRIPS' PILLS ARE FILLED") keys on `#explorer-toolbar` / `[data-pinned-strip]`, which an in-flow strip is
  * not, so its values ride the pill itself. At rest the field grey with no edge (the 1px kept, transparent), the ⌄ `ink-3`,
  * pressed or hovered a step deeper (`--secondary`); open, the same step deeper (CustomSelect drops `activeClassName` while
- * open, so that half is on the trigger's own class). An applied order keeps PILL_ON's ink fill. Every value is the rule's,
+ * open, so that half is on the trigger's own class). An applied order wears PILL_ON's selected grey (`line-strong`, ink label —
+ * owner, 2026-11-17: "Grey everywhere"; it was the ink fill). Every value is the rule's,
  * and every variant here is emitted after the PILL_* one it overrides (checked against Tailwind's compiled order).
  */
 const FILLED_PILL_REST = 'max-sm:border-transparent max-sm:bg-muted max-sm:hover:bg-secondary max-sm:active:bg-secondary max-sm:[&_svg]:text-ink-3'
@@ -223,7 +224,8 @@ export function SellerListings({
    * `end` (Filters) as 44px round ICON buttons at the end of its first line, then `subhead` (the city chips), then the rows.
    * It reverses, there, three rulings:
    *   · "THE PHONE SORTS WITH A PILL" (owner 2026-10-18) — partly: the same CustomSelect and the same bottom sheet, icon-only, its
-   *     words visually hidden and still its name ("Sort by, Relevance"); the ink fill marks a sort other than the page's own;
+   *     words visually hidden and still its name ("Sort by, Relevance"); PILL_ON's selected grey marks a sort other than the
+   *     page's own (owner, 2026-11-17: "Grey everywhere" — it was the ink fill);
    *   · "THE COUNT RIDES THE PHONE'S SORT ROW" (owner 2026-10-18): the count is announced (the sr-only live copy, as under
    *     `phoneOneRow`) but not printed — the city row's "All 54" and Show more say it;
    *   · the pinned strip (UI climb 2026-11-09): the controls ride the heading and scroll away with it; the strip is
@@ -284,7 +286,8 @@ export function SellerListings({
    * the sort pill naming its order"; review 2026-11-16: the path storefront, seller-storefront.tsx, still drew the white strip
    * while /s/[handle]'s explorer strip is filled — ListingsExplorer hands its toolbar `look="goods"` on a storefront). Below sm,
    * the goods strip's look and nothing else of `look`: the sort pill names the page's own order with no glyph, filled pills
-   * (the field grey with no edge, a step deeper pressed, hovered or open; another order keeps the ink fill), and no rule under
+   * (the field grey with no edge, a step deeper pressed, hovered or open; another order wears PILL_ON's selected grey — owner,
+   * 2026-11-17: "Grey everywhere"; it was the ink fill), and no rule under
    * the strip. The cards stay the shop's own, not the goods card. From sm nothing changes.
    * ⚠️ The path storefront's own order IS the newest — seller-storefront.tsx orders its rows by `postedAt` desc, `id` desc, the
    * API's 'recent' (feed-query.ts buildFeedOrderBy) — so it names it "Newest" (`initialSort="recent"`); /s/[handle]'s explorer
@@ -527,7 +530,8 @@ export function SellerListings({
    * storefronts). Below sm the underline tabs were a scroller that cut "Most contacted" at the Filters link; the
    * row is now the explorer's phone row — the sort pill (the same five orders through the same Base UI select),
    * then `stripEnd` (/c's Filters, a chip there), then the count. From sm the tablist is unchanged.
-   * The pill rests on the tint while the page's own order is on, and takes the brand tint for any other.
+   * The pill rests (PILL_REST) while the page's own order is on, and wears PILL_ON's selected grey for any other (owner,
+   * 2026-11-17: "Grey everywhere" — the ink fill from 2026-11-14, the brand tint before).
    * ⚠️ EXCEPT UNDER `phoneHead` (owner-approved 2026-11-14, cook r06 jobs — /c/jobs below sm): the same select, as an icon-only
    * round button on the heading line (`headSortPill`); the strip, with this pill in it, is not drawn below sm there.
    */
@@ -566,7 +570,8 @@ export function SellerListings({
     />
   )
   // `phoneHead`: the same select as a 44px round icon button on the heading line — its glyph 20px in ink (the arrows say a
-  // price sort's direction), its words its name only, no ⌄. The ink fill (PILL_ON) is a sort other than the page's own.
+  // price sort's direction), its words its name only, no ⌄. PILL_ON's selected grey is a sort other than the page's own (owner,
+  // 2026-11-17: "Grey everywhere" — it was the ink fill).
   const headSortPill = phoneHead ? (
     <CustomSelect
       value={sort}

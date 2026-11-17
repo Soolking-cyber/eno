@@ -135,3 +135,30 @@ describe('/onboard — email and Google accounts are unchanged', () => {
     expect(continueButton().hasAttribute('disabled')).toBe(true)
   })
 })
+
+/**
+ * THE PICKED ACCOUNT TYPE IS THE SELECTED GREY (owner, 2026-11-17: "Grey everywhere" — it was the blue accent surface with a
+ * brand/30 halo and a blue glyph): `line-strong` under ink, the glyph in ink (`icon-own-ink` hands the bold layer the ink
+ * back), the description lifted to ink-3 on it. The selection check keeps its own look.
+ */
+describe('/onboard — the account-type pick', () => {
+  it('is the selected grey under ink; the other card only hovers', async () => {
+    await open(account(['google']))
+    choose('business')
+    const picked = screen.getByRole('radio', { name: /I’m a business/ })
+    const other = screen.getByRole('radio', { name: /I’m an individual/ })
+    expect(picked.getAttribute('aria-checked')).toBe('true')
+    const on = picked.className.split(/\s+/)
+    expect(on).toEqual(expect.arrayContaining(['bg-line-strong', 'text-foreground', 'icon-own-ink']))
+    for (const c of ['bg-accent', 'ring-2', 'ring-brand/30']) expect(on, c).not.toContain(c)
+    const glyph = picked.querySelector('span[aria-hidden]')!
+    expect(glyph.className.split(/\s+/)).toContain('text-foreground')
+    expect(glyph.className).not.toMatch(/text-accent-foreground|fill-brand-100/)
+    expect(picked.querySelector('.text-ink-3')?.textContent).toMatch(/storefront/)
+    expect(picked.querySelector('.text-muted-foreground')).toBeNull()
+    const off = other.className.split(/\s+/)
+    expect(off).toContain('hover:bg-muted')
+    expect(off).not.toContain('bg-line-strong')
+    expect(other.querySelector('.text-muted-foreground')).not.toBeNull()
+  })
+})

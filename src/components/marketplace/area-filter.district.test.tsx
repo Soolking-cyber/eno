@@ -132,6 +132,20 @@ describe('the Area panel’s district list', () => {
     expect(onPickDistrict).toHaveBeenCalledWith('all')
   })
 
+  /** ⛔ GREY EVERYWHERE (owner, 2026-11-17): the picked district is facet-bar's selected segment — no longer the filled blue. */
+  it('paints the picked district the selected grey under an ink label, its border kept but transparent', async () => {
+    renderIn('en', <AreaFilter {...area({ district: 'binh-thanh' })} />)
+    const group = await districtGroup('District (Quận/Huyện)')
+    const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+    const picked = within(group).getByRole('button', { name: 'Binh Thanh District' })
+    expect(picked.getAttribute('aria-pressed')).toBe('true')
+    expect(tokens(picked)).toEqual(expect.arrayContaining(['rounded-lg', 'border', 'px-3', 'py-2', 'text-sm', 'font-semibold', 'border-transparent', 'bg-line-strong', 'text-foreground', 'hover:bg-line-strong']))
+    for (const gone of ['border-brand', 'bg-primary', 'text-white']) expect(tokens(picked), gone).not.toContain(gone)
+    const resting = within(group).getByRole('button', { name: 'District 1' })
+    expect(tokens(resting)).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'text-body', 'hover:bg-muted']))
+    for (const gone of ['bg-line-strong', 'text-foreground']) expect(tokens(resting), gone).not.toContain(gone)
+  })
+
   /**
    * ⚠️ TOGGLE BUTTONS, NOT RADIOS: a Base UI radio selects on arrow-key FOCUS, and a pick here applies
    * and closes — arrowing through the list would apply the first district passed.

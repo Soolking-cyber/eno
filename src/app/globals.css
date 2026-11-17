@@ -253,6 +253,7 @@
      control or chip that sits on a photo, `text-on-plate` for its glyph/label. Theme-invariant — see the tokens in :root. */
   --color-plate-fill: var(--plate-fill);
   --color-on-plate: var(--on-plate);
+  --color-plate-selected: var(--plate-selected);
   /* Brand tokens (Craigslist re-design case study palette) */
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
@@ -725,6 +726,9 @@
   --plate-fill: rgb(255 255 255 / 0.95);
   --plate-fill-hover: #ffffff;
   --on-plate: #141414;
+  /* A plated control once selected (the card's "Check availability" once added): the selected grey, theme-invariant like the
+     plate (owner, 2026-11-17: "Grey everywhere" — it was the ink fill). --on-plate on it is 12.7:1. */
+  --plate-selected: #d6d6d6;
   --destructive: #b91c1c;
   /* Text/icon colour ON a solid destructive surface. It must FLIP with the theme: the
      dark --destructive is a light red (#f7737b), and white on it is only 2.73:1 — so a
@@ -4198,7 +4202,11 @@ html:not(.native) #app-splash {
      rides on the BOLD layer rather than on the <svg>, so it applies exactly when the filled
      weight is showing and never fights a control that paints its own icon — a destructive action
      keeps its red, because that rule targets the svg and this one does not. --accent-foreground
-     re-themes itself (#0060df light, #74b3f2 dark), so this is one token rather than two rules. */
+     re-themes itself (#0060df light, #74b3f2 dark), so this is one token rather than two rules.
+     ⛔ …BUT NOT ON A CHIP, A TOGGLE, A SEGMENT OR A WELL PICK (owner, 2026-11-17: "Grey everywhere"): their selected look is
+     the grey (`line-strong`, ui/chip-style PILL_ON / WELL_PICK, ui/chip) under an INK label, so they carry `icon-own-ink` and
+     the opt-out below hands their glyph the label's ink — never this blue. The blue stays for the tab bar's current tab
+     (`aria-current`) and the other non-chip controls that are selected or open with no fill of their own. */
   color: var(--color-accent-foreground);
 }
 
@@ -4907,8 +4915,8 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
    filter pills after it do not move. Unlayered, so its display:none beats the primitive's `inline-flex` utility.
    …and ahead of it the view circle's (`.view-pick-reserve`, explorer-toolbar.tsx ViewPickReserve, 36px): since
    owner-approved 2026-11-15 (build 7), cook r07 goods, the view pick is the row's first chip, not the title line's last circle.
-   ⚠️ A link the pre-paint script folds that the explorer does NOT draw as one row — a brand or a subcategory with no category
-   (`?brand=apple`: a crumb) — paints this way and then gets its row back: a 44px shift, accepted for those rare links. */
+   (A fold that names a rung — `?brand=apple` with no category too — is marked `data-explorer-cat-row` since 2026-11-17 and waits
+   unseen with the rest, below: its chip names the brand.) */
 .scope-chip-reserve,
 .view-pick-reserve {
   display: none;
@@ -4917,8 +4925,10 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
    R2 — ui/chip-style.ts has the rule, and which strips: not a storefront's or a vehicle hub's, which never pin). It reverses, below 40rem in every feed strip, the 2026-11-14 white + 1px line-strong pill; build
    8 (owner-approved 2026-11-15, cook r08 goods) had done it for the goods strips alone. A resting pill (`.pill-rest`) is the field
    grey with no edge — the 1px border stays, transparent, so no pill grows and forced colours still outline it — and pressed or
-   open (`:active`, Base UI's `data-popup-open`, PILL_OPEN's `.pill-open`) one step deeper, `--secondary`. An applied pill keeps
-   the ink fill (PILL_ON carries no `.pill-rest`); a pressed toggle (`data-pressed`: Good price's green) is left to its own look.
+   open (`:active`, Base UI's `data-popup-open` and, on the scope chip's Collapsible, `data-panel-open`, PILL_OPEN's `.pill-open`)
+   one step deeper, `--secondary`. An applied pill is PILL_ON's selected grey, `--line-strong` (owner, 2026-11-17: "Grey
+   everywhere" — it was the ink fill; PILL_ON carries no `.pill-rest`), and the step back to `--secondary` while its menu is open;
+   a pressed toggle (`data-pressed`: Good price's green) is left to its own look.
    The strips say so themselves, in their server HTML (`data-pills="filled"`: SortStrip always, PinnedStrip always), so a cold
    link's first frame is already filled — the fold-keyed copies of these selectors, and the cold goods link's sort-label rules,
    went with the goods-only look (SortStrip prints "Relevance" with no ⇅ and no "Sort" on every strip now). Unlayered, so it
@@ -4932,17 +4942,9 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
   :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-rest:not([data-pressed]) svg {
     color: var(--ink-3);
   }
-  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-open, .pill-on[data-popup-open]) {
+  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) :is(.pill-rest:not([data-pressed]):active, .pill-rest[data-popup-open], .pill-rest[data-panel-open], .pill-open, .pill-on[data-popup-open]) {
     border-color: transparent;
     background-color: var(--secondary);
-  }
-}
-/* An APPLIED pill (ink fill, white label) whose menu is open takes the grey above: its label and glyphs go back to ink, or the
-   white label sits on light grey and disappears (review). */
-@media (width < 40rem) {
-  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-on[data-popup-open],
-  :is(#explorer-toolbar[data-pills="filled"], [data-pinned-strip][data-pills="filled"]) .pill-on[data-popup-open] svg {
-    color: var(--foreground);
   }
 }
 @media (width < 40rem) and (hover: hover) {
@@ -4957,9 +4959,9 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
     visibility: hidden;
   }
 }
-/* ⛔ …AND A COLD CATEGORY LINK THE EXPLORER OPENS THE SAME WAY (owner, 2026-11-16, hub Q17 — listings-explorer.tsx `catRow`;
-   the pre-paint script marks it, explorer-url.ts CAT_ROW_ATTR): its results row leaves the box tree too, and `.ladder-row-reserve`'s
-   36px stands in for its title line as above. Its control row cannot be held by a reserve — the chip names the category, a width
+/* ⛔ …AND A COLD LINK THAT NAMES A RUNG OPENS THE SAME WAY (owner, 2026-11-16, hub Q17; every phone feed since 2026-11-17 —
+   listings-explorer.tsx `oneRow`; the pre-paint script marks it, explorer-url.ts CAT_ROW_ATTR): its results row leaves the box tree too, and `.ladder-row-reserve`'s
+   36px stands in for its title line as above. Its control row cannot be held by a reserve — the chip names the rung, a width
    only the explorer knows — so the strip waits unseen (visibility, its box kept) until the commit that draws the chip drops the
    fold mark: the pills paint once, where they stay. */
 @media (width < 40rem) {

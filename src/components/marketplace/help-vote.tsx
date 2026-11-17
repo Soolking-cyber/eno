@@ -97,10 +97,13 @@ export function HelpVote({ id, kind, score, viewerVote, className, size = 'md' }
       aria-pressed={state.voted}
       aria-label={tr('Helpful', 'Hữu ích')}
       className={cn(
-        'press inline-flex shrink-0 items-center gap-1 rounded-full border border-border font-semibold transition-colors',
+        // `icon-own-ink`: the arrow keeps the colour it sets below, not the global pressed blue (globals.css).
+        'icon-own-ink press inline-flex shrink-0 items-center gap-1 rounded-full border border-border font-semibold transition-colors',
         size === 'sm' ? 'h-7 px-2 text-xs' : 'h-8 px-2.5 text-sm',
+        // Voted = the selected grey under an ink label, its edge gone transparent (owner, 2026-11-17: "Grey everywhere" —
+        // it was the brand edge on the blue accent tint). The arrow below stays the user-state mark.
         state.voted
-          ? 'border-brand bg-accent text-accent-foreground'
+          ? 'border-transparent bg-line-strong text-foreground'
           : 'bg-transparent text-body hover:bg-muted',
         className,
       )}

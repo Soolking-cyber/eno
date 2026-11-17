@@ -4,8 +4,10 @@
  * visual change"; cook r12 post-r12c, P1 + P2 + P4 + P5 + P8). On a phone in a browser:
  *   · P1 — the wizard's own Exit link and h1 are one fixed 56px task bar (× + the title), the app header and the subtitle
  *     stand down (the `post-bar` variant in globals.css: below 40rem, in a browser, until the success screen);
- *   · P2 — every option chip group but the category grid is one swipe row; the pick is the ink fill and comes into view,
- *     without ever scrolling the page; multi-pick still presses several;
+ *   · P2 — every option chip group but the category grid is one swipe row; the pick comes into view, without ever
+ *     scrolling the page; multi-pick still presses several. The pick itself is the selected grey (`line-strong`, an ink
+ *     bold label) at EVERY width and in the store apps too — owner, 2026-11-17: "Grey everywhere" → "Yes, follow it" for
+ *     /post; it was the 11-16 ink fill on a phone and the 09-27 blue elsewhere, so it is the one P2 look not on `post-bar`;
  *   · P4 — solid photo tiles and one counter line built from the page's own counts; the hint and the video sentence stay
  *     in #pw-photo-hint, sr-only, so the grid's aria-describedby still reads them;
  *   · P5 — "Needed" hidden (✓ kept), the price type a segmented control, the Urgent hint one line, a guest's Contact said once;
@@ -168,7 +170,7 @@ describe('P1 — the phone task bar', () => {
   })
 })
 
-describe('P2 — option chips: one swipe row each on a phone, the pick in ink', () => {
+describe('P2 — option chips: one swipe row each on a phone, the pick in the selected grey (owner 2026-11-17, "Grey everywhere")', () => {
   const SWIPE = ['post-bar:-mx-3', 'post-bar:max-w-none', 'post-bar:flex-nowrap', 'post-bar:overflow-x-auto', 'post-bar:px-3', 'post-bar:py-1']
 
   it('every chip row in the form swipes; the category grid alone keeps wrapping', () => {
@@ -187,27 +189,43 @@ describe('P2 — option chips: one swipe row each on a phone, the pick in ink', 
     expect(classes(grid).some((c) => c.includes('nowrap') || c.includes('overflow'))).toBe(false)
   })
 
-  it('a picked chip is the ink fill with a white 14/700 label on a phone (the 09-27 blue from sm up), in rows and the grid', () => {
+  // ⛔ The pick's own classes, gone at every width (owner, 2026-11-17, "Grey everywhere"): the 09-27 blue fill and white label,
+  // the 11-16 ink pick on a phone (hub Q15), and the 11-17 first pass that greyed the phone alone. No pick class rides a variant.
+  const OLD_PICK = ['bg-primary', 'text-white', 'post-bar:bg-foreground', 'post-bar:text-background', 'post-bar:bg-line-strong', 'post-bar:text-foreground', 'post-bar:font-bold']
+
+  it('a picked chip is the selected grey with an ink 14/700 label at every width and in the apps, never blue or the ink fill', () => {
     h.auth.user = { id: 'u1' }
     const picked = [...doc(phoneEdit).querySelectorAll('[data-chip-row] button[aria-pressed="true"]')].find((b) => b.textContent === 'Used')!
     expect(picked).toBeTruthy()
-    expect(classes(picked)).toEqual(expect.arrayContaining(['bg-primary', 'text-white', 'post-bar:bg-foreground', 'post-bar:text-background', 'post-bar:font-bold', 'icon-own-ink']))
+    expect(classes(picked)).toEqual(expect.arrayContaining(['bg-line-strong', 'text-foreground', 'font-bold', 'text-sm', 'icon-own-ink', 'post-bar:shrink-0']))
+    for (const c of OLD_PICK) expect(classes(picked), c).not.toContain(c)
+    // the bold pick replaces the resting semibold (tailwind-merge keeps one weight)
+    expect(classes(picked)).not.toContain('font-semibold')
     const resting = doc(phoneEdit).querySelector('[data-chip-row] button[aria-pressed="false"]')!
-    expect(classes(resting)).toEqual(expect.arrayContaining(['bg-tint', 'text-body']))
-    expect(classes(resting)).not.toContain('post-bar:bg-foreground')
+    expect(classes(resting)).toEqual(expect.arrayContaining(['bg-tint', 'text-body', 'font-semibold']))
+    for (const c of ['bg-line-strong', 'font-bold', 'text-foreground']) expect(classes(resting), c).not.toContain(c)
   })
 
-  it('a pick in the category grid is ink on a phone too, glyph included (so dark mode keeps it visible)', () => {
+  it('a pick in the category grid is the selected grey at every width too, glyph in ink (so dark mode keeps it visible)', () => {
     render(<PostWizard categories={CATS} />)
     fireEvent.click(screen.getByRole('button', { name: /Change|Electronics/ }))
     // Picking folds the grid; "Change" reopens it with the pick showing.
     fireEvent.click(screen.getByRole('button', { name: 'Change' }))
     const chip = document.querySelector('[data-category-grid] [data-cat-slug="electronics"]')!
     expect(chip.getAttribute('aria-pressed')).toBe('true')
-    expect(classes(chip)).toEqual(expect.arrayContaining(['post-bar:bg-foreground', 'post-bar:text-background']))
+    expect(classes(chip)).toEqual(expect.arrayContaining(['bg-line-strong', 'font-bold', 'text-foreground', 'icon-own-ink']))
+    for (const c of OLD_PICK) expect(classes(chip), c).not.toContain(c)
     // CategoryIcon's outer node carries the caller's className (h-4 w-4 …)
     const glyph = [...chip.querySelectorAll('*')].find((n) => classes(n).includes('h-4'))!
-    expect(classes(glyph)).toEqual(expect.arrayContaining(['text-white', 'post-bar:text-background']))
+    expect(classes(glyph)).toContain('text-foreground')
+    for (const c of ['text-white', 'post-bar:text-foreground', 'post-bar:text-background']) expect(classes(glyph), c).not.toContain(c)
+    // a resting grid chip is not the pick's grey
+    const resting = document.querySelector('[data-category-grid] [data-cat-slug="rentals"]')!
+    expect(resting.getAttribute('aria-pressed')).toBe('false')
+    expect(classes(resting)).toEqual(expect.arrayContaining(['bg-tint', 'text-body']))
+    expect(classes(resting)).not.toContain('bg-line-strong')
+    const restingGlyph = [...resting.querySelectorAll('*')].find((n) => classes(n).includes('h-4'))!
+    expect(classes(restingGlyph)).toContain('text-body')
   })
 })
 
@@ -393,7 +411,11 @@ describe('P5 — the copy diet', () => {
     const group = screen.getByRole('group', { name: 'Price type' })
     expect(classes(group)).toEqual(expect.arrayContaining(['post-bar:h-11', 'post-bar:max-w-none', 'post-bar:gap-0', 'post-bar:rounded-xl', 'post-bar:bg-tint', 'post-bar:p-1']))
     const [neg, fixed] = [...group.querySelectorAll('button')]
-    expect(classes(neg)).toEqual(expect.arrayContaining(['post-bar:bg-background', 'post-bar:text-foreground', 'post-bar:shadow-sm', 'tap-44', 'relative']))
+    expect(classes(neg)).toEqual(expect.arrayContaining(['post-bar:bg-background', 'post-bar:shadow-sm', 'tap-44', 'relative']))
+    // From sm up and in the apps the pick is the selected grey with an ink label, never the blue fill (owner 2026-11-17).
+    expect(classes(neg)).toEqual(expect.arrayContaining(['bg-line-strong', 'text-foreground']))
+    expect(classes(neg)).not.toContain('bg-primary')
+    expect(classes(neg)).not.toContain('text-white')
     expect(classes(fixed)).toEqual(expect.arrayContaining(['post-bar:bg-transparent', 'post-bar:text-ink-3']))
     // the hints are sr-only, so each stays part of its button's name
     for (const b of [neg, fixed]) expect(classes(b.querySelector('span'))).toContain('post-bar:sr-only')
@@ -567,14 +589,17 @@ describe('parity — every control a guest had on /post is still there', () => {
     expect(screen.getAllByRole('button').some((b) => /Add photos/.test(b.textContent ?? ''))).toBe(true)
   })
 
-  it('⛔ a rentable sale category keeps its For sale / For rent radios EXACTLY as they were — the owner never saw them restyled', () => {
+  it('⛔ a rentable sale category keeps its For sale / For rent radios as they were, but the pick is ui/segmented\'s white pill, not blue (owner 2026-11-17, "Grey everywhere" → /post "Yes, follow it")', () => {
     render(<PostWizard categories={CATS} />)
     fireEvent.click(screen.getByRole('button', { name: /Vehicles/ }))
     const group = screen.getByRole('radiogroup', { name: 'For sale or for rent?' })
     expect(group.getAttribute('class')).toBe('inline-flex rounded-xl bg-tint p-1')
     const sale = screen.getByRole('radio', { name: 'For sale' })
     expect(sale.getAttribute('aria-checked')).toBe('true')
-    expect(classes(sale)).toEqual(expect.arrayContaining(['rounded-lg', 'px-4', 'py-1.5', 'text-sm', 'font-bold', 'bg-primary', 'text-white']))
+    // WELL_PICK: the white pill with its shadow, one step up with no shadow in dark (the canvas is darker than the track there).
+    expect(classes(sale)).toEqual(expect.arrayContaining(['rounded-lg', 'px-4', 'py-1.5', 'text-sm', 'font-bold', 'bg-background', 'text-foreground', 'shadow-sm', 'dark:bg-line-strong', 'dark:shadow-none']))
+    expect(classes(sale)).not.toContain('bg-primary')
+    expect(classes(sale)).not.toContain('text-white')
     for (const r of [sale, screen.getByRole('radio', { name: 'For rent' })])
       expect(classes(r).filter((c) => c.startsWith('post-bar:') || c.startsWith('max-sm:') || c === 'tap-44')).toEqual([])
     expect(classes(screen.getByRole('radio', { name: 'For rent' }))).toEqual(expect.arrayContaining(['text-body', 'hover:text-foreground']))

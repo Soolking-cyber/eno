@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { WELL, WELL_ITEM, WELL_MENU_ITEM, WELL_PICK, WELL_SHEET_PICK } from '@/components/ui/chip-style'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -394,9 +395,11 @@ export function BrandRail({
    * squares the tiles up, which is what a rail of mixed-length wordmarks wanted anyway.
    */
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 label-2lh w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 label-2lh w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-foreground' : 'text-body group-hover:text-foreground')
+  // The model chips: the plate's flat pill on the grey well, the pick a white segment with an ink label (ui/chip-style WELL_* —
+  // owner, 2026-11-17: "Grey everywhere"; it was a raised white card with a blue label on the brand tint).
   const modelChip = (active: boolean) =>
-    cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
+    cn('w-full shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? WELL_PICK : WELL_ITEM)
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
@@ -443,13 +446,15 @@ export function BrandRail({
                   brand MARK — which carries less internal ink than a full-bleed line icon, and is
                   short on wordmark brands (Samsung) — reads as visually the SAME size as the
                   category glyphs beside it. The 4px overflow is centered in the (un-clipped) box. */}
-              <span className="flex h-11 items-center justify-center">
+              {/* The picked brand's disc: the selected grey behind the logo, as the category tile's (owner, 2026-11-17: "Grey
+                  everywhere" — the blue logo and label it replaces were the only cue), the name stepping body → ink with it. */}
+              <span className={cn('flex h-11 w-full items-center justify-center rounded-2xl transition-colors duration-200', isActive && 'bg-line-strong')}>
                 <BrandLogo
                   name={b.name}
                   iconPath={b.iconPath}
                   size={48}
                   flat
-                  className={cn('transition-transform duration-200 group-hover:scale-110', isActive ? '!text-accent-foreground' : '!text-body group-hover:!text-accent-foreground')}
+                  className={cn('transition-transform duration-200 group-hover:scale-110', isActive ? '!text-foreground' : '!text-body group-hover:!text-foreground')}
                 />
               </span>
               {/* ⛔ NO COUNT UNDER THE BRAND NAME (owner, 2026-08-12: "remove counters under
@@ -486,9 +491,10 @@ export function BrandRail({
                     (the real chip height, not h-6). ⚠️ WIDTH can't be matched — the skeleton draws 9 cells
                     (3 columns); a brand that loads with ≤2 models collapses to 1 column, so sparse brands
                     still shift horizontally on load. The box HEIGHT — the owner's complaint — does not. */}
-                <div className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]">
+                <div className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-muted p-1.5 [grid-template-rows:repeat(3,min-content)]">
                   {Array.from({ length: 9 }, (_, i) => (
-                    <Skeleton key={i} className="h-7 w-20 rounded-lg" />
+                    // The placeholder base is the selected grey here: the skeleton's own #efefef on the well's #f3f3f3 is ~1.03:1 (gate, 2026-11-17).
+                    <Skeleton key={i} className="h-7 w-20 rounded-full [--skeleton:var(--line-strong)]" />
                   ))}
                 </div>
               </div>
@@ -519,7 +525,7 @@ export function BrandRail({
                     `min-h-[6.25rem]` (3×28 + 2×2 + p-1.5 ≈ 100px) + `content-center` reserve a stable 3-row
                     height and centre the chips, so every brand's model box is the same size; `items-stretch`
                     + the self-stretch divider match the plate. (column-fill: All first, 7 most-used, More last.) */}
-                <div role="group" aria-label={tr('Models', 'Mẫu')} className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]">
+                <div role="group" aria-label={tr('Models', 'Mẫu')} className={cn('grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl p-1.5 [grid-template-rows:repeat(3,min-content)]', WELL)}>
                   {/* justify-start: the base CENTRES, these chips are full-width text-left rows.
                       gap-0 for the same reason as the model chips below — the count's spacing is
                       its own ml-auto, and the base gap-2 would fight it.
@@ -594,7 +600,7 @@ export function BrandRail({
                               href={hrefFor(mActive ? { ...ladder, brand: activeBrand } : { ...ladder, brand: activeBrand, model: m.model })}
                               onSelect={() => onPickModel(mActive ? 'all' : m.model)}
                               pressed={mActive}
-                              className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
+                              className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? cn(WELL_PICK, WELL_SHEET_PICK) : WELL_MENU_ITEM)}
                             >
                               <span className="truncate">{m.model}</span>
                               <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="shrink-0" />
@@ -605,7 +611,7 @@ export function BrandRail({
                             pressed: mActive,
                             href: null,
                             onSelect: () => onPickModel(mActive ? 'all' : m.model),
-                            className: cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground'),
+                            className: cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? cn(WELL_PICK, WELL_SHEET_PICK) : WELL_MENU_ITEM),
                             children: (
                               <>
                                 <span className="truncate">{m.model}</span>

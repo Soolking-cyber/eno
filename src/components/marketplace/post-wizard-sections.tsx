@@ -604,7 +604,9 @@ export function PriceSection({
                 // the cell is its 52px self the pseudo is just the cell, so nothing changes outside `post-bar`.
                 'relative block h-full w-full whitespace-normal rounded-xl px-3.5 py-2 text-left text-sm font-semibold transition-colors cursor-pointer tap-44',
                 'post-bar:flex post-bar:items-center post-bar:justify-center post-bar:rounded-lg post-bar:py-0 post-bar:text-center post-bar:text-t-card',
-                negotiable === opt.val ? 'bg-primary text-white post-bar:bg-background post-bar:text-foreground post-bar:shadow-sm' : 'bg-tint text-body hover:bg-muted post-bar:bg-transparent post-bar:text-ink-3',
+                // The pick is the selected grey from sm up and in the apps, the track's white pill with its shadow on a phone in a browser
+                // (owner, 2026-11-17: "Grey everywhere" → /post "Yes, follow it"; it was the blue fill outside `post-bar`).
+                negotiable === opt.val ? 'bg-line-strong text-foreground post-bar:bg-background post-bar:shadow-sm' : 'bg-tint text-body hover:bg-muted post-bar:bg-transparent post-bar:text-ink-3',
               )}
             >
               {opt.label}

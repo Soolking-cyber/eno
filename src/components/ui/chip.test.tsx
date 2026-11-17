@@ -49,13 +49,20 @@ describe('Chip', () => {
     expect(chipVariants({})).toContain('bg-tint')
   })
 
-  it('the md neutral chip is the browse chip (owner-approved 2026-11-14): white + hairline, ink fill pressed — one background', () => {
+  it('the md neutral chip is the browse chip: white + hairline, the selected grey pressed (owner 2026-11-17, "Grey everywhere") — one background', () => {
     const md = chipVariants({ size: 'md' }).split(/\s+/)
-    expect(md).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground', 'font-bold', 'data-pressed:bg-foreground', 'data-pressed:text-background', 'icon-own-ink']))
+    expect(md).toEqual(expect.arrayContaining(['border', 'border-line-strong', 'bg-background', 'text-foreground', 'font-bold', 'data-pressed:border-transparent', 'data-pressed:bg-line-strong', 'data-pressed:text-foreground', 'icon-own-ink']))
+    // Never the ink fill (it was, 2026-11-14 → 11-17).
+    expect(md).not.toContain('data-pressed:bg-foreground')
+    expect(md).not.toContain('data-pressed:text-background')
     expect(md).not.toContain('bg-tint')
     expect(md.filter((c) => /^bg-/.test(c))).toEqual(['bg-background'])
-    // xs / sm keep the tint and the accent capsule.
-    for (const size of ['xs', 'sm'] as const) expect(chipVariants({ size }).split(/\s+/)).toEqual(expect.arrayContaining(['bg-tint', 'data-pressed:bg-accent']))
+    // xs / sm keep the tint at rest and press to the same selected grey — no accent capsule, no ring.
+    for (const size of ['xs', 'sm'] as const) {
+      const xs = chipVariants({ size }).split(/\s+/)
+      expect(xs).toEqual(expect.arrayContaining(['bg-tint', 'data-pressed:bg-line-strong', 'data-pressed:text-foreground']))
+      expect(xs.join(' ')).not.toMatch(/data-pressed:(bg-accent|text-accent-foreground|ring)/)
+    }
     // The other tones carry no neutral classes at any size.
     expect(chipVariants({ size: 'md', tone: 'ghost' })).not.toMatch(/bg-background|bg-tint/)
   })

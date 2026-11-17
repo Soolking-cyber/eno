@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger, useInMenuSheet } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { WELL_DEEP, WELL_ITEM, WELL_PICK } from '@/components/ui/chip-style'
 
 /** A "More +N" chip that reveals overflow items in a dropdown — opens on HOVER on
  *  desktop and on TAP on mobile. Built on Base UI Menu (via ui/dropdown-menu): the
@@ -47,8 +48,9 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
               // ⚠️ NO `tap-44`: this chip sits in the model cascade's THREE-ROW grid with a 2px row
               // gap, where a 44px pseudo on a 28px chip overlaps the chips above and below it and a
               // tap near an edge fires the wrong one (see chipCls in model-cascade.tsx).
-              'inline-flex w-full shrink-0 items-center justify-start gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative',
-              open ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground',
+              'inline-flex w-full shrink-0 items-center justify-start gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer relative icon-own-ink',
+              // The well's own ladder (ui/chip-style WELL_* — owner, 2026-11-17: "Grey everywhere"; it was a raised blue-labelled card).
+              open ? WELL_PICK : WELL_ITEM,
             )}
           >
             {label || tr('More', 'Thêm')}
@@ -62,10 +64,10 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         side="bottom"
         sideOffset={6}
         sheetTitle={label || tr('More', 'Thêm')}
-        // bg-brand-50 (not bg-popover): the same blue tint as the subcategory / model grid this
-        // overflows from, so the "More" popup reads as a continuation of that grid — one fluid
-        // surface — rather than a detached white menu. p-1.5 mirrors the grid's padding too.
-        className="flex w-62 max-h-[60vh] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-50 p-1.5 shadow-pop ring-0"
+        // WELL_DEEP (not bg-popover): one grey step deeper than the model well this overflows from, so the "More" popup reads
+        // as going a level in — as model-cascade's line dropdown does — rather than a detached white menu. p-1.5 mirrors the
+        // well's padding too. (It was the brand tint until 2026-11-17, "Grey everywhere".)
+        className={cn('flex w-62 max-h-[60vh] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl p-1.5 shadow-pop ring-0', WELL_DEEP)}
       >
         {Children.map(children, (child) =>
           isValidElement(child) ? (
@@ -96,7 +98,7 @@ function OverflowRow({ row }: { row: ReactElement }) {
     <Menu.Item
       nativeButton
       render={row}
-      className="data-highlighted:bg-card/70 data-highlighted:text-accent-foreground"
+      className="data-highlighted:bg-muted data-highlighted:text-foreground"
     />
   )
 }

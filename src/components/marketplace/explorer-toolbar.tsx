@@ -61,7 +61,8 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true, videoUnkno
   // note feared (the video-feed rail) needs a pitch under 44px; re-check this if the gap or the
   // padding ever shrinks. `relative` is the tap-44 contract: ui/button is not positioned.
   const tab = (mode: ViewMode) =>
-    cn('relative rounded-lg p-2.5 transition-colors duration-200 cursor-pointer tap-44', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
+    // The current view: the selected grey under an ink glyph (owner, 2026-11-17: "Grey everywhere"; it was the accent glyph).
+    cn('relative rounded-lg p-2.5 transition-colors duration-200 cursor-pointer tap-44', viewMode === mode ? 'bg-line-strong text-foreground icon-own-ink' : 'text-body hover:bg-muted')
   /**
    * ⛔ THE PER-GLYPH `wash()` IS GONE BECAUSE IT NEVER RENDERED. It carried a careful comment about
    * §5 duotone — "the glyph's ONE closed region gains the brand wash" — and named a child selector
@@ -315,7 +316,8 @@ export function SortStrip({
    * (2026-11-14) and the UI climb 2026-11-05 "AT THE DEFAULT ORDER THE PILL SAYS 'Sort'"; build 8 (2026-11-15) had done it for
    * the goods search alone:
    *   · ⛔ FILLED PILLS: `data-pills="filled"` on every strip — every resting pill in the row is the field grey with no edge,
-   *     pressed or open a step deeper, applied still the ink fill (globals.css, the filled strips — one rule for every pill the
+   *     pressed or open a step deeper, applied PILL_ON's selected grey (`line-strong`, ink label — owner, 2026-11-17: "Grey
+   *     everywhere"; it was the ink fill) (globals.css, the filled strips — one rule for every pill the
    *     row holds, its own or handed in). Server-rendered, so a cold link's first frame is already filled;
    *   · THE SORT PILL NAMES ITS ORDER: at the default order "Relevance" / "Liên quan" — the label the pill always carried for a
    *     screen reader, shown — with no ⇅ and no "Sort" word; any other order keeps its glyph (a price order's ↑/↓ is its only
@@ -513,8 +515,9 @@ export function SortStrip({
       {/* ⛔ THE APPLIED CHIPS LEAD THE PHONE ROW, Clear all first (owner, 2026-11-10: "2 yes"; result-line.tsx PhoneFilterChips). */}
       {phoneLead}
       {/* THE PHONE SORT PILL — first in the row (after any applied chips, owner 2026-11-10) so the order is visible without a swipe. A facet pill
-          (ui/chip-style PILL_*, ⌄). Filled grey at rest like every pill on the row (2026-11-16); the ink fill once an order
-          other than Relevance is picked (owner-approved 2026-11-14). */}
+          (ui/chip-style PILL_*, ⌄). Filled grey at rest like every pill on the row (2026-11-16); PILL_ON's selected grey once
+          an order other than Relevance is picked (owner, 2026-11-17: "Grey everywhere" — the ink fill, owner-approved
+          2026-11-14, until then). */}
       <CustomSelect
         value={sort}
         onChange={(v) => onPickSort(v as SortKey)}
@@ -692,7 +695,8 @@ export function SortStrip({
           'flex w-auto shrink-0 snap-start items-center transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
           PILL_REST,
           // GREEN ONLY WHEN PRESSED (owner, 2026-09-15: "good price button should be green when tapped") —
-          // the one pill on the row whose ON look is not the ink fill, kept on purpose; its edge goes green with it.
+          // the one pill on the row whose ON look is not PILL_ON's selected grey (owner, 2026-11-17: "Grey everywhere" — it
+          // was the ink fill), kept on purpose; its edge goes green with it.
           // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page
           // background colour reads on both (white on green-800, near-black on green-400) where a fixed
           // white would fail contrast on the dark theme's light green.

@@ -6,7 +6,6 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { WASH_ACTIVE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 
 // Hoisted to module scope so it keeps a stable component identity across the parent's
@@ -26,14 +25,14 @@ function Toggle({ label, Icon, active, onSelect }: { label: string; Icon: typeof
       aria-pressed={active}
       onClick={onSelect}
       className={cn(
-        'h-9 gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition-colors cursor-pointer',
-        // §5 location-active soft duotone (accent tint + washed glyph), replacing the
-        // old solid bg-primary/text-white — a solid treatment is reserved for
-        // user-state, and this pair is "which mode am I in". WASH_ACTIVE is safe here:
-        // both glyphs' first path IS the body (MessageSquareText bubble, Wrench
-        // single-path silhouette).
+        // `icon-own-ink`: the picked glyph goes bold in the label's ink, not the global pressed blue (globals.css).
+        'icon-own-ink h-9 gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition-colors cursor-pointer',
+        // The pick is the selected grey under an ink label, its edge gone transparent (owner, 2026-11-17: "Grey
+        // everywhere"; ui/chip-style.ts has the ruling). It reverses §5's location-active soft duotone here — the
+        // accent tint inside a brand edge with the brand-100 washed glyph (WASH_ACTIVE) — which had replaced the old
+        // solid bg-primary/text-white.
         active
-          ? cn('border-brand bg-accent text-accent-foreground', WASH_ACTIVE)
+          ? 'border-transparent bg-line-strong text-foreground'
           : 'border-border bg-transparent text-body hover:bg-muted',
       )}
     >

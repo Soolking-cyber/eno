@@ -64,3 +64,27 @@ describe('Report — guests', () => {
     expect(h.auth.openSignIn.mock.calls[0][0]).toMatchObject({ note: expect.stringContaining('was not sent') })
   })
 })
+
+/**
+ * The picked reason is the SELECTED GREY (owner, 2026-11-17: "Grey everywhere"): `line-strong` fill and edge under an ink
+ * semibold label — never the brand edge around blue words it was; the rest stay the hairline row.
+ */
+describe('Report — the picked reason', () => {
+  it('is the selected grey, the others the resting row', async () => {
+    h.auth = { user: { id: 'u1' }, loading: false, openSignIn: vi.fn() }
+    const user = userEvent.setup()
+    render(<ReportButton listingId="L1" />)
+    await user.click(screen.getByRole('button', { name: 'Report' }))
+    const dialog = await screen.findByRole('dialog')
+    const radios = [...dialog.querySelectorAll('[role="radio"]')] as HTMLElement[]
+    await user.click(radios[1])
+    expect(radios[1].getAttribute('aria-checked')).toBe('true')
+    const picked = radios[1].className.split(/\s+/)
+    expect(picked).toEqual(expect.arrayContaining(['border-line-strong', 'bg-line-strong', 'font-semibold', 'text-foreground']))
+    for (const c of ['border-brand', 'text-accent-foreground', 'bg-accent']) expect(picked, c).not.toContain(c)
+    const rest = radios[0].className.split(/\s+/)
+    expect(radios[0].getAttribute('aria-checked')).toBe('false')
+    expect(rest).toEqual(expect.arrayContaining(['border-border', 'text-foreground']))
+    expect(rest).not.toContain('bg-line-strong')
+  })
+})

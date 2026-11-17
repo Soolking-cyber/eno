@@ -169,6 +169,10 @@ describe('MarkSoldSheet — "Someone not on eno" is first class', () => {
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(1)
     expect(radios[0].getAttribute('aria-checked')).toBe('true')
+    // Chosen = the selected grey (owner, 2026-11-17: "Grey everywhere"), its glyph in its own ink — not the brand edge on blue.
+    const cls = radios[0].className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['border-line-strong', 'bg-line-strong', 'text-foreground', 'icon-own-ink']))
+    for (const c of ['border-brand', 'bg-accent']) expect(cls, c).not.toContain(c)
     expect(screen.getByText('Nobody has messaged about this listing yet.')).toBeTruthy()
     // And the sheet is immediately submittable — the price already carries the asking figure.
     expect(cta().disabled).toBe(false)
@@ -496,6 +500,13 @@ describe('MarkSoldSheet reconciles with props that arrive late or change underne
       const user = userEvent.setup()
       const { onConfirm } = renderSheet({ defaultBuyerId: 'u1' })
       expect(screen.getByRole('radio', { name: /Minh/ }).getAttribute('aria-checked')).toBe('true')
+      // The picked buyer is the selected grey (owner, 2026-11-17: "Grey everywhere"); the others keep the hairline row.
+      const picked = screen.getByRole('radio', { name: /Minh/ }).className.split(/\s+/)
+      expect(picked).toEqual(expect.arrayContaining(['border-line-strong', 'bg-line-strong', 'text-foreground']))
+      for (const c of ['border-brand', 'bg-accent']) expect(picked, c).not.toContain(c)
+      const rest = screen.getByRole('radio', { name: /Lan/ }).className.split(/\s+/)
+      expect(rest).toContain('border-border')
+      expect(rest).not.toContain('bg-line-strong')
       expect(cta().disabled).toBe(false)
       expect(screen.getByText('Recorded as sold to Minh.')).toBeTruthy()
       await user.click(cta())

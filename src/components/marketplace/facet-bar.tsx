@@ -183,9 +183,9 @@ export function optionCount(n: number | null, lang: string): string | undefined 
  * override the base with `block`, where there is no gap to inherit; copying the margin here would
  * add 4px on top of the 8px gap and make these chips the one pair spaced differently.
  *
- * `text-white/80` on the selected chip is not decoration: `segBtn` paints the selected state
- * `bg-primary text-white`, and `text-ink-4` on that fill is unreadable. Same pair as the post
- * wizard's segmented hints.
+ * `text-ink-3` on the selected chip, not `text-ink-4`: `segBtn` paints the selected state the
+ * selected grey (`line-strong`, owner 2026-11-17: "Grey everywhere"; it was `bg-primary text-white`
+ * under a `text-white/80` count), and the lighter count would sink into it.
  */
 function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
   const { lang, tr } = useLanguage()
@@ -194,7 +194,7 @@ function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
   const srName = `, ${resultCountLabel(n, lang, tr)}`
   return (
     <>
-      <span aria-hidden="true" className={cn('text-3xs font-semibold tabular-nums', selected ? 'text-white/80' : 'text-ink-4')}>
+      <span aria-hidden="true" className={cn('text-3xs font-semibold tabular-nums', selected ? 'text-ink-3' : 'text-ink-4')}>
         {formatCount(n, moneyLocale(lang))}
       </span>
       {/* ⚠️ THE LEADING COMMA IS LOAD-BEARING, and it was measured, not assumed. Accessible names
@@ -488,7 +488,7 @@ export function FacetBar({
       aria-expanded={areaOpen}
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
-        // The facet row's pill (see `cls`): tinted at rest, brand once a place is applied, muted while its panel is open.
+        // The facet row's pill (see `cls`): at rest, the selected grey once a place is applied, muted while its panel is open.
         PILL_BOX,
         'flex shrink-0 items-center justify-between gap-1.5 transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         wrap,
@@ -496,7 +496,7 @@ export function FacetBar({
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
-        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-accent-foreground' : 'text-ink-4')} />
+        <MapPin className={cn('h-3.5 w-3.5', areaActive ? 'text-foreground' : 'text-ink-4')} />
         <span className="truncate">{areaLabel}</span>
       </span>
       <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-ink-4 transition-transform', areaOpen && 'rotate-180')} />
@@ -649,7 +649,8 @@ export function FacetBar({
     (conditionFilter !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).reduce((n, f) => n + (f.multi ? multiFacetValues(f.key, customFilters[f.key]).length : 1), 0)
 
-  // A segmented toggle button (selected = filled blue; same height either way).
+  // A segmented toggle button (selected = the selected grey, ink label — owner, 2026-11-17: "Grey everywhere"; it was filled
+  // blue; same height either way: the border stays, transparent).
   // Fed to <Button variant="bare" size="none">: `bare` paints nothing, so both
   // branches below stay fully in charge of the border/background/label colour.
   // whitespace-normal restores the plain <button> wrapping these labels had (the
@@ -661,7 +662,7 @@ export function FacetBar({
   // clicking the selected chip DESELECTS it (back to 'all'), which a radio cannot express.
   const segBtn = (selected: boolean) =>
     cn('rounded-lg border px-3 py-1.5 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
-      selected ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted')
+      selected ? 'border-transparent bg-line-strong text-foreground hover:bg-line-strong' : 'border-line-strong text-body hover:bg-muted')
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
@@ -804,13 +805,13 @@ export function FacetBar({
       size="none"
       type="button"
       className={cn(
-        // The facet row's pill, like Area (see `cls`): brand while any of its filters is applied, muted while open.
+        // The facet row's pill, like Area (see `cls`): the selected grey while any of its filters is applied, muted while open.
         PILL_BOX,
         'flex shrink-0 items-center justify-start gap-1.5 transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         advOpen ? PILL_OPEN : activeAdvCount > 0 ? active : PILL_REST,
       )}
     >
-      <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
+      <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-foreground' : 'text-ink-4')} />
       <span>{tr('Filter', 'Bộ lọc')}</span>
       {activeAdvCount > 0 && (
         <Badge variant="counter-brand" size="count" className="ml-0.5">{activeAdvCount}</Badge>
@@ -874,7 +875,7 @@ export function FacetBar({
                   label={tr(f.label, f.labelVi)}
                   placeholder={tr(f.label, f.labelVi)}
                   indicator="down"
-                  activeClassName="text-accent-foreground border-accent-foreground/35"
+                  activeClassName="border-transparent bg-line-strong text-foreground"
                 />
               </div>
             )}

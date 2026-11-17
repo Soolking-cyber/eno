@@ -31,9 +31,9 @@ import { cn } from '@/lib/utils'
  *            pill on the browse surfaces. A control that cannot be a <Chip> (a select's trigger, a popover
  *            trigger, a link on a server page) wears the same look from ui/chip-style.ts (PILL_*).
  *   tone ghost   — transparent at rest, muted fill on hover (the composer chips)
- *        neutral — xs/sm: a tint pill, pressed = the accent capsule. md: THE browse chip, white + 1px line-strong, ink
- *                  bold label, pressed = the ink fill (owner-approved 2026-11-14 — ui/chip-style.ts has the ruling). A
- *                  compound variant per size, so `chipVariants()` never emits two backgrounds.
+ *        neutral — xs/sm: a tint pill. md: THE browse chip, white + 1px line-strong, ink bold label. Pressed, every size,
+ *                  is the selected grey (`line-strong`, ink label — owner, 2026-11-17: "Grey everywhere"; ui/chip-style.ts
+ *                  has the ruling). A compound variant per size, so `chipVariants()` never emits two backgrounds.
  *        warning — the caution tint, for "still needed" style prompts
  */
 export const chipVariants = cva(
@@ -56,13 +56,13 @@ export const chipVariants = cva(
         size: ['xs', 'sm'],
         tone: 'neutral',
         className:
-          'bg-tint text-body hover:bg-accent hover:text-accent-foreground data-pressed:bg-accent data-pressed:text-accent-foreground data-pressed:ring-1 data-pressed:ring-brand/30',
+          'bg-tint text-body hover:bg-secondary hover:text-foreground data-pressed:bg-line-strong data-pressed:text-foreground',
       },
       {
         size: 'md',
         tone: 'neutral',
         className:
-          'border border-line-strong bg-background text-foreground font-bold hover:bg-muted active:bg-muted data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background icon-own-ink',
+          'border border-line-strong bg-background text-foreground font-bold hover:bg-muted active:bg-muted data-pressed:border-transparent data-pressed:bg-line-strong data-pressed:text-foreground icon-own-ink',
       },
     ],
     defaultVariants: { size: 'sm', tone: 'neutral' },
@@ -80,13 +80,15 @@ type ChipBase = VariantProps<typeof chipVariants> & { className?: string; childr
 const TOGGLE_MOTION =
   'transition-[color,background-color,box-shadow,scale] duration-[160ms] ease-spring-snappy active:scale-[0.97] active:duration-[60ms]'
 /**
- * ⛔ AN UNPRESSED TOGGLE MUST NOT HOVER INTO THE PRESSED LOOK (preview check, 2026-10-07). The neutral tone hovers to
- * bg-accent / text-accent-foreground — the very tokens of `data-pressed`, so on a desktop a hovered free period read as
+ * ⛔ AN UNPRESSED TOGGLE MUST NOT HOVER INTO THE PRESSED LOOK (preview check, 2026-10-07). The neutral tone hovered to
+ * bg-accent / text-accent-foreground — then the very tokens of `data-pressed`, so on a desktop a hovered free period read as
  * picked. Toggles in the neutral tone only: an action chip has no pressed state to be confused with, and the other tones
  * keep their own hover.
  */
 const TOGGLE_HOVER = 'not-data-pressed:hover:bg-muted not-data-pressed:hover:text-foreground'
-// (2026-11-14) The md neutral chip already hovers to the field grey with ink, so this only matters for xs/sm.
+// (2026-11-14) The md neutral chip already hovers to the field grey with ink, so this only matters for xs/sm. (2026-11-17)
+// It still matters there: pressed is the selected grey (`line-strong` — owner: "Grey everywhere"), and the xs/sm hover is
+// `secondary`, one step lighter — this keeps a hovered free toggle on the field grey, two steps clear of picked.
 
 /**
  * The look of a chip that TOGGLES — geometry, tone, the press motion and the no-hover-into-pressed rule above. One

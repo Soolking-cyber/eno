@@ -105,7 +105,9 @@ describe('applied-filter chip ✕', () => {
     // 24px box + 10px above and below = 44px tall, still 24px wide — cannot reach the next chip.
     expect(t).toEqual(expect.arrayContaining(['after:absolute', 'after:inset-x-0', 'after:-inset-y-2.5', "after:content-['']"]))
     expect(t).not.toContain('tap-44') // a centred 44×44 would reach sideways into the neighbour
-    expect(t).toEqual(expect.arrayContaining(['active:scale-[0.9]', 'active:bg-brand-100', 'transition-[scale,background-color]']))
+    // The press tint is the grey one step off the chip's selected grey (owner, 2026-11-17: "Grey everywhere" — it was brand-100).
+    expect(t).toEqual(expect.arrayContaining(['active:scale-[0.9]', 'active:bg-secondary', 'transition-[scale,background-color]']))
+    expect(t).not.toContain('active:bg-brand-100')
   })
 
   it('the chip scroller leaves room for that extender inside its clip, without moving the row', () => {

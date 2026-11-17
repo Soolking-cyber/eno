@@ -11,6 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { AI_REPORT_NOTE_MAX, AI_REPORT_REASONS, sendAiReport, type AiReportReason } from '@/lib/ai-report'
 import { cn } from '@/lib/utils'
+import { SELECTED_ROW } from '@/components/ui/chip-style'
 
 /**
  * "Report" under an answer eno AI gave in the chat (src/lib/ai-report.ts: where it goes and why). The quiet per-item Report
@@ -89,7 +90,9 @@ function ReportAiDialog({ answer, onClose }: { answer: string; onClose: () => vo
                   value={r.value}
                   className={cn(
                     'flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border px-3 py-2.5 text-left text-sm font-normal transition-colors',
-                    reason === r.value ? 'border-brand font-semibold text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+                    // The picked reason: the selected grey, ink label, its edge the same grey (owner, 2026-11-17: "Grey
+                    // everywhere" — it was a brand edge around blue words), as report-button.tsx; the dot keeps its look.
+                    reason === r.value ? cn(SELECTED_ROW, 'font-semibold') : 'border-border text-foreground hover:bg-muted',
                   )}
                 >
                   <RadioDot />

@@ -21,8 +21,10 @@ import { ArtImage } from '@/components/marketplace/art-image'
  * there is no single colour to inherit, so none of those can ride the glyph at all.
  * What that costs, stated plainly rather than discovered later:
  *   · the glyph no longer follows the accent on hover — only scale and the label colour do;
- *   · SELECTION HAS NO CARRIER IN THE IMAGE, so the rail supplies its own: a tinted disc behind the
- *     pressed glyph plus an accent semibold label. Change either and press-state stops being visible;
+ *   · SELECTION HAS NO CARRIER IN THE IMAGE, so the rail supplies its own: the selected-grey disc
+ *     (`line-strong`) behind the pressed glyph, and the label stepping from the body grey to ink (owner,
+ *     2026-11-17: "Grey everywhere" — it was a brand-tint disc plus an accent semibold label). Drop
+ *     either and the press-state weakens; drop both and it is gone;
  *   · dark mode gets the same pixels as light, so the artwork has to read on both grounds;
  *   · every tile is now a request instead of inline path data (they are small, cacheable and
  *     served from the same origin, but it is 21 requests that used to be zero).
@@ -102,10 +104,11 @@ export function CategoryArt({
          makes the home page look like the app the owner keeps pointing at: 58's grid is a wall of
          saturated marks, ours drew the same full-colour renders through `grayscale()` and only
          let the pressed one bloom. Measured on the rail: nineteen colour tiles where there was one.
-         ⚠️ SELECTION THEREFORE NEEDS ANOTHER CARRIER, because colour was it. The label already goes
-         accent-coloured and semibold on press, and the rail adds a tinted disc behind the pressed
-         glyph — see `selected` in category-rail.tsx. Do not put the filter back without giving
-         those two something to replace it with.
+         ⚠️ SELECTION THEREFORE NEEDS ANOTHER CARRIER, because colour was it. The rail adds a
+         selected-grey disc behind the pressed glyph and steps its label body → ink — see `glyphBox`
+         and `nameCls` in category-rail.tsx (owner, 2026-11-17: "Grey everywhere"; it was a brand-tint
+         disc and an accent semibold label). Do not put the filter back without giving the disc
+         something to replace it with.
          ⚠️ `transition-[filter]` STAYS: dark mode still dims the art a touch (below), and the
          press feel comes from the tile's own `group-hover:scale-110`. */
       /* ⚠️ `h-11 w-11` IS A DEFAULT, NOT A FIXED SIZE — `className` comes last so a call site's

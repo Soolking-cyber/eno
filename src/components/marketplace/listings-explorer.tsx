@@ -40,7 +40,7 @@ import { customFilterChipLabel } from './facet-chip-label'
 import { multiFacetValues, removeMultiFacetValue } from '@/lib/multi-facet'
 import { FacetBarFallback } from './facet-bar-fallback'
 import { LISTING_GRID, LISTING_GRID_WIDE, MAP_CARD_SIZES, WIDE_CARD_SIZES } from './listing-grid'
-import { LADDER_PANEL, LadderCompactRow, LadderSlot, ScopeChip, ScopeChipReserve, useMdUp } from './ladder-compact-row'
+import { LADDER_PANEL, LadderCompactRow, LadderSlot, ScopeChip, ScopeChipReserve, TEACHER_DOOR_STRIP, TeacherDoorChip, useMdUp } from './ladder-compact-row'
 import { Collapsible, CollapsiblePanel } from '@/components/ui/collapsible'
 import { goodsScope } from '@/lib/goods-surface'
 import { ForYouRail } from './for-you-rail'
@@ -683,7 +683,7 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   /** The circle's wrapper: `sm:hidden` on a storefront, whose strip draws it at every width (the storefront's phone row). */
   className?: string
   /** The rentals feed's results line (the note above): past it, the phone's Map toggle floats. ⛔ With `circle` too since the
-   *  rentals feed opens on the one control row (owner, 2026-11-16, hub Q17 — listings-explorer `catRow`): the circle is the
+   *  rentals feed opens on the one control row (owner, 2026-11-16, hub Q17 — listings-explorer `oneRow`): the circle is the
    *  pick, and the floated Map (build 8, owner-approved 2026-11-15) keeps its host beside it, every other toggle `max-sm:hidden`. */
   floatMapAfter?: RefObject<HTMLElement | null>
   /** SortStrip's hide-on-scroll value (the explorer's `headerHiddenSignal`): the floated Map rides the bars with it. */
@@ -4172,6 +4172,15 @@ export function ListingsExplorer({
   const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
 
   /**
+   * The picked subcategory's entry — ONE lookup for the crumb and the applied chip, so their labels always match (the chip list
+   * drops a chip whose label is a crumb's). Under the picked category only: a cross-category lookup for a category-less
+   * `?subcategory=` was tried and dropped (the commit gate, 2026-11-17) — a slug two categories share got the wrong one's name,
+   * and a crafted link could print an aisle eno.vn does not offer (visa runs) as words. A raw slug stays the rare link's chip.
+   */
+  const activeSubDef = useMemo(() => activeSubcategory === 'all' ? undefined
+    : SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory),
+  [activeCategory, activeSubcategory])
+  /**
    * THE LADDER PATH, AS THE BREADCRUMB ON THE INFO LINE — "Vehicles › Manual › Honda › Vision".
    *
    * ⚠️ IT NAMES THE TAPS, NOT THE FILTERS, and that is why it is separate from the chips beside
@@ -4193,7 +4202,7 @@ export function ListingsExplorer({
       })
     }
     if (activeSubcategory !== 'all') {
-      const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
+      const sub = activeSubDef
       crumbs.push({
         label: sub ? tr(sub.name, sub.nameVi || sub.name) : activeSubcategory,
         onSelect: () => { commitView(); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
@@ -4209,7 +4218,7 @@ export function ListingsExplorer({
   // `tr` AND `trVersion`, not just `lang`: the crumbs are translated, and a translation that lands after the
   // first render changes `tr` (the warmed batch re-renders the provider) or only the store version (a lazy,
   // per-string arrival) — never `lang`.
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, categories, lang, tr, trVersion])
+  }, [activeCategory, activeSubcategory, activeSubDef, activeBrand, activeModel, categories, lang, tr, trVersion])
 
   /** The words the grid answers: the server's corrected spelling when it corrected them, else the typed ones. */
   const resultsTerm = correctedQuery ?? debouncedQuery.trim()
@@ -4242,26 +4251,36 @@ export function ListingsExplorer({
    *   (the skip link's and the chip removal's focus target, ResultLine's one live count), sr-only. ⚠️ DERIVED FROM
    *   `collapseLadder` IN THE SAME RENDER, so the commit that folds — whose layout effect drops the pre-paint fold mark — is
    *   the commit that draws the title line: the CSS that held a cold link's geometry (globals.css, the goods cold-link rules)
-   *   is replaced by the real thing in one frame. With a category picked, see `catRow`.
-   * · ⛔ `catRow`: A CATEGORY FEED OPENS THE SAME WAY (owner, 2026-11-16, hub Q17: "yes if they are related to visual change";
+   *   is replaced by the real thing in one frame. With a category picked, see below.
+   * · ⛔ A CATEGORY FEED OPENS THE SAME WAY (owner, 2026-11-16, hub Q17: "yes if they are related to visual change";
    *   cook r12 R1, goods +0.30/+0.45 and rentals +0.34/+0.37 with R2 + H6). It REVERSES, there, the 09-24 "collapse to one
    *   compact row" (ladder-compact-row.tsx): a category picked (a subcategory too), no words, no brand and no model — the title
    *   line (the count, Save search), then the control row: the view circle, the CATEGORY CHIP ("Electronics ⌄", the deepest rung
    *   it names; ScopeChip `label`), sort and the filters. The chip keeps the compact row's one job — it opens the ladder, whose
    *   rails (the subcategories, the brands) wait in the same panel under the row; the row's quick chips are not drawn. The first
-   *   card starts ~56pt higher (r12: ~177 against live 233 at 390×844). ⛔ NOT ON TEACHERS OR JOBS (TEACHER_DOOR_CATEGORIES): their
-   *   compact row leads with the teacher form's door (owner, 2026-10-09: "first, so a phone shows it without a swipe"), which
-   *   Q17's mocks never showed — those two keep it. A cold link paints this from its first frame (explorer-url.ts CAT_ROW_ATTR).
+   *   card starts ~56pt higher (r12: ~177 against live 233 at 390×844). A cold link paints this from its first frame
+   *   (explorer-url.ts CAT_ROW_ATTR).
+   * · ⛔ EVERY PHONE FEED, NOT SOME (owner, 2026-11-17: "make sure mobile top navigation is consistent … all experience should
+   *   follow across the app cohesive harmonized experience"). Q17 had left the 09-24 compact row — an ink scope pill, ink "All",
+   *   hairline subcategory chips, an outlined Save search under the strip — on words inside a category, a brand, a model, and
+   *   Teachers and Jobs, so tapping a brand in the opened ladder swapped the whole top bar under the reader's thumb. Now every
+   *   folded feed but a storefront's is `oneRow`: the chip names the deepest rung ("Apple", "iPhone 15 Pro"), and on Teachers
+   *   and Jobs the teacher form's door follows it in the row (owner, 2026-10-09: "first, so a phone shows it without a swipe" —
+   *   still on the first screen; TeacherDoorChip).
    */
   const goodsLook = !smUp && collapseLadder && !showDiscovery && !sellerId && goodsScope(activeCategory)
   const gridIsSeed = seedMasked && (!urlApplied || awaitingUrlAnswer || gridListings !== shownListings)
   const goodsGrid = goodsLook && !gridIsSeed
-  const searchRow = !smUp && collapseLadder && !sellerId && activeCategory === 'all' && activeSubcategory === 'all' && ladderCrumbs.length === 0
-  const catRow = !smUp && collapseLadder && !sellerId && activeCategory !== 'all' && !TEACHER_DOOR_CATEGORIES.includes(activeCategory)
-    && !debouncedQuery.trim() && activeBrand === 'all' && activeModel === 'all'
-  const oneRow = searchRow || catRow
-  /** The category chip's words on a category feed (`catRow`): the deepest rung — the subcategory once one is picked. */
-  const scopeLabel = catRow ? ladderCrumbs[ladderCrumbs.length - 1]?.label : undefined
+  const oneRow = !smUp && collapseLadder && !sellerId
+  /** The chip's words once a rung is picked: the deepest one (the subcategory, the brand, the model). None: "All categories". */
+  const scopeLabel = oneRow ? ladderCrumbs[ladderCrumbs.length - 1]?.label : undefined
+  /**
+   * Teachers and Jobs: the teacher form's door in the phone row (TeacherDoorChip) — right after the chip, before any applied
+   * chip, so it is on the first screen whatever is applied (owner, 2026-10-09: "first, so a phone shows it without a swipe"),
+   * and it stays while the ladder is open, so the row never slides under the thumb; the plate drops its own copy there
+   * (CategoryRail `noTeacherDoor`) — one door on screen (the commit gate, 2026-11-17).
+   */
+  const stripTeacherDoor = oneRow && TEACHER_DOOR_CATEGORIES.includes(activeCategory)
   /**
    * The ladder opened from the scope chip of a STUCK strip (`oneRow`): its panel mounts under the strip's place in the page,
    * far above the screen, and scroll anchoring keeps the reader where they were — so the open looked like nothing happened.
@@ -4457,7 +4476,7 @@ export function ListingsExplorer({
       }
     }
     if (activeSubcategory !== 'all') {
-      const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
+      const sub = activeSubDef
       chips.push({ label: sub ? tr(sub.name, sub.nameVi || sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
     }
     if (activeBrand !== 'all') {
@@ -4934,6 +4953,8 @@ export function ListingsExplorer({
             categories={categories}
             teacherProfile={hasTeacherProfile}
             teacherDraft={hasTeacherDraft}
+            // The phone row carries the door (`stripTeacherDoor`): the plate under it does not draw a second.
+            noTeacherDoor={stripTeacherDoor}
             activeCategory={activeCategory}
             activeSubcategory={activeSubcategory}
             subcategoryCounts={subcategoryCounts}
@@ -5495,14 +5516,19 @@ export function ListingsExplorer({
             // (ViewSwitch `circle`, ScopeChip — the view pick left the title line in build 7, owner-approved 2026-11-15, cook r07
             // goods). Until then their invisible places, which only a cold no-category search link's first frame shows
             // (ViewPickReserve, ScopeChipReserve).
-            // ⛔ A category feed (`catRow`, owner 2026-11-16, hub Q17) opens the row the same way, its chip naming the category; on
+            // ⛔ A category feed (owner 2026-11-16, hub Q17; every phone feed since 11-17) opens it the same way, its chip naming the rung; on
             // the rentals feed's one-column grid the circle's host also keeps build 8's floating Map (ViewChoices `floatMapAfter`).
             // ⛔ …and on a storefront's phone the view circle opens the row too (UI climb r12, cook store-r12c S3: the storefront
             // batch +0.90 / +0.50 over live, blind): the same select, moved out of the results row (which a phone no longer draws on
             // an undirected storefront, below). Every width gets it in the server HTML and a class keeps it to phones, as the row's
             // other phone-only pills do. Its look is the goods circle, filled like every pill of the shop's strip (`look`, above).
             phoneView={oneRow ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle floatMapAfter={rentalsWide ? resultsRowRef : undefined} barsHidden={rentalsWide ? headerHiddenSignal : undefined} /> : sellerId ? <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} circle className="sm:hidden" /> : <ViewPickReserve />}
-            phoneScope={oneRow ? <ScopeChip expanded={ladderOpen} label={scopeLabel} /> : sellerId ? undefined : <ScopeChipReserve />}
+            phoneScope={oneRow ? (
+              <>
+                <ScopeChip expanded={ladderOpen} label={scopeLabel} />
+                {stripTeacherDoor && <TeacherDoorChip className={TEACHER_DOOR_STRIP} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />}
+              </>
+            ) : sellerId ? undefined : <ScopeChipReserve />}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
             leading={
@@ -5672,8 +5698,8 @@ export function ListingsExplorer({
               grew to 62px — an 18px shift of the whole grid (CLS 0.018 at 390×844, 2026-09-30). The
               CSS rule is also gated on `html:not([data-explorer-directed])`, the pre-paint mask
               (E-SSR), so a directed URL paints the flex row from its first frame and never moves. */}
-          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods — and a category feed, `catRow`, since
-              owner 2026-11-16, hub Q17): this row's count, heading and controls are the title line at the top of the ladder now
+          {/* ⛔ THE GOODS SEARCH ON A PHONE (`oneRow`, owner-approved 2026-11-14, cook r06 goods — and a category feed since
+              owner 2026-11-16, hub Q17; every phone feed since 11-17): this row's count, heading and controls are the title line at the top of the ladder now
               (ResultsTitle). The row stays THE SAME ELEMENT — the skip link's and a chip removal's focus target, holding
               ResultLine's one always-mounted live count — sr-only, holding no heading (the h2 is the title line's), no Save
               search, no view pick, no chips (they lead the strip, `chipsInStrip`) and a category path in words, not buttons (the
@@ -5760,7 +5786,7 @@ export function ListingsExplorer({
               // See `resultLineCount`: null while there is no answer to state (a failed page 1, a cold
               // deep link still on the seed, a skeleton-first client mount), else the deferred count.
               count={resultLineCount}
-              // ⛔ WORDS, NOT BUTTONS, WHILE THIS ROW IS SR-ONLY (`oneRow` — the note above the row): on a category feed (`catRow`)
+              // ⛔ WORDS, NOT BUTTONS, WHILE THIS ROW IS SR-ONLY (`oneRow` — the note above the row): on a category feed
               // the path is "Electronics › Phones", and ResultLine draws a rung with a handler as a focusable <Button> — a Tab stop
               // with a clipped, invisible focus ring (WCAG 2.4.7). The handlers go; a handler-less rung is text (result-line.tsx),
               // so the path is still read out. The category chip in the strip is the visible way up — its ladder holds the rails.

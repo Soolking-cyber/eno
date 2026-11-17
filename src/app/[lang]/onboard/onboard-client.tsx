@@ -5,7 +5,7 @@ import { EnoLoader } from '@/components/ui/eno-loader'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Loader2, Check } from '@/components/ui/icons'
-import { STROKE_UI, WASH_ACTIVE } from '@/lib/icon-tokens'
+import { STROKE_UI } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -214,23 +214,26 @@ export function OnboardClient() {
                   key={key}
                   value={key}
                   className={cn(
-                    'flex w-full items-start justify-start gap-3 whitespace-normal rounded-2xl p-4 text-left transition-colors',
-                    active ? 'bg-accent ring-2 ring-brand/30' : 'hover:bg-muted',
+                    // `icon-own-ink`: the picked card's glyph goes bold in the ink set below, not the global pressed blue
+                    // (globals.css); the selection check keeps its own colour.
+                    'icon-own-ink flex w-full items-start justify-start gap-3 whitespace-normal rounded-2xl p-4 text-left transition-colors',
+                    // The picked card is the selected grey under ink (owner, 2026-11-17: "Grey everywhere" — it was the blue
+                    // accent surface with a brand/30 halo). No border at rest, so none here either: nothing moves.
+                    active ? 'bg-line-strong text-foreground' : 'hover:bg-muted',
                   )}
                 >
                   {/* NO COIN. The chrome coin is sanctioned in exactly two places (§6:
                       EmptyState's badge, the nav Post chip) and it is bg-brand-50 — R1's
                       gray discs were a third, off-token coin location, and R2's swap to a
                       bg-brand-100 disc on selection was a THIRD active treatment next to
-                      §5's two (the R3 critic named both). So the row now speaks the
-                      system's own two-state language, byte-borrowing TabBody's classes:
-                      idle = plain line in surface ink (text-body, §6 "everything else
-                      inherits surface ink"); selected = LOCATION duotone — the stack turns
-                      text-accent-foreground AND the glyph gains the brand-100 interior via
-                      WASH_ACTIVE (User washes the shoulders exactly like the nav's account
-                      tab; Store's first path closes into the roof). More wash, same line —
-                      the card's bg-accent surface, not a private coin, carries the halo. */}
-                  <span aria-hidden className={cn('shrink-0 transition-colors duration-200', active ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-body')}>
+                      §5's two (the R3 critic named both). So the row speaks the system's
+                      own two-state language: idle = plain line in surface ink (text-body, §6
+                      "everything else inherits surface ink"); selected = the INK line, gone
+                      bold (the selected-icon rule's weight swap), on the card's selected grey
+                      — owner, 2026-11-17: "Grey everywhere". It reverses the LOCATION duotone
+                      it had (text-accent-foreground with the brand-100 WASH_ACTIVE interior,
+                      byte-borrowed from TabBody, on the card's bg-accent surface). */}
+                  <span aria-hidden className={cn('shrink-0 transition-colors duration-200', active ? 'text-foreground' : 'text-body')}>
                     {/* h-5 = the §4 list-lead step (h-6 is header-chrome's — ladder-use drift
                         flagged by the R3 critic). */}
                     <Icon className="h-5 w-5" strokeWidth={STROKE_UI} />
@@ -243,7 +246,8 @@ export function OnboardClient() {
                         documented, not inherited by luck; bubble-in = the canon's state-flip
                         entrance (§8), same as the handoff Copy→Check. */}
                     <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 shrink-0 text-accent-foreground bubble-in" strokeWidth={STROKE_UI} aria-hidden />}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{desc}</span>
+                    {/* On the selected grey the line steps up to ink-3: `muted-foreground` on `line-strong` is 4.46:1, under AA. */}
+                    <span className={cn('mt-0.5 block text-xs leading-relaxed', active ? 'text-ink-3' : 'text-muted-foreground')}>{desc}</span>
                   </span>
                 </Radio>
               )

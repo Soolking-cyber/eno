@@ -71,7 +71,9 @@ export function PercentPicker({ pct, onPct, invalid, describedBy }: {
             onClick={() => onPct(p)}
             className={cn(
               'rounded-xl border py-1.5 text-sm font-bold transition-colors cursor-pointer',
-              pct === p ? 'border-brand bg-accent text-accent-foreground' : 'border-border text-foreground hover:bg-muted',
+              // The preset matching the slider is the selected grey, its edge gone transparent (owner, 2026-11-17: "Grey
+              // everywhere" — it was the brand edge on the blue accent tint).
+              pct === p ? 'border-transparent bg-line-strong text-foreground' : 'border-border text-foreground hover:bg-muted',
             )}
           >
             −{p}%

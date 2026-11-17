@@ -453,7 +453,9 @@ export function AreaFilter({
                   onClick={() => { onPickDistrict(picked ? 'all' : d.slug); onClose() }}
                   className={cn(
                     'rounded-lg border px-3 py-2 text-sm font-semibold whitespace-normal transition-colors cursor-pointer',
-                    picked ? 'border-brand bg-primary text-white' : 'border-line-strong text-body hover:bg-muted',
+                    // Picked = the selected grey under an ink label, the border kept but transparent so nothing moves — facet-bar's
+                    // segBtn (owner, 2026-11-17: "Grey everywhere"; it was the filled blue with a white label).
+                    picked ? 'border-transparent bg-line-strong text-foreground hover:bg-line-strong' : 'border-line-strong text-body hover:bg-muted',
                   )}
                 >
                   {districtOptionLabel(d, lang, null, tr)}
