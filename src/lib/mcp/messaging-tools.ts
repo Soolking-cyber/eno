@@ -272,7 +272,7 @@ const MESSAGE_OUT = z.strictObject({
   id: z.string().describe('The message\'s id; for a pending offer from them, decline_offer takes it'),
   from: z.enum(['you', 'them']).describe('"you": the person you act for (or their agent) sent it; "them": the other side did'),
   by_ai: z.boolean().describe('true when an AI assistant wrote it: its text starts with "🤖 AI"'),
-  kind: z.string().describe('"text" for a message, "offer" for an offer; other kinds are app events such as calls or deal confirmations'),
+  kind: z.enum(['text', 'offer', 'event']).describe('"text": a message; "offer": an offer, with its `offer`; "event": anything else in the chat, such as a call, a call request or a deal confirmation (read its text; there is no offer to answer)'),
   text: z.string().describe(`What it says ("" for a message its sender recalled). ${UNTRUSTED}`),
   offer: z.strictObject({ amount: z.number().describe('The offered price, in Vietnamese đồng'), status: z.enum(OFFER_STATUSES).describe(OFFER_STATUS) }).nullable().describe('The offer this message makes; null for any other kind'),
   sent_at: z.string().describe('When it was sent, ISO 8601 in UTC'),
@@ -285,6 +285,8 @@ const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 
 // The whole agent policy is in the server's instructions (src/app/api/mcp/route.ts); each description carries the part
 // that tool needs, in the shape of the best-scoring descriptions: what it does; its limits and refusals; Returns; Use it.
+/** send_message's own note: the wording its description scored 97 with (11-17), plus the deposit line. */
+const SEND_NOTE = 'You act for the signed-in person. Every message you send is shown to the other person starting with "🤖 AI:". An offer you make is the person\'s offer: if the other side accepts it, the person has agreed that price, so offer only what the person told you they would pay or take. Never send phone numbers, emails, links to other sites or account numbers (refused), never ask for payment or a deposit: payment is arranged between the people, never through eno. You cannot accept an offer: tell the person to accept it in the app.'
 const SENDS = `Everything you send is shown to the other person starting with "🤖 AI:", and an offer you make binds the person you act for if it is accepted, so offer only what they agreed to. Never ask for a deposit or a payment: people pay each other directly, never through eno or an agent. A message is up to ${TEXT_MAX.toLocaleString('en')} characters.`
 
 export const MESSAGING_TOOLS: McpTool[] = [
@@ -378,7 +380,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
         with: t.counterpart?.name ?? '',
         closed: !!t.closed,
         messages: msgs.map((m) => ({
-          id: m.id, from: m.mine ? 'you' as const : 'them' as const, by_ai: isAgentText(m.body), kind: m.kind,
+          id: m.id, from: m.mine ? 'you' as const : 'them' as const, by_ai: isAgentText(m.body),
+          kind: m.kind === 'text' || m.kind === 'offer' ? m.kind : 'event' as const,
           text: m.deleted ? '' : m.body,
           offer: m.kind === 'offer' && typeof m.offerAmount === 'number' ? { amount: m.offerAmount, status: offerStatus(m.offerStatus) } : null,
           sent_at: m.createdAt,
@@ -494,8 +497,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
   },
   {
     name: 'send_message',
-    title: 'Send message or offer',
-    description: `Reply in one of the person's conversations: a message, an offer or counter-offer in VND, or both. An offer sent while one is pending counters it.\n\n${SENDS} Refused with a reason code: contact or payment details, an offer on a fixed-price listing, more than ${AGENT_LIMITS.unansweredInARow} agent messages in a row without an answer, more than ${AGENT_LIMITS.offersPerConversationPerDay} offers a day in one conversation. You cannot accept an offer: the person accepts it in the app.\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`. Use it to answer the last message get_conversation showed, or to counter an offer.`,
+    title: 'Send chat message or offer',
+    description: `Reply in a conversation with a message, an offer or counter-offer in VND, or both; an offer sent while one is pending counters it. At most ${AGENT_LIMITS.unansweredInARow} agent messages in a row without an answer from the other side, and ${AGENT_LIMITS.offersPerConversationPerDay} offers per conversation a day; a fixed-price listing takes no offers, and a message is up to ${TEXT_MAX.toLocaleString('en')} characters.\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`. ${SEND_NOTE}`,
     scope: scopeWrite,
     annotations: WRITE,
     input: z.object({
@@ -538,7 +541,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
   {
     name: 'decline_offer',
     title: 'Decline offer',
-    description: `Decline the other person's pending offer in a conversation, for the person you act for. To counter it instead, use send_message with offer_amount; accepting is the person's own step, in the app.\n\nAn offer that is no longer pending (accepted, declined or countered) answers \`not_actionable\`.\n\nReturns \`declined\`: true once the other person sees the offer declined. Use it when the person has said no to that price.`,
+    description: `Decline the other person's pending offer in a conversation, for the person you act for. To counter it instead, use send_message with offer_amount; accepting is the person's own step, in the app.\n\nAn offer that is no longer pending (accepted, declined or countered) answers \`not_actionable\`.\n\nReturns \`declined\` (true once the other person sees it), the \`offer_id\` and the conversation's \`app_url\`. Use it when the person has said no to that price.`,
     scope: scopeWrite,
     // destructive: it overwrites the offer's pending state for good, and the other person is told.
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
@@ -546,7 +549,11 @@ export const MESSAGING_TOOLS: McpTool[] = [
       conversation_id: z.string().describe('The conversation the offer is in: its id (such as `cmh0q2x8f0001...`), from list_conversations or get_conversation'),
       message_id: z.string().describe('The offer to decline: the `id` of a message in get_conversation whose `offer.status` is "pending" and which is `from` them'),
     }),
-    output: z.strictObject({ declined: z.boolean().describe('true: the offer is declined, and the other person sees it') }).describe('The answer to the offer'),
+    output: z.strictObject({
+      declined: z.boolean().describe('true: the offer is now declined, and the other person sees it'),
+      offer_id: z.string().describe('The declined offer\'s message id, as get_conversation lists it'),
+      app_url: z.string().describe('The conversation\'s page in the app, where the person sees the declined offer'),
+    }).describe('The offer that was declined'),
     handler: async (auth, args) => {
       const conversationId = idArg(args.conversation_id, 'conversation_id')
       const messageId = idArg(args.message_id, 'message_id')
@@ -559,7 +566,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
       })
       if (status !== 200) throw refusal(status, data)
       logInfo('[agent] decline_offer', { op: 'agent.message', keyId: auth.keyId, conversationId })
-      return { declined: true }
+      return { declined: true, offer_id: messageId, app_url: THREAD_URL(conversationId) }
     },
   },
 ]

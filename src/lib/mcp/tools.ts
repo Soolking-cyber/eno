@@ -13,7 +13,8 @@ import { bulkImportCore, claimRehostedImages, discardRehostedImages, rehostListi
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow, type SyncRowResult } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
 import { postingGate } from '@/lib/enforcement'
-import { paysSalary, resolveListingType, TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
+import { paysSalary, resolveListingType, TAXONOMY, isPostableCategory, type ListingType } from '@/lib/taxonomy'
+import type { TrustTier } from '@/lib/trust-math'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
@@ -165,11 +166,28 @@ function checkSalaryArg(v: unknown): void {
  *  web page), photos as full URLs, and the page link. list_listings and get_listing never reach a tombstone
  *  (NOT_REMOVED, listingOwnedBy), so the status is one of the three; update_listing's read-back is checked against
  *  LISTING_OUT before it is sent. */
+/** Closed sets as described enums (Manufact scores a closed set that says what each value means above a free string).
+ *  The values are the code's own unions (taxonomy.ts ListingType, trust-math.ts TrustTier); a stored value outside them —
+ *  none on 2026-11-17 — is read as the nearest plain value instead of failing the whole call (closed output schemas). */
+const LISTING_TYPES = ['sell', 'rent', 'free', 'wanted', 'wholesale', 'service', 'job', 'event', 'teacher'] as const satisfies readonly ListingType[]
+const asListingType = (v: string): (typeof LISTING_TYPES)[number] => ((LISTING_TYPES as readonly string[]).includes(v) ? (v as (typeof LISTING_TYPES)[number]) : 'sell')
+const TRUST_TIERS = ['restricted', 'standard', 'trusted', 'exceptional'] as const satisfies readonly TrustTier[]
+// An unknown stored tier is read from the shop's own score by tierFor's floor (trust-math.ts: under 60 is restricted; the
+// higher tiers need evidence this read does not have), never a fixed label in either direction.
+const asTrustTier = (v: string, score: number): (typeof TRUST_TIERS)[number] =>
+  (TRUST_TIERS as readonly string[]).includes(v) ? (v as (typeof TRUST_TIERS)[number]) : score < 60 ? 'restricted' : 'standard'
+// Complete, not only valid: a value added to either union and missing here is a compile error, never a silent coercion.
+const ENUMS_COMPLETE: [
+  Exclude<ListingType, (typeof LISTING_TYPES)[number]> extends never ? true : never,
+  Exclude<TrustTier, (typeof TRUST_TIERS)[number]> extends never ? true : never,
+] = [true, true]
+void ENUMS_COMPLETE
+
 export const listingOut = (l: Parameters<typeof serializeListing>[0]) => {
   const s = serializeListing(l)
   return {
     id: s.id, title: s.title, description: s.description, price: s.price, priceUnit: s.priceUnit, negotiable: s.negotiable,
-    status: s.status, verified: s.verified, listingType: s.listingType, condition: s.condition,
+    status: s.status, verified: s.verified, listingType: asListingType(s.listingType), condition: s.condition,
     location: s.location, district: s.district, city: s.city, images: s.images.map((u) => absoluteAssetUrl(u)), video: absoluteAssetUrl(s.video),
     category: { slug: s.category.slug, name: s.category.name }, subcategorySlug: s.subcategorySlug, postedAt: s.postedAt,
     views: s.views, contactCount: s.contactCount, url: listingPageUrl(s.id),
@@ -184,7 +202,7 @@ const LISTING_OUT = z.strictObject({
   negotiable: z.boolean().describe('Whether buyers may send offers below the price; always false for a job or a wanted ad'),
   status: LISTING_STATUS_OUT,
   verified: z.boolean().describe('false while the listing waits for eno\'s check and is not public yet; true once eno has published it'),
-  listingType: z.string().describe('What the listing offers, e.g. "sell", "rent", "job" or "wanted"'),
+  listingType: z.enum(LISTING_TYPES).describe('What the listing offers. sell: an item for sale. rent: for rent. free: given away. wanted: someone looking to buy or rent. wholesale: sold in bulk. service: a service. job: a job opening. event: an event. teacher: a teacher\'s profile'),
   condition: z.string().nullable().describe('The item\'s condition in words, e.g. "like new"; null when none was given'),
   location: z.string().describe('The place as shown on the listing page, for display; use district and city to compare or filter listings'),
   district: z.string().nullable().describe('Its district or area; null when none was given'),
@@ -270,7 +288,7 @@ const SHOP_OUT = z.strictObject({
   phone: z.string().nullable().describe('The shop\'s contact phone number, which eno shares with a buyer only inside its chat, never on the public page, so do not repeat it in anything public; null when not set'),
   avatar_url: z.string().nullable().describe('The shop\'s logo as a full image URL, ready to show; null when it has none'),
   trust_score: z.number().describe('eno\'s trust score for the shop, from 0 to 150, higher meaning more trusted; below 60 the shop is restricted (see trust_tier). It changes with the shop\'s record, not through any tool here'),
-  trust_tier: z.string().describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
+  trust_tier: z.enum(TRUST_TIERS).describe('The trust level that score falls in. restricted: below 60 or under a scam hold, and it cannot post new listings until it recovers. standard, trusted and exceptional: posting as normal, higher tiers more trusted'),
   response_rate: z.number().describe('The share of buyers\' conversations the shop answers, in percent (0–100); it reads 100 until eno has measured enough conversations, so a new shop shows 100'),
   member_since: z.string().describe('When the shop joined eno, as an ISO 8601 UTC timestamp'),
   active_listings: z.number().describe('How many of its listings buyers can see on the site now (on sale and checked by eno); the rest are sold, hidden, expired or waiting for eno\'s check, and analytics_summary counts them by status'),
@@ -284,7 +302,7 @@ async function readShop(sellerId: string) {
     select: { id: true, ownerId: true, name: true, bio: true, location: true, phone: true, avatarUrl: true, trustScore: true, trustTier: true, responseRate: true, memberSince: true, _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
   })
   if (!s || await isStorefrontGone(s, s._count.listings)) throw new ToolError('not_found', 'Shop not found.')
-  return { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: absoluteAssetUrl(s.avatarUrl), trust_score: s.trustScore, trust_tier: s.trustTier, response_rate: s.responseRate, member_since: s.memberSince.toISOString(), active_listings: s._count.listings }
+  return { id: s.id, name: s.name, bio: s.bio, location: s.location, phone: s.phone, avatar_url: absoluteAssetUrl(s.avatarUrl), trust_score: s.trustScore, trust_tier: asTrustTier(s.trustTier, s.trustScore), response_rate: s.responseRate, member_since: s.memberSince.toISOString(), active_listings: s._count.listings }
 }
 
 const createdOut = (c: Awaited<ReturnType<typeof createListingCore>>) => ({
@@ -712,14 +730,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'analytics_listings',
     title: 'Get listing analytics by day',
-    description: 'Get the views and leads of each of this shop\'s listings, day by day (the last 30 days unless you set `from` and `to`; a longer period than 92 days reports its last 92), with their all-time totals. Returns `range` (`from`, `to`), `listings`, each with its `id`, `external_id`, `title`, `status`, `views_total`, `leads_total` and `daily` figures (`day`, `views`, `leads`), and `next_cursor` for the next page. For the shop\'s overall totals, use analytics_summary.',
+    description: 'Get the views and leads of each of this shop\'s listings, day by day (the last 30 days unless you set `from` and `to`), with their all-time totals. Returns `range` (`from`, `to`), `listings`, each with its `id`, `external_id`, `title`, `status`, `views_total`, `leads_total` and `daily` figures (`day`, `views`, `leads`), and `next_cursor` for the next page. For the shop\'s overall totals, use analytics_summary.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     output: z.strictObject({
-      range: z.strictObject({
-        from: z.string().describe('The first day reported, YYYY-MM-DD: your `from`, the 30 days before `to` when you left it out, or later when the period was longer than 92 days'),
-        to: z.string().describe('The last day reported, YYYY-MM-DD: your `to`, or today when you left it out'),
-      }).describe('The period the daily figures cover'),
+      range: z.strictObject({ from: z.string().describe('First day used (YYYY-MM-DD)'), to: z.string().describe('Last day used (YYYY-MM-DD)') }).describe('The date range actually used'),
       listings: z.array(ANALYTICS_ROW_OUT).describe('This page of listings with their daily figures'),
       next_cursor: CURSOR_OUT,
     }).describe('Views and leads per listing per day over the range actually used'),
