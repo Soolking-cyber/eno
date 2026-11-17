@@ -57,10 +57,11 @@ User-agent: *
 Allow: /
 # Content Signals (contentsignals.org; IETF draft-romm-aipref-contentsignals): the policy the groups in
 # this file already enforce, stated as a preference. search=yes and ai-input=yes: search and AI answer
-# engines may use the public pages, as this group allows. ai-train=no: not for model training, as the
-# training-crawler group below says. Unlike 'Agentmap:' (see below), Lighthouse accepts this line:
-# 'content-signal' is in its robots.txt safelist since 13.2, and PageSpeed ran 13.6.0 on 2026-11-16.
-Content-Signal: search=yes, ai-input=yes, ai-train=no
+# engines may use the public pages, as this group allows. ai-train=yes (owner 2026-11-17: "allow these too" — Bytespider,
+# ClaudeBot, CCBot, GPTBot and Meta-ExternalAgent, then "training yes"): the public pages may train models too. Unlike
+# 'Agentmap:' (see below), Lighthouse accepts this line: 'content-signal' is in its robots.txt safelist since 13.2, and
+# PageSpeed ran 13.6.0 on 2026-11-16.
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
 Disallow: /admin
 Disallow: /api
 # ⛔ …EXCEPT THE ONE API PATH THAT EXISTS FOR CRAWLERS AND AGENTS. /api/v1/status needs no
@@ -100,8 +101,9 @@ Disallow: /appeal
 Disallow: /reports
 Disallow: /unsubscribe
 
-# AI-training + pure-scraper crawlers that ingest our content (incl. listing photos)
-# but send no traffic back — blocked entirely (the assistants' own training crawlers get the brand pages: next group). AI *search / answer* crawlers
+# Pure-scraper and dataset crawlers that ingest our content (incl. listing photos) but send no traffic back — blocked
+# entirely. ⛔ CCBot and Bytespider are NOT here since 2026-11-17 (owner: "allow these too"): with GPTBot, ClaudeBot and
+# Meta-ExternalAgent they fall under "User-agent: *" — public pages, ai-train=yes. AI *search / answer* crawlers
 # (OAI-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
 # link-preview bots) are intentionally NOT listed here, so they fall under
 # "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
@@ -111,8 +113,6 @@ Disallow: /unsubscribe
 # Google's documentation it governs Gemini model TRAINING as well as grounding in
 # Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Left
 # unlisted, both uses are allowed.
-User-agent: CCBot
-User-agent: Bytespider
 User-agent: ImagesiftBot
 User-agent: img2dataset
 User-agent: Diffbot
@@ -127,12 +127,10 @@ Disallow: /
 # shop called 'guidesxyz'. ⛔ /teach-in-vietnam is its landing page ONLY: every article under it carries a rail of 72
 # teacher-profile photos (measured 2026-11-16), and those are people's listings. Every other opened page was scanned
 # for listing links and photos that day: none, bar two example photo URLs in the /developers API reference. Precedence is longest-match-wins (RFC 9309), so every Allow below beats 'Disallow: /'.
-# Meta-ExternalAgent is Meta's training crawler; Meta's link-preview fetcher is a different agent and is not listed.
-User-agent: GPTBot
-User-agent: ClaudeBot
+# ⛔ Since 2026-11-17 GPTBot, ClaudeBot and Meta-ExternalAgent are not in this group (owner: "allow these too"): they read
+# the public pages under "User-agent: *". It still holds anthropic-ai (a retired Anthropic token) and Applebot-Extended.
 User-agent: anthropic-ai
 User-agent: Applebot-Extended
-User-agent: Meta-ExternalAgent
 Content-Signal: search=yes, ai-input=yes, ai-train=yes
 Allow: /about$
 Allow: /developers$

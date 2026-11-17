@@ -24,13 +24,20 @@ afterEach(() => { vi.unstubAllEnvs() })
 const bodyOf = async () => (await load()).GET().text()
 
 describe('/robots.txt', () => {
-  it('⛔ serves exactly the directives it served before the comment corrections', async () => {
+  it('the five crawlers the owner allowed (2026-11-17) read the public pages under "User-agent: *", training yes', async () => {
+    const body = await bodyOf()
+    for (const ua of ['Bytespider', 'ClaudeBot', 'CCBot', 'GPTBot', 'Meta-ExternalAgent']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
+    expect(body).toMatch(/^User-agent: \*\nAllow: \/$/m)
+    expect(body).not.toContain('ai-train=no')
+  })
+
+  it('⛔ serves exactly these directives (comment edits never change them; the 2026-11-17 crawler change did, on purpose)', async () => {
     const rules = (await bodyOf()).split('\n').filter((l) => !l.startsWith('#'))
     expect(rules).toEqual([
       'User-agent: *',
       'Allow: /',
-      // Content Signals (2026-11-16): the file's existing policy as a preference — search and AI answers yes, training no.
-      'Content-Signal: search=yes, ai-input=yes, ai-train=no',
+      // Content Signals (2026-11-16): the file's existing policy as a preference — search and AI answers yes; training yes since 2026-11-17 (owner).
+      'Content-Signal: search=yes, ai-input=yes, ai-train=yes',
       'Disallow: /admin',
       'Disallow: /api',
       'Allow: /api/v1/status',
@@ -40,8 +47,6 @@ describe('/robots.txt', () => {
       'Disallow: /reports',
       'Disallow: /unsubscribe',
       '',
-      'User-agent: CCBot',
-      'User-agent: Bytespider',
       'User-agent: ImagesiftBot',
       'User-agent: img2dataset',
       'User-agent: Diffbot',
@@ -49,11 +54,8 @@ describe('/robots.txt', () => {
       'Disallow: /',
       '',
       // Owner 2026-11-16 "Brand pages only": the assistants' training crawlers learn what eno.vn is, never the listings.
-      'User-agent: GPTBot',
-      'User-agent: ClaudeBot',
       'User-agent: anthropic-ai',
       'User-agent: Applebot-Extended',
-      'User-agent: Meta-ExternalAgent',
       'Content-Signal: search=yes, ai-input=yes, ai-train=yes',
       'Allow: /about$',
       'Allow: /developers$',
