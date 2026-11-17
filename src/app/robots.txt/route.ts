@@ -124,39 +124,13 @@ User-agent: Diffbot
 User-agent: Omgilibot
 Disallow: /
 
-# AI-training crawlers of the assistants people use (OpenAI, Anthropic, Apple, Meta) may learn what ${SITE_NAME} IS —
-# from the pages about it, never from the listings (owner, 2026-11-16: "Brand pages only"). The listings, the
-# storefronts, the photos and the home page (a listing feed: 68 listings and ~360 photo URLs measured that day) stay
-# closed to them; search and answer crawlers are unaffected (they fall under "User-agent: *"). Each page is pinned
-# EXACTLY ('$') or as a directory ('/'): a storefront lives at /<handle>, so a bare '/guides' prefix would also open a
-# shop called 'guidesxyz'. ⛔ /teach-in-vietnam is its landing page ONLY: every article under it carries a rail of 72
-# teacher-profile photos (measured 2026-11-16), and those are people's listings. Every other opened page was scanned
-# for listing links and photos that day: none, bar two example photo URLs in the /developers API reference. Precedence is longest-match-wins (RFC 9309), so every Allow below beats 'Disallow: /'.
-# ⛔ Since 2026-11-17 GPTBot, ClaudeBot, Meta-ExternalAgent and anthropic-ai are not in this group (owner: "allow these
-# too", then "robots.txt blocks: anthropic-ai"): they read the public pages under "User-agent: *". It holds Applebot-Extended.
-User-agent: Applebot-Extended
-Content-Signal: search=yes, ai-input=yes, ai-train=yes
-Allow: /about$
-Allow: /developers$
-Allow: /developers/
-Allow: /guides$
-Allow: /guides/
-Allow: /huong-dan$
-Allow: /huong-dan/
-Allow: /help$
-Allow: /help/
-Allow: /teach-in-vietnam$
-Allow: /trust$
-Allow: /safety$
-Allow: /partners$
-Allow: /hcmc-rent-index$
-Allow: /llms.txt$
-Allow: /index.md$
-Allow: /agents.md$
-Allow: /auth.md$
-Allow: /pricing.md$
-Disallow: /
-
+# ⛔ NO TRAINING-CRAWLER GROUP ANY MORE (owner, 2026-11-17: "allow these too", "robots.txt blocks: anthropic-ai", then
+# "also anthropic-ai Applebot-Extended allow"). The 2026-11-16 "Brand pages only" group held GPTBot, ClaudeBot,
+# anthropic-ai, Applebot-Extended and Meta-ExternalAgent to the pages about ${SITE_NAME}; all five now read the public pages
+# under "User-agent: *", where Content-Signal says ai-train=yes. The private paths above stay closed to them as to everyone.
+# What the old group kept from training, and is now open by that decision: the home feed's listings and photos (68
+# listings, ~360 photo URLs on 2026-11-16) and the teacher-profile photo rails under /teach-in-vietnam/<article>.
+#
 # ⛔ NO 'Agentmap:' DIRECTIVE HERE. IT WAS ADDED 2026-08-23 AND REMOVED THE SAME DAY, BECAUSE
 # LIGHTHOUSE FAILS THE FILE ON IT.
 # The ARD spec (agenticresourcediscovery.org/spec, v0.9) lists four ways to advertise a catalogue:

@@ -24,9 +24,9 @@ afterEach(() => { vi.unstubAllEnvs() })
 const bodyOf = async () => (await load()).GET().text()
 
 describe('/robots.txt', () => {
-  it('the five crawlers the owner allowed (2026-11-17) read the public pages under "User-agent: *", training yes', async () => {
+  it('the training crawlers the owner allowed (2026-11-17) read the public pages under "User-agent: *", training yes', async () => {
     const body = await bodyOf()
-    for (const ua of ['Bytespider', 'ClaudeBot', 'CCBot', 'GPTBot', 'Meta-ExternalAgent', 'anthropic-ai']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
+    for (const ua of ['Bytespider', 'ClaudeBot', 'CCBot', 'GPTBot', 'Meta-ExternalAgent', 'anthropic-ai', 'Applebot-Extended']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
     expect(body).toMatch(/^User-agent: \*\nAllow: \/$/m)
     expect(body).not.toContain('ai-train=no')
   })
@@ -53,30 +53,6 @@ describe('/robots.txt', () => {
       'User-agent: img2dataset',
       'User-agent: Diffbot',
       'User-agent: Omgilibot',
-      'Disallow: /',
-      '',
-      // Owner 2026-11-16 "Brand pages only": the assistants' training crawlers learn what eno.vn is, never the listings.
-      'User-agent: Applebot-Extended',
-      'Content-Signal: search=yes, ai-input=yes, ai-train=yes',
-      'Allow: /about$',
-      'Allow: /developers$',
-      'Allow: /developers/',
-      'Allow: /guides$',
-      'Allow: /guides/',
-      'Allow: /huong-dan$',
-      'Allow: /huong-dan/',
-      'Allow: /help$',
-      'Allow: /help/',
-      'Allow: /teach-in-vietnam$',
-      'Allow: /trust$',
-      'Allow: /safety$',
-      'Allow: /partners$',
-      'Allow: /hcmc-rent-index$',
-      'Allow: /llms.txt$',
-      'Allow: /index.md$',
-      'Allow: /agents.md$',
-      'Allow: /auth.md$',
-      'Allow: /pricing.md$',
       'Disallow: /',
       '',
       'Sitemap: https://eno.vn/sitemap.xml',
