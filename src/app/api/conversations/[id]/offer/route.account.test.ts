@@ -123,3 +123,27 @@ describe('POST /api/conversations/[id]/offer — a review seat never answers a t
     expect(h.acts).toHaveLength(2)
   })
 })
+
+describe('POST /api/conversations/[id]/offer — an AI agent (2026-11-17, src/lib/mcp/messaging-tools.ts)', () => {
+  const asAgentAnswer = async (action: string) => {
+    const { asAgent } = await import('@/lib/api/agent-actor')
+    h.me = null // no session at all: the caller is the in-process mark
+    const req = asAgent(
+      new Request('https://eno.vn/api/conversations/thread-1/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: 'm-offer', action }) }),
+      { profileId: 'seller-1', keyId: 'k1' },
+    )
+    const res = await POST(req, { params: Promise.resolve({ id: 'thread-1' }) })
+    return { status: res.status, body: (await res.json()) as Row }
+  }
+
+  it('⛔ never accepts: 403 before the thread is read or actOnOffer runs', async () => {
+    expect(await asAgentAnswer('accept')).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(h.reads).toBe(0)
+    expect(h.acts).toEqual([])
+  })
+
+  it('may decline, as the person it acts for', async () => {
+    expect(await asAgentAnswer('decline')).toEqual({ status: 200, body: { ok: true } })
+    expect(h.acts[0]?.[1]).toBe('seller-1')
+  })
+})

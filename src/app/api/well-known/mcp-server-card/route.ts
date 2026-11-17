@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { SITE_NAME } from '@/lib/edition'
 
 /**
@@ -189,8 +189,8 @@ function serverCard() {
      * that connects and gets the 401 measured above needs to find the authorization server; RFC
      * 9728 is how, and this saves it the round trip. Reverse-DNS prefix per the `_meta` key rules —
      * `vn.eno/` is unreserved (anything ending in `mcp` or `modelcontextprotocol` is not).
-     * The scope list is `OAUTH_SCOPES`, the same constant the token endpoint enforces and both
-     * .well-known OAuth documents publish, so a client cannot be shown three different scope sets.
+     * The scope list is `SIGN_IN_SCOPES`: the API's scopes plus the messaging pair this server enforces, the same
+     * constant the authorization server and this server's RFC 9728 document publish, so a client sees one scope set.
      */
     _meta: {
       [`${RDNS}/partner-api`]: {
@@ -198,7 +198,7 @@ function serverCard() {
         // The MCP server's OWN document (resource …/api/mcp, RFC 9728 §3.1), the one its 401 names — not the REST API's.
         protectedResourceMetadata: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp`,
         authorizationServerMetadata: `${OAUTH_ISSUER}/.well-known/oauth-authorization-server`,
-        scopes: [...OAUTH_SCOPES],
+        scopes: [...SIGN_IN_SCOPES],
         // The MCP server's own page (2026-11-11), not the REST reference: setup per client and each tool's scope.
         documentation: `${OAUTH_ISSUER}/developers/mcp`,
       },

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { OAUTH_ISSUER, OAUTH_SCOPES, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
 
 /**
@@ -34,9 +34,9 @@ export function protectedResourceResponse(which: 'origin' | 'rest' | 'mcp') {
       // One authorization server: ourselves. Its metadata is the sibling document at
       // /.well-known/oauth-authorization-server on this same origin.
       authorization_servers: [OAUTH_ISSUER],
-      // Same list the authorization server advertises, from the same constant, because a client
-      // that sees different scope sets on the two documents cannot tell which one to request.
-      scopes_supported: [...OAUTH_SCOPES],
+      // The scopes THIS resource enforces. The MCP server also enforces the sign-in-only messaging pair
+      // (MESSAGING_SCOPES, src/lib/api/oauth.ts); the REST API and the origin document do not, so they never list it.
+      scopes_supported: which === 'mcp' ? [...SIGN_IN_SCOPES] : [...OAUTH_SCOPES],
       // resolveApiKey reads `Authorization: Bearer …` and NOTHING else — no `access_token` query
       // parameter, no form body. Advertising either would invite a client to put a credential in a
       // URL, where it lands in every access log and Referer header on the way.

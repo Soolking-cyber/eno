@@ -37,8 +37,8 @@ export const dynamic = 'force-dynamic'
 // was wrapped, so a DB rejection used to be Next's default 500 and is now
 // {"error":"internal_error"} 500.
 export const POST = route(
-  { auth: 'userId', rateLimit: { bucket: 'offer:act', limit: 30, window: '1 m' } },
-  async ({ req, params, userId: meId }) => {
+  { auth: 'userId', agent: true, rateLimit: { bucket: 'offer:act', limit: 30, window: '1 m' } },
+  async ({ req, params, userId: meId, agent }) => {
     if (actingAccountMismatch(req, meId)) throw new ApiError('account_changed', 409)
     const { id } = params
 
@@ -51,6 +51,9 @@ export const POST = route(
     const messageId = String(body.messageId || '')
     const action = body.action === 'accept' ? 'accept' : body.action === 'decline' ? 'decline' : null
     if (!messageId || !action) throw new ApiError('bad_request', 400)
+    // ⛔ AN AGENT NEVER ACCEPTS (2026-11-17): an accepted offer is never revoked, counts as a deal for trust and reviews,
+    // and the app gives a person 5 s to undo it. The agent may decline; accepting stays with the person, in the app.
+    if (agent && action === 'accept') throw new ApiError('forbidden', 403)
 
     const convo = await db.conversation.findUnique({
       where: { id },

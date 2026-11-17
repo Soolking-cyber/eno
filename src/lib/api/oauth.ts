@@ -132,6 +132,17 @@ function issuerAccepted(iss: string, now: number): boolean {
  */
 export const OAUTH_SCOPES = ['listings:read', 'listings:write', 'analytics:read', 'media:write'] as const
 
+/**
+ * Scopes ONLY a person's sign-in can grant, and ONLY the MCP server enforces (2026-11-17, agent messaging): read the
+ * person's conversations, and send messages, offers and counter-offers and decline offers in their name
+ * (src/lib/mcp/messaging-tools.ts checks each one). Not in OAUTH_SCOPES because no /api/v1 route reads them, so the REST
+ * documents (OpenAPI, its RFC 9728 document) must not advertise them; never an API key's (api/keys VALID_SCOPES) and
+ * never in DEFAULT_SIGN_IN_SCOPES — an app gets them only by asking, and the person sees them on the consent screen.
+ */
+export const MESSAGING_SCOPES = ['messages:read', 'messages:write'] as const
+/** Everything the authorization server can grant at sign-in: the API's scopes and the MCP-only messaging pair. */
+export const SIGN_IN_SCOPES = [...OAUTH_SCOPES, ...MESSAGING_SCOPES] as const
+
 let cachedKey: Buffer | null = null
 function signingKey(): Buffer | null {
   if (cachedKey) return cachedKey

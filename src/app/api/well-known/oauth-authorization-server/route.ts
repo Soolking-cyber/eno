@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { CLAIM_GRANT, CLAIM_PATH, IDENTITY_PATH, JWT_BEARER_GRANT } from '@/lib/api/agent-auth'
 
 // ── RFC 8414 · OAuth 2.0 Authorization Server Metadata ────────────────────────────
@@ -75,9 +75,9 @@ export async function GET() {
       // constant time. There is no client_secret_jwt or private_key_jwt.)
       // `none`: the sign-in's public clients prove themselves with PKCE and their client_id binding.
       token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
-      // The scopes resolveApiKey actually enforces. A `scope` parameter on the token request may
-      // NARROW a token to a subset of its key's scopes; it can never escalate (invalid_scope).
-      scopes_supported: [...OAUTH_SCOPES],
+      // Every scope this server grants: the API's, which a `scope` parameter on a client-credentials request may only
+      // NARROW (never escalate: invalid_scope), and the messaging pair a person's sign-in alone can grant (2026-11-17).
+      scopes_supported: [...SIGN_IN_SCOPES],
       response_types_supported: ['code'],
       // The tokens are HS256 JWTs, but they are OPAQUE to clients by contract — there is no JWKS
       // and no public key, because the signing key is symmetric and derived from a server secret.

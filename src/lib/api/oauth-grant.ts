@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { kv } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { safeFetch } from '@/lib/ssrf'
-import { OAUTH_ISSUER, OAUTH_SCOPES } from '@/lib/api/oauth'
+import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
 /**
@@ -210,7 +210,7 @@ export type AuthRequestCheck =
    *  phishing links (RFC 9700 §4.11.2; review 2026-11-13). Only a signed-in person's Allow or Cancel goes back. */
   | { ok: false; error: string; description: string }
 
-const ALL_SCOPES = new Set<string>(OAUTH_SCOPES)
+const ALL_SCOPES = new Set<string>(SIGN_IN_SCOPES)
 /** What a sign-in grants when the client names no scope: what the MCP tools need, never media:write. */
 export const DEFAULT_SIGN_IN_SCOPES = ['listings:read', 'listings:write', 'analytics:read']
 
@@ -233,7 +233,7 @@ export async function checkAuthRequest(q: URLSearchParams): Promise<AuthRequestC
   if (!isMcpResource(q.get('resource') || MCP_RESOURCE)) return fail('invalid_target', `The only resource here is ${MCP_RESOURCE}.`)
   const resource = MCP_RESOURCE // stored canonical: a trailing-slash spelling is the same server
   const asked = (q.get('scope') || '').split(/\s+/).filter(Boolean)
-  if (asked.some((s) => !ALL_SCOPES.has(s))) return fail('invalid_scope', `Scopes are: ${OAUTH_SCOPES.join(' ')}.`)
+  if (asked.some((s) => !ALL_SCOPES.has(s))) return fail('invalid_scope', `Scopes are: ${SIGN_IN_SCOPES.join(' ')}.`)
   const scopes = asked.length ? [...new Set(asked)] : DEFAULT_SIGN_IN_SCOPES
   // ChatGPT sends a ~760-character state (2026-11-14: refused at the old 512 cap). It only rides the sealed consent
   // ticket and the return redirect, so a generous cap costs nothing; the cap only stops absurd links.

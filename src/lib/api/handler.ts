@@ -9,6 +9,8 @@ import { logError } from '@/lib/log'
 import type { ApiErrorCode } from '@/lib/api/errors'
 import { ApiError } from '@/lib/api/api-error'
 import { readJsonCapped } from '@/lib/api/body'
+import { db } from '@/lib/db'
+import { agentOf, type AgentActor } from '@/lib/api/agent-actor'
 
 /**
  * THE PREAMBLE EVERY FIRST-PARTY ROUTE RETYPES.
@@ -100,6 +102,11 @@ export function apiFail(code: ApiErrorCode, status = 400): NextResponse {
  */
 type AuthMode = 'public' | 'userId' | 'profile' | 'admin' | 'cron'
 
+// An AI agent acting for a person (src/lib/api/agent-actor.ts): the in-process mark a route with `agent: true` reads.
+// ⚠️ The agent's rate-limit bucket is its OWN (`agent:<id>`) and strict: an agent's burst must not lock the person out of
+// their own chat, and an agent fails closed when the limiter is unsure.
+export type { AgentActor }
+
 /**
  * The shared cron guard, byte-for-byte the `bearerOk()` the five routes each declared locally.
  * Note the `&&`: `timingSafeEqual` THROWS on unequal-length buffers, so the length check is not an
@@ -148,12 +155,16 @@ type Ctx<A extends AuthMode, B> = {
   userId: A extends 'userId' | 'profile' ? string : null
   /** The admin's email for `auth: 'admin'`. */
   admin: A extends 'admin' ? string : null
+  /** Set when an AI agent sent this through the MCP server (see AgentActor): only on a route with `agent: true`. */
+  agent: AgentActor | null
   /** Parsed and validated body, when a schema was given. */
   body: B
 }
 
 type Options<A extends AuthMode, S extends z.ZodTypeAny | undefined> = {
   auth?: A
+  /** Accept a person's AI agent as the caller (agent-actor.ts asAgent). Only with `auth: 'userId'` or `'profile'`. */
+  agent?: true
   /**
    * Sliding window keyed by profile id (or client IP for `auth: 'public'`). `strict: true` fails
    * CLOSED — use it on paid or PII-adjacent routes, matching the existing convention in
@@ -195,7 +206,17 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
       let profile: Profile | null = null
       let admin: string | null = null
       let userId: string | null = null
-      if (opts.auth === 'userId') {
+      const agent = opts.agent ? agentOf(req) : null
+      if (agent) {
+        // The MCP server proved the token; the account must still exist. No provisioning, no presence heartbeat: an
+        // agent's call is not the person opening the app.
+        if (opts.auth === 'userId') userId = agent.profileId
+        else if (opts.auth === 'profile') {
+          profile = await db.profile.findUnique({ where: { id: agent.profileId } })
+          if (!profile) return apiFail('auth_required', 401)
+          userId = profile.id
+        } else return apiFail('forbidden', 403)
+      } else if (opts.auth === 'userId') {
         userId = await getCurrentProfileId()
         if (!userId) return apiFail('auth_required', 401)
       } else if (opts.auth === 'admin') {
@@ -232,8 +253,8 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
          * resolves cf-connecting-ip → x-real-ip → the first XFF hop, and every other rate-limited
          * route in this codebase uses it.
          */
-        const key = userId ?? clientIp(req)
-        const rl = await rateLimit(bucket, key, limit, window, strict ? { strict: true } : undefined)
+        const key = agent ? `agent:${userId}` : (userId ?? clientIp(req))
+        const rl = await rateLimit(bucket, key, limit, window, strict || agent ? { strict: true } : undefined)
         if (!rl.success) {
           // ⚠️ Carry the retry time so a client can show a COUNTDOWN instead of a vague "try later".
           // `resetSec` is when the window slot advances (see ratelimit.ts) — the honest lower bound on
@@ -261,7 +282,7 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
         body = parsed.data
       }
 
-      const data = await handler({ req, params, profile, admin, userId, body } as Ctx<A, never>)
+      const data = await handler({ req, params, profile, admin, userId, body, agent } as Ctx<A, never>)
       if (data instanceof Response) return data // an escape hatch for redirects and streams
       return NextResponse.json(data ?? {})
     } catch (e) {

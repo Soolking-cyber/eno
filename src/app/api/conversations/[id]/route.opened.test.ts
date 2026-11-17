@@ -215,6 +215,17 @@ describe('polling stays write-free', () => {
     expect(h.notifCalls).toHaveLength(0)
     expect(h.convoUpdates).toBe(0)
   })
+  it('⛔ an AI agent\'s read is always a peek: even an open with messages unread writes nothing (2026-11-17)', async () => {
+    const { asAgent } = await import('@/lib/api/agent-actor')
+    h.me = null // no session: the caller is the agent's in-process mark
+    h.convo = thread({ buyerUnread: 2 })
+    const req = asAgent(new Request('http://localhost/api/conversations/thread-1?opened=1'), { profileId: 'buyer-1', keyId: 'k1' })
+    const res = await GET(req, { params: Promise.resolve({ id: 'thread-1' }) })
+    expect(res.status).toBe(200)
+    expect(h.notifCalls).toHaveLength(0)
+    expect(h.convoUpdates).toBe(0)
+    expect(h.badgeSyncs).toBe(0)
+  })
 })
 
 describe('an offer that arrives while the thread is open', () => {

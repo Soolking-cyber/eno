@@ -160,10 +160,12 @@ async function visaThreadContext(applicationId: string) {
 // threadKind were unguarded, so a DB rejection used to be Next's default 500 and is now
 // {"error":"internal_error"} 500. The two blocks that already fail soft — the review lookup and
 // visaThreadContext — keep their own catch and are untouched by this.
-export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId }) => {
+export const GET = route({ auth: 'userId', agent: true }, async ({ req, params, userId: meId, agent }) => {
   const { id } = params
   const search = new URL(req.url).searchParams
-  const peek = search.get('peek') === '1'
+  // ⛔ AN AGENT'S READ IS ALWAYS A PEEK (2026-11-17): it must not clear the person's unread count or bell, nor tell the
+  // other side "Đã xem" for messages the person has not seen.
+  const peek = !!agent || search.get('peek') === '1'
   /**
    * ⚠️ `?opened=1` IS THE THREAD PAGE'S ONE-TIME "I AM LOOKING AT THIS" CALL (si-04), sent on the first
    * load of a thread and never by the 15s poll, the focus refetch or a prefetch. It clears this thread's
@@ -254,7 +256,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * not read. The grant is exactly `sellerId === SUPPORT_SELLER_ID` plus admin, edition-scoped by
    * that constant — it confers nothing on an ordinary buyer↔seller conversation.
    */
-  const iAmSupport = !iAmBuyer && !iAmSeller && convo.seller?.id === SUPPORT_SELLER_ID && !!(await getAdmin())
+  const iAmSupport = !agent && !iAmBuyer && !iAmSeller && convo.seller?.id === SUPPORT_SELLER_ID && !!(await getAdmin())
   if (!iAmBuyer && !iAmSeller && !iAmSupport) throw new ApiError('forbidden', 403)
 
   // Mark my side read — but only WRITE when there's actually something to clear,

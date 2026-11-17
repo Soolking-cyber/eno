@@ -166,8 +166,9 @@ Authorization: Bearer eno_live_…`}</Code></div>
         <section className="mt-8">
           <h2 className="h-section text-foreground">Tools</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            {TOOLS.length} tools, each scoped like its REST endpoint: a call whose key lacks the scope shown is refused with{' '}
-            <C>insufficient_scope</C>.
+            {TOOLS.length} tools. The shop tools are scoped like their REST endpoints; the chat tools need <C>messages:read</C> or{' '}
+            <C>messages:write</C>, which only a sign-in grants (never an API key), and every message they send shows as written by an AI
+            assistant. A call that lacks the scope shown is refused with <C>insufficient_scope</C>.
           </p>
           <ul className="mt-4 space-y-3">
             {TOOLS.map((t) => (

@@ -116,7 +116,10 @@ const DEVELOPER_SECTION = `## For developers and agents
   AGENTS.md for AI coding agents and an Agent Plugin manifest; also on [skills.sh](${AGENT_SKILLS_SH_URL}).` : ''}
 - Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an
   API key as the Bearer token. Streamable HTTP, stateless: JSON-RPC over POST, no SSE stream (a GET
-  answers 405). Tools are listed at runtime via tools/list and each one is scope-gated.
+  answers 405). Tools are listed at runtime via tools/list and each one is scope-gated. Chat tools
+  (list_conversations, get_conversation, contact_seller, send_message, decline_offer) need messages:read or
+  messages:write, which only a person's sign-in grants: an agent messages sellers, replies and makes or counters offers in
+  that person's name, every message it sends shows as written by an AI assistant, and accepting an offer stays with the person.
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.

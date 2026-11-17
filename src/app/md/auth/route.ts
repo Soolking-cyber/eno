@@ -1,4 +1,4 @@
-import { OAUTH_SCOPES, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT, TOKEN_RATE_WINDOW_SEC } from '@/lib/api/oauth'
+import { SIGN_IN_SCOPES, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT, TOKEN_RATE_WINDOW_SEC } from '@/lib/api/oauth'
 import { ANON_RATE_PER_MIN, API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { CODE_TTL_SECONDS, CONSENT_TTL_SECONDS, DEFAULT_SIGN_IN_SCOPES, GRANT_MAX_AGE_SECONDS, MCP_RESOURCE } from '@/lib/api/oauth-grant'
 import {
@@ -54,10 +54,12 @@ const SCOPE_NOTES = {
   'listings:write': 'Create, edit, delete and re-status listings; bulk-import; sync a catalogue; register and remove webhooks.',
   'analytics:read': 'Read shop-level totals and per-listing daily views and leads.',
   'media:write': 'Upload an image to first-party storage and get back a URL to put in a listing\'s images[]. Attaching it to a listing is a listings:write call.',
-} satisfies Record<(typeof OAUTH_SCOPES)[number], string>
+  'messages:read': 'Sign-in only, MCP only: read the person\'s conversations (the inbox and each thread\'s messages and offers). Reading never marks a thread as read.',
+  'messages:write': 'Sign-in only, MCP only: message a seller about a listing, reply, make or counter an offer, and decline an offer, in the person\'s name; each message is marked as written by an AI assistant. An offer it makes is the person\'s: the other side may accept it. Accepting an offer stays with the person, in the app.',
+} satisfies Record<(typeof SIGN_IN_SCOPES)[number], string>
 
 export async function GET() {
-  const scopeRows = OAUTH_SCOPES.map((s) => `| \`${s}\` | ${SCOPE_NOTES[s]} |`).join('\n')
+  const scopeRows = SIGN_IN_SCOPES.map((s) => `| \`${s}\` | ${SCOPE_NOTES[s]} |`).join('\n')
 
   const body = `# ${SITE_NAME} auth.md — authentication for the Partner API
 

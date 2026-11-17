@@ -30,6 +30,8 @@ import { NOT_REMOVED } from '@/lib/listing-removed'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { cutText } from '@/lib/feed-text'
 import { SHOP_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
+import { ToolError, type ToolAnnotations, type McpTool } from './tool-types'
+import { MESSAGING_TOOLS } from './messaging-tools'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -39,9 +41,8 @@ import { SHOP_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
 
 /** `detail`: a pointer the agent can act on, sent beside the message when the refusal has one — the job-text screen's
  *  '<field>:<snippet>' (2026-10-18), the field and the words to take out. */
-export class ToolError extends Error {
-  constructor(public code: string, message: string, public detail?: string) { super(message) }
-}
+// ToolError, ToolAnnotations and McpTool live in tool-types.ts (shared with the chat tools, messaging-tools.ts).
+export { ToolError, type ToolAnnotations, type McpTool }
 
 const LISTING_INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
 
@@ -94,7 +95,6 @@ const listingItem = z.object({
  *  to the shop's webhook endpoints, or takes a URL eno will fetch or post to. So every write but delete_webhook (which
  *  only forgets an endpoint) — OpenAI's scan flagged update_shop and set_listing_status as false-but-open (2026-11-14).
  *  Hints only — the scopes are what enforce. */
-export type ToolAnnotations = { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }
 // All four on every tool: ChatGPT's review requires readOnlyHint, destructiveHint and openWorldHint as booleans even on a read.
 const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
 
@@ -356,18 +356,6 @@ const PINS: [
 ] = [true, true, true, true, true, true, true, true, true]
 void PINS
 
-export type McpTool = {
-  name: string
-  /** Short display label (MCP `Tool.title`): Claude's directory requires one on every tool. */
-  title: string
-  description: string
-  scope: 'listings:read' | 'listings:write' | 'analytics:read' | 'media:write'
-  annotations: ToolAnnotations
-  input: z.ZodType
-  /** The result object's shape (see OUTPUT SCHEMAS above). */
-  output: z.ZodType
-  handler: (auth: ApiAuth, args: Record<string, unknown>) => Promise<unknown>
-}
 
 // Titles: each round on the live server tests a form per tool and the best stays (owner: every title to 100; the 100s are
 // left alone). The judge gives 100 at confidence >= 0.99: "Get shop", "Update shop", "Get shop analytics summary" and the
@@ -796,6 +784,8 @@ export const TOOLS: McpTool[] = [
   },
 ]
 
+// The chat tools (owner 2026-11-17, agent messaging): scope messages:read / messages:write, granted only at sign-in.
+TOOLS.push(...MESSAGING_TOOLS)
 export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 // JSON-Schema list for tools/list (zod v4 → JSON Schema), with each tool's read/write hints.

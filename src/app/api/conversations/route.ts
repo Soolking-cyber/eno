@@ -72,6 +72,8 @@ export const dynamic = 'force-dynamic'
 export const POST = route(
   {
     auth: 'profile',
+    // A person's AI agent may open a thread too (handler.ts asAgent; its budgets: src/lib/mcp/messaging-tools.ts).
+    agent: true,
     // Each new thread fires a seller notification + web-push, so cap contact-initiations per
     // user — generous for real buyers (dozens/hour), but stops a script mass-spamming sellers.
     rateLimit: { bucket: 'conversation-create', limit: 30, window: '1 h' },
@@ -738,7 +740,8 @@ export const POST = route(
 //
 // ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: nothing here was wrapped, so a DB rejection
 // used to be Next's default 500 and is now {"error":"internal_error"} 500.
-export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
+// `agent: true` (2026-11-17): a person's AI agent reads this inbox through the MCP server (handler.ts asAgent).
+export const GET = route({ auth: 'userId', agent: true }, async ({ userId: meId, agent }) => {
   /**
    * ⚠️ HIDE THE THREAD, NOT JUST ITS CARDS, AND EXCLUDE IT IN THE `where` — BEFORE THE take.
    *
@@ -777,7 +780,9 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   // operators. The locally verified token's email says "not an admin" for everyone else at no network cost; anyone it
   // calls an admin is still confirmed by getAdmin(), so this never grants more than before. A stale email claim (an
   // email changed INTO ADMIN_EMAILS within the token's life) can only withhold the desk until the token refreshes.
-  const isSupportOperator = (await isCurrentUserAdminByClaims()) && !!(await getAdmin())
+  // ⛔ An agent is never the support desk: it acts for a person, never as eno (and the claims check would only send the
+  // MCP token to the auth server to be refused).
+  const isSupportOperator = !agent && (await isCurrentUserAdminByClaims()) && !!(await getAdmin())
   /**
    * ⚠️ THE SCOPE IS APPLIED PER BRANCH, NOT AT THE TOP LEVEL, AND THE DESK IS EXEMPT. A top-level
    * `...sellerScope` ANDs with the whole OR, so on an edition with an ALLOW-list it would filter

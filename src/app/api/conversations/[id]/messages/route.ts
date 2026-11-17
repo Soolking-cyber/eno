@@ -66,8 +66,8 @@ const MAX_LEN = 2000
 // insertMessage rethrows, which used to be Next's default 500 and is now
 // {"error":"internal_error"} 500. The release still runs first, so the retry is still allowed.
 export const POST = route(
-  { auth: 'userId', rateLimit: { bucket: 'msg:send', limit: 20, window: '1 m' } },
-  async ({ req, params, userId: meId }) => {
+  { auth: 'userId', agent: true, rateLimit: { bucket: 'msg:send', limit: 20, window: '1 m' } },
+  async ({ req, params, userId: meId, agent }) => {
     const { id } = params
 
     // Enforcement (trust Phase 2): a suspended account can't send messages/offers.
@@ -133,7 +133,7 @@ export const POST = route(
      * buyer↔seller one. `sellerId === SUPPORT_SELLER_ID` is the whole grant, and it is edition-
      * scoped by that constant, so eno.vn's admin cannot answer into eno.forum's support desk.
      */
-    const iAmSupport = !iAmBuyer && !iAmSeller && convo.sellerId === SUPPORT_SELLER_ID && !!(await getAdmin())
+    const iAmSupport = !agent && !iAmBuyer && !iAmSeller && convo.sellerId === SUPPORT_SELLER_ID && !!(await getAdmin())
     if (!iAmBuyer && !iAmSeller && !iAmSupport) { await release(); throw new ApiError('forbidden', 403) }
     // ⚠️ App Store gate `ugc-safety` (R3): neither side of a block can write into the thread. With the
     // gate off isBlockedBetween answers false WITHOUT a query — this is the hot send path admin.ts

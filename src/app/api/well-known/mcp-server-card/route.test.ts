@@ -200,9 +200,9 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
   it('routes a 401 back to the OAuth metadata, with the scope list the token endpoint enforces', async () => {
     const { doc } = await card('marketplace', 'https://eno.vn')
     const meta = doc._meta['vn.eno/partner-api'] as { scopes: string[]; protectedResourceMetadata: string; authorizationServer: string }
-    // Not a retyped list — OAUTH_SCOPES, the same constant both .well-known OAuth documents publish
-    // and resolveApiKey checks `tool.scope` against.
-    expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write'])
+    // Not a retyped list — SIGN_IN_SCOPES: the API's scopes plus the sign-in-only messaging pair (2026-11-17), the same
+    // constant the authorization server and the MCP server's RFC 9728 document publish, and `tool.scope` is checked against.
+    expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write', 'messages:read', 'messages:write'])
     // The MCP server's own RFC 9728 document — the URL its 401 challenge names — not the REST API's.
     expect(meta.protectedResourceMetadata).toBe('https://eno.vn/.well-known/oauth-protected-resource/api/mcp')
     expect(meta.authorizationServer).toBe('https://eno.vn')

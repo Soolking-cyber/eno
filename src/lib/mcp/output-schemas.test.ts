@@ -26,9 +26,12 @@ vi.mock('@/lib/db', () => ({
       findUnique: async () => ({ id: 's1', ownerId: 'p1', name: 'Shop', bio: null, location: null, phone: null, avatarUrl: null, trustScore: 50, trustTier: 'standard', responseRate: 100, memberSince: now, _count: { listings: 2 } }),
     },
     category: { findUnique: async () => ({ id: 'c1', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }) },
+    profile: { findUnique: async () => ({ email: 'buyer@example.com' }) },
+    conversation: { findMany: async () => [{ id: 'cv1', buyerProfileId: 'p1', sellerId: 's2', listing: { listingType: 'sell' } }], findFirst: async () => null },
     listing: {
       findMany: async () => [{ id: 'l1' }, { id: 'l2' }],
       findUnique: async () => ({ id: 'l1' }),
+      findFirst: async () => ({ price: 5_000_000, listingType: 'sell', negotiable: true, sellerId: 's2', seller: { ownerId: 'p2' } }),
       aggregate: async () => ({ _sum: { views: 10, contactCount: 2 }, _count: { _all: 2 } }),
       groupBy: async () => [{ status: 'active', _count: { _all: 2 } }],
       count: async () => 0,
@@ -71,6 +74,26 @@ vi.mock('@/lib/listing-analytics', () => ({
 vi.mock('@/lib/webhooks', () => ({ dispatchListingEventsBatch: async () => {}, generateWebhookSecret: () => 'whsec_x' }))
 vi.mock('@/lib/compliance/publish-block-response', () => ({ isIdentityBlockCode: () => false, publishBlockedBody: () => ({ message: { en: 'Verify your identity first.' } }) }))
 vi.mock('next/server', () => ({ after: () => {} }))
+// The chat tools (messaging-tools.ts) call the chat routes in process: each route answers what the real one sends.
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, limit: 1, remaining: 1, resetSec: 60 }) }))
+const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } })
+const THREAD = {
+  id: 'cv1', kind: 'listing', iAmSeller: false, teacher: null,
+  listing: { id: 'l1', title: 'A phone', price: 5_000_000, priceUnit: null, negotiable: true },
+  counterpart: { name: 'Shop' },
+  messages: [
+    { id: 'm1', mine: false, body: 'Still available', createdAt: '2026-11-13T00:00:00.000Z', kind: 'text', offerAmount: null, offerStatus: null },
+    { id: 'm2', mine: false, body: '', createdAt: '2026-11-13T00:01:00.000Z', kind: 'offer', offerAmount: 4_500_000, offerStatus: 'pending' },
+  ],
+}
+vi.mock('@/app/api/conversations/route', () => ({
+  GET: async () => json({ conversations: [{ id: 'cv1', listingId: 'l1', listingTitle: 'A phone', kind: 'listing', unread: 1, lastMessageText: 'Hi', lastMessageAt: '2026-11-13T00:00:00.000Z', lastOffer: { mine: false, amount: 4_500_000, status: 'pending' }, counterpart: { name: 'Shop' } }] }),
+  POST: async () => json({ id: 'cv1', created: true, message: { id: 'm3' } }),
+  // (contact_seller with an offer also posts through the thread's send route, mocked below)
+}))
+vi.mock('@/app/api/conversations/[id]/route', () => ({ GET: async () => json(THREAD) }))
+vi.mock('@/app/api/conversations/[id]/messages/route', () => ({ POST: async () => json({ id: 'm3', kind: 'offer' }) }))
+vi.mock('@/app/api/conversations/[id]/offer/route', () => ({ POST: async () => json({ ok: true }) }))
 
 const { TOOLS } = await import('./tools')
 const AUTH = { keyId: 'k1', sellerId: 's1', profileId: 'p1', scopes: new Set(['listings:read', 'listings:write', 'analytics:read']) } as never
@@ -91,6 +114,11 @@ const ARGS: Record<string, Row> = {
   list_webhooks: {},
   register_webhook: { url: 'https://x.example/h', events: ['listing.created'] },
   delete_webhook: { id: 'w1' },
+  list_conversations: {},
+  get_conversation: { conversation_id: 'cv1' },
+  contact_seller: { listing_id: 'l1', message: 'Is it still available?' },
+  send_message: { conversation_id: 'cv1', message: 'Would you take 4.800.000 đ?', offer_amount: 4_800_000 },
+  decline_offer: { conversation_id: 'cv1', message_id: 'm2' },
 }
 
 describe('every MCP tool answers in the shape its outputSchema declares', () => {
