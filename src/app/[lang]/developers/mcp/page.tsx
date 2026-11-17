@@ -63,20 +63,28 @@ export default function McpServerPage() {
           <ChatAppConnect className="mt-4" />
           <h3 className="mt-4 text-base font-semibold text-foreground">Sign in with {SITE_NAME}</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            In Claude, or any app that supports MCP sign-in, add <C>{ENDPOINT}</C> as a connector. The app opens {SITE_NAME}: sign in with your
-            business account, check the app&apos;s address on the consent screen and press <strong className="text-foreground">Allow</strong>. No key to
-            copy.
+            In Claude, or any app that supports MCP sign-in, add <C>{ENDPOINT}</C> as a connector. The app opens {SITE_NAME}: sign in, check the
+            app&apos;s address on the consent screen and press <strong className="text-foreground">Allow</strong>. No key to copy. Reconnecting the same
+            app later is one tap (<strong className="text-foreground">Continue</strong>).
           </p>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
-            <li>• <strong className="text-foreground">Your shop only:</strong> the connection acts for the one shop of the account that pressed Allow.</li>
             <li>
-              • <strong className="text-foreground">Disconnect anytime</strong> in your{' '}
-              <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link>: it stops at once.
-              It also ends by itself after 180 days, or when the account is suspended, loses its shop or stops being a business account.
+              • <strong className="text-foreground">Any account, for chat:</strong> the app can read your conversations and message, make and counter
+              offers and decline offers for you; each message it sends is marked as written by an AI assistant, and accepting an offer stays with you.
             </li>
             <li>
-              • <strong className="text-foreground">If it does not connect:</strong> the consent screen says why — connecting needs a business account with
-              its own shop. A sign-in link that fails or was left open too long: start the connection again from the app.
+              • <strong className="text-foreground">Your shop, with a business account:</strong> the shop tools too, for the one shop of the account that
+              pressed Allow. An account without one connects for chat only, and the consent screen says so.
+            </li>
+            <li>
+              • <strong className="text-foreground">Disconnect anytime</strong> in{' '}
+              <Link href="/dashboard/settings?tab=privacy" className="font-semibold text-accent-foreground hover:underline">Settings → Privacy → Connected apps</Link>: it
+              stops at once. It also ends by itself after 180 days or when the account is suspended — and a connection made with a shop ends,
+              chat included, when the account loses that shop or stops being a business account: connect again, for chat only.
+            </li>
+            <li>
+              • <strong className="text-foreground">If it does not connect:</strong> the consent screen says why. A sign-in link that fails or was left
+              open too long: start the connection again from the app.
             </li>
           </ul>
 
