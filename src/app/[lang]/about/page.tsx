@@ -426,11 +426,29 @@ function AtAGlance({ facts }: { facts: SiteFacts | null }) {
           />
         </GlanceRow>
       )}
+      {/* HOW ENO EARNS (owner, 2026-11-17: "yes" to stating it plainly after the HubSpot AI Search Grader read "no clear
+          revenue model"). Two clauses, each a restatement of the Regulations and nothing more: the partner service and its
+          fee (Arts. 3 and 8) and the affiliate commission (Art. 8, "may earn … does not change the price"). ⛔ Never how a
+          fee is invoiced (owner, 2026-11-03), and never a rate: rates live in the Regulations, which this links to. */}
+      <GlanceRow term={<Tr text="How eno earns" />}>
+        {tr('eno’s income comes from businesses: service partners pay for its marketing and lead service, and eno may earn a commission from some partners and linked shops when someone buys through a link here, which does not change the price you pay.', 'Doanh thu của eno đến từ doanh nghiệp: đối tác dịch vụ trả phí cho dịch vụ tiếp thị và gửi khách tiềm năng, và eno có thể nhận hoa hồng từ một số đối tác và cửa hàng liên kết khi có người mua hàng qua đường dẫn trên trang, khoản này không làm thay đổi giá bạn phải trả.')}{' '}
+        <Link href="/regulations#fees" className={LINK}>
+          <Tr text="Fees in the Regulations" />
+        </Link>
+      </GlanceRow>
       {facts && facts.live > 0 && <WhereRow facts={facts} />}
       <LinkedRow facts={facts} />
       <GlanceRow term={<Tr text="Payments" />}>
         {/* "the source site", not "the partner site" (2026-10-01) — LinkedRow has the reason. */}
-        {tr('There is no checkout, no escrow and no buyer protection. The site holds no money: you pay the seller, or the source site, directly.', 'Trang không có bước thanh toán, không có ký quỹ trung gian và không có chương trình bảo vệ người mua. Trang không giữ tiền: bạn trả tiền trực tiếp cho người bán hoặc cho trang nguồn.')}
+        {tr('There is no checkout, no escrow and no buyer protection. The site holds no money: you pay the seller, or the source site, directly.', 'Trang không có bước thanh toán, không có ký quỹ trung gian và không có chương trình bảo vệ người mua. Trang không giữ tiền: bạn trả tiền trực tiếp cho người bán hoặc cho trang nguồn.')}{' '}
+        {/* What eno does without escrow (owner, 2026-11-17), in /safety's own terms ("New listings go through automatic
+            checks, and decisions on reports are made by our team"; "off-platform there's no record for our team to check")
+            and /privacy's ("messages are kept … for resolving a report"). ⚠️ A statement of what happens, never "instead"
+            or any word that reads as a substitute for the buyer protection the sentence before says there is none of. */}
+        {tr('New listings go through automatic checks, and our team decides on reports using the chat kept on eno as the record.', 'Tin mới được kiểm tra tự động, và đội ngũ eno xử lý báo cáo dựa trên lịch sử chat trên eno.')}{' '}
+        <Link href="/safety" className={LINK}>
+          <Tr text="How to trade safely" />
+        </Link>
       </GlanceRow>
       <GlanceRow term={<Tr text="Languages" />}>
         {LANGUAGES.map((l, i) => (
