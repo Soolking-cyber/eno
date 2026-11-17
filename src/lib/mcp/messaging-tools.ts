@@ -305,7 +305,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
     scope: scopeRead,
     annotations: READ,
     input: z.object({
-      unread_only: z.boolean().optional().describe('Set it to see only the conversations with messages the person has not read yet, the most unread first; leave it out to see them all, newest first'),
+      unread_only: z.boolean().optional().describe('Whether to narrow the list to the conversations with messages the person has not read yet, the most unread first, to see what is waiting for an answer; without it every conversation comes back, newest first'),
     }),
     output: z.strictObject({
       conversations: z.array(z.strictObject({
