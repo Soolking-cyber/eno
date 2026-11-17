@@ -29,6 +29,9 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 
+/** eno.vn on Product Hunt, with the badge's own campaign tags (the owner's embed code, 2026-11-17). */
+const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/eno-vn?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-eno-vn'
+
 /**
  * One footer entry.
  *
@@ -791,6 +794,12 @@ function FooterBody({ compact }: { compact: boolean }) {
                 {store.name}
               </a>
             ))}
+            {/* Product Hunt (owner 2026-11-17, "embed nicely to boost ranking"; "our copy, no count", "footer, by the app
+                badges"): eno.vn's own copy of the "Find us on" badge (public/badges/product-hunt.svg, the upvote count cut), so no
+                page loads anything from Product Hunt, at the row's pill height. */}
+            <a href={PRODUCT_HUNT_URL} onClick={handleExternalClick} target="_blank" rel="noopener noreferrer" className="inline-flex">
+              <img src="/badges/product-hunt.svg" alt={tr('Find eno.vn on Product Hunt', 'Tìm eno.vn trên Product Hunt')} width={119} height={32} loading="lazy" decoding="async" className="h-8 w-auto" />
+            </a>
           </div>
         </div>
         )}

@@ -1348,6 +1348,7 @@ export const UI_STRINGS: string[] = [
   "Find a cover teacher — or offer cover lessons",
   "Find a quiet place, then tap Start. Then just talk, like a video call.",
   "Find a teacher",
+  "Find eno.vn on Product Hunt",
   "Finding your address…",
   "Finding your profile",
   "Fingerprint lock",
