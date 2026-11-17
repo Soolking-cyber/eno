@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { isCurrentUserAdminByClaims } from '@/lib/admin'
 import { clientIp } from '@/lib/client-ip'
-import { isProductionEnoHost } from '@/lib/consent-value'
+import { isCanonicalEnoHost, isProductionEnoHost } from '@/lib/consent-value'
 import { isBotUserAgent } from '@/lib/bot-ua'
 import { EDITION } from '@/lib/edition'
 import { vnDay } from '@/lib/signup-prompt'
@@ -60,6 +61,16 @@ export async function POST(req: NextRequest) {
   const ops = rumOps(body)
   if (!ops || ops.length === 0) return noContent()
   if (!allowBeacon(limiterKey(clientIp(req)), PER_MINUTE)) return noContent()
+  // ⛔ eno's OWN OPERATORS DO NOT COUNT (owner, 2026-11-17: "yes", after desktop CLS went from ~0.1 to 1.0 on the very
+  // days the redesign was being reviewed in real, signed-in Chrome windows — resized, scrolled and reloaded on purpose,
+  // which navigator.webdriver cannot see). An admin's beacon is dropped here, read from the locally verified JWT the
+  // beacon's own cookies carry (no auth-server call). It only ever REMOVES a count, the one use isCurrentUserAdminByClaims
+  // allows; nothing about the caller is stored either way, and "cannot tell" counts the view as before.
+  // ⛔ ONLY ON THE APEX/www — /api/consent's rule (src/proxy.ts SUBDOMAIN_SELF_WRITES admits this route from storefront
+  // and teacher subdomains because it never acts as the signed-in visitor there; proxy.test.ts pins the gate). A beacon
+  // from a subdomain page counts as before.
+  const operator = isCanonicalEnoHost(req.headers.get('host')) ? await isCurrentUserAdminByClaims().catch(() => false) : false
+  if (operator) return noContent()
   recordRumOps(vnDay(Date.now()), EDITION, ops)
   return noContent()
 }

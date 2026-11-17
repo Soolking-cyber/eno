@@ -377,10 +377,18 @@ describe('subdomain self-writes', () => {
         expect(spec.startsWith('.') || (spec.startsWith('@/') && !spec.startsWith('@/lib/')), `${p} imports ${spec}`).toBe(false)
         if (!spec.startsWith('@/lib/')) continue
         const rel = spec.slice('@/lib/'.length)
-        if (p === '/api/consent' && rel === 'admin') continue // the account lookup — gated below
+        if ((p === '/api/consent' || p === '/api/page-speed') && rel === 'admin') continue // the account lookup — gated below
         expect(libSource(rel).match(SESSION) ?? [], `${p} → ${spec}`).toEqual([])
       }
       const reads = src.match(SESSION) ?? []
+      if (p === '/api/page-speed') {
+        // Drops an operator's own beacon (owner, 2026-11-17) — read ONLY on the apex/www, like /api/consent's lookup: the
+        // import, its one call, and the call is the gated one. It only ever removes a count.
+        expect(src.match(/isCurrentUserAdminByClaims\(/g), p).toHaveLength(1)
+        expect(src, p).toMatch(/isCanonicalEnoHost\(req\.headers\.get\('host'\)\) \? await isCurrentUserAdminByClaims\(\)/)
+        expect(reads, p).toEqual([])
+        continue
+      }
       if (p !== '/api/consent') { expect(reads, p).toEqual([]); continue }
       // /api/consent names the account on its record — but reads it ONLY on the apex/www (its own test pins the behaviour):
       // no session read but that lookup (its import and its one call), and the call is the gated one.

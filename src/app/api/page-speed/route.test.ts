@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * database is never touched on the request path (store.ts batches; the limiter is in memory).
  */
 
-const h = vi.hoisted(() => ({ recorded: [] as Array<{ day: string; edition: string; ops: unknown[] }>, allow: true, ips: [] as string[] }))
+const h = vi.hoisted(() => ({ recorded: [] as Array<{ day: string; edition: string; ops: unknown[] }>, allow: true, ips: [] as string[], admin: false as boolean | 'throw' }))
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/rum/store', () => ({
@@ -18,6 +18,9 @@ vi.mock('@/lib/rum/store', () => ({
   recordRumOps: (day: string, edition: string, ops: unknown[]) => { h.recorded.push({ day, edition, ops }) },
 }))
 vi.mock('@/lib/db', () => ({ db: new Proxy({}, { get: () => { throw new Error('the route must not touch the database') } }) }))
+vi.mock('@/lib/admin', () => ({
+  isCurrentUserAdminByClaims: async () => { if (h.admin === 'throw') throw new Error('no claims'); return h.admin },
+}))
 
 const { POST } = await import('./route')
 const { EDITION } = await import('@/lib/edition')
@@ -40,11 +43,30 @@ const call = (body: unknown, { raw = false, host = 'eno.vn', origin = 'https://e
 
 beforeEach(() => {
   vi.stubEnv('NODE_ENV', 'production')
-  h.recorded = []; h.allow = true; h.ips = []
+  h.recorded = []; h.allow = true; h.ips = []; h.admin = false
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('POST /api/page-speed', () => {
+  it("an admin's own page view is not counted (owner, 2026-11-17: the team's review traffic), and still answers 204", async () => {
+    h.admin = true
+    const res = await call(BEACON)
+    expect(res.status).toBe(204)
+    expect(h.recorded).toHaveLength(0)
+  })
+
+  it("on a storefront or teacher subdomain the account is never read: the view counts (proxy.test.ts's carve-out rule)", async () => {
+    h.admin = true
+    await call(BEACON, { host: 'teacher.eno.vn', origin: 'https://teacher.eno.vn' })
+    expect(h.recorded).toHaveLength(1)
+  })
+
+  it('when the claims cannot be read, the view counts as before', async () => {
+    h.admin = 'throw'
+    await call(BEACON)
+    expect(h.recorded).toHaveLength(1)
+  })
+
   it('records a valid beacon for today (VN) and this edition, and answers a bodyless 204', async () => {
     const res = await call(BEACON)
     expect(res.status).toBe(204)
