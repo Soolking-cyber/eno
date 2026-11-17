@@ -41,8 +41,8 @@ export function hubDisclosure({ kind, lang, state, from, site }: HubCopyInput): 
   const vi = lang === 'vi'
   if (state === 'some') {
     return vi
-      ? `Xe từ ${from} là tin tham khảo: ${site} dẫn tới tin gốc, và việc đặt xe, thanh toán, tiền cọc làm với nguồn đó, không qua ${site}. Các xe còn lại do chủ xe đăng trực tiếp trên ${site} và bạn nhắn tin với họ trong ứng dụng.`
-      : `Listings from ${from} are reference listings: ${site} links to each original, and you book, pay and leave the deposit with that source, not with ${site}. The rest are posted directly on ${site} by their owners, and you message them in the app.`
+      ? `Xe từ ${from} là tin tham khảo: ${site} dẫn tới tin gốc, và việc đặt xe, thanh toán, tiền cọc làm với nguồn đó, không qua ${site}. Các xe còn lại do cửa hàng cho thuê và chủ xe đăng trên ${site} và bạn nhắn tin với họ trong ứng dụng.`
+      : `Listings from ${from} are reference listings: ${site} links to each original, and you book, pay and leave the deposit with that source, not with ${site}. The rest are posted on ${site} by rental shops and owners, and you message them in the app.`
   }
   if (kind === 'car') {
     return vi
@@ -71,6 +71,6 @@ export function hubBooking({ kind, lang, state, from, site }: HubCopyInput): str
       : `A ${car ? 'car' : 'bike'} from ${from} has a button to the source’s page, and you book, pay and leave the deposit there, not with ${site}. One posted directly on ${site} is arranged with its owner in the app’s chat.`
   }
   return vi
-    ? 'Bấm vào một xe để xem chi tiết và nhắn tin với chủ xe trong ứng dụng để thỏa thuận giá, tiền cọc và giấy tờ.'
-    : `Open a ${car ? 'car' : 'bike'} to see its details and message its owner in the app to agree the price, deposit and paperwork.`
+    ? 'Bấm vào một xe để xem chi tiết và nhắn tin với cửa hàng hoặc chủ xe trong ứng dụng để thỏa thuận giá, tiền cọc và giấy tờ.'
+    : `Open a ${car ? 'car' : 'bike'} to see its details and message the shop or owner in the app to agree the price, deposit and paperwork.`
 }

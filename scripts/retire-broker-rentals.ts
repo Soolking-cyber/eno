@@ -28,14 +28,21 @@
  * rentals and add properly the from this partner … remove all fetched motorbike rental listings"). Every `active`/`hidden`
  * motorbike-rental row of Jan's, The Extra Mile, Dung, Tuan and Rentabike → 'stale', with the same journal and per-row
  * rollback, and each page tombstoned at once (a PDP is ISR for 30 days). EXPLICIT AND ALONE, as --nhatot-apartments.
- * Mioto's and BonbonCar's cars share the vehicle importer and are never named here. scripts/vehicle-rentals-weekly.sh no
+ * Mioto's and BonbonCar's cars share the vehicle importer and are never named by this flag. scripts/vehicle-rentals-weekly.sh no
  * longer scrapes these shops, and the importer's status step moves only active ↔ expired, so 'stale' stays down.
+ * ⛔ --car-imports — MIOTO'S AND BONBONCAR'S CARS, AND ONLY THOSE (owner, 2026-11-17: "remove all other car rental products
+ * since they lead to other websites", the day eno's five car rental partners came in: src/lib/car-partners.ts). Every
+ * `active`/`hidden` car-rental row of the two imported storefronts → 'stale', journal + per-row rollback + tombstones, as
+ * --motorbike-imports. EXPLICIT AND ALONE. ⚠️ The weekly job that fetched them (launchd vn.eno.vehicle-rentals-weekly on the
+ * owner's Mac) was unloaded the same day; its status step moves only active ↔ expired, so 'stale' would stay down even if
+ * it ran, but its import step could still CREATE new rows — it must not be loaded again.
  *
  *   DRY (read-only session):  set -a; . ./.env; set +a; npx tsx scripts/retire-broker-rentals.ts
  *   WRITE (journal first):     … scripts/retire-broker-rentals.ts --journal-dir <durable dir> --apply
  *   Scope to some sellers:     … --seller muaban-net-import-seller-0001 --seller honeycomb-import-seller-0001
  *   Nhà Tốt's apartments:      … scripts/retire-broker-rentals.ts --nhatot-apartments [--journal-dir <durable dir> --apply]
  *   The fetched motorbikes:    … scripts/retire-broker-rentals.ts --motorbike-imports [--journal-dir <durable dir> --apply]
+ *   Mioto's + BonbonCar's cars: … scripts/retire-broker-rentals.ts --car-imports [--journal-dir <durable dir> --apply]
  *
  * ⛔ STATUS 'stale', NOT 'hidden', AND THE DIFFERENCE IS LOAD-BEARING: `hide-imageless-imports.ts --restore`
  * re-activates every hidden import row that has a photo, so it would republish these. 'stale' is publicly
@@ -57,7 +64,7 @@ import { journalDirProblem } from '../src/lib/honeycomb-listing'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 
 /** What a target retires: every rental row of a whole-broker seller, or only a seller's APARTMENTS (Nhà Tốt's opt-in). */
-type Target = { id: string; name: string; scope: 'rentals' | 'apartments' | 'motorbikes' }
+type Target = { id: string; name: string; scope: 'rentals' | 'apartments' | 'motorbikes' | 'cars' }
 /** The whole-broker rental sellers, pinned by id and verified by name. NOT Nhà Tốt (owner-filtered). */
 const BROKER_SELLERS: ReadonlyArray<Target> = [
   { id: 'bds-vn-import-seller-0001', name: 'Batdongsan.com.vn', scope: 'rentals' },
@@ -75,8 +82,15 @@ const MOTORBIKE_IMPORTS: ReadonlyArray<Target> = [
   { id: 'vehicle-import-seller-tuanmotorbike', name: 'Tuan Motorbike', scope: 'motorbikes' },
   { id: 'vehicle-import-seller-rentabikevn', name: 'Rentabike Vietnam', scope: 'motorbikes' },
 ]
+/** ⛔ OPT-IN ONLY (--car-imports, the header): the two imported car storefronts' car rentals, pinned like the others. */
+const CAR_IMPORTS: ReadonlyArray<Target> = [
+  { id: 'vehicle-import-seller-mioto', name: 'Mioto', scope: 'cars' },
+  { id: 'vehicle-import-seller-bonboncar', name: 'BonbonCar', scope: 'cars' },
+]
 /** The rows a target retires — repeated in the WRITE, so the write can never touch a row the read did not mean. */
-const scopeWhere = (t: Target) => t.scope === 'motorbikes'
+const scopeWhere = (t: Target) => t.scope === 'cars'
+  ? { subcategorySlug: 'car-rental' }
+  : t.scope === 'motorbikes'
   ? { subcategorySlug: 'motorbike-rental' }
   : t.scope === 'apartments'
   ? { subcategorySlug: 'apartment-rental' }
@@ -86,6 +100,11 @@ const scopeWhere = (t: Target) => t.scope === 'motorbikes'
 const STALE = 'stale'
 /** The statuses a routine op could still make public: `active` (already live) and `hidden` (hide-imageless --restore). */
 const RETIRE_STATUSES = ['active', 'hidden'] as const
+/**
+ * …and for the car imports also `expired` (plan review, Opus 2026-11-17): the vehicle importer's status step revives an
+ * expired row it sees listed again (vehicle-status-plan.ts), so an expired Mioto car is one run away from live. 'stale' it never moves.
+ */
+const statusesFor = (t: Target): readonly string[] => (t.scope === 'cars' ? [...RETIRE_STATUSES, 'expired'] : RETIRE_STATUSES)
 const BATCH = 500
 
 const argv = process.argv.slice(2)
@@ -95,6 +114,7 @@ const JOURNAL_DIR = (() => { const i = argv.indexOf('--journal-dir'); return i >
 const SCOPE = strs('--seller')
 const NHATOT_FLAG = argv.includes('--nhatot-apartments')
 const MOTORBIKE_FLAG = argv.includes('--motorbike-imports')
+const CAR_FLAG = argv.includes('--car-imports')
 
 function recordDurably(file: string, line: string) {
   const fd = openSync(file, 'a')
@@ -127,7 +147,8 @@ async function main() {
   const unknown = SCOPE.filter((id) => !BROKER_SELLERS.some((s) => s.id === id))
   if (unknown.length) throw new Error(`--seller ${unknown.join(', ')} is not a known whole-broker rental seller (known: ${BROKER_SELLERS.map((s) => s.id).join(', ')})`)
   if (MOTORBIKE_FLAG && (SCOPE.length || NHATOT_FLAG)) throw new Error('--motorbike-imports is its own run: pass it alone, without --seller or --nhatot-apartments')
-  const targets: ReadonlyArray<Target> = MOTORBIKE_FLAG ? MOTORBIKE_IMPORTS : NHATOT_FLAG ? [NHATOT_APARTMENTS] : SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
+  if (CAR_FLAG && (SCOPE.length || NHATOT_FLAG || MOTORBIKE_FLAG)) throw new Error('--car-imports is its own run: pass it alone, without --seller, --nhatot-apartments or --motorbike-imports')
+  const targets: ReadonlyArray<Target> = CAR_FLAG ? CAR_IMPORTS : MOTORBIKE_FLAG ? MOTORBIKE_IMPORTS : NHATOT_FLAG ? [NHATOT_APARTMENTS] : SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
   const journalDir = APPLY ? ensureJournalDir(JOURNAL_DIR!) : null
 
   const db = new PrismaClient({
@@ -150,12 +171,12 @@ async function main() {
       const rows = await db.listing.findMany({
         // The target's rows (scopeWhere): every rental of a whole-broker seller, or Nhà Tốt's apartments. The seller is
         // also verified above.
-        where: { sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, ...scopeWhere(target) },
+        where: { sellerId: target.id, status: { in: [...statusesFor(target)] }, ...scopeWhere(target) },
         select: { id: true, status: true, subcategorySlug: true }, orderBy: { id: 'asc' },
       })
       const nActive = rows.filter((r) => r.status === 'active').length
       grandTotal += rows.length
-      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} ${target.scope === 'apartments' ? 'apartment' : target.scope === 'motorbikes' ? 'motorbike' : 'rental'} rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
+      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} ${target.scope === 'apartments' ? 'apartment' : target.scope === 'motorbikes' ? 'motorbike' : target.scope === 'cars' ? 'car' : 'rental'} rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
       if (!APPLY) continue
 
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
@@ -171,23 +192,23 @@ async function main() {
         // Journal AND rollback FIRST (fsync), before the write. Journal line = `id<TAB>originalStatus`.
         recordDurably(JOURNAL, chunk.map((r) => `${r.id}\t${r.status}`).join('\n'))
         // Rollback restores each row to its ORIGINAL status (active→active, hidden→hidden) — only rows still 'stale' from this run.
-        for (const orig of RETIRE_STATUSES) {
+        for (const orig of statusesFor(target)) {
           const idsOf = chunk.filter((r) => r.status === orig).map((r) => r.id)
           if (idsOf.length) recordDurably(ROLLBACK, `UPDATE "Listing" SET status='${orig}', "updatedAt"=now() WHERE status='${STALE}' AND "sellerId"='${target.id}' AND id IN (${idsOf.map((x) => `'${x}'`).join(',')});`)
         }
         // ⛔ TOMBSTONED BEFORE THE WRITE TOO (a reviewer's catch, as the vehicle importer's gone hides): a 'stale' row is never
         // selected again, so a tombstone that failed only after the write would have no retry.
-        if (target.scope === 'motorbikes') await tombstonePdps(db, ids)
+        if (target.scope === 'motorbikes' || target.scope === 'cars') await tombstonePdps(db, ids)
         const res = await db.listing.updateMany({
           // seller.ownerId null re-checked in the write too — closes the find→update race against a seller being claimed.
           // The target's row predicate is repeated here so the write can never touch a row outside it.
-          where: { id: { in: ids }, sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, seller: { ownerId: null }, ...scopeWhere(target) },
+          where: { id: { in: ids }, sellerId: target.id, status: { in: [...statusesFor(target)] }, seller: { ownerId: null }, ...scopeWhere(target) },
           data: { status: STALE },
         })
         done += res.count
         // A PDP is ISR for 30 days: these go at once, without the cold purge of every listing page NEXT describes.
         // Again after the write: a page re-rendered between the first tombstone and the write would have cached it live.
-        if (target.scope === 'motorbikes') await tombstonePdps(db, ids)
+        if (target.scope === 'motorbikes' || target.scope === 'cars') await tombstonePdps(db, ids)
       }
       grandDone += done
       console.log(`  → marked ${STALE}   ${done} of ${rows.length}   journal ${JOURNAL}`)

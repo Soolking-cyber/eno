@@ -146,10 +146,10 @@ function provenance(data: VehicleHubData, lang: Lang): ArticleSection {
   const refNote = lang === 'vi'
     ? state === 'all'
       ? 'Mỗi tin là một tin tham khảo: nội dung và giá do nguồn đăng, và nút trên trang dẫn thẳng tới trang đặt xe của nguồn đó. '
-      : state === 'some' ? `Tin từ ${from} là tin tham khảo: nội dung và giá do nguồn đăng, và nút trên trang dẫn tới trang đặt xe của nguồn; các tin còn lại do chủ xe đăng trực tiếp trên ${SITE_NAME}. ` : ''
+      : state === 'some' ? `Tin từ ${from} là tin tham khảo: nội dung và giá do nguồn đăng, và nút trên trang dẫn tới trang đặt xe của nguồn; các tin còn lại do cửa hàng cho thuê và chủ xe đăng trên ${SITE_NAME}. ` : ''
     : state === 'all'
       ? 'Each one is a reference listing: the details and the price are the source’s, and its button goes straight to the source’s booking page. '
-      : state === 'some' ? `Listings from ${from} are reference listings: the details and price are the source’s, and the button goes to its booking page; the rest are posted directly on ${SITE_NAME} by their owners. ` : ''
+      : state === 'some' ? `Listings from ${from} are reference listings: the details and price are the source’s, and the button goes to its booking page; the rest are posted on ${SITE_NAME} by rental shops and owners. ` : ''
   return {
     id: lang === 'vi' ? 'nguon-du-lieu' : 'where-this-comes-from',
     title: lang === 'vi' ? 'Dữ liệu lấy từ đâu' : 'Where these listings come from',
@@ -167,8 +167,8 @@ function provenance(data: VehicleHubData, lang: Lang): ArticleSection {
           {data.total - data.linked > 0 && (
             <li>
               {lang === 'vi'
-                ? <>{count(data.total - data.linked, lang)} tin do chủ xe đăng trực tiếp trên {SITE_NAME}</>
-                : <>{count(data.total - data.linked, lang)} posted directly on {SITE_NAME} by their owners</>}
+                ? <>{count(data.total - data.linked, lang)} tin do cửa hàng cho thuê và chủ xe đăng trên {SITE_NAME}</>
+                : <>{count(data.total - data.linked, lang)} posted on {SITE_NAME} by rental shops and owners</>}
             </li>
           )}
         </Ul>
@@ -212,9 +212,15 @@ function carSections(data: VehicleHubData, lang: Lang): ArticleSection[] {
             <li>{vi ? 'Xe điện VinFast' : 'VinFast electric'}: {summaryText(c.vinfast, per, lang)}.</li>
           </Ul>
           <P>
-            {vi
-              ? 'Đây là giá thuê theo ngày mà nguồn niêm yết, trước khuyến mãi của họ. Tiền cọc, phí giao xe, giới hạn số km và bảo hiểm do từng nguồn quy định — xem trên trang đặt xe trước khi quyết định.'
-              : 'These are the day rates each source lists, before its own discounts. Deposit, delivery fee, mileage limit and insurance are set by each source — check them on the booking page before you commit.'}
+            {/* "The booking page" is a linked source's (2026-11-17: with Mioto and BonbonCar retired, the cars are eno's rental
+                partners', booked in chat). */}
+            {data.linked > 0
+              ? (vi
+                ? 'Đây là giá thuê theo ngày mà nguồn niêm yết, trước khuyến mãi của họ. Tiền cọc, phí giao xe, giới hạn số km và bảo hiểm do từng nguồn quy định — xem trên trang đặt xe trước khi quyết định.'
+                : 'These are the day rates each source lists, before its own discounts. Deposit, delivery fee, mileage limit and insurance are set by each source — check them on the booking page before you commit.')
+              : (vi
+                ? 'Đây là giá thuê theo ngày mà cửa hàng hoặc chủ xe niêm yết, trước khuyến mãi của họ. Tiền cọc, phí giao xe, giới hạn số km và bảo hiểm khác nhau tùy nơi — hỏi qua tin nhắn trước khi đặt xe.'
+                : 'These are the day rates each shop or owner lists, before its own discounts. Deposit, delivery fee, mileage limit and insurance differ from one to the next — ask in chat before you book.')}
           </P>
         </>
       ),

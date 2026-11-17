@@ -54,6 +54,10 @@ describe('cohorts', () => {
     const n = Object.fromEntries(carCohorts(rows).map((c) => [c.key, c.summary.n]))
     expect(n).toEqual({ all: 5, 'seats-4-5': 2, 'seats-7': 1, vinfast: 2 })
     expect(isVinFast({ ...car(1, null), title: 'Toyota Vios' })).toBe(false)
+    // The petrol VinFasts are not "VinFast electric" (the car rental partners' Lux A, 2026-11-17).
+    expect(isVinFast({ ...car(1, null), title: 'VinFast Lux A 2022 self-drive rental (4 seats)' })).toBe(false)
+    expect(isVinFast({ ...car(1, null), title: 'VinFast Fadil 2021' })).toBe(false)
+    expect(isVinFast({ ...car(1, null), title: 'VinFast VF5 Plus 2025' })).toBe(true)
   })
 
   it('bikes: day and month are separate cohorts, and a month price is never derived from a day price', () => {

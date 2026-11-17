@@ -133,6 +133,62 @@ const PARTNERS = {
     // ⛔ NO DAILY "CONFIRM AVAILABILITY" MAIL to the partner's inbox: eno's admin manages this account (GoPlus's reasoning).
     dailyReminderOptIn: false,
   },
+  // ── CAR RENTAL PARTNERS (owner, 2026-11-17: "import car rental services … and the shops as partners"; asked: all 5 are
+  // partners, accounts on eno-managed emails). Each login is eno's (support+<handle>@eno.vn, Cloudflare Email Routing →
+  // eno's inbox), as Hoàng Hà's and ShopDunk's are; legalName only where the shop's own site prints it. Their cars:
+  // src/lib/car-partners.ts + scripts/import-car-partners.ts, which also sets the logo (avatarUrl null here). No daily
+  // reminder mail: eno's admin manages these accounts.
+  karplus: {
+    email: 'support+karplus@eno.vn',
+    handle: 'karplus',
+    name: 'KarPlus',
+    legalName: null,
+    bio: 'Self-drive car rental in Ho Chi Minh City: sedans, SUVs and 7-seaters, 400 km a day included, 10% off from 3 days and 15% from 7 days, and a driver on request. Message KarPlus here on eno to check availability. eno introduces KarPlus; the rental contract is with them.',
+    avatarUrl: null,
+    avatarColor: '#b8913a',
+    dailyReminderOptIn: false,
+  },
+  carbi: {
+    email: 'support+carbi@eno.vn',
+    handle: 'carbi',
+    name: 'Carbi',
+    legalName: 'CÔNG TY TNHH TMDV DU LỊCH VẬN TẢI CARBI',
+    bio: 'Self-drive car rental in Ho Chi Minh City, based in Gò Vấp: sedans, SUVs and 7-seaters, delivered to your door. Message Carbi here on eno to check availability. eno introduces Carbi; the rental contract is with them.',
+    avatarUrl: null,
+    avatarColor: '#e8a020',
+    dailyReminderOptIn: false,
+  },
+  ankhanhtravel: {
+    email: 'support+ankhanhtravel@eno.vn',
+    handle: 'ankhanhtravel',
+    name: 'An Khánh Travel',
+    legalName: 'CÔNG TY TNHH THƯƠNG MẠI VÀ VẬN TẢI DU LỊCH AN KHÁNH TRAVEL',
+    bio: 'Self-drive car rental across Ho Chi Minh City from Bình Tân: sedans, SUVs and 7-seaters, delivered to any district, with a test drive before you rent. Message An Khánh Travel here on eno to check availability. eno introduces An Khánh Travel; the rental contract is with them.',
+    avatarUrl: null,
+    avatarColor: '#f39200',
+    dailyReminderOptIn: false,
+  },
+  quehuong: {
+    email: 'support+quehuong@eno.vn',
+    handle: 'quehuong',
+    name: 'Quê Hương Group',
+    legalName: 'CÔNG TY CP TMDV QUÊ HƯƠNG',
+    bio: 'Self-drive car rental in Ho Chi Minh City with branches across the city: sedans, SUVs and 7-seaters under 3 years old, delivered to your home. Message Quê Hương Group here on eno to check availability. eno introduces Quê Hương Group; the rental contract is with them.',
+    avatarUrl: null,
+    avatarColor: '#e11d2a',
+    dailyReminderOptIn: false,
+  },
+  // ⛔ HELD (src/lib/car-partners.ts `held`): register only once the shop's own photos let its cars be imported.
+  anbinhtours: {
+    email: 'support+anbinhtours@eno.vn',
+    handle: 'anbinhtours',
+    name: 'An Bình Tours',
+    legalName: null,
+    bio: 'Self-drive car rental in Ho Chi Minh City from Bình Tân: sedans, SUVs and 7- and 8-seaters from 2021 on, delivered to your home or to Tân Sơn Nhất airport. Message An Bình Tours here on eno to check availability. eno introduces An Bình Tours; the rental contract is with them.',
+    avatarUrl: null,
+    avatarColor: '#c9a227',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

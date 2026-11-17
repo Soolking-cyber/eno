@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('car')
   return {
     title: `Thuê Xe Tự Lái TP.HCM: Giá Thuê Theo Ngày, Xe 4–7 Chỗ | ${SITE_NAME}`,
-    description: 'Xe ô tô tự lái cho thuê tại TP.HCM từ Mioto và BonbonCar trên một trang — giá thuê theo ngày cho xe 4–5 chỗ, 7 chỗ và xe điện VinFast, xe ở quận nào và cách đặt xe.',
+    description: 'Xe ô tô tự lái cho thuê tại TP.HCM từ các cửa hàng cho thuê xe trên một trang — giá thuê theo ngày cho xe 4–5 chỗ và 7 chỗ, xe ở quận nào và cách đặt xe.',
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
     ...(data.total === 0 ? { robots: { index: false, follow: true } } : {}),

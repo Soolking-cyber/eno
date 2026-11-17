@@ -54,6 +54,13 @@
 # ⚠️ `set -e` is NOT relied on (it is a no-op in this setup): every step that matters ends in a test.
 # ⚠️ bash 3.2 (macOS /bin/bash): arrays expand as ${A[@]+"${A[@]}"} under `set -u`; zsh would not word-split.
 set -uo pipefail
+# ⛔ RETIRED 2026-11-17 (owner: "remove all other car rental products since they lead to other websites"): eno's car rentals
+# are its partners' own storefronts now (src/lib/car-partners.ts), the Mioto/BonbonCar rows were set 'stale'
+# (scripts/retire-broker-rentals.ts --car-imports), and the launchd job that ran this was unloaded. A run would CREATE new
+# Mioto/BonbonCar rows, so it stops here, whoever starts it. Delete these lines only on the owner's word.
+echo "vehicle-rentals-weekly: retired 2026-11-17 — the car imports were replaced by eno's car rental partners; not running." >&2
+# Non-zero on purpose: a launchd job loaded again by mistake shows as failing in its log, not as a quiet success.
+exit 3
 APPLY=""; [ "${1:-}" = "--apply" ] && APPLY="--apply"
 ENO="${ENO_REPO:-$HOME/eno-vehicles-job}"
 ENVF="${VEH_ENV_FILE:-$HOME/eno.vn/.env}"

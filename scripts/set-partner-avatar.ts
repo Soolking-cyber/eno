@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
+import { ENO_RUN_PARTNERS, isEnoRunPartner } from '../src/lib/eno-run-partners'
 import { PARTNER_AVATAR_MIN_VISIBLE_PCT, PARTNER_AVATAR_SIZE, renderPartnerAvatar } from '../src/lib/partner-avatar'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
@@ -67,9 +68,19 @@ async function main() {
     where: { affiliateUrl: { not: null }, seller: { name: partnerName } },
     select: { seller: { select: { id: true, name: true, avatarUrl: true, ownerId: true, officialPartner: true } } },
   })
-  const seller = anchor?.seller
-  if (!seller) { console.error(`no affiliate listing hangs off a storefront named "${partnerName}" — refusing`); process.exit(1) }
-  if (seller.ownerId) { console.error(`"${seller.name}" is owned by a real account — refusing`); process.exit(1) }
+  /**
+   * …OR AN ENO-RUN PARTNER, BY ITS PINNED PAIR (src/lib/eno-run-partners.ts). Hoàng Hà Mobile's and ShopDunk's listings carry
+   * no public affiliate link (their purchase links moved to the staff table on 2026-11-15) and their storefronts are OWNED —
+   * by eno's own login, the pinned pair. That pair, code-reviewed and shipped, is what names the storefront here: the id comes
+   * from it, never from the name, and the storefront must still match it (owner and official) when this runs (owner,
+   * 2026-11-17: "logos everywhere where its needed for all partners"; both had none).
+   */
+  const pinned = anchor ? null : ENO_RUN_PARTNERS.find((p) => p.name === partnerName) ?? null
+  const pinnedSeller = pinned ? await db.seller.findUnique({ where: { id: pinned.sellerId }, select: { id: true, name: true, avatarUrl: true, ownerId: true, officialPartner: true } }) : null
+  const enoRun = !!pinnedSeller && pinnedSeller.name === partnerName && isEnoRunPartner(pinnedSeller)
+  const seller = anchor?.seller ?? (enoRun ? pinnedSeller : null)
+  if (!seller) { console.error(`no affiliate listing hangs off a storefront named "${partnerName}", and it is not a pinned eno-run partner — refusing`); process.exit(1) }
+  if (seller.ownerId && !enoRun) { console.error(`"${seller.name}" is owned by a real account — refusing`); process.exit(1) }
   /**
    * ⛔ AMBIGUITY IS A REFUSAL, NOT A COIN FLIP. `Seller.name` is not unique, and this script hands
    * out a consumer-facing "Official partner" badge and someone else's trademark. `findFirst` would
@@ -77,7 +88,8 @@ async function main() {
    * right answer is to stop and let a human say which.
    */
   const sameName = await db.seller.count({ where: { name: partnerName, ownerId: null } })
-  if (sameName > 1) { console.error(`${sameName} ownerless storefronts are named "${partnerName}" — refusing to guess`); process.exit(1) }
+  // A pinned pair names its storefront by id, so a same-named ownerless one cannot be confused with it.
+  if (!enoRun && sameName > 1) { console.error(`${sameName} ownerless storefronts are named "${partnerName}" — refusing to guess`); process.exit(1) }
   console.log(`partner storefront: ${seller.name} (${seller.id})`)
   console.log(`current avatar: ${seller.avatarUrl ?? '(none)'}`)
   console.log(`officialPartner: ${seller.officialPartner}${OFFICIAL && !seller.officialPartner ? ' -> true' : ''}`)

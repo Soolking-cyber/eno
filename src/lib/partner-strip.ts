@@ -57,7 +57,23 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'cellphones', name: 'CellphoneS', logo: { src: '/partners/cellphones.webp', width: 574, height: 96 }, label: { en: 'Gadgets', vi: 'Công nghệ' }, size: 'wide', dark: true, enoRunSellerId: 'cmt78nvif0000gpq48kvzmxjw' },
   { handle: 'dienthoaivui', name: 'Điện Thoại Vui', logo: { src: '/partners/dienthoaivui-v2.webp', width: 799, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmtr9qva90000glq44fkjs18b' },
   { handle: 'hoanghamobile', name: 'Hoàng Hà Mobile', logo: { src: '/partners/hoanghamobile.webp', width: 597, height: 96 }, label: { en: 'Phones', vi: 'Điện thoại' }, size: 'wide', enoRunSellerId: 'cmwgyb5m10000rjq4xxjkwwaz' },
-  { handle: 'shopdunk', name: 'ShopDunk', logo: { src: '/partners/shopdunk.webp', width: 384, height: 96 }, label: { en: 'Apple', vi: 'Apple' }, size: 'wide', dark: true, enoRunSellerId: 'cmwgyb5sl0001rjq4yuj9b2sq' },
+  // ShopDunk's mark is its SHOPDUNK wordmark only (2026-11-17): the file it was cut from is the full lockup with Apple's logo and
+  // "Authorised Reseller", and eno's strip does not show Apple's mark.
+  { handle: 'shopdunk', name: 'ShopDunk', logo: { src: '/partners/shopdunk.webp', width: 865, height: 96 }, label: { en: 'Apple', vi: 'Apple' }, size: 'wide', dark: true, enoRunSellerId: 'cmwgyb5sl0001rjq4yuj9b2sq' },
+  // Owner 2026-11-17: "import car rental services … and the shops as partners … partner shops logos make sure they have their
+  // logos everywhere where its needed for all partners". The five car rental partners (src/lib/car-partners.ts), each mark from
+  // its own site (raw/logo.png of the 11-17 research): Carbi's emblem + wordmark; KarPlus's pale-gold KAR+ on a dark tile;
+  // An Khánh's wordmark; Quê Hương's round QH emblem, its two text lines cut (unreadable at strip height). An Bình Tours is held
+  // (car-partners.ts `held`): its storefront would be empty, and an empty storefront 404s.
+  { handle: 'carbi', name: 'Carbi', logo: { src: '/partners/carbi.webp', width: 129, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'square' },
+  { handle: 'karplus', name: 'KarPlus', logo: { src: '/partners/karplus.webp', width: 198, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'square', dark: true },
+  { handle: 'ankhanhtravel', name: 'An Khánh Travel', logo: { src: '/partners/ankhanhtravel.webp', width: 554, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'wide' },
+  { handle: 'quehuong', name: 'Quê Hương Group', logo: { src: '/partners/quehuong.webp', width: 101, height: 96 }, label: { en: 'Cars', vi: 'Ô tô' }, size: 'square' },
+  // …and the two official partners the strip had left out (same day): Luật Hoàng Phi's HP mark on its blue, SDC's (Sowgatlar
+  // Dunyasi, a gift shop) on its red, both cut from their storefront avatars above the "eno.vn" mark the app stamped on SDC's
+  // upload, corners rounded.
+  { handle: 'luathoangphi', name: 'Luật Hoàng Phi', logo: { src: '/partners/luathoangphi.webp', width: 96, height: 96 }, label: { en: 'Legal', vi: 'Pháp lý' }, size: 'square' },
+  { handle: 'sdc_store', name: 'SDC', logo: { src: '/partners/sdc_store.webp', width: 149, height: 96 }, label: { en: 'Gifts', vi: 'Quà tặng' }, size: 'square' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

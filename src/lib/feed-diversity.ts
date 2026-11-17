@@ -113,9 +113,22 @@ const VEHICLE_IMPORT_SELLER_IDS: readonly string[] = [
  * goods, so a visitor from Chợ Tốt saw car hire where the used goods should be. Keyed by the import's
  * own seller ids, so a member's own car or motorbike for rent in the same aisles keeps its own seat.
  */
+/**
+ * …and a fourth time, by design this time (plan review, Opus 2026-11-17): eno's car rental partners (src/lib/car-partners.ts)
+ * are four new storefronts whose cars are all written at once with postedAt = the import, so each would take a seat of its own
+ * in the first 12 home cards. Their seller ids, as scripts/register-partner-seller.mjs created them on 2026-11-17.
+ */
+const CAR_PARTNER_SELLER_IDS: readonly string[] = [
+  'c8f9ec7b-908b-456e-88e1-4059c6dbeeef', // KarPlus
+  'e888bf62-cf41-4e8c-9930-728f560baf66', // Carbi
+  'c32a5081-80a0-43ed-8be5-6df4ebf21e88', // An Khánh Travel
+  'e6e9a662-0edc-4cde-b6d1-22bcae9daf09', // Quê Hương Group
+]
+
 export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {
   'job-boards': JOB_SELLER_IDS,
   'vehicle-rentals': VEHICLE_IMPORT_SELLER_IDS,
+  'car-partners': CAR_PARTNER_SELLER_IDS,
 }
 
 /** sellerId → its shared seat's key, for seatKey's hot loop. */

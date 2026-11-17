@@ -24,7 +24,12 @@ import { blockedConversationIds } from '@/lib/user-blocks'
  * so a partner handle counts only on an `officialPartner` seller, a flag eno alone sets — an impostor that takes a freed "goplus"
  * is never counted. ENO Trading is eno's own account (its handle changes only if eno changes it).
  */
-export const PARTNER_INBOX_HANDLES = ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading'] as const
+export const PARTNER_INBOX_HANDLES = [
+  'goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading',
+  // The car rental partners (owner, 2026-11-17; src/lib/car-partners.ts): official, chat-only, eno-held logins. Counted here by
+  // handle like the owned partners above — NOT pinned in eno-run-partners.ts, whose pair also opens the AccessTrade paths.
+  'karplus', 'carbi', 'ankhanhtravel', 'quehuong',
+] as const
 const ENO_OWN_STORE = 'eno-trading'
 
 export type PartnerInboxShop = {

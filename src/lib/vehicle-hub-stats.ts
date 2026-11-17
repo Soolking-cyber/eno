@@ -74,9 +74,13 @@ export function transmissionOf(row: HubRow): 'automatic' | 'manual' | null {
   return t === 'automatic' || t === 'manual' ? t : null
 }
 
-/** VinFast by the NAME, the one place both sources carry the make ("VinFast VF5 2026", "VF3 ECO Vinfast VF3"). */
+/**
+ * VinFast's ELECTRIC cars by the NAME, the one place every source carries the make ("VinFast VF5 2026", "VF3 ECO Vinfast VF3").
+ * ⛔ NOT ITS PETROL ONES: the hub prints this group as "VinFast electric", and the car rental partners' VinFasts (2026-11-17)
+ * are Lux A 2.0 sedans, which run on petrol (as do the Lux SA, Fadil and President) — commit-gate review, Opus.
+ */
 export function isVinFast(row: HubRow): boolean {
-  return /vinfast/i.test(row.title)
+  return /vinfast/i.test(row.title) && !/\b(lux|fadil|president)\b/i.test(row.title)
 }
 
 /**

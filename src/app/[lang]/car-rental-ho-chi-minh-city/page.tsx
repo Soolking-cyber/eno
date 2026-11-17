@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('car')
   return {
     title: `Car Rental in Ho Chi Minh City: Self-Drive Cars by the Day | ${SITE_NAME}`,
-    description: 'Self-drive cars for hire in Ho Chi Minh City (Saigon) from Mioto and BonbonCar on one page — day prices by car size, 7-seaters and VinFast electric, where the cars are and how booking works.',
+    description: 'Self-drive cars for hire in Ho Chi Minh City (Saigon) from local rental shops on one page — day prices by car size and for 7-seaters, where the cars are and how booking works.',
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
     ...(data.total === 0 ? { robots: { index: false, follow: true } } : {}),
