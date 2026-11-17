@@ -148,13 +148,16 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
       await page.context().close()
     })
 
-    test(`${bot} ${HOME}: the H1 is the site name`, async ({ browser }) => {
+    test(`${bot} ${HOME}: the H1 is the site title, opening on the site name`, async ({ browser }) => {
       const page = await crawl(browser, userAgent, HOME)
       // SITE_NAME is decided by NEXT_PUBLIC_ENO_EDITION, read here in the runner and inlined in the
       // server at build time (ci.yml sets it for the whole job). Check they agree first, so a runner
       // without it fails on that and not as a wrong heading.
       await expect(page.locator('meta[property="og:site_name"]'), 'the runner and the build must share NEXT_PUBLIC_ENO_EDITION').toHaveAttribute('content', SITE_NAME)
-      await expect(page.locator('h1')).toHaveText(SITE_NAME)
+      // Since 2026-11-17 the home H1 is the site's title in words (owner: "Single H1 with reasonable length … worth it?"),
+      // still opening on the name Google's brand review reads: "<SITE_NAME> — free classifieds for expats and locals in Vietnam."
+      await expect(page.locator('h1')).toHaveCount(1)
+      await expect(page.locator('h1')).toHaveText(new RegExp(`^${SITE_NAME.replace(/\./g, '\\.')} — .{20,}`))
       await page.context().close()
     })
   }
