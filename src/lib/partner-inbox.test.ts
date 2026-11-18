@@ -93,3 +93,19 @@ describe('partnerInboxCounts', () => {
     expect(calls.aggregates).toHaveLength(0)
   })
 })
+
+describe('isPartnerInboxSeller — the one roster predicate (the counts above and the partner welcome both read it)', () => {
+  it('a rostered official partner, eno’s own store, a pinned eno-run pair: yes', async () => {
+    const { isPartnerInboxSeller } = await import('./partner-inbox')
+    expect(isPartnerInboxSeller(seller('s-es', 'Evisa Saigon', 'evisasaigon'))).toBe(true)
+    expect(isPartnerInboxSeller(seller('s-et', 'ENO Trading', 'eno-trading'))).toBe(true)
+    expect(isPartnerInboxSeller({ ...PINNED[0], handle: null })).toBe(true)
+  })
+  it('⛔ a rostered handle that is not an official partner, an unrostered partner, a pinned id with another owner, nothing: no', async () => {
+    const { isPartnerInboxSeller } = await import('./partner-inbox')
+    expect(isPartnerInboxSeller(seller('s-vk', 'VietKite', 'vietkite', 'o', false))).toBe(false)
+    expect(isPartnerInboxSeller(seller('s-x', 'Some partner', 'someshop'))).toBe(false)
+    expect(isPartnerInboxSeller({ ...PINNED[0], ownerId: 'someone-else', handle: null })).toBe(false)
+    expect(isPartnerInboxSeller(null)).toBe(false)
+  })
+})

@@ -48,6 +48,20 @@ export type PartnerInboxShop = {
 
 export type PartnerInbox = { shops: PartnerInboxShop[]; unreadChats: number; unreadMessages: number }
 
+/**
+ * Whether a storefront is on this roster: a rostered handle that is an official partner (or eno's own store), or a pinned
+ * eno-run pair. THE ONE PREDICATE — the counts below and the partner welcome (src/lib/partner-welcome.ts) both read it, so
+ * "the shops eno's admins answer" never means two different lists.
+ */
+export function isPartnerInboxSeller(
+  s: { id: string; ownerId: string | null; officialPartner: boolean; handle: { handle: string } | null } | null | undefined,
+): boolean {
+  if (!s) return false
+  const h = s.handle?.handle
+  const rostered = !!h && (PARTNER_INBOX_HANDLES as readonly string[]).includes(h)
+  return (rostered && (s.officialPartner || h === ENO_OWN_STORE)) || isEnoRunPartner(s)
+}
+
 export async function partnerInboxCounts(): Promise<PartnerInbox> {
   // edition-lint-allow: the owner's five partner shops, their counts shown to admins only — never offered to anyone.
   const found = await db.seller.findMany({
@@ -56,8 +70,7 @@ export async function partnerInboxCounts(): Promise<PartnerInbox> {
     where: { OR: [{ handle: { handle: { in: [...PARTNER_INBOX_HANDLES] } } }, ...enoRunPartnerWhere()] },
     select: { id: true, name: true, ownerId: true, officialPartner: true, handle: { select: { handle: true } } },
   })
-  const rostered = (h: string | undefined) => !!h && (PARTNER_INBOX_HANDLES as readonly string[]).includes(h)
-  const sellers = found.filter((s) => (rostered(s.handle?.handle) && (s.officialPartner || s.handle?.handle === ENO_OWN_STORE)) || isEnoRunPartner(s))
+  const sellers = found.filter(isPartnerInboxSeller)
   const shops = await Promise.all(sellers.map(async (s): Promise<PartnerInboxShop> => {
     // The shop's own inbox hides threads with people its owner blocked (unread.ts, App Store gate `ugc-safety`): so does this.
     const hiddenByBlock = s.ownerId ? await blockedConversationIds(s.ownerId) : []

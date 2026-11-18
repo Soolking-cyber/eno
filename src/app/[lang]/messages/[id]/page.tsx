@@ -29,6 +29,9 @@ import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { localizeOfferLine } from '@/lib/offer-lines'
 import { isDealLineKind, localizeDealLine, type ServiceDealKind } from '@/lib/service-deal'
+import { localizePartnerWelcome } from '@/lib/partner-welcome-line'
+import { containsPhoneNumber } from '@/lib/phone'
+import { PartnerPhoneChip } from '@/components/marketplace/partner-phone-chip'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -372,6 +375,8 @@ type Thread = {
   // Do NOT "fix" that by defaulting to hidden: it would hide every ordinary seller's contact strip
   // on a cold open.
   sellerIsPartner?: boolean
+  /** The customer's own verified number, present only on a thread with a partner welcome (api/conversations/[id]). */
+  myPhone?: string | null
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   mayReviewSale?: boolean // buyer side: the seller named ME as the buyer and I never said "No" (the server's mayReviewDeal)
   mayReviewOffer?: boolean // buyer side: an accepted offer here would count (not taken down; I never said "No")
@@ -457,6 +462,27 @@ function lastIncomingCallRequestId(messages: Msg[]): string | null {
       if (messages[i].kind === 'call_request' && !messages[i].mine) { id = messages[i].id; break }
     }
     lastCallRequestOf.set(messages, id)
+  }
+  return id
+}
+
+/**
+ * The partner welcome the phone chip sits under (src/components/marketplace/partner-phone-chip.tsx): the NEWEST incoming
+ * 'partner_welcome', unless a message of MINE anywhere in the thread (sent or still sending — a failed one does not count)
+ * already holds a phone number — before the welcome too ("hi, call me 0901…" as the first message). One chip per thread,
+ * and it goes the moment the number is in the thread. Memoised per messages array.
+ */
+const phoneAskOf = new WeakMap<Msg[], string | null>()
+function partnerPhoneAskId(messages: Msg[]): string | null {
+  let id = phoneAskOf.get(messages)
+  if (id === undefined) {
+    id = null
+    if (!messages.some((m) => m.mine && !m.failed && containsPhoneNumber(m.body))) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].kind === 'partner_welcome' && !messages[i].mine) { id = messages[i].id; break }
+      }
+    }
+    phoneAskOf.set(messages, id)
   }
   return id
 }
@@ -3624,11 +3650,13 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // scanner still runs (it only fires for string children).
                   // A service-deal line (server-authored, bilingual, src/lib/service-deal.ts) is shown in the viewer's own
                   // language and never machine-translated — the stored body already carries both.
+                  // The partner welcome (src/lib/partner-welcome-line.ts) is the same class: a fixed bilingual line, the viewer's half.
                   const dealLine = isDealLineKind(m.kind)
-                  const translated = dealLine ? null : translate.translationFor(m.id)
+                  const welcomeLine = m.kind === 'partner_welcome'
+                  const translated = dealLine || welcomeLine ? null : translate.translationFor(m.id)
                   // An accepted / declined offer line is stored with English grouping; it reads "3.000.000 đ" for a
                   // Vietnamese reader, like the offer card above it (localizeOfferLine; any other text is unchanged).
-                  const shown = dealLine ? localizeDealLine(m.body, lang) : translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
+                  const shown = dealLine ? localizeDealLine(m.body, lang) : welcomeLine ? localizePartnerWelcome(m.body, lang) : translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
                   // `quote` and `meta` are siblings of the text INSIDE the bubble. The child stays a
                   // bare string so ContactChips' scanner still runs — it only fires for a string
                   // child, and wrapping the text to add the timestamp would have silently disabled
@@ -3670,6 +3698,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 </div>
                 {/* "<name> would like to call you": the Allow-calls answer, on the recipient's side only, under the newest request. */}
                 {m.kind === 'call_request' && !m.mine && !thread.closed && m.id === lastIncomingCallRequestId(thread.messages) && <AllowCallsChip conversationId={thread.id} name={thread.counterpart.name ?? null} />}
+                {/* The partner welcome's answer: "Send my number" / "Add my number", the customer's side only, under the newest
+                    welcome until their number is in the thread. Sent through this page's own send — no quote, the composer untouched. */}
+                {m.kind === 'partner_welcome' && !m.mine && !thread.closed && thread.iAmSeller === false && m.id === partnerPhoneAskId(thread.messages) && <PartnerPhoneChip myPhone={thread.myPhone ?? null} onSend={(t) => void send(t, undefined, null)} />}
                 {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
                 {!m.mine && translate.translationFor(m.id) && (
                   <button

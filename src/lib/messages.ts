@@ -28,6 +28,7 @@ import {
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { cutText } from '@/lib/feed-text'
 import { DEAL_WITHDRAWN_LINE, SERVICE_DEAL_KINDS, dealConfirmedLine, isDealLineKind } from '@/lib/service-deal'
+import { PARTNER_WELCOME_LINE } from './partner-welcome-line'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -91,6 +92,12 @@ export const MESSAGE_KINDS = [
   // 'text' is recallable, so these stay as the in-thread record for both people and for an admin reading a reported thread.
   'deal_confirmed',
   'deal_withdrawn',
+  // ⚠️ THE PARTNER WELCOME (src/lib/partner-welcome.ts, owner 2026-11-18) — the deal lines' class: no metaJson, one fixed
+  // bilingual body (PARTNER_WELCOME_LINE), shown in the viewer's language. SERVER-AUTHORED ONLY, by maybeSendPartnerWelcome
+  // after a customer's message to a partner shop: insertMessage below refuses it unless the sender is the thread's seller and
+  // the body is the canonical line. It leaves the thread's preview (lastMessageAt / lastMessageText) alone, so the shop's
+  // inbox still shows what the customer wrote, and response-rate.ts never counts it ('text' / 'offer' only).
+  'partner_welcome',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
@@ -968,6 +975,10 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     const canonical = kind === 'deal_withdrawn' ? text === DEAL_WITHDRAWN_LINE : SERVICE_DEAL_KINDS.some((k) => text === dealConfirmedLine(k))
     if (!canonical) throw new Error('deal_line_body_invalid')
   }
+  if (kind === 'partner_welcome') {
+    if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('partner_welcome_author_forbidden')
+    if (text !== PARTNER_WELCOME_LINE) throw new Error('partner_welcome_body_invalid')
+  }
   const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
   const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null
   const rentalCard = isRentalCard ? buildRentalCheckMeta(convo, senderId, opts?.meta) : null
@@ -1019,8 +1030,8 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
    */
   const selfThread = convo.buyerProfileId === senderId && convo.sellerProfileId === senderId
   const convoUpdate = {
-    lastMessageAt: new Date(),
-    lastMessageText: cutText(previewText, 140),
+    // The partner welcome keeps the customer's words as the preview (see MESSAGE_KINDS); only the customer's unread moves.
+    ...(kind === 'partner_welcome' ? {} : { lastMessageAt: new Date(), lastMessageText: cutText(previewText, 140) }),
     ...(selfThread ? {} : iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
   }
 

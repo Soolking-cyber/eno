@@ -10,6 +10,7 @@ import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
+import { maybeSendPartnerWelcome } from '@/lib/partner-welcome'
 import { db } from '@/lib/db'
 import { threadHoldsDeal, threadHoldsDealTx } from '@/lib/service-deal-server'
 import { pickLocale } from '@/lib/admin-macros'
@@ -391,6 +392,9 @@ export const POST = route(
     } else if (initialMessage) {
       message = await put(initialMessage)
     }
+    // The customer's first words to a partner shop: the shop's welcome, which asks for their phone (src/lib/partner-welcome.ts
+    // decides; it never throws). After the response — the send never waits on it.
+    if (message) { const conversationId = conv.id; after(() => maybeSendPartnerWelcome(conversationId)) }
     return message
   }
 

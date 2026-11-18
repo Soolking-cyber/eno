@@ -10,6 +10,7 @@ import { ApiError, route } from '@/lib/api/handler'
 import { isBlockedBetween } from '@/lib/user-blocks'
 import { refuseObjectionable } from '@/lib/ugc-filter'
 import { after } from 'next/server'
+import { maybeSendPartnerWelcome } from '@/lib/partner-welcome'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
@@ -258,6 +259,10 @@ export const POST = route(
     // Store the committed result for replay (best-effort — a miss just means a rare
     // duplicate on the exact old failure pattern, never a lost message).
     if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
+
+    // A customer's message to a partner shop that has been quiet: the shop's welcome, which asks for their phone
+    // (src/lib/partner-welcome.ts decides; it never throws). After the response — the send never waits on it.
+    if (iAmBuyer) after(() => maybeSendPartnerWelcome(id))
 
     // A message into a teacher thread that had gone quiet rings the teacher — a fresh cover request in an old chat must
     // not wait for them to open the app (src/lib/teachers/notify.ts; `lastMessageAt` is pre-send). Any sender since the

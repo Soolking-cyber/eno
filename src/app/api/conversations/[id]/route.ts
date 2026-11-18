@@ -21,6 +21,7 @@ import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 import { takesOffers } from '@/lib/taxonomy'
 import { blockStateBetween } from '@/lib/user-blocks'
+import { logError } from '@/lib/log'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
@@ -535,9 +536,25 @@ export const GET = route({ auth: 'userId', agent: true }, async ({ req, params, 
       .then((l) => !!l && isEVisaProductListing({ categorySlug: l.category.slug, subcategorySlug: l.subcategorySlug, attributes: l.attributes }))
       .catch(() => false)
 
+  /**
+   * THE PARTNER WELCOME'S "Send my number" (src/lib/partner-welcome.ts, src/components/marketplace/partner-phone-chip.tsx): the
+   * CUSTOMER's own Profile.phone (verified-only — phone sign-in), read only for the thread's customer on an open thread with
+   * an official partner or a welcome in this page of messages (a welcome older than the 200 loaded is merged in by the
+   * client later, so the partner flag keeps "Send my number" right on a long thread — gate review); nobody else's number, and
+   * no field at all otherwise. Fails soft (null → the chip offers "Add my number").
+   */
+  const myPhone = iAmBuyer && !iAmSeller && blockState === 'none' && (convo.seller.officialPartner || convo.messages.some((m) => m.kind === 'partner_welcome'))
+    ? await (async () => {
+      try { return (await db.profile.findUnique({ where: { id: meId }, select: { phone: true } }))?.phone ?? null }
+      catch (e) { logError(e, { op: 'thread.myPhone' }); return null }
+    })()
+    : undefined
+
   const body = {
     id: convo.id,
     me: meId,
+    // Present only on a thread with a partner welcome, for its customer (above) — every other payload is unchanged.
+    ...(myPhone !== undefined ? { myPhone } : {}),
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
     kind,
     // Which "eno team" desk this listing-less thread is with ('rental' | 'jobs', DESK_BY_SELLER_ID) — present only on a
