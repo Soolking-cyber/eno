@@ -17,6 +17,10 @@
  * ⛔ THE PASSWORD IS GENERATED HERE AND WRITTEN ONLY TO ~/eno-vault/<shop>-partner-password.txt (dir 0700, file 0600,
  * created exclusively). It is never printed, logged or passed on a command line (the 2026-11-09 lesson: a fill-in
  * placeholder became a real password). Read it with `cat` yourself.
+ * ⛔ CHATS THAT REACHED THE STOREFRONT BEFORE IT HAD AN OWNER carry `sellerProfileId = null`, and an inbox lists a thread by
+ * that column, so the claim attaches them to the new login IN THE SAME TRANSACTION — as the app's own claim does
+ * (src/lib/profile.ts). Missing that left CellphoneS's two earlier threads out of its login's inbox while Admin › Partner
+ * inbox (counted by seller id) showed them unread (owner 2026-11-18: "messages are not arriving").
  * ⛔ IT ALSO SETS `officialPartner = true` — the second write path for that flag (the first is set-official-partner.mjs),
  * in the same transaction, so a storefront is never owned-but-not-partner. The prior value is journaled and printed by --reverse.
  * ⚠️ THE ENO-RUN POWERS (chat on these affiliate rows, the nightly datafeed on an owned shop, the inbox count) need the
@@ -150,6 +154,12 @@ async function banLogin(profileId) {
   if (b.error) throw new Error(`could NOT ban login ${profileId} (${b.error.message}) — re-run --reverse --apply to retry`)
 }
 
+/** The waiting chats a claim attaches: this storefront's threads that have no seller-side profile yet (header). */
+// `returning id`: the claim record keeps exactly the threads it attached, so --reverse gives back those and no others
+// (threads opened after the claim were written to the login by the app, and stay with it, as the header says).
+const ATTACH_CHATS_SQL = `update "Conversation" set "sellerProfileId" = $1::uuid where "sellerId" = $2 and "sellerProfileId" is null returning id`
+const waitingChats = async (sellerId) => Number((await c.query(`select count(*) as n from "Conversation" where "sellerId" = $1 and "sellerProfileId" is null`, [sellerId])).rows[0].n)
+
 async function claim() {
   const s = (await c.query(`select id, name, "ownerId", "officialPartner" from "Seller" where id = $1`, [SHOP.sellerId])).rows[0]
   if (!s) throw new Error(`no Seller ${SHOP.sellerId}`)
@@ -163,6 +173,7 @@ async function claim() {
   console.log(`${SHOP.name} (${s.id})`)
   console.log(`  owner now        : none`)
   console.log(`  officialPartner  : ${s.officialPartner} -> true`)
+  console.log(`  waiting chats    : ${await waitingChats(SHOP.sellerId)} (attached to the new login)`)
   console.log(`  new login        : ${SHOP.email} (business, eno-held; password generated into ${PW_FILE}, never printed)`)
   console.log(`  ⚠️ the email must forward to eno (Cloudflare Email Routing rule ${SHOP.email} → support@eno.forum) before --apply`)
   console.log(`  ⚠️ FROM --apply UNTIL THE DEPLOY THAT PINS THE PAIR, the deployed code treats this shop as a person's: no nightly`)
@@ -173,6 +184,7 @@ async function claim() {
   const probe = '00000000-0000-0000-0000-000000000000'
   await c.query(`explain insert into "Profile" (id, email, "displayName", "accountType", "dailyReminderOptIn", "updatedAt") values ($1::uuid, $2, $3, 'business', false, now())`, [probe, SHOP.email, SHOP.name])
   await c.query(`explain update "Seller" set "ownerId" = $1::uuid, "claimedAt" = now(), "officialPartner" = true where id = $2 and "ownerId" is null`, [probe, SHOP.sellerId])
+  await c.query(`explain ${ATTACH_CHATS_SQL}`, [probe, SHOP.sellerId])
   console.log('  write statements : plan against the live schema ✓')
   if (!APPLY) { console.log('\nDRY RUN — nothing written. Re-run with --apply --email-forwards (once the forwarding rule exists).'); return }
   // The login must be reachable before it owns anything (opus, commit gate): the operator says the rule exists.
@@ -216,6 +228,7 @@ async function claim() {
   // 3. Profile + owner + partner flag, one transaction, the ownerless check re-stated in the write.
   let committed = false
   let priorFlag = s.officialPartner
+  let attachedChatIds = []
   try {
     await c.query('BEGIN')
     // updatedAt has no DB default (Prisma sets it client-side). A Profile may already exist for a fresh auth user (a
@@ -235,9 +248,11 @@ async function claim() {
       [userId, SHOP.sellerId],
     )
     if (u.rowCount !== 1) throw new Error(`the storefront was claimed by someone else meanwhile (${u.rowCount} rows) — nothing kept`)
+    attachedChatIds = (await c.query(ATTACH_CHATS_SQL, [userId, SHOP.sellerId])).rows.map((x) => x.id)
+    console.log(`  waiting chats attached: ${attachedChatIds.length}`)
     // The locked prior value reaches the record BEFORE the commit (codex, commit gate): a crash after it cannot leave
     // --reverse with the preflight's stale copy.
-    saveRecord({ ...record, status: 'pending', ownerProfileId: userId, priorOfficialPartner: priorFlag })
+    saveRecord({ ...record, status: 'pending', ownerProfileId: userId, priorOfficialPartner: priorFlag, attachedChatIds })
     await c.query('COMMIT')
     committed = true
   } catch (e) {
@@ -252,7 +267,7 @@ async function claim() {
   }
   if (!committed) throw new Error('unreachable')
 
-  saveRecord({ ...record, status: 'claimed', ownerProfileId: userId, priorOfficialPartner: priorFlag, claimedAt: new Date().toISOString() })
+  saveRecord({ ...record, status: 'claimed', ownerProfileId: userId, priorOfficialPartner: priorFlag, attachedChatIds, claimedAt: new Date().toISOString() })
   console.log(`\nDone. ${SHOP.name} is owned by ${SHOP.email}; officialPartner = true.`)
   console.log(`  password: ${PW_FILE}   (read it with: cat ${PW_FILE})`)
   console.log(`  PIN THIS PAIR in src/lib/eno-run-partners.ts: { sellerId: '${SHOP.sellerId}', ownerProfileId: '${userId}' }`)
@@ -298,6 +313,12 @@ async function reverse() {
       [r.sellerId, r.ownerProfileId],
     )
     if (u.rowCount !== 1) { await c.query('ROLLBACK'); throw new Error(`changed ${u.rowCount} rows — rolled back`) }
+    // The chats the claim attached go back to waiting (null), so a later re-claim attaches them again — only those ids,
+    // and only while they still point at this login.
+    if (r.attachedChatIds?.length) {
+      const back = await c.query(`update "Conversation" set "sellerProfileId" = null where id = any($1::text[]) and "sellerProfileId" = $2::uuid`, [r.attachedChatIds, r.ownerProfileId])
+      console.log(`  chats given back to waiting: ${back.rowCount} of ${r.attachedChatIds.length}`)
+    }
     await c.query('COMMIT')
     saveRecord({ ...r, status: 'detached-ban-pending' })
     await banLogin(r.ownerProfileId)
@@ -364,9 +385,10 @@ async function attach() {
   if (!s) throw new Error(`no Seller ${r.sellerId}`)
   if (s.name !== SHOP.name) throw new Error(`Seller ${s.id} is "${s.name}", expected "${SHOP.name}" — refusing`)
   if (s.ownerId) throw new Error(`${SHOP.name} already has an owner (${s.ownerId}) — refusing`)
-  console.log(`${SHOP.name} (${s.id}): owner none -> ${r.ownerProfileId} (${r.email}); officialPartner ${s.officialPartner} -> true; pin live on both sites ✓`)
+  console.log(`${SHOP.name} (${s.id}): owner none -> ${r.ownerProfileId} (${r.email}); officialPartner ${s.officialPartner} -> true; waiting chats ${await waitingChats(r.sellerId)}; pin live on both sites ✓`)
   if (!APPLY) { console.log('\nDRY RUN — nothing written. Re-run with --attach --apply.'); return }
   let priorFlag = s.officialPartner
+  let attachedChatIds = []
   try {
     await c.query('BEGIN')
     const locked = (await c.query(`select "officialPartner" from "Seller" where id = $1 and "ownerId" is null for update`, [r.sellerId])).rows[0]
@@ -374,7 +396,9 @@ async function attach() {
     priorFlag = locked.officialPartner
     const u = await c.query(`update "Seller" set "ownerId" = $1::uuid, "claimedAt" = now(), "officialPartner" = true where id = $2 and "ownerId" is null`, [r.ownerProfileId, r.sellerId])
     if (u.rowCount !== 1) throw new Error(`changed ${u.rowCount} rows — nothing kept`)
-    saveRecord({ ...r, status: 'pending', priorOfficialPartner: priorFlag })
+    attachedChatIds = (await c.query(ATTACH_CHATS_SQL, [r.ownerProfileId, r.sellerId])).rows.map((x) => x.id)
+    console.log(`  waiting chats attached: ${attachedChatIds.length}`)
+    saveRecord({ ...r, status: 'pending', priorOfficialPartner: priorFlag, attachedChatIds })
     await c.query('COMMIT')
   } catch (e) {
     await c.query('ROLLBACK').catch(() => {})
@@ -386,7 +410,7 @@ async function attach() {
       throw e
     }
   }
-  saveRecord({ ...r, status: 'claimed', priorOfficialPartner: priorFlag, claimedAt: new Date().toISOString() })
+  saveRecord({ ...r, status: 'claimed', priorOfficialPartner: priorFlag, attachedChatIds, claimedAt: new Date().toISOString() })
   console.log(`\nDone. ${SHOP.name} is owned by ${r.email} and eno-run from this moment (the pin is live); officialPartner = true.`)
   console.log(`  way back: node --env-file=.env scripts/claim-partner-storefront.mjs ${key} --reverse --apply`)
 }
