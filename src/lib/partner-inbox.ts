@@ -29,6 +29,8 @@ export const PARTNER_INBOX_HANDLES = [
   // The car rental partners (owner, 2026-11-17; src/lib/car-partners.ts): official, chat-only, eno-held logins. Counted here by
   // handle like the owned partners above — NOT pinned in eno-run-partners.ts, whose pair also opens the AccessTrade paths.
   'karplus', 'carbi', 'ankhanhtravel', 'quehuong',
+  // The work permit + TRC partner (owner, 2026-11-18): official, chat-only, an eno-held login like the car partners.
+  'evisasaigon',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

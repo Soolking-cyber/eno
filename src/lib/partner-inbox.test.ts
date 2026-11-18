@@ -36,13 +36,13 @@ beforeEach(() => {
 })
 
 describe('partnerInboxCounts', () => {
-  it('reads the owner\'s five shops by handle — not every official partner — and never a message', async () => {
+  it('reads the owner\'s rostered shops by handle — not every official partner — and never a message', async () => {
     T.sellers = [seller('s-vk', 'VietKite', 'vietkite')]
     await partnerInboxCounts()
-    expect(PARTNER_INBOX_HANDLES).toEqual(['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading', 'karplus', 'carbi', 'ankhanhtravel', 'quehuong'])
+    expect(PARTNER_INBOX_HANDLES).toEqual(['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading', 'karplus', 'carbi', 'ankhanhtravel', 'quehuong', 'evisasaigon'])
     const a = calls.sellerArgs[0] as { where: unknown; select: Record<string, unknown> }
     // …OR the pinned eno-run pairs (CellphoneS, Điện Thoại Vui — pinned 2026-11-15).
-    expect(a.where).toEqual({ OR: [{ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading', 'karplus', 'carbi', 'ankhanhtravel', 'quehuong'] } } }, ...PINNED] })
+    expect(a.where).toEqual({ OR: [{ handle: { handle: { in: ['goplus', 'blvck', 'saigonmoving', 'vietkite', 'eno-trading', 'karplus', 'carbi', 'ankhanhtravel', 'quehuong', 'evisasaigon'] } } }, ...PINNED] })
     // The ROSTER arm never filters on officialPartner (that is checked per shop below); the pinned eno-run arms do, by design.
     expect(JSON.stringify((a.where as { OR: unknown[] }).OR[0])).not.toMatch(/officialPartner/)
     // the conversation is only ever aggregated: no findMany, no message, no buyer, no text

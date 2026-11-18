@@ -189,6 +189,24 @@ const PARTNERS = {
     avatarColor: '#c9a227',
     dailyReminderOptIn: false,
   },
+  // ── WORK PERMIT + TRC PARTNER (owner, 2026-11-18: "https://evisasaigon.vn/ add them as a partner for Work permit and TRC
+  // issuance"; asked: eno-managed login like the car partners, go live through the licence check with their registration).
+  // legalName = the national tax register's record for MST 0317048667 (the owner's number; read 2026-11-18 via
+  // api.vietqr.io, which mirrors the tax office: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ EVISA SAIGON", active). Its listings are
+  // in services/legal-permits — a licence aisle — written by scripts/seed-evisasaigon.ts, held until the admin approves.
+  // ⛔ The bio names only work permits and residence cards: eno.vn does not advertise visa runs or the brand's other
+  // visa services (CLAUDE.md, the legal boundary) — the brand's name is what it is.
+  evisasaigon: {
+    email: 'support+evisasaigon@eno.vn',
+    handle: 'evisasaigon',
+    name: 'Evisa Saigon',
+    legalName: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ EVISA SAIGON',
+    bio: 'Work permits and temporary residence cards (TRC) for foreigners in Ho Chi Minh City. Evisa Saigon checks your case, gives you the document list, prepares the file with you and your employer and follows it until the permit or card is issued, with government fees included in the price. Office: 385/14 Nguyễn Trãi, Cầu Ông Lãnh ward. Message Evisa Saigon here on eno to start. eno introduces Evisa Saigon; the service contract is with them.',
+    avatarUrl: null,
+    // The navy of their globe-and-"EVISA" logo (the most common saturated cluster of evisasaigon.vn's LOGO-EVISA file).
+    avatarColor: '#283868',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]
