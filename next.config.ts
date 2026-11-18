@@ -5,9 +5,10 @@ import { TWIN_DENY } from "./src/lib/markdown-twin";
 /** The root pages that get a `.md` twin: this edition's root pages outside TWIN_DENY (src/lib/markdown-twin.ts).
  * ONE list for both guards — the rewrite's source below and the route's own check (env ENO_TWIN_ROOTS). */
 function twinRoots(roots: string[]): string[] {
-  // `sellers` has no page of its own (only /sellers/<id>), so appRootSegments does not list it; a storefront's twin is
-  // allowed since 2026-11-16 (owner) — /sellers/<id> exactly, never a teacher's (src/app/md/twin/route.ts checks both).
-  return [...new Set([...roots, "sellers"])].filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
+  // `sellers` and `listings` have no page of their own (only /<root>/<id>), so appRootSegments does not list them; a
+  // storefront's twin is allowed since 2026-11-16 and a listing's since 2026-11-18 (owner) — /<root>/<id> exactly, never a
+  // teacher's (src/app/md/twin/route.ts checks it all).
+  return [...new Set([...roots, "sellers", "listings"])].filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
 }
 /** The twin rewrite's source: `/<allowed root page>[/<slug>…].md`. Lower-case slugs only. */
 function twinSource(allowed: string[]): string {
@@ -1173,6 +1174,9 @@ const nextConfig: NextConfig = {
          * would be permanently unreachable. Same hazard the `eno_vietnam` note records, same fix.
          */
         { source: "/:lang(en|vi)/docs", destination: "/:lang/developers" },
+        // /mcp, the address an assistant or a person guesses first for the MCP server (2026-11-18, ora.ai): the same page
+        // as /developers/mcp, whose canonical stays there — /docs's shape and reasons above; `mcp` is reserved likewise.
+        { source: "/:lang(en|vi)/mcp", destination: "/:lang/developers/mcp" },
         /**
          * ── RFC 8414 / RFC 9728 OAuth discovery ────────────────────────────────────────────────
          * The two documents live under `src/app/api/well-known/*` for the same reason the AASA one
@@ -1266,9 +1270,10 @@ const nextConfig: NextConfig = {
         { source: "/pricing.md", destination: "/md/pricing" },
         // Every other content page's markdown twin (ora.ai markdown-url-fallback, 2026-11-16; src/app/md/twin/route.ts):
         // `/about.md` → /about's own <main> as markdown. AFTER every named `.md` above, which win; lower-case slugs only.
-        // ⛔ ONLY THIS EDITION'S OWN ROOT PAGES, MINUS TWIN_DENY (accounts, admin, people, listings, posting — commit gate,
-        // opus): the allowlist is derived from the app tree like markdown404Source, never typed out, so a new SEO page gets a
-        // twin and a storefront handle, an /api path or /admin never does.
+        // ⛔ ONLY THIS EDITION'S OWN ROOT PAGES, MINUS TWIN_DENY (accounts, admin, people, posting — commit gate, opus), plus
+        // /sellers/<id> and /listings/<id>, which the route checks row by row: the allowlist is derived from the app tree like
+        // markdown404Source, never typed out, so a new SEO page gets a twin and a storefront handle, an /api path or /admin
+        // never does.
         { source: twinSource(twinRoots(appRootSegments(PAGE_EXTENSIONS))), destination: "/md/twin?p=:p" },
         // The llms.txt family (ora.ai, 2026-11-15; src/lib/llms-txt.ts): the root index stays under 30,000 characters, the
         // full document and the two long sections answer at their own dotted paths. Route handlers under md/ like the twins

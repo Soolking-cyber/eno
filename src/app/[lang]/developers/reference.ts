@@ -85,9 +85,9 @@ export const SCOPES = OAUTH_SCOPES
  * hostname to be wrong. It also means a preview or a native WebView following these links stays
  * where it started.
  *
- * ⚠️ NO SANDBOX AND NO FREE-TIER ENTRY, DELIBERATELY. Neither exists. There is one key type
- * (`eno_live_`), it acts on real data in the real shop, and there is no `eno_test_` namespace to
- * point anyone at. Listing a sandbox that a partner then cannot find is worse than saying nothing.
+ * ⚠️ NO SANDBOX AND NO FREE-TIER ENTRY, DELIBERATELY. There is no free tier, and the sandbox (2026-11-18,
+ * src/lib/api/sandbox.ts) is not a discovery document: it has its own section on /developers and its own
+ * operations in the OpenAPI document. A live `eno_live_` key acts on real data in the real shop.
  */
 /**
  * Where uploaded media is served from. DERIVED, never a literal — the same rule as every other

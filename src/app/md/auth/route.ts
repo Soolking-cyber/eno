@@ -130,8 +130,9 @@ Authorization: Bearer eno_live_<32+ base62 characters>
 - The first 16 characters are the key's **prefix** — it is displayed in the dashboard, it is the
   \`client_id\` for the client-credentials grant, and it is not secret on its own.
 
-⚠️ The key format also admits an \`eno_test_\` namespace, but **no test keys are issued and there is
-no sandbox**. Every documented request acts on real data in a real shop.
+⚠️ An \`eno_test_\` key is a **sandbox** key: \`POST ${SITE_ORIGIN}/api/v1/sandbox/keys\` issues one to anyone,
+with no account, for 24 hours. It works only under /api/v1/sandbox (sample data, nothing stored) and every live
+endpoint refuses it. Every other documented request acts on real data in a real shop.
 
 **Sign-in clients.** There is no registration call and no client table: a client identifies itself with a
 **client ID metadata document** — its \`client_id\` is an \`https\` URL that serves its own metadata,

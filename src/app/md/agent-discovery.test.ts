@@ -308,8 +308,9 @@ describe('/auth.md', () => {
     expect(body).toContain('/api/v1/oauth/token')
     // The route returns access_token/token_type/expires_in/scope and nothing else.
     expect(body).toContain('no refresh token')
-    // ⚠️ No sandbox exists; saying otherwise sends a partner looking for one.
-    expect(body).toContain('no sandbox')
+    // The sandbox (2026-11-18): where its keys come from, and that they never open a live endpoint.
+    expect(body).toContain('/api/v1/sandbox/keys')
+    expect(body).toMatch(/every live\s+endpoint refuses it/)
   })
 })
 

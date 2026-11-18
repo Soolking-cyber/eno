@@ -11,17 +11,20 @@
 
 /**
  * Root pages that never get a twin — accounts, sign-in, admin, people, posting, API-like routes, and the browse surfaces
- * that ARE listings (a listing, a category, a brand, the teachers directory). An article or index page that quotes a few
+ * that ARE listings (a category, a brand, the teachers directory). An article or index page that quotes a few
  * listings (a guide, the rent index) is content and keeps its twin; any seller text on it is escaped like all page text.
  * ⛔ A STOREFRONT HAS ONE SINCE 2026-11-16 (owner: "resolve my decision with recommended" — ora sampled /sellers/<id>):
- * `/sellers/<id>` exactly, never a teacher's (a person's profile, as the teachers directory is); the route checks both. Read by next.config.ts to build the twin rewrite's allowlist (every OTHER root page of this
+ * `/sellers/<id>` exactly, never a teacher's (a person's profile, as the teachers directory is); the route checks both.
+ * ⛔ SO DOES A LISTING SINCE 2026-11-18 (owner approved; ora sampled /listings/<id>.md): `/listings/<id>` exactly, only a
+ * row the public PDP shows, never a teacher's row or a teacher's shop, never eno's hidden visa desk — the route checks
+ * all of it. Read by next.config.ts to build the twin rewrite's allowlist (every OTHER root page of this
  * edition), and inlined into the route as its own check.
  * ⚠️ Limit: a twin is the page's server-rendered <main>. A section that streams in after </main> (a Suspense boundary on a
  * dynamic page) is not in it; the content pages measured (about, the rent index, the guides) render whole.
  */
 export const TWIN_DENY: ReadonlySet<string> = new Set([
   'account', 'account-deletion', 'admin', 'api', 'app', 'ask', 'auth', 'brands', 'c', 'classroom', 'concierge', 'dashboard',
-  'disputes', 'dispute', 'forum', 'listing-images', 'listings', 'md', 'messages', 'oauth', 'og', 'onboard', 'post', 'reports',
+  'disputes', 'dispute', 'forum', 'listing-images', 'md', 'messages', 'oauth', 'og', 'onboard', 'post', 'reports',
   'saved', 'search', 'signin', 'signup', 'sitemaps', 'teacher', 'teachers', 'unsubscribe', '_next',
 ])
 

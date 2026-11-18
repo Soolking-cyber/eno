@@ -75,9 +75,9 @@ describe('the llms.txt family reaches its handlers (ora.ai, 2026-11-15)', () => 
     const at = rewrites.afterFiles.findIndex((r) => r.destination === '/md/twin?p=:p')
     expect(at).toBeGreaterThan(-1)
     const source = rewrites.afterFiles[at].source
-    // 'sellers' since 2026-11-16 (owner): a storefront's twin, /sellers/<id> only, never a teacher's — the route checks.
-    for (const ok of ['about', 'hcmc-rent-index', 'mua-dien-thoai-tra-gop', 'guides', 'developers', 'sellers']) expect(source, ok).toMatch(new RegExp(`[:|]${ok}[|)]`))
-    for (const no of ['listings', 'admin', 'dashboard', 'messages', 'account', 'post', 'signin', 'api', 'brands', 'ask', 'concierge']) {
+    // 'sellers' since 2026-11-16 and 'listings' since 2026-11-18 (owner): /<root>/<id> only, never a teacher's — the route checks.
+    for (const ok of ['about', 'hcmc-rent-index', 'mua-dien-thoai-tra-gop', 'guides', 'developers', 'sellers', 'listings']) expect(source, ok).toMatch(new RegExp(`[:|]${ok}[|)]`))
+    for (const no of ['admin', 'dashboard', 'messages', 'account', 'post', 'signin', 'api', 'brands', 'ask', 'concierge']) {
       expect(source, no).not.toMatch(new RegExp(`[:|]${no}[|)]`))
     }
     // The route's own allowlist is the same list, inlined at build (commit gate, opus).
@@ -99,6 +99,14 @@ describe('the llms.txt family reaches its handlers (ora.ai, 2026-11-15)', () => 
     for (const path of ['/llms.txt', '/llms-full.txt', '/guides/llms.txt', '/teach-in-vietnam/llms.txt']) expect(page.test(path), path).toBe(false)
     // …while the page paths themselves still go to the proxy (and so into [lang]).
     for (const path of ['/guides', '/teach-in-vietnam']) expect(page.test(path), path).toBe(true)
+  })
+
+  it('/mcp is /developers/mcp (2026-11-18), like /docs: the proxy sends it into [lang], afterFiles maps it there', async () => {
+    expect(rewrites.afterFiles.map((r) => [r.source, r.destination])).toContainEqual(['/:lang(en|vi)/mcp', '/:lang/developers/mcp'])
+    const { config } = await import('@/proxy')
+    expect(new RegExp(`^${config.matcher[1]}$`).test('/mcp')).toBe(true)
+    const { isReservedHandle } = await import('@/lib/handle-format')
+    expect(isReservedHandle('mcp')).toBe(true) // no shop can be shadowed by it
   })
 })
 

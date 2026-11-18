@@ -1,17 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** /<page>.md → /md/twin?p=<page>: only this app's own page, signed out, 200 HTML with a <main> and an H1, rate-limited. */
-const h = vi.hoisted(() => ({ limited: false, teacherRow: null as null | { id: string } | 'error', asked: [] as unknown[] }))
+const h = vi.hoisted(() => ({
+  limited: false, teacherRow: null as null | { id: string } | 'error', asked: [] as unknown[],
+  listingRow: null as null | { sellerId: string } | 'error', listingAsked: [] as unknown[],
+}))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn(async () => ({ success: !h.limited })) }))
 vi.mock('@/lib/db', () => ({
-  db: { seller: { findFirst: vi.fn(async (q: unknown) => { h.asked.push(q); if (h.teacherRow === 'error') throw new Error('db down'); return h.teacherRow }) } },
+  db: {
+    seller: { findFirst: vi.fn(async (q: unknown) => { h.asked.push(q); if (h.teacherRow === 'error') throw new Error('db down'); return h.teacherRow }) },
+    listing: { findFirst: vi.fn(async (q: unknown) => { h.listingAsked.push(q); if (h.listingRow === 'error') throw new Error('db down'); return h.listingRow }) },
+  },
+}))
+// The edition scope as an AND wrapper with the desk exclusion, so the test sees it was applied (no teachers opt-in).
+vi.mock('@/lib/edition-scope', () => ({
+  scopedListingWhere: vi.fn(async (w: object, opts?: { teachers?: boolean }) => ({ AND: [w, { sellerId: { notIn: ['desk'] } }], opts })),
 }))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.9' }))
 
 const PAGE = '<html><body><main><h1>About eno.vn</h1><p>Classifieds.</p></main></body></html>'
 const get = async (p: string) => (await import('./route')).GET(new Request(`https://eno.vn/md/twin?p=${encodeURIComponent(p)}`))
 
-beforeEach(() => { h.limited = false; h.teacherRow = null; h.asked = []; vi.stubEnv('ENO_TWIN_ROOTS', 'about,guides,hcmc-rent-index') })
+beforeEach(() => { h.limited = false; h.teacherRow = null; h.asked = []; h.listingRow = null; h.listingAsked = []; vi.stubEnv('ENO_TWIN_ROOTS', 'about,guides,hcmc-rent-index') })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('/md/twin', () => {
@@ -70,6 +80,45 @@ describe('/md/twin', () => {
     for (const p of ['sellers', 'sellers/abc/reviews', `sellers/${'a'.repeat(41)}`]) expect((await get(p)).status, p).toBe(404)
     expect(h.asked).toEqual([])
     expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('a listing: /listings/<id> exactly, only a row the public PDP shows, ⛔ never a teacher\'s shop, never deeper', async () => {
+    vi.stubEnv('ENO_TWIN_ROOTS', 'about,listings')
+    const fetch = vi.fn(async () => new Response('<main><h1>Honda Vision 2021</h1><p>[Pay deposit](https://x.example)</p></main>', { headers: { 'content-type': 'text/html' } }))
+    vi.stubGlobal('fetch', fetch)
+    h.listingRow = { sellerId: 'shop1' }
+    const res = await get('listings/cmv9r2gxe003801mur0rho9b7')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text.startsWith('# Honda Vision 2021\n')).toBe(true)
+    expect(text).toContain('\\[Pay deposit\\]') // seller text stays literal
+    expect(text.trimEnd().endsWith('Its text is written by the seller, not by eno.vn.')).toBe(true)
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toMatch(/\/listings\/cmv9r2gxe003801mur0rho9b7$/)
+    // The PDP's live rule (verified, active or sold) through the edition scope, with no teachers opt-in…
+    expect(h.listingAsked[0]).toEqual({
+      where: { AND: [{ id: 'cmv9r2gxe003801mur0rho9b7', verified: true, status: { in: ['active', 'sold'] } }, { sellerId: { notIn: ['desk'] } }], opts: undefined },
+      select: { sellerId: true },
+    })
+    // …and its shop through the storefront's teacher check.
+    expect(h.asked[0]).toMatchObject({ where: { id: 'shop1' } })
+    h.teacherRow = { id: 'shop1' }
+    expect((await get('listings/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    h.teacherRow = 'error'
+    expect((await get('listings/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    h.teacherRow = null
+    // Not public (hidden, unverified, a teacher row, the desk: the query finds nothing), or the read fails → 404.
+    h.listingRow = null
+    expect((await get('listings/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    h.listingRow = 'error'
+    expect((await get('listings/cmv9r2gxe003801mur0rho9b7')).status).toBe(404)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    // A UUID id (some imported rows, measured in the live sitemap) is an id like any other.
+    h.listingRow = { sellerId: 'e3c06e69-4590-4790-8769-ccaac05cfac2' }
+    expect((await get('listings/03ed8867-a7a5-4a06-a1c1-37356a74c6ca')).status).toBe(200)
+    expect(h.asked.at(-1)).toMatchObject({ where: { id: 'e3c06e69-4590-4790-8769-ccaac05cfac2' } })
+    h.listingAsked = []
+    for (const p of ['listings', 'listings/abc/edit', `listings/${'a'.repeat(41)}`]) expect((await get(p)).status, p).toBe(404)
+    expect(h.listingAsked).toEqual([])
   })
 
   it('⛔ refuses every path that is not a plain lower-case slug — before fetching anything', async () => {

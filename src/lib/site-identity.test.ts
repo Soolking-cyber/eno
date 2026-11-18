@@ -21,7 +21,7 @@ import { SITE_NAME } from './edition'
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the Organization entity fields', () => {
-  it('sameAs is every profile eno OWNS — the eight socials plus the entity profiles (GitHub org included), never the community group', () => {
+  it('sameAs is every profile eno OWNS — the nine socials (GitHub org included) plus the entity profiles, never the community group', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f.sameAs).toEqual([...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES])
     expect(f.sameAs).toHaveLength(13)

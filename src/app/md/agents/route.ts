@@ -113,8 +113,9 @@ Call \`tools/list\` on the live server for the authoritative input schemas.
 Send \`Authorization: Bearer eno_live_…\` — or exchange that key for a short-lived JWT at
 \`POST ${SITE_ORIGIN}/api/v1/oauth/token\` (OAuth 2.0 client credentials) and send that instead.
 Both work everywhere, including MCP. Scopes: ${OAUTH_SCOPES.map((s) => `\`${s}\``).join(', ')}. Keys
-are issued in the dashboard under Developers, to business accounts. There is no sandbox and no test
-key. Full detail: [\`/auth.md\`](${SITE_ORIGIN}/auth.md).
+are issued in the dashboard under Developers, to business accounts. To try the API first, \`POST
+${SITE_ORIGIN}/api/v1/sandbox/keys\` returns a 24-hour \`eno_test_\` key for the sandbox under /api/v1/sandbox
+(sample data, nothing stored). Full detail: [\`/auth.md\`](${SITE_ORIGIN}/auth.md).
 
 ## Rate limits
 

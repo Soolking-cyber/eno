@@ -169,7 +169,9 @@ export default function DevelopersPage() {
           <p className="mt-2 text-sm leading-relaxed text-body">
             {/* 2026-11-07 audit: that every key is live leads the section, ahead of how to make one. It was the third of four
                 bullets under the header example, among the routine notes on scopes and revoking; same words as that bullet. */}
-            <strong className="text-foreground">There is no sandbox and no test key — a key is live from the moment it is issued.</strong>{' '}
+            {/* 2026-11-18: the sandbox exists (src/lib/api/sandbox.ts); a live key still acts on real data from the start. */}
+            <strong className="text-foreground">A key is live from the moment it is issued</strong> — to try the API first, use the{' '}
+            <a href="#sandbox" className="font-semibold text-accent-foreground hover:underline">sandbox</a>.{' '}
             {/* ⚠️ /dashboard/dev, NOT /dashboard?tab=dev. The query form still resolves — dashboard/page.tsx
                 keeps a TAB_TO_ROUTE map for bookmarked links — but it costs the reader a redirect and
                 documents a legacy shape as the current one. The section pages became real routes in the
@@ -231,6 +233,26 @@ export default function DevelopersPage() {
 
 # → { "access_token": "eyJ…", "token_type": "Bearer", "expires_in": 3600, "scope": "listings:read analytics:read" }
 # then:  Authorization: Bearer eyJ…`}</Code></div>
+        </section>
+
+        {/* 2026-11-18 (owner, ora sandbox + async-job checks): no account, sample data, nothing stored. Mechanism and limits:
+            src/lib/api/sandbox.ts; the operations are in the OpenAPI document under /sandbox. */}
+        <section id="sandbox" className="mt-8 scroll-mt-24 border-t border-border pt-6">
+          <h2 className="h-section text-foreground">Sandbox</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            Try the API without an account or real data. A test key needs no sign-up, lasts 24 hours and works only under{' '}
+            <code className="font-mono text-foreground">{BASE}/sandbox</code>: sample listings in the live shapes, create and update
+            calls that run the live checks and store nothing, and an export that runs as an async job. Every response there
+            carries <code className="font-mono text-foreground">X-Sandbox: true</code>.
+          </p>
+          <div className="mt-3"><Code>{`curl -X POST ${BASE}/sandbox/keys
+# → { "key": "eno_test_…", "expires_at": "…", "sandbox": true }
+
+curl "${BASE}/sandbox/listings?q=honda" -H "Authorization: Bearer eno_test_…"
+
+curl -i -X POST ${BASE}/sandbox/exports -H "Authorization: Bearer eno_test_…"
+# → 202 Accepted, Location: ${BASE}/sandbox/exports/job_…
+# poll that URL until "status": "done"; the result is in the same response`}</Code></div>
         </section>
 
         {/* A section on the canvas like every other one here — a hairline, not a tinted box and a

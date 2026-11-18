@@ -1179,6 +1179,7 @@ export const UI_STRINGS: string[] = [
   "E-commerce platform registration with the Ministry of Industry and Trade: in progress.",
   "E-ticket",
   "ENO on Facebook",
+  "ENO on GitHub",
   "ENO on Instagram",
   "ENO on LinkedIn",
   "ENO on Reddit",

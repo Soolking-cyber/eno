@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { SITE_NAME } from '@/lib/edition'
 import { OAUTH_SCOPES } from '@/lib/api/oauth'
+import { SANDBOX_CATEGORIES, SANDBOX_KEYS_PER_IP_PER_HOUR, SANDBOX_KEY_TTL_SEC, SANDBOX_RATE_PER_MIN } from '@/lib/api/sandbox'
 
 // ⚠️ SAME DERIVATION AS layout.tsx, llms.txt AND src/lib/api/oauth.ts. next.config.ts asserts
 // NEXT_PUBLIC_APP_URL matches the edition (`eno.vn` for marketplace, `www.eno.forum` for
@@ -201,6 +202,189 @@ function requires(scope: (typeof OAUTH_SCOPES)[number]): Obj[] {
   return [{ bearerAuth: [] }, { oauth2: [scope] }]
 }
 
+// ── The sandbox (owner 2026-11-18; mechanism and why it stores nothing: src/lib/api/sandbox.ts) ─────────────────────
+// Its own security scheme and `X-Sandbox` header, so a client can tell at a glance which operations act on sample data.
+// The numbers are imported from the mechanism: the document cannot state a budget the route does not run.
+const SANDBOX_SEC: Obj[] = [{ sandboxKey: [] }]
+const SBX: Obj = { 'X-Sandbox': headerRef('X-Sandbox') }
+const sbxOk = (description: string, schema: Obj, extra: Obj = {}): Obj => ok(description, schema, { ...SBX, ...extra })
+function sbxFail(description: string, codes: readonly string[], opts: { rate?: boolean; retryAfter?: boolean } = {}): Obj {
+  const f = fail(description, codes, opts)
+  return { ...f, headers: { ...(f.headers as Obj), ...SBX } }
+}
+/** Every sandbox body, a refusal included, carries `"sandbox": true` beside its payload. */
+const sbxBody = (properties: Obj, required: string[]): Obj => ({
+  type: 'object',
+  required: [...required, 'sandbox'],
+  properties: { ...properties, sandbox: { type: 'boolean', const: true, description: 'Always true: sample data, nothing stored.' } },
+})
+function sandboxFailures(): Obj {
+  const unauthorized = sbxFail('No test key, a malformed or expired one, or a live key or access token (never accepted here). Mint a test key with `createSandboxKey`.', ['unauthorized'], { rate: false })
+  return {
+    '401': { ...unauthorized, headers: { ...(unauthorized.headers as Obj), 'WWW-Authenticate': { description: '`Bearer realm="sandbox"`, with `error="invalid_token"` when a credential was sent.', schema: { type: 'string' } } } },
+    '429': sbxFail(`More than ${SANDBOX_RATE_PER_MIN} sandbox requests in 60 seconds from your IP.`, ['rate_limited'], { retryAfter: true }),
+    '503': sbxFail('The sandbox cannot sign or check keys right now. Retry with backoff.', ['unavailable'], { rate: false }),
+  }
+}
+const SANDBOX_BAD_BODY: Obj = {
+  '400': sbxFail('The body was not valid JSON.', ['bad_request']),
+  '413': sbxFail('The body is over 16 KB.', ['payload_too_large']),
+  '422': sbxFail('A field failed the same checks the live create runs. Nothing was stored either way.', ['invalid_input', 'unknown_category', 'no_phone_in_listing']),
+}
+const SANDBOX_NOT_FOUND = sbxFail('No sandbox listing with that id.', ['not_found'])
+const SANDBOX_LISTING_FIELDS: Obj = {
+  categorySlug: { type: 'string', enum: SANDBOX_CATEGORIES.map((c) => c.slug), description: 'One of the sandbox categories (`listSandboxCategories`).' },
+  title: { type: 'string', minLength: 3, description: 'Cut to 140 characters, as on the live API. No phone numbers.' },
+  price: { type: 'number', minimum: 0, maximum: 1e12, description: 'VND.' },
+  description: { type: 'string', maxLength: 5000, description: 'No phone numbers.' },
+  listingType: { type: 'string', enum: ['sell', 'rent', 'free', 'wanted'] },
+}
+const SANDBOX_JOB: Obj = sbxBody({
+  jobId: { type: 'string', description: 'Signed and self-describing: it carries when the job started and which key started it, so no job is stored. Only that key can read it, for an hour.' },
+  status: { type: 'string', enum: ['pending', 'running', 'done'], description: '`pending` for 2 seconds, `running` until 5, then `done`. A sandbox job does no real work: its state follows its age.' },
+  statusUrl: { type: 'string', format: 'uri', description: 'Where to poll: the same URL as the `Location` header on the 202.' },
+  createdAt: { type: 'string', format: 'date-time' },
+  completedAt: { type: ['string', 'null'], format: 'date-time', description: 'Null until `done`.' },
+  result: {
+    type: ['object', 'null'],
+    description: 'Null until `done`; then the export of every sandbox listing.',
+    properties: { format: { type: 'string', const: 'json' }, count: { type: 'integer' }, listings: { type: 'array', items: schemaRef('Listing') } },
+  },
+}, ['jobId', 'status', 'statusUrl', 'createdAt'])
+const POLL_AFTER: Obj = { description: 'Seconds until the job can next change state. Poll no sooner.', schema: { type: 'integer', minimum: 1 } }
+const ID_PARAM = (name: string, description: string): Obj => ({ name, in: 'path', required: true, description, schema: { type: 'string', maxLength: 100 } })
+
+const SANDBOX_PATHS = {
+  '/sandbox': {
+    get: {
+      operationId: 'getSandbox',
+      summary: 'Sandbox service document — no credential required',
+      description: 'How to get a test key, the sandbox base URL, its endpoints and its limits.',
+      security: [],
+      responses: {
+        '200': {
+          description: 'The sandbox document.',
+          headers: { ...ID_ONLY, ...SBX },
+          content: json(sbxBody({ service: { type: 'string' }, description: { type: 'string' }, get_a_key: { type: 'string' }, base_url: { type: 'string', format: 'uri' }, endpoints: { type: 'array', items: { type: 'string' } } }, ['service', 'get_a_key', 'base_url', 'endpoints'])),
+        },
+      },
+    },
+  },
+  '/sandbox/keys': {
+    post: {
+      operationId: 'createSandboxKey',
+      summary: 'Get a test key — no account, no credential',
+      description: `Returns an \`eno_test_\` key valid for ${SANDBOX_KEY_TTL_SEC / 3600} hours. It works only on the \`/sandbox/*\` operations; every live operation refuses it, and the sandbox refuses live keys and tokens. The key is signed, not stored: there is nothing to revoke, it simply expires. ${SANDBOX_KEYS_PER_IP_PER_HOUR} keys per hour per IP.`,
+      security: [],
+      responses: {
+        '201': sbxOk('A new test key. `Cache-Control: no-store`.', sbxBody({
+          key: { type: 'string', pattern: '^eno_test_', description: 'Send as `Authorization: Bearer <key>`.' },
+          type: { type: 'string', const: 'test' },
+          expires_at: { type: 'string', format: 'date-time' },
+          base_url: { type: 'string', format: 'uri', description: 'The sandbox base URL; the paths below it mirror `/sandbox/*` here.' },
+          note: { type: 'string' },
+        }, ['key', 'type', 'expires_at', 'base_url'])),
+        '429': sbxFail(`More than ${SANDBOX_KEYS_PER_IP_PER_HOUR} keys in an hour from your IP.`, ['rate_limited'], { retryAfter: true }),
+        '503': sbxFail('The sandbox cannot sign keys right now. Retry with backoff.', ['unavailable'], { rate: false }),
+      },
+    },
+  },
+  '/sandbox/listings': {
+    get: {
+      operationId: 'listSandboxListings',
+      summary: 'Search the sandbox listings',
+      description: 'The `listListings` shape over sample listings, newest first, with `q` and `categorySlug` filters. Keyset-paginated like the live list.',
+      security: SANDBOX_SEC,
+      parameters: [
+        { name: 'q', in: 'query', required: false, description: 'Words to find in the title or description (first 100 characters used).', schema: { type: 'string', maxLength: 100 } },
+        { name: 'categorySlug', in: 'query', required: false, schema: { type: 'string' } },
+        { name: 'limit', in: 'query', required: false, description: 'Clamped to 1..100; defaults to 50.', schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 } },
+        { name: 'cursor', in: 'query', required: false, description: 'The previous page\'s `next_cursor`.', schema: { type: 'string' } },
+      ],
+      responses: {
+        '200': sbxOk('One page of sample listings.', sbxBody({ listings: { type: 'array', items: schemaRef('Listing') }, next_cursor: { type: ['string', 'null'] } }, ['listings', 'next_cursor'])),
+        ...sandboxFailures(),
+      },
+    },
+    post: {
+      operationId: 'createSandboxListing',
+      summary: 'Try a create — checked, never stored',
+      description: 'Runs the live create\'s field checks and answers in its shape (`201 { listing: { id, verified } }`), plus `stored: false` and the `received` fields. The id is new each time and resolves nowhere.',
+      security: SANDBOX_SEC,
+      requestBody: { required: true, content: json({ type: 'object', required: ['categorySlug', 'title', 'price'], properties: SANDBOX_LISTING_FIELDS }) },
+      responses: {
+        '201': sbxOk('Checked; nothing stored.', sbxBody({ listing: { type: 'object', properties: { id: { type: 'string' }, verified: { type: 'boolean' } } }, stored: { type: 'boolean', const: false }, received: { type: 'object' } }, ['listing', 'stored', 'received'])),
+        ...SANDBOX_BAD_BODY,
+        ...sandboxFailures(),
+      },
+    },
+  },
+  '/sandbox/listings/{id}': {
+    get: {
+      operationId: 'getSandboxListing',
+      summary: 'Get one sandbox listing',
+      security: SANDBOX_SEC,
+      parameters: [ID_PARAM('id', 'A sandbox listing id (`sbx_lst_…`).')],
+      responses: {
+        '200': sbxOk('The listing, in the live `getListing` shape.', sbxBody({ listing: schemaRef('Listing') }, ['listing'])),
+        '404': SANDBOX_NOT_FOUND,
+        ...sandboxFailures(),
+      },
+    },
+    patch: {
+      operationId: 'updateSandboxListing',
+      summary: 'Try an update — checked, never stored',
+      description: 'Sparse: send at least one field. Answers the live `{ ok: true }` plus `stored: false` and the `received` fields; the listing does not change.',
+      security: SANDBOX_SEC,
+      parameters: [ID_PARAM('id', 'A sandbox listing id (`sbx_lst_…`).')],
+      requestBody: { required: true, content: json({ type: 'object', minProperties: 1, properties: SANDBOX_LISTING_FIELDS }) },
+      responses: {
+        '200': sbxOk('Checked; nothing stored.', sbxBody({ ok: { type: 'boolean', const: true }, stored: { type: 'boolean', const: false }, received: { type: 'object' } }, ['ok', 'stored', 'received'])),
+        '404': SANDBOX_NOT_FOUND,
+        ...SANDBOX_BAD_BODY,
+        ...sandboxFailures(),
+      },
+    },
+  },
+  '/sandbox/categories': {
+    get: {
+      operationId: 'listSandboxCategories',
+      summary: 'List the sandbox categories',
+      security: SANDBOX_SEC,
+      responses: {
+        '200': sbxOk('The categories the sandbox listings use.', sbxBody({ categories: { type: 'array', items: schemaRef('Category') } }, ['categories'])),
+        ...sandboxFailures(),
+      },
+    },
+  },
+  '/sandbox/exports': {
+    post: {
+      operationId: 'startSandboxExport',
+      summary: 'Start an export job — 202 Accepted, then poll',
+      description: 'The asynchronous pattern: answers `202 Accepted` at once with the job id and where to poll (`Location` header and `statusUrl`). Poll `getSandboxExport` until `status` is `done`; the result is in that response. No body is needed.',
+      security: SANDBOX_SEC,
+      responses: {
+        '202': sbxOk('Accepted; not done yet.', SANDBOX_JOB, { Location: { description: 'The job\'s status URL, the same as `statusUrl`.', schema: { type: 'string', format: 'uri' } }, 'Retry-After': POLL_AFTER }),
+        ...sandboxFailures(),
+      },
+    },
+  },
+  '/sandbox/exports/{jobId}': {
+    get: {
+      operationId: 'getSandboxExport',
+      summary: 'Poll an export job',
+      description: 'The job\'s state; once `done`, the `result`. While it is not done the response carries `Retry-After`.',
+      security: SANDBOX_SEC,
+      parameters: [ID_PARAM('jobId', 'The `jobId` from `startSandboxExport`.')],
+      responses: {
+        '200': sbxOk('The job.', SANDBOX_JOB, { 'Retry-After': POLL_AFTER }),
+        '404': sbxFail('Unknown or expired job, or one another key started.', ['not_found']),
+        ...sandboxFailures(),
+      },
+    },
+  },
+}
+
 /**
  * What each scope actually unlocks.
  *
@@ -268,6 +452,12 @@ export const SPEC = {
       'Every failure is `{"error":{"code":"…","message":"…"}}` with an HTTP status that matches. Branch on `code`, not on `message` — messages are prose and may be reworded. `code` is an open set: new codes appear without notice (the create path re-emits the publish guard\'s own codes verbatim), so always have a default arm. Some 4xx add an `error.detail` string with the specific offending value.',
       'Any path under `/api` that matches no route answers 404 in this same envelope, plus an `error.hint` pointing at this document.',
       '',
+      '## Sandbox',
+      `Try the API without an account or real data. \`POST ${CANONICAL_ORIGIN}/api/v1/sandbox/keys\` returns an \`eno_test_\` key (no sign-up, ${SANDBOX_KEY_TTL_SEC / 3600} hours) that works only on the \`/sandbox/*\` operations: sample listings and categories in the live shapes, create and update calls that run the live checks and store nothing, and an export that runs as an asynchronous job. Every sandbox response carries \`X-Sandbox: true\` and \`"sandbox": true\`. Live operations refuse test keys, and the sandbox refuses live keys.`,
+      '',
+      '## Long-running operations',
+      'The asynchronous pattern is `202 Accepted` with a `Location` header and a body holding `jobId`, `status` and `statusUrl`; poll the status URL (it says `Retry-After`) until `status` is `done`, and the result is in that response. `startSandboxExport` runs it today. No live operation answers 202: each returns its result in its own response, `POST /listings/bulk` and `POST /listings/sync` included.',
+      '',
       '## Idempotency',
       '`POST /listings` and `POST /listings/bulk` honour an `Idempotency-Key` request header — send one and a network retry replays the first result instead of creating twice. `POST /listings/sync` needs none: it upserts by your `externalId`, so re-sending is naturally idempotent.',
       '',
@@ -325,6 +515,11 @@ export const SPEC = {
   },
   components: {
     securitySchemes: {
+      sandboxKey: {
+        type: 'http',
+        scheme: 'bearer',
+        description: 'An `eno_test_…` key from `POST /sandbox/keys` (no account needed). It opens the `/sandbox/*` operations only, on sample data.',
+      },
       bearerAuth: {
         type: 'http',
         scheme: 'bearer',
@@ -351,6 +546,10 @@ export const SPEC = {
       },
     },
     headers: {
+      'X-Sandbox': {
+        description: 'On every `/sandbox/*` response, a refusal included: the data is sample data and nothing was stored.',
+        schema: { type: 'string', enum: ['true'] },
+      },
       Link: {
         description: `On every response from a documented /api/v1 operation except \`POST /oauth/token\` (which builds its own headers; an unmatched path's JSON 404 carries none): \`rel="service-desc"\` (this document) and \`rel="service-doc"\` (the human guide), RFC 8631; \`rel="deprecation"\`, the versioning and deprecation policy (RFC 9745 §3 — sent while nothing is deprecated, to make the policy discoverable; a deprecated operation would ALSO carry a \`Deprecation\` field); \`rel="api-catalog"\`, the RFC 9727 catalogue.`,
         example: `<${CANONICAL_ORIGIN}/openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json", <${CANONICAL_ORIGIN}/developers>; rel="service-doc"; type="text/html", <${CANONICAL_ORIGIN}/developers/versioning>; rel="deprecation"; type="text/html", <${CANONICAL_ORIGIN}/.well-known/api-catalog>; rel="api-catalog"`,
@@ -386,7 +585,7 @@ export const SPEC = {
         schema: { type: 'integer' },
       },
       'Retry-After': {
-        description: 'Delay-seconds. Emitted ONLY on 429 — a 4xx about a malformed body is not worth retrying, and saying otherwise would be telling a client to loop.',
+        description: 'Delay-seconds. On a 429 only — a 4xx about a malformed body is not worth retrying, and saying otherwise would be telling a client to loop. (The sandbox job operations also send it, to say when to poll; they document it inline.)',
         example: 42,
         schema: { type: 'integer', minimum: 1 },
       },
@@ -1513,6 +1712,7 @@ export const SPEC = {
         },
       },
     },
+    ...SANDBOX_PATHS,
   },
 } as const
 

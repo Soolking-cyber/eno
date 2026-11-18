@@ -51,8 +51,8 @@ export default function CliPage() {
 npx eno-vn status`}</Code></div>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
             <li>
-              • <strong className="text-foreground">There is no sandbox and no test key</strong> — a key is live from the moment it is issued, so every
-              command changes your real shop.
+              • <strong className="text-foreground">Live keys only</strong> — a key is live from the moment it is issued, so every command changes
+              your real shop (the API sandbox&apos;s test keys do not work here).
             </li>
             <li>• <strong className="text-foreground">Output:</strong> the API&apos;s JSON on stdout, a refusal included. Exit codes: 0 success, 1 the API refused, 2 a usage error, 3 no confirmed answer (a write may have happened: check before repeating it).</li>
             <li>• <C>npx eno-vn help</C> lists every command.</li>

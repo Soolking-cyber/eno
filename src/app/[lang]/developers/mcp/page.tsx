@@ -94,7 +94,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             <li>
               • <strong className="text-foreground">The key:</strong> create one in your{' '}
               <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section (business
-              accounts). <strong className="text-foreground">There is no sandbox and no test key — a key is live from the moment it is issued.</strong>
+              accounts). <strong className="text-foreground">A key is live from the moment it is issued</strong> (the API sandbox&apos;s test keys do not open this server).
             </li>
             <li>
               • <strong className="text-foreground">Transport:</strong> Streamable HTTP, stateless — JSON-RPC over POST, no SSE stream (a GET answers 405).

@@ -138,9 +138,9 @@ describe('/developers reference — invariants that hold on both editions', () =
     expect(mkt.SITE_ORIGIN).toBe('https://eno.vn')
   })
 
-  it('describes no sandbox and no free tier, because neither exists', async () => {
-    // A developer page is read by machines that cannot ask a follow-up question. Naming a sandbox
-    // a partner then cannot find is worse than the omission, so the vocabulary stays out entirely.
+  it('lists no free tier (none exists) and keeps the sandbox out of the discovery list (it has its own section)', async () => {
+    // A developer page is read by machines that cannot ask a follow-up question. The sandbox (2026-11-18) is documented in
+    // its own section and in the OpenAPI document, not among the discovery documents.
     for (const edition of ['marketplace', 'services'] as const) {
       const m = await load(edition, undefined)
       const prose = m.DISCOVERY.map((d) => d.note).join(' ').toLowerCase()

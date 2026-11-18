@@ -123,10 +123,14 @@ const DEVELOPER_SECTION = `## For developers and agents
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.
+- [Sandbox](${SITE_ORIGIN}/developers#sandbox) — try the API without an account or real data:
+  \`POST ${SITE_ORIGIN}/api/v1/sandbox/keys\` returns an \`eno_test_\` key (24 hours) that works only under
+  ${SITE_ORIGIN}/api/v1/sandbox — sample listings and categories in the live shapes, create and update calls
+  that store nothing, and an export that runs as an async job (202 Accepted + Location, then poll).
 - ⚠️ Every OTHER operation is AUTHENTICATED, and needs either an \`eno_live_\` key or a token minted
-  from one at ${SITE_ORIGIN}/api/v1/oauth/token (OAuth 2.0 client credentials). There is no sandbox
-  and no test key. An agent without a key can read the spec, the OAuth metadata and the service
-  status, but cannot call anything that touches a shop.
+  from one at ${SITE_ORIGIN}/api/v1/oauth/token (OAuth 2.0 client credentials); test keys never work there.
+  An agent without a live key can read the spec, the OAuth metadata and the service status and use the
+  sandbox, but cannot call anything that touches a shop.
 - Scopes: listings:read, listings:write, analytics:read, media:write. One key acts for one shop
   and only ever sees that shop's data.
 - Keys are issued in the account dashboard, under Developers, to business accounts.`

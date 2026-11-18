@@ -89,10 +89,7 @@ export function toE164VN(phone: string | null | undefined): string | null {
 export const ENTITY_PROFILES: readonly string[] = [
   'https://www.crunchbase.com/organization/eno-vn-9f19',
   'https://www.pinterest.com/enovietnam/',
-  // eno's GitHub ORGANISATION (owner 2026-11-16 "yes": link the agent-skills repo from the homepage, invisibly, for
-  // ora.ai's repo probes). It holds only github.com/eno-vn/eno-agent-skills (src/lib/agent-skills.ts). ⛔ Never the
-  // personal account that holds the site's source.
-  'https://github.com/eno-vn',
+  // eno's GitHub organisation moved to SOCIALS on 2026-11-18 (a visible footer mark; ora.ai): still in sameAs from there.
   // The developer pages of the two app stores (owner, 2026-11-17: "yes" after the HubSpot AI Search Grader). Both stores list
   // the publisher as ENO Company Limited, the operator itself, so they name the same entity — unlike an app's own listing,
   // which names the app. Apple's URL is the lookup's artistViewUrl (id6819638571) without its ?uo= tracking parameter; the
