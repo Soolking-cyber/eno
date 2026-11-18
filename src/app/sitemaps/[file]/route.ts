@@ -1,13 +1,6 @@
-import { db } from '@/lib/db'
-import {
-  LISTINGS_PER_SITEMAP,
-  parseListingSitemapFile,
-  siteOrigin,
-  submittedListingWhere,
-  urlsetXml,
-  xmlResponse,
-} from '@/lib/sitemap'
+import { parseListingSitemapFile, urlsetXml, xmlResponse } from '@/lib/sitemap'
 import { NextResponse } from 'next/server'
+import { listingSitemapEntries } from './build'
 
 /**
  * /sitemaps/listings-<k>.xml — the k-th slice of the submitted listings (src/lib/sitemap.ts).
@@ -36,18 +29,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ file: s
   const k = parseListingSitemapFile(file)
   if (k === null) return new NextResponse('Not Found', { status: 404 })
   try {
-    // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the
-    // affiliate exclusion (src/lib/sitemap.ts) — the edition scope is inside the helper.
-    const rows = await db.listing.findMany({
-      where: await submittedListingWhere(),
-      select: { id: true, updatedAt: true },
-      orderBy: { id: 'asc' },
-      skip: k * LISTINGS_PER_SITEMAP,
-      take: LISTINGS_PER_SITEMAP,
-    })
-    const host = siteOrigin()
-    const urls = rows.map((l) => `  <url><loc>${host}/listings/${l.id}</loc><lastmod>${l.updatedAt.toISOString()}</lastmod></url>\n`)
-    return xmlResponse(urlsetXml(urls, file))
+    return xmlResponse(urlsetXml(await listingSitemapEntries(k), file))
   } catch (error) {
     // ⛔ RETHROWN, NEVER RETURNED AS A 500 (SEO wave B, D3): a returned 500 is cached by ISR for the
     // route's whole day in place of the good child; a throw keeps serving the last good copy

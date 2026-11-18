@@ -4,9 +4,13 @@ import { IS_SERVICES } from '@/lib/edition'
 import { teacherSitemapScope } from '@/lib/teachers/search-index'
 
 /**
- * THE SITEMAP IS AN INDEX NOW — /sitemap.xml names child sitemaps, and every child is capped.
+ * THE SITEMAP IS PAGED INTO CHILDREN, and every child is capped.
  *
- *   /sitemap.xml                 <sitemapindex>: the pages child + one child per LISTINGS_PER_SITEMAP
+ *   /sitemap.xml                 ONE FLAT <urlset> (pages.xml's URLs, then listings-0.xml's) while there are
+ *                                ≤ 45,000 submitted listings and ≤ 50,000 URLs in all; past that, the
+ *                                <sitemapindex>: the pages child + one child per LISTINGS_PER_SITEMAP.
+ *                                Flat since 2026-11-18: crawlers that read /sitemap.xml's locs as pages took
+ *                                the children for untitled pages (src/app/sitemap.xml/build.ts).
  *   /sitemaps/pages.xml          <urlset>: home, static/editorial pages, help, categories, category ×
  *                                district combos, storefronts — everything that is not a listing
  *   /sitemaps/listings-<k>.xml   <urlset>: the k-th slice of the SUBMITTED listings, ordered by id

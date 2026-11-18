@@ -283,6 +283,7 @@ vi.mock('@/lib/edition-scope', () => ({
 }))
 
 import { GET as indexGET } from '@/app/sitemap.xml/route'
+import { sitemapIndexChildren } from '@/app/sitemap.xml/build'
 import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { buildPagesSitemap, RENT_FROZEN_PATHS, RentIndexUnavailable } from '@/app/sitemaps/pages.xml/build'
@@ -347,12 +348,31 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
-describe('the sitemap index', () => {
-  it('is a <sitemapindex> naming the pages child and one listing child per 45,000 submitted listings', async () => {
-    h.rows = Array.from({ length: 2 * LISTINGS_PER_SITEMAP + 1 }, (_, i) => row({ id: `own-${String(i).padStart(6, '0')}` }))
+describe('/sitemap.xml: one flat urlset while small, the index once large (2026-11-18)', () => {
+  it('is a <urlset> of every pages.xml URL, then every listing-child URL, in their order', async () => {
+    h.rows = [row({ id: 'own-a', categoryId: 'cat-fashion' }), row({ id: 'own-b', categoryId: 'cat-electronics' })]
     const res = await indexGET()
     const xml = await res.text()
     expect(res.headers.get('content-type')).toContain('application/xml')
+    expect(xml).toMatch(/^<\?xml[^>]*\?>\s*<urlset /)
+    expect(xml).not.toContain('<sitemapindex')
+    const listings = locs(await (await child('listings-0.xml')).text())
+    expect(listings).toEqual([`${HOST}/listings/own-a`, `${HOST}/listings/own-b`])
+    expect(locs(xml)).toEqual([...locs(await (await pagesGET()).text()), ...listings])
+    // ⛔ the reason for the change: no loc a crawler would fetch as a page and find no <title> in
+    expect(locs(xml).some((u) => u.endsWith('.xml'))).toBe(false)
+  })
+
+  it('holds the pages alone when nothing is submitted', async () => {
+    h.rows = [row({ id: 'imp-1', affiliateUrl: 'https://nhatot.com/x' })]
+    const xml = await (await indexGET()).text()
+    expect(xml).toMatch(/<urlset /)
+    expect(locs(xml)).toEqual(locs(await (await pagesGET()).text()))
+  })
+
+  it('is a <sitemapindex> naming the pages child and one listing child per 45,000 once past 45,000', async () => {
+    h.rows = Array.from({ length: 2 * LISTINGS_PER_SITEMAP + 1 }, (_, i) => row({ id: `own-${String(i).padStart(6, '0')}` }))
+    const xml = await (await indexGET()).text()
     expect(xml).toMatch(/^<\?xml[^>]*\?>\s*<sitemapindex /)
     expect(locs(xml)).toEqual([
       `${HOST}/sitemaps/pages.xml`,
@@ -360,11 +380,13 @@ describe('the sitemap index', () => {
       `${HOST}/sitemaps/listings-1.xml`,
       `${HOST}/sitemaps/listings-2.xml`,
     ])
-  })
+  }, 60_000)
 
-  it('names no listing child when nothing is submitted', async () => {
-    h.rows = [row({ id: 'imp-1', affiliateUrl: 'https://nhatot.com/x' })]
-    expect(locs(await (await indexGET()).text())).toEqual([`${HOST}/sitemaps/pages.xml`])
+  it('throws with the pages child when the rent snapshot is unknown: the last good copy stays, no partial file', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    h.rent = { known: false }
+    await expect(indexGET()).rejects.toThrow(RentIndexUnavailable)
+    quiet.mockRestore()
   })
 })
 
@@ -377,7 +399,7 @@ describe('the listing children', () => {
     const n = LISTINGS_PER_SITEMAP + 7
     h.rows = Array.from({ length: n }, (_, i) => row({ id: `own-${String(i).padStart(6, '0')}`, updatedAt: new Date(Date.UTC(2026, 0, 1) + i * 1000) }))
     const seen: string[] = []
-    for (const loc of locs(await (await indexGET()).text()).filter((l) => l.includes('/listings-'))) {
+    for (const loc of (await sitemapIndexChildren()).locs.filter((l) => l.includes('/listings-'))) {
       const file = loc.split('/').pop()!
       const urls = locs(await (await child(file)).text())
       expect(urls.length).toBeLessThanOrEqual(LISTINGS_PER_SITEMAP)
@@ -431,7 +453,7 @@ describe('the listing children', () => {
     h.rows = [linked, row({ id: 'job-own', ...teaching })]
     expect(locs(await (await child('listings-0.xml')).text())).toEqual([`${HOST}/listings/job-own`])
     h.rows = [linked]
-    expect(locs(await (await indexGET()).text())).toEqual([`${HOST}/sitemaps/pages.xml`])
+    expect((await sitemapIndexChildren()).locs).toEqual([`${HOST}/sitemaps/pages.xml`])
     const pages = locs(await (await pagesGET()).text())
     expect(pages.filter((u) => u.includes('/listings/'))).toEqual([])
     expect(pages).toEqual(expect.arrayContaining([`${HOST}/jobs-vietnam-expats`, `${HOST}/c/jobs`]))
@@ -1228,7 +1250,7 @@ describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
     row({ id: 'own-dress' }),
   ]
   const submitted = async () => {
-    const index = locs(await (await indexGET()).text())
+    const index = (await sitemapIndexChildren()).locs
     const listings = (await Promise.all(index.filter((l) => l.includes('/listings-')).map(async (l) => locs(await (await child(l.split('/').pop()!)).text())))).flat()
     return { pages: locs((await buildPagesSitemap({ rentIndex: 'require' })).xml), listings }
   }
@@ -1300,7 +1322,10 @@ describe('teacher profiles in the sitemaps (the search verdict)', () => {
   it('the index counts with the SAME predicate: a profile under the floor fills no child', async () => {
     const own = Array.from({ length: LISTINGS_PER_SITEMAP }, (_, i) => row({ id: `own-${String(i).padStart(6, '0')}` }))
     h.rows = [...own, teacherRow('t-thin', profile({ bio: 'Hi.' }))]
-    expect(locs(await (await indexGET()).text())).toEqual([`${HOST}/sitemaps/pages.xml`, `${HOST}/sitemaps/listings-0.xml`])
+    // 45,000 counted: still one child's worth, so /sitemap.xml stays flat, and the thin profile is not in it
+    const flat = await (await indexGET()).text()
+    expect(flat).toMatch(/<urlset /)
+    expect(flat).not.toContain('/listings/t-thin')
     h.rows = [...own, teacherRow('t-words', profile())]
     expect(locs(await (await indexGET()).text())).toContain(`${HOST}/sitemaps/listings-1.xml`)
   }, 60_000)

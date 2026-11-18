@@ -1,7 +1,7 @@
-import { GET as indexGET } from '@/app/sitemap.xml/route'
+import { sitemapIndexChildren } from '@/app/sitemap.xml/build'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { buildPagesSitemap } from '@/app/sitemaps/pages.xml/build'
-import { parseSitemapIndex, parseUrlset } from '@/lib/indexnow-diff'
+import { parseUrlset } from '@/lib/indexnow-diff'
 import { PAGES_SITEMAP_PATH, parseListingSitemapFile } from '@/lib/sitemap'
 
 /**
@@ -16,7 +16,7 @@ import { PAGES_SITEMAP_PATH, parseListingSitemapFile } from '@/lib/sitemap'
  *
  * ⛔ EVERY OTHER PROBLEM IS A SOURCE FAILURE, AND A SOURCE FAILURE STOPS THE WHOLE RUN (a 503 that
  * leaves the stored snapshot and the hold untouched). On purpose: a diff against a sitemap missing an
- * unknown part turns that part into removal pings. The failures: the index or a child answering
+ * unknown part turns that part into removal pings. The failures: a child answering
  * non-200, a child the index names that no route here serves, a child with no `<loc>` or no
  * `https://eno.vn` one, an index with no child, or any throw — from a handler or from the builder.
  */
@@ -30,10 +30,11 @@ export type Collected = {
 }
 
 export async function collectSitemaps(): Promise<Collected> {
-  const index = await indexGET()
-  if (index.status !== 200) throw new SitemapSourceError(`/sitemap.xml answered ${index.status}`)
-  const childLocs = parseSitemapIndex(await index.text())
-  if (!childLocs.length) throw new SitemapSourceError('/sitemap.xml names no child')
+  // ⚠️ THE CHILDREN, NOT /sitemap.xml ITSELF (2026-11-18): /sitemap.xml is one flat urlset while the site
+  // is small (src/app/sitemap.xml/build.ts), and its pages half comes from the builder's 'require' mode.
+  // The children the index would name are what this diff is kept per (pages.xml in 'optional' mode).
+  const { locs: childLocs } = await sitemapIndexChildren()
+  if (!childLocs.length) throw new SitemapSourceError('the sitemap index names no child')
 
   const urls = new Map<string, string>()
   const frozen: string[] = []
@@ -43,7 +44,7 @@ export async function collectSitemaps(): Promise<Collected> {
     try {
       path = new URL(loc).pathname
     } catch {
-      throw new SitemapSourceError(`/sitemap.xml names an unparseable child: ${loc}`)
+      throw new SitemapSourceError(`the sitemap index names an unparseable child: ${loc}`)
     }
     let xml: string
     if (path === PAGES_SITEMAP_PATH) {
@@ -52,7 +53,7 @@ export async function collectSitemaps(): Promise<Collected> {
       frozen.push(...built.frozen)
     } else {
       const file = path.startsWith('/sitemaps/') ? path.slice('/sitemaps/'.length) : ''
-      if (parseListingSitemapFile(file) === null) throw new SitemapSourceError(`/sitemap.xml names an unknown child: ${path}`)
+      if (parseListingSitemapFile(file) === null) throw new SitemapSourceError(`the sitemap index names an unknown child: ${path}`)
       const res = await childGET(new Request(loc), { params: Promise.resolve({ file }) })
       if (res.status !== 200) throw new SitemapSourceError(`${path} answered ${res.status}`)
       xml = await res.text()

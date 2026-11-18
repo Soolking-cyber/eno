@@ -22,7 +22,8 @@ import { SITE_NAME } from '@/lib/edition'
  * the note about /messages and /saved carrying meta-noindex, and the `Allow: /api/v1/status`
  * exception). Only the Sitemap lines vary.
  *
- * ⚠️ TWO SITEMAP LINES SINCE 2026-10-18 (teacher visibility plan): the index, and the page sitemap it lists — which holds
+ * ⚠️ TWO SITEMAP LINES SINCE 2026-10-18 (teacher visibility plan): /sitemap.xml (an index then; one flat urlset while the
+ * site is small since 2026-11-18, src/app/sitemap.xml/build.ts), and the page sitemap it lists — which holds
  * the guides, the hub and every landing. Measured in Cloudflare's sampled logs over 7 days: Claude-SearchBot fetched
  * /sitemap.xml 93 times and /sitemaps/pages.xml never. Google's robots.txt spec allows several Sitemap lines.
  */
@@ -147,7 +148,7 @@ Disallow: /
 # ${SITE_ORIGIN}/.well-known/ai-catalog.json is the primary mechanism, it already works, and every
 # ARD client checks it. Do not re-add this for a score.
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
-# The page sitemap is also named directly, for crawlers that read a sitemap index without opening its children.
+# The page sitemap is also named directly: /sitemap.xml lists every URL itself while the site is small, and becomes an index of its children once it is not.
 Sitemap: ${SITE_ORIGIN}/sitemaps/pages.xml
 `
 

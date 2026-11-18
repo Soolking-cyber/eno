@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** The collector's source-failure rules, over fake sitemap handlers. */
 const h = vi.hoisted(() => ({
-  index: { status: 200, body: '' },
+  index: [] as string[] | Error,
   children: {} as Record<string, { status: number; body: string }>,
   pages: { xml: '', frozen: [] as string[] } as { xml: string; frozen: string[] } | Error,
   childCalls: [] as string[],
 }))
-vi.mock('@/app/sitemap.xml/route', () => ({ GET: async () => new Response(h.index.body, { status: h.index.status }) }))
+// The children the index names, read in-process (never /sitemap.xml, which is a flat urlset while the site is small).
+vi.mock('@/app/sitemap.xml/build', () => ({
+  sitemapIndexChildren: async () => {
+    if (h.index instanceof Error) throw h.index
+    return { submitted: 1, locs: h.index }
+  },
+}))
 vi.mock('@/app/sitemaps/[file]/route', () => ({
   GET: async (_req: Request, { params }: { params: Promise<{ file: string }> }) => {
     const { file } = await params
@@ -26,11 +32,11 @@ vi.mock('@/app/sitemaps/pages.xml/build', () => ({
 
 import { collectSitemaps } from './collect'
 
-const idx = (...children: string[]) => `<sitemapindex>${children.map((c) => `<sitemap><loc>https://eno.vn${c}</loc></sitemap>`).join('')}</sitemapindex>`
+const idx = (...children: string[]) => children.map((c) => `https://eno.vn${c}`)
 const set = (...u: Array<[string, string?]>) => `<urlset>${u.map(([l, m]) => `<url><loc>${l}</loc>${m ? `<lastmod>${m}</lastmod>` : ''}</url>`).join('')}</urlset>`
 
 beforeEach(() => {
-  h.index = { status: 200, body: idx('/sitemaps/pages.xml', '/sitemaps/listings-0.xml') }
+  h.index = idx('/sitemaps/pages.xml', '/sitemaps/listings-0.xml')
   h.children = { 'listings-0.xml': { status: 200, body: set(['https://eno.vn/listings/a', '2026-09-01']) } }
   h.pages = { xml: set(['https://eno.vn/'], ['https://eno.vn/about']), frozen: [] }
   h.childCalls = []
@@ -46,10 +52,10 @@ describe('collectSitemaps', () => {
   })
 
   it.each([
-    ['the index answers non-200', () => { h.index = { status: 500, body: '{}' } }, /sitemap.xml answered 500/],
-    ['the index names no child', () => { h.index = { status: 200, body: '<sitemapindex></sitemapindex>' } }, /no child/],
-    ['an unknown child', () => { h.index.body = idx('/sitemaps/pages.xml', '/sitemaps/other.xml') }, /unknown child/],
-    ['a child outside /sitemaps/', () => { h.index.body = idx('/sitemaps/pages.xml', '/listings-0.xml') }, /unknown child/],
+    ['the index read throws', () => { h.index = new Error('count unavailable') }, /count unavailable/],
+    ['the index names no child', () => { h.index = [] }, /no child/],
+    ['an unknown child', () => { h.index = idx('/sitemaps/pages.xml', '/sitemaps/other.xml') }, /unknown child/],
+    ['a child outside /sitemaps/', () => { h.index = idx('/sitemaps/pages.xml', '/listings-0.xml') }, /unknown child/],
     ['a child answering non-200', () => { h.children['listings-0.xml'] = { status: 500, body: '{}' } }, /answered 500/],
     ['a child with no loc', () => { h.children['listings-0.xml'] = { status: 200, body: '<urlset></urlset>' } }, /lists no URL/],
     ['the builder throws', () => { h.pages = new Error('db down') }, /db down/],

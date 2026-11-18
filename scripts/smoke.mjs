@@ -39,13 +39,17 @@ async function main() {
 
   // 3. Machine artifacts parse.
   {
-    // /sitemap.xml is a SITEMAP INDEX since 2026-09-24 (src/lib/sitemap.ts): it must name the pages
-    // child, and EVERY child it names must be a real urlset — an index pointing at a broken child is
-    // the failure a check of the index alone would pass. Children are read by path, same origin.
+    // /sitemap.xml is ONE FLAT <urlset> while the site is small and a SITEMAP INDEX once it is not
+    // (2026-11-18, src/app/sitemap.xml/build.ts). Flat: it must hold pages and never an .xml loc (the
+    // reason it went flat). An index: it must name the pages child. Either way pages.xml, and EVERY
+    // child an index names, must be a real urlset — an index pointing at a broken child is the
+    // failure a check of the index alone would pass. Children are read by path, same origin.
     const { r } = await timed('/sitemap.xml')
     const body = r.status === 200 ? await r.text() : ''
-    const children = [...body.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
-    ok('/sitemap.xml → 200 + <sitemapindex> naming /sitemaps/pages.xml', r.status === 200 && /<sitemapindex[\s>]/.test(body) && children.includes('/sitemaps/pages.xml'), `${children.length} children`)
+    const flat = /<urlset[\s>]/.test(body)
+    const children = flat ? ['/sitemaps/pages.xml'] : [...body.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
+    if (flat) ok('/sitemap.xml → 200 + flat <urlset> of pages, no .xml loc', r.status === 200 && /<loc>/.test(body) && !/<loc>[^<]*\.xml<\/loc>/.test(body))
+    else ok('/sitemap.xml → 200 + <sitemapindex> naming /sitemaps/pages.xml', r.status === 200 && /<sitemapindex[\s>]/.test(body) && children.includes('/sitemaps/pages.xml'), `${children.length} children`)
     for (const path of children) {
       const child = await timed(path)
       const childBody = child.r.status === 200 ? await child.r.text() : ''

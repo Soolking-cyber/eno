@@ -161,17 +161,23 @@ rent_index(){ local addr=$1 host=$2 try code t snap why first
 }
 
 # ── 2 + 3. SITEMAPS, THEN PAGES, FOR ONE SITE ─────────────────────────────────────────────────────
-warm_site(){ local addr=$1 host=$2 code child n=0 paths
+warm_site(){ local addr=$1 host=$2 code child n=0 paths kids
   paths=$TMP/$host.paths   # ⚠️ not in the `local` line: its expansions run before `host` is set
+  kids=$TMP/$host.children
   : > "$paths"
   code=$(fetch "$addr" "$host" /sitemap.xml - sitemap "$TMP/index.xml")
   [ "$code" = skip ] && code="nothing ($(why_halted))"
   if [ "$code" != 200 ]; then warn "$host: /sitemap.xml answered $code; its pages were not warmed"; return 0; fi
+  # /sitemap.xml IS ONE FLAT <urlset> WHILE THE SITE IS SMALL (2026-11-18, src/app/sitemap.xml/build.ts) and an
+  # index once it is not. Flat: its own locs are the pages, and pages.xml (still served; robots.txt names it)
+  # is warmed as its one child. An index: its locs are the children, as before.
+  if grep -q '<sitemapindex' "$TMP/index.xml"; then locs "$TMP/index.xml" | own_paths "$host" > "$kids"
+  else locs "$TMP/index.xml" | own_paths "$host" >> "$paths"; n=1; echo /sitemaps/pages.xml > "$kids"; fi
   while IFS= read -r child; do
     code=$(fetch "$addr" "$host" "$child" - sitemap "$TMP/child.xml")
     if [ "$code" = 200 ]; then locs "$TMP/child.xml" | own_paths "$host" >> "$paths"; n=$((n+1))
     else warn "$host: $child answered $code; its URLs were not warmed"; fi
-  done < <(locs "$TMP/index.xml" | own_paths "$host")
+  done < "$kids"
   # /c/rentals first among the pages: its HTML names the district pages, which are warmed with the
   # rest, and it warms H1b's hourly rentals headline.
   code=$(fetch "$addr" "$host" /c/rentals en-US page "$TMP/rentals.html")
@@ -208,7 +214,7 @@ warm_site(){ local addr=$1 host=$2 code child n=0 paths
   fetch "$addr" "$host" /c/rentals en-US retouch >/dev/null
   fetch "$addr" "$host" /c/rentals vi-VN retouch >/dev/null
   fetch "$addr" "$host" /sitemap.xml - retouch >/dev/null
-  while IFS= read -r child; do fetch "$addr" "$host" "$child" - retouch >/dev/null; done < <(locs "$TMP/index.xml" | own_paths "$host" 2>/dev/null)
+  while IFS= read -r child; do fetch "$addr" "$host" "$child" - retouch >/dev/null; done < "$kids"
   [ "$host" = "$VN_HOST" ] && fetch "$addr" "$host" /hcmc-rent-index.csv - retouch >/dev/null
   return 0
 }

@@ -148,7 +148,8 @@ async function submittedRentalsDistricts(index: RentIndex, rentalsId: string): P
   return slugs.filter((_, i) => isIndexableCount(live[i]))
 }
 
-export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Promise<{ xml: string; frozen: string[] }> {
+/** `entries` are the `<url>` lines `xml` wraps, for /sitemap.xml's flat form (src/app/sitemap.xml/build.ts). */
+export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Promise<{ xml: string; frozen: string[]; entries: string[] }> {
   const [byCategory, byCombo, bySeller, categories, helpArticles] = await Promise.all([
     /**
      * ⚠️ SCOPED HERE, ON EVERY DERIVATION, AND THAT IS THE EDITION BOUNDARY. The category maxima,
@@ -771,5 +772,5 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * would not defend. The same holds for the property reference imports (Batdongsan, Rever,
    * nhatot, muaban, Honeycomb): every row carries the source's `affiliateUrl`.
    */
-  return { xml: urlsetXml(urls, 'pages.xml'), frozen }
+  return { xml: urlsetXml(urls, 'pages.xml'), frozen, entries: urls }
 }

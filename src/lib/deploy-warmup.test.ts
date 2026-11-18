@@ -42,6 +42,8 @@ const csvBody = (snap: string) =>
 
 type StubOpts = {
   emptySitemap?: boolean
+  /** /sitemap.xml as one flat <urlset> (the form while the site is small, 2026-11-18), not an index. */
+  flatSitemap?: boolean
   /** Create this file when /c/rentals is first served: a newer deploy reaching its swap mid-warm-up. */
   touchOnRentals?: string
   /** Hold /hcmc-rent-index this long before answering: an origin that hangs. */
@@ -66,6 +68,14 @@ function stub(site: string, csv: Csv, opts: StubOpts = {}): Promise<{ server: Se
       if (csv === 'stale-then-fresh' && csvCalls === 1) return send(200, csvBody(iso(Date.now() - 86_400_000)), 'text/csv')
       if (csv === 'warm-before') return send(200, csvBody(iso(Date.now() - 30_000)), 'text/csv')
       return send(200, csvBody(iso(Date.now())), 'text/csv')
+    }
+    if (path === '/sitemap.xml' && opts.flatSitemap) {
+      return send(200, `<?xml version="1.0"?><urlset>
+  <url><loc>${origin}</loc></url>
+  <url><loc>${origin}/c/electronics</loc></url>
+  <url><loc>${origin}/gone</loc></url>
+  <url><loc>${origin}/listings/l1</loc></url>
+</urlset>`, 'application/xml')
     }
     if (path === '/sitemap.xml') {
       return send(200, `<?xml version="1.0"?><sitemapindex>
@@ -190,6 +200,23 @@ describe('eno-warmup.sh', () => {
     expect(r.out).toMatch(/eno\.vn +all +n=14 +ttfb p50 [0-9.]+s +p95 [0-9.]+s +max [0-9.]+s/)
     expect(r.out).toMatch(/eno\.vn +district +n=4 /)
     expect(r.out).toContain('404 en https://eno.vn/gone')
+  })
+
+  it('a flat /sitemap.xml: its own locs are the pages, pages.xml is the one child, and no listing is fetched', async () => {
+    const vn = await origin('eno.vn', 'fresh', { flatSitemap: true })
+    const dir = logDir()
+    const r = await run([`--vn=${vn.addr}`, '--forum=', `--dir=${dir}`, '--sha=t1f', `--since=${since()}`])
+    expect(r.code).toBe(0)
+    const paths = vn.hits.map((h) => h.path)
+    expect(paths.slice(0, 4)).toEqual(['/hcmc-rent-index', '/hcmc-rent-index.csv', '/sitemap.xml', '/sitemaps/pages.xml'])
+    expect(r.out).toContain('eno.vn: 2 sitemap file(s), 6 pages to warm')
+    // never a page URL fetched as a sitemap, never a listing, never the listing child it no longer names
+    expect(tsvRows(dir, 't1f').filter((x) => x[5] === 'sitemap').map((x) => x[0])).toEqual(['https://eno.vn/sitemap.xml', 'https://eno.vn/sitemaps/pages.xml'])
+    expect(paths.some((p) => p.startsWith('/listings/') || p === '/sitemaps/listings-0.xml')).toBe(false)
+    expect([...new Set(vn.hits.slice(6, -5).map((h) => h.path))].sort()).toEqual(PAGES)
+    expect(vn.hits.slice(-5).map((h) => [h.path, h.lang ?? '-'])).toEqual([
+      ['/c/rentals', 'en-US'], ['/c/rentals', 'vi-VN'], ['/sitemap.xml', '-'], ['/sitemaps/pages.xml', '-'], ['/hcmc-rent-index.csv', '-'],
+    ])
   })
 
   it('queues the long tail first and home last (the dry-run plan is the queue), and fetches none of it', async () => {

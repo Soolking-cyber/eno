@@ -32,12 +32,14 @@ async function main() {
   ok('home: NOT noindex', !has(home.body, /<meta[^>]+name=["']robots["'][^>]+noindex/i))
 
   // ── Sitemap resolves + sampling ────────────────────────────────────────────────────
-  // /sitemap.xml is a SITEMAP INDEX since 2026-09-24 — the page URLs are in its children, so read
-  // each child (pages.xml + listings-<k>.xml) and sample those. The children are same-origin paths.
+  // /sitemap.xml is ONE FLAT <urlset> while the site is small and a SITEMAP INDEX once it is not
+  // (2026-11-18, src/app/sitemap.xml/build.ts). Flat: sample its own locs. An index: read each child
+  // (pages.xml + listings-<k>.xml) and sample those. The children are same-origin paths.
   const sm = await get(`${BASE}/sitemap.xml`)
-  const children = [...sm.body.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-  ok('sitemap: 200 + <sitemapindex> with children', sm.status === 200 && /<sitemapindex[\s>]/.test(sm.body) && children.length > 0, `${children.length} children`)
-  const locs = []
+  const flat = /<urlset[\s>]/.test(sm.body)
+  const children = flat ? [] : [...sm.body.matchAll(/<sitemap>\s*<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+  ok('sitemap: 200 + flat <urlset>, or <sitemapindex> with children', sm.status === 200 && (flat || (/<sitemapindex[\s>]/.test(sm.body) && children.length > 0)), flat ? 'flat' : `${children.length} children`)
+  const locs = flat ? [...sm.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]) : []
   for (const c of children) {
     const child = await get(`${BASE}${new URL(c).pathname}`)
     ok(`sitemap child ${new URL(c).pathname}: 200 + <urlset>`, child.status === 200 && /<urlset[\s>]/.test(child.body), String(child.status))
