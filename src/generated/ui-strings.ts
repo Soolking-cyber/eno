@@ -2535,6 +2535,7 @@ export const UI_STRINGS: string[] = [
   "Per day",
   "Permanently delete",
   "Permanently delete your account, listings and conversations. This cannot be undone.",
+  "Permits",
   "Personalised rails",
   "Personality",
   "Personalization",

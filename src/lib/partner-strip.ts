@@ -77,6 +77,11 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // logo file (Saigon-Cribs-Logo-revised-black, 2397 px square), cut to the mark with a yellow margin, corners rounded like
   // Luật Hoàng Phi's. ⚠️ Ship this entry only after the import has put listings on /saigoncribs: an empty storefront 404s.
   { handle: 'saigoncribs', name: 'Saigon Cribs', logo: { src: '/partners/saigoncribs.webp', width: 137, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'square' },
+  // Owner 2026-11-18: "add them as a partner for Work permit and TRC issuance". Evisa Saigon's globe-and-EVISA mark from
+  // evisasaigon.vn's own LOGO-EVISA file, its white ground made transparent and its "Access and Beyond" line cut (unreadable
+  // at strip height). ⚠️ Its two listings are in Legal & permits and go live only after the licence check's approval — ship
+  // this entry after that, or the strip links to a storefront with nothing on it.
+  { handle: 'evisasaigon', name: 'Evisa Saigon', logo: { src: '/partners/evisasaigon.webp', width: 134, height: 96 }, label: { en: 'Permits', vi: 'Giấy phép' }, size: 'square' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */
