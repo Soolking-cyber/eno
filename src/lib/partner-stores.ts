@@ -336,6 +336,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "bachlongstore.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "refreshOnly": "Second-hand focus, owner 2026-10-03: sells new AND used stock — existing (used) listings refresh, no new listing is created until the owner decides how its used stock is told apart",
     "name": "Bạch Long Store",
     "city": "Hồ Chí Minh",
@@ -354,6 +355,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "dienthoaigiakho.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "refreshOnly": "Second-hand focus, owner 2026-10-03: sells new AND used stock — existing (used) listings refresh, no new listing is created until the owner decides how its used stock is told apart",
     "name": "Điện Thoại Giá Kho",
     "city": "Hồ Chí Minh",
@@ -392,6 +394,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "laptoptrunghau.com",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Laptop Trung Hậu",
     "city": "Hồ Chí Minh",
     "adapter": "collection-crawl",
@@ -418,6 +421,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "zshop.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "ZShop",
     "city": "Hồ Chí Minh",
     "adapter": "collection-crawl",
@@ -430,6 +434,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "dienmaysaigon.com",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website (nothing of it was live that day). Not imported, re-fetched or showcased",
     "name": "Điện Máy Sài Gòn",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -440,6 +445,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "phuongtin.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Phương Tín",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -449,6 +455,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "thegioiso365.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Thế Giới Số 365",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -458,6 +465,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "tystore.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website (nothing of it was live that day). Not imported, re-fetched or showcased",
     "name": "Ty Store",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -467,6 +475,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "tuannguyenmobile.com",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Tuấn Nguyễn Mobile",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -476,6 +485,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "banghethanhly.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Bàn Ghế Thanh Lý",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -486,6 +496,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "laptopgiare.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Laptop Giá Rẻ",
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
@@ -495,6 +506,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "digiphone.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Digiphone",
     "city": "Hồ Chí Minh",
     "adapter": "haravan",
@@ -504,6 +516,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "vnlaptop.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "VN Laptop",
     "city": "Hồ Chí Minh",
     "adapter": "haravan",
@@ -523,6 +536,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "minhtuanmobile.com",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Minh Tuấn Mobile",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -537,6 +551,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "mayanh24h.com",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Máy Ảnh 24h",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -555,6 +570,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "didongviet.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "Di Động Việt",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",
@@ -583,6 +599,7 @@ export const PARTNER_STORES: StoreConfig[] = [
   },
   {
     "domain": "24hstore.vn",
+    "retired": "Owner 2026-11-18: removed — the shop sends buyers to its own website; every listing hidden by scripts/remove-linking-shops.ts. Not imported, re-fetched or showcased",
     "name": "24hStore",
     "city": "Hồ Chí Minh",
     "adapter": "sitemap-jsonld",

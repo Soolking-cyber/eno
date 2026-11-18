@@ -90,16 +90,20 @@ describe('declaresBrandNew / blockedAsDeclaredNew — a "used" shop never create
 
 describe('the partner shop list — second-hand focus (2026-10-03)', () => {
   const by = new Map(PARTNER_STORES.map((s) => [s.domain, s]))
-  it('retires the new-goods retailers and only them', () => {
+  // Owner 2026-11-18, shop by shop: every shop that sends buyers to its own website is removed.
+  const REMOVED_2026_11_18 = ['24hstore.vn', 'bachlongstore.vn', 'banghethanhly.vn', 'didongviet.vn', 'dienmaysaigon.com', 'dienthoaigiakho.vn',
+    'digiphone.vn', 'laptopgiare.vn', 'laptoptrunghau.com', 'mayanh24h.com', 'minhtuanmobile.com', 'phuongtin.vn', 'thegioiso365.vn',
+    'tuannguyenmobile.com', 'tystore.vn', 'vnlaptop.vn', 'zshop.vn']
+  it('retires the new-goods retailers and the shops removed on 2026-11-18, and only them', () => {
     expect(PARTNER_STORES.filter((s) => s.retired).map((s) => s.domain).sort()).toEqual(
-      ['daitailoc.com', 'dienmaycholon.com', 'fptshop.com.vn', 'hoanghamobile.com', 'hshop.vn', 'thegioididong.com'])
+      ['daitailoc.com', 'dienmaycholon.com', 'fptshop.com.vn', 'hoanghamobile.com', 'hshop.vn', 'thegioididong.com', ...REMOVED_2026_11_18].sort())
+    for (const d of REMOVED_2026_11_18) expect(by.get(d)!.retired, d).toMatch(/^Owner 2026-11-18: removed/)
   })
   it('marks the two shops with new AND used stock refresh-only', () => {
     expect(PARTNER_STORES.filter((s) => s.refreshOnly).map((s) => s.domain).sort()).toEqual(['bachlongstore.vn', 'dienthoaigiakho.vn'])
-    expect(by.get('bachlongstore.vn')!.retired).toBeUndefined()
   })
-  it('no shop whose stock is all used is retired', () => {
-    for (const s of PARTNER_STORES) if (s.condition === 'used') expect(s.retired, s.domain).toBeUndefined()
+  it('no shop whose stock is all used is retired, except the ones the owner removed', () => {
+    for (const s of PARTNER_STORES) if (s.condition === 'used' && !REMOVED_2026_11_18.includes(s.domain)) expect(s.retired, s.domain).toBeUndefined()
   })
 })
 
