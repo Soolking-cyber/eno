@@ -54,7 +54,15 @@ const BODY = `# Public marketplace pages (home, listings, categories, seller sto
 # gap survived is that the comment sounded authoritative.
 # Sensitive trust/ops surfaces (/disputes /appeal /reports /unsubscribe) get the
 # opposite call: keeping crawlers out entirely outweighs that trade-off there.
+# The AI crawlers named below share THIS group and its rules (2026-11-18: agent-readiness scanners ask for them by
+# name). Never give one a group of its own: a crawler obeys only the most specific group that names it (RFC 9309),
+# so its own group would drop every Disallow line below for it.
 User-agent: *
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: ChatGPT-User
+User-agent: PerplexityBot
+User-agent: Google-Extended
 Allow: /
 # Content Signals (contentsignals.org; IETF draft-romm-aipref-contentsignals): the policy the groups in
 # this file already enforce, stated as a preference. search=yes and ai-input=yes: search and AI answer
@@ -114,11 +122,11 @@ Disallow: /unsubscribe
 # link-preview bots) are intentionally NOT listed here, so they fall under
 # "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
 # discoverable in search AND in AI answers.
-# Google-Extended is not listed either, and it is not a search crawler: it is a
+# Google-Extended is named in the first group, with its rules, and it is not a search crawler: it is a
 # control token with no user agent of its own (Google fetches as Googlebot). Per
 # Google's documentation it governs Gemini model TRAINING as well as grounding in
-# Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Left
-# unlisted, both uses are allowed.
+# Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Both
+# uses are allowed, as ai-train=yes says.
 User-agent: ImagesiftBot
 User-agent: img2dataset
 User-agent: Diffbot

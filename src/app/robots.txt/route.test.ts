@@ -26,8 +26,13 @@ const bodyOf = async () => (await load()).GET().text()
 describe('/robots.txt', () => {
   it('the training crawlers the owner allowed (2026-11-17) read the public pages under "User-agent: *", training yes', async () => {
     const body = await bodyOf()
-    for (const ua of ['Bytespider', 'ClaudeBot', 'CCBot', 'GPTBot', 'Meta-ExternalAgent', 'anthropic-ai', 'Applebot-Extended']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
-    expect(body).toMatch(/^User-agent: \*\nAllow: \/$/m)
+    // ⛔ A NAMED AI CRAWLER LIVES IN THE "*" GROUP, NEVER IN A GROUP OF ITS OWN (2026-11-18): under RFC 9309 a crawler obeys
+    // only its most specific group, so a group of its own would drop every Disallow below for it. The five named for the
+    // agent-readiness scanners sit in the run of User-agent lines that opens with "*"; the others are not named at all.
+    const named = ['GPTBot', 'ClaudeBot', 'ChatGPT-User', 'PerplexityBot', 'Google-Extended']
+    expect(body).toMatch(new RegExp(`^User-agent: \\*\n${named.map((ua) => `User-agent: ${ua}\n`).join('')}Allow: /$`, 'm'))
+    for (const ua of named) expect(body.match(new RegExp(`^User-agent: ${ua}$`, 'gm'))).toHaveLength(1)
+    for (const ua of ['Bytespider', 'CCBot', 'Meta-ExternalAgent', 'anthropic-ai', 'Applebot-Extended']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
     expect(body).not.toContain('ai-train=no')
   })
 
@@ -35,6 +40,12 @@ describe('/robots.txt', () => {
     const rules = (await bodyOf()).split('\n').filter((l) => !l.startsWith('#'))
     expect(rules).toEqual([
       'User-agent: *',
+      // Named for the agent-readiness scanners (2026-11-18), in this group, so with exactly its rules.
+      'User-agent: GPTBot',
+      'User-agent: ClaudeBot',
+      'User-agent: ChatGPT-User',
+      'User-agent: PerplexityBot',
+      'User-agent: Google-Extended',
       'Allow: /',
       // Content Signals (2026-11-16): the file's existing policy as a preference — search and AI answers yes; training yes since 2026-11-17 (owner).
       'Content-Signal: search=yes, ai-input=yes, ai-train=yes',
@@ -66,7 +77,7 @@ describe('/robots.txt', () => {
     const body = await bodyOf()
     // Google-Extended is a training + grounding control token, not a search/answer crawler.
     expect(body).not.toMatch(/\(OAI-SearchBot[^)]*Google-Extended/)
-    expect(body).toContain('Google-Extended is not listed either, and it is not a search crawler')
+    expect(body).toContain('Google-Extended is named in the first group, with its rules, and it is not a search crawler')
     // AI Labyrinth was disabled on the eno.vn zone (read 2026-09-27), so the "traps" claim went. No
     // replacement claim either: this file is served on BOTH hosts, only one zone was read, and a
     // served comment advertising what is not enforced is an invitation.
