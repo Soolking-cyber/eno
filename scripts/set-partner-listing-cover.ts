@@ -53,13 +53,17 @@ async function main() {
   const host = makeImageHost({ storage, storageUrl, bucket: 'listings', edge: 1600, quality: 86, mark: 'overlay' })
   const url = await host.fromBuffer(readFileSync(FILE), SLUG)
   if (!url) throw new Error('image host failed — nothing written')
-  // Compare-and-set on the gallery this run read: an edit landing in between is never overwritten.
-  const { count } = await db.listing.updateMany({ where: { id: LISTING, sellerId: SELLER, images: row.images }, data: { images: JSON.stringify([url]) } })
-  if (count !== 1) throw new Error('the gallery changed since it was read — nothing written; re-run')
-  console.log(`  APPLIED  ${url}`)
-  console.log(`  PDP tombstones: ${await tombstonePdps(db, [LISTING])}`)
-  // A new photo goes through the photo check like every script-written one (listing-photo-queue.ts).
-  await enqueuePhotoChecks(db, [LISTING])
+  try {
+    // Compare-and-set on the gallery this run read: an edit landing in between is never overwritten.
+    const { count } = await db.listing.updateMany({ where: { id: LISTING, sellerId: SELLER, images: row.images }, data: { images: JSON.stringify([url]) } })
+    if (count !== 1) throw new Error('the gallery changed since it was read — nothing written; re-run')
+    console.log(`  APPLIED  ${url}`)
+    console.log(`  PDP tombstones: ${await tombstonePdps(db, [LISTING])}`)
+  } finally {
+    // A new photo goes through the photo check like every script-written one (listing-photo-queue.ts) — in a finally
+    // (listing-photo-queue.test.ts O6), so a throw after the write still queues it; an unchanged row is only re-checked.
+    if (APPLY) await enqueuePhotoChecks(db, [LISTING])
+  }
   await db.$disconnect()
 }
 main().catch(async (e) => { console.error(e instanceof Error ? e.message : e); await db.$disconnect(); process.exit(1) })

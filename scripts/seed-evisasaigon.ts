@@ -313,53 +313,57 @@ async function main() {
   const baseAttributes = JSON.stringify({ providerType: 'business' })
   const attributes = servicePriceBasisApplies(CATEGORY_SLUG, SUBCATEGORY) ? withPriceBasis(baseAttributes, servicePriceBasisOfUnit(money.priceUnit)) : baseAttributes
   const touched: string[] = []
-  for (const s of SERVICES) {
-    const prior = existing.get(s.externalId)
-    let images = prior?.images
-    if (!prior || REIMAGE || !images || images === '[]') {
-      if (prior && images && images !== '[]') console.log(`${s.externalId}: replacing gallery (previous, for rollback: ${images})`)
-      const u = await host.fromBuffer(readFileSync(join(ASSETS, s.image)), s.slug)
-      if (!u) throw new Error(`image host failed for ${s.image} — nothing written for ${s.externalId}`)
-      images = JSON.stringify([u])
-    }
-    // ⚠️ NO subcategorySlug HERE: `fields` is the UPDATE too, and a re-run never moves the row (header). The create sets it.
-    const fields = {
-      title: s.titleEn, titleVi: s.titleVi, description: s.descEn, descriptionVi: s.descVi,
-      price: s.price, priceUnit: money.priceUnit, currency: money.currency, negotiable: false,
-      condition: null, listingType: 'service', brandSlug: null, model: null,
-      // The office is in the former District 1 (now phường Cầu Ông Lãnh); the area chips key on the district name.
-      // No coordinates: a wrong pin is worse than the approximate-area map.
-      location: 'Quận 1', district: 'Quận 1', city: 'Hồ Chí Minh',
-      images: images!, affiliateUrl: null, sellerTrustScore: seller.trustScore,
-      searchText: buildSearchText([s.titleEn, s.titleVi, s.descEn, s.descVi, category.name, category.nameVi, 'Evisa Saigon', ...s.keywords]),
-    }
-    // The provider values (and so the approval stamp) are carried over, never wiped by a re-run (header) — READ IN THE SAME
-    // TRANSACTION as the write, under a row lock, so a licence-fill-seller.ts run that landed after step 3 is not
-    // overwritten with what this run read earlier (plan review, 2026-11-18).
-    const id = await db.$transaction(async (tx) => {
-      const [fresh] = await tx.$queryRaw<{ attributes: string | null }[]>`SELECT "attributes" FROM "Listing" WHERE "sellerId" = ${SELLER_ID} AND "externalId" = ${s.externalId} FOR UPDATE`
-      const r = await tx.listing.upsert({
-      where: { sellerId_externalId: { sellerId: SELLER_ID, externalId: s.externalId } },
-      update: { ...fields, attributes: withProviderLicence(attributes, providerLicenceOf(fresh?.attributes)) },
-      select: { id: true },
-      create: {
-        ...fields, categoryId: category.id, subcategorySlug: SUBCATEGORY, sellerId: SELLER_ID, externalId: s.externalId, attributes,
-        // ⛔ Held in a licence aisle until the values are approved (header) — a literal, so the publish-path audit
-        // (compliance/public-state-writes.test.ts) still sees both branches — carrying the hold's mark, so the approval
-        // publishes it (src/lib/licence-stamp.ts LICENCE_HELD_NOTE).
-        ...(isLicenceCheckSlot(CATEGORY_SLUG, SUBCATEGORY) ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }), status: 'active',
-        rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
-      },
+  // ⛔ In a finally (listing-photo-queue.test.ts O6): a throw on a later row still queues the rows already written.
+  try {
+    for (const s of SERVICES) {
+      const prior = existing.get(s.externalId)
+      let images = prior?.images
+      if (!prior || REIMAGE || !images || images === '[]') {
+        if (prior && images && images !== '[]') console.log(`${s.externalId}: replacing gallery (previous, for rollback: ${images})`)
+        const u = await host.fromBuffer(readFileSync(join(ASSETS, s.image)), s.slug)
+        if (!u) throw new Error(`image host failed for ${s.image} — nothing written for ${s.externalId}`)
+        images = JSON.stringify([u])
+      }
+      // ⚠️ NO subcategorySlug HERE: `fields` is the UPDATE too, and a re-run never moves the row (header). The create sets it.
+      const fields = {
+        title: s.titleEn, titleVi: s.titleVi, description: s.descEn, descriptionVi: s.descVi,
+        price: s.price, priceUnit: money.priceUnit, currency: money.currency, negotiable: false,
+        condition: null, listingType: 'service', brandSlug: null, model: null,
+        // The office is in the former District 1 (now phường Cầu Ông Lãnh); the area chips key on the district name.
+        // No coordinates: a wrong pin is worse than the approximate-area map.
+        location: 'Quận 1', district: 'Quận 1', city: 'Hồ Chí Minh',
+        images: images!, affiliateUrl: null, sellerTrustScore: seller.trustScore,
+        searchText: buildSearchText([s.titleEn, s.titleVi, s.descEn, s.descVi, category.name, category.nameVi, 'Evisa Saigon', ...s.keywords]),
+      }
+      // The provider values (and so the approval stamp) are carried over, never wiped by a re-run (header) — READ IN THE SAME
+      // TRANSACTION as the write, under a row lock, so a licence-fill-seller.ts run that landed after step 3 is not
+      // overwritten with what this run read earlier (plan review, 2026-11-18).
+      const id = await db.$transaction(async (tx) => {
+        const [fresh] = await tx.$queryRaw<{ attributes: string | null }[]>`SELECT "attributes" FROM "Listing" WHERE "sellerId" = ${SELLER_ID} AND "externalId" = ${s.externalId} FOR UPDATE`
+        const r = await tx.listing.upsert({
+        where: { sellerId_externalId: { sellerId: SELLER_ID, externalId: s.externalId } },
+        update: { ...fields, attributes: withProviderLicence(attributes, providerLicenceOf(fresh?.attributes)) },
+        select: { id: true },
+        create: {
+          ...fields, categoryId: category.id, subcategorySlug: SUBCATEGORY, sellerId: SELLER_ID, externalId: s.externalId, attributes,
+          // ⛔ Held in a licence aisle until the values are approved (header) — a literal, so the publish-path audit
+          // (compliance/public-state-writes.test.ts) still sees both branches — carrying the hold's mark, so the approval
+          // publishes it (src/lib/licence-stamp.ts LICENCE_HELD_NOTE).
+          ...(isLicenceCheckSlot(CATEGORY_SLUG, SUBCATEGORY) ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }), status: 'active',
+          rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
+        },
+        })
+        return r.id
       })
-      return r.id
-    })
-    touched.push(id)
-    // A re-run edits copy on a row that may already be live: its 30-day PDP must re-render (src/lib/pdp-tombstone.ts) —
-    // per row, at once, so a later row's failure cannot leave this one's page stale.
-    console.log(`APPLIED: ${s.externalId} → /listings/${id} · PDP tombstones: ${await tombstonePdps(db, [id])}`)
+      touched.push(id)
+      // A re-run edits copy on a row that may already be live: its 30-day PDP must re-render (src/lib/pdp-tombstone.ts) —
+      // per row, at once, so a later row's failure cannot leave this one's page stale.
+      console.log(`APPLIED: ${s.externalId} → /listings/${id} · PDP tombstones: ${await tombstonePdps(db, [id])}`)
+    }
+  } finally {
+    // New or replaced photos go through the photo check like every script-written one (listing-photo-queue.ts).
+    if (APPLY) await enqueuePhotoChecks(db, touched)
   }
-  // New or replaced photos go through the photo check like every script-written one (listing-photo-queue.ts).
-  await enqueuePhotoChecks(db, touched)
   console.log(`\nNEXT: scripts/licence-fill-seller.ts --seller=${SELLER_ID} --aisle=${SUBCATEGORY} --name=… --number=… --apply, then Admin › Catalogue › Licence checks › Approve.`)
   // ⛔ A takedown that files no report must null the licence mark too, or a later 'licence-approve' republishes it (CLAUDE.md).
   console.log(`Rollback: UPDATE "Listing" SET status='hidden', verified=false, "verificationNotes"=NULL, "verificationMethod"=NULL, "verifiedAt"=NULL WHERE "sellerId"='${SELLER_ID}' AND "externalId" LIKE 'evisasaigon:%'; then tombstone ${touched.join(', ')} (src/lib/pdp-tombstone.ts) and purge Cloudflare by tag.`)
