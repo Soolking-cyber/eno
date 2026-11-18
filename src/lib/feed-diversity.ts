@@ -499,10 +499,17 @@ type RailRow = Diversifiable & { images?: readonly string[] | null; brandSlug?: 
  */
 export function diversifyRail<T extends RailRow>(
   rows: readonly T[],
-  { take, min = 0, perSeat = 2, modelScope = 'seller', sharedSeats = true, interleave = true }: {
+  { take, min = 0, perSeat = 2, modelScope = 'seller', sharedSeats = true, interleave = true, fillCapped = false }: {
     take: number
     min?: number
     perSeat?: number
+    /**
+     * Rows the per-seat cap ALONE turned away come back, in rail order, after the distinct ones, until `take`. They still
+     * pass the cover and model rules. For a rail a top-up read widened (crowdingSellers): more seats in reach switch the
+     * cap on, and without this a lane of three sellers would print six cards where it printed eight (2026-11-18, live:
+     * Electronics 8 → 5). The crowd fills only the seats nobody else can.
+     */
+    fillCapped?: boolean
     modelScope?: 'seller' | 'global'
     sharedSeats?: boolean
     interleave?: boolean
@@ -515,21 +522,38 @@ export function diversifyRail<T extends RailRow>(
   const models = new Set<string>()
   const perSeatCount = new Map<string, number>()
   const out: T[] = []
-  for (const r of ordered) {
-    if (out.length >= take) break
+  const capped: T[] = []
+  /** The cover and model rules, ONE copy for the main pass and the fillCapped pass: null = a repeat of a kept row. */
+  const distinctKeys = (r: T): { cover: string | null; modelKey: string | null } | null => {
     const cover = r.images?.[0] ? hashFromUrl(r.images[0]) : null
-    if (cover && covers.some((c) => hammingHex(c, cover) <= 6)) continue
+    if (cover && covers.some((c) => hammingHex(c, cover) <= 6)) return null
     const modelKey = r.model
       ? `${modelScope === 'seller' ? `${r.sellerId ?? r.id}|` : ''}${r.brandSlug ?? ''}|${r.model.toLowerCase()}`
       : null
-    if (modelKey && models.has(modelKey)) continue
+    if (modelKey && models.has(modelKey)) return null
+    return { cover, modelKey }
+  }
+  for (const r of ordered) {
+    if (out.length >= take) break
+    const keys = distinctKeys(r)
+    if (!keys) continue
     const seat = seatKey(r, opts)
     const n = perSeatCount.get(seat) ?? 0
-    if (n >= cap) continue
+    if (n >= cap) { capped.push(r); continue }
     out.push(r)
     perSeatCount.set(seat, n + 1)
-    if (cover) covers.push(cover)
-    if (modelKey) models.add(modelKey)
+    if (keys.cover) covers.push(keys.cover)
+    if (keys.modelKey) models.add(keys.modelKey)
+  }
+  if (fillCapped) {
+    for (const r of capped) {
+      if (out.length >= take) break
+      const keys = distinctKeys(r)
+      if (!keys) continue
+      out.push(r)
+      if (keys.cover) covers.push(keys.cover)
+      if (keys.modelKey) models.add(keys.modelKey)
+    }
   }
   if (out.length < Math.min(min, take)) {
     const kept = new Set(out)
@@ -539,4 +563,31 @@ export function diversifyRail<T extends RailRow>(
     }
   }
   return out
+}
+
+/**
+ * THE SELLERS CROWDING A RAIL'S POOL, for a top-up read to leave out. Owner, 2026-11-18 ("yes" to capping Trending): a
+ * 154-row partner import filled Trending's whole top-96 pool, so the pool held under three seats and diversifyRail's
+ * per-seat cap switched off (a one-seller category keeps a full rail). Trending showed 14 of 16 cards from that one seller,
+ * and the home page's claims dedupe then emptied the Rentals lane under its minimum.
+ * When the pool cannot fill `take` at `perSeat` a seat, this returns the sellers of every seat holding more than `perSeat`
+ * rows. Otherwise it returns [], the usual case, and no second read happens. The caller reads the next rows WITHOUT those
+ * sellers and appends them, so the rail has enough seats for the cap to apply again. A category that one seller really
+ * does fill gets nothing back from that read and keeps its full rail, as before.
+ * Pure. `perSeat` must equal the rail's own diversifyRail call. Seats are as diversifyRail counts them (shared seats on),
+ * so a shared seat's sellers are left out together.
+ */
+export function crowdingSellers(rows: readonly Diversifiable[], { take, perSeat = 2 }: { take: number; perSeat?: number }): string[] {
+  const seats = new Map<string, { n: number; sellers: Set<string> }>()
+  for (const r of rows) {
+    const key = seatKey(r, { sharedSeats: true })
+    const seat = seats.get(key) ?? { n: 0, sellers: new Set<string>() }
+    seat.n += 1
+    if (r.sellerId) seat.sellers.add(r.sellerId)
+    seats.set(key, seat)
+  }
+  let fillable = 0
+  for (const seat of seats.values()) fillable += Math.min(seat.n, perSeat)
+  if (fillable >= take) return []
+  return [...seats.values()].filter((seat) => seat.n > perSeat).flatMap((seat) => [...seat.sellers])
 }

@@ -121,3 +121,54 @@ describe('trendingRailListings — the thin-catalogue guard', () => {
     await expect(trendingRailListings()).resolves.toHaveLength(16)
   })
 })
+
+/**
+ * 2026-11-18 (owner "yes"): one partner's 154 fresh rows filled the whole top-96 pool, so the pool had one seat, the
+ * per-seat cap switched off and Trending was that seller 14 of 16. A full pool that cannot fill the rail two to a seat
+ * now reads the next rows without the crowding seller.
+ */
+describe('one seller may not be the whole pool', () => {
+  const crowd = Array.from({ length: 96 }, (_, i) => ({
+    id: `big${i}`, sellerId: 'big', subcategorySlug: null, brandSlug: null, model: null, images: JSON.stringify([`https://x/big-${i}.webp`]),
+  }))
+  const others = Array.from({ length: 30 }, (_, i) => ({
+    id: `o${i}`, sellerId: `o${i}`, subcategorySlug: null, brandSlug: null, model: null, images: JSON.stringify([`https://x/o-${i}.webp`]),
+  }))
+
+  it('tops up from the other sellers: the crowd keeps its top card, at most two, and the rest are other sellers', async () => {
+    const wheres: any[] = []
+    findMany.mockImplementation(async ({ where, select }: any) => {
+      if (select) { wheres.push(where); return wheres.length === 1 ? crowd : others }
+      return where.AND[1].id.in.map((id: string) => ({ id }))
+    })
+    const ids = (await trendingRailListings()).map((r) => r.id)
+    expect(ids).toHaveLength(16)
+    expect(ids[0]).toBe('big0') // its best row still leads: rankScore is untouched, only the choice widens
+    expect(ids.filter((id) => id.startsWith('big')).length).toBeLessThanOrEqual(2)
+    expect(new Set(ids).size).toBe(16)
+    expect(wheres).toHaveLength(2)
+    expect(wheres[1].AND[1]).toEqual({ sellerId: { notIn: ['big'] } })
+  })
+
+  it('a pool that really is one seller keeps its full rail (nothing else to read)', async () => {
+    findMany.mockImplementation(async ({ where, select }: any) => {
+      if (select) return where.AND?.[1]?.sellerId ? [] : crowd
+      return where.AND[1].id.in.map((id: string) => ({ id }))
+    })
+    const ids = (await trendingRailListings()).map((r) => r.id)
+    expect(ids).toEqual(crowd.slice(0, 16).map((r) => r.id))
+  })
+
+  it('a FULL but diverse pool makes no second read (short pools never ask)', async () => {
+    const full = Array.from({ length: 96 }, (_, i) => ({
+      id: `d${i}`, sellerId: `d${i}`, subcategorySlug: null, brandSlug: null, model: null, images: JSON.stringify([`https://x/d-${i}.webp`]),
+    }))
+    let narrowReads = 0
+    findMany.mockImplementation(async ({ where, select }: any) => {
+      if (select) { narrowReads += 1; return full }
+      return where.AND[1].id.in.map((id: string) => ({ id }))
+    })
+    await trendingRailListings()
+    expect(narrowReads).toBe(1)
+  })
+})

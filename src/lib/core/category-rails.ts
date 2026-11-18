@@ -3,7 +3,8 @@ import { inAppOnly } from '@/lib/in-app-listing'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
-import { diversifyRail } from '@/lib/feed-diversity'
+import { crowdingSellers, diversifyRail } from '@/lib/feed-diversity'
+import type { Prisma } from '@/generated/prisma/client'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { categoryLeadRank } from '@/lib/category-lead'
 import type { SerializedListingCard } from '@/lib/types'
@@ -33,6 +34,8 @@ const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
  * MIN_RAIL_ITEMS. `min` back-fills the repeats instead, so an admitted category keeps its rail.
  */
 const RAIL_POOL = 40
+/** Balanced rankScore blend, then most-viewed — matches the main feed's order. ONE order for the fill and its top-up read. */
+const RAIL_ORDER = [{ rankScore: 'desc' }, { views: 'desc' }, { id: 'desc' }] satisfies Prisma.ListingOrderByWithRelationInput[]
 
 /**
  * The rails, with their card titles localized for `onlyTitleLang` (a site language code; undefined = every language, as
@@ -97,20 +100,30 @@ export async function homeCategoryRails(onlyTitleLang?: string): Promise<Categor
     ranked.map(async (r) => {
       const slug = slugById.get(r.categoryId)
       if (!slug) return null
+      const where = inAppOnly(await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId }))
       const listings = await db.listing.findMany({
         // ⚠️ FILL — the read that actually PRINTS the cards. The take applies after the
         // exclusion, so the rail refills from real marketplace supply rather than shrinking.
-        where: inAppOnly(await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId })),
-        // Balanced rankScore blend, then most-viewed — matches the main feed's order.
-        orderBy: [
-          { rankScore: 'desc' },
-          { views: 'desc' },
-          { id: 'desc' },
-        ],
+        where,
+        orderBy: RAIL_ORDER,
         take: RAIL_POOL,
         select: LISTING_CARD_SELECT,
       })
-      return { slug, listings: diversifyRail(listings.map(serializeListingCard), { take: PER_RAIL, min: MIN_LISTINGS }) }
+      const cards = listings.map(serializeListingCard)
+      // ⛔ ONE SELLER MAY NOT BE THE WHOLE POOL (2026-11-18, crowdingSellers in feed-diversity.ts): a full pool that cannot fill
+      // the rail two to a seat reads the next RAIL_POOL rows without the crowding sellers, in the same order.
+      const crowding = listings.length === RAIL_POOL ? crowdingSellers(cards, { take: PER_RAIL }) : []
+      if (crowding.length) {
+        const have = new Set(listings.map((l) => l.id))
+        const more = await db.listing.findMany({
+          where: { AND: [where, { sellerId: { notIn: crowding } }] },
+          orderBy: RAIL_ORDER,
+          take: RAIL_POOL,
+          select: LISTING_CARD_SELECT,
+        })
+        cards.push(...more.filter((l) => !have.has(l.id)).map(serializeListingCard))
+      }
+      return { slug, listings: diversifyRail(cards, { take: PER_RAIL, min: MIN_LISTINGS, fillCapped: crowding.length > 0 }) }
     }),
   )
 

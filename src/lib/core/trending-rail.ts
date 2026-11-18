@@ -1,7 +1,7 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { safeParse, serializeListing } from '@/lib/serialize'
-import { diversifyRail } from '@/lib/feed-diversity'
+import { crowdingSellers, diversifyRail } from '@/lib/feed-diversity'
 import { inAppOnly } from '@/lib/in-app-listing'
 import { Prisma } from '@/generated/prisma/client'
 import { railListing } from './rail-listing'
@@ -85,8 +85,18 @@ export async function pickRailIds(
 ): Promise<string[]> {
   const narrow = await db.listing.findMany({ where: scoped, orderBy, take: pool, select: RAIL_PICK_SELECT })
   const exclude = new Set(excludeIds ? await excludeIds : [])
-  const candidates = narrow.filter((r) => !exclude.has(r.id)).map((r) => ({ ...r, images: safeParse<string[]>(r.images, []) }))
-  return diversifyRail(candidates, { take }).map((r) => r.id)
+  const usable = (rows: typeof narrow) => rows.filter((r) => !exclude.has(r.id)).map((r) => ({ ...r, images: safeParse<string[]>(r.images, []) }))
+  const candidates = usable(narrow)
+  // ⛔ ONE SELLER MAY NOT BE THE WHOLE POOL (2026-11-18, crowdingSellers in feed-diversity.ts). Only for a FULL pool: a short
+  // one already holds every row in scope, so a second read would find nothing new.
+  const crowding = narrow.length === pool ? crowdingSellers(candidates, { take }) : []
+  if (crowding.length) {
+    // edition-lint-allow: `scoped` is this function's own already-scoped predicate (callers pass scopedListingWhere's result), narrowed further here
+    const more = await db.listing.findMany({ where: { AND: [scoped, { sellerId: { notIn: crowding } }] }, orderBy, take: pool, select: RAIL_PICK_SELECT })
+    const have = new Set(narrow.map((r) => r.id))
+    candidates.push(...usable(more.filter((r) => !have.has(r.id))))
+  }
+  return diversifyRail(candidates, { take, fillCapped: crowding.length > 0 }).map((r) => r.id)
 }
 
 /** The non-personalized "Trending now" rail — the exact fallback GET

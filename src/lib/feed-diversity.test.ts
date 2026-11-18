@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor,
+  crowdingSellers, mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor,
   GOODS_CATEGORY_SLUGS, GOODS_SEATS, GOODS_SEAT_ROWS, HOME_FEED_SEATS, goodsSeatsFor, isSecondHandGoods, reserveGoodsSeats, splitRepeatedCovers,
 } from './feed-diversity'
 import { CATEGORY_BY_SLUG, TAXONOMY } from './taxonomy'
@@ -605,5 +605,59 @@ describe('splitRepeatedCovers', () => {
     const rows = [row('1', a), row('2', a), row('3', b), row('4', b), row('5')]
     const { distinct, repeats } = splitRepeatedCovers(rows)
     expect([...distinct, ...repeats].map((r) => r.id).sort()).toEqual(['1', '2', '3', '4', '5'])
+  })
+})
+
+/**
+ * 2026-11-18: a 154-row partner import filled Trending's whole pool, so the per-seat cap switched off and 14 of 16 cards
+ * were one seller. crowdingSellers names who a top-up read leaves out.
+ */
+describe('crowdingSellers', () => {
+  const row = (id: string, sellerId: string, subcategorySlug: string | null = null) => ({ id, sellerId, subcategorySlug })
+
+  it('a pool that fills the rail two to a seat needs no top-up', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => row(`l${i}`, `s${i % 10}`))
+    expect(crowdingSellers(rows, { take: 16 })).toEqual([])
+  })
+
+  it('names the one seller that is the whole pool', () => {
+    const rows = Array.from({ length: 96 }, (_, i) => row(`l${i}`, 'big'))
+    expect(crowdingSellers(rows, { take: 16 })).toEqual(['big'])
+  })
+
+  it('names only the seats over two when a few small sellers sit beside the crowd', () => {
+    const rows = [...Array.from({ length: 90 }, (_, i) => row(`b${i}`, 'big')), row('x1', 'small1'), row('x2', 'small2'), row('x3', 'small2')]
+    expect(crowdingSellers(rows, { take: 16 })).toEqual(['big'])
+  })
+
+  it('leaves out every seller of a crowding shared seat together', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => row(`e${i}`, `carrier${i % 4}`, 'esim'))
+    expect(crowdingSellers(rows, { take: 16 }).sort()).toEqual(['carrier0', 'carrier1', 'carrier2', 'carrier3'])
+  })
+
+  it('follows the rail\'s own perSeat', () => {
+    const rows = Array.from({ length: 24 }, (_, i) => row(`l${i}`, `s${i % 4}`))
+    expect(crowdingSellers(rows, { take: 16, perSeat: 4 })).toEqual([])
+    expect(crowdingSellers(rows, { take: 16 })).toEqual(['s0', 's1', 's2', 's3'])
+  })
+})
+
+describe('diversifyRail fillCapped', () => {
+  const row = (id: string, sellerId: string) => ({ id, sellerId, subcategorySlug: null, images: [`https://x/${id}.webp`] })
+  // Three seats in reach switch the cap on: big ×7, shop ×2, one ×1.
+  const rows = [...Array.from({ length: 7 }, (_, i) => row(`b${i}`, 'big')), row('s0', 'shop'), row('s1', 'shop'), row('o0', 'one')]
+
+  it('off (the default): the cap leaves the rail short', () => {
+    expect(diversifyRail(rows, { take: 8, interleave: false }).map((r) => r.id)).toEqual(['b0', 'b1', 's0', 's1', 'o0'])
+  })
+
+  it('on: the rows the cap alone turned away fill the rest, in rail order, after the distinct ones', () => {
+    expect(diversifyRail(rows, { take: 8, interleave: false, fillCapped: true }).map((r) => r.id)).toEqual(['b0', 'b1', 's0', 's1', 'o0', 'b2', 'b3', 'b4'])
+  })
+
+  it('on: a capped row repeating a kept cover photo still stays out', () => {
+    const SAME = 'https://x.supabase.co/l/a-hd8d6d6f4d6d6d6d4.webp' // a cover hash in the URL (image-hash-url.ts)
+    const dup = [{ ...rows[0]!, images: [SAME] }, rows[1]!, { ...row('b2', 'big'), images: [SAME] }, ...rows.slice(7)]
+    expect(diversifyRail(dup, { take: 8, interleave: false, fillCapped: true }).map((r) => r.id)).not.toContain('b2')
   })
 })

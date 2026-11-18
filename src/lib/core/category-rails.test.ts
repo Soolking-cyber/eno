@@ -16,6 +16,9 @@ const h = vi.hoisted(() => ({
   wheres: [] as Row[],
   langs: [] as Array<string | undefined>,
   throwOn: '' as '' | 'groupBy',
+  /** Rows each fill read returns (8 = a short pool, no top-up); `crowd` = what crowdingSellers answers. */
+  poolSize: 8,
+  crowd: [] as string[],
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -24,8 +27,9 @@ vi.mock('@/lib/db', () => ({
       groupBy: async ({ where }: { where: Row }) => { if (h.throwOn === 'groupBy') throw new Error('db down'); h.wheres.push(where); return h.groups },
       findMany: async ({ where }: { where: Row }) => {
         h.wheres.push(where)
+        if (where.AND?.[1]?.sellerId) return [{ id: 'other-1', title: 'o1' }, { id: 'other-2', title: 'o2' }] // the top-up read
         const categoryId = (where.AND?.[0] ?? where).categoryId
-        return Array.from({ length: 8 }, (_, i) => ({ id: `${categoryId}-${i}`, title: `t${i}` }))
+        return Array.from({ length: h.poolSize }, (_, i) => ({ id: `${categoryId}-${i}`, title: `t${i}` }))
       },
     },
     category: {
@@ -36,7 +40,10 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: Row) => ({ ...w, __scoped: true }) }))
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCard: (l: Row) => l }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (rows: Row[], lang?: string) => { h.langs.push(lang); return rows } }))
-vi.mock('@/lib/feed-diversity', () => ({ diversifyRail: (rows: Row[], { take }: { take: number }) => rows.slice(0, take) }))
+vi.mock('@/lib/feed-diversity', () => ({
+  diversifyRail: (rows: Row[], { take }: { take: number }) => rows.slice(0, take),
+  crowdingSellers: () => h.crowd,
+}))
 
 const { homeCategoryRails } = await import('./category-rails')
 
@@ -46,6 +53,8 @@ beforeEach(() => {
   h.wheres = []
   h.langs = []
   h.throwOn = ''
+  h.poolSize = 8
+  h.crowd = []
 })
 
 describe('homeCategoryRails', () => {
@@ -70,5 +79,30 @@ describe('homeCategoryRails', () => {
   it('throws to its caller (the home page logs it and draws no lanes; the route answers 500)', async () => {
     h.throwOn = 'groupBy'
     await expect(homeCategoryRails()).rejects.toThrow('db down')
+  })
+})
+
+/** 2026-11-18: a full pool one seller crowds reads the next rows without that seller, under the same scope. */
+describe('homeCategoryRails top-up', () => {
+  it('a full, crowded pool reads again without the crowding sellers, inside the same scoped where', async () => {
+    h.poolSize = 40
+    h.crowd = ['big']
+    const rails = await homeCategoryRails('en')
+    const topUps = h.wheres.filter((w) => w.AND?.[1]?.sellerId)
+    expect(topUps).toHaveLength(3) // one per rail
+    for (const w of topUps) {
+      expect(w.AND[1]).toEqual({ sellerId: { notIn: ['big'] } })
+      expect(JSON.stringify(w.AND[0])).toContain('__scoped')
+    }
+    expect(rails.length).toBe(3)
+  })
+
+  it('a short pool or an uncrowded one makes no second read', async () => {
+    h.crowd = ['big'] // short pool: crowding is never asked
+    await homeCategoryRails('en')
+    h.poolSize = 40
+    h.crowd = [] // full but diverse
+    await homeCategoryRails('en')
+    expect(h.wheres.filter((w) => w.AND?.[1]?.sellerId)).toHaveLength(0)
   })
 })
