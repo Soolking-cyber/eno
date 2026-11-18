@@ -33,7 +33,7 @@ export const GUIDES: readonly GuideEntry[] = [
   // <generated-guides>
   { slug: 'international-driving-permit-vietnam', lang: 'en', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: 'd8dac8a4a78173f7', pair: 'bang-lai-xe-quoc-te-lai-xe-o-viet-nam' },
   { slug: 'thue-xe-dien-vinfast-tphcm', lang: 'vi', published: '2026-11-05', updated: '2026-11-13', released: '2026-11-05', reviewed: '2026-11-13', reviewedDigest: '5d7845cc1c427b2a', pair: 'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city' },
-  { slug: 'thue-xe-may-sai-gon-kinh-nghiem', lang: 'vi', published: '2026-11-06', updated: '2026-11-13', released: '2026-11-06', reviewed: '2026-11-13', reviewedDigest: 'a90ec902d209ac97' },
+  { slug: 'thue-xe-may-sai-gon-kinh-nghiem', lang: 'vi', published: '2026-11-06', updated: '2026-11-13', released: '2026-11-06', reviewed: '2026-11-13', reviewedDigest: 'a90ec902d209ac97', pair: 'renting-a-motorbike-in-ho-chi-minh-city' },
   { slug: 'renting-a-motorbike-in-vietnam', lang: 'en', published: '2026-11-09', reviewed: '2026-11-09', reviewedDigest: 'c2da1dd61042260d', pair: 'kinh-nghiem-thue-xe-may-viet-nam' },
   { slug: 'hire-a-foreign-english-teacher-in-vietnam', lang: 'en', published: '2026-11-11', reviewed: '2026-11-10', reviewedDigest: '5d30667cfa1c568d', pair: 'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh' },
   { slug: 'renting-to-foreigners-ho-chi-minh-city', lang: 'en', published: '2026-11-11', reviewed: '2026-11-11', reviewedDigest: 'dbd431d0b65a0218', pair: 'cho-nguoi-nuoc-ngoai-thue-nha-tphcm' },
@@ -43,7 +43,8 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city', lang: 'en', published: '2026-11-12', reviewed: '2026-11-12', reviewedDigest: 'dce10898cc7119b1', pair: 'thue-xe-dien-vinfast-tphcm' },
   { slug: 'bang-lai-xe-quoc-te-lai-xe-o-viet-nam', lang: 'vi', published: '2026-11-13', reviewed: '2026-11-13', reviewedDigest: 'f26d76244d1693c5', pair: 'international-driving-permit-vietnam' },
   { slug: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm', lang: 'vi', published: '2026-11-17', reviewed: '2026-11-16', reviewedDigest: '7141633f7ee81bc4', pair: 'car-rental-with-driver-ho-chi-minh-city' },
-  { slug: 'car-rental-with-driver-ho-chi-minh-city', lang: 'en', published: '2026-11-17', reviewed: '2026-11-16', reviewedDigest: '7d1800be5a9fbb3f', pair: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm' },
+  { slug: 'car-rental-with-driver-ho-chi-minh-city', lang: 'en', published: '2026-11-17', updated: '2026-11-18', released: '2026-11-17', reviewed: '2026-11-18', reviewedDigest: '998944e862acb9aa', pair: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm' },
+  { slug: 'renting-a-motorbike-in-ho-chi-minh-city', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: 'a9517d44394c1951', pair: 'thue-xe-may-sai-gon-kinh-nghiem' },
   // </generated-guides>
 ]
 

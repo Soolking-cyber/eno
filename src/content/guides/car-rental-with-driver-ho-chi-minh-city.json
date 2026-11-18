@@ -4,7 +4,7 @@
   "description": "Renting a car in Ho Chi Minh City as a foreigner: which licences count, real 2026 day rates, deposits, damage waivers and airport runs, self-drive or with a driver.",
   "h1": "Car rental in Ho Chi Minh City: self-drive or with a driver, and what each really takes",
   "eyebrow": "Getting around",
-  "intro": "Foreigners can rent a car in Ho Chi Minh City with or without a driver, but driving it yourself is legal only with a 1968-Convention international driving permit plus your home licence, or a Vietnamese licence. A licence from an ASEAN country also counts, for the classes it covers. A car with a driver needs no licence at all, and for a day trip it often costs little more. Self-drive firms also hold a large refundable deposit, and they may keep it for weeks while they check for camera fines.",
+  "intro": "Foreigners can rent a car in Ho Chi Minh City with or without a driver, but driving it yourself is legal only with a 1968-Convention international driving permit plus your home licence, or a Vietnamese licence. An ASEAN licence also counts on a short stay, for the classes it covers. A car with a driver needs no licence at all, and for a day trip it often costs little more. Self-drive firms also hold a large refundable deposit, and they may keep it for weeks while they check for camera fines.",
   "keyPoints": [
     "Vietnam recognises only international driving permits issued under the **1968 Vienna Convention**. You must carry the permit with your home licence. Using the permit without the home licence is fined {{vnd:8000000-10000000}} under Decree 168/2024/ND-CP.",
     "Driving a car with no valid licence at all is fined {{vnd:18000000-20000000}}, and an unlicensed driver should not expect any insurance to pay out.",
@@ -36,12 +36,12 @@
           "rows": [
             [
               "Licence needed",
-              "1968-Convention IDP plus home licence, a Vietnamese licence, or a licence from an ASEAN country for the classes it covers",
+              "1968-Convention IDP plus home licence, a Vietnamese licence, or, on a short stay only, a licence from an ASEAN country for the classes it covers",
               "None for you"
             ],
             [
               "Typical deposit",
-              "Large: {{vnd:13250000-26500000}} at Rocket Car Rentals",
+              "Large: {{vnd:13250000-26500000}} at Rocket Car Rentals, depending on the car",
               "Usually none for a booked transfer or day hire"
             ],
             [
@@ -73,11 +73,15 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Yes, but only with one of three licence set-ups: an international driving permit (IDP) issued under the 1968 Vienna Convention, carried together with your valid home licence, a Vietnamese licence, or a licence from an ASEAN country for the class it covers. An IDP is a translation of your licence, issued by your home country's licensing or motoring body. It is not a licence on its own."
+          "text": "Yes, but only with one of three licence set-ups: an international driving permit (IDP) issued under the 1968 Vienna Convention, carried together with your valid home licence, a Vietnamese licence, or a licence from an ASEAN country for the class it covers, during a short stay only. An IDP is a translation of your licence, issued by your home country's licensing or motoring body. It is not a licence on its own."
         },
         {
           "type": "p",
-          "text": "According to [Việt Nam News](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) in May 2026, Vietnam is party to the 1968 convention, not the 1949 Geneva one. The same article says the US, Canada, Australia and New Zealand signed only the 1949 convention, so their permits are not valid for driving in Vietnam. It also says ASEAN licence holders can drive on their domestic licence without an IDP, for the vehicle classes printed on it."
+          "text": "According to [Việt Nam News](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) in May 2026, Vietnam is party to the 1968 convention, not the 1949 Geneva one. The same article says the US, Canada, Australia and New Zealand signed only the 1949 convention, so their permits are not valid for driving in Vietnam. It also says ASEAN licence holders can drive on their domestic licence without an IDP, for the vehicle classes printed on it, under the ASEAN Agreement on the Recognition of Domestic Driving Licences, which Vietnam joined on 22 January 1997."
+        },
+        {
+          "type": "p",
+          "text": "That ASEAN recognition covers a short stay only. According to [Tuoi Tre News](https://news.tuoitre.vn/can-a-drivers-license-issued-in-indonesia-be-used-in-vietnam-10326060311084772.htm) in June 2026, the agreement lets holders drive during **temporary stays** in another member state, and it is no basis for living in Vietnam long term without exchanging the licence. If you live here on an ASEAN licence, exchange it for a Vietnamese one, as described below."
         },
         {
           "type": "p",
@@ -85,7 +89,7 @@
         },
         {
           "type": "table",
-          "caption": "Your licence and what it lets you do with a rental car in Vietnam (Circular 108/2026/TT-BCA; Decree 168/2024/ND-CP as reported by lsvn.vn, February 2026; Việt Nam News, May 2026)",
+          "caption": "Your licence and what it lets you do with a rental car in Vietnam (Circular 108/2026/TT-BCA; Decree 168/2024/ND-CP as reported by lsvn.vn, February 2026; Việt Nam News, May 2026; Tuoi Tre News, June 2026)",
           "headers": [
             "What you hold",
             "Can you drive a rental car?",
@@ -109,8 +113,8 @@
             ],
             [
               "Licence from an ASEAN country",
-              "Yes, for the classes printed on it",
-              "None if carried"
+              "Yes, for the classes printed on it, on a short stay only",
+              "None if carried during a short stay; exchange it if you live here"
             ],
             [
               "Home licence only (non-ASEAN)",
@@ -156,11 +160,11 @@
             },
             {
               "title": "Health certificate and photos",
-              "text": "Get a driver's health certificate unless Article 24 exempts you. Your exchanged licence then lasts only as long as your other documents, so check which applies to you. Also bring two 3x4 cm photos on a white background, according to law firm FDVN."
+              "text": "Get a driver's health certificate unless Article 24 exempts you. Also bring two 3x4 cm photos on a white background, according to law firm FDVN."
             },
             {
               "title": "Your other documents",
-              "text": "Article 24 also asks for identity documents. Your employer arranges the rest of your paperwork once your work permit is issued. Ask them exactly what they cover and what it costs."
+              "text": "Article 24 also asks for identity documents. If you work in Vietnam, ask your employer what it handles for you."
             },
             {
               "title": "File with the traffic police",
@@ -184,11 +188,11 @@
       "blocks": [
         {
           "type": "p",
-          "text": "For a short hire of 1 to 5 days, self-drive starts at about {{vnd:1192500}} a day for a small car. Rocket Car Rentals' lowest rate, {{vnd:795000}} a day, applies only to rentals of 26 days or more. A car with a driver for a full city day starts at about {{vnd:1500000}} before 8% VAT, including fuel, tolls and parking. Both figures are listed prices from one operator each, read in November 2026. Prices rise at Tet and on public holidays, so get a written quote."
+          "text": "For a short hire of 1 to 5 days, self-drive starts at about {{vnd:1192500}} a day for a small car, VAT included. Rocket Car Rentals' lowest rate, {{vnd:795000}} a day, applies only to rentals of 26 days or more. A car with a driver for a full city day starts at about {{vnd:1500000}} before 8% VAT, including fuel, tolls and parking. Both figures are listed prices from one operator each, read in November 2026. Prices rise at Tet and on public holidays, so get a written quote."
         },
         {
           "type": "table",
-          "caption": "Self-drive prices per day in Ho Chi Minh City, according to Rocket Car Rentals' fleet page, as of November 2026 (short-hire rate for 1–5 days; lowest rate for 26 days or more)",
+          "caption": "Self-drive prices per day in Ho Chi Minh City, VAT included, according to Rocket Car Rentals' fleet page, as of November 2026 (short-hire rate for 1–5 days; lowest rate for 26 days or more)",
           "headers": [
             "Car",
             "Seats",
@@ -236,7 +240,7 @@
         },
         {
           "type": "p",
-          "text": "According to [Rocket Car Rentals](https://rocketcarrentalsvietnam.com/en/locations/ho-chi-minh-city), as of November 2026, rentals of 1–7 days include 300 km a day, with extra kilometres at {{vnd:5000}} each. Rentals of 8 days or more have unlimited mileage. Its fuel rule is same level in, same level out, with any shortfall charged at the pump price."
+          "text": "According to [Rocket Car Rentals](https://rocketcarrentalsvietnam.com/en/locations/ho-chi-minh-city), as of November 2026, its displayed prices **include VAT**. Rentals of 1–7 days include 300 km a day, with extra kilometres at {{vnd:5000}} each. Rentals of 8 days or more have unlimited mileage. Its fuel rule is same level in, same level out, with any shortfall charged at the pump price."
         },
         {
           "type": "table",
@@ -250,12 +254,12 @@
             [
               "Sedan, up to 4 passengers",
               "{{vnd:1500000}}",
-              "Not offered"
+              "{{vnd:300000}}"
             ],
             [
               "7-seat SUV or MPV, up to 6",
               "{{vnd:1800000}}",
-              "Not offered"
+              "{{vnd:400000}}"
             ],
             [
               "Kia Sedona, 6–7",
@@ -276,15 +280,15 @@
         },
         {
           "type": "p",
-          "text": "According to [Saigon Car](https://thuexesaigoncar.com/ho-chi-minh-city-private-car-rental/), as of November 2026, those prices include fuel, tolls, parking, the driver and airport fees. On multi-day trips, they also include the driver's meals and accommodation. Extra hours cost {{vnd:100000-300000}} each and extra kilometres {{vnd:10000-30000}}, depending on the vehicle. The page says the 8% VAT is added only if you need an invoice."
+          "text": "According to [Saigon Car](https://thuexesaigoncar.com/ho-chi-minh-city-private-car-rental/), as of November 2026, those prices include fuel, tolls, parking, the driver and airport fees. On multi-day trips, they also include the driver's meals and accommodation. Extra hours cost {{vnd:100000-200000}} each and extra kilometres {{vnd:10000-20000}}, depending on the vehicle. The page says its prices exclude 8% VAT, and it issues a VAT invoice for companies on request."
         },
         {
           "type": "p",
-          "text": "Compare like with like: the same class of car for the same number of days, with every cost added. For a hire of a few days, a self-drive Xpander at {{vnd:1855000}} a day already costs more than the {{vnd:1800000}} a day, before 8% VAT, for a 7-seater with a driver, and that is before fuel, tolls, parking and a damage waiver. Even with VAT added, the driver option comes to {{vnd:1944000}}, less than the Xpander plus Rocket's {{vnd:265000}} daily waiver, and it carries none of your risk."
+          "text": "Compare like with like: the same class of car for the same number of days, with VAT counted on both sides and every cost added. For a hire of a few days, a self-drive Xpander costs {{vnd:1855000}} a day, VAT included, against {{vnd:1944000}} a day for a 7-seater with a driver once 8% VAT is added to Saigon Car's {{vnd:1800000}}. The Xpander is {{vnd:89000}} a day cheaper before fuel, tolls, parking and a damage waiver; Rocket's {{vnd:265000}} daily waiver alone puts it above the driver option, which carries none of your risk."
         },
         {
           "type": "p",
-          "text": "A small self-drive car at {{vnd:1192500}} a day is cheaper than a sedan with a driver at {{vnd:1500000}} before VAT only by what fuel, tolls, parking and the waiver leave of the gap. Self-drive becomes clearly cheaper on long hires, when Rocket's 26-day rates apply."
+          "text": "A small self-drive car at {{vnd:1192500}} a day, VAT included, compares with a sedan with a driver at {{vnd:1620000}} once VAT is added to {{vnd:1500000}}. Self-drive is cheaper only by what fuel, tolls, parking and the waiver leave of that {{vnd:427500}} gap. Self-drive becomes clearly cheaper on long hires, when Rocket's 26-day rates apply."
         }
       ]
     },
@@ -294,11 +298,11 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Expect a self-drive deposit worth roughly 11 to 33 days of rental at Rocket Car Rentals' daily rates, held for up to 30 days after you return the car. Basic third-party insurance is compulsory and comes with the car, but damage to the car itself is your problem unless you buy a waiver."
+          "text": "Expect a large self-drive deposit, held for up to 30 days after you return the car; weigh it against the daily rate of the car you actually rent, not a range across the whole fleet. Basic third-party insurance is compulsory and comes with the car, but damage to the car itself is your problem unless you buy a waiver."
         },
         {
           "type": "p",
-          "text": "According to Rocket Car Rentals, as of November 2026, the deposit is {{vnd:13250000-26500000}} depending on the car. It is paid by bank transfer or in cash at pickup, and refunded after you return the car, within 30 days at most. The delay exists because camera fines go to the registered owner. Rocket sends you the official record and gives you 7 days to dispute it, then takes the fine from the deposit."
+          "text": "According to Rocket Car Rentals, as of November 2026, the deposit is {{vnd:13250000-26500000}} depending on the car, and the exact amount for your car appears at booking. Its fleet page lists daily rates but not deposits, so ask for both figures for the car you want. The deposit is paid by bank transfer or in cash at pickup, and refunded after you return the car, within 30 days at most. The delay exists because camera fines go to the registered owner. Rocket sends you the official record and gives you 7 days to dispute it, then takes the fine from the deposit."
         },
         {
           "type": "table",
@@ -348,7 +352,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "For one or two people with normal luggage, a metered taxi or a Grab, Be or Xanh SM car from Tan Son Nhat is the cheapest option. Pre-book a car with a driver for a family, heavy luggage or a late-night arrival. Tan Son Nhat is about 6 km from District 1, roughly 15–20 minutes by car outside rush hour."
+          "text": "For one or two people with normal luggage, a metered taxi or a Grab, Be or Xanh SM car from Tan Son Nhat is the cheapest option. Pre-book a car with a driver for a family, heavy luggage or a late-night arrival. Tan Son Nhat is about 6 km from District 1, roughly 20 minutes by car, or 15–30 depending on traffic."
         },
         {
           "type": "table",
@@ -375,9 +379,9 @@
               "Book ahead; some hotels include it"
             ],
             [
-              "Pre-booked Kia Sedona or Kia Carnival with driver (Saigon Car)",
-              "{{vnd:800000-1000000}} before 8% VAT",
-              "Fixed price, name sign, room for luggage; Saigon Car does not offer its sedan or 7-seat SUV or MPV for airport runs"
+              "Pre-booked car with driver (Saigon Car)",
+              "{{vnd:300000-1000000}} before 8% VAT",
+              "Fixed price, name sign; sedan {{vnd:300000}}, 7-seat SUV or MPV {{vnd:400000}}, Kia Sedona {{vnd:800000}}, Kia Carnival or 16-seat van {{vnd:1000000}}"
             ]
           ]
         },
@@ -395,7 +399,7 @@
         },
         {
           "type": "p",
-          "text": "Long Thanh International Airport, in Dong Nai, is due to start commercial flights at midnight on 24 December 2026, according to [SGGP](https://en.sggp.org.vn/long-thanh-airport-set-to-begin-commercial-operations-on-december-24-post130656.html) on 30 October 2026, citing the Airports Corporation of Vietnam. The first phase plans up to 366 flights a week, and Tan Son Nhat keeps operating alongside it. Long Thanh is about 40 km from the centre, so check which airport your ticket says. For a group, a car with a driver on a fixed quote is the sensible way to cover that distance."
+          "text": "Long Thanh International Airport, in Dong Nai, is due to start commercial flights at midnight on 24 December 2026, according to [SGGP](https://en.sggp.org.vn/long-thanh-airport-set-to-begin-commercial-operations-on-december-24-post130656.html) on 30 October 2026, citing the Airports Corporation of Vietnam. The first phase plans up to 366 flights a week, and the article says flight slots are coordinated across Long Thanh and Tan Son Nhat. Long Thanh is about 40 km from the centre, so check which airport your ticket says. For a group, a car with a driver on a fixed quote is the sensible way to cover that distance."
         }
       ]
     },
@@ -412,7 +416,7 @@
           "items": [
             {
               "title": "Choose self-drive or a driver",
-              "text": "No 1968-Convention IDP, no licence from an ASEAN country covering the class of car, and no Vietnamese licence means a driver. That decides it."
+              "text": "No 1968-Convention IDP, no licence from an ASEAN country covering the class of car (valid on a short stay only), and no Vietnamese licence means a driver. That decides it."
             },
             {
               "title": "Get a written quote",
@@ -442,7 +446,7 @@
         },
         {
           "type": "p",
-          "text": "If you are stopped by traffic police, the officer issues a record or a penalty decision, and the fine is paid as that decision says: by bank transfer, at the State Treasury or online. According to [Tạp chí Luật sư Việt Nam](https://lsvn.vn/xu-phat-khong-lap-bien-ban-hieu-the-nao-cho-dung-a174939.html) in June 2026, only a small fine settled on the spot may be paid to the officer, and the officer must give you an official receipt. Ho Chi Minh City traffic police also take payment through the National Public Service Portal, according to [the same publication](https://lsvn.vn/cong-an-tp-hcm-huong-dan-nguoi-dan-nop-phat-vi-pham-giao-thong-truc-tuyen-a160597.html) in July 2025."
+          "text": "If you are stopped by traffic police, the officer issues a record or a penalty decision, and the fine is paid as that decision says: by bank transfer, at the State Treasury or online. According to [Tạp chí Luật sư Việt Nam](https://lsvn.vn/xu-phat-khong-lap-bien-ban-hieu-the-nao-cho-dung-a174939.html) in June 2026, only a fine decided on the spot, for a simple violation the driver admits, may be paid to the officer, and the officer must give you an official receipt. Ho Chi Minh City traffic police also take payment through the National Public Service Portal, according to [the same publication](https://lsvn.vn/cong-an-tp-hcm-huong-dan-nguoi-dan-nop-phat-vi-pham-giao-thong-truc-tuyen-a160597.html) in July 2025."
         }
       ]
     }
@@ -450,7 +454,7 @@
   "faqs": [
     {
       "q": "Can foreigners rent a car in Ho Chi Minh City?",
-      "a": "Foreigners can rent a car in Ho Chi Minh City either with a driver or self-drive. A car with a driver needs no licence from the passenger. To drive yourself, you need an international driving permit issued under the 1968 Vienna Convention plus your home licence, a Vietnamese licence, or a licence from an ASEAN country for the classes it covers. Self-drive companies also take a large refundable deposit, and Rocket Car Rentals advises renters staying more than three months to convert to a Vietnamese licence."
+      "a": "Foreigners can rent a car in Ho Chi Minh City with a driver or self-drive. A car with a driver needs no licence from the passenger. To drive yourself, you need an international driving permit under the 1968 Vienna Convention plus your home licence, a Vietnamese licence, or, on a short stay only, a licence from an ASEAN country for the classes it covers. Self-drive firms also take a large refundable deposit. Rocket Car Rentals advises a Vietnamese licence for stays over three months."
     },
     {
       "q": "Do I need an international driving permit to rent a car in Vietnam?",
@@ -458,7 +462,7 @@
     },
     {
       "q": "How much is car rental in Ho Chi Minh City in 2026?",
-      "a": "Car rental in Ho Chi Minh City in 2026 is cheapest self-drive in a small car on a long hire, because Rocket Car Rentals' lowest daily rate applies only to rentals of 26 days or more. For 1 to 5 days, a small self-drive car costs only a little less than a sedan with a driver from Saigon Car before VAT, and a self-drive 7-seater costs more than a 7-seater with a driver, whose price includes fuel, tolls and parking. See the cost tables above for figures as of November 2026."
+      "a": "Car rental in Ho Chi Minh City in 2026 is cheapest self-drive in a small car on a hire of 26 days or more, when Rocket Car Rentals' lowest daily rate applies. For 1 to 5 days, VAT included, a small self-drive car costs a little less than a sedan with a driver from Saigon Car, and a self-drive 7-seater with Rocket's damage waiver costs more than a 7-seater with a driver, whose price includes fuel, tolls and parking. See the cost tables above for November 2026 figures."
     },
     {
       "q": "How much is the deposit for a self-drive car in Ho Chi Minh City?",
@@ -470,7 +474,7 @@
     },
     {
       "q": "How do I get from Tan Son Nhat airport to District 1 by car?",
-      "a": "From Tan Son Nhat airport to District 1 by car takes about 15 to 20 minutes outside rush hour. A Grab, Be or Xanh SM car or a metered taxi from the official rank is cheapest. A hotel pickup or a pre-booked car with a driver costs more but meets you with a name sign. See the airport table above for prices from Vietnam Airlines' guide."
+      "a": "From Tan Son Nhat airport to District 1 by car takes about 20 minutes, or 15 to 30 depending on traffic. A Grab, Be or Xanh SM car or a metered taxi from the official rank is cheapest. A hotel pickup or a pre-booked car with a driver costs more but meets you with a name sign. See the airport table above for prices from Vietnam Airlines' guide."
     },
     {
       "q": "Can I rent a luxury car or an Alphard in Ho Chi Minh City?",
@@ -478,7 +482,7 @@
     },
     {
       "q": "What happens if I get a traffic fine in a rental car in Vietnam?",
-      "a": "For a traffic fine in a rental car in Vietnam, the officer who stops you issues a record or penalty decision, and the fine is paid as that decision says: by bank transfer, at the State Treasury or online. Only a small fine settled on the spot may be paid to the officer, against an official receipt. Camera fines go to the rental company as registered owner; Rocket Car Rentals sends renters the record, allows 7 days to dispute it, then deducts the fine from the deposit."
+      "a": "For a traffic fine in a rental car in Vietnam, the officer who stops you issues a record or penalty decision, and the fine is paid as that decision says: by bank transfer, at the State Treasury or online. Only a fine decided on the spot, for a simple violation the driver admits, may be paid to the officer, against an official receipt. Camera fines go to the rental company as registered owner; Rocket Car Rentals sends renters the record, allows 7 days to dispute it, then deducts the fine from the deposit."
     }
   ],
   "sources": [
@@ -523,6 +527,11 @@
       "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
     },
     {
+      "title": "Can a driver's license issued in Indonesia be used in Vietnam?",
+      "publisher": "Tuoi Tre News",
+      "url": "https://news.tuoitre.vn/can-a-drivers-license-issued-in-indonesia-be-used-in-vietnam-10326060311084772.htm"
+    },
+    {
       "title": "Thủ tục đổi bằng lái xe nước ngoài sang Việt Nam cho người nước ngoài 2026",
       "publisher": "FDVN Law Firm",
       "url": "https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/"
@@ -550,5 +559,5 @@
     "is-ho-chi-minh-city-safe",
     "cost-of-living-in-ho-chi-minh-city-for-teachers"
   ],
-  "lastChecked": "2026-11-16"
+  "lastChecked": "2026-11-18"
 }
