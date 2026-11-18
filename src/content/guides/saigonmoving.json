@@ -1,0 +1,269 @@
+{
+  "slug": "saigonmoving",
+  "title": "Moving apartment and furniture in Saigon (2026)",
+  "description": "How to move an apartment and furniture in Ho Chi Minh City: mover truck rates, porter and extra charges, inner-city truck limits and what to check before booking.",
+  "h1": "Moving an apartment and furniture in Saigon: movers, costs and the catches",
+  "eyebrow": "Living in Saigon",
+  "intro": "To move an apartment and furniture in Ho Chi Minh City, get a written quote from a mover and plan around the inner-city limit on trucks over 2.5 tonnes, which Tuoi Tre reported on 28 August 2026. Movers price a job by truck size, distance, porters, floors and packing. Saigon Moving, an official eno.vn partner, takes enquiries by chat on its eno.vn storefront.",
+  "keyPoints": [
+    "Movers in Ho Chi Minh City price each job separately. Truck size, distance, porters, stairs or alleys, boxes and air-conditioner work all change the total.",
+    "Saigon Express published truck rates from {{vnd:250000}} for a 500 kg truck over the first 3.5 km in Phu Thuan Ward (District 7), excluding VAT, on a page updated 19 September 2026. Other areas are quoted per move, and porters are charged on top.",
+    "According to Tuoi Tre (28 August 2026), trucks over 2.5 tonnes are restricted in the inner city, and a city draft would lower that limit to 1 tonne between 6:00 and 22:00.",
+    "Saigon Moving is an official eno.vn partner. On 16 November 2026 its [storefront](/saigonmoving) listed a full-package home move at {{vnd:1250000}} without saying what the package includes, so ask in chat before you book.",
+    "Since 1 July 2025 official addresses use new ward names, so give your mover the full new address as well as the old district name."
+  ],
+  "sections": [
+    {
+      "id": "how-to-move-an-apartment-and-furniture-in-saigon",
+      "title": "How do you move an apartment and furniture in Saigon?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Most people book a mover that supplies the truck and porters and, for a bigger price, packs, takes apart and reassembles furniture too. If you only have a few boxes and a small piece or two of furniture, a small truck with one or two porters is often enough. Whichever you choose, get the total in writing before moving day."
+        },
+        {
+          "type": "p",
+          "text": "Saigon Express (SEC Group) is a Ho Chi Minh City mover that publishes its rates. On its District 6 page it prices the truck, porters, boxes and air-conditioner removal and refitting separately. Taking furniture apart and reassembling it, carrying items up stairs, and hauling through narrow alleys or basements are priced by volume, quantity or distance."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Cut down first",
+              "text": "Sell or give away what you do not want to take, because volume decides the truck size and the number of porters. See [selling secondhand furniture in Ho Chi Minh City](/secondhand-furniture-ho-chi-minh-city) and the [furniture and appliances listings](/c/furniture-appliances)."
+            },
+            {
+              "title": "Ask both buildings about their rules",
+              "text": "Ask each management office whether you must register the move, book the lift or move within set hours. Rules vary from building to building, and only the management office can tell you."
+            },
+            {
+              "title": "Get two or three itemised quotes",
+              "text": "Give each mover both addresses, the floor numbers and whether there is a lift. Tell them about narrow alleys, basements and any air conditioners to move. Ask what the price includes and what counts as an extra, and get it itemised."
+            },
+            {
+              "title": "Sign a contract with compensation terms",
+              "text": "Saigon Express advises asking for a contract of carriage that sets out each side's responsibilities and the compensation if something goes wrong."
+            },
+            {
+              "title": "Book a slot that suits the truck",
+              "text": "Larger trucks face inner-city limits, so ask the mover which time window it will use for your route and whether night or same-day moves cost extra."
+            },
+            {
+              "title": "Hand over the old home",
+              "text": "Photograph the empty rooms, read the meters and return the keys. [Getting your rental deposit back](/rental-deposit-vietnam) covers what landlords may deduct."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "how-much-does-moving-cost-in-ho-chi-minh-city",
+      "title": "How much does a moving service cost in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "No price is official: each mover sets its own, and the total depends on your home and route. The most detailed rate card found on 16 November 2026 was Saigon Express's. The figures below come from its District 6 page, updated 19 September 2026, and exclude VAT."
+        },
+        {
+          "type": "table",
+          "caption": "Truck rates published by Saigon Express (SEC Group), page updated 19 September 2026, VAT excluded. Its 3.5 km base rate applies only in Phu Thuan Ward (District 7).",
+          "headers": [
+            "Truck",
+            "First 3.5 km",
+            "First 10 km",
+            "Beyond 10 km, per km",
+            "Porter, per person"
+          ],
+          "rows": [
+            [
+              "500 kg",
+              "{{vnd:250000}}",
+              "{{vnd:400000}}",
+              "{{vnd:10000-25000}}",
+              "{{vnd:300000}}"
+            ],
+            [
+              "750 kg",
+              "{{vnd:300000}}",
+              "{{vnd:500000}}",
+              "{{vnd:12000-27000}}",
+              "{{vnd:300000}}"
+            ],
+            [
+              "1.4 tonnes",
+              "{{vnd:400000}}",
+              "{{vnd:600000}}",
+              "{{vnd:15000-30000}}",
+              "{{vnd:350000}}"
+            ],
+            [
+              "1.9 tonnes",
+              "{{vnd:450000}}",
+              "{{vnd:800000}}",
+              "{{vnd:17000-30000}}",
+              "{{vnd:450000}}"
+            ],
+            [
+              "1 tonne with liftgate",
+              "{{vnd:500000}}",
+              "{{vnd:800000}}",
+              "{{vnd:20000-30000}}",
+              "{{vnd:350000}}"
+            ],
+            [
+              "2 tonnes (6.2 m bed)",
+              "{{vnd:600000}}",
+              "{{vnd:1200000}}",
+              "{{vnd:20000-30000}}",
+              "{{vnd:750000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The porter fee on that page is per person and covers loading and unloading at both ends. Waiting time costs {{vnd:100000}} an hour for every truck size. A standard 60 × 40 × 35 cm box costs {{vnd:20000}}, and PE stretch wrap is included at no charge."
+        },
+        {
+          "type": "p",
+          "text": "Removing an air conditioner costs {{vnd:100000}} and installing it again {{vnd:200000}}, according to the same page. Dismantling and assembling furniture, stair carries, alley hauling and basement hauling have no fixed price and are quoted by the job."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "The truck rate is rarely the final price",
+          "text": "A truck rate leaves out porters, stairs, alley carries, boxes and air-conditioner work, and with two or three porters those can cost more than the truck. Ask for the full total in writing, with VAT shown, before you book."
+        }
+      ]
+    },
+    {
+      "id": "saigon-moving-on-eno-vn",
+      "title": "What is Saigon Moving on eno.vn?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Saigon Moving is a moving-house service in Ho Chi Minh City and an official eno.vn partner, with its own storefront at [eno.vn/saigonmoving](/saigonmoving). On 16 November 2026 the storefront had one listing, \"Full-package home moving in Ho Chi Minh City\", located in Binh Thanh, and contact was through a Chat now button."
+        },
+        {
+          "type": "p",
+          "text": "On 16 November 2026 that listing's price was {{vnd:1250000}}. The listing did not say what the package covers: truck size, number of porters, distance, floors, packing or air-conditioner work. Saigon Moving's prices vary by move. Before you book, send both addresses, the floors, whether there is a lift and a rough furniture list in the chat, and ask for the full price and what it includes."
+        },
+        {
+          "type": "p",
+          "text": "The agreement for the move is between you and the mover, so put the price and compensation terms in writing as you would with any mover. The [services category](/c/services) lists other services posted on eno.vn."
+        }
+      ]
+    },
+    {
+      "id": "truck-hours-in-saigon",
+      "title": "Are there truck limits that affect a move in Saigon?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Yes. Tuoi Tre reported on 28 August 2026 that a city draft would lower the inner-city truck limit from 2.5 tonnes to 1 tonne, restricting trucks over 1 tonne between 6:00 and 22:00. That puts the limit at the time of the report at trucks over 2.5 tonnes, and the draft was still a proposal."
+        },
+        {
+          "type": "p",
+          "text": "The draft matters because the trucks used for most apartment moves (1.4, 1.9 and 2 tonnes) would fall under it. Saigon Express says on its District 6 page that it works around inner-city truck limits and avoids rush hour on busy roads. Ask your mover which time window it will use for your route, and whether an early-morning or night slot costs extra."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "If both homes are central and you have little furniture, a 500 kg or 750 kg truck making two trips can be easier to schedule than one large truck. Ask the mover to price both options."
+        }
+      ]
+    },
+    {
+      "id": "apartment-district-8",
+      "title": "Moving to an apartment in District 8: what to check",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For District 8 asking rents, the [eno.vn Rent Index](/hcmc-rent-index) gives median asking rents for homes listed on eno.vn, by district and type of home. It is updated regularly, and its page names the sources behind each snapshot, so check the figure on the day you look rather than relying on an old one. Homes for rent are listed under [rentals](/c/rentals)."
+        },
+        {
+          "type": "p",
+          "text": "People and listings still say \"District 8\", as this guide does. Since 1 July 2025, however, districts no longer exist officially and addresses use the new ward names. Give your mover the full new address from your lease as well as the old district name, so the quote and the route are right."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Alleys.** Many homes are down narrow alleys a truck cannot enter. Tell the mover, because alley hauling is priced separately.",
+            "**Floors and lifts.** Say which floor you are moving to and whether there is a lift you can book. Stair carries are priced separately.",
+            "**Paperwork with the landlord.** For viewings, leases and the landlord's residence declaration, see [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner).",
+            "**Furnishing.** If the new place is unfurnished, see [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam) before you decide what to move."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "choosing-a-mover",
+      "title": "How do you choose a mover you can trust?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Choose a mover that itemises its price and extras in writing and signs a contract that covers damage. Saigon Express's advice is to check for a head-office address, a business licence, a website, a landline, photos of real jobs, and a contract that sets out each side's responsibilities and compensation."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Same scope, side by side.** Compare quotes only when they cover the same truck size, number of porters, floors and packing.",
+            "**Fragile and valuable items.** Ask how they are packed and what the contract pays if they break. Carry laptops, documents and cash yourself.",
+            "**Air conditioners and wall fittings.** Confirm whether your landlord lets you remove them and who refits them.",
+            "**Deposits to the mover.** Ask what happens to a deposit if the date changes, and get the answer in writing.",
+            "**Leaving Vietnam rather than moving across town?** See [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How much is an apartment in District 8 Ho Chi Minh City?",
+      "a": "Apartment rents in District 8, Ho Chi Minh City, depend on the size of the home and the building, and asking prices change often. The eno.vn Rent Index publishes median asking rents by district and type of home for homes listed on eno.vn, and it is updated regularly, so check the District 8 figure there on the day you look. Remember that official addresses in District 8 now use new ward names."
+    },
+    {
+      "q": "How much does it cost to move an apartment in Saigon?",
+      "a": "No fixed price exists for moving an apartment in Saigon. Movers price each job by truck size, distance, the number of porters, floors and alleys, boxes and air-conditioner work. Saigon Express published per-truck and per-porter rates, excluding VAT, on a page updated 19 September 2026, and this guide lists them in a table. Porters and extras are charged on top of the truck, so ask for the total in writing with VAT shown."
+    },
+    {
+      "q": "What time can moving trucks drive in Ho Chi Minh City?",
+      "a": "Moving truck hours in Ho Chi Minh City depend on truck weight and route. Tuoi Tre reported on 28 August 2026 that a city draft would lower the inner-city truck limit from 2.5 tonnes to 1 tonne and restrict trucks over 1 tonne from 6:00 to 22:00. At the time of that report the draft was a proposal, so ask the mover which time window it will use for your move."
+    },
+    {
+      "q": "What is Saigon Moving on eno.vn?",
+      "a": "Saigon Moving is a moving-house service in Ho Chi Minh City and an official eno.vn partner, with a storefront at eno.vn/saigonmoving. On 16 November 2026 the storefront had one full-package home-moving listing, located in Binh Thanh, with contact through chat. Saigon Moving's prices vary by move, so send both addresses, the floors, lift access and a furniture list in the chat to get a full price."
+    },
+    {
+      "q": "Do I need permission from my apartment building to move out in Saigon?",
+      "a": "Many Saigon apartment buildings set their own moving rules, and those rules differ from building to building. Before booking a mover, ask the management office at both the old and the new building whether you must register the move, book the lift or move within set hours. Pass the answers to the mover, because lift access and permitted hours affect both the quote and the schedule."
+    },
+    {
+      "q": "Do movers in Vietnam take apart and reassemble furniture?",
+      "a": "Many movers in Vietnam take apart and reassemble furniture, but often as a priced extra rather than part of the truck rate. Saigon Express prices furniture dismantling and assembly by volume or quantity, and publishes separate charges for removing and installing air conditioners. A truck-only or porter-only booking may not include reassembly, so confirm which items will be dismantled and rebuilt before you agree a price."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Cheap Full-Service Moving in District 6 [2026]",
+      "publisher": "Saigon Express (SEC Group)",
+      "url": "https://secgroup.vn/en/news/moving-service-in-district-6-363"
+    },
+    {
+      "title": "Moving to a New Home: Essential Advice from Experts",
+      "publisher": "Saigon Express (SEC Group)",
+      "url": "https://secgroup.vn/en/media/moving-to-a-new-home-essential-advice-from-experts-212"
+    },
+    {
+      "title": "Đề xuất cấm xe tải trên 1 tấn vào nội thành từ 6h-22h cần cân nhắc ảnh hưởng lưu thông hàng hóa",
+      "publisher": "Tuoi Tre",
+      "url": "https://tuoitre.vn/de-xuat-cam-xe-tai-tren-1-tan-vao-noi-thanh-tu-6h-22h-can-can-nhac-anh-huong-luu-thong-hang-hoa-100260828141502627.htm"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "leaving-vietnam-checklist-for-teachers"
+  ],
+  "lastChecked": "2026-11-18"
+}

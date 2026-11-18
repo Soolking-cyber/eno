@@ -42,9 +42,13 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'kinh-nghiem-thue-xe-may-viet-nam', lang: 'vi', published: '2026-11-12', reviewed: '2026-11-12', reviewedDigest: '0c042467d3e69bdf', pair: 'renting-a-motorbike-in-vietnam' },
   { slug: 'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city', lang: 'en', published: '2026-11-12', reviewed: '2026-11-12', reviewedDigest: 'dce10898cc7119b1', pair: 'thue-xe-dien-vinfast-tphcm' },
   { slug: 'bang-lai-xe-quoc-te-lai-xe-o-viet-nam', lang: 'vi', published: '2026-11-13', reviewed: '2026-11-13', reviewedDigest: 'f26d76244d1693c5', pair: 'international-driving-permit-vietnam' },
-  { slug: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm', lang: 'vi', published: '2026-11-17', reviewed: '2026-11-16', reviewedDigest: '7141633f7ee81bc4', pair: 'car-rental-with-driver-ho-chi-minh-city' },
+  { slug: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm', lang: 'vi', published: '2026-11-17', updated: '2026-11-18', released: '2026-11-17', reviewed: '2026-11-18', reviewedDigest: '68e1a40dcb3ad2f1', pair: 'car-rental-with-driver-ho-chi-minh-city' },
   { slug: 'car-rental-with-driver-ho-chi-minh-city', lang: 'en', published: '2026-11-17', updated: '2026-11-18', released: '2026-11-17', reviewed: '2026-11-18', reviewedDigest: '998944e862acb9aa', pair: 'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm' },
   { slug: 'renting-a-motorbike-in-ho-chi-minh-city', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: 'a9517d44394c1951', pair: 'thue-xe-may-sai-gon-kinh-nghiem' },
+  { slug: 'hieu-truong-phai-biet-tieng-anh-thong-tu-94', lang: 'vi', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '7af513a9f6b99a10', pair: 'vietnam-school-leaders-english-requirements' },
+  { slug: 'saigonmoving', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '7f8a13e55afda67e' },
+  { slug: 'tuyen-giao-vien-nuoc-ngoai', lang: 'vi', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: 'aea55f964498b609' },
+  { slug: 'vietnam-school-leaders-english-requirements', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '6e97925fe752ec81', pair: 'hieu-truong-phai-biet-tieng-anh-thong-tu-94' },
   // </generated-guides>
 ]
 

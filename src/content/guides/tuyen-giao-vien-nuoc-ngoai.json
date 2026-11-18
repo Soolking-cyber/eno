@@ -1,0 +1,422 @@
+{
+  "slug": "tuyen-giao-vien-nuoc-ngoai",
+  "title": "Tuyển giáo viên nước ngoài: giấy tờ, quy trình, chi phí 2026",
+  "description": "Trung tâm tuyển giáo viên nước ngoài cần gì: hồ sơ giấy phép lao động, mốc 5/12/2026 khi Nghị định 393 thay Nghị định 219, mức phạt, lương theo giờ.",
+  "h1": "Tuyển giáo viên nước ngoài cho trung tâm: giấy phép lao động, thời gian, mức phạt và lương",
+  "eyebrow": "Tuyển giáo viên",
+  "intro": "Muốn tuyển giáo viên nước ngoài, trung tâm phải xin giấy phép lao động cho từng người: nộp hồ sơ trong khoảng 60 đến 10 ngày trước ngày bắt đầu làm việc, và cơ quan có tối đa 10 ngày làm việc để giải quyết. Hiện Nghị định 219/2025/NĐ-CP vẫn áp dụng. Từ ngày 5/12/2026, Nghị định 393/2026/NĐ-CP thay thế nghị định này, còn hồ sơ nộp trước ngày đó vẫn được giải quyết theo Nghị định 219.",
+  "keyPoints": [
+    "Nghị định 219/2025/NĐ-CP áp dụng đến hết ngày 4/12/2026. Từ ngày 5/12/2026, **Nghị định 393/2026/NĐ-CP** áp dụng, với 37 điều và nhiều thay đổi về hồ sơ, gia hạn và báo cáo.",
+    "Muốn được xếp là chuyên gia, giáo viên cần có bằng đại học và ít nhất 2 năm kinh nghiệm phù hợp. Nghị định 393 thêm diện có ít nhất 5 năm kinh nghiệm phù hợp và diện giảng dạy, nghiên cứu tại cơ sở giáo dục.",
+    "Trung tâm phải đăng thông báo tuyển lao động Việt Nam trước khi nộp hồ sơ: ít nhất 5 ngày theo mẫu số 03 của Nghị định 219, ít nhất 5 ngày làm việc theo Nghị định 393.",
+    "Theo AZVLAW (cập nhật tháng 8/2026), lệ phí cấp mới giấy phép tại TP.HCM là {{vnd:600000}} mỗi giấy phép. Phần tốn nhất vẫn là lương: các tin tuyển của ILA năm 2026 trả đến {{vnd:500000-600000}} một giờ cho giáo viên mới.",
+    "Tổ chức dùng 1 đến 10 người nước ngoài không có giấy phép bị phạt {{vnd:60000000-90000000}}. Người lao động bị phạt {{vnd:15000000-25000000}} và có thể bị trục xuất."
+  ],
+  "sections": [
+    {
+      "id": "trung-tam-can-giay-to-gi",
+      "title": "Trung tâm cần giấy tờ gì để tuyển giáo viên nước ngoài?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thứ trung tâm cần là **giấy phép lao động** cho từng giáo viên. Trung tâm là bên lập và nộp hồ sơ, Sở Nội vụ TP.HCM là nơi tiếp nhận ([Tân Văn Lang](https://tanvanlang.com/thoi-gian-xet-duyet-giay-phep-lao-dong-tai-tp-hcm/)). Giáo viên chưa có giấy phép thì chưa được đứng lớp, kể cả dạy thử có trả lương."
+        },
+        {
+          "type": "p",
+          "text": "Căn cứ pháp lý hiện nay là [Nghị định 219/2025/NĐ-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), có hiệu lực từ ngày 7/8/2025. Nghị định này thay các quy định của Nghị định 152/2020 và Nghị định 70/2023. Chính phủ đã ban hành [Nghị định 393/2026/NĐ-CP](https://hungyen.gov.vn/quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-c287882.html) ngày 20/10/2026. Nghị định 393 có hiệu lực từ ngày 5/12/2026, và kể từ ngày đó Nghị định 219 hết hiệu lực."
+        },
+        {
+          "type": "h3",
+          "text": "Hồ sơ gồm những gì"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Báo cáo giải trình nhu cầu** sử dụng lao động nước ngoài (mẫu số 03, Điều 18 Nghị định 219). Báo cáo này phải cho thấy trung tâm đã đăng tuyển lao động Việt Nam ít nhất 5 ngày trước khi nộp nhưng không tuyển được.",
+            "**Giấy khám sức khỏe** do cơ sở y tế có giấy phép cấp. Giấy khám ở nước ngoài chỉ được nhận khi có điều ước hoặc thỏa thuận công nhận lẫn nhau, và còn trong hạn 12 tháng. Vì vậy, trên thực tế giáo viên thường khám tại Việt Nam.",
+            "**Phiếu lý lịch tư pháp** của nước ngoài hoặc của Việt Nam, cấp không quá 6 tháng trước ngày nộp hồ sơ. Xem [hướng dẫn lý lịch tư pháp](/teach-in-vietnam/criminal-record-check-for-a-vietnam-work-permit).",
+            "**Giấy tờ chứng minh là chuyên gia**: bằng đại học, kèm xác nhận số năm kinh nghiệm của nơi làm việc cũ ở nước ngoài. Với chuyên gia làm việc trong ngành giáo dục, điểm đ khoản 3 Điều 19 còn cho phép một cách chứng minh khác: giấy tờ cho thấy người đó đáp ứng tiêu chuẩn trình độ theo pháp luật giáo dục.",
+            "Bản sao hộ chiếu, ảnh, và bản dịch có chứng thực chữ ký người dịch. Giấy tờ cấp ở nước ngoài phải được hợp pháp hóa lãnh sự hoặc apostille, tùy nước cấp. Xem [hướng dẫn hợp pháp hóa bằng cấp](/teach-in-vietnam/getting-your-degree-authenticated-for-vietnam)."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Giáo viên có dưới 2 năm kinh nghiệm",
+          "text": "Theo khoản 3 Điều 3 Nghị định 219, chuyên gia là người có bằng đại học trở lên và ít nhất 2 năm kinh nghiệm phù hợp. Chứng chỉ TEFL, TESOL hay CELTA không thay được bằng đại học, và tự nó cũng không thay được số năm kinh nghiệm. Hiện chưa có văn bản công bố TP.HCM áp dụng điểm đ khoản 3 Điều 19 thế nào cho giáo viên có dưới 2 năm kinh nghiệm. Hãy hỏi Sở Nội vụ trước khi nhận người. Tuyệt đối không nộp thư xác nhận kinh nghiệm không đúng sự thật."
+        },
+        {
+          "type": "table",
+          "caption": "Những điểm trung tâm cần biết khi chuyển từ Nghị định 219 sang Nghị định 393 (theo văn bản và các bài phân tích đã đọc ngày 16/11/2026)",
+          "headers": [
+            "Nội dung",
+            "Nghị định 219/2025 (đến 4/12/2026)",
+            "Nghị định 393/2026 (từ 5/12/2026)"
+          ],
+          "rows": [
+            [
+              "Thời điểm nộp hồ sơ cấp mới",
+              "Từ 60 ngày đến ít nhất 10 ngày trước ngày bắt đầu làm việc",
+              "Từ 60 ngày đến ít nhất 10 ngày làm việc trước ngày bắt đầu làm việc"
+            ],
+            [
+              "Thời gian giải quyết",
+              "10 ngày làm việc",
+              "10 ngày làm việc, xét chấp thuận nhu cầu và cấp phép trong cùng một thủ tục"
+            ],
+            [
+              "Diện chuyên gia",
+              "Bằng đại học và ít nhất 2 năm kinh nghiệm",
+              "Giữ diện này, thêm diện có ít nhất 5 năm kinh nghiệm và diện giảng dạy, nghiên cứu tại cơ sở giáo dục"
+            ],
+            [
+              "Lý lịch tư pháp",
+              "Cấp không quá 6 tháng trước ngày nộp",
+              "Không phải nộp nếu cơ quan tra cứu được trong cơ sở dữ liệu lý lịch tư pháp"
+            ],
+            [
+              "Gia hạn",
+              "Một lần, tối đa 2 năm. Nộp từ 45 ngày đến ít nhất 10 ngày trước khi hết hạn",
+              "Nộp từ 90 ngày đến ít nhất 10 ngày làm việc trước khi hết hạn. Giải quyết trong 5 ngày làm việc, không cần giấy khám sức khỏe"
+            ],
+            [
+              "Báo cáo định kỳ",
+              "Không có hạn báo cáo nào trong nội dung đã đọc",
+              "Báo cáo trước ngày 5/6 và ngày 5/12 hằng năm"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nguồn cho bảng trên: [văn bản Nghị định 219](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html) trên LuatVietnam, cùng bài phân tích Nghị định 393 của [CNC Counsel](https://cnccounsel.com/an-pham/10-diem-moi-cua-nghi-dinh-393-2026-nd-cp), [LawPro](https://lawpro.com.vn/nghi-dinh-393-2026-nd-cp-nguoi-lao-dong-nuoc-ngoai.html) và [LuatVietnam](https://luatvietnam.vn/linh-vuc-khac/diem-moi-nghi-dinh-393-2026-nd-cp-ve-lao-dong-nuoc-ngoai-tai-viet-nam-883-115274-article.html). Theo [EY](https://www.ey.com/content/dam/ey-unified-site/ey-com/vi-vn/technical/tax/documents/ey-decree-393-about-foreign-worker-working-in-vietnam-vi.pdf), hồ sơ nộp trước ngày 5/12/2026 tiếp tục được giải quyết theo Nghị định 219, và giấy phép đã cấp vẫn có hiệu lực đến hết thời hạn."
+        }
+      ]
+    },
+    {
+      "id": "quy-trinh-xin-giay-phep",
+      "title": "Quy trình xin giấy phép lao động cho giáo viên nước ngoài",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Quy trình có năm bước: đăng tuyển lao động Việt Nam, gom hồ sơ của giáo viên, nộp hồ sơ đúng khung thời gian, nhận giấy phép, rồi mới ký hợp đồng và xếp lớp. Bước tốn thời gian nhất thường là gom giấy tờ nước ngoài, không phải chờ cơ quan xét."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Đăng thông báo tuyển lao động Việt Nam",
+              "text": "Theo mẫu số 03 Nghị định 219, trung tâm phải đăng tuyển vị trí đó cho người Việt ít nhất 5 ngày trước khi nộp hồ sơ. Theo [Vietlink](https://www.vietlinklaw.vn/post/nghi-dinh-393-2026-nd-cp-lao-dong-nuoc-ngoai), Nghị định 393 yêu cầu thông báo ít nhất 5 ngày làm việc. Nghị định 393 còn cấm tuyển người có trình độ hoặc kinh nghiệm thấp hơn mức đã ghi trong thông báo, nên hãy ghi yêu cầu đúng với người định tuyển."
+            },
+            {
+              "title": "Gom giấy tờ của giáo viên",
+              "text": "Bằng đại học và lý lịch tư pháp phải được hợp pháp hóa hoặc apostille ở nước cấp, việc này mất nhiều tuần. Yêu cầu giáo viên làm ngay khi nhận lời mời. Lý lịch tư pháp chỉ có giá trị 6 tháng tính đến ngày nộp."
+            },
+            {
+              "title": "Khám sức khỏe tại Việt Nam",
+              "text": "Hẹn giáo viên khám ở cơ sở y tế có giấy phép ngay khi họ đến. Theo Nghị định 393, giấy khám sức khỏe dùng được nếu chưa quá 12 tháng tính từ ngày cấp đến ngày nộp."
+            },
+            {
+              "title": "Nộp hồ sơ trong khung 60 đến 10 ngày",
+              "text": "Nộp chậm nhất 10 ngày (theo Nghị định 393 là 10 ngày làm việc) trước ngày dự kiến đi làm. Theo [CNC Counsel](https://cnccounsel.com/an-pham/10-diem-moi-cua-nghi-dinh-393-2026-nd-cp), từ ngày 5/12/2026 hồ sơ có thể nộp trực tuyến qua Cổng Dịch vụ công quốc gia, qua bưu chính công ích hoặc tại Trung tâm phục vụ hành chính công."
+            },
+            {
+              "title": "Nhận giấy phép, ký hợp đồng, rồi mới xếp lớp",
+              "text": "Ký hợp đồng lao động theo đúng vị trí, địa điểm và thời hạn ghi trên giấy phép. Sau khi có giấy phép lao động, các giấy tờ còn lại của giáo viên làm theo thủ tục riêng. Hai bên cần thống nhất trước ai lo phần nào và ai trả chi phí."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu giáo viên chuyển từ trung tâm khác sang, trung tâm mới vẫn phải xin giấy phép mới, kể cả khi vị trí công việc giống hệt. Hãy hỏi Sở Nội vụ những giấy tờ nào phải nộp lại. Những điều khoản nên đưa vào hợp đồng có trong [hướng dẫn hợp đồng giảng dạy](/teach-in-vietnam/english-teaching-contracts-in-vietnam) (tiếng Anh, có thể gửi cho giáo viên đọc)."
+        }
+      ]
+    },
+    {
+      "id": "mat-bao-lau",
+      "title": "Xin giấy phép lao động cho giáo viên mất bao lâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo luật, cơ quan có tối đa 10 ngày làm việc kể từ khi nhận đủ hồ sơ hợp lệ. Theo Tân Văn Lang (tháng 3/2026), tại TP.HCM việc xét hồ sơ thường mất khoảng 5 đến 7 ngày làm việc. Thời gian tổng cộng dài hơn nhiều vì phải tính cả thời gian chuẩn bị giấy tờ ở nước ngoài."
+        },
+        {
+          "type": "table",
+          "caption": "Các mốc thời gian chính khi tuyển giáo viên nước ngoài (Nghị định 219 và 393, cùng ước tính của Tân Văn Lang tháng 3/2026)",
+          "headers": [
+            "Việc",
+            "Thời gian",
+            "Ghi chú"
+          ],
+          "rows": [
+            [
+              "Đăng tuyển lao động Việt Nam",
+              "Ít nhất 5 ngày (theo Nghị định 393 là 5 ngày làm việc)",
+              "Làm trước khi nộp hồ sơ"
+            ],
+            [
+              "Nộp hồ sơ cấp mới",
+              "Từ 60 ngày đến 10 ngày trước ngày đi làm",
+              "Nộp quá sớm hoặc quá muộn đều không được"
+            ],
+            [
+              "Cơ quan giải quyết",
+              "Tối đa 10 ngày làm việc",
+              "Tại TP.HCM thường khoảng 5 đến 7 ngày làm việc (Tân Văn Lang)"
+            ],
+            [
+              "Thời hạn giấy phép",
+              "Tối đa 2 năm",
+              "Theo thời hạn hợp đồng dự kiến"
+            ],
+            [
+              "Nộp hồ sơ gia hạn từ 5/12/2026",
+              "Từ 90 ngày đến ít nhất 10 ngày làm việc trước khi hết hạn",
+              "Giải quyết trong 5 ngày làm việc (CNC Counsel)"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "Kỳ khai giảng tháng 9 và tháng 1 là lúc nhiều trung tâm cùng tuyển. Nên chốt giáo viên trước ít nhất hai tháng để kịp hợp pháp hóa giấy tờ và lấy lý lịch tư pháp. Xem [lịch năm học ở Việt Nam](/teach-in-vietnam/the-teaching-year-in-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "chi-phi-tuyen-giao-vien",
+      "title": "Chi phí tuyển một giáo viên nước ngoài gồm những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Lệ phí nhà nước chiếm phần rất nhỏ trong chi phí. Theo AZVLAW (đăng tháng 5/2026, cập nhật tháng 8/2026), lệ phí cấp mới giấy phép lao động tại TP.HCM là {{vnd:600000}} mỗi giấy phép, còn cấp lại và gia hạn là {{vnd:450000}}. Phần lớn chi phí nằm ở lương và các khoản hỗ trợ mà trung tâm hứa với giáo viên."
+        },
+        {
+          "type": "p",
+          "text": "Tại TP.HCM, lệ phí cấp giấy phép lao động là 0 đồng khi nộp hồ sơ trực tuyến, theo nghị quyết HĐND thành phố ngày 29/9/2025 ([VnEconomy](https://vneconomy.vn/tpho-chi-minh-mien-5-loai-le-phi-khi-lam-thu-tuc-hanh-chinh-truc-tuyen.htm)); nộp hồ sơ giấy là {{vnd:600000}}. Mức phí do HĐND thành phố quyết định và có thể thay đổi, nên hãy xem lại mức phí trên cổng dịch vụ công khi nộp."
+        },
+        {
+          "type": "table",
+          "caption": "Mức lương theo giờ trong một số tin tuyển giáo viên nước ngoài tại TP.HCM năm 2026 (theo chính các tin đăng)",
+          "headers": [
+            "Nơi tuyển",
+            "Mức lương",
+            "Yêu cầu chính",
+            "Hỗ trợ giấy tờ"
+          ],
+          "rows": [
+            [
+              "ILA, giáo viên part-time (hạn nộp 01/10/2026)",
+              "Đến {{vnd:500000}} một giờ cho giáo viên mới, kèm thưởng nhận việc đến {{vnd:10000000}}",
+              "Bằng đại học, chứng chỉ giảng dạy từ 120 giờ",
+              "Lo toàn bộ giấy phép lao động"
+            ],
+            [
+              "ILA (đăng ngày 05/01/2026)",
+              "Đến {{vnd:600000}} một giờ cho giáo viên mới",
+              "Bằng đại học, chứng chỉ từ 120 giờ như TEFL hoặc CELTA",
+              "Lo và chi trả giấy phép lao động"
+            ],
+            [
+              "Kapla Creative English (đăng ngày 05/06/2026)",
+              "Lương cơ bản đến {{vnd:540000}} một giờ, cộng phụ cấp",
+              "Ít nhất 1 năm kinh nghiệm, bằng đại học, TESOL 120 giờ",
+              "Hoàn lại chi phí giấy phép lao động"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Các tin trên lấy từ [Joboko](https://vn.joboko.com/viec-lam-ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city-xvi6717022) và [TESL Jobs](https://tesljobs.com/jobs/part-time-esl-teacher-in-hcmc-ho-chi-minh-city-vietnam-tXFDLz9O9qC0). Đến ngày 16/11/2026 các tin này đã hết hạn, nhưng vẫn cho thấy mặt bằng giá mà ứng viên đang so sánh. Các chuỗi lớn đều ghi rõ họ lo hoặc hoàn tiền giấy phép lao động. Nếu trung tâm không hỗ trợ khoản này, hãy bù bằng lương."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Lệ phí giấy phép**: xem mức ở trên. Theo Nghị định 219, trung tâm là bên nộp hồ sơ, nên trung tâm cũng nên là bên trả lệ phí.",
+            "**Khám sức khỏe, dịch thuật, chứng thực chữ ký người dịch**: giá tùy nơi làm, nên hỏi báo giá trước.",
+            "**Bảo hiểm xã hội và thuế thu nhập cá nhân**: tùy loại hợp đồng và thời gian giáo viên ở Việt Nam. Xem [bảo hiểm cho giáo viên nước ngoài](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam) và [thuế thu nhập cá nhân](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam).",
+            "**Phí đơn vị dịch vụ**, nếu trung tâm thuê làm hồ sơ: mỗi nơi báo một giá, đó không phải lệ phí nhà nước."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "muc-phat",
+      "title": "Dùng giáo viên nước ngoài không có giấy phép lao động bị phạt bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo Nghị định 283/2026/NĐ-CP, tổ chức dùng 1 đến 10 người nước ngoài không có giấy phép lao động hoặc giấy xác nhận miễn bị phạt {{vnd:60000000-90000000}}. Mức phạt tăng theo số người vi phạm. Bản thân giáo viên bị phạt {{vnd:15000000-25000000}} và có thể bị trục xuất."
+        },
+        {
+          "type": "table",
+          "caption": "Mức phạt người sử dụng lao động theo khoản 5 Điều 13 và khoản 1 Điều 7 Nghị định 283/2026/NĐ-CP (văn bản đăng Công báo số 448 ngày 28/7/2026)",
+          "headers": [
+            "Số người vi phạm",
+            "Cá nhân",
+            "Tổ chức (gấp đôi)"
+          ],
+          "rows": [
+            [
+              "1 đến 10 người",
+              "{{vnd:30000000-45000000}}",
+              "{{vnd:60000000-90000000}}"
+            ],
+            [
+              "11 đến 20 người",
+              "{{vnd:45000000-60000000}}",
+              "{{vnd:90000000-120000000}}"
+            ],
+            [
+              "Từ 21 người",
+              "{{vnd:60000000-75000000}}",
+              "{{vnd:120000000-150000000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Các mức phạt trên lấy từ [văn bản Nghị định 283/2026/NĐ-CP](https://congbao.chinhphu.vn/van-ban/nghi-dinh-so-283-2026-nd-cp-470103.htm) trên Công báo Chính phủ. Nghị định do Chính phủ ban hành ngày 15/7/2026 và có hiệu lực từ ngày 10/9/2026. Trung tâm có thể bị phạt chỉ vì cho giáo viên dạy thử hoặc dạy thay có trả tiền trong thời gian chờ giấy phép."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Không thuê lại giáo viên của đơn vị khác",
+          "text": "Theo [CNC Counsel](https://cnccounsel.com/an-pham/10-diem-moi-cua-nghi-dinh-393-2026-nd-cp), từ ngày 5/12/2026 Nghị định 393 cấm cho thuê lại lao động nước ngoài: người sử dụng lao động phải tự tuyển và dùng họ cho nhu cầu của chính mình. Nếu trung tâm nhận giáo viên qua agency, hãy hỏi rõ giấy phép lao động đứng tên ai và ghi nơi làm việc nào."
+        }
+      ]
+    },
+    {
+      "id": "nguon-giao-vien-nuoc-ngoai",
+      "title": "Tìm nguồn giáo viên nước ngoài dạy tiếng Anh ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Có bốn nguồn chính: giáo viên đang ở Việt Nam (tìm qua hồ sơ trực tuyến và giới thiệu), các trang việc làm tiếng Anh như TESL Jobs hay Teast, các trang việc làm trong nước như TopCV hay JobsGO, và agency. Ưu tiên người đang ở TP.HCM, vì họ có thể dạy demo trực tiếp và đi khám sức khỏe ngay."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Hồ sơ giáo viên trên eno.vn**: xem [danh sách giáo viên](/c/teachers). Mỗi hồ sơ ghi môn dạy, độ tuổi học viên, kinh nghiệm và khu vực có thể dạy. Mọi tài khoản đã đăng nhập đều nhắn tin được, trong giới hạn số giáo viên mới mỗi ngày: 3 người với tài khoản chưa xác minh, 30 người với tài khoản doanh nghiệp đã xác minh. Số điện thoại, email và CV chỉ hiện khi giáo viên chọn chia sẻ.",
+            "**Đăng tin tuyển**: trung tâm có thể [đăng tin việc làm](/post) lên mục [việc làm](/c/jobs) của eno.vn mà không mất phí. eno.vn không xử lý hồ sơ ứng tuyển.",
+            "**Giáo viên dạy thay**: tài khoản doanh nghiệp có thể gửi yêu cầu dạy thay cho giáo viên đã đánh dấu giờ rảnh ([dạy thay](/teachers/cover)). Người dạy thay vẫn phải có giấy phép lao động phù hợp.",
+            "**Danh bạ trường**: [danh bạ trường ở Sài Gòn](/schools) cho biết trường nào đang tuyển, giúp trung tâm so sánh mức đãi ngộ."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Khi phỏng vấn, hỏi ngay ba điều: bằng đại học đã hợp pháp hóa chưa, có thư xác nhận kinh nghiệm của nơi làm cũ ở nước ngoài không, và lý lịch tư pháp cấp khi nào. Đây là những thứ quyết định trung tâm có xin được giấy phép hay không. Xem thêm [hướng dẫn tuyển giáo viên nước ngoài dạy tiếng Anh](/huong-dan/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh) và cách giáo viên chuẩn bị [CV và tiết dạy demo](/teach-in-vietnam/english-teacher-cv-and-demo-lesson-in-vietnam)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Tuyển giáo viên nước ngoài cần những giấy tờ gì?",
+      "a": "Để tuyển giáo viên nước ngoài, trung tâm cần nộp báo cáo giải trình nhu cầu, giấy khám sức khỏe, phiếu lý lịch tư pháp cấp không quá 6 tháng, bằng đại học kèm xác nhận kinh nghiệm, bản sao hộ chiếu, ảnh và bản dịch có chứng thực. Giấy tờ cấp ở nước ngoài phải được hợp pháp hóa lãnh sự hoặc apostille. Từ ngày 5/12/2026, theo Nghị định 393, không phải nộp lý lịch tư pháp nếu cơ quan tra cứu được trong cơ sở dữ liệu."
+    },
+    {
+      "q": "Xin giấy phép lao động cho giáo viên nước ngoài mất bao lâu?",
+      "a": "Theo Nghị định 219/2025/NĐ-CP, cơ quan có tối đa 10 ngày làm việc kể từ khi nhận đủ hồ sơ hợp lệ để cấp giấy phép lao động. Tại TP.HCM, đơn vị tư vấn Tân Văn Lang ghi nhận thường mất khoảng 5 đến 7 ngày làm việc. Trung tâm phải nộp hồ sơ trong khoảng 60 đến 10 ngày trước ngày giáo viên bắt đầu làm việc."
+    },
+    {
+      "q": "Nghị định 393/2026 về lao động nước ngoài có hiệu lực khi nào?",
+      "a": "Nghị định 393/2026/NĐ-CP do Chính phủ ban hành ngày 20/10/2026 và có hiệu lực từ ngày 5/12/2026. Kể từ ngày đó, nghị định này thay thế Nghị định 219/2025/NĐ-CP. Nghị định 393 thêm diện chuyên gia có ít nhất 5 năm kinh nghiệm, cấm cho thuê lại lao động nước ngoài và yêu cầu báo cáo trước ngày 5/6 và ngày 5/12 hằng năm."
+    },
+    {
+      "q": "Giáo viên nước ngoài chưa đủ 2 năm kinh nghiệm có xin được giấy phép lao động không?",
+      "a": "Theo Nghị định 219, chuyên gia là người có bằng đại học và ít nhất 2 năm kinh nghiệm phù hợp. Với ngành giáo dục, Điều 19 còn cho phép một cách chứng minh khác: giấy tờ đáp ứng tiêu chuẩn trình độ theo pháp luật giáo dục. Hiện chưa có văn bản công bố TP.HCM áp dụng cách này thế nào cho giáo viên có dưới 2 năm kinh nghiệm, nên trung tâm cần hỏi Sở Nội vụ trước khi tuyển."
+    },
+    {
+      "q": "Trung tâm dùng giáo viên nước ngoài không có giấy phép lao động bị phạt bao nhiêu?",
+      "a": "Theo Nghị định 283/2026/NĐ-CP, tổ chức bị phạt gấp đôi cá nhân, và mức phạt tăng theo số người nước ngoài làm việc không có giấy phép lao động. Bảng mức phạt cụ thể nằm ở phần mức phạt trong bài. Giáo viên nước ngoài làm việc không có giấy phép cũng bị phạt tiền và có thể bị trục xuất."
+    },
+    {
+      "q": "Lương giáo viên nước ngoài dạy tiếng Anh ở TP.HCM bao nhiêu một giờ?",
+      "a": "Lương giáo viên nước ngoài dạy tiếng Anh ở TP.HCM thường tính theo giờ, và phụ thuộc vào kinh nghiệm, chứng chỉ và loại lớp. Các tin tuyển năm 2026 của ILA và Kapla Creative English có ghi mức lương theo giờ cho giáo viên mới, được tổng hợp trong bảng ở phần chi phí của bài. Các chuỗi lớn thường lo hoặc hoàn lại chi phí giấy phép lao động."
+    },
+    {
+      "q": "Tìm nguồn giáo viên nước ngoài dạy tiếng Anh ở đâu?",
+      "a": "Trung tâm có thể tìm giáo viên nước ngoài dạy tiếng Anh qua hồ sơ giáo viên và tin tuyển trên eno.vn, các trang việc làm tiếng Anh như TESL Jobs hay Teast, các trang trong nước như TopCV hay JobsGO, hoặc qua agency. Nên ưu tiên người đang ở TP.HCM để dạy demo trực tiếp. Khi phỏng vấn, hỏi ngay về bằng đại học đã hợp pháp hóa, thư xác nhận kinh nghiệm và lý lịch tư pháp."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Nghị định 219/2025/NĐ-CP quy định về người lao động nước ngoài làm việc tại Việt Nam",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+    },
+    {
+      "title": "Quy định về người lao động nước ngoài làm việc tại Việt Nam",
+      "publisher": "Cổng thông tin điện tử tỉnh Hưng Yên",
+      "url": "https://hungyen.gov.vn/quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-c287882.html"
+    },
+    {
+      "title": "Nghị định số 283/2026/NĐ-CP quy định xử phạt vi phạm hành chính trong lĩnh vực lao động, bảo hiểm xã hội, người lao động Việt Nam đi làm việc ở nước ngoài theo hợp đồng",
+      "publisher": "Công báo Chính phủ",
+      "url": "https://congbao.chinhphu.vn/van-ban/nghi-dinh-so-283-2026-nd-cp-470103.htm"
+    },
+    {
+      "title": "6 điểm mới Nghị định 393/2026/NĐ-CP về lao động nước ngoài tại Việt Nam",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/linh-vuc-khac/diem-moi-nghi-dinh-393-2026-nd-cp-ve-lao-dong-nuoc-ngoai-tai-viet-nam-883-115274-article.html"
+    },
+    {
+      "title": "10 Điểm mới của Nghị định 393/2026/NĐ-CP",
+      "publisher": "CNC Counsel",
+      "url": "https://cnccounsel.com/an-pham/10-diem-moi-cua-nghi-dinh-393-2026-nd-cp"
+    },
+    {
+      "title": "Nghị định 393/2026/NĐ-CP: Điểm mới về lao động nước ngoài",
+      "publisher": "LawPro",
+      "url": "https://lawpro.com.vn/nghi-dinh-393-2026-nd-cp-nguoi-lao-dong-nuoc-ngoai.html"
+    },
+    {
+      "title": "Nghị định 393/2026/NĐ-CP: Doanh nghiệp cần rà soát toàn diện việc sử dụng lao động nước ngoài",
+      "publisher": "Vietlink Law",
+      "url": "https://www.vietlinklaw.vn/post/nghi-dinh-393-2026-nd-cp-lao-dong-nuoc-ngoai"
+    },
+    {
+      "title": "Phí cấp giấy phép lao động",
+      "publisher": "AZVLAW",
+      "url": "https://azvlaw.vn/phi-cap-giay-phep-lao-dong/"
+    },
+    {
+      "title": "Thời gian xét duyệt giấy phép lao động tại TP.HCM 2026",
+      "publisher": "Tân Văn Lang",
+      "url": "https://tanvanlang.com/thoi-gian-xet-duyet-giay-phep-lao-dong-tai-tp-hcm/"
+    },
+    {
+      "title": "ILA is hiring PART-TIME ESL Teachers in Ho Chi Minh City",
+      "publisher": "Joboko",
+      "url": "https://vn.joboko.com/viec-lam-ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city-xvi6717022"
+    },
+    {
+      "title": "Part-Time ESL Teacher in HCMC",
+      "publisher": "TESL Jobs",
+      "url": "https://tesljobs.com/jobs/part-time-esl-teacher-in-hcmc-ho-chi-minh-city-vietnam-tXFDLz9O9qC0"
+    },
+    {
+      "title": "Public School Teachers in Ho Chi Minh City",
+      "publisher": "TESL Jobs",
+      "url": "https://tesljobs.com/jobs/public-school-teachers-in-ho-chi-minh-city-ho-chi-minh-city-vietnam-Yz6j8NaWPxya"
+    },
+    {
+      "title": "TP. Hồ Chí Minh miễn 5 loại lệ phí khi làm thủ tục hành chính trực tuyến",
+      "publisher": "VnEconomy",
+      "url": "https://vneconomy.vn/tpho-chi-minh-mien-5-loai-le-phi-khi-lam-thu-tuc-hanh-chinh-truc-tuyen.htm"
+    },
+    {
+      "title": "Nghị định 393/2026/NĐ-CP về người lao động nước ngoài làm việc tại Việt Nam",
+      "publisher": "EY",
+      "url": "https://www.ey.com/content/dam/ey-unified-site/ey-com/vi-vn/technical/tax/documents/ey-decree-393-about-foreign-worker-working-in-vietnam-vi.pdf"
+    }
+  ],
+  "related": [
+    "vietnam-work-permit-for-english-teachers",
+    "english-teacher-salary-in-vietnam",
+    "criminal-record-check-for-a-vietnam-work-permit",
+    "getting-your-degree-authenticated-for-vietnam",
+    "english-teaching-contracts-in-vietnam"
+  ],
+  "lastChecked": "2026-11-18"
+}
