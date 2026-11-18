@@ -207,6 +207,28 @@ const PARTNERS = {
     avatarColor: '#283868',
     dailyReminderOptIn: false,
   },
+  // ── RENTAL AGENCY PARTNER (owner, 2026-11-18: "add them as partners and their apartment listings"; then: import everything
+  // they list, each dated). An eno-held login like the car partners and Evisa Saigon; NOT an eno-run pair (that pair opens
+  // the AccessTrade paths). scripts/import-saigoncribs.ts writes their listings once onto THIS storefront (handle AND email
+  // AND official partner) and sets the logo (avatarUrl null here); then eno's admin manages them. Plan:
+  // ~/eno-saigoncribs-2026-11-18/PLAN.md.
+  // ⛔ The bio names only the homes they let: their site also sells visa help, airport pickup, immigration assistance,
+  // internet setup and cash-back offers, and eno.vn carries none of it (CLAUDE.md, the legal boundary; the importer strips
+  // the same lines from every description). No address, phone or link either: the site prints no office address.
+  saigoncribs: {
+    email: 'support+saigoncribs@eno.vn',
+    handle: 'saigoncribs',
+    name: 'Saigon Cribs',
+    // ⚠️ NULL ON PURPOSE: their site prints no registered company name and no tax code (read 2026-11-18), so none can be
+    // verified from it (GMBR's and KarPlus's reasoning).
+    legalName: null,
+    bio: 'Rental agency in Ho Chi Minh City: apartments and serviced apartments, villas and houses, short stays by the night, and offices, in Thảo Điền and District 2, District 7, District 9, Bình Thạnh, District 1 and more. Message Saigon Cribs here on eno to check availability and book a viewing. eno introduces Saigon Cribs; the tenancy is arranged with them.',
+    avatarUrl: null,
+    // The BLACK of their palm-and-wordmark logo, not its yellow ground (#ffc000): ui/avatar draws the initials in white, and
+    // white on that yellow is 1.6:1 — the white-on-white failure above in another colour. Black is the mark's own ink.
+    avatarColor: '#000000',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

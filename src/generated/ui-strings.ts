@@ -1599,6 +1599,7 @@ export const UI_STRINGS: string[] = [
   "Holding back tears",
   "Home",
   "Homemade",
+  "Homes",
   "Homes to rent",
   "Homestay",
   "Hospitality",

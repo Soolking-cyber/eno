@@ -31,6 +31,8 @@ export const PARTNER_INBOX_HANDLES = [
   'karplus', 'carbi', 'ankhanhtravel', 'quehuong',
   // The work permit + TRC partner (owner, 2026-11-18): official, chat-only, an eno-held login like the car partners.
   'evisasaigon',
+  // The rental agency partner (owner, 2026-11-18; scripts/import-saigoncribs.ts): official, chat-only, an eno-held login.
+  'saigoncribs',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

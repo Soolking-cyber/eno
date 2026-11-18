@@ -72,6 +72,11 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // …and an official partner the strip had left out (same day): Luật Hoàng Phi's HP mark on its blue, cut from its storefront
   // avatar, corners rounded. ⛔ SDC (sdc_store, a gift shop) is NOT a partner (owner 2026-11-17: "remove sdc store from partners").
   { handle: 'luathoangphi', name: 'Luật Hoàng Phi', logo: { src: '/partners/luathoangphi.webp', width: 96, height: 96 }, label: { en: 'Legal', vi: 'Pháp lý' }, size: 'square' },
+  // Owner 2026-11-18: "add them as partners and their apartment listings" — the rental agency Saigon Cribs (apartments, villas,
+  // short stays, offices: scripts/import-saigoncribs.ts). Their palm-and-wordmark on its own yellow ground, from their site's
+  // logo file (Saigon-Cribs-Logo-revised-black, 2397 px square), cut to the mark with a yellow margin, corners rounded like
+  // Luật Hoàng Phi's. ⚠️ Ship this entry only after the import has put listings on /saigoncribs: an empty storefront 404s.
+  { handle: 'saigoncribs', name: 'Saigon Cribs', logo: { src: '/partners/saigoncribs.webp', width: 137, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'square' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */
