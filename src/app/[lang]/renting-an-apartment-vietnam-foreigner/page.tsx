@@ -206,9 +206,10 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             When a foreigner moves into a Vietnamese property, the person responsible for declaring it to
-            the local ward authority is the property owner or the building manager — not the tenant. It is
-            an ordinary landlord obligation attached to letting a home, most of it now done online, and it
-            should take the landlord minutes. Ask, before you sign, who will do it and how quickly.
+            the ward police is the property owner, or a building manager acting for the owner — not the
+            tenant — within 12 hours of the tenant moving in (24 in remote areas). It is an ordinary landlord
+            obligation attached to letting a home, most of it now done online. Ask, before you sign, who will
+            do it.
           </P>
           <P>
             It matters to you for practical reasons. The address on record is what utility accounts in
@@ -339,7 +340,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Who has to declare my residence at the address?',
-      a: 'The property owner or the building manager, not the tenant. It is a landlord obligation that comes with letting a home and is mostly handled online. Ask who will do it before you sign, and ask for a copy of the confirmation afterwards — the address on record is what utility accounts, deliveries, and bank and school paperwork depend on.',
+      a: 'The property owner, or a building manager acting for the owner, not the tenant: they declare you to the ward police within 12 hours of moving in (24 in remote areas). It is a landlord obligation that comes with letting a home and is mostly handled online. Ask who will do it before you sign, and ask for a copy of the confirmation afterwards — the address on record is what utility accounts, deliveries, and bank and school paperwork depend on.',
     },
     {
       q: 'What is usually excluded from the rent?',
