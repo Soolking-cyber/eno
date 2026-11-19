@@ -110,6 +110,30 @@ function cacheablePath(p) {
 }
 
 /**
+ * THE CONTENT PAGES — eno.vn only (owner, 2026-11-19: "go" to edge-caching guides, schools and the about page).
+ * Measured that day (rum_daily, 28 days): a view served by a Cloudflare data centre outside Asia waits 2.2 s (p75) for
+ * its first byte when the page comes from the box, 0.6 s when it comes from this cache; those far views are 15% of all.
+ * Guides, schools and the about page are what Google search sends there, and the ones measured that day say `s-maxage`
+ * (/help and the rent index say `private`, so they stay uncached) — storable() decides every answer, as above.
+ * · named sections: the RUM `content` set (src/lib/rum/shared.ts) minus the legal pages above and the forum;
+ * · a single hyphenated segment = an SEO guide (src/app/[lang]/<slug>), except `vietnam-evisa` (the forum's desk,
+ *   never touched on eno.vn) and anything starting `vi-` (the `/vi` rule above: never a prefix).
+ * ⛔ eno.vn ONLY — the forum zone (www.eno.forum, Reach since 2026-11-19) keeps the old list.
+ * ⛔ NOT listing pages: they never reach this Worker (no-script route), and one listing gets ~1.1 views (2026-09).
+ */
+const CONTENT_SECTIONS = new Set([
+  "guide", "guides", "huong-dan", "help", "legal", "regulations", "prohibited", "trust", "about", "contact",
+  "developers", "partners", "returns", "schools", "brands",
+]);
+
+function contentPath(host, p) {
+  if (!PINNED_HOSTS.includes(host.replace(/\.$/, ""))) return false;
+  const seg = p.split("/");
+  if (CONTENT_SECTIONS.has(seg[1])) return true;
+  return seg.length === 2 && seg[1].includes("-") && seg[1] !== "vietnam-evisa" && !seg[1].startsWith("vi-");
+}
+
+/**
  * ⛔ CLICK IDS AND CAMPAIGN TAGS DESCRIBE THE VISIT, NOT THE DOCUMENT, SO THE KEY DROPS THEM (speed plan item 10).
  * Every Facebook click carries a fresh `fbclid`, every Zalo share `zarsrc`/`gidzl`, every campaign `utm_*` — and the
  * key held the whole query string, so each of those first visits was a MISS (measured 2026-10-17: `/c/rentals?fbclid=…`
@@ -825,7 +849,7 @@ function agentWantsMarkdown(request, url) {
 
 /** The cache itself — unchanged by the ora report above, which only reads the request and the response's status. */
 async function handle(request, env, ctx, url) {
-    if (!cacheablePath(url.pathname)) return fetch(request);
+    if (!cacheablePath(url.pathname) && !contentPath(url.hostname, url.pathname)) return fetch(request);
     if (request.method !== "GET") return fetch(request);
     /**
      * ⛔ RSC PAYLOADS ARE CACHED TOO, KEYED BY THEIR `_rsc` (speed plan item 10c, 2026-10-18). An in-app navigation asks

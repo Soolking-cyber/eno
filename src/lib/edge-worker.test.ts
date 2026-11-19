@@ -560,6 +560,32 @@ describe('edge Worker — the catch-all route (speed plan item 10)', () => {
     }
   })
 
+  it('the content pages go through the cache on eno.vn only (owner, 2026-11-19) — guides, schools, about; never the evisa desk, a vi- prefix or a deeper hyphen path', async () => {
+    for (const path of ['/guides', '/huong-dan', '/schools', '/schools/awards/2026', '/about', '/partners', '/trust', '/help/x',
+      '/moving-to-vietnam', '/mua-iphone-o-dau-uy-tin', '/teach-in-vietnam', '/moving-to-vietnam?fbclid=x']) {
+      expect(await throughCache(path), path).toBe(true)
+    }
+    for (const path of ['/vietnam-evisa', '/vi-en', '/listings/abc', '/dashboard', '/teachers/join', '/a-b/c', '/aboutx']) {
+      expect(await throughCache(path), path).toBe(false)
+    }
+    // www and a fully-qualified host are eno.vn; the forum zone, apex or www, keeps the old list.
+    for (const [host, cached] of [['www.eno.vn', true], ['eno.vn.', true], ['www.eno.forum', false], ['eno.forum', false]] as const) {
+      h.matched = []
+      await worker.fetch(new Request(`https://${host}/moving-to-vietnam`), {}, ctx)
+      expect(h.matched.length > 0, host).toBe(cached)
+    }
+  })
+
+  it('a hyphenated name is routed, not trusted: a store page (/eno-trading answers private, measured 2026-11-19) or one that sets a cookie is never stored', async () => {
+    for (const headers of [{ 'cache-control': 'private, no-cache, no-store, max-age=0, must-revalidate' }, { 'set-cookie': 'a=1; Path=/' }]) {
+      h.respond = () => ({ headers })
+      h.origin = []
+      expect((await call('/eno-trading')).headers.get('x-eno-cache')).not.toBe('HIT')
+      expect((await call('/eno-trading')).headers.get('x-eno-cache')).not.toBe('HIT')
+      expect(h.origin).toHaveLength(2)
+    }
+  })
+
   it('a click id or campaign tag does not split the entry: the tagged visit HITs what the plain one stored', async () => {
     const plain = await call('/c/rentals')
     expect(plain.headers.get('x-eno-cache')).toBe('MISS')
