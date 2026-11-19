@@ -29,6 +29,7 @@ import { VISA_SUBCATEGORY_SLUG, takesOffers, offerlessType } from '@/lib/taxonom
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 import { cutText } from '@/lib/feed-text'
+import { AGENT_NEW_THREADS_PER_DAY, AI_PREFIX, ENO_DESK_SELLER_IDS, agentTextProblem } from '@/lib/agent-text'
 import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
@@ -80,13 +81,23 @@ export const POST = route(
     rateLimit: { bucket: 'conversation-create', limit: 30, window: '1 h' },
   },
   async ({ req, profile }) => {
-  let body: { listingId?: string; message?: string; offerAmount?: number }
+  let body: { listingId?: string; message?: string; offerAmount?: number; agent?: unknown }
   try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
   const listingId = String(body.listingId || '').trim()
   if (!listingId) throw new ApiError('missing_listing', 400)
+  /**
+   * A BROWSER AGENT'S MESSAGE (2026-11-19, owner chose "save + start a message" for ora's WebMCP coverage): /webmcp.js's
+   * start_seller_chat sends `agent: "webmcp"` with the visitor's own session. It gets the MCP agents' rules (src/lib/agent-text.ts):
+   * a text message only (no offer), no contact or payment details, the 🤖 AI label on the text, and never a teacher's
+   * listing, an unowned shop's or one of eno's desks, and never from a store-review test account. A page script can leave the flag out — but then it is the visitor's own message, which this route always took.
+   */
+  const viaWebMcp = body.agent === 'webmcp'
+  if (viaWebMcp && (Number(body.offerAmount) > 0 || isReviewSeatEmail(profile.email))) throw new ApiError('forbidden', 403)
+  const typed = cutText(String(body.message || '').trim(), viaWebMcp ? 1800 : 2000)
+  if (viaWebMcp && (!typed || agentTextProblem(typed))) throw new ApiError(typed ? 'contact_in_text' : 'empty', 400)
   // Optional first message — lets the composer create the thread AND send in one
   // round trip (snappier; the message side effects live in insertMessage).
-  const initialMessage = cutText(String(body.message || '').trim(), 2000)
+  const initialMessage = viaWebMcp && !typed.startsWith(AI_PREFIX) ? `${AI_PREFIX}${typed}` : typed
   // Optional STRUCTURED first offer (kind='offer' → renders as an offer card,
   // identical to in-thread offers) with an optional note alongside it.
   const rawAmount = Number(body.offerAmount)
@@ -105,6 +116,18 @@ export const POST = route(
     select: { id: true, title: true, verified: true, status: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, listingType: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) throw new ApiError('not_found', 404)
+  // A browser agent, as an MCP one (messaging-tools.ts): never a teacher (an opener there is a fixed text and emails the
+  // teacher), never a shop nobody has claimed (no person reads it), never one of eno's own desks.
+  if (viaWebMcp && (listing.listingType === TEACHER_LISTING_TYPE || !listing.seller?.ownerId || ENO_DESK_SELLER_IDS.has(listing.sellerId))) {
+    throw new ApiError('forbidden', 403)
+  }
+  // A browser agent's own daily budget (strict: fails closed), the size of the MCP agents' new-thread one. Charged after the
+  // agent refusals above, so those cost nothing, and per call, opener or not, because the thread is only resolved below: a
+  // browser agent sends at most 10 messages a day this way. ⛔ Its OWN bucket (commit gate, opus): sharing 'agent-thread-new'
+  // let a browser agent continuing one chat use up the day of the person's MCP agents.
+  if (viaWebMcp && !(await rateLimit('agent-webmcp-chat', `agent:${profile.id}`, AGENT_NEW_THREADS_PER_DAY, '24 h', { strict: true })).success) {
+    throw new ApiError('rate_limited', 429)
+  }
   // ⛔ A HIDDEN TEACHER IS NOT REACHABLE (cover lessons, 2026-10-07). setTeacherStatus hides a profile through
   // `status` and keeps `verified`, so the check above let a school open a NEW thread to a teacher who had taken
   // their profile down. The same 404 as an unverified row, so "hidden" is never revealed. A school that already has
@@ -231,6 +254,9 @@ export const POST = route(
   // buttons attach that opener without asking, so it is discarded here rather than trusted — the
   // same call the trip planner made when its CTA stopped posting a canned line nobody read.
   const isVisaProduct = await isVisaShopListing(listing.id)
+  // A browser agent never opens eno's visa desk (the forum's; eno.vn's scoped lookup never finds it): that flow discards the
+  // message and answers with a thread id, which the tool would report as sent (commit gate, opus).
+  if (viaWebMcp && isVisaProduct) throw new ApiError('forbidden', 403)
 
   // ⚠️ "COULD NOT TELL" MUST NOT MEAN "NOT A VISA PRODUCT". isVisaShopListing answers from the
   // desk storefront read, which swallows its own errors and returns [] — so a transient blip would

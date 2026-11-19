@@ -18,6 +18,17 @@ describe('the sandbox page is reachable where agent checks look for it', () => {
   })
 })
 
+describe('a self-serve registration page where onboarding checks look for one', () => {
+  it('/signup and /register send to the sign-in page, where an account is made (307: the destination may move)', () => {
+    expect(config).toContain("{ source: '/signup', destination: '/signin', permanent: false }")
+    expect(config).toContain("{ source: '/register', destination: '/signin', permanent: false }")
+  })
+  it('⛔ no shop can take either address (a next.config redirect outranks a storefront)', () => {
+    expect(isReservedHandle('signup')).toBe(true)
+    expect(isReservedHandle('register')).toBe(true)
+  })
+})
+
 describe('a model price page has a .md twin', () => {
   it('price and gia are twin roots (they have no root page of their own, like sellers and listings)', () => {
     expect(config).toMatch(/\[\.\.\.roots, "sellers", "listings", "price", "gia"\]/)

@@ -1071,6 +1071,14 @@ const nextConfig: NextConfig = {
        */
       ...(EDITION_ENV === "services" ? forumTeacherRedirects() : []),
       /**
+       * `/signup` and `/register` → /signin, 307, BOTH EDITIONS (owner 2026-11-19, "do ora 100"): an account is made on the
+       * sign-in page (the email code signs a new address up), and ora.ai's onboarding check credits a reachable self-serve
+       * registration page at exactly these paths (it passed Linear's /register and Apify's /signup redirect). The query
+       * string — `next=` included — survives. Both names are reserved handles, so no shop can be shadowed here.
+       */
+      { source: '/signup', destination: '/signin', permanent: false },
+      { source: '/register', destination: '/signin', permanent: false },
+      /**
        * `/motorbikes-for-sale-vietnam` → /c/vehicles, 308, BOTH EDITIONS (owner, 2026-10-17; the HCMC motorbike-
        * rental hub from 2026-10-03, with /c/vehicles itself redirected until it became a shelf again). The rules,
        * and why there is no language twin, are in src/lib/retired-categories.ts.

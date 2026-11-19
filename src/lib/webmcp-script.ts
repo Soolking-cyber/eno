@@ -1,5 +1,6 @@
 /**
- * /webmcp.js — WebMCP: the public search MCP server's read-only tools, offered to a BROWSER AGENT on the page itself
+ * /webmcp.js — WebMCP: the public search MCP server's read-only tools, plus two that act for the signed-in visitor (below),
+ * offered to a BROWSER AGENT on the page itself
  * (`document.modelContext.registerTool()`, `navigator.modelContext` as the fallback). Served by src/app/webmcp.js/route.ts,
  * loaded by a plain `<script src="/webmcp.js" async>` in src/app/[lang]/layout.tsx.
  *
@@ -17,6 +18,14 @@
  * ⛔ NEVER IN A FRAME: the concierge's window and the app's sheet are pages of this site in a frame, and a <script> runs
  * before React could leave it out — the page around the frame already offers the tools.
  * Listing text is written by users: an agent reading it is reading untrusted text, as on the page itself.
+ * ⚠️ TWO WRITE TOOLS SINCE 2026-11-19 (owner chose "save + start a message" for ora's WebMCP coverage row, "covers 2 of the 4
+ * things an agent needs … cannot create a record or start a job or update or move an existing record" — hence the verbs):
+ * update_saved_listings (the Saved list) and start_seller_chat (opens or continues a chat with a listing's seller). They run in the VISITOR'S OWN
+ * SESSION — a same-origin fetch with cookies to the endpoints the page's own buttons call (/api/saved-listings,
+ * /api/conversations), so every rate limit and gate applies unchanged and a signed-out visitor gets "sign in first". A
+ * message carries `agent: "webmcp"`: the route then applies the MCP agents' rules (src/lib/agent-text.ts — the 🤖 AI label,
+ * no contact or payment details, no offer, never a teacher). Neither is read-only, and start_seller_chat is consequential. They answer with the site's
+ * own words only (a confirmation, a link or a refusal), so they carry no untrustedContentHint.
  * Tests: src/lib/webmcp-script.test.ts (runs the generated script).
  */
 
@@ -43,9 +52,48 @@ function registration(t: WebMcpDescriptor): string {
   return `    register(${json.slice(0, -1)},"execute":function (input, opts) { return call(${JSON.stringify(t.name)}, input, opts); }});`
 }
 
+/** A listing id as the site writes it (src/lib/listing-ids.ts SAVED_LISTING_ID_RE). */
+const LISTING_ID = { type: 'string', description: 'The listing id, as in /listings/<id>.', pattern: '^[A-Za-z0-9_-]{1,64}$' }
+
+/** The two write tools (header): literal objects, like the read tools, each calling its own function in the script. */
+export const WRITE_TOOLS: { tool: WebMcpDescriptor; fn: 'saveListing' | 'messageSeller' }[] = [
+  {
+    fn: 'saveListing',
+    tool: {
+      name: 'update_saved_listings',
+      description: "Update the signed-in visitor's Saved list on this site: save a listing to it, or remove it with saved: false. The visitor must be signed in.",
+      inputSchema: {
+        type: 'object',
+        properties: { listing_id: LISTING_ID, saved: { type: 'boolean', description: 'true to save (the default), false to remove it from Saved.' } },
+        required: ['listing_id'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+  },
+  {
+    fn: 'messageSeller',
+    tool: {
+      name: 'start_seller_chat',
+      description: "Start (or continue) a chat with a listing's seller: sends one message in the signed-in visitor's name, labelled as written by an AI assistant (🤖 AI). Contact or payment details, offers and teachers' profiles are refused. The visitor must be signed in.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          listing_id: LISTING_ID,
+          message: { type: 'string', description: 'What to say to the seller in plain words: no phone numbers, emails, links or account numbers.', minLength: 1, maxLength: 1800 },
+        },
+        required: ['listing_id', 'message'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, consequentialHint: true },
+    },
+  },
+]
+
 export function buildWebmcpScript(tools: WebMcpDescriptor[]): string {
   const readOnly = tools.filter((t) => t.annotations?.readOnlyHint === true)
-  return `/* WebMCP: this site's public search tools (read-only), for a browser agent. Source: src/lib/webmcp-script.ts */
+  return `/* WebMCP: this site's public search tools (read-only) and two that act for the signed-in visitor (save a listing,
+   message a seller), for a browser agent. Source: src/lib/webmcp-script.ts */
 (function () {
   "use strict";
   if (typeof window === "undefined" || window.__enoWebMcp) return;
@@ -117,6 +165,48 @@ export function buildWebmcpScript(tools: WebMcpDescriptor[]): string {
       });
   }
 
+  /* The two write tools: the visitor's OWN session (same-origin, cookies), on the endpoints the page's own buttons call,
+     so their rate limits and checks apply unchanged. A failure answers as a tool error, never a thrown promise. */
+  function site(path, init, opts) {
+    return Promise.resolve().then(function () {
+      return fetch(path, Object.assign({ credentials: "same-origin", signal: deadline(opts && opts.signal) }, init));
+    }).then(function (res) {
+      return res.text().then(function (t) {
+        var body = null;
+        try { body = t ? JSON.parse(t) : null; } catch (e) { body = null; }
+        return { status: res.status, body: body };
+      });
+    });
+  }
+  function answer(text, isError) { return { content: [{ type: "text", text: text }], isError: !!isError }; }
+  var SIGN_IN = "Sign in on " + location.hostname + " first: this tool acts for the signed-in visitor.";
+  function saveListing(input, opts) {
+    var id = String((input && input.listing_id) || "");
+    var save = !(input && input.saved === false);
+    return site("/api/saved-listings", { method: "GET" }, opts).then(function (r) {
+      if (r.status === 401 || r.status === 403) return answer(SIGN_IN, true);
+      if (r.status !== 200 || !r.body || !r.body.uid) return answer("Could not read the Saved list (HTTP " + r.status + ").", true);
+      var write = { uid: r.body.uid };
+      write[save ? "add" : "remove"] = [id];
+      return site("/api/saved-listings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(write) }, opts).then(function (w) {
+        if (w.status === 401 || w.status === 403) return answer(SIGN_IN, true);
+        if (w.status >= 300) return answer("Not changed: " + ((w.body && w.body.error) || ("HTTP " + w.status)) + ".", true);
+        return answer((save ? "Saved: " : "Removed from Saved: ") + location.origin + "/listings/" + id);
+      });
+    }).catch(function (e) { return answer("Not changed: " + e.message, true); });
+  }
+  function messageSeller(input, opts) {
+    var id = String((input && input.listing_id) || "");
+    var text = String((input && input.message) || "").trim();
+    return site("/api/conversations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ listingId: id, message: text, agent: "webmcp" }) }, opts).then(function (r) {
+      if (r.status === 401) return answer(SIGN_IN, true);
+      var code = r.body && r.body.error;
+      if (code === "contact_in_text") return answer("Not sent: keep phone numbers, emails, outside links and account numbers out of an agent's message; people arrange those themselves in the app.", true);
+      if (r.status >= 300 || !r.body || !r.body.id) return answer("Not sent: " + (code || ("HTTP " + r.status)) + ".", true);
+      return answer("Sent to the seller, labelled as an AI assistant's (🤖 AI). The chat: " + location.origin + "/messages/" + r.body.id);
+    }).catch(function (e) { return answer("Not sent: " + e.message, true); });
+  }
+
   /* Per tool: in (the browser took it) or pending (its registerTool has not settled — never called twice meanwhile). A
      refusal, now or later, leaves the tool out of both, so the next pass tries it again; the others are never held up. */
   var done = {};
@@ -141,6 +231,7 @@ export function buildWebmcpScript(tools: WebMcpDescriptor[]): string {
       }
     };
 ${readOnly.map(registration).join('\n')}
+${WRITE_TOOLS.map((w) => `    register(${JSON.stringify(w.tool).slice(0, -1)},"execute":function (input, opts) { return ${w.fn}(input, opts); }});`).join('\n')}
   }
 
   registerEnoTools();

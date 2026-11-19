@@ -713,7 +713,8 @@ export default async function RootLayout({
         <OutsideConciergeFrame>
           <AnalyticsTags />
           <AttributionCapture />
-          {/* WebMCP: the public search tools for a browser agent; does nothing without `modelContext`, nor in a frame. ⛔ A PLAIN
+          {/* WebMCP: the public search tools, plus save-a-listing and message-a-seller on the visitor's own session, for a
+              browser agent; does nothing without `modelContext`, nor in a frame. ⛔ A PLAIN
               <script src>, not a client component: agent-readiness checkers read only the scripts the HTML names. The
               script is built from the search server's own tool list (src/lib/webmcp-script.ts says why it is written out). */}
           <script src="/webmcp.js" async />

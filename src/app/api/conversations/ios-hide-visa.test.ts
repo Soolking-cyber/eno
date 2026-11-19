@@ -134,3 +134,18 @@ describe('gate ON', () => {
     expect((await post('partner-visa', ANDROID_APP)).status).toBe(200)
   })
 })
+
+// A browser agent (WebMCP start_seller_chat, 2026-11-19) never opens eno's visa desk: that flow discards the message and
+// answers with a thread id the tool would report as sent (commit gate, opus). A partner's e-Visa listing is a person's.
+describe('agent: "webmcp"', () => {
+  it('the desk\'s visa product: 403, no application started; a partner\'s e-Visa listing: delivered', async () => {
+    const send = (listingId: string) => POST(new Request('http://test/api/conversations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ listingId, message: 'Is this available?', agent: 'webmcp' }),
+    }))
+    expect((await send('desk-visa')).status).toBe(403)
+    expect(h.started).toEqual([])
+    expect((await send('partner-visa')).status).toBe(200)
+  })
+})

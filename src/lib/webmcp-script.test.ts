@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { buildWebmcpScript, SITE_TEXT_ONLY_TOOLS, WEBMCP_HEADERS, type WebMcpDescriptor } from './webmcp-script'
+import { buildWebmcpScript, SITE_TEXT_ONLY_TOOLS, WEBMCP_HEADERS, WRITE_TOOLS, type WebMcpDescriptor } from './webmcp-script'
 
 /**
  * WebMCP (/webmcp.js, built by src/lib/webmcp-script.ts from the search server's tool list, loaded by a plain <script src>
  * in src/app/[lang]/layout.tsx). These tests RUN the generated script. Pinned: nothing at all without `modelContext` or
- * inside a frame; the read-only tools only, each registered once per document, exactly as the server describes them;
- * every call a cookie-less tools/call on /api/mcp/search; the shape ora.ai's reader credits (a local read from
+ * inside a frame; the server's read-only tools only, each registered once per document, exactly as the server describes
+ * them, every call a cookie-less tools/call on /api/mcp/search; the two visitor tools (2026-11-19) on the visitor's own
+ * session, on the endpoints the page's buttons call; the shape ora.ai's reader credits (a local read from
  * `document.modelContext || navigator.modelContext`, then `mc.registerTool({...})` with literal objects).
  */
 
@@ -29,6 +30,10 @@ function okFetch() {
   })
 }
 const names = (registerTool: ReturnType<typeof vi.fn>) => registerTool.mock.calls.map((c) => c[0].name)
+const READS = ['search_listings', 'get_listing_details']
+const WRITES = WRITE_TOOLS.map((w) => w.tool.name)
+const ALL = [...READS, ...WRITES]
+const tool = (registerTool: ReturnType<typeof vi.fn>, name: string) => registerTool.mock.calls.find((c) => c[0].name === name)![0]
 
 /** A fresh document's run of the script built from `tools`. */
 function run(tools: WebMcpDescriptor[] = TOOLS) {
@@ -60,7 +65,7 @@ describe('WebMCP script', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('registers the read-only tools once each, as the server describes them — never a writing one — with no request first', async () => {
+  it('registers the read-only tools once each, as the server describes them, then the two visitor tools — never a server write tool — with no request first', async () => {
     const fetch = okFetch()
     vi.stubGlobal('fetch', fetch)
     const registerTool = vi.fn()
@@ -68,7 +73,8 @@ describe('WebMCP script', () => {
     const { again } = run()
     again() // the script run again in the same document: still once
     await vi.advanceTimersByTimeAsync(5 * 60_000) // the late checks fire too
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    expect(names(registerTool)).toEqual(ALL)
+    expect(WRITES).toEqual(['update_saved_listings', 'start_seller_chat'])
     expect(fetch).not.toHaveBeenCalled() // literal definitions: nothing fetched to register
     const tool = registerTool.mock.calls[0][0]
     expect(tool.description).toBe('Search')
@@ -80,7 +86,13 @@ describe('WebMCP script', () => {
     const registerTool = vi.fn()
     withContext(registerTool)
     run()
-    for (const c of registerTool.mock.calls) expect(c[0].annotations, c[0].name).toMatchObject({ readOnlyHint: true, untrustedContentHint: true })
+    for (const c of registerTool.mock.calls.filter((c) => READS.includes(c[0].name))) expect(c[0].annotations, c[0].name).toMatchObject({ readOnlyHint: true, untrustedContentHint: true })
+    // The visitor tools answer with the site's own words only, and say they write.
+    for (const c of registerTool.mock.calls.filter((c) => WRITES.includes(c[0].name))) {
+      expect(c[0].annotations.readOnlyHint, c[0].name).toBe(false)
+      expect(c[0].annotations.untrustedContentHint, c[0].name).toBeUndefined()
+    }
+    expect(tool(registerTool, 'start_seller_chat').annotations.consequentialHint).toBe(true)
     // Fails closed: a tool nobody listed is marked; the exempt one is not.
     expect(buildWebmcpScript([{ name: 'list_seller_reviews', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).toContain('"untrustedContentHint":true')
     expect(buildWebmcpScript([{ name: 'list_categories', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).not.toContain('untrustedContentHint')
@@ -140,7 +152,7 @@ describe('WebMCP script', () => {
     await vi.advanceTimersByTimeAsync(5_000)
     withContext(registerTool) // the agent extension arrives
     await vi.advanceTimersByTimeAsync(120_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    expect(names(registerTool)).toEqual(ALL)
   })
 
   it('document.modelContext leads: never a second pick from the deprecated navigator alias (ora 2026-11-17) — one without registerTool registers nothing', () => {
@@ -162,12 +174,12 @@ describe('WebMCP script', () => {
     withContext(registerTool)
     run()
     await vi.advanceTimersByTimeAsync(0)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    expect(names(registerTool)).toEqual(ALL)
     refuse = false // the agent extension has finished starting up
     await vi.advanceTimersByTimeAsync(2_000)
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details', 'search_listings', 'get_listing_details'])
+    expect(names(registerTool)).toEqual([...ALL, ...ALL])
     await vi.advanceTimersByTimeAsync(30 * 60_000)
-    expect(registerTool).toHaveBeenCalledTimes(4) // in now: never registered again
+    expect(registerTool).toHaveBeenCalledTimes(ALL.length * 2) // in now: never registered again
   })
 
   it('a registerTool that has not settled is never called a second time; when it lands it counts', async () => {
@@ -177,10 +189,10 @@ describe('WebMCP script', () => {
     withContext(registerTool)
     run()
     await vi.advanceTimersByTimeAsync(100_000) // passes at 2 s, 10 s, 30 s, 90 s while it hangs
-    expect(names(registerTool)).toEqual(['search_listings', 'get_listing_details'])
+    expect(names(registerTool)).toEqual(ALL)
     resolveFirst()
     await vi.advanceTimersByTimeAsync(30 * 60_000)
-    expect(registerTool).toHaveBeenCalledTimes(2)
+    expect(registerTool).toHaveBeenCalledTimes(ALL.length)
   })
 
   it('every call ends within 10 s even when the caller passes a signal of its own', async () => {
@@ -216,6 +228,72 @@ describe('WebMCP script', () => {
     }
     expect(registerTool).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  describe('the two visitor tools: the visitor\'s own session, the page\'s own endpoints', () => {
+    type Call = [string, RequestInit]
+    function siteFetch(answers: Record<string, { status: number; body: unknown }>) {
+      return vi.fn(async (url: string, init: RequestInit) => {
+        const a = answers[`${init.method} ${url}`] ?? { status: 404, body: { error: 'not_found' } }
+        return new Response(JSON.stringify(a.body), { status: a.status, headers: { 'content-type': 'application/json' } })
+      })
+    }
+
+    it('update_saved_listings reads whose list it is, then writes it for that account only, with the cookies', async () => {
+      const fetch = siteFetch({ 'GET /api/saved-listings': { status: 200, body: { uid: 'u-1', ids: [] } }, 'POST /api/saved-listings': { status: 200, body: { ok: true } } })
+      vi.stubGlobal('fetch', fetch)
+      const registerTool = vi.fn()
+      withContext(registerTool)
+      run()
+      const saved = await tool(registerTool, 'update_saved_listings').execute({ listing_id: 'abc_1' })
+      expect(saved.isError).toBe(false)
+      expect(saved.content[0].text).toContain('/listings/abc_1')
+      const calls = fetch.mock.calls as unknown as Call[]
+      expect(calls.map(([u, i]) => `${i.method} ${u}`)).toEqual(['GET /api/saved-listings', 'POST /api/saved-listings'])
+      for (const [, i] of calls) expect(i.credentials).toBe('same-origin')
+      expect(JSON.parse(String(calls[1][1].body))).toEqual({ uid: 'u-1', add: ['abc_1'] })
+      await tool(registerTool, 'update_saved_listings').execute({ listing_id: 'abc_1', saved: false })
+      expect(JSON.parse(String((fetch.mock.calls as unknown as Call[])[3][1].body))).toEqual({ uid: 'u-1', remove: ['abc_1'] })
+    })
+
+    it('signed out: "sign in first", and nothing is written', async () => {
+      const fetch = siteFetch({ 'GET /api/saved-listings': { status: 401, body: { error: 'auth_required' } }, 'POST /api/conversations': { status: 401, body: { error: 'auth_required' } } })
+      vi.stubGlobal('fetch', fetch)
+      const registerTool = vi.fn()
+      withContext(registerTool)
+      run()
+      const a = await tool(registerTool, 'update_saved_listings').execute({ listing_id: 'x' })
+      const b = await tool(registerTool, 'start_seller_chat').execute({ listing_id: 'x', message: 'Is it still available?' })
+      for (const r of [a, b]) { expect(r.isError).toBe(true); expect(r.content[0].text).toMatch(/^Sign in/) }
+      expect((fetch.mock.calls as unknown as Call[]).map(([u, i]) => `${i.method} ${u}`)).toEqual(['GET /api/saved-listings', 'POST /api/conversations'])
+    })
+
+    it('start_seller_chat sends the agent flag (the route adds the 🤖 AI label and the contact rule) and links the chat', async () => {
+      const fetch = siteFetch({ 'POST /api/conversations': { status: 200, body: { id: 'c-9', created: true } } })
+      vi.stubGlobal('fetch', fetch)
+      const registerTool = vi.fn()
+      withContext(registerTool)
+      run()
+      const r = await tool(registerTool, 'start_seller_chat').execute({ listing_id: 'abc', message: '  Is it still available?  ' })
+      expect(r.isError).toBe(false)
+      expect(r.content[0].text).toContain('/messages/c-9')
+      const [, init] = (fetch.mock.calls as unknown as Call[])[0]
+      expect(init.credentials).toBe('same-origin')
+      expect(JSON.parse(String(init.body))).toEqual({ listingId: 'abc', message: 'Is it still available?', agent: 'webmcp' })
+    })
+
+    it('a refusal from the route is a tool error that says why — never a thrown promise', async () => {
+      vi.stubGlobal('fetch', siteFetch({ 'POST /api/conversations': { status: 400, body: { error: 'contact_in_text' } } }))
+      const registerTool = vi.fn()
+      withContext(registerTool)
+      run()
+      const r = await tool(registerTool, 'start_seller_chat').execute({ listing_id: 'abc', message: 'call 0901234567' })
+      expect(r.isError).toBe(true)
+      expect(r.content[0].text).toContain('phone numbers')
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+      expect((await tool(registerTool, 'start_seller_chat').execute({ listing_id: 'a', message: 'hi' })).isError).toBe(true)
+      expect((await tool(registerTool, 'update_saved_listings').execute({ listing_id: 'a' })).isError).toBe(true)
+    })
   })
 
   it('⛔ keeps the shape ora.ai\'s reader credits: a local from document/navigator modelContext, then mc.registerTool on literal objects', () => {
@@ -258,7 +336,9 @@ describe('/webmcp.js — the route and the page that loads it', { timeout: 30_00
     withContext(registerTool)
     delete (window as unknown as { __enoWebMcp?: boolean }).__enoWebMcp
     new Function(await GET().text())()
-    const registered = registerTool.mock.calls.map((c) => ({ name: c[0].name, description: c[0].description, inputSchema: c[0].inputSchema, annotations: c[0].annotations }))
+    const registered = registerTool.mock.calls
+      .filter((c) => !WRITES.includes(c[0].name)) // the two visitor tools are this script's own (WRITE_TOOLS), not the server's
+      .map((c) => ({ name: c[0].name, description: c[0].description, inputSchema: c[0].inputSchema, annotations: c[0].annotations }))
     const readOnly = listed.filter((t) => t.annotations?.readOnlyHint === true)
     expect(readOnly.length).toBeGreaterThan(0)
     // The server's own annotations, plus WebMCP's untrustedContentHint on the tools that answer with sellers' text.

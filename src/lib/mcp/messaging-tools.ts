@@ -1,19 +1,16 @@
 import { z } from 'zod'
+import { AGENT_NEW_THREADS_PER_DAY, AI_PREFIX, CONTACT_RULE, ENO_DESK_SELLER_IDS, agentTextProblem } from '@/lib/agent-text'
 import { db } from '@/lib/db'
 import { asAgent } from '@/lib/api/agent-actor'
 import type { ApiAuth } from '@/lib/api/auth'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { rateLimit } from '@/lib/ratelimit'
 import { logInfo } from '@/lib/log'
-import { containsPhoneNumber } from '@/lib/phone'
 import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { ToolError, type McpTool } from './tool-types'
 import { takesOffers } from '@/lib/taxonomy'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
-import { JOBS_DESK_SELLER_ID } from '@/lib/teachers/job-dms/constants'
-import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 
 /**
  * ── AI AGENTS IN eno CHAT (owner, 2026-11-17: "add messaging for agents they should be able to negotiate with people
@@ -37,7 +34,7 @@ import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
  *  · READING NEVER MARKS READ (the thread route treats an agent's read as a peek).
  */
 
-export const AI_PREFIX = '🤖 AI: '
+export { AI_PREFIX, agentTextProblem }
 /** The body of an agent's offer with no note: the disclosure alone. */
 const AI_ONLY = '🤖 AI'
 const TEXT_MAX = 1800
@@ -47,7 +44,7 @@ const MESSAGES_PER_CALL = 50
 
 /** Agent budgets, per person, on top of the route's own (which an agent spends in its own `agent:` bucket). */
 export const AGENT_LIMITS = {
-  newThreadsPerDay: 10,
+  newThreadsPerDay: AGENT_NEW_THREADS_PER_DAY,
   sendsPerDay: 150,
   sendsPerConversationPerDay: 30,
   offersPerConversationPerDay: 3,
@@ -57,54 +54,11 @@ export const AGENT_LIMITS = {
 
 const LISTING_URL = (id: string) => `${OAUTH_ISSUER}/listings/${id}`
 const THREAD_URL = (id: string) => `${OAUTH_ISSUER}/messages/${id}`
-const OWN_HOST = new URL(OAUTH_ISSUER).hostname.replace(/^www\./, '')
 
 // ── Guards ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMAIL = /[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/i
-const URLISH = /\b(?:https?:\/\/|www\.)[^\s]+|\b[a-z0-9][a-z0-9-]{0,62}\.(?:com|net|org|vn|io|me|co|info|xyz|top|shop|link|ly|app|site|online|store|biz|gg|to|cc)\b(?:\/[^\s]*)?/gi
-/** One number as written: digits with . or , inside ("35.000.000", "0912345678"). A range "35.000.000 - 36.000.000"
- *  is two numbers, never one long run (gate review 2026-11-17). */
-const NUMBER = /\d[\d.,]*\d|\d/g
-/** An account number typed in blocks, "1903 4567 8910 12": three or more blocks of 3–4 digits split by one space or dash. */
-const BLOCKED_DIGITS = /\b\d{3,4}(?:[ -]\d{2,4}){2,}\b/g
-/** A price written the Vietnamese way (35.000.000) or the English way (35,000,000). Never one starting with 0: that is
- *  a phone or an account number in dots (091.234.567). */
-const GROUPED_AMOUNT = /^[1-9]\d{0,2}(?:[.,]\d{3})+$/
-/** Bank and account words (EN + VI, and the big VN banks and wallets): beside a 9+ digit number, it is an account. */
-const ACCOUNT_WORDS = /\b(?:stk|số\s*tk|số\s*tài\s*khoản|tài\s*khoản|account\s*(?:number|no\.?)|acc\s*no|iban|swift|bank\s*transfer|chuyển\s*khoản|ngân\s*hàng|vietcombank|vcb|techcombank|tcb|bidv|agribank|vietinbank|acb|vpbank|tpbank|sacombank|mb\s*bank|momo|zalopay|vnpay)\b/i
 
-/** Why an agent's text may not be sent, or null. People's chat has no such rule; an agent's does (see the header). */
-export function agentTextProblem(raw: string): string | null {
-  // Checked as a reader sees it: full-width digits and letters folded (NFKC), zero-width and joiner characters dropped,
-  // so "０９０１…" or a digit run split by U+200B is the number it shows as.
-  const text = raw.normalize('NFKC').replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '')
-  if (containsPhoneNumber(text)) return 'It contains a phone number.'
-  if (EMAIL.test(text)) return 'It contains an email address.'
-  if (OFF_APP.test(text)) return 'It moves the chat to another app or handle.'
-  for (const m of text.matchAll(URLISH)) {
-    const host = m[0].replace(/^https?:\/\//i, '').replace(/^www\./i, '').split(/[/?#:]/)[0].toLowerCase()
-    if (host !== OWN_HOST && !host.endsWith(`.${OWN_HOST}`)) return 'It contains a link to another site.'
-  }
-  const LONG = 'It contains a long number (an account or phone number?). Write amounts grouped, such as 3.500.000 đ.'
-  const accountTalk = ACCOUNT_WORDS.test(text)
-  for (const m of text.matchAll(NUMBER)) {
-    const digits = m[0].replace(/\D/g, '').length
-    if (digits < 9) continue
-    // 35.000.000 is a price — unless the text is about a bank account, where any 9+ digit number is the account.
-    if (GROUPED_AMOUNT.test(m[0]) && !accountTalk) continue
-    return accountTalk ? 'It looks like a bank account number. Payment is arranged between the people themselves, never by an agent.' : LONG
-  }
-  for (const m of text.matchAll(BLOCKED_DIGITS)) if (m[0].replace(/\D/g, '').length >= 9) return LONG
-  return null
-}
 
-/** eno's own desks: an agent negotiates with people, never with eno (the thread route's DESK_BY_SELLER_ID + support). */
-const ENO_DESK_SELLER_IDS = new Set<string>([...RENTAL_DESK_SELLER_IDS, JOBS_DESK_SELLER_ID, SUPPORT_SELLER_ID])
-/** Moving the chat off eno: a chat app named, or an @handle. */
-const OFF_APP = /\b(?:zalo|telegram|whats\s?app|viber|wechat|kakao|signal|line\s+id|messenger|instagram|facebook|fb)\b|(?:^|\s)@[a-z0-9_.]{3,}/i
-
-const CONTACT_RULE = 'Keep contact details and payment details out of agent messages: people arrange those themselves in the app.'
 
 /**
  * An offer must be a real amount in VND, near the asking price: a model saying "3.5" for 3.5 million must not send 4 đ.

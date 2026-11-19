@@ -30,6 +30,9 @@ const h = vi.hoisted(() => ({
   state: {
     profile: { id: 'buyer-1' } as Row | null,
     rateOk: true,
+    /** Buckets refused (the rest pass): the route's own limit and the agent budget are told apart by name. */
+    refuseBuckets: [] as string[],
+    rlCalls: [] as unknown[][],
     gate: null as Row | null,
     convos: [] as Row[],
     listings: {} as Record<string, Row>,
@@ -218,7 +221,13 @@ vi.mock('@/lib/admin', () => ({
   getCurrentProfile: () => Promise.resolve(h.state.profile),
   getCurrentProfileId: () => Promise.resolve(h.state.profile?.id ?? null),
 }))
-vi.mock('@/lib/ratelimit', () => ({ rateLimit: () => Promise.resolve({ success: h.state.rateOk }), kv: { incrby: () => Promise.resolve(1) } }))
+vi.mock('@/lib/ratelimit', () => ({
+  rateLimit: (...a: unknown[]) => {
+    h.state.rlCalls.push(a)
+    return Promise.resolve({ success: h.state.rateOk && !h.state.refuseBuckets.includes(String(a[0])), resetSec: 60 })
+  },
+  kv: { incrby: () => Promise.resolve(1) },
+}))
 vi.mock('@/lib/enforcement', () => ({ conversationGate: () => Promise.resolve(h.state.gate) }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: () => Promise.resolve() }))
 vi.mock('@/lib/offer-guard', () => ({ recordFixedPriceOfferAttempt: (id: string) => { h.state.docked.push(id); return Promise.resolve() } }))
@@ -258,7 +267,8 @@ vi.mock('next/server', async (importOriginal) => {
 import { POST } from './route'
 // The MOCKED module (teacher section below): its database-reading functions are fakes, teacherDmRefusal is the real one.
 import { teacherDmRefusal, type TeacherDmStanding } from '@/lib/teachers/dm-quota'
-import { TEACHER_DM_LIMITS } from '@/lib/teachers/constants'
+import { TEACHER_DM_LIMITS, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 
 function listing(id: string, sellerId: string, extra: Row = {}) {
   return { id, title: `Listing ${id}`, verified: true, status: 'active', negotiable: true, sellerId, seller: { ownerId: 'desk-owner' }, ...extra }
@@ -305,6 +315,8 @@ const REVOKED: TeacherDmStanding = {
 beforeEach(() => {
   h.state.profile = { id: BUYER }
   h.state.rateOk = true
+  h.state.refuseBuckets = []
+  h.state.rlCalls = []
   h.state.gate = null
   h.state.convos = []
   h.state.delivered = []
@@ -1034,5 +1046,63 @@ describe('teacher threads', () => {
       expect(await post({ listingId: TEACHER })).toEqual({ status: 200, json: { id: 't-thread', created: false, message: null } })
       expect(h.state.dm.asked.mayWrite).toEqual([])
     })
+  })
+})
+
+// ── A browser agent's message (WebMCP start_seller_chat, 2026-11-19): the MCP agents' rules, on the visitor's own session ──
+describe('agent: "webmcp" — a browser agent opening a chat', () => {
+  it('labels the message 🤖 AI, once, and delivers it', async () => {
+    expect((await post({ listingId: SHOP_A, message: 'Is it still available?', agent: 'webmcp' })).status).toBe(200)
+    expect(await post({ listingId: SHOP_B, message: '🤖 AI: already labelled', agent: 'webmcp' })).toMatchObject({ status: 200 })
+    expect(h.state.delivered.map((d) => d.body)).toEqual(['🤖 AI: Is it still available?', '🤖 AI: already labelled'])
+  })
+
+  it('refuses contact or payment details before the thread exists', async () => {
+    for (const message of ['Call me 0901 234 567', 'mail me at a@b.co', 'zalo me', 'Chuyển khoản STK 1903456789012']) {
+      expect(await post({ listingId: SHOP_A, message, agent: 'webmcp' }), message).toEqual({ status: 400, json: { error: 'contact_in_text' } })
+    }
+    expect(h.state.convos).toEqual([])
+    expect(h.state.delivered).toEqual([])
+  })
+
+  it('a text message only: no offer, and never an empty opener', async () => {
+    expect((await post({ listingId: SHOP_A, offerAmount: 500000, message: 'deal?', agent: 'webmcp' })).status).toBe(403)
+    expect(await post({ listingId: SHOP_A, message: '   ', agent: 'webmcp' })).toEqual({ status: 400, json: { error: 'empty' } })
+    expect(h.state.delivered).toEqual([])
+  })
+
+  it('never a teacher\'s profile', async () => {
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { listingType: TEACHER_LISTING_TYPE, seller: { ownerId: 'shop-owner' } })
+    expect((await post({ listingId: SHOP_A, message: 'Hello', agent: 'webmcp' })).status).toBe(403)
+    expect(h.state.delivered).toEqual([])
+  })
+
+  it('never an unclaimed shop, one of eno\'s desks, or from a store-review test account — as the MCP tools', async () => {
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { seller: { ownerId: null } })
+    h.state.listings[SHOP_B] = listing(SHOP_B, SUPPORT_SELLER_ID, { seller: { ownerId: 'eno-support' } })
+    expect((await post({ listingId: SHOP_A, message: 'Hello', agent: 'webmcp' })).status).toBe(403)
+    expect((await post({ listingId: SHOP_B, message: 'Hello', agent: 'webmcp' })).status).toBe(403)
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { seller: { ownerId: 'shop-owner' } })
+    h.state.profile = { id: BUYER, email: 'ai-review@eno.vn' }
+    expect((await post({ listingId: SHOP_A, message: 'Hello', agent: 'webmcp' })).status).toBe(403)
+    expect(h.state.delivered).toEqual([])
+    // A refused call never spends the agents' daily budget.
+    expect(h.state.rlCalls.filter((a) => a[0] === 'agent-webmcp-chat')).toEqual([])
+  })
+
+  it('spends a daily budget of its own (strict) — never the MCP agents\' — and stops at it before any thread', async () => {
+    await post({ listingId: SHOP_A, message: 'Hi', agent: 'webmcp' })
+    expect(h.state.rlCalls).toContainEqual(['agent-webmcp-chat', `agent:${BUYER}`, 10, '24 h', { strict: true }])
+    expect(h.state.rlCalls.filter((a) => a[0] === 'agent-thread-new')).toEqual([])
+    h.state.refuseBuckets = ['agent-webmcp-chat']
+    expect(await post({ listingId: SHOP_B, message: 'Hi', agent: 'webmcp' })).toEqual({ status: 429, json: { error: 'rate_limited' } })
+    expect(h.state.delivered).toHaveLength(1)
+    // A person's own message never touches the agents' budget.
+    expect((await post({ listingId: SHOP_B, message: 'Hi' })).status).toBe(200)
+  })
+
+  it('without the flag the route is unchanged: a person\'s own message is never labelled or filtered', async () => {
+    expect((await post({ listingId: SHOP_A, message: 'Call me 0901 234 567' })).status).toBe(200)
+    expect(h.state.delivered.map((d) => d.body)).toEqual(['Call me 0901 234 567'])
   })
 })
