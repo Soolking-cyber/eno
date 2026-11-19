@@ -7,20 +7,22 @@ import g2 from '@/content/guides/cho-nguoi-nuoc-ngoai-thue-nha-tphcm.json'
 import g3 from '@/content/guides/hieu-truong-phai-biet-tieng-anh-thong-tu-94.json'
 import g4 from '@/content/guides/hire-a-foreign-english-teacher-in-vietnam.json'
 import g5 from '@/content/guides/international-driving-permit-vietnam.json'
-import g6 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
-import g7 from '@/content/guides/muaban-net-alternative.json'
-import g8 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
-import g9 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
-import g10 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
-import g11 from '@/content/guides/saigonmoving.json'
-import g12 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
-import g13 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g14 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
-import g15 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
-import g16 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
-import g17 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
-import g18 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
-import g19 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
+import g6 from '@/content/guides/is-it-cheaper-to-buy-iphone-in-vietnam.json'
+import g7 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
+import g8 from '@/content/guides/mua-iphone-o-viet-nam-co-re-hon-khong.json'
+import g9 from '@/content/guides/muaban-net-alternative.json'
+import g10 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
+import g11 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
+import g12 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
+import g13 from '@/content/guides/saigonmoving.json'
+import g14 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
+import g15 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g16 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g17 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
+import g18 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
+import g19 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
+import g20 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
+import g21 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'bang-lai-xe-quoc-te-lai-xe-o-viet-nam': g0,
@@ -29,18 +31,20 @@ export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'hieu-truong-phai-biet-tieng-anh-thong-tu-94': g3,
   'hire-a-foreign-english-teacher-in-vietnam': g4,
   'international-driving-permit-vietnam': g5,
-  'kinh-nghiem-thue-xe-may-viet-nam': g6,
-  'muaban-net-alternative': g7,
-  'renting-a-motorbike-in-ho-chi-minh-city': g8,
-  'renting-a-motorbike-in-vietnam': g9,
-  'renting-to-foreigners-ho-chi-minh-city': g10,
-  'saigonmoving': g11,
-  'thay-the-muaban-net-dang-tin-mien-phi': g12,
-  'thue-xe-dien-vinfast-tphcm': g13,
-  'thue-xe-may-sai-gon-kinh-nghiem': g14,
-  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g15,
-  'tuyen-giao-vien-nuoc-ngoai': g16,
-  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g17,
-  'vietnam-school-leaders-english-requirements': g18,
-  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g19,
+  'is-it-cheaper-to-buy-iphone-in-vietnam': g6,
+  'kinh-nghiem-thue-xe-may-viet-nam': g7,
+  'mua-iphone-o-viet-nam-co-re-hon-khong': g8,
+  'muaban-net-alternative': g9,
+  'renting-a-motorbike-in-ho-chi-minh-city': g10,
+  'renting-a-motorbike-in-vietnam': g11,
+  'renting-to-foreigners-ho-chi-minh-city': g12,
+  'saigonmoving': g13,
+  'thay-the-muaban-net-dang-tin-mien-phi': g14,
+  'thue-xe-dien-vinfast-tphcm': g15,
+  'thue-xe-may-sai-gon-kinh-nghiem': g16,
+  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g17,
+  'tuyen-giao-vien-nuoc-ngoai': g18,
+  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g19,
+  'vietnam-school-leaders-english-requirements': g20,
+  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g21,
 }

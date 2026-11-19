@@ -1,0 +1,481 @@
+{
+  "slug": "is-it-cheaper-to-buy-iphone-in-vietnam",
+  "title": "Is it cheaper to buy an iPhone in Vietnam? (2026)",
+  "description": "Apple's Vietnam prices compared with the US and Asia, what resellers knock off, the airport VAT refund for foreigners, and the VN/A warranty catch.",
+  "h1": "Is it cheaper to buy an iPhone in Vietnam? Prices, resellers and the VAT refund",
+  "eyebrow": "Phones and electronics",
+  "intro": "Usually not: The Mac Index, read on 19 November 2026, ranked Vietnam 34th of 36 countries for the iPhone 17's price, with only the UK and Türkiye dearer. Apple's Vietnam prices include all taxes, and authorised resellers cut a year-old model by roughly 9-12%, which brings it close to the US price. A new launch model costs more in Vietnam. Foreigners who fly out with the phone can reclaim 85% of the VAT at the airport.",
+  "keyPoints": [
+    "The Mac Index, read on 19 November 2026, ranked Vietnam **34th of 36 countries** for the iPhone 17. Read the same day, it ranked Vietnam 34th of 39 for the iPhone 18 Pro, with Mexico and the Philippines cheaper.",
+    "Apple's Vietnam store charged {{vnd:28999000}} for the iPhone 17 256GB and {{vnd:38999000}} for the iPhone 18 Pro 256GB on 19 November 2026, with all taxes included.",
+    "Authorised resellers sold the iPhone 17 256GB from {{vnd:25390000}} on 13 October 2026, according to VietNamNet. The new iPhone 18 Pro had only a small discount at FPT Shop on 19 November 2026.",
+    "Apple has **no physical Apple Store in Vietnam**. You buy from Apple's online store or from authorised reseller chains.",
+    "Under Decree 181/2025/ND-CP (Appendix IV) and Circular 84/2026/TT-BTC, a foreigner leaving the country gets back **85% of the VAT** if the shop issues a refund invoice, the purchase is at least {{vnd:2000000}} from one shop in one day, and the invoice is no more than 60 days old.",
+    "Check the model code. A VN/A iPhone is sold for Vietnam. Apple's own warranty says Apple may restrict iPhone repairs under warranty to the country where the phone was first sold."
+  ],
+  "sections": [
+    {
+      "id": "is-it-cheaper-to-buy-iphone-in-vietnam",
+      "title": "Is it cheaper to buy an iPhone in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "At Apple's own prices, no. Vietnam is one of the dearer places to buy a new iPhone. [The Mac Index](https://themacindex.com/vn/products/iphone-17) is a site that compares Apple's prices across countries, converting them into đồng with sales tax added and tourist tax refunds taken off. On 14 November 2026 it ranked Vietnam **34th of 36** for the iPhone 17 256GB. Only the United Kingdom and Türkiye were more expensive."
+        },
+        {
+          "type": "table",
+          "caption": "iPhone 17 256GB, converted into đồng by The Mac Index (prices last updated 14 November 2026, conversions as shown on 19 November 2026; after sales tax or tourist refund where that applies)",
+          "headers": [
+            "Country",
+            "Price in đồng",
+            "Rank of 36"
+          ],
+          "rows": [
+            [
+              "Japan (after tourist tax refund)",
+              "{{vnd:19041114}}",
+              "1"
+            ],
+            [
+              "Canada",
+              "{{vnd:22907831}}",
+              "2"
+            ],
+            [
+              "Thailand",
+              "{{vnd:24703837}}",
+              "5"
+            ],
+            [
+              "United States (with sales tax)",
+              "{{vnd:25830975}}",
+              "10"
+            ],
+            [
+              "Singapore",
+              "{{vnd:26527906}}",
+              "13"
+            ],
+            [
+              "Malaysia",
+              "{{vnd:26896581}}",
+              "16"
+            ],
+            [
+              "Vietnam (Apple's price)",
+              "{{vnd:28999000}}",
+              "34"
+            ],
+            [
+              "United Kingdom",
+              "{{vnd:30400801}}",
+              "35"
+            ],
+            [
+              "Türkiye (after tourist tax refund)",
+              "{{vnd:45912465}}",
+              "36"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The newest model shows the same pattern. [The Mac Index](https://themacindex.com/vn/products/iphone-18-pro) last updated its iPhone 18 Pro prices on 22 October 2026, and on 19 November 2026 it put the iPhone 18 Pro 256GB at {{vnd:38999000}} in Vietnam, 34th of 39 countries, with Mexico and the Philippines cheaper. It put the US price with sales tax at {{vnd:33338363}}, third cheapest, and Japan at {{vnd:32243922}} after the tourist refund."
+        },
+        {
+          "type": "p",
+          "text": "Things change once a model is a year old. Vietnam's authorised resellers cut prices well below Apple's own, so a year-old iPhone bought from a chain in Ho Chi Minh City can cost close to the US shelf price plus tax. The newest model has almost no discount in its first months."
+        },
+        {
+          "type": "h3",
+          "text": "Buying in the US before you fly"
+        },
+        {
+          "type": "p",
+          "text": "Apple's US store listed the unlocked iPhone 17 256GB at US$929 on 19 November 2026. It listed the iPhone 18 Pro 256GB at US$1,199. Both [US prices](https://www.apple.com/shop/buy-iphone/iphone-18-pro) exclude sales tax, which depends on the state. Vietnam's prices on [Apple's Vietnam store](https://www.apple.com/vn/shop/buy-iphone/iphone-17) already include all taxes, so compare a US price only after adding your state's tax."
+        }
+      ]
+    },
+    {
+      "id": "iphone-prices-in-vietnam",
+      "title": "How much is an iPhone in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Apple's Vietnam store charges a single national price that includes all taxes. Authorised resellers charge less, especially for older models. The table below shows Apple's own prices as listed on 19 November 2026."
+        },
+        {
+          "type": "table",
+          "caption": "Apple Store online Vietnam prices, all taxes included, read on apple.com/vn on 19 November 2026",
+          "headers": [
+            "Model",
+            "256GB",
+            "512GB",
+            "1TB",
+            "2TB"
+          ],
+          "rows": [
+            [
+              "iPhone 17",
+              "{{vnd:28999000}}",
+              "{{vnd:35499000}}",
+              "not offered",
+              "not offered"
+            ],
+            [
+              "iPhone Air",
+              "{{vnd:34999000}}",
+              "{{vnd:41499000}}",
+              "{{vnd:54499000}}",
+              "not offered"
+            ],
+            [
+              "iPhone 18 Pro",
+              "{{vnd:38999000}}",
+              "{{vnd:45499000}}",
+              "{{vnd:58499000}}",
+              "{{vnd:77999000}}"
+            ],
+            [
+              "iPhone 18 Pro Max",
+              "{{vnd:41999000}}",
+              "{{vnd:48499000}}",
+              "{{vnd:61499000}}",
+              "{{vnd:80999000}}"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "What the resellers charge"
+        },
+        {
+          "type": "p",
+          "text": "The main chains sell year-old models well below Apple's price. VietNamNet compared prices for the 256GB models on 13 October 2026. The iPhone 17 Pro and Pro Max had by then been removed from Apple's Vietnam online store."
+        },
+        {
+          "type": "table",
+          "caption": "256GB prices at authorised resellers, according to VietNamNet, 13 October 2026",
+          "headers": [
+            "Model",
+            "Apple's price",
+            "Cheapest reseller",
+            "Other chains"
+          ],
+          "rows": [
+            [
+              "iPhone 17",
+              "{{vnd:28999000}}",
+              "{{vnd:25390000}} (Di Động Việt)",
+              "{{vnd:25490000}} (Thế Giới Di Động, FPT Shop, Minh Tuấn Mobile); {{vnd:26490000}} (CellphoneS)"
+            ],
+            [
+              "iPhone 17 Pro",
+              "{{vnd:34999000}}",
+              "{{vnd:31790000}} (Di Động Việt, Minh Tuấn Mobile)",
+              "{{vnd:31990000}} (Thế Giới Di Động, FPT Shop, CellphoneS)"
+            ],
+            [
+              "iPhone 17 Pro Max",
+              "{{vnd:37999000}}",
+              "{{vnd:34390000}} (Di Động Việt)",
+              "{{vnd:34690000}} (Minh Tuấn Mobile); {{vnd:34990000}} (others)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The [VietNamNet comparison](https://vietnamnet.vn/iphone-17-iphone-17-pro-va-iphone-17-pro-max-giam-hon-3-trieu-dong-tai-viet-nam-2564246.html) works out at about 9-12% off Apple's price. The new model is a different story. [FPT Shop](https://fptshop.com.vn/dien-thoai/iphone-18-series) listed the iPhone 18 Pro 256GB at {{vnd:38690000}} on 19 November 2026, only a small cut from Apple's {{vnd:38999000}}."
+        }
+      ]
+    },
+    {
+      "id": "where-to-buy-iphone-in-vietnam",
+      "title": "Where to buy an iPhone in Vietnam (and iPhone near me)",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "You buy a new iPhone either from Apple's online store or from an authorised reseller chain. Apple has no physical Apple Store in Vietnam. [Apple launched its online store for Vietnam](https://www.apple.com/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/) in May 2023, with Vietnamese-speaking support, and nothing Apple has published since announces a shop. If you search \"iPhone near me\" in Ho Chi Minh City, the nearest place will be a branch of one of the reseller chains below."
+        },
+        {
+          "type": "table",
+          "caption": "Ways to buy a new iPhone in Vietnam, as of November 2026",
+          "headers": [
+            "Where",
+            "Price",
+            "Good to know"
+          ],
+          "rows": [
+            [
+              "Apple Store online (apple.com/vn)",
+              "Apple's full price, all taxes included",
+              "Delivery is included in the price. Apple Trade In is available. Older Pro models drop off the store when new ones arrive."
+            ],
+            [
+              "Authorised chains: Thế Giới Di Động, FPT Shop, CellphoneS, Di Động Việt, Minh Tuấn Mobile",
+              "Usually below Apple's price for older models",
+              "You can see and pay for the phone in the shop. Each chain runs its own promotions and trade-in deals."
+            ],
+            [
+              "Small independent phone shops",
+              "Varies",
+              "Often sell imported (non-VN/A) or refurbished phones. Check the model code and warranty terms before paying."
+            ],
+            [
+              "Second-hand from a person",
+              "Lowest",
+              "No shop warranty. Meet in person and check the phone before paying."
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Paying in instalments is mostly set up for people with Vietnamese bank cards. [Apple's Vietnam store](https://www.apple.com/vn/shop/buy-iphone) offers 3, 6, 9 or 12 months on credit cards from listed Vietnamese banks, for purchases above {{vnd:3000000}}. Debit cards don't qualify. Its MoMo instalment plan needs a 20% down payment and a purchase of at least {{vnd:3750000}}, and the credit providers must approve you."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Sort the SIM first",
+          "text": "An iPhone from Apple or an authorised chain is not tied to a network. Setting up a local number or eSIM is covered in [the eSIM and SIM guide](/esim-vietnam-guide)."
+        }
+      ]
+    },
+    {
+      "id": "vat-refund-on-an-iphone",
+      "title": "Can foreigners get the VAT back on an iPhone bought in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Yes, if you take the phone out of the country when you fly out and the shop issued a refund invoice. Under Decree 181/2025/ND-CP (Appendix IV) and Circular 84/2026/TT-BTC, Vietnam's refund scheme returns **85% of the VAT** you paid. The other 15% is the fee kept by the bank that pays the refund, according to [LuatVietnam's summary of the rules](https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html). Ministry of Finance Circular 84/2026/TT-BTC has been in force since 1 July 2026 and replaced Circulars 72/2014 and 92/2019, according to [Vietnam Law Magazine](https://vietnamlawmagazine.vn/electronic-vat-refund-process-for-foreign-visitors-standardised-80117.html)."
+        },
+        {
+          "type": "p",
+          "text": "The conditions below, including the {{vnd:2000000}} minimum and the 60-day limit, are set by Decree 181/2025/ND-CP (Appendix IV) and Circular 84/2026/TT-BTC."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "You leave Vietnam on a foreign passport and carry the phone out through a border gate that handles VAT refunds.",
+            "The shop must be one authorised to sell refund-eligible goods. Many shops are not, so ask before you pay.",
+            "Invoices from the same shop on the same day must add up to at least {{vnd:2000000}}. Any iPhone clears that.",
+            "The phone must be new, in its original packaging.",
+            "The VAT refund invoice must be issued no more than **60 days** before you leave.",
+            "The refund is paid in đồng. If you ask for foreign currency, the bank converts it at its own rate."
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Ask before paying",
+              "text": "Ask the shop whether it issues a VAT refund invoice for foreigners. Show your passport so it can make out the invoice cum refund declaration, and check your details on it."
+            },
+            {
+              "title": "Keep the phone with you",
+              "text": "Keep the phone, its box and the invoice together, and keep the phone in your hand luggage until customs has seen it."
+            },
+            {
+              "title": "See customs at the airport",
+              "text": "Show your passport, the invoice and the phone to customs at least 30 minutes before your flight leaves."
+            },
+            {
+              "title": "Collect the refund",
+              "text": "Once customs has certified the invoice, take it and your boarding pass to the refund bank's counter in the departure area before boarding."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Living here and buying for yourself",
+          "text": "The rules we read describe who qualifies (foreigners leaving on a foreign passport with the goods) and do not mention people who work in Vietnam. The refund is paid only when you leave, so it helps only if you are flying out within 60 days. Ask the shop and, at the airport, customs whether your purchase qualifies."
+        }
+      ]
+    },
+    {
+      "id": "vn-a-or-imported",
+      "title": "VN/A or imported: which iPhone should you buy in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Buy a VN/A phone unless the saving on an imported one is large and you accept the warranty risk. VN/A is Apple's model code for iPhones sold for the Vietnamese market. Phones brought in from other markets, called **hàng xách tay** (literally \"hand-carried goods\"), carry codes such as LL/A for the US. The retailer Điện Máy Xanh [explains](https://www.dienmayxanh.com/kinh-nghiem-hay/so-sanh-iphone-vn-a-voi-iphone-ll-a-nen-mua-loai-1457009) that LL/A phones are usually cheaper because they have not paid Vietnamese VAT."
+        },
+        {
+          "type": "table",
+          "caption": "VN/A and imported iPhones compared, from Apple's warranty terms and Điện Máy Xanh's guide",
+          "headers": [
+            "What you get",
+            "VN/A (sold for Vietnam)",
+            "Imported (LL/A and others)"
+          ],
+          "rows": [
+            [
+              "Price",
+              "Fixed national price, VAT included",
+              "Often lower; prices change more"
+            ],
+            [
+              "Warranty in Vietnam",
+              "Repaired at Apple-authorised service centres in Vietnam",
+              "Apple may limit iPhone warranty repairs to the country where the phone was first sold"
+            ],
+            [
+              "Risks",
+              "Few, if bought from an authorised chain",
+              "Locked US models may not take a Vietnamese SIM; used or refurbished phones sold as new"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "The warranty catch",
+          "text": "[Apple's one-year limited warranty](https://www.apple.com/legal/warranty/products/ios-warranty-document-us.html) says Apple may restrict warranty service for iPhone to the country where Apple or its authorised distributors first sold it. Vietnamese retailers often call iPhone warranties global, but only Apple decides. With an imported phone, get the seller's warranty terms in writing."
+        }
+      ]
+    },
+    {
+      "id": "buying-a-used-iphone-in-vietnam",
+      "title": "Is a second-hand iPhone in Vietnam a better deal?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Often, yes. A used phone avoids the gap between new prices here and abroad, and expats who are leaving Vietnam regularly sell phones. You give up a shop warranty and return policy, so the checks are up to you."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Meet in daylight in a café or a phone shop, not at someone's flat.",
+            "Before paying, make sure the seller has signed out of their Apple Account and that Find My is turned off. If Activation Lock is still on, you cannot use the phone.",
+            "In Settings > General > About, check that the model code matches what the seller claims.",
+            "Check the battery health in Settings > Battery, and test the cameras, Face ID, speakers and charging.",
+            "Ask for the box and the original receipt. Without a receipt, any warranty that is left is hard to claim."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "eno.vn's [phones and electronics listings](/c/electronics) are a good place to start. People in Vietnam post phones, laptops and other gadgets there, and you can message the seller before arranging to meet. If you are on the other side of the deal, the [selling-up guide](/selling-up-before-you-leave-vietnam) covers pricing and handing over. The [leaving checklist](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers) covers the rest of a move out."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is it cheaper to buy iPhone in Vietnam than in the US?",
+      "a": "Buying a new iPhone in Vietnam is usually not cheaper than in the United States. Read on 19 November 2026, The Mac Index put the iPhone 17 about 11% cheaper in the US than at Apple's Vietnam store, even after adding US sales tax. Read the same day, it ranked the US 3rd and Vietnam 34th of 39 countries for the iPhone 18 Pro. Year-old models at Vietnamese reseller chains can come close to the US price."
+    },
+    {
+      "q": "Can I buy iPhone in Vietnam as a foreigner?",
+      "a": "Foreigners can buy an iPhone in Vietnam like anyone else, from Apple's Vietnam online store or from authorised chains such as Thế Giới Di Động, FPT Shop, CellphoneS and Di Động Việt. Paying in full by card or cash is straightforward. Apple's instalment plans in Vietnam depend on a card from a listed Vietnamese bank or approval from MoMo's credit partners."
+    },
+    {
+      "q": "Where to buy iPhone in Vietnam?",
+      "a": "The safest places to buy an iPhone in Vietnam are Apple's online store at apple.com/vn and the authorised reseller chains: Thế Giới Di Động, FPT Shop, CellphoneS, Di Động Việt and Minh Tuấn Mobile. In October 2026 the chains sold year-old models for roughly 9-12% less than Apple's price, according to VietNamNet. Small independent shops often sell imported phones, so check the model code and warranty first."
+    },
+    {
+      "q": "Is there an Apple Store in Vietnam?",
+      "a": "There is no physical Apple Store in Vietnam as of November 2026. Apple runs only its online store for Vietnam, which opened in May 2023 with Vietnamese-speaking support, delivery included in the price and Apple Trade In. To see an iPhone in person in Ho Chi Minh City or Hanoi, go to a branch of an authorised reseller chain such as FPT Shop or Thế Giới Di Động."
+    },
+    {
+      "q": "Can foreigners get a VAT refund on an iPhone in Vietnam?",
+      "a": "Foreigners leaving Vietnam on a foreign passport can reclaim 85% of the VAT on an iPhone under Decree 181/2025/ND-CP (Appendix IV) and Circular 84/2026/TT-BTC, the circular in force since 1 July 2026. The shop must be authorised to issue a VAT refund invoice, which must be no more than 60 days old when you leave. You show the phone, invoice and passport to customs at least 30 minutes before departure."
+    },
+    {
+      "q": "Is an iPhone bought abroad covered by warranty in Vietnam?",
+      "a": "An iPhone bought abroad may not be covered by warranty in Vietnam. Apple's limited warranty says Apple may restrict iPhone warranty service to the country where the phone was first sold. A VN/A iPhone, the model sold for Vietnam, is repaired at Apple-authorised service centres in Vietnam. With an imported phone, get the seller's warranty terms in writing before paying."
+    },
+    {
+      "q": "What does VN/A mean on an iPhone?",
+      "a": "VN/A is the part of an iPhone's model code that marks a phone sold for the Vietnamese market. A VN/A iPhone has had Vietnamese VAT paid on it and can be repaired under warranty at Apple-authorised service centres in Vietnam. Codes such as LL/A mean the phone was made for another market, the US in that case. You can see the model code in Settings, General, About."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Mua iPhone 17",
+      "publisher": "Apple Vietnam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-17"
+    },
+    {
+      "title": "Mua iPhone 18 Pro",
+      "publisher": "Apple Vietnam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-18-pro"
+    },
+    {
+      "title": "Mua iPhone Air",
+      "publisher": "Apple Vietnam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-air"
+    },
+    {
+      "title": "Mua iPhone",
+      "publisher": "Apple Vietnam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone"
+    },
+    {
+      "title": "Apple launches Apple Store online in Vietnam",
+      "publisher": "Apple Newsroom",
+      "url": "https://www.apple.com/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/"
+    },
+    {
+      "title": "Apple One (1) Year Limited Warranty for iPhone",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/legal/warranty/products/ios-warranty-document-us.html"
+    },
+    {
+      "title": "Buy iPhone 17",
+      "publisher": "Apple (US)",
+      "url": "https://www.apple.com/shop/buy-iphone/iphone-17"
+    },
+    {
+      "title": "Buy iPhone 18 Pro",
+      "publisher": "Apple (US)",
+      "url": "https://www.apple.com/shop/buy-iphone/iphone-18-pro"
+    },
+    {
+      "title": "Electronic VAT refund process for foreign visitors standardised",
+      "publisher": "Vietnam Law Magazine",
+      "url": "https://vietnamlawmagazine.vn/electronic-vat-refund-process-for-foreign-visitors-standardised-80117.html"
+    },
+    {
+      "title": "Conditions for VAT refunds for foreigners upon departure",
+      "publisher": "LuatVietnam",
+      "url": "https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html"
+    },
+    {
+      "title": "iPhone 17, iPhone 17 Pro và iPhone 17 Pro Max giảm hơn 3 triệu đồng tại Việt Nam",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/iphone-17-iphone-17-pro-va-iphone-17-pro-max-giam-hon-3-trieu-dong-tai-viet-nam-2564246.html"
+    },
+    {
+      "title": "iPhone 17 series sees price cuts of up to $140 in Vietnam",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/iphone-17-series-sees-price-cuts-of-up-to-140-in-vietnam-2564289.html"
+    },
+    {
+      "title": "iPhone 17 prices by country",
+      "publisher": "The Mac Index",
+      "url": "https://themacindex.com/vn/products/iphone-17"
+    },
+    {
+      "title": "iPhone 18 Pro prices by country",
+      "publisher": "The Mac Index",
+      "url": "https://themacindex.com/vn/products/iphone-18-pro"
+    },
+    {
+      "title": "iPhone 18 series",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai/iphone-18-series"
+    },
+    {
+      "title": "So sánh iPhone VN/A với iPhone LL/A: nên mua loại nào?",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/so-sanh-iphone-vn-a-voi-iphone-ll-a-nen-mua-loai-1457009"
+    }
+  ],
+  "related": [
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "leaving-vietnam-checklist-for-teachers",
+    "banking-and-sending-money-home-from-vietnam"
+  ],
+  "lastChecked": "2026-11-19"
+}

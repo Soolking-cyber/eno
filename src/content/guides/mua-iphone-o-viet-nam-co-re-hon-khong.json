@@ -1,0 +1,476 @@
+{
+  "slug": "mua-iphone-o-viet-nam-co-re-hon-khong",
+  "title": "Mua iPhone ở Việt Nam có rẻ hơn nước ngoài không? (2026)",
+  "description": "So sánh giá iPhone tại Việt Nam với Mỹ, Nhật, Thái Lan, mức giảm ở các chuỗi bán lẻ, hàng VN/A và xách tay, hoàn thuế VAT khi rời Việt Nam.",
+  "h1": "Mua iPhone ở Việt Nam có rẻ hơn không? Giá Apple, giá đại lý, VN/A và hoàn thuế",
+  "eyebrow": "Điện thoại và điện tử",
+  "intro": "Thường là không: ngày 19/11/2026, The Mac Index xếp Việt Nam thứ 34 trên 36 nước về giá iPhone 17, chỉ rẻ hơn Anh và Thổ Nhĩ Kỳ. Giá Apple Việt Nam đã gồm mọi khoản thuế. Các chuỗi bán lẻ chính hãng giảm khoảng 9-12% cho mẫu ra mắt năm trước. Mẫu mới vừa ra mắt gần như giữ nguyên giá. Khách mang hộ chiếu nước ngoài được hoàn 85% thuế VAT tại sân bay.",
+  "keyPoints": [
+    "Ngày 19/11/2026, The Mac Index xếp Việt Nam **thứ 34 trên 36 nước** về giá iPhone 17 256GB. Với iPhone 18 Pro, cùng ngày Việt Nam đứng thứ 34 trên 39 nước.",
+    "Trên cửa hàng trực tuyến của Apple Việt Nam, iPhone 17 256GB giá {{vnd:28999000}} và iPhone 18 Pro 256GB giá {{vnd:38999000}}, đã gồm thuế (đọc ngày 19/11/2026).",
+    "Theo VietNamNet ngày 13/10/2026, các chuỗi bán lẻ chính hãng bán iPhone 17 256GB từ {{vnd:25390000}}, rẻ hơn giá Apple khoảng 12%.",
+    "Hàng **VN/A** được bảo hành tại các trung tâm Apple ủy quyền ở Việt Nam. Theo điều khoản của Apple, bảo hành iPhone có thể bị giới hạn ở nước bán máy lần đầu, nên hàng xách tay chịu rủi ro này.",
+    "Người mang hộ chiếu nước ngoài, kể cả Việt kiều, được hoàn **85% thuế VAT** khi mang máy ra khỏi Việt Nam, nếu hóa đơn từ một cửa hàng trong một ngày đạt tối thiểu {{vnd:2000000}} và lập không quá 60 ngày trước khi đi."
+  ],
+  "sections": [
+    {
+      "id": "mua-iphone-o-viet-nam-co-re-hon-khong",
+      "title": "Mua iPhone ở Việt Nam có rẻ hơn nước ngoài không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu so theo giá niêm yết của Apple thì không. Việt Nam thuộc nhóm nơi mua iPhone mới đắt nhất. [The Mac Index](https://themacindex.com/vn/products/iphone-17) là trang so sánh giá sản phẩm Apple giữa các nước. Trang này quy đổi giá ra tiền đồng, cộng thuế bán hàng (như ở Mỹ) và trừ phần hoàn thuế cho khách du lịch (như ở Nhật). Theo trang này, đọc ngày 19/11/2026, iPhone 17 256GB ở Việt Nam đắt thứ ba trong 36 nước. Chỉ Anh và Thổ Nhĩ Kỳ đắt hơn."
+        },
+        {
+          "type": "table",
+          "caption": "Thứ hạng và giá quy đổi ra đồng của iPhone 17 256GB (1 là rẻ nhất), theo The Mac Index đọc ngày 19/11/2026",
+          "headers": [
+            "Nước",
+            "Thứ hạng trên 36",
+            "Giá quy đổi ra đồng",
+            "So với Việt Nam"
+          ],
+          "rows": [
+            [
+              "Nhật Bản",
+              "1",
+              "{{vnd:19041114}}",
+              "Rẻ hơn (đã trừ khoản hoàn thuế cho khách du lịch)"
+            ],
+            [
+              "Canada",
+              "2",
+              "{{vnd:22907831}}",
+              "Rẻ hơn"
+            ],
+            [
+              "Thái Lan",
+              "5",
+              "{{vnd:24703837}}",
+              "Rẻ hơn"
+            ],
+            [
+              "Mỹ",
+              "10",
+              "{{vnd:25830975}}",
+              "Rẻ hơn (đã cộng thuế bán hàng)"
+            ],
+            [
+              "Singapore",
+              "13",
+              "{{vnd:26527906}}",
+              "Rẻ hơn"
+            ],
+            [
+              "Malaysia",
+              "16",
+              "{{vnd:26896581}}",
+              "Rẻ hơn"
+            ],
+            [
+              "Việt Nam",
+              "34",
+              "{{vnd:28999000}}",
+              "Giá Apple Việt Nam, đã gồm thuế"
+            ],
+            [
+              "Anh",
+              "35",
+              "{{vnd:30400801}}",
+              "Đắt hơn"
+            ],
+            [
+              "Thổ Nhĩ Kỳ",
+              "36",
+              "{{vnd:45912465}}",
+              "Đắt hơn"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Tính cả thuế bán hàng, The Mac Index cho thấy iPhone 17 ở Mỹ rẻ hơn ở Việt Nam khoảng 11%. Mẫu mới nhất cũng vậy. Theo [The Mac Index](https://themacindex.com/vn/products/iphone-18-pro), đọc ngày 19/11/2026, iPhone 18 Pro 256GB ở Việt Nam giá {{vnd:38999000}} và đứng thứ 34 trên 39 nước. Mexico và Philippines đều rẻ hơn Việt Nam. Ở Mỹ, kể cả thuế bán hàng, giá quy đổi là {{vnd:33338363}}, thấp hơn khoảng 14%. Ở Nhật, sau khi trừ khoản hoàn thuế cho khách du lịch, giá quy đổi là {{vnd:32243922}}."
+        },
+        {
+          "type": "p",
+          "text": "Mẫu ra mắt năm trước thì khác hẳn. Các chuỗi bán lẻ chính hãng giảm sâu so với giá Apple, nên mua iPhone đời trước ở chuỗi trong nước có thể gần bằng giá Mỹ đã cộng thuế, mà không mất công xách tay. Mẫu mới trong vài tháng đầu sau ra mắt hầu như không giảm."
+        },
+        {
+          "type": "h3",
+          "text": "So với giá trên trang Apple Mỹ"
+        },
+        {
+          "type": "p",
+          "text": "Ngày 19/11/2026, [Apple Mỹ](https://www.apple.com/shop/buy-iphone/iphone-17) niêm yết iPhone 17 256GB bản quốc tế (không khóa mạng) giá US$929. Cùng ngày, [iPhone 18 Pro 256GB](https://www.apple.com/shop/buy-iphone/iphone-18-pro) giá US$1.199. Giá Mỹ chưa gồm thuế bán hàng, và mức thuế tùy từng bang. Giá trên [Apple Việt Nam](https://www.apple.com/vn/shop/buy-iphone/iphone-17) thì ghi rõ đã bao gồm tất cả các khoản thuế. Vì vậy, hãy cộng thuế bang vào giá Mỹ rồi mới so sánh."
+        }
+      ]
+    },
+    {
+      "id": "gia-iphone-chinh-hang-tai-viet-nam",
+      "title": "Giá iPhone chính hãng tại Việt Nam bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Apple Việt Nam bán một mức giá chung cho cả nước, đã gồm thuế và miễn phí giao hàng. Các chuỗi bán lẻ chính hãng thường bán rẻ hơn, nhất là với mẫu cũ. Bảng dưới là giá trên cửa hàng trực tuyến của Apple ngày 19/11/2026."
+        },
+        {
+          "type": "table",
+          "caption": "Giá trên Apple Store trực tuyến Việt Nam, đã gồm thuế, đọc trên apple.com/vn ngày 19/11/2026",
+          "headers": [
+            "Mẫu",
+            "256GB",
+            "512GB",
+            "1TB",
+            "2TB"
+          ],
+          "rows": [
+            [
+              "iPhone 17",
+              "{{vnd:28999000}}",
+              "{{vnd:35499000}}",
+              "không có",
+              "không có"
+            ],
+            [
+              "iPhone Air",
+              "{{vnd:34999000}}",
+              "{{vnd:41499000}}",
+              "{{vnd:54499000}}",
+              "không có"
+            ],
+            [
+              "iPhone 18 Pro",
+              "{{vnd:38999000}}",
+              "{{vnd:45499000}}",
+              "{{vnd:58499000}}",
+              "{{vnd:77999000}}"
+            ],
+            [
+              "iPhone 18 Pro Max",
+              "{{vnd:41999000}}",
+              "{{vnd:48499000}}",
+              "{{vnd:61499000}}",
+              "{{vnd:80999000}}"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Giá ở Thế Giới Di Động, FPT Shop, CellphoneS, Di Động Việt"
+        },
+        {
+          "type": "p",
+          "text": "Các chuỗi lớn bán dòng iPhone 17 thấp hơn giá Apple khá nhiều. VietNamNet so sánh giá bản 256GB vào ngày 13/10/2026, khi dòng iPhone 18 đã ra mắt."
+        },
+        {
+          "type": "table",
+          "caption": "Giá bản 256GB tại các chuỗi bán lẻ, theo VietNamNet ngày 13/10/2026",
+          "headers": [
+            "Mẫu",
+            "Giá Apple",
+            "Rẻ nhất",
+            "Các chuỗi khác"
+          ],
+          "rows": [
+            [
+              "iPhone 17",
+              "{{vnd:28999000}}",
+              "{{vnd:25390000}} (Di Động Việt)",
+              "{{vnd:25490000}} (Thế Giới Di Động, FPT Shop, Minh Tuấn Mobile); {{vnd:26490000}} (CellphoneS)"
+            ],
+            [
+              "iPhone 17 Pro",
+              "{{vnd:34999000}}",
+              "{{vnd:31790000}} (Di Động Việt, Minh Tuấn Mobile)",
+              "{{vnd:31990000}} (Thế Giới Di Động, FPT Shop, CellphoneS)"
+            ],
+            [
+              "iPhone 17 Pro Max",
+              "{{vnd:37999000}}",
+              "{{vnd:34390000}} (Di Động Việt)",
+              "{{vnd:34690000}} (Minh Tuấn Mobile); {{vnd:34990000}} (Thế Giới Di Động, FPT Shop, CellphoneS)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [VietNamNet](https://vietnamnet.vn/iphone-17-iphone-17-pro-va-iphone-17-pro-max-giam-hon-3-trieu-dong-tai-viet-nam-2564246.html), mức giảm khoảng 9-12% so với giá Apple. Mẫu mới thì gần như không giảm. Ngày 19/11/2026, [FPT Shop](https://fptshop.com.vn/dien-thoai/iphone-18-series) niêm yết iPhone 18 Pro 256GB giá {{vnd:38690000}}, gần bằng giá {{vnd:38999000}} của Apple. Các chuỗi còn có khuyến mãi riêng theo cách thanh toán và chương trình thu cũ đổi mới. Hãy xem giá cuối cùng tại cửa hàng."
+        }
+      ]
+    },
+    {
+      "id": "hang-vn-a-hay-xach-tay",
+      "title": "Hàng VN/A là gì? Có nên mua iPhone xách tay cho rẻ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nên mua hàng VN/A, trừ khi máy xách tay rẻ hơn đáng kể và bạn chấp nhận rủi ro về bảo hành. VN/A là phần đuôi mã máy của Apple, cho biết iPhone được bán cho thị trường Việt Nam. Máy xách tay mang mã của thị trường khác, ví dụ LL/A là máy dành cho Mỹ. Bạn xem mã máy trong Cài đặt > Cài đặt chung > Giới thiệu."
+        },
+        {
+          "type": "p",
+          "text": "[Điện Máy Xanh giải thích](https://www.dienmayxanh.com/kinh-nghiem-hay/so-sanh-iphone-vn-a-voi-iphone-ll-a-nen-mua-loai-1457009) rằng máy VN/A phải chịu thuế VAT khi nhập khẩu và bán trong nước. Máy LL/A mang vào Việt Nam thì không, nên thường rẻ hơn. Bài viết cũng lưu ý một số máy LL/A bị khóa theo nhà mạng Mỹ và không dùng được SIM Việt Nam."
+        },
+        {
+          "type": "table",
+          "caption": "So sánh iPhone VN/A và xách tay, theo điều khoản bảo hành của Apple và bài viết của Điện Máy Xanh",
+          "headers": [
+            "Tiêu chí",
+            "VN/A (hàng chính hãng Việt Nam)",
+            "Xách tay (LL/A và mã khác)"
+          ],
+          "rows": [
+            [
+              "Giá",
+              "Giá chung cả nước, đã gồm VAT",
+              "Thường thấp hơn, lên xuống thất thường"
+            ],
+            [
+              "Bảo hành tại Việt Nam",
+              "Tại trung tâm bảo hành Apple ủy quyền ở Việt Nam",
+              "Apple có thể giới hạn bảo hành ở nước bán máy lần đầu"
+            ],
+            [
+              "Rủi ro",
+              "Ít, nếu mua ở chuỗi chính hãng",
+              "Máy khóa mạng; máy cũ, máy tân trang bán như máy mới"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Bảo hành quốc tế không chắc chắn",
+          "text": "[Điều khoản bảo hành một năm của Apple](https://www.apple.com/legal/warranty/products/ios-warranty-document-us.html) ghi rằng Apple có thể giới hạn dịch vụ bảo hành iPhone ở quốc gia nơi Apple hoặc nhà phân phối ủy quyền bán máy lần đầu. Người bán thường nói iPhone xách tay được bảo hành toàn cầu, nhưng quyền quyết định thuộc về Apple. Nếu mua máy xách tay, hãy yêu cầu người bán ghi rõ điều kiện bảo hành trên giấy."
+        }
+      ]
+    },
+    {
+      "id": "mua-iphone-o-dau",
+      "title": "Mua iPhone ở đâu: Apple trực tuyến hay chuỗi bán lẻ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Muốn rẻ nhất cho mẫu cũ, hãy mua ở chuỗi bán lẻ chính hãng. Muốn mẫu mới ngay khi ra mắt với giá gốc, mua trên Apple trực tuyến cũng không thiệt bao nhiêu. Apple mở [cửa hàng trực tuyến cho Việt Nam](https://www.apple.com/vn/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/) ngày 18/5/2023. Cửa hàng có nhân viên tư vấn bằng tiếng Việt và có chương trình Apple Trade In (thu máy cũ, trừ vào giá máy mới)."
+        },
+        {
+          "type": "table",
+          "caption": "Các nơi mua iPhone ở Việt Nam, tháng 11/2026",
+          "headers": [
+            "Nơi mua",
+            "Giá",
+            "Cần biết"
+          ],
+          "rows": [
+            [
+              "Apple Store trực tuyến (apple.com/vn)",
+              "Giá gốc của Apple, đã gồm thuế",
+              "Giao hàng miễn phí. Có Apple Trade In. Mẫu Pro đời cũ bị gỡ khỏi cửa hàng khi mẫu mới ra mắt."
+            ],
+            [
+              "Chuỗi chính hãng: Thế Giới Di Động, FPT Shop, CellphoneS, Di Động Việt, Minh Tuấn Mobile",
+              "Mẫu đời trước thường thấp hơn giá Apple",
+              "Xem máy tận tay, mỗi chuỗi có khuyến mãi và chương trình thu cũ riêng."
+            ],
+            [
+              "Cửa hàng nhỏ lẻ",
+              "Tùy nơi",
+              "Hay bán hàng xách tay hoặc máy tân trang. Kiểm tra mã máy và điều kiện bảo hành trước khi trả tiền."
+            ],
+            [
+              "Mua lại của người dùng",
+              "Thấp nhất",
+              "Không có bảo hành cửa hàng. Gặp trực tiếp và kiểm tra máy kỹ."
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Trả góp trên Apple Việt Nam"
+        },
+        {
+          "type": "p",
+          "text": "Theo [trang mua iPhone của Apple Việt Nam](https://www.apple.com/vn/shop/buy-iphone) đọc ngày 19/11/2026, bạn có thể trả góp 3, 6, 9 hoặc 12 tháng bằng thẻ tín dụng của ACB, BIDV, HSBC, Shinhan Bank, Techcombank, VIB, Vietcombank và VPBank. Đơn hàng phải trên {{vnd:3000000}}. Thẻ ghi nợ không được trả góp. Nếu trả góp qua MoMo, bạn trả trước 20%, đơn hàng tối thiểu {{vnd:3750000}} và cần đối tác tín dụng của MoMo duyệt hồ sơ."
+        }
+      ]
+    },
+    {
+      "id": "hoan-thue-vat-khi-mua-iphone",
+      "title": "Việt kiều, người nước ngoài mua iPhone có được hoàn thuế VAT không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Được, nếu bạn mang hộ chiếu nước ngoài, mang máy ra khỏi Việt Nam qua cửa khẩu có hoàn thuế, và cửa hàng xuất hóa đơn hoàn thuế. Theo Nghị định 181/2025/NĐ-CP (Phụ lục IV) và Thông tư 84/2026/TT-BTC, bạn được hoàn **85% số thuế VAT** đã trả. 15% còn lại là phí dịch vụ của ngân hàng đại lý hoàn thuế, theo [tóm tắt của LuatVietnam](https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html). Theo [Tạp chí Pháp luật Việt Nam](https://vietnamlawmagazine.vn/electronic-vat-refund-process-for-foreign-visitors-standardised-80117.html), Thông tư 84/2026/TT-BTC của Bộ Tài chính có hiệu lực từ 1/7/2026, thay thế Thông tư 72/2014 và 92/2019."
+        },
+        {
+          "type": "p",
+          "text": "Đây là lựa chọn đáng cân nhắc nếu người thân là Việt kiều về thăm nhà và muốn mua iPhone mang đi. Người dùng hộ chiếu Việt Nam không thuộc diện được hoàn thuế. Các điều kiện chính:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Người mua mang hộ chiếu nước ngoài hoặc giấy tờ đi lại quốc tế hợp lệ.",
+            "Cửa hàng phải là doanh nghiệp được bán hàng hoàn thuế. Nhiều cửa hàng không có, nên hãy hỏi trước khi trả tiền.",
+            "Các hóa đơn của cùng một cửa hàng trong cùng một ngày cộng lại tối thiểu {{vnd:2000000}}. iPhone nào cũng vượt mức này.",
+            "Máy phải còn mới và còn nguyên hộp.",
+            "Hóa đơn hoàn thuế lập không quá **60 ngày** trước ngày rời Việt Nam.",
+            "Tiền hoàn trả bằng tiền đồng. Nếu muốn nhận ngoại tệ, ngân hàng quy đổi theo tỷ giá của ngân hàng."
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Hỏi cửa hàng trước khi trả tiền",
+              "text": "Hỏi cửa hàng có xuất hóa đơn hoàn thuế VAT cho khách nước ngoài không. Đưa hộ chiếu để cửa hàng lập hóa đơn kiêm tờ khai hoàn thuế, rồi kiểm tra họ tên, số hộ chiếu, hàng hóa và tiền thuế ghi trên đó."
+            },
+            {
+              "title": "Giữ máy trong hành lý xách tay",
+              "text": "Để máy, hộp và hóa đơn cùng một chỗ. Đừng ký gửi máy trước khi hải quan kiểm tra."
+            },
+            {
+              "title": "Làm thủ tục với hải quan ở sân bay",
+              "text": "Xuất trình hộ chiếu, hóa đơn và máy cho hải quan chậm nhất 30 phút trước giờ máy bay cất cánh."
+            },
+            {
+              "title": "Nhận tiền hoàn thuế",
+              "text": "Sau khi hải quan xác nhận, mang hóa đơn và thẻ lên máy bay đến quầy ngân hàng trong khu cách ly để nhận tiền mặt hoặc nhận vào thẻ thanh toán quốc tế."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nguoi-dung-co-nen-mua-iphone-cu",
+      "title": "Người dùng có nên mua iPhone cũ cho rẻ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thường là có, nếu bạn tự kiểm tra máy kỹ. Mua máy cũ giúp tránh phần chênh lệch giá máy mới giữa Việt Nam và nước ngoài. Đổi lại, bạn không có bảo hành và chính sách đổi trả của cửa hàng."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Gặp nhau ban ngày ở quán cà phê hoặc cửa hàng điện thoại, không đến nhà người lạ.",
+            "Trước khi trả tiền, yêu cầu người bán đăng xuất tài khoản Apple và tắt Tìm iPhone (Find My). Nếu Khóa kích hoạt vẫn bật, bạn sẽ không dùng được máy.",
+            "Vào Cài đặt > Cài đặt chung > Giới thiệu, đối chiếu mã máy (VN/A hay mã khác) với lời người bán.",
+            "Xem tình trạng pin trong Cài đặt > Pin, rồi thử camera, Face ID, loa và sạc.",
+            "Hỏi xin hộp và hóa đơn gốc. Không có hóa đơn thì phần bảo hành còn lại rất khó dùng."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu muốn xem máy người khác đang bán, hãy vào [mục điện thoại và đồ điện tử trên eno.vn](/c/electronics). Người ở Việt Nam, cả người Việt lẫn người nước ngoài sắp về nước, đăng bán điện thoại, laptop và đồ công nghệ ở đây. Bạn có thể nhắn tin hỏi người bán trước khi hẹn gặp xem máy."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Mua iPhone ở Việt Nam có rẻ hơn Mỹ không?",
+      "a": "Mua iPhone mới ở Việt Nam thường đắt hơn ở Mỹ. Ngày 19/11/2026, The Mac Index cho thấy iPhone 17 ở Mỹ rẻ hơn giá Apple Việt Nam khoảng 11%, kể cả khi đã cộng thuế bán hàng. Với iPhone 18 Pro, cùng ngày trang này xếp Việt Nam thứ 34 trên 39 nước. Riêng mẫu đời trước, giá ở các chuỗi bán lẻ Việt Nam có thể gần bằng giá Mỹ."
+    },
+    {
+      "q": "Hàng VN/A là gì, khác gì hàng xách tay?",
+      "a": "VN/A là đuôi mã máy của iPhone bán cho thị trường Việt Nam. iPhone VN/A đã chịu thuế VAT và được bảo hành tại các trung tâm Apple ủy quyền ở Việt Nam. iPhone xách tay mang mã thị trường khác, ví dụ LL/A của Mỹ, thường rẻ hơn. Nhưng theo điều khoản của Apple, bảo hành của máy xách tay có thể bị giới hạn ở nước bán máy lần đầu."
+    },
+    {
+      "q": "Mua iPhone ở đâu rẻ nhất Việt Nam?",
+      "a": "Với mẫu đời trước, các chuỗi bán lẻ chính hãng thường rẻ hơn Apple. Theo VietNamNet ngày 13/10/2026, Di Động Việt, Minh Tuấn Mobile, Thế Giới Di Động, FPT Shop và CellphoneS bán dòng iPhone 17 thấp hơn giá Apple khoảng 9-12%. Mẫu mới vừa ra mắt gần như không giảm, nên giá ở chuỗi và giá trên apple.com/vn chênh nhau rất ít."
+    },
+    {
+      "q": "Mua iPhone ở Nhật hay Thái Lan có rẻ hơn Việt Nam không?",
+      "a": "Mua iPhone ở Nhật và Thái Lan rẻ hơn ở Việt Nam, theo The Mac Index ngày 19/11/2026. Với iPhone 17 256GB, Nhật đứng đầu trong 36 nước sau khi trừ khoản hoàn thuế cho khách du lịch, Thái Lan đứng thứ 5, còn Việt Nam đứng thứ 34. Nếu mua ở nước ngoài, hãy kiểm tra máy có khóa mạng không và điều kiện bảo hành khi về Việt Nam."
+    },
+    {
+      "q": "Việt kiều mua iPhone ở Việt Nam có được hoàn thuế không?",
+      "a": "Việt kiều mang hộ chiếu nước ngoài được hoàn 85% thuế VAT khi mang iPhone ra khỏi Việt Nam, theo Nghị định 181/2025/NĐ-CP và Thông tư 84/2026/TT-BTC (hiệu lực từ 1/7/2026). Cửa hàng phải được phép xuất hóa đơn hoàn thuế, hóa đơn lập không quá 60 ngày trước khi đi. Người mua xuất trình máy, hóa đơn và hộ chiếu cho hải quan chậm nhất 30 phút trước giờ bay."
+    },
+    {
+      "q": "iPhone mua ở nước ngoài có được bảo hành ở Việt Nam không?",
+      "a": "iPhone mua ở nước ngoài chưa chắc được bảo hành ở Việt Nam. Điều khoản bảo hành một năm của Apple ghi rằng Apple có thể giới hạn bảo hành iPhone ở quốc gia nơi máy được bán lần đầu. iPhone VN/A được bảo hành tại trung tâm Apple ủy quyền ở Việt Nam. Nếu mua máy xách tay, hãy yêu cầu người bán ghi điều kiện bảo hành ra giấy trước khi trả tiền."
+    },
+    {
+      "q": "Apple Store Việt Nam có cho trả góp iPhone không?",
+      "a": "Apple Store trực tuyến Việt Nam cho trả góp iPhone 3, 6, 9 hoặc 12 tháng bằng thẻ tín dụng của các ngân hàng có trong danh sách, như Vietcombank, Techcombank, VIB, BIDV, ACB, HSBC, Shinhan Bank và VPBank. Thẻ ghi nợ không được trả góp. Apple cũng có trả góp qua MoMo, trả trước 20% và cần đối tác tín dụng của MoMo duyệt. Thông tin này đọc ngày 19/11/2026."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Mua iPhone 17",
+      "publisher": "Apple Việt Nam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-17"
+    },
+    {
+      "title": "Mua iPhone Air",
+      "publisher": "Apple Việt Nam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-air"
+    },
+    {
+      "title": "Mua iPhone 18 Pro",
+      "publisher": "Apple Việt Nam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-18-pro"
+    },
+    {
+      "title": "Mua iPhone",
+      "publisher": "Apple Việt Nam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone"
+    },
+    {
+      "title": "Apple ra mắt Apple Store trực tuyến cho thị trường Việt Nam",
+      "publisher": "Apple Newsroom (Việt Nam)",
+      "url": "https://www.apple.com/vn/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/"
+    },
+    {
+      "title": "Apple One (1) Year Limited Warranty for iPhone",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/legal/warranty/products/ios-warranty-document-us.html"
+    },
+    {
+      "title": "Buy iPhone 17",
+      "publisher": "Apple (Mỹ)",
+      "url": "https://www.apple.com/shop/buy-iphone/iphone-17"
+    },
+    {
+      "title": "Buy iPhone 18 Pro",
+      "publisher": "Apple (Mỹ)",
+      "url": "https://www.apple.com/shop/buy-iphone/iphone-18-pro"
+    },
+    {
+      "title": "Conditions for VAT refunds for foreigners upon departure",
+      "publisher": "LuatVietnam",
+      "url": "https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html"
+    },
+    {
+      "title": "Electronic VAT refund process for foreign visitors standardised",
+      "publisher": "Vietnam Law Magazine",
+      "url": "https://vietnamlawmagazine.vn/electronic-vat-refund-process-for-foreign-visitors-standardised-80117.html"
+    },
+    {
+      "title": "iPhone 17, iPhone 17 Pro và iPhone 17 Pro Max giảm hơn 3 triệu đồng tại Việt Nam",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/iphone-17-iphone-17-pro-va-iphone-17-pro-max-giam-hon-3-trieu-dong-tai-viet-nam-2564246.html"
+    },
+    {
+      "title": "iPhone 17 prices by country",
+      "publisher": "The Mac Index",
+      "url": "https://themacindex.com/vn/products/iphone-17"
+    },
+    {
+      "title": "iPhone 18 Pro prices by country",
+      "publisher": "The Mac Index",
+      "url": "https://themacindex.com/vn/products/iphone-18-pro"
+    },
+    {
+      "title": "iPhone 18 series",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai/iphone-18-series"
+    },
+    {
+      "title": "So sánh iPhone VN/A với iPhone LL/A: nên mua loại nào?",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/so-sanh-iphone-vn-a-voi-iphone-ll-a-nen-mua-loai-1457009"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-19"
+}

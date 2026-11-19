@@ -49,6 +49,8 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'saigonmoving', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '7f8a13e55afda67e' },
   { slug: 'tuyen-giao-vien-nuoc-ngoai', lang: 'vi', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: 'aea55f964498b609' },
   { slug: 'vietnam-school-leaders-english-requirements', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '6e97925fe752ec81', pair: 'hieu-truong-phai-biet-tieng-anh-thong-tu-94' },
+  { slug: 'mua-iphone-o-viet-nam-co-re-hon-khong', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '114e27d673d69420', pair: 'is-it-cheaper-to-buy-iphone-in-vietnam' },
+  { slug: 'is-it-cheaper-to-buy-iphone-in-vietnam', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: 'e0c124aa9c5dbdbc', pair: 'mua-iphone-o-viet-nam-co-re-hon-khong' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
