@@ -164,6 +164,7 @@ describe('the six migrated cron routes still emit the legacy 401', () => {
     'saved-search-alerts': () => import('@/app/api/cron/saved-search-alerts/route'),
     'video-gc': () => import('@/app/api/cron/video-gc/route'),
     'weekly-digest': () => import('@/app/api/cron/weekly-digest/route'),
+    'digest-daily': () => import('@/app/api/cron/digest-daily/route'),
     // The teacher job-match emails (2026-10-08: started by the /teachers skill's send after the owner approves a plan).
     'teacher-match-emails': () => import('@/app/api/cron/teacher-match-emails/route'),
     'visa-retention (.svc)': () => import('@/app/api/cron/visa-retention/route.svc'),

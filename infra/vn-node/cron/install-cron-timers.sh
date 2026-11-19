@@ -11,7 +11,7 @@
 # sets Persistent=true and an explicit UTC timestamp.
 #
 # ⛔ THE EMAIL CRONS ARE INSTALLED BUT LEFT DISABLED. The box holds a SNAPSHOT of
-# production, and production is still authoritative. Enabling weekly-digest,
+# production, and production is still authoritative. Enabling digest-daily,
 # saved-search-alerts or daily-reminders now would email real people from stale data,
 # possibly twice. They are enabled at cutover, by the line printed at the end.
 set -euo pipefail
@@ -46,7 +46,15 @@ declare -A SCHED=(
   [warm-translations]="*-*-* 21:00:00 UTC"
   [daily-reminders]="*-*-* 02:00:00 UTC"
   [saved-search-alerts]="*-*-* 05:00:00 UTC"
-  [weekly-digest]="Thu *-*-* 02:00:00 UTC"
+  # The marketing digest, DAILY since 2026-11-19 (owner: at most 90 a day, each person once a week, then every 10 / 15 days as
+  # the list grows; src/lib/digest-schedule.ts). It was `weekly-digest` on "Thu" and hit Resend's daily quota
+  # every week. ⛔ A NEW JOB NAME ON PURPOSE: /api/cron/weekly-digest is now a no-op, so a rollback to older code (where that
+  # path sent to everyone) can never be driven daily — the old code has no /digest-daily and 404s. On the box, once:
+  #   ENO_CRON_ONLY=digest-daily bash install-cron-timers.sh && systemctl enable --now eno-cron-digest-daily.timer
+  #   systemctl disable --now eno-cron-weekly-digest.timer
+  # 01:45 UTC = 08:45 ICT, a quarter-hour BEFORE daily-reminders: the digest's batch path has no SMTP fallback, the
+  # reminders' sendMail does, so the digest takes its share of the Resend day first.
+  [digest-daily]="*-*-* 01:45:00 UTC"
   # Teacher message emails (2026-10-12): every 30 minutes, so a school's first message reaches the teacher's inbox within
   # the hour — someone new at once, otherwise one reminder a day while anything is unread (src/lib/teachers/message-emails.ts).
   # :07 and :37, off the :00 marks the daily email crons hold on Resend's shared 10 req/s. POLICY class (below): installed
@@ -228,7 +236,7 @@ declare -A SCHED=(
 # scripts/secondhand-showcase.ts --rollback <file>). Installed before the deploy, its unit fails (404) until it lands.
 SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations secondhand-showcase indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile identity-marks)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
-EMAIL=(daily-reminders saved-search-alerts weekly-digest)
+EMAIL=(daily-reminders saved-search-alerts digest-daily)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
 # job-match emails go out only after the owner approved that day's plan (/teachers starts the service). Their timer used to
 # sit in EMAIL, installed and disabled — one pasted cutover line (or a `systemctl enable 'eno-cron-*.timer'`) away from a

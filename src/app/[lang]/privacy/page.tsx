@@ -297,7 +297,7 @@ const RECIPIENTS: Table = {
       { en: 'Showing maps.', vi: 'Hiển thị bản đồ.' },
     ],
     [
-      // src/lib/mail.ts:1-17 · src/app/api/auth/email-link/route.ts:206 · cron/weekly-digest
+      // src/lib/mail.ts:1-17 · src/app/api/auth/email-link/route.ts:206 · cron/digest-daily
       { en: 'Resend', vi: 'Resend' },
       { en: 'Outside Vietnam', vi: 'Ngoài Việt Nam' },
       { en: 'Your email address and the content of each email we send you: sign-in links and codes, notifications and digests.', vi: 'Địa chỉ email của bạn và nội dung từng email chúng tôi gửi bạn: đường dẫn và mã đăng nhập, thông báo và bản tin tổng hợp.' },

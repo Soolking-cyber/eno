@@ -43,7 +43,7 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(tail.split('\n').filter((l) => l.startsWith('echo')).length).toBe(2)
     const r = bash(`${list('EMAIL').line}\n${list('MANUAL').line}\n${tail}`)
     expect(r.status).toBe(0)
-    expect(r.out).toContain('for j in daily-reminders saved-search-alerts weekly-digest; do systemctl enable --now eno-cron-$j.timer; done')
+    expect(r.out).toContain('for j in daily-reminders saved-search-alerts digest-daily; do systemctl enable --now eno-cron-$j.timer; done')
     expect(r.out).not.toContain('teacher-match-emails')
   })
 
@@ -194,7 +194,7 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
 
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {
     expect(IN_LIST).not.toBe('')
-    const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list weekly-digest "\${MANUAL[@]}" || echo no`)
+    const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list digest-daily "\${MANUAL[@]}" || echo no`)
     expect(r).toEqual({ status: 0, out: 'yes\nno\n' })
   })
 
