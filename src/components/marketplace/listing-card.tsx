@@ -752,7 +752,7 @@ function ListingCardImpl({
       // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
       // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
       // press, so exempting anchors would delete the feedback this line exists to provide.
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-media cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-media corner-round cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -779,7 +779,7 @@ function ListingCardImpl({
           e.preventDefault()
           open()
         }}
-        className="absolute inset-0 z-0 rounded-media focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="absolute inset-0 z-0 rounded-media corner-round focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
@@ -809,7 +809,7 @@ function ListingCardImpl({
         // red probe on the live page — see `.partner-ring-media` in globals.css for the full
         // measurement before reaching for either again.
         className={cn(
-          'plate-lg media-hairline relative aspect-square w-full overflow-hidden rounded-media bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
+          'plate-lg media-hairline relative aspect-square w-full overflow-hidden rounded-media corner-round bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
           // ⛔ The goods phone card has no ring (owner-approved 2026-11-14, cook r06 goods — `look`): the grey tile is the edge.
           // …nor a listing page shelf's card (`look="tile"`, owner-approved 2026-11-15 (build 7), cook r07 "item").
           tile && 'max-sm:before:hidden',
@@ -1247,7 +1247,7 @@ function ListingCardImpl({
             overlay brings its own plate instead — since 2026-11-14 ONE white plate (owner-approved, cook r05: "over a
             photo: only white plates"): the heart and the hover actions the `plate-host` disc (globals.css), the one
             top-left badge and the video / saved chips the `.photo-badge` pill (card-badges.tsx, CardStatusChips), the
-            eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `shadow-onmedia` (they are
+            eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `pip-edge` (they are
             `sm`-and-up only now, below — and on the wide phone card), and the rental-check chip the same white plate
             (rental-check-toggle.tsx, since 2026-11-14). Do not bring a full-width band back for one corner glyph. */}
 
@@ -1545,7 +1545,8 @@ function ListingCardImpl({
                 <span
                   key={i}
                   className={cn(
-                    // `shadow-onmedia` replaces an inline `0 0 2px rgba(0,0,0,0.4)` halo (2026-08-09).
+                    // `pip-edge` (2026-11-19, owner: lighter shadows on cards) replaces `shadow-onmedia`, which had replaced an
+                    // inline `0 0 2px rgba(0,0,0,0.4)` halo (2026-08-09): the same edge as a sharp ring, ~91 blurs fewer per home page.
                     // Same legibility job on pale photos — and since the scrims went (2026-10-18) it is the
                     // whole job, see the token — but lit from above like every other shadow in the app, and no raw
                     // colour literal in a `style` prop (design-lint bans those in className; an
@@ -1562,7 +1563,7 @@ function ListingCardImpl({
                     // 12px, so the rail's total width is already constant. Twenty scoped layouts on
                     // a three-element flex row, during an interaction the user just initiated, is
                     // the cheaper side of that trade.
-                    'h-1.5 rounded-full bg-white transition-[width,opacity] shadow-onmedia',
+                    'h-1.5 rounded-full bg-white transition-[width,opacity] pip-edge',
                     i === idx ? 'w-3 opacity-100' : 'w-1.5 opacity-60',
                   )}
                 />

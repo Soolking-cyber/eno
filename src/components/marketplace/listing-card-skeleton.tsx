@@ -58,7 +58,7 @@ export function ListingCardSkeleton({ className, teacher = false, wide = false, 
   const goods = look === 'goods' && !teacher && !wide
   return (
     <div className={cn('flex flex-col', className)} data-look={goods ? 'goods' : undefined}>
-      <div className="aspect-square w-full rounded-media shimmer skeleton-photo" />
+      <div className="aspect-square w-full rounded-media corner-round shimmer skeleton-photo" />
       {/* Mirrors the card body (CARD_BODY): one price line, ONE title line, one info line, inset like the card's text on
           a phone (a teacher card swaps the first two for name + rate, and adds its proof line — `teacher`, the note
           above). Heights are the real line boxes — re-derive them if any of the card's type roles change. */}

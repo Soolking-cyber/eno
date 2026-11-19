@@ -904,9 +904,15 @@
      (the native thumb never was), so the handle reads identically in both themes. */
   /* The photo plate's edge (owner-approved 2026-11-14, cook r05): a white plate on a white packshot or the white page has
      no edge but this. Pure black, like --shadow-onmedia, because it lands on photos; NOT overridden in dark (the plate
-     is not either). `--shadow-photo-badge` is the same lift a step softer for the 26px text badges. */
+     is not either). `--shadow-photo-badge`, for the 26px text badges, is a sharp 1px ring since 2026-11-19 (see it below). */
   --shadow-plate: 0 1px 4px rgb(0 0 0 / 0.18);
-  --shadow-photo-badge: 0 1px 3px rgb(0 0 0 / 0.14);
+  /* ⚡ A SHARP RING, NOT A BLUR (owner, 2026-11-19: "lighter shadows on cards"). Measured on the live home page (Playwright,
+     4x CPU, slow 4G, 8-run medians): turning off its shadows and filters made first paint ~0.57 s (~10%) faster, and the
+     blurred two-layer --shadow-onmedia on 91 photo pips + this badge lift were the card's share. A 0-blur ring keeps the
+     edge on a white packshot at a fraction of the paint. --shadow-onmedia itself stays for chrome that is not repeated
+     per card (the gallery's controls). */
+  --shadow-photo-badge: 0 0 0 1px rgb(0 0 0 / 0.08);
+  --pip-edge: 0 0 0 1px rgb(0 0 0 / 0.2);
   /* ⚠️ THE ONE UPWARD SHADOW, ON PURPOSE (owner-approved 2026-11-14, cook r05: the sticky action bar is "the tab bar's
      twin … white, top hairline, soft lift"). A bar docked to the BOTTOM edge lifts off the content above it, so its
      shadow falls up; 4% black over 12px is a shade, not a light source, and the hairline still draws the edge. */
@@ -1711,9 +1717,13 @@
     [class*="rounded-l-lg"], [class*="rounded-l-xl"], [class*="rounded-l-2xl"], [class*="rounded-l-3xl"],
     [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"],
     [class*="rounded-media"], [class*="rounded-t-media"], [class*="rounded-b-media"], [class*="rounded-l-media"], [class*="rounded-r-media"]
-  ):not([class*="rounded-full"]) {
+  ):not([class*="rounded-full"], .corner-round) {
     corner-shape: squircle;
   }
+  /* ⚡ `.corner-round` OPTS OUT (owner, 2026-11-19: "plain rounded corners on listing cards"): the card's own surfaces —
+     its root, stretched link and photo frame (listing-card.tsx) — keep the 20px radius as a plain arc. Painting 160
+     superellipses per home page measured ~0.51 s (~9%) of a throttled phone's first paint. A class check, not one more
+     substring test: this :is() already runs 25 of them against every element. */
 }
 
 /* ============================================================
@@ -1723,6 +1733,8 @@
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
 /* White chrome over user photography — see --shadow-onmedia for why it is required. */
 .shadow-onmedia { box-shadow: var(--shadow-onmedia); }
+/* The same job as a sharp ring, for chrome repeated on every listing card (the photo pips) — see --pip-edge. */
+.pip-edge { box-shadow: var(--pip-edge); }
 /* The photo plate's edge, for a plated control that is not an `.icon-plate` glyph (the gallery's mute toggle and
    "Show all" chip) — see --shadow-plate. And the sticky action bar's lift — see --shadow-bar. */
 .shadow-plate { box-shadow: var(--shadow-plate); }
