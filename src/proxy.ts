@@ -267,9 +267,10 @@ const NOT_FOUND_PATH = '/~/not-found'
  * would render — a duplicate of `/c/rentals` for crawlers, and a way to force a variant past the
  * cookie. It 404s in the visitor's own language instead.
  * ⚠️ THE PLACES A VARIANT IS NOT THE VISITOR'S ARE A FIXED-LANGUAGE GUIDE (SEO wave B, V1), decided by the
- * PATH it already has — `/thanh-ly-do-gia-dung-cu-tphcm` renders Vietnamese for everyone — and, once V5
- * switches the pilot on, the `/vi` twin of a piloted path (V3a). Both live in src/lib/lang-pinned.ts; a
- * `/vi…` it does not pin still 404s here.
+ * PATH it already has — `/thanh-ly-do-gia-dung-cu-tphcm` renders Vietnamese for everyone — and the `/vi` twin
+ * of a path that has one (V3a's pilot, and since 2026-11-19 the phase-1 families: `/vi/c/rentals`,
+ * `/vi/c/<cat>/<district>`, `/vi/help…`, `/vi/schools…` — `hasViTwin`). Both live in src/lib/lang-pinned.ts; a
+ * `/vi…` it does not pin (an app or form page, a listing, a seller) still 404s here.
  */
 const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
 /** A `/vi` or `/vi/…` path — the only shape a pilot twin can have (pinnedRoute decides whether it is live). */
@@ -554,7 +555,9 @@ export function proxy(req: NextRequest) {
      * a piloted plain path renders English for everyone (decision V-a); `/vi` + that path renders
      * Vietnamese, also for everyone, at the plain path's own `vi` ISR entry; `/vi` + a WITHDRAWN path 308s
      * to the plain path, query kept — never a 404 once such a URL may be indexed (rollback V-R). Any
-     * other `/vi…` is not pinned and keeps 404ing through INTERNAL_PREFIX below. The marketplace only
+     * other `/vi…` is not pinned and keeps 404ing through INTERNAL_PREFIX below. ⚠️ THE PHASE-1 FAMILIES
+     * (2026-11-19, `VI_TWIN_FAMILIES`) differ in one thing: their `/vi…` is pinned to `vi` the same way, but their
+     * PLAIN path is not pinned — pinnedRoute returns null and it negotiates like any page. The marketplace only
      * (`VI_PILOT` is empty on eno.forum), and never SERVED on a storefront host — whose live twins 308 to
      * the site's own (next block).
      * ⚠️ NO LANGUAGE REDIRECT ANYWHERE: both 308s are path-based — a retired URL, and a twin asked of a

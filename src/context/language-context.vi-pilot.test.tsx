@@ -12,11 +12,13 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 const pilot = vi.hoisted(() => ({ on: true }))
 vi.mock('@/lib/lang-pinned', async (importOriginal) => {
   const real = await importOriginal<typeof import('@/lib/lang-pinned')>()
-  const lists = () => (pilot.on ? { live: ['/', '/c/furniture-appliances'], retired: [] } : { live: [], retired: [] })
+  // ON = what eno.vn ships: the pilot (`/`, `/c/furniture-appliances`) and the phase-1 families (2026-11-19).
+  const lists = () => (pilot.on ? real.VI_PILOT_MARKETPLACE : { live: [], retired: [] })
   return {
     ...real,
     pinnedVariant: (p: string) => real.pinnedVariant(p, lists()),
     pinnedPair: (p: string) => real.pinnedPair(p, lists()),
+    hasViTwin: (p: string) => real.hasViTwin(p, lists()),
   }
 })
 const { LanguageProvider, useLanguage } = await import('@/context/language-context')
@@ -143,11 +145,81 @@ describe('LanguageProvider under the /vi pilot (lists on)', () => {
     expect(assign).toHaveBeenCalledWith('/c/furniture-appliances')
   })
 
-  it('a non-piloted page keeps reloading across variants as before', () => {
+  it('a non-piloted page keeps reloading across variants as before — a family\'s plain path too (it negotiates, not V-a)', () => {
     at('/c/rentals')
     store.lang = 'vi'
     render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
     expect(reload).toHaveBeenCalledTimes(1)
+    expect(assign).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * ⛔ D2 (owner, 2026-11-19): on a phase-1 family's plain page, choosing Tiếng Việt goes to its `/vi` address; on that
+ * address choosing English (or a machine-translated language) goes back to the plain URL. The mount never crosses on
+ * `/vi…` (pinned), and a page without a twin keeps the reload.
+ */
+describe('LanguageProvider on the phase-1 /vi families (D2)', () => {
+  it('Tiếng Việt on plain /c/rentals → /vi/c/rentals, query kept, choice stored, no reload — from either rendered variant', () => {
+    at('/c/rentals', '?sort=newest')
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    act(() => setLangRef!('vi'))
+    expect(assign).toHaveBeenLastCalledWith('/vi/c/rentals?sort=newest')
+    expect(reload).not.toHaveBeenCalled()
+    expect(store.lang).toBe('vi')
+    expect(document.cookie).toContain('lang=vi')
+    cleanup()
+    at('/schools/awards/2026')
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('vi'))
+    expect(assign).toHaveBeenLastCalledWith('/vi/schools/awards/2026')
+  })
+
+  it('English or a machine-translated language on /vi/c/rentals/binh-thanh → the plain URL', () => {
+    at('/vi/c/rentals/binh-thanh', '?x=1')
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    act(() => setLangRef!('en'))
+    expect(assign).toHaveBeenLastCalledWith('/c/rentals/binh-thanh?x=1')
+    act(() => setLangRef!('ko'))
+    expect(assign).toHaveBeenLastCalledWith('/c/rentals/binh-thanh?x=1')
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('a stored English choice on /vi/help: no reload, stays vi (the twin is pinned)', () => {
+    at('/vi/help')
+    store.lang = 'en'
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(reload).not.toHaveBeenCalled()
+    expect(assign).not.toHaveBeenCalled()
+    expect(shown()).toBe('vi')
+  })
+
+  it('a page without a twin (an app or form page) keeps the reload: /schools/suggest, /about', () => {
+    for (const p of ['/schools/suggest', '/about']) {
+      // a fresh visitor each time: the first choice is stored, and a stored vi would reload the second mount
+      reload.mockReset()
+      for (const k of Object.keys(store)) delete store[k]
+      document.cookie = 'lang=; path=/; max-age=0'
+      at(p)
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      act(() => setLangRef!('vi'))
+      expect(assign, p).not.toHaveBeenCalled()
+      expect(reload, p).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+
+  it("on a shop's own host the family choice reloads in place — never a `/vi…` the proxy would bounce to the apex", () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    try {
+      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/c/rentals', hostname: 'apple.eno.vn', search: '', hash: '', reload, assign } })
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      act(() => setLangRef!('vi'))
+      expect(assign).not.toHaveBeenCalled()
+      expect(reload).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
 

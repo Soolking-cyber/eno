@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import { pageShare } from '@/lib/site-identity'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Header } from '@/components/marketplace/header'
@@ -28,7 +29,7 @@ type Props = { params: Promise<{ lang: string; year: string }> }
 const load = cache(async (raw: string) => (/^\d{4}$/.test(raw) ? awardsPage(Number(raw)) : null))
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { year } = await params
+  const { lang, year } = await params
   const page = await load(year)
   if (!page) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
   const title = `Teachers' Choice ${page.year}: where teachers recommend working in Saigon | ${SITE_NAME}`
@@ -39,7 +40,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       : `Teachers' Choice ${page.year}: voting has closed and the results are being counted.`
   const path = `${AWARDS_PATH}/${page.year}`
   // Indexed once the year is closed (diff review: the open page is a thin list of names); followed either way.
-  return { title, description, alternates: { canonical: path }, ...(page.state === 'final' ? {} : { robots: { index: false, follow: true } }), ...pageShare({ title, description, url: path }) }
+  const meta: Metadata = { title, description, ...(page.state === 'final' ? {} : { robots: { index: false, follow: true } }), ...pageShare({ title, description, url: path }) }
+  // ⛔ The canonical follows the variant (phase-1 /vi families, 2026-11-19 — src/lib/lang-alternates.ts): the Vietnamese
+  // one says `/vi/schools/awards/<year>`, with reciprocal hreflang. Null while the year is not final (`meta.robots`, the
+  // one this head emits) and on eno.forum: the plain canonical alone. The English card keeps og:url.
+  const twin = langAlternatesFor(path, lang, meta.robots)
+  return { ...meta, alternates: twin ?? { canonical: path } }
 }
 
 export default async function SchoolAwardsYear({ params }: Props) {

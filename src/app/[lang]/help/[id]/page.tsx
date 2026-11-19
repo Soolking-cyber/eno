@@ -1,5 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { organizationId, withShare } from '@/lib/site-identity'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import type { Metadata } from 'next'
 import { cookies, headers } from 'next/headers'
 import { notFound } from 'next/navigation'
@@ -30,7 +31,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description: thread.post.body.replace(/\s+/g, ' ').slice(0, 200),
     alternates: { canonical: `/help/${id}` },
   }, { type: 'article' })
-  return viTitle ? { ...meta, title: `${viTitle} | ${SITE_NAME}` } : meta
+  // ⛔ The canonical follows the variant (phase-1 /vi families, 2026-11-19 — src/lib/lang-alternates.ts): the
+  // Vietnamese one says `/vi/help/<id>`, with reciprocal hreflang; null (an id outside the family pattern, eno.forum)
+  // keeps the plain canonical alone. The share card above, og:url included, is the same on both variants.
+  const twin = langAlternatesFor(`/help/${id}`, lang, meta.robots)
+  const head = twin ? { ...meta, alternates: twin } : meta
+  return viTitle ? { ...head, title: `${viTitle} | ${SITE_NAME}` } : head
 }
 
 export default async function HelpThreadPage({ params }: Params) {

@@ -80,6 +80,11 @@ flock -n 9 || { bad "another deploy is running (holding $LOCK) — refusing"; ex
 # Vietnamese twin for everyone (decision V-a: no language redirect; a one-tap banner instead). It moves
 # with VI_PREFIX_PATHS and the Worker's PINNED_EN_PATHS, never alone. Rollback V-R sets `retired`.
 PILOT_EXPECT=on
+# ⛔ THE PHASE-1 `/vi` FAMILIES THIS CHECKOUT SHIPS (owner, 2026-11-19; lang-pinned.ts VI_TWIN_FAMILIES): `on` —
+# `/vi/c/<cat>`, `/vi/c/<cat>/<district>`, `/vi/help…` and `/vi/schools…` are VIETNAMESE FOR EVERYONE, while their
+# plain URLs keep negotiating (cookie, then Accept-Language — not V-a), and every app page under `/vi` still 404s.
+# It moves with VI_TWIN_FAMILIES, never alone; withdrawing them (V-R: VI_RETIRED_FAMILIES) sets `off` here.
+FAMILIES_EXPECT=on
 
 # ⛔ THROUGH CLOUDFLARE, NOT LOOPBACK. Since Authenticated Origin Pulls was enforced the
 # origin answers 400 to anything without our client certificate, so a loopback curl is
@@ -170,8 +175,8 @@ probe(){
   # real traffic (CLAUDE.md, 2026-08-02).
   # ⛔ THE `/vi` PILOT (V5). On eno.vn, `/` is pinned: a Vietnamese browser gets ENGLISH (with the
   # banner), and `/vi` is Vietnamese even for an English browser. The forum never pilots, so it still
-  # adapts, and `/privacy` is the adaptive eno.vn page. Only the two piloted `/vi` URLs exist: every
-  # other `/vi…` is the old 404, and the forum's `/vi` too.
+  # adapts, and `/privacy` is the adaptive eno.vn page. Besides the two piloted `/vi` URLs only the phase-1
+  # families' `/vi…` exist (FAMILIES_EXPECT); every other `/vi…` (an app page) is the old 404, and the forum's `/vi` too.
   # ⚠️ A ROLLBACK PROBES WHAT THE RESTORED IMAGES SERVE, NOT WHAT THIS SCRIPT SHIPS: restore() puts back
   # `:prev`, which may predate the pilot, and failing that rollback for being pre-pilot would report a
   # healthy restore as "DID NOT RESTORE SERVICE". So `probe rollback` reads the state from `/vi`'s own
@@ -183,8 +188,17 @@ probe(){
   # PINNING `/` in front of origin images that no longer pin it (restore() past V5, or V-R deployed
   # before the Worker was unpinned) is caught: vi-VN gets the stored English copy and the probe fails,
   # instead of passing on an empty cache. The fix is the Worker, not the app (V5 switch-on runbook).
-  local pilot=$PILOT_EXPECT vcode
+  # ⚠️ THE FAMILIES THE SAME WAY: a restore may put back images from before them, so `probe rollback` reads their
+  # state from `/vi/c/rentals` (200 on, 404 off) and holds the family probes to it.
+  local pilot=$PILOT_EXPECT families=$FAMILIES_EXPECT vcode fcode
   if [ "$mode" = rollback ]; then
+    fcode=$(curl -s -o /dev/null --max-time 25 -w '%{http_code}' "https://eno.vn/vi/c/rentals?d=$RANDOM$$")
+    case "$fcode" in
+      200) families=on ;;
+      404) families=off ;;
+      *) printf '  %-38s %s ⛔ not a family state this script knows\n' https://eno.vn/vi/c/rentals "$fcode"; fail=1; families=off ;;
+    esac
+    printf '  %-38s probing the restored images as families=%s\n' https://eno.vn/vi/c/rentals "$families"
     vcode=$(curl -s -o /dev/null --max-time 25 -w '%{http_code}' "https://eno.vn/vi?d=$RANDOM$$")
     case "$vcode" in
       200) pilot=on ;;
@@ -218,7 +232,17 @@ probe(){
   fi
   langcheck https://eno.vn/privacy vi-VN vi
   langcheck https://eno.vn/privacy en-US en
-  check https://eno.vn/vi/c/rentals 404
+  # ⛔ THE PHASE-1 FAMILIES: `/vi/c/rentals` is Vietnamese for an English browser; the plain `/c/rentals` still
+  # negotiates (en-US first, so the vi-VN line reads the edge's entry, as for `/` above); an app page is still 404.
+  if [ "$families" = on ]; then
+    check https://eno.vn/vi/c/rentals 200
+    langcheck https://eno.vn/vi/c/rentals en-US vi
+    langcheck https://eno.vn/c/rentals en-US en
+    langcheck https://eno.vn/c/rentals vi-VN vi
+  else
+    check https://eno.vn/vi/c/rentals 404
+  fi
+  check https://eno.vn/vi/dashboard 404
   if forum_public; then check https://www.eno.forum/vi    404; fi
   # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
   # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
@@ -248,6 +272,9 @@ probe(){
   if [ "$pilot" = on ]; then
     cookiecheck https://eno.vn/vi en vi   # the twin stays Vietnamese for a stored English choice
     cookiecheck https://eno.vn/ vi en     # and the pinned `/` stays English for a stored Vietnamese one
+  fi
+  if [ "$families" = on ]; then
+    cookiecheck https://eno.vn/vi/c/rentals en vi   # a family's twin: the PATH wins over a stored English choice
   fi
   return $fail
 }

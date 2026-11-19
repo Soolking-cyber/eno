@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync } from 'node:fs'
-import { FIXED_LANG, VI_PILOT, viPilotFor, VI_PREFIX_PATHS, VI_RETIRED_PATHS, langAlternates, localizedHref, pinnedPair, pinnedRoute, stripViPrefix, type ViPilot } from './lang-pinned'
+import { readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { FIXED_LANG, VI_PILOT, VI_PILOT_MARKETPLACE, VI_RETIRED_FAMILIES, VI_TWIN_FAMILIES, viPilotFor, VI_PREFIX_PATHS, VI_RETIRED_PATHS, hasViTwin, hrefHere, langAlternates, localizedHref, pinnedPair, pinnedRoute, stripViPrefix, viTwinPath, type ViPilot } from './lang-pinned'
 import { LANG_VARIANTS } from './lang-variant'
 import { EXPAT_GUIDES, MARKETPLACE_GUIDES } from './expat-guides'
 import { PHONE_GUIDES } from './phone-guides'
@@ -103,6 +105,8 @@ describe('pinnedPair', () => {
 const OFF: ViPilot = { live: [], retired: [] }
 const ON: ViPilot = { live: ['/', '/c/furniture-appliances'], retired: [] }
 const RETIRED: ViPilot = { live: [], retired: ['/', '/c/furniture-appliances'] }
+/** What eno.vn ships: the pilot (V-a) and the phase-1 families (2026-11-19). */
+const MARKET: ViPilot = VI_PILOT_MARKETPLACE
 
 describe('the pilot lists', () => {
   it('ship V5\'s list — the pilot is on for `/` and `/c/furniture-appliances`, nothing retired', () => {
@@ -110,13 +114,13 @@ describe('the pilot lists', () => {
     expect(VI_RETIRED_PATHS).toEqual([])
     // vitest runs as the SERVICES edition (vitest.config.ts), where the pilot is always off; the
     // marketplace build takes the lists as they are
-    expect(VI_PILOT).toEqual(OFF)
-    expect(viPilotFor(false, VI_PREFIX_PATHS, VI_RETIRED_PATHS)).toEqual(ON)
+    expect(VI_PILOT).toEqual({ ...OFF, families: [], retiredFamilies: [] })
+    expect(viPilotFor(false, VI_PREFIX_PATHS, VI_RETIRED_PATHS)).toEqual({ ...ON, families: [], retiredFamilies: [] })
   })
 
   it('⛔ eno.forum never pilots, whatever the lists hold; the marketplace takes them as they are (review)', () => {
-    expect(viPilotFor(true, ON.live, ['/x'])).toEqual(OFF)
-    expect(viPilotFor(false, ON.live, ['/x'])).toEqual({ live: ON.live, retired: ['/x'] })
+    expect(viPilotFor(true, ON.live, ['/x'], VI_TWIN_FAMILIES, [/^\/x$/])).toEqual({ ...OFF, families: [], retiredFamilies: [] })
+    expect(viPilotFor(false, ON.live, ['/x'])).toEqual({ live: ON.live, retired: ['/x'], families: [], retiredFamilies: [] })
   })
 
   it('no path is in both lists, and every live or retired path is a real page route', () => {
@@ -207,14 +211,17 @@ describe('localizedHref', () => {
     expect(localizedHref('/?q=sofa', 'vi', ON)).toBe('/vi?q=sofa')
   })
 
-  it('⛔ never produces a /vi path outside the live list', () => {
-    const hrefs = ['/', '/c/furniture-appliances', '/c/rentals', '/c/furniture-appliances/binh-trung', '/listings/x', '/vi', '//evil.example/', 'https://eno.vn/', '#x', '?q=1', '/c/furniture-appliances/']
-    for (const lists of [OFF, ON, RETIRED]) {
+  it('⛔ never produces a /vi path that does not render (a twin of the lists in force)', () => {
+    const hrefs = ['/', '/c/furniture-appliances', '/c/rentals', '/c/furniture-appliances/binh-trung', '/listings/x', '/listings/x/edit', '/sellers/x', '/schools/suggest', '/schools/x/review', '/help/x/y', '/dashboard', '/vi', '/vi/c/rentals', '//evil.example/', 'https://eno.vn/', '#x', '?q=1', '/c/furniture-appliances/', '/c/rentals?sort=newest#top']
+    for (const lists of [OFF, ON, RETIRED, MARKET]) {
       for (const h of hrefs) {
         const out = localizedHref(h, 'vi', lists)
         if (out !== h) {
           const path = out.split(/[?#]/)[0]
-          expect(lists.live.includes(path === '/vi' ? '/' : path.slice(3)), `${h} -> ${out}`).toBe(true)
+          const plain = path === '/vi' ? '/' : path.slice(3)
+          expect(hasViTwin(plain, lists), `${h} -> ${out}`).toBe(true)
+          const r = pinnedRoute(path, lists)
+          expect(r && 'variant' in r ? r.variant : null, `${h} -> ${out}`).toBe('vi')
         }
       }
     }
@@ -237,5 +244,108 @@ describe('langAlternates (V3b head, decision V-g)', () => {
       canonical: 'https://eno.vn/vi/c/furniture-appliances',
       languages: { en: 'https://eno.vn/c/furniture-appliances', 'vi-VN': 'https://eno.vn/vi/c/furniture-appliances', 'x-default': 'https://eno.vn/c/furniture-appliances' },
     })
+  })
+})
+
+/**
+ * ⛔ THE PHASE-1 FAMILIES (owner, 2026-11-19): `/vi` + a category, a category×district, help or school path renders
+ * Vietnamese for everyone; the PLAIN path keeps negotiating; the two pilot paths keep V-a. App and form pages never
+ * match — checked against the real route tree, not a list of guesses (critic #6).
+ */
+const TWINNED = ['/c/rentals', '/c/furniture-appliances', '/c/rentals/binh-thanh', '/c/jobs/ha-noi', '/help', '/help/clx9a0b1c2d3e4f5g6h7i8j9k', '/help/help-renting-basics', '/schools', '/schools/jane-doe-123', '/schools/awards', '/schools/awards/2026']
+const NOT_TWINNED = [
+  '/c', '/c/', '/c/rentals/', '/c/Rentals', '/c/rentals.md', '/c/rentals/binh-thanh/x', '/c/-rentals', '/c/rentals--x',
+  '/help/', '/help/x/y', '/help/X1', '/schools/', '/schools/suggest', '/schools/jane-doe-123/review', '/schools/awards/26', '/schools/awards/2026/x',
+  '/listings/abc', '/listings/abc/edit', '/sellers/x', '/dashboard', '/dashboard/help', '/admin/schools', '/post', '/account', '/messages/x', '/saved',
+  '/about', '/privacy', '/guides', '/huong-dan', '/thanh-ly-do-gia-dung-cu-tphcm', '/gia/apple-iphone-13', '/vi', '/vi/c/rentals', '/c/rentals?x=1', '',
+]
+
+describe('the phase-1 families', () => {
+  it('ship on the marketplace with nothing retired; the services edition (vitest) has none', () => {
+    expect(VI_RETIRED_FAMILIES).toEqual([])
+    expect(MARKET).toEqual({ live: VI_PREFIX_PATHS, retired: VI_RETIRED_PATHS, families: VI_TWIN_FAMILIES, retiredFamilies: [] })
+    for (const p of TWINNED) expect(hasViTwin(p), p).toBe(false) // VI_PILOT here is the services edition's
+  })
+
+  it('hasViTwin: a pilot path or an exact family path — never an app or form page, a listing or a seller', () => {
+    for (const p of ['/', ...TWINNED]) expect(hasViTwin(p, MARKET), p).toBe(true)
+    for (const p of NOT_TWINNED) expect(hasViTwin(p, MARKET), p).toBe(false)
+    for (const p of TWINNED) expect(hasViTwin(p, OFF), p).toBe(false)
+    expect(hasViTwin('/c/rentals', ON)).toBe(false) // a {live, retired} value is the pilot alone
+  })
+
+  it('viTwinPath: `/` → `/vi`, anything else is prefixed', () => {
+    expect(viTwinPath('/')).toBe('/vi')
+    expect(viTwinPath('/c/rentals')).toBe('/vi/c/rentals')
+    expect(viTwinPath('/schools/awards/2026')).toBe('/vi/schools/awards/2026')
+  })
+
+  /** Every page route under src/app/[lang], as a sample public path: `[x]` → a slug (`[year]` → 2026), `(group)` dropped. */
+  const routes = (() => {
+    const out: { route: string; sample: string }[] = []
+    const walk = (dir: string, segs: string[]) => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name)
+        if (statSync(full).isDirectory()) { walk(full, [...segs, name]); continue }
+        if (!/^page(\.[a-z]+)*\.tsx$/.test(name)) continue
+        const sample = '/' + segs.filter((s) => !/^\(.*\)$/.test(s)).map((s) => s === '[year]' ? '2026' : s.startsWith('[...') ? 'a/b' : s.startsWith('[') ? 'sample-slug' : s).join('/')
+        out.push({ route: segs.join('/'), sample: sample === '/' ? '/' : sample.replace(/\/$/, '') })
+      }
+    }
+    walk('src/app/[lang]', [])
+    return out
+  })()
+  const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]']
+
+  it('⛔ against the real route tree: exactly the family routes (and the home pilot) have a twin', () => {
+    expect(routes.length).toBeGreaterThan(50)
+    const twinned = [...new Set(routes.filter((r) => hasViTwin(r.sample, MARKET)).map((r) => r.route))].sort()
+    expect(twinned).toEqual([...FAMILY_ROUTES].sort())
+    // …and every family pattern names at least one real route (no dead pattern)
+    for (const re of VI_TWIN_FAMILIES) expect(routes.some((r) => re.test(r.sample)), String(re)).toBe(true)
+  })
+
+  it('pinnedRoute: `/vi` + a family path renders vi at the plain internal path; the plain path negotiates; the pilot keeps V-a', () => {
+    for (const p of TWINNED) {
+      expect(pinnedRoute(viTwinPath(p), MARKET), p).toEqual({ variant: 'vi', internalPath: p })
+      // one ISR entry: the internal path revalidatePublicPath purges for the plain path's vi variant
+      const r = pinnedRoute(viTwinPath(p), MARKET)
+      expect(r && 'variant' in r ? `/${r.variant}${r.internalPath}` : null).toBe(LANG_VARIANTS.map((l) => `/${l}${p}`).find((x) => x.startsWith('/vi')))
+    }
+    for (const p of TWINNED.filter((x) => x !== '/c/furniture-appliances')) expect(pinnedRoute(p, MARKET), p).toBeNull()
+    expect(pinnedRoute('/', MARKET)).toEqual({ variant: 'en', internalPath: '/' })
+    expect(pinnedRoute('/c/furniture-appliances', MARKET)).toEqual({ variant: 'en', internalPath: '/c/furniture-appliances' })
+    expect(pinnedRoute('/vi', MARKET)).toEqual({ variant: 'vi', internalPath: '/' })
+    for (const p of NOT_TWINNED.filter((x) => x.startsWith('/') && x !== '/vi' && !x.includes('?'))) expect(pinnedRoute(`/vi${p}`, MARKET), `/vi${p}`).toBeNull()
+    expect(pinnedRoute('/thanh-ly-do-gia-dung-cu-tphcm', MARKET)).toEqual({ variant: 'vi', internalPath: '/thanh-ly-do-gia-dung-cu-tphcm' })
+  })
+
+  it('retired families (rollback V-R): `/vi…` 308s to the plain path, never a 404; the plain path still negotiates', () => {
+    const r: ViPilot = { live: [], retired: [], retiredFamilies: VI_TWIN_FAMILIES }
+    expect(pinnedRoute('/vi/c/rentals', r)).toEqual({ redirect: '/c/rentals' })
+    expect(pinnedRoute('/vi/schools/awards/2026', r)).toEqual({ redirect: '/schools/awards/2026' })
+    expect(pinnedRoute('/c/rentals', r)).toBeNull()
+    expect(pinnedRoute('/vi/schools/suggest', r)).toBeNull()
+    expect(localizedHref('/c/rentals', 'vi', r)).toBe('/c/rentals')
+  })
+
+  it('pinnedPair, stripViPrefix, localizedHref, hrefHere follow the families', () => {
+    expect(pinnedPair('/vi/c/rentals', MARKET)).toBe('/c/rentals')
+    expect(pinnedPair('/vi/help/x', MARKET)).toBe('/help/x')
+    expect(pinnedPair('/c/rentals', MARKET)).toBeNull() // not pinned: it negotiates (setLang goes to viTwinPath itself)
+    expect(stripViPrefix('/vi/c/rentals/binh-thanh', MARKET)).toBe('/c/rentals/binh-thanh')
+    expect(stripViPrefix('/vi/dashboard', MARKET)).toBe('/vi/dashboard')
+    expect(localizedHref('/c/rentals?sort=newest#top', 'vi', MARKET)).toBe('/vi/c/rentals?sort=newest#top')
+    expect(localizedHref('/schools/awards/2026', 'vi', MARKET)).toBe('/vi/schools/awards/2026')
+    expect(localizedHref('/schools/suggest', 'vi', MARKET)).toBe('/schools/suggest')
+    expect(localizedHref('/listings/x', 'vi', MARKET)).toBe('/listings/x')
+    expect(localizedHref('/c/rentals', 'en', MARKET)).toBe('/c/rentals')
+    expect(hrefHere('/vi/c/rentals?q=1', MARKET)).toBe('/vi/c/rentals?q=1')
+    expect(hrefHere('/vi/c/rentals?q=1', OFF)).toBe('/c/rentals?q=1')
+  })
+
+  it('langAlternates stays the pilot\'s: a family\'s head is the metadata\'s (robots-aware), not this helper\'s', () => {
+    expect(langAlternates('/c/rentals', 'vi', 'https://eno.vn', MARKET)).toBeNull()
+    expect(langAlternates('/c/furniture-appliances', 'en', 'https://eno.vn', MARKET)?.canonical).toBe('https://eno.vn/c/furniture-appliances')
   })
 })

@@ -121,7 +121,7 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     // ⛔ Build 8 (owner-approved 2026-11-15, cook r08 rentals): the Map chip also carries the float look (map-float.ts MAP_FLOAT).
     expect(block).toContain('<CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_MAP_CHIP} glyphClassName="size-4.5" />')
     expect(block).toContain('{districts.map((d) => (')
-    expect(block).toContain('<Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>')
+    expect(block).toContain('<Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className={STRIP_CHIP}>')
     expect(block).toContain('<PlaceName en={d.label.en} vi={d.label.vi} />')
     // (/c/jobs' `phoneHead` sits between `phoneWide` and `sortable` since 2026-11-14, owner-approved, cook r06 jobs.)
     // …then the free-check line as the list's own header under the row (owner-approved 2026-11-15 (build 7), cook r07 rentals).

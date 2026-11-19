@@ -62,7 +62,13 @@ describe('safeConciergeHref — the paths a `go` may open', () => {
       `/listings/c${'a'.repeat(31)}`,
       '/post/',
       '/POST',
-      '/vi/help',
+      // a `/vi` path is a twin or nothing: /vi/help and /vi/schools are (below); these are not
+      '/vi/post',
+      '/vi/messages',
+      '/vi/saved',
+      `/vi/listings/${CUID}`,
+      '/vi/help?x=1',
+      '/vi/vi/help',
       '/en',
       '/concierge',
       '/classroom',
@@ -70,6 +76,10 @@ describe('safeConciergeHref — the paths a `go` may open', () => {
       '/#x',
       '/post#x',
     ]) expect(safeConciergeHref(href), href).toBeNull()
+  })
+
+  it('accepts a fixed page\'s `/vi` twin where it has one (phase-1 families: help, schools), and nothing else under `/vi`', () => {
+    for (const href of ['/vi/help', '/vi/schools']) expect(safeConciergeHref(href), href).toBe(href)
   })
 
   it('2,000 characters at most', () => {

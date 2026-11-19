@@ -34,12 +34,12 @@ describe('teacherSurfaceHref', () => {
    * ⛔ A VIETNAMESE READER'S LINKS GO THERE TOO (commit-gate review, 2026-10-20: "/vi/… twins escape both rules"). Every call
    * site composes `teacherSurfaceHref(localizedHref(path, lang))`, and eno.forum never pilots — `viPilotFor(true, …)` is
    * empty (lang-pinned.ts; lang-pinned.test.ts pins it) — so `localizedHref` hands every teacher path back plain and it
-   * goes to eno.vn. A public `/vi/c/teachers`, `/vi/teachers/join`, `/vi/schools` or `/vi/listings/<id>` is a 404 on
-   * BOTH sites (measured 2026-10-20), never a forum-hosted teacher page.
+   * goes to eno.vn. A public `/vi/teachers/join` or `/vi/listings/<id>` is a 404 on BOTH sites (measured 2026-10-20), and
+   * `/vi/c/teachers` / `/vi/schools` (phase-1 families, 2026-11-19) exist on eno.vn only — never a forum-hosted teacher page.
    */
   it('⛔ eno.forum: a Vietnamese reader\'s teacher links are eno.vn\'s too — localizedHref never makes a forum /vi path', async () => {
     const { localizedHref, VI_PILOT } = await import('@/lib/lang-pinned')
-    expect(VI_PILOT).toEqual({ live: [], retired: [] })
+    expect(VI_PILOT).toEqual({ live: [], retired: [], families: [], retiredFamilies: [] })
     for (const href of TEACHER_HREFS) {
       expect(localizedHref(href, 'vi'), href).toBe(href)
       expect(teacherSurfaceHref(localizedHref(href, 'vi')), href).toBe(`https://eno.vn${href}`)

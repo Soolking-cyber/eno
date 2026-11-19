@@ -13,12 +13,13 @@ vi.mock('@/lib/edition', async (importOriginal) => {
 })
 // The `/vi` pilot's list, switched on per test (V3b); the merged constant is empty.
 const pilot = vi.hoisted(() => ({ on: false }))
-vi.mock('@/lib/lang-pinned', async (importOriginal) => {
-  const real = await importOriginal<typeof import('@/lib/lang-pinned')>()
+vi.mock('@/lib/lang-alternates', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/lang-alternates')>()
+  type Args = Parameters<typeof real.langAlternatesFor>
   return {
     ...real,
-    langAlternates: (p: string, v: string, o: string, l?: Parameters<typeof real.langAlternates>[3]) =>
-      real.langAlternates(p, v, o, l ?? (pilot.on ? { live: ['/', '/c/furniture-appliances'], retired: [] } : { live: [], retired: [] })),
+    langAlternatesFor: (p: Args[0], v: Args[1], r: Args[2], o?: Args[3], l?: Args[4]) =>
+      real.langAlternatesFor(p, v, r, o, l ?? (pilot.on ? { live: ['/', '/c/furniture-appliances'], retired: [] } : { live: [], retired: [] })),
   }
 })
 const { HOME_DESCRIPTION_VI, HOME_TITLE_VI, homeMetadata, homeWebPageJsonLd } = await import('./home-metadata')

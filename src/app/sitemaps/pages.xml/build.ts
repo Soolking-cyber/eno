@@ -32,7 +32,7 @@ import { canonicalDistrictSlug, districtLinkSlug, isCuratedDistrict } from '@/li
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
-import { submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
+import { langUrlEntries, submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { storefrontCanonicals } from '@/lib/storefront'
 import { awardYearsForSitemap, schoolsForSitemap } from '@/lib/schools/queries'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
@@ -74,8 +74,10 @@ export type RentIndexMode = 'require' | 'optional'
  * What `'optional'` mode freezes when the rent snapshot is unknown: a path prefix (trailing `/`) or one
  * exact path. `/c/rentals/` covers the rentals district pages, which only the snapshot can qualify
  * (rule A's second half, below); the bare `/c/rentals` category page is not under the prefix.
+ * `/vi/c/rentals/` covers their Vietnamese twins (phase 1, 2026-11-19: each submitted district page is a plain + `/vi`
+ * pair, `langUrlEntries`) — left out unfrozen, an unknown snapshot would read to IndexNow as their removal.
  */
-export const RENT_FROZEN_PATHS: readonly string[] = ['/c/rentals/', '/hcmc-rent-index']
+export const RENT_FROZEN_PATHS: readonly string[] = ['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index']
 // ⚠️ STATIC PAGES CARRY NO <lastmod> AT ALL, AND THAT IS THE FIX, NOT AN OMISSION.
 //
 // This used to be `const STATIC_LASTMOD = new Date()` with a comment claiming it was "stable …
@@ -370,7 +372,16 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   const lm = (d?: Date | string) => (d ? `<lastmod>${typeof d === 'string' ? d : iso(d)}</lastmod>` : '')
   const urls: string[] = []
 
-  // Main landing page
+  /**
+   * ⛔ THE `/vi` TWINS (phase 1 of the Vietnamese-URL plan, owner 2026-11-19): a submitted category, category ×
+   * district, help or school page goes in as a PAIR — its plain URL and its `/vi` URL, each carrying the en / vi-VN /
+   * x-default alternates — through `langUrlEntries` (src/lib/sitemap.ts), which pairs exactly what `hasViTwin` pairs in
+   * the head. Every other block below writes one plain `<url>` as before: listings, storefronts and guides never get a
+   * `/vi` URL here (the guides are already paired by their own slugs).
+   *
+   * Main landing page — ONE entry, deliberately: its `/vi` twin is the pilot's, and pilot decision V-c (no `/vi` in a
+   * sitemap) stands for it (owner's scoping, 2026-11-19: the pilot paths keep their behaviour).
+   */
   urls.push(`  <url><loc>${hostUrl}</loc>${lm(siteLastmod)}</url>\n`)
 
   // Static info pages — no lastmod, deliberately (see the note at the top of this file).
@@ -393,8 +404,9 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   //
   // 'developers/mcp', 'developers/cli' AND 'developers/versioning' JOINED 2026-11-11 with the pages themselves: the MCP server's page and the
   // deprecation policy, both shared by the two editions like /developers.
+  // `langUrlEntries`: of these, only /help has a `/vi` twin (a phase-1 family); the rest stay one entry each.
   for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'developers/mcp', 'developers/cli', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
-    urls.push(`  <url><loc>${hostUrl}/${p}</loc></url>\n`)
+    urls.push(...langUrlEntries(hostUrl, `/${p}`))
   }
 
   /**
@@ -408,7 +420,7 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * an answer never edited since it was seeded falls back to its `createdAt`.
    */
   for (const article of helpArticles) {
-    urls.push(`  <url><loc>${hostUrl}/help/${article.id}</loc>${lm(article.editedAt ?? article.createdAt)}</url>\n`)
+    urls.push(...langUrlEntries(hostUrl, `/help/${article.id}`, lm(article.editedAt ?? article.createdAt)))
   }
 
   // The Trip service's landing page. Its own entry rather than joining either group above: it is
@@ -553,14 +565,14 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
       .catch(() => null)
     const dates = (reviewed ?? []).map((r) => r.lastmod ?? undefined)
     const newest = dates.reduce<Date | undefined>((a, d) => (d && (!a || d > a) ? d : a), undefined)
-    urls.push(`  <url><loc>${hostUrl}/schools</loc>${lm(newest)}</url>\n`)
+    urls.push(...langUrlEntries(hostUrl, '/schools', lm(newest)))
     // The cover-lessons landing (2026-10-07): static, self-canonical, indexable — and promoted to both sides, so a page a
     // crawler is never told about would be wasted. Undated, like the other static pages. Marketplace only, as /schools.
     urls.push(`  <url><loc>${hostUrl}/teachers/cover</loc></url>\n`)
-    for (const [i, r] of (reviewed ?? []).entries()) urls.push(`  <url><loc>${hostUrl}/schools/${r.slug}</loc>${lm(dates[i])}</url>\n`)
+    for (const [i, r] of (reviewed ?? []).entries()) urls.push(...langUrlEntries(hostUrl, `/schools/${r.slug}`, lm(dates[i])))
     // Teachers' Choice results, once a year is closed (src/lib/schools/awards.ts). Same failure rule: none, not an error.
     const awardYears = await Promise.resolve().then(() => awardYearsForSitemap()).catch(() => [])
-    for (const y of awardYears) urls.push(`  <url><loc>${hostUrl}/schools/awards/${y.year}</loc>${lm(y.lastmod)}</url>\n`)
+    for (const y of awardYears) urls.push(...langUrlEntries(hostUrl, `/schools/awards/${y.year}`, lm(y.lastmod)))
   }
 
   // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.
@@ -710,13 +722,13 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
      * `byCategory`: the forum's home still shows the teacher shelf, so a new profile still dates it (`siteLastmod`).
      */
     if (IS_SERVICES && c.slug === TEACHERS_CATEGORY_SLUG) continue
-    urls.push(`  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}</url>\n`)
+    urls.push(...langUrlEntries(hostUrl, `/c/${c.slug}`, lm(catMax.get(c.slug))))
   }
 
   // Faceted category × district pages — only at the floor of own listings (rule A, above), never a retired shelf's.
   for (const [combo, { max, n }] of combos) {
     if (!isIndexableCount(n) || isRetiredNavCategory(combo.split('/')[0])) continue
-    urls.push(`  <url><loc>${hostUrl}/c/${combo}</loc>${lm(max)}</url>\n`)
+    urls.push(...langUrlEntries(hostUrl, `/c/${combo}`, lm(max)))
   }
 
   /**
@@ -732,7 +744,7 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   const rentalsId = categories.find((c) => c.slug === 'rentals')?.id
   if (rentIndex?.known && rentalsId) {
     for (const slug of await submittedRentalsDistricts(rentIndex.index, rentalsId)) {
-      urls.push(`  <url><loc>${hostUrl}/c/rentals/${slug}</loc></url>\n`)
+      urls.push(...langUrlEntries(hostUrl, `/c/rentals/${slug}`))
     }
   }
 

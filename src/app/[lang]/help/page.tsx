@@ -2,6 +2,7 @@ import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { cookies, headers } from 'next/headers'
 import { withShare } from '@/lib/site-identity'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { HelpCenter, type HelpI18n } from '@/components/marketplace/help-center'
@@ -19,9 +20,14 @@ const METADATA: Metadata = withShare({
 })
 
 // The <title> follows the `[lang]` variant the proxy served (B5-HELP-VI, as /safety and /help/[id] do).
+// ⛔ So does the canonical (phase-1 /vi families, 2026-11-19 — src/lib/lang-alternates.ts): the Vietnamese variant says
+// `/vi/help`, with reciprocal hreflang; eno.forum keeps the plain canonical alone. The share card (og:url included)
+// stays the English one above on both variants.
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  return lang === 'vi' ? { ...METADATA, title: `Trung tâm trợ giúp | ${SITE_NAME}` } : METADATA
+  const meta = lang === 'vi' ? { ...METADATA, title: `Trung tâm trợ giúp | ${SITE_NAME}` } : METADATA
+  const twin = langAlternatesFor('/help', lang, meta.robots)
+  return twin ? { ...meta, alternates: twin } : meta
 }
 
 // The payload carries the VIEWER's own votes and saved flags, read from the request

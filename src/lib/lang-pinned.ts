@@ -92,7 +92,9 @@ export const FIXED_LANG: Readonly<Record<string, { lang: LangVariant; pair?: str
  * The owner's decision (2026-09-27, V-a): on a piloted path the PLAIN URL is always English, whatever the
  * cookie or Accept-Language says, and `/vi` + the path is its Vietnamese twin. No language redirect: a
  * Vietnamese visitor on the plain URL gets a one-tap banner to the twin (lang-suggestion-banner.tsx, V3b).
- * Both URLs are self-canonical with reciprocal hreflang (V3b), and no `/vi` URL is in any sitemap (V-c).
+ * Both URLs are self-canonical with reciprocal hreflang (V3b), and `/vi` is in no sitemap (V-c) — since phase 1
+ * (2026-11-19) that holds for `/` only: `/c/furniture-appliances` is a category, and the sitemap submits every
+ * category with a twin as a plain + `/vi` pair (src/lib/sitemap.ts `langUrlEntries`).
  * The marketplace edition only (`viPilotFor`).
  * ⛔ THREE PLACES MOVE TOGETHER, NEVER ONE WITHOUT THE OTHERS (plan §5): this list; the edge Worker's
  * `PINNED_EN_PATHS` (infra/cloudflare/eno-html-edge-cache.js — edge-worker.test.ts fails unless the two
@@ -111,17 +113,89 @@ export const VI_PREFIX_PATHS: readonly string[] = ['/', '/c/furniture-appliances
  */
 export const VI_RETIRED_PATHS: readonly string[] = []
 
-/** The two lists, passed as a parameter so the pure functions can be tested on, off and retired. */
-export type ViPilot = { readonly live: readonly string[]; readonly retired: readonly string[] }
+/** One URL segment as these routes spell it: lowercase ASCII words joined by single hyphens (a cuid is one word). */
+const SEG = '[a-z0-9]+(?:-[a-z0-9]+)*'
+
+/**
+ * ⛔ THE PHASE-1 `/vi` FAMILIES (owner, 2026-11-19 — phase 1 of the Vietnamese-URL plan): `/vi` + a path
+ * matching one of these renders that page's Vietnamese variant for everyone, at the plain path's own `vi` ISR
+ * entry (the same HTML, the same purge). UNLIKE THE PILOT LIST ABOVE, THE PLAIN URL KEEPS NEGOTIATING (cookie,
+ * then Accept-Language): a family is not V-a, so pinnedRoute returns null for its plain path and the edge
+ * Worker, which only pins `PINNED_EN_PATHS`, needs no change. Canonical and hreflang follow the language the
+ * page RENDERED (a Vietnamese render of plain `/c/x` declares `/vi/c/x`) — that is the metadata's job, built on
+ * `hasViTwin` / `viTwinPath`.
+ * ⛔ EXACT, ANCHORED PATTERNS, CHECKED AGAINST THE ROUTE TREE (src/app/[lang]): a category, a category in one
+ * district (`c/[category]/(index)` and `c/[category]/[district]`), the help centre and one answer (`help`,
+ * `help/[id]` — a cuid or a seeded slug), the schools directory, one school, the awards redirect and one
+ * year (`schools`, `schools/[slug]`, `schools/awards`, `schools/awards/[year]`). NEVER AN APP OR FORM PAGE:
+ * `/schools/suggest` (the form, a static route beside `[slug]`) is excluded by name, and the anchors keep out
+ * `/schools/<slug>/review`, `/help/<id>/…`, `/c/<cat>/<district>/…` and `/c` itself (lang-pinned.test.ts
+ * walks the real route tree). Listings, sellers, shop hosts, the teacher host and the guides (which have
+ * their own Vietnamese slugs) are NOT here — phase 2, per row, if ever.
+ * ⚠️ A LITERAL LIST for the proxy bundle (see the top of this file), marketplace only (`viPilotFor`).
+ * Withdrawing a family is rollback V-R as for the pilot: MOVE its pattern to `VI_RETIRED_FAMILIES` (its
+ * `/vi…` URLs may be indexed, so they 308 to the plain path), never just delete it — and the deploy probe's
+ * `FAMILIES_EXPECT` (infra/vn-node/eno-deploy.sh) moves with it.
+ */
+export const VI_TWIN_FAMILIES: readonly RegExp[] = [
+  // Not the teachers category: it belongs to the teacher host (teacher.eno.vn), which phase 1 leaves out.
+  new RegExp(`^/c/(?!teachers(?:/|$))${SEG}$`),
+  new RegExp(`^/c/(?!teachers/)${SEG}/${SEG}$`),
+  /^\/help$/,
+  new RegExp(`^/help/${SEG}$`),
+  /^\/schools$/,
+  new RegExp(`^/schools/(?!suggest$)${SEG}$`),
+  /^\/schools\/awards\/\d{4}$/,
+]
+
+/** Families that were live and are withdrawn (rollback V-R): their `/vi…` answers a 308 to the plain path. */
+export const VI_RETIRED_FAMILIES: readonly RegExp[] = []
+
+/**
+ * The lists, passed as a parameter so the pure functions can be tested on, off and retired. `families` /
+ * `retiredFamilies` are optional: a `{live, retired}` value is the pilot alone, as before phase 1.
+ */
+export type ViPilot = {
+  readonly live: readonly string[]
+  readonly retired: readonly string[]
+  readonly families?: readonly RegExp[]
+  readonly retiredFamilies?: readonly RegExp[]
+}
 
 /**
  * The lists this build uses. ⛔ eno.forum NEVER PILOTS (V3a): its `/vi` stays a 404 and its plain
  * URLs keep negotiating, whatever the constants above hold.
  */
-export function viPilotFor(isServices: boolean, live: readonly string[], retired: readonly string[]): ViPilot {
-  return isServices ? { live: [], retired: [] } : { live, retired }
+export function viPilotFor(
+  isServices: boolean,
+  live: readonly string[],
+  retired: readonly string[],
+  families: readonly RegExp[] = [],
+  retiredFamilies: readonly RegExp[] = [],
+): ViPilot {
+  return isServices ? { live: [], retired: [], families: [], retiredFamilies: [] } : { live, retired, families, retiredFamilies }
 }
-export const VI_PILOT: ViPilot = viPilotFor(IS_SERVICES, VI_PREFIX_PATHS, VI_RETIRED_PATHS)
+/**
+ * The marketplace's lists whatever edition this build is. ⚠️ FOR TESTS: vitest runs as the services edition
+ * (vitest.config.ts), where `VI_PILOT` is empty — pass this to see what eno.vn does.
+ */
+export const VI_PILOT_MARKETPLACE: ViPilot = viPilotFor(false, VI_PREFIX_PATHS, VI_RETIRED_PATHS, VI_TWIN_FAMILIES, VI_RETIRED_FAMILIES)
+export const VI_PILOT: ViPilot = viPilotFor(IS_SERVICES, VI_PREFIX_PATHS, VI_RETIRED_PATHS, VI_TWIN_FAMILIES, VI_RETIRED_FAMILIES)
+
+const matches = (path: string, patterns: readonly RegExp[] | undefined) => !!patterns?.some((re) => re.test(path))
+
+/**
+ * ⛔ DOES THIS PUBLIC PLAIN PATH HAVE A `/vi` TWIN? A pilot path (`/`, `/c/furniture-appliances`) or a path in a
+ * phase-1 family. A `/vi…` path is not a plain path and answers false; so does anything with a query or hash —
+ * pass the pathname. The one test the head (canonical, hreflang), the sitemap and the links all ask, so they
+ * cannot disagree. ⚠️ It says nothing about robots: a noindex page has a twin but must not advertise it.
+ */
+export function hasViTwin(pathname: string, lists: ViPilot = VI_PILOT): boolean {
+  return lists.live.includes(pathname) || matches(pathname, lists.families)
+}
+
+/** A `/vi…` twin that was withdrawn (rollback V-R): it 308s to the plain path. */
+const isRetiredTwin = (plain: string, lists: ViPilot) => lists.retired.includes(plain) || matches(plain, lists.retiredFamilies)
 
 /** `/vi`, `/vi/c/x` → the plain path (`/`, `/c/x`); anything else → null. Says nothing about the lists. */
 function viPrefixed(pathname: string): string | null {
@@ -130,8 +204,14 @@ function viPrefixed(pathname: string): string | null {
   return pathname.startsWith('/vi/') && pathname.length > 4 ? pathname.slice(3) : null
 }
 
-/** The public `/vi` twin of a plain path: `/` → `/vi`, `/c/x` → `/vi/c/x`. */
-const viTwin = (plain: string): string => (plain === '/' ? '/vi' : `/vi${plain}`)
+/**
+ * The public `/vi` twin of a plain path: `/` → `/vi`, `/c/x` → `/vi/c/x`. Pure string work — ask `hasViTwin`
+ * first; a path without a twin gets a `/vi…` that 404s.
+ */
+export function viTwinPath(pathname: string): string {
+  return pathname === '/' ? '/vi' : `/vi${pathname}`
+}
+const viTwin = viTwinPath
 
 /** What the proxy does with a path: render a fixed variant (at the internal path), 308, or negotiate (null). */
 export type PinnedRoute = { variant: LangVariant; internalPath: string } | { redirect: string }
@@ -140,11 +220,12 @@ export type PinnedRoute = { variant: LangVariant; internalPath: string } | { red
  * The fixed variant of a public path, with the internal path the proxy rewrites it to; a `{redirect}` for
  * a withdrawn pilot path; or `null` for a path that negotiates.
  *
- * - `/vi` + a live pilot path → `vi`, rendered at the PLAIN path (the proxy prefixes the variant, so it
- *   is the same ISR entry, and the same purge, as the plain path's `vi` variant — revalidatePublicPath).
- * - `/vi` + a retired path → `{redirect: plain}` (the proxy answers 308, query kept).
+ * - `/vi` + a live pilot path or a phase-1 family path (`hasViTwin`) → `vi`, rendered at the PLAIN path (the
+ *   proxy prefixes the variant, so it is the same ISR entry, and the same purge, as the plain path's `vi`
+ *   variant — revalidatePublicPath).
+ * - `/vi` + a retired path or retired family → `{redirect: plain}` (the proxy answers 308, query kept).
  * - any other `/vi…` → null: the proxy's INTERNAL_PREFIX rule 404s it, as before the pilot.
- * - a plain live pilot path → `en`, for everyone (V-a).
+ * - a plain live pilot path → `en`, for everyone (V-a). A plain FAMILY path → null: it negotiates.
  * - a guide → its article's language (V1).
  *
  * ⚠️ EXACT MATCH ON THE PATH. A trailing slash, a sub-path or a different case is not the guide (Next
@@ -156,8 +237,8 @@ export function pinnedRoute(pathname: string, lists: ViPilot = VI_PILOT): Pinned
   if (!pathname.startsWith('/')) return null
   const plain = viPrefixed(pathname)
   if (plain !== null) {
-    if (lists.live.includes(plain)) return { variant: 'vi', internalPath: plain }
-    if (lists.retired.includes(plain)) return { redirect: plain }
+    if (hasViTwin(plain, lists)) return { variant: 'vi', internalPath: plain }
+    if (isRetiredTwin(plain, lists)) return { redirect: plain }
     return null
   }
   if (lists.live.includes(pathname)) return { variant: 'en', internalPath: pathname }
@@ -180,11 +261,13 @@ export function pinnedVariant(pathname: string, lists: ViPilot = VI_PILOT): Lang
 
 /**
  * The public path of a pinned page's other language, or `null` when it is not pinned or has none: a
- * guide's translation, or a pilot path's twin (`/` ↔ `/vi`).
+ * guide's translation, or a pilot path's twin (`/` ↔ `/vi`). A family's `/vi…` twin is pinned (→ its plain
+ * path); a family's plain path is not (it negotiates) → null — language-context.tsx sends a Vietnamese choice
+ * there to `viTwinPath` itself.
  */
 export function pinnedPair(pathname: string, lists: ViPilot = VI_PILOT): string | null {
   const plain = viPrefixed(pathname)
-  if (plain !== null) return lists.live.includes(plain) ? plain : null
+  if (plain !== null) return hasViTwin(plain, lists) ? plain : null
   if (lists.live.includes(pathname)) return viTwin(pathname)
   if (!pinnedVariant(pathname, lists)) return null
   // A model price page's twin is the same slug at the other language's address.
@@ -197,28 +280,29 @@ export function pinnedPair(pathname: string, lists: ViPilot = VI_PILOT): string 
 }
 
 /**
- * The path an app-chrome check should compare against: `/vi…` of a live pilot path → its plain path, so
+ * The path an app-chrome check should compare against: `/vi…` of a live twin (pilot or family) → its plain path, so
  * the mobile nav's Explore tab is active on `/vi` and a search from `/vi/c/x` keeps category `x`
  * (mobile-nav.tsx, explorer-presence.ts). Anything else is returned as it is.
  */
 export function stripViPrefix<T extends string | null | undefined>(pathname: T, lists: ViPilot = VI_PILOT): T | string {
   if (!pathname) return pathname
   const plain = viPrefixed(pathname)
-  return plain !== null && lists.live.includes(plain) ? plain : pathname
+  return plain !== null && hasViTwin(plain, lists) ? plain : pathname
 }
 
 /**
  * Where a link to `href` should point on a page rendered in `variant`: the `/vi` twin when the page is
- * Vietnamese and the target is a live pilot path, so a Vietnamese reading never links into the
- * English-pinned plain URL (V3b). Query and hash ride along. Anything else — an English page, a target
- * outside the list, an absolute or protocol-relative URL — is returned unchanged, so with the lists
- * empty this is the identity. ⛔ It never produces a `/vi` path outside the live list (lang-pinned.test.ts).
+ * Vietnamese and the target has one (`hasViTwin`: a pilot path or a phase-1 family), so a Vietnamese reading
+ * never links into the English-pinned plain URL (V3b) and a family's Vietnamese page links (and redirects) to
+ * Vietnamese addresses. Query and hash ride along. Anything else — an English page, a target without a twin,
+ * an absolute or protocol-relative URL — is returned unchanged, so with the lists empty this is the identity.
+ * ⛔ It never produces a `/vi` path that does not render (lang-pinned.test.ts).
  */
 export function localizedHref(href: string, variant: string, lists: ViPilot = VI_PILOT): string {
   if (variant !== 'vi' || !href.startsWith('/') || href.startsWith('//')) return href
   const cut = href.search(/[?#]/)
   const path = cut === -1 ? href : href.slice(0, cut)
-  return lists.live.includes(path) ? viTwin(path) + (cut === -1 ? '' : href.slice(cut)) : href
+  return hasViTwin(path, lists) ? viTwin(path) + (cut === -1 ? '' : href.slice(cut)) : href
 }
 
 /**
@@ -261,7 +345,7 @@ export function hereVariant(variant: string): string {
 export function hrefHere(href: string, lists: ViPilot = VI_PILOT): string {
   const cut = href.search(/[?#]/)
   const plain = viPrefixed(cut === -1 ? href : href.slice(0, cut))
-  if (plain === null || lists.live.includes(plain)) return href
+  if (plain === null || hasViTwin(plain, lists)) return href
   return plain + (cut === -1 ? '' : href.slice(cut))
 }
 
@@ -269,6 +353,9 @@ export function hrefHere(href: string, lists: ViPilot = VI_PILOT): string {
  * The head of a pilot page (V3b, decision V-g): its canonical and the reciprocal alternates — the plain URL
  * for `en` and `x-default`, the `/vi` twin for `vi-VN` — or `null` when `plain` is not a live pilot path,
  * in which case the page emits exactly what it did before the pilot. `origin` has no trailing slash.
+ * ⚠️ PILOT PATHS ONLY, DELIBERATELY, AND NO PAGE CALLS IT ANY MORE: every twin page's head (pilot and phase-1
+ * families, robots-aware — no alternates on a noindex page) is `langAlternatesFor` (src/lib/lang-alternates.ts),
+ * which gives the pilot paths exactly this function's output (lang-alternates.test.ts holds the parity).
  */
 export function langAlternates(
   plain: string,

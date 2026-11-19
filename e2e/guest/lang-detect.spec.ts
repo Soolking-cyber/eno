@@ -53,6 +53,24 @@ test.describe('Guest · auto-detect — English', () => {
     expect(serverHtmlLang(await res!.text())).toBe('vi')
     await expect.poll(() => page.locator('html').getAttribute('lang')).toBe('vi')
   })
+
+  // ⛔ THE PHASE-1 FAMILIES (2026-11-19, lang-pinned.ts VI_TWIN_FAMILIES): their `/vi…` is Vietnamese for an English
+  // browser too, their plain URL still negotiates (not V-a), and an app or form page under `/vi` is still the 404.
+  test('en-US browser: /vi/c/rentals and /vi/help are Vietnamese, plain /c/rentals English, /vi/schools/suggest a 404', async ({ page, baseURL }) => {
+    const edition = await expectedEdition(page, baseURL)
+    test.skip(!viPilotOn(edition), 'eno.forum has no /vi twin (asserted below)')
+    for (const path of ['/vi/c/rentals', '/vi/help']) {
+      const r = await page.request.get(`${path}?e2e=${Date.now()}`, { failOnStatusCode: false })
+      expect(new URL(r.url()).pathname, `${path} must not redirect to another path`).toBe(path)
+      expect(r.status(), path).toBe(200)
+      expect(serverHtmlLang(await r.text()), path).toBe('vi')
+    }
+    const plain = await page.request.get(`/c/rentals?e2e=${Date.now()}`, { failOnStatusCode: false })
+    expect(serverHtmlLang(await plain.text())).toBe('en')
+    for (const path of ['/vi/schools/suggest', '/vi/dashboard']) {
+      expect((await page.request.get(`${path}?e2e=${Date.now()}`, { failOnStatusCode: false })).status(), path).toBe(404)
+    }
+  })
 })
 
 test.describe('Guest · the /vi pilot — a vi-VN browser', () => {

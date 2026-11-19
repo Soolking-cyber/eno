@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { isClassroomPath } from '@/lib/classroom/host'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { explorerFallbackUrl } from '@/lib/explorer-presence'
-import { hereVariant } from '@/lib/lang-pinned'
+import { hasViTwin, hereVariant } from '@/lib/lang-pinned'
 import { publicPathname } from '@/lib/lang-variant'
 import { aiConsentAskFirst, aiConsentCanAsk, askAiConsentAnswer, readAiConsent } from '@/lib/ai-consent'
 import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
@@ -229,8 +229,10 @@ export type ConciergeMessage =
 
 /**
  * The paths a `go` may open — the explorer (`/`, `/vi`) with any query, a listing, or one of the fixed pages
- * (actions.ts CONCIERGE_PAGES — client.test.ts keeps the two lists equal). The server built the path; the host checks it
- * again because a message is only data: a relative same-origin path, nothing else. Null = ignore the message.
+ * (actions.ts CONCIERGE_PAGES — client.test.ts keeps the two lists equal), or such a page's `/vi` twin where it has one
+ * (`/vi/help`, `/vi/schools` — the phase-1 families, lang-pinned.ts `hasViTwin`; the server's localizedHref makes them
+ * for a Vietnamese reader). The server built the path; the host checks it again because a message is only data: a
+ * relative same-origin path, nothing else. Null = ignore the message.
  */
 const PAGE_PATHS = ['/post', '/teachers/join', '/messages', '/help', '/safety', '/trust', '/hcmc-rent-index', '/teach-in-vietnam', '/schools', '/saved']
 const LISTING_PATH = /^\/listings\/c[a-z0-9]{20,30}$/
@@ -242,7 +244,9 @@ export function safeConciergeHref(href: unknown): string | null {
   const p = u.pathname
   const explorer = p === '/' || p === '/vi'
   if (!explorer && u.search) return null
-  if (!explorer && !LISTING_PATH.test(p) && !PAGE_PATHS.includes(p)) return null
+  const page = (x: string) => PAGE_PATHS.includes(x)
+  const viTwinOfPage = p.startsWith('/vi/') && page(p.slice(3)) && hasViTwin(p.slice(3))
+  if (!explorer && !LISTING_PATH.test(p) && !page(p) && !viTwinOfPage) return null
   return `${p}${u.search}`
 }
 /** For the test that keeps the two lists equal. */

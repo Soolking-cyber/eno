@@ -194,14 +194,15 @@ describe('localizedHref at each link site (source contract)', () => {
     // Inside teacherSurfaceHref, like the footer's (the chip to /c/teachers is eno.vn's page on eno.forum).
     expect(src('src/app/[lang]/c/[category]/(index)/page.tsx').match(/render=\{<Link href=\{teacherSurfaceHref\(localizedHref\(`\/c\/\$\{c\.slug\}`, pageLang\(lang\)\)\)\} \/>\}/g)).toHaveLength(2)
   })
-  it('the category head takes the pilot alternates (langAlternates is null off the list, and on eno.forum)', () => {
+  it('the category head takes the twin alternates (langAlternatesFor is null off the lists, on a noindex page, and on eno.forum)', () => {
     const s = src('src/app/[lang]/c/[category]/(index)/page.tsx')
-    expect(s).toMatch(/const pilot = langAlternates\(`\/c\/\$\{cat\.slug\}`, pageLang\(lang\), hostUrl\)/)
-    expect(s).toMatch(/alternates: pilot \? \{ canonical: pilot\.canonical, languages: pilot\.languages \} : \{ canonical: url \}/)
+    expect(s).toMatch(/const twin = langAlternatesFor\(`\/c\/\$\{cat\.slug\}`, pageLang\(lang\), meta\.robots, hostUrl\)/)
+    expect(s).toMatch(/const url = twin\?\.canonical \?\? `\$\{hostUrl\}\/c\/\$\{cat\.slug\}`/)
+    expect(s).toMatch(/alternates: twin \?\? \{ canonical: url \}/)
     expect(s).toMatch(/pageShare\(\{ title, description, url \}\)/)
   })
-  it('district chips stay plain: their /vi twins would 404', () => {
-    expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`\} prefetch=\{false\} \/>/)
+  it('district chips keep the reader\'s language: on /vi they link the /vi twin (phase-1 families, 2026-11-19)', () => {
+    expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`, pageLang\(lang\)\)\} prefetch=\{false\} \/>/)
   })
 })
 

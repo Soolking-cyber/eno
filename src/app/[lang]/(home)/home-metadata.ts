@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { langAlternates } from '@/lib/lang-pinned'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { POSTING_IS_FREE, organizationId, pageShare, siteOrigin, websiteId } from '@/lib/site-identity'
 import { MARKETPLACE_TAGLINE, SITE_TITLE } from '@/lib/site-title'
 
@@ -29,7 +29,7 @@ export const HOME_DESCRIPTION_VI = `${SITE_NAME} là chợ rao vặt${POSTING_IS
  * only): the plain URL is always the English variant and `/vi` the Vietnamese one, so each is
  * self-canonical with reciprocal hreflang (en, vi-VN, x-default → plain; decision V-g), and each carries a
  * share card in its own words with a matching og:url and og:locale — `/vi` gets V2's Vietnamese card
- * (CS-3 V3b-2), which the plain URL never does. With `/` not in the list, `langAlternates` is null and this
+ * (CS-3 V3b-2), which the plain URL never does. With `/` not in the list, `langAlternatesFor` is null and this
  * returns exactly what V2 did.
  */
 /**
@@ -48,7 +48,8 @@ export const HOME_MARKDOWN_TWIN = { 'text/markdown': '/index.md' } as const
 export const HOME_ALTERNATE_TYPES = { ...HOME_MARKDOWN_TWIN, 'application/atom+xml': '/feed.xml' } as const
 
 export function homeMetadata(lang: string): Metadata {
-  const pilot = IS_SERVICES ? null : langAlternates('/', lang, siteOrigin())
+  // The one head helper every `/vi` twin uses (src/lib/lang-alternates.ts). The home page sets no robots of its own.
+  const pilot = IS_SERVICES ? null : langAlternatesFor('/', lang, undefined, siteOrigin())
   const base: Metadata = pilot
     ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_ALTERNATE_TYPES } }
     : { alternates: { canonical: '/', types: HOME_ALTERNATE_TYPES } }
@@ -74,7 +75,7 @@ export function homeWebPageJsonLd(lang: string): Record<string, unknown> {
   const vi = !IS_SERVICES && lang === 'vi'
   // Under the /vi pilot each variant has its own canonical, so each is its own page: the @id follows the url. `href`
   // normalises the pilot's bare origin ("https://eno.vn") to "https://eno.vn/", so the fragment sits on a path.
-  const url = new URL((IS_SERVICES ? null : langAlternates('/', lang, origin))?.canonical ?? `${origin}/`).href
+  const url = new URL((IS_SERVICES ? null : langAlternatesFor('/', lang, undefined, origin))?.canonical ?? `${origin}/`).href
   return {
     '@context': 'https://schema.org',
     '@type': 'WebPage',

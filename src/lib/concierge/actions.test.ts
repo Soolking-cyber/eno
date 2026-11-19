@@ -472,10 +472,10 @@ describe('listing and page', () => {
 describe('language', () => {
   const VI = { lang: 'vi', listingIds: new Set(['cmh2x9k3a0001qz8l5v7b2n4d']) }
 
-  it('a Vietnamese reader on eno.vn gets the explorer\'s `/vi` twin; every other path negotiates and is never prefixed', () => {
+  it('a Vietnamese reader on eno.vn gets the `/vi` twin where one exists (the explorer, help — a phase-1 family); every other path negotiates and is never prefixed', () => {
     expect(resolveAction(act({ category: 'teachers', filters: kv({ district: 'd1' }) }), OFF, VI)?.href).toBe('/vi?category=teachers&attr_workIn=d1')
     expect(resolveAction(act({ kind: 'page', target: 'home' }), OFF, VI)?.href).toBe('/vi')
-    expect(resolveAction(act({ kind: 'page', target: 'help' }), OFF, VI)?.href).toBe('/help')
+    expect(resolveAction(act({ kind: 'page', target: 'help' }), OFF, VI)?.href).toBe('/vi/help')
     expect(resolveAction(act({ kind: 'listing', target: 'cmh2x9k3a0001qz8l5v7b2n4d' }), OFF, VI)?.href).toBe('/listings/cmh2x9k3a0001qz8l5v7b2n4d')
   })
 

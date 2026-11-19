@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { pageShare } from '@/lib/site-identity'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { SITE_NAME } from '@/lib/edition'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { BreadcrumbNav } from '@/components/schools/breadcrumb-nav'
@@ -63,13 +64,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ? `Open teaching jobs at ${school.name} (${kind}). No reviews or pay reports from teachers yet.`
     : `What teachers say about ${school.name} (${kind}): votes, what is good and bad, pay reported by teachers and open jobs.`
   const path = `/schools/${school.slug}`
-  return {
+  const meta: Metadata = {
     title: lang === 'vi' ? `${schoolPageTitle(school.name, content, 'vi')} | ${SITE_NAME}` : title,
     description,
-    alternates: { canonical: path },
     ...(schoolPageIndexable(content) ? {} : { robots: { index: false, follow: true } }),
     ...pageShare({ title, description, url: path }),
   }
+  // ⛔ The canonical follows the variant (phase-1 /vi families, 2026-11-19 — src/lib/lang-alternates.ts): the Vietnamese
+  // one says `/vi/schools/<slug>`, with reciprocal hreflang. Null on a noindex school (nothing of its own yet —
+  // `meta.robots`, the one this head emits) and on eno.forum: the plain canonical alone. The English card keeps og:url.
+  const twin = langAlternatesFor(path, lang, meta.robots)
+  return { ...meta, alternates: twin ?? { canonical: path } }
 }
 
 export default async function SchoolPageRoute({ params }: Props) {

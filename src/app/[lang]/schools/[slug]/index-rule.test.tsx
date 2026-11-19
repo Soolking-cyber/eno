@@ -147,6 +147,14 @@ vi.mock('@/components/schools/school-jobs', () => ({ SchoolJobs: ({ jobs }: { jo
 vi.mock('@/components/schools/school-claim', () => ({ SchoolClaim: () => null }))
 vi.mock('@/components/schools/school-bits', () => ({ KindLabel: ({ kind }: { kind: string }) => kind, PayRange: () => null, SchoolLogo: () => null }))
 vi.mock('@/components/schools/award-badge', () => ({ AwardBadge: () => null }))
+// The suite runs as the services edition, whose `/vi` lists are empty: switch the marketplace's on per test.
+const twins = vi.hoisted(() => ({ on: false }))
+vi.mock('@/lib/lang-alternates', async (orig) => {
+  const real = await orig<typeof import('@/lib/lang-alternates')>()
+  const { VI_PILOT_MARKETPLACE } = await import('@/lib/lang-pinned')
+  type Args = Parameters<typeof real.langAlternatesFor>
+  return { ...real, langAlternatesFor: (p: Args[0], v: Args[1], r: Args[2], o?: Args[3], l?: Args[4]) => real.langAlternatesFor(p, v, r, o, l ?? (twins.on ? VI_PILOT_MARKETPLACE : undefined)) }
+})
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
 afterAll(() => { vi.unstubAllEnvs() })
@@ -200,6 +208,30 @@ describe('the index rule: pages.xml submits exactly the school pages that answer
   it('keeps the thin entries noindex,follow and a hidden school a 404', async () => {
     for (const slug of ['empty-school', 'hanoi-named', 'pending-review', 'script-site']) expect((await meta(slug)).robots, slug).toEqual({ index: false, follow: true })
     expect(await meta('hidden-school')).toMatchObject({ robots: { index: false } })
+  })
+
+  it('⛔ hreflang follows the same rule (phase-1 /vi families): an indexable page declares its /vi twin, a noindex one never', async () => {
+    twins.on = true
+    try {
+      let declared = 0
+      for (const s of h.schools.filter((x) => x.status === 'active')) {
+        const [en, vin] = [await meta(s.slug), await meta(s.slug, 'vi')]
+        const plain = `/schools/${s.slug}`
+        if (indexes(en)) {
+          declared++
+          const languages = { en: plain, 'vi-VN': `/vi${plain}`, 'x-default': plain }
+          expect(en.alternates, s.slug).toEqual({ canonical: plain, languages })
+          expect(vin.alternates, s.slug).toEqual({ canonical: `/vi${plain}`, languages })
+        } else {
+          for (const m of [en, vin]) expect(m.alternates, s.slug).toEqual({ canonical: plain })
+        }
+        // The English share card keeps the plain og:url on both variants.
+        for (const m of [en, vin]) expect(m.openGraph?.url, s.slug).toBe(plain)
+      }
+      expect(declared).toBe(submitted.length)
+    } finally {
+      twins.on = false
+    }
   })
 
   it('the board, reading every school at once, counts the jobs and reviews each page lists', async () => {

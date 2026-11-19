@@ -40,7 +40,8 @@ describe('/c/<category>/<district> status contract', () => {
     const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
     const resolver = src.slice(src.indexOf('async function resolve('))
     expect(resolver).toMatch(/if \(!data\) notFound\(\)/)
-    expect(resolver).toMatch(/permanentRedirect\(`\/c\/\$\{data\.cat\.slug\}\/\$\{canonical\}`\)/)
+    // …in the reader's language: `/vi/c/<cat>/<alias>` 308s to its /vi twin (phase-1 /vi families, critic #5).
+    expect(resolver).toMatch(/permanentRedirect\(localizedHref\(`\/c\/\$\{data\.cat\.slug\}\/\$\{canonical\}`, pageLang\(lang\)\)\)/)
     expect(src).toMatch(/generateMetadata\(\{ params \}: Props\)[^{]*\{\s*const \{[^}]*\} = await resolve\(params\)/)
     expect(src).toMatch(/CategoryDistrictPage\(\{ params \}: Props\)[^{]*\{\s*const \{[^}]*\} = await resolve\(params\)/)
   })

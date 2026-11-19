@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { pageShare } from '@/lib/site-identity'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { PostJobLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -34,11 +35,22 @@ const TITLE = `Saigon schools ranked by teachers · Đánh giá trường tại 
 const DESCRIPTION =
   'English centres, international and bilingual schools and recruiters in Ho Chi Minh City, voted on and reviewed by teachers who worked there — with pay ranges and open jobs.'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
   ...pageShare({ title: TITLE, description: DESCRIPTION, url: PATH }),
+}
+
+/**
+ * ⛔ THE CANONICAL FOLLOWS THE VARIANT (phase-1 /vi families, 2026-11-19 — src/lib/lang-alternates.ts): the Vietnamese
+ * one says `/vi/schools`, with reciprocal hreflang; null (eno.forum) keeps METADATA as it was. The title is bilingual
+ * and the share card (og:url included) the same on both variants.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  const twin = langAlternatesFor(PATH, lang, METADATA.robots)
+  return twin ? { ...METADATA, alternates: twin } : METADATA
 }
 
 export default async function SchoolsPage({ params }: { params: Promise<{ lang: string }> }) {

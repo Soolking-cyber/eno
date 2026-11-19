@@ -123,6 +123,8 @@ export async function expectedEdition(page: Page, baseURL: string | undefined): 
  * ⛔ THE `/vi` PILOT (src/lib/lang-pinned.ts, switched on 2026-10-02, commit 1a6ac8926): on the
  * MARKETPLACE the plain `/` is English for everyone, whatever the `lang` cookie or Accept-Language says,
  * and `/vi` is its Vietnamese twin. eno.forum never pilots: its `/` negotiates and its `/vi` 404s.
+ * The phase-1 families (2026-11-19, `VI_TWIN_FAMILIES`: `/vi/c/…`, `/vi/help…`, `/vi/schools…`) ship with it:
+ * their `/vi…` is Vietnamese for everyone while their plain URL keeps negotiating; app pages under `/vi` 404.
  * ⚠️ THE EXPECTATION COMES FROM THE EDITION, NEVER FROM PROBING `/vi` — a marketplace whose `/vi` broke
  * would otherwise read as "pilot off" and pass. Withdrawing the pilot (VI_PREFIX_PATHS emptied, rollback
  * V-R) must update this line, and these specs will say so by failing.

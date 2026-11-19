@@ -23,7 +23,7 @@ import {
   wakeTranslationWaiters,
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
-import { pilotOnHost, pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
+import { hasViTwin, pilotOnHost, pinnedPair, pinnedVariant, viTwinPath } from '@/lib/lang-pinned'
 import { SIGNED_IN_ACCOUNT_EVENT, signedInAccount } from '@/lib/signed-in-account'
 
 // Re-exported so the many existing importers of the roster keep working
@@ -127,7 +127,9 @@ function isNativePlatform(): boolean {
  * ⚠️ THE `/vi` PILOT USES THE SAME RULE (SEO wave B, V3a; dormant until V5): a piloted plain path is pinned
  * to `en` and its `/vi` twin to `vi`, so the mount never reloads across them, even when the visitor's
  * stored choice differs — the banner (lang-suggestion-banner.tsx) offers the twin instead — and
- * `setLang` goes to the twin with `location.assign` (pinnedPair), as on a paired guide.
+ * `setLang` goes to the twin with `location.assign` (pinnedPair), as on a paired guide. A phase-1 family's
+ * `/vi…` twin is pinned to `vi` the same way; its PLAIN path is not pinned (it negotiates, so the mount
+ * reconciles there as on any page), and a Vietnamese choice on it goes to the twin (setLang, D2).
  */
 function pinnedHere(serverVariant: 'en' | 'vi'): boolean {
   if (typeof window === 'undefined') return false
@@ -542,6 +544,21 @@ function LanguageProviderInner({
       if (pair) { window.location.assign(pair + window.location.search); return }
       if (cookieHeld) { window.location.reload(); return }
       if (variantOfLanguage(newLang) === serverVariant) setLangState(newLang)
+      return
+    }
+    /**
+     * ⛔ A VIETNAMESE CHOICE ON A PLAIN PAGE THAT HAS A `/vi` TWIN GOES TO THE TWIN (owner's D2, 2026-11-19 — the
+     * phase-1 families in lang-pinned.ts: categories, category×district, help, schools). The plain URL negotiates,
+     * so a reload would also come back Vietnamese, but at an address that does not say so; the twin's address
+     * names the language, and what the reader shares from there stays Vietnamese. The choice is already stored
+     * (storage and cookie, above), so the plain links they follow next negotiate to Vietnamese too. The way back —
+     * English or a machine-translated language on `/vi…` — is the pinned branch above (`pinnedPair` → the plain
+     * path). The query rides along, as to a guide's pair. ⚠️ ONLY WHERE THE HOST HAS THE PILOT (`pilotOnHost`): on a
+     * shop's host a `/vi…` 308s to the apex and out of the shop, so there the choice takes the path below.
+     */
+    if (typeof window !== 'undefined' && variantOfLanguage(newLang) === 'vi' && hasViTwin(window.location.pathname)
+      && pilotOnHost(window.location.hostname, process.env.NEXT_PUBLIC_APP_URL)) {
+      window.location.assign(viTwinPath(window.location.pathname) + window.location.search)
       return
     }
     // State first, so the choice shows immediately; the reload then replaces server-rendered text

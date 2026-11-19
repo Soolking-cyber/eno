@@ -219,7 +219,7 @@ describe('NAV-7: a desktop guest reaches Saved from the header', () => {
 })
 
 describe('NAV-8: the panel\'s category chips stay in the reader\'s language', () => {
-  it('a Vietnamese reader\'s "Nhà cửa" opens /vi/c/furniture-appliances (the piloted twin); other categories are unchanged', async () => {
+  it('a Vietnamese reader\'s chips open the categories\' `/vi` twins: "Nhà cửa" (the pilot) and "Cho thuê" (a phase-1 family)', async () => {
     h.language.lang = 'vi'
     h.language.tr = ((en: string, vi?: string) => vi ?? en) as typeof h.language.tr
     try {
@@ -232,7 +232,7 @@ describe('NAV-8: the panel\'s category chips stay in the reader\'s language', ()
         return ul!
       })
       const hrefs = [...list.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')])
-      expect(hrefs).toEqual([['Nhà cửa', '/vi/c/furniture-appliances'], ['Cho thuê', '/c/rentals']])
+      expect(hrefs).toEqual([['Nhà cửa', '/vi/c/furniture-appliances'], ['Cho thuê', '/vi/c/rentals']])
     } finally {
       h.language.tr = ((en: string) => en) as typeof h.language.tr
     }

@@ -27,6 +27,7 @@ import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { localizedHref } from '@/lib/lang-pinned'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { AreaChipsRow } from '../(index)/area-chips-row'
 import { CategoryLedeLinks } from '../(index)/category-lede-block'
@@ -249,7 +250,9 @@ async function resolve(params: Props['params']) {
   const data = canonical ? await load(category, canonical) : null
   // Real 404 (not soft-404) for an unknown category/district — before streaming.
   if (!data) notFound()
-  if (canonical !== district) permanentRedirect(`/c/${data.cat.slug}/${canonical}`)
+  // ⛔ In the reader's language (localizedHref): `/vi/c/<cat>/<alias>` renders at this same vi entry, and a plain
+  // target would hand the Vietnamese twin to the English URL (phase-1 /vi families, 2026-11-19).
+  if (canonical !== district) permanentRedirect(localizedHref(`/c/${data.cat.slug}/${canonical}`, pageLang(lang)))
   return { lang: pageLang(lang), district: canonical, data }
 }
 
@@ -265,10 +268,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     lang,
     SITE_NAME,
   )
-  return {
+  const meta: Metadata = {
     title,
     description,
-    alternates: { canonical: `${hostUrl}/c/${data.cat.slug}/${district}` },
     /**
      * ⛔ BELOW THE FLOOR, `noindex, follow` (SEO wave B, I1; src/lib/index-floor.ts). A district page of
      * one to nine cards is thin — `/c/rentals/can-gio` held one rental — and it answered 200 with no
@@ -281,9 +283,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      */
     // ⛔ A RETIRED SHELF's district page too, whatever its count (src/lib/retired-categories.ts; the sitemap skips it).
     ...(data.noindex || isRetiredNavCategory(data.cat.slug) ? { robots: { index: false, follow: true } } : {}),
+  }
+  /**
+   * ⛔ THE `/vi` TWIN'S HEAD (phase-1 families, 2026-11-19 — src/lib/lang-alternates.ts): the canonical follows the
+   * language rendered (`/vi/c/<cat>/<district>` for the Vietnamese variant, wherever it was served) with reciprocal
+   * hreflang. ⛔ NULL UNDER THE FLOOR (`meta.robots`, the one this head emits), on a slug outside the family pattern
+   * and on eno.forum: then the plain canonical, no hreflang, as before.
+   */
+  const twin = langAlternatesFor(`/c/${data.cat.slug}/${district}`, lang, meta.robots, hostUrl)
+  const url = twin?.canonical ?? `${hostUrl}/c/${data.cat.slug}/${district}`
+  return {
+    ...meta,
+    alternates: twin ?? { canonical: url },
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
-    ...pageShare({ title, description, url: `${hostUrl}/c/${data.cat.slug}/${district}` }),
+    ...pageShare({ title, description, url }),
   }
 }
 
@@ -427,7 +441,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
               <PlaceName en={place.en} vi={place.vi} />
             </Badge>
             {otherDistricts.map((d) => (
-              <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+              <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <PlaceName en={d.label.en} vi={d.label.vi} />
               </Badge>
             ))}

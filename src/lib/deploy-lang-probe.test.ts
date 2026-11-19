@@ -16,6 +16,7 @@ const ROOT = join(__dirname, '..', '..')
 const DEPLOY = readFileSync(join(ROOT, 'infra/vn-node/eno-deploy.sh'), 'utf8')
 const PROBE = DEPLOY.match(/^probe\(\)\{[\s\S]*?^\}$/m)?.[0]
 const PILOT_EXPECT = DEPLOY.match(/^PILOT_EXPECT=(\w+)$/m)?.[1]
+const FAMILIES_EXPECT = DEPLOY.match(/^FAMILIES_EXPECT=(\w+)$/m)?.[1]
 
 type Site = {
   pilot: 'on' | 'off'
@@ -27,6 +28,8 @@ type Site = {
   strayVi?: boolean
   /** only `/` is piloted: /c/furniture-appliances negotiates and its /vi twin 404s */
   furnitureOff?: boolean
+  /** images from before the phase-1 families (2026-11-19): `/vi/c/rentals` 404s (the families are on whenever the pilot is, otherwise) */
+  familiesOff?: boolean
   /** the edge Worker pins `/` and `/c/furniture-appliances` to the `en` key (V5's Worker), with a cache */
   workerPinned?: boolean
   /** the forum apex: 308 to `www` (next.config.ts — the default), or 'none' (images from before it: the apex answers
@@ -65,6 +68,9 @@ elif [ "$path" = /visa ] || { [ $forum = 0 ] && [ "$path" = /itinerary ]; }; the
 elif [ "$path" = /vi ] || [ "@{path#/vi/}" != "$path" ]; then
   if [ $forum = 0 ] && [ "$SITE_PILOT" = on ] && { [ "$path" = /vi ] || { [ "$path" = /vi/c/furniture-appliances ] && [ -z "@{SITE_FURNITURE_OFF:-}" ]; }; }; then
     if [ -n "@{SITE_VI_FOLLOWS_COOKIE:-}" ]; then lang=$neg; else lang=vi; fi
+  elif [ $forum = 0 ] && [ "$SITE_FAMILIES" = on ] && case "$path" in /vi/c/*|/vi/help|/vi/help/*|/vi/schools|/vi/schools/*) true ;; *) false ;; esac; then
+    # a phase-1 family twin (lang-pinned.ts VI_TWIN_FAMILIES): the path wins, as on the pilot's
+    if [ -n "@{SITE_VI_FOLLOWS_COOKIE:-}" ]; then lang=$neg; else lang=vi; fi
   elif [ -n "@{SITE_STRAY_VI:-}" ] && [ $forum = 0 ]; then lang=vi
   else code=404; fi
 elif [ $forum = 0 ] && [ "$SITE_PILOT" = on ] && [ -z "@{SITE_UNPINNED:-}" ] && { [ "$path" = / ] || { [ "$path" = /c/furniture-appliances ] && [ -z "@{SITE_FURNITURE_OFF:-}" ]; }; }; then lang=en
@@ -92,7 +98,7 @@ function runProbe(site: Site, mode: 'deploy' | 'rollback', forum: 'public' | 're
   writeFileSync(join(d, 'curl'), FAKE_CURL)
   chmodSync(join(d, 'curl'), 0o755)
   // forum_public asks nginx, which is not here: this answers for it. Its own test is in deploy-static.test.ts.
-  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\nok(){ :; }\nwarn(){ printf '[!!] %s\\n' "$*"; }\nforum_public(){ return ${forum === 'public' ? 0 : 1}; }\n${PROBE}\n`)
+  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\nFAMILIES_EXPECT=${FAMILIES_EXPECT}\nok(){ :; }\nwarn(){ printf '[!!] %s\\n' "$*"; }\nforum_public(){ return ${forum === 'public' ? 0 : 1}; }\n${PROBE}\n`)
   const r = spawnSync('bash', ['-c', `set -uo pipefail; source "${d}/fn.sh"; probe ${mode === 'rollback' ? 'rollback' : ''}; echo "rc=$?"`], {
     encoding: 'utf8',
     timeout: 15_000,
@@ -104,6 +110,7 @@ function runProbe(site: Site, mode: 'deploy' | 'rollback', forum: 'public' | 're
       SITE_VI_FOLLOWS_COOKIE: site.viFollowsCookie ? '1' : '',
       SITE_STRAY_VI: site.strayVi ? '1' : '',
       SITE_FURNITURE_OFF: site.furnitureOff ? '1' : '',
+      SITE_FAMILIES: site.pilot === 'on' && !site.familiesOff ? 'on' : 'off',
       SITE_WORKER_PINNED: site.workerPinned ? '1' : '',
       SITE_FORUM_APEX: site.forumApex ?? 'www',
       SITE_STATE: d,
@@ -120,6 +127,7 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
   it('ships the pilot on, and restore() probes the restored images in rollback mode', () => {
     expect(PROBE).toBeTruthy()
     expect(PILOT_EXPECT).toBe('on')
+    expect(FAMILIES_EXPECT).toBe('on')
     expect(DEPLOY).toMatch(/if probe rollback; then/)
     expect(DEPLOY).toMatch(/if ! probe; then restore; exit 1; fi/)
   })
@@ -138,7 +146,13 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
     expect(r.out).toMatch(/https:\/\/eno\.vn\/\s+lang=en \(cookie lang=vi\)/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/privacy\s+lang=vi \(cookie lang=vi\)/)
     expect(r.out).toMatch(/https:\/\/www\.eno\.forum\/\s+lang=vi \(vi-VN\)/) // the forum still adapts
-    expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+404/)
+    // the phase-1 families: the twin is Vietnamese for an English browser and a stored English choice; the plain URL negotiates
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+200/)
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+lang=vi \(en-US\)/)
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/c\/rentals\s+lang=en \(en-US\)/)
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/c\/rentals\s+lang=vi \(vi-VN\)/)
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+lang=vi \(cookie lang=en\)/)
+    expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/dashboard\s+404/) // an app page has no twin
     expect(r.out).toMatch(/https:\/\/www\.eno\.forum\/vi\s+404/)
   })
 
@@ -149,6 +163,7 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
       { pilot: 'on', viFollowsCookie: true },
       { pilot: 'on', strayVi: true },
       { pilot: 'on', furnitureOff: true },
+      { pilot: 'on', familiesOff: true },
     ] as Site[]) {
       const r = runProbe(site, 'deploy')
       expect(r.rc, JSON.stringify(site) + '\n' + r.out).toBe('1')
@@ -171,6 +186,17 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
     expect(r.rc, r.out).toBe('1')
     expect(r.out).toMatch(/https:\/\/eno\.vn\/\s+lang=en for vi-VN \(want vi\)/)
     expect(r.out).toMatch(/edge Worker still pinning this path to en\? redeploy the unpinned Worker/)
+  })
+
+  it('a rollback to images from before the phase-1 families passes as families=off; with them, as families=on', () => {
+    const old = runProbe({ pilot: 'on', familiesOff: true }, 'rollback')
+    expect(old.out, old.out).toMatch(/rc=0/)
+    expect(old.out).toMatch(/probing the restored images as families=off/)
+    expect(old.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+404/)
+    const now = runProbe({ pilot: 'on' }, 'rollback')
+    expect(now.out, now.out).toMatch(/probing the restored images as families=on[\s\S]*rc=0/)
+    // a restore whose families follow the cookie instead of the path still fails
+    expect(runProbe({ pilot: 'on', viFollowsCookie: true }, 'rollback').rc).toBe('1')
   })
 
   it('a rollback to pilot images passes as pilot=on; a half-switched restore still fails', () => {

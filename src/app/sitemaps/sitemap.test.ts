@@ -300,7 +300,8 @@ import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
 import { buildPagesSitemap, RENT_FROZEN_PATHS, RentIndexUnavailable } from '@/app/sitemaps/pages.xml/build'
 import { collectSitemaps } from '@/app/api/cron/indexnow/collect'
-import { LISTINGS_PER_SITEMAP, listingSitemapCount, parseListingSitemapFile } from '@/lib/sitemap'
+import { LISTINGS_PER_SITEMAP, langUrlEntries, listingSitemapCount, parseListingSitemapFile, sitemapViLists } from '@/lib/sitemap'
+import { VI_PILOT_MARKETPLACE, hasViTwin } from '@/lib/lang-pinned'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
 import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
 import { storefrontCanonical } from '@/lib/storefront'
@@ -566,7 +567,8 @@ describe('the pages child', () => {
     expect(urls).not.toContain(`${HOST}/c/rentals/quan-1`)
     expect(urls.some((u) => u.includes('/listings/'))).toBe(false)
     // Two spellings of one place are one URL, carrying the later of their two dates.
-    expect(urls.filter((u) => u.endsWith('/c/fashion-beauty/d2'))).toHaveLength(1)
+    // (One URL and, since phase 1 of the Vietnamese URLs, its one `/vi` twin.)
+    expect(urls.filter((u) => u.endsWith('/c/fashion-beauty/d2'))).toEqual([`${HOST}/c/fashion-beauty/d2`, `${HOST}/vi/c/fashion-beauty/d2`])
     expect(xml).toContain(`<loc>${HOST}/c/fashion-beauty/d2</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
     // The home page's lastmod is the freshest live row anywhere.
     expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
@@ -725,7 +727,8 @@ describe('the pages child', () => {
  */
 describe('the pages child: lastmod from what each page shows', () => {
   const lastmodOf = (xml: string, loc: string) => {
-    const m = xml.match(new RegExp(`<loc>${loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>(?:<lastmod>([^<]+)</lastmod>)?</url>`))
+    // A `/vi` pair's entries carry `xhtml:link` alternates after the lastmod (src/lib/sitemap.ts langUrlEntries).
+    const m = xml.match(new RegExp(`<loc>${loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>(?:<lastmod>([^<]+)</lastmod>)?(?:<xhtml:link [^>]*/>)*</url>`))
     if (!m) throw new Error(`${loc} is not in the sitemap`)
     return m[1]
   }
@@ -1039,7 +1042,7 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     subcategorySlug: 'apartment-rental', affiliateUrl: 'https://nhatot.com/x', sellerId: 'import-seller', ...over,
   }))
   const rentalsLocs = (xml: string) => locs(xml).filter((u) => u.startsWith(`${HOST}/c/rentals/`))
-  const lastmodOf = (xml: string, loc: string) => xml.match(new RegExp(`<loc>${loc}</loc>(<lastmod>[^<]+</lastmod>)?</url>`))?.[1]
+  const lastmodOf = (xml: string, loc: string) => xml.match(new RegExp(`<loc>${loc}</loc>(<lastmod>[^<]+</lastmod>)?(?:<xhtml:link [^>]*/>)*</url>`))?.[1]
 
   it('submits d7 exactly once, undated, when its row has a publishable cell and the page is at the floor', async () => {
     h.rent = snap([rentRow('d7', 40, { br1: 12, house: 10 })])
@@ -1047,7 +1050,10 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     const xml = await (await pagesGET()).text()
     expect(rentalsLocs(xml)).toEqual([`${HOST}/c/rentals/d7`])
     expect(lastmodOf(xml, `${HOST}/c/rentals/d7`)).toBeUndefined()
-    expect(xml).toContain(`<loc>${HOST}/c/rentals/d7</loc></url>`)
+    expect(xml).toContain(`<loc>${HOST}/c/rentals/d7</loc><xhtml:link `)
+    // Its `/vi` twin, undated too (src/lib/sitemap.ts langUrlEntries).
+    expect(lastmodOf(xml, `${HOST}/vi/c/rentals/d7`)).toBeUndefined()
+    expect(xml).toContain(`<loc>${HOST}/vi/c/rentals/d7</loc><xhtml:link `)
   })
 
   /**
@@ -1138,11 +1144,13 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     h.rent = snap([rentRow('d7', 40, { br1: 12 })])
     const known = locs((await buildPagesSitemap({ rentIndex: 'require' })).xml)
     expect(known).toContain(`${HOST}/c/rentals/d7`)
+    expect(known).toContain(`${HOST}/vi/c/rentals/d7`)
     h.rent = { known: false }
     const opt = await buildPagesSitemap({ rentIndex: 'optional' })
-    expect(opt.frozen).toEqual(['/c/rentals/', '/hcmc-rent-index'])
+    // The `/vi` twins of the district pages freeze with them (phase 1, 2026-11-19).
+    expect(opt.frozen).toEqual(['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index'])
     expect(opt.xml).not.toContain('<lastmod>' + SNAP_AT)
-    expect(locs(opt.xml)).toEqual(known.filter((u) => u !== `${HOST}/hcmc-rent-index` && !u.startsWith(`${HOST}/c/rentals/`)))
+    expect(locs(opt.xml)).toEqual(known.filter((u) => u !== `${HOST}/hcmc-rent-index` && !u.startsWith(`${HOST}/c/rentals/`) && !u.startsWith(`${HOST}/vi/c/rentals/`)))
   })
 
   it('a database error inside the builder makes every sitemap route reject — never a cached 500', async () => {
@@ -1246,7 +1254,7 @@ describe('the school directory in the pages child (2026-10-04)', () => {
   it('a failed school read submits /schools alone and never fails the sitemap', async () => {
     h.failSchools = true
     const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
-    expect(xml).toContain(`<loc>${HOST}/schools</loc></url>`)
+    expect(xml).toContain(`<loc>${HOST}/schools</loc><xhtml:link `) // undated (the links follow the loc directly)
     expect(xml).not.toContain('/schools/')
   })
 
@@ -1303,7 +1311,10 @@ describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
     // The teacher who also sells keeps a storefront: it still has a listing of its own on the forum.
     expect(forum.pages).toContain(`${HOST}/sellers/mixed-seller`)
     expect(forum.listings).toEqual(vn.listings.filter((u) => !isTeacherUrl(u)))
-    const shelves = (urls: string[]) => urls.filter((u) => /\/(c|sellers)\//.test(u))
+    // eno.forum pairs nothing (viPilotFor): eno.vn's `/vi` twins are the other difference, so the shelves compare plain.
+    const isVi = (u: string) => /^\/vi(\/|$)/.test(new URL(u).pathname)
+    expect(forum.pages.filter(isVi)).toEqual([])
+    const shelves = (urls: string[]) => urls.filter((u) => /\/(c|sellers)\//.test(u) && !isVi(u))
     expect(shelves(forum.pages)).toEqual(shelves(vn.pages).filter((u) => !isTeacherUrl(u)))
   })
 
@@ -1381,5 +1392,118 @@ describe('teacher profiles in the sitemaps (the search verdict)', () => {
     const { urls } = await collectSitemaps()
     expect(urls.has(`${HOST}/listings/t-words`)).toBe(true)
     expect(urls.has(`${HOST}/listings/t-hidden`)).toBe(false)
+  })
+})
+
+/**
+ * ⛔ THE `/vi` TWINS (phase 1 of the Vietnamese URLs, owner 2026-11-19 — src/lib/sitemap.ts `langUrlEntries`). A submitted
+ * category, category × district, help or school page is a PAIR: its plain `<url>` and its `/vi` `<url>`, the same lastmod,
+ * the same three `xhtml:link` alternates. Exactly the pages `hasViTwin` pairs in the head, home aside (pilot V-c) — and
+ * never a listing, a storefront, a guide, any other page, or anything on eno.forum.
+ */
+describe('the /vi twins in the sitemaps (phase 1, 2026-11-19)', () => {
+  const many = (n: number, prefix: string, over: Partial<Row>) => Array.from({ length: n }, (_, i) => row({ id: `${prefix}-${i}`, ...over }))
+  type Entry = { loc: string; lastmod: string | null; links: Record<string, string> }
+  const entries = (xml: string): Entry[] => [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((m) => ({
+    loc: /<loc>([^<]+)<\/loc>/.exec(m[1])![1],
+    lastmod: /<lastmod>([^<]+)<\/lastmod>/.exec(m[1])?.[1] ?? null,
+    links: Object.fromEntries([...m[1].matchAll(/<xhtml:link rel="alternate" hreflang="([^"]+)" href="([^"]+)"\/>/g)].map((l) => [l[1], l[2]])),
+  }))
+  const path = (u: string) => new URL(u).pathname
+  const isVi = (u: string) => /^\/vi(\/|$)/.test(path(u))
+  const seed = () => {
+    h.rows = [
+      ...many(10, 'fash', { sellerId: 'old-shop', categoryId: 'cat-fashion', district: 'Quận 1' }),
+      row({ id: 'sub-1', sellerId: 'sub-shop', categoryId: 'cat-electronics' }),
+      row({ id: 'own-1', categoryId: 'cat-electronics' }),
+    ]
+    h.help = [{ id: 'how-to-post', editedAt: null, createdAt: new Date('2026-07-21T00:00:00Z'), updatedAt: new Date('2026-09-29T00:00:00Z') }]
+    h.schools = [{ slug: 'ila-vietnam', status: 'active', reviews: 1, jobs: 0, lastmod: new Date('2026-10-02T03:00:00Z') }]
+    h.awardYears = [{ year: 2026, lastmod: new Date('2026-12-31T17:10:00Z') }]
+  }
+
+  it('declares the xhtml namespace on every urlset: the pages child, the flat /sitemap.xml and a listing child', async () => {
+    seed()
+    for (const xml of [await (await pagesGET()).text(), await (await indexGET()).text(), await (await child('listings-0.xml')).text()]) {
+      expect(xml).toMatch(/<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9" xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml">/)
+    }
+  })
+
+  it('pairs every submitted family page — plain and /vi, the same lastmod, the same en / vi-VN / x-default links', async () => {
+    seed()
+    const all = entries(await (await pagesGET()).text())
+    const byLoc = new Map(all.map((e) => [e.loc, e]))
+    const combo = all.map((e) => e.loc).find((u) => u.startsWith(`${HOST}/c/fashion-beauty/`))
+    expect(combo, 'the fixture submits one fashion district page').toBeDefined()
+    const want = ['/c/fashion-beauty', '/c/electronics', path(combo!), '/help', '/help/how-to-post', '/schools', '/schools/ila-vietnam', '/schools/awards/2026']
+    for (const p of want) {
+      const plain = byLoc.get(`${HOST}${p}`)
+      const vi = byLoc.get(`${HOST}/vi${p}`)
+      expect(plain, p).toBeDefined()
+      expect(vi, `/vi${p}`).toBeDefined()
+      const links = { en: `${HOST}${p}`, 'vi-VN': `${HOST}/vi${p}`, 'x-default': `${HOST}${p}` }
+      expect(plain!.links, p).toEqual(links)
+      expect(vi!.links, `/vi${p}`).toEqual(links)
+      expect(vi!.lastmod, `/vi${p}`).toBe(plain!.lastmod)
+    }
+    expect(byLoc.get(`${HOST}/help/how-to-post`)!.lastmod).toBe('2026-07-21T00:00:00.000Z')
+    expect(byLoc.get(`${HOST}/vi/schools/awards/2026`)!.lastmod).toBe('2026-12-31T17:10:00.000Z')
+    // Each loc once: the pair is two entries, never a duplicate.
+    expect(new Set(all.map((e) => e.loc)).size).toBe(all.length)
+  })
+
+  it('pairs EXACTLY what hasViTwin pairs (the head\'s rule), home aside — never a listing, storefront, guide or other page', async () => {
+    seed()
+    const pagesXml = await (await pagesGET()).text()
+    const flat = entries(await (await indexGET()).text())
+    const all = entries(pagesXml)
+    const plain = all.filter((e) => !isVi(e.loc))
+    for (const e of plain) {
+      const p = path(e.loc)
+      const twin = p !== '/' && new URL(e.loc).host === 'eno.vn' && hasViTwin(p, VI_PILOT_MARKETPLACE)
+      expect(Object.keys(e.links).length > 0, p).toBe(twin)
+      expect(all.some((x) => x.loc === `${HOST}/vi${p}`), `/vi${p}`).toBe(twin)
+    }
+    // Every /vi entry is the twin of a submitted plain entry.
+    for (const e of all.filter((x) => isVi(x.loc))) expect(e.links.en && all.some((x) => x.loc === e.links.en), e.loc).toBe(true)
+    const vis = all.filter((e) => isVi(e.loc)).map((e) => path(e.loc))
+    expect(vis).not.toContain('/vi') // pilot V-c: the home page's twin is not submitted
+    for (const p of vis) expect(p, p).toMatch(/^\/vi\/(c|help|schools)(\/|$)/)
+    expect(vis.some((p) => /^\/vi\/(listings|sellers|teachers|about|developers|hcmc-rent-index|guide)(\/|$)/.test(p))).toBe(false)
+    expect(all.find((e) => e.loc === `${HOST}/teachers/cover`)?.links).toEqual({})
+    expect(all.find((e) => e.loc === `${HOST}/about`)?.links).toEqual({})
+    expect(all.find((e) => e.loc === `${HOST}/old_shop`)?.links).toEqual({})
+    // The flat /sitemap.xml carries the same pairs, and its listing entries stay single.
+    expect(flat.filter((e) => isVi(e.loc)).map((e) => e.loc)).toEqual(all.filter((e) => isVi(e.loc)).map((e) => e.loc))
+    for (const e of flat.filter((x) => path(x.loc).startsWith('/listings/'))) expect(e.links).toEqual({})
+    expect(flat.some((e) => path(e.loc).startsWith('/listings/'))).toBe(true)
+  })
+
+  it('⛔ eno.forum pairs nothing: no /vi loc and no xhtml:link, in any of its sitemaps', async () => {
+    seed()
+    h.services = true
+    expect(sitemapViLists().families).toEqual([])
+    for (const xml of [await (await pagesGET()).text(), await (await indexGET()).text()]) {
+      expect(entries(xml).filter((e) => isVi(e.loc))).toEqual([])
+      expect(xml).not.toContain('<xhtml:link')
+      expect(xml).toContain(`<loc>${HOST}/help</loc></url>`)
+    }
+  })
+
+  it('langUrlEntries: one entry off the families, a pair on them, one again once a family is retired (rollback V-R)', () => {
+    const one = (p: string, lists = VI_PILOT_MARKETPLACE) => langUrlEntries(HOST, p, '<lastmod>2026-01-01</lastmod>', lists)
+    expect(one('/about')).toEqual([`  <url><loc>${HOST}/about</loc><lastmod>2026-01-01</lastmod></url>\n`])
+    const links = `<xhtml:link rel="alternate" hreflang="en" href="${HOST}/c/rentals"/><xhtml:link rel="alternate" hreflang="vi-VN" href="${HOST}/vi/c/rentals"/><xhtml:link rel="alternate" hreflang="x-default" href="${HOST}/c/rentals"/>`
+    expect(one('/c/rentals')).toEqual([
+      `  <url><loc>${HOST}/c/rentals</loc><lastmod>2026-01-01</lastmod>${links}</url>\n`,
+      `  <url><loc>${HOST}/vi/c/rentals</loc><lastmod>2026-01-01</lastmod>${links}</url>\n`,
+    ])
+    // App and form pages, listings and sellers never pair, whatever block called it.
+    for (const p of ['/schools/suggest', '/schools/ila-vietnam/review', '/listings/abc', '/sellers/abc', '/c/rentals/d7/x', '/help/a/edit', '/c']) {
+      expect(one(p), p).toHaveLength(1)
+    }
+    const retired = { ...VI_PILOT_MARKETPLACE, families: [], retiredFamilies: VI_PILOT_MARKETPLACE.families }
+    expect(one('/c/rentals', retired)).toHaveLength(1)
+    expect(one('/c/rentals', { live: [], retired: [] })).toHaveLength(1)
   })
 })

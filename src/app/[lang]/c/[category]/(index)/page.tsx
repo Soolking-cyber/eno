@@ -33,7 +33,8 @@ import { localizeListingTitles } from '@/lib/translate'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
-import { langAlternates, localizedHref } from '@/lib/lang-pinned'
+import { localizedHref } from '@/lib/lang-pinned'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 import Link from 'next/link'
 import { Fragment } from 'react'
@@ -144,18 +145,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang), live)
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
   const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS, teachers: cat.slug === TEACHERS_CATEGORY_SLUG })
-  /**
-   * ⛔ THE `/vi` PILOT (SEO wave B, V3b — dormant until V5 lists `/c/furniture-appliances`, marketplace
-   * only): the plain URL is the English variant and `/vi/c/<slug>` the Vietnamese one, each self-canonical,
-   * with reciprocal hreflang (V-g) and a share card whose og:url is that canonical. Off the list (every
-   * category today, and /c/rentals always) `pilot` is null and the head is exactly V2's.
-   */
-  const pilot = langAlternates(`/c/${cat.slug}`, pageLang(lang), hostUrl)
-  const url = pilot?.canonical ?? `${hostUrl}/c/${cat.slug}`
-  return {
+  const meta: Metadata = {
     title,
     description,
-    alternates: pilot ? { canonical: pilot.canonical, languages: pilot.languages } : { canonical: url },
     // ⚠️ AN EMPTY CATEGORY DE-INDEXES ITSELF. Eight of the fifteen categories currently hold zero
     // live listings, and such a page is ~40 unique words wrapped around "No listings here yet" —
     // thin content, repeated eight times, on a domain with nothing else to show. `follow: true` is
@@ -172,6 +164,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // pets, books-stationery and hobbies-sports stay reachable by URL but leave navigation, the sitemap
     // (pages.xml reads the same isRetiredNavCategory) and the index. Vehicles never renders here: it 308s.
     ...(emptyForTheWindow || isRetiredNavCategory(cat.slug) ? { robots: { index: false, follow: true } } : {}),
+  }
+  /**
+   * ⛔ THE `/vi` TWIN'S HEAD (src/lib/lang-alternates.ts): the pilot `/c/furniture-appliances` (SEO wave B, V3b — its
+   * plain URL English for everyone) and, since phase 1 (2026-11-19), every category, whose plain URL negotiates. The
+   * canonical follows the language rendered (`/vi/c/<slug>` for the Vietnamese variant, wherever it was served), with
+   * reciprocal hreflang (V-g) and a share card whose og:url is that canonical. ⛔ NULL ON A NOINDEX CATEGORY (empty for
+   * the window, retired shelf — `meta.robots`, the one this head emits) and on eno.forum: then the head is exactly V2's,
+   * the plain canonical and no hreflang.
+   */
+  const twin = langAlternatesFor(`/c/${cat.slug}`, pageLang(lang), meta.robots, hostUrl)
+  const url = twin?.canonical ?? `${hostUrl}/c/${cat.slug}`
+  return {
+    ...meta,
+    alternates: twin ?? { canonical: url },
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     ...pageShare({ title, description, url }),
@@ -465,7 +471,7 @@ export default async function CategoryPage({ params }: Props) {
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
           {districts.map((d) => (
-            <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+            <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
               {/* English place names on English pages ("District 2", not "Quận 2"). */}
               <PlaceName en={d.label.en} vi={d.label.vi} />
             </Badge>
@@ -557,7 +563,7 @@ export default async function CategoryPage({ params }: Props) {
                   <>
                     <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_MAP_CHIP} glyphClassName="size-4.5" />
                     {districts.map((d) => (
-                      <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className={STRIP_CHIP}>
+                      <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className={STRIP_CHIP}>
                         <PlaceName en={d.label.en} vi={d.label.vi} />
                       </Badge>
                     ))}

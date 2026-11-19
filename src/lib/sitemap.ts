@@ -2,6 +2,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
+import { VI_PILOT_MARKETPLACE, hasViTwin, viPilotFor, viTwinPath, type ViPilot } from '@/lib/lang-pinned'
 import { teacherSitemapScope } from '@/lib/teachers/search-index'
 
 /**
@@ -149,10 +150,51 @@ ${body}</sitemapindex>`
 }
 
 /**
- * Wrap pre-rendered `<url>` entries in a urlset, trimming past the protocol cap.
+ * The `/vi` lists the sitemap pairs by: eno.vn's, or none on eno.forum (`viPilotFor`, V3a). In a build this is exactly
+ * `VI_PILOT` (the edition is inlined); it is read per call so a test that switches the edition sees the forum's answer.
+ */
+const NO_TWINS: ViPilot = viPilotFor(true, [], [])
+export function sitemapViLists(): ViPilot {
+  return IS_SERVICES ? NO_TWINS : VI_PILOT_MARKETPLACE
+}
+
+/**
+ * ⛔ ONE SUBMITTED PAGE'S `<url>` ENTRIES: ONE, OR TWO WHEN THE PAGE HAS A `/vi` TWIN (phase 1 of the Vietnamese-URL
+ * plan, owner 2026-11-19 — categories, category × district, help, schools; the families are `VI_TWIN_FAMILIES` in
+ * src/lib/lang-pinned.ts). A twin is the plain `<url>` AND its `/vi` `<url>`, each with the same `lastmod` (the same
+ * page in the other language) and the same three `xhtml:link` alternates — `en` and `x-default` the plain URL, `vi-VN`
+ * the `/vi` one — which is what the pages' heads declare. ONE RULE DECIDES, `hasViTwin`, the test the head and the
+ * links ask too, so the sitemap cannot pair a page the head does not, or miss one it does.
+ *
+ * ⛔ CALL IT ONLY FOR A PAGE THIS SITEMAP ALREADY SUBMITS (critic #3, 2026-11-19): every block in pages.xml submits a
+ * page exactly when it answers `index`, and the `/vi` twin renders from the same data with the same robots rule, so the
+ * pair is only ever written for indexable pages. It never sees a listing, a storefront or a guide — none matches a
+ * family, and their blocks do not call it. The home page does not call it either: `/vi` stays out of the sitemap
+ * (pilot decision V-c, kept by the owner's 2026-11-19 scoping), though its head pairs it.
+ *
+ * `origin` has no trailing slash; `lastmod` is the rendered `<lastmod>…</lastmod>` or ''. No escaping is needed on the
+ * paired branch: a family path is lowercase ASCII words and slashes by its pattern.
+ */
+export function langUrlEntries(origin: string, path: string, lastmod = '', lists: ViPilot = sitemapViLists()): string[] {
+  const at = (p: string) => (p === '/' ? origin : `${origin}${p}`)
+  if (!hasViTwin(path, lists)) return [`  <url><loc>${at(path)}</loc>${lastmod}</url>\n`]
+  const en = at(path)
+  const vi = at(viTwinPath(path))
+  const links =
+    `<xhtml:link rel="alternate" hreflang="en" href="${en}"/>` +
+    `<xhtml:link rel="alternate" hreflang="vi-VN" href="${vi}"/>` +
+    `<xhtml:link rel="alternate" hreflang="x-default" href="${en}"/>`
+  return [en, vi].map((loc) => `  <url><loc>${loc}</loc>${lastmod}${links}</url>\n`)
+}
+
+/**
+ * Wrap pre-rendered `<url>` entries in a urlset, trimming past the protocol cap. The `xhtml` namespace is declared on
+ * every urlset because the pages child's `/vi` pairs carry `xhtml:link` alternates (`langUrlEntries`), and the flat
+ * /sitemap.xml embeds those same entries.
  *
  * ⚠️ A FILE OVER 50,000 URLs IS REJECTED WHOLE, so trimming the tail is the lesser failure — and it
  * is logged, because a trimmed sitemap is a real defect to fix (split the file), not a steady state.
+ * Each entry is one `<url>`, so a `/vi` pair counts as two.
  */
 export function urlsetXml(entries: string[], label: string): string {
   let kept = entries
@@ -161,7 +203,7 @@ export function urlsetXml(entries: string[], label: string): string {
     kept = entries.slice(0, MAX_URLS_PER_SITEMAP)
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${kept.join('')}</urlset>`
 }
 

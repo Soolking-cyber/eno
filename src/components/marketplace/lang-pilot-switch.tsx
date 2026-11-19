@@ -14,8 +14,10 @@ import { LangPilotLink } from './lang-pilot-link'
  * JavaScript, can follow.
  *
  * ⛔ BUILT FROM THE PAGE'S OWN KNOWN PATH, NEVER `usePathname`, and RENDERED ONLY FOR A LIVE PILOT PATH:
- * `(index)/layout.tsx` wraps every category, and a "Tiếng Việt" link from /c/rentals would open a 404
- * (CS-3 claim 10). Off the list it renders nothing — and the layouts do not even mount it.
+ * `(index)/layout.tsx` wraps every category, and a "Tiếng Việt" link from /c/rentals used to open a 404
+ * (CS-3 claim 10). Off the list it renders nothing — and the layouts do not even mount it. ⚠️ STILL THE PILOT LIST
+ * ALONE since the phase-1 families (2026-11-19): a family's plain URL negotiates, so a server-rendered "English" link
+ * to it would serve a reader holding `lang=vi` the Vietnamese page again; the switch there is `setLang` (D2).
  * ⚠️ ASYNC ONLY TO READ `params` (resolved before render): the layouts pass the promise through so that
  * their own code awaits nothing new (crawler-visible-html-contract.test.ts).
  */
