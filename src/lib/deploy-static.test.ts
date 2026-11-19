@@ -110,8 +110,11 @@ describe('eno-deploy.sh — static on disk before the swap, tags instead of purg
     }
     expect(deploy).toMatch(/if forum_public; then hostcheck https:\/\/eno\.forum\/itinerary 200; fi/)
     expect(deploy).toMatch(/if \[ "\$ed" = services \] && ! forum_public; then ok "\$host: retired[^\n]*; continue; fi/)
-    // Old links must still land on eno.vn; a warning, because this is no reason to roll back eno.vn.
-    expect(deploy).toMatch(/\[ "\$got" = "301 https:\/\/eno\.vn\/privacy" \] && ok[^\n]*\|\| warn/)
+    // eno.forum is eno Reach since 2026-11-19 (owner: "dont redirect eno.forum to eno.vn"): the apex answers with Reach's sign-in,
+    // www goes to the apex. A mismatch only warns, because box nginx owns that routing and it is no reason to roll back eno.vn.
+    expect(deploy).toMatch(/"307 https:\/\/eno\.forum\/signin"\*\|"200 "\*\) ok "https:\/\/eno\.forum\/privacy is answered by Reach"/)
+    expect(deploy).toMatch(/\[ "\$got" = "301 https:\/\/eno\.forum\/privacy" \] && ok[^\n]*\\\n\s*\|\| warn/)
+    expect(deploy).not.toMatch(/should redirect to eno\.vn/)
     // The licensing checks on eno.vn are never gated.
     expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/visa {9}404$/m)
     expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/itinerary {4}404$/m)

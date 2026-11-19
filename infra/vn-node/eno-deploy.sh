@@ -136,11 +136,17 @@ probe(){
   hostcheck https://eno.forum/      200
   check https://www.eno.forum/      200
   else
-    # Retired: old links must land on eno.vn. A warning, not a failure: this is no reason to roll back a healthy eno.vn deploy.
-    for u in https://eno.forum/privacy https://www.eno.forum/privacy; do
-      got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' "$u") || got="no answer"
-      [ "$got" = "301 https://eno.vn/privacy" ] && ok "$u redirects to eno.vn" || warn "$u should redirect to eno.vn; it answered: $got"
-    done
+    # eno.forum is eno Reach (owner 2026-11-19: "dont redirect eno.forum to eno.vn we have reach app on eno.forum now"): every
+    # path is the app's, which answers with its own sign-in, and www.eno.forum goes to the apex. Box nginx reach.conf owns that
+    # routing, not this deploy, so a mismatch is a warning, never a reason to roll back a healthy eno.vn deploy.
+    got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://eno.forum/privacy) || got="no answer"
+    case "$got" in
+      "307 https://eno.forum/signin"*|"200 "*) ok "https://eno.forum/privacy is answered by Reach" ;;
+      *) warn "https://eno.forum/privacy should be Reach's (its sign-in); it answered: $got" ;;
+    esac
+    got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://www.eno.forum/privacy) || got="no answer"
+    [ "$got" = "301 https://eno.forum/privacy" ] && ok "https://www.eno.forum/privacy goes to eno.forum" \
+      || warn "https://www.eno.forum/privacy should 301 to https://eno.forum/privacy; it answered: $got"
   fi
   # ⛔ THE LICENSING CHECK. eno.vn is a licensed sàn TMĐT and may not serve these at
   # all. A 200 here is a compliance failure, not a bug.

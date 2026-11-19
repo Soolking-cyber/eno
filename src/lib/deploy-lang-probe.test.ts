@@ -214,12 +214,14 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
  * and images from before the redirect (a rollback) still pass.
  */
 describe('eno-deploy.sh probe() — a retired eno.forum', { timeout: 20_000 }, () => {
-  it('skips every check of the copy, so a site without it passes; old links that do not redirect only warn', () => {
+  it('skips every check of the copy, so a site without it passes; eno.forum not answering as Reach only warns', () => {
     const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired')
     expect(r.rc).toBe('0')
     expect(r.out).not.toMatch(/eno\.forum\/itinerary/)
     expect(r.out).not.toMatch(/lang=.*eno\.forum/)
-    expect(r.out).toMatch(/\[!!\] https:\/\/eno\.forum\/privacy should redirect to eno\.vn/)
+    // eno.forum is Reach (2026-11-19): the stub's eno.forum answers are not Reach's, so both routing checks warn, and the deploy still passes.
+    expect(r.out).toMatch(/\[!!\] https:\/\/eno\.forum\/privacy should be Reach's/)
+    expect(r.out).toMatch(/\[!!\] https:\/\/www\.eno\.forum\/privacy should 301 to https:\/\/eno\.forum\/privacy/)
   })
   it('the licensing checks on eno.vn still run', () => {
     expect(runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired').out).toMatch(/https:\/\/eno\.vn\/visa\s+404/)
