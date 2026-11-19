@@ -577,7 +577,8 @@ describe('edge Worker — the catch-all route (speed plan item 10)', () => {
   })
 
   it('a hyphenated name is routed, not trusted: a store page (/eno-trading answers private, measured 2026-11-19) or one that sets a cookie is never stored', async () => {
-    for (const headers of [{ 'cache-control': 'private, no-cache, no-store, max-age=0, must-revalidate' }, { 'set-cookie': 'a=1; Path=/' }]) {
+    const answers: Record<string, string>[] = [{ 'cache-control': 'private, no-cache, no-store, max-age=0, must-revalidate' }, { 'set-cookie': 'a=1; Path=/' }]
+    for (const headers of answers) {
       h.respond = () => ({ headers })
       h.origin = []
       expect((await call('/eno-trading')).headers.get('x-eno-cache')).not.toBe('HIT')
