@@ -29,7 +29,7 @@ type Row = {
   affiliateUrl?: string | null
 }
 
-const h = vi.hoisted(() => ({ rows: [] as unknown[] }))
+const h = vi.hoisted(() => ({ rows: [] as unknown[], trending: [] as { id: string }[], slimTrending: null as string[] | null }))
 
 /** Does `row` satisfy a Prisma-shaped `where`? Throws on a shape it does not implement, so a test cannot pass by ignoring a clause. */
 function matches(row: Record<string, unknown>, where: unknown): boolean {
@@ -138,8 +138,13 @@ vi.mock('@/lib/publish-funnel', () => ({}))
 // The home page's other inputs — none of them touch the feed.
 vi.mock('@/lib/categories', () => ({ getCategoriesByDemand: async () => [] }))
 vi.mock('@/lib/core/business-rail', () => ({ topBusinessListings: async () => [] }))
-vi.mock('@/lib/core/trending-rail', () => ({ trendingRailListings: async (o: { excludeIds: Promise<string[]> }) => { await o.excludeIds; return [] } }))
+vi.mock('@/lib/core/trending-rail', () => ({ HOME_TRENDING_TAKE: 12, trendingRailListings: async (o: { excludeIds: Promise<string[]> }) => { await o.excludeIds; return h.trending } }))
 vi.mock('@/components/marketplace/listings-explorer', () => ({ ListingsExplorer: () => null }))
+// The real slimHomeRails, watched: the Trending it is handed must be the sliced twelve (the claims below it read that array).
+vi.mock('@/lib/home-lanes', async (orig) => {
+  const real = await orig<typeof import('@/lib/home-lanes')>()
+  return { ...real, slimHomeRails: ((args: Parameters<typeof real.slimHomeRails>[0]) => { h.slimTrending = args.trending.map((c) => c.id); return real.slimHomeRails(args) }) as typeof real.slimHomeRails }
+})
 vi.mock('@/app/[lang]/(home)/home-metadata', () => ({ homeMetadata: () => ({}), homeWebPageJsonLd: () => ({ '@type': 'WebPage' }) }))
 
 import { NextRequest } from 'next/server'
@@ -228,6 +233,8 @@ const goodsIn = (rows: Row[], n: number) => rows.slice(0, n).filter(isSecondHand
 
 beforeEach(() => {
   __resetFeedWindowCache()
+  h.trending = []
+  h.slimTrending = null
 })
 
 describe('the home feed’s goods seats — server render and API agree, and pages stay exact', () => {
@@ -365,5 +372,18 @@ describe('the home feed shows only in-app listings — server render and API agr
     h.rows = linkedShape().map((r) => (r.sellerId === 'bds' ? { ...r, affiliateUrl: '' } : r))
     expect((await ssrSeed()).initialTotal).toBe(inApp(h.rows as Row[]).length)
     expect((await apiBody(EXPLORER(0))).total).toBe(inApp(h.rows as Row[]).length)
+  })
+})
+
+describe('the home page draws only the first HOME_TRENDING_TAKE (12) Trending cards (owner 2026-11-19, "slightly fewer")', () => {
+  it('⛔ sliced where the rail is read, so slimHomeRails and initialTrending see the same twelve, in order', async () => {
+    h.rows = productionShape()
+    h.trending = Array.from({ length: 16 }, (_, i) => ({ id: `trend-${i}` }))
+    const root = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: { children?: unknown } }
+    const els = [root, ...[root.props.children].flat()] as { props?: { initialTrending?: { id: string }[] } }[]
+    const explorer = els.find((e) => e && typeof e === 'object' && Array.isArray(e.props?.initialTrending))
+    const twelve = Array.from({ length: 12 }, (_, i) => `trend-${i}`)
+    expect(explorer?.props?.initialTrending?.map((c) => c.id)).toEqual(twelve)
+    expect(h.slimTrending).toEqual(twelve)
   })
 })

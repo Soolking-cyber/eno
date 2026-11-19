@@ -8,6 +8,14 @@ import { railListing } from './rail-listing'
 
 const LIMIT = 16
 /**
+ * ⛔ THE HOME PAGE DRAWS ONLY THE FIRST 12 (owner, 2026-11-19: "lighter and slightly fewer" — the home page's first paint on a
+ * throttled phone waits on styling and painting ~3,000 elements, and Trending's 16 cards were its largest section).
+ * Sliced in (home)/page.tsx right after this returns, BEFORE slimHomeRails and `initialTrending` read the array, so the
+ * rails below claim the same cards on the server and the client. /api/recommendations answers the same 12 (its only caller is
+ * that rail); LIMIT itself stays 16 for the listing-photos cron, which reads this function too.
+ */
+export const HOME_TRENDING_TAKE = 12
+/**
  * The rail CHOOSES its LIMIT from this many (diversifyRail, feed-diversity.ts): a plain top-16 by
  * rankScore could be nine eSIM storefronts and one seller's variants. Seller round-robin with the
  * feed's shared seats (one for the eSIM carriers, one for the job boards, one for the vehicle

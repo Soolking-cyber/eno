@@ -78,11 +78,11 @@ describe('homeTeacherShelf', () => {
     expect(h.localize).not.toHaveBeenCalled()
   })
 
-  it('holds at most HOME_TEACHER_SHELF_TAKE (8) cards, in the order read', async () => {
-    expect(HOME_TEACHER_SHELF_TAKE).toBe(8)
+  it('holds at most HOME_TEACHER_SHELF_TAKE (6 since 2026-11-19) cards, in the order read', async () => {
+    expect(HOME_TEACHER_SHELF_TAKE).toBe(6)
     h.rows = Array.from({ length: 10 }, (_, i) => row(`t${i}`))
     const cards = await homeTeacherShelf()
-    expect(cards.map((c) => c.id)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7'])
+    expect(cards.map((c) => c.id)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5'])
   })
 
   it('drops a card without its first photo — and the spare rows keep the shelf full', async () => {
@@ -91,7 +91,7 @@ describe('homeTeacherShelf', () => {
       ...Array.from({ length: 7 }, (_, i) => row(`t${i + 1}`)),
     ]
     const cards = await homeTeacherShelf()
-    expect(cards.map((c) => c.id)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7'])
+    expect(cards.map((c) => c.id)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5'])
     expect(cards.every((c) => typeof c.images[0] === 'string' && c.images[0] !== '')).toBe(true)
   })
 

@@ -18,10 +18,11 @@ export const TEACHER_SUBDOMAIN = 'teacher'
 /**
  * The home page's "Find a teacher" shelf (owner, 2026-10-13: "make teacher profiles more visible on the home page" —
  * the option picked was a shelf after the feed's first twelve listings): how many teacher cards it holds at most.
- * Eight is two pages of the widest row (four cards from `lg`). The 3-card floor is the rails' own MIN_RAIL_ITEMS,
+ * Six since 2026-11-19 (owner: "lighter and slightly fewer" for the home page's weight; it was eight, two pages of the
+ * widest row): a page and a half of four cards from `lg`, three pages of the phone's two. The 3-card floor is the rails' own MIN_RAIL_ITEMS,
  * applied client-side (teacher-shelf.tsx), so there is no second constant for it.
  */
-export const HOME_TEACHER_SHELF_TAKE = 8
+export const HOME_TEACHER_SHELF_TAKE = 6
 /**
  * ⛔ LISTINGS THE HOME SHELF NEVER SHOWS, BY ID. One today: the owner's DEMO teacher profile, created 2026-10-08 on the
  * owner's own business account (seller ENO COMPANY LIMITED) — a real name with mock details and "Demo profile" in its

@@ -9,7 +9,7 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
-import { trendingRailListings } from '@/lib/core/trending-rail'
+import { HOME_TRENDING_TAKE, trendingRailListings } from '@/lib/core/trending-rail'
 import { homeTeacherShelf } from '@/lib/core/teacher-shelf'
 import { homeCategoryRails, type CategoryRailRow } from '@/lib/core/category-rails'
 import { logError } from '@/lib/log'
@@ -111,12 +111,15 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // "Trending now" seed for the ForYouRail — same server-known-geometry fix
       // (the client's empty thin-catalog answer collapsed the SSR'd skeletons).
       // ⛔ NOT THE FEED'S OWN CARDS (home-07): Trending opened on the feed's first card, two rows
-      // above it. The first page's ids leave the rail's 96-row pool before it chooses its 16
+      // above it. The first page's ids leave the rail's 96-row pool before it chooses its 16 — of which this page draws
+      // the first HOME_TRENDING_TAKE (12, owner 2026-11-19), sliced HERE so slimHomeRails and initialTrending agree
       // (trending-rail.ts POOL); its narrow read still runs alongside the feed window — only its
       // choosing step waits for the ids. For a visitor without personalisation signals (every first
       // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
       // what they see, not a first paint that hydration replaces.
-      trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch(() => []),
+      trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) })
+        .then((rows) => rows.slice(0, HOME_TRENDING_TAKE))
+        .catch(() => []),
       // The "Find a teacher" shelf after the feed's first page (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
       // first cards, minus the owner's demo. Same fail-soft as the rails: a failed read is a page without the shelf. (A
       // desk-resolution failure cannot hide here — `publicScope` above already rethrew it.) ⚠️ LOGGED, unlike the rails'

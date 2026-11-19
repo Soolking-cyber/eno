@@ -5,13 +5,12 @@ import { Prisma } from '@/generated/prisma/client'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
-import { diverseRailListings, trendingRailListings } from '@/lib/core/trending-rail'
+import { diverseRailListings, HOME_TRENDING_TAKE, trendingRailListings } from '@/lib/core/trending-rail'
 import { inAppOnly } from '@/lib/in-app-listing'
 
 export const dynamic = 'force-dynamic'
 
-const LIMIT = 16
-/** The personalized rail chooses its LIMIT from this many (diversifyRail, via diverseRailListings). */
+/** The personalized rail chooses its HOME_TRENDING_TAKE cards from this many (diversifyRail, via diverseRailListings). */
 const PERSONAL_POOL = 48
 const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
 const split = (v: string | null, n: number) =>
@@ -66,7 +65,11 @@ export async function GET(req: NextRequest) {
   const personalized = or.length > 0
 
   /**
-   * ⛔ NO SIGNALS → THE SAME TRENDING RAIL THE HOME PAGE SEEDS (trendingRailListings), not a second
+   * ⛔ NO SIGNALS → THE SAME TRENDING RAIL THE HOME PAGE SEEDS (trendingRailListings; the home page draws its first
+   * HOME_TRENDING_TAKE = 12 of the rail since 2026-11-19, and BOTH answers here hold at most that many — the rail this route
+   * feeds (for-you-rail.tsx, its only caller) never grows past the server's seed after hydration. The unpersonalised answer
+   * is the first 12 of the same rail, though without the home page's first-page exclusion, a difference older than this
+   * cut), not a second
    * copy of it. The two used to be separate queries that merely looked alike; now the seed and this
    * fetch cannot disagree, and both are chosen by diversifyRail (one card per seller/model, no
    * repeated cover). Its thin-catalog guard is the one this branch had: under ~2 feed pages the rail
@@ -76,8 +79,8 @@ export async function GET(req: NextRequest) {
     // Balanced rankScore blend — same hierarchy as the rest of the app: trusted-and-fresh sellers
     // lead, then popularity (views). Personalization only changes the WHERE, not the ranking — a
     // low-trust listing never tops the rail. Chosen from the top PERSONAL_POOL like the trending rail.
-    ? await diverseRailListings({ AND: [base, { OR: or }] }, [RANK, { views: 'desc' }, { id: 'desc' }], { pool: PERSONAL_POOL, take: LIMIT })
-    : await trendingRailListings()
+    ? await diverseRailListings({ AND: [base, { OR: or }] }, [RANK, { views: 'desc' }, { id: 'desc' }], { pool: PERSONAL_POOL, take: HOME_TRENDING_TAKE })
+    : (await trendingRailListings()).slice(0, HOME_TRENDING_TAKE)
 
   return NextResponse.json(
     { listings: await localizeListingTitles(rows, req.cookies.get('lang')?.value), personalized },

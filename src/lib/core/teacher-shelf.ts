@@ -36,7 +36,7 @@ import type { SerializedListingCard } from '@/lib/types'
  * storefronts print the name as typed too — the "Identity verified" tick sits beside it. The embed here stays, the
  * same pin from the server's side.
  * Cost: one findMany of at most TAKE + 2 rows on the [verified, status, categoryId, sellerId] index; ten more copies of
- * each name in the page's RSC payload (eight cards ≈ 2 KB, less the cached translations it no longer carries).
+ * each name in the page's RSC payload (six cards ≈ 1.5 KB, less the cached translations it no longer carries).
  */
 export async function homeTeacherShelf(): Promise<SerializedListingCard[]> {
   // Memoised per process (edition-scope.ts); null = no teachers category, so no teacher listing can exist.

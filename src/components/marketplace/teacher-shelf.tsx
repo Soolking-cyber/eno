@@ -21,7 +21,7 @@ const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold 
 /**
  * THE HOME PAGE'S "FIND A TEACHER" SHELF (owner, 2026-10-13: "make teacher profiles more visible on the home page" —
  * picked: a shelf after the feed's first twelve listings). One full-width row INSIDE the feed grid, right after the
- * twelfth card: the up-to-eight teacher cards the server seeded (src/lib/core/teacher-shelf.ts — /c/teachers' own
+ * twelfth card: the up-to-six teacher cards (HOME_TEACHER_SHELF_TAKE) the server seeded (src/lib/core/teacher-shelf.ts — /c/teachers' own
  * default order, minus the owner's demo), "See all" to /c/teachers, and one line of text for teachers themselves.
  *
  * ⛔ BELOW PAGE ONE, NEVER ABOVE THE FEED. Nothing measured on the first screen moves: the first card's top, card 0's
