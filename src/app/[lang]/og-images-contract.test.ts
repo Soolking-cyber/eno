@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SITE_NAME } from '@/lib/edition'
+import { X_SITE } from '@/lib/socials'
 import { SHARE_CARD, SHARE_CARD_ALT, ogLocaleFor, pageOpenGraph, pageShare, pageTwitter, withShare } from '@/lib/site-identity'
 
 /**
@@ -98,7 +99,8 @@ describe('pageOpenGraph / pageTwitter', () => {
       locale: 'en_US',
       images: [{ ...SHARE_CARD, alt: SHARE_CARD_ALT }],
     })
-    expect(pageTwitter(og)).toEqual({ card: 'summary_large_image', title: og.title, description: og.description, images: [SHARE_CARD.url] })
+    // twitter:site rides on every page-built card (a page's own twitter replaces the layout's — 8ea44600c); never creator.
+    expect(pageTwitter(og)).toEqual({ card: 'summary_large_image', site: X_SITE, title: og.title, description: og.description, images: [SHARE_CARD.url] })
   })
 
   it('a page’s own image wins on both cards, and an article says so', () => {
