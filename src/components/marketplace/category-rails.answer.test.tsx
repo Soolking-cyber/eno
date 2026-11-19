@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 
@@ -76,6 +78,15 @@ describe('CategoryLane — the phone lane look and its gate', () => {
     const html = renderToString(<CategoryLane cat={lane.cat} listings={lane.items} onCategory={() => {}} look="lane" />)
     expect(html).not.toContain('data-card="')
     expect(html).toContain('<h2')
+    // ⚡ The placeholders do not sweep (owner 2026-11-19, ~0.8 s of a throttled first paint): every shimmer shape sits
+    // inside a `skeleton-still` placeholder card (globals.css `.skeleton-still .shimmer::after`).
+    const held = document.createElement('div')
+    held.innerHTML = html
+    const shimmers = [...held.querySelectorAll('.shimmer')]
+    expect(shimmers.length).toBeGreaterThan(0)
+    // INSIDE one (the rule is a descendant selector), and the rule itself is still in the stylesheet.
+    expect(shimmers.every((s) => s.parentElement?.closest('.skeleton-still'))).toBe(true)
+    expect(readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')).toMatch(/\.skeleton-still \.shimmer::after\s*\{\s*display:\s*none;/)
     let fire: ((e: { isIntersecting: boolean }[]) => void) | null = null
     vi.stubGlobal('IntersectionObserver', class {
       constructor(cb: (e: { isIntersecting: boolean }[]) => void) { fire = cb }

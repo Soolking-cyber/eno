@@ -277,8 +277,11 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
                 </div>
               ))
             : // Same-size skeletons hold the row height until it mounts (no images, no shift).
+              // ⚡ `skeleton-still` (owner, 2026-11-19): the colour without the sweep, like shelf.tsx's held places. Measured on
+              // the live home page (Playwright, 4x CPU, slow 4G, 8-run interleaved medians): stopping these placeholders'
+              // sweeps made first paint ~0.8 s (~17%) faster. On each card's own root, not a wrapper: they are the row's flex items.
               Array.from({ length: Math.min(listings.length, RAIL_SKELETON_COUNT) }).map((_, i) => (
-                <ListingCardSkeleton key={i} className={cardW} />
+                <ListingCardSkeleton key={i} className={`${cardW} skeleton-still`} />
               ))}
         </div>
         <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />

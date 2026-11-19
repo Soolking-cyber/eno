@@ -1717,13 +1717,15 @@
     [class*="rounded-l-lg"], [class*="rounded-l-xl"], [class*="rounded-l-2xl"], [class*="rounded-l-3xl"],
     [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"],
     [class*="rounded-media"], [class*="rounded-t-media"], [class*="rounded-b-media"], [class*="rounded-l-media"], [class*="rounded-r-media"]
-  ):not([class*="rounded-full"], .corner-round) {
+  ):not([class*="rounded-full"], .corner-round, .shimmer) {
     corner-shape: squircle;
   }
   /* ⚡ `.corner-round` OPTS OUT (owner, 2026-11-19: "plain rounded corners on listing cards"): the card's own surfaces —
      its root, stretched link and photo frame (listing-card.tsx) — keep the 20px radius as a plain arc. Painting 160
      superellipses per home page measured ~0.51 s (~9%) of a throttled phone's first paint. A class check, not one more
-     substring test: this :is() already runs 25 of them against every element. */
+     substring test: this :is() already runs 25 of them against every element.
+     `.shimmer` OPTS OUT TOO (2026-11-19): every loading placeholder — mostly ~20px text bars, where a superellipse and an
+     arc look the same — draws a plain corner; measured ~0.45 s (~10%) of the same throttled first paint. */
 }
 
 /* ============================================================
