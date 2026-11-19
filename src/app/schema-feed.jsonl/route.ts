@@ -26,8 +26,8 @@ function feedBody(): Promise<string | null> {
   const now = Date.now()
   if (held && now - held.at < TTL_MS) return Promise.resolve(held.body)
   if (!building && now - failedAt >= RETRY_MS) {
-    // A stalled connection must not hold `building` for ever: 30 s, then it counts as a failed read.
-    building = Promise.race([schemaFeedBody(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('schema feed read timed out')), 30_000))])
+    // A stalled connection must not hold `building` for ever: 60 s, then it counts as a failed read.
+    building = Promise.race([schemaFeedBody(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('schema feed read timed out')), 60_000))])
       .then((body) => { held = { body, at: Date.now() }; return body })
       .catch((error) => { failedAt = Date.now(); console.error('schema-feed.jsonl rebuild failed:', error); throw error })
       .finally(() => { building = null })

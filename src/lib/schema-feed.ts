@@ -27,7 +27,8 @@ import { listedAt } from '@/lib/stale'
  */
 
 export const SCHEMA_FEED_PATH = '/schema-feed.jsonl'
-export const SCHEMA_FEED_CAP = 5_000
+// 1,000, not 5,000: the full 5,000 measured 80 s and 6.9 MB to build (2026-11-19) — too slow for one request.
+export const SCHEMA_FEED_CAP = 1_000
 
 /** Only what `listingJsonLd` reads. ⛔ No seller contact: the seller's name and two flags, as the page states them. */
 const SCHEMA_FEED_SELECT = {
@@ -65,13 +66,19 @@ export function schemaFeedItem(row: SchemaFeedRow, brandName: string | null, ori
 /** The JSON Lines body: newest first, capped, one object per `\n`-terminated line. */
 export async function schemaFeedBody(): Promise<string> {
   const noTeachers = await teacherExclusion()
+  // ⛔ No row of a TEACHER'S SHOP at all (the .md twin's rule, src/app/md/twin/route.ts): an owner with a teacher profile, or a
+  // shop with any teacher row — a person's profile, not only the teacher category. Read FIRST as a short id list (~200 shops):
+  // as two NOT-relation filters inside the sorted, limited query Postgres checked them row by row — 81 s (measured 2026-11-19);
+  // this way the whole read is under a second.
+  // edition-lint-allow: a refusal-only read of shop ids, never rendered.
+  const teacherShops = (await db.seller.findMany({
+    where: { OR: [{ owner: { teacherProfile: { isNot: null } } }, { listings: { some: { listingType: TEACHER_LISTING_TYPE } } }] },
+    select: { id: true },
+  })).map((s) => s.id)
   const rows = await db.listing.findMany({
     // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the sitemap's rules
     // (src/lib/sitemap.ts) — the edition scope is inside the helper.
-    // ⛔ No row of a TEACHER'S SHOP at all (the .md twin's rule, src/app/md/twin/route.ts): an owner with a teacher profile, or
-    // a shop with any teacher row — a person's profile, not only the teacher category.
-    where: { AND: [await submittedListingWhere(), ...(noTeachers ? [noTeachers] : []),
-      { NOT: { seller: { owner: { teacherProfile: { isNot: null } } } } }, { NOT: { seller: { listings: { some: { listingType: TEACHER_LISTING_TYPE } } } } }] },
+    where: { AND: [await submittedListingWhere(), ...(noTeachers ? [noTeachers] : []), { sellerId: { notIn: teacherShops } }] },
     select: SCHEMA_FEED_SELECT,
     orderBy: [{ postedAt: 'desc' }, { id: 'desc' }],
     take: SCHEMA_FEED_CAP,

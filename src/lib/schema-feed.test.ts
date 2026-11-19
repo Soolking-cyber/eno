@@ -6,7 +6,7 @@ import type { SchemaFeedRow } from './schema-feed'
  * listing page's own JSON-LD. The fake database records the query, so deleting the teacher exclusion or the cap fails here.
  */
 const h = vi.hoisted(() => ({ listings: vi.fn(), brands: vi.fn() }))
-vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.listings }, brand: { findMany: h.brands } } }))
+vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.listings }, brand: { findMany: h.brands }, seller: { findMany: async () => [{ id: 'teach-1' }] } } }))
 vi.mock('@/lib/sitemap', () => ({ siteOrigin: () => 'https://eno.vn', submittedListingWhere: async () => ({ SUBMITTED: true }) }))
 vi.mock('@/lib/edition-scope', () => ({ teacherExclusion: async () => ({ categoryId: { not: 'cat-teachers' } }) }))
 
@@ -65,7 +65,7 @@ describe('schemaFeedBody', () => {
     const q = h.listings.mock.calls[0][0]
     expect(q.where).toEqual({ AND: [{ SUBMITTED: true }, { categoryId: { not: 'cat-teachers' } },
       // a teacher's whole shop is out, as the .md twin refuses it
-      { NOT: { seller: { owner: { teacherProfile: { isNot: null } } } } }, { NOT: { seller: { listings: { some: { listingType: 'teacher' } } } } }] })
+      { sellerId: { notIn: ['teach-1'] } }] })
     expect(q.take).toBe(SCHEMA_FEED_CAP)
     expect(q.orderBy).toEqual([{ postedAt: 'desc' }, { id: 'desc' }])
     // ⛔ No seller contact column is ever read.
