@@ -87,15 +87,19 @@ describe('WebMCP script', () => {
     withContext(registerTool)
     run()
     for (const c of registerTool.mock.calls.filter((c) => READS.includes(c[0].name))) expect(c[0].annotations, c[0].name).toMatchObject({ readOnlyHint: true, untrustedContentHint: true })
-    // The visitor tools answer with the site's own words only, and say they write.
+    // The visitor tools say they write, and fall under the same fail-closed rule (ora 2026-11-19 read the chat tool's
+    // answer as other people's words).
     for (const c of registerTool.mock.calls.filter((c) => WRITES.includes(c[0].name))) {
-      expect(c[0].annotations.readOnlyHint, c[0].name).toBe(false)
-      expect(c[0].annotations.untrustedContentHint, c[0].name).toBeUndefined()
+      expect(c[0].annotations, c[0].name).toMatchObject({ readOnlyHint: false, untrustedContentHint: true })
     }
     expect(tool(registerTool, 'start_seller_chat').annotations.consequentialHint).toBe(true)
     // Fails closed: a tool nobody listed is marked; the exempt one is not.
-    expect(buildWebmcpScript([{ name: 'list_seller_reviews', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).toContain('"untrustedContentHint":true')
-    expect(buildWebmcpScript([{ name: 'list_categories', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])).not.toContain('untrustedContentHint')
+    // Scoped to the tool's own line: the two visitor tools' lines always carry the hint (commit gate, opus).
+    expect(buildWebmcpScript([{ name: 'list_seller_reviews', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }]))
+      .toMatch(/register\(\{"name":"list_seller_reviews"[^\n]*"untrustedContentHint":true/)
+    const exempt = buildWebmcpScript([{ name: 'list_categories', description: 'x', inputSchema: {}, annotations: { readOnlyHint: true } }])
+    expect(exempt).toMatch(/register\(\{"name":"list_categories"[^\n]*"annotations":\{"readOnlyHint":true\}/)
+    expect(exempt).not.toMatch(/register\(\{"name":"list_categories"[^\n]*untrustedContentHint/)
   })
 
   it('every call is a cookie-less tools/call on /api/mcp/search, answered with the server\'s result', async () => {

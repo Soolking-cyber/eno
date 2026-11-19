@@ -24,8 +24,9 @@
  * SESSION — a same-origin fetch with cookies to the endpoints the page's own buttons call (/api/saved-listings,
  * /api/conversations), so every rate limit and gate applies unchanged and a signed-out visitor gets "sign in first". A
  * message carries `agent: "webmcp"`: the route then applies the MCP agents' rules (src/lib/agent-text.ts — the 🤖 AI label,
- * no contact or payment details, no offer, never a teacher). Neither is read-only, and start_seller_chat is consequential. They answer with the site's
- * own words only (a confirmation, a link or a refusal), so they carry no untrustedContentHint.
+ * no contact or payment details, no offer, never a teacher). Neither is read-only, and start_seller_chat is consequential.
+ * Both carry untrustedContentHint like every tool not in SITE_TEXT_ONLY_TOOLS (ora 2026-11-19 read a chat tool's answer as
+ * other people's words, and the rule fails closed).
  * Tests: src/lib/webmcp-script.test.ts (runs the generated script).
  */
 
@@ -45,10 +46,14 @@ export type WebMcpDescriptor = {
  */
 export const SITE_TEXT_ONLY_TOOLS: ReadonlySet<string> = new Set(['list_categories'])
 
+/** A tool's annotations as registered: untrustedContentHint on every tool but the site-text-only ones (above). */
+function withUntrustedHint(t: WebMcpDescriptor): Record<string, unknown> | undefined {
+  return SITE_TEXT_ONLY_TOOLS.has(t.name) ? t.annotations : { ...t.annotations, untrustedContentHint: true }
+}
+
 /** One `register({...})` call: a JSON object literal (valid JS) plus the `execute` that sends it to the server. */
 function registration(t: WebMcpDescriptor): string {
-  const annotations = SITE_TEXT_ONLY_TOOLS.has(t.name) ? t.annotations : { ...t.annotations, untrustedContentHint: true }
-  const json = JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations })
+  const json = JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: withUntrustedHint(t) })
   return `    register(${json.slice(0, -1)},"execute":function (input, opts) { return call(${JSON.stringify(t.name)}, input, opts); }});`
 }
 
@@ -231,7 +236,7 @@ export function buildWebmcpScript(tools: WebMcpDescriptor[]): string {
       }
     };
 ${readOnly.map(registration).join('\n')}
-${WRITE_TOOLS.map((w) => `    register(${JSON.stringify(w.tool).slice(0, -1)},"execute":function (input, opts) { return ${w.fn}(input, opts); }});`).join('\n')}
+${WRITE_TOOLS.map((w) => `    register(${JSON.stringify({ ...w.tool, annotations: withUntrustedHint(w.tool) }).slice(0, -1)},"execute":function (input, opts) { return ${w.fn}(input, opts); }});`).join('\n')}
   }
 
   registerEnoTools();
