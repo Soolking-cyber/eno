@@ -47,12 +47,24 @@ export const HOME_MARKDOWN_TWIN = { 'text/markdown': '/index.md' } as const
  */
 export const HOME_ALTERNATE_TYPES = { ...HOME_MARKDOWN_TWIN, 'application/atom+xml': '/feed.xml' } as const
 
+/**
+ * The home page's explicit crawler rules (owner 2026-11-19, an SEO/AI-search scan: "robots: missing"): the default index,
+ * follow made explicit, plus large image previews and full snippets (Google Discover, AI answers). On THIS page only, not the
+ * root layout: a page's own robots replaces a layout's (Next does not merge them), and the Teach in Vietnam pages set theirs
+ * (teach-in-vietnam/[slug]/page.test.ts holds every layout above them robots-free).
+ */
+export const HOME_ROBOTS = {
+  index: true,
+  follow: true,
+  googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 },
+} as const satisfies Metadata['robots']
+
 export function homeMetadata(lang: string): Metadata {
-  // The one head helper every `/vi` twin uses (src/lib/lang-alternates.ts). The home page sets no robots of its own.
+  // The one head helper every `/vi` twin uses (src/lib/lang-alternates.ts).
   const pilot = IS_SERVICES ? null : langAlternatesFor('/', lang, undefined, siteOrigin())
   const base: Metadata = pilot
-    ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_ALTERNATE_TYPES } }
-    : { alternates: { canonical: '/', types: HOME_ALTERNATE_TYPES } }
+    ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_ALTERNATE_TYPES }, robots: HOME_ROBOTS }
+    : { alternates: { canonical: '/', types: HOME_ALTERNATE_TYPES }, robots: HOME_ROBOTS }
   if (IS_SERVICES || lang !== 'vi') {
     return pilot ? { ...base, ...pageShare({ title: SITE_TITLE, description: MARKETPLACE_TAGLINE, url: pilot.canonical }) } : base
   }

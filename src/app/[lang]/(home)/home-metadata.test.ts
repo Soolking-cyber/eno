@@ -22,7 +22,7 @@ vi.mock('@/lib/lang-alternates', async (importOriginal) => {
       real.langAlternatesFor(p, v, r, o, l ?? (pilot.on ? { live: ['/', '/c/furniture-appliances'], retired: [] } : { live: [], retired: [] })),
   }
 })
-const { HOME_DESCRIPTION_VI, HOME_TITLE_VI, homeMetadata, homeWebPageJsonLd } = await import('./home-metadata')
+const { HOME_DESCRIPTION_VI, HOME_ROBOTS, HOME_TITLE_VI, homeMetadata, homeWebPageJsonLd } = await import('./home-metadata')
 const { SITE_TITLE } = await import('@/lib/site-title')
 afterEach(() => { edition.services = false; pilot.on = false; vi.unstubAllEnvs() })
 
@@ -31,13 +31,14 @@ describe('homeMetadata (marketplace)', () => {
   it('the vi variant gets the Vietnamese title and description, the canonical kept', () => {
     expect(homeMetadata('vi')).toEqual({
       alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } },
+      robots: HOME_ROBOTS,
       title: 'eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt',
       description: 'eno.vn là chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam: nhà cho thuê, việc làm, nội thất, đồ điện tử và nhiều hơn nữa.',
     })
   })
 
   it('the en variant sets only the canonical — the layout keeps the English title and description', () => {
-    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } } })
+    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } }, robots: HOME_ROBOTS })
   })
 
   it('stays within the lengths CS-3 measured (title 60, description 142) and claims no trust', () => {
@@ -48,7 +49,7 @@ describe('homeMetadata (marketplace)', () => {
 
   it('eno.forum keeps the layout title and description on both variants', () => {
     edition.services = true
-    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } } })
+    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } }, robots: HOME_ROBOTS })
   })
 })
 
@@ -73,14 +74,14 @@ describe('homeMetadata under the /vi pilot (V3b, lists on)', () => {
   })
 
   it('lists off: exactly V2 (no hreflang, no card)', () => {
-    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } } })
-    expect(Object.keys(homeMetadata('vi')).sort()).toEqual(['alternates', 'description', 'title'])
+    expect(homeMetadata('en')).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } }, robots: HOME_ROBOTS })
+    expect(Object.keys(homeMetadata('vi')).sort()).toEqual(['alternates', 'description', 'robots', 'title'])
   })
 
   it('eno.forum: nothing, even with the list on', () => {
     pilot.on = true
     edition.services = true
-    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } } })
+    for (const lang of ['en', 'vi']) expect(homeMetadata(lang)).toEqual({ alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } }, robots: HOME_ROBOTS })
   })
 })
 

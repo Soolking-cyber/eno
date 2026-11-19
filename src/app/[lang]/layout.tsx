@@ -339,16 +339,6 @@ export const metadata: Metadata = {
     "classifieds Vietnam",
   ],
   authors: [{ name: SITE_NAME }],
-  /**
-   * Explicit crawler rules (owner 2026-11-19, an SEO/AI-search scan: "robots: missing"). The default is already index,
-   * follow; what this adds is permission for LARGE image previews (Google Discover, AI answers) and full snippets.
-   * ⚠️ A page's own `robots` REPLACES this object (Next merges metadata shallowly), so every noindex page keeps its noindex.
-   */
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
-  },
   openGraph: {
     title: SITE_TITLE,
     description: SITE_TAGLINE,
