@@ -51,6 +51,10 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'vietnam-school-leaders-english-requirements', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '6e97925fe752ec81', pair: 'hieu-truong-phai-biet-tieng-anh-thong-tu-94' },
   { slug: 'mua-iphone-o-viet-nam-co-re-hon-khong', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '114e27d673d69420', pair: 'is-it-cheaper-to-buy-iphone-in-vietnam' },
   { slug: 'is-it-cheaper-to-buy-iphone-in-vietnam', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: 'e0c124aa9c5dbdbc', pair: 'mua-iphone-o-viet-nam-co-re-hon-khong' },
+  { slug: 'rent-your-apartment-to-foreigners-ho-chi-minh-city', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: 'de3f0b715cf2b9d1', pair: 'cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm' },
+  { slug: 'apartment-for-rent-in-tay-ho', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '93f34845102b40c5', pair: 'thue-can-ho-tay-ho' },
+  { slug: 'thue-can-ho-tay-ho', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '35bf878e4008e450', pair: 'apartment-for-rent-in-tay-ho' },
+  { slug: 'cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '22340f421f89b8bb', pair: 'rent-your-apartment-to-foreigners-ho-chi-minh-city' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
