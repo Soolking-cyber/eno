@@ -997,3 +997,16 @@ describe('<FacetBar order="goods">', () => {
     expect(pillOrder(container)).toEqual(['type', 'price', 'area', 'condition'])
   })
 })
+
+describe('<FacetBar> — the Filters panel draws on the page-level dropdown layers (owner 2026-11-19)', () => {
+  it('scrims and draws above the header, on the panel layers just under the selects', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...props({ facetCounts: COUNTS })} />)
+    const panel = await openPanel(user)
+    expect(panel.closest('[class*="z-[1151]"]')).toBeTruthy()
+    const scrim = document.querySelector('.overlay-scrim')
+    expect(scrim?.className).toContain('z-[1150]')
+    expect(scrim?.className).not.toMatch(/\bz-40\b/)
+  })
+})
+

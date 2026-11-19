@@ -18,6 +18,7 @@ import { useIsPhone } from '@/hooks/use-is-phone'
 import { useBackToClose } from '@/lib/back-to-close'
 import { offeredKeys, railDimension } from './count-chip'
 import type { DimensionCounts } from '@/lib/facet-counts'
+import { PANEL_SCRIM_Z, PANEL_Z } from './dropdown-layers'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
@@ -603,8 +604,9 @@ export function AreaFilter({
   return (
     // Controlled + non-modal. onOpenChange only ever fires with `false` here (no Base UI
     // trigger to open it) — Escape / outside-press / backdrop-tap → onClose(). The dark
-    // scrim is preserved as a Popover.Backdrop; the panel stays at z-[100] over a z-[99]
-    // scrim so a CustomSelect opened inside (its own backdrop at z-[1200]) still layers on top.
+    // scrim is preserved as a Popover.Backdrop; the panel and its scrim sit on the page-level PANEL layers
+    // (dropdown-layers.ts, 2026-11-19 — they were z-[100] over z-[99], the Price and Filters panels z-40) so a
+    // CustomSelect opened inside (its own backdrop at z-[1200]) still layers on top.
     <PopoverPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
       <PopoverPrimitive.Portal>
         {/* ⚠️ `.overlay-scrim`, NOT A HAND-ROLLED TINT (owner, 2026-08-13: "area dropdown still doesnt
@@ -612,13 +614,13 @@ export function AreaFilter({
             which is exactly the inconsistency the shared scrim was introduced to end — and twice as
             dark as every other overlay. It bypasses ui/popover (it drives PopoverPrimitive directly
             for the z-layering described above), so it has to opt into the class by name. Keep the
-            z-[99]: the panel sits at z-[100] and a CustomSelect opened inside it goes higher still.
+            scrim on PANEL_SCRIM_Z: the panel sits one above it (PANEL_Z) and a CustomSelect opened inside goes higher still.
             ⚠️ NO `animate-in` HERE: `.overlay-scrim` already fades BOTH ways off Base UI's
             data-starting-style / data-ending-style. A keyframe enter on top of it only animated the
             open, so the scrim faded in and then vanished on close.
             `--scrim-exit` = the popup's own 75ms exit below, so the two finish together instead of
             the popup's unmount cutting the scrim off mid-fade (see `.overlay-scrim` in globals.css). */}
-        <PopoverPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[99] [--scrim-exit:75ms_var(--ease-out-strong)]" />
+        <PopoverPrimitive.Backdrop className={`overlay-scrim fixed inset-0 ${PANEL_SCRIM_Z} [--scrim-exit:75ms_var(--ease-out-strong)]`} />
         <PopoverPrimitive.Positioner
           anchor={anchorRef}
           side="bottom"
@@ -626,7 +628,7 @@ export function AreaFilter({
           sideOffset={6}
           positionMethod="fixed"
           collisionPadding={8}
-          className="z-[100]"
+          className={PANEL_Z}
         >
           {/* ⚠️ THE ui/popover MOTION RECIPE, BOTH HALVES. This drove the primitive directly with only
               `animate-in fade-in`, so it had no exit at all (a backdrop tap hard-cut the panel at

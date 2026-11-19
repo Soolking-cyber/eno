@@ -9,6 +9,7 @@ import { retryingLazy, sheetTriggerHandlers, useSheetHistory, useSheetSurface } 
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import type { OptionSheetProps } from './custom-select-sheet'
+import { DROPDOWN_PANEL_Z, DROPDOWN_SCRIM_Z } from './dropdown-layers'
 
 /** Above this many options the picker becomes type-to-filter (owner, 2026-07-22:
  *  "dropdowns with more than 5 options should have type and search"). Five is the point
@@ -191,8 +192,8 @@ function itemClassName(isActive: boolean) {
    globals.css); the z-[1200] stays because this control opens INSIDE other overlays and has to
    clear them. */
 // `--scrim-exit` matches POPUP_MOTION's 75ms exit (below), so the scrim and the menu leave together.
-const BACKDROP_Z = 'overlay-scrim fixed inset-0 z-[1200] [--scrim-exit:75ms_var(--ease-out-strong)]'
-const POSITIONER_Z = 'z-[1201]'
+const BACKDROP_Z = `overlay-scrim fixed inset-0 ${DROPDOWN_SCRIM_Z} [--scrim-exit:75ms_var(--ease-out-strong)]`
+const POSITIONER_Z = DROPDOWN_PANEL_Z
 // ⚠️ min-w-64 + max-w, NOT the plain w-(--anchor-width) the plain variant uses. The
 // searchable card holds a search field AND long labels ("Phường Bến Nghé, Quận 1"), and
 // AreaFilter renders its two pickers in a `grid-cols-2`, so the anchor is HALF the panel.

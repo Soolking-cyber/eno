@@ -38,6 +38,7 @@ import { multiFacetValues, toggleMultiFacetValue } from '@/lib/multi-facet'
 // before the client graph is walked, so the shape travels and the module does not. That is also
 // why the year-band rail is NOT built here — see the note on `facetCounts` below.
 import type { DimensionCounts, FacetCounts } from '@/lib/facet-counts'
+import { PANEL_SCRIM_Z, PANEL_Z } from './dropdown-layers'
 
 /* ── LIVE CHIP COUNTS ────────────────────────────────────────────────────────────────────────────
  * "How many results do I get if I tap this?", on every chip this bar draws. The numbers are
@@ -944,6 +945,9 @@ export function FacetBar({
         side="bottom"
         sideOffset={6}
         backdrop
+        // The page-level panel layers (dropdown-layers.ts): above the header, under a select opened inside; the scrim sat at z-40 before.
+        backdropClassName={PANEL_SCRIM_Z}
+        positionerClassName={PANEL_Z}
         aria-label={tr('Filters', 'Bộ lọc')}
         className="block w-[416px] max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto scroll-thin p-4 shadow-pop ring-0"
       >

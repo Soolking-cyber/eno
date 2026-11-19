@@ -344,3 +344,16 @@ describe('PriceRangeFilter — binned histogram', () => {
     expect(await screen.findByText('No listings match these filters yet.')).toBeDefined()
   })
 })
+
+describe('PriceRangeFilter — the page-level dropdown layers (owner 2026-11-19: "why price dropdown doesnt blur")', () => {
+  it('scrims and draws above the header, on the panel layers just under the sort and facet selects', async () => {
+    const user = userEvent.setup()
+    renderFilter()
+    const dialog = await open(user)
+    expect(dialog.closest('[class*="z-[1151]"]')).toBeTruthy()
+    const scrim = document.querySelector('.overlay-scrim')
+    expect(scrim?.className).toContain('z-[1150]')
+    expect(scrim?.className).not.toMatch(/\bz-40\b/)
+  })
+})
+

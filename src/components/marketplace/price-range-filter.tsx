@@ -18,6 +18,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useBackToClose } from '@/lib/back-to-close'
 import { PricePresetChips } from './price-preset-chips'
+import { PANEL_SCRIM_Z, PANEL_Z } from './dropdown-layers'
 
 /** One side of the committed "min-max" string. Empty or malformed (`?priceMin=abc`) is an open end
  *  — never a NaN in the field, the count or the trigger label. */
@@ -414,6 +415,9 @@ export function PriceRangeFilter({
         // would ALSO open that card's PDP (Base UI popovers are non-modal). area-filter and the
         // sibling selects all keep this backdrop; price-filter must not be the one that leaks.
         backdrop
+        // The page-level panel layers (dropdown-layers.ts): above the header, under a select opened inside; the scrim sat at z-40 before.
+        backdropClassName={PANEL_SCRIM_Z}
+        positionerClassName={PANEL_Z}
         aria-label={(salary ? tr('Salary range', 'Khoảng lương') : tr('Price range', 'Khoảng giá'))}
         className="block w-80 max-w-[calc(100vw-1rem)] p-4 shadow-pop ring-0"
       >
