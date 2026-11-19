@@ -145,7 +145,7 @@ vi.mock('@/lib/home-lanes', async (orig) => {
   const real = await orig<typeof import('@/lib/home-lanes')>()
   return { ...real, slimHomeRails: ((args: Parameters<typeof real.slimHomeRails>[0]) => { h.slimTrending = args.trending.map((c) => c.id); return real.slimHomeRails(args) }) as typeof real.slimHomeRails }
 })
-vi.mock('@/app/[lang]/(home)/home-metadata', () => ({ homeMetadata: () => ({}), homeWebPageJsonLd: () => ({ '@type': 'WebPage' }) }))
+vi.mock('@/app/[lang]/(home)/home-metadata', () => ({ homeMetadata: () => ({}), homeWebPageJsonLd: () => ({ '@type': 'WebPage' }), homeWebPageId: () => 'https://eno.vn/#webpage' }))
 
 import { NextRequest } from 'next/server'
 import { GET } from './route'
