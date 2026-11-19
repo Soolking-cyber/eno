@@ -86,3 +86,14 @@ export function homeWebPageJsonLd(lang: string): Record<string, unknown> {
     ...(IS_SERVICES ? {} : { isPartOf: { '@id': websiteId(origin) }, about: { '@id': organizationId(origin) } }),
   }
 }
+
+/**
+ * The home WebPage node's @id, for the questions block's Article (`isPartOf`, home-faq.ts). null on eno.forum, whose home node
+ * carries no Organization links (the IS_SERVICES branch above), and null if the id ever goes missing: the Article is then left
+ * out, never printed with a dangling id and never a reason for the page to fail (home-faq.test.ts pins the marketplace value).
+ */
+export function homeWebPageId(lang: string): string | null {
+  if (IS_SERVICES) return null
+  const id = homeWebPageJsonLd(lang)['@id']
+  return typeof id === 'string' && id.endsWith('#webpage') ? id : null
+}

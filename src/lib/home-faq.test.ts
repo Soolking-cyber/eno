@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { HOME_ABOUT } from './home-about'
-import { HOME_FAQ_HEADING, answerText, homeFaqJsonLd } from './home-faq'
+import { HOME_FAQ_HEADING, HOME_QUESTIONS_PUBLISHED, answerText, homeFaqJsonLd, homeQuestionsArticleJsonLd } from './home-faq'
 
 /** The home page's questions: one accordion, and FAQPage JSON-LD built from exactly what it draws (owner 2026-11-19). */
 describe('the home FAQ', () => {
@@ -30,7 +30,33 @@ describe('the home FAQ', () => {
   it('the home page renders it after the feed, once (the About block folded into it)', async () => {
     const { readFileSync } = await import('node:fs')
     const src = readFileSync(new URL('../app/[lang]/(home)/page.tsx', import.meta.url), 'utf8')
-    expect(src.indexOf('<HomeFaq lang={lang} />')).toBeGreaterThan(src.indexOf('<ListingsExplorer'))
+    expect(src.indexOf('<HomeFaq lang={lang}')).toBeGreaterThan(src.indexOf('<ListingsExplorer'))
     expect(src).not.toContain('<HomeAbout')
+  })
+
+  it('the block is an Article by eno.vn, dated, and PART OF the home WebPage, never its main entity', () => {
+    const page = 'https://eno.vn/#webpage'
+    for (const lang of ['en', 'vi'] as const) {
+      const a = homeQuestionsArticleJsonLd(lang, page) as Record<string, any>
+      expect(a['@type']).toBe('Article')
+      expect(a.author).toMatchObject({ '@type': 'Organization', name: 'eno.vn' })
+      expect(a.datePublished).toBe(HOME_QUESTIONS_PUBLISHED)
+      expect(a.isPartOf).toEqual({ '@id': page })
+      expect(a).not.toHaveProperty('mainEntityOfPage')
+      expect(a.headline).toBe(HOME_FAQ_HEADING[lang])
+      expect(a.inLanguage).toBe(lang)
+    }
+  })
+
+  it('the page wires the Article to the real home WebPage @id (a missing id leaves the Article out, never prints "undefined")', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+    vi.resetModules()
+    try {
+      const { homeWebPageId } = await import('../app/[lang]/(home)/home-metadata')
+      for (const lang of ['en', 'vi']) expect(homeWebPageId(lang)).toMatch(/^https?:\/\/.+#webpage$/)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 })

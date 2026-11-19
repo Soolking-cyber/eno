@@ -1,7 +1,7 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
 import { FOUNDER_QUOTE, HOME_ABOUT, type AboutText } from '@/lib/home-about'
-import { HOME_FAQ_HEADING, homeFaqJsonLd } from '@/lib/home-faq'
+import { HOME_FAQ_HEADING, homeFaqJsonLd, homeQuestionsArticleJsonLd } from '@/lib/home-faq'
 import { jsonLdText } from '@/lib/home-item-lists'
 
 /**
@@ -22,10 +22,12 @@ const Para = ({ parts, className }: { parts: readonly AboutText[]; className: st
   </p>
 )
 
-export function HomeFaq({ lang }: { lang: string }) {
+export function HomeFaq({ lang, webPageId }: { lang: string; webPageId: string | null }) {
   return (
     <section aria-labelledby="home-faq" className="mt-10 border-t border-border pb-8 pt-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeFaqJsonLd(lang)) }} />
+      {/* The block as an Article (author eno.vn, dated), part of the home WebPage, not its main entity (home-faq.ts). */}
+      {webPageId ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeQuestionsArticleJsonLd(lang, webPageId)) }} /> : null}
       <p id="home-faq" className="text-base font-bold text-foreground">
         <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
       </p>
