@@ -99,11 +99,11 @@ describe('lists on (V5, locally only)', () => {
 
   it('…but only a pilot twin, only GET/HEAD, and never off a shop host', async () => {
     pilot.lists = ON
-    // Not a twin: like every page path but `/` on a shop host, it goes to the apex (sweep, 2026-10-22) — which answers it
-    // with the 404 every unpinned `/vi…` is there.
+    // Not a twin: like every page path but `/` on a shop host, it goes to the apex (sweep, 2026-10-22; 301 since 2026-11-19)
+    // — which answers it with the 404 every unpinned `/vi…` is there.
     for (const p of ['/vi/c/rentals', '/vi/vi', '/vi/listings/abc']) {
       const r = await run(p, { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })
-      expect(r.status, p).toBe(302)
+      expect(r.status, p).toBe(301)
       expect(r.location, p).toBe(`https://eno.vn${p}`)
     }
     // A write keeps its old route — no redirect for a Server Action's POST.

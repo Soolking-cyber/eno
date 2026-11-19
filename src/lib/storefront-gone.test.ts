@@ -26,6 +26,8 @@ vi.mock('@/lib/db', () => ({
       // The sitemap predicate's teacher read (src/lib/teachers/search-index.ts, 2026-10-20): no live teacher here.
       findMany: async () => [],
     },
+    // The sitemap predicate's thin-import read (src/lib/sitemap.ts `notThinImport`): no long import here.
+    $queryRaw: async () => [],
     seller: {
       findMany: async ({ where }: { where: unknown }) => {
         h.sellerWheres.push(where)

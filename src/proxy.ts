@@ -74,7 +74,7 @@ function withCors(res: NextResponse, origin: string | null): NextResponse {
  * ⚠️ STALE SINCE (AT LATEST) 2026-10-15: storefronts ARE reachable — `luathoangphi.eno.vn` and others serve
  * real visitors. The cookie is still host-scoped, so a shop page carries no session and its save/chat/
  * sign-in calls 403 here as described; the cookie-widening rule above is unchanged.
- * ✅ THE NAVIGATION IS BUILT (sweep, 2026-10-22): on a shop's host every page path but `/` 302s to the same path on the
+ * ✅ THE NAVIGATION IS BUILT (sweep, 2026-10-22): on a shop's host every page path but `/` 301s (302 until 2026-11-19) to the same path on the
  * apex (in proxy() below), and a sign-in asked for on a shop's host navigates to the apex's /signin (auth-context
  * openSignIn). The shop's own `/` still renders on its host, signed out; every action from it lands on the apex.
  *
@@ -275,6 +275,13 @@ const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
 /** A `/vi` or `/vi/…` path — the only shape a pilot twin can have (pinnedRoute decides whether it is live). */
 const VI_TWIN_PATH = /^\/vi(?:\/|$)/
 
+/**
+ * The site's own files — they describe eno.vn, not a shop (the shop-host branch in proxy()). ⚠️ The same list as the
+ * last `config.matcher` entry, which cannot share a constant (Next reads `config` statically); src/proxy.test.ts holds
+ * the two together. `.well-known/acme-challenge/` stays: a certificate check must be answered on the host it asks about.
+ */
+const APEX_FILE = /^\/(?:llms(?:-full)?\.txt|openapi\.json|sitemap\.xml|sitemaps\/.+|schemamap\.xml|schema-feed\.jsonl|feeds\/.+|\.well-known\/(?!acme-challenge\/|apple-app-site-association$|assetlinks\.json$).+|.+\.(?:md|csv))$/
+
 function isApi(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/')
 }
@@ -379,6 +386,28 @@ export function proxy(req: NextRequest) {
       res.headers.set('Cache-Control', 'private, max-age=86400')
       return withCors(res, origin)
     }
+  }
+
+  /**
+   * ⛔ ON A SHOP'S HOST THE SITE'S OWN FILES ARE THE APEX'S (2026-11-19). Search Console had crawled
+   * saigoncribs.eno.vn/llms.txt, /openapi.json, /sitemap.xml … — copies of eno.vn's, served 200 on every shop host. A GET/HEAD
+   * for one (APEX_FILE) now 301s to the same path on the apex, concatenated (see the underscore-host note). `config.matcher`
+   * brings these paths here only on a host of a shop's SHAPE; any other host — teacher., docs., an unknown label — gets
+   * the file exactly as before this entry existed. Underscore hosts keep their own 308, below.
+   * ⚠️ NOT what the shop's page renders with: `_next/`, icons, `/webmcp.js`, listing images and `/manifest.webmanifest`
+   * (fetched in CORS mode, and eno.vn's carries no Access-Control-Allow-Origin — a redirect would fail it on every shop
+   * visit). NOT robots.txt: a crawler reads each host's own, and that one already says `Allow: /` and names eno.vn's sitemap.
+   */
+  const host = req.headers.get('host')
+  // App-link files are not in APEX_FILE: they stay on the shop host (Apple's and Google's fetchers do not follow redirects).
+  if (APEX_FILE.test(req.nextUrl.pathname) && !underscoreHost(host, canonicalHost())) {
+    const apex = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
+    if (apex && (req.method === 'GET' || req.method === 'HEAD') && storefrontHandleFromHost(host, canonicalHost())) {
+      const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 301)
+      res.headers.set('Cache-Control', 'private, no-store')
+      return res
+    }
+    return NextResponse.next()
   }
 
   /**
@@ -561,13 +590,15 @@ export function proxy(req: NextRequest) {
      * on <shop>.eno.vn — the URL Share hands out — landed on <shop>.eno.vn/listings/<id>, where Chat, Save and sign-in
      * cannot work (the write guard above refuses them cross-origin). This is the move the top-of-file note promised and
      * the teacher host already makes: the same path and query on the canonical apex, where the session lives.
-     * 302, not 301 — reversible; `private` — never stored by the edge. GET/HEAD only (a Server Action posts to its own
-     * URL); `/api/*` never reaches this block; the live `/vi` twins above keep their bounded 308.
+     * 301 since 2026-11-19 (it was 302): a crawler keeps a temporary redirect's source on its list and comes back for it,
+     * and Search Console held these shop-host copies as "crawled, not indexed". `private, no-store` keeps it reversible —
+     * no browser or edge stores it. GET/HEAD only (a Server Action posts to its own URL); `/api/*` never reaches this
+     * block; the live `/vi` twins above keep their bounded 308.
      */
     if (handle && (req.method === 'GET' || req.method === 'HEAD') && req.nextUrl.pathname !== '/') {
       const apex = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
       if (apex) {
-        const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 302)
+        const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 301)
         res.headers.set('Cache-Control', 'private, no-store')
         return withCors(res, origin)
       }
@@ -627,7 +658,7 @@ export function proxy(req: NextRequest) {
  * path. Server-rendering the visitor's language needs EVERY page request rewritten into `[lang]`, so
  * the cost that comment avoided is now the feature: one cookie read and one header parse per page
  * request. Assets stay off it — `_next/`, and any path with a dot, never reach this function (one ENDING in punctuation
- * does, for the link-junk redirect: the last entry).
+ * does, for the link-junk redirect; so does one of the site's own files asked of a shop's host: the last two entries).
  * ⚠️ THE EDGE PIN BELOW IS STILL `/api/*` ONLY: page requests return from `rewriteToLang` before it.
  */
 export const config = {
@@ -656,5 +687,11 @@ export const config = {
     // WRITE to such a dotted path now comes here too: the redirect leaves it alone and it ends where it did, on a 404
     // (the [lang] not-found instead of Next's) — measured, 0 such writes in the box's logs for 2026-09-21 → 10-21.
     '/((?!_next/).*(?:[,.;:!\'"\\)\\]}>]|%2[127CEce]|%29|%3[ABEabe]|%5[Dd]|%7[Dd]|%[Ee]2%80%(?:9[89CDcd]|[Aa]6)|%[Ee][Ff]%[Bb][Cc]%8[Cc]|%[Ee]3%80%8[12]))',
+    // ⛔ …and the site's own files (APEX_FILE, spelled out again) on one label under a two-label zone that is not www — a
+    // shop's shape (2026-11-19, the shop-host files branch). Never on the apex or www: there they never reach this function.
+    {
+      source: '/((?:llms(?:-full)?\\.txt|openapi\\.json|sitemap\\.xml|sitemaps/.+|schemamap\\.xml|schema-feed\\.jsonl|feeds/.+|\\.well-known/(?!acme-challenge/|apple-app-site-association$|assetlinks\\.json$).+|.+\\.(?:md|csv)))',
+      has: [{ type: 'host', value: '(?!www\\.)[^.]+\\.[^.]+\\.[^.]+' }],
+    },
   ],
 }

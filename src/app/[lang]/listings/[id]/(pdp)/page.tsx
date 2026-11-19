@@ -122,6 +122,10 @@ import { currencyCode } from '@/lib/analytics'
 import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
+import { AreaRent } from '@/components/marketplace/area-rent'
+import { areaRentCell, areaRentFor, type AreaRent as AreaRentData, type AreaRentRow } from '@/lib/area-rent'
+import { loadRentIndex, type RentIndexLookup } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
+import { rentIndexRetrySoon } from '@/lib/rent-index-retry'
 import { modelPagePath, modelPageSlugFor } from '@/lib/model-pages'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
@@ -169,6 +173,32 @@ export async function generateStaticParams() {
  */
 function viTitle(title: string, titleVi: string | null | undefined, cached: Record<string, string> | null | undefined): string {
   return titleVi || (detectContentLang(title) === 'vi' ? title : cached?.vi || title)
+}
+
+/**
+ * THE AREA RENT LINE'S DATA, OR NULL (owner, 2026-11-19; src/lib/area-rent.ts has the rules). Only a row the rent index would
+ * count reads the snapshot at all, so no other PDP waits for it or has its 30-day ISR shortened by the snapshot's 1-day entry
+ * (an `unstable_cache` read inside an ISR render lowers the render's revalidate to its own — rent-index-retry.ts): a rental
+ * PDP that shows the line regenerates daily with the index, whose date it prints.
+ * ⛔ NEVER THROWS, AND A MISS RETRIES IN MINUTES — the district page's rule (c/[category]/[district]/page.tsx districtRent):
+ * a lost race or an unknown snapshot draws no line and lowers this render's revalidate to 300 s, never 30 days without it.
+ * The wait is shorter than the district page's 10 s: a cold snapshot is 2–3 s, and a PDP is a page people land on.
+ */
+const AREA_RENT_WAIT_MS = 3_000
+async function areaRentOf(row: AreaRentRow): Promise<AreaRentData | null> {
+  if (!areaRentCell(row)) return null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), AREA_RENT_WAIT_MS) })
+  const lookup: RentIndexLookup | null = await Promise.race([loadRentIndex(), timeout]).catch(() => null)
+  clearTimeout(timer)
+  // Only a SLOW snapshot (the wait ran out) asks for an early regeneration; a snapshot that is simply not built yet does not,
+  // or thousands of rental pages would re-render every few minutes until it is.
+  if (!lookup) {
+    await rentIndexRetrySoon().catch(() => {})
+    return null
+  }
+  if (!lookup.known) return null
+  return areaRentFor(row, lookup.index)
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -558,7 +588,7 @@ export default async function ListingPage({ params }: Props) {
   // and the seller's 90d conversation count — the honest denominator behind the
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug] = await Promise.all([
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug, areaRent] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
@@ -582,6 +612,8 @@ export default async function ListingPage({ params }: Props) {
     // The model's price page, for the "Market price" label's link (src/lib/model-pages.ts): live sale on its home shelf only,
     // so a sold PDP (ISR for 30 days) never links to a page that may 404. A failed read is no link, never a broken PDP.
     modelPageSlugFor({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, status: rawListing.status }).catch(() => null),
+    // The area rent line (areaRentOf above): the rent index's cell for this home to rent, null for every other row.
+    areaRentOf({ ...rawListing, categorySlug: rawListing.category.slug }).catch(() => null),
   ])
   /**
    * The gallery's photo names and its lightbox's name follow the variant too (viTitle above): on the Vietnamese page a
@@ -2052,6 +2084,10 @@ export default async function ListingPage({ params }: Props) {
               {/* On the rental sheet the sheet's line (a hairline, 32, the heading) and its rows (`sheet`: 44px each). ⛔ It no longer opens
                   on the host card's edge with no line (owner-approved 2026-11-15 (build 7), cook r07 "rental"; reverses r05). */}
               {costRows.length > 0 && <div className={cn('order-7', sectionLine(rentalSheet), costsPhoneHidden.length === costRows.length && 'max-md:hidden')}><RentalCosts rows={costRows} phoneHidden={costsPhoneHidden} sheet={rentalSheet} /></div>}
+              {/* THE AREA'S TYPICAL RENT (owner, 2026-11-19: "Add area rent context"; src/lib/area-rent.ts): the rent index's middle
+                  half for this home's district, type and band, and where this rent sits — under the costs it is weighed beside. A
+                  rental's twin of the goods' Market price (getPriceBand is null for a rental, so a page never shows both). Server HTML. */}
+              {areaRent && <div data-area-rent="" className="order-7"><AreaRent rent={areaRent} /></div>}
               {/* ⛔ THE GOODS SHEET'S COUNSEL (owner-approved 2026-11-14, cook r06 "item"; it reverses there batch 70's "Report kept
                   red"): Report and Block quiet muted labels (COUNSEL_*, src/lib/goods-sheet.ts). ⛔ WITHOUT THE BOX SINCE BUILD 7
                   (owner-approved 2026-11-15 (build 7), cook r07 "item"; it reverses r06's "one quiet tint panel on the media edge" the

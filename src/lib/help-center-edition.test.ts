@@ -146,6 +146,8 @@ vi.mock('@/lib/db', () => ({
     category: { findMany: async () => [] },
     seller: { findMany: async () => [] },
     review: { findMany: async () => [] },
+    // The thin-import read in submittedListingWhere (src/lib/sitemap.ts).
+    $queryRaw: async () => [],
   },
 }))
 

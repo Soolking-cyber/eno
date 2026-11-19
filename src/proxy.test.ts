@@ -234,22 +234,22 @@ describe('fixed-language guides', () => {
   })
 
   it('a storefront host pins nothing: a guide asked of it goes to the apex, where the guide is pinned', async () => {
-    // Since the sweep of 2026-10-22 every page path but `/` on a shop's host 302s to the apex (see below).
-    expect(await run(VI, { host: 'apple.eno.vn', headers: { 'accept-language': 'en-US' } })).toMatchObject({ status: 302, location: `https://eno.vn${VI}`, rewrite: null })
-    expect(await run(EN, { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).toMatchObject({ status: 302, location: `https://eno.vn${EN}`, rewrite: null })
+    // Since the sweep of 2026-10-22 every page path but `/` on a shop's host goes to the apex (301 since 2026-11-19; see below).
+    expect(await run(VI, { host: 'apple.eno.vn', headers: { 'accept-language': 'en-US' } })).toMatchObject({ status: 301, location: `https://eno.vn${VI}`, rewrite: null })
+    expect(await run(EN, { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).toMatchObject({ status: 301, location: `https://eno.vn${EN}`, rewrite: null })
   })
 
   /**
    * ⛔ ON A SHOP'S HOST, ONLY `/` IS THE SHOP (sweep, 2026-10-22). The ordinary app answered every other path there, always
    * signed out (host-only cookie), so a tap on a product kept the visitor where Chat, Save and sign-in cannot work.
    */
-  it('⛔ a shop host sends every other GET/HEAD page path to the same path on the apex — 302, never stored', async () => {
+  it('⛔ a shop host sends every other GET/HEAD page path to the same path on the apex — 301, never stored', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     const { NextRequest } = await import('next/server')
     const { proxy } = await import('./proxy')
-    for (const [path, method] of [['/listings/abc?ref=share', 'GET'], ['/signin', 'GET'], ['/c/rentals', 'HEAD']] as const) {
+    for (const [path, method] of [['/listings/abc?ref=share', 'GET'], ['/signin', 'GET'], ['/c/rentals', 'HEAD'], ['/schools/x', 'GET']] as const) {
       const res = proxy(new NextRequest(`https://sdcstore.eno.vn${path}`, { method, headers: { host: 'sdcstore.eno.vn', cookie: 'lang=vi' } }))
-      expect(res.status, path).toBe(302)
+      expect(res.status, path).toBe(301)
       expect(res.headers.get('location'), path).toBe(`https://eno.vn${path}`)
       expect(res.headers.get('cache-control'), path).toBe('private, no-store')
     }
@@ -493,7 +493,7 @@ describe('underscore hosts', () => {
     expect(await run('random-test-xyz.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/random-test-xyz' })
     expect(await run('xn--bcher-kva.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/xn--bcher-kva' })
     // Any page path but `/` on a shop host goes to the apex (sweep, 2026-10-22).
-    expect(await run('sdcstore.eno.vn', '/c/rentals')).toMatchObject({ status: 302, location: 'https://eno.vn/c/rentals', rewrite: null })
+    expect(await run('sdcstore.eno.vn', '/c/rentals')).toMatchObject({ status: 301, location: 'https://eno.vn/c/rentals', rewrite: null })
   })
 
   it('the matcher sends EVERY path of an underscore host here, dotted ones included', async () => {
@@ -644,5 +644,58 @@ describe('teacher.<base> page redirect stays on our domain', () => {
   it.each(['//evil.example/x', '/\\evil.example/x', '//evil.example'])('a %s path never leaves eno.vn', async (p) => {
     const r = await go(p)
     if (r.location) expect(new URL(r.location).hostname).toBe('eno.vn')
+  })
+})
+
+/**
+ * ⛔ A SHOP'S HOST SERVED THE SITE'S OWN FILES (2026-11-19): Search Console had crawled saigoncribs.eno.vn/llms.txt,
+ * /openapi.json, /sitemap.xml … — eno.vn's, 200, on every shop host. They 301 to the apex now; what the shop's page renders
+ * with, and robots.txt, stay put; every other host is untouched.
+ */
+describe('the site\'s own files on a shop host', () => {
+  const run = async (host: string, path: string, init: { method?: string; headers?: Record<string, string>; app?: string } = {}) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', init.app ?? 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://${host}${path}`, { method: init.method ?? 'GET', headers: { host, ...(init.headers ?? {}) } }))
+    return { status: res.status, location: res.headers.get('location'), cache: res.headers.get('cache-control'), next: res.headers.get('x-middleware-next'), rewrite: res.headers.get('x-middleware-rewrite') }
+  }
+  const FILES = ['/llms.txt', '/llms-full.txt', '/openapi.json', '/sitemap.xml', '/sitemaps/pages.xml', '/schemamap.xml', '/schema-feed.jsonl',
+    '/feeds/facebook-catalog.csv', '/.well-known/ai-catalog.json', '/agents.md', '/listings/abc.md', '/hcmc-rent-index.csv']
+  const KEPT = ['/.well-known/apple-app-site-association', '/.well-known/assetlinks.json', '/robots.txt', '/manifest.webmanifest', '/favicon.ico', '/icon.svg', '/webmcp.js', '/_next/static/chunks/a.js', '/listing-images/x.webp',
+    '/.well-known/acme-challenge/tok', '/sw.js']
+
+  it('301s each to the same path on the apex, query kept, never stored — GET and HEAD', async () => {
+    for (const path of FILES) {
+      expect(await run('saigoncribs.eno.vn', `${path}?v=1`), path).toMatchObject({ status: 301, location: `https://eno.vn${path}?v=1`, cache: 'private, no-store' })
+      expect((await run('saigoncribs.eno.vn', path, { method: 'HEAD' })).location, path).toBe(`https://eno.vn${path}`)
+    }
+    expect((await run('apple.eno.forum', '/llms.txt', { app: 'https://www.eno.forum' })).location).toBe('https://eno.forum/llms.txt')
+  })
+
+  it('⛔ Next\'s own matcher brings exactly those here, on a shop\'s host only', async () => {
+    const { config } = await import('./proxy')
+    const { unstable_doesMiddlewareMatch: reaches } = await import('next/experimental/testing/server')
+    for (const path of FILES) {
+      expect(reaches({ config, url: path, headers: { host: 'saigoncribs.eno.vn' } }), path).toBe(true)
+      for (const host of ['eno.vn', 'www.eno.vn', 'www.eno.forum']) expect(reaches({ config, url: path, headers: { host } }), `${host}${path}`).toBe(false)
+    }
+    for (const path of KEPT) expect(reaches({ config, url: path, headers: { host: 'saigoncribs.eno.vn' } }), path).toBe(false)
+  })
+
+  it('every other host gets the file as before; a write and an underscore host keep their old routes', async () => {
+    for (const host of ['teacher.eno.vn', 'docs.eno.vn', 'schools.eno.vn', 'sb.eno.vn', 'eno.vn']) {
+      expect(await run(host, '/llms.txt'), host).toMatchObject({ status: 200, location: null, next: '1', rewrite: null })
+    }
+    expect(await run('saigoncribs.eno.vn', '/llms.txt', { method: 'POST' })).toMatchObject({ location: null, next: '1' })
+    expect((await run('saigoncribs.eno.vn', '/llms.txt', { method: 'POST', headers: { origin: 'https://evil.example' } })).status).toBe(403)
+    expect(await run('sdc_store.eno.vn', '/llms.txt')).toMatchObject({ status: 308, location: 'https://sdcstore.eno.vn/llms.txt' })
+  })
+
+  it('⛔ a path that looks like another host stays a path on ours', async () => {
+    for (const path of ['//evil.example/x.md', '/\\evil.example/x.md']) {
+      const loc = (await run('saigoncribs.eno.vn', path)).location
+      if (loc) expect(new URL(loc).host, path).toBe('eno.vn')
+    }
   })
 })

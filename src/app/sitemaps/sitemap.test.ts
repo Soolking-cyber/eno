@@ -19,6 +19,10 @@ type Row = {
   categoryId: string
   district: string | null
   affiliateUrl: string | null
+  /** An import's id at its source (`fb:` = a member's own Facebook import); absent = a member post. */
+  externalId?: string | null
+  /** Only the thin-import rule reads it (`notThinImport`, src/lib/sitemap.ts). */
+  description?: string
   /** The staff-only purchase link of an eno-run partner's row (partner-purchase-link.ts); absent = none. */
   purchaseLink?: { url: string } | null
   verified: boolean
@@ -106,8 +110,9 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     }
     const value = row[key] ?? null
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
-      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string }
+      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string; startsWith?: string }
       if ('in' in c) return c.in!.includes(value)
+      if ('startsWith' in c) return typeof value === 'string' && value.startsWith(c.startsWith!)
       if ('notIn' in c) return !c.notIn!.includes(value)
       if ('not' in c) return value !== c.not
       if ('contains' in c) return typeof value === 'string' && value.toLowerCase().includes(c.contains!.toLowerCase())
@@ -185,7 +190,14 @@ vi.mock('@/lib/db', () => ({
     // pages.xml) read to decide whether the subdomain serves a handle. `h.lookups` counts the batch's
     // reads. The label reads are `Prisma.sql` objects: every handle whose own spelling or
     // underscore-free form is among the values.
-    $queryRaw: async (q: { values: unknown[] }) => {
+    $queryRaw: async (q: { values: unknown[]; strings?: readonly string[] }) => {
+      // The thin-import rule's read (`notThinImport`, src/lib/sitemap.ts): the live imports long enough to submit.
+      if (q.strings?.join('').includes('length(description)')) {
+        return h.rows
+          .filter((r) => r.verified && r.status === 'active' && r.affiliateUrl === null && r.externalId && !r.externalId.startsWith('fb:'))
+          .filter((r) => (r.description ?? '').length >= (q.values[0] as number))
+          .map((r) => ({ id: r.id }))
+      }
       h.lookups++
       const want = new Set(q.values as string[])
       const rows = [
@@ -425,6 +437,23 @@ describe('the listing children', () => {
     expect(xml).toMatch(/<urlset /)
     expect(locs(xml)).toEqual([`${HOST}/listings/own-live`, `${HOST}/listings/staff-link-live`])
     expect(xml).toContain('<lastmod>2026-01-01T00:00:00.000Z</lastmod>')
+  })
+
+  // ⛔ Owner 2026-11-19, "Unsubmit thinnest imports": an import under 200 characters stays crawlable but is not asked for.
+  it('drop an import whose description is under 200 characters, never a member post', async () => {
+    const text = (n: number) => 'x'.repeat(n)
+    h.rows = [
+      row({ id: 'gp-room', externalId: 'goplus:1', description: text(137), sellerId: 'import-seller' }),
+      row({ id: 'chat-only-199', externalId: 'cps-1', description: text(199), purchaseLink: { url: 'https://go.isclix.com/x' } }),
+      row({ id: 'chat-only-200', externalId: 'cps-2', description: text(200), purchaseLink: { url: 'https://go.isclix.com/y' } }),
+      row({ id: 'cribs-flat', externalId: 'saigoncribs:1', description: text(1200), sellerId: 'import-seller' }),
+      row({ id: 'member-short', description: text(10) }),
+      row({ id: 'member-fb-short', externalId: 'fb:123', description: text(10) }),
+      row({ id: 'long-but-hidden', externalId: 'goplus:2', description: text(900), status: 'hidden' }),
+    ]
+    const want = ['chat-only-200', 'cribs-flat', 'member-fb-short', 'member-short']
+    expect(locs(await (await child('listings-0.xml')).text())).toEqual(want.map((id) => `${HOST}/listings/${id}`))
+    expect((await sitemapIndexChildren()).submitted).toBe(want.length)
   })
 
   /**

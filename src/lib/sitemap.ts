@@ -1,4 +1,5 @@
-import type { Prisma } from '@/generated/prisma/client'
+import { Prisma } from '@/generated/prisma/client'
+import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
 import { teacherSitemapScope } from '@/lib/teachers/search-index'
@@ -60,12 +61,14 @@ export function siteOrigin(): string {
  *     It narrows every user of this predicate: the listing children and the index's count, and pages.xml's
  *     category × district combos (a teacher under the floor no longer counts toward a district's ten) and its
  *     storefront block (a teacher-only storefront is submitted only while its profile is — search-index.ts).
+ *   · ⛔ NO THIN IMPORT — `notThinImport()` below (owner 2026-11-19). Narrows the same users: a storefront whose every
+ *     row is a thin import (GoPlus, Điện Thoại Vui on 2026-11-19) leaves pages.xml too.
  *
  * ⚠️ NESTED IN AN `AND`, NOT SPREAD: whatever shape scopedListingWhere returns, the extra key cannot
  * collide with it (the note that used to sit on this query in sitemap.xml/route.ts).
  *
  * `extra` narrows further (the category × district block passes `district: { not: null }`); it can
- * only ADD conditions — the four rules above always apply.
+ * only ADD conditions — the rules above always apply.
  */
 export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}) {
   /**
@@ -77,11 +80,45 @@ export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}
    * (pages.xml/build.ts) and a storefront whose ONLY own listing is a profile (the seller aggregate there) — a page left
    * with nothing of its own on the forum, and the rule for those is "crawlable, not asked for".
    */
-  const [scoped, teachers] = await Promise.all([
+  const [scoped, teachers, notThin] = await Promise.all([
     scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: !IS_SERVICES }),
     teacherSitemapScope(),
+    notThinImport(),
   ])
-  return { AND: [scoped, { affiliateUrl: null }, teachers] }
+  return { AND: [scoped, { affiliateUrl: null }, teachers, notThin] }
+}
+
+/**
+ * ⛔ AN IMPORT WHOSE DESCRIPTION IS UNDER 200 CHARACTERS IS CRAWLABLE, NOT SUBMITTED (owner, 2026-11-19: "Unsubmit
+ * thinnest imports"). Search Console that day: 1,529 "Crawled - currently not indexed", 81% of a 500-URL sample listing
+ * pages, mostly GoPlus rooms and CellphoneS rows. The page stays 200, linked and indexable; we only stop asking for it.
+ *
+ * IMPORT = an `externalId` that is not `fb:` (a member's own Facebook import, src/lib/fb-import/publish.ts — a member post).
+ * Every PartnerPurchaseLink row has one (4,065 of 4,065), so the chat-only partners need no relation filter.
+ * ⛔ MEMBER POSTS ARE NEVER DROPPED BY LENGTH (81 of 295 live are under 200).
+ *
+ * WHY 200, measured 2026-11-19 on live verified imports without affiliateUrl (English `description`, what the page shows):
+ *   GoPlus 5,379 rows, 104–166 chars (one template: "1-bedroom apartment of 40 m² on …, Message GoPlus to …") — all drop
+ *   Hoàng Hà 2,663 (p90 130) — 2,659 drop · Điện Thoại Vui 106 (p90 126) — all drop · ShopDunk 214 (p90 134) — 198 drop
+ *   CellphoneS 1,082 (p50 82, spread to 350) — 828 drop, 254 stay
+ *   Saigon Cribs 154 (p10 1,146), Blvck, KarPlus, An Khánh, Carbi, Quê Hương, Evisa Saigon… (all ≥ 300) — none drop
+ *   → ≈9,959 before, ≈788 after, before the scope and teacher rules (9,171 drop; 295 member posts + 493 imports stay).
+ *
+ * ⛔ AN ID LIST, NOT A RELATION OR A FUNCTION: Prisma cannot express `length()`, and a relation filter in the sorted
+ * child query took 81 s (2026-11-19). So one raw read (47 ms, 493 ids) names the imports long enough to submit, and
+ * the predicate stays plain columns: `externalId` + `id IN (…)` (42 ms for the child query). Kept imports, not thin
+ * ones, so the list is short and a row the read missed is left out, never let in. ⚠️ Past ~30,000 kept imports the
+ * list nears Prisma's bind-parameter cap: move to a stored flag then.
+ */
+export const MIN_IMPORT_DESCRIPTION_CHARS = 200
+
+async function notThinImport(): Promise<Prisma.ListingWhereInput> {
+  const long = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT id FROM "Listing"
+    WHERE verified AND status = 'active' AND "affiliateUrl" IS NULL
+      AND "externalId" IS NOT NULL AND "externalId" NOT LIKE 'fb:%'
+      AND length(description) >= ${MIN_IMPORT_DESCRIPTION_CHARS}`)
+  return { OR: [{ externalId: null }, { externalId: { startsWith: 'fb:' } }, { id: { in: long.map((r) => r.id) } }] }
 }
 
 /** How many `listings-<k>.xml` children `total` submitted listings need (0 → none). */
