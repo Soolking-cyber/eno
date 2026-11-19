@@ -76,11 +76,11 @@ const SERVICES: Service[] = [
 Standard: 9,000,000 VND, about 7–9 weeks
 Fast track: 10,500,000 VND, about 4–5 weeks
 
-Most of the time goes into gathering, legalising and translating documents. Once the file is complete, the authority decides within 10 working days (Ho Chi Minh City publishes 5). Costs outside Vietnam, such as legalising papers in your home country, depend on your case: ask Evisa Saigon before you start.
+Most of the time goes into gathering, legalising and translating documents. Once the file is complete, the authority decides within 10 working days. Costs outside Vietnam, such as legalising papers in your home country, depend on your case: ask Evisa Saigon before you start.
 
 # Who can get one
 - 18 or older, healthy enough for the job and not under criminal prosecution
-- Qualified for the role as a manager, executive, expert or technical worker. An expert usually needs a bachelor's degree and 2 years of related experience
+- Qualified for the role as a manager, executive, expert or technical worker. An expert usually needs a university degree and 2 years of related experience; from 5 December 2026, 5 years of related experience without a degree also qualifies
 - Hired by a company or organisation that applies for you
 
 Some people are exempt, for example a foreigner married to a Vietnamese citizen, and need an exemption certificate instead. Evisa Saigon checks which applies to you.
@@ -92,10 +92,10 @@ Some people are exempt, for example a foreigner married to a Vietnamese citizen,
 - Degree, and letters from past employers confirming your experience
 - 2 colour photos, 4 x 6 cm, white background, no glasses
 
-Foreign documents must be legalised and translated into Vietnamese with a certified translation, unless a treaty exempts them.
+Foreign documents must be legalised and translated into Vietnamese with a certified translation, unless a treaty exempts them. From 5 December 2026 the passport needs only a copy of its photo page and no legalisation, a health certificate from a clinic abroad is accepted, and so is an electronic criminal record.
 
 # What your employer provides
-- The report explaining why the job needs a foreign worker. Since August 2025 it is filed with the permit, in one step
+- The report explaining why the job needs a foreign worker, filed with the permit in one step
 - Company documents for your role (for a manager, the appointment)
 - Your labour contract, signed after the permit is issued and before you start
 
@@ -107,11 +107,11 @@ Foreign documents must be legalised and translated into Vietnamese with a certif
 5. You receive the permit. Next comes your temporary residence card (TRC)
 
 # Good to know
-- A work permit lasts up to 2 years and can be extended once, for up to 2 more years
+- A work permit lasts up to 2 years and can be extended once, for up to 2 more years. From 5 December 2026, apply for the extension 10 working days to 90 days before it expires
 - It covers one employer and one job: a new employer or role needs a new permit
-- Apply 10 to 60 days before your start date
+- Apply at least 10 working days and at most 60 days before your start date
 - Working without a permit can lead to a fine and deportation
-- Rules: Decree 219/2025/ND-CP; from 5 December 2026, Decree 393/2026/ND-CP
+- Rules: Decree 393/2026/ND-CP from 5 December 2026; a file submitted before then follows Decree 219/2025/ND-CP
 
 Evisa Saigon, 385/14 Nguyen Trai, Cau Ong Lanh ward, Ho Chi Minh City. eno introduces Evisa Saigon; the service contract is with them.`,
     descVi: `Evisa Saigon làm giấy phép lao động cho người nước ngoài làm việc tại TP.HCM: kiểm tra điều kiện, gửi danh sách giấy tờ theo trường hợp của bạn, cùng bạn và doanh nghiệp chuẩn bị hồ sơ, nộp và theo dõi đến khi có giấy phép.
@@ -120,11 +120,11 @@ Evisa Saigon, 385/14 Nguyen Trai, Cau Ong Lanh ward, Ho Chi Minh City. eno intro
 Thường: 9.000.000 đ, khoảng 7–9 tuần
 Làm nhanh: 10.500.000 đ, khoảng 4–5 tuần
 
-Phần lớn thời gian dành cho việc chuẩn bị, hợp pháp hóa lãnh sự và dịch thuật giấy tờ. Khi hồ sơ đầy đủ, cơ quan có thẩm quyền giải quyết trong 10 ngày làm việc (TP.HCM công bố 5 ngày). Chi phí phát sinh ở nước ngoài, như hợp pháp hóa giấy tờ tại nước bạn, tùy từng trường hợp: hãy hỏi Evisa Saigon trước khi bắt đầu.
+Phần lớn thời gian dành cho việc chuẩn bị, hợp pháp hóa lãnh sự và dịch thuật giấy tờ. Khi hồ sơ đầy đủ, cơ quan có thẩm quyền giải quyết trong 10 ngày làm việc. Chi phí phát sinh ở nước ngoài, như hợp pháp hóa giấy tờ tại nước bạn, tùy từng trường hợp: hãy hỏi Evisa Saigon trước khi bắt đầu.
 
 # Ai được cấp
 - Từ đủ 18 tuổi, đủ sức khỏe theo yêu cầu công việc, không đang bị truy cứu trách nhiệm hình sự
-- Đáp ứng điều kiện vị trí nhà quản lý, giám đốc điều hành, chuyên gia hoặc lao động kỹ thuật. Chuyên gia thường cần bằng đại học và 2 năm kinh nghiệm phù hợp
+- Đáp ứng điều kiện vị trí nhà quản lý, giám đốc điều hành, chuyên gia hoặc lao động kỹ thuật. Chuyên gia thường cần bằng đại học và 2 năm kinh nghiệm phù hợp; từ ngày 05/12/2026, 5 năm kinh nghiệm phù hợp không cần bằng cấp cũng đủ điều kiện
 - Có doanh nghiệp hoặc tổ chức tuyển dụng đứng ra nộp hồ sơ
 
 Một số trường hợp được miễn, ví dụ người nước ngoài kết hôn với công dân Việt Nam; khi đó cần giấy xác nhận không thuộc diện cấp giấy phép lao động. Evisa Saigon kiểm tra trường hợp của bạn.
@@ -136,10 +136,10 @@ Một số trường hợp được miễn, ví dụ người nước ngoài k�
 - Bằng cấp và văn bản xác nhận kinh nghiệm của nơi bạn từng làm
 - 2 ảnh màu 4 x 6 cm, nền trắng, không đeo kính
 
-Giấy tờ nước ngoài phải hợp pháp hóa lãnh sự và dịch sang tiếng Việt có chứng thực, trừ khi được miễn theo điều ước quốc tế.
+Giấy tờ nước ngoài phải hợp pháp hóa lãnh sự và dịch sang tiếng Việt có chứng thực, trừ khi được miễn theo điều ước quốc tế. Từ ngày 05/12/2026, hộ chiếu chỉ cần bản chụp trang thông tin và không phải hợp pháp hóa, chấp nhận giấy chứng nhận sức khỏe do cơ sở y tế nước ngoài cấp và phiếu lý lịch tư pháp điện tử.
 
 # Doanh nghiệp cung cấp
-- Báo cáo giải trình nhu cầu sử dụng người lao động nước ngoài: từ tháng 8/2025 nộp cùng hồ sơ cấp giấy phép, trong một bước
+- Báo cáo giải trình nhu cầu sử dụng người lao động nước ngoài, nộp cùng hồ sơ cấp giấy phép trong một bước
 - Giấy tờ chứng minh vị trí công việc (với nhà quản lý: văn bản bổ nhiệm)
 - Hợp đồng lao động, ký sau khi có giấy phép và trước ngày bắt đầu làm việc
 
@@ -151,11 +151,11 @@ Giấy tờ nước ngoài phải hợp pháp hóa lãnh sự và dịch sang ti
 5. Nhận giấy phép. Bước tiếp theo là làm thẻ tạm trú (TRC)
 
 # Cần biết
-- Giấy phép lao động có thời hạn tối đa 2 năm, được gia hạn 1 lần, tối đa 2 năm
+- Giấy phép lao động có thời hạn tối đa 2 năm, được gia hạn 1 lần, tối đa 2 năm. Từ ngày 05/12/2026, nộp hồ sơ gia hạn trước khi hết hạn từ 10 ngày làm việc đến 90 ngày
 - Giấy phép gắn với một doanh nghiệp và một vị trí: đổi doanh nghiệp hoặc vị trí phải xin giấy phép mới
-- Nộp hồ sơ trước ngày bắt đầu làm việc từ 10 đến 60 ngày
+- Nộp hồ sơ trước ngày bắt đầu làm việc ít nhất 10 ngày làm việc và không quá 60 ngày
 - Làm việc không có giấy phép có thể bị phạt tiền và trục xuất
-- Căn cứ: Nghị định 219/2025/NĐ-CP; từ ngày 05/12/2026 là Nghị định 393/2026/NĐ-CP
+- Căn cứ: Nghị định 393/2026/NĐ-CP từ ngày 05/12/2026; hồ sơ nộp trước ngày này theo Nghị định 219/2025/NĐ-CP
 
 Evisa Saigon, 385/14 Nguyễn Trãi, phường Cầu Ông Lãnh, TP.HCM. eno giới thiệu Evisa Saigon; hợp đồng dịch vụ ký trực tiếp với Evisa Saigon.`,
     keywords: ['work permit', 'giay phep lao dong', 'GPLD', 'work permit vietnam', 'work permit hcmc', 'foreign worker'],
