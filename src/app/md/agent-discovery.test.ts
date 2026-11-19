@@ -132,7 +132,8 @@ describe('/.well-known/ai-catalog.json — ARD catalogue', () => {
   it('points the MCP entry at the server card route that actually exists', async () => {
     const doc = await (await (await load.catalog()).GET()).json()
     const mcp = doc.entries.find((e: { identifier: string }) => e.identifier.includes(':server:'))
-    expect(mcp.url).toBe(`${OAUTH_ISSUER}/.well-known/mcp.json`)
+    // The card beside the endpoint (the Server Card WG's reserved spot), the same handler by rewrite (2026-11-19).
+    expect(mcp.url).toBe(`${OAUTH_ISSUER}/api/mcp/server-card`)
     // Byte-identical to CARD_TYPE in that route — ARD requires `url` to point at a document OF the
     // declared type, so the two strings agreeing IS the contract.
     // ⚠️ 'application/json' — what a DEFAULT fetch of that URL receives, which is what ARD's
@@ -174,11 +175,12 @@ describe('/.well-known/ai-catalog.json — ARD catalogue', () => {
     expect(paths).toEqual([
       // The A2A Agent Card (2026-11-17, src/app/api/well-known/agent-card): served by this build, pinned in src/lib/a2a.
       '/.well-known/agent-card.json',
-      '/.well-known/mcp.json',
       '/.well-known/oauth-authorization-server',
       // The API's own RFC 9728 document since 2026-11-16 (the bare path names the origin); curled 200 live that day.
       '/.well-known/oauth-protected-resource/api/v1',
       '/agents.md',
+      // The MCP server card beside its endpoint (2026-11-19; next.config rewrite to the one card route); curled 200 live that day.
+      '/api/mcp/server-card',
       '/api/v1/status',
       '/auth.md',
       '/llms.txt',

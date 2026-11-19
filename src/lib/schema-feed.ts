@@ -64,8 +64,11 @@ export function schemaFeedItem(row: SchemaFeedRow, brandName: string | null, ori
   return ld && { ...ld, url }
 }
 
-/** The JSON Lines body: newest first, capped, one object per `\n`-terminated line. */
-export async function schemaFeedBody(): Promise<string> {
+/**
+ * The public set both agent feeds publish (this one and the Atom feed, src/lib/atom-feed.ts): the sitemap's listings minus
+ * every row of a teacher's shop. Read the shop ids first — see the note in schemaFeedBody.
+ */
+export async function publicFeedListingWhere(): Promise<Prisma.ListingWhereInput> {
   const noTeachers = await teacherExclusion()
   // ⛔ No row of a TEACHER'S SHOP at all (the .md twin's rule, src/app/md/twin/route.ts): an owner with a teacher profile, or a
   // shop with any teacher row — a person's profile, not only the teacher category. Read FIRST as a short id list (~200 shops):
@@ -76,10 +79,16 @@ export async function schemaFeedBody(): Promise<string> {
     where: { OR: [{ owner: { teacherProfile: { isNot: null } } }, { listings: { some: { listingType: TEACHER_LISTING_TYPE } } }] },
     select: { id: true },
   })).map((s) => s.id)
+  // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the sitemap's rules
+  // (src/lib/sitemap.ts) — the edition scope is inside the helper.
+  return { AND: [await submittedListingWhere(), ...(noTeachers ? [noTeachers] : []), { sellerId: { notIn: teacherShops } }] }
+}
+
+/** The JSON Lines body: newest first, capped, one object per `\n`-terminated line. */
+export async function schemaFeedBody(): Promise<string> {
   const rows = await db.listing.findMany({
-    // edition-lint-allow: `submittedListingWhere()` IS `scopedListingWhere(...)` AND-ed with the sitemap's rules
-    // (src/lib/sitemap.ts) — the edition scope is inside the helper.
-    where: { AND: [await submittedListingWhere(), ...(noTeachers ? [noTeachers] : []), { sellerId: { notIn: teacherShops } }] },
+    // edition-lint-allow: publicFeedListingWhere() is submittedListingWhere() (edition-scoped) minus teachers' shops.
+    where: await publicFeedListingWhere(),
     select: SCHEMA_FEED_SELECT,
     orderBy: [{ postedAt: 'desc' }, { id: 'desc' }],
     take: SCHEMA_FEED_CAP,

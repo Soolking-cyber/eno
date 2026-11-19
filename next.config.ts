@@ -1540,6 +1540,8 @@ const nextConfig: NextConfig = {
           value: [
             '</sitemap.xml>; rel="sitemap"; type="application/xml"',
             '</index.md>; rel="alternate"; type="text/markdown"',
+            // The Atom feed of the newest listings (src/app/feed.xml, 2026-11-19), the same one the head's alternate names.
+            '</feed.xml>; rel="alternate"; type="application/atom+xml"',
             '</llms.txt>; rel="describedby"; type="text/plain"',
             '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
             '</openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json"',

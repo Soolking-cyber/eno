@@ -157,7 +157,15 @@ export async function GET() {
            * where it expected JSON — worse than the 404 we started with, because it looks like a
            * server fault rather than a missing document.
            */
-          url: `${OAUTH_ISSUER}/.well-known/mcp.json`,
+          /**
+           * ⚠️ THE CARD BESIDE THE ENDPOINT, `<streamable-http-url>/server-card` (2026-11-19). An agent-readiness scan
+           * (pasted by the owner): "A card sits at /.well-known/mcp/server-card.json, but the MCP specification rules out
+           * that location. Move it next to your MCP endpoint and declare it in /.well-known/ai-catalog.json" — the Server
+           * Card WG's reserved spot (see src/app/api/well-known/mcp-server-card/route.ts). It is the SAME handler (a
+           * next.config rewrite), so this is still one card, not two. The .well-known spellings stay served: isitagentready
+           * finds the card only there (probed 2026-11-19: mcp.json, mcp/server-cards.json, mcp/server-card.json).
+           */
+          url: `${OAUTH_ISSUER}/api/mcp/server-card`,
           description: `Hosted MCP server at ${OAUTH_ISSUER}/api/mcp — Streamable HTTP, JSON-RPC over POST, stateless. Manage one storefront: listings, bulk import, catalogue sync, analytics, webhooks. An API key is the Bearer token, held in the client's connection config; no tool takes it as an argument.`,
           tags: ['mcp', 'tools', 'storefront'],
           /**

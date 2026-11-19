@@ -40,12 +40,18 @@ export const HOME_DESCRIPTION_VI = `${SITE_NAME} là chợ rao vặt${POSTING_IS
  * The HTTP `Link:` header on `/` (next.config.ts headers()) advertises the same twin.
  */
 export const HOME_MARKDOWN_TWIN = { 'text/markdown': '/index.md' } as const
+/**
+ * …and the Atom feed of the newest listings (src/app/feed.xml; owner 2026-11-19, from an agent-readiness scan: "No RSS or Atom
+ * feed declared in the page head"), declared beside the twin as `<link rel="alternate" type="application/atom+xml">`. The `Link:`
+ * header on `/` (next.config.ts headers()) names it too.
+ */
+export const HOME_ALTERNATE_TYPES = { ...HOME_MARKDOWN_TWIN, 'application/atom+xml': '/feed.xml' } as const
 
 export function homeMetadata(lang: string): Metadata {
   const pilot = IS_SERVICES ? null : langAlternates('/', lang, siteOrigin())
   const base: Metadata = pilot
-    ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_MARKDOWN_TWIN } }
-    : { alternates: { canonical: '/', types: HOME_MARKDOWN_TWIN } }
+    ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_ALTERNATE_TYPES } }
+    : { alternates: { canonical: '/', types: HOME_ALTERNATE_TYPES } }
   if (IS_SERVICES || lang !== 'vi') {
     return pilot ? { ...base, ...pageShare({ title: SITE_TITLE, description: MARKETPLACE_TAGLINE, url: pilot.canonical }) } : base
   }
