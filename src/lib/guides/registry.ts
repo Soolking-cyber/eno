@@ -50,6 +50,11 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'tuyen-giao-vien-nuoc-ngoai', lang: 'vi', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: 'aea55f964498b609' },
   { slug: 'vietnam-school-leaders-english-requirements', lang: 'en', published: '2026-11-18', reviewed: '2026-11-18', reviewedDigest: '6e97925fe752ec81', pair: 'hieu-truong-phai-biet-tieng-anh-thong-tu-94' },
   // </generated-guides>
+  // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
+  // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
+  // Fact-check before release (same day): unsourced competitor claims removed (Batdongsan row, a superlative, Marketplace seller history). The digest still guards them: edit the JSON and the build stops until a person approves the new text and the digest here is updated.
+  { slug: 'muaban-net-alternative', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: 'e631d1d28fe72b4f', pair: 'thay-the-muaban-net-dang-tin-mien-phi' },
+  { slug: 'thay-the-muaban-net-dang-tin-mien-phi', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '6052a59772ad393a', pair: 'muaban-net-alternative' },
 ]
 
 export const GUIDE_BASE = { en: '/guides', vi: '/huong-dan' } as const

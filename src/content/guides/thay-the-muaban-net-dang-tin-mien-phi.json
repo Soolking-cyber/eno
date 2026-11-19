@@ -1,0 +1,176 @@
+{
+  "slug": "thay-the-muaban-net-dang-tin-mien-phi",
+  "title": "Thay thế Muaban.net: nơi đăng tin miễn phí năm 2026",
+  "description": "Muaban.net chỉ cho mỗi tài khoản 10 tin miễn phí, sau đó thu phí theo ngày. So sánh các nơi đăng tin rao vặt miễn phí: eno.vn, Chợ Tốt và Facebook.",
+  "h1": "Thay thế Muaban.net: đăng tin rao vặt miễn phí ở đâu tại Việt Nam?",
+  "eyebrow": "Mua bán",
+  "intro": "Muaban.net nay chỉ cho mỗi tài khoản 10 tin thường miễn phí, mỗi chuyên mục 1 tin; đăng nhiều hơn thì phải trả phí theo ngày. Nếu bạn muốn tiếp tục đăng tin miễn phí, eno.vn hiện cho đăng tin, xem tin và nhắn tin không mất phí, ở mọi chuyên mục: cho thuê nhà, việc làm, đồ cũ, xe cộ và dịch vụ. Chợ Tốt miễn phí ở nhiều chuyên mục nhưng thu phí bất động sản, xe cộ và điện thoại, còn các nhóm Facebook miễn phí nhưng khó tìm kiếm.",
+  "keyPoints": [
+    "**eno.vn**: hiện đăng tin, xem tin và nhắn tin đều miễn phí, không có phí đăng tin, và thu 0% khi bạn tự bán.",
+    "**Muaban.net**: 10 tin thường miễn phí mỗi tài khoản, sau đó từ {{vnd:3000}}/ngày mỗi tin, mua tối thiểu 15 ngày.",
+    "**Chợ Tốt**: đa số chuyên mục miễn phí; bất động sản từ {{vnd:31500}}, ô tô và xe máy từ {{vnd:21000}} mỗi tin được duyệt.",
+    "**Các nhóm Facebook**: miễn phí, nhưng nhóm chỉ là bảng tin: bài đăng trôi đi và không lọc được theo giá hay khu vực."
+  ],
+  "sections": [
+    {
+      "id": "muaban-net-thay-doi-gi",
+      "title": "Muaban.net đã thay đổi gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Muaban.net có năm loại tin: Nổi Bật, VIPS, VIP 1, VIP 2 và tin thường, giá từ {{vnd:3000}}/ngày mỗi tin, đã gồm VAT. Tin thường phải mua tối thiểu 15 ngày, và gói đăng tin giúp giảm giá còn từ {{vnd:1000}} mỗi tin một ngày."
+        },
+        {
+          "type": "p",
+          "text": "Phần miễn phí khá ít: 10 tin thường miễn phí mỗi tài khoản, mỗi chuyên mục 1 tin, hiển thị 10 ngày và được miễn phí lại sau mỗi 30 ngày nếu đã xác thực email. Ai đăng nhiều hơn số đó thì phải trả phí cho mỗi ngày tin hiển thị."
+        }
+      ]
+    },
+    {
+      "id": "so-sanh-cac-lua-chon",
+      "title": "So sánh các lựa chọn thay thế Muaban.net",
+      "blocks": [
+        {
+          "type": "table",
+          "caption": "Phí đăng tin theo công bố của từng trang, kiểm tra ngày 19/11/2026.",
+          "headers": [
+            "Trang",
+            "Phí đăng tin",
+            "Phù hợp cho"
+          ],
+          "rows": [
+            [
+              "**eno.vn**",
+              "Hiện miễn phí; thu 0% khi bạn tự bán",
+              "Cho thuê nhà, việc làm, đồ cũ, xe cộ và dịch vụ, bằng 11 ngôn ngữ"
+            ],
+            [
+              "Muaban.net",
+              "10 tin thường miễn phí; sau đó từ {{vnd:3000}}/ngày, tối thiểu 15 ngày",
+              "Bất động sản, ô tô, xe máy"
+            ],
+            [
+              "Chợ Tốt",
+              "Đa số chuyên mục miễn phí; thu phí bất động sản, xe cộ, điện thoại và laptop",
+              "Rao vặt tổng hợp trên toàn quốc"
+            ],
+            [
+              "Các nhóm Facebook và Marketplace",
+              "Miễn phí",
+              "Bán nhanh trong khu vực; bài trong nhóm trôi đi rất nhanh"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vi-sao-chon-eno-vn",
+      "title": "Vì sao eno.vn là lựa chọn miễn phí thay Muaban.net",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "**Không có phí đăng tin.** Hiện đăng tin, xem tin và nhắn tin đều miễn phí. eno chỉ thu phí khi bạn nhờ đội ngũ eno đăng và quản lý giao dịch giúp bạn, và chỉ khi giao dịch thành công.",
+            "**Mọi chuyên mục ở một nơi**: căn hộ và phòng trọ, việc làm, điện thoại cũ, nội thất và đồ gia dụng, ô tô và xe máy, và dịch vụ, với hàng nghìn tin đang hiển thị.",
+            "**Dành cho mọi người tại Việt Nam**: 11 ngôn ngữ và tin nhắn tự động dịch hai chiều, để người bán Việt và người mua nước ngoài hiểu nhau.",
+            "**Có trên web, iPhone và Android**, và bạn có thể chuyển tin từ Facebook Marketplace sang chỉ trong một bước."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Đăng tin trong một phút",
+          "text": "[Đăng tin miễn phí](/post), hoặc [chuyển tin từ Facebook Marketplace](/post/facebook)."
+        }
+      ]
+    },
+    {
+      "id": "san-sang-cho-tro-ly-ai",
+      "title": "Sẵn sàng cho cách mọi người sẽ mua bán",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ngày càng nhiều người nhờ trợ lý AI tìm đồ giúp mình. eno.vn được xây dựng cho điều đó: trong Claude và Grok, trợ lý của bạn đã có thể tìm tin trên eno và nhắn người bán thay bạn, khi bạn cho phép, và eno đang phát triển để trợ lý có thể đăng tin và bán hàng giúp bạn. Phần lớn các trang rao vặt chỉ được xây dựng cho người lướt trang."
+        },
+        {
+          "type": "p",
+          "text": "Vì vậy, tin bạn đăng trên eno hôm nay sẵn sàng cho cả hai: người xem trên web và ứng dụng, và các trợ lý AI làm việc cho họ. [Kết nối eno với trợ lý AI của bạn](/developers)."
+        }
+      ]
+    },
+    {
+      "id": "bat-dau-dang-tin-tren-eno-vn",
+      "title": "Cách bắt đầu đăng tin trên eno.vn",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Tạo tài khoản miễn phí",
+              "text": "Đăng nhập eno.vn bằng email hoặc tài khoản mạng xã hội."
+            },
+            {
+              "title": "Đăng từng tin",
+              "text": "Thêm ảnh, giá và khu vực. Không có phí đăng tin và không thu phí theo ngày."
+            },
+            {
+              "title": "Trả lời người mua qua tin nhắn",
+              "text": "Người mua nhắn tin cho bạn trên eno; tin nhắn được dịch hai chiều, nên bạn bán cho người nước ngoài cũng dễ như cho người Việt."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "eno.vn có thật sự miễn phí không?",
+      "a": "Có. Hiện đăng tin, xem tin và nhắn tin trên eno.vn đều miễn phí, và nếu bạn tự đăng, tự bán thì eno không thu gì. eno chỉ thu phí khi bạn nhờ đội ngũ eno đăng và quản lý giao dịch giúp bạn, và chỉ khi giao dịch thành công."
+    },
+    {
+      "q": "Muaban.net hiện thu phí bao nhiêu?",
+      "a": "Mỗi tài khoản được 10 tin thường miễn phí, mỗi chuyên mục 1 tin, hiển thị 10 ngày và được miễn phí lại sau mỗi 30 ngày nếu đã xác thực email. Ngoài số đó, tin thường có giá từ 3.000 đ/ngày và phải mua tối thiểu 15 ngày; tin VIP đắt hơn. Xem bảng giá của Muaban.net để biết mức mới nhất."
+    },
+    {
+      "q": "Chợ Tốt có miễn phí không?",
+      "a": "Đa số chuyên mục thì có. Chợ Tốt thu phí theo mỗi tin được duyệt ở bất động sản, ô tô và xe máy, điện thoại và laptop cùng một số chuyên mục khác, với hạn mức miễn phí nhỏ cho cá nhân, ví dụ 1 tin bất động sản miễn phí mỗi năm."
+    },
+    {
+      "q": "Tôi có thể đăng gì trên eno.vn?",
+      "a": "Căn hộ và phòng cho thuê, việc làm, đồ cũ như điện thoại, nội thất và đồ gia dụng, ô tô và xe máy, và dịch vụ, ở khắp Việt Nam."
+    },
+    {
+      "q": "Trợ lý AI của tôi có dùng được eno.vn không?",
+      "a": "Có. eno có trong danh mục kết nối của Claude và dùng được trong Grok. Khi bạn cho phép, trợ lý có thể tìm tin và nhắn người bán thay bạn."
+    }
+  ],
+  "sources": [
+    {
+      "title": "[Mới nhất] Bảng giá dịch vụ Đăng tin lẻ trên Muaban.net",
+      "publisher": "Muaban.net",
+      "url": "https://muaban.net/wiki/bang-gia-dich-vu-dang-tin-tren-muaban-net/"
+    },
+    {
+      "title": "Câu hỏi thường gặp cho phiên bản mới Muaban.net",
+      "publisher": "Muaban.net",
+      "url": "https://muaban.net/wiki/cau-hoi-thuong-gap-cho-phien-ban-web-moi-muabannet-2025/"
+    },
+    {
+      "title": "Quy định đăng tin đối với chuyên mục có thu phí trên Chợ Tốt",
+      "publisher": "Chợ Tốt",
+      "url": "https://trogiup.chotot.com/nguoi-ban/quy-dinh-dang-tin-doi-voi-cac-chuyen-muc-co-thu-phi/"
+    },
+    {
+      "title": "Quy định phí đăng tin Bất động sản trên Chợ Tốt",
+      "publisher": "Chợ Tốt",
+      "url": "https://trogiup.chotot.com/nguoi-ban/quy-dinh-phi-dang-tin-bat-dong-san-tren-cho-tot/"
+    },
+    {
+      "title": "Quy chế hoạt động eno.vn",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/regulations"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-19"
+}

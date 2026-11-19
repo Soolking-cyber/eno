@@ -1,0 +1,176 @@
+{
+  "slug": "muaban-net-alternative",
+  "title": "Muaban.net alternatives: free classifieds in Vietnam (2026)",
+  "description": "Muaban.net gives each account only 10 free listings, then charges by the day. Compare free places to post classifieds in Vietnam: eno.vn, Chợ Tốt and Facebook.",
+  "h1": "Muaban.net alternatives: where to post classifieds for free in Vietnam",
+  "eyebrow": "Buying and selling",
+  "intro": "Muaban.net now gives each account only 10 free regular listings, one per category; more than that are paid by the day. If you want to keep posting for free, eno.vn lets you post, browse and chat with no listing fee today, across rentals, jobs, used goods, vehicles and services. Chợ Tốt is free in many categories but charges for property, vehicles and phones, and Facebook groups are free but hard to search.",
+  "keyPoints": [
+    "**eno.vn**: free to post, browse and chat today, with no listing fee, and 0% when you sell for yourself.",
+    "**Muaban.net**: 10 free regular listings per account, then from {{vnd:3000}} a day per listing, bought for at least 15 days.",
+    "**Chợ Tốt**: free in most categories; property from {{vnd:31500}} and cars and motorbikes from {{vnd:21000}} per approved listing.",
+    "**Facebook groups**: free, but a group is a feed: posts scroll away and you cannot filter by price or area."
+  ],
+  "sections": [
+    {
+      "id": "what-changed-on-muaban-net",
+      "title": "What changed on Muaban.net?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Muaban.net sells five kinds of listing: Nổi Bật, VIPS, VIP 1, VIP 2 and the regular listing (tin thường), from {{vnd:3000}} a day per listing, VAT included. A regular listing has to be bought for at least 15 days, and bulk packages bring the price down to {{vnd:1000}} per listing a day."
+        },
+        {
+          "type": "p",
+          "text": "The free part is small: 10 free regular listings per account, one per category, each shown for 10 days and free again every 30 days once you verify your email. Anyone who posts more than that pays for every day a listing is shown."
+        }
+      ]
+    },
+    {
+      "id": "free-alternatives-compared",
+      "title": "Free alternatives to Muaban.net, compared",
+      "blocks": [
+        {
+          "type": "table",
+          "caption": "What each site charges to post, as each publishes it, checked on 19 November 2026.",
+          "headers": [
+            "Site",
+            "Cost to post",
+            "Best for"
+          ],
+          "rows": [
+            [
+              "**eno.vn**",
+              "Free today; 0% when you sell for yourself",
+              "Rentals, jobs, used goods, vehicles and services, in 11 languages"
+            ],
+            [
+              "Muaban.net",
+              "10 free regular listings; then from {{vnd:3000}} a day, 15 days minimum",
+              "Property, cars and motorbikes"
+            ],
+            [
+              "Chợ Tốt",
+              "Free in most categories; paid for property, vehicles, phones and laptops",
+              "General classifieds across Vietnam"
+            ],
+            [
+              "Facebook groups and Marketplace",
+              "Free",
+              "Quick local sales; group posts scroll away fast"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "why-eno-vn",
+      "title": "Why eno.vn is the free alternative to Muaban.net",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "**No listing fee.** Posting, browsing and chatting are free today. eno charges only when you ask its team to post and manage a deal for you, and only when the deal closes.",
+            "**Every category in one place**: apartments and rooms, jobs, used phones, furniture and appliances, cars and motorbikes, and services, with thousands of live listings.",
+            "**Made for everyone in Vietnam**: 11 languages, and chat translated both ways, so a Vietnamese seller and a foreign buyer understand each other.",
+            "**On the web, iPhone and Android**, and you can bring your Facebook Marketplace listings over in one step."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Post in a minute",
+          "text": "[Post a listing for free](/post), or [import your Facebook Marketplace listings](/post/facebook)."
+        }
+      ]
+    },
+    {
+      "id": "built-for-ai-assistants",
+      "title": "Built for how people will buy and sell next",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "More and more people ask an AI assistant to find things for them. eno.vn is built for that: in Claude and Grok, your assistant can already search eno's listings and message sellers for you, with your permission, and eno is working on letting it post and sell for you too. Most classifieds sites were built only for people scrolling pages."
+        },
+        {
+          "type": "p",
+          "text": "So a listing you post on eno today is ready for both: people browsing the site and the apps, and the AI assistants working for them. [Connect eno to your AI assistant](/developers)."
+        }
+      ]
+    },
+    {
+      "id": "start-posting-on-eno-vn",
+      "title": "How to start posting on eno.vn instead",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Create a free account",
+              "text": "Sign in on eno.vn with your email or a social account."
+            },
+            {
+              "title": "Post each listing",
+              "text": "Add photos, the price and the area. There is no listing fee and no daily charge."
+            },
+            {
+              "title": "Answer buyers in chat",
+              "text": "Buyers message you on eno; the chat is translated both ways, so you can sell to expats as easily as to locals."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is eno.vn really free?",
+      "a": "Yes. Today, posting, browsing and chatting on eno.vn have no fee, and if you post and sell for yourself eno takes nothing. eno charges a fee only when you ask its team to post and manage a deal for you, and only when the deal closes."
+    },
+    {
+      "q": "How much does Muaban.net charge now?",
+      "a": "Each account gets 10 free regular listings, one per category, each shown for 10 days and free again every 30 days if you verify your email. After that, a regular listing costs from 3,000 đ a day and must be bought for at least 15 days; VIP listings cost more. Check Muaban.net's price list for the latest rates."
+    },
+    {
+      "q": "Is Chợ Tốt free?",
+      "a": "In most categories, yes. Chợ Tốt charges per approved listing for property, cars and motorbikes, phones and laptops and a few other categories, with a small free quota for individuals, such as one free property listing a year."
+    },
+    {
+      "q": "What can I post on eno.vn?",
+      "a": "Apartments and rooms for rent, jobs, used goods such as phones, furniture and appliances, cars and motorbikes, and services, anywhere in Vietnam."
+    },
+    {
+      "q": "Can my AI assistant use eno.vn?",
+      "a": "Yes. eno is in Claude's connector directory and works in Grok. With your permission, your assistant can search listings and message sellers for you."
+    }
+  ],
+  "sources": [
+    {
+      "title": "[Mới nhất] Bảng giá dịch vụ Đăng tin lẻ trên Muaban.net",
+      "publisher": "Muaban.net",
+      "url": "https://muaban.net/wiki/bang-gia-dich-vu-dang-tin-tren-muaban-net/"
+    },
+    {
+      "title": "Câu hỏi thường gặp cho phiên bản mới Muaban.net",
+      "publisher": "Muaban.net",
+      "url": "https://muaban.net/wiki/cau-hoi-thuong-gap-cho-phien-ban-web-moi-muabannet-2025/"
+    },
+    {
+      "title": "Quy định đăng tin đối với chuyên mục có thu phí trên Chợ Tốt",
+      "publisher": "Chợ Tốt",
+      "url": "https://trogiup.chotot.com/nguoi-ban/quy-dinh-dang-tin-doi-voi-cac-chuyen-muc-co-thu-phi/"
+    },
+    {
+      "title": "Quy định phí đăng tin Bất động sản trên Chợ Tốt",
+      "publisher": "Chợ Tốt",
+      "url": "https://trogiup.chotot.com/nguoi-ban/quy-dinh-phi-dang-tin-bat-dong-san-tren-cho-tot/"
+    },
+    {
+      "title": "eno.vn Operating Regulations",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/regulations"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-19"
+}
