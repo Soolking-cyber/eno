@@ -8,7 +8,9 @@ function twinRoots(roots: string[]): string[] {
   // `sellers` and `listings` have no page of their own (only /<root>/<id>), so appRootSegments does not list them; a
   // storefront's twin is allowed since 2026-11-16 and a listing's since 2026-11-18 (owner) — /<root>/<id> exactly, never a
   // teacher's (src/app/md/twin/route.ts checks it all).
-  return [...new Set([...roots, "sellers", "listings"])].filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
+  // A model's price page (/price/<slug>, Vietnamese /gia/<slug>) has no root page of its own either, so it is named here too
+  // (2026-11-19, ora sampled /price/<slug>.md): content — a model's prices with the listings behind them — like a guide.
+  return [...new Set([...roots, "sellers", "listings", "price", "gia"])].filter((s) => /^[a-z0-9-]+$/.test(s) && !TWIN_DENY.has(s))
 }
 /** The twin rewrite's source: `/<allowed root page>[/<slug>…].md`. Lower-case slugs only. */
 function twinSource(allowed: string[]): string {
@@ -1177,6 +1179,11 @@ const nextConfig: NextConfig = {
         // /mcp, the address an assistant or a person guesses first for the MCP server (2026-11-18, ora.ai): the same page
         // as /developers/mcp, whose canonical stays there — /docs's shape and reasons above; `mcp` is reserved likewise.
         { source: "/:lang(en|vi)/mcp", destination: "/:lang/developers/mcp" },
+        // /sandbox and /docs/sandbox, where agent-readiness checks look for a test environment (2026-11-19, ora.ai: "Check
+        // /sandbox and /docs/sandbox for a reachable sandbox page — the only path to credit"): the same page as
+        // /developers/sandbox, whose canonical stays there — /mcp's shape; `sandbox` is reserved likewise.
+        { source: "/:lang(en|vi)/sandbox", destination: "/:lang/developers/sandbox" },
+        { source: "/:lang(en|vi)/docs/sandbox", destination: "/:lang/developers/sandbox" },
         /**
          * ── RFC 8414 / RFC 9728 OAuth discovery ────────────────────────────────────────────────
          * The two documents live under `src/app/api/well-known/*` for the same reason the AASA one

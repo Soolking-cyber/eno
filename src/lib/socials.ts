@@ -79,3 +79,7 @@ export function formatFollowers(n: number): string {
   if (n < 999_500) return `${Math.round(n / 1000)}K`
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
 }
+
+/** eno.vn's X handle for `twitter:site` (2026-11-19, an SEO scan), from the X row above so the two never disagree. */
+// A plain match, never `new URL()` at module load: this sits in the root layout's import chain, where a throw is every page.
+export const X_SITE = `@${/x\.com\/([A-Za-z0-9_]{1,15})/.exec(SOCIALS.find((s) => s.key === 'x')?.href ?? '')?.[1] ?? 'enovietnam'}`

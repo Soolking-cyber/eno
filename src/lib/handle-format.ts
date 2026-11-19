@@ -59,6 +59,8 @@ const RESERVED = new Set([
   // The MCP servers live at /api/mcp and /api/mcp/search; `/mcp` is the address an assistant or a person guesses first,
   // and a shop holding it would answer there instead (plan review, 2026-11-13).
   'mcp',
+  // /sandbox serves the API sandbox page (2026-11-19, ora.ai checks /sandbox and /docs/sandbox): a shop holding it would sit there.
+  'sandbox',
   // /schools is the teacher-ranked school directory and schools.eno.vn its name (2026-10-04): a seller
   // holding `schools` would own both. `school` too, so the singular cannot pose as the directory.
   'schools', 'school',

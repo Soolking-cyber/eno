@@ -3,7 +3,7 @@ import { detectContentLang, looksVietnamese } from '@/lib/detect-lang'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
-import { SOCIALS } from '@/lib/socials'
+import { SOCIALS, X_SITE } from '@/lib/socials'
 import type { LegalOperator } from '@/lib/site-legal'
 
 /**
@@ -278,7 +278,9 @@ export function pageOpenGraph(og: PageOg): NonNullable<Metadata['openGraph']> {
  * og:title (prod, 2026-09-29), and X reads twitter:title first.
  */
 export function pageTwitter(og: PageOg): NonNullable<Metadata['twitter']> {
-  return { card: 'summary_large_image', title: og.title, description: og.description, images: [og.images?.[0]?.url ?? SHARE_CARD.url] }
+  // `site` here too (2026-11-19): a page's own `twitter` REPLACES the layout's, so the handle set only at the root never reached
+  // a page built with these helpers — the home page included (measured live). Never `creator`: a listing is its seller's.
+  return { card: 'summary_large_image', site: X_SITE, title: og.title, description: og.description, images: [og.images?.[0]?.url ?? SHARE_CARD.url] }
 }
 
 /** Both cards from one description — what a page spreads into its metadata: `...pageShare({ … })`. */

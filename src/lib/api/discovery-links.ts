@@ -18,6 +18,8 @@ export const DOC_PATHS = {
   cli: '/developers/cli',
   /** Versioning and deprecation policy (src/app/[lang]/developers/versioning). */
   versioning: '/developers/versioning',
+  /** The API sandbox (src/app/[lang]/developers/sandbox); /sandbox and /docs/sandbox serve it too (next.config.ts). */
+  sandbox: '/developers/sandbox',
   /** The OpenAPI 3.1 document (src/app/openapi.json/route.ts). */
   openapi: '/openapi.json',
   /** RFC 9727 API catalogue (rewrite in next.config.ts → src/app/api/well-known/api-catalog). */

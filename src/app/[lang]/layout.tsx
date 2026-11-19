@@ -16,6 +16,7 @@ import { HIDDEN_SELLERS_HEAD_JS } from "@/lib/hidden-sellers";
 import { APP_SHEET_HEAD_JS } from "@/lib/app-sheet";
 import { CONCIERGE_FRAME_HEAD_JS } from "@/lib/concierge/frame-head";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
+import { X_SITE } from "@/lib/socials";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 import { STORE_OS_HEAD_JS } from "@/lib/app-store-links";
 import { SESSION_COOKIE_NAME_JS } from "@/lib/supabase/session-cookie";
@@ -353,7 +354,7 @@ export const metadata: Metadata = {
     // eno.vn's X account (src/lib/socials.ts, the Organization's sameAs; owner 2026-11-19 scan). `site` only — never `creator`:
     // a listing or a shop page is its seller's content, not eno.vn's. (format-detection left off on purpose: telephone=no would
     // stop iOS tap-to-call on numbers people type in chats — commit gate.)
-    site: "@enovietnam",
+    site: X_SITE,
     title: SITE_TITLE,
     description: SITE_TAGLINE,
     images: [OG_IMAGE.url],

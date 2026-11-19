@@ -243,10 +243,11 @@ export default function DevelopersPage() {
             Try the API without an account or real data. A test key needs no sign-up, lasts 24 hours and works only under{' '}
             <code className="font-mono text-foreground">{BASE}/sandbox</code>: sample listings in the live shapes, create and update
             calls that run the live checks and store nothing, and an export that runs as an async job. Every response there
-            carries <code className="font-mono text-foreground">X-Sandbox: true</code>.
+            carries <code className="font-mono text-foreground">X-Sandbox: true</code>. Step by step:{' '}
+            <Link href={DOC_PATHS.sandbox} className="font-semibold text-accent-foreground hover:underline">the sandbox page</Link>.
           </p>
           <div className="mt-3"><Code>{`curl -X POST ${BASE}/sandbox/keys
-# → { "key": "eno_test_…", "expires_at": "…", "sandbox": true }
+# → { "key": "eno_test_…", "type": "test", "expires_at": "…", "base_url": "${BASE}/sandbox", "sandbox": true }
 
 curl "${BASE}/sandbox/listings?q=honda" -H "Authorization: Bearer eno_test_…"
 
