@@ -7,6 +7,7 @@ import { LANGUAGES } from '@/lib/languages'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
 import { VI_PILOT, pinnedPair, stripViPrefix, type ViPilot } from '@/lib/lang-pinned'
 import { isNativeAppClient } from '@/lib/app-review-gates'
+import { clearanceStyle, useConsentClearance } from '@/lib/consent-clearance'
 
 /**
  * ⛔ THE ONE-TAP SUGGESTION ON A `/vi` PILOT PAGE (SEO wave B, V3b — dormant until V5; decision V-a: no
@@ -24,7 +25,7 @@ import { isNativeAppClient } from '@/lib/app-review-gates'
  * ⛔ IT STANDS ABOVE THE FIRST-VISIT CONSENT BAR, NEVER UNDER IT. Both dock at the same bottom offset,
  * and the bar (z-[200]) used to cover this link four seconds in: at 390x844 a tap on it landed on the
  * bar's "No thanks" and stored a refusal (measured 2026-10-03). The bar publishes its height as
- * `--consent-clearance` on <html> (cookie-consent.tsx, CONSENT_CLEARANCE_VAR) and this lifts by it —
+ * `--consent-clearance` (src/lib/consent-clearance.ts, set on this element — never on <html>) and this lifts by it —
  * with `translate`, not `bottom`, so the move is a transform, not a layout shift (CLS across the bar's
  * arrival measured the same before and after), on the 150ms strong ease-out the bar rises on. Unset
  * (no bar, or the bar hidden or closed) it is 0. While Choose expands the bar the banner rides above it.
@@ -77,6 +78,7 @@ function readCookie(name: string): string | null {
 export function LangSuggestionBanner() {
   const { setLang } = useLanguage()
   const [shown, setShown] = useState<ReturnType<typeof bannerFor>>(null)
+  const clearance = useConsentClearance()
 
   useEffect(() => {
     let stored: string | null = null
@@ -102,7 +104,7 @@ export function LangSuggestionBanner() {
     setLang(shown.choice)
   }
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 -translate-y-[var(--consent-clearance,0px)] px-3 transition-[translate] duration-150 ease-out-strong pc:bottom-4 lg:px-4 [html[data-concierge]_&]:hidden">
+    <div style={clearanceStyle(clearance)} className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 -translate-y-[var(--consent-clearance,0px)] px-3 transition-[translate] duration-150 ease-out-strong pc:bottom-4 lg:px-4 [html[data-concierge]_&]:hidden">
       <div lang={shown.target} className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out-strong lg:max-w-md">
         <p className="min-w-0 flex-1 text-sm leading-snug text-foreground">
           {copy.text}{' '}

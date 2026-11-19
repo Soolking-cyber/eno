@@ -13,6 +13,7 @@ import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
 import { subscribeAiConsent } from '@/lib/ai-consent'
 import { CONCIERGE_FRAME_ATTR } from '@/lib/concierge/frame-head'
 import { IS_SERVICES } from '@/lib/edition'
+import { clearanceStyle, useConsentClearance } from '@/lib/consent-clearance'
 import {
   CONCIERGE_ASK_EVENT, CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, conciergeAvailable, dropGuideLink, guideLinkAsked,
   isConciergeHiddenPath, openConcierge, resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, useConciergeAvailable,
@@ -43,6 +44,7 @@ const appCannotHear = () => isNativeAppClient() && !isNativeVoiceClient()
  * the text assistant. Closed by ✕, Escape, an account change, or a page the window never floats over.
  */
 export function ConciergeHost() {
+  const clearance = useConsentClearance() // the consent bar's reach, on this window only (src/lib/consent-clearance.ts)
   const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const userId = user?.id ?? null
   const pathname = usePathname()
@@ -252,6 +254,7 @@ export function ConciergeHost() {
             480 px tall) keeps the old 192 px height, so the ✕ and the capsule stay on screen (commit review). */}
         <DialogPrimitive.Popup
           aria-label={name}
+          style={clearanceStyle(clearance)}
           data-concierge-popup=""
           data-speaking={speaking ? '' : undefined}
           className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab h-64 w-48 [@media(max-height:480px)]:h-48 [@media(max-height:480px)]:-translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-18rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] -translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-22rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] overflow-hidden rounded-2xl border border-border bg-brand-50 shadow-overlay transition-[translate,border-color,box-shadow] duration-150 ease-out-strong dark:bg-brand-deeper pc:bottom-6 pc:right-6 pc:h-80 pc:w-64"

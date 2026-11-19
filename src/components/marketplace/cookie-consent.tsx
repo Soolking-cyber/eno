@@ -15,6 +15,7 @@ import {
 } from '@/lib/consent'
 import { Mascot } from './mascot'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
+import { setConsentClearance } from '@/lib/consent-clearance'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
@@ -36,8 +37,8 @@ const SIGNIN_PATH = '/signin'
  * "Xem bản tiếng Việt" link — elementFromPoint at the link's centre was this bar's "No thanks", and on
  * a local production build a tap aimed at the link RECORDED A REFUSAL nobody chose (the bar is z-[200],
  * the banner z-50; at 1280x800 the click died on the bar's padding instead). The bar now writes its
- * height plus a 0.5rem breath to this variable on <html>
- * while it is on screen, and the banner lifts itself by that much.
+ * height plus a 0.5rem breath to src/lib/consent-clearance.ts while it is on screen, and the banner lifts itself by that much,
+ * setting this variable on ITS OWN element (since 2026-11-19 — on <html> it restyled all 3,584 elements of the home page, 236 ms).
  * ⚠️ IT IS THE BAR'S OWN offsetHeight, read by a ResizeObserver: the question wraps differently in
  * each language and width, and Choose expands the bar in place. A hidden bar (the keyboard is up, or
  * an overlay scrim — see the wrapper) measures 0 and clears it, and so does unmounting.
@@ -253,18 +254,16 @@ export function CookieConsent() {
   const popupMeasureRef = useCallback((el: HTMLDivElement | null) => {
     popupRef.current = el
     if (!el) return
-    const root = document.documentElement.style
     const write = () => {
       const h = el.offsetHeight
-      if (h > 0) root.setProperty(CONSENT_CLEARANCE_VAR, `${h + CLEARANCE_GAP_PX}px`)
-      else root.removeProperty(CONSENT_CLEARANCE_VAR)
+      setConsentClearance(h > 0 ? h + CLEARANCE_GAP_PX : 0)
     }
     write()
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(write) : null
     ro?.observe(el)
     return () => {
       ro?.disconnect()
-      root.removeProperty(CONSENT_CLEARANCE_VAR)
+      setConsentClearance(0)
       popupRef.current = null
     }
   }, [])

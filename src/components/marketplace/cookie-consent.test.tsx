@@ -6,6 +6,7 @@ import { LanguageProvider } from '@/context/language-context'
 import { CookieConsent } from './cookie-consent'
 import { consentAnswered, hasAdConsent, hasAnalyticsConsent, personalizationAllowed, readConsent, setConsent } from '@/lib/consent'
 import { CONSENT_COPY_VERSION } from '@/lib/consent-value'
+import { consentClearance, setConsentClearance } from '@/lib/consent-clearance'
 import { __resetPageAsksForTests, mayAsk, sessionAsk } from '@/lib/page-asks'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -178,8 +179,7 @@ describe('CookieConsent — the question', () => {
     expect(bar()!.textContent).toMatch(/analytics \(Google Analytics\)/)
   })
 
-  it('⛔ --consent-clearance follows the bar: it grows when Choose expands it, clears at 0 (hidden), and clears on an answer', async () => {
-    const root = document.documentElement.style
+  it('⛔ the bar\'s clearance follows the bar: it grows when Choose expands it, clears at 0 (hidden), and clears on an answer', async () => {
     let height = 180
     const h = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height)
     // A ResizeObserver jsdom lacks: each instance keeps its callback, and a disconnected one stops firing.
@@ -193,40 +193,39 @@ describe('CookieConsent — the question', () => {
     const resize = () => act(async () => { for (const o of observers) if (o.live) o.cb() })
     try {
       await openFirstVisitBar()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('188px')
+      expect(consentClearance()).toBe(188)
       fireEvent.click(btn(/^Choose/))
       height = 480
       await resize()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('488px')
+      expect(consentClearance()).toBe(488)
       height = 0 // the wrapper went display:none (keyboard up, or an overlay scrim)
       await resize()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+      expect(consentClearance()).toBe(0)
       height = 480
       await resize()
       await advance(400)
       fireEvent.click(btn(/^Decline all$/))
       await advance(500)
       expect(bar()).toBeNull()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+      expect(consentClearance()).toBe(0)
     } finally {
       h.mockRestore()
-      root.removeProperty('--consent-clearance')
+      setConsentClearance(0)
     }
   })
 
-  it('⛔ the bar publishes its height as --consent-clearance while it is up, and clears it when it goes', async () => {
-    const root = document.documentElement.style
+  it('⛔ the bar publishes its height (consent-clearance.ts, never a variable on <html>) while it is up, and clears it when it goes', async () => {
     const h = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(180)
     try {
       await openFirstVisitBar()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('188px') // the bar plus a 0.5rem breath
+      expect(consentClearance()).toBe(188) // the bar plus a 0.5rem breath
       fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
       await advance(500)
       expect(bar()).toBeNull()
-      expect(root.getPropertyValue('--consent-clearance')).toBe('')
+      expect(consentClearance()).toBe(0)
     } finally {
       h.mockRestore()
-      root.removeProperty('--consent-clearance')
+      setConsentClearance(0)
     }
   })
 
