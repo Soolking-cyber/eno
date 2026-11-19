@@ -123,6 +123,10 @@ describe('/llms.txt on the marketplace', () => {
     h.facts = MEASURED
   })
 
+  it('links the Schema Map: since 2026-11-19 the only place it is advertised (robots.txt dropped its `schemamap:` line for Lighthouse)', async () => {
+    expect(await bodyOf()).toContain('- [Schema Map](https://eno.vn/schemamap.xml) — NLWeb Schema Feeds')
+  })
+
   it('links eno.vn\'s agent-skills repo and its skills.sh page (ora: a repo counts once the site links it)', async () => {
     const body = await bodyOf()
     expect(body).toContain('- [Agent skills](https://github.com/eno-vn/eno-agent-skills)')

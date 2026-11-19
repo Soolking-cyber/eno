@@ -11,7 +11,8 @@ import { listedAt } from '@/lib/stale'
 
 /**
  * NLWEB SCHEMA FEEDS (owner 2026-11-18, ora.ai's 'nlweb-schema-feeds' check) — the spec is the Schema Feeds draft v0.1,
- * github.com/nlweb-ai/website SCHEMA_SPEC.md: robots.txt names a Schema Map (`schemamap:`), the Schema Map is a sitemap-
+ * github.com/nlweb-ai/website SCHEMA_SPEC.md: robots.txt names a Schema Map (`schemamap:`; ⛔ NOT on eno.vn since 2026-11-19 —
+ * Lighthouse fails robots.txt on the unknown line, so /llms.txt links the map instead), the Schema Map is a sitemap-
  * shaped <urlset> whose entries carry `sf:contentType`, and a `structuredData/schema.org` feed is JSON Lines — one schema.org
  * JSON-LD object per line, each with `@context` and `@type`, SHOULD with `url`.
  *

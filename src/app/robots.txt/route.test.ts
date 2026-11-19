@@ -69,8 +69,8 @@ describe('/robots.txt', () => {
       'Sitemap: https://eno.vn/sitemap.xml',
       // The page sitemap, named directly (2026-10-18): a crawler that reads the index need not open it.
       'Sitemap: https://eno.vn/sitemaps/pages.xml',
-      // NLWeb Schema Feeds (owner 2026-11-18, accepting Lighthouse's unknown-directive error): src/lib/schema-feed.ts.
-      'schemamap: https://eno.vn/schemamap.xml',
+      // ⛔ No `schemamap:` line since 2026-11-19 (owner: Lighthouse SEO 100): Lighthouse fails the file on any line it does
+      // not know. The Schema Map is linked from /llms.txt (src/lib/llms-txt.ts).
       '',
     ])
   })
@@ -96,7 +96,7 @@ describe('/robots.txt', () => {
     const body = await bodyOf()
     expect(body).toContain('Sitemap: https://www.eno.forum/sitemap.xml')
     expect(body).toContain('Sitemap: https://www.eno.forum/sitemaps/pages.xml')
-    expect(body).toContain('schemamap: https://www.eno.forum/schemamap.xml')
+    expect(body).not.toMatch(/^schemamap:/im)
     expect(body).not.toContain('https://eno.vn')
   })
 })

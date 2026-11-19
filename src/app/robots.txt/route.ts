@@ -20,7 +20,12 @@ import { SITE_NAME } from '@/lib/edition'
  * ⚠️ EVERYTHING ELSE IS BYTE-FOR-BYTE THE PREVIOUS FILE, deliberately — the Disallow list, the
  * AI-crawler groups and their comments all carry reasoning that was expensive to establish (see
  * the note about /messages and /saved carrying meta-noindex, and the `Allow: /api/v1/status`
- * exception). Only the Sitemap and schemamap lines vary.
+ * exception). Only the Sitemap lines vary.
+ *
+ * ⛔ NO `schemamap:` LINE (owner, 2026-11-19: Lighthouse SEO 100 over ora's 1-point nlweb-schema-feeds check). Lighthouse
+ * fails robots.txt on any line it does not know, and this one took SEO from 100 to 92 (PageSpeed, phone and desktop,
+ * 2026-11-19). The Schema Map stays at /schemamap.xml, linked from /llms.txt. Re-add the line only once Lighthouse knows
+ * the directive, as it learned content-signal in 13.2.
  *
  * ⚠️ TWO SITEMAP LINES SINCE 2026-10-18 (teacher visibility plan): /sitemap.xml (an index then; one flat urlset while the
  * site is small since 2026-11-18, src/app/sitemap.xml/build.ts), and the page sitemap it lists — which holds
@@ -158,8 +163,6 @@ Disallow: /
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
 # The page sitemap is also named directly: /sitemap.xml lists every URL itself while the site is small, and becomes an index of its children once it is not.
 Sitemap: ${SITE_ORIGIN}/sitemaps/pages.xml
-# NLWeb Schema Feeds (owner, 2026-11-18): Lighthouse lists this line as unknown; crawlers that do not know it ignore it.
-schemamap: ${SITE_ORIGIN}/schemamap.xml
 `
 
 export const revalidate = 86400

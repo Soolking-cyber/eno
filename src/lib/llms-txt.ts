@@ -426,6 +426,7 @@ ${DEVELOPER_SECTION}
 ## Data feeds
 
 - [Sitemap](${SITE_ORIGIN}/sitemap.xml) — open, no auth.
+- [Schema Map](${SITE_ORIGIN}/schemamap.xml) — NLWeb Schema Feeds: the structured-data feed of the listings, open, no auth.
 ${DATA_SECTION}
 - Google product feed at ${SITE_ORIGIN}/api/feeds/google-shopping — AUTHENTICATED, returns 401 without credentials. It exists for Merchant Center, not for general agent use; do not treat it as a public data source.
 
@@ -470,6 +471,7 @@ ${DEVELOPER_SECTION}
 ## Data feeds
 
 - [Sitemap](${SITE_ORIGIN}/sitemap.xml)
+- [Schema Map](${SITE_ORIGIN}/schemamap.xml)
 
 ## Notes
 
