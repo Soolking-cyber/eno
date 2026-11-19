@@ -1,5 +1,6 @@
 /**
- * THE HOME PAGE'S "ABOUT eno.vn" BLOCK: five questions answered at length, under the FAQ (owner 2026-11-19, from the AEO checker:
+ * THE HOME PAGE'S QUESTIONS: seven questions answered at length, in ONE accordion with the FAQ merged in (owner 2026-11-19: the FAQ
+ * and the About block 'looks weird' — show less, keep the scores). Originally five questions under the FAQ (owner 2026-11-19, from the AEO checker:
  * "Answer-first opener after H2 headings", "2,000+ word count", "Expert quotes / attribution"; placed at the bottom of the home page,
  * with a founder quote the owner approves).
  *
@@ -13,6 +14,8 @@
  * machine-translated languages. A paragraph is a list of such pieces, drawn as one <p>.
  * eno.vn only: the site the copy names (eno.forum has no home page of its own any more).
  */
+import { POSTING_IS_FREE } from '@/lib/site-identity'
+
 export type AboutText = { en: string; vi: string }
 export type AboutSection = { id: string; q: AboutText; open: AboutText[]; more: AboutText[][] }
 
@@ -25,7 +28,7 @@ export const FOUNDER_QUOTE: { text: AboutText; by: AboutText } = {
   by: { en: 'Shanazar Babakulyyev, Founder of eno.vn', vi: 'Shanazar Babakulyyev, nhà sáng lập eno.vn' },
 }
 
-export const HOME_ABOUT: readonly AboutSection[] = [
+const ALL_SECTIONS: readonly AboutSection[] = [
   {
     id: 'what-is-eno',
     q: { en: 'What is eno.vn?', vi: 'eno.vn là gì?' },
@@ -50,8 +53,8 @@ export const HOME_ABOUT: readonly AboutSection[] = [
     ],
   },
   {
-    id: 'what-eno-costs',
-    q: { en: 'What does it cost to use eno.vn?', vi: 'Dùng eno.vn tốn bao nhiêu?' },
+    id: 'is-eno-free',
+    q: { en: 'Is eno.vn free to use?', vi: 'Dùng eno.vn có mất phí không?' },
     open: [
       { en: 'Browsing, posting and contacting sellers on eno.vn are currently free.', vi: 'Hiện tại, xem tin, đăng tin và liên hệ người bán trên eno.vn đều miễn phí.' },
       {
@@ -61,7 +64,7 @@ export const HOME_ABOUT: readonly AboutSection[] = [
     ],
     more: [
       [
-        { en: 'Signing up is free too, with an email address or a social account, and Vietnamese law requires sellers to verify their identity before publishing.', vi: 'Đăng ký cũng miễn phí, bằng email hoặc tài khoản mạng xã hội, và pháp luật Việt Nam yêu cầu người bán xác minh danh tính trước khi đăng tin.' },
+        { en: 'Signing up is free too, with an email address or a social account. Before you publish, Vietnamese law asks you to verify your identity once.', vi: 'Đăng ký cũng miễn phí, bằng email hoặc tài khoản mạng xã hội. Trước khi đăng tin, pháp luật Việt Nam yêu cầu bạn xác minh danh tính một lần.' },
         {
           en: 'eno’s income comes from businesses: service partners pay for its marketing and lead service, and only when a deal eno sent them closes.',
           vi: 'Thu nhập của eno đến từ doanh nghiệp: đối tác dịch vụ trả phí cho dịch vụ tiếp thị và tìm khách của eno, và chỉ khi giao dịch eno giới thiệu thành công.',
@@ -70,6 +73,36 @@ export const HOME_ABOUT: readonly AboutSection[] = [
           en: 'eno may also earn a commission from some partner shops when someone buys through a link here, which does not change the price you pay. The fees are set out at eno.vn/regulations.',
           vi: 'eno cũng có thể nhận hoa hồng từ một số cửa hàng đối tác khi có người mua qua đường dẫn tại đây, và giá bạn trả không đổi. Mức phí được công bố tại eno.vn/regulations.',
         },
+      ],
+    ],
+  },
+  {
+    id: 'post-a-listing',
+    q: { en: 'How do I post a listing?', vi: 'Làm sao để đăng tin?' },
+    open: [
+      { en: 'Go to eno.vn/post, or tap Post in the bottom bar, add at least three photos, a description, a category, a price and an area, then tap Publish.', vi: 'Vào eno.vn/post hoặc bấm Đăng tin ở thanh dưới cùng, thêm ít nhất ba ảnh, mô tả, danh mục, giá và khu vực, rồi bấm Đăng.' },
+      { en: 'You can fill in the whole form first and sign in when you publish; once your identity is verified, a listing that passes the checks goes live immediately.', vi: 'Bạn có thể điền hết biểu mẫu trước rồi đăng nhập khi đăng; khi danh tính đã được xác minh, tin đăng vượt qua bước kiểm tra sẽ hiển thị ngay.' },
+    ],
+    more: [
+      [
+        { en: 'Take the photos from three different angles, in good light, of the real item: the same picture uploaded twice counts once, and you can add up to six, plus one video of up to 60 seconds.', vi: 'Chụp ảnh từ ba góc khác nhau, đủ sáng, đúng món hàng thật: cùng một ảnh tải lên hai lần chỉ tính một, bạn thêm được tối đa sáu ảnh và một video dài tối đa 60 giây.' },
+        { en: 'Write a description of at least 20 characters, with the age, the condition, what is included and why you are selling, and fill in what the category asks for, such as condition or model.', vi: 'Viết mô tả ít nhất 20 ký tự, gồm tuổi, tình trạng, những gì đi kèm và lý do bán, và điền những mục danh mục yêu cầu, như tình trạng hay mẫu mã.' },
+        { en: 'Leave offers on if you are open to negotiating. Before your first listing goes live you verify your identity, and a listing in a licence-checked category waits for an admin.', vi: 'Bật nhận đề nghị nếu bạn sẵn sàng thương lượng. Trước khi tin đầu tiên được đăng, bạn xác minh danh tính, và tin trong danh mục cần kiểm tra giấy phép sẽ chờ quản trị viên duyệt.' },
+      ],
+    ],
+  },
+  {
+    id: 'contact-a-seller',
+    q: { en: 'How do I contact a seller?', vi: 'Làm sao để liên hệ người bán?' },
+    open: [
+      { en: 'Open the listing and tap the message button: that starts a chat with the seller about that item, and you need to be signed in to send it.', vi: 'Mở tin đăng và bấm nút nhắn tin: thao tác này mở cuộc trò chuyện với người bán về món đó, và bạn cần đăng nhập để gửi tin.' },
+      { en: 'You can ask a question or send an offer as your first message, and the seller replies in the same chat.', vi: 'Bạn có thể hỏi hoặc gửi đề nghị giá ngay trong tin nhắn đầu tiên, và người bán trả lời trong cùng cuộc trò chuyện.' },
+    ],
+    more: [
+      [
+        { en: 'Each chat is one buyer and one seller, about one listing, and only the two of you take part in it. Ask what you need to know: is it still available, can you see it today, is the price fixed.', vi: 'Mỗi cuộc trò chuyện chỉ có một người mua và một người bán, về một tin đăng. Hãy hỏi điều bạn cần biết: món hàng còn không, xem được hôm nay không, giá có cố định không.' },
+        { en: 'The seller’s phone or Zalo is not shown on the listing page. It appears inside your conversation once the seller has replied at least once.', vi: 'Số điện thoại hoặc Zalo của người bán không hiện trên trang tin đăng. Thông tin này hiện trong cuộc trò chuyện khi người bán đã trả lời bạn ít nhất một lần.' },
+        { en: 'This keeps sellers from being spammed and keeps your own number private too.', vi: 'Cách này giúp người bán không bị làm phiền và giữ kín số điện thoại của bạn.' },
       ],
     ],
   },
@@ -116,8 +149,8 @@ export const HOME_ABOUT: readonly AboutSection[] = [
       [
         { en: 'Automated checks run on every post, and anyone can report a listing, a seller or a chat that is not what it claims to be.', vi: 'Mọi tin đăng đều qua kiểm tra tự động, và ai cũng có thể báo cáo tin đăng, người bán hoặc cuộc trò chuyện không đúng như mô tả.' },
         {
-          en: 'Listings posted on eno do not show the seller’s phone number: you message the seller about the listing, and their phone or Zalo appears in the chat once they reply.',
-          vi: 'Tin đăng trên eno không hiện số điện thoại của người bán: bạn nhắn tin về tin đăng, và số điện thoại hoặc Zalo của người bán sẽ hiện trong cuộc trò chuyện khi họ trả lời.',
+          en: 'If a seller pushes you to move to another app before replying on eno, be careful: a deposit sent outside the chat leaves no record anyone can check later.',
+          vi: 'Nếu người bán ép bạn chuyển sang ứng dụng khác trước khi trả lời trên eno, hãy cẩn thận: tiền cọc chuyển ngoài cuộc trò chuyện không để lại dấu vết nào để kiểm tra sau này.',
         },
         { en: 'Meet in a public place, check the item before you pay, and never send a deposit to someone you have not met in person.', vi: 'Hãy gặp ở nơi công cộng, kiểm tra món hàng trước khi trả tiền, và đừng chuyển tiền cọc cho người bạn chưa từng gặp trực tiếp.' },
       ],
@@ -143,11 +176,17 @@ export const HOME_ABOUT: readonly AboutSection[] = [
           en: 'Teachers can create a free profile that schools browse, schools and businesses can post jobs, and students and families can find a tutor among the teacher profiles.',
           vi: 'Giáo viên có thể tạo hồ sơ miễn phí để trường học tìm, trường học và doanh nghiệp có thể đăng tin tuyển dụng, và học sinh, phụ huynh tìm được gia sư trong các hồ sơ giáo viên.',
         },
-        { en: 'Businesses can become official partners, shown with a partner badge. Sellers verify their identity once (again only if the document expires), usually reviewed within a working day.', vi: 'Doanh nghiệp có thể trở thành đối tác chính thức, có huy hiệu đối tác. Người bán xác minh danh tính một lần (làm lại khi giấy tờ hết hạn), thường được duyệt trong một ngày làm việc.' },
+        { en: 'Businesses can become official partners, shown with a partner badge. When you post, your identity check is done once (again only if the document expires), usually reviewed within a working day.', vi: 'Doanh nghiệp có thể trở thành đối tác chính thức, có huy hiệu đối tác. Khi đăng tin, bạn chỉ xác minh danh tính một lần (làm lại khi giấy tờ hết hạn), thường được duyệt trong một ngày làm việc.' },
       ],
     ],
   },
 ]
+
+/**
+ * ⛔ "Is eno.vn free to use?" is drawn only while POSTING_IS_FREE (src/lib/site-identity.ts), as the FAQ's free answer always was:
+ * if the owner turns paid posting on, the page and its FAQPage markup stop saying "currently free" in the same build.
+ */
+export const HOME_ABOUT: readonly AboutSection[] = ALL_SECTIONS.filter((s) => s.id !== 'is-eno-free' || POSTING_IS_FREE)
 
 /** Words in an English text, as the AEO checkers count them. */
 export const wordCount = (s: string) => s.split(/\s+/).filter((w) => /\w/.test(w)).length

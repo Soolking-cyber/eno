@@ -65,7 +65,7 @@ afterEach(cleanup)
 describe('ListingCard — a teacher\'s name, as stored', () => {
   it('the h3, the link name, the h3 title and the photo alt are the stored name — never a translation, never titleVi', () => {
     const c = card({ identityMark: true })
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     expect(h3.textContent).toBe('Nguyễn Thị Minh Khai')
     expect(h3.getAttribute('title')).toBe('Nguyễn Thị Minh Khai')
     expect(c.querySelector('[data-card-link]')!.getAttribute('aria-label')).toBe('Nguyễn Thị Minh Khai')
@@ -81,7 +81,7 @@ describe('ListingCard — a teacher\'s name, as stored', () => {
 
   it('every other card is localized as before (the hook gets its title, titleVi and embed)', () => {
     const c = card({ listingType: 'sell', category: { icon: 'phone', slug: 'electronics' }, title: 'Laptop Dell', titleVi: 'Máy tính Dell', titleI18n: { ko: '델 노트북' } })
-    expect(c.querySelector('h3')!.textContent).toBe('MT(Laptop Dell)')
+    expect(c.querySelector('[role="heading"]')!.textContent).toBe('MT(Laptop Dell)')
     expect(loc.calls.length).toBeGreaterThan(0)
     for (const call of loc.calls) expect(call).toEqual(['Laptop Dell', 'Máy tính Dell', { ko: '델 노트북' }])
   })

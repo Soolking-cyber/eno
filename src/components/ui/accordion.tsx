@@ -37,9 +37,13 @@ function AccordionItem({ className, ...props }: AccordionPrimitive.Item.Props) {
   )
 }
 
-function AccordionTrigger({ className, children, ...props }: AccordionPrimitive.Trigger.Props) {
+/**
+ * `headerRender`: the heading element around the trigger. Base UI renders an h3; a call site whose questions are the page's
+ * own sections passes `<h2 />` (the home page's questions, home-faq.tsx), so the outline stays honest.
+ */
+function AccordionTrigger({ className, children, headerRender, ...props }: AccordionPrimitive.Trigger.Props & { headerRender?: AccordionPrimitive.Header.Props['render'] }) {
   return (
-    <AccordionPrimitive.Header data-slot="accordion-header" className="flex">
+    <AccordionPrimitive.Header data-slot="accordion-header" className="flex" render={headerRender}>
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(

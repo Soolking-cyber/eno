@@ -119,7 +119,7 @@ describe('ListingCard look="goods"', () => {
     const body = shellRow.parentElement!
     expect(phoneRow.parentElement).toBe(body)
     const kids = [...body.children]
-    const h3 = body.querySelector('h3')!
+    const h3 = body.querySelector('[role="heading"]')!
     const meta = body.querySelector('div.text-t-meta')!
     // The shell's row leads (from sm), the title and the info line follow, the phone's row closes the block.
     expect(kids.indexOf(shellRow)).toBeLessThan(kids.indexOf(h3))
@@ -138,7 +138,7 @@ describe('ListingCard look="goods"', () => {
     const body = phoneRow.parentElement!
     expect(classes(body)).toEqual(expect.arrayContaining(['pt-2.5', 'gap-0.5', 'max-sm:gap-0']))
     expect(classes(body)).not.toContain('max-sm:pt-2')
-    expect(classes(body.querySelector('h3'))).toEqual(expect.arrayContaining(['text-t-card', 'font-normal', 'text-ink-3', 'max-sm:text-foreground', 'truncate']))
+    expect(classes(body.querySelector('[role="heading"]'))).toEqual(expect.arrayContaining(['text-t-card', 'font-normal', 'text-ink-3', 'max-sm:text-foreground', 'truncate']))
     expect(classes(body.querySelector('div.text-t-meta'))).toEqual(expect.arrayContaining(['mt-auto', 'max-sm:mt-0', 'pt-0.5']))
     expect(classes(phoneRow)).toEqual(expect.arrayContaining(['flex', 'flex-wrap', 'items-baseline', 'mt-auto', 'min-h-8.5', 'pt-1.5']))
     // The sale price keeps r06's heading cut, in both rows.

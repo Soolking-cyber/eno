@@ -134,7 +134,7 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
       // Each shelf card's link and full title (the h3's `title` — the line itself may be shortened, card-title.ts).
       const read = (root: ParentNode) => [...root.querySelectorAll('[data-teacher-shelf] [data-card-root]')].map((card) => [
         card.querySelector('a[data-card-link]')?.getAttribute('href') ?? '',
-        card.querySelector('h3')?.getAttribute('title') ?? '',
+        card.querySelector('[role="heading"]')?.getAttribute('title') ?? '',
       ])
       return [read(new DOMParser().parseFromString(html, 'text/html')), read(document)]
     }, serverHtml)

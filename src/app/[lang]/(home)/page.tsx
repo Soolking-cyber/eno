@@ -17,7 +17,6 @@ import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { homeMetadata, homeWebPageJsonLd } from './home-metadata'
 import { HomeFaq } from '@/components/marketplace/home-faq'
-import { HomeAbout } from '@/components/marketplace/home-about'
 import { jsonLdText } from '@/lib/home-item-lists'
 import { slimHomeRails } from '@/lib/home-lanes'
 
@@ -210,10 +209,8 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       siteHeading={false}
       homeItemLists
     />
-    {/* Questions and answers, drawn and as FAQPage JSON-LD (home-faq.tsx); after the feed, so products stay first. */}
+    {/* Seven questions in one accordion, drawn and as FAQPage JSON-LD (home-faq.tsx); after the feed, so products stay first. */}
     <HomeFaq lang={lang} />
-    {/* "About eno.vn": five questions answered at length, after the FAQ (home-about.tsx; owner 2026-11-19, AEO). */}
-    <HomeAbout />
     </>
   )
 }

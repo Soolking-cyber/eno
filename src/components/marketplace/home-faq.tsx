@@ -1,29 +1,61 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
-import { HOME_FAQ, HOME_FAQ_HEADING, homeFaqJsonLd } from '@/lib/home-faq'
+import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
+import { FOUNDER_QUOTE, HOME_ABOUT, type AboutText } from '@/lib/home-about'
+import { HOME_FAQ_HEADING, homeFaqJsonLd } from '@/lib/home-faq'
 import { jsonLdText } from '@/lib/home-item-lists'
-import { SITE_NAME } from '@/lib/edition'
 
 /**
- * The home page's questions and answers, at the end of the page (src/lib/home-faq.ts has the rules), with the FAQPage
- * JSON-LD built from the same pairs. A plain <dl>: every answer is open, nothing to tap, nothing hidden from a reader or
- * a crawler — so no disclosure widget, and so no Base UI primitive to reach for.
+ * The home page's questions, at the end of the page: ONE accordion of seven (owner 2026-11-19, "show less without losing
+ * scores"; src/lib/home-faq.ts and home-about.ts have the rules), with the FAQPage JSON-LD built from the same answers.
+ * Closed, the block is seven question rows. Each question is an H2 (Base UI renders the header; `headerRender` makes it an h2,
+ * not the primitive's h3) and opens on its direct answer. ui/accordion is `hiddenUntilFound`, so every closed answer stays in
+ * the SSR HTML: crawlers, answer engines and find-in-page read all of it, and the browser opens the one that holds a match.
  */
+const Para = ({ parts, className }: { parts: readonly AboutText[]; className: string }) => (
+  <p className={className}>
+    {parts.map((t, i) => (
+      <span key={t.en}>
+        {i > 0 ? ' ' : null}
+        <Bilingual en={t.en} vi={t.vi} />
+      </span>
+    ))}
+  </p>
+)
+
 export function HomeFaq({ lang }: { lang: string }) {
-  const site = { site: SITE_NAME }
   return (
     <section aria-labelledby="home-faq" className="mt-10 border-t border-border pb-8 pt-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeFaqJsonLd(lang)) }} />
-      <h2 id="home-faq" className="text-base font-bold text-foreground">
-        <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} values={site} />
-      </h2>
-      <dl className="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2">
-        {HOME_FAQ.map((p) => (
-          <div key={p.q.en}>
-            <dt className="text-sm font-bold text-foreground"><Bilingual en={p.q.en} vi={p.q.vi} values={site} /></dt>
-            <dd className="mt-1 text-sm leading-relaxed text-body"><Bilingual en={p.a.en} vi={p.a.vi} values={site} /></dd>
-          </div>
+      <p id="home-faq" className="text-base font-bold text-foreground">
+        <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
+      </p>
+      <Accordion multiple className="mt-2 max-w-3xl">
+        {HOME_ABOUT.map((s, i) => (
+          <AccordionItem key={s.id} value={s.id}>
+            <AccordionTrigger headerRender={<h2 id={`about-${s.id}`} />} className="py-3 text-sm">
+              <Bilingual en={s.q.en} vi={s.q.vi} />
+            </AccordionTrigger>
+            <AccordionPanel>
+              <div className="pb-4">
+                <Para parts={s.open} className="text-sm leading-relaxed text-foreground" />
+                {s.more.map((p) => (
+                  <Para key={p[0].en} parts={p} className="mt-2 text-sm leading-relaxed text-body" />
+                ))}
+                {i === 0 ? (
+                  <blockquote className="mt-3">
+                    <p className="text-sm italic leading-relaxed text-body">
+                      “<Bilingual en={FOUNDER_QUOTE.text.en} vi={FOUNDER_QUOTE.text.vi} />”
+                    </p>
+                    <footer className="mt-1 text-t-meta text-muted-foreground">
+                      <Bilingual en={FOUNDER_QUOTE.by.en} vi={FOUNDER_QUOTE.by.vi} />
+                    </footer>
+                  </blockquote>
+                ) : null}
+              </div>
+            </AccordionPanel>
+          </AccordionItem>
         ))}
-      </dl>
+      </Accordion>
     </section>
   )
 }

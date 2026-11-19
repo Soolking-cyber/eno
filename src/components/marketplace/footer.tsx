@@ -617,7 +617,8 @@ function FooterBody({ compact }: { compact: boolean }) {
               !important. So the panel's `display` override lives in @layer base with !important. It is
               measured with the JS chunks blocked: desktop is unchanged, pixel for pixel, with no shift
               at hydration.
-              Each group keeps its static <h3> for sm+; on a phone the accordion's own header is the h3
+              Each group keeps its static level-3 heading for sm+ (role="heading" aria-level=3 since 2026-11-19: the HTML held each
+              title twice as <h3>, the hidden copy an empty section to answer engines); on a phone the accordion's own header is the h3
               (Base UI renders one), so the outline stays h2 → h3 at every width.
               ⚠️ The phone hairlines are the ITEM's own `border-b` (the primitive's, last one dropped),
               not `divide-y` on the root: the item's `sm:border-b-0` would otherwise have to be a bare
@@ -645,7 +646,7 @@ function FooterBody({ compact }: { compact: boolean }) {
                   and five sibling h2s with nothing above them is what made the outline flat. The
                   class string is untouched precisely so this stays a semantics-only change.
                   (`hidden … sm:block`: below sm the accordion header right after it is the heading.) */}
-              <h3 className="hidden text-sm font-bold text-foreground sm:block">{tr('Explore', 'Khám phá')}</h3>
+              <p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{tr('Explore', 'Khám phá')}</p>
               <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{tr('Explore', 'Khám phá')}</AccordionTrigger>
               {/* `text-base leading-normal` restores the 16/24 the list inherited from <body> before it
                   sat in a panel (the primitive's text-sm/leading-relaxed would grow every desktop row). */}
@@ -675,7 +676,7 @@ function FooterBody({ compact }: { compact: boolean }) {
               <AccordionItem key={col.title} value={col.title} className={`border-border/60 sm:space-y-3 sm:border-b-0${col.wide ? ' lg:col-span-2' : ''}`}>
                 {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
                     heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
-                <h3 className="hidden text-sm font-bold text-foreground sm:block">{col.title}</h3>
+                <p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{col.title}</p>
                 <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{col.title}</AccordionTrigger>
                 <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
                   <ul className={col.wide ? 'sm:space-y-2 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-2 lg:space-y-0' : 'sm:space-y-2'}>

@@ -122,7 +122,8 @@ describe('ListingCard wide — the text block', () => {
       expect(kids).toHaveLength(3)
       expect(kids[0].querySelector('[data-price]')).not.toBeNull()
       expect(tokens(kids[0])).toEqual(expect.arrayContaining(WIDE_PRICE_ROW.split(' ')))
-      expect(kids[1].tagName).toBe('H3')
+      expect(kids[1].getAttribute('role')).toBe('heading') // the title: a level-3 heading for assistive tech, not an <h3> tag (2026-11-19)
+      expect(kids[1].getAttribute('aria-level')).toBe('3')
       expect(kids[2]).toBe(b.lastElementChild)
       expect(b.querySelector('[data-trust-slot]')).toBeNull()
       expect(b.querySelector('[data-rental-check-toggle]')).toBeNull()
@@ -193,7 +194,7 @@ describe('ListingCard wide — the text block', () => {
 
   it('the title: the body role in ink; the info line 14/20 with the freshness shown', () => {
     const c = card()
-    expect(tokens(c.querySelector('h3'))).toEqual(expect.arrayContaining(WIDE_TITLE.split(' ')))
+    expect(tokens(c.querySelector('[role="heading"]'))).toEqual(expect.arrayContaining(WIDE_TITLE.split(' ')))
     const meta = body(c).lastElementChild!
     expect(tokens(meta)).toEqual(expect.arrayContaining(WIDE_META.split(' ')))
     const time = meta.querySelector('[data-posted-ago]')!.parentElement!

@@ -115,7 +115,7 @@ const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(
 const parts = (c: HTMLElement) => {
   const body = c.querySelector('[data-rail-media]')!.nextElementSibling as HTMLElement
   const priceRow = body.querySelector(':scope > span.flex-wrap') as HTMLElement
-  return { body, priceRow, price: priceRow.querySelector('.tabular-nums') as HTMLElement, h3: c.querySelector('h3')!, link: c.querySelector('[data-card-link]')! }
+  return { body, priceRow, price: priceRow.querySelector('.tabular-nums') as HTMLElement, h3: c.querySelector('[role="heading"]')!, link: c.querySelector('[data-card-link]')! }
 }
 const precedes = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 

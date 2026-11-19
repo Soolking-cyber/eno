@@ -99,7 +99,7 @@ afterEach(() => { cleanup(); lang.current = 'vi'; push.mockClear(); localized.mo
 describe('ListingCard — the one-line title', () => {
   it('prints the shortened importer title, names the link with it, and keeps the full one elsewhere', () => {
     const c = card()
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     expect(h3.textContent).toBe('Căn hộ 2PN 76m² — P. An Khánh mới, Quận 2')
     expect(h3.getAttribute('title')).toBe(BASE.titleVi)
     // Label in Name (WCAG 2.5.3): the accessible name is exactly the visible line…
@@ -122,12 +122,12 @@ describe('ListingCard — the one-line title', () => {
 
   it("never shortens a member's own rental title", () => {
     const c = card({ sellerId: 'cm-member-seller', titleVi: 'Cho thuê xe máy giá rẻ', seller: { trustScore: 80, isBusiness: false, officialPartner: false } })
-    expect(c.querySelector('h3')!.textContent).toBe('Cho thuê xe máy giá rẻ')
+    expect(c.querySelector('[role="heading"]')!.textContent).toBe('Cho thuê xe máy giá rẻ')
   })
 
   it('an English reader sees the stored English title unchanged', () => {
     lang.current = 'en'
-    expect(card().querySelector('h3')!.textContent).toBe(BASE.title)
+    expect(card().querySelector('[role="heading"]')!.textContent).toBe(BASE.title)
   })
 })
 
@@ -135,15 +135,15 @@ describe('ListingCard — goods bracket tags', () => {
   const goods = { category: { icon: 'phone', slug: 'electronics' }, listingType: 'sell', priceUnit: 'VND', sellerId: 'cm-member-seller', condition: 'used', location: 'Hồ Chí Minh', seller: { trustScore: 80, isBusiness: false, officialPartner: false } }
 
   it("drops a tag the info line already prints (the card's condition and location reach card-title.ts)", () => {
-    const h3 = card({ ...goods, titleVi: '[Used] Dell XPS 13 9310' }).querySelector('h3')!
+    const h3 = card({ ...goods, titleVi: '[Used] Dell XPS 13 9310' }).querySelector('[role="heading"]')!
     expect(h3.textContent).toBe('Dell XPS 13 9310')
     expect(h3.getAttribute('title')).toBe('[Used] Dell XPS 13 9310')
   })
 
   it('keeps a tag that says something the info line does not', () => {
-    expect(card({ ...goods, titleVi: '[Cần mua] Laptop Dell cũ' }).querySelector('h3')!.textContent).toBe('[Cần mua] Laptop Dell cũ')
+    expect(card({ ...goods, titleVi: '[Cần mua] Laptop Dell cũ' }).querySelector('[role="heading"]')!.textContent).toBe('[Cần mua] Laptop Dell cũ')
     cleanup()
-    expect(card({ ...goods, condition: null, titleVi: '[Like New] Dell XPS 13 9310' }).querySelector('h3')!.textContent).toBe('[Like New] Dell XPS 13 9310')
+    expect(card({ ...goods, condition: null, titleVi: '[Like New] Dell XPS 13 9310' }).querySelector('[role="heading"]')!.textContent).toBe('[Like New] Dell XPS 13 9310')
   })
 })
 
@@ -220,7 +220,7 @@ describe('ListingCard — the price row', () => {
       title: 'Associate Lecturer, Psychology — RMIT University Vietnam', jobEmployer: 'RMIT University Vietnam', jobType: 'fulltime' }
     const c = card(job)
     expect(c.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('RMIT University Vietnam')
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     expect(h3.textContent).toContain('Associate Lecturer, Psychology')
     expect(h3.textContent).not.toContain('— RMIT')
     // The full title still names the card for a screen reader and the tooltip.

@@ -121,8 +121,8 @@ describe('ListingCard — the photo tile', () => {
     expect(classes(body)).toEqual(expect.arrayContaining(['px-2', 'sm:px-0.5', 'pt-2.5']))
     expect(classes(body)).not.toContain('px-0.5')
     expect(classes(body)).not.toContain('pt-2')
-    expect(classes(c.querySelector('h3'))).toEqual(expect.arrayContaining(['font-normal', 'text-t-card', 'text-ink-3']))
-    expect(classes(c.querySelector('h3'))).not.toContain('text-sm')
+    expect(classes(c.querySelector('[role="heading"]'))).toEqual(expect.arrayContaining(['font-normal', 'text-t-card', 'text-ink-3']))
+    expect(classes(c.querySelector('[role="heading"]'))).not.toContain('text-sm')
   })
 
   it("asks for the grid's derived photo sizes by default", () => {

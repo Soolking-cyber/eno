@@ -93,7 +93,7 @@ describe('ListingCard — a MARKED teacher card', () => {
     const c = card({ identityMark: true })
     const marks = c.querySelectorAll('[data-identity-mark]')
     expect(marks).toHaveLength(1)
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     expect(h3.nextElementSibling).toBe(marks[0])
     expect(marks[0].getAttribute('role')).toBe('img')
     expect(marks[0].getAttribute('aria-label')).toBe('Identity verified')
@@ -103,7 +103,7 @@ describe('ListingCard — a MARKED teacher card', () => {
 
   it('the h3 is the name, exactly the link\'s accessible name — and the link describes itself with the tick', () => {
     const c = card({ identityMark: true })
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     const link = c.querySelector('[data-card-link]')!
     expect(h3.textContent).toBe('Anna Eriksson')
     expect(link.getAttribute('aria-label')).toBe(h3.textContent)
@@ -115,7 +115,7 @@ describe('ListingCard — a MARKED teacher card', () => {
 
   it('the name truncates before the tick: the h3 gains min-w-0 in a flex row, and the line keeps one row', () => {
     const c = card({ identityMark: true })
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"]')!
     expect(h3.className).toBe(`${TEACHER_TITLE_CLASS} min-w-0`)
     expect(h3.parentElement!.className).toBe('flex min-w-0 items-center gap-1')
   })
@@ -138,7 +138,7 @@ describe('ListingCard — ⛔ every UNMARKED card renders as before', () => {
     for (const patch of [{}, { identityMark: undefined }]) {
       const c = card(patch)
       expect(c.querySelectorAll('[data-identity-mark]')).toHaveLength(0)
-      const h3 = c.querySelector('h3')!
+      const h3 = c.querySelector('[role="heading"]')!
       expect(h3.className).toBe(TEACHER_TITLE_CLASS)
       // The body column, not a row made for the tick.
       expect(h3.parentElement!.className).toContain('flex-col')
@@ -154,7 +154,7 @@ describe('ListingCard — ⛔ every UNMARKED card renders as before', () => {
     ]) {
       const c = card(patch)
       expect(c.querySelectorAll('[data-identity-mark]')).toHaveLength(0)
-      expect(c.querySelector('h3')!.className).toBe(TITLE_CLASS)
+      expect(c.querySelector('[role="heading"]')!.className).toBe(TITLE_CLASS)
       expect(c.querySelector('[data-card-link]')!.hasAttribute('aria-describedby')).toBe(false)
       cleanup()
     }

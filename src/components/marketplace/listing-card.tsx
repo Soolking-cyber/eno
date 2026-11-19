@@ -583,16 +583,19 @@ function ListingCardImpl({
     <>
       {identityMarked ? (
         <div className="flex min-w-0 items-center gap-1">
-          <h3 title={displayTitle} className={cn(titleLine, 'min-w-0')}>
+          <p role="heading" aria-level={3} title={displayTitle} className={cn(titleLine, 'min-w-0')}>
             {lineTitle}
-          </h3>
+          </p>
           {/* 16px on the card (owner-approved 2026-11-14, cook r04 teachers), inside the name's 24px line. */}
           <IdentityVerifiedMark id={identityMarkId} glyphClassName="size-4" />
         </div>
       ) : (
-        <h3 title={displayTitle} className={titleLine}>
+        // ⚠️ role="heading" aria-level={3}, NOT an <h3> tag (owner 2026-11-19, AEO "avg section length"): screen readers still
+        // list every card title as a level-3 heading, but answer engines split a page into passages at heading TAGS, so a feed of
+        // <h3> cards read as forty 15-word "sections". Same element styles (preflight resets both), same pixels.
+        <p role="heading" aria-level={3} title={displayTitle} className={titleLine}>
           {lineTitle}
-        </h3>
+        </p>
       )}
       {/* `hidden`, not sr-only: aria-describedby still reads a hidden element's text, and hidden keeps it out of the
           browse-mode reading flow (sr-only would read the title a second time after the h3). Right after the h3 block on

@@ -155,7 +155,7 @@ describe('Footer links', () => {
     const { FOOTER_HIDDEN_CATEGORIES } = await import('./footer')
     for (const edition of EDITIONS) {
       const { container } = await renderFooter(edition, 'en')
-      const heading = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'Explore')
+      const heading = [...container.querySelectorAll('[role="heading"][aria-level="3"]')].find((h) => h.textContent === 'Explore')
       const links = [...(heading?.parentElement?.querySelectorAll('ul a') ?? [])].map((a) => [a.getAttribute('href'), a.textContent])
       // ⛔ eno.forum links eno.vn's /c/teachers directly — the forum 308s its own there (src/lib/teachers/surface.ts).
       const teachers = edition === 'services' ? 'https://eno.vn/c/teachers' : '/c/teachers'
@@ -245,7 +245,7 @@ describe('Footer links', () => {
     const panels = container.querySelectorAll('#app-footer [data-slot=accordion-panel]')
     expect(headers.length).toBe(5) // Explore + the four columns (Community is empty on both editions)
     expect(panels.length).toBe(5)
-    // Each group keeps a static h3 for sm+, and the accordion header is itself an h3.
+    // Each group keeps a static level-3 heading for sm+ (role=heading, not an <h3> tag), and the accordion header is itself an h3.
     expect([...headers].every((h) => h.tagName === 'H3')).toBe(true)
     for (const href of ['/c/rentals', '/help', '/about', '/post', '/hcmc-rent-index']) expect(hrefs).toContain(href)
     for (const p of panels) expect(p.querySelectorAll('a').length, p.textContent ?? '').toBeGreaterThan(0)
