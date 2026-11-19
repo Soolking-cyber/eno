@@ -146,6 +146,8 @@ export const VI_TWIN_FAMILIES: readonly RegExp[] = [
   /^\/schools$/,
   new RegExp(`^/schools/(?!suggest$)${SEG}$`),
   /^\/schools\/awards\/\d{4}$/,
+  // The HCMC rent index (owner, 2026-11-19): its Vietnamese render is complete, and Vietnamese press pitches link it.
+  /^\/hcmc-rent-index$/,
 ]
 
 /** Families that were live and are withdrawn (rollback V-R): their `/vi…` answers a 308 to the plain path. */

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { langAlternatesFor } from '@/lib/lang-alternates'
 import { LocalizedDate } from '@/components/marketplace/localized-date'
 import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
@@ -49,7 +50,7 @@ const TITLE = `HCMC Rent Index · Giá thuê nhà TP.HCM theo quận | ${SITE_NA
 const DESCRIPTION =
   'Median rent by district in Ho Chi Minh City, updated daily, free to cite. Giá thuê nhà trung vị theo quận tại TP.HCM, cập nhật mỗi ngày.'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
@@ -58,6 +59,13 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: PATH,
   }),
+}
+
+/** The canonical follows the variant (src/lib/lang-alternates.ts): the Vietnamese render says `/vi/hcmc-rent-index`, with reciprocal hreflang. */
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  const twin = langAlternatesFor(PATH, lang, METADATA.robots)
+  return twin ? { ...METADATA, alternates: twin } : METADATA
 }
 
 function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[] {

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { localizedHref } from '@/lib/lang-pinned'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { ArrowRight } from '@/components/ui/icons'
@@ -268,7 +269,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
                       the smallest linked row held 44 homes, on a page of at least 161 places (hoc-mon,
                       2026-09-29). */}
                   {isIndexableCount(d.total) ? (
-                    <Link href={`/c/rentals/${d.slug}`} className="text-accent-foreground hover:underline">
+                    <Link href={localizedHref(`/c/rentals/${d.slug}`, lang)} className="text-accent-foreground hover:underline">
                       {lang === 'vi' ? d.name : d.nameEn}
                     </Link>
                   ) : (
@@ -286,7 +287,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
         <a href="/hcmc-rent-index.csv" download className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline">
           <Tr text="Download the data (CSV)" /> <ArrowRight className="h-4 w-4" />
         </a>
-        <Link href="/c/rentals" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline">
+        <Link href={localizedHref('/c/rentals', lang)} className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline">
           <Tr text="Browse every rental listing" /> <ArrowRight className="h-4 w-4" />
         </Link>
       </div>

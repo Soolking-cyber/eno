@@ -77,7 +77,7 @@ export type RentIndexMode = 'require' | 'optional'
  * `/vi/c/rentals/` covers their Vietnamese twins (phase 1, 2026-11-19: each submitted district page is a plain + `/vi`
  * pair, `langUrlEntries`) — left out unfrozen, an unknown snapshot would read to IndexNow as their removal.
  */
-export const RENT_FROZEN_PATHS: readonly string[] = ['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index']
+export const RENT_FROZEN_PATHS: readonly string[] = ['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index', '/vi/hcmc-rent-index']
 // ⚠️ STATIC PAGES CARRY NO <lastmod> AT ALL, AND THAT IS THE FIX, NOT AN OMISSION.
 //
 // This used to be `const STATIC_LASTMOD = new Date()` with a comment claiming it was "stable …
@@ -523,7 +523,7 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    */
   // Known here unless frozen (`'optional'` mode) or eno.forum (never read): the throw above covers the route.
   if (rentIndex?.known) {
-    urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${lm(rentIndex.index.computedAt)}</url>\n`)
+    urls.push(...langUrlEntries(hostUrl, '/hcmc-rent-index', lm(rentIndex.index.computedAt)))
   }
   /**
    * THE HCMC TEACHER COST & PAY INDEX (D1, src/lib/teacher-cost-index.ts) — our own analysis, like the Rent Index above,

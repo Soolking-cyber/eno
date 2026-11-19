@@ -994,7 +994,7 @@ describe('the pages builder and the IndexNow collector', () => {
     expect(opt.frozen).toEqual([...RENT_FROZEN_PATHS])
     h.rent = snap()
     const req = (await buildPagesSitemap({ rentIndex: 'require' })).xml
-    expect(locs(opt.xml)).toEqual(locs(req).filter((u) => u !== `${HOST}/hcmc-rent-index`))
+    expect(locs(opt.xml)).toEqual(locs(req).filter((u) => u !== `${HOST}/hcmc-rent-index` && u !== `${HOST}/vi/hcmc-rent-index`))
     expect(locs(req)).toContain(`${HOST}/hcmc-rent-index`)
   })
 
@@ -1148,9 +1148,9 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     h.rent = { known: false }
     const opt = await buildPagesSitemap({ rentIndex: 'optional' })
     // The `/vi` twins of the district pages freeze with them (phase 1, 2026-11-19).
-    expect(opt.frozen).toEqual(['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index'])
+    expect(opt.frozen).toEqual(['/c/rentals/', '/vi/c/rentals/', '/hcmc-rent-index', '/vi/hcmc-rent-index'])
     expect(opt.xml).not.toContain('<lastmod>' + SNAP_AT)
-    expect(locs(opt.xml)).toEqual(known.filter((u) => u !== `${HOST}/hcmc-rent-index` && !u.startsWith(`${HOST}/c/rentals/`) && !u.startsWith(`${HOST}/vi/c/rentals/`)))
+    expect(locs(opt.xml)).toEqual(known.filter((u) => u !== `${HOST}/hcmc-rent-index` && u !== `${HOST}/vi/hcmc-rent-index` && !u.startsWith(`${HOST}/c/rentals/`) && !u.startsWith(`${HOST}/vi/c/rentals/`)))
   })
 
   it('a database error inside the builder makes every sitemap route reject — never a cached 500', async () => {
@@ -1468,8 +1468,8 @@ describe('the /vi twins in the sitemaps (phase 1, 2026-11-19)', () => {
     for (const e of all.filter((x) => isVi(x.loc))) expect(e.links.en && all.some((x) => x.loc === e.links.en), e.loc).toBe(true)
     const vis = all.filter((e) => isVi(e.loc)).map((e) => path(e.loc))
     expect(vis).not.toContain('/vi') // pilot V-c: the home page's twin is not submitted
-    for (const p of vis) expect(p, p).toMatch(/^\/vi\/(c|help|schools)(\/|$)/)
-    expect(vis.some((p) => /^\/vi\/(listings|sellers|teachers|about|developers|hcmc-rent-index|guide)(\/|$)/.test(p))).toBe(false)
+    for (const p of vis) expect(p, p).toMatch(/^\/vi\/(c|help|schools|hcmc-rent-index)(\/|$)/)
+    expect(vis.some((p) => /^\/vi\/(listings|sellers|teachers|about|developers|guide)(\/|$)/.test(p))).toBe(false)
     expect(all.find((e) => e.loc === `${HOST}/teachers/cover`)?.links).toEqual({})
     expect(all.find((e) => e.loc === `${HOST}/about`)?.links).toEqual({})
     expect(all.find((e) => e.loc === `${HOST}/old_shop`)?.links).toEqual({})

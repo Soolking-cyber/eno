@@ -295,7 +295,7 @@ describe('the phase-1 families', () => {
     walk('src/app/[lang]', [])
     return out
   })()
-  const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]']
+  const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]', 'hcmc-rent-index']
 
   it('⛔ against the real route tree: exactly the family routes (and the home pilot) have a twin', () => {
     expect(routes.length).toBeGreaterThan(50)
