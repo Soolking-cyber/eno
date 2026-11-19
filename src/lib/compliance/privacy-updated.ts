@@ -240,8 +240,13 @@
  * version — and a consent purpose. Live with the deploy: a new opt-in, off until switched on (job messages' precedent,
  * above). ⛔ THE PLANNED DAY, like the rest: re-date it to the day the deploy that carries it runs, then retake the
  * fingerprint — the amendment gate passes an unchanged date as routine, so a forgotten re-date is NOT caught.
+ * And 2026-11-19, the layout-shift attribution (owner, 2026-11-19: "shift fix yes" — desktop home CLS p75 1.0 that no probe
+ * reproduced; src/lib/rum/vitals.ts, shared.ts RUM_CLS_*): "Page speed measurements" names, beside how far the page shifted,
+ * which part of it moved most (a landmark and an element kind, closed labels) and whether before or after a move to another
+ * page of the site. Still anonymous daily totals, no new recipient. Live with the deploy (the paragraph's own rule, item 5).
+ * ⛔ THE PLANNED DAY: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-19'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -250,4 +255,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-17'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '351c2ee0df6324d5'
+export const PRIVACY_TEXT_FINGERPRINT = '42b9e94a87eccdee'

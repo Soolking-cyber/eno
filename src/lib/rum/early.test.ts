@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * written to the device.
  */
 
-const h = vi.hoisted(() => ({ setters: null as null | { cls: (v: number) => void; inp: (v: number) => void } }))
+const h = vi.hoisted(() => ({ setters: null as null | { cls: (v: number, source?: { where: string; what: string; at: number | null }) => void; inp: (v: number) => void } }))
 vi.mock('./vitals', () => ({ watchVitals: (s: typeof h.setters) => { h.setters = s } }))
 
 let sent: unknown[] = []
@@ -209,6 +209,35 @@ describe('later hides and soft navigations', () => {
     expect(lastBeacon().ua).toBeGreaterThanOrEqual(0)
     show(); hide(); await settle()
     expect(sent).toHaveLength(2) // nothing new: nothing sent
+  })
+
+  it('CLS carries which part of the page moved most, and the part moves with its value — "after-nav" once the visitor has moved on', async () => {
+    const mod = await boot()
+    await vi.advanceTimersByTimeAsync(3_500)
+    h.setters!.cls(0.3, { where: 'main', what: 'img', at: 1_000 })
+    hide(); await settle()
+    expect(lastBeacon().m).toMatchObject({ cls: 0.3 })
+    expect(lastBeacon().ck).toBe('main.img.landing')
+    show()
+    mod.rumNavStart('/c/rentals', 'push')
+    // A later, bigger shift after the move to another page: performance.now() is past the nav start.
+    h.setters!.cls(1.2, { where: 'header', what: 'block', at: performance.now() + 10 })
+    hide(); await settle()
+    expect(lastBeacon().u).toMatchObject({ cls: [0.3, 1.2], ck: ['main.img.landing', 'header.block.after-nav'] })
+  })
+
+  it('a back/forward move also starts "after-nav"; no attribution means no part', async () => {
+    const mod = await boot()
+    await vi.advanceTimersByTimeAsync(3_500)
+    mod.rumNavStart('/', 'traverse')
+    h.setters!.cls(0.5, { where: 'other', what: 'text', at: performance.now() + 5 })
+    hide(); await settle()
+    expect(lastBeacon().ck).toBe('other.text.after-nav')
+    show()
+    h.setters!.cls(0.9)
+    hide(); await settle()
+    // The value moved, the part (kept from before) moves with it.
+    expect(lastBeacon().u).toMatchObject({ cls: [0.5, 0.9], ck: ['other.text.after-nav', 'other.text.after-nav'] })
   })
 
   it('a soft navigation is timed to the first frame that shows the new address, by its TARGET kind', async () => {

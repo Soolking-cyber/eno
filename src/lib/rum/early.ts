@@ -1,6 +1,6 @@
 import { browserContext, deviceClass } from '@/lib/in-app-browser'
 import type { NavigationType } from '@/lib/nav-progress'
-import { RUM_ENDPOINT, RUM_MAX_NAVS, RUM_SAMPLE, RUM_VERSION, routeGroupOf, type RumBeacon, type RumLcpKind, type RumRoute } from './shared'
+import { RUM_ENDPOINT, RUM_MAX_NAVS, RUM_SAMPLE, RUM_VERSION, routeGroupOf, type RumBeacon, type RumClsPart, type RumLcpKind, type RumRoute } from './shared'
 
 // ── Page-speed totals: the browser half that runs on EVERY page (speed plan item 5, 2026-10-16) ──────────
 //
@@ -28,9 +28,13 @@ type State = {
   /** the page had enough links to judge "usable" by */
   hydJudged: boolean
   cls: number | null
+  /** which part of the page moved most, for the current cls (shared.ts RumClsPart) */
+  clsPart: RumClsPart | null
+  /** page time of the first move to another page of the site (soft or back/forward), null before one */
+  firstNavAt: number | null
   inp: number | null
   /** what the first beacon carried (and when, in page time), for the moves a later one may make */
-  sent: null | { cls: number | null; inp: number | null; at: number }
+  sent: null | { cls: number | null; ck: RumClsPart | null; inp: number | null; at: number }
   navs: [RumRoute, number][]
   navSeq: number
 }
@@ -170,6 +174,7 @@ function flush(): void {
       const b: RumBeacon = { v: RUM_VERSION, r: route, c: s.ctx, m }
       if (s.hyd === null && s.hydJudged) b.hx = round(performance.now())
       if (m.lcp !== undefined && s.lcpKind) b.lk = s.lcpKind
+      if (m.cls !== undefined && s.clsPart) b.ck = s.clsPart
       const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory
       if (typeof dm === 'number') b.dm = dm
       // ⚠️ A document from the browser's own HTTP cache replays the Server-Timing it was stored with (the Worker
@@ -187,15 +192,19 @@ function flush(): void {
         if (!b.e) b.e = 'ORIGIN'
       }
       if (navs.length) b.n = navs
-      s.sent = { cls: s.cls, inp: s.inp, at: performance.now() }
+      s.sent = { cls: s.cls, ck: m.cls !== undefined ? s.clsPart : null, inp: s.inp, at: performance.now() }
       send(b)
       return
     }
     const u: NonNullable<RumBeacon['u']> = {}
-    if (s.cls !== null && (s.sent.cls === null || s.cls > s.sent.cls)) u.cls = [s.sent.cls, Math.round(s.cls * 10_000) / 10_000]
+    if (s.cls !== null && (s.sent.cls === null || s.cls > s.sent.cls)) {
+      u.cls = [s.sent.cls, Math.round(s.cls * 10_000) / 10_000]
+      // The part moves with its value: [the part the old value was counted under, the part now] (ops.ts clsk).
+      if (s.clsPart) u.ck = [s.sent.ck, s.clsPart]
+    }
     if (s.inp !== null && (s.sent.inp === null || s.inp > s.sent.inp)) u.inp = [s.sent.inp, round(s.inp)]
     if (!u.cls && !u.inp && !navs.length) return
-    s.sent = { cls: u.cls ? s.cls : s.sent.cls, inp: u.inp ? s.inp : s.sent.inp, at: s.sent.at }
+    s.sent = { cls: u.cls ? s.cls : s.sent.cls, ck: u.cls ? s.clsPart : s.sent.ck, inp: u.inp ? s.inp : s.sent.inp, at: s.sent.at }
     const b: RumBeacon = { v: RUM_VERSION, r: route, c: s.ctx }
     if (u.cls || u.inp) { b.u = u; b.ua = round(performance.now() - s.sent.at) }
     if (navs.length) b.n = navs
@@ -210,7 +219,14 @@ function loadVitals(s: State): void {
     started = true
     import('./vitals')
       .then((v) => v.watchVitals({
-        cls: (x) => { if (S === s) s.cls = x },
+        cls: (x, src) => {
+          if (S !== s) return
+          s.cls = x
+          if (!src) return
+          // "after-nav": the largest shift came after the visitor's first move to another page of the site.
+          const when = s.firstNavAt !== null && src.at !== null && src.at >= s.firstNavAt ? 'after-nav' : 'landing'
+          s.clsPart = `${src.where}.${src.what}.${when}`
+        },
         inp: (x) => { if (S === s) s.inp = x },
       }))
       // eslint-disable-next-line no-restricted-syntax -- browser code: a chunk that failed to load has no server log to reach; no CLS/INP for this view, the rest still counts
@@ -238,7 +254,7 @@ export function startRum(): void {
     const s: State = {
       host: location.host, path: location.pathname, search: location.search, route: null,
       ctx: `${browserContext()}.${deviceClass()}.${lang}`,
-      lcp: null, lcpKind: null, hyd: null, hydJudged: false, cls: null, inp: null, sent: null, navs: [], navSeq: 0,
+      lcp: null, lcpKind: null, hyd: null, hydJudged: false, cls: null, clsPart: null, firstNavAt: null, inp: null, sent: null, navs: [], navSeq: 0,
     }
     S = s
     observeLcp(s)
@@ -264,7 +280,10 @@ export function startRum(): void {
  */
 export function rumNavStart(url: string, type: NavigationType): void {
   const s = S
-  if (!s || type === 'traverse') return
+  if (!s) return
+  // Any move to another page of the site — back/forward included — starts "after-nav" for the CLS attribution.
+  if (s.firstNavAt === null) s.firstNavAt = performance.now()
+  if (type === 'traverse') return
   try {
     const from = location.href
     const t0 = performance.now()

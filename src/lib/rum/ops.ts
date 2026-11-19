@@ -9,6 +9,7 @@ import {
   RUM_METRICS,
   RUM_VERSION,
   bucketOf,
+  clsPartOf,
   isRumRoute,
   memoryTier,
   type RumMetric,
@@ -28,6 +29,8 @@ import {
 //   origin                    `<state>`           edge→origin ms, from the Worker, when this view waited for the box
 //   app                       `<route>|<ncache>`  the app's time to its first byte, from nginx at the box (any page)
 //   lcpk                      `<route>|<kind>`    lcp by what the largest paint was
+//   clsk                      `<route>|<class>|<where>.<what>.<when>`  cls by which part of the page moved most
+//                             (shared.ts RUM_CLS_*; owner 2026-11-19) — moves with its value, like cls
 //   dev                       `<lcp|hyd>|<tier>`  lcp / hyd by device memory tier (Chromium only)
 
 export interface RumOp {
@@ -39,8 +42,8 @@ export interface RumOp {
   day?: string
 }
 
-/** Most ops one beacon can produce: 6 metrics + hydx + edge + origin + app + lcpk + 2 dev + 2×2 moves + RUM_MAX_NAVS. */
-export const RUM_MAX_OPS = 17 + RUM_MAX_NAVS
+/** Most ops one beacon can produce: 6 metrics + hydx + edge + origin + app + lcpk + clsk + 2 dev + 2×2 moves + 2 clsk moves + RUM_MAX_NAVS. */
+export const RUM_MAX_OPS = 20 + RUM_MAX_NAVS
 
 const SCALE: Record<RumMetric, RumScale> = { ttfb: 'ttfb', fcp: 'ms', lcp: 'ms', cls: 'cls', inp: 'inp', hyd: 'ms' }
 
@@ -100,6 +103,10 @@ export function rumOps(body: unknown, now: number = Date.now()): RumOp[] | null 
     const kind = oneOf(RUM_LCP_KINDS, b.lk)
     if (kind) add('lcpk', `${route}|${kind}`, 'ms', got.lcp)
   }
+  if (got.cls !== undefined) {
+    const part = clsPartOf(b.ck)
+    if (part) add('clsk', `${rc}|${part}`, 'cls', scaled('cls', got.cls))
+  }
   const tier = memoryTier(b.dm)
   if (tier !== null) {
     if (got.lcp !== undefined) add('dev', `lcp|${tier}`, 'ms', got.lcp)
@@ -122,10 +129,23 @@ export function rumOps(body: unknown, now: number = Date.now()): RumOp[] | null 
       if (after === null || (pair[0] !== null && before === null)) continue
       if (before !== null && !(after > before)) continue
       const to = bucketOf(SCALE[metric], scaled(metric, after))
-      if (before === null) { ops.push({ family: metric, dims: rc, bucket: to, delta: 1, day: moveDay }); continue }
-      const from = bucketOf(SCALE[metric], scaled(metric, before))
-      if (from === to) continue
-      ops.push({ family: metric, dims: rc, bucket: from, delta: -1, day: moveDay }, { family: metric, dims: rc, bucket: to, delta: 1, day: moveDay })
+      const from = before === null ? null : bucketOf(SCALE[metric], scaled(metric, before))
+      if (from === null) ops.push({ family: metric, dims: rc, bucket: to, delta: 1, day: moveDay })
+      else if (from !== to) ops.push({ family: metric, dims: rc, bucket: from, delta: -1, day: moveDay }, { family: metric, dims: rc, bucket: to, delta: 1, day: moveDay })
+      // The part moves with the value: out of [the part it was counted under, its old bucket] — only when one was counted —
+      // and into [the part now, the new bucket]. Nothing when neither the part nor the bucket changed.
+      if (metric === 'cls') {
+        const ck = Array.isArray(u.ck) && u.ck.length === 2 ? u.ck : null
+        const partNow = ck ? clsPartOf(ck[1]) : null
+        if (!partNow) continue
+        // ⛔ An old part that does not validate, on a view whose CLS WAS counted: there is no row to take it out of, so
+        // nothing moves (a +1 alone would leave clsk counting the view twice — commit gate).
+        if (ck && ck[0] !== null && from !== null && !clsPartOf(ck[0])) continue
+        const partBefore = ck && ck[0] !== null && from !== null ? clsPartOf(ck[0]) : null
+        if (partBefore === partNow && from === to) continue
+        if (partBefore && from !== null) ops.push({ family: 'clsk', dims: `${rc}|${partBefore}`, bucket: from, delta: -1, day: moveDay })
+        ops.push({ family: 'clsk', dims: `${rc}|${partNow}`, bucket: to, delta: 1, day: moveDay })
+      }
     }
   }
 

@@ -136,6 +136,41 @@ describe('rumOps — a beacon becomes bucket ops, and nothing it says is stored 
     expect(keys(rumOps({ ...hard, u: { inp: [null, 900] } })).filter((x) => x.startsWith('inp'))).toEqual([`inp listing|${C} 250 +`])
   })
 
+  it('CLS by which part of the page moved most: three closed labels beside the value, never anything else', () => {
+    expect(keys(rumOps({ ...hard, ck: 'main.img.landing' }))).toContain(`clsk listing|${C}|main.img.landing 100 +`)
+    // ⛔ Anything outside the closed sets — a selector, a fourth piece, a wrong order — counts no part at all.
+    for (const ck of ['div.flex.min-h-0', 'main.img', 'main.img.landing.x', 'img.main.landing', 'main.img.later', 12, null]) {
+      expect(keys(rumOps({ ...hard, ck })).some((x) => x.startsWith('clsk')), String(ck)).toBe(false)
+    }
+    // No CLS on the first beacon: no part either.
+    const { cls: _cls, ...m } = hard.m
+    expect(keys(rumOps({ ...hard, m, ck: 'main.img.landing' })).some((x) => x.startsWith('clsk'))).toBe(false)
+  })
+
+  it('the part MOVES with its value: out of [the old part, the old bucket], into [the part now, the new bucket]', () => {
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [0.12, 1.2], ck: ['main.img.landing', 'header.block.after-nav'] } }))).toEqual([
+      `cls home|${C} 100 -`, `cls home|${C} 1000 +`,
+      `clsk home|${C}|main.img.landing 100 -`, `clsk home|${C}|header.block.after-nav 1000 +`,
+    ])
+    // The same bucket but a new part: the part still moves.
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [0.02, 0.021], ck: ['main.img.landing', 'main.block.landing'] } }))).toEqual([
+      `clsk home|${C}|main.img.landing 10 -`, `clsk home|${C}|main.block.landing 10 +`,
+    ])
+    // Nothing counted under a part before (no part, or no CLS on the first beacon): +1 alone.
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [0.12, 1.2], ck: [null, 'aside.img.landing'] } }))).toContain(`clsk home|${C}|aside.img.landing 1000 +`)
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [null, 0.4], ck: [null, 'aside.img.landing'] } }))).toEqual([
+      `cls home|${C} 400 +`, `clsk home|${C}|aside.img.landing 400 +`,
+    ])
+    // ⛔ An invalid OLD part on a counted view: no −1 is possible, so no +1 either.
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [0.12, 1.2], ck: ['div.card', 'main.img.landing'] } }))).toEqual([
+      `cls home|${C} 100 -`, `cls home|${C} 1000 +`,
+    ])
+    // An invalid new part moves nothing for clsk; the CLS row still moves.
+    expect(keys(rumOps({ v: 1, r: 'home', c: C, u: { cls: [0.12, 1.2], ck: ['main.img.landing', 'body > div'] } }))).toEqual([
+      `cls home|${C} 100 -`, `cls home|${C} 1000 +`,
+    ])
+  })
+
   it('soft navigations: each to its own target kind, capped, ranges checked', () => {
     const n = Array.from({ length: 12 }, () => ['listing', 1_310])
     const k = keys(rumOps({ v: 1, r: 'home', c: C, n: [['nope', 5], ['category', 25_000], ...n] }))

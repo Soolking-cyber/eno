@@ -22,13 +22,13 @@ const DAYS = Math.max(1, Number(arg('days', '7')) || 7)
 const EDITION = arg('edition', null)
 const MIN = Math.max(1, Number(arg('min', '5')) || 5)
 
-const SCALE = { ttfb: 'ttfb', fcp: 'ms', lcp: 'ms', hyd: 'ms', hydx: 'ms', nav: 'ms', inp: 'inp', cls: 'cls', edge: 'ttfb', origin: 'origin', app: 'origin', lcpk: 'ms', dev: 'ms' }
+const SCALE = { ttfb: 'ttfb', fcp: 'ms', lcp: 'ms', hyd: 'ms', hydx: 'ms', nav: 'ms', inp: 'inp', cls: 'cls', edge: 'ttfb', origin: 'origin', app: 'origin', lcpk: 'ms', clsk: 'cls', dev: 'ms' }
 const LABEL = {
   ttfb: 'first byte (ms)', fcp: 'first content (ms)', lcp: 'largest content (ms)', hyd: 'links work — "usable" (ms)',
   hydx: 'hidden before its links worked: time on page (ms)', cls: 'layout shift', inp: 'slowest tap/key response (ms)',
   nav: 'soft navigation to the next page\'s first frame (ms)', edge: 'first byte by data centre | what answered (ms)',
   origin: 'edge → origin wait, Worker view (ms)', app: 'app time at the box by page | Next cache (ms)',
-  lcpk: 'largest content by page | element kind (ms)', dev: 'by device memory tier (GB) (ms)',
+  lcpk: 'largest content by page | element kind (ms)', clsk: 'layout shift by page | context | part moved most (where.what.when)', dev: 'by device memory tier (GB) (ms)',
 }
 
 /** p in 0..1 from {bucket → n}; null when empty. */

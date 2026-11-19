@@ -50,6 +50,30 @@ export const RUM_APP_CACHE = ['HIT', 'STALE', 'MISS', 'REVALIDATED'] as const
 export const RUM_LCP_KINDS = ['img', 'text', 'video'] as const
 export type RumLcpKind = (typeof RUM_LCP_KINDS)[number]
 
+/**
+ * WHICH PART OF THE PAGE MOVED MOST — the CLS attribution (owner, 2026-11-19: "shift fix yes"; desktop home CLS p75 1.0 since
+ * 11-14 that no probe reproduced). Three closed labels, joined `<where>.<what>.<when>`, never a selector, a class name, a page
+ * address or a time: where the largest shift's element sat (its nearest landmark), what it was, and whether it moved before or
+ * after the visitor's first move to another page of the site — a view's CLS keeps growing across soft navigations and is
+ * counted under the page it LANDED on, so "after-nav" says the landing page was not the one that jumped.
+ */
+export const RUM_CLS_WHERE = ['header', 'nav', 'main', 'aside', 'footer', 'dialog', 'other'] as const
+export const RUM_CLS_WHAT = ['img', 'video', 'iframe', 'text', 'block'] as const
+export const RUM_CLS_WHEN = ['landing', 'after-nav'] as const
+export type RumClsWhere = (typeof RUM_CLS_WHERE)[number]
+export type RumClsWhat = (typeof RUM_CLS_WHAT)[number]
+export type RumClsWhen = (typeof RUM_CLS_WHEN)[number]
+export type RumClsPart = `${RumClsWhere}.${RumClsWhat}.${RumClsWhen}`
+
+/** A part label as sent, or null when any of its three pieces is not one of the closed labels. */
+export function clsPartOf(v: unknown): RumClsPart | null {
+  if (typeof v !== 'string' || v.length > 32) return null
+  const [where, what, when, extra] = v.split('.')
+  if (extra !== undefined) return null
+  const ok = (RUM_CLS_WHERE as readonly string[]).includes(where) && (RUM_CLS_WHAT as readonly string[]).includes(what) && (RUM_CLS_WHEN as readonly string[]).includes(when)
+  return ok ? (v as RumClsPart) : null
+}
+
 /** navigator.deviceMemory as a tier (Chromium only; it reports 0.25–8 GB). */
 export function memoryTier(v: unknown): 1 | 2 | 4 | 8 | null {
   if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return null
@@ -140,8 +164,10 @@ export interface RumBeacon {
   d?: number
   a?: number
   nc?: string
-  /** a later beacon: CLS/INP grew after the first one — [previously sent or null, now] */
-  u?: { cls?: [number | null, number]; inp?: [number | null, number] }
+  /** first beacon only, with m.cls: which part of the page moved most (RumClsPart) */
+  ck?: string
+  /** a later beacon: CLS/INP grew after the first one — [previously sent or null, now]; `ck` the part [as sent before, now] */
+  u?: { cls?: [number | null, number]; inp?: [number | null, number]; ck?: [string | null, string] }
   /** a later beacon: ms since the first beacon, so a move lands on the first beacon's day */
   ua?: number
   /** soft navigations since the last beacon: [target page kind, ms to its first frame] */
