@@ -34,7 +34,11 @@ export function FacebookImportLanding() {
 
   // Can the import run? null = not known yet (the words assume yes, as the server painted them).
   const [importOn, setImportOn] = useState<boolean | null>(null)
+  // ⛔ Never the one-action form in the iOS app (commit gate, opus): there Facebook signs in only beside Apple (Guideline 4.8),
+  // so the app keeps the whole form. Read once at mount, like the rest of this page's browser facts.
+  const [iosApp, setIosApp] = useState(false)
   useEffect(() => {
+    setIosApp(facebookIosApp())
     if (!(facebookAvailableHere() || facebookIosApp())) { setImportOn(false); return }
     let live = true
     const ctl = new AbortController()
@@ -64,7 +68,11 @@ export function FacebookImportLanding() {
             )}
       </p>
       {/* Signed in already: no second sign-in to start while the on/off answer comes (≤ 8 s) — they are being moved on. */}
-      {!user && <SignInForm className="mt-6" gate="fb_import" />}
+      {/* One action first while the import can run here (the server assumes it can, as the words above do); today's whole
+          form where it cannot. It says Connect, not Import (plan review): the import's own notice and button come after, on the
+          import tab. ⛔ Only here: `facebookAction` paints before the form knows Facebook is on, and this page's
+          on/off answer is what says so (fbImportOn requires Facebook sign-in). */}
+      {!user && <SignInForm className="mt-6" gate="fb_import" facebookAction={importOn === false || iosApp ? undefined : tr('Connect Facebook to import', 'Kết nối Facebook để nhập tin')} />}
     </>
   )
 }

@@ -16,6 +16,7 @@ const clearStalePkceCookies = vi.fn()
 vi.mock('@/lib/auth-pkce', () => ({ clearStalePkceCookies: () => clearStalePkceCookies() }))
 
 import { SignInDialog } from './sign-in-dialog'
+import { SignInForm } from './sign-in-form'
 import { resetFacebookFlagForTests, seedFacebookSignIn } from '@/lib/facebook-flag'
 
 const FB_ANDROID = 'Mozilla/5.0 (Linux; Android 13; SM-A055F Build/TKQ1.221114.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/582.0.0.50.54;IABMV/1;]'
@@ -349,6 +350,100 @@ describe('right after Facebook shared no email (emailLead)', () => {
   it('any other popup still offers Facebook (the flag is per opening, not sticky)', async () => {
     popup()
     await settle()
+    expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
+  })
+})
+
+// ── ONE ACTION FIRST (owner 2026-11-20, the Facebook ad landing /post/facebook: sign-in wall shown 449 times in four days, a
+// method tapped twice, nobody signed up). `facebookAction` = a single brand CTA that IS Continue with Facebook, then a quiet
+// "Other ways to sign in" that opens today's whole form in place; the terms line stays.
+describe('facebookAction — the ad landing\'s one action', () => {
+  const form = (props: Partial<React.ComponentProps<typeof SignInForm>> = {}) => render(
+    <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
+      <SignInForm gate="fb_import" facebookAction="Connect Facebook to import" {...props} />
+    </LanguageProvider>,
+  )
+
+  it('Facebook\'s browser: one CTA, the quiet way to the rest and the terms — no email field, Google or Facebook twice', async () => {
+    ua = FB_ANDROID
+    form()
+    await settle()
+    expect(screen.getByRole('button', { name: 'Connect Facebook to import' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Other ways to sign in' })).toBeTruthy()
+    expect(screen.getByText(/18 or older/)).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Google/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Continue with Facebook' })).toBeNull()
+  })
+
+  it('the CTA is Continue with Facebook: the same OAuth, back to this page, counted under its own gate', async () => {
+    ua = FB_ANDROID
+    form()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Facebook to import' }))
+    await settle()
+    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook', queryParams: { auth_type: 'rerequest' } } })
+    expect(beacons).toContainEqual({ g: 'fb_import', a: 'facebook', c: 'inapp-fb.desktop.en' })
+  })
+
+  it('"Other ways to sign in" opens today\'s whole form in place, for good', async () => {
+    ua = FB_ANDROID
+    form()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Other ways to sign in' }))
+    await settle()
+    expect(screen.queryByRole('button', { name: 'Connect Facebook to import' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+  })
+
+  it('a refused start: today\'s whole form comes back, with the error printed where it always is', async () => {
+    ua = FB_ANDROID
+    signInWithOAuth.mockResolvedValueOnce({ error: { message: 'Unsupported provider: provider is not enabled' } })
+    form()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Facebook to import' }))
+    await settle()
+    expect(screen.queryByRole('button', { name: 'Connect Facebook to import' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+    expect(screen.getByRole('alert')).toBeTruthy()
+  })
+
+  it('…and it stays: a later start that clears the error never brings the one button back mid-flow', async () => {
+    ua = FB_ANDROID
+    signInWithOAuth.mockResolvedValueOnce({ error: { message: 'Unsupported provider: provider is not enabled' } })
+    form()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Facebook to import' }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Facebook' }))
+    await settle()
+    expect(signInWithOAuth).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Connect Facebook to import' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+  })
+
+  it('the one-action block is web-only: the eno apps hide it before any script runs', async () => {
+    ua = FB_ANDROID
+    form()
+    await settle()
+    expect(screen.getByRole('button', { name: 'Connect Facebook to import' }).closest('.web-only')).toBeTruthy()
+  })
+
+  it('right after Facebook withheld an email: no one-action form — the code leads, as everywhere', async () => {
+    ua = FB_ANDROID
+    form({ emailLead: true })
+    await settle()
+    expect(screen.queryByRole('button', { name: 'Connect Facebook to import' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+  })
+
+  it('without the prop nothing changes (the chat gate\'s form keeps Facebook first, the code under it)', async () => {
+    ua = FB_ANDROID
+    form({ facebookAction: undefined })
+    await settle()
+    expect(screen.queryByRole('button', { name: 'Other ways to sign in' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
   })
 })

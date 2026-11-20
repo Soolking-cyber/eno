@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth:
 const { FacebookImportLanding } = await import('./facebook-import-landing')
 
 describe('the Facebook-import landing, server-rendered', () => {
-  it('in Vietnamese: the heading, the line and a working email field — with no script run', () => {
+  it('in Vietnamese: the heading, the line and the one action — with no script run (owner 2026-11-20)', () => {
     const html = renderToString(
       <LanguageProvider initialLang="vi" initialViDict={VI_OVERRIDES}>
         <FacebookImportLanding />
@@ -24,6 +24,11 @@ describe('the Facebook-import landing, server-rendered', () => {
     )
     expect(html).toContain('Đăng tin Marketplace lên eno.vn, miễn phí')
     expect(html).toContain('không cần gõ lại')
-    expect(html).toMatch(/<input[^>]+type="email"/)
+    // One action first (the sign-in wall was shown 449 times in four days, two taps, no sign-up): Connect Facebook, then a
+    // quiet way to the rest, and the terms line — and not the whole form yet.
+    expect(html).toContain('Kết nối Facebook để nhập tin')
+    expect(html).toContain('Cách đăng nhập khác')
+    expect(html).toContain('đủ 18 tuổi')
+    expect(html).not.toMatch(/<input[^>]+type="email"/)
   })
 })

@@ -237,7 +237,7 @@ function OrRule({ label, className }: { label: string; className?: string }) {
   )
 }
 
-export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null, emailLead = false }: {
+export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null, emailLead = false, facebookAction }: {
   className?: string
   /**
    * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google (and Apple, where it runs)
@@ -261,6 +261,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   resume?: PendingIntent | null
   /** Facebook just shared no email — no Facebook button here (see SignInContext.emailLead in auth-context.tsx). */
   emailLead?: boolean
+  /**
+   * ONE ACTION FIRST (owner 2026-11-20, the Facebook ad landing: the sign-in wall was shown 449 times in four days, a method
+   * was tapped twice, nobody signed up). The label of a single brand CTA that IS "Continue with Facebook" (pressFacebook: the
+   * same OAuth, `next`, resume and gate counter) — named for what the visitor came to do ("Connect Facebook to import": it signs in
+   * and connects; the import's own notice and button still come after it). Under it a quiet "Other ways to
+   * sign in" opens today's whole form in place; the terms line stays. ⛔ The caller passes it only where Facebook sign-in
+   * can run (src/components/marketplace/facebook-import-landing.tsx asks /api/fb-import/available, which requires it):
+   * this form paints it before its own flags arrive, so the server's HTML and the first frame already show it.
+   */
+  facebookAction?: string
 }) {
   const { tr, lang } = useLanguage()
   const t = (en: string, vi?: string) => tr(en, vi)
@@ -412,6 +422,14 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.
   const [emailOpened, setEmailOpened] = useState(false)
   const emailCollapsed = collapseEmail && !emailOpened && providersShown && !oauthBlocked
+  // `facebookAction`'s one-button presentation, until "Other ways to sign in" (one-way), Facebook withholds an email, or a start
+  // fails — then today's whole form, which is where every error and notice is printed (commit gate, opus: a failed tap here
+  // showed nothing).
+  const [otherWays, setOtherWays] = useState(false)
+  const actionLeads = !!facebookAction && !otherWays && !emailLead && !error
+  // ⛔ AN ERROR IS A LATCH, NOT A STATE (commit gate, opus): once a start has failed, the whole form stays, even after the next
+  // send or start clears `error` — the visitor must never be pulled back to the one button mid-flow.
+  useEffect(() => { if (error && facebookAction) setOtherWays(true) }, [error, facebookAction])
   /**
    * ⛔ WHERE GOOGLE CANNOT FINISH HERE, THE EMAILED CODE LEADS (UX3 J2, 2026-10-05) — Facebook, Zalo,
    * Instagram, TikTok, the Google app, an Android WebView, an iOS home-screen app (`googleOauthBlocked`;
@@ -1490,6 +1508,20 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
 
   return (
     <div ref={formRef} className={cn('space-y-3', className)}>
+      {/* `facebookAction`: the one action, then a quiet way to everything else (see the prop). */}
+      {/* `web-only`: the eno apps never paint it, not even before the script runs (commit gate, codex + opus: Facebook signs
+          in there only beside Apple, Guideline 4.8) — html.native is set by the head script; the landing then drops the prop. */}
+      {actionLeads ? (
+        <div className="web-only space-y-3">
+          <Button variant="cta" size="lg" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className="w-full min-h-11 whitespace-normal text-center" data-provider="facebook">
+            {facebookAction}
+          </Button>
+          <Button variant="bare" size="none" onClick={() => setOtherWays(true)} className="flex min-h-11 w-full items-center justify-center text-sm font-medium text-muted-foreground cursor-pointer">
+            {t('Other ways to sign in', 'Cách đăng nhập khác')}
+          </Button>
+        </div>
+      ) : (
+      <>
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so it hands off to the real
           browser, and since UX3 J2 it is not the lead there: the email code is (see `emailFirst`), and
           Apple is not offered at all (D7). In the native app's embedded tabs it's hidden outright
@@ -1981,9 +2013,11 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           )}
         </div>
       )}
+      </>
+      )}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. Only the email/phone
-          SENDS need its token (OAuth is not gated), so the folded join form leaves it unmounted. */}
-      {!emailCollapsed && <Turnstile />}
+          SENDS need its token (OAuth is not gated), so the folded join form and the one-action form leave it unmounted. */}
+      {!emailCollapsed && !actionLeads && <Turnstile />}
       <p className="pt-1 text-center text-2xs text-ink-4">
         {t('By continuing you confirm you are 18 or older and agree to our', 'Tiếp tục nghĩa là bạn xác nhận đủ 18 tuổi và đồng ý với')}{' '}
         {/* ⚠️ THE QUY CHẾ IS PART OF WHAT IS ACCEPTED (2026-10-01). Opening an account binds the user to the

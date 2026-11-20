@@ -3,15 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 
 /** The Facebook-import ad landing (owner 2026-11-17, "Ad landing page"; src/lib/fb-import/landing.ts). */
-const a = vi.hoisted(() => ({ user: null as null | { id: string }, loading: false, here: true, on: true as boolean | 'fail', replace: vi.fn(), open: vi.fn(), form: vi.fn() }))
-vi.mock('@/lib/facebook-signin', () => ({ facebookAvailableHere: () => a.here, facebookIosApp: () => false }))
+const a = vi.hoisted(() => ({ ios: false, user: null as null | { id: string }, loading: false, here: true, on: true as boolean | 'fail', replace: vi.fn(), open: vi.fn(), form: vi.fn() }))
+vi.mock('@/lib/facebook-signin', () => ({ facebookAvailableHere: () => a.here, facebookIosApp: () => a.ios }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: a.user, loading: a.loading }) }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: a.replace }) }))
 vi.mock('@/lib/signin-gates', () => ({ noteGateOpen: a.open }))
 vi.mock('@/components/marketplace/sign-in-form', () => ({ SignInForm: (p: { gate?: string }) => { a.form(p); return <form aria-label="sign in" /> } }))
 const { FacebookImportLanding } = await import('./facebook-import-landing')
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); a.user = null; a.loading = false; a.here = true; a.on = true })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); a.user = null; a.loading = false; a.here = true; a.on = true; a.ios = false })
 const stubOn = () => vi.stubGlobal('fetch', vi.fn(async () => (a.on === 'fail' ? new Response('{}', { status: 500 }) : new Response(JSON.stringify({ on: a.on })))))
 
 describe('the Facebook-import ad landing', () => {
@@ -51,6 +51,28 @@ describe('the Facebook-import ad landing', () => {
     a.user = { id: 'u1' }
     rerender(<FacebookImportLanding />)
     await waitFor(() => expect(a.replace).toHaveBeenCalledWith('/post'))
+  })
+
+  it('one action first while the import can run — painted before the answer; today\'s whole form once it cannot (owner 2026-11-20)', async () => {
+    stubOn()
+    render(<FacebookImportLanding />)
+    expect(a.form).toHaveBeenLastCalledWith(expect.objectContaining({ gate: 'fb_import', facebookAction: 'Connect Facebook to import' }))
+    cleanup(); vi.clearAllMocks()
+    a.on = false
+    stubOn()
+    render(<FacebookImportLanding />)
+    await waitFor(() => expect(a.form).toHaveBeenLastCalledWith(expect.objectContaining({ gate: 'fb_import', facebookAction: undefined })))
+    cleanup(); vi.clearAllMocks()
+    a.here = false
+    stubOn()
+    render(<FacebookImportLanding />)
+    await waitFor(() => expect(a.form).toHaveBeenLastCalledWith(expect.objectContaining({ facebookAction: undefined })))
+    cleanup(); vi.clearAllMocks()
+    // The iOS app: Facebook only beside Apple (Guideline 4.8) — the whole form, even with the import on.
+    a.here = false; a.ios = true; a.on = true
+    stubOn()
+    render(<FacebookImportLanding />)
+    await waitFor(() => expect(a.form).toHaveBeenLastCalledWith(expect.objectContaining({ facebookAction: undefined })))
   })
 
   it('while sign-in is being read: the words and the form, nothing counted or moved yet', () => {
