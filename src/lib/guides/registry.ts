@@ -55,6 +55,10 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'apartment-for-rent-in-tay-ho', lang: 'en', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '93f34845102b40c5', pair: 'thue-can-ho-tay-ho' },
   { slug: 'thue-can-ho-tay-ho', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '35bf878e4008e450', pair: 'apartment-for-rent-in-tay-ho' },
   { slug: 'cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm', lang: 'vi', published: '2026-11-19', reviewed: '2026-11-19', reviewedDigest: '22340f421f89b8bb', pair: 'rent-your-apartment-to-foreigners-ho-chi-minh-city' },
+  { slug: 'cheapest-phone-in-vietnam', lang: 'en', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: '8089f9197ac84737', pair: 'dien-thoai-gia-re-nhat-viet-nam' },
+  { slug: 'dien-thoai-gia-re-nhat-viet-nam', lang: 'vi', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: '77ce25d1dec477e2', pair: 'cheapest-phone-in-vietnam' },
+  { slug: 'gia-thue-nha-tphcm-theo-quan', lang: 'vi', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: 'a717a85038880616', pair: 'rent-prices' },
+  { slug: 'rent-prices', lang: 'en', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: '8b69cd20f37da914', pair: 'gia-thue-nha-tphcm-theo-quan' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

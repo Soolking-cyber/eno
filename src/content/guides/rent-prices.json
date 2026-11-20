@@ -1,0 +1,367 @@
+{
+  "slug": "rent-prices",
+  "title": "Rent prices in Ho Chi Minh City by district (2026)",
+  "description": "Median asking rents for studios, one- and two-bedroom flats across Ho Chi Minh City's districts, dated 19 November 2026, plus deposits and how to check a price.",
+  "h1": "Rent prices in Ho Chi Minh City: what a studio, one-bedroom or two-bedroom asks, district by district",
+  "eyebrow": "Living in Saigon",
+  "intro": "Rent prices in Ho Chi Minh City depend mostly on district and size: on 19 November 2026 the eno.vn Rent Index put the median one-bedroom apartment at about 1.7 times the median studio. The Rent Index is run by eno.vn and gives median asking rents, by district and type of home, for homes listed on eno.vn. In that 19 November 2026 snapshot, District 2 asked the most and Hoc Mon and Binh Tan the least. The tables below give the figures.",
+  "keyPoints": [
+    "On 19 November 2026 the eno.vn Rent Index put the city-wide median studio at {{vnd:4500000}} a month, a one-bedroom at {{vnd:7800000}} and a two-bedroom at {{vnd:9800000}}.",
+    "District matters more than anything else. On 19 November 2026 a one-bedroom's median asking rent was {{vnd:15000000}} in District 7 and {{vnd:11500000}} in District 1, against {{vnd:6600000}} in Go Vap.",
+    "These are **asking** prices. The index notes that negotiated rents are often lower.",
+    "Expect to pay a deposit on top. One month's rent is the norm on a residential lease, and two months is usual for serviced and well-furnished flats, according to [eno.vn's deposit guide](/rental-deposit-vietnam) (updated 27 September 2026).",
+    "Rents nationally barely moved in October 2026. The National Statistics Office recorded a 0.22% month-on-month fall in house rent."
+  ],
+  "sections": [
+    {
+      "id": "how-much-is-rent-in-ho-chi-minh-city",
+      "title": "How much is rent in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "According to the eno.vn Rent Index snapshot of 19 November 2026, the median asking rent for an apartment in Ho Chi Minh City was {{vnd:4600000}} a month. On that day the median studio asked {{vnd:4500000}}, a one-bedroom {{vnd:7800000}} and a two-bedroom {{vnd:9800000}}. The size of the home and the district change the answer far more than anything else."
+        },
+        {
+          "type": "p",
+          "text": "The [eno.vn Rent Index](/hcmc-rent-index) is published by eno.vn. It gives median asking rents for the homes listed on eno.vn, broken down by district and type of home, and is recalculated regularly. Its 19 November 2026 snapshot counted 5,149 listings, and most of them were studios: 4,541 of the 5,133 apartments. That is why the city-wide apartment median sits so close to the studio figure."
+        },
+        {
+          "type": "table",
+          "caption": "Median monthly asking rent for apartments in Ho Chi Minh City by number of bedrooms, eno.vn Rent Index, snapshot of 19 November 2026",
+          "headers": [
+            "Type",
+            "Median asking rent",
+            "Middle half (25th–75th percentile)",
+            "Median per m²"
+          ],
+          "rows": [
+            [
+              "Studio",
+              "{{vnd:4500000}}",
+              "{{vnd:3600000-5500000}}",
+              "{{vnd:225000}}"
+            ],
+            [
+              "1 bedroom",
+              "{{vnd:7800000}}",
+              "{{vnd:6200000-10800000}}",
+              "{{vnd:275000}}"
+            ],
+            [
+              "2 bedrooms",
+              "{{vnd:9800000}}",
+              "{{vnd:8000000-15400000}}",
+              "{{vnd:230000}}"
+            ],
+            [
+              "3+ bedrooms",
+              "{{vnd:28700000}}",
+              "{{vnd:23500000-41100000}}",
+              "{{vnd:269000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The middle half matters as much as the median. Half of all one-bedroom listings on 19 November 2026 asked between {{vnd:6200000}} and {{vnd:10800000}} a month. A flat priced inside that band is ordinary for the city. A flat priced well above it needs a reason, such as a newer building, a pool and gym, a river view or a central street."
+        },
+        {
+          "type": "p",
+          "text": "In the index, \"studio\" covers studios and one-bedroom duplex rooms, and serviced and mini apartments are counted in their bedroom band. Studios got their own band on 21 October 2026, so one-bedroom figures from before that date are not comparable with today's. Houses are a different market. On 19 November 2026 the index had only 16 houses, with a median of {{vnd:77100000}} a month, so treat that figure as indicative only."
+        }
+      ]
+    },
+    {
+      "id": "rent-prices-by-district",
+      "title": "Rent prices by district in Ho Chi Minh City",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 19 November 2026 the most expensive area on the eno.vn Rent Index was District 2 (part of Thu Duc City, including Thao Dien), followed by District 9 and District 4, then District 7 (Phu My Hung) and District 1. On the same day the cheapest were Hoc Mon, Binh Tan and Nha Be. Studios in the inner districts, such as District 1, 3, 4 and 10, asked roughly one and a half times what a studio asked in Go Vap or District 12."
+        },
+        {
+          "type": "table",
+          "caption": "Median monthly asking rent by district, eno.vn Rent Index, snapshot of 19 November 2026 (a dash means fewer than 10 listings, below the index's publishing threshold)",
+          "headers": [
+            "District",
+            "Studio median",
+            "1-bedroom median",
+            "All apartments: median",
+            "All apartments: middle half"
+          ],
+          "rows": [
+            [
+              "District 1",
+              "{{vnd:6800000}}",
+              "{{vnd:11500000}}",
+              "{{vnd:7300000}}",
+              "{{vnd:6000000-9500000}}"
+            ],
+            [
+              "District 2 (Thu Duc)",
+              "—",
+              "—",
+              "{{vnd:25500000}}",
+              "{{vnd:20200000-33100000}}"
+            ],
+            [
+              "District 3",
+              "{{vnd:6300000}}",
+              "{{vnd:11000000}}",
+              "{{vnd:7000000}}",
+              "{{vnd:5500000-8900000}}"
+            ],
+            [
+              "District 4",
+              "{{vnd:7600000}}",
+              "—",
+              "{{vnd:8700000}}",
+              "{{vnd:7400000-9900000}}"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "{{vnd:5800000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:8500000}}",
+              "{{vnd:5700000-15000000}}"
+            ],
+            [
+              "District 10",
+              "{{vnd:6500000}}",
+              "—",
+              "{{vnd:6800000}}",
+              "{{vnd:5500000-8400000}}"
+            ],
+            [
+              "Binh Thanh",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:6200000}}",
+              "{{vnd:5200000-7500000}}"
+            ],
+            [
+              "Phu Nhuan",
+              "{{vnd:5600000}}",
+              "—",
+              "{{vnd:5800000}}",
+              "{{vnd:4900000-6900000}}"
+            ],
+            [
+              "Tan Binh",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:6000000}}",
+              "{{vnd:5000000-7200000}}"
+            ],
+            [
+              "Go Vap",
+              "{{vnd:4900000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:5000000}}",
+              "{{vnd:4300000-5700000}}"
+            ],
+            [
+              "Thu Duc City (all)",
+              "{{vnd:4200000}}",
+              "{{vnd:12600000}}",
+              "{{vnd:4600000}}",
+              "{{vnd:3300000-8000000}}"
+            ],
+            [
+              "District 12",
+              "{{vnd:4100000}}",
+              "{{vnd:5700000}}",
+              "{{vnd:4100000}}",
+              "{{vnd:3700000-4500000}}"
+            ],
+            [
+              "Binh Tan",
+              "{{vnd:3500000}}",
+              "—",
+              "{{vnd:3500000}}",
+              "{{vnd:2900000-4000000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Read the District 2 figure with care. On 19 November 2026 the index had only 36 apartments there, and 22 of them were two-bedroom homes. District 2's {{vnd:25500000}} median therefore reflects larger family flats, not a typical studio. District 9 was similar: its {{vnd:14100000}} apartment median came from 25 listings, most of them two-bedroom."
+        },
+        {
+          "type": "p",
+          "text": "The best-covered areas on 19 November 2026 were Go Vap (1,264 apartments), District 12 (1,020), Binh Thanh (467) and Tan Binh (360), so their figures are the most solid. In Tan Binh a two-bedroom asked a median {{vnd:10500000}}, in Binh Thanh {{vnd:9500000}} and in Go Vap {{vnd:7900000}}. Inside each area, prices vary by building and street. The [full index](/hcmc-rent-index) has every district, including Districts 5, 6, 8 and 11, Tan Phu, Binh Chanh, Hoc Mon and Nha Be."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Old district names, new addresses",
+          "text": "The index, job ads and most listings still use the old district names. Since 1 July 2025, official addresses use ward names instead of districts, and Ho Chi Minh City now includes the former Binh Duong and Ba Ria–Vung Tau provinces. A contract may show a ward you do not recognise for a flat advertised as being in \"Binh Thanh\" or \"District 7\"."
+        },
+        {
+          "type": "p",
+          "text": "To choose an area by commute and lifestyle rather than price, see [where to live in Ho Chi Minh City](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher)."
+        }
+      ]
+    },
+    {
+      "id": "are-rental-prices-going-up",
+      "title": "Are rental prices going up in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Rental prices in Vietnam were flat to slightly down in October 2026. According to the National Statistics Office, as reported by [VietnamPlus on 3 November 2026](https://www.vietnamplus.vn/cpi-thang-muoi-tang-020-chu-yeu-do-gia-nhien-lieu-dieu-chinh-tang-len-post1145779.vnp), house rent fell 0.22% month-on-month in October 2026."
+        },
+        {
+          "type": "p",
+          "text": "The wider \"housing, electricity, water, fuel and construction materials\" group behaved differently. The same release shows it rose 6.66% year on year over the first ten months of 2026, driven by gas, repair and maintenance costs as well as rent. The official CPI releases are published on the [National Statistics Office's CPI page](https://www.nso.gov.vn/cpi-vi/)."
+        },
+        {
+          "type": "p",
+          "text": "For serviced apartments, Avison Young reported that rents and occupancy in Ho Chi Minh City held steady in the third quarter of 2026. Occupancy was about 80% for Class A buildings and 75% for Class B, according to [Tin nhanh chứng khoán, 15 October 2026](https://www.tinnhanhchungkhoan.vn/can-ho-dich-vu-tphcm-suc-song-tu-chuyen-gia-nuoc-ngoai-lao-dong-thu-nhap-cao-va-khach-quoc-te-post399294.html). With most units filled, landlords of well-run serviced buildings have little reason to cut rents."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Do not compare index figures across rule changes",
+          "text": "The eno.vn Rent Index changed where its listings came from on 16 and 20 October 2026, and added the studio band on 21 October 2026. Its own page says figures from before those dates are not comparable. A drop or rise between an early-October snapshot and today is not market movement."
+        }
+      ]
+    },
+    {
+      "id": "rent-in-vietnam-outside-ho-chi-minh-city",
+      "title": "Rent in Vietnam outside Ho Chi Minh City",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The eno.vn Rent Index covers Ho Chi Minh City only, so it cannot give you Hanoi or Da Nang prices. For Hanoi's main expat area, the guide to [renting an apartment in Tay Ho](/guides/apartment-for-rent-in-tay-ho) covers prices and streets."
+        },
+        {
+          "type": "p",
+          "text": "Since July 2025, \"Ho Chi Minh City\" covers much more ground, because it now includes the former Binh Duong and Ba Ria–Vung Tau provinces. The index's district rows still follow the old Saigon district names that listings use. Homes in the newly merged areas count only towards the city-wide figures unless a listing names a district the index recognises. To compare the two big cities for work and living, see [Hanoi vs Ho Chi Minh City](/teach-in-vietnam/hanoi-vs-ho-chi-minh-city-for-teachers)."
+        }
+      ]
+    },
+    {
+      "id": "what-you-pay-on-top-of-the-rent",
+      "title": "What you pay on top of the rent",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Expect a deposit on top of the first month's rent. According to [eno.vn's deposit guide](/rental-deposit-vietnam) (updated 27 September 2026), one month's rent is the norm on a residential lease in Vietnam. Two months is usual for serviced apartments, flats with expensive furniture lists and fixed terms longer than a year, and more than two months is unusual."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**What the rent includes** varies by listing. Serviced apartments often bundle cleaning, internet and management fees, while an ordinary flat may not. Get the inclusions in writing before you compare two prices.",
+            "**Electricity** is billed separately in most flats, and in a city where air-conditioning runs much of the year it is often the largest extra. Ask whether you pay the official tariff on your own meter or a rate the landlord sets.",
+            "**Furnished or not** changes the asking price. For an unfurnished flat, budget for furniture: see [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam) and [secondhand furniture in Ho Chi Minh City](/secondhand-furniture-ho-chi-minh-city).",
+            "**The lease itself**, viewings and the landlord's residence declaration are covered in [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner)."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "how-to-check-a-rent-is-fair",
+      "title": "How to check whether a rent is fair",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Compare the asking price with the median and middle half for the same district and bedroom band, then work out its price per square metre. A flat above the middle half needs a clear reason. Inside the band, there is still room to negotiate."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Find the right row",
+              "text": "Open the [Rent Index](/hcmc-rent-index) and find the district the listing names, using the old name such as Binh Thanh or District 7. Use the bedroom band, not the all-apartments median, which is pulled down by studios."
+            },
+            {
+              "title": "Place the price in the middle half",
+              "text": "If the district has no figure for your bedroom band (a dash), use the city-wide band. On 19 November 2026 that was {{vnd:6200000-10800000}} for a one-bedroom."
+            },
+            {
+              "title": "Work out the price per square metre",
+              "text": "Divide the monthly rent by the floor area. On 19 November 2026 the city-wide median was {{vnd:275000}} per m² for a one-bedroom and {{vnd:230000}} for a two-bedroom. A big flat can look expensive and still be fair value for its size."
+            },
+            {
+              "title": "Ask what is included",
+              "text": "Check management fees, cleaning, internet, parking and how electricity is billed. Two flats at the same rent can cost very different amounts each month."
+            },
+            {
+              "title": "Negotiate on the asking price",
+              "text": "The index tracks what landlords ask, and its page notes that signed rents are often lower. A longer lease or paying several months up front are common things to offer in return for a lower rent."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Homes for rent listed on eno.vn are in [Rentals](/c/rentals), including apartments from GoPlus, an official eno.vn partner ([its storefront](/goplus)). If a figure here looks out of date, the index page always carries its latest snapshot and the date it was taken."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How much is rent in Ho Chi Minh City?",
+      "a": "Rent in Ho Chi Minh City depends on size and district. On 19 November 2026 the eno.vn Rent Index put the median one-bedroom apartment at about 1.7 times the median studio, and a two-bedroom about a quarter above a one-bedroom. District 7, Thu Duc City and District 1 asked the most for a one-bedroom on that date, and District 12 and Go Vap the least. The exact medians are in the tables on this page."
+    },
+    {
+      "q": "Which district in Ho Chi Minh City has the cheapest rent?",
+      "a": "On the eno.vn Rent Index snapshot of 19 November 2026, Hoc Mon, Binh Tan and Nha Be had the lowest median apartment rents in Ho Chi Minh City. District 12, Binh Chanh and Tan Phu followed closely. For a one-bedroom, District 12 and Go Vap were the cheapest on that date, well below District 1, District 3 and District 7."
+    },
+    {
+      "q": "Which district in Ho Chi Minh City has the most expensive rent?",
+      "a": "On the eno.vn Rent Index snapshot of 19 November 2026, District 2 (Thu Duc, including Thao Dien) had the highest median apartment rent in Ho Chi Minh City. Most of its listings that day were two-bedroom family flats, which pushes the figure up. For one-bedroom apartments on the same date, District 7 (Phu My Hung) asked the most, ahead of Thu Duc City and District 1."
+    },
+    {
+      "q": "Are rental prices going up in Vietnam?",
+      "a": "Rental prices in Vietnam dipped slightly in October 2026. The National Statistics Office recorded house rent down 0.22% on September, according to its CPI release reported on 3 November 2026. The wider housing, electricity, water and building materials group was 6.66% higher year on year over the first ten months of 2026. That wider rise was driven partly by gas and repair costs, not only rent."
+    },
+    {
+      "q": "How much deposit do you pay to rent an apartment in Ho Chi Minh City?",
+      "a": "A rental deposit in Ho Chi Minh City is normally one month's rent on a residential lease, according to eno.vn's deposit guide updated on 27 September 2026. Serviced apartments, flats with expensive furniture and fixed terms longer than a year usually ask for two months. A demand for more than two months' rent as a deposit is unusual and worth questioning before you sign."
+    },
+    {
+      "q": "Is rent negotiable in Ho Chi Minh City?",
+      "a": "Rent in Ho Chi Minh City is often negotiable. The eno.vn Rent Index tracks asking prices, and its own page notes that negotiated rents are often lower. A tenant offering a longer lease, or several months paid up front, usually has the most room to bargain. A price already inside the district's middle-half range will have less room than one well above it."
+    },
+    {
+      "q": "Is the eno.vn Rent Index the same as what people actually pay?",
+      "a": "The eno.vn Rent Index is not the same as signed rents. It reports median asking rents for homes listed on eno.vn in Ho Chi Minh City, by district and type of home, and it is recalculated regularly. Signed leases are often lower than the asking price. A district needs at least 10 listings before the index publishes a median for it."
+    }
+  ],
+  "sources": [
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Chỉ số giá tiêu dùng (CPI)",
+      "publisher": "National Statistics Office of Vietnam (Cục Thống kê)",
+      "url": "https://www.nso.gov.vn/cpi-vi/"
+    },
+    {
+      "title": "CPI tháng 10/2026 tăng 0,20%, chủ yếu do giá nhiên liệu",
+      "publisher": "VietnamPlus",
+      "url": "https://www.vietnamplus.vn/cpi-thang-muoi-tang-020-chu-yeu-do-gia-nhien-lieu-dieu-chinh-tang-len-post1145779.vnp"
+    },
+    {
+      "title": "Căn hộ dịch vụ TP.HCM: \"Sức sống\" từ chuyên gia nước ngoài, lao động thu nhập cao và khách quốc tế",
+      "publisher": "Tin nhanh chứng khoán",
+      "url": "https://www.tinnhanhchungkhoan.vn/can-ho-dich-vu-tphcm-suc-song-tu-chuyen-gia-nuoc-ngoai-lao-dong-thu-nhap-cao-va-khach-quoc-te-post399294.html"
+    },
+    {
+      "title": "Rental deposits in Vietnam: what is fair, and how to get yours back",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/rental-deposit-vietnam"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "hanoi-vs-ho-chi-minh-city-for-teachers"
+  ],
+  "lastChecked": "2026-11-20"
+}

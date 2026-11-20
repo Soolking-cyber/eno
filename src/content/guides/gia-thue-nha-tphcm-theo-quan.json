@@ -1,0 +1,393 @@
+{
+  "slug": "gia-thue-nha-tphcm-theo-quan",
+  "title": "Giá thuê nhà TP.HCM theo quận: studio, 1–2 phòng ngủ (2026)",
+  "description": "Giá thuê căn hộ studio, 1 và 2 phòng ngủ ở từng quận TP.HCM theo số liệu ngày 19/11/2026, kèm tiền cọc, xu hướng giá và cách kiểm tra một mức giá.",
+  "h1": "Giá thuê nhà ở TP.HCM: studio, căn hộ 1 và 2 phòng ngủ đang chào giá bao nhiêu ở từng quận",
+  "eyebrow": "Sống ở Sài Gòn",
+  "intro": "Giá thuê nhà ở TP.HCM chủ yếu phụ thuộc vào quận và diện tích: ngày 19/11/2026, giá thuê trung vị của căn hộ 1 phòng ngủ cao gấp khoảng 1,7 lần căn studio. Số liệu này lấy từ Chỉ số giá thuê TP.HCM (Rent Index) do eno.vn vận hành. Chỉ số tính giá chào thuê trung vị của các căn nhà đăng trên eno.vn, chia theo quận và loại nhà. Cũng ngày đó, Quận 2 có giá cao nhất, còn Hóc Môn và Bình Tân rẻ nhất.",
+  "keyPoints": [
+    "Ngày 19/11/2026, theo Chỉ số giá thuê của eno.vn, giá trung vị toàn thành phố là {{vnd:4500000}} một tháng cho căn studio, {{vnd:7800000}} cho căn 1 phòng ngủ và {{vnd:9800000}} cho căn 2 phòng ngủ.",
+    "Quận là yếu tố quyết định giá. Ngày 19/11/2026, giá chào trung vị của căn 1 phòng ngủ là {{vnd:15000000}} ở Quận 7 và {{vnd:11500000}} ở Quận 1, trong khi ở Gò Vấp chỉ {{vnd:6600000}}.",
+    "Đây là **giá chào thuê**. Trang chỉ số ghi rõ giá chốt sau khi thương lượng thường thấp hơn.",
+    "Ngoài tiền nhà còn phải đặt cọc. Theo [hướng dẫn về tiền cọc của eno.vn](/rental-deposit-vietnam) (cập nhật ngày 27/9/2026), hợp đồng thuê nhà ở thường cọc 1 tháng, còn căn hộ dịch vụ hoặc căn nội thất đắt tiền thường cọc 2 tháng.",
+    "Trên cả nước, giá thuê nhà gần như đứng yên trong tháng 10/2026. Theo số liệu thống kê do VietnamPlus đưa tin ngày 3/11/2026, giá thuê nhà giảm nhẹ 0,22% so với tháng trước."
+  ],
+  "sections": [
+    {
+      "id": "gia-thue-nha-o-tphcm-bao-nhieu-mot-thang",
+      "title": "Giá thuê nhà ở TP.HCM bao nhiêu một tháng?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo Chỉ số giá thuê của eno.vn, ngày 19/11/2026 giá chào thuê trung vị của một căn hộ ở TP.HCM là {{vnd:4600000}} một tháng. Tính theo loại, căn studio có giá trung vị {{vnd:4500000}}, căn 1 phòng ngủ {{vnd:7800000}} và căn 2 phòng ngủ {{vnd:9800000}}. Số phòng và quận làm giá chênh nhau nhiều hơn mọi yếu tố khác."
+        },
+        {
+          "type": "p",
+          "text": "[Chỉ số giá thuê TP.HCM](/hcmc-rent-index) do eno.vn công bố. Chỉ số tính giá chào thuê trung vị của các căn nhà đăng cho thuê trên eno.vn, chia theo quận và loại nhà, và được tính lại thường xuyên. Ngày 19/11/2026, chỉ số dựa trên 5.149 tin đăng, phần lớn là studio: 4.541 trong số 5.133 căn hộ. Vì vậy, mức trung vị chung của căn hộ toàn thành phố rất sát với giá studio."
+        },
+        {
+          "type": "table",
+          "caption": "Giá chào thuê trung vị hằng tháng của căn hộ ở TP.HCM theo số phòng ngủ, Chỉ số giá thuê eno.vn, số liệu ngày 19/11/2026",
+          "headers": [
+            "Loại căn",
+            "Giá trung vị",
+            "Nửa giữa (bách phân vị 25–75)",
+            "Trung vị mỗi m²"
+          ],
+          "rows": [
+            [
+              "Studio",
+              "{{vnd:4500000}}",
+              "{{vnd:3600000-5500000}}",
+              "{{vnd:225000}}"
+            ],
+            [
+              "1 phòng ngủ",
+              "{{vnd:7800000}}",
+              "{{vnd:6200000-10800000}}",
+              "{{vnd:275000}}"
+            ],
+            [
+              "2 phòng ngủ",
+              "{{vnd:9800000}}",
+              "{{vnd:8000000-15400000}}",
+              "{{vnd:230000}}"
+            ],
+            [
+              "Từ 3 phòng ngủ",
+              "{{vnd:28700000}}",
+              "{{vnd:23500000-41100000}}",
+              "{{vnd:269000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Khoảng \"nửa giữa\" cũng quan trọng như giá trung vị. Ngày 19/11/2026, một nửa số tin căn 1 phòng ngủ chào giá trong khoảng {{vnd:6200000}} đến {{vnd:10800000}} một tháng. Căn nằm trong khoảng này là mức bình thường của thành phố. Căn chào cao hơn hẳn thì phải có lý do, ví dụ tòa nhà mới, có hồ bơi và phòng gym, view sông hoặc nằm ở mặt đường trung tâm."
+        },
+        {
+          "type": "p",
+          "text": "Từ ngày 21/10/2026, studio được tách thành một nhóm riêng trong chỉ số. Trước ngày đó, một số studio đăng là \"1 phòng ngủ\" bị tính vào nhóm 1 phòng ngủ, nên số liệu 1 phòng ngủ trước ngày này không so sánh được với bây giờ. Nhà nguyên căn là một thị trường khác. Ngày 19/11/2026, chỉ số chỉ có 16 tin nhà nguyên căn, trung vị {{vnd:77100000}} một tháng, nên con số này chỉ để tham khảo. Cũng ngày đó, chỉ số chưa có tin phòng trọ nào nên không có giá cho loại này."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-nha-theo-quan-o-tphcm",
+      "title": "Giá thuê nhà theo quận ở TP.HCM",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ngày 19/11/2026, khu vực có giá chào thuê căn hộ cao nhất trên Chỉ số giá thuê eno.vn là Quận 2 (thuộc TP. Thủ Đức, gồm Thảo Điền). Xếp sau là Quận 9 và Quận 4, rồi đến Quận 7 (Phú Mỹ Hưng) và Quận 1. Cũng ngày đó, rẻ nhất là Hóc Môn, Bình Tân và Nhà Bè. Studio ở các quận trung tâm như Quận 1, 3, 4 và 10 chào giá khoảng 1,5 lần studio ở Gò Vấp hay Quận 12."
+        },
+        {
+          "type": "table",
+          "caption": "Giá chào thuê trung vị hằng tháng theo quận, Chỉ số giá thuê eno.vn, số liệu ngày 19/11/2026 (dấu gạch ngang nghĩa là dưới 10 tin, chưa đủ ngưỡng để chỉ số công bố)",
+          "headers": [
+            "Quận",
+            "Studio",
+            "1 phòng ngủ",
+            "Tất cả căn hộ: trung vị",
+            "Tất cả căn hộ: nửa giữa"
+          ],
+          "rows": [
+            [
+              "Quận 1",
+              "{{vnd:6800000}}",
+              "{{vnd:11500000}}",
+              "{{vnd:7300000}}",
+              "{{vnd:6000000-9500000}}"
+            ],
+            [
+              "Quận 2 (Thủ Đức)",
+              "—",
+              "—",
+              "{{vnd:25500000}}",
+              "{{vnd:20200000-33100000}}"
+            ],
+            [
+              "Quận 3",
+              "{{vnd:6300000}}",
+              "{{vnd:11000000}}",
+              "{{vnd:7000000}}",
+              "{{vnd:5500000-8900000}}"
+            ],
+            [
+              "Quận 4",
+              "{{vnd:7600000}}",
+              "—",
+              "{{vnd:8700000}}",
+              "{{vnd:7400000-9900000}}"
+            ],
+            [
+              "Quận 7 (Phú Mỹ Hưng)",
+              "{{vnd:5800000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:8500000}}",
+              "{{vnd:5700000-15000000}}"
+            ],
+            [
+              "Quận 10",
+              "{{vnd:6500000}}",
+              "—",
+              "{{vnd:6800000}}",
+              "{{vnd:5500000-8400000}}"
+            ],
+            [
+              "Bình Thạnh",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:6200000}}",
+              "{{vnd:5200000-7500000}}"
+            ],
+            [
+              "Phú Nhuận",
+              "{{vnd:5600000}}",
+              "—",
+              "{{vnd:5800000}}",
+              "{{vnd:4900000-6900000}}"
+            ],
+            [
+              "Tân Bình",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:6000000}}",
+              "{{vnd:5000000-7200000}}"
+            ],
+            [
+              "Gò Vấp",
+              "{{vnd:4900000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:5000000}}",
+              "{{vnd:4300000-5700000}}"
+            ],
+            [
+              "TP. Thủ Đức (toàn bộ)",
+              "{{vnd:4200000}}",
+              "{{vnd:12600000}}",
+              "{{vnd:4600000}}",
+              "{{vnd:3300000-8000000}}"
+            ],
+            [
+              "Tân Phú",
+              "{{vnd:4000000}}",
+              "—",
+              "{{vnd:4200000}}",
+              "{{vnd:3000000-4800000}}"
+            ],
+            [
+              "Quận 12",
+              "{{vnd:4100000}}",
+              "{{vnd:5700000}}",
+              "{{vnd:4100000}}",
+              "{{vnd:3700000-4500000}}"
+            ],
+            [
+              "Nhà Bè",
+              "{{vnd:3000000}}",
+              "—",
+              "{{vnd:3900000}}",
+              "{{vnd:1700000-5300000}}"
+            ],
+            [
+              "Bình Tân",
+              "{{vnd:3500000}}",
+              "—",
+              "{{vnd:3500000}}",
+              "{{vnd:2900000-4000000}}"
+            ],
+            [
+              "Hóc Môn",
+              "{{vnd:3400000}}",
+              "—",
+              "{{vnd:3400000}}",
+              "{{vnd:3200000-3500000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Cần đọc con số của Quận 2 thận trọng. Ngày 19/11/2026, chỉ số chỉ có 36 căn hộ ở Quận 2, trong đó 22 căn là 2 phòng ngủ. Mức trung vị {{vnd:25500000}} của Quận 2 vì thế phản ánh căn hộ gia đình rộng, không phải một căn studio điển hình. Quận 9 cũng tương tự: mức trung vị {{vnd:14100000}} của quận này tính từ 25 tin, phần lớn là căn 2 phòng ngủ."
+        },
+        {
+          "type": "p",
+          "text": "Ngày 19/11/2026, các khu vực có nhiều tin nhất là Gò Vấp (1.264 căn hộ), Quận 12 (1.020), Bình Thạnh (467) và Tân Bình (360), nên số liệu ở đây đáng tin nhất. Căn 2 phòng ngủ có giá trung vị {{vnd:10500000}} ở Tân Bình, {{vnd:9500000}} ở Bình Thạnh và {{vnd:7900000}} ở Gò Vấp. Ngay trong một quận, giá vẫn chênh nhau theo tòa nhà và con đường. [Trang chỉ số đầy đủ](/hcmc-rent-index) có mọi quận, kể cả Quận 5, 6, 8, 11 và Bình Chánh."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Tên quận cũ, địa chỉ mới",
+          "text": "Chỉ số giá thuê và hầu hết tin đăng vẫn dùng tên quận cũ. Theo [Nghị quyết 202/2025/QH15](https://luatvietnam.vn/hanh-chinh/nghi-quyet-202-2025-qh15-cua-quoc-hoi-ve-viec-sap-xep-don-vi-hanh-chinh-cap-tinh-402728-d1.html), TP.HCM đã sáp nhập với Bình Dương và Bà Rịa – Vũng Tàu, và chính quyền thành phố mới chính thức hoạt động từ ngày 1/7/2025. Vì vậy, hợp đồng thuê một căn quảng cáo là \"Bình Thạnh\" hay \"Quận 7\" có thể ghi tên phường mới mà bạn chưa quen."
+        },
+        {
+          "type": "p",
+          "text": "Nếu muốn chọn khu theo quãng đường đi làm và nhịp sống thay vì theo giá, xem bài [nên sống ở khu nào tại TP.HCM](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) (tiếng Anh)."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-nha-co-dang-tang-khong",
+      "title": "Giá thuê nhà có đang tăng không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trên cả nước, giá thuê nhà đứng yên hoặc giảm nhẹ trong tháng 10/2026. Số liệu chỉ số giá tiêu dùng tháng 10/2026, theo [VietnamPlus đưa tin ngày 3/11/2026](https://www.vietnamplus.vn/cpi-thang-muoi-tang-020-chu-yeu-do-gia-nhien-lieu-dieu-chinh-tang-len-post1145779.vnp), cho thấy giá thuê nhà giảm 0,22% so với tháng trước."
+        },
+        {
+          "type": "p",
+          "text": "Nhóm \"nhà ở, điện nước, chất đốt và vật liệu xây dựng\" lại tăng. Cũng theo bài báo đó, bình quân 10 tháng năm 2026 nhóm này tăng 6,66% so với cùng kỳ năm trước. Nhóm này gồm nhiều khoản ngoài tiền thuê nhà, nên đừng hiểu con số này là giá thuê tăng 6,66%. Các thông cáo CPI chính thức được đăng trên [trang CPI của Cục Thống kê](https://www.nso.gov.vn/cpi-vi/)."
+        },
+        {
+          "type": "p",
+          "text": "Ở mảng căn hộ dịch vụ, Avison Young cho biết giá thuê tại TP.HCM trong quý III/2026 gần như đi ngang so với quý trước. Tỷ lệ lấp đầy khoảng 80% với hạng A và 75% với hạng B, theo [Tin nhanh chứng khoán ngày 15/10/2026](https://www.tinnhanhchungkhoan.vn/can-ho-dich-vu-tphcm-suc-song-tu-chuyen-gia-nuoc-ngoai-lao-dong-thu-nhap-cao-va-khach-quoc-te-post399294.html). Khi phần lớn căn đã có người thuê, chủ các tòa căn hộ dịch vụ vận hành tốt ít có lý do để giảm giá."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Đừng so số liệu qua các lần đổi quy tắc",
+          "text": "Chỉ Số giá thuê eno.vn đã đổi nguồn tin đăng vào ngày 16/10 và 20/10/2026, và tách nhóm studio từ ngày 21/10/2026. Chính trang chỉ số ghi rằng số liệu trước các mốc này không so sánh được với số liệu sau. Nếu con số đầu tháng 10 khác con số hôm nay, đó không phải biến động của thị trường."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-nha-o-viet-nam-ngoai-tphcm",
+      "title": "Giá thuê nhà ở Việt Nam ngoài TP.HCM",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Chỉ số giá thuê eno.vn chỉ tính cho TP.HCM, nên không dùng được để tra giá ở Hà Nội hay Đà Nẵng. Ở Hà Nội, khu nhiều người nước ngoài thuê nhất được phân tích trong bài [thuê căn hộ Tây Hồ](/huong-dan/thue-can-ho-tay-ho), gồm giá và các tuyến phố."
+        },
+        {
+          "type": "p",
+          "text": "TP.HCM bây giờ cũng rộng hơn nhiều so với trước, vì đã gồm cả Bình Dương và Bà Rịa – Vũng Tàu cũ. Các dòng theo quận của chỉ số vẫn theo tên quận cũ của Sài Gòn như trên tin đăng. Ngày 19/11/2026 có 471 tin không ghi quận mà chỉ số nhận ra được, và các tin này chỉ được tính vào số liệu toàn thành phố."
+        }
+      ]
+    },
+    {
+      "id": "ngoai-tien-thue-con-phai-tra-gi",
+      "title": "Ngoài tiền thuê nhà còn phải trả những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Khi ký hợp đồng, ngoài tháng tiền nhà đầu tiên bạn thường phải đặt cọc. Theo [hướng dẫn về tiền cọc của eno.vn](/rental-deposit-vietnam) (cập nhật ngày 27/9/2026), hợp đồng thuê nhà ở thường cọc 1 tháng tiền nhà. Căn hộ dịch vụ, căn có danh sách nội thất đắt tiền và hợp đồng cố định trên 1 năm thường cọc 2 tháng. Cọc trên 2 tháng là không bình thường, nên hỏi rõ bằng văn bản trước khi ký."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Giá thuê đã gồm những gì** tùy từng tin. Căn hộ dịch vụ thường đã tính dọn phòng, internet và phí quản lý, còn căn hộ thường thì có thể chưa. Hãy hỏi rõ bằng văn bản trước khi so hai mức giá.",
+            "**Tiền điện** ở đa số căn hộ được tính riêng. Ở một thành phố mở máy lạnh gần như quanh năm, đây thường là khoản phát sinh lớn nhất. Hỏi chủ nhà xem bạn trả theo giá điện nhà nước trên công tơ riêng hay theo đơn giá do chủ nhà đặt.",
+            "**Có nội thất hay không** cũng làm giá chào thay đổi. Nếu thuê căn trống, hãy tính thêm tiền mua đồ: xem [sắm nội thất khi ở Việt Nam](/furnishing-a-home-in-vietnam) và [đồ nội thất cũ ở TP.HCM](/secondhand-furniture-ho-chi-minh-city).",
+            "**Nếu bạn là chủ nhà** muốn định giá căn hộ cho người nước ngoài thuê, bài [cho người nước ngoài thuê căn hộ TP.HCM](/huong-dan/cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm) nói về giá, hợp đồng và tiền cọc."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cach-kiem-tra-gia-thue-co-hop-ly-khong",
+      "title": "Cách kiểm tra giá thuê có hợp lý không",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hãy so giá chào với mức trung vị và khoảng nửa giữa của cùng quận, cùng số phòng ngủ, rồi tính giá trên mỗi mét vuông. Căn chào cao hơn khoảng nửa giữa thì phải có lý do rõ ràng. Căn nằm trong khoảng này vẫn có thể thương lượng."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Tìm đúng dòng",
+              "text": "Mở [Chỉ số giá thuê](/hcmc-rent-index), tìm quận ghi trên tin đăng theo tên cũ như Bình Thạnh hay Quận 7. Dùng số liệu theo số phòng ngủ, đừng dùng mức trung vị của tất cả căn hộ vì mức này bị studio kéo xuống."
+            },
+            {
+              "title": "Đặt giá vào khoảng nửa giữa",
+              "text": "Nếu quận đó không có số liệu cho loại căn của bạn (dấu gạch ngang), hãy dùng khoảng của toàn thành phố. Ngày 19/11/2026, khoảng này với căn 1 phòng ngủ là {{vnd:6200000-10800000}}."
+            },
+            {
+              "title": "Tính giá mỗi mét vuông",
+              "text": "Chia tiền thuê hằng tháng cho diện tích sàn. Ngày 19/11/2026, trung vị toàn thành phố là {{vnd:275000}} mỗi m² với căn 1 phòng ngủ và {{vnd:230000}} với căn 2 phòng ngủ. Một căn rộng có thể trông đắt nhưng vẫn đáng tiền nếu tính theo diện tích."
+            },
+            {
+              "title": "Hỏi rõ giá đã gồm gì",
+              "text": "Kiểm tra phí quản lý, dọn phòng, internet, gửi xe và cách tính tiền điện. Hai căn cùng giá thuê có thể khiến bạn tốn mỗi tháng rất khác nhau."
+            },
+            {
+              "title": "Thương lượng từ giá chào",
+              "text": "Chỉ số theo dõi giá chủ nhà chào, và trang chỉ số ghi rằng giá chốt thường thấp hơn. Ký hợp đồng dài hơn hoặc trả trước vài tháng là những điều kiện hay được đưa ra để đổi lấy giá thấp hơn."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nhà cho thuê đăng trên eno.vn nằm trong mục [Cho thuê](/c/rentals), trong đó có căn hộ của GoPlus, một đối tác chính thức của eno.vn ([trang của GoPlus](/goplus)). Nếu con số trong bài có vẻ đã cũ, trang chỉ số luôn hiển thị số liệu mới nhất kèm ngày tính."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Giá thuê nhà ở TPHCM bao nhiêu một tháng?",
+      "a": "Giá thuê nhà ở TP.HCM phụ thuộc vào diện tích và quận. Theo Chỉ số giá thuê eno.vn ngày 19/11/2026, giá trung vị của căn 1 phòng ngủ cao gấp khoảng 1,7 lần căn studio, còn căn 2 phòng ngủ cao hơn căn 1 phòng ngủ khoảng một phần tư. Cũng ngày đó, Quận 7, TP. Thủ Đức và Quận 1 chào giá căn 1 phòng ngủ cao nhất, còn Quận 12 và Gò Vấp thấp nhất. Mức giá cụ thể có trong các bảng của bài."
+    },
+    {
+      "q": "Quận nào ở TPHCM thuê nhà rẻ nhất?",
+      "a": "Theo Chỉ số giá thuê eno.vn ngày 19/11/2026, Hóc Môn, Bình Tân và Nhà Bè có giá thuê căn hộ trung vị thấp nhất TP.HCM, sát sau là Quận 12, Bình Chánh và Tân Phú. Với căn 1 phòng ngủ, Quận 12 và Gò Vấp rẻ nhất ngày hôm đó, thấp hơn hẳn Quận 1, Quận 3 và Quận 7."
+    },
+    {
+      "q": "Quận nào ở TPHCM giá thuê nhà đắt nhất?",
+      "a": "Theo Chỉ số giá thuê eno.vn ngày 19/11/2026, Quận 2 (TP. Thủ Đức, gồm Thảo Điền) có giá thuê căn hộ trung vị cao nhất TP.HCM. Phần lớn tin đăng ở Quận 2 hôm đó là căn 2 phòng ngủ cho gia đình, nên con số bị đẩy lên cao. Riêng căn 1 phòng ngủ, cũng ngày đó Quận 7 (Phú Mỹ Hưng) chào giá cao nhất, trên TP. Thủ Đức và Quận 1."
+    },
+    {
+      "q": "Giá thuê nhà năm 2026 có tăng không?",
+      "a": "Giá thuê nhà ở Việt Nam giảm nhẹ trong tháng 10/2026. Theo số liệu chỉ số giá tiêu dùng mà VietnamPlus đưa tin ngày 3/11/2026, giá thuê nhà giảm 0,22% so với tháng 9. Nhóm nhà ở, điện nước, chất đốt và vật liệu xây dựng thì bình quân 10 tháng năm 2026 tăng 6,66% so với cùng kỳ. Nhóm này gồm nhiều khoản ngoài tiền thuê, nên không có nghĩa là giá thuê nhà tăng chừng đó."
+    },
+    {
+      "q": "Thuê căn hộ ở TPHCM đặt cọc mấy tháng?",
+      "a": "Tiền cọc khi thuê căn hộ ở TP.HCM thường là 1 tháng tiền nhà với hợp đồng thuê nhà ở, theo hướng dẫn về tiền cọc của eno.vn cập nhật ngày 27/9/2026. Căn hộ dịch vụ, căn có nội thất đắt tiền và hợp đồng cố định trên 1 năm thường cọc 2 tháng. Chủ nhà đòi cọc trên 2 tháng là không bình thường, nên hỏi rõ trước khi ký."
+    },
+    {
+      "q": "Thuê nhà ở TPHCM có trả giá được không?",
+      "a": "Giá thuê nhà ở TP.HCM thường thương lượng được. Chỉ số giá thuê eno.vn theo dõi giá chào thuê, và chính trang chỉ số ghi rằng giá chốt sau thương lượng thường thấp hơn. Người thuê ký hợp đồng dài hơn hoặc trả trước vài tháng thường dễ được giảm giá nhất. Căn đã có giá nằm trong khoảng nửa giữa của quận thì ít dư địa giảm hơn căn chào cao hẳn."
+    },
+    {
+      "q": "Chỉ số giá thuê của eno.vn có phải giá thuê thực tế không?",
+      "a": "Chỉ số giá thuê TP.HCM của eno.vn không phải giá thuê đã ký. Chỉ số này tính giá chào thuê trung vị của các căn nhà đăng trên eno.vn ở TP.HCM, chia theo quận và loại nhà, và được tính lại thường xuyên. Giá ký hợp đồng thường thấp hơn giá chào. Mỗi quận phải có ít nhất 10 tin đăng thì chỉ số mới công bố giá trung vị cho quận đó."
+    }
+  ],
+  "sources": [
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Chỉ số giá tiêu dùng (CPI)",
+      "publisher": "Cục Thống kê (Bộ Tài chính)",
+      "url": "https://www.nso.gov.vn/cpi-vi/"
+    },
+    {
+      "title": "CPI tháng 10/2026 tăng 0,20%, chủ yếu do giá nhiên liệu điều chỉnh tăng lên",
+      "publisher": "VietnamPlus",
+      "url": "https://www.vietnamplus.vn/cpi-thang-muoi-tang-020-chu-yeu-do-gia-nhien-lieu-dieu-chinh-tang-len-post1145779.vnp"
+    },
+    {
+      "title": "Nghị quyết 202/2025/QH15 của Quốc hội về việc sắp xếp đơn vị hành chính cấp tỉnh",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/hanh-chinh/nghi-quyet-202-2025-qh15-cua-quoc-hoi-ve-viec-sap-xep-don-vi-hanh-chinh-cap-tinh-402728-d1.html"
+    },
+    {
+      "title": "Căn hộ dịch vụ TP.HCM: \"Sức sống\" từ chuyên gia nước ngoài, lao động thu nhập cao và khách quốc tế",
+      "publisher": "Tin nhanh chứng khoán",
+      "url": "https://www.tinnhanhchungkhoan.vn/can-ho-dich-vu-tphcm-suc-song-tu-chuyen-gia-nuoc-ngoai-lao-dong-thu-nhap-cao-va-khach-quoc-te-post399294.html"
+    },
+    {
+      "title": "Rental deposits in Vietnam: what is fair, and how to get yours back",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/rental-deposit-vietnam"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "hanoi-vs-ho-chi-minh-city-for-teachers"
+  ],
+  "lastChecked": "2026-11-20"
+}
