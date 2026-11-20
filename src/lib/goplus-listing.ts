@@ -973,7 +973,12 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
         price: Math.round(price),
         priceUnit: GOPLUS_PRICE_UNIT,
         currency: '₫',
-        negotiable: room.negotiable,
+        // ⛔ NEVER NEGOTIABLE ON eno (owner, 2026-11-20: "why people can send offer to goplus listings make them all non
+        // negotiable"), whatever GoPlus's own `negotiable` says (`room.negotiable`, still parsed above): an offer needs a
+        // counterparty who sets the price, and GoPlus's rooms are a partner's catalogue answered through the Partner inbox,
+        // like every other importer's rows (Rever, Honeycomb, eSIM, partners: all `negotiable: false`). It is a MUTABLE key,
+        // so the weekly import also turns the rooms already listed off; takesOffers() then refuses offers on them server-side.
+        negotiable: false,
         listingType: 'rent',
         subcategorySlug: unit === 'commercial' ? GOPLUS_COMMERCIAL_SUBCAT : GOPLUS_SUBCAT,
         location,

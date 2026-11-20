@@ -463,10 +463,11 @@ describe('mapGoplusRoom — the sample room as it would be stored', () => {
 })
 
 describe('mapGoplusRoom — the variants', () => {
-  it('a 2PN serviced flat, furnished, water per m³, negotiable, moving in later — all in the attributes, none in the text', () => {
+  it('a 2PN serviced flat, furnished, water per m³, negotiable at GoPlus (never on eno), moving in later — all in the attributes, none in the text', () => {
     const r = mapped(room({ type: '2PN', area: 45, amenityKeys: ['furnished', 'balcony'], fees: [{ id: 'water', price: 28000, unit: 'm³' }], negotiable: true, availableDate: '2026-11-02' }))
     expect(JSON.parse(r.mutable.attributes)).toMatchObject({ bedrooms: '2', aptType: 'serviced', furnishing: 'fully', waterPrice: '28000', waterUnit: 'm3', availableFrom: '2026-11-02' })
-    expect(r.mutable.negotiable).toBe(true)
+    // GoPlus says negotiable; eno never is (owner 2026-11-20) — no offers on a partner's room.
+    expect(r.mutable.negotiable).toBe(false)
     expect(r.mutable.titleVi).toBe('Căn hộ 2 phòng ngủ 45 m² · Phường Trung Mỹ Tây, Quận 12')
     expect(r.mutable.description.startsWith('2-bedroom apartment of 45 m² on Ql1a, Trung My Tay Ward, District 12, Ho Chi Minh City.')).toBe(true)
     expect(r.mutable.searchText).toContain('fully furnished')
