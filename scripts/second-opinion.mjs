@@ -109,9 +109,11 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // — no outside lab left. Owner, asked (opus alone until codex / wait / buy credits): "Opus alone until Nov 20". So until
 // UNTIL_CODEX the panel is opus alone and one lab is enough. ⛔ IT EXPIRES BY ITSELF: from UNTIL_CODEX the minimum is two labs
 // again while the panel is still opus alone, so every commit is refused until 'codex' is put back here (after one probe).
+// ✅ codex BACK 2026-11-20 ~23:10 ICT, after the window ended at 21:37: probed first (gpt-6.1-sol at medium answered a one-line
+// prompt with its VERDICT). The panel is codex + opus again, two labs, no clock; agy stays skipped (owner's word only).
 const UNTIL_CODEX = Date.parse('2026-11-20T21:37:00+07:00')
-const MIN_LABS = Date.now() < UNTIL_CODEX ? 1 : 2
-const REVIEWER_NAMES = ['opus']
+const MIN_LABS = 2
+const REVIEWER_NAMES = ['codex', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
