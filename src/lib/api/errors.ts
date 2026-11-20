@@ -317,6 +317,7 @@ export type NicheApiErrorCode =
   | 'no_file'
   | 'no_id'
   | 'no_ids'
+  | 'no_operator'
   | 'no_pending_appeal'
   | 'no_phone_in_name'
   | 'no_rows'
@@ -900,6 +901,7 @@ const ALL = [
   'no_file',
   'no_id',
   'no_ids',
+  'no_operator',
   'no_pending_appeal',
   'no_phone_in_name',
   'no_rows',
