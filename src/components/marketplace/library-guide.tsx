@@ -12,6 +12,7 @@ import { ChevronRight } from '@/components/ui/icons'
 import { Rows, Row } from '@/components/ui/rows'
 import { HereLink, P, SeoArticle, type ArticleContent, type ArticleSection } from './seo-article'
 import { TeachKeyPoints, teachGuideSections } from './teach-guide-body'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * One page for a guide in the general library (src/lib/guides), at /guides/<slug> in English and /huong-dan/<slug> in Vietnamese. A slug asked for at the other language's address is a 404, so
@@ -68,7 +69,7 @@ const hubGuides = (lang: Lang, now: Date) => (IS_SERVICES ? [] : liveGuides(now)
 export function libraryHubMetadata(lang: Lang): Metadata {
   if (!hubGuides(lang, requestNow()).length) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
   const hub = HUB[lang]
-  const title = `${hub.title} | ${SITE_NAME}`
+  const title = titleWithSite(hub.title, SITE_NAME)
   return { title, description: hub.description, alternates: { canonical: hub.path }, robots: TEACH_ROBOTS, ...pageShare({ title, description: hub.description, url: hub.path, type: 'website' }) }
 }
 
@@ -118,7 +119,7 @@ export function LibraryHub({ lang }: { lang: Lang }) {
 export function libraryGuideMetadata(slug: string, lang: Lang): Metadata {
   const hit = load(slug, lang, requestNow())
   if (!hit) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
-  const title = `${hit.guide.title} | ${SITE_NAME}`
+  const title = titleWithSite(hit.guide.title, SITE_NAME)
   const path = guidePath(hit.entry)
   const pair = hit.entry.pair ? guideEntry(hit.entry.pair) : null
   return {

@@ -5,6 +5,7 @@ import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { seoBrowseHref } from '@/components/marketplace/seo-landing-href'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * eSIM VIETTEL, VINAPHONE, MOBIFONE — the Vietnamese half.
@@ -157,7 +158,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `eSIM Viettel, VinaPhone, MobiFone — chuyển đổi và giữ nguyên số | ${SITE_NAME}`,
+  title: titleWithSite(`eSIM Viettel, VinaPhone, MobiFone — chuyển đổi và giữ nguyên số`, SITE_NAME),
   description:
     'Cách chuyển SIM vật lý sang eSIM mà giữ nguyên số, giấy tờ cần mang, máy nào hỗ trợ eSIM, và điều quan trọng nhất khi đổi điện thoại mới để không mất số.',
   alternates: phoneGuideAlternates(SLUG),

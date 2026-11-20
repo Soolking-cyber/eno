@@ -137,6 +137,8 @@ import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
 import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
+import { fillDescription } from '@/lib/meta-description'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 type Props = {
   params: Promise<{ id: string; lang?: string }>
@@ -295,12 +297,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const facts = [priceLabel, listing.category.name].filter(Boolean).join(', ')
   // SITE_NAME, not "eno.vn": this page renders on eno.forum too (CS-3 claim 8).
   const fallbackDesc = `${displayTitle}${facts ? ` — ${facts}` : ''}${listing.location ? ` in ${listing.location}` : ''} on ${SITE_NAME}`
-  const desc = (bodyDesc || fallbackDesc).slice(0, 160)
+  // ⛔ A SHORT BODY IS FILLED, NOT LEFT SHORT (Bing, 2026-11-20: "iPhone 17 Pro Max 512GB - Used, with scratches and dents." was the
+  // whole 57-character description): after the seller's words come the page's own facts — price, category, place — then the
+  // site line, until it says enough (src/lib/meta-description.ts). A long body is only cut at a word.
+  // In the page's language: the variant's price grouping (titlePrice) and category name — a Vietnamese description never
+  // reads "12,000,000 đ, Furniture". ⛔ "Free" only while POSTING_IS_FREE (site-identity.ts) says so.
+  const place = [vi ? listing.category.nameVi || listing.category.name : listing.category.name, listing.location].filter(Boolean).join(', ')
+  const siteLine = !POSTING_IS_FREE ? '' : vi ? `Rao vặt miễn phí cho người nước ngoài và người Việt trên ${SITE_NAME}.` : `Free classifieds for expats and locals in Vietnam on ${SITE_NAME}.`
+  const desc = bodyDesc
+    ? fillDescription(bodyDesc, [[titlePrice, place].filter(Boolean).join(', ') && `${[titlePrice, place].filter(Boolean).join(', ')}.`, siteLine])
+    // The composed fallback is English on both variants (above), so its closing line is too.
+    : fillDescription(fallbackDesc, [POSTING_IS_FREE && 'Free classifieds for expats and locals in Vietnam.'])
   // The fallback already carries the price — only prefix it onto a real body.
   const ogTitle = titlePrice ? `${titleFor} — ${titlePrice}` : titleFor
   // The card's price matches its title's (review: dots in og:title, commas in og:description on vi). The
   // composed fallback sentence is English, so it keeps the English price with it.
-  const ogDesc = titlePrice && bodyDesc ? `${titlePrice} · ${desc}` : desc
+  // ⛔ The card leads with the price, so its body is filled WITHOUT it (review, 2026-11-20: the price twice, two formats on vi).
+  const ogDesc = titlePrice && bodyDesc ? `${titlePrice} · ${fillDescription(bodyDesc, [place && `${place}.`, siteLine], { max: 157 - titlePrice.length })}` : desc
 
   /**
    * ⛔ A TEACHER PROFILE'S <title> AND ROBOTS COME FROM ITS PROFILE ROW (SEO plan P1 items 14 and 15, owner 2026-10-20) —

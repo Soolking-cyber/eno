@@ -60,10 +60,22 @@ beforeEach(() => {
   }
 })
 
+
+/**
+ * The composed line comes first, unchanged (the rules this file pins), then — since Bing's 2026-11-20 "too short" — only the
+ * page's own next step and what the site is (src/lib/meta-description.ts), within 160 characters.
+ */
+function leads(d: string | null, base: string) {
+  expect(d?.startsWith(base), d ?? 'null').toBe(true)
+  expect(d!.length).toBeLessThanOrEqual(160)
+  expect(d!.slice(base.length)).toMatch(/^(\.( See every listing( and message the seller)?\.)?( A free marketplace for expats and locals in Vietnam\.)?)?$/)
+  expect(d).not.toMatch(/review/i)
+}
+
 describe('storefrontMetaDescription', () => {
   it('a seller whose every live listing links out: the linked wording, the full total, no tier, no star', async () => {
     const d = await storefrontMetaDescription('s1')
-    expect(d).toBe(`CellphoneS on ${SITE_NAME}: 9,726 listings in Electronics, each linking to its original page on another site`)
+    leads(d, `CellphoneS on ${SITE_NAME}: 9,726 listings in Electronics, each linking to its original page on another site`)
     // The own-listing probe: THIS seller's live rows with no affiliateUrl, through the edition scope.
     expect(h.findFirstWhere).toEqual({ scoped: { sellerId: 's1', verified: true, status: 'active', affiliateUrl: null } })
   })
@@ -71,7 +83,7 @@ describe('storefrontMetaDescription', () => {
   it('one own listing anywhere (even past the 60 loaded) makes it an ordinary storefront; an OWNED one carries its tier', async () => {
     h.ownListing = { id: 'own-61' }
     h.seller = { ...h.seller, ownerId: 'p1' }
-    expect(await storefrontMetaDescription('s1')).toBe(`CellphoneS — 9,726 listings in Electronics · Trusted seller on ${SITE_NAME}`)
+    leads(await storefrontMetaDescription('s1'), `CellphoneS — 9,726 listings in Electronics · Trusted seller on ${SITE_NAME}`)
   })
 
   /**
@@ -81,19 +93,19 @@ describe('storefrontMetaDescription', () => {
   it('an ownerless storefront with an own listing: the ordinary wording, but no tier — its page shows no trust', async () => {
     h.ownListing = { id: 'own-61' }
     const d = await storefrontMetaDescription('s1')
-    expect(d).toBe(`CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
+    leads(d, `CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
     expect(d).not.toMatch(/trusted|top-rated/i)
   })
 
   it('an official partner shown as one: no tier — the page shows its partner badge instead of a score', async () => {
     h.ownListing = { id: 'own-61' }
     h.seller = { ...h.seller, ownerId: 'p1', officialPartner: true }
-    expect(await storefrontMetaDescription('s1')).toBe(`CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
+    leads(await storefrontMetaDescription('s1'), `CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
   })
 
   it('an empty OWNED storefront never probes, and says no count, no linked wording and no tier', async () => {
     h.seller = { ...h.seller, ownerId: 'p1', listings: [], _count: { listings: 0 } }
-    expect(await storefrontMetaDescription('s1')).toBe(`CellphoneS on ${SITE_NAME}`)
+    leads(await storefrontMetaDescription('s1'), `CellphoneS on ${SITE_NAME}`)
     expect(h.findFirstWhere).toBeUndefined()
     expect(h.goneProbes).toEqual([])
   })
@@ -129,7 +141,7 @@ describe('loadSeller — an ownerless shop emptied of anything public is gone', 
       { sellerId: 'eno-support-desk', verified: true, status: { in: ['active', 'sold'] } },
       { sellerId: 'eno-support-desk' },
     ])
-    expect(await storefrontMetaDescription('eno-support-desk')).toBe(`eno Support on ${SITE_NAME}`)
+    leads(await storefrontMetaDescription('eno-support-desk'), `eno Support on ${SITE_NAME}`)
   })
 
   it('ownerless with one SOLD listing (no active) → shown: the sold page is public and links here, and the any-listing probe never runs', async () => {

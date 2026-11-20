@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * NÊN MUA iPHONE HAY SAMSUNG — the Vietnamese half.
@@ -130,7 +131,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Nên mua iPhone hay Samsung — giá bán lại, bảo hành, giá thực tế | ${SITE_NAME}`,
+  title: titleWithSite(`Nên mua iPhone hay Samsung — giá bán lại, bảo hành, giá thực tế`, SITE_NAME),
   description:
     'Ba yếu tố quyết định tại Việt Nam: iPhone giữ giá tốt hơn bao nhiêu trên thị trường máy cũ, khả năng sửa chữa và bảo hành của từng hãng, và giá thực tế khi Samsung đặt nhà máy ngay trong nước.',
   alternates: phoneGuideAlternates(SLUG),

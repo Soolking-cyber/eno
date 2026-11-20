@@ -4,6 +4,7 @@ import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { formatInteger } from '@/lib/vnd'
+import { LICENCE_CHECK_SUBCATEGORIES, POST_HIDDEN_ON_MARKETPLACE, SUBCATEGORIES, type SubcatDefLegacy } from '@/lib/taxonomy'
 
 /**
  * THE WORDS /c/<category> AND /c/<category>/<district> SAY ABOUT THEIR OWN STOCK — pure, so every
@@ -715,4 +716,43 @@ export function topSubcategories(
     })
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, max)
+}
+
+
+/**
+ * WHAT IS HERE, IN NUMBERS AND KINDS (Bing, 2026-11-20: the category descriptions were ~90 characters of the same two
+ * sentences). Inserts, before categoryMetadata's closing sentence, the live count the page shows and the category's first
+ * subcategories — only while the result stays within 160 characters: kinds go first, then the count, and the closing
+ * sentence (where the listings open) always stays. Rentals and teachers keep their own descriptions.
+ */
+export function withCategoryFacts(description: string, lead: string, cat: { slug: string }, live: number, lang: PageLang): string {
+  if (cat.slug === 'rentals' || cat.slug === 'teachers' || !description.startsWith(lead)) return description
+  const tail = description.slice(lead.length).trim()
+  const subs = categoryKinds(cat.slug).slice(0, 3).map((x) => (lang === 'vi' ? x.nameVi || x.name : x.name))
+  // What the category COVERS (its aisles, as the taxonomy names them — never lower-cased, "iPhone" stays "iPhone"), not a
+  // claim that each holds stock: "Includes …" is its own sentence after the count.
+  const kinds = subs.length ? (lang === 'vi' ? `Gồm ${subs.join(', ')} và nhiều hơn nữa.` : `Includes ${subs.join(', ')} and more.`) : ''
+  const count = live > 0 ? (lang === 'vi' ? `${formatInteger(live, 'vi')} tin đang đăng.` : `${formatInteger(live)} live listing${live === 1 ? '' : 's'}.`) : ''
+  const middles = [count && kinds ? `${count} ${kinds}` : '', count, !count ? kinds : '']
+  for (const m of middles) {
+    if (!m) continue
+    const d = `${lead} ${m} ${tail}`.replace(/\s+/g, ' ').trim()
+    if (d.length <= 160) return d
+  }
+  return description
+}
+
+/**
+ * The aisles a category's description may name, in taxonomy order. ⛔ Never a visa or licence-checked aisle (visa runs,
+ * e-Visa, legal & permits — LICENCE_CHECK_SUBCATEGORIES holds bare slugs, POST_HIDDEN_ON_MARKETPLACE category/sub paths):
+ * a meta description is no place to name them.
+ */
+export function categoryKinds(slug: string): SubcatDefLegacy[] {
+  return (SUBCATEGORIES[slug] ?? []).filter((x) => !POST_HIDDEN_ON_MARKETPLACE.has(`${slug}/${x.slug}`) && !(LICENCE_CHECK_SUBCATEGORIES as readonly string[]).includes(x.slug))
+}
+
+/** The lead categoryMetadata opens with (withCategoryFacts finds where its middle goes). */
+export function categoryLead(cat: { name: string; nameVi?: string | null }, lang: PageLang): string {
+  const name = lang === 'vi' ? cat.nameVi || cat.name : cat.name
+  return lang === 'vi' ? `Xem tin ${name.toLowerCase()} tại Việt Nam.` : `Browse ${name.toLowerCase()} for expats in Vietnam.`
 }

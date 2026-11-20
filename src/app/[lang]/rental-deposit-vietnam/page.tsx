@@ -6,6 +6,7 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
 import { LiveCounts } from '@/components/marketplace/live-count'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { formatMoneyFull } from '@/lib/vnd'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * ⚠️ ENGLISH PAGE, ENGLISH GROUPING, THROUGH vnd.ts (docs/design-language.md §7 — never hand-format a
@@ -392,12 +393,12 @@ const CONTENT: ArticleContent = {
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: `Rental Deposit in Vietnam: What Is Fair and How to Get It Back | ${SITE_NAME}`,
+  title: titleWithSite(`Rental Deposit in Vietnam: What Is Fair and How to Get It Back`, SITE_NAME),
   description:
     'What a rental deposit in Vietnam covers, where the fair wear and tear line sits in this climate, real secondhand replacement prices to answer a deduction with, and what to do when a landlord does not return it.',
   alternates: { canonical: '/rental-deposit-vietnam' },
   ...pageShare({
-    title: `Rental Deposit in Vietnam: What Is Fair and How to Get It Back | ${SITE_NAME}`,
+    title: titleWithSite(`Rental Deposit in Vietnam: What Is Fair and How to Get It Back`, SITE_NAME),
     description:
       'The handover photo routine that settles deposit arguments, real replacement prices for a damaged item, and the escalation path when the money is withheld.',
     type: 'article',

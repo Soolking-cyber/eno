@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * WHICH SAMSUNG GALAXY TO BUY IN VIETNAM — the English half of the pair; the Vietnamese half is
@@ -292,7 +293,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Which Samsung Galaxy to buy in Vietnam — S, A, M and Z explained | ${SITE_NAME}`,
+  title: titleWithSite(`Which Samsung Galaxy to buy in Vietnam — S, A, M and Z explained`, SITE_NAME),
   description:
     'What the S, A, M and Z lines actually are, why Galaxy prices fall further in Vietnam than Apple’s do, which line fits which buyer, and the three dialler codes that verify a handset before you pay.',
   alternates: phoneGuideAlternates(SLUG),

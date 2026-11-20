@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * CÓ NÊN LÊN ĐỜI iPHONE 18 — the Vietnamese half.
@@ -144,7 +145,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Có nên lên đời iPhone 18 — tính chi phí thật trước khi đổi máy | ${SITE_NAME}`,
+  title: titleWithSite(`Có nên lên đời iPhone 18 — tính chi phí thật trước khi đổi máy`, SITE_NAME),
   description:
     'iPhone 18 Pro khác iPhone 17 Pro những gì, cách tính chi phí lên đời bằng giá bán lại máy cũ, khi nào nên chờ bản không Pro mùa xuân 2027, và vì sao 17 Pro lúc này thường là lựa chọn hợp lý hơn.',
   alternates: phoneGuideAlternates(SLUG),

@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * MUA iPHONE Ở ĐÂU UY TÍN — the Vietnamese half of the pair.
@@ -182,7 +183,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Mua iPhone ở đâu uy tín — 5 kiểu cửa hàng và cách kiểm tra máy | ${SITE_NAME}`,
+  title: titleWithSite(`Mua iPhone ở đâu uy tín — 5 kiểu cửa hàng và cách kiểm tra máy`, SITE_NAME),
   description:
     'Năm kiểu cửa hàng bán iPhone tại Việt Nam, chênh lệch giá mua được gì, cách phân biệt máy VN/A, máy trưng bày và hàng dựng, và các bước kiểm tra ngay tại quầy trước khi trả tiền.',
   alternates: phoneGuideAlternates(SLUG),

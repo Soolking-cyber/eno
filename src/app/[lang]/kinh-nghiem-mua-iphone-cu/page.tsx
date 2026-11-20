@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * KINH NGHIỆM MUA iPHONE CŨ — the Vietnamese half.
@@ -151,7 +152,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Kinh nghiệm mua iPhone cũ — 10 bước kiểm tra trước khi trả tiền | ${SITE_NAME}`,
+  title: titleWithSite(`Kinh nghiệm mua iPhone cũ — 10 bước kiểm tra trước khi trả tiền`, SITE_NAME),
   description:
     'Cách phát hiện máy dính iCloud, máy dựng, màn hình đã thay và pin lô khi mua iPhone cũ tại Việt Nam — mười bước kiểm tra trong mười phút, và cách mặc cả dựa trên những gì đo được.',
   alternates: phoneGuideAlternates(SLUG),

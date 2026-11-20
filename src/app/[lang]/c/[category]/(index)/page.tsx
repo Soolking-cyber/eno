@@ -9,7 +9,7 @@ import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeacherLinks, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
 import { AreaChipsRow } from './area-chips-row'
 import { CategoryMapChip } from './category-map-chip'
-import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
+import { byAreaChips, categoryMetadata, withCategoryFacts, categoryLead, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts, RentalsPhoneHeading } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
@@ -142,7 +142,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const rentals = headline && facts ? rentalsMetadata(facts, pageLang(lang), SITE_NAME, headline) : null
   // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts). `live` goes in
   // for /c/teachers, whose description says what profiles show only while one is live, as its lede does.
-  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang), live)
+  const { title, description: plainDescription } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang), live)
+  // The count and the kinds the page shows, inside 160 characters (Bing, 2026-11-20 — category-copy.ts withCategoryFacts).
+  const description = rentals ? plainDescription : withCategoryFacts(plainDescription, categoryLead(cat, pageLang(lang)), cat, live, pageLang(lang))
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
   const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS, teachers: cat.slug === TEACHERS_CATEGORY_SLUG })
   const meta: Metadata = {

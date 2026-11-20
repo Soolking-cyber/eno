@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * iPHONE CHÍNH HÃNG VÀ XÁCH TAY — the Vietnamese half.
@@ -143,7 +144,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `iPhone chính hãng và xách tay khác nhau thế nào — VN/A, LL/A, ZA/A | ${SITE_NAME}`,
+  title: titleWithSite(`iPhone chính hãng và xách tay khác nhau thế nào — VN/A, LL/A, ZA/A`, SITE_NAME),
   description:
     'Giải thích đuôi mã VN/A, LL/A, ZA/A, J/A; phân biệt máy lock và máy quốc tế; bảo hành cửa hàng đáng giá bao nhiêu; và phần chênh lệch giá lấy lại được bao nhiêu khi bán lại.',
   alternates: phoneGuideAlternates(SLUG),

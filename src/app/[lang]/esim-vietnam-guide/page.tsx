@@ -5,6 +5,7 @@ import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { seoBrowseHref } from '@/components/marketplace/seo-landing-href'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * eSIM IN VIETNAM — the English half; Vietnamese half at /esim-viettel-vinaphone-mobifone.
@@ -172,7 +173,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `eSIM in Vietnam — networks, compatible phones and registration | ${SITE_NAME}`,
+  title: titleWithSite(`eSIM in Vietnam — networks, compatible phones and registration`, SITE_NAME),
   description:
     'Which Vietnamese networks issue eSIM, which handsets support it, what a foreigner needs to register one, why a local number is effectively required for banking apps, and the transfer traps worth knowing.',
   alternates: phoneGuideAlternates(SLUG),

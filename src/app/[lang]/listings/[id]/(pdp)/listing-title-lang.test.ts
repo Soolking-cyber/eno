@@ -52,8 +52,18 @@ describe('listing <title> by variant (V2b)', () => {
   })
 
   it('og:description leads with the same price format as og:title when the seller wrote a body (review)', async () => {
-    expect((await meta('vi', { description: 'Good condition' })).openGraph).toMatchObject({ description: '12.000.000 đ · Good condition' })
-    expect((await meta('en', { description: 'Good condition' })).openGraph).toMatchObject({ description: '12,000,000 đ · Good condition' })
+    expect((await meta('vi', { description: 'Good condition' })).openGraph).toMatchObject({ description: expect.stringMatching(/^12\.000\.000 đ · Good condition\. /) })
+    expect((await meta('en', { description: 'Good condition' })).openGraph).toMatchObject({ description: expect.stringMatching(/^12,000,000 đ · Good condition\. /) })
+  })
+
+  it('a filled description names the price once, in the variant\'s grouping, and og:description does not repeat it (review 2026-11-20)', async () => {
+    const vi = await meta('vi', { description: 'Good condition' })
+    expect(vi.description).toMatch(/^Good condition\. 12\.000\.000 đ, /)
+    expect(vi.description).not.toMatch(/12,000,000/)
+    const og = String((vi.openGraph as { description?: string }).description)
+    expect(og.match(/12\.000\.000/g)).toHaveLength(1)
+    expect(og).not.toMatch(/12,000,000/)
+    expect(og.length).toBeLessThanOrEqual(160)
   })
 
   it('no price: just the title', async () => {
@@ -62,8 +72,9 @@ describe('listing <title> by variant (V2b)', () => {
 
   it('the description keeps the source title, and names this site, not "eno.vn" (claim 8)', async () => {
     const m = await meta('vi')
-    expect(m.description).toMatch(/^Sofa 3 seats — 12,000,000 đ, Furniture in District 1 on eno\.(forum|vn)$/)
-    expect(m.description).toMatch(/on eno\.forum$/) // the suite runs as the services edition (vitest.config.ts)
+    // Since Bing's 2026-11-20 "too short": the composed line, then the site's own line (src/lib/meta-description.ts).
+    expect(m.description).toBe('Sofa 3 seats — 12,000,000 đ, Furniture in District 1 on eno.forum. Free classifieds for expats and locals in Vietnam.') // the suite runs as the services edition (vitest.config.ts)
+    expect(m.description).not.toMatch(/eno\.vn/)
   })
 })
 

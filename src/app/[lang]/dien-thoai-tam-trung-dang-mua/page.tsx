@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * ĐIỆN THOẠI TẦM TRUNG ĐÁNG MUA — the Vietnamese half of the pair.
@@ -243,7 +244,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Điện thoại tầm trung đáng mua — chip, pin và thời hạn cập nhật | ${SITE_NAME}`,
+  title: titleWithSite(`Điện thoại tầm trung đáng mua — chip, pin và thời hạn cập nhật`, SITE_NAME),
   description:
     'Khi nào máy tầm trung hơn hẳn flagship, ba thông số xuống cấp nhanh nhất là chip, pin và thời hạn cập nhật, và khi nào flagship đời trước đáng tiền hơn cả hai.',
   alternates: phoneGuideAlternates(SLUG),

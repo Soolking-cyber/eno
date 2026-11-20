@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * CLAIMING THE VAT REFUND ON A PHONE — the English half of the pair; the Vietnamese half is
@@ -282,7 +283,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `VAT refund on a phone in Vietnam — who qualifies and how to claim | ${SITE_NAME}`,
+  title: titleWithSite(`VAT refund on a phone in Vietnam — who qualifies and how to claim`, SITE_NAME),
   description:
     'How the Vietnamese airport VAT refund works on a phone: who qualifies, the combined invoice you can only get at the till, the customs desk before check-in, the 2,000,000 ₫ threshold, and what disqualifies a claim.',
   alternates: phoneGuideAlternates(SLUG),

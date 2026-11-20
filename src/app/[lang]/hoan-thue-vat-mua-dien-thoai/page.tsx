@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * HOÀN THUẾ VAT KHI MUA ĐIỆN THOẠI — the Vietnamese half of the pair.
@@ -283,7 +284,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Hoàn thuế VAT khi mua điện thoại — ai được hoàn, hóa đơn đứng tên ai | ${SITE_NAME}`,
+  title: titleWithSite(`Hoàn thuế VAT khi mua điện thoại — ai được hoàn, hóa đơn đứng tên ai`, SITE_NAME),
   description:
     'Hoàn thuế GTGT tại sân bay chỉ dành cho người mang hộ chiếu nước ngoài. Bài viết giải thích thực nhận bao nhiêu phần trăm, mốc 2.000.000 đ, cách lấy đúng hóa đơn khi mua hộ người sắp bay, và khi nào hóa đơn đỏ có giá trị với người mua trong nước.',
   alternates: phoneGuideAlternates(SLUG),

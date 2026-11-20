@@ -46,6 +46,8 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { getInitials } from '@/lib/utils'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
+import { fillDescription } from '@/lib/meta-description'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -153,7 +155,9 @@ export async function storefrontMetaDescription(id: string): Promise<string | nu
   // The trust chip AS THE PAGE SHOWS IT (storefrontCard below): a partner shown as one carries its badge
   // instead of a score, and an ownerless storefront is unrated — neither earns the tier word.
   const partner = partnerShown(seller.officialPartner, seller.listings.some((l) => !!l.affiliateUrl))
-  return storefrontDescription({
+  // ⛔ NEVER A NAME AND NOTHING ELSE (Bing, 2026-11-20: "Fatima Zahra Tarad on eno.vn", 28 characters): a short line gets the
+  // page's own next step and the site line (src/lib/meta-description.ts) — what a visitor can do here, nothing invented.
+  return fillDescription(storefrontDescription({
     name: seller.name,
     total,
     categories: seller.listings.map((l) => l.category.name),
@@ -164,7 +168,12 @@ export async function storefrontMetaDescription(id: string): Promise<string | nu
     ownListing: !!own,
     trustShown: !partner && !isUnratedStorefront({ ownerId: seller.ownerId, officialPartner: partner }),
     siteName: SITE_NAME,
-  })
+  }), [
+    // Only what the page offers: its listings, and a seller to message when one of them is the seller's own and an account owns the storefront. ⛔ Nothing
+    // about reviews (an unrated storefront shows none) and "free" only while POSTING_IS_FREE (review, 2026-11-20).
+    total > 0 && !!own && !!seller.ownerId ? 'See every listing and message the seller.' : total > 0 ? 'See every listing.' : '',
+    POSTING_IS_FREE && 'A free marketplace for expats and locals in Vietnam.',
+  ])
 }
 
 // Reviews are fetched with an EXPLICIT select (not include) so we can read the

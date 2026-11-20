@@ -3,6 +3,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * Motorbike hire in Ho Chi Minh City — see src/components/marketplace/vehicle-hub.tsx for what this page is and why.
@@ -17,7 +18,7 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('motorbike')
   return {
-    title: `Motorbike Rental in Ho Chi Minh City: Scooters by Day or Month | ${SITE_NAME}`,
+    title: titleWithSite(`Motorbike Rental in Ho Chi Minh City: Scooters by Day or Month`, SITE_NAME),
     description: 'Motorbikes and scooters for rent in Ho Chi Minh City (Saigon) from local rental shops — automatic or manual, day and month prices worked out from live listings, and how booking with the shop works.',
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.

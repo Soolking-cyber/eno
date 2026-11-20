@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * iPHONE BATTERY REPLACEMENT IN VIETNAM — the English half of the pair; the Vietnamese half is
@@ -280,7 +281,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `iPhone battery replacement in Vietnam — official vs independent | ${SITE_NAME}`,
+  title: titleWithSite(`iPhone battery replacement in Vietnam — official vs independent`, SITE_NAME),
   description:
     'When iPhone battery health actually means replace, what an authorised service centre gives you that an independent shop cannot, how a non-genuine cell shows up as Unknown Part in Settings, and the checks that catch a swapped battery.',
   alternates: phoneGuideAlternates(SLUG),

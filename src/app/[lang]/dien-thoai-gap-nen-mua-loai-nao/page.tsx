@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { titleWithSite } from '@/lib/meta-description'
 
 /**
  * ĐIỆN THOẠI GẬP NÊN MUA LOẠI NÀO — the Vietnamese half.
@@ -154,7 +155,7 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Điện thoại gập nên mua loại nào — iPhone Duo hay Galaxy Z Fold | ${SITE_NAME}`,
+  title: titleWithSite(`Điện thoại gập nên mua loại nào — iPhone Duo hay Galaxy Z Fold`, SITE_NAME),
   description:
     'Giá máy gập tại Việt Nam, những bộ phận thường hỏng, chi phí thay màn hình khi hết bảo hành, và vì sao máy gập đời đầu thường nên chờ thế hệ sau.',
   alternates: phoneGuideAlternates(SLUG),
