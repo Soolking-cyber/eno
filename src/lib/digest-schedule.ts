@@ -62,8 +62,14 @@ export type DigestDayPlan<T> =
   | { started: false; startsOn: string }
   | { started: true; cycleDays: number; slot: number; due: T[]; skippedOverCapacity: number; overCapacity: boolean }
 
-/** Today's share of the eligible list (already filtered: opted in, a real address, not a partner, not our own domain). */
-export function planDigestDay<T extends { id: string }>(rows: readonly T[], now: Date): DigestDayPlan<T> {
+/**
+ * Today's share of the eligible list (already filtered: opted in, a real address, not a partner, not our own domain).
+ * `reserved` = emails another job already sent today out of the same daily quota (the teachers' schools ask, owner
+ * 2026-11-20: "50 per day out of 90" — src/lib/teachers/schools-ask.ts). It lowers TODAY'S cap only; the cycle is still
+ * dealt on DIGEST_DAILY_CAP, so a few days of asks never re-deal anyone's digest day — the overflow is skipped for this
+ * cycle, as over-capacity days are.
+ */
+export function planDigestDay<T extends { id: string }>(rows: readonly T[], now: Date, reserved = 0): DigestDayPlan<T> {
   const day = ictDay(now)
   if (day < DIGEST_START_DAY) return { started: false, startsOn: ictDayLabel(DIGEST_START_DAY) }
   let cycleDays: number = DIGEST_CYCLES[DIGEST_CYCLES.length - 1]
@@ -80,11 +86,12 @@ export function planDigestDay<T extends { id: string }>(rows: readonly T[], now:
   const sinceStart = day - DIGEST_START_DAY
   const slot = sinceStart % cycleDays
   let today = rows.filter((r) => digestSlot(r.id, cycleDays) === slot)
-  if (today.length > DIGEST_DAILY_CAP) {
+  const cap = Math.max(0, DIGEST_DAILY_CAP - Math.max(0, Math.floor(reserved)))
+  if (today.length > cap) {
     // Over capacity: who waits rotates with the cycle, so the same people are not the ones left out every time.
     const round = Math.floor(sinceStart / cycleDays)
     today = [...today].sort((a, b) => hashNum(`${a.id}:${round}`) - hashNum(`${b.id}:${round}`) || (a.id < b.id ? -1 : 1))
   }
-  const due = today.slice(0, DIGEST_DAILY_CAP)
+  const due = today.slice(0, cap)
   return { started: true, cycleDays, slot, due, skippedOverCapacity: today.length - due.length, overCapacity }
 }

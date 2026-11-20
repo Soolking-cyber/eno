@@ -8,6 +8,8 @@ import { renderWeeklyDigest } from '@/lib/emails/weekly-digest'
 import { SITE_NAME, IS_MARKETPLACE } from '@/lib/edition'
 import { isAdminEmail } from '@/lib/admin'
 import { ictDay, ictDayLabel, isOwnDomainEmail, planDigestDay } from '@/lib/digest-schedule'
+import { SCHOOLS_ASK, schoolsAskEmailsToday } from '@/lib/teachers/schools-ask'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -178,7 +180,11 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
   const eligible = plausible.filter((r) => r.seller?.officialPartner !== true && !isOwnDomainEmail(r.email as string))
 
   const now = new Date()
-  const plan = planDigestDay(eligible, now)
+  // The teachers' schools ask runs at 08:20 ICT and may email only until 08:40: what it sent today comes off today's cap.
+  // eno.vn only: the ask runs there (the installer pins it to :3001); another edition's digest keeps its whole cap.
+  // If the count cannot be read, hold back the ask's whole day rather than overrun the shared quota.
+  const reserved = IS_MARKETPLACE ? await schoolsAskEmailsToday(now).catch((e) => { logError(e, { op: 'digest.schools-ask-reserve' }); return SCHOOLS_ASK.emailsPerDay }) : 0
+  const plan = planDigestDay(eligible, now, reserved)
   const listCounts = { recipients: recipients.length, eligible: eligible.length, excludedPartner, excludedOwnDomain, skippedInvalid }
   if (!plan.started) return { ok: true, skipped: 'not_started', startsOn: plan.startsOn, ...listCounts, ...counts }
   const sendable = plan.due

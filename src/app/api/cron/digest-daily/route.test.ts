@@ -23,6 +23,8 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/admin', () => ({ isAdminEmail: (e: string) => h.admins.includes(e) }))
 vi.mock('@/lib/unsubscribe-token', () => ({ mintUnsubscribeToken: (id: string) => `signed-${id}` }))
+// The schools ask's share of today's quota (src/lib/teachers/schools-ask.ts) — none in these runs; planDigestDay's own test covers it.
+vi.mock('@/lib/teachers/schools-ask', () => ({ SCHOOLS_ASK: { emailsPerDay: 50 }, schoolsAskEmailsToday: async () => 0 }))
 vi.mock('@/lib/digest', () => ({
   getDigestContent: async () => {
     h.contentCalls++

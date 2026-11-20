@@ -49,6 +49,22 @@ describe('planDigestDay', () => {
     expect(Math.max(...c.perDay)).toBeLessThanOrEqual(DIGEST_DAILY_CAP)
   })
 
+  it('the schools ask\'s emails come off TODAY\'s cap only (owner, 2026-11-20: "50 per day out of 90") — the cycle and the days stay', () => {
+    const rows = people(600)
+    const day = DIGEST_START_DAY + 3
+    const full = planDigestDay(rows, at(day))
+    const shared = planDigestDay(rows, at(day), 50)
+    if (!full.started || !shared.started) throw new Error('not started')
+    expect(shared.cycleDays).toBe(full.cycleDays)
+    expect(shared.slot).toBe(full.slot)
+    expect(shared.due.length).toBe(Math.min(full.due.length, DIGEST_DAILY_CAP - 50))
+    expect(shared.skippedOverCapacity).toBe(full.due.length + full.skippedOverCapacity - shared.due.length)
+    // nothing reserved, or more than the cap: never negative, never a different list
+    expect(planDigestDay(rows, at(day), 0)).toEqual(full)
+    const none = planDigestDay(rows, at(day), 500)
+    expect(none.started && none.due.length).toBe(0)
+  })
+
   it('a list too big for a week moves to every 10 days, still once each and at most 90 a day', () => {
     const rows = people(750)
     const c = cycle(rows)
