@@ -9,7 +9,8 @@
  * every file as it was.
  *
  * No release dates in the future: a guide carried today is dated today. A date ahead would let one go live on its day after a person had rejected it. Reach drafts two topics a weeknight,
- * each in English and in Vietnamese (owner, 2026-11-09), and a person reads each. --max (default 6) takes a night's four approvals in one run and still keeps a bigger batch small, because
+ * each in English and in Vietnamese (owner, 2026-11-09; since 2026-11-20 five a night, "10 blogs per day since thats our indexing limit"), and a person reads each.
+ * --max (default 10, was 6) takes a night's ten approvals in one run and still keeps a bigger batch from landing at once, because
  * a new domain publishing in bulk reads as scaled production (registry.ts); the rest wait for the next run.
  *
  * Twins (the same guide in the two languages) are linked by `pair` on both registry lines, and only once both are in the registry: a twin carried alone ships unpaired, and the run that
@@ -177,7 +178,7 @@ function main() {
   const args = process.argv.slice(2)
   const value = (flag) => { const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1] }
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
-  const max = Number(value('--max') ?? 6)
+  const max = Number(value('--max') ?? 10)
   if (!Number.isInteger(max) || max < 1) throw new Error('--max must be a whole number, 1 or more')
   const file = value('--from-file')
   const rows = file ? JSON.parse(readFileSync(file, 'utf8')) : readFromBox()
