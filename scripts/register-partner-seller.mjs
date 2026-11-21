@@ -229,6 +229,22 @@ const PARTNERS = {
     avatarColor: '#000000',
     dailyReminderOptIn: false,
   },
+  // ── HOUSING SAIGON (owner, 2026-11-21: "create a partner store with housingsaigon@eno.vn as other formats with support+
+  // before it and leave it empty"). An eno-held login like Saigon Cribs and the car partners, created EMPTY: no listings, and
+  // no bio, legal name or logo — nothing about the company has been supplied or read, so the storefront states nothing beyond
+  // its name until the owner fills it. ⚠️ NO Cloudflare Email Routing rule for this address (owner, same day: "No route"):
+  // mail to it — a sign-in code, a password reset — is not delivered until one is added.
+  housingsaigon: {
+    email: 'support+housingsaigon@eno.vn',
+    handle: 'housingsaigon',
+    name: 'Housing Saigon',
+    legalName: null,
+    bio: null,
+    avatarUrl: null,
+    // A dark blue: ui/avatar draws the initials in white (the contrast rule Saigon Cribs' entry records).
+    avatarColor: '#1f4e79',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]
