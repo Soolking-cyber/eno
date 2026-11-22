@@ -21,6 +21,7 @@ export function isImport(externalId: string | null | undefined): boolean {
   return typeof externalId === 'string' && !externalId.startsWith('fb:')
 }
 
-export function isThinImport(row: { externalId?: string | null; description?: string | null }): boolean {
+// ⚠️ Both fields REQUIRED: a query that forgot to load them must fail the build, not quietly leave every import indexable.
+export function isThinImport(row: { externalId: string | null; description: string | null }): boolean {
   return isImport(row.externalId) && Array.from(row.description ?? '').length < MIN_IMPORT_DESCRIPTION_CHARS
 }
