@@ -35,6 +35,8 @@ export const PARTNER_INBOX_HANDLES = [
   'saigoncribs',
   // The motorbike rental partners (owner, 2026-11-22; src/lib/moto-partners.ts): official, chat-only, eno-held logins.
   'theextramile', 'saigonscootercentre',
+  // The housing agencies (owner, 2026-11-22; src/lib/housing-partners.ts): official, chat-only, eno-held logins.
+  'alphahousing', 'housingsaigon',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

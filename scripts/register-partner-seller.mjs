@@ -261,6 +261,20 @@ const PARTNERS = {
     avatarColor: '#1a1a1a',
     dailyReminderOptIn: false,
   },
+  // ── HÀ NỘI RENTAL AGENCY (owner, 2026-11-22: "import this as partner and their offerings https://alphahousing.vn/"). An
+  // eno-held login like Saigon Cribs; scripts/import-housing-partners.ts writes its listings once (src/lib/housing-partners.ts).
+  alphahousing: {
+    email: 'support+alphahousing@eno.vn',
+    handle: 'alphahousing',
+    name: 'Alpha Housing',
+    // ⚠️ NULL ON PURPOSE: its site prints no registered company name or tax code (read 2026-11-22).
+    legalName: null,
+    bio: 'Rental agency in Hà Nội: apartments, serviced apartments, villas and houses for expats in Tây Hồ, Ba Đình, Long Biên, Bắc Từ Liêm and more. Message Alpha Housing here on eno to check availability and book a viewing. eno introduces Alpha Housing; the tenancy is arranged with them.',
+    avatarUrl: null,
+    // The sky blue of their "a" mark is too light under white initials; their wordmark's near-black.
+    avatarColor: '#1d1d1f',
+    dailyReminderOptIn: false,
+  },
   saigonscootercentre: {
     email: 'support+saigonscootercentre@eno.vn',
     handle: 'saigonscootercentre',

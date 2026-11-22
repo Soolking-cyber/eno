@@ -149,7 +149,7 @@ describe('the partner roster', () => {
   it('leaves the visa partner off eno.forum, keeps every marketplace partner on both, and no longer lists GMBR', () => {
     // eno.forum is the same marketplace: the eno-run phone shops show there too (only the visa partner is left off).
     expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders', 'cellphones', 'dienthoaivui', 'hoanghamobile', 'shopdunk',
-      'carbi', 'karplus', 'ankhanhtravel', 'quehuong', 'luathoangphi', 'saigoncribs', 'evisasaigon', 'theextramile', 'saigonscootercentre'])
+      'carbi', 'karplus', 'ankhanhtravel', 'quehuong', 'luathoangphi', 'saigoncribs', 'evisasaigon', 'theextramile', 'saigonscootercentre', 'alphahousing', 'housingsaigon'])
     expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('gmbr')
     // Not a partner (owner 2026-11-17): SDC's gift shop stays a storefront, off the strip.
     expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('sdc_store')

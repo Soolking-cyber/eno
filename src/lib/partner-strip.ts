@@ -87,6 +87,10 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // the side stripes cut back to the mark.
   { handle: 'theextramile', name: 'The Extra Mile', logo: { src: '/partners/theextramile.webp', width: 151, height: 96 }, label: { en: 'Motorbikes', vi: 'Xe máy' }, size: 'square' },
   { handle: 'saigonscootercentre', name: 'Saigon Scooter Centre', logo: { src: '/partners/saigonscootercentre.webp', width: 166, height: 96 }, label: { en: 'Scooters', vi: 'Xe tay ga' }, size: 'square', dark: true },
+  // The housing agencies (owner, 2026-11-22; src/lib/housing-partners.ts): Alpha Housing's im_logo_alpha.svg and Housing
+  // Saigon's logo.png (housingsgn.com/wp-content/uploads/2023/11/), each trimmed to its artwork.
+  { handle: 'alphahousing', name: 'Alpha Housing', logo: { src: '/partners/alphahousing.webp', width: 305, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
+  { handle: 'housingsaigon', name: 'Housing Saigon', logo: { src: '/partners/housingsaigon.webp', width: 282, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

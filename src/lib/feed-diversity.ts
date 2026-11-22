@@ -134,11 +134,21 @@ const MOTO_PARTNER_SELLER_IDS: readonly string[] = [
   '2330ed0b-076b-43aa-9393-08a11ce271a9', // Saigon Scooter Centre
 ]
 
+/**
+ * …and the housing agencies (src/lib/housing-partners.ts, owner 2026-11-22): ~570 listings written at once from two
+ * storefronts. Their seller ids: Alpha Housing registered 2026-11-22, Housing Saigon 2026-11-21.
+ */
+const HOUSING_PARTNER_SELLER_IDS: readonly string[] = [
+  'd03f6c20-48b4-4db9-b09d-85b201e20e3b', // Alpha Housing
+  'f784ec38-25a9-47a3-9f77-55ec5aa66104', // Housing Saigon
+]
+
 export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {
   'job-boards': JOB_SELLER_IDS,
   'vehicle-rentals': VEHICLE_IMPORT_SELLER_IDS,
   'car-partners': CAR_PARTNER_SELLER_IDS,
   'moto-partners': MOTO_PARTNER_SELLER_IDS,
+  'housing-partners': HOUSING_PARTNER_SELLER_IDS,
 }
 
 /** sellerId → its shared seat's key, for seatKey's hot loop. */
