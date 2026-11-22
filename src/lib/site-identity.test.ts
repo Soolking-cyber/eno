@@ -38,6 +38,10 @@ describe('the Organization entity fields', () => {
     expect(f.sameAs.some((u) => u.includes('/groups/'))).toBe(false)
   })
 
+  it('publishingPrinciples points at how the guides are written and approved (the guides hub\'s "How these are made")', () => {
+    expect(marketplaceOrganizationFields('https://eno.vn').publishingPrinciples).toBe('https://eno.vn/guides#how')
+  })
+
   it('knowsAbout names topics, short, plain and country-wide (no city, as areaServed)', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f.knowsAbout.length).toBeGreaterThan(0)

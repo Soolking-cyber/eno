@@ -139,6 +139,8 @@ export function marketplaceOrganizationFields(origin: string) {
     areaServed: { '@type': 'Country', name: 'Vietnam' },
     knowsLanguage: [...LANGS],
     knowsAbout: [...KNOWS_ABOUT],
+    // How eno.vn's guides are written and approved (the guides hub's "How these are made"; owner 2026-11-22).
+    publishingPrinciples: `${origin}/guides#how`,
     ...(POSTING_IS_FREE && !IS_SERVICES ? { makesOffer: marketplacePriceOffer(origin) } : {}),
   }
 }

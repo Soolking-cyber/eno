@@ -94,6 +94,16 @@ export type ArticleContent = {
   /** "N min read" after the date line (a guide's computed reading time). */
   readingMinutes?: number
   /**
+   * The day a person on the eno.vn team approved THIS text, and the page that says how guides are made: " · Approved by the eno.vn
+   * team on …" in the date line, and `reviewedBy` + `lastReviewed` on the WebPage in JSON-LD (owner 2026-11-22: tell search engines
+   * the guides are checked and approved by a person). ⛔ ONLY FROM AN APPROVAL ON RECORD: the guides library passes its registry's
+   * `reviewed` date, which src/lib/guides/content.ts ties to a digest of the approved text at build. Never set it on a page no one
+   * approved — a "reviewed by" nobody did is a fabrication, in the markup or on the page.
+   */
+  approved?: { on: string; how: string }
+  /** What the article cites (its Sources list): the Article's `citation` in JSON-LD, so a machine reads the sources a reader sees. */
+  citations?: { name: string; url: string }[]
+  /**
    * ISO date (YYYY-MM-DD). With `updated`, the ONE source of both the visible date line and the Article
    * JSON-LD's datePublished/dateModified — so what a reader sees and what Google is told cannot drift.
    */
@@ -338,8 +348,8 @@ const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
  * follow the article, not the visitor, so they must not reach the translation layer.
  */
 const DATE_LINE = {
-  en: { updated: 'Updated', published: 'Published', read: (n: number) => `${n} min read` },
-  vi: { updated: 'Cập nhật', published: 'Đăng ngày', read: (n: number) => `${n} phút đọc` },
+  en: { updated: 'Updated', published: 'Published', read: (n: number) => `${n} min read`, approved: (site: string) => `Approved by the ${site} team on` },
+  vi: { updated: 'Cập nhật', published: 'Đăng ngày', read: (n: number) => `${n} phút đọc`, approved: (site: string) => `Đội ngũ ${site} duyệt ngày` },
 } as const
 
 /**
@@ -415,10 +425,16 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     inLanguage: content.lang ?? 'en',
     datePublished: content.published,
     dateModified: modified,
-    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': url,
+      // Only an approval on record (`approved` above): who approved the text and when, as schema.org's WebPage says it.
+      ...(content.approved ? { reviewedBy: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN }, lastReviewed: content.approved.on } : {}),
+    },
     author: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN },
     publisher: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
     isAccessibleForFree: true,
+    ...(content.citations?.length ? { citation: content.citations.map((c) => ({ '@type': 'CreativeWork', name: c.name, url: c.url })) } : {}),
     ...(content.alternate ? { workTranslation: { '@type': 'Article', inLanguage: content.alternate.lang, url: `${SITE_ORIGIN}${content.alternate.href}` } } : {}),
   }
 
@@ -517,11 +533,20 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           <p className="eyebrow text-muted-foreground mb-2">{content.eyebrow}</p>
           <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
           {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
-              No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by". */}
+              No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by": the approval is shown only when one is on
+              record (`approved`), and links to how the guides are made. */}
           <p className="mt-3 text-sm text-ink-4" lang={articleLang}>
             {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
             <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
             {content.readingMinutes ? <> · {DATE_LINE[articleLang].read(content.readingMinutes)}</> : null}
+            {content.approved ? (
+              <>
+                {' · '}
+                <Link href={content.approved.how} prefetch={false} className="underline underline-offset-2 hover:text-accent-foreground">
+                  {DATE_LINE[articleLang].approved(SITE_NAME)} <time dateTime={content.approved.on}>{formatArticleDate(content.approved.on, articleLang)}</time>
+                </Link>
+              </>
+            ) : null}
           </p>
           {/* 2026-11-07 audit: the lede at the body's 60ch measure and, from lg, its 18px. In the 3xl column it ran ~95 characters
               a line on a desktop, longer than any paragraph under it. */}

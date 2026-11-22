@@ -16,6 +16,7 @@ const entries = [
   { slug: 'unreviewed', lang: 'en', label: 'Unread', blurb: 'b', published: '2026-11-01' },
   { slug: 'linking', lang: 'en', label: 'Links', blurb: 'b', published: '2026-11-01', reviewed: '2026-11-01', reviewedDigest: 'x' },
   { slug: 'pictured', lang: 'en', label: 'Pictured', blurb: 'b', published: '2026-11-01', reviewed: '2026-11-01', reviewedDigest: 'x' },
+  { slug: 'stale', lang: 'en', label: 'Stale', blurb: 'b', published: '2026-11-01', updated: '2026-11-03', reviewed: '2026-11-02', reviewedDigest: 'x' },
 ]
 
 vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<object>()), IS_SERVICES: false }))
@@ -23,8 +24,8 @@ vi.mock('next/navigation', async (orig) => ({ ...(await orig<object>()), notFoun
 vi.mock('@/lib/guides/content', () => ({ guideContent: (slug: string) => guide(slug) }))
 vi.mock('./seo-article', async (orig) => {
   const real = await orig<typeof import('./seo-article')>()
-  return { ...real, Ul: ({ children }: { children: React.ReactNode }) => <ul>{children}</ul>, P: ({ children }: { children: React.ReactNode }) => <p>{children}</p>, HereLink: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, SeoArticle: ({ content }: { content: { h1: string; lang: string; canonical: string; alternate?: { href: string }; ledeRow: React.ReactNode; sections: { title: string; body: React.ReactNode }[]; faqs: unknown[]; related?: { href: string }[] } }) => (
-    <main data-lang={content.lang} data-canonical={content.canonical} data-alternate={content.alternate?.href} data-related={content.related?.map((r) => r.href).join(' ')}><h1>{content.h1}</h1>{content.ledeRow}{content.sections.map((s) => <section key={s.title}><h2>{s.title}</h2>{s.body}</section>)}</main>
+  return { ...real, Ul: ({ children }: { children: React.ReactNode }) => <ul>{children}</ul>, P: ({ children }: { children: React.ReactNode }) => <p>{children}</p>, HereLink: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>, SeoArticle: ({ content }: { content: { h1: string; lang: string; canonical: string; alternate?: { href: string }; ledeRow: React.ReactNode; sections: { title: string; body: React.ReactNode }[]; faqs: unknown[]; related?: { href: string }[]; approved?: { on: string; how: string }; citations?: { name: string; url: string }[] } }) => (
+    <main data-lang={content.lang} data-canonical={content.canonical} data-alternate={content.alternate?.href} data-related={content.related?.map((r) => r.href).join(' ')} data-approved={content.approved ? `${content.approved.on} ${content.approved.how}` : undefined} data-citations={content.citations?.map((c) => `${c.name}|${c.url}`).join(' ')}><h1>{content.h1}</h1>{content.ledeRow}{content.sections.map((s) => <section key={s.title}><h2>{s.title}</h2>{s.body}</section>)}</main>
   ) }
 })
 vi.mock('@/lib/guides/registry', async (orig) => {
@@ -108,6 +109,14 @@ describe('a page in the general guide library', () => {
   it('metadata names its own address and its pair', () => {
     const m = libraryGuideMetadata('thue-xe', 'vi')
     expect(m.alternates).toEqual({ canonical: '/huong-dan/thue-xe', languages: { en: '/guides/rent-a-bike', vi: '/huong-dan/thue-xe' } })
+  })
+
+  it('hands the article its approval on record and its sources: the day it was approved, linked to the hub\'s "How these are made"', () => {
+    const vi = renderToStaticMarkup(<LibraryGuide slug="thue-xe" lang="vi" />)
+    expect(vi).toContain('data-approved="2026-11-01 /huong-dan#how"')
+    expect(vi).toContain('data-citations="VinFast|https://vinfastauto.com/vn_vi"')
+    expect(renderToStaticMarkup(<LibraryGuide slug="rent-a-bike" lang="en" />)).toContain('data-approved="2026-11-01 /guides#how"')
+    expect(renderToStaticMarkup(<LibraryGuide slug="stale" lang="en" />), 'updated after its approval: no approval shown').not.toContain('data-approved')
   })
 
   it('says which approved text it is showing, which is how eno Reach knows a rewrite has gone live', () => {

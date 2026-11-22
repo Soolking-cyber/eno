@@ -55,13 +55,13 @@ const HUB = {
     path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
     title: 'Guides to living and doing business in Vietnam',
     description: 'Practical guides from eno.vn on renting, getting around, hiring and selling in Vietnam, checked against their sources and approved by the eno.vn team.',
-    how: 'Each guide is drafted with AI from pages it cites, then read and approved by a person on the eno.vn team before it goes live. Every guide lists its sources and the day they were last checked.',
+    how: 'Each guide is drafted with AI from pages it cites, its key facts are checked against those pages, and a person on the eno.vn team reads and approves it before it goes live. Every guide lists its sources, the day they were last checked and the day it was approved; a guide changed after that is approved again.',
   },
   vi: {
     path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
     title: 'Hướng dẫn về cuộc sống và kinh doanh ở Việt Nam',
     description: 'Hướng dẫn thực tế từ eno.vn về thuê nhà, đi lại, tuyển dụng và bán hàng ở Việt Nam, được kiểm tra với nguồn và do đội ngũ eno.vn duyệt trước khi đăng.',
-    how: 'Mỗi bài được AI soạn từ các trang mà bài trích dẫn, sau đó một người trong đội ngũ eno.vn đọc và duyệt trước khi đăng. Mỗi bài đều ghi nguồn và ngày kiểm tra gần nhất.',
+    how: 'Mỗi bài được AI soạn từ các trang mà bài trích dẫn, các thông tin chính được đối chiếu với chính các trang đó, rồi một người trong đội ngũ eno.vn đọc và duyệt trước khi đăng. Mỗi bài đều ghi nguồn, ngày kiểm tra nguồn gần nhất và ngày được duyệt; bài sửa sau đó phải được duyệt lại.',
   },
 } as const
 
@@ -173,6 +173,10 @@ export function LibraryGuide({ slug, lang }: { slug: string; lang: Lang }) {
     ),
     sections: teachGuideSections(guide, liveHref, lang, { outline: true, figures: true }),
     readingMinutes: readingMinutes(guide, lang),
+    // The approval on record (registry `reviewed`, digest-checked in src/lib/guides/content.ts), linked to the hub's "How these are made".
+    // Never older than the page's own "Updated" date: an approval from before the last change would not be an approval of this text.
+    ...(entry.reviewed && entry.reviewed >= (guideDates(entry).updated ?? '') ? { approved: { on: entry.reviewed, how: `${HUB[lang].path}#how` } } : {}),
+    citations: guide.sources.map((src) => ({ name: src.title, url: src.url })),
     ...(heroSrc(guide) ? { image: [heroSrc(guide)!] } : {}),
     faqs: guide.faqs,
     related: guide.related.flatMap((s) => relatedLink(s, now)),
