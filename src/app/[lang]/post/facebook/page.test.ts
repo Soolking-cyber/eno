@@ -26,10 +26,10 @@ const listingsOf = (el: Awaited<ReturnType<typeof Page>>) => {
 afterEach(() => { vi.unstubAllEnvs(); h.rail.mockReset(); h.localize.mockClear() })
 
 describe('/post/facebook — the ad landing\'s listings', () => {
-  it('six of the home page\'s trending rail, titles in the page\'s language, refreshed every 5 minutes', async () => {
-    h.rail.mockResolvedValue(Array.from({ length: 9 }, (_, i) => ({ id: `l${i}`, title: `t${i}` })))
+  it('eight of the home page\'s trending rail, titles in the page\'s language, refreshed every 5 minutes', async () => {
+    h.rail.mockResolvedValue(Array.from({ length: 11 }, (_, i) => ({ id: `l${i}`, title: `t${i}` })))
     const listings = listingsOf(await Page({ params })) as Array<{ id: string }>
-    expect(listings.map((l) => l.id)).toEqual(['l0', 'l1', 'l2', 'l3', 'l4', 'l5'])
+    expect(listings.map((l) => l.id)).toEqual(['l0', 'l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7'])
     expect(h.localize).toHaveBeenCalledWith(expect.any(Array), 'vi')
     expect(revalidate).toBe(300)
   })

@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
+import { LISTING_GRID } from './listing-grid'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -18,7 +20,9 @@ export function FacebookLandingListings({ listings }: { listings: SerializedList
   return (
     <section className="mt-10" aria-labelledby="fb-landing-listings">
       <h2 id="fb-landing-listings" className="h-section text-foreground">{tr('For sale on eno.vn', 'Đang bán trên eno.vn')}</h2>
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      {/* The site's listing grid (2 / 3 / 4 across), which the card's photo `sizes` are derived from. Eight come in: six below lg
+          (three rows of two, two of three), two full rows of four from lg. */}
+      <div className={cn(LISTING_GRID, 'mt-3 max-lg:[&>:nth-child(n+7)]:hidden')}>
         {listings.map((l) => (
           <ListingCard key={l.id} listing={l} clockInHtml={false} look="tile" onOpen={(x) => router.push(`/listings/${x.id}`)} />
         ))}
