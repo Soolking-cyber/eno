@@ -3,6 +3,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
+import { carHubDescription } from '@/lib/vehicle-hub-meta'
 
 /**
  * Self-drive car hire in Ho Chi Minh City — see src/components/marketplace/vehicle-hub.tsx for what this page is and why.
@@ -17,8 +18,9 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('car')
   return {
-    title: `Car Rental in Ho Chi Minh City: Self-Drive Cars by the Day | ${SITE_NAME}`,
-    description: 'Self-drive cars for hire in Ho Chi Minh City (Saigon) from local rental shops on one page — day prices by car size and for 7-seaters, where the cars are and how booking works.',
+    title: `Self-Drive Car Rental in Ho Chi Minh City: Prices per Day | ${SITE_NAME}`,
+    // Answer first: the day prices the page prints (src/lib/vehicle-hub-meta.ts), else the old wording.
+    description: carHubDescription(data, 'en', 'Self-drive cars for hire in Ho Chi Minh City (Saigon) from local rental shops on one page — day prices by car size and for 7-seaters, where the cars are and how booking works.'),
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
     ...(data.total === 0 ? { robots: { index: false, follow: true } } : {}),

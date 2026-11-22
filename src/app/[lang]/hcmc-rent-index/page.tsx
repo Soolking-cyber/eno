@@ -17,6 +17,7 @@ import { loadRentIndex } from './load-rent-index'
 import { BedroomTable, DistrictTable, Headline, Methodology, Unavailable } from './rent-index-sections'
 import { CiteBox } from './cite-box'
 import { faqPageJsonLd } from './faq'
+import { rentIndexMeta } from './meta'
 
 /**
  * /hcmc-rent-index — median asking rent by district and property type in Ho Chi Minh City, computed
@@ -41,31 +42,24 @@ const PATH = '/hcmc-rent-index'
 const URL_ = `${ORIGIN}${PATH}`
 
 /**
- * ⚠️ ONE BILINGUAL TITLE AND DESCRIPTION, THE SAME ON BOTH VARIANTS. Googlebot sends no
- * Accept-Language, so it only ever sees the English render; a Vietnamese searcher gets this page only
- * if the Vietnamese words are in the one <title> Google indexed. Same shape as the category pages on
- * branch seo-bilingual-meta ("EN · VI | eno.vn"), written out here rather than imported. ≤ 65 / 160.
+ * The title and description: one language per variant, with the snapshot's figures (./meta.ts says why). The share card
+ * carries the same words. ⚠️ `loadRentIndex` is the page's own cached daily snapshot, so the head and the tables quote the
+ * same day; a failed read gives the plain wording, never an invented figure.
  */
-const TITLE = `HCMC Rent Index · Giá thuê nhà TP.HCM theo quận | ${SITE_NAME}`
-const DESCRIPTION =
-  'Median rent by district in Ho Chi Minh City, updated daily, free to cite. Giá thuê nhà trung vị theo quận tại TP.HCM, cập nhật mỗi ngày.'
-
-const METADATA: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  ...pageShare({
-    title: TITLE,
-    description: DESCRIPTION,
-    url: PATH,
-  }),
-}
-
-/** The canonical follows the variant (src/lib/lang-alternates.ts): the Vietnamese render says `/vi/hcmc-rent-index`, with reciprocal hreflang. */
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  const twin = langAlternatesFor(PATH, lang, METADATA.robots)
-  return twin ? { ...METADATA, alternates: twin } : METADATA
+  // eno.forum answers 404 here (the page body's notFound), so it never reads the snapshot for a head nobody sees.
+  const lookup = IS_SERVICES ? ({ known: false } as const) : await loadRentIndex()
+  const { title, description } = rentIndexMeta(lookup.known ? lookup.index : null, lang)
+  const metadata: Metadata = {
+    title,
+    description,
+    alternates: { canonical: PATH },
+    ...pageShare({ title, description, url: PATH }),
+  }
+  /** The canonical follows the variant (src/lib/lang-alternates.ts): the Vietnamese render says `/vi/hcmc-rent-index`, with reciprocal hreflang. */
+  const twin = langAlternatesFor(PATH, lang, metadata.robots)
+  return twin ? { ...metadata, alternates: twin } : metadata
 }
 
 function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[] {
