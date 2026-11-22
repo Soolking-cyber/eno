@@ -138,6 +138,7 @@ import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEA
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
 import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
 import { fillDescription } from '@/lib/meta-description'
+import { isThinImport } from '@/lib/thin-import'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 type Props = {
@@ -339,6 +340,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // 2026-10-20, is a LINKED job (job-listing.ts isLinkedJobReference; until then it was indexed with `unavailable_after`
     // set to its apply-by date, which a page that is not indexed no longer needs). listing-robots.test.ts beside this file.
     // ⛔ A teacher profile: its search verdict (above).
+    // ⛔ A THIN IMPORT (an import under 200 characters, src/lib/thin-import.ts) is live but noindex, follow since 2026-11-22:
+    // the sitemap already left it out; the district and category pages that list it stay indexed.
+    // A teacher profile is judged by its own search verdict above (its own quality floor), never by this length rule.
     // ⚠️ A change here reaches every page with the deploy that ships it: the ISR cache is keyed by BUILD_ID
     // (cache-handler.cjs), so each page's first request after a deploy renders anew, and the deploy's own `eno-html` tag
     // purge (infra/vn-node/eno-deploy.sh) drops the edge copy — nothing to purge by hand, unless it ran --skip-purge.
@@ -346,6 +350,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? (teacherSearch ? teacherRobots(teacherSearch)
         : isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
           || isLinkedJobReference({ affiliateUrl: listing.affiliateUrl, listingType: listing.listingType })
+          || isThinImport(listing)
           ? { index: false, follow: true }
           : undefined)
       : { index: false, follow: true },

@@ -72,4 +72,20 @@ describe('the listing page\'s robots', () => {
   it('a sold linked job is noindex too — the sold page answers first, as for every listing', async () => {
     expect(await robotsOf({ status: 'sold' })).toEqual(NOINDEX)
   })
+
+  it('⛔ a THIN import (under 200 characters) is noindex, follow; a long import, a short member post and a short fb: import are not', async () => {
+    const room = { listingType: 'rent', category: { name: 'Rentals', slug: 'rentals' }, subcategorySlug: 'apartment-rental', attributes: '{}', priceUnit: 'VND/month', affiliateUrl: null }
+    const goplus = 'Duplex 20 m² on Nguyen Van Linh, District 7. Message GoPlus to book a viewing.' // the one-template room, ~80 chars
+    expect(await robotsOf({ ...room, externalId: 'goplus:123', description: goplus })).toEqual(NOINDEX)
+    expect(await robotsOf({ ...room, externalId: 'goplus:123', description: goplus }, 'vi')).toEqual(NOINDEX)
+    expect(await robotsOf({ ...room, externalId: 'goplus:123', description: 'x'.repeat(199) })).toEqual(NOINDEX)
+    expect(await robotsOf({ ...room, externalId: 'goplus:123', description: 'x'.repeat(200) })).toBeUndefined()
+    expect(await robotsOf({ ...room, externalId: null, description: 'Short post.' })).toBeUndefined()
+    expect(await robotsOf({ ...room, externalId: 'fb:999', description: 'Short post.' })).toBeUndefined()
+    // Characters, not UTF-16 units, as Postgres length() counts them: 199 emoji (398 units) are thin, 200 are not.
+    expect(await robotsOf({ ...room, externalId: 'goplus:1', description: '🏠'.repeat(199) })).toEqual(NOINDEX)
+    expect(await robotsOf({ ...room, externalId: 'goplus:1', description: '🏠'.repeat(200) })).toBeUndefined()
+    // An empty externalId is an import, as the sitemap's SQL reads it (`IS NOT NULL`).
+    expect(await robotsOf({ ...room, externalId: '', description: 'Short.' })).toEqual(NOINDEX)
+  })
 })

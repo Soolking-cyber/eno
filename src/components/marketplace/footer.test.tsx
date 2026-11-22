@@ -89,6 +89,9 @@ describe('Footer links', () => {
       expect(hrefs).not.toContain(lang === 'vi' ? '/buying-a-used-iphone-vietnam' : '/kinh-nghiem-mua-iphone-cu')
       expect(container.textContent).toContain(lang === 'vi' ? 'Kinh nghiệm mua iPhone cũ' : 'Buying a used iPhone in Vietnam')
       for (const href of ['/best-place-to-buy-iphone-vietnam', '/mua-iphone-o-dau-uy-tin']) expect(hrefs).not.toContain(href)
+      // The guides hub in the reader's language (2026-11-22: Search Console had it "unknown to Google").
+      expect(hrefs).toContain(lang === 'vi' ? '/huong-dan' : '/guides')
+      expect(hrefs).not.toContain(lang === 'vi' ? '/guides' : '/huong-dan')
       // The teacher-ranked school directory (2026-10-04).
       expect(hrefs).toContain('/schools')
       expect(container.textContent).toContain(lang === 'vi' ? 'Trường ở Sài Gòn do giáo viên xếp hạng' : 'Saigon schools ranked by teachers')
@@ -104,7 +107,7 @@ describe('Footer links', () => {
     it(`services/${lang}: does not promote the forum's copies of the rentals page or the guides`, async () => {
       const { hrefs, container } = await renderFooter('services', lang)
       expect(container.textContent).not.toContain(lang === 'vi' ? 'Căn hộ cho thuê tại TP.HCM' : 'Apartments for rent in Ho Chi Minh City')
-      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu', '/schools']) {
+      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu', '/schools', '/guides', '/huong-dan']) {
         expect(hrefs).not.toContain(href)
       }
       // eno.forum 308s the teacher library to eno.vn (next.config.ts): a footer link there would be a redirect.

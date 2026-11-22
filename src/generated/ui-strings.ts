@@ -1525,6 +1525,7 @@ export const UI_STRINGS: string[] = [
   "Guide pages",
   "Guide to teaching in Vietnam",
   "Guides",
+  "Guides to living in Vietnam",
   "Gym",
   "Gym & training",
   "Gym & yoga",

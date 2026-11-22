@@ -305,6 +305,9 @@ function FooterBody({ compact }: { compact: boolean }) {
                 label: tr('Buying a used iPhone in Vietnam', 'Kinh nghiệm mua iPhone cũ'),
                 href: lang === 'vi' ? '/kinh-nghiem-mua-iphone-cu' : '/buying-a-used-iphone-vietnam',
               },
+              // ⛔ THE GUIDES HUB (2026-11-22): Search Console had /guides "unknown to Google" and /huong-dan "discovered, not
+              // indexed" — nothing but the guides themselves linked them. Each hub lists every guide in its language.
+              { label: tr('Guides to living in Vietnam', 'Hướng dẫn cuộc sống ở Việt Nam'), href: lang === 'vi' ? '/huong-dan' : '/guides' },
             ]),
         /* ⚠️ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT and may not advertise visa,
            itinerary or PayPal services. The footer is the highest-frequency leak in the repo:

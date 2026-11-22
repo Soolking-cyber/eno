@@ -4,6 +4,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
 import { VI_PILOT_MARKETPLACE, hasViTwin, viPilotFor, viTwinPath, type ViPilot } from '@/lib/lang-pinned'
 import { teacherSitemapScope } from '@/lib/teachers/search-index'
+import { MIN_IMPORT_DESCRIPTION_CHARS } from '@/lib/thin-import'
 
 /**
  * THE SITEMAP IS PAGED INTO CHILDREN, and every child is capped.
@@ -92,7 +93,8 @@ export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}
 /**
  * ⛔ AN IMPORT WHOSE DESCRIPTION IS UNDER 200 CHARACTERS IS CRAWLABLE, NOT SUBMITTED (owner, 2026-11-19: "Unsubmit
  * thinnest imports"). Search Console that day: 1,529 "Crawled - currently not indexed", 81% of a 500-URL sample listing
- * pages, mostly GoPlus rooms and CellphoneS rows. The page stays 200, linked and indexable; we only stop asking for it.
+ * pages, mostly GoPlus rooms and CellphoneS rows. The page stays 200 and linked; since 2026-11-22 it is also `noindex,
+ * follow` (src/lib/thin-import.ts holds the one rule both read).
  *
  * IMPORT = an `externalId` that is not `fb:` (a member's own Facebook import, src/lib/fb-import/publish.ts — a member post).
  * Every PartnerPurchaseLink row has one (4,065 of 4,065), so the chat-only partners need no relation filter.
@@ -111,7 +113,7 @@ export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}
  * ones, so the list is short and a row the read missed is left out, never let in. ⚠️ Past ~30,000 kept imports the
  * list nears Prisma's bind-parameter cap: move to a stored flag then.
  */
-export const MIN_IMPORT_DESCRIPTION_CHARS = 200
+export { MIN_IMPORT_DESCRIPTION_CHARS }
 
 async function notThinImport(): Promise<Prisma.ListingWhereInput> {
   const long = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
