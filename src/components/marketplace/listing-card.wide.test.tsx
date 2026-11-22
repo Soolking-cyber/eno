@@ -205,7 +205,7 @@ describe('ListingCard wide — the text block', () => {
 describe('ListingCard wide — the photo', () => {
   it('pips show (12px off the edge), badges and the heart grow and inset to the big photo — phone only', () => {
     const c = card()
-    const pips = c.querySelector('[data-rail-media] > div.pointer-events-none.absolute.left-1\\/2')!
+    const pips = c.querySelector('[data-rail-media] > div.card-pips')!
     expect(tokens(pips)).toContain('max-sm:bottom-3')
     expect(tokens(pips)).not.toContain('max-sm:hidden')
     expect(tokens(band(c))).toEqual(expect.arrayContaining(['max-sm:left-3', 'max-sm:top-3']))
@@ -229,7 +229,7 @@ describe('ListingCard without `wide` — the two-up card is untouched', () => {
     expect(band(c)).toBeNull()
     expect(c.querySelectorAll('[data-rental-check-toggle]')).toHaveLength(1)
     expect(tokens(c.querySelector('[data-rail-media] [data-rental-check-toggle]'))).not.toContain('max-sm:hidden')
-    expect(tokens(c.querySelector('[data-rail-media] > div.pointer-events-none.absolute.left-1\\/2'))).toContain('max-sm:hidden')
+    expect(tokens(c.querySelector('[data-rail-media] > div.card-pips'))).toContain('max-sm:hidden')
     const html = c.innerHTML
     for (const t of [...WIDE_BODY.split(' '), ...WIDE_TITLE.split(' '), ...WIDE_PRICE_ROW.split(' '), 'max-sm:size-11', 'max-sm:size-6', 'max-sm:inline', 'max-sm:left-3', 'max-sm:right-15']) {
       expect(html, t).not.toContain(` ${t}"`)

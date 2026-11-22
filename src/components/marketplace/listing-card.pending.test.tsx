@@ -138,10 +138,10 @@ describe('ListingCard — a tap is acknowledged until the next screen paints', (
 
   it('carries the pressed scale and the dimmed photo as classes keyed on data-pending', () => {
     const { root, media } = renderCard()
-    expect(root.className).toContain('data-pending:scale-[0.97]')
-    // The press guard for in-card buttons survives alongside it.
-    expect(root.className).toContain('has-[button:active]:scale-100')
-    expect(media.className).toContain('group-data-pending:opacity-80')
+    // The utilities live in .card-root / .card-media since 2026-11-22 (globals.css); listing-card.classes.test.ts pins
+    // data-pending:scale-[0.97], the in-card button guard has-[button:active]:scale-100 and group-data-pending:opacity-80 there.
+    expect(root.className).toContain('card-root')
+    expect(media.className).toContain('card-media')
   })
 
   it('lets go on its own if the navigation never lands', () => {

@@ -95,7 +95,8 @@ describe('ListingCard — the photo tile', () => {
   it('photo, root and card link share the rounded-media corner; the photo carries the hairline', () => {
     const c = card()
     const media = c.querySelector('[data-rail-media]')
-    expect(classes(media)).toEqual(expect.arrayContaining(['rounded-media', 'media-hairline', 'isolate', 'relative']))
+    // isolate + relative live in .card-media (globals.css; listing-card.classes.test.ts pins them).
+    expect(classes(media)).toEqual(expect.arrayContaining(['rounded-media', 'media-hairline', 'card-media']))
     expect(classes(media)).not.toContain('rounded-2xl')
     expect(classes(c.querySelector('[data-card-root]'))).toContain('rounded-media')
     expect(classes(c.querySelector('[data-card-link]'))).toContain('rounded-media')
@@ -108,7 +109,7 @@ describe('ListingCard — the photo tile', () => {
 
   it('hides the slot pips below sm — and still has them from sm, where they count the slots', () => {
     const media = card().querySelector('[data-rail-media]')!
-    const pips = Array.from(media.querySelectorAll('div')).find((d) => classes(d).includes('-translate-x-1/2'))
+    const pips = Array.from(media.querySelectorAll('div')).find((d) => classes(d).includes('card-pips'))
     expect(pips, 'the pip row').toBeDefined()
     expect(classes(pips!)).toContain('max-sm:hidden')
     expect(pips!.children.length).toBe(3)

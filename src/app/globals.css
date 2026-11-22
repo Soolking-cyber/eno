@@ -5595,3 +5595,35 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
     mask-image: none;
   }
 }
+
+/* ── THE LISTING CARD'S REPEATED UTILITIES, AS FIVE CLASSES (2026-11-22) ──────────────────────────────────────────────
+   Owner: the home page's content-no-js ratio (text ÷ markup in the raw HTML, target over 5%). Every page draws up to ~32
+   cards, and these five elements carried ~0.85 KB of utility class text EACH, per card. The utilities are the same ones,
+   moved here with @apply, so the computed styles do not change. ⚠️ @layer components, like .plate-lg above: below the
+   utilities layer, so a conditional utility the card still adds (`max-sm:bottom-3`, `object-[50%_18%]`, `max-sm:hidden`)
+   overrides these exactly as it overrode the same utilities before. ⛔ Keep the plain classes on the elements
+   (listing-card.tsx says which and why): they are not utilities, and other rules key on their text. */
+@layer components {
+  .card-root {
+    @apply relative flex h-full w-full cursor-pointer flex-col text-left transition-transform duration-200 [touch-action:manipulation] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97];
+  }
+  .card-link {
+    @apply absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+  .card-media {
+    @apply relative isolate w-full transform-gpu overflow-hidden bg-tint [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80;
+  }
+  .card-img {
+    @apply transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97];
+  }
+  .card-pips {
+    @apply pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1;
+  }
+  /* ui/accordion.tsx: the trigger and its chevron (the FAQ draws 14 on the home page). The same utilities, unchanged. */
+  .acc-trigger {
+    @apply flex flex-1 items-start justify-between gap-4 py-4 text-left text-base font-bold text-foreground transition-[color,scale] hover:text-accent-foreground focus-visible:outline-1 focus-visible:outline-ring active:scale-[0.99] active:duration-[60ms] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .acc-chevron {
+    @apply mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open/acc-trigger:rotate-180;
+  }
+}

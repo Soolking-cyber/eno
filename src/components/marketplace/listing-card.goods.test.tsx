@@ -189,7 +189,8 @@ describe('ListingCard look="goods"', () => {
   it('one tile: no ring on a phone, the photo multiplies onto its slide\'s grey (never in dark mode)', () => {
     const c = card()
     const media = c.querySelector('[data-rail-media]')!
-    expect(classes(media)).toEqual(expect.arrayContaining(['media-hairline', 'bg-tint', 'isolate', 'max-sm:before:hidden']))
+    // bg-tint + isolate live in .card-media (globals.css; listing-card.classes.test.ts pins them).
+    expect(classes(media)).toEqual(expect.arrayContaining(['media-hairline', 'card-media', 'max-sm:before:hidden']))
     const img = c.querySelector('[data-card-strip] img')!
     expect(classes(img)).toEqual(expect.arrayContaining(['object-cover', 'max-sm:mix-blend-multiply', 'max-sm:dark:mix-blend-normal']))
     expect(classes(img.parentElement)).toContain('max-sm:bg-tint')

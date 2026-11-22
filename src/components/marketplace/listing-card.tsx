@@ -755,7 +755,11 @@ function ListingCardImpl({
       // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
       // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
       // press, so exempting anchors would delete the feedback this line exists to provide.
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-media corner-round cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
+      // ⛔ card-root / card-link / card-media / card-img / card-pips (globals.css, @layer components, 2026-11-22): the same
+      // utilities as before, @applied, so each of the ~32 cards a page draws carries ~0.75 KB less HTML (owner: the content-no-js
+      // ratio). The plain classes stay here because other rules key on their text: reveal-on-scroll, group, rounded-media
+      // (the squircle rule matches [class*="rounded-media"]), corner-round, plate-lg, media-hairline, aspect-square, object-cover.
+      className="reveal-on-scroll group rounded-media corner-round card-root"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -782,7 +786,7 @@ function ListingCardImpl({
           e.preventDefault()
           open()
         }}
-        className="absolute inset-0 z-0 rounded-media corner-round focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="rounded-media corner-round card-link"
       />
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
@@ -812,7 +816,7 @@ function ListingCardImpl({
         // red probe on the live page — see `.partner-ring-media` in globals.css for the full
         // measurement before reaching for either again.
         className={cn(
-          'plate-lg media-hairline relative aspect-square w-full overflow-hidden rounded-media corner-round bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
+          'plate-lg media-hairline aspect-square rounded-media corner-round card-media',
           // ⛔ The goods phone card has no ring (owner-approved 2026-11-14, cook r06 goods — `look`): the grey tile is the edge.
           // …nor a listing page shelf's card (`look="tile"`, owner-approved 2026-11-15 (build 7), cook r07 "item").
           tile && 'max-sm:before:hidden',
@@ -1083,7 +1087,7 @@ function ListingCardImpl({
                     // listing page still shows every photo whole. The ratio and the size of the box are untouched (owner, 11-14).
                     // One <img> per slide again, so the photo itself is the LCP element and the only thing `slideLoad` holds.
                     // The goods phone card (`look`): multiplied onto its slide's grey tile in light mode only.
-                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]', tile && 'max-sm:mix-blend-multiply max-sm:dark:mix-blend-normal')}
+                    className={cn('object-cover card-img', isTeacher && 'object-[50%_18%]', tile && 'max-sm:mix-blend-multiply max-sm:dark:mix-blend-normal')}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -1546,7 +1550,7 @@ function ListingCardImpl({
                 doorway still says there is more; from sm, where hover-scan lives, the pips stay.
                 ⛔ EXCEPT THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a — it reverses the line above there): a
                 366px photo is a gallery on its own, and its pips say so, 12px off its bottom edge, as on Airbnb's results. */}
-            <div className={cn('pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1', wide ? 'max-sm:bottom-3' : 'max-sm:hidden')}>
+            <div className={cn('card-pips', wide ? 'max-sm:bottom-3' : 'max-sm:hidden')}>
               {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}

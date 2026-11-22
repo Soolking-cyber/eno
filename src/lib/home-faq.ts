@@ -34,7 +34,7 @@ export function homeFaqJsonLd(lang: string): Record<string, unknown> {
 
 /** The day the questions block went live (7709fd349); `dateModified` moves when its answers are re-approved. */
 export const HOME_QUESTIONS_PUBLISHED = '2026-11-19'
-export const HOME_QUESTIONS_MODIFIED = '2026-11-19'
+export const HOME_QUESTIONS_MODIFIED = '2026-11-22'
 
 /**
  * Article JSON-LD for the questions block (owner 2026-11-19, "do lower risk one": an AEO checker asks for Article schema with an

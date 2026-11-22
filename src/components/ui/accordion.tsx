@@ -55,9 +55,9 @@ function AccordionTrigger({ className, children, headerRender, ...props }: Accor
           // zeroes `-webkit-tap-highlight-color` app-wide on the stated assumption that ":active"
           // styling exists. Here it did not, so every tap on the FAQ looked dead until the panel
           // opened. The 60ms down-duration is the house press timing (docs/design-language.md §6).
-          "group/acc-trigger flex flex-1 items-start justify-between gap-4 py-4 text-left text-base font-bold text-foreground transition-[color,scale] active:scale-[0.99] active:duration-[60ms]",
-          "hover:text-accent-foreground focus-visible:outline-1 focus-visible:outline-ring",
-          "disabled:pointer-events-none disabled:opacity-50",
+          // ⚠️ `acc-trigger` (globals.css, @layer components, 2026-11-22) holds this trigger's utilities, unchanged: the home page draws
+          // 14 of these and the raw HTML's text ÷ markup ratio is an owner target. A caller's className (a utility) still overrides it.
+          "acc-trigger group/acc-trigger",
           className
         )}
         {...props}
@@ -67,7 +67,7 @@ function AccordionTrigger({ className, children, headerRender, ...props }: Accor
             that may wrap to two or three lines on a phone. */}
         <ChevronDown
           aria-hidden
-          className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open/acc-trigger:rotate-180"
+          className="acc-chevron"
         />
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
