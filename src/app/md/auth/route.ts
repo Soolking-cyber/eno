@@ -345,8 +345,12 @@ sent, and \`403 insufficient_scope\` when the credential lacks the scope.
 
 ## Revocation
 
-There is no RFC 7009 revocation endpoint and no introspection endpoint. Everything is revoked in
-Dashboard › Developers:
+**A sign-in's refresh token** can be revoked by its client with RFC 7009 at
+\`${SITE_ORIGIN}/api/v1/oauth/revoke\` (\`token\`, \`token_type_hint=refresh_token\`, \`client_id\`): \`200\` ends the
+connection, and its access tokens stop at once (each call checks the connection). An unknown or already revoked token
+also answers \`200\`; a token issued to another client is \`unauthorized_client\`; an access token is
+\`unsupported_token_type\` (revoke the refresh token instead). There is no introspection endpoint. Everything can also be
+revoked in Dashboard › Developers:
 
 - **An API key**: revoking it stops the key at once. Client-credentials tokens are stateless, so one
   already minted from it keeps working until it expires, within ${TOKEN_TTL_SECONDS} seconds — keep

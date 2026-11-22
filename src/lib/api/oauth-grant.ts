@@ -492,6 +492,34 @@ async function retireOldGrants(prefix: string, profileId: string, sellerId: stri
   } catch (e) { logError(e, { op: 'oauth-grant.retireOldGrants' }) }
 }
 
+/**
+ * RFC 7009 token revocation of a sign-in grant's refresh token (owner 2026-11-22, the Personal Agent Protocol 1.0 issuer
+ * binding: agents revoke with token_type_hint=refresh_token on sign-out). Revoking the refresh token ends the grant — the
+ * same row Dashboard › Developers revokes — so no new access token can be minted, and the ones issued stop at once (a
+ * sign-in access token is checked against its grant on every call).
+ * ⛔ ONLY THE CURRENT TOKEN OF A LIVE GRANT, AND ONLY FOR ITS OWN CLIENT. A token that is malformed, unknown, rotated out or
+ * already revoked is "unknown" (RFC 7009 §2.2: the server answers 200, the token is already unusable) and reveals nothing;
+ * a current or rotated-out token presented by another client is refused (§2.1) without touching the grant. A token this
+ * grant rotated out (a refresh that raced the sign-out) still ends the grant: the person asked to sign out.
+ */
+export async function revokeRefresh(p: { token: string; clientId: string }, now: number): Promise<'revoked' | 'unknown' | 'wrong_client'> {
+  const m = /^eno_rt_([a-z0-9]{20,40})_[A-Za-z0-9_-]{43}$/.exec(p.token || '')
+  if (!m) return 'unknown'
+  const keyId = m[1]
+  const hash = labelledHash('eno-rt', p.token)
+  const row = await db.apiKey.findUnique({ where: { id: keyId }, select: { prefix: true, hashedKey: true, revokedAt: true } })
+  // (An agent registration's grant holds no eno_rt_ token — its hash is an identity_assertion's — so nothing here matches it.)
+  if (!row || row.revokedAt || !row.prefix.startsWith(GRANT_PREFIX) || row.prefix.startsWith(AGENT_GRANT_FAMILY)) return 'unknown'
+  // The current token, or one this grant issued and then rotated out (its replay evidence, as rotateRefresh keeps it): a
+  // sign-out that raced a refresh still ends the grant, rather than answering 200 while the successor lives on.
+  const current = row.hashedKey === hash
+  const rotatedOut = !current && (await kv.get<{ keyId: string; at: number }>(`oauth:rt-prev:${hash}`))?.keyId === keyId
+  if (!current && !rotatedOut) return 'unknown'
+  if (row.prefix.slice(GRANT_PREFIX.length, GRANT_PREFIX.length + 10) !== clientBinding(p.clientId)) return 'wrong_client'
+  const r = await db.apiKey.updateMany({ where: { id: keyId, revokedAt: null }, data: { revokedAt: new Date(now * 1000) } })
+  return r.count === 1 ? 'revoked' : 'unknown'
+}
+
 /** refresh_token: client-bound, scope may only narrow, rotation by compare-and-swap; a replay revokes the grant. */
 export async function rotateRefresh(p: { refreshToken: string; clientId: string; scope?: string; resource?: string }, now: number): Promise<GrantResult> {
   const m = /^eno_rt_([a-z0-9]{20,40})_[A-Za-z0-9_-]{43}$/.exec(p.refreshToken || '')

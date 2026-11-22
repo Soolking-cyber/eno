@@ -30,7 +30,18 @@ describe('/.well-known/poppy.json', () => {
   it('is website-only discovery naming this host, with no API or agent it would need an issuer binding for', async () => {
     const { poppy } = await load()
     const body = await (await poppy.GET()).json()
-    expect(body).toEqual({ protocol_version: '0.1', organization: { name: 'ENO Company Limited', domain: 'eno.vn' }, web: {} })
+    expect(body).toMatchObject({ protocol_version: '1.0', organization: { name: 'ENO Company Limited', domain: 'eno.vn' }, web: {} })
+    expect(Object.keys(body).sort()).toEqual(['auth', 'organization', 'protocol_version', 'web'])
+    // No API or agent entry: each would have to accept the protocol's Session header (1.0 §7), which ours do not.
+    expect(body).not.toHaveProperty('apis')
+    expect(body).not.toHaveProperty('agent')
+    // Every scope the sign-in can grant is described, with both hints (1.0 §4.7).
+    const { SIGN_IN_SCOPES } = await import('@/lib/api/oauth')
+    expect(Object.keys(body.auth.scopes).sort()).toEqual([...SIGN_IN_SCOPES].sort())
+    for (const s of SIGN_IN_SCOPES) {
+      expect(body.auth.scopes[s].length, s).toBeGreaterThan(10)
+      expect(body.auth.scope_hints[s], s).toEqual({ changes: expect.stringMatching(/^(none|reversible|irreversible)$/), personal_data: expect.any(Boolean) })
+    }
   })
 })
 
@@ -65,7 +76,8 @@ describe('the operator these documents name', () => {
     expect(p.organization.name).not.toBe('ENO Company Limited')
     expect(c.provider.organization.length).toBeGreaterThan(0)
     expect(p.organization.name).toBe(c.provider.organization)
-    expect(p.organization.domain).toBe('eno.forum')
+    // 1.0: the exact host that serves the document, www. kept (it was stripped under the 0.1 draft).
+    expect(p.organization.domain).toBe('www.eno.forum')
     expect(c.supportedInterfaces[0].url).toBe('https://www.eno.forum/api/a2a')
   })
 })

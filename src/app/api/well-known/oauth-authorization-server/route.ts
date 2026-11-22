@@ -24,11 +24,11 @@ import { CLAIM_GRANT, CLAIM_PATH, IDENTITY_PATH, JWT_BEARER_GRANT } from '@/lib/
 //     endpoint, which is a worse failure than publishing nothing.
 //   · NO `code_challenge_methods_supported` — PKCE protects an authorization CODE. There is no
 //     code. Listing S256 here would be a claim about a flow this server cannot run.
-//   · NO refresh_token in `grant_types_supported` — the token response contains access_token,
-//     token_type, expires_in and scope, and nothing else. A client re-presents its key.
-//   · NO `revocation_endpoint` / `introspection_endpoint` — tokens are STATELESS by design, so
-//     there is nothing to revoke or introspect server-side. Revoking the underlying API key in the
-//     dashboard takes effect within the 1-hour TTL; that is the documented model, not an oversight.
+//   · refresh_token in `grant_types_supported` SINCE 2026-11-13: the sign-in's rotating refresh tokens (oauth-grant.ts);
+//     client-credentials still answers access_token only, and a client re-presents its key.
+//   · `revocation_endpoint` SINCE 2026-11-22 (RFC 7009, /api/v1/oauth/revoke): a sign-in grant's REFRESH token is a
+//     database row and is revoked there (oauth-grant.ts revokeRefresh) — what the Personal Agent Protocol 1.0 issuer
+//     binding requires. Access tokens stay STATELESS (answered unsupported_token_type); no `introspection_endpoint`.
 //
 // ⚠️ `response_types_supported: []` IS CORRECT AND IS NOT A PLACEHOLDER. RFC 8414 lists the field
 // as required, and the honest value for a server with no authorization endpoint is the empty list:
@@ -57,6 +57,12 @@ export async function GET() {
       // not weakening the issuer.
       issuer: OAUTH_ISSUER,
       token_endpoint: `${OAUTH_ISSUER}/api/v1/oauth/token`,
+      // RFC 7009 for a sign-in grant's refresh token; public clients name themselves with client_id (no secret).
+      revocation_endpoint: `${OAUTH_ISSUER}/api/v1/oauth/revoke`,
+      revocation_endpoint_auth_methods_supported: ['none'],
+      // The resources this issuer serves (Personal Agent Protocol 1.0 §3.2: https:// plus the domain, no path or trailing
+      // slash): the origin, whose protected-resource metadata names this issuer.
+      protected_resources: [new URL(OAUTH_ISSUER).origin],
       // client_credentials (RFC 6749 §4.4) for API keys, and since 2026-11-13 "Sign in with eno"
       // (src/lib/api/oauth-grant.ts): authorization_code + PKCE S256 and rotating refresh tokens, for
       // PUBLIC clients identified by a Client ID Metadata Document (an https client_id). The two CIMD
