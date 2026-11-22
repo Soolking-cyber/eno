@@ -1,0 +1,6 @@
+# How to report a security problem with eno.vn. Write to us in English or Vietnamese.
+Contact: mailto:support@eno.vn
+Contact: https://eno.vn/contact
+Expires: 2027-11-21T00:00:00.000Z
+Preferred-Languages: en, vi
+Canonical: https://eno.vn/.well-known/security.txt

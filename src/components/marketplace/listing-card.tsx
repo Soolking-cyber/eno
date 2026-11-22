@@ -1202,6 +1202,8 @@ function ListingCardImpl({
               which opens the listing in the app or swallows a swipe's release. A modifier or middle click is the
               browser's own new tab or window, untouched; the box's fallback sees it came through a link and stays out.
             · tabIndex -1 and aria-hidden: the card link is the card's one stop for the keyboard and assistive tech.
+            · aria-label: assistive tech never reads it (aria-hidden), but crawlers and agents that read the markup would
+              otherwise meet an empty link (an SEO audit counted 34 on the home page, 2026-11-22).
             · draggable={false}, as the card link and the category tiles: a sloppy click that slides a few px must still
               open the listing, not start dragging a URL.
             · `data-photo-link`: native-bootstrap.tsx counts it as card surface, so a long-press here still opens the
@@ -1214,6 +1216,7 @@ function ListingCardImpl({
           href={`/listings/${listing.id}`}
           tabIndex={-1}
           aria-hidden
+          aria-label={displayTitle}
           data-photo-link=""
           draggable={false}
           onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}

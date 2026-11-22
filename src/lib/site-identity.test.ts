@@ -38,6 +38,13 @@ describe('the Organization entity fields', () => {
     expect(f.sameAs.some((u) => u.includes('/groups/'))).toBe(false)
   })
 
+  it('knowsAbout names topics, short, plain and country-wide (no city, as areaServed)', () => {
+    const f = marketplaceOrganizationFields('https://eno.vn')
+    expect(f.knowsAbout.length).toBeGreaterThan(0)
+    for (const t of f.knowsAbout) expect(t).toMatch(/^[A-Z][A-Za-z -]{5,60}$/)
+    for (const t of f.knowsAbout) expect(t, 'no city: stock moves').not.toMatch(/Ho Chi Minh|Hanoi|Ha Noi|Da Nang|Saigon/i)
+  })
+
   it('carries the @id every referring page uses, the country, and the interface languages', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f['@id']).toBe('https://eno.vn/#organization')

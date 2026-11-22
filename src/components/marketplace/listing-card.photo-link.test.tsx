@@ -101,6 +101,7 @@ describe('ListingCard — the photo is a link', () => {
     expect(photo.getAttribute('href')).toBe('/listings/l1')
     expect(photo.tabIndex).toBe(-1)
     expect(photo.getAttribute('aria-hidden')).toBe('true')
+    expect(photo.getAttribute('aria-label'), 'agents reading the markup meet a named link').toBeTruthy()
     expect(photo.getAttribute('draggable')).toBe('false')
     // Over the photo, under the controls (z-10+).
     expect(photo.className).toContain('absolute inset-0 z-[1]')

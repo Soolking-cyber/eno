@@ -99,6 +99,19 @@ export const ENTITY_PROFILES: readonly string[] = [
 ]
 
 /**
+ * What eno.vn knows about (schema.org knowsAbout): its own categories and the guides it publishes, as topics, never claims.
+ * Country-wide like `areaServed` below, and for the same reason: a city here would be a static claim about where stock is.
+ */
+export const KNOWS_ABOUT = [
+  'Online classifieds in Vietnam',
+  'Second-hand goods in Vietnam',
+  'Apartment and room rentals in Vietnam',
+  'Car and motorbike rentals in Vietnam',
+  'English teaching jobs in Vietnam',
+  'Buying phones and electronics in Vietnam',
+] as const
+
+/**
  * The fields that make the Organization node an ENTITY rather than a name — @id, the owned social
  * profiles, where it operates and the languages its interface runs in.
  *
@@ -125,6 +138,7 @@ export function marketplaceOrganizationFields(origin: string) {
     sameAs: [...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES],
     areaServed: { '@type': 'Country', name: 'Vietnam' },
     knowsLanguage: [...LANGS],
+    knowsAbout: [...KNOWS_ABOUT],
     ...(POSTING_IS_FREE && !IS_SERVICES ? { makesOffer: marketplacePriceOffer(origin) } : {}),
   }
 }

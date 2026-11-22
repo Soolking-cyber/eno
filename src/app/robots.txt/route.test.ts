@@ -29,7 +29,7 @@ describe('/robots.txt', () => {
     // ⛔ A NAMED AI CRAWLER LIVES IN THE "*" GROUP, NEVER IN A GROUP OF ITS OWN (2026-11-18): under RFC 9309 a crawler obeys
     // only its most specific group, so a group of its own would drop every Disallow below for it. The five named for the
     // agent-readiness scanners sit in the run of User-agent lines that opens with "*"; the others are not named at all.
-    const named = ['GPTBot', 'ClaudeBot', 'ChatGPT-User', 'PerplexityBot', 'Google-Extended']
+    const named = ['GPTBot', 'ClaudeBot', 'ChatGPT-User', 'OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended']
     expect(body).toMatch(new RegExp(`^User-agent: \\*\n${named.map((ua) => `User-agent: ${ua}\n`).join('')}Allow: /$`, 'm'))
     for (const ua of named) expect(body.match(new RegExp(`^User-agent: ${ua}$`, 'gm'))).toHaveLength(1)
     for (const ua of ['Bytespider', 'CCBot', 'Meta-ExternalAgent', 'anthropic-ai', 'Applebot-Extended']) expect(body).not.toMatch(new RegExp(`^User-agent: ${ua}$`, 'm'))
@@ -44,6 +44,8 @@ describe('/robots.txt', () => {
       'User-agent: GPTBot',
       'User-agent: ClaudeBot',
       'User-agent: ChatGPT-User',
+      'User-agent: OAI-SearchBot',
+      'User-agent: Claude-SearchBot',
       'User-agent: PerplexityBot',
       'User-agent: Google-Extended',
       'Allow: /',

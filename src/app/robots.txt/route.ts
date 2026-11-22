@@ -66,6 +66,8 @@ User-agent: *
 User-agent: GPTBot
 User-agent: ClaudeBot
 User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
 User-agent: PerplexityBot
 User-agent: Google-Extended
 Allow: /
@@ -123,7 +125,7 @@ Disallow: /unsubscribe
 # Pure-scraper and dataset crawlers that ingest our content (incl. listing photos) but send no traffic back — blocked
 # entirely. ⛔ CCBot and Bytespider are NOT here since 2026-11-17 (owner: "allow these too"): with GPTBot, ClaudeBot and
 # Meta-ExternalAgent they fall under "User-agent: *" — public pages, ai-train=yes. AI *search / answer* crawlers
-# (OAI-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
+# (OAI-SearchBot, Claude-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
 # link-preview bots) are intentionally NOT listed here, so they fall under
 # "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
 # discoverable in search AND in AI answers.
