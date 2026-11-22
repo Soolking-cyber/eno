@@ -42,6 +42,9 @@ describe('the home FAQ', () => {
       expect(a.author).toMatchObject({ '@type': 'Organization', name: 'eno.vn' })
       expect(a.datePublished).toBe(HOME_QUESTIONS_PUBLISHED)
       expect(a.isPartOf).toEqual({ '@id': page })
+      // Google's recommended Article fields, all four (an audit flagged the missing image): the page's own share card.
+      expect(a.image).toMatchObject({ '@type': 'ImageObject', url: expect.stringMatching(/\/og\/share-card\.jpg$/), width: 1200, height: 630 })
+      for (const k of ['headline', 'author', 'datePublished', 'image']) expect(a, k).toHaveProperty(k)
       expect(a).not.toHaveProperty('mainEntityOfPage')
       expect(a.headline).toBe(HOME_FAQ_HEADING[lang])
       expect(a.inLanguage).toBe(lang)

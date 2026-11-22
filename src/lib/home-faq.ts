@@ -9,7 +9,7 @@
  * The rules for the copy itself (no new claims, the 200-character cap) live in home-about.ts.
  */
 import { HOME_ABOUT, type AboutSection, type AboutText } from '@/lib/home-about'
-import { organizationId, siteOrigin } from '@/lib/site-identity'
+import { organizationId, SHARE_CARD, siteOrigin } from '@/lib/site-identity'
 
 export type FaqText = AboutText
 
@@ -59,5 +59,8 @@ export function homeQuestionsArticleJsonLd(lang: string, webPageId: string): Rec
     dateModified: HOME_QUESTIONS_MODIFIED,
     isPartOf: { '@id': webPageId },
     articleSection: HOME_ABOUT.map((s) => s.q[l]),
+    // The home page's own picture — its share card, the og:image it already declares (owner 2026-11-22, an audit's "Article has
+    // recommended fields … Missing: image"). Not a borrowed card: the block is part of that page.
+    image: { '@type': 'ImageObject', url: `${origin}${SHARE_CARD.url}`, width: SHARE_CARD.width, height: SHARE_CARD.height },
   }
 }
