@@ -321,10 +321,15 @@ describe('carrying a guide\'s pictures (carryPictures)', async () => {
     await expect(carryPictures([row([id], { w: 1600, h: 900 })], { fetchImpl: storage(new Set(), []), fromBox: reach, env })).rejects.toThrow(/its guide says/)
   })
 
-  it('Reach unreachable: stored pictures are checked by shape and the run goes on; a missing one stops it, saying why', async () => {
+  it('Reach unreachable stops the run, even when every picture is already in storage (fail closed)', async () => {
     const down = () => { throw new Error('Command failed: ssh') }
-    expect(await carryPictures([row([id])], { fetchImpl: storage(new Set([id]), []), fromBox: down, env })).toEqual([])
-    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set(), []), fromBox: down, env })).rejects.toThrow(/Reach could not be read/)
+    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set([id]), []), fromBox: down, env })).rejects.toThrow(/could not be read/)
+  })
+
+  it('with Reach\'s PNG gone, a stored picture must be exactly the size the upload makes', async () => {
+    const tiny = await sharp({ create: { width: 16, height: 9, channels: 3, background: { r: 200, g: 120, b: 80 } } }).webp().toBuffer()
+    const fake = (async (url: string, init: { method: string }) => (init.method === 'HEAD' ? new Response(null, { status: 200 }) : new Response(new Uint8Array(tiny), { status: 200 }))) as unknown as typeof fetch
+    await expect(carryPictures([row([id])], { fetchImpl: fake, fromBox: () => ({}), env })).rejects.toThrow(/not the picture/)
   })
 
   it('nothing goes up when any picture of the batch is bad', async () => {

@@ -23,8 +23,9 @@
  * WebP with sharp, and uploaded without overwrite (the address never changes what it shows). That needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in the environment
  * (`set -a; . ~/eno.vn/.env; set +a`); a guide with pictures is not carried without them. --dry-run reads, checks and converts everything (so it needs
  * them too when a picture is missing) and uploads nothing. What is enforced about a picture ALREADY in storage: while Reach still holds its PNG,
- * it must be the same picture (compared pixel by pixel at 32×18); once the guide is live and Reach has dropped the PNG, only that it is a WebP
- * of the declared shape — from then on what keeps the address honest is that only the admin key can write to the bucket.
+ * it must be the same picture (compared pixel by pixel at 64×36) at exactly the size the upload makes; once the guide is live and Reach has dropped
+ * the PNG, a WebP of exactly that size — from then on what keeps the address honest is that only the admin key can write to the bucket. Reach
+ * unreadable stops the run (fail closed).
  * Only eno's server (the admin key) writes to the listings bucket: sellers' uploads go through it, and the tombstone sweeper deletes only what
  * a removal queued, never guides/.
  *
@@ -235,14 +236,15 @@ export async function carryPictures(rows, { dryRun = false, fetchImpl = fetch, f
     for (let i = 0; i < ta.length; i++) { const d = Math.abs(ta[i] - tb[i]); diff += d; if (d > worst) worst = d }
     return diff / ta.length <= 6 && worst <= 96
   }
-  const sameShape = (a, b) => Math.abs(a.w / a.h - b.w / b.h) / (b.w / b.h) < 0.02
+  /** The size the upload makes of a declared picture: at most 1600 wide, proportions kept (src/lib/guides/guide-images.ts storedSize). */
+  const storedSize = ({ w, h }) => (w <= 1600 ? { w, h } : { w: 1600, h: Math.round((h * 1600) / w) })
+  const sameSize = (got, declared) => { const want = storedSize(declared); return Math.abs(got.w - want.w) <= 1 && Math.abs(got.h - want.h) <= 1 }
   // Reach's PNGs, read-only — dry run too, so its "would upload" means the real run can. The bytes must be the picture approved (its
   // SHA-256 is its id) at the size its guides declare. Reach drops a PNG once its guide is live (the WebP was checked when it went up).
-  // Reach unreachable (no key, no network, a --from-file run elsewhere) is not fatal by itself: a picture already in storage is then checked by
-  // shape, and one that must be uploaded stops the run, saying why.
-  let held = {}
-  let reachError = null
-  try { held = fromBox(ids) } catch (e) { reachError = e; console.warn(`pictures: Reach could not be read (${e.message.split('\n')[0]}); pictures already in storage are checked by shape only`) }
+  // ⛔ FAIL CLOSED: Reach unreadable stops the run (a stored picture would otherwise go unchecked against what was approved). Retry with the
+  // box reachable; a --from-file run needs it too when its guides have pictures.
+  let held
+  try { held = fromBox(ids) } catch (e) { throw new Error(`guides with pictures need Reach to check them, and it could not be read: ${String(e.message).split('\n')[0]}`) }
   const pngs = new Map()
   for (const id of ids) {
     if (typeof held[id] !== 'string') continue
@@ -257,7 +259,7 @@ export async function carryPictures(rows, { dryRun = false, fetchImpl = fetch, f
   const checkStored = async (id, url) => {
     const got = Buffer.from(await (await fetchImpl(url, { method: 'GET' })).arrayBuffer())
     const meta = await sharp(got).metadata().catch(() => null)
-    const ok = meta?.format === 'webp' && sameShape({ w: meta.width, h: meta.height }, declared.get(id)) && (!pngs.has(id) || (await samePicture(got, pngs.get(id))))
+    const ok = meta?.format === 'webp' && sameSize({ w: meta.width, h: meta.height }, declared.get(id)) && (!pngs.has(id) || (await samePicture(got, pngs.get(id))))
     if (!ok) throw new Error(`picture ${id} in storage is not the picture this guide declares`)
   }
   const missing = []
@@ -266,7 +268,7 @@ export async function carryPictures(rows, { dryRun = false, fetchImpl = fetch, f
     const r = await fetchImpl(url, { method: 'HEAD' })
     if (r.status === 200) { await checkStored(id, url); continue }
     if (r.status !== 404 && r.status !== 400) throw new Error(`eno's storage answered ${r.status} for picture ${id}`)
-    if (!pngs.has(id)) throw new Error(reachError ? `picture ${id} is not in eno's storage, and Reach could not be read: ${reachError.message.split('\n')[0]}` : `picture ${id} is neither in eno's storage nor in Reach`)
+    if (!pngs.has(id)) throw new Error(`picture ${id} is neither in eno's storage nor in Reach`)
     missing.push(id)
   }
   console.log(`pictures: ${ids.length - missing.length} of ${ids.length} in storage and checked${missing.length ? `, ${dryRun ? 'would upload' : 'uploading'} ${missing.length}` : ''}`)
