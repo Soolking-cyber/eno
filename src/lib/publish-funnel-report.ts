@@ -63,6 +63,11 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   duplicate_listing: 'Duplicate of a listing already live',
   account_restricted: 'Account restricted by the trust gate',
   location_required: 'No location set',
+  // The listing guard (listing-guard.ts, 2026-11-22).
+  price_required: 'Priced post under 1,000 đ',
+  price_placeholder: 'Price read as a placeholder (Jev)',
+  not_a_listing: 'An advert, not an offer (Jev)',
+  listing_check_limit: 'Storefront past its day of listing checks',
   category_not_postable: 'Tried to post into a form-only category (teachers)',
   teacher_profile_instead: 'A teacher posted Jobs › Teaching "looking for work" (sent to the teacher form)',
   // The job-text screen on hiring posts, both editions (job-listing.ts jobTextProblem, 2026-10-18) — one code per rule, so

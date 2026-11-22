@@ -3,6 +3,7 @@ import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { providerLicenceApiMessage } from '@/lib/licence-check-copy'
+import { LISTING_GUARD_REFUSAL } from '@/lib/listing-guard-copy'
 import { publishBlockedBody } from '@/lib/compliance/publish-block-response'
 
 /**
@@ -45,6 +46,12 @@ export function publishBlockedApiMessage(code: PublishBlockCode, detail?: string
       return JOB_TEXT_REFUSAL[code].en
     // The listing photo check (2026-11-15): `detail` names each refused image as '<rule>:<url>'.
     case 'photo_not_allowed': return 'Some images are flyers or show a phone number or other contact details (see detail) — remove them, then post again.'
+    // The listing guard (listing-guard.ts, owner 2026-11-22): a real price, an offer rather than an advert.
+    case 'price_required':
+    case 'price_placeholder':
+    case 'not_a_listing':
+    case 'listing_check_limit':
+      return LISTING_GUARD_REFUSAL[code].en
     default: {
       const unhandled: never = code
       return unhandled

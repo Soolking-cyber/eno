@@ -45,6 +45,7 @@ import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
 import { assertSellerMayPublish, sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
+import { assertListingGuard } from '@/lib/listing-guard'
 import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type IdentityBlockCode, type JobTextBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
 import { isHiringPost, jobTextDetail, jobTextProblem, type JobTextField } from '@/lib/job-listing'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
@@ -1447,6 +1448,31 @@ export async function updateListingCore(
     dropAudit = effects.audit
   }
 
+  // ⛔ THE LISTING GUARD ON AN EDIT (listing-guard.ts, owner 2026-11-22): the create check again, on the values the row will
+  // hold — but only when the words, the price or the intent change, so a photo swap or a district fix costs no Jev call, and
+  // a post that passed cannot be edited down to 1 đ or into an advert afterwards. The category cannot change on an edit.
+  const guardChanged = (title !== undefined && title !== current.title)
+    || (description !== undefined && description !== current.description)
+    || ('price' in data && data.price !== current.price)
+    || ('listingType' in data && data.listingType !== current.listingType)
+  if (guardChanged) {
+    try {
+      await assertListingGuard({
+        sellerId: current.sellerId,
+        category: current.category.slug,
+        subcategory: 'subcategorySlug' in data ? (data.subcategorySlug as string | null) : current.subcategorySlug,
+        listingType: 'listingType' in data ? String(data.listingType) : current.listingType,
+        title: title ?? current.title,
+        description: description ?? current.description,
+        price: 'price' in data ? Number(data.price) : current.price,
+        district: 'district' in data ? (data.district as string | null) : current.district,
+      })
+    } catch (e) {
+      if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code }
+      throw e
+    }
+  }
+
   // Commit the audit row and the listing update ATOMICALLY — a failed update must not
   // leave a phantom PriceChange (it would drag the 30-day reference down and mis-anchor
   // the "was" price on a future drop). Plain update when the price didn't change.
@@ -1846,6 +1872,10 @@ export async function createListingCore(input: {
   })()
   const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price: storedPrice, images, attributes: dupFacets })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
+  // ⛔ THE LISTING GUARD (listing-guard.ts, owner 2026-11-22): a priced intent needs a real price, and an advert is not a
+  // listing. LAST, after every free check, so a post refused for anything else never costs a Jev call. Every create path
+  // comes through here (the wizard, /api/v1, MCP, the Facebook import); exempt storefronts are never checked.
+  await assertListingGuard({ sellerId: seller.id, category: categorySlug, subcategory: subcategorySlug, listingType, title, description, price: storedPrice, district })
   // ⛔ A REVIEW SEAT'S NEW LISTING IS NEVER PUBLIC (src/lib/review-seat-accounts.ts REVIEW_SEAT_HELD_NOTE — round 3,
   // 2026-11-14): an outside reviewer's test post — the wizard, /api/v1, MCP create_listing alike — is stored unpublished
   // with the seat's mark, whatever aisle it is in, and no admin publish accepts it. No identityHold: nothing releases it.

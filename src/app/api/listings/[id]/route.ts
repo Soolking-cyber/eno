@@ -13,6 +13,7 @@ import { PROVIDER_LICENCE_REFUSAL } from '@/lib/provider-licence'
 import { LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
+import { isListingGuardCode, LISTING_GUARD_REFUSAL } from '@/lib/listing-guard-copy'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -144,6 +145,8 @@ function refusalMessage(code: string): { message?: { en: string; vi: string } } 
   if (code === 'teacher_profile_instead') return { message: TEACHER_PROFILE_REFUSAL }
   if (code === 'provider_licence_required' || code === 'provider_licence_invalid') return { message: PROVIDER_LICENCE_REFUSAL }
   if (code === 'listing_changed') return { message: LISTING_CHANGED_COPY }
+  // The listing guard (listing-guard.ts, owner 2026-11-22): what to fix, for the native apps — as the create route.
+  if (isListingGuardCode(code)) return { message: LISTING_GUARD_REFUSAL[code] }
   if (isJobTextBlockCode(code)) return { message: JOB_TEXT_REFUSAL[code] }
   return {}
 }

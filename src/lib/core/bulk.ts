@@ -15,6 +15,7 @@ import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/
 import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
+import { listingGuardProblems, LISTING_GUARD_REFUSAL, type ListingGuardCode } from '@/lib/listing-guard'
 import { reindexListing } from '@/lib/listing-index'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -158,6 +159,20 @@ export async function discardRehostedImages(fresh: string[]): Promise<void> {
   }
 }
 
+/** One row's values as the loop stores and screens them — shared with the listing guard's pre-pass, so the two never differ. */
+function bulkRowValues(r: BulkRow) {
+  return {
+    categorySlug: String(r.category_slug || '').trim(),
+    title: cutText(String(r.title || '').trim(), 140),
+    description: cutText(String(r.description || '').trim(), 5000),
+    district: r.district ? cutText(String(r.district).trim(), 80) : null,
+    condition: r.condition ? cutText(canonicalCondition(String(r.condition)), 60) : null,
+    // Numbers (API JSON) pass through; STRINGS (CSV) parse via the canonical
+    // digits-only parseVnd — '9.500' is 9,500 đ dot-thousands, never 9.5 (audit P2).
+    price: typeof r.price === 'number' ? r.price : parseVnd(String(r.price ?? '')),
+  }
+}
+
 export async function bulkImportCore(
   seller: { id: string; ownerId?: string | null; trustTier: string; trustScore: number },
   rows: BulkRow[],
@@ -230,6 +245,22 @@ export async function bulkImportCore(
   const seenInBatch = new Map<string, number>() // "<categoryId>|<foldedTitle>" → row number
   const seenExternalIds = new Map<string, number>() // external_id → row number
 
+  // ⛔ THE LISTING GUARD (listing-guard.ts, owner 2026-11-22: a real price, an offer rather than an advert) — AHEAD OF THE
+  // LOOP: its Jev calls run eight at a time here (listingGuardProblems), since one call a row in the sequential loop below
+  // would outlast Cloudflare's 100 s on a full file. Only for a row the loop's own free screens would pass (a known,
+  // postable category, a title, a valid price, no contact details or banned words), so a row refused for those costs no
+  // call. The intent is the one the row is stored with: a hiring row's, else the column default `sell`.
+  // A restricted account's rows are all refused in the loop: no call for them.
+  const guardProblems = seller.trustTier === 'restricted' && !released?.waivesRestricted ? rows.map((): ListingGuardCode | null => null) : await listingGuardProblems(seller.id, rows.map((r) => {
+    const v = bulkRowValues(r)
+    const cat = catBySlug.get(v.categorySlug)
+    if (!cat || !isPostableCategory(cat.slug) || v.title.length < 3 || !Number.isFinite(v.price) || v.price < 0 || v.price > 1e12) return null
+    const printed = [v.title, v.description, v.district, v.condition]
+    if (printed.some((t) => containsPhoneNumber(t) || containsContactInfo(t)) || findBannedWord(printed.filter(Boolean).join(' '))) return null
+    const jobType = resolveListingType(cat.slug, 'job')
+    return { category: cat.slug, subcategory: null, listingType: paysSalary(jobType) ? jobType : 'sell', title: v.title, description: v.description, price: v.price, district: v.district }
+  }))
+
   // Process sequentially (image re-hosting is network-bound; pacing avoids a burst).
   // Each row is independent — one bad row never aborts the batch.
   for (let i = 0; i < rows.length; i++) {
@@ -239,14 +270,7 @@ export async function bulkImportCore(
     const fresh: string[] = []
     let created = false
     try {
-      const categorySlug = String(r.category_slug || '').trim()
-      const title = cutText(String(r.title || '').trim(), 140)
-      const description = cutText(String(r.description || '').trim(), 5000)
-      const district = r.district ? cutText(String(r.district).trim(), 80) : null
-      const condition = r.condition ? cutText(canonicalCondition(String(r.condition)), 60) : null
-      // Numbers (API JSON) pass through; STRINGS (CSV) parse via the canonical
-      // digits-only parseVnd — '9.500' is 9,500 đ dot-thousands, never 9.5 (audit P2).
-      const price = typeof r.price === 'number' ? r.price : parseVnd(String(r.price ?? ''))
+      const { categorySlug, title, description, district, condition, price } = bulkRowValues(r)
       const cat = catBySlug.get(categorySlug)
 
       if (!cat) { results.push({ row: rowNo, error: `Unknown category "${categorySlug}"` }); continue }
@@ -292,6 +316,8 @@ export async function bulkImportCore(
       }
       // Restricted (low-trust) account → can't publish until its score recovers.
       if (seller.trustTier === 'restricted' && !released?.waivesRestricted) { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
+      // The listing guard's answer for this row (the pre-pass above): the sentence of its rule.
+      { const g = guardProblems[i]; if (g) { results.push({ row: rowNo, error: LISTING_GUARD_REFUSAL[g].en }); continue } }
 
       // Duplicate protection. Partner-managed rows (external_id) keep their own identity
       // semantics (the sync flow updates by external_id), so only ad-hoc rows are checked:

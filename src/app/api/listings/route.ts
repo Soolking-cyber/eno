@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isListingGuardCode, LISTING_GUARD_REFUSAL } from '@/lib/listing-guard'
 import { db } from '@/lib/db'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
@@ -264,6 +265,8 @@ async function createListing(req: NextRequest) {
           ...(e.code === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}),
           ...(e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? { message: PROVIDER_LICENCE_REFUSAL } : {}),
           ...(isJobTextBlockCode(e.code) ? { message: JOB_TEXT_REFUSAL[e.code] } : {}),
+          // The listing guard (listing-guard.ts, owner 2026-11-22): what to fix, for the native apps.
+          ...(isListingGuardCode(e.code) ? { message: LISTING_GUARD_REFUSAL[e.code] } : {}),
         },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },
       )

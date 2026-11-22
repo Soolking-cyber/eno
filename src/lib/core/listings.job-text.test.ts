@@ -87,7 +87,7 @@ const CLEAN = 'Teach English to adults and teenagers at our centre in District 7
   + 'Saturday. Bachelor’s degree and a 120-hour TEFL certificate required; we apply for your work permit.'
 
 type Cores = (typeof editions)['marketplace']
-type JobOver = { title?: string; description?: string; attributes?: Record<string, string>; category?: Row; listingType?: string; subcategorySlug?: string; images?: string[]; location?: string; district?: string; city?: string }
+type JobOver = { price?: number; title?: string; description?: string; attributes?: Record<string, string>; category?: Row; listingType?: string; subcategorySlug?: string; images?: string[]; location?: string; district?: string; city?: string }
 /** A hiring post in Jobs › Teaching (everything overridable), as the wizard sends it — a job needs no photo. */
 function createJob(core: Cores, over: JobOver = {}) {
   return core.createListingCore({
@@ -95,7 +95,7 @@ function createJob(core: Cores, over: JobOver = {}) {
     guestCreate: false,
     category: (over.category ?? JOBS) as typeof JOBS,
     title: over.title ?? 'English teacher, District 7',
-    price: 0,
+    price: over.price ?? 0,
     body: {
       listingType: over.listingType ?? 'job', subcategorySlug: over.subcategorySlug ?? 'teaching',
       description: over.description ?? CLEAN, district: over.district ?? 'Quận 7', salaryM: 25, images: over.images ?? [],
@@ -202,7 +202,7 @@ for (const edition of ['marketplace', 'services'] as const) {
 
     it('a listing outside Jobs is not screened: the same words publish in Services', async () => {
       const services = { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }
-      expect(await createJob(core, { category: services, listingType: 'service', subcategorySlug: 'cleaning', title: 'Weekly home cleaning', description: 'Female only team. Visa card accepted. Deposit required for keys.', attributes: {}, images: ['https://cdn.eno.vn/l/clean-1.jpg'] }))
+      expect(await createJob(core, { category: services, listingType: 'service', subcategorySlug: 'cleaning', price: 300_000, title: 'Weekly home cleaning', description: 'Female only team. Visa card accepted. Deposit required for keys.', attributes: {}, images: ['https://cdn.eno.vn/l/clean-1.jpg'] }))
         .toEqual({ id: 'new-1', verified: true })
       h.current = jobRow({ category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }, subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/service', salaryM: null, attributes: null })
       expect(await core.updateListingCore('listing-1', { description: 'Female only team. Visa card accepted.' })).toEqual({ ok: true })

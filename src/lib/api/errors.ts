@@ -430,6 +430,10 @@ export type NicheApiErrorCode =
   | 'identity_suspended'
   | 'identity_unverified'
   | 'location_required'
+  | 'price_required' // the listing guard (listing-guard.ts, 2026-11-22): a priced intent under 1.000 đ
+  | 'price_placeholder' // …Jev reads the price as a placeholder
+  | 'not_a_listing' // …Jev reads the post as an advert, not an offer
+  | 'listing_check_limit' // …the storefront is past its day's checks (fails closed)
   | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
   | 'teacher_profile_instead' // Jobs › Teaching "looking for work" is a teacher profile, never a post (2026-10-12)
   | 'provider_licence_required' // e-Visa / Legal & permits: the provider's registered name + licence number are needed (2026-10-14)
@@ -968,6 +972,10 @@ const ALL = [
   'identity_suspended',
   'identity_unverified',
   'location_required',
+  'price_required',
+  'price_placeholder',
+  'not_a_listing',
+  'listing_check_limit',
   'category_not_postable',
   'teacher_profile_instead',
   'provider_licence_required',

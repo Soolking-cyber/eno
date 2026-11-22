@@ -73,6 +73,9 @@ function casMatches(row: Row, where: Row): boolean {
   })
 }
 
+// The listing guard reads the partner flag for ITS exemption (listing-guard.ts → photoCheckExemptFor); this file pins that the
+// LICENCE check never does, so the guard (tested in listing-guard.test.ts) is out of the count here.
+vi.mock('@/lib/listing-guard', () => ({ assertListingGuard: async () => {} }))
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.afters.push(fn) } }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('@/lib/db', () => ({

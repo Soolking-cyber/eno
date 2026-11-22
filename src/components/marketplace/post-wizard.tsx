@@ -1336,6 +1336,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
     if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'upload_photo_refused' || code === 'photo_not_allowed' || code === 'photo_required' || code === 'photos_min') return 'photo'
     if (code === 'location_required') return 'location'
+    if (code === 'price_required' || code === 'price_placeholder') return 'price'
+    if (code === 'not_a_listing') return 'title'
     // The keyword-guess case: the subcategory the server read is not on screen, so the jump goes to the category section.
     if (code === 'teacher_profile_instead') return teacherSeeking ? 'teacher' : 'category'
     if (code === 'phone_taken') return 'contactPhone'
@@ -1736,6 +1738,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? (salaryPaid
               ? t('Bạn đã có tin tuyển dụng đang hiển thị cho vị trí này. Vào Tin đăng để chỉnh sửa thay vì đăng lại.', 'You already have a live post for this job. Open My Listings to edit it instead of posting it again.')
               : t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again."))
+          // The listing guard (listing-guard.ts, owner 2026-11-22): a real price, and an offer rather than an advert.
+          : msg === 'price_required'
+          ? t('Hãy nhập giá thật, từ 1.000 đ trở lên. Nếu miễn phí, hãy chọn Cho tặng.', 'Enter the real price, at least 1,000 VND. If it’s free, choose Free.')
+          : msg === 'price_placeholder'
+          ? t('Giá này có vẻ chưa phải giá thật — hãy nhập đúng giá bạn muốn bán.', 'That price looks like a placeholder — enter your real asking price.')
+          : msg === 'listing_check_limit'
+          ? t('Hôm nay bạn đã đăng hoặc sửa rất nhiều tin — hãy thử lại vào ngày mai.', 'You’ve posted or edited a lot of listings today — try again tomorrow.')
+          : msg === 'not_a_listing'
+          ? t('Tin này giống quảng cáo cho cửa hàng hoặc sự kiện. Hãy đăng một món đồ, chỗ ở hoặc dịch vụ cụ thể, kèm giá.', 'This reads like an advert for a business or event. Post one item, place or service you’re offering, with its price.')
           : msg === 'location_required'
           ? (salaryPaid
               ? t('Hãy chọn vị trí cho tin tuyển dụng — ứng viên cần biết nơi làm việc.', 'Pick a location for your job — candidates need to know where the work is.')

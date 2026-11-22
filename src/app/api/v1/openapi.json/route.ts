@@ -1315,7 +1315,7 @@ export const SPEC = {
             // `provider_licence_required` / `provider_licence_invalid` (2026-10-14): e-Visa / Legal & permits — see ListingInput.attributes.
             // The four `job_*` codes (2026-10-18): a hiring post's text failed the job-text screen (job-listing.ts
             // jobTextProblem), on both editions. ⚠️ The description names no rule's words: this spec is served on eno.vn.
-            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
+            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'price_required', 'price_placeholder', 'not_a_listing', 'listing_check_limit'],
           ),
         },
       },
@@ -1354,7 +1354,7 @@ export const SPEC = {
           ),
           '422': fail(
             'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422. `provider_licence_invalid` carries `error.detail` "<field>:<reason>", and the `job_*` codes (a hiring post\'s text) "<field>:<words>" — the field and the words to take out or reword.',
-            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'price_required', 'price_placeholder', 'not_a_listing', 'listing_check_limit', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
         },
       },

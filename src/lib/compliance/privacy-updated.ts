@@ -245,8 +245,13 @@
  * which part of it moved most (a landmark and an element kind, closed labels) and whether before or after a move to another
  * page of the site. Still anonymous daily totals, no new recipient. Live with the deploy (the paragraph's own rule, item 5).
  * ⛔ THE PLANNED DAY: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-22, the listing guard (owner, 2026-11-22: "add a proper jev guardrail so we dont have improper posts …";
+ * src/lib/listing-guard.ts): a new recipient, TypeSafe AI (its Jev model), of a listing's words when it is posted or its words,
+ * price or type change — never a photo or an account field — and two refusals in "Publish checks" (a price under 1,000 đ, and
+ * an advert or a placeholder price as Jev reads them). Live with the deploy. ⛔ THE PLANNED DAY: re-date it to the day the
+ * deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-19'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-22'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -255,4 +260,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-19'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '42b9e94a87eccdee'
+export const PRIVACY_TEXT_FINGERPRINT = 'b256cb72c3c7d5ca'
