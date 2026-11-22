@@ -8,6 +8,8 @@
  *     set -a; . ~/eno.vn/.env; set +a; npx tsx scripts/import-moto-partners.ts all
  *   WRITE (journal first):
  *     … scripts/import-moto-partners.ts <theextramile|saigonscootercentre|all> --journal-dir <durable dir> --identity-gate on|off --apply
+ *   REFRESH (text + price only, on rows nobody edited since import — refreshUnedited below):
+ *     … scripts/import-moto-partners.ts <handle|all> --refresh-unedited [--journal-dir <durable dir> --apply]
  *   --research-dir <dir>  defaults to ~/eno-moto-partners-2026-11-22 (<research>/data.json, photos/, photo-verdicts.json,
  *                         raw/logo/logo.{webp,png} per shop)
  *
@@ -54,6 +56,8 @@ import { browseRankScore } from '../src/lib/ranking-formula'
 
 const argv = process.argv.slice(2)
 const APPLY = argv.includes('--apply')
+/** Rewrite text + price on rows nobody edited since import, instead of creating (refreshUnedited). */
+const REFRESH = argv.includes('--refresh-unedited')
 const str = (k: string) => { const i = argv.indexOf(k); return i > -1 ? argv[i + 1] ?? null : null }
 const WHICH = argv.find((a) => !a.startsWith('--') && !argv[argv.indexOf(a) - 1]?.startsWith('--')) ?? null
 const JOURNAL_DIR = str('--journal-dir')
@@ -63,7 +67,8 @@ if (!WHICH || (WHICH !== 'all' && !MOTO_PARTNERS.some((p) => p.handle === WHICH)
   throw new Error(`name a shop or all: ${MOTO_PARTNERS.map((p) => p.handle).join(' | ')} | all`)
 }
 if (APPLY && !JOURNAL_DIR) throw new Error('--apply needs --journal-dir <durable dir>')
-if (APPLY && GATE_ARG !== 'on' && GATE_ARG !== 'off') throw new Error('--apply needs --identity-gate on|off: production\'s IDENTITY_GATE_ENFORCED, stated')
+// A refresh publishes nothing (no status or verified write): it needs no identity-gate statement.
+if (APPLY && !REFRESH && GATE_ARG !== 'on' && GATE_ARG !== 'off') throw new Error('--apply needs --identity-gate on|off: production\'s IDENTITY_GATE_ENFORCED, stated')
 const GATE_ENFORCED = GATE_ARG === 'on'
 const SEAT = 'moto-partners'
 /** A listing shows its first photos; more than this adds weight, not information. */
@@ -162,6 +167,42 @@ function prepareJournalDir(dir: string): string {
 
 const sha1 = (s: string | Buffer) => createHash('sha1').update(s).digest('hex')
 
+/** The text columns this module writes; what --refresh-unedited rewrites and journals. */
+const TEXT_COLUMNS = ['title', 'titleVi', 'description', 'descriptionVi', 'price', 'priceUnit', 'attributes', 'facetTokens', 'searchText'] as const
+
+/**
+ * --refresh-unedited: rewrite this module's text and price onto rows NOBODY HAS EDITED since this script created them
+ * (owner, 2026-11-22: "same as saigon cribs vnd prices shown, use card price" — the 23 rows of the first run printed dollar
+ * figures). ⛔ The guard is the row's own clock: `updatedAt` still equal to `createdAt` (Prisma's @updatedAt moves on ANY
+ * write, an admin's edit included), and the update is conditional on that same `updatedAt`, so a concurrent edit wins. An
+ * edited row is listed and left alone. Every row's old values are journaled first (rollback: write them back).
+ * The public page is ISR (30 days): the next deploy, or a no-op admin action per listing, shows the new text.
+ */
+async function refreshUnedited(db: PrismaClient, shops: { p: MotoPartner; sellerId: string }[], fx: Fx) {
+  const journal = APPLY ? prepareJournalDir(JOURNAL_DIR!) : null
+  const FILE = journal ? join(journal, `moto-partners-refreshed-rows-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`) : null
+  let changed = 0, same = 0, edited = 0
+  for (const { p, sellerId } of shops) {
+    const want = new Map(itemsFor(p, fx).map((i) => [i.row.externalId, i.row]))
+    const rows = await db.listing.findMany({
+      where: { sellerId, externalId: { in: [...want.keys()] } },
+      select: { id: true, externalId: true, createdAt: true, updatedAt: true, title: true, titleVi: true, description: true, descriptionVi: true, price: true, priceUnit: true, attributes: true, facetTokens: true, searchText: true },
+    })
+    for (const r of rows) {
+      const next = want.get(r.externalId!)!
+      if (r.updatedAt.getTime() !== r.createdAt.getTime()) { edited++; console.log(`  edited since import — left alone: ${r.id} ${r.externalId}`); continue }
+      const data = Object.fromEntries(TEXT_COLUMNS.filter((k) => r[k] !== next[k]).map((k) => [k, next[k]]))
+      if (!Object.keys(data).length) { same++; continue }
+      console.log(`  ${APPLY ? 'refresh' : 'would refresh'} ${r.id} ${r.externalId}: ${Object.keys(data).join(', ')}`)
+      if (!APPLY) { changed++; continue }
+      recordDurably(FILE!, JSON.stringify({ id: r.id, externalId: r.externalId, before: Object.fromEntries(TEXT_COLUMNS.map((k) => [k, r[k]])), at: new Date().toISOString() }))
+      const res = await db.listing.updateMany({ where: { id: r.id, updatedAt: r.updatedAt }, data })
+      if (res.count === 1) changed++; else { edited++; console.warn(`  ! ${r.id} changed while this ran — left alone`) }
+    }
+  }
+  console.log(`\n${APPLY ? 'refreshed' : 'would refresh'} ${changed} · already current ${same} · edited by someone (left alone) ${edited}${FILE ? `\njournal      ${FILE}` : '\nDRY RUN — nothing written.'}`)
+}
+
 async function main() {
   const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
   if (!connectionString) throw new Error('DIRECT_URL / DATABASE_URL unset — `set -a; . ~/eno.vn/.env; set +a` first')
@@ -205,6 +246,7 @@ async function main() {
     }
     const refused = plans.map(({ p, seller }) => motoPartnerSellerRefusal(p, seller)
       ?? (seller && !SHARED_SEAT_SELLERS[SEAT]?.includes(seller.id) ? `${p.handle}: not in the '${SEAT}' feed seat` : null)).filter(Boolean)
+    if (REFRESH) { if (refused.length) throw new Error(refused.join('\n')); await refreshUnedited(db, plans.map(({ p, seller }) => ({ p, sellerId: seller!.id })), fx); return }
     if (!APPLY) { console.log('\nDRY RUN — nothing written.'); if (refused.length) process.exitCode = 1; return }
     if (refused.length) throw new Error(refused.join('\n'))
 

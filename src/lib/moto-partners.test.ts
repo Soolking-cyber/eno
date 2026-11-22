@@ -56,7 +56,9 @@ describe('the listing text', () => {
   it.each(LANGS)('%s: a road-trip-only bike prints its dollar table and says its đồng price is converted', (lang) => {
     const d = extraMileDescription(bike('kawasaki-versys-x-300'), FX, lang)
     expect(richTextGroups(d).map((g) => g.kind)).toEqual(['p', 'h', 'dl', 'p', 'h', 'ul', 'p'])
-    expect(d).toContain('US$850')
+    // US$850 a month → 22,355,000 → nearest 10,000, the card price's own conversion.
+    expect(d).toContain(lang === 'en' ? 'One month: 22,360,000 đ' : 'Một tháng: 22.360.000 đ')
+    expect(d).toContain(lang === 'en' ? 'One day: 1,320,000 đ' : 'Một ngày: 1.320.000 đ')
     expect(d).toContain(lang === 'en' ? '26,300 đ' : '26.300 đ')
   })
 
@@ -72,9 +74,23 @@ describe('the listing text', () => {
   it.each(LANGS)('%s: Saigon Scooter Centre: a three-scooter price table, then included and terms lists', (lang) => {
     const d = sscDescription(FX, lang)
     expect(richTextGroups(d).map((g) => g.kind)).toEqual(['p', 'h', 'dl', 'ul', 'h', 'ul', 'h', 'ul', 'p'])
-    for (const s of SSC_SCOOTERS) expect(d).toContain(`US$${s.perDayUsd}`)
+    // In đồng, converted as the card price is (owner 2026-11-22: "vnd prices shown, use card price").
+    expect(d).toContain(lang === 'en' ? 'Honda Air Blade 110cc: 260,000 đ' : 'Honda Air Blade 110cc: 260.000 đ')
+    expect(d).toContain(lang === 'en' ? 'Scomadi TT125i: 1,180,000 đ' : 'Scomadi TT125i: 1.180.000 đ')
+    expect(d).toContain(lang === 'en' ? 'Vintage Vespa: 1,970,000 đ' : 'Vespa cổ: 1.970.000 đ')
+    expect(SSC_SCOOTERS).toHaveLength(3)
     // Its Terms page is for tours: none of it is printed.
     expect(d).not.toMatch(/950/)
+  })
+
+  it.each(LANGS)('%s: no dollar figure anywhere — every price in đồng, and the conversion said once', (lang) => {
+    const texts = [...EXTRA_MILE_BIKES.map((b) => extraMileDescription(b, FX, lang)), sscDescription(FX, lang)]
+    for (const d of texts) {
+      expect(d).not.toMatch(/US\$|\$\s?\d|\d\s?USD/)
+      expect(d.match(lang === 'en' ? /per US dollar/g : /\/USD/g)).toHaveLength(1)
+    }
+    // The pre-deposit, converted the same way.
+    expect(extraMileDescription(bike('honda-xr-150'), FX, lang)).toContain(lang === 'en' ? 'pre-deposit of 2,630,000 đ' : 'Đặt trước 2.630.000 đ')
   })
 
   it('states whose prices they are and when', () => {

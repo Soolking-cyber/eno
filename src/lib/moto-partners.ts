@@ -47,20 +47,24 @@ type Lang = 'en' | 'vi'
 const READ_EN = '22 November 2026'
 const READ_VI = '22/11/2026'
 const dong = (n: number, lang: Lang) => formatMoneyFull(n, '₫', lang)
-/** "US$1,150" / "US$1.150": the one money formatter (vnd.ts) — the shop's dollars, each language's grouping. */
-const usd = (n: number, lang: Lang) => formatMoneyFull(n, 'US$', lang)
 const section = (heading: string, lines: readonly string[]) => `# ${heading}\n${lines.join('\n')}`
 const bullets = (items: readonly string[]) => items.map((i) => `- ${i}`)
 
 /** The run's dollar rate (the importer reads it once) and the day it was read, for the text that names it. */
 export type Fx = { vndPerUsd: number; dayEn: string; dayVi: string }
 
-/** "The đồng price on eno is 50 USD converted at 26,300 đ per US$ on …" — on every listing whose price is converted. */
-function fxLine(amountUsd: number, fx: Fx, lang: Lang): string {
+/**
+ * ⛔ EVERY PRICE IS SHOWN IN ĐỒNG (owner, 2026-11-22: "same as saigon cribs vnd prices shown, use card price"): a figure
+ * the shop sets in US dollars is converted at the run's one rate, to the nearest 10,000 đ — the same conversion as the
+ * card price — and no dollar figure is printed. fxLine says so once on every listing that carries one.
+ */
+const fromUsd = (n: number, fx: Fx, lang: Lang) => dong(usdToVnd(n, fx.vndPerUsd), lang)
+
+function fxLine(fx: Fx, lang: Lang): string {
   const rate = dong(fx.vndPerUsd, lang)
   return lang === 'en'
-    ? `The đồng price on eno is ${usd(amountUsd, 'en')} converted at ${rate} per US dollar on ${fx.dayEn}, so it is approximate: the shop charges in US dollars.`
-    : `Giá đồng trên eno quy đổi từ ${usd(amountUsd, 'vi')} theo tỷ giá ${rate}/USD ngày ${fx.dayVi}, chỉ mang tính tham khảo: cửa hàng tính tiền bằng đô la Mỹ.`
+    ? `Prices the shop sets in US dollars are shown in đồng at ${rate} per US dollar (${fx.dayEn}), so they are approximate.`
+    : `Giá cửa hàng niêm yết bằng đô la Mỹ được quy đổi sang đồng theo tỷ giá ${rate}/USD (${fx.dayVi}), chỉ mang tính tham khảo.`
 }
 
 // ── THE EXTRA MILE ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -133,14 +137,14 @@ function licenceLine(kind: ExtraMileBike['licence'], lang: Lang): string {
 }
 
 /** The Extra Mile's terms (FAQ page, read 2026-11-22), one bullet each; `city` / `road` only on a bike rented that way. */
-function extraMileTerms(b: ExtraMileBike, lang: Lang): string[] {
+function extraMileTerms(b: ExtraMileBike, fx: Fx, lang: Lang): string[] {
   const en = lang === 'en'
   const out = [
     en ? 'Rider 21 or older. To book: a photo of your passport (VNeID for Vietnamese citizens), your address in Vietnam (a hotel is fine) and a phone number.'
       : 'Người lái từ 21 tuổi. Để đặt xe: ảnh hộ chiếu (người Việt dùng VNeID), địa chỉ tại Việt Nam (khách sạn cũng được) và số điện thoại.',
     licenceLine(b.licence, lang),
-    en ? `A ${usd(100, 'en')} pre-deposit holds the bike and counts toward the rental; it is not refunded if you cancel (${usd(200, 'en')} when the rental starts in Đà Nẵng or Hà Nội).`
-      : `Đặt trước ${usd(100, 'vi')} để giữ xe, được trừ vào tiền thuê; không hoàn lại nếu huỷ (${usd(200, 'vi')} nếu nhận xe ở Đà Nẵng hoặc Hà Nội).`,
+    en ? `A pre-deposit of ${fromUsd(100, fx, 'en')} holds the bike and counts toward the rental; it is not refunded if you cancel (${fromUsd(200, fx, 'en')} when the rental starts in Đà Nẵng or Hà Nội).`
+      : `Đặt trước ${fromUsd(100, fx, 'vi')} để giữ xe, được trừ vào tiền thuê; không hoàn lại nếu huỷ (${fromUsd(200, fx, 'vi')} nếu nhận xe ở Đà Nẵng hoặc Hà Nội).`,
     en ? 'The security deposit comes back at the end if the bike has no new damage. The shop never keeps a passport or other papers as a deposit.'
       : 'Tiền cọc được hoàn lại khi trả xe nếu xe không có hư hại mới. Cửa hàng không giữ hộ chiếu hay giấy tờ thay tiền cọc.',
     en ? 'Optional damage waiver: the shop pays for crash damage to the bike. It does not cover damage to others, injury, theft or lost accessories.'
@@ -223,27 +227,25 @@ export function extraMileDescription(b: ExtraMileBike, fx: Fx, lang: Lang): stri
     const r = b.road
     const rows = r.table
       ? [
-        en ? `One day: ${usd(r.firstDayUsd, 'en')}` : `Một ngày: ${usd(r.firstDayUsd, 'vi')}`,
-        en ? `One week: ${usd(r.table.d7, 'en')}` : `Một tuần: ${usd(r.table.d7, 'vi')}`,
-        en ? `Two weeks: ${usd(r.table.d14, 'en')}` : `Hai tuần: ${usd(r.table.d14, 'vi')}`,
-        en ? `One month: ${usd(r.table.d30, 'en')}` : `Một tháng: ${usd(r.table.d30, 'vi')}`,
-        en ? `Ending in another city: +${usd(ONE_WAY_EXTRA_USD, 'en')}` : `Trả xe ở thành phố khác: +${usd(ONE_WAY_EXTRA_USD, 'vi')}`,
+        en ? `One day: ${fromUsd(r.firstDayUsd, fx, 'en')}` : `Một ngày: ${fromUsd(r.firstDayUsd, fx, 'vi')}`,
+        en ? `One week: ${fromUsd(r.table.d7, fx, 'en')}` : `Một tuần: ${fromUsd(r.table.d7, fx, 'vi')}`,
+        en ? `Two weeks: ${fromUsd(r.table.d14, fx, 'en')}` : `Hai tuần: ${fromUsd(r.table.d14, fx, 'vi')}`,
+        en ? `One month: ${fromUsd(r.table.d30, fx, 'en')}` : `Một tháng: ${fromUsd(r.table.d30, fx, 'vi')}`,
+        en ? `Ending in another city: +${fromUsd(ONE_WAY_EXTRA_USD, fx, 'en')}` : `Trả xe ở thành phố khác: +${fromUsd(ONE_WAY_EXTRA_USD, fx, 'vi')}`,
       ]
       : null
-    // A road-trip-only bike's listing price is this first day converted: the text says so, in the same paragraph or list.
-    const fxNote = b.city ? [] : [fxLine(r.firstDayUsd, fx, lang)]
     const lines = rows
-      ? [...rows, '', [en ? 'No kilometre limit. Totals for the whole trip, VAT included.' : 'Không giới hạn km. Giá trọn gói cho cả chuyến, đã gồm VAT.', ...fxNote].join(' ')]
+      ? [...rows, '', en ? 'No kilometre limit. Totals for the whole trip, VAT included.' : 'Không giới hạn km. Giá trọn gói cho cả chuyến, đã gồm VAT.']
       : bullets([
-        en ? `From ${usd(r.firstDayUsd, 'en')} a day, no kilometre limit; the longer the trip, the lower the price a day.`
-          : `Từ ${usd(r.firstDayUsd, 'vi')}/ngày, không giới hạn km; đi càng lâu giá mỗi ngày càng thấp.`,
-        ...fxNote,
+        en ? `From ${fromUsd(r.firstDayUsd, fx, 'en')} a day, no kilometre limit; the longer the trip, the lower the price a day.`
+          : `Từ ${fromUsd(r.firstDayUsd, fx, 'vi')}/ngày, không giới hạn km; đi càng lâu giá mỗi ngày càng thấp.`,
       ])
     parts.push(section(en ? 'Road trip' : 'Thuê đi phượt', lines))
   }
 
-  parts.push(section(en ? 'To rent' : 'Điều kiện thuê', bullets(extraMileTerms(b, lang))))
-  parts.push(en ? `Prices and terms as The Extra Mile publishes them, read ${READ_EN}.` : `Giá và điều kiện theo The Extra Mile công bố, cập nhật ${READ_VI}.`)
+  parts.push(section(en ? 'To rent' : 'Điều kiện thuê', bullets(extraMileTerms(b, fx, lang))))
+  // Every bike carries a dollar-set figure (the pre-deposit at least), so every one says how it was converted.
+  parts.push(en ? `Prices and terms as The Extra Mile publishes them, read ${READ_EN}. ${fxLine(fx, 'en')}` : `Giá và điều kiện theo The Extra Mile công bố, cập nhật ${READ_VI}. ${fxLine(fx, 'vi')}`)
   return parts.join('\n\n')
 }
 
@@ -269,9 +271,9 @@ export function sscDescription(fx: Fx, lang: Lang): string {
     en ? 'Three scooters for rent by the day from Saigon Scooter Centre, the classic-scooter workshop in Thủ Đức (old District 2), Ho Chi Minh City. Message the shop here on eno with your dates and the scooter you want.'
       : 'Ba mẫu xe tay ga cho thuê theo ngày tại Saigon Scooter Centre, xưởng xe cổ ở Thủ Đức (Quận 2 cũ), TP. Hồ Chí Minh. Nhắn tin cho cửa hàng ngay trên eno kèm ngày thuê và mẫu xe bạn muốn.',
     section(en ? 'Price a day' : 'Giá thuê mỗi ngày', [
-      `${ab.name}: ${usd(ab.perDayUsd, lang)}`,
-      `${sc.name}: ${usd(sc.perDayUsd, lang)}`,
-      `${en ? ve.name : 'Vespa cổ'}: ${usd(ve.perDayUsd, lang)}`,
+      `${ab.name}: ${fromUsd(ab.perDayUsd, fx, lang)}`,
+      `${sc.name}: ${fromUsd(sc.perDayUsd, fx, lang)}`,
+      `${en ? ve.name : 'Vespa cổ'}: ${fromUsd(ve.perDayUsd, fx, lang)}`,
       '',
       ...bullets([
         en ? 'The Air Blade and the Scomadi are twist-and-go automatics. The vintage Vespas are the PX150E and other 4-speed manual, kick-start models.'
@@ -279,7 +281,7 @@ export function sscDescription(fx: Fx, lang: Lang): string {
         en ? 'A deposit applies to every scooter: ask the shop for the amount.' : 'Mỗi xe đều có tiền đặt cọc: hỏi cửa hàng số tiền cụ thể.',
         en ? 'One-way rentals ending outside Ho Chi Minh City by arrangement; a collection fee may apply depending on where the scooter is left.'
           : 'Có thể trả xe ngoài TP. Hồ Chí Minh theo thỏa thuận; có thể tính phí thu hồi xe tùy nơi trả.',
-        fxLine(ab.perDayUsd, fx, lang),
+        fxLine(fx, lang),
       ]),
     ]),
     section(en ? 'Included' : 'Bao gồm', bullets([
