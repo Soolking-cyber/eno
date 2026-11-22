@@ -1,0 +1,432 @@
+{
+  "slug": "luong-giao-vien-tieng-anh-tphcm",
+  "title": "Lương giáo viên tiếng Anh TP.HCM 2026: trường công, trung tâm",
+  "description": "Cách tính lương giáo viên tiếng Anh trường công theo lương cơ sở 2026, và mức lương theo giờ, theo tháng trong tin tuyển dụng của các trung tâm TP.HCM tháng 11/2026.",
+  "h1": "Lương giáo viên tiếng Anh ở TP.HCM 2026: trường công, trung tâm, trường tư và trường quốc tế",
+  "eyebrow": "Lương và thu nhập",
+  "intro": "Ở TP.HCM, lương giáo viên tiếng Anh trường công được tính bằng hệ số nhân với lương cơ sở, cộng phụ cấp ưu đãi 40–45%, theo Nghị định 161/2026 và 182/2026. Trung tâm và trường tư trả theo thỏa thuận, theo giờ hoặc theo tháng. Mức lương cơ sở mới áp dụng từ 1/7/2026. Các mức của trung tâm trong bài lấy từ tin tuyển dụng đọc ngày 23/11/2026, mỗi mức đều ghi rõ nhà tuyển dụng và hạn nộp.",
+  "keyPoints": [
+    "Lương cơ sở là {{vnd:2530000}} một tháng từ 1/7/2026, theo [Nghị định 161/2026/NĐ-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-161-2026-nd-cp-quy-dinh-muc-luong-co-so-va-che-do-tien-thuong-cho-can-bo-cong-chuc-434784-d1.html) ký ngày 15/5/2026. Giáo viên THCS mới vào nghề có hệ số 2,34 nhận {{vnd:5920200}} lương, chưa gồm phụ cấp.",
+    "Phụ cấp ưu đãi nghề theo Nghị định 182/2026/NĐ-CP là 40% với THCS, THPT và 45% với mầm non, tiểu học, áp dụng từ 1/1/2026. Mức này chỉ dành cho trường **công lập**.",
+    "Trong tin tuyển dụng trên Vieclam24h đọc ngày 23/11/2026, các trung tâm ở TP.HCM trả giáo viên tiếng Anh từ {{vnd:8000000}} đến {{vnd:30000000}} một tháng. Phần lớn tin ghi {{vnd:10000000-18000000}}.",
+    "Theo IELTS The Tutors (tin tháng 11/2026), giáo viên part-time được trả {{vnd:100000-230000}} một giờ, tùy loại lớp. Ứng viên cần IELTS 7.0 và chứng chỉ TESOL, TKT hoặc CELTA.",
+    "Ngày 23/11/2026, các tin tuyển giáo viên tiếng Anh trên trang tuyển dụng của Vinschool không ghi mức lương. Với trường tư và trường quốc tế, mức lương thường phải hỏi ở vòng phỏng vấn."
+  ],
+  "sections": [
+    {
+      "id": "luong-truong-cong",
+      "title": "Lương giáo viên tiếng Anh trường công ở TP.HCM được tính thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giáo viên tiếng Anh trường công là viên chức. Lương hằng tháng bằng **hệ số lương nhân với lương cơ sở**, cộng phụ cấp ưu đãi nghề và các phụ cấp khác nếu có. Giáo viên tiếng Anh dùng chung bảng lương với giáo viên các môn khác cùng cấp học, không có bảng lương riêng."
+        },
+        {
+          "type": "p",
+          "text": "Lương cơ sở do Chính phủ quy định. Theo [Nghị định 161/2026/NĐ-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-161-2026-nd-cp-quy-dinh-muc-luong-co-so-va-che-do-tien-thuong-cho-can-bo-cong-chuc-434784-d1.html) ký ngày 15/5/2026, lương cơ sở là {{vnd:2530000}} một tháng từ ngày 1/7/2026. Mức này thay cho {{vnd:2340000}} của Nghị định 73/2024/NĐ-CP. Cổng thông tin [tỉnh Hà Tĩnh](https://hatinh.gov.vn/vi/bai-viet/chinh-thuc-tang-luong-co-so-len-2530000-dongthang-tu-0172026) cũng đăng cùng số nghị định, ngày ký và mức lương. Nghị định 161 còn quy định quỹ thưởng hằng năm bằng 10% tổng quỹ lương, không tính phụ cấp. Mỗi đơn vị tự ban hành quy chế thưởng của mình."
+        },
+        {
+          "type": "p",
+          "text": "Điều 23 [Luật Nhà giáo số 73/2025/QH15](https://hethongphapluat.com/law-no-73-2025-qh15-dated-june-16-2025-on-educators/dieu-23) có hiệu lực từ 1/1/2026. Điều này quy định lương nhà giáo trong trường công lập được \"xếp cao nhất trong hệ thống thang bậc lương hành chính sự nghiệp\"."
+        },
+        {
+          "type": "table",
+          "caption": "Hệ số lương giáo viên theo cấp học và hạng, nhân với lương cơ sở {{vnd:2530000}} (Báo Gia Lai, tháng 6/2026; lương cơ sở theo Nghị định 161/2026/NĐ-CP). Chưa gồm phụ cấp.",
+          "headers": [
+            "Cấp học, hạng",
+            "Hệ số",
+            "Lương theo hệ số mỗi tháng"
+          ],
+          "rows": [
+            [
+              "Mầm non hạng III",
+              "2,10–4,89",
+              "{{vnd:5313000-12371700}}"
+            ],
+            [
+              "Tiểu học, THCS, THPT hạng III",
+              "2,34–4,98",
+              "{{vnd:5920200-12599400}}"
+            ],
+            [
+              "Tiểu học, THCS, THPT hạng II",
+              "4,00–6,38",
+              "{{vnd:10120000-16141400}}"
+            ],
+            [
+              "Tiểu học, THCS, THPT hạng I",
+              "4,40–6,78",
+              "{{vnd:11132000-17153400}}"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Phụ cấp ưu đãi nghề của giáo viên là bao nhiêu phần trăm?"
+        },
+        {
+          "type": "p",
+          "text": "Ở các phường nội thành TP.HCM, phụ cấp là 40% với giáo viên THCS, THPT và 45% với giáo viên mầm non, tiểu học. Tỷ lệ này theo [Nghị định 182/2026/NĐ-CP](https://luatvietnam.vn/giao-duc/nghi-dinh-182-2026-nd-cp-phu-cap-uu-dai-cho-nha-giao-va-can-bo-giao-duc-cong-lap-435346-d1.html), ký ngày 22/5/2026 và có hiệu lực từ 7/7/2026. Các mức phụ cấp được tính từ ngày 1/1/2026. Phụ cấp bằng (hệ số lương cộng phụ cấp chức vụ, thâm niên vượt khung nếu có) nhân với lương cơ sở, rồi nhân với tỷ lệ phụ cấp."
+        },
+        {
+          "type": "p",
+          "text": "Theo [tóm tắt của Chính phủ](https://xaydungchinhsach.chinhphu.vn/quy-dinh-moi-cua-chinh-phu-ve-che-do-phu-cap-uu-dai-theo-nghe-doi-voi-nha-giao-119260523231756844.htm), nghị định có 9 mức phụ cấp, từ 20% đến 80%. Mức 80% dành cho trường chuyên, trường nội trú, trường dân tộc nội trú, trường hoặc lớp dành cho người khuyết tật, và giáo viên ở vùng có điều kiện kinh tế – xã hội đặc biệt khó khăn."
+        },
+        {
+          "type": "h3",
+          "text": "Hệ số lương đặc thù cho giáo viên đã được áp dụng chưa?"
+        },
+        {
+          "type": "p",
+          "text": "Báo Gia Lai ngày 26/6/2026 viết rằng [hệ số đặc thù](https://baogialai.com.vn/luong-giao-vien-tu-172026-tang-the-nao-he-so-dac-thu-da-ap-dung-chua-post590884.html) mới nằm trong các phương án dự thảo. Khi đó chưa có văn bản nào quy định đối tượng và thời điểm áp dụng. Hôm nay chúng tôi chưa tìm được văn bản nào khác, vì vậy bài này không cộng hệ số đặc thù vào lương. Bạn nên hỏi bộ phận tổ chức của trường trước khi tính."
+        }
+      ]
+    },
+    {
+      "id": "tu-tinh-luong-truong-cong",
+      "title": "Cách tự tính lương trường công của mình",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Để tự tính, bạn cần ba con số: hệ số lương trong quyết định xếp lương, lương cơ sở hiện hành và tỷ lệ phụ cấp của cấp học. Ví dụ dưới đây là giáo viên tiếng Anh THCS mới vào nghề ở nội thành."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Lấy hệ số lương",
+              "text": "Hệ số lương ghi trong quyết định tuyển dụng hoặc nâng lương của bạn. Giáo viên THCS hạng III bậc 1 có hệ số 2,34."
+            },
+            {
+              "title": "Nhân với lương cơ sở",
+              "text": "Lấy 2,34 nhân với {{vnd:2530000}}, được {{vnd:5920200}} một tháng."
+            },
+            {
+              "title": "Cộng phụ cấp ưu đãi nghề",
+              "text": "THCS được 40%, tức {{vnd:2368080}}. Tổng là {{vnd:8288280}}. Nếu bạn dạy tiểu học, phụ cấp 45% là {{vnd:2664090}} và tổng là {{vnd:8584290}}."
+            },
+            {
+              "title": "Hỏi các khoản còn lại",
+              "text": "Phụ cấp thâm niên, phụ cấp chức vụ (ví dụ tổ trưởng), tiền dạy thêm giờ, các khoản bảo hiểm bị trừ và thu nhập tăng thêm (nếu có) khác nhau giữa các trường. Bộ phận kế toán của trường có con số chính xác."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Lương cũ và lương mới",
+          "text": "Bảng lương trước tháng 7/2026 tính theo lương cơ sở {{vnd:2340000}}. Nếu một bài viết hay bảng lương nhân hệ số với con số này, đó là lương nửa đầu năm 2026, không phải lương hiện tại."
+        }
+      ]
+    },
+    {
+      "id": "luong-trung-tam",
+      "title": "Lương giáo viên tiếng Anh tại trung tâm là bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo các tin tuyển dụng trên Vieclam24h đọc ngày 23/11/2026, giáo viên tiếng Anh toàn thời gian ở trung tâm TP.HCM thường được trả {{vnd:10000000-18000000}} một tháng. Trung tâm luyện IELTS yêu cầu điểm cao thì trả tới {{vnd:30000000}}. Mức lương ghi trong tin chỉ là khoảng. Con số cuối cùng phụ thuộc vào số lớp được giao, điểm IELTS và kinh nghiệm của bạn."
+        },
+        {
+          "type": "table",
+          "caption": "Tin tuyển giáo viên tiếng Anh ở TP.HCM có ghi lương, trên [Vieclam24h](https://vieclam24h.vn/vieclam/giao-vien-tieng-anh-tphcm), đọc ngày 23/11/2026",
+          "headers": [
+            "Nhà tuyển dụng",
+            "Vị trí",
+            "Lương mỗi tháng",
+            "Hạn nộp"
+          ],
+          "rows": [
+            [
+              "Trung tâm Ngoại ngữ Tinh Thông – IELTS Master",
+              "IELTS part-time/full-time",
+              "{{vnd:15000000-30000000}}",
+              "30/11/2026"
+            ],
+            [
+              "IELTS Geb (Giáo dục Quốc tế Geb)",
+              "Giáo viên IELTS",
+              "{{vnd:12000000-18000000}}",
+              "29/11/2026"
+            ],
+            [
+              "Giáo dục Đào tạo Ngô Cao",
+              "Giáo viên tiếng Anh",
+              "{{vnd:10000000-17000000}}",
+              "28/11/2026"
+            ],
+            [
+              "IELTS Meister",
+              "IELTS full-time và part-time (IELTS 7.5 trở lên)",
+              "{{vnd:10000000-15000000}}",
+              "01/12/2026"
+            ],
+            [
+              "Ngoại ngữ Không Gian",
+              "Giáo viên tiếng Anh",
+              "{{vnd:10000000-15000000}}",
+              "20/12/2026"
+            ],
+            [
+              "Tư vấn Giáo dục Super Star",
+              "Giáo viên chương trình Grapeseed",
+              "{{vnd:10000000-15000000}}",
+              "24/11/2026"
+            ],
+            [
+              "Trường Anh ngữ Tự Nhiên (chi nhánh Bình Dương)",
+              "Giáo viên full-time",
+              "{{vnd:10000000-12000000}}",
+              "30/11/2026"
+            ],
+            [
+              "Little Einsteins",
+              "Giáo viên tiếng Anh",
+              "{{vnd:8000000-15000000}}",
+              "04/12/2026"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Tin của Tinh Thông – IELTS Master có tiêu đề ghi {{vnd:10000000-20000000}}, nhưng phần mức lương lại ghi {{vnd:15000000-30000000}}. Khi tin tuyển dụng ghi hai con số khác nhau, hãy hỏi lại bằng văn bản trước khi nhận việc. Bình Dương nay thuộc TP.HCM. Từ 1/7/2025, địa chỉ hành chính dùng tên phường mới, nhưng tin tuyển dụng vẫn thường ghi tên quận cũ."
+        },
+        {
+          "type": "p",
+          "text": "Nếu muốn biết đi làm ở trung tâm thực tế ra sao (lịch dạy tối và cuối tuần, hợp đồng, kiểm tra năng lực), xem [bài về làm việc ở trung tâm ngoại ngữ TP.HCM](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city)."
+        }
+      ]
+    },
+    {
+      "id": "luong-part-time",
+      "title": "Giáo viên tiếng Anh part time lương bao nhiêu một giờ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trong các tin tuyển dụng chúng tôi đọc ngày 23/11/2026, giáo viên part-time người Việt ở TP.HCM được trả khoảng {{vnd:100000-230000}} một giờ. Lớp IELTS nhóm trình độ cao trả cao nhất, lớp giao tiếp kèm riêng trả thấp nhất. Thu nhập mỗi tháng phụ thuộc vào số giờ bạn nhận."
+        },
+        {
+          "type": "table",
+          "caption": "Mức trả theo giờ của IELTS The Tutors (Tân Phú, Bình Thạnh, Quận 10, Tân Bình), [tin tuyển tháng 11/2026](https://ieltsthetutors.edu.vn/giao-vien-ielts-part-time)",
+          "headers": [
+            "Loại lớp",
+            "Mức trả mỗi giờ",
+            "Ghi chú"
+          ],
+          "rows": [
+            [
+              "IELTS kèm 1:1 hoặc 1:2",
+              "{{vnd:130000-160000}}",
+              "Lớp online trả 90%"
+            ],
+            [
+              "IELTS nhóm dưới 6.0 (6–10 học viên)",
+              "{{vnd:140000-210000}}",
+              "Buổi 2–3 giờ"
+            ],
+            [
+              "IELTS nhóm 6.0 trở lên (6–10 học viên)",
+              "{{vnd:160000-230000}}",
+              "Buổi 2–3 giờ"
+            ],
+            [
+              "Giao tiếp hoặc VSTEP kèm 1–2 học viên",
+              "{{vnd:100000-140000}}",
+              "Lớp online trả 90%"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Tutors thưởng thêm {{vnd:400000-500000}} cho mỗi lớp kèm riêng có học viên đạt band mục tiêu. Trung tâm yêu cầu IELTS 7.0 trở lên, chứng chỉ TESOL, TKT hoặc CELTA, có bằng cử nhân và dạy ít nhất 35 giờ mỗi tháng."
+        },
+        {
+          "type": "h3",
+          "text": "Trung tâm nhỏ trả giờ part-time thấp hơn bao nhiêu?"
+        },
+        {
+          "type": "p",
+          "text": "Các tin không yêu cầu kinh nghiệm thường trả quanh {{vnd:100000-125000}} một giờ. Hai tin đã hết hạn nhưng vẫn đọc được hôm nay cho thấy mức này:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Giáo dục Quốc tế Năm Sao** (cơ sở ở Thủ Đức và Dĩ An), hết hạn ngày 12/02/2026: {{vnd:100000-125000}} một giờ, tổng {{vnd:7000000-11000000}} một tháng tùy số lớp. Sinh viên năm cuối cũng được nộp hồ sơ ([Joboko](https://vn.joboko.com/viec-lam-giao-vien-tieng-anh-part-time-tp-hcm-xvi6260478)).",
+            "**Giáo dục và Năng lượng Đông Đô** (Bình Tân), hết hạn ngày 03/10/2026: từ {{vnd:110000}} một giờ, thu nhập {{vnd:5000000-10000000}} một tháng tùy số lớp ([JobsNew](https://www.jobsnew.vn/viec-lam/giao-vien-tieng-anh-part-time/1028220)).",
+            "Trên Vieclam24h ngày 23/11/2026, Sun Smile Việt Nam tuyển part-time với mức {{vnd:4000000-9000000}} một tháng (hạn 28/11/2026). Quang Minh tuyển dạy ca tối, part-time với mức {{vnd:9000000-12000000}} một tháng (hạn 27/11/2026)."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Muốn so sánh với dạy kèm riêng hoặc dạy online, xem [bài về dạy kèm và dạy online](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam). Lớp IELTS có cách tính riêng, xem [bài về dạy IELTS](/teach-in-vietnam/teaching-ielts-in-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "truong-tu-va-truong-quoc-te",
+      "title": "Lương giáo viên trường tư và trường quốc tế là bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trường tư và trường quốc tế không áp dụng bảng lương nhà nước. Khoản 2 Điều 23 Luật Nhà giáo quy định lương nhà giáo ở cơ sở ngoài công lập \"thực hiện theo quy định của pháp luật về lao động\", tức là theo thỏa thuận trong hợp đồng. Nghị định 182/2026/NĐ-CP về phụ cấp ưu đãi nghề cũng chỉ áp dụng cho cơ sở giáo dục công lập."
+        },
+        {
+          "type": "p",
+          "text": "Ngày 23/11/2026, chúng tôi chưa đọc được tin tuyển dụng nào của trường tư phổ thông hay trường quốc tế ở TP.HCM, đăng trên trang của chính trường, có ghi mức lương cho giáo viên người Việt. Trên [trang tuyển dụng của Vinschool](https://tuyendung.vinschool.edu.vn/jobs?office=219), hôm đó có các vị trí trợ giảng tiếng Anh Cambridge bậc tiểu học và giáo viên Cambridge ESL bậc trung học cho tháng 8/2027. Không vị trí nào ghi lương, trang chỉ ghi chung \"mức lương, thưởng cạnh tranh\"."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Hỏi lương thế nào khi tin ghi \"thỏa thuận\"",
+          "text": "Hãy hỏi tổng thu nhập mỗi tháng (gross), lương được tính theo tiết hay cố định, phải dạy bao nhiêu tiết một tuần, có tháng 13 và lương hè không, có đóng bảo hiểm xã hội không. Đề nghị trường ghi các điểm này vào thư mời nhận việc. Những gì cần kiểm tra trong hợp đồng có trong [bài về hợp đồng dạy tiếng Anh](/teach-in-vietnam/english-teaching-contracts-in-vietnam)."
+        },
+        {
+          "type": "p",
+          "text": "Tại [danh bạ trường ở Sài Gòn](/schools), giáo viên từng làm hoặc từng phỏng vấn ở một trường có thể viết đánh giá, kể cả về lương. Mỗi đánh giá được kiểm duyệt trước khi đăng. Phần lớn trường hiện mới có ít hoặc chưa có đánh giá. Về công việc ở trường quốc tế, xem [bài về việc làm ở trường quốc tế](/teach-in-vietnam/international-school-jobs-in-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "nguon-giao-vien-nuoc-ngoai",
+      "title": "Nguồn giáo viên nước ngoài dạy tiếng Anh tìm ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bài này chỉ nói về lương của giáo viên người Việt. Nếu bạn là trường hoặc trung tâm cần tuyển giáo viên nước ngoài, bài [tuyển giáo viên nước ngoài dạy tiếng Anh](/huong-dan/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh) có thủ tục, giấy phép lao động và mức lương của nhóm này."
+        },
+        {
+          "type": "p",
+          "text": "Trên eno.vn, [hồ sơ giáo viên](/c/teachers) ghi môn dạy, độ tuổi học viên, kinh nghiệm và khu vực giáo viên nhận dạy. Mọi tài khoản đã đăng nhập đều có thể nhắn tin cho giáo viên, trong giới hạn số giáo viên mới mỗi ngày. Số điện thoại, email và CV chỉ hiện khi giáo viên chọn chia sẻ trong cuộc trò chuyện."
+        }
+      ]
+    },
+    {
+      "id": "xem-luong-that-o-dau",
+      "title": "Xem mức lương thật ở đâu trước khi nhận việc?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cách nhanh nhất là đọc tin tuyển dụng có ghi lương và đọc đánh giá của giáo viên đã làm ở trường đó. Mục [việc làm trên eno.vn](/c/jobs) có tin dẫn từ các trang tuyển dụng và tin nhà tuyển dụng đăng trực tiếp. Bạn có thể sắp xếp theo lương từ thấp đến cao. Ngày 23/11/2026, mục này có một tin tuyển giáo viên dạy tiếng Anh giao tiếp part-time ở TP.HCM với mức {{vnd:5000000}} một tháng."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "eno.vn chưa xác minh nhà tuyển dụng nào và không xử lý hồ sơ ứng tuyển. Với tin dẫn từ trang khác, nút ứng tuyển sẽ mở tin gốc.",
+            "Đừng bao giờ trả tiền để được nhận việc. Nhà tuyển dụng cũng không được giữ bản gốc giấy tờ hay thu tiền cọc của bạn.",
+            "Bạn có thể tạo hồ sơ giáo viên tại [teacher.eno.vn](https://teacher.eno.vn) để trường và trung tâm tìm thấy và nhắn tin cho bạn. Bạn được thông báo khi có trường nhắn tin."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Lương của giáo viên nước ngoài: xem [tuyển giáo viên nước ngoài dạy tiếng Anh](/huong-dan/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh).",
+            "Thuế thu nhập cá nhân và các khoản bảo hiểm bị trừ vào lương của giáo viên người Việt: mỗi người một khác, hãy hỏi kế toán của trường.",
+            "Lương giáo viên ở Hà Nội, Đà Nẵng và các tỉnh khác: các tin tuyển dụng trong bài chỉ ở TP.HCM.",
+            "Thu nhập tăng thêm của TP.HCM cho viên chức giáo dục: chúng tôi chưa đọc được văn bản hiện hành, nên bạn cần hỏi trường hoặc Sở Giáo dục và Đào tạo."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Lương giáo viên tiếng Anh trường công bao nhiêu?",
+      "a": "Lương giáo viên tiếng Anh trường công bằng hệ số lương nhân với lương cơ sở theo Nghị định 161/2026/NĐ-CP, áp dụng từ 1/7/2026. Giáo viên còn nhận phụ cấp ưu đãi nghề 40% ở THCS, THPT hoặc 45% ở mầm non, tiểu học, theo Nghị định 182/2026/NĐ-CP. Giáo viên mới vào nghề thường có hệ số 2,34. Mức cụ thể theo từng hạng có trong bảng ở phần trường công của bài."
+    },
+    {
+      "q": "Lương cơ sở giáo viên năm 2026 là bao nhiêu?",
+      "a": "Lương cơ sở dùng để tính lương giáo viên công lập được nâng từ ngày 1/7/2026 theo Nghị định 161/2026/NĐ-CP, do Chính phủ ký ngày 15/5/2026. Nghị định này thay Nghị định 73/2024/NĐ-CP. Từ tháng 1 đến hết tháng 6/2026 vẫn dùng mức cũ. Con số cụ thể của mức cũ và mức mới có trong phần trường công của bài."
+    },
+    {
+      "q": "Lương giáo viên tiếng Anh tại trung tâm tính theo giờ hay theo tháng?",
+      "a": "Trung tâm tiếng Anh ở TP.HCM dùng cả hai cách. Giáo viên part-time thường được trả theo giờ, mỗi loại lớp một mức. Giáo viên full-time thường được trả theo tháng, kèm số giờ dạy tối thiểu. Trong các tin tuyển dụng đọc ngày 23/11/2026, phần lớn trung tâm ghi lương tháng theo khoảng. Mức cụ thể theo từng nhà tuyển dụng có trong bảng ở phần trung tâm."
+    },
+    {
+      "q": "Giáo viên tiếng Anh part time lương bao nhiêu một giờ?",
+      "a": "Giáo viên tiếng Anh part-time người Việt ở TP.HCM được trả theo giờ, tùy loại lớp và trình độ. Theo tin tuyển tháng 11/2026 của IELTS The Tutors, lớp IELTS nhóm trình độ cao trả cao nhất, còn lớp giao tiếp kèm riêng trả thấp nhất. Lớp online được trả 90% mức lớp trực tiếp. Ứng viên cần IELTS 7.0 và chứng chỉ giảng dạy. Mức theo từng loại lớp có trong bảng ở phần part-time."
+    },
+    {
+      "q": "Lương giáo viên trường quốc tế cho người Việt là bao nhiêu?",
+      "a": "Trường quốc tế ở TP.HCM trả lương giáo viên người Việt theo hợp đồng lao động, không theo bảng lương nhà nước. Ngày 23/11/2026, chúng tôi chưa thấy tin tuyển dụng nào trên trang của chính các trường quốc tế ghi mức lương cho giáo viên người Việt. Muốn biết con số, bạn cần hỏi ở vòng phỏng vấn và đề nghị trường ghi tổng thu nhập vào thư mời nhận việc."
+    },
+    {
+      "q": "Giáo viên trường tư có được phụ cấp ưu đãi nghề không?",
+      "a": "Nghị định 182/2026/NĐ-CP về phụ cấp ưu đãi nghề chỉ áp dụng cho nhà giáo ở cơ sở giáo dục công lập. Theo Điều 23 Luật Nhà giáo 2025, lương giáo viên trường tư thực hiện theo pháp luật lao động. Vì vậy, có phụ cấp hay không và phụ cấp bao nhiêu phụ thuộc vào hợp đồng với trường. Hãy đề nghị trường ghi rõ khoản này trong hợp đồng."
+    },
+    {
+      "q": "Nguồn giáo viên nước ngoài dạy tiếng Anh tìm ở đâu?",
+      "a": "Trường và trung tâm cần tuyển giáo viên nước ngoài dạy tiếng Anh có thể đọc bài hướng dẫn tuyển giáo viên nước ngoài dạy tiếng Anh trên eno.vn, gồm thủ tục, giấy phép lao động và mức lương. Trên eno.vn còn có hồ sơ giáo viên ghi kinh nghiệm và khu vực nhận dạy. Mọi tài khoản đã đăng nhập đều có thể nhắn tin cho giáo viên, trong giới hạn mỗi ngày."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Nghị định 161/2026/NĐ-CP quy định mức lương cơ sở và chế độ tiền thưởng",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-161-2026-nd-cp-quy-dinh-muc-luong-co-so-va-che-do-tien-thuong-cho-can-bo-cong-chuc-434784-d1.html"
+    },
+    {
+      "title": "Chính thức: Tăng lương cơ sở lên 2.530.000 đồng/tháng từ 01/7/2026",
+      "publisher": "Cổng thông tin điện tử tỉnh Hà Tĩnh",
+      "url": "https://hatinh.gov.vn/vi/bai-viet/chinh-thuc-tang-luong-co-so-len-2530000-dongthang-tu-0172026"
+    },
+    {
+      "title": "Nghị định 182/2026/NĐ-CP: Phụ cấp ưu đãi cho nhà giáo và cán bộ giáo dục công lập",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-duc/nghi-dinh-182-2026-nd-cp-phu-cap-uu-dai-cho-nha-giao-va-can-bo-giao-duc-cong-lap-435346-d1.html"
+    },
+    {
+      "title": "Quy định mới của Chính phủ về chế độ phụ cấp ưu đãi theo nghề đối với nhà giáo",
+      "publisher": "Cổng Thông tin điện tử Chính phủ – Xây dựng chính sách",
+      "url": "https://xaydungchinhsach.chinhphu.vn/quy-dinh-moi-cua-chinh-phu-ve-che-do-phu-cap-uu-dai-theo-nghe-doi-voi-nha-giao-119260523231756844.htm"
+    },
+    {
+      "title": "Điều 23 Luật Nhà giáo số 73/2025/QH15",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/law-no-73-2025-qh15-dated-june-16-2025-on-educators/dieu-23"
+    },
+    {
+      "title": "Lương giáo viên từ 1/7/2026 tăng thế nào, hệ số đặc thù đã áp dụng chưa?",
+      "publisher": "Báo Gia Lai",
+      "url": "https://baogialai.com.vn/luong-giao-vien-tu-172026-tang-the-nao-he-so-dac-thu-da-ap-dung-chua-post590884.html"
+    },
+    {
+      "title": "Tuyển dụng giáo viên IELTS part time",
+      "publisher": "IELTS The Tutors",
+      "url": "https://ieltsthetutors.edu.vn/giao-vien-ielts-part-time"
+    },
+    {
+      "title": "Tuyển dụng việc làm giáo viên tiếng Anh TP.HCM",
+      "publisher": "Vieclam24h",
+      "url": "https://vieclam24h.vn/vieclam/giao-vien-tieng-anh-tphcm"
+    },
+    {
+      "title": "Tuyển Giáo Viên Tiếng Anh Part-Time – Tp.HCM, Giáo dục Quốc tế Năm Sao",
+      "publisher": "Joboko",
+      "url": "https://vn.joboko.com/viec-lam-giao-vien-tieng-anh-part-time-tp-hcm-xvi6260478"
+    },
+    {
+      "title": "Giáo Viên Tiếng Anh Part-time làm việc tại TP. Hồ Chí Minh 2026",
+      "publisher": "JobsNew",
+      "url": "https://www.jobsnew.vn/viec-lam/giao-vien-tieng-anh-part-time/1028220"
+    },
+    {
+      "title": "Careers – Vinschool Education System",
+      "publisher": "Vinschool",
+      "url": "https://tuyendung.vinschool.edu.vn/jobs?office=219"
+    }
+  ],
+  "related": [
+    "english-teacher-salary-in-vietnam",
+    "language-centre-jobs-in-ho-chi-minh-city",
+    "international-school-jobs-in-vietnam",
+    "teaching-ielts-in-vietnam",
+    "english-teaching-contracts-in-vietnam"
+  ],
+  "lastChecked": "2026-11-23"
+}

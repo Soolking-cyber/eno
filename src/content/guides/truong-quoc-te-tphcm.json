@@ -1,0 +1,565 @@
+{
+  "slug": "truong-quoc-te-tphcm",
+  "title": "Trường quốc tế TP.HCM: chương trình, khu vực, học phí 2026-27",
+  "description": "Bảng 9 trường quốc tế và song ngữ ở TP.HCM: IB, Cambridge, Mỹ; phường, độ tuổi, kiểm định và học phí 2026-2027 lấy từ biểu phí của chính từng trường.",
+  "h1": "Trường quốc tế ở TP.HCM: danh sách theo chương trình học, khu vực và học phí năm học 2026-2027",
+  "eyebrow": "Trường học cho con",
+  "intro": "Trường quốc tế ở TP.HCM dạy chủ yếu theo ba hệ: IB, Anh quốc/Cambridge và Mỹ, tập trung ở Thảo Điền (Quận 2 cũ) và Quận 7. Ngày 21/11/2026, eno.vn đã đọc trang của 9 trường. Khi đọc lại các trang học phí ngày 22/11/2026, 4 trường đăng học phí 2026-2027 thẳng trên trang web, các trường còn lại để trong file PDF hoặc cung cấp khi phụ huynh hỏi. Bảng dưới đây ghi chương trình, khu vực, độ tuổi và kiểm định theo đúng những gì từng trường công bố.",
+  "keyPoints": [
+    "Theo biểu phí 2026-2027 do từng trường công bố, học phí năm của 4 trường có đăng số liệu trên web nằm trong khoảng {{vnd:196350000-1055300000}}, tùy khối lớp.",
+    "Học phí chưa phải là tất cả: học sinh mới còn đóng phí ghi danh, phí đăng ký hoặc tiền cọc. Riêng SSIS thu phí đăng ký {{vnd:60000000}}. Học phí lớp 1-12 của ISHCMC đã gồm phí phát triển {{vnd:67500000}} một năm, nhưng học sinh mới lớp 1-12 vẫn đóng phí nhập học {{vnd:50000000}}.",
+    "Theo Nghị định 86/2018/NĐ-CP, học sinh Việt Nam học chương trình nước ngoài tại trường có vốn đầu tư nước ngoài phải ít hơn 50% tổng số học sinh.",
+    "Nghị định 360/2026/NĐ-CP yêu cầu trường thành lập trước 17/9/2026 phải đổi tên trong 12 tháng nếu chữ \"quốc tế\" trong tên có thể gây hiểu nhầm. Vì vậy, tên trường không cho biết trường thuộc loại hình nào.",
+    "eno.vn không xếp hạng \"trường tốt nhất\". Đợt bình chọn của giáo viên năm 2026 đóng ngày 31/12/2026 và hiện chưa có kết quả."
+  ],
+  "sections": [
+    {
+      "id": "danh-sach-truong-quoc-te-tphcm",
+      "title": "Danh sách trường quốc tế và song ngữ ở TP.HCM theo chương trình học",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ba hệ chương trình phổ biến nhất là **IB** (Tú tài Quốc tế), **Anh quốc/Cambridge** (IGCSE, A Level) và **Mỹ** (AP, kết hợp IB Diploma). Có trường học trọn một hệ, có trường ghép nhiều hệ theo từng cấp. Mọi thông tin trong bảng đều đọc từ trang web của chính trường ngày 21/11/2026. Ô nào ghi \"không nêu\" nghĩa là trang trường không nói đến, chứ không có nghĩa là trường không có."
+        },
+        {
+          "type": "p",
+          "text": "Từ ngày 1/7/2025, TP.HCM bỏ cấp quận, nên địa chỉ chính thức của các trường giờ ghi theo phường, xã mới. Bảng ghi phường mới đúng như trường công bố, kèm tên khu vực cũ mà phụ huynh vẫn quen gọi."
+        },
+        {
+          "type": "table",
+          "caption": "Trường quốc tế và song ngữ ở TP.HCM: chương trình, khu vực, cấp lớp, kiểm định (theo trang web từng trường, đọc ngày 21/11/2026)",
+          "headers": [
+            "Trường",
+            "Chương trình",
+            "Khu vực",
+            "Cấp lớp, độ tuổi",
+            "Kiểm định, công nhận (theo trang trường)"
+          ],
+          "rows": [
+            [
+              "[ISHCMC](https://www.ishcmc.com/accreditations)",
+              "IB: PYP, MYP, DP",
+              "Phường An Khánh (Thảo Điền, Quận 2 cũ), 2 cơ sở",
+              "Early Explorers đến lớp 12",
+              "CIS, NEASC; IB World School"
+            ],
+            [
+              "[SSIS](https://www.ssis.edu.vn/about)",
+              "Mỹ; AP và IB Diploma ở cấp THPT",
+              "Phường Tân Hưng (Phú Mỹ Hưng, Quận 7 cũ)",
+              "EC3 đến lớp 12",
+              "WASC"
+            ],
+            [
+              "[BIS HCMC](https://www.nordangliaeducation.com/bis-hcmc)",
+              "Anh quốc, IGCSE, IB Diploma",
+              "Phường An Khánh (Thảo Điền, Quận 2 cũ), 3 cơ sở",
+              "2-18 tuổi",
+              "IB World School; thành viên FOBISIA; trung tâm thi của các hội đồng khảo thí Anh"
+            ],
+            [
+              "[AIS](https://www.aisvietnam.com/admissions/tuition-fees)",
+              "IB PYP; Cambridge Lower Secondary và IGCSE; IB DP",
+              "Phường Bình Trưng (Thủ Thiêm) và Phường An Khánh (Thảo Điền)",
+              "Thủ Thiêm: mẫu giáo đến Year 13; Thảo Điền: 1,5-10 tuổi",
+              "Trang không nêu tổ chức kiểm định"
+            ],
+            [
+              "[EIS](https://www.eishcmc.com/admissions/tuition-fees)",
+              "IB, phần lớn học sinh học IB Diploma song ngữ",
+              "Phường An Khánh (Quận 2 cũ)",
+              "2-18 tuổi",
+              "IBO, CIS, ACS WASC"
+            ],
+            [
+              "[TAS](https://tas.edu.vn/)",
+              "Mỹ (Common Core, AP), IB PYP; đang là trường ứng viên IB DP",
+              "Phường Bình Trưng (Quận 2 cũ)",
+              "Pre-Nursery (18 tháng) đến lớp 12",
+              "Trang chủ không nêu tổ chức kiểm định"
+            ],
+            [
+              "[ABCIS](https://www.theabcis.com/)",
+              "Anh quốc, IGCSE, A Level",
+              "Xã Bình Hưng (khu dân cư Trung Sơn) và Xã Nhà Bè",
+              "3-18 tuổi",
+              "Có báo cáo thanh tra BSO năm 2024"
+            ],
+            [
+              "[BVIS](https://www.nordangliaeducation.com/vi/bvis-hcmc) (song ngữ)",
+              "Chương trình Quốc gia Anh, dạy song ngữ Anh-Việt; IGCSE, A Level",
+              "Xã Bình Hưng",
+              "0-18 tuổi",
+              "Thân trang không nêu tổ chức kiểm định"
+            ],
+            [
+              "[VAS](https://www.vas.edu.vn/en/tuition-fees) (Việt Úc)",
+              "Ba hệ: CEP (chương trình Bộ GD&ĐT kết hợp Cambridge), CAP, CAPI (Cambridge, lấy chứng chỉ A Level)",
+              "6 cơ sở (trang không ghi tên)",
+              "Theo từng hệ",
+              "Cả 6 cơ sở được công nhận là Cambridge International School"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Danh sách này chưa đầy đủ",
+          "text": "TP.HCM còn nhiều trường quốc tế và song ngữ khác. Bảng chỉ gồm những trường mà eno.vn đã đọc được thông tin chương trình và địa chỉ trên trang của chính trường ngày 21/11/2026. Muốn biết kiểm định của một trường còn hiệu lực hay không, hãy tra trên trang của tổ chức kiểm định (CIS, WASC, NEASC, IB) hoặc đề nghị trường cho xem văn bản."
+        }
+      ]
+    },
+    {
+      "id": "hoc-phi-truong-quoc-te-tphcm-2026-2027",
+      "title": "Học phí trường quốc tế TP.HCM năm học 2026-2027 là bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trong 4 trường đăng biểu phí 2026-2027 thẳng trên trang web, học phí năm thấp nhất là {{vnd:196350000}} (lớp Pre-Nursery, Nursery học nửa ngày ở ABCIS) và cao nhất là {{vnd:1055300000}} (lớp 11-12 ở ISHCMC). Mọi số liệu dưới đây lấy từ trang học phí của chính trường, đọc ngày 22/11/2026."
+        },
+        {
+          "type": "table",
+          "caption": "Học phí năm học 2026-2027 theo biểu phí trường tự công bố (đọc ngày 22/11/2026)",
+          "headers": [
+            "Trường",
+            "Học phí năm, khối thấp nhất",
+            "Học phí năm, khối cao nhất",
+            "Phí một lần và ghi chú"
+          ],
+          "rows": [
+            [
+              "[ISHCMC](https://www.ishcmc.com/admission/tuition-fees)",
+              "{{vnd:287400000}} (Early Explorers 2, học nửa ngày)",
+              "{{vnd:1055300000}} (lớp 11-12)",
+              "Học phí lớp 1-12 đã gồm phí phát triển {{vnd:67500000}}. Phí nhập học {{vnd:25000000}} (mầm non) hoặc {{vnd:50000000}} (lớp 1-12)."
+            ],
+            [
+              "[SSIS](https://www.ssis.edu.vn/admissions/tuition-and-fees)",
+              "{{vnd:530192000}} (EC3-4, học phí đủ, trả theo 4 đợt mỗi quý)",
+              "{{vnd:924546000}} (lớp 11-12, học phí đủ, trả theo 4 đợt mỗi quý)",
+              "Nếu trả đủ một lần trước 25/6/2026, trường giảm 6%: {{vnd:498380000}} (EC3-4) đến {{vnd:869073000}} (lớp 11-12). Phí hồ sơ {{vnd:10000000}}, phí đăng ký {{vnd:60000000}}, cọc {{vnd:45000000}} (được trừ vào học phí)."
+            ],
+            [
+              "[TAS](https://tas.edu.vn/admissions-page/fee-schedule)",
+              "{{vnd:254200000}} (Pre-Nursery, Nursery)",
+              "{{vnd:767000000}} (lớp 11-12)",
+              "Phí hồ sơ {{vnd:5800000}}, phí đăng ký {{vnd:30000000-55000000}} tùy khối."
+            ],
+            [
+              "[ABCIS](https://www.theabcis.com/admission/school-fees/)",
+              "{{vnd:196350000}} (Pre-Nursery, Nursery học nửa ngày)",
+              "{{vnd:837930000}} (Year 12-13)",
+              "Theo trang học phí của ABCIS, đọc ngày 23/11/2026, học phí năm trong bảng là mức đóng một lần, trước hoặc đúng ngày 1/8/2026; đóng theo 3 đợt (1/8/2026, 4/11/2026 và 12/3/2027) thì tổng số tiền cao hơn. Phí đăng ký {{vnd:14500000-38400000}}. Cọc {{vnd:22000000}} cho Year 1 đến Year 13, chỉ được hoàn nếu phụ huynh báo bằng văn bản trước 90 ngày; khối mầm non (Pre-Nursery, Nursery, Reception) không đóng cọc. Thi IGCSE {{vnd:4800000}} một môn."
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Ở cấp tiểu học, theo biểu phí 2026-2027 do từng trường công bố (đọc ngày 22/11/2026), học phí năm lớp 1 ở TAS thấp hơn ở SSIS và ISHCMC."
+        },
+        {
+          "type": "table",
+          "caption": "Học phí năm cấp tiểu học 2026-2027, theo biểu phí của từng trường (đọc ngày 22/11/2026)",
+          "headers": [
+            "Trường",
+            "Khối",
+            "Học phí năm"
+          ],
+          "rows": [
+            [
+              "TAS",
+              "Lớp 1",
+              "{{vnd:564600000}}"
+            ],
+            [
+              "SSIS",
+              "Lớp 1-5 (học phí đủ, trả theo 4 đợt mỗi quý)",
+              "{{vnd:730808000}}"
+            ],
+            [
+              "ISHCMC",
+              "Lớp 1-2 (đã gồm phí phát triển)",
+              "{{vnd:769900000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Các trường sau có công bố biểu phí 2026-2027, nhưng chỉ dưới dạng file PDF hoặc hình ảnh mà eno.vn không trích được số liệu ngày 22/11/2026. Phụ huynh nên mở file trên trang của chính trường: [BIS HCMC](https://www.nordangliaeducation.com/bis-hcmc/admissions/tuition-fees), [BVIS](https://www.nordangliaeducation.com/vi/bvis-hcmc/admissions/tuition-fees), [AIS](https://www.aisvietnam.com/admissions/fees) và [Trường Quốc tế Canada (CIS)](https://cis.edu.vn/vi/tuyen-sinh/hoc-phi). Trường [Việt Úc (VAS)](https://www.vas.edu.vn/en/tuition-fees) thì cho tra học phí 2026-2027 bằng công cụ trên web, chọn cấp học, hệ và cơ sở, hoặc đăng ký để nhận biểu phí. Trang tuyển sinh của EIS không ghi học phí và dẫn sang một trang phí riêng."
+        },
+        {
+          "type": "p",
+          "text": "Một số khoản phí lẻ đã đọc được trên trang HTML: BVIS thu phí ghi danh {{vnd:3700000}}, phí nhập học {{vnd:73300000}} ({{vnd:24500000}} với khối mầm non) và tiền cọc {{vnd:36700000}}. Theo trang này, học phí BVIS đã gồm bữa trưa, học liệu và phí thi quốc tế."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "So sánh tổng chi phí, đừng chỉ nhìn học phí",
+          "text": "Mỗi trường gộp khoản phí theo một kiểu. Học phí ISHCMC lớp 1-12 đã gồm phí phát triển, còn SSIS tính riêng phí đăng ký, ăn trưa, xe buýt, phí thi AP/IB và yêu cầu học sinh lớp 4-12 tự mang MacBook. TAS tính riêng xe buýt và ăn trưa. Trước khi so sánh, hãy cộng học phí, phí một lần cho học sinh mới, xe buýt và ăn trưa của cùng một khối lớp."
+        }
+      ]
+    },
+    {
+      "id": "truong-mam-non-quoc-te-tphcm",
+      "title": "Trường mầm non quốc tế ở TP.HCM: học phí khối nhỏ nhất",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Với khối mầm non năm học 2026-2027, mức học phí năm thấp nhất mà eno.vn đọc được là {{vnd:196350000}} (Pre-Nursery và Nursery học nửa ngày ở ABCIS) và cao nhất là {{vnd:702400000}} (Kindergarten ở ISHCMC). Với lớp 3-4 tuổi, mức cao nhất trong bảng là {{vnd:530192000}} (EC3-4 ở SSIS, học phí đủ trả theo 4 đợt mỗi quý); nếu trả đủ một lần trước 25/6/2026, mức này là {{vnd:498380000}}. Lớp học nửa ngày và lớp cả ngày có giá khác nhau, nên hãy hỏi rõ giờ học trước khi so sánh."
+        },
+        {
+          "type": "table",
+          "caption": "Học phí năm khối mầm non 2026-2027, theo biểu phí của từng trường (đọc ngày 22/11/2026)",
+          "headers": [
+            "Trường",
+            "Khối",
+            "Học phí năm"
+          ],
+          "rows": [
+            [
+              "ABCIS",
+              "Pre-Nursery và Nursery, học nửa ngày",
+              "{{vnd:196350000}}"
+            ],
+            [
+              "TAS",
+              "Pre-Nursery, Nursery / Pre-K / Kindergarten",
+              "{{vnd:254200000}} / {{vnd:312900000}} / {{vnd:350300000}}"
+            ],
+            [
+              "ISHCMC",
+              "Early Explorers 2 học nửa ngày / cả ngày, Early Explorers 3",
+              "{{vnd:287400000}} / {{vnd:396000000}}"
+            ],
+            [
+              "ISHCMC",
+              "Early Explorers 4 / Kindergarten",
+              "{{vnd:514800000}} / {{vnd:702400000}}"
+            ],
+            [
+              "SSIS",
+              "EC3-4 (học phí đủ, trả theo 4 đợt mỗi quý / trả đủ một lần trước 25/6/2026, giảm 6%)",
+              "{{vnd:530192000}} / {{vnd:498380000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Trang học phí của ABCIS và ISHCMC chỉ ghi \"Half day\" (học nửa ngày) và \"Full day\" (cả ngày), không ghi giờ học của lớp học nửa ngày. Theo [trang giờ học của ISHCMC](https://www.ishcmc.com/school-timings), đọc ngày 22/11/2026, Early Explorers 2 và 3 vào lớp lúc 7:45-8:00 và tan lúc 13:45, còn Early Explorers 4 tan lúc 14:45, nhưng trang này không tách giờ của lớp học nửa ngày. Phụ huynh nên hỏi trường giờ đón con của lớp học nửa ngày trước khi đăng ký."
+        },
+        {
+          "type": "p",
+          "text": "BIS HCMC có biểu phí riêng cho khối mầm non (Early Years Foundation Stage và Fundinotots), còn BVIS nhận trẻ từ 0 tuổi ở lớp Fundinotots. Cả hai trường đều để biểu phí trong file PDF trên trang tuyển sinh."
+        }
+      ]
+    },
+    {
+      "id": "truong-quoc-te-va-truong-song-ngu-khac-nhau",
+      "title": "Trường quốc tế và trường song ngữ khác nhau thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trường quốc tế dạy chương trình nước ngoài (IB, Anh, Mỹ), học chủ yếu bằng tiếng Anh và cấp bằng như IGCSE, A Level, IB Diploma. Trường song ngữ thường dạy chương trình Việt Nam kết hợp thêm phần chương trình quốc tế, với tỷ lệ tiếng Anh và tiếng Việt khác nhau tùy trường. Ví dụ, hệ CEP của trường Việt Úc ghép chương trình của Bộ GD&ĐT với Cambridge, còn BVIS dạy Chương trình Quốc gia Anh bằng cả hai thứ tiếng."
+        },
+        {
+          "type": "p",
+          "text": "Theo [trang học phí của VAS](https://www.vas.edu.vn/en/tuition-fees), đọc ngày 22/11/2026, phần Cambridge chiếm khoảng 45-50% chương trình ở hệ CEP, khoảng 50-65% ở hệ CAP và tới 70-85% ở hệ CAPI."
+        },
+        {
+          "type": "p",
+          "text": "Trường song ngữ thường cấp được cả bằng Việt Nam lẫn chứng chỉ quốc tế, nên phù hợp với gia đình muốn con học tiếp đại học trong nước. Gia đình có thể chuyển sang nước khác thì thường chọn trường dạy trọn một hệ quốc tế để con chuyển trường dễ hơn."
+        },
+        {
+          "type": "h3",
+          "text": "Quy định pháp lý phụ huynh nên biết"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Trường có vốn đầu tư nước ngoài** hoạt động theo Nghị định 86/2018/NĐ-CP, có hiệu lực từ 1/8/2018. Theo [LuatVietnam](https://luatvietnam.vn/tin-van-ban-moi/bo-quy-dinh-tre-duoi-5-tuoi-khong-duoc-hoc-truong-quoc-te-186-16738-article.html), nghị định này yêu cầu số học sinh Việt Nam học chương trình nước ngoài phải ít hơn 50% tổng số học sinh, và đã bỏ quy định cấm trẻ Việt Nam dưới 5 tuổi học chương trình nước ngoài.",
+            "**Nghị định 124/2024/NĐ-CP** sửa đổi Nghị định 86. Theo [VietnamPlus](https://www.vietnamplus.vn/giam-thu-tuc--siet-chat-luong-hop-tac-dau-tu-nuoc-ngoai-trong-giao-duc-post986419.vnp) (tháng 10/2024), chương trình nước ngoài dạy ở Việt Nam phải được cơ quan giáo dục nước ngoài công nhận hoặc đã được kiểm định, phải đã dạy trực tiếp ở nước ngoài ít nhất 5 năm, và trường phải xin ý kiến cơ quan quản lý giáo dục địa phương.",
+            "**Ai cấp phép ở TP.HCM**: theo [Báo Giáo dục Việt Nam](https://giaoduc.net.vn/tphcm-so-gddt-yeu-cau-truong-ten-goi-co-chua-cum-tu-quoc-te-quoc-gia-ra-soat-doi-ten-post263866.gd) (6/11/2026), Giám đốc Sở GD&ĐT quyết định thành lập hoặc cho phép thành lập, đình chỉ, giải thể và cấp phép hoạt động giáo dục cho các cơ sở trong phạm vi được phân cấp.",
+            "**Tên trường có chữ \"quốc tế\"**: Nghị định 360/2026/NĐ-CP không cho dùng chữ \"quốc tế\", \"quốc gia\" trong tên trường nếu việc đó có thể gây hiểu nhầm về tư cách pháp lý, phạm vi hoạt động hoặc sự bảo trợ của Nhà nước. Theo [Luật sư Việt Nam](https://lsvn.vn/truong-co-ten-quoc-te-quoc-gia-gay-hieu-nham-phai-doi-ten-trong-12-thang-a179485.html), trường thành lập trước 17/9/2026 thuộc diện này phải làm thủ tục đổi tên trong 12 tháng, tức trước 17/9/2027. Sở GD&ĐT TP.HCM đã yêu cầu các trường rà soát tên theo văn bản 11687/SGDĐT-TCCB, ký ngày 30/10/2026."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Hỏi giấy phép, đừng dựa vào tên trường",
+          "text": "Hãy đề nghị trường cho xem quyết định thành lập và giấy phép hoạt động giáo dục. Hai văn bản này cho biết trường thuộc loại hình nào, được dạy chương trình nào và học sinh tốt nghiệp nhận bằng gì. Nếu còn băn khoăn, phụ huynh có thể hỏi Sở GD&ĐT TP.HCM."
+        }
+      ]
+    },
+    {
+      "id": "danh-gia-truong-quoc-te-tphcm",
+      "title": "International school Ho Chi Minh City đánh giá: xem ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ba nguồn đánh giá đáng tin nhất là báo cáo kiểm định và thanh tra của tổ chức độc lập, ý kiến của giáo viên từng làm ở trường và buổi tham quan trường. Danh hiệu \"trường tốt nhất\" trên các trang tổng hợp thường không cho biết tiêu chí chấm. eno.vn cũng không gọi trường nào là tốt nhất."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Kiểm định và thanh tra**: CIS, WASC, NEASC, IB và thanh tra BSO đánh giá trường theo bộ tiêu chuẩn đã công bố. Ví dụ, ABCIS có báo cáo thanh tra BSO năm 2024 trên trang của trường. Hãy xin bản báo cáo đầy đủ, đừng chỉ đọc phần trích dẫn trên trang chủ.",
+            "**Giáo viên từng làm ở trường**: [danh bạ trường học của eno.vn](/schools) liệt kê các trường quốc tế, trường song ngữ và trung tâm ngoại ngữ ở TP.HCM. Giáo viên từng làm việc hoặc phỏng vấn ở đâu thì có thể bình chọn và viết nhận xét cho trường đó, và mỗi nhận xét được kiểm duyệt trước khi đăng. Phần lớn trường hiện còn ít hoặc chưa có nhận xét nào.",
+            "**Bảng xếp hạng Teachers' Choice**: đợt bình chọn năm 2026 của giáo viên đóng ngày 31/12/2026 và hiện chưa có kết quả.",
+            "**Tham quan trường**: dự một buổi học, hỏi sĩ số lớp, tỷ lệ giáo viên nghỉ việc mỗi năm và trường hỗ trợ tiếng Anh (EAL) cho học sinh mới như thế nào."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu đang tìm việc ở trường quốc tế, xem hướng dẫn [việc làm ở trường quốc tế tại Việt Nam](/teach-in-vietnam/international-school-jobs-in-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "chon-truong-theo-khu-vuc-va-nha-o",
+      "title": "Chọn trường theo khu vực và tìm nhà gần trường",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trường quốc tế ở TP.HCM tập trung ở ba cụm: Thảo Điền - An Phú - Thủ Thiêm (Quận 2 cũ), Phú Mỹ Hưng (Quận 7 cũ) và Bình Hưng - Nhà Bè ở phía nam. Đường đến trường vào giờ cao điểm có thể khá lâu, nên nhiều gia đình chọn trường trước rồi mới thuê nhà gần trường."
+        },
+        {
+          "type": "table",
+          "caption": "Trường theo cụm khu vực (địa chỉ theo trang web từng trường, đọc ngày 21/11/2026)",
+          "headers": [
+            "Cụm khu vực",
+            "Trường trong bảng trên"
+          ],
+          "rows": [
+            [
+              "Thảo Điền, An Phú, Thủ Thiêm (Phường An Khánh, Phường Bình Trưng)",
+              "ISHCMC, BIS HCMC, EIS, AIS, TAS"
+            ],
+            [
+              "Phú Mỹ Hưng, Quận 7 cũ (Phường Tân Hưng)",
+              "SSIS"
+            ],
+            [
+              "Phía nam: Trung Sơn, Nhà Bè (Xã Bình Hưng, Xã Nhà Bè)",
+              "ABCIS, BVIS"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Để tìm nhà gần trường, xem [nhà cho thuê ở TP.HCM trên eno.vn](/c/rentals). [Chỉ số giá thuê TP.HCM](/hcmc-rent-index) cho biết giá chào thuê trung vị theo quận và loại nhà của các tin đăng trên eno.vn, và được cập nhật định kỳ. Giá theo từng khu có trong bài [giá thuê nhà TP.HCM theo quận](/huong-dan/gia-thue-nha-tphcm-theo-quan)."
+        }
+      ]
+    },
+    {
+      "id": "cac-buoc-chon-truong",
+      "title": "Các bước chọn trường và nộp hồ sơ",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chọn hệ chương trình",
+              "text": "Xác định con sẽ học đại học ở đâu và gia đình có thể chuyển sang nước khác hay không. Từ đó chọn giữa IB, Anh quốc/Cambridge, Mỹ hoặc mô hình song ngữ có bằng Việt Nam."
+            },
+            {
+              "title": "Lọc theo khu vực và ngân sách",
+              "text": "Cộng học phí với các khoản phí một lần, xe buýt và ăn trưa theo biểu phí 2026-2027 của từng trường, rồi so sánh với quãng đường từ nhà đến trường."
+            },
+            {
+              "title": "Kiểm tra giấy phép và kiểm định",
+              "text": "Xin xem giấy phép hoạt động giáo dục và tra kiểm định trên trang của tổ chức kiểm định. Hỏi luôn trường có thuộc diện phải đổi tên theo Nghị định 360/2026/NĐ-CP hay không."
+            },
+            {
+              "title": "Tham quan và nghe ý kiến giáo viên",
+              "text": "Đặt lịch tham quan trường, đọc nhận xét trên [danh bạ trường học](/schools) và hỏi về tỷ lệ giáo viên nghỉ việc."
+            },
+            {
+              "title": "Nộp hồ sơ và đóng phí giữ chỗ",
+              "text": "Đọc kỹ điều khoản hoàn phí trước khi đóng. Ví dụ, theo trang học phí của ABCIS và của BVIS, đọc ngày 23/11/2026, tiền cọc chỉ được hoàn nếu phụ huynh báo rút hồ sơ bằng văn bản trước 90 ngày."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Học phí trường quốc tế ở TP.HCM năm 2026-2027 khoảng bao nhiêu?",
+      "a": "Học phí trường quốc tế ở TP.HCM năm học 2026-2027 thay đổi rất nhiều theo trường và khối lớp, từ lớp mầm non học nửa ngày đến lớp 12, hay Year 13 ở trường hệ Anh như ABCIS. eno.vn đã đối chiếu biểu phí do chính ISHCMC, SSIS, TAS và ABCIS công bố, và ghi mức thấp nhất, cao nhất của từng trường trong bảng học phí ở trên. Ngoài học phí, học sinh mới thường phải đóng thêm phí ghi danh, phí đăng ký và tiền cọc."
+    },
+    {
+      "q": "Trường quốc tế và trường song ngữ khác nhau như thế nào?",
+      "a": "Trường quốc tế ở TP.HCM dạy chương trình nước ngoài như IB, Anh quốc hoặc Mỹ, học chủ yếu bằng tiếng Anh và cấp bằng như IGCSE, A Level hay IB Diploma. Trường song ngữ thường dạy chương trình Việt Nam kết hợp thêm phần chương trình quốc tế, với tỷ lệ tiếng Anh tùy trường, nên có thể cấp cả bằng Việt Nam lẫn chứng chỉ quốc tế. Muốn biết chắc trường thuộc loại hình nào, hãy hỏi giấy phép hoạt động của trường."
+    },
+    {
+      "q": "Học sinh Việt Nam có được học trường quốc tế ở TP.HCM không?",
+      "a": "Học sinh Việt Nam được học trường quốc tế ở TP.HCM. Theo Nghị định 86/2018/NĐ-CP, tại trường có vốn đầu tư nước ngoài, số học sinh Việt Nam học chương trình nước ngoài phải ít hơn 50% tổng số học sinh. Nghị định này cũng bỏ quy định cũ cấm trẻ Việt Nam dưới 5 tuổi học chương trình nước ngoài. Vì có giới hạn tỷ lệ, một số trường có thể hết chỗ dành cho học sinh Việt Nam ở một số khối lớp."
+    },
+    {
+      "q": "International school Ho Chi Minh City đánh giá ở đâu đáng tin?",
+      "a": "Đánh giá trường quốc tế ở TP.HCM đáng tin nhất đến từ báo cáo kiểm định, thanh tra độc lập (CIS, WASC, NEASC, IB, BSO) và từ giáo viên từng làm ở trường. Danh bạ trường học của eno.vn cho phép giáo viên từng làm việc hoặc phỏng vấn ở trường bình chọn và viết nhận xét, có kiểm duyệt trước khi đăng. Tuy vậy, phần lớn trường hiện còn ít nhận xét, và đợt bình chọn năm 2026 đóng ngày 31/12/2026."
+    },
+    {
+      "q": "Trường quốc tế tốt nhất TP.HCM là trường nào?",
+      "a": "Không có cách xếp hạng chính thức nào cho trường quốc tế tốt nhất ở TP.HCM. Trường phù hợp tùy vào hệ chương trình con cần (IB, Anh hay Mỹ), khu vực gia đình sống và ngân sách. eno.vn không gọi trường nào là tốt nhất. Đợt bình chọn Teachers' Choice năm 2026 dành cho giáo viên đóng ngày 31/12/2026 và hiện chưa có kết quả. Hãy so sánh kiểm định, học phí và tham quan trường trước khi quyết định."
+    },
+    {
+      "q": "Trường mầm non quốc tế ở TP.HCM nhận trẻ từ mấy tuổi?",
+      "a": "Mỗi trường mầm non quốc tế ở TP.HCM nhận trẻ từ một độ tuổi khác nhau, theo trang web của chính trường. BVIS có lớp Fundinotots cho trẻ từ 0 đến 36 tháng. TAS nhận trẻ từ 18 tháng. Cơ sở Thảo Điền của AIS nhận trẻ từ 1,5 tuổi. BIS HCMC và EIS nhận trẻ từ 2 tuổi, còn ABCIS nhận từ 3 tuổi. Lớp học nửa ngày và lớp cả ngày có học phí khác nhau."
+    },
+    {
+      "q": "Trường có chữ quốc tế trong tên có phải trường quốc tế không?",
+      "a": "Chữ \"quốc tế\" trong tên không chứng minh trường có vốn đầu tư nước ngoài hay dạy chương trình nước ngoài. Nghị định 360/2026/NĐ-CP không cho dùng chữ \"quốc tế\" trong tên trường nếu việc đó có thể gây hiểu nhầm về tư cách pháp lý. Trường thành lập trước 17/9/2026 thuộc diện này phải đổi tên trước 17/9/2027. Phụ huynh nên xem giấy phép hoạt động giáo dục của trường."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Tuition Fees 2026-27",
+      "publisher": "International School Ho Chi Minh City (ISHCMC)",
+      "url": "https://www.ishcmc.com/admission/tuition-fees"
+    },
+    {
+      "title": "School Timings",
+      "publisher": "International School Ho Chi Minh City (ISHCMC)",
+      "url": "https://www.ishcmc.com/school-timings"
+    },
+    {
+      "title": "Tuition and Fees",
+      "publisher": "Saigon South International School",
+      "url": "https://www.ssis.edu.vn/admissions/tuition-and-fees"
+    },
+    {
+      "title": "Tuition Fees (Fee Schedule 2026-2027)",
+      "publisher": "The American School",
+      "url": "https://tas.edu.vn/admissions-page/fee-schedule"
+    },
+    {
+      "title": "School Fees",
+      "publisher": "The ABC International School",
+      "url": "https://www.theabcis.com/admission/school-fees/"
+    },
+    {
+      "title": "Tuition Fees",
+      "publisher": "British International School HCMC (Nord Anglia Education)",
+      "url": "https://www.nordangliaeducation.com/bis-hcmc/admissions/tuition-fees"
+    },
+    {
+      "title": "Học phí tại Trường Quốc tế Anh Việt BVIS TP.HCM",
+      "publisher": "BVIS HCMC (Nord Anglia Education)",
+      "url": "https://www.nordangliaeducation.com/vi/bvis-hcmc/admissions/tuition-fees"
+    },
+    {
+      "title": "Fees",
+      "publisher": "Australian International School",
+      "url": "https://www.aisvietnam.com/admissions/fees"
+    },
+    {
+      "title": "Học phí",
+      "publisher": "Trường Quốc tế Canada (CIS)",
+      "url": "https://cis.edu.vn/vi/tuyen-sinh/hoc-phi"
+    },
+    {
+      "title": "Tuition Fees",
+      "publisher": "Vietnam Australia International School (VAS)",
+      "url": "https://www.vas.edu.vn/en/tuition-fees"
+    },
+    {
+      "title": "Accreditations",
+      "publisher": "International School Ho Chi Minh City (ISHCMC)",
+      "url": "https://www.ishcmc.com/accreditations"
+    },
+    {
+      "title": "Contact Us",
+      "publisher": "International School Ho Chi Minh City (ISHCMC)",
+      "url": "https://www.ishcmc.com/contact-us"
+    },
+    {
+      "title": "About SSIS",
+      "publisher": "Saigon South International School",
+      "url": "https://www.ssis.edu.vn/about"
+    },
+    {
+      "title": "British International School Ho Chi Minh City",
+      "publisher": "Nord Anglia Education",
+      "url": "https://www.nordangliaeducation.com/bis-hcmc"
+    },
+    {
+      "title": "Trường Quốc tế Anh Việt BVIS TP.HCM",
+      "publisher": "Nord Anglia Education",
+      "url": "https://www.nordangliaeducation.com/vi/bvis-hcmc"
+    },
+    {
+      "title": "Tuition Fees",
+      "publisher": "Australian International School",
+      "url": "https://www.aisvietnam.com/admissions/tuition-fees"
+    },
+    {
+      "title": "Tuition Fees",
+      "publisher": "European International School HCMC",
+      "url": "https://www.eishcmc.com/admissions/tuition-fees"
+    },
+    {
+      "title": "The American School",
+      "publisher": "The American School",
+      "url": "https://tas.edu.vn/"
+    },
+    {
+      "title": "The ABC International School",
+      "publisher": "The ABC International School",
+      "url": "https://www.theabcis.com/"
+    },
+    {
+      "title": "TPHCM: Sở GD&ĐT yêu cầu trường tên gọi có chứa cụm từ quốc tế, quốc gia rà soát, đổi tên",
+      "publisher": "Báo Giáo dục Việt Nam",
+      "url": "https://giaoduc.net.vn/tphcm-so-gddt-yeu-cau-truong-ten-goi-co-chua-cum-tu-quoc-te-quoc-gia-ra-soat-doi-ten-post263866.gd"
+    },
+    {
+      "title": "Trường có tên quốc tế, quốc gia gây hiểu nhầm phải đổi tên trong 12 tháng",
+      "publisher": "Luật sư Việt Nam",
+      "url": "https://lsvn.vn/truong-co-ten-quoc-te-quoc-gia-gay-hieu-nham-phai-doi-ten-trong-12-thang-a179485.html"
+    },
+    {
+      "title": "Bỏ quy định trẻ dưới 5 tuổi không được học trường quốc tế",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/tin-van-ban-moi/bo-quy-dinh-tre-duoi-5-tuoi-khong-duoc-hoc-truong-quoc-te-186-16738-article.html"
+    },
+    {
+      "title": "Giảm thủ tục, siết chất lượng hợp tác đầu tư nước ngoài trong giáo dục",
+      "publisher": "VietnamPlus",
+      "url": "https://www.vietnamplus.vn/giam-thu-tuc--siet-chat-luong-hop-tac-dau-tu-nuoc-ngoai-trong-giao-duc-post986419.vnp"
+    }
+  ],
+  "related": [
+    "moving-to-vietnam-with-family-as-a-teacher",
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "international-school-jobs-in-vietnam",
+    "healthcare-and-health-insurance-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-23",
+  "images": {
+    "hero": {
+      "id": "735290450ef505d9271e21aedb55a25c0d0aed654ebe4fd859f1403c9bc140e5",
+      "w": 1672,
+      "h": 941,
+      "alt": "Các gia đình đi trong khuôn viên trường giả tưởng nhiều cây xanh, phía trước có quả địa cầu, sách và khối xếp hình.",
+      "caption": "Tìm hiểu các lựa chọn trường quốc tế tại TP.HCM."
+    },
+    "figures": [
+      {
+        "id": "bd62432679610aa33071afd38f952e6fa38c6555b7facaa630e4d9bb7c6c0e65",
+        "w": 1448,
+        "h": 1086,
+        "after": "hoc-phi-truong-quoc-te-tphcm-2026-2027",
+        "alt": "Phụ huynh và trẻ nhìn chiếc cân có mô hình trường cùng sách ở một bên, các đồng xu trơn ở bên kia.",
+        "caption": "Cân nhắc học phí khi chọn trường."
+      },
+      {
+        "id": "0231110ee390f9552e2f01480c4a8a39f8e6edcc02c0196efbb1dec692129181",
+        "w": 1448,
+        "h": 1086,
+        "after": "chon-truong-theo-khu-vuc-va-nha-o",
+        "alt": "Phụ huynh và trẻ đi trên lối uốn cong giữa ngôi nhà và khu học tập giả tưởng, xung quanh có nhiều cây xanh.",
+        "caption": "Cân nhắc việc đi lại giữa nhà và trường."
+      }
+    ]
+  }
+}

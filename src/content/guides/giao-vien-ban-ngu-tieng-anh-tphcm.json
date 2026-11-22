@@ -1,0 +1,436 @@
+{
+  "slug": "giao-vien-ban-ngu-tieng-anh-tphcm",
+  "title": "Giáo viên bản ngữ ở TP.HCM: là ai, tìm ở đâu, giá bao nhiêu",
+  "description": "Giáo viên bản ngữ theo cách hiểu của Bộ GD&ĐT, bằng cấp nên hỏi, giấy phép lao động trước và sau 05/12/2026, học phí dạy kèm ở TP.HCM đọc ngày 23/11/2026.",
+  "h1": "Giáo viên bản ngữ dạy tiếng Anh ở TP.HCM: là ai, tìm ở đâu và chi phí bao nhiêu",
+  "eyebrow": "Học tiếng Anh",
+  "intro": "Giáo viên bản ngữ là người nước ngoài dạy một ngoại ngữ mà ngôn ngữ đó là tiếng mẹ đẻ của họ. Đây là cách Bộ Giáo dục và Đào tạo hiểu Thông tư 21/2018. Vì vậy tiêu chí là ngôn ngữ thứ nhất, không phải hộ chiếu. Khi thuê dạy kèm tại nhà hoặc online, bạn nên hỏi bằng cấp, chứng chỉ TEFL hoặc CELTA và giấy phép lao động. Học phí thì mỗi nơi tự đặt, các mức đọc được ngày 23/11/2026 nằm trong bảng ở phần chi phí.",
+  "keyPoints": [
+    "Theo cách hiểu của Bộ GD&ĐT về Thông tư 21/2018, **giáo viên bản ngữ** là người nước ngoài dạy ngoại ngữ mà ngôn ngữ đó là tiếng mẹ đẻ của họ. Văn bản không liệt kê quốc gia nào.",
+    "Ở trung tâm ngoại ngữ, giáo viên bản ngữ phải có **bằng cao đẳng trở lên và chứng chỉ dạy ngoại ngữ phù hợp**, ví dụ TEFL, TESOL hay CELTA. Đây cũng là mức tối thiểu hợp lý khi bạn thuê dạy kèm.",
+    "Ngày 23/11/2026, **Nghị định 219/2025/NĐ-CP** vẫn quy định về giấy phép lao động. Từ 05/12/2026, Nghị định 393/2026/NĐ-CP thay thế nghị định này. Hồ sơ xin phép do người sử dụng lao động nộp, không phải gia đình thuê gia sư.",
+    "Một trang đăng ngày 07/09/2026 ghi giáo viên bản ngữ có chứng chỉ dạy kèm tại TP.HCM từ khoảng {{vnd:400000}} một giờ, đến tận nhà ở khu trung tâm có thể trên {{vnd:700000}} một giờ.",
+    "Trên [hồ sơ giáo viên của eno.vn](/c/teachers) bạn xem được môn dạy, độ tuổi dạy và khu vực dạy, rồi nhắn tin sau khi đăng nhập. Lịch học và học phí bạn thỏa thuận trực tiếp với giáo viên."
+  ],
+  "sections": [
+    {
+      "id": "giao-vien-ban-ngu-la-nuoc-nao",
+      "title": "Giáo viên bản ngữ là gì, là người nước nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giáo viên bản ngữ là giáo viên nước ngoài dạy một ngoại ngữ mà ngôn ngữ đó là **ngôn ngữ thứ nhất** của họ. Cục Quản lý chất lượng (Bộ GD&ĐT) giải thích như vậy về cụm \"giáo viên là người bản ngữ\" trong Thông tư 21/2018/TT-BGDĐT, theo [báo Giáo dục Việt Nam ngày 22/12/2020](https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd). Văn bản không nêu tên quốc gia nào."
+        },
+        {
+          "type": "p",
+          "text": "Vì vậy, khi hỏi \"giáo viên bản ngữ là nước nào\", câu trả lời đúng theo quy định là: người có tiếng Anh là tiếng mẹ đẻ, dù mang quốc tịch nào. Nếu cần một danh sách tham khảo, Chính phủ Anh xếp 19 nước vào nhóm đa số dân nói tiếng Anh bản ngữ. Danh sách này được [Đại học Sheffield đăng lại](https://sheffield.ac.uk/international/english-speaking-countries)."
+        },
+        {
+          "type": "table",
+          "caption": "Các nước Chính phủ Anh xếp vào nhóm đa số nói tiếng Anh bản ngữ (theo Đại học Sheffield, đọc ngày 23/11/2026)",
+          "headers": [
+            "Khu vực",
+            "Các nước"
+          ],
+          "rows": [
+            [
+              "Bắc Mỹ",
+              "Mỹ, Canada"
+            ],
+            [
+              "Châu Âu",
+              "Anh, Ireland, Malta"
+            ],
+            [
+              "Châu Đại Dương",
+              "Úc, New Zealand"
+            ],
+            [
+              "Caribe và Trung Mỹ",
+              "Antigua và Barbuda, Bahamas, Barbados, Belize, Dominica, Grenada, Guyana, Jamaica, St Kitts và Nevis, St Lucia, St Vincent và Grenadines, Trinidad và Tobago"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Danh sách nước không phải định nghĩa",
+          "text": "Danh sách trên là cách phân loại của Chính phủ Anh, không phải quy định của Việt Nam. Nam Phi và Philippines không có trong danh sách. Tuy vậy, theo cách hiểu của Bộ GD&ĐT, một người ở bất kỳ nước nào vẫn là giáo viên bản ngữ nếu tiếng Anh là tiếng mẹ đẻ của họ. Hãy hỏi thẳng giáo viên điều đó thay vì chỉ nhìn quốc tịch."
+        },
+        {
+          "type": "p",
+          "text": "Giáo viên nước ngoài không phải người bản ngữ vẫn được dạy tiếng Anh ở trung tâm nếu đạt chuẩn riêng, nêu ở phần bằng cấp bên dưới. Với người học, \"bản ngữ\" mới chỉ nói về giọng và độ tự nhiên khi dùng tiếng. Khả năng dạy thì phải xem bằng cấp và kinh nghiệm."
+        }
+      ]
+    },
+    {
+      "id": "giao-vien-can-bang-cap-gi",
+      "title": "Giáo viên dạy tiếng Anh cần bằng cấp gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Mức nên hỏi là **bằng cao đẳng trở lên cộng chứng chỉ dạy ngoại ngữ** như TEFL, TESOL hoặc CELTA. Điều 18 khoản 5 [Thông tư 21/2018/TT-BGDĐT](https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html) đặt chuẩn này cho giáo viên bản ngữ ở trung tâm ngoại ngữ. Thông tư áp dụng cho trung tâm, không áp dụng cho gia đình, nhưng đây là chuẩn tối thiểu hợp lý khi bạn thuê dạy kèm."
+        },
+        {
+          "type": "h3",
+          "text": "Giáo viên không phải người bản ngữ cần gì?"
+        },
+        {
+          "type": "p",
+          "text": "Theo Điều 18 khoản 6 của Thông tư 21/2018, giáo viên nước ngoài dạy một ngoại ngữ không phải tiếng mẹ đẻ của mình cần đạt một trong ba chuẩn:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Có bằng cao đẳng sư phạm ngoại ngữ trở lên.",
+            "Có bằng cao đẳng ngoại ngữ trở lên và chứng chỉ dạy ngoại ngữ phù hợp.",
+            "Có bằng cao đẳng trở lên, chứng chỉ năng lực ngoại ngữ từ bậc 5 trở lên theo khung 6 bậc, kèm chứng chỉ dạy ngoại ngữ."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Ngoài ra, Bộ GD&ĐT đã ban hành Quyết định 4159/QĐ-BGDĐT về chương trình đào tạo và cấp chứng chỉ cho người nước ngoài dạy tiếng Anh ở trung tâm ngoại ngữ, tin học. Thông tin này theo [báo Nhân Dân ngày 07/12/2023](https://nhandan.vn/ocop/ban-hanh-chuong-trinh-dao-tao-cap-chung-chi-cho-nguoi-nuoc-ngoai-day-tieng-anh-tai-viet-nam-post786350.html)."
+        },
+        {
+          "type": "h3",
+          "text": "TEFL, TESOL hay CELTA có giá trị hơn?"
+        },
+        {
+          "type": "p",
+          "text": "CELTA là chứng chỉ do Cambridge cấp. Khóa học có ít nhất 120 giờ, thường kéo dài 4–5 tuần nếu học toàn thời gian, và có phần dạy thực hành được người hướng dẫn dự giờ, theo [trang CELTA của Cambridge English](https://www.cambridgeenglish.org/teaching-english/teaching-qualifications/celta/). TEFL và TESOL do nhiều đơn vị khác nhau cấp nên số giờ và chất lượng mỗi nơi một khác. Thông tư 21/2018 chỉ ghi \"chứng chỉ đào tạo dạy ngoại ngữ phù hợp\" và không nêu số giờ."
+        },
+        {
+          "type": "table",
+          "caption": "Giấy tờ nên hỏi khi thuê giáo viên tiếng Anh nước ngoài (theo Thông tư 21/2018, Nghị định 219/2025 và Cambridge English)",
+          "headers": [
+            "Giấy tờ",
+            "Vì sao cần",
+            "Cách kiểm tra"
+          ],
+          "rows": [
+            [
+              "Bằng cao đẳng, đại học",
+              "Thông tư 21/2018 yêu cầu từ cao đẳng trở lên. Muốn được cấp giấy phép lao động với tư cách chuyên gia thì cần bằng đại học",
+              "Xin xem bản gốc, đối chiếu tên trường và ngành học"
+            ],
+            [
+              "TEFL, TESOL hoặc CELTA",
+              "Đây là chứng chỉ dạy ngoại ngữ, khác với việc chỉ biết nói tiếng Anh",
+              "Hỏi số giờ học, đơn vị cấp và khóa học có dạy thực hành hay không"
+            ],
+            [
+              "Giấy phép lao động",
+              "Người nước ngoài làm việc tại Việt Nam cần có, trừ các trường hợp được miễn",
+              "Hỏi giấy phép do đơn vị nào xin và cho vị trí công việc gì"
+            ],
+            [
+              "Kinh nghiệm theo độ tuổi",
+              "Dạy trẻ mẫu giáo khác với luyện IELTS cho người lớn",
+              "Xin học thử một buổi đúng với mục tiêu của bạn"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gia-su-nuoc-ngoai-co-can-giay-phep-lao-dong",
+      "title": "Giáo viên nước ngoài dạy kèm có cần giấy phép lao động không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ngày 23/11/2026, văn bản đang áp dụng là **Nghị định 219/2025/NĐ-CP**, có hiệu lực từ 07/08/2025, thay cho Nghị định 152/2020 và Nghị định 70/2023, theo [toàn văn nghị định trên LuatVietnam](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html). Theo nghị định, hồ sơ xin giấy phép lao động do **người sử dụng lao động** nộp (Điều 22). Gia đình thuê gia sư không có trong danh sách người sử dụng lao động."
+        },
+        {
+          "type": "p",
+          "text": "Điều 2 khoản 2 liệt kê người sử dụng lao động nước ngoài gồm doanh nghiệp, cơ quan, tổ chức, nhà thầu, cơ quan đại diện ngoại giao nước ngoài tại Việt Nam và cá nhân được phép kinh doanh theo pháp luật. Nghị định không có mục riêng cho người nước ngoài tự nhận dạy kèm. Giáo viên muốn được cấp phép theo diện chuyên gia cần có bằng đại học trở lên và ít nhất 2 năm kinh nghiệm phù hợp (Điều 3 khoản 3 điểm a)."
+        },
+        {
+          "type": "h3",
+          "text": "Từ 05/12/2026 có gì thay đổi?"
+        },
+        {
+          "type": "p",
+          "text": "Nghị định 393/2026/NĐ-CP ban hành ngày 20/10/2026 sẽ thay Nghị định 219/2025 từ ngày 05/12/2026. Giấy phép lao động đã cấp theo quy định cũ vẫn có giá trị đến khi hết hạn. Theo [Sở Nội vụ Đồng Nai](https://snv.dongnai.gov.vn/vi/news/thong-tin-chi-dao-dieu-hanh/nhung-diem-moi-cua-nghi-dinh-so-393-2026-nd-cp-ve-quy-dinh-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-352.html), nghị định mới bổ sung tiêu chí cho chuyên gia giảng dạy và cấm người sử dụng lao động cho thuê lại lao động nước ngoài. Bài tóm tắt đó chưa nêu chi tiết tiêu chí cho giáo viên."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Hỏi trước khi thuê",
+          "text": "Hãy hỏi giáo viên có giấy phép lao động không, giấy phép do đơn vị nào xin và cho công việc gì. Nghị định không nói rõ giáo viên đang có giấy phép với một trung tâm có được dạy kèm riêng thêm hay không. Trường hợp này cần hỏi cơ quan cấp phép hoặc luật sư. Bài này chỉ giải thích quy định, không phải tư vấn pháp lý."
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn là trung tâm hay trường học cần tuyển giáo viên, thủ tục nằm trong bài [tuyển giáo viên nước ngoài dạy tiếng Anh](/huong-dan/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh)."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-giao-vien-ban-ngu",
+      "title": "Thuê giáo viên bản ngữ dạy tiếng Anh tại nhà giá bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Không có biểu giá chung, mỗi trung tâm và mỗi giáo viên tự đặt giá. Một trang đăng ngày 07/09/2026 ghi giáo viên bản ngữ có chứng chỉ dạy kèm tại TP.HCM có giá **từ khoảng {{vnd:400000}} một giờ**, và có thể trên {{vnd:700000}} một giờ khi đến tận nhà ở khu trung tâm. Các mức dưới đây là giá do từng trang tự công bố, đọc ngày 23/11/2026."
+        },
+        {
+          "type": "table",
+          "caption": "Học phí dạy kèm tiếng Anh tại TP.HCM do các trang tự công bố (đọc ngày 23/11/2026)",
+          "headers": [
+            "Nguồn",
+            "Loại giáo viên",
+            "Mức công bố",
+            "Ngày trên trang"
+          ],
+          "rows": [
+            [
+              "Ngoại Ngữ Gia Sư",
+              "Bản ngữ, có chứng chỉ giảng dạy",
+              "Từ khoảng {{vnd:400000}} một giờ, trên {{vnd:700000}} một giờ nếu đến tận nhà ở khu trung tâm",
+              "07/09/2026"
+            ],
+            [
+              "Ngoại Ngữ Gia Sư",
+              "Người nước ngoài không phải bản ngữ",
+              "{{vnd:150000-350000}} một giờ",
+              "07/09/2026"
+            ],
+            [
+              "Ngoại Ngữ Gia Sư",
+              "Gia sư Việt luyện thi có kinh nghiệm",
+              "{{vnd:250000-450000}} một giờ",
+              "07/09/2026"
+            ],
+            [
+              "Gia Sư Info",
+              "Người nước ngoài, mọi cấp học",
+              "{{vnd:600000-1000000}} một buổi 90 phút",
+              "Không ghi ngày (© 2026)"
+            ],
+            [
+              "BYAN",
+              "Bản ngữ / nước ngoài nói chung",
+              "{{vnd:600000-800000}} / {{vnd:400000-600000}} một giờ",
+              "12/2023"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Vì sao cùng là giáo viên bản ngữ mà giá chênh nhau nhiều?"
+        },
+        {
+          "type": "p",
+          "text": "Theo trang đăng ngày 07/09/2026, giá đến tận nhà đã tính cả thời gian đi lại, còn phí di chuyển có thể là khoản riêng cần hỏi. Buổi học có thể dài 60, 90 hoặc 120 phút. Một công ty gia sư ghi buổi học của giáo viên ở TP.HCM thường là 90 phút, theo trang cập nhật ngày 11/08/2026. Vì vậy hãy quy hết về **giá mỗi giờ** rồi mới so sánh."
+        },
+        {
+          "type": "p",
+          "text": "Học online thường tính giá theo từng giáo viên. Trên một trang danh sách giáo viên tiếng Anh của italki đọc ngày 23/11/2026, giá học thử hiển thị từ 5 đến 20 USD."
+        }
+      ]
+    },
+    {
+      "id": "nguon-giao-vien-nuoc-ngoai-day-tieng-anh",
+      "title": "Tìm nguồn giáo viên nước ngoài dạy tiếng Anh ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Có bốn nguồn chính: trung tâm gia sư, nền tảng học online, trung tâm ngoại ngữ, và hồ sơ giáo viên mà bạn tự liên hệ, ví dụ trên eno.vn. Mỗi nguồn khác nhau ở chỗ ai kiểm tra giấy tờ và ai thu tiền."
+        },
+        {
+          "type": "table",
+          "caption": "So sánh các nguồn tìm giáo viên tiếng Anh nước ngoài ở TP.HCM",
+          "headers": [
+            "Nguồn",
+            "Học ở đâu",
+            "Ai thu học phí",
+            "Cần tự kiểm tra"
+          ],
+          "rows": [
+            [
+              "Trung tâm gia sư",
+              "Tại nhà",
+              "Trung tâm",
+              "Hỏi trung tâm đã xem bằng cấp gốc chưa, có phí giới thiệu hay không"
+            ],
+            [
+              "Nền tảng online (italki và các nền tảng tương tự)",
+              "Online",
+              "Nền tảng",
+              "Chứng chỉ và giờ học thử. Giáo viên có thể ở nước ngoài"
+            ],
+            [
+              "Trung tâm ngoại ngữ",
+              "Lớp ở trung tâm",
+              "Trung tâm",
+              "Trung tâm phải đáp ứng chuẩn giáo viên của Thông tư 21/2018"
+            ],
+            [
+              "Hồ sơ giáo viên trên eno.vn",
+              "Tại nhà hoặc online, tùy giáo viên",
+              "Bạn tự thỏa thuận với giáo viên",
+              "Bằng cấp, chứng chỉ, giấy phép lao động"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Hồ sơ trên eno.vn ghi khu vực giáo viên sống và nhận dạy. Mọi người vẫn dùng tên quận cũ như Quận 1, Bình Thạnh, Quận 7 (Phú Mỹ Hưng) hay Thảo Điền. Từ tháng 7/2025, địa chỉ chính thức đã chuyển sang tên phường mới."
+        }
+      ]
+    },
+    {
+      "id": "tim-giao-vien-tren-eno",
+      "title": "Cách tìm và nhắn tin cho giáo viên trên eno.vn",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trên [trang hồ sơ giáo viên](/c/teachers) bạn xem được môn dạy, độ tuổi dạy, kinh nghiệm, nơi giáo viên sống và khu vực họ nhận dạy. Ai đã đăng nhập cũng nhắn tin được cho giáo viên, trong giới hạn mỗi ngày. eno.vn là chợ rao vặt, không có chức năng đặt lịch học hay thanh toán. Lịch học, học phí và cách trả tiền bạn thỏa thuận trực tiếp với giáo viên."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Lọc hồ sơ",
+              "text": "Mở [hồ sơ giáo viên](/c/teachers) và chọn người dạy đúng độ tuổi (trẻ nhỏ, học sinh hay người lớn) và nhận dạy ở khu vực của bạn."
+            },
+            {
+              "title": "Đăng nhập và nhắn tin",
+              "text": "Mỗi ngày bạn nhắn được cho tối đa 3 giáo viên mới nếu tài khoản chưa xác minh, 10 giáo viên nếu đã xác minh danh tính. Bạn gửi được tối đa hai tin cho đến khi giáo viên trả lời."
+            },
+            {
+              "title": "Hỏi giấy tờ",
+              "text": "Bằng cấp trên hồ sơ là thông tin giáo viên tự nhập, không kèm tài liệu. Hãy xin xem bản gốc bằng và chứng chỉ, và hỏi về giấy phép lao động. Video giới thiệu có thể để riêng tư, bạn xin giáo viên gửi qua tin nhắn."
+            },
+            {
+              "title": "Nhận thông tin liên lạc",
+              "text": "Số điện thoại, email và CV của giáo viên được ẩn cho đến khi giáo viên chọn chia sẻ trong cuộc trò chuyện. Giáo viên cũng có thể rút lại việc chia sẻ."
+            },
+            {
+              "title": "Học thử rồi mới thỏa thuận",
+              "text": "Hẹn một buổi học thử đúng mục tiêu của bạn. Sau đó thống nhất bằng văn bản về giá mỗi giờ, thời lượng buổi học, phí đi lại và chuyện bù buổi nghỉ."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "Khi nhắn tin, hãy nêu ngay độ tuổi và trình độ của người học, mục tiêu (giao tiếp, thi IELTS hay theo chương trình ở trường) và khung giờ có thể học. Giáo viên nắm đủ thông tin thì trả lời nhanh và báo giá sát hơn."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Thủ tục cho trung tâm hoặc trường học tuyển giáo viên nước ngoài: xem [tuyển giáo viên nước ngoài dạy tiếng Anh](/huong-dan/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh).",
+            "Giáo viên dạy online từ nước ngoài có chịu quy định về lao động của Việt Nam hay không: các nguồn đã đọc không nói đến trường hợp này.",
+            "Chi tiết tiêu chí chuyên gia giảng dạy theo Nghị định 393/2026/NĐ-CP: hãy đọc toàn văn nghị định sau khi có hiệu lực, hoặc hỏi cơ quan cấp giấy phép lao động.",
+            "Mức học phí ở Hà Nội, Đà Nẵng và các tỉnh khác."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Giáo viên bản ngữ là nước nào?",
+      "a": "Theo cách hiểu của Bộ Giáo dục và Đào tạo về Thông tư 21/2018, giáo viên bản ngữ là người nước ngoài dạy ngoại ngữ mà ngôn ngữ đó là tiếng mẹ đẻ của họ. Tiêu chí là ngôn ngữ thứ nhất, không phải quốc tịch, và văn bản không nêu tên nước nào. Để tham khảo, Chính phủ Anh xếp 19 nước vào nhóm đa số nói tiếng Anh bản ngữ, gồm Anh, Mỹ, Canada, Úc, New Zealand, Ireland và một số nước vùng Caribe."
+    },
+    {
+      "q": "Giáo viên người Philippines có phải giáo viên bản ngữ không?",
+      "a": "Một giáo viên người Philippines được coi là giáo viên bản ngữ tiếng Anh nếu tiếng Anh là tiếng mẹ đẻ của người đó. Bộ Giáo dục và Đào tạo hiểu khái niệm bản ngữ theo ngôn ngữ thứ nhất, không theo quốc tịch. Nếu tiếng Anh không phải tiếng mẹ đẻ, giáo viên vẫn được dạy ở trung tâm ngoại ngữ khi đạt chuẩn riêng, ví dụ bằng cao đẳng ngoại ngữ cộng chứng chỉ dạy ngoại ngữ phù hợp."
+    },
+    {
+      "q": "Thuê giáo viên bản ngữ dạy tiếng Anh tại nhà giá bao nhiêu?",
+      "a": "Học phí giáo viên bản ngữ dạy tiếng Anh tại nhà ở TP.HCM do từng trung tâm và giáo viên tự đặt, không có biểu giá chung. Các mức công bố đọc ngày 23/11/2026 nằm trong bảng ở phần chi phí của bài này. Giá thường cao hơn khi giáo viên có chứng chỉ giảng dạy và phải đến các quận trung tâm. Nên quy về giá mỗi giờ để so sánh, vì buổi học có thể dài 60, 90 hoặc 120 phút."
+    },
+    {
+      "q": "Gia sư tiếng Anh người nước ngoài cần bằng cấp gì?",
+      "a": "Gia sư tiếng Anh người nước ngoài nên có bằng cao đẳng trở lên và chứng chỉ dạy ngoại ngữ như TEFL, TESOL hoặc CELTA. Thông tư 21/2018 đặt chuẩn này cho giáo viên bản ngữ ở trung tâm ngoại ngữ. Muốn được cấp giấy phép lao động theo diện chuyên gia, giáo viên cần bằng đại học trở lên và ít nhất 2 năm kinh nghiệm phù hợp theo Nghị định 219/2025/NĐ-CP. Hãy xin xem bản gốc các giấy tờ."
+    },
+    {
+      "q": "Giáo viên nước ngoài dạy tiếng Anh tại nhà có cần giấy phép lao động không?",
+      "a": "Theo Nghị định 219/2025/NĐ-CP, đang áp dụng đến hết ngày 04/12/2026, hồ sơ xin giấy phép lao động do người sử dụng lao động nộp, như doanh nghiệp, tổ chức hoặc cá nhân được phép kinh doanh. Nghị định không có mục riêng cho người nước ngoài tự nhận dạy kèm. Trước khi thuê, hãy hỏi giáo viên có giấy phép lao động không và giấy phép đó cấp cho công việc gì. Trường hợp chưa rõ thì hỏi cơ quan cấp phép."
+    },
+    {
+      "q": "TEFL và CELTA khác nhau thế nào?",
+      "a": "CELTA là chứng chỉ dạy tiếng Anh do Cambridge cấp. Khóa CELTA có ít nhất 120 giờ học, thường kéo dài 4 đến 5 tuần nếu học toàn thời gian, và có phần dạy thực hành được người hướng dẫn dự giờ. TEFL do nhiều đơn vị khác nhau cấp nên số giờ và chất lượng không đồng đều. Khi xem chứng chỉ TEFL, hãy hỏi số giờ học, đơn vị cấp và khóa học có dạy thực hành hay không."
+    },
+    {
+      "q": "Có đặt lịch học với giáo viên bản ngữ trên eno.vn được không?",
+      "a": "eno.vn không có chức năng đặt lịch học hay thanh toán học phí. Trên trang hồ sơ giáo viên của eno.vn, bạn xem được môn dạy, độ tuổi dạy và khu vực dạy, rồi nhắn tin sau khi đăng nhập, trong giới hạn số giáo viên mới mỗi ngày. Số điện thoại và email chỉ hiện khi giáo viên chọn chia sẻ. Lịch học và học phí do hai bên tự thỏa thuận."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Nghị định 219/2025/NĐ-CP quy định về người lao động nước ngoài làm việc tại Việt Nam",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+    },
+    {
+      "title": "Những điểm mới của Nghị định số 393/2026/NĐ-CP về quy định người lao động nước ngoài làm việc tại Việt Nam",
+      "publisher": "Sở Nội vụ tỉnh Đồng Nai",
+      "url": "https://snv.dongnai.gov.vn/vi/news/thong-tin-chi-dao-dieu-hanh/nhung-diem-moi-cua-nghi-dinh-so-393-2026-nd-cp-ve-quy-dinh-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-352.html"
+    },
+    {
+      "title": "Thông tư 21/2018/TT-BGDĐT Quy chế tổ chức và hoạt động của trung tâm ngoại ngữ, tin học",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html"
+    },
+    {
+      "title": "Bộ Giáo dục \"gỡ rối\" quy định cấp phép cho giáo viên tiếng Anh nước ngoài",
+      "publisher": "Báo điện tử Giáo dục Việt Nam",
+      "url": "https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd"
+    },
+    {
+      "title": "Ban hành chương trình đào tạo, cấp chứng chỉ cho người nước ngoài dạy tiếng Anh tại Việt Nam",
+      "publisher": "Báo Nhân Dân",
+      "url": "https://nhandan.vn/ocop/ban-hanh-chuong-trinh-dao-tao-cap-chung-chi-cho-nguoi-nuoc-ngoai-day-tieng-anh-tai-viet-nam-post786350.html"
+    },
+    {
+      "title": "CELTA",
+      "publisher": "Cambridge English",
+      "url": "https://www.cambridgeenglish.org/teaching-english/teaching-qualifications/celta/"
+    },
+    {
+      "title": "List of majority native English speaking countries",
+      "publisher": "The University of Sheffield",
+      "url": "https://sheffield.ac.uk/international/english-speaking-countries"
+    },
+    {
+      "title": "Học phí gia sư tiếng Anh 1 kèm 1 TP.HCM 2026 và cách tính",
+      "publisher": "Ngoại Ngữ Gia Sư",
+      "url": "https://ngoaingugiasu.edu.vn/blogs/news/hoc-phi-gia-su-tieng-anh-1-kem-1-tp-hcm-2026-va-cach-tinh"
+    },
+    {
+      "title": "Bảng Giá & Top 9 Trung Tâm Gia Sư Uy Tín Tại TPHCM",
+      "publisher": "Gia Sư Info",
+      "url": "https://giasuinfo.com/tphcm/bang-gia-gia-su"
+    },
+    {
+      "title": "Bảng giá gia sư tại nhà - Học phí theo lớp và theo môn năm 2026",
+      "publisher": "Gia Sư Tại Nhà",
+      "url": "https://giasutainha.com.vn/bang-gia-gia-su"
+    },
+    {
+      "title": "Giá Thuê Giáo Viên Nước Ngoài Dạy Tiếng Anh Tại Nhà Ở TPHCM",
+      "publisher": "BYAN",
+      "url": "https://byan.com.vn/vn/gia-thue-giao-vien-nuoc-ngoai-day-tieng-anh-tai-nha-o-tphcm.html"
+    },
+    {
+      "title": "Giáo viên tiếng Anh giao tiếp",
+      "publisher": "italki",
+      "url": "https://www.italki.com/vi/teachers/english-speaking"
+    }
+  ],
+  "related": [
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "tefl-tesol-and-celta-for-vietnam",
+    "vietnam-work-permit-for-english-teachers",
+    "requirements-to-teach-english-in-vietnam"
+  ],
+  "lastChecked": "2026-11-23"
+}
