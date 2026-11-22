@@ -43,7 +43,10 @@ fi
 # refusal path between here and there calls `exit 1` — a reviewer pointed out that without this a
 # failed deploy leaves a temp file behind each time. `:-` because it does not exist yet at this
 # point, and never exists at all on the paths that exit before the gates.
-trap 'rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"' EXIT
+# ⚠️ AND THE SWAP BRIDGE, IF THIS RUN STARTED ONE (bridge_up): an early `return 1`, a kill or an ssh drop between bridge_up
+# and bridge_down would otherwise leave the old build answering nginx's 502s indefinitely. Only THIS run's: a run refused
+# by the lock must never remove the bridge of the deploy that holds it.
+trap 'rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"; [ "${BRIDGE_MINE:-0}" = 1 ] && bridge_down' EXIT
 COMPOSE=$APP/infra/vn-node/apps.compose.yml
 LOCK=/var/lock/eno-deploy.lock
 PULL=1; ROLLBACK=0; SKIP_PURGE=0; PURGE_ALL=0; NO_STATIC=0; EXPECT=""
@@ -464,6 +467,44 @@ drop_new_static(){
   return 0
 }
 
+# ⛔ THE SWAP BRIDGE (apps.compose.yml eno-vn-bridge, nginx/eno.conf @eno_vn_bridge). `up -d --force-recreate eno-vn` stops
+# the old container before the new one listens, and every request in that gap was a 502: 2-35 a day in aop.log, all at
+# deploy times, and the 21 listings Google filed under "Server error (5xx)" (its validation failed on new ones). For the
+# swap only, the PREVIOUS build answers on :3011 and nginx sends there what it could not pass to :3001.
+# ⚠️ NEVER FATAL: without a bridge the swap is what it always was. ⛔ DOWN BEFORE THE PURGE AND THE PROBE, so a new build
+# that stops answering can never hide behind the old one (the probe would read the old build through nginx).
+bridge_up(){
+  bridge_down || return 0
+  docker image inspect eno-vn:prev >/dev/null 2>&1 || { bad "no eno-vn:prev, so no swap bridge: the swap may 502 for a few seconds"; return 0; }
+  # --no-deps: start the bridge and nothing else, whatever eno-vn may come to depend on.
+  BRIDGE_MINE=1
+  docker compose -f "$COMPOSE" --profile bridge up -d --no-deps --force-recreate eno-vn-bridge >/dev/null 2>&1 \
+    || { bad "the swap bridge did not start: the swap may 502 for a few seconds"; bridge_down; return 0; }
+  local _ code
+  for _ in $(seq 1 30); do
+    code=$(curl -s -o /dev/null -m 5 -H "Host: eno.vn" -w "%{http_code}" http://127.0.0.1:3011/api/v1/status 2>/dev/null)
+    if [ "$code" = 200 ]; then ok "swap bridge: the previous build answers on :3011"; return 0; fi
+    sleep 2
+  done
+  bad "the swap bridge never answered on :3011 (last HTTP ${code:-none}): the swap may 502 for a few seconds"; bridge_down; return 0
+}
+# Idempotent, and a no-op when no bridge exists. Once the new eno-vn listens, nginx sends the bridge nothing new (it only
+# takes nginx's own 502s), so it first waits up to 30 s for the requests it took during the gap to finish: nginx holds
+# no keepalive to it, so an established connection to :3011 is a request in flight. Returns 1 if it is still there.
+bridge_down(){
+  docker inspect eno-vn-bridge >/dev/null 2>&1 || { BRIDGE_MINE=0; return 0; }
+  local _
+  for _ in $(seq 1 30); do
+    [ "$(ss -Htn state established '( dport = :3011 )' 2>/dev/null | wc -l)" -eq 0 ] && break
+    sleep 1
+  done
+  docker compose -f "$COMPOSE" --profile bridge rm -sf eno-vn-bridge >/dev/null 2>&1 || docker rm -f eno-vn-bridge >/dev/null 2>&1
+  if docker inspect eno-vn-bridge >/dev/null 2>&1; then
+    bad "eno-vn-bridge is STILL RUNNING: it would answer for a dead eno-vn (docker rm -f eno-vn-bridge)"; return 1
+  fi
+  BRIDGE_MINE=0
+}
+
 restore(){
   bad "rolling back to the previously-serving images"
   # ⛔ A ROLLBACK PURGES EVERYTHING AND DROPS THE REFUSED BUILD'S FILES (codex, gate round 2). A refused build may
@@ -483,6 +524,7 @@ restore(){
     docker compose -f "$COMPOSE" up -d --force-recreate "$svc" || { bad "compose failed during rollback"; return 1; }
   done
   sleep 10
+  bridge_down || return 1   # it covered the rollback's own swap; it must never answer the probe below
   # ⚠️ RETURN THE PROBE'S STATUS. This used to end `probe && ok … || bad …`, and the
   # `bad` branch is a printf, which succeeds — so `--rollback` exited 0 while the site
   # was down, and anything scripting it saw success.
@@ -1070,6 +1112,7 @@ for svc in eno-vn eno-forum; do
       exit 1
     fi
   fi
+  [ "$svc" = eno-vn ] && bridge_up
   docker compose -f "$COMPOSE" up -d --force-recreate "$svc" || { restore; exit 1; }
   # ⚠️ Next standalone needs a moment before it answers. Probing too early reports a
   # failure that would have passed, and the reflex then is to roll back a good deploy.
@@ -1090,6 +1133,9 @@ for svc in eno-vn eno-forum; do
     restore; exit 1
   fi
   ok "$svc up"
+  if [ "$svc" = eno-vn ] && ! bridge_down; then
+    bad "stopping BEFORE the purge and the probe: they would read the old build through the bridge"; exit 1
+  fi
 done
 
 # ⛔ DROP ISR ROWS NO RUNNING CONTAINER CAN READ. The payload key is eno:isr:<edition>:<BUILD_ID>:…, so the

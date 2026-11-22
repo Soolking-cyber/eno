@@ -18,7 +18,7 @@ services:
   # the services edition — no runtime flag can talk one into behaving as the other.
   # nginx routes eno.vn → 3001 and eno.forum → 3002. Cross them and the licensed sàn
   # TMĐT serves visa, itinerary and PayPal wholesale.
-  eno-vn:
+  eno-vn: &eno-vn   # the anchor eno-vn-bridge below copies
     image: eno-vn:local
     container_name: eno-vn-app
     env_file: [/opt/eno/secrets/eno-vn.env]
@@ -68,6 +68,24 @@ services:
       timeout: 5s
       retries: 3
       start_period: 40s
+
+  # ⛔ THE SWAP BRIDGE: the PREVIOUS marketplace build, on :3011, for the seconds eno-deploy.sh takes to swap eno-vn.
+  # `up -d --force-recreate eno-vn` stops the old container before the new one listens; nginx sends any request it
+  # cannot pass to :3001 here instead (eno.conf `error_page 502 = @eno_vn_bridge`). The deploy starts it, waits until
+  # it listens, swaps eno-vn, and removes it as soon as the new eno-vn listens, BEFORE the purge and the probe, so
+  # a broken new build can never hide behind it. ⛔ ALWAYS eno-vn:prev, a MARKETPLACE image (check-static-boundary.sh
+  # counts :3011 as marketplace): the licensing boundary is the image↔port pairing above.
+  # ⚠️ `profiles` keeps it out of every plain `up`; no image cache volume (the two would write one cache at once).
+  # ⚠️ A YAML MERGE, NOT `extends` + `!override`: a key set here REPLACES eno-vn's whole value (no list merging, so the
+  # :3001 port and the cache volume do not come along), and plain YAML parsers (the infra tests) read it.
+  eno-vn-bridge:
+    <<: *eno-vn
+    image: eno-vn:prev
+    container_name: eno-vn-bridge
+    ports: ["127.0.0.1:3011:8080"]
+    volumes: []
+    restart: "no"
+    profiles: [bridge]
 
   eno-forum:
     image: eno-forum:local

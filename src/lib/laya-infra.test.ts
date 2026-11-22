@@ -106,7 +106,8 @@ describe('apps.compose.yml · LAYA_ENGINE_URL', () => {
   // service's block, cut at the next top-level service.
   it('is set on eno-vn only — read from the text, whatever parsers are installed', () => {
     const block = (name: string) => {
-      const at = APPS.search(new RegExp(`^  ${name}:\\s*$`, 'm'))
+      // `eno-vn: &eno-vn` carries the anchor eno-vn-bridge merges (apps.compose.yml), so an anchor and a comment may follow.
+      const at = APPS.search(new RegExp(`^  ${name}:(\\s*&[\\w-]+)?\\s*(#.*)?$`, 'm'))
       expect(at, name).toBeGreaterThan(-1)
       const rest = APPS.slice(at + 1)
       const next = rest.search(/^  [a-z][\w-]*:\s*$/m)

@@ -9,7 +9,8 @@ awk '
   { sub(/#.*/, "") }                                   # comments never count
   /^[ \t]*server[ \t]*\{/ && depth == 0 { in_s = 1; name = ""; p1 = 0; p2 = 0; im = 0; is = 0; start = NR }
   in_s && /server_name/ { name = $0; gsub(/^[ \t]*server_name[ \t]*|;.*/, "", name) }
-  in_s && /proxy_pass http:\/\/127\.0\.0\.1:3001/ { p1++ }
+  # :3011 is the marketplace too: eno-deploy.sh runs the PREVIOUS eno-vn image there during a swap (eno.conf @eno_vn_bridge).
+  in_s && /proxy_pass http:\/\/127\.0\.0\.1:30[01]1/ { p1++ }
   in_s && /proxy_pass http:\/\/127\.0\.0\.1:3002/ { p2++ }
   in_s && /include[ \t]+\/etc\/nginx\/snippets\/eno-static-marketplace\.conf;/ { im++ }
   in_s && /include[ \t]+\/etc\/nginx\/snippets\/eno-static-services\.conf;/ { is++ }
