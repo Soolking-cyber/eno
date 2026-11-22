@@ -9,6 +9,7 @@ import { GOODS_CATEGORY_SLUGS, SHARED_SEAT_SELLERS } from './feed-diversity'
 const VEHICLE_SELLER_IDS = [...SHARED_SEAT_SELLERS['vehicle-rentals']]
 /** eno's car rental partners (2026-11-17): a seat of their own, empty in these cases unless a test says otherwise. */
 const CAR_PARTNER_SELLER_IDS = [...SHARED_SEAT_SELLERS['car-partners']]
+const MOTO_PARTNER_SELLER_IDS = [...SHARED_SEAT_SELLERS['moto-partners']]
 
 /**
  * ⛔ THESE TESTS EXIST BECAUSE FOUR REVIEWERS INDEPENDENTLY REFUTED THE FIRST CUT AND NOTHING IN
@@ -463,6 +464,7 @@ describe('diverseFeedWindow — the job boards share one seat', () => {
   // The vehicle storefronts' seat (home-01) is empty in these cases unless a test says otherwise.
   const isVehicleRead = (where: any) => JSON.stringify(where).includes(`"in":${JSON.stringify(VEHICLE_SELLER_IDS)}`)
     || JSON.stringify(where).includes(`"in":${JSON.stringify(CAR_PARTNER_SELLER_IDS)}`)
+    || JSON.stringify(where).includes(`"in":${JSON.stringify(MOTO_PARTNER_SELLER_IDS)}`)
   const boards = JOB_SELLER_IDS.slice(0, 3)
   const boardRows = boards.flatMap((b) => Array.from({ length: 5 }, (_, i) => ({ id: `${b}-${i}`, sellerId: b, price: 0 })))
   const esimRows = ['fpt', 'mobi'].flatMap((c) => Array.from({ length: 5 }, (_, i) => ({ id: `${c}-${i}`, sellerId: c, subcategorySlug: 'esim' })))
@@ -475,11 +477,11 @@ describe('diverseFeedWindow — the job boards share one seat', () => {
     await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     const where = groupBy.mock.calls[0][0].where
     expect(where.AND[1]).toEqual({ OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['esim'] } }] })
-    expect(where.AND[2]).toEqual({ sellerId: { notIn: [...JOB_SELLER_IDS, ...VEHICLE_SELLER_IDS, ...CAR_PARTNER_SELLER_IDS] } })
+    expect(where.AND[2]).toEqual({ sellerId: { notIn: [...JOB_SELLER_IDS, ...VEHICLE_SELLER_IDS, ...CAR_PARTNER_SELLER_IDS, ...MOTO_PARTNER_SELLER_IDS] } })
     // One aggregate per seat, each narrowing the scoped predicate by the seat's own clause.
     expect(aggregate.mock.calls.map((c) => c[0].where.AND[1])).toEqual([
       { subcategorySlug: { in: ['esim'] } }, { sellerId: { in: JOB_SELLER_IDS } }, { sellerId: { in: VEHICLE_SELLER_IDS } },
-      { sellerId: { in: CAR_PARTNER_SELLER_IDS } },
+      { sellerId: { in: CAR_PARTNER_SELLER_IDS } }, { sellerId: { in: MOTO_PARTNER_SELLER_IDS } },
     ])
   })
 

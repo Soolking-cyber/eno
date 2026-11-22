@@ -325,6 +325,9 @@ describe('the vehicle-rental storefronts share one seat', () => {
     // The car rental partners (2026-11-17) share one seat of their own: four storefronts written at once.
     expect(SHARED_SEAT_SELLERS['car-partners']).toHaveLength(4)
     for (const id of SHARED_SEAT_SELLERS['car-partners']) expect(seatKey({ id: 'x', sellerId: id, subcategorySlug: 'car-rental' }, { sharedSeats: true })).toBe('__catalogue__car-partners')
+    // …and the motorbike rental partners (2026-11-22): two storefronts, 23 listings written at once.
+    expect(SHARED_SEAT_SELLERS['moto-partners']).toHaveLength(2)
+    for (const id of SHARED_SEAT_SELLERS['moto-partners']) expect(seatKey({ id: 'x', sellerId: id, subcategorySlug: 'motorbike-rental' }, { sharedSeats: true })).toBe('__catalogue__moto-partners')
     expect(VEHICLE_SELLER_IDS).toHaveLength(7)
     for (const id of VEHICLE_SELLER_IDS) expect(id).toMatch(/^vehicle-import-seller-/)
   })

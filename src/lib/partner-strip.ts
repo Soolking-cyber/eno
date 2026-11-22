@@ -82,6 +82,11 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // at strip height). ⚠️ Its two listings are in Legal & permits and go live only after the licence check's approval — ship
   // this entry after that, or the strip links to a storefront with nothing on it.
   { handle: 'evisasaigon', name: 'Evisa Saigon', logo: { src: '/partners/evisasaigon.webp', width: 134, height: 96 }, label: { en: 'Permits', vi: 'Giấy phép' }, size: 'square' },
+  // The motorbike rental partners (owner, 2026-11-22; src/lib/moto-partners.ts). The Extra Mile: theextramile.co's
+  // theme logo.webp, trimmed. Saigon Scooter Centre: the oval of its cropped-logonew PNG (white lettering, so a dark tile),
+  // the side stripes cut back to the mark.
+  { handle: 'theextramile', name: 'The Extra Mile', logo: { src: '/partners/theextramile.webp', width: 151, height: 96 }, label: { en: 'Motorbikes', vi: 'Xe máy' }, size: 'square' },
+  { handle: 'saigonscootercentre', name: 'Saigon Scooter Centre', logo: { src: '/partners/saigonscootercentre.webp', width: 166, height: 96 }, label: { en: 'Scooters', vi: 'Xe tay ga' }, size: 'square', dark: true },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

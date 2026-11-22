@@ -125,10 +125,20 @@ const CAR_PARTNER_SELLER_IDS: readonly string[] = [
   'e6e9a662-0edc-4cde-b6d1-22bcae9daf09', // Quê Hương Group
 ]
 
+/**
+ * …and the same for the motorbike rental partners (src/lib/moto-partners.ts, owner 2026-11-22): 23 listings written at once
+ * from two new storefronts. Their seller ids, as scripts/register-partner-seller.mjs created them on 2026-11-22.
+ */
+const MOTO_PARTNER_SELLER_IDS: readonly string[] = [
+  'ebb51bf3-1153-49bb-ad79-9e5935f46dda', // The Extra Mile
+  '2330ed0b-076b-43aa-9393-08a11ce271a9', // Saigon Scooter Centre
+]
+
 export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {
   'job-boards': JOB_SELLER_IDS,
   'vehicle-rentals': VEHICLE_IMPORT_SELLER_IDS,
   'car-partners': CAR_PARTNER_SELLER_IDS,
+  'moto-partners': MOTO_PARTNER_SELLER_IDS,
 }
 
 /** sellerId → its shared seat's key, for seatKey's hot loop. */

@@ -245,6 +245,34 @@ const PARTNERS = {
     avatarColor: '#1f4e79',
     dailyReminderOptIn: false,
   },
+  // ── MOTORBIKE RENTAL PARTNERS (owner, 2026-11-22: "import these 2 as partners and their offering with clear prices and
+  // terms"). eno-held logins like the car partners; scripts/import-moto-partners.ts writes their listings once onto THESE
+  // storefronts (handle AND email AND official partner) and sets each logo (avatarUrl null here); then eno's admin manages
+  // them. src/lib/moto-partners.ts holds the prices and terms. No address, phone or link in a bio.
+  theextramile: {
+    email: 'support+theextramile@eno.vn',
+    handle: 'theextramile',
+    name: 'The Extra Mile',
+    // Their FAQ's payee for VND transfers, "CTY TNHH THE EXTRA MILE" (read 2026-11-22), with CTY spelled out.
+    legalName: 'CÔNG TY TNHH THE EXTRA MILE',
+    bio: 'Motorbike rental in Ho Chi Minh City: scooters, manual and adventure bikes and e-scooters, by the day or month in the city, or for road trips across Vietnam with no kilometre limit. Message The Extra Mile here on eno to check availability. eno introduces The Extra Mile; the rental contract is with them.',
+    avatarUrl: null,
+    // The black of their scooter-and-wordmark logo (its orange under white initials would be 2.9:1).
+    avatarColor: '#1a1a1a',
+    dailyReminderOptIn: false,
+  },
+  saigonscootercentre: {
+    email: 'support+saigonscootercentre@eno.vn',
+    handle: 'saigonscootercentre',
+    name: 'Saigon Scooter Centre',
+    // ⚠️ NULL ON PURPOSE: its site prints no registered company name or tax code (read 2026-11-22).
+    legalName: null,
+    bio: 'Classic scooter workshop in Thủ Đức, Ho Chi Minh City, renting scooters by the day: Honda Air Blade, Scomadi TT125i and vintage Vespas, with helmets, papers and workshop support. Message Saigon Scooter Centre here on eno to check availability. eno introduces Saigon Scooter Centre; the rental contract is with them.',
+    avatarUrl: null,
+    // The black ground of their oval badge.
+    avatarColor: '#111111',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

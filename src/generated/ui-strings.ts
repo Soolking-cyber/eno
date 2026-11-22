@@ -3085,6 +3085,7 @@ export const UI_STRINGS: string[] = [
   "Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to.",
   "Schools: find a cover teacher",
   "Scooter",
+  "Scooters",
   "Scopes",
   "Score {n}",
   "Scored by speech recognition. Words from a repeat-after-me sentence are the most reliable.",
