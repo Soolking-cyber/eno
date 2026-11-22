@@ -11,7 +11,8 @@ import Link from 'next/link'
 import { ChevronRight } from '@/components/ui/icons'
 import { Rows, Row } from '@/components/ui/rows'
 import { HereLink, P, SeoArticle, type ArticleContent, type ArticleSection } from './seo-article'
-import { TeachKeyPoints, teachGuideSections } from './teach-guide-body'
+import { GuideFigure, TeachKeyPoints, teachGuideSections } from './teach-guide-body'
+import { guideImageSrc, readingMinutes, storedSize } from '@/lib/guides/guide-images'
 import { titleWithSite } from '@/lib/meta-description'
 
 /**
@@ -127,10 +128,21 @@ export function libraryGuideMetadata(slug: string, lang: Lang): Metadata {
     description: hit.guide.description,
     alternates: { canonical: path, ...(pair && isGuideLive(pair, requestNow()) ? { languages: { [pair.lang]: guidePath(pair), [lang]: path } } : {}) },
     robots: TEACH_ROBOTS,
-    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article' }),
+    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article', ...heroShare(hit.guide) }),
     // Which approved text this page is showing: eno Reach reads it to say "On eno.vn", because a rewritten guide's address answers with the old words until the deploy.
     ...(hit.entry.reviewedDigest ? { other: { 'eno-guide-digest': hit.entry.reviewedDigest } } : {}),
   }
+}
+
+/** The hero's public address — the share card and the Article JSON-LD image when a guide has one. */
+function heroSrc(g: { images?: { hero?: { id: string } } }): string | null {
+  return g.images?.hero ? guideImageSrc(g.images.hero.id) : null
+}
+function heroShare(g: { images?: { hero?: { id: string; w: number; h: number; alt: string } } }) {
+  const src = heroSrc(g)
+  const hero = g.images?.hero
+  // The size of the file at that address (the carry stores at most 1600 px wide), not the size Codex drew.
+  return src && hero ? { images: [{ url: src, width: storedSize(hero).w, height: storedSize(hero).h, alt: hero.alt }] } : {}
 }
 
 export function LibraryGuide({ slug, lang }: { slug: string; lang: Lang }) {
@@ -153,8 +165,15 @@ export function LibraryGuide({ slug, lang }: { slug: string; lang: Lang }) {
       { label: HUB[lang].crumb, href: HUB[lang].path },
       { label: guide.h1, href: guidePath(entry) },
     ],
-    ledeRow: <TeachKeyPoints g={guide} isLiveHref={liveHref} lang={lang} />,
-    sections: teachGuideSections(guide, liveHref, lang),
+    ledeRow: (
+      <>
+        <TeachKeyPoints g={guide} isLiveHref={liveHref} lang={lang} />
+        {guide.images?.hero ? <GuideFigure pic={guide.images.hero} lang={lang} priority /> : null}
+      </>
+    ),
+    sections: teachGuideSections(guide, liveHref, lang, { outline: true, figures: true }),
+    readingMinutes: readingMinutes(guide, lang),
+    ...(heroSrc(guide) ? { image: [heroSrc(guide)!] } : {}),
     faqs: guide.faqs,
     related: guide.related.flatMap((s) => relatedLink(s, now)),
   }

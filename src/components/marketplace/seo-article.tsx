@@ -73,6 +73,8 @@ export type ArticleSection = {
   title: string
   /** Prose. `<P>`, `<Ul>` and `<VnLink>` below are the vocabulary; anything else is fine too. */
   body: React.ReactNode
+  /** Sub-entries listed under this section in "On this page" (a guide's question sub-headings); each id is an anchor in `body`. */
+  children?: { id: string; title: string }[]
 }
 
 export type ArticleContent = {
@@ -86,9 +88,11 @@ export type ArticleContent = {
    * The Article JSON-LD `image`: paths on this deployment (like `canonical`), made absolute here. Google's Article
    * guidance asks for several shapes of one picture — the teach pages pass their share card in the three it names
    * (src/lib/teach-guides/share-cards.ts). Optional: an article with no picture of its own declares none rather than
-   * borrowing the site's card.
+   * borrowing the site's card. An absolute https URL (a guide picture in storage) is passed through as is.
    */
   image?: string[]
+  /** "N min read" after the date line (a guide's computed reading time). */
+  readingMinutes?: number
   /**
    * ISO date (YYYY-MM-DD). With `updated`, the ONE source of both the visible date line and the Article
    * JSON-LD's datePublished/dateModified — so what a reader sees and what Google is told cannot drift.
@@ -334,8 +338,8 @@ const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
  * follow the article, not the visitor, so they must not reach the translation layer.
  */
 const DATE_LINE = {
-  en: { updated: 'Updated', published: 'Published' },
-  vi: { updated: 'Cập nhật', published: 'Đăng ngày' },
+  en: { updated: 'Updated', published: 'Published', read: (n: number) => `${n} min read` },
+  vi: { updated: 'Cập nhật', published: 'Đăng ngày', read: (n: number) => `${n} phút đọc` },
 } as const
 
 /**
@@ -407,7 +411,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     '@type': 'Article',
     headline: content.h1,
     description: content.intro,
-    ...(content.image?.length ? { image: content.image.map((path) => `${SITE_ORIGIN}${path}`) } : {}),
+    ...(content.image?.length ? { image: content.image.map((path) => (path.startsWith('https://') ? path : `${SITE_ORIGIN}${path}`)) } : {}),
     inLanguage: content.lang ?? 'en',
     datePublished: content.published,
     dateModified: modified,
@@ -459,7 +463,16 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
       </summary>
       <ul className="pb-3">
         {content.sections.map((s) => (
-          <li key={s.id}><a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
+          <li key={s.id}>
+            <a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a>
+            {s.children?.length ? (
+              <ul className="pl-4">
+                {s.children.map((c) => (
+                  <li key={c.id}><a href={`#${c.id}`} className="-mx-2 block rounded-lg px-2 py-2.5 text-sm text-ink-4 hover:bg-muted hover:text-foreground active:bg-muted">{c.title}</a></li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
         ))}
       </ul>
     </details>
@@ -508,6 +521,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           <p className="mt-3 text-sm text-ink-4" lang={articleLang}>
             {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
             <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
+            {content.readingMinutes ? <> · {DATE_LINE[articleLang].read(content.readingMinutes)}</> : null}
           </p>
           {/* 2026-11-07 audit: the lede at the body's 60ch measure and, from lg, its 18px. In the 3xl column it ran ~95 characters
               a line on a desktop, longer than any paragraph under it. */}
@@ -545,7 +559,9 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             </div>
             {hasToc && (
               // Level with the first block beside it: a lede row, the CTA and the disclosure open 24px down, the first section 40px.
-              <nav aria-label={chrome.onThisPage} className={`hidden self-start lg:sticky lg:top-24 lg:block ${content.ledeRow || content.cta || content.disclosure ? 'lg:mt-6' : 'lg:mt-10'}`}>
+              // Scrolls on its own when a guide's question sub-headings make it taller than the screen (lg:max-h…): every entry stays reachable. The
+              // 8px padding (and -mx-2 to keep its place) holds the list's own -mx-2 rows inside the scroll box: no clipped wash, no sideways scroll.
+              <nav aria-label={chrome.onThisPage} className={`hidden self-start lg:sticky lg:top-24 lg:block lg:-mx-2 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overflow-x-hidden lg:px-2 ${content.ledeRow || content.cta || content.disclosure ? 'lg:mt-6' : 'lg:mt-10'}`}>
                 <p className="eyebrow mb-2 text-ink-4">{chrome.onThisPage}</p>
                 {/* 2026-11-07 audit: ContentPage's rail rows (px-2, a wash under the pointer), the list pulled out 8px so the labels keep
                     the eyebrow's edge. No current-section mark yet: it needs ContentRail's scroll-spy (client JavaScript on a server
@@ -553,7 +569,16 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
                     scrolls) are not settled. */}
                 <ul className="-mx-2 space-y-0.5">
                   {content.sections.map((s) => (
-                    <li key={s.id}><a href={`#${s.id}`} className="block rounded-lg px-2 py-1.5 text-sm font-medium text-body transition-colors hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
+                    <li key={s.id}>
+                      <a href={`#${s.id}`} className="block rounded-lg px-2 py-1.5 text-sm font-medium text-body transition-colors hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a>
+                      {s.children?.length ? (
+                        <ul className="space-y-0.5 pl-3">
+                          {s.children.map((c) => (
+                            <li key={c.id}><a href={`#${c.id}`} className="block rounded-lg px-2 py-1 text-sm text-ink-4 transition-colors hover:bg-muted hover:text-foreground active:bg-muted">{c.title}</a></li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </li>
                   ))}
                 </ul>
               </nav>

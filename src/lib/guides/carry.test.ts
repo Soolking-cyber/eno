@@ -257,3 +257,89 @@ describe('carrying approved guides from Reach', () => {
     expect(guideAddress({ slug: 'b', lang: 'vi' })).toBe('https://eno.vn/huong-dan/b')
   })
 })
+
+describe('carrying a guide\'s pictures (carryPictures)', async () => {
+  const { carryPictures, pictureIds } = await import('../../../scripts/carry-guides.mjs')
+  const { createHash } = await import('node:crypto')
+  const sharp = (await import('sharp')).default
+  const png = await sharp({ create: { width: 400, height: 225, channels: 3, background: { r: 200, g: 120, b: 80 } } }).png().toBuffer()
+  const id = createHash('sha256').update(png).digest('hex')
+  const env = { NEXT_PUBLIC_SUPABASE_URL: 'https://sb.eno.test', SUPABASE_SECRET_KEY: 'k' } as unknown as NodeJS.ProcessEnv
+  const webp = await sharp(png).webp().toBuffer()
+  const row = (ids: string[], size = { w: 400, h: 225 }) => ({ slug: 'g', doc: { images: { hero: { id: ids[0], ...size }, figures: ids.slice(1).map((x) => ({ id: x, ...size })) } } })
+  const storage = (present: Set<string>, calls: { method: string; url: string; headers?: Record<string, string>; body?: Buffer }[]) =>
+    (async (url: string, init: { method: string; headers?: Record<string, string>; body?: Buffer }) => {
+      calls.push({ url, ...init })
+      const here = [...present].some((p) => url.includes(p))
+      if (init.method === 'HEAD') return new Response(null, { status: here ? 200 : 404 })
+      if (init.method === 'GET') return new Response(new Uint8Array(webp), { status: 200 })
+      return new Response('{}', { status: 200 })
+    }) as unknown as typeof fetch
+
+  it('names the hero and the figures', () => expect(pictureIds(row(['a', 'b', 'c']).doc)).toEqual(['a', 'b', 'c']))
+
+  it('a guide without pictures touches nothing', async () => {
+    const calls: never[] = []
+    expect(await carryPictures([{ slug: 'g', doc: {} }], { fetchImpl: storage(new Set(), calls), env })).toEqual([])
+    expect(calls).toHaveLength(0)
+  })
+
+  const reach = () => ({ [id]: png.toString('base64') })
+
+  it('a picture already in storage is checked against Reach\'s PNG and never uploaded again', async () => {
+    const calls: { method: string; url: string }[] = []
+    expect(await carryPictures([row([id])], { fetchImpl: storage(new Set([id]), calls), fromBox: reach, env })).toEqual([])
+    expect(calls.map((c) => c.method)).toEqual(['HEAD', 'GET'])
+  })
+
+  it('a different picture stored under the id stops the run, even at the right shape', async () => {
+    const wrong = await sharp({ create: { width: 400, height: 225, channels: 3, background: { r: 10, g: 200, b: 30 } } }).webp().toBuffer()
+    const fake = (async (url: string, init: { method: string }) => (init.method === 'HEAD' ? new Response(null, { status: 200 }) : new Response(new Uint8Array(wrong), { status: 200 }))) as unknown as typeof fetch
+    await expect(carryPictures([row([id])], { fetchImpl: fake, fromBox: reach, env })).rejects.toThrow(/not the picture/)
+  })
+
+  it('with Reach\'s PNG gone (the guide is live), a stored picture of another shape stops the run', async () => {
+    await expect(carryPictures([row([id], { w: 400, h: 400 })], { fetchImpl: storage(new Set([id]), []), fromBox: () => ({}), env })).rejects.toThrow(/not the picture/)
+    expect(await carryPictures([row([id])], { fetchImpl: storage(new Set([id]), []), fromBox: () => ({}), env })).toEqual([])
+  })
+
+  it('a missing one comes from Reach, is checked against its id, and goes up as WebP without overwrite', async () => {
+    const calls: { method: string; url: string; headers?: Record<string, string>; body?: Buffer }[] = []
+    expect(await carryPictures([row([id])], { fetchImpl: storage(new Set(), calls), fromBox: reach, env })).toEqual([id])
+    const up = calls.find((c) => c.method === 'POST')!
+    expect(up.url).toBe(`https://sb.eno.test/storage/v1/object/listings/guides/${id}.webp`)
+    expect(up.headers).toMatchObject({ 'content-type': 'image/webp', 'x-upsert': 'false' })
+    expect((await sharp(up.body!).metadata()).format).toBe('webp')
+  })
+
+  it('stops on bytes that are not the picture approved, on a picture nowhere, without keys, on a wrong size, and on a non-id', async () => {
+    const other = Buffer.from(png).fill(1, 100, 120)
+    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set(), []), fromBox: () => ({ [id]: other.toString('base64') }), env })).rejects.toThrow(/do not match/)
+    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set(), []), fromBox: () => ({}), env })).rejects.toThrow(/neither/)
+    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set(), []), fromBox: () => ({}), env: {} as NodeJS.ProcessEnv })).rejects.toThrow(/NEXT_PUBLIC_SUPABASE_URL/)
+    await expect(carryPictures([row(['../x'])], { fetchImpl: storage(new Set(), []), env })).rejects.toThrow(/SHA-256/)
+    await expect(carryPictures([row([id], { w: 1600, h: 900 })], { fetchImpl: storage(new Set(), []), fromBox: reach, env })).rejects.toThrow(/its guide says/)
+  })
+
+  it('Reach unreachable: stored pictures are checked by shape and the run goes on; a missing one stops it, saying why', async () => {
+    const down = () => { throw new Error('Command failed: ssh') }
+    expect(await carryPictures([row([id])], { fetchImpl: storage(new Set([id]), []), fromBox: down, env })).toEqual([])
+    await expect(carryPictures([row([id])], { fetchImpl: storage(new Set(), []), fromBox: down, env })).rejects.toThrow(/Reach could not be read/)
+  })
+
+  it('nothing goes up when any picture of the batch is bad', async () => {
+    const other = await sharp({ create: { width: 400, height: 225, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer()
+    const otherId = createHash('sha256').update(other).digest('hex')
+    const calls: { method: string; url: string }[] = []
+    await expect(carryPictures([row([id, otherId])], { fetchImpl: storage(new Set(), calls), fromBox: reach, env })).rejects.toThrow(/neither/)
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+  })
+
+  it('a dry run reads and checks everything and uploads nothing', async () => {
+    const calls: { method: string; url: string }[] = []
+    expect(await carryPictures([row([id])], { dryRun: true, fetchImpl: storage(new Set(), calls), fromBox: reach, env })).toEqual([])
+    expect(calls.map((c) => c.method)).toEqual(['HEAD'])
+    await expect(carryPictures([row([id])], { dryRun: true, fetchImpl: storage(new Set(), []), fromBox: () => ({}), env })).rejects.toThrow(/neither/)
+    await expect(carryPictures([row([id])], { dryRun: true, fetchImpl: storage(new Set(), []), fromBox: reach, env: { NEXT_PUBLIC_SUPABASE_URL: 'https://sb.eno.test' } as unknown as NodeJS.ProcessEnv })).rejects.toThrow(/SUPABASE_SECRET_KEY/)
+  })
+})

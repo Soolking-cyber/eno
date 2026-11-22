@@ -3,6 +3,8 @@ import { HereLink, OfficialLink, P, Ul, type ArticleSection } from './seo-articl
 import { parseInline, TEACHER_APP_ORIGIN, type InlineToken } from '@/lib/teach-guides/inline'
 import type { TeachBlock, TeachGuide } from '@/lib/teach-guides/schema'
 import { formatArticleDate } from '@/lib/dates'
+import Image from 'next/image'
+import { AI_ILLUSTRATION, guideImageSrc, questionAnchors } from '@/lib/guides/guide-images'
 
 /**
  * THE RENDERER FOR A TEACH GUIDE'S DATA (src/lib/teach-guides/schema.ts) — server-only, no state.
@@ -53,13 +55,14 @@ function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boole
 const TONE_LABEL = { note: 'Note', warning: 'Warning', tip: 'Tip' } as const
 const TONE_LABEL_VI = { note: 'Ghi chú', warning: 'Cảnh báo', tip: 'Mẹo' } as const
 
-function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
+function Block({ b, isLiveHref, lang = 'en', anchor }: { b: TeachBlock; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi'; anchor?: string }) {
   switch (b.type) {
     case 'p':
       return <P><Inline src={b.text} isLiveHref={isLiveHref} lang={lang} /></P>
     case 'h3':
       // 2026-11-07 audit: 20px from lg, a step over the guides' 18px desktop body (seo-article.tsx P) and under the 24px h2.
-      return <h3 className="mt-7 max-w-[60ch] text-base font-bold text-foreground lg:text-xl">{b.text}</h3>
+      // `anchor`: a question sub-heading listed in "On this page" (library guides) — the jump lands below the sticky header.
+      return <h3 id={anchor} className={`mt-7 max-w-[60ch] text-base font-bold text-foreground lg:text-xl${anchor ? ' scroll-mt-24' : ''}`}>{b.text}</h3>
     case 'ul':
       return (
         <Ul>
@@ -160,16 +163,48 @@ function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { t
 }
 
 /** The guide's sections in SeoArticle's shape, plus the closing "Sources" section. */
-export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en'): ArticleSection[] {
-  const sections: ArticleSection[] = g.sections.map((s) => ({
-    id: s.id,
-    title: s.title,
-    body: (
-      <>
-        {s.blocks.map((b, i) => <Block key={i} b={b} isLiveHref={isLiveHref} lang={lang} />)}
-      </>
-    ),
-  }))
+/**
+ * A guide picture: a figure at the prose column's width, the photo corner, and a caption line that always says it is an AI
+ * illustration (owner 2026-11-22; they are made with Codex, and a reader must not take one for a photo of a real place).
+ * width/height from the guide, so the box is reserved before the bytes arrive (no layout shift). `priority` for the hero only.
+ */
+export function GuideFigure({ pic, lang, priority = false, className = 'mt-6' }: { pic: { id: string; w: number; h: number; alt: string; caption?: string }; lang: 'en' | 'vi'; priority?: boolean; className?: string }) {
+  const src = guideImageSrc(pic.id)
+  if (!src) return null
+  return (
+    <figure className={`${className} max-w-3xl`}>
+      <Image src={src} width={pic.w} height={pic.h} alt={pic.alt} priority={priority} sizes="(min-width: 1024px) 48rem, 100vw" className="h-auto w-full rounded-media bg-muted" />
+      <figcaption className="mt-2 text-sm text-ink-4">
+        {AI_ILLUSTRATION[lang]}
+        {pic.caption ? <span className="text-body"> · {pic.caption}</span> : null}
+      </figcaption>
+    </figure>
+  )
+}
+
+/**
+ * `opts.outline`: question h3s get anchors and are listed under their section in "On this page". `opts.figures`: each figure
+ * renders after the section it names. Both OFF by default — the Teach in Vietnam pages keep exactly what they had; the
+ * library guides (library-guide.tsx) turn them on.
+ */
+export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en', opts: { outline?: boolean; figures?: boolean } = {}): ArticleSection[] {
+  const questions = opts.outline ? questionAnchors(g) : null
+  const sections: ArticleSection[] = g.sections.map((s, si) => {
+    const qs = questions?.[si] ?? []
+    const anchorAt = new Map(qs.map((q) => [q.block, q.id]))
+    const figure = opts.figures ? g.images?.figures?.find((f) => f.after === s.id) : undefined
+    return {
+      id: s.id,
+      title: s.title,
+      ...(qs.length ? { children: qs.map((q) => ({ id: q.id, title: q.title })) } : {}),
+      body: (
+        <>
+          {s.blocks.map((b, i) => <Block key={i} b={b} isLiveHref={isLiveHref} lang={lang} anchor={anchorAt.get(i)} />)}
+          {figure ? <GuideFigure pic={figure} lang={lang} /> : null}
+        </>
+      ),
+    }
+  })
   sections.push({
     id: 'sources',
     title: lang === 'vi' ? 'Nguồn' : 'Sources',

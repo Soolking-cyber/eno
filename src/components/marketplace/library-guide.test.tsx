@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const para = 'Thuê xe ở đây khá đơn giản, và những bước kiểm tra dưới đây quan trọng hơn việc chọn cửa hàng nào.'
-const guide = (slug: string) => (slug === 'linking' ? { ...base(slug), sections: [{ id: 'links', title: 'Links', blocks: [{ type: 'p', text: '[One](/guides/rent-a-bike) [Two](/huong-dan/thue-xe) [A later one](/guides/not-yet) [Wrong](/guides/thue-xe)' }] }, ...base(slug).sections], related: ['rent-a-bike', 'not-yet', 'nothing'] } : base(slug))
+const HERO = 'c'.repeat(64)
+const guide = (slug: string) => slug === 'pictured' ? { ...base(slug), images: { hero: { id: HERO, w: 1600, h: 900, alt: 'A rental counter at dusk, drawn flat.' } } } : (slug === 'linking' ? { ...base(slug), sections: [{ id: 'links', title: 'Links', blocks: [{ type: 'p', text: '[One](/guides/rent-a-bike) [Two](/huong-dan/thue-xe) [A later one](/guides/not-yet) [Wrong](/guides/thue-xe)' }] }, ...base(slug).sections], related: ['rent-a-bike', 'not-yet', 'nothing'] } : base(slug))
 const base = (slug: string) => ({
   slug, title: 'Thuê xe điện VinFast ở TP.HCM: giá và cọc', description: 'd'.repeat(120), h1: 'Thuê xe điện VinFast', eyebrow: 'Đi lại', intro: 'i'.repeat(90),
   keyPoints: ['Một', 'Hai {{vnd:150000}}', 'Ba'], sections: [1, 2, 3].map((i) => ({ id: `phan-${i}`, title: `Phần ${i}`, blocks: [{ type: 'p', text: para }] })),
@@ -14,6 +15,7 @@ const entries = [
   { slug: 'not-yet', lang: 'en', label: 'Later', blurb: 'b', published: '2099-01-01', reviewed: '2026-11-01', reviewedDigest: 'x' },
   { slug: 'unreviewed', lang: 'en', label: 'Unread', blurb: 'b', published: '2026-11-01' },
   { slug: 'linking', lang: 'en', label: 'Links', blurb: 'b', published: '2026-11-01', reviewed: '2026-11-01', reviewedDigest: 'x' },
+  { slug: 'pictured', lang: 'en', label: 'Pictured', blurb: 'b', published: '2026-11-01', reviewed: '2026-11-01', reviewedDigest: 'x' },
 ]
 
 vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<object>()), IS_SERVICES: false }))
@@ -32,6 +34,7 @@ vi.mock('@/lib/guides/registry', async (orig) => {
   return { ...real, GUIDES: entries, guideEntry: (s: string) => real.guideEntry(s, entries as never), isGuideLive, liveGuides: (now?: Date) => entries.filter((e) => isGuideLive(e as never, now)), guideLabel: (e: { label?: string }) => e.label, guideBlurb: (e: { blurb?: string }) => e.blurb }
 })
 
+vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://sb.eno.test')
 const { LibraryGuide, LibraryHub, libraryGuideMetadata, libraryHubMetadata } = await import('./library-guide')
 
 describe('a page in the general guide library', () => {
@@ -61,6 +64,15 @@ describe('a page in the general guide library', () => {
       expect(() => renderToStaticMarkup(<LibraryGuide slug={slug} lang={lang} />), slug).toThrow('NOT_FOUND')
       expect(libraryGuideMetadata(slug, lang).robots, slug).toEqual({ index: false })
     }
+  })
+
+  it('a guide with a hero shares it: the link preview card is the picture, at its stored size', async () => {
+    const og = libraryGuideMetadata('pictured', 'en').openGraph as { images?: { url: string; width?: number; height?: number }[] }
+    expect(og.images?.[0]).toMatchObject({ url: `https://sb.eno.test/storage/v1/object/public/listings/guides/${HERO}.webp`, width: 1600, height: 900 })
+    const { storedSize } = await import('@/lib/guides/guide-images')
+    expect(storedSize({ w: 1792, h: 1024 }), 'a wider drawing is stored 1600 wide, and the card says so').toEqual({ w: 1600, h: 914 })
+    const plain = libraryGuideMetadata('rent-a-bike', 'en').openGraph as { images?: { url: string }[] }
+    expect(plain.images?.[0]?.url ?? '').not.toContain('/guides/')
   })
 
   it('money follows the article: a Vietnamese guide prints 150.000 đ, an English one 150,000 đ', () => {

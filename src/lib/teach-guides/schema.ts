@@ -16,7 +16,8 @@ import { checkSourceUrl, parseInline } from './inline'
  *
  * INLINE MARKUP (every string field marked "inline" below; see inline.ts for the grammar):
  *   **bold**   ·   [link text](/internal-path | https://external)   ·   {{vnd:25000000}} / {{vnd:25000000-35000000}}
- * Nothing else. No HTML, no headings inside a paragraph, no images.
+ * Nothing else. No HTML, no headings inside a paragraph, no images INSIDE TEXT — a guide's pictures are the separate
+ * `images` field below (owner 2026-11-22: auspia-style hero + figures), never markup.
  */
 
 /**
@@ -62,6 +63,24 @@ export const teachBlockSchema = z.discriminatedUnion('type', [
   }),
 ])
 
+/**
+ * A guide picture (owner 2026-11-22: "i liked they have images"). The id is the SHA-256 of the PNG Reach made (the WebP in
+ * storage is converted from it, so ITS hash differs — the carry checks the PNG, the size, and a stored copy against the PNG while Reach has it): the picture an approver saw is the picture that ships (Reach's approval digest
+ * covers this field), and a new picture is a new id, never an overwrite. Stored at `listings/guides/<id>.webp` in eno's own
+ * storage (guide-images.ts builds the URL — a guide can never point at another host).
+ * ⛔ ALT AND CAPTION ARE PLAIN TEXT and are AI-made illustrations' words: the page labels every picture as an AI illustration.
+ */
+const guideImage = z
+  .object({
+    id: z.string().regex(/^[0-9a-f]{64}$/, 'a SHA-256 hex id'),
+    w: z.number().int().min(320).max(4096),
+    h: z.number().int().min(180).max(4096),
+    /** '' = decorative (allowed for the hero only; a figure must say what it shows). */
+    alt: z.string().trim().max(200),
+    caption: z.string().trim().min(1).max(140).optional(),
+  })
+  .strict()
+
 export const teachGuideSchema = z
   .object({
     slug,
@@ -101,6 +120,14 @@ export const teachGuideSchema = z
     related: z.array(slug).max(8),
     /** The date the facts in this guide were last checked against their sources. */
     lastChecked: isoDate,
+    /** Optional pictures: one hero under the key points, up to 3 figures each after the section it names. */
+    images: z
+      .object({
+        hero: guideImage.optional(),
+        figures: z.array(guideImage.extend({ after: slug })).max(3).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((g, ctx) => {
@@ -108,6 +135,8 @@ export const teachGuideSchema = z
     for (const s of g.sections) {
       if (ids.has(s.id)) ctx.addIssue({ code: 'custom', message: `duplicate section id "${s.id}"`, path: ['sections'] })
       if (RESERVED_SECTION_IDS.includes(s.id)) ctx.addIssue({ code: 'custom', message: `section id "${s.id}" is reserved by the page`, path: ['sections'] })
+      // `<id>-q<n>` is the anchor a question sub-heading gets (guide-images.ts questionAnchors): a section may not take one.
+      if (/-q\d+$/.test(s.id)) ctx.addIssue({ code: 'custom', message: `section id "${s.id}" looks like a question anchor (ends in -q and a number)`, path: ['sections'] })
       ids.add(s.id)
     }
     // One source, one entry: the URL is the list's React key and a duplicate is an editing slip anyway.
@@ -134,6 +163,13 @@ export const teachGuideSchema = z
       if (MARKUP_IN_PLAIN.test(text)) ctx.addIssue({ code: 'custom', message: `inline markup in a plain-text field: ${JSON.stringify(text.slice(0, 80))}`, path })
     })
     if (g.related.includes(g.slug)) ctx.addIssue({ code: 'custom', message: 'a guide may not relate to itself', path: ['related'] })
+    const shown = new Set<string>()
+    for (const [i, f] of (g.images?.figures ?? []).entries()) {
+      if (!ids.has(f.after)) ctx.addIssue({ code: 'custom', message: `figure placed after a section that does not exist: "${f.after}"`, path: ['images', 'figures', i, 'after'] })
+      if (shown.has(f.after)) ctx.addIssue({ code: 'custom', message: `two figures after section "${f.after}"`, path: ['images', 'figures', i, 'after'] })
+      shown.add(f.after)
+      if (f.alt.length < 20) ctx.addIssue({ code: 'custom', message: 'a figure needs alt text that says what it shows (20+ characters)', path: ['images', 'figures', i, 'alt'] })
+    }
     for (const [i, s] of g.sections.entries())
       for (const b of s.blocks)
         if (b.type === 'table')
@@ -167,6 +203,7 @@ export function forEachInline(g: Walkable, fn: (src: string, path: (string | num
 }
 
 /** Every PLAIN-text string a reader sees (titles, lede, headings, FAQ) — markup there would print literally. */
+type PlainImage = { alt: string; caption?: string }
 type PlainWalkable = {
   title: string
   description: string
@@ -175,10 +212,17 @@ type PlainWalkable = {
   intro: string
   faqs: { q: string; a: string }[]
   sections: { title: string; blocks: TeachBlock[] }[]
+  images?: { hero?: PlainImage; figures?: PlainImage[] }
 }
 
 export function forEachPlain(g: PlainWalkable, fn: (text: string, path: (string | number)[]) => void): void {
   for (const k of ['title', 'description', 'h1', 'eyebrow', 'intro'] as const) fn(g[k], [k])
+  const pics: [PlainImage | undefined, (string | number)[]][] = [[g.images?.hero, ['images', 'hero']], ...(g.images?.figures ?? []).map((f, i): [PlainImage, (string | number)[]] => [f, ['images', 'figures', i]])]
+  for (const [pic, at] of pics) {
+    if (!pic) continue
+    if (pic.alt) fn(pic.alt, [...at, 'alt'])
+    if (pic.caption) fn(pic.caption, [...at, 'caption'])
+  }
   g.faqs.forEach((f, i) => {
     fn(f.q, ['faqs', i, 'q'])
     fn(f.a, ['faqs', i, 'a'])

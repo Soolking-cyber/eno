@@ -18,6 +18,16 @@
  *
  * ⚠️ It checks Reach when it runs, and eno-deploy.sh does not. Run it right before the deploy: a guide rejected after being carried still ships unless this runs again and stops on it.
  *
+ * PICTURES (2026-11-22): a guide may name AI illustrations by id in its `images` field (Reach draws them; the approval digest covers the field). Before any file is written, every
+ * picture a carried guide names must be in eno's storage at listings/guides/<id>.webp: the ones missing are read from Reach (read-only), checked against their SHA-256 id, made
+ * WebP with sharp, and uploaded without overwrite (the address never changes what it shows). That needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in the environment
+ * (`set -a; . ~/eno.vn/.env; set +a`); a guide with pictures is not carried without them. --dry-run reads, checks and converts everything (so it needs
+ * them too when a picture is missing) and uploads nothing. What is enforced about a picture ALREADY in storage: while Reach still holds its PNG,
+ * it must be the same picture (compared pixel by pixel at 32×18); once the guide is live and Reach has dropped the PNG, only that it is a WebP
+ * of the declared shape — from then on what keeps the address honest is that only the admin key can write to the bucket.
+ * Only eno's server (the admin key) writes to the listings bucket: sellers' uploads go through it, and the tombstone sweeper deletes only what
+ * a removal queued, never guides/.
+ *
  * Usage: node scripts/carry-guides.mjs [--dry-run] [--max N] [--from-file rows.json]
  */
 import { execFileSync } from 'node:child_process'
@@ -174,7 +184,114 @@ select coalesce(json_agg(json_build_object(${row}) order by a.approved_at nulls 
   return JSON.parse(out)
 }
 
-function main() {
+/** The picture ids a guide names (its `images` field: the hero and the figures). */
+export function pictureIds(doc) {
+  const im = doc && typeof doc === 'object' ? doc.images : null
+  if (!im) return []
+  return [im.hero?.id, ...(Array.isArray(im.figures) ? im.figures.map((f) => f?.id) : [])].filter((id) => typeof id === 'string')
+}
+
+const PICTURE_ID = /^[0-9a-f]{64}$/
+
+/** The PNGs Reach still holds for these ids, read-only on the box: { id: base64 | null }. */
+function picturesFromBox(ids) {
+  if (!ids.every((id) => PICTURE_ID.test(id))) throw new Error('a picture id is not a SHA-256 id')
+  const key = process.env.ENO_SSH_KEY || join(homedir(), '.ssh/CS-Linux-20260920135129228.pem')
+  const sql = `select coalesce(json_object_agg(id, encode(png, 'base64')), '{}') from article_images where id = any(array[${ids.map((id) => `'${id}'`).join(',')}]);
+`
+  const out = execFileSync('ssh', ['-o', 'IdentitiesOnly=yes', '-i', key, '-p', '24700', '-o', 'ConnectTimeout=20', 'root@162.4.176.233',
+    "runuser -u reach -- env PGOPTIONS='-c default_transaction_read_only=on' psql -h /var/run/postgresql -p 5440 -d reach -At -v ON_ERROR_STOP=1 -f -"], { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'], maxBuffer: 256 * 1024 * 1024 })
+  return JSON.parse(out)
+}
+
+/**
+ * Every picture the carried guides name, in eno's storage before a guide file is written. Returns the ids uploaded. Nothing in storage is
+ * ever replaced: an id is the SHA-256 of the picture Reach made, so an existing object is that picture already.
+ */
+export async function carryPictures(rows, { dryRun = false, fetchImpl = fetch, fromBox = picturesFromBox, env = process.env } = {}) {
+  // Each id with the size its guides declare: the picture must be that size (the page reserves its box from it).
+  const declared = new Map()
+  for (const r of rows) {
+    const im = r.doc && typeof r.doc === 'object' ? r.doc.images : null
+    for (const p of im ? [im.hero, ...(Array.isArray(im.figures) ? im.figures : [])] : []) {
+      if (!p || typeof p.id !== 'string') continue
+      const was = declared.get(p.id)
+      if (was && (was.w !== p.w || was.h !== p.h)) throw new Error(`picture ${p.id} is declared with two sizes`)
+      declared.set(p.id, { w: p.w, h: p.h })
+    }
+  }
+  const ids = [...declared.keys()]
+  if (!ids.length) return []
+  if (!ids.every((id) => PICTURE_ID.test(id))) throw new Error('a guide names a picture by something that is not a SHA-256 id')
+  const base = String(env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
+  if (!/^https:\/\//.test(base)) throw new Error('guides with pictures need NEXT_PUBLIC_SUPABASE_URL (set -a; . ~/eno.vn/.env; set +a)')
+  const sharp = (await import('sharp')).default
+  /** Two encodings of one picture: both shrunk to 64×36 and compared pixel by pixel (mean and worst block), so the encoder or its version does not matter. */
+  const samePicture = async (a, b) => {
+    const thumb = (x) => sharp(x).resize(64, 36, { fit: 'fill' }).removeAlpha().raw().toBuffer()
+    const [ta, tb] = await Promise.all([thumb(a), thumb(b)])
+    let diff = 0
+    let worst = 0
+    for (let i = 0; i < ta.length; i++) { const d = Math.abs(ta[i] - tb[i]); diff += d; if (d > worst) worst = d }
+    return diff / ta.length <= 6 && worst <= 96
+  }
+  const sameShape = (a, b) => Math.abs(a.w / a.h - b.w / b.h) / (b.w / b.h) < 0.02
+  // Reach's PNGs, read-only — dry run too, so its "would upload" means the real run can. The bytes must be the picture approved (its
+  // SHA-256 is its id) at the size its guides declare. Reach drops a PNG once its guide is live (the WebP was checked when it went up).
+  // Reach unreachable (no key, no network, a --from-file run elsewhere) is not fatal by itself: a picture already in storage is then checked by
+  // shape, and one that must be uploaded stops the run, saying why.
+  let held = {}
+  let reachError = null
+  try { held = fromBox(ids) } catch (e) { reachError = e; console.warn(`pictures: Reach could not be read (${e.message.split('\n')[0]}); pictures already in storage are checked by shape only`) }
+  const pngs = new Map()
+  for (const id of ids) {
+    if (typeof held[id] !== 'string') continue
+    const png = Buffer.from(held[id], 'base64')
+    if (createHash('sha256').update(png).digest('hex') !== id) throw new Error(`picture ${id}: Reach's bytes do not match their id`)
+    const meta = await sharp(png).metadata()
+    const want = declared.get(id)
+    if (meta.width !== want.w || meta.height !== want.h) throw new Error(`picture ${id} is ${meta.width}×${meta.height}, its guide says ${want.w}×${want.h}`)
+    pngs.set(id, png)
+  }
+  /** What storage holds at an address is the approved picture: the same picture as Reach's PNG, or (PNG gone) a WebP of the declared shape. */
+  const checkStored = async (id, url) => {
+    const got = Buffer.from(await (await fetchImpl(url, { method: 'GET' })).arrayBuffer())
+    const meta = await sharp(got).metadata().catch(() => null)
+    const ok = meta?.format === 'webp' && sameShape({ w: meta.width, h: meta.height }, declared.get(id)) && (!pngs.has(id) || (await samePicture(got, pngs.get(id))))
+    if (!ok) throw new Error(`picture ${id} in storage is not the picture this guide declares`)
+  }
+  const missing = []
+  for (const id of ids) {
+    const url = `${base}/storage/v1/object/public/listings/guides/${id}.webp`
+    const r = await fetchImpl(url, { method: 'HEAD' })
+    if (r.status === 200) { await checkStored(id, url); continue }
+    if (r.status !== 404 && r.status !== 400) throw new Error(`eno's storage answered ${r.status} for picture ${id}`)
+    if (!pngs.has(id)) throw new Error(reachError ? `picture ${id} is not in eno's storage, and Reach could not be read: ${reachError.message.split('\n')[0]}` : `picture ${id} is neither in eno's storage nor in Reach`)
+    missing.push(id)
+  }
+  console.log(`pictures: ${ids.length - missing.length} of ${ids.length} in storage and checked${missing.length ? `, ${dryRun ? 'would upload' : 'uploading'} ${missing.length}` : ''}`)
+  if (!missing.length) return []
+  const key = env.SUPABASE_SECRET_KEY
+  if (!key) throw new Error('uploading pictures needs SUPABASE_SECRET_KEY (set -a; . ~/eno.vn/.env; set +a)')
+  // Every one converted BEFORE the first upload. An upload that lands before a later step fails is an unreferenced picture: harmless,
+  // and the next run finds and checks it.
+  const ready = []
+  for (const id of missing) ready.push({ id, webp: await sharp(pngs.get(id)).resize({ width: 1600, withoutEnlargement: true }).webp({ quality: 74 }).toBuffer() })
+  if (dryRun) return [] // everything the real run needs was there and converted: only the uploads are left out
+  for (const { id, webp } of ready) {
+    const up = await fetchImpl(`${base}/storage/v1/object/listings/guides/${id}.webp`, {
+      method: 'POST', body: webp,
+      headers: { authorization: `Bearer ${key}`, apikey: key, 'content-type': 'image/webp', 'cache-control': 'max-age=31536000', 'x-upsert': 'false' },
+    })
+    if (up.ok) continue
+    const text = await up.text().catch(() => '')
+    if (!/already exists|duplicate/i.test(text)) throw new Error(`uploading picture ${id} failed: ${up.status} ${text.slice(0, 200)}`)
+    await checkStored(id, `${base}/storage/v1/object/public/listings/guides/${id}.webp`) // someone else's upload won the race: it must be this picture
+  }
+  return missing
+}
+
+async function main() {
   const args = process.argv.slice(2)
   const value = (flag) => { const i = args.indexOf(flag); return i < 0 ? undefined : args[i + 1] }
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
@@ -200,6 +317,12 @@ function main() {
     console.log(`${args.includes('--dry-run') ? 'would ' : ''}${e.pair ? `link ${slug} to its twin ${e.pair}` : `unlink ${slug}`}`)
   }
   if (plan.waiting.length) console.log(`waiting for the next run: ${plan.waiting.join(', ')}`)
+  try {
+    await carryPictures(plan.carry, { dryRun: args.includes('--dry-run') })
+  } catch (e) {
+    console.error(`Nothing written: ${e.message}`)
+    process.exit(1)
+  }
   if (args.includes('--dry-run')) return
   try {
     applyCarry(plan, {
@@ -218,4 +341,4 @@ function main() {
 }
 
 // Compared as real paths: through a symlink the two differ, and the script would exit 0 having done nothing.
-if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) main()
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) await main()
