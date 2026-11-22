@@ -91,10 +91,17 @@ describe('homeWebPageJsonLd', () => {
     expect(homeWebPageJsonLd('en')).toEqual({
       '@context': 'https://schema.org', '@type': 'WebPage', '@id': 'https://eno.vn/#webpage', url: 'https://eno.vn/',
       name: SITE_TITLE, inLanguage: 'en', isPartOf: { '@id': 'https://eno.vn/#website' }, about: { '@id': 'https://eno.vn/#organization' },
+      breadcrumb: { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: 'https://eno.vn/' }] },
     })
     expect(homeWebPageJsonLd('vi')).toMatchObject({ name: HOME_TITLE_VI, inLanguage: 'vi', url: 'https://eno.vn/' })
     // The name is the title the variant shows: homeMetadata sets one only on vi, else the layout's SITE_TITLE stands.
     expect(homeWebPageJsonLd('vi').name).toBe(homeMetadata('vi').title)
+  })
+  it('the home page carries its breadcrumb trail (one step: itself), in the variant\'s language, at its own url', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const crumb = (lang: string) => (homeWebPageJsonLd(lang).breadcrumb as { itemListElement: { name: string; item: string }[] }).itemListElement
+    expect(crumb('vi')).toEqual([{ '@type': 'ListItem', position: 1, name: 'Trang chủ', item: homeWebPageJsonLd('vi').url }])
+    expect(crumb('en')[0].item).toBe(homeWebPageJsonLd('en').url)
   })
   it('under the /vi pilot each variant is its own page: its own canonical url, and an @id that follows it', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')

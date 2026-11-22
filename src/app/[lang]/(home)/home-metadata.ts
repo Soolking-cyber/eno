@@ -96,6 +96,12 @@ export function homeWebPageJsonLd(lang: string): Record<string, unknown> {
     name: vi ? HOME_TITLE_VI : SITE_TITLE,
     inLanguage: lang === 'vi' ? 'vi' : 'en',
     ...(IS_SERVICES ? {} : { isPartOf: { '@id': websiteId(origin) }, about: { '@id': organizationId(origin) } }),
+    // The page's place in the site (owner 2026-11-22, an audit's "Add breadcrumbs + BreadcrumbList JSON-LD" on the home page): the home
+    // page is the trail's first and only step. Nested here rather than a script of its own, so it adds a few hundred bytes, not a node.
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [{ '@type': 'ListItem', position: 1, name: vi ? 'Trang chủ' : 'Home', item: url }],
+    },
   }
 }
 
