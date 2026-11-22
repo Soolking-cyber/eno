@@ -189,7 +189,9 @@ const FOREIGN_CURRENCIES: [string, RegExp][] = [
   ['won', new RegExp(String.raw`${KO_AMOUNT}(?<!m2\s*)원|원화|(?<!\p{L})(?:wons?|krw)(?!\p{L})|₩|ウォン|韩元|韓元|${TH_AMOUNT}วอน`, 'iu')],
   // иен inside a name (Бай Хиен, Биен) or ориентир. Only after a number: 엔, and never in 엔진 ("2.0 엔진" engine) or 백엔드 (backend); йен and येन, which are also the place
   // name Yên (Йен Хоа, येन होआ) and inside नगुयेन (Nguyen); ⚠️ so "сто йен", "सौ येन" (spelled numbers) pass, as before this rule.
-  ['yen', new RegExp(String.raw`円|(?<!\p{L})(?:yens?|jpy)(?!\p{L})|엔화|${KO_AMOUNT}엔(?!진|드)|日元|(?<=\d\s*)йен|(?<!\p{L})иен|${TH_AMOUNT}เยน|(?<=\d\s*)येन`, 'iu')],
+  // 円 inside 円形 (round), 円柱 and 円筒 (cylinder) and 楕円 (oval), measured 2026-11-22 (12 Japanese rows of long rental texts refused every
+  // day: "円形のコーヒーテーブル"); after a number it is the yen whatever follows ("100円形" still counts: "1万円満額").
+  ['yen', new RegExp(String.raw`(?<=[\d〇一二三四五六七八九十百千万億]\s*)円|(?<!楕)円(?![形柱筒])|(?<!\p{L})(?:yens?|jpy)(?!\p{L})|엔화|${KO_AMOUNT}엔(?!진|드)|日元|(?<=\d\s*)йен|(?<!\p{L})иен|${TH_AMOUNT}เยน|(?<=\d\s*)येन`, 'iu')],
   // 元, 块, 币 after a number only (单元 flat, 一块 a piece of…), "100多元" included; 越南盾 is the dong.
   ['yuan', new RegExp(String.raw`(?<=[\d〇一二三四五六七八九十百千万亿億]\s*[多余]?)(?:元|块钱|币)|(?<=\d\s*[多余]?)块|港元|港币|台币|新币|人民币|人民幣|(?<!\p{L})(?:yuans?|rmb|cny)(?!\p{L})|위안|юан|${TH_AMOUNT}หยวน|(?<![\p{L}\p{M}])युआन(?![\p{L}\p{M}])`, 'iu')],
   // ドル inside ベッドルーム (bedroom) and ヌードル (noodle), measured, and after the katakana that end ミドル (middle school), ハンドル,
@@ -197,14 +199,18 @@ const FOREIGN_CURRENCIES: [string, RegExp][] = [
   // can sit between them and ドル.
   // 불 is the Korean dollar after a number ("100불"); долл. and у.е. are Russian price shorthand.
   ['dollar', new RegExp(String.raw`\$|(?<!\p{L})(?:usd|dollars?|dolar)(?!\p{L})|달러|${KO_AMOUNT}불|(?<!ベッ|ヌー|ミ|ハン|アイ|キャン|ハー|サ|プー|バン|ルバ)ドル|美元|美金|(?<!\p{L})долл|у\.\s?е\.|ดอลลาร์|डॉलर|เหรียญสหรัฐ|(?<=\d\s*)เหรียญ`, 'iu')],
-  ['baht', /฿|(?<!\p{L})(?:bahts?|thb)(?!\p{L})|บาท|바트|バーツ|泰铢/iu],
+  // บาท inside บทบาท (role), measured 2026-11-22; after a number it is the baht.
+  ['baht', new RegExp(String.raw`฿|(?<!\p{L})(?:bahts?|thb)(?!\p{L})|${TH_AMOUNT}บาท|(?<!บท)บาท|바트|バーツ|泰铢`, 'iu')],
   // The site's other languages' own money: roubles, rupees, ringgit (none in the 24,952 translations measured).
   ['rouble', /₽|(?<!\p{L})(?:roubles?|rubles?)(?!\p{L})|(?<!\p{L})руб(?:л\p{L}*|\.)?(?!\p{L})/iu],
   ['rupee', /₹|(?<!\p{L})(?:inr|rupees?|roupies?)(?!\p{L})|(?<!\p{L})rs\.?\s?\d|(?<![\p{L}\p{M}])रुप(?:य|ए)/iu],
   ['ringgit', /(?<!\p{L})(?:ringgit|myr)(?!\p{L})/iu],
   ['ringgit', /(?<![\p{L}\d])RM\s?\d/u], // capitals only: "rm" is not money
   // евро wherever it is ("100-евровый"), but not евроремонт (European-style renovation) or Европа.
-  ['euro', new RegExp(String.raw`€|(?<!\p{L})(?:euros?|eur)(?!\p{L})|유로|ユーロ|欧元|евро(?!ремонт|п)|${TH_AMOUNT}ยูโร|(?<![\p{L}\p{M}])यूरो(?![\p{L}\p{M}])`, 'iu')],
+  // 유로 inside 여유로운 (spacious, relaxed) and "…을/를 이유로" (citing … as the reason), measured 2026-11-22 (8 Korean rows a day: "환경을
+  // 이유로"). After a number, 여 ("about") included, it is the euro ("100여유로" still counts); a bare 이유로 too, since 이 is also two
+  // ("월세: 이유로", codex 11-22), and "백이유로" is 102 euros.
+  ['euro', new RegExp(String.raw`€|(?<!\p{L})(?:euros?|eur)(?!\p{L})|${KO_AMOUNT}유로|(?<!여|[을를]\s?이)유로|ユーロ|欧元|евро(?!ремонт|п)|${TH_AMOUNT}ยูโร|(?<![\p{L}\p{M}])यूरो(?![\p{L}\p{M}])`, 'iu')],
 ]
 /** "Journey" in a source ("your learning journey") lets its Vietnamese say "hành trình" — that word only, no other itinerary wording. */
 const JOURNEY = /journey|voyage/iu
@@ -388,7 +394,9 @@ const VI_LISTING_WORDS = new Set('phòng trọ giá rẻ thuê căn hộ gấp t
 /** …and the same words written without their marks, none an English word: two in lower case make a text Vietnamese ("cho thue … for rent in Quận 7"). */
 const VI_UNMARKED = new Set('cho thue gia re nha phong tro lien gan moi dep quan tien dat xe chinh chu'.split(' '))
 function englishWithVietnameseNames(text: string): boolean {
-  const t = text.normalize('NFC').replace(/(?<!\p{L})đ(?!\p{L})|(?<!\p{L})số(?=\s*\d)/gu, ' ')
+  // The currency's English name is written in lower case too ("Vietnamese đồng", "The đồng price on eno is converted from US dollars"): 53
+  // of the 56 English texts refused every day on 2026-11-22 carried that line (Saigon Cribs, eno-written), each one English already.
+  const t = text.normalize('NFC').replace(/(?<!\p{L})(?:đ|đồng)(?!\p{L})|(?<!\p{L})số(?=\s*\d)/gu, ' ')
   if (readsAsVietnamese(t) || !letters(t).every((c) => /\p{Script=Latin}/u.test(c))) return false
   const words = t.split(/\s+/).map((w) => w.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')).filter(Boolean)
   const glue = words.filter((w) => EN_GLUE.has(w)).length // lower case only: "A", "ON" in a shouted title are not prose

@@ -188,6 +188,17 @@ describe('refusal', () => {
       expect(refusal(src, value, target)).toBe('a currency its source does not have')
     }
   })
+  it('a currency inside ordinary words is not one (2026-11-22: 円形, 楕円, 여유로운, 이유로, บทบาท); after a number it is', () => {
+    const src = 'A round oak coffee table, an oval mirror and a cylindrical island. Spacious, and quiet because of the park. Role play classes.'
+    for (const [value, target] of [['円形のオーク材のコーヒーテーブル、楕円形の鏡、円筒形のアイランド、円柱型のベース。楕円の鏡もあります。', 'ja'],
+      ['원형 오크 커피 테이블과 여유로운 공간, 공원을 이유로 조용합니다. 강변 환경를 이유로 선택하세요.', 'ko'], ['สอนโดยใช้การแสดงบทบาทสมมติ', 'th']] as const) {
+      expect(refusal(src, value, target), value).toBeNull()
+    }
+    for (const [value, target] of [['スタジオ 月100円形式で', 'ja'], ['スタジオ 円で支払い', 'ja'], ['원룸 월 100유로', 'ko'], ['원룸 월 유로로 지불', 'ko'],
+      ['원룸 월 백이유로', 'ko'], ['월세: 이유로', 'ko'], ['สตูดิโอ 100บาท', 'th'], ['สตูดิโอ จ่ายเป็นบาท', 'th'], ['スタジオ 月１００円形式で', 'ja']] as const) {
+      expect(refusal(/100|１００/.test(value) ? 'Studio, 100 a month' : 'Studio, paid monthly', value, target), value).toBe('a currency its source does not have')
+    }
+  })
   it("refuses Haiku's note on Japanese room codes, not the codes", () => {
     const t = '1-bedroom apartment 30 m² · Phu Dinh Ward, District 8'
     expect(refusal(t, '1LDKではなく1ベッドルームのアパート 30 m² · フーディン区、第8区', 'ja')).toBe('a note its source does not have')
@@ -248,6 +259,14 @@ describe('refusal', () => {
   })
 
   // The refusals of the 2026-11-16/17 runs, re-translated with Reach's own prompt: what was good passes, the guard each one tripped still holds.
+  it('an English text naming the currency in lower case ("The đồng price on eno") is its own English; Vietnamese with đồng is not', () => {
+    const cribs = '3-bedroom apartment of 105 m² at Celesta Rise, Nha Be District, Ho Chi Minh City.\n\n# Price\n- Rent: US$1,100/month\n' +
+      '- The đồng price on eno is converted from US dollars (25,704 đ per US$, 18 November 2026) and may differ slightly.'
+    expect(refusal(cribs, cribs, 'en')).toBeNull()
+    expect(refusal('Cho thuê phòng giá 5 triệu đồng một tháng', 'Cho thuê phòng giá 5 triệu đồng một tháng', 'en')).toBe('returned untranslated')
+    const half = 'Room for rent in the center, 5 triệu đồng a month with the water and the wifi'
+    expect(refusal(half, half, 'en')).toBe('returned untranslated')
+  })
   it('reads a group of thousands as three digits and a Chinese comma as a comma', () => {
     expect(refusal('Dell Inspiron 14 Laptop 5441 71092476 - Activated', 'Ноутбук Dell Inspiron 14 5441 71092476 - Активирован', 'ru')).toBeNull()
     expect(refusal('Samsung Tab S10 FE 5G Tablet, SM-X526, 128GB, Gray', '三星 Tab S10 FE 5G 平板电脑，型号 SM-X526，128GB，灰色', 'zh-Hans')).toBeNull()
