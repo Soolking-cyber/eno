@@ -21,3 +21,12 @@ export const SITE_TITLE = `${SITE_NAME} — ${POSTING_IS_FREE ? 'free ' : ''}cla
  * eno.forum's line is SERVICES_SITE_TAGLINE (edition-services-copy.ts), chosen in the layout.
  */
 export const MARKETPLACE_TAGLINE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more. Members can report any listing that breaks the rules.`
+
+/**
+ * THE ENGLISH HOME'S SHARE CARD (owner 2026-11-22, "score maxing" an SEO meta checker that wants og:title at 25–35 and
+ * og:description at 55–65 characters). CARD ONLY: the page's <title> and meta description stay SITE_TITLE and the
+ * layout's SITE_DESCRIPTION, which search engines show. Same positioning, no claim the copy rules forbid (no "trusted").
+ * ⚠️ home-metadata.test.ts pins both lengths inside those ranges — re-check them if the flag or the wording changes.
+ */
+export const HOME_SHARE_TITLE = `${SITE_NAME} — Vietnam's ${POSTING_IS_FREE ? 'free ' : ''}classifieds`
+export const HOME_SHARE_DESCRIPTION = 'Rentals, jobs and used goods for expats and locals in Vietnam.'

@@ -340,6 +340,9 @@ export const metadata: Metadata = {
     "classifieds Vietnam",
   ],
   authors: [{ name: SITE_NAME }],
+  // ⚠️ `email=no` ONLY. telephone=no stays off on purpose (it would stop iOS tap-to-call on numbers people type in chats —
+  // commit gate, see twitter below); emails on eno are explicit mailto links, which this never touches.
+  formatDetection: { email: false },
   openGraph: {
     title: SITE_TITLE,
     description: SITE_TAGLINE,
@@ -352,8 +355,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     // eno.vn's X account (src/lib/socials.ts, the Organization's sameAs; owner 2026-11-19 scan). `site` only — never `creator`:
-    // a listing or a shop page is its seller's content, not eno.vn's. (format-detection left off on purpose: telephone=no would
-    // stop iOS tap-to-call on numbers people type in chats — commit gate.)
+    // a listing or a shop page is its seller's content, not eno.vn's (the home page adds `creator`: home-metadata.ts).
     site: X_SITE,
     title: SITE_TITLE,
     description: SITE_TAGLINE,

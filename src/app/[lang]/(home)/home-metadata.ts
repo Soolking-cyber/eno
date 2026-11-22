@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { langAlternatesFor } from '@/lib/lang-alternates'
 import { POSTING_IS_FREE, organizationId, pageShare, siteOrigin, websiteId } from '@/lib/site-identity'
-import { MARKETPLACE_TAGLINE, SITE_TITLE } from '@/lib/site-title'
+import { HOME_SHARE_DESCRIPTION, HOME_SHARE_TITLE, SITE_TITLE } from '@/lib/site-title'
+import { X_SITE } from '@/lib/socials'
 
 /**
  * THE HOME PAGE'S OWN METADATA, BY `[lang]` VARIANT (SEO wave B, V2; copy sheet CS-3, approved by the
@@ -59,6 +60,15 @@ export const HOME_ROBOTS = {
   googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 },
 } as const satisfies Metadata['robots']
 
+/**
+ * The home page's cards. ⚠️ `twitter:creator` HERE ONLY: the home page is eno.vn's own words, so eno.vn's X account is its
+ * creator. Every other page keeps `site` alone (site-identity.ts pageTwitter) — a listing or a shop page is its seller's.
+ */
+function homeShare(title: string, description: string, url: string): Pick<Metadata, 'openGraph' | 'twitter'> {
+  const share = pageShare({ title, description, url })
+  return { ...share, twitter: { ...share.twitter, creator: X_SITE } }
+}
+
 export function homeMetadata(lang: string): Metadata {
   // The one head helper every `/vi` twin uses (src/lib/lang-alternates.ts).
   const pilot = IS_SERVICES ? null : langAlternatesFor('/', lang, undefined, siteOrigin())
@@ -66,13 +76,13 @@ export function homeMetadata(lang: string): Metadata {
     ? { alternates: { canonical: pilot.canonical, languages: pilot.languages, types: HOME_ALTERNATE_TYPES }, robots: HOME_ROBOTS }
     : { alternates: { canonical: '/', types: HOME_ALTERNATE_TYPES }, robots: HOME_ROBOTS }
   if (IS_SERVICES || lang !== 'vi') {
-    return pilot ? { ...base, ...pageShare({ title: SITE_TITLE, description: MARKETPLACE_TAGLINE, url: pilot.canonical }) } : base
+    return pilot ? { ...base, ...homeShare(HOME_SHARE_TITLE, HOME_SHARE_DESCRIPTION, pilot.canonical) } : base
   }
   return {
     ...base,
     title: HOME_TITLE_VI,
     description: HOME_DESCRIPTION_VI,
-    ...(pilot ? pageShare({ title: HOME_TITLE_VI, description: HOME_DESCRIPTION_VI, url: pilot.canonical }) : {}),
+    ...(pilot ? homeShare(HOME_TITLE_VI, HOME_DESCRIPTION_VI, pilot.canonical) : {}),
   }
 }
 
