@@ -1,16 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { SignInForm } from '@/components/marketplace/sign-in-form'
-import { noteGateOpen } from '@/lib/signin-gates'
+import { Button } from '@/components/ui/button'
 import { FB_IMPORT_PATH } from '@/lib/fb-import/landing'
 import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
 
 /**
- * The ad landing's body (src/lib/fb-import/landing.ts): two lines and the sign-in, all in the server's HTML. Only claims that hold
+ * The ad landing's body (src/lib/fb-import/landing.ts): two lines and ONE button, all in the server's HTML; the page puts live
+ * listings under it. ⛔ SIGN-IN ONLY ON THE TAP (owner 2026-11-22 "go", after the measured funnel: the sign-in shown on arrival —
+ * the whole form from 11-17, the one-action form from 11-20 — was opened ~600 times in six days for 2 method taps and 0
+ * sign-ups): the button opens the app's sign-in popup (`openSignIn`, gate `fb_import`), so the gate's `open` now counts TAPS,
+ * and arrivals are the page's own loads (rum `account` route). Only claims that hold
  * for every listing: free to post, brought over from Facebook without retyping, shown in Vietnamese and English (every listing is
  * published in both — the import refuses one whose other language could not be written), checked by the seller before it goes up.
  * The import's own notice (what is read, which AI) stays on the import, before Connect. eno.vn by name: eno.forum is gone (owner,
@@ -21,21 +24,13 @@ import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
  */
 export function FacebookImportLanding() {
   const { tr } = useLanguage()
-  const { user, loading } = useAuth()
+  const { user, openSignIn } = useAuth()
   const router = useRouter()
-
-  // Its own gate in the sign-in counters, once per visit and only for a guest.
-  const counted = useRef(false)
-  useEffect(() => {
-    if (loading || user || counted.current) return
-    counted.current = true
-    noteGateOpen('fb_import')
-  }, [loading, user])
 
   // Can the import run? null = not known yet (the words assume yes, as the server painted them).
   const [importOn, setImportOn] = useState<boolean | null>(null)
-  // ⛔ Never the one-action form in the iOS app (commit gate, opus): there Facebook signs in only beside Apple (Guideline 4.8),
-  // so the app keeps the whole form. Read once at mount, like the rest of this page's browser facts.
+  // ⛔ NEVER AN IMPORT BUTTON IN THE iOS APP (the import hands back to the browser there; eno-fb-import app hand-back): the button
+  // says Post. Read once at mount, like the rest of this page's browser facts.
   const [iosApp, setIosApp] = useState(false)
   useEffect(() => {
     setIosApp(facebookIosApp())
@@ -67,12 +62,14 @@ export function FacebookImportLanding() {
               'Nhập từ Facebook, không cần gõ lại. Tin hiện bằng tiếng Việt và tiếng Anh; bạn duyệt từng tin trước khi đăng.',
             )}
       </p>
-      {/* Signed in already: no second sign-in to start while the on/off answer comes (≤ 8 s) — they are being moved on. */}
-      {/* One action first while the import can run here (the server assumes it can, as the words above do); today's whole
-          form where it cannot. It says Connect, not Import (plan review): the import's own notice and button come after, on the
-          import tab. ⛔ Only here: `facebookAction` paints before the form knows Facebook is on, and this page's
-          on/off answer is what says so (fbImportOn requires Facebook sign-in). */}
-      {!user && <SignInForm className="mt-6" gate="fb_import" facebookAction={importOn === false || iosApp ? undefined : tr('Connect Facebook to import', 'Kết nối Facebook để nhập tin')} />}
+      {/* Signed in already: no button while the on/off answer comes (≤ 8 s) — they are being moved on. The popup is the app's
+          one sign-in (its terms line, Facebook first inside Facebook's browser, the iOS app's whole form), so nothing about
+          sign-in is decided here; signed in, the effect above moves them on. */}
+      {!user && (
+        <Button variant="cta" size="lg" className="mt-6 w-full" onClick={() => openSignIn({ gate: 'fb_import' })}>
+          {importOn === false || iosApp ? tr('Post a listing', 'Đăng tin') : tr('Import from Facebook', 'Nhập tin từ Facebook')}
+        </Button>
+      )}
     </>
   )
 }

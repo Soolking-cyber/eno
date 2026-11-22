@@ -6,7 +6,7 @@ import { VI_OVERRIDES } from '@/generated/vi-overrides'
 
 /**
  * ⛔ THE LANDING IS IN THE SERVER'S HTML (owner 2026-11-17, "Ad landing page"): the old ad landing was blank until its script ran,
- * and a third of the visitors left in that wait. The words AND the sign-in form must render on the server, before any script.
+ * and a third of the visitors left in that wait. The words AND the button must render on the server, before any script.
  */
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: true, openSignIn: () => {} }) }))
 // ⛔ useSearchParams THROWS here: on this static page any call would drop the whole tree out of the server's HTML (Next's
@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth:
 const { FacebookImportLanding } = await import('./facebook-import-landing')
 
 describe('the Facebook-import landing, server-rendered', () => {
-  it('in Vietnamese: the heading, the line and the one action — with no script run (owner 2026-11-20)', () => {
+  it('in Vietnamese: the heading, the line and the one button — with no script run, and no sign-in form (owner 2026-11-22)', () => {
     const html = renderToString(
       <LanguageProvider initialLang="vi" initialViDict={VI_OVERRIDES}>
         <FacebookImportLanding />
@@ -24,11 +24,10 @@ describe('the Facebook-import landing, server-rendered', () => {
     )
     expect(html).toContain('Đăng tin Marketplace lên eno.vn, miễn phí')
     expect(html).toContain('không cần gõ lại')
-    // One action first (the sign-in wall was shown 449 times in four days, two taps, no sign-up): Connect Facebook, then a
-    // quiet way to the rest, and the terms line — and not the whole form yet.
-    expect(html).toContain('Kết nối Facebook để nhập tin')
-    expect(html).toContain('Cách đăng nhập khác')
-    expect(html).toContain('đủ 18 tuổi')
+    // Listings first, sign-in on the tap (the sign-in shown on arrival: ~600 opens in six days, 2 taps, 0 sign-ups): the button,
+    // and no form, terms line or email field until it is pressed — the popup carries those.
+    expect(html).toContain('Nhập tin từ Facebook')
+    expect(html).not.toContain('đủ 18 tuổi')
     expect(html).not.toMatch(/<input[^>]+type="email"/)
   })
 })
