@@ -1,0 +1,455 @@
+{
+  "slug": "mua-dien-thoai-gia-re-o-dau",
+  "title": "Mua điện thoại giá rẻ ở đâu? Giá và lưu ý VoLTE (2026)",
+  "description": "Giá máy phổ thông 4G, smartphone giá rẻ, iPhone mới và cũ tại các chuỗi lớn tháng 11/2026, cùng cách check VoLTE sau khi tắt sóng 2G.",
+  "h1": "Mua điện thoại giá rẻ ở đâu: giá từng loại, máy cũ có bảo hành và cách check VoLTE sau tắt 2G",
+  "eyebrow": "Sống ở Việt Nam",
+  "intro": "Điện thoại rẻ nhất ở Việt Nam là máy phổ thông 4G và smartphone Android phổ thông bán tại các chuỗi lớn. Từ 15/9/2026 sóng 2G đã tắt, nên máy không có VoLTE có thể mất cuộc gọi, tùy nhà mạng và máy có chuyển sang 3G được hay không. Smartphone Android giá rẻ đáng tiền, còn iPhone mới thì không rẻ. Máy cũ ở mục máy đổi trả của các chuỗi hoặc trên Chợ Tốt rẻ hơn, nhưng phải thử kỹ trước khi trả tiền.",
+  "keyPoints": [
+    "Ngày 22/11/2026, máy mới rẻ nhất chúng tôi tìm thấy là Mobell M139 4G giá {{vnd:250000}} (Điện Máy Chợ Lớn), còn smartphone mới rẻ nhất là TCL 60R 5G giá {{vnd:2990000}} (FPT Shop).",
+    "Việt Nam tắt sóng 2G toàn quốc từ 15/9/2026. Máy không có VoLTE có thể vẫn vào mạng nhưng **mất cuộc gọi**, tùy nhà mạng và máy có chuyển sang 3G được hay không.",
+    "Viettel chỉ còn 4G và 5G. VinaPhone và MobiFone vẫn chạy cả 3G, và 3G dự kiến dừng từ tháng 9/2028.",
+    "iPhone mới không rẻ: Apple Việt Nam bán iPhone 17 256GB giá {{vnd:28999000}} vào ngày 22/11/2026.",
+    "Máy đổi trả của Thế Giới Di Động có bảo hành hoặc đổi trả trong tháng đầu. Mua của người bán cá nhân trên Chợ Tốt thì không có."
+  ],
+  "sections": [
+    {
+      "id": "dien-thoai-o-viet-nam-gia-bao-nhieu",
+      "title": "Điện thoại ở Việt Nam giá bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Điện thoại mới ở Việt Nam có giá từ vài trăm nghìn đồng cho máy phổ thông 4G đến vài chục triệu đồng cho iPhone mới. Smartphone Android giá rẻ nằm ở phần thấp của khoảng giá này. Bảng dưới đây lấy giá từ chính website của các chuỗi, đọc ngày 22/11/2026."
+        },
+        {
+          "type": "table",
+          "caption": "Mức giá điện thoại mới theo loại máy, theo website các chuỗi bán lẻ ngày 22/11/2026",
+          "headers": [
+            "Loại máy",
+            "Giá",
+            "Ví dụ",
+            "Nơi niêm yết"
+          ],
+          "rows": [
+            [
+              "Máy phổ thông 4G (nghe gọi, nhắn tin)",
+              "{{vnd:250000-1100000}}",
+              "Mobell M139 4G, Nokia 220 4G",
+              "Điện Máy Chợ Lớn, Thế Giới Di Động"
+            ],
+            [
+              "Smartphone phổ thông",
+              "{{vnd:2990000-4190000}}",
+              "TCL 60R 5G, Samsung Galaxy A07",
+              "FPT Shop"
+            ],
+            [
+              "Smartphone tầm trung",
+              "{{vnd:4690000-5990000}}",
+              "Xiaomi Redmi Note 15 6GB/128GB, Samsung Galaxy A17 8GB/128GB",
+              "FPT Shop"
+            ],
+            [
+              "iPhone 17 256GB mới",
+              "{{vnd:28490000-28999000}}",
+              "iPhone 17",
+              "CellphoneS, Apple Việt Nam"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Giá ở các chuỗi đổi hằng tuần theo khuyến mãi, và phần lớn sản phẩm hiện giá giảm bên cạnh giá niêm yết cao hơn. **Nên so giá ở hai, ba chuỗi trước khi mua.** Cùng ngày 22/11/2026, Xiaomi Redmi Note 15 6GB/128GB có giá {{vnd:4690000}} ở FPT Shop nhưng {{vnd:4890000}} ở Điện Máy Chợ Lớn."
+        }
+      ]
+    },
+    {
+      "id": "dien-thoai-gia-re-nhat-hien-nay",
+      "title": "Những mẫu điện thoại giá rẻ nhất hiện nay",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo website các chuỗi ngày 22/11/2026, máy mới rẻ nhất là máy phổ thông 4G của Mobell, Masstel và Nokia. Smartphone rẻ nhất là TCL 60R 5G và Nubia V70 Design. Muốn xem kỹ phân khúc thấp nhất, đọc thêm [điện thoại rẻ nhất Việt Nam 2026](/huong-dan/dien-thoai-gia-re-nhat-viet-nam)."
+        },
+        {
+          "type": "table",
+          "caption": "Điện thoại mới giá rẻ nhất tại các chuỗi, theo giá niêm yết ngày 22/11/2026",
+          "headers": [
+            "Mẫu máy",
+            "Loại",
+            "Giá",
+            "Cửa hàng"
+          ],
+          "rows": [
+            [
+              "Mobell M139 4G",
+              "Phổ thông 4G",
+              "{{vnd:250000}} (niêm yết {{vnd:490000}})",
+              "Điện Máy Chợ Lớn"
+            ],
+            [
+              "Mobell M239 4G",
+              "Phổ thông 4G",
+              "{{vnd:430000}}",
+              "Thế Giới Di Động"
+            ],
+            [
+              "Masstel IZI 10 4G",
+              "Phổ thông 4G",
+              "{{vnd:430000}}",
+              "Thế Giới Di Động"
+            ],
+            [
+              "Nokia 110 4G Pro",
+              "Phổ thông 4G",
+              "{{vnd:770000}} / {{vnd:850000}}",
+              "Điện Máy Chợ Lớn / Thế Giới Di Động"
+            ],
+            [
+              "Nokia 220 4G",
+              "Phổ thông 4G",
+              "{{vnd:980000}} / {{vnd:1100000}}",
+              "Điện Máy Chợ Lớn / Thế Giới Di Động"
+            ],
+            [
+              "TCL 60R 5G 4GB/128GB",
+              "Smartphone 5G",
+              "{{vnd:2990000}} (niêm yết {{vnd:3990000}})",
+              "FPT Shop"
+            ],
+            [
+              "Nubia V70 Design 8GB/128GB",
+              "Smartphone",
+              "{{vnd:3390000}} (niêm yết {{vnd:4190000}})",
+              "FPT Shop"
+            ],
+            [
+              "Xiaomi Redmi A7 3GB/64GB",
+              "Smartphone",
+              "{{vnd:3690000}} (niêm yết {{vnd:3890000}}); suất flash sale {{vnd:3180000}}, giới hạn 10 suất",
+              "FPT Shop"
+            ],
+            [
+              "Xiaomi POCO C81 Pro 4GB/128GB",
+              "Smartphone",
+              "{{vnd:3890000}}",
+              "FPT Shop"
+            ],
+            [
+              "Samsung Galaxy A07 4GB/128GB",
+              "Smartphone",
+              "{{vnd:4190000}}",
+              "FPT Shop"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Với Xiaomi Redmi A7, ngày 22/11/2026 trang sản phẩm của FPT Shop ghi giá {{vnd:3690000}}, còn thẻ sản phẩm trên trang danh sách hiện {{vnd:3180000}}. Mức thấp hơn là suất flash sale giới hạn 10 suất, nên đừng tính trước là sẽ mua được giá đó."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Máy phổ thông rẻ nhất có thể không có 4G",
+          "text": "Ngày 21/11/2026, máy phổ thông rẻ nhất trong danh sách của Thế Giới Di Động là Mobell M179 giá {{vnd:410000}}, và tên máy không ghi 4G. Trong 19 máy phổ thông trên trang đó, chỉ 12 máy có chữ 4G trong tên, và không máy nào ghi VoLTE. **Hãy nhờ cửa hàng lắp SIM của bạn vào và gọi thử trước khi trả tiền.**"
+        },
+        {
+          "type": "p",
+          "text": "Trên trang FPT Shop, nhiều mẫu giá rẻ như TCL 60R, Redmi A7, Nubia V70 Design và POCO C81 Pro có nhãn bảo hành 18 tháng. Nhãn này khác nhau theo từng mẫu, nên hãy xem thời hạn bảo hành trên trang sản phẩm."
+        }
+      ]
+    },
+    {
+      "id": "check-volte-o-dau",
+      "title": "Check VoLTE ở đâu? Điện thoại có còn gọi được sau khi tắt 2G?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn check VoLTE ngay trong phần cài đặt mạng di động của máy. Nếu không thấy mục VoLTE hoặc vẫn không gọi được, hãy mang máy và SIM đến điểm giao dịch gần nhất của nhà mạng để được kiểm tra. VoLTE là tính năng gọi thoại qua mạng 4G. Sau khi tắt 2G, máy không có VoLTE có thể mất cuộc gọi, tùy nhà mạng và máy có chuyển sang 3G được hay không."
+        },
+        {
+          "type": "p",
+          "text": "Theo Cục Tần số vô tuyến điện (Bộ Khoa học và Công nghệ), như [Cổng thông tin tỉnh Hà Tĩnh đăng lại](https://hatinh.gov.vn/vi/bai-viet/tat-song-2g-tung-buoc-hoan-tat-qua-trinh-hien-dai-hoa-ha-tang-vien-thong), các nhà mạng tắt sóng 2G trên toàn quốc từ ngày 15/9/2026. Máy chỉ hỗ trợ 2G không còn gọi điện, nhắn tin SMS hay dùng dịch vụ di động được nữa."
+        },
+        {
+          "type": "p",
+          "text": "Theo Tuổi Trẻ News, cái bẫy nằm ở một số máy 4G: máy chỉ dùng 4G cho dữ liệu và chuyển xuống 2G khi gọi. Sau khi tắt 2G, các máy này có thể vẫn lên mạng được nhưng mất cuộc gọi, tùy nhà mạng và máy có chuyển sang 3G được hay không. Dễ gặp lỗi nhất là máy 4G đời cũ, máy mua ở nước ngoài và máy không phân phối chính hãng tại Việt Nam."
+        },
+        {
+          "type": "p",
+          "text": "Theo [Nhân Dân (16/9/2026)](https://nhandan.vn/bat-tinh-nang-volte-truoc-ngay-159-post988619.html), Viettel đã ngừng 3G từ trước nên chỉ còn 4G và 5G. VinaPhone và MobiFone vẫn chạy song song 3G, 4G và 5G, và 3G dự kiến dừng từ tháng 9/2028. Kích hoạt VoLTE hoàn toàn miễn phí. Cước gọi vẫn tính theo phút của gói cước đang dùng, không trừ vào dung lượng 4G/5G. Về chọn nhà mạng và SIM, xem [hướng dẫn SIM và eSIM](/esim-vietnam-guide)."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Tìm mục VoLTE trong cài đặt",
+              "text": "iPhone: Cài đặt, Di động, Tùy chọn dữ liệu di động, Thoại & Dữ liệu, rồi bật VoLTE. Samsung: Cài đặt, Kết nối, Mạng di động. Xiaomi hoặc Redmi: Cài đặt, Thẻ SIM & mạng di động, chọn SIM đang dùng, bật “Sử dụng VoLTE”. Tên mục có thể khác tùy hãng và hệ điều hành."
+            },
+            {
+              "title": "Nhìn thanh trạng thái",
+              "text": "Biểu tượng VoLTE hoặc HD Voice cho biết máy đang gọi qua 4G."
+            },
+            {
+              "title": "Gọi thử",
+              "text": "Tắt Wi-Fi, bật dữ liệu di động, gọi cho một người rồi nhờ họ gọi lại cho bạn."
+            },
+            {
+              "title": "Ra điểm giao dịch nhà mạng nếu vẫn lỗi",
+              "text": "Mang cả máy và SIM đến cửa hàng Viettel, VinaPhone hoặc MobiFone. Nhân viên kiểm tra SIM, cài đặt giúp và cho biết máy có tương thích không."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mua-iphone-gia-re",
+      "title": "Mua iPhone giá rẻ: máy mới hay máy cũ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "iPhone mới ở Việt Nam không rẻ, còn iPhone cũ rẻ hơn nhiều. Theo [cửa hàng trực tuyến của Apple Việt Nam](https://www.apple.com/vn/shop/buy-iphone/iphone-17) ngày 22/11/2026, iPhone 17 có giá {{vnd:28999000}} bản 256GB và {{vnd:35499000}} bản 512GB, đã gồm thuế. Cùng ngày, CellphoneS bán iPhone 17 256GB giá {{vnd:28490000}}. iPhone 17 Pro 256GB có giá {{vnd:31990000}} ở cả CellphoneS và Thế Giới Di Động."
+        },
+        {
+          "type": "p",
+          "text": "Với {{vnd:31990000}} của một chiếc iPhone 17 Pro 256GB, bạn mua được 10 chiếc TCL 60R 5G ở FPT Shop và còn dư {{vnd:2090000}}. So giá iPhone trong nước với nước ngoài có lời không, xem [mua iPhone ở Việt Nam có rẻ hơn không](/huong-dan/mua-iphone-o-viet-nam-co-re-hon-khong)."
+        },
+        {
+          "type": "table",
+          "caption": "Giá iPhone cũ: khảo sát của Kenh14 (đầu tháng 11/2026) và tin đăng Chợ Tốt TP.HCM (đọc ngày 21/11/2026)",
+          "headers": [
+            "Máy",
+            "Giá",
+            "Nguồn"
+          ],
+          "rows": [
+            [
+              "iPhone 15 128GB (cũ)",
+              "{{vnd:11000000-11500000}}",
+              "Kenh14, đầu tháng 11/2026"
+            ],
+            [
+              "iPhone 16 Pro 256GB (cũ)",
+              "{{vnd:20200000-21000000}}",
+              "Kenh14, đầu tháng 11/2026"
+            ],
+            [
+              "iPhone 17 Pro 256GB (cũ)",
+              "{{vnd:27600000-28500000}}",
+              "Kenh14, đầu tháng 11/2026"
+            ],
+            [
+              "iPhone SE 3 64GB",
+              "{{vnd:2490000}}",
+              "Tin đăng Chợ Tốt, Tân Phú"
+            ],
+            [
+              "iPhone 15 Pro 256GB (ghi “QTế”)",
+              "{{vnd:12500000}}",
+              "Tin đăng Chợ Tốt, Quận 3"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Giá trên Chợ Tốt là giá người bán tự đặt, và chính trang này ghi giá chỉ mang tính tham khảo. Cùng ngày có tin rao iPhone 15 128GB giá {{vnd:8300000}} ở Tân Phú, thấp hơn hẳn mức Kenh14 đưa ra. **Giá rẻ bất thường là lý do để kiểm tra kỹ hơn, không phải lý do để vội.** Máy ghi “quốc tế” hay “QTế” là máy không bán chính hãng tại Việt Nam, đúng nhóm Tuổi Trẻ News cảnh báo dễ gặp lỗi VoLTE."
+        },
+        {
+          "type": "p",
+          "text": "Chợ Tốt vẫn ghi tên quận cũ kèm phường mới, ví dụ Tân Phú (phường Tây Thạnh mới) hay Quận 3 (phường Xuân Hòa mới). Từ tháng 7/2025, địa chỉ chính thức ở TP.HCM không còn cấp quận, chỉ ghi phường."
+        }
+      ]
+    },
+    {
+      "id": "dien-thoai-cu-co-bao-hanh",
+      "title": "Mua điện thoại cũ giá rẻ có bảo hành ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Mục “máy đổi trả” của Thế Giới Di Động bán máy cũ có bảo hành của cửa hàng. Đó là máy thu cũ, máy trưng bày và hàng thanh lý. Ngày 21/11/2026, trang này bán Masstel IZI 10 từ {{vnd:150000}} và Nokia 220 4G từ {{vnd:440000}}, trong khi giá máy mới là {{vnd:430000}} và {{vnd:1100000}}. Giá thực tế thay đổi theo tình trạng máy và thời hạn bảo hành còn lại."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Tháng đầu tiên:** máy lỗi kỹ thuật được bảo hành, hoặc đổi máy hay hoàn tiền với phí 10% giá trị trên hóa đơn.",
+            "**Từ tháng thứ hai:** cửa hàng không nhận đổi trả nữa. Chỉ còn bảo hành của hãng, nếu máy còn hạn và đủ điều kiện.",
+            "**Phụ kiện:** trả máy thiếu phụ kiện thì mất phí, tối đa 5% giá trị hóa đơn.",
+            "**Tình trạng máy:** loại máy trưng bày gần như mới có pin từ 85% đến 100%. Loại máy đổi trả trầy nhẹ chỉ ghi pin hoạt động tốt, không ghi phần trăm. Hãy hỏi pin của đúng chiếc bạn mua."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "eno.vn là chợ rao vặt miễn phí cho người nước ngoài và người Việt. Mục [Điện tử](/c/electronics) có người ở Việt Nam đăng bán đồ điện tử. Mua của người bán cá nhân thì không có bảo hành cửa hàng, nên hãy thử máy giống như khi mua trên Chợ Tốt."
+        }
+      ]
+    },
+    {
+      "id": "mua-dien-thoai-gia-re-o-dau-uy-tin",
+      "title": "Mua điện thoại giá rẻ ở đâu uy tín?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu mua máy mới, an toàn nhất là các chuỗi toàn quốc: Thế Giới Di Động, FPT Shop, CellphoneS và Điện Máy Chợ Lớn. Các chuỗi này bán máy chính hãng cho thị trường Việt Nam và ghi rõ bảo hành. Máy cũ rẻ hơn, nhưng kênh càng rẻ thì bạn càng phải tự kiểm tra nhiều."
+        },
+        {
+          "type": "table",
+          "caption": "So sánh các nơi mua điện thoại ở Việt Nam",
+          "headers": [
+            "Nơi mua",
+            "Giá",
+            "Bảo hành",
+            "Rủi ro chính"
+          ],
+          "rows": [
+            [
+              "Chuỗi lớn (máy mới)",
+              "Giá niêm yết hoặc khuyến mãi",
+              "Bảo hành hãng; FPT Shop ghi 18 tháng cho nhiều mẫu giá rẻ",
+              "Mua giá gốc trong khi chuỗi khác đang giảm"
+            ],
+            [
+              "Mục máy đổi trả của chuỗi",
+              "Thấp hơn nhiều so với máy mới",
+              "Thế Giới Di Động: bảo hành hoặc đổi trả trong tháng đầu",
+              "Tin đăng không phải lúc nào cũng ghi tình trạng máy"
+            ],
+            [
+              "Cửa hàng máy xách tay",
+              "Thường rẻ hơn chuỗi",
+              "Tùy cửa hàng, có khi không có",
+              "Máy không làm cho thị trường Việt Nam, có thể thiếu VoLTE"
+            ],
+            [
+              "Người bán cá nhân (Chợ Tốt, rao vặt eno.vn)",
+              "Rẻ nhất",
+              "Không có",
+              "Không có ai chịu trách nhiệm; máy khóa tài khoản, máy gian hoặc máy lỗi"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Trước khi trả tiền cho bất kỳ chiếc máy nào"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "Lắp SIM của bạn vào, tắt Wi-Fi và gọi thử.",
+            "Xem trong cài đặt có mục VoLTE hoặc 4G Calling và bật được không.",
+            "Với iPhone hay Android cũ, kiểm tra tài khoản của chủ cũ đã đăng xuất, để máy không bị khóa theo tài khoản của họ.",
+            "Mua ở cửa hàng thì lấy hóa đơn. Mua của người bán cá nhân thì hẹn ở nơi công cộng và chỉ trả tiền sau khi thử máy."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Check VoLTE ở đâu?",
+      "a": "Check VoLTE trước hết trong cài đặt mạng di động của điện thoại: tìm mục VoLTE hoặc 4G Calling, bật lên và xem thanh trạng thái có biểu tượng VoLTE hay HD Voice không. Nếu không thấy mục VoLTE hoặc vẫn không gọi được, theo Nhân Dân, hãy mang máy và SIM đến điểm giao dịch gần nhất của nhà mạng để kiểm tra máy có tương thích không. Kích hoạt VoLTE miễn phí."
+    },
+    {
+      "q": "Mua điện thoại giá rẻ ở đâu uy tín?",
+      "a": "Mua điện thoại giá rẻ uy tín nhất là ở các chuỗi toàn quốc như Thế Giới Di Động, FPT Shop, CellphoneS và Điện Máy Chợ Lớn, vì các chuỗi bán máy chính hãng và ghi rõ bảo hành. Mục máy đổi trả của Thế Giới Di Động rẻ hơn và có bảo hành hoặc đổi trả trong tháng đầu. Chợ Tốt và rao vặt cá nhân rẻ nhất nhưng không có bảo hành."
+    },
+    {
+      "q": "Điện thoại rẻ nhất hiện nay giá bao nhiêu?",
+      "a": "Điện thoại mới rẻ nhất ngày 22/11/2026 là máy phổ thông Mobell M139 4G ở Điện Máy Chợ Lớn, giá khuyến mãi. Smartphone mới rẻ nhất là TCL 60R 5G 4GB/128GB ở FPT Shop, tiếp theo là Nubia V70 Design, Xiaomi Redmi A7, POCO C81 Pro và Samsung Galaxy A07. Giá cụ thể có trong bảng phía trên và đổi theo khuyến mãi, nên hãy xem lại trang cửa hàng vào ngày mua."
+    },
+    {
+      "q": "Điện thoại 4G có gọi được sau khi tắt 2G không?",
+      "a": "Điện thoại 4G gọi được sau khi tắt 2G nếu máy hỗ trợ VoLTE và VoLTE đã được bật. Theo Tuổi Trẻ News, một số máy 4G chỉ dùng 4G cho dữ liệu và chuyển xuống 2G khi gọi, nên từ ngày 15/9/2026 các máy này có thể mất cuộc gọi, tùy nhà mạng và máy có chuyển sang 3G được hay không. Viettel chỉ còn 4G và 5G. Máy đời cũ, máy xách tay và máy không chính hãng dễ gặp lỗi nhất."
+    },
+    {
+      "q": "Mua iPhone ở Việt Nam có rẻ không?",
+      "a": "iPhone mới ở Việt Nam không rẻ: ngày 22/11/2026, Apple Việt Nam và CellphoneS bán iPhone 17 256GB với giá gần gấp mười lần smartphone 5G rẻ nhất ở FPT Shop. iPhone cũ rẻ hơn nhiều. Kenh14 đưa giá iPhone 15 128GB cũ vào đầu tháng 11/2026, và Chợ Tốt có các đời cũ hơn rẻ hơn nữa. Giá cụ thể nằm trong bảng iPhone phía trên."
+    },
+    {
+      "q": "Mua điện thoại cũ trên Chợ Tốt có an toàn không?",
+      "a": "Mua điện thoại cũ trên Chợ Tốt đủ an toàn nếu bạn thử máy trước khi trả tiền, nhưng giao dịch cá nhân không có bảo hành và Chợ Tốt ghi giá chỉ mang tính tham khảo. Hãy lắp SIM gọi thử khi tắt Wi-Fi, kiểm tra bật được VoLTE và tài khoản chủ cũ đã đăng xuất. Máy ghi “quốc tế” dễ lỗi VoLTE hơn, còn giá rẻ bất thường cần kiểm tra kỹ hơn."
+    },
+    {
+      "q": "Viettel còn 3G không?",
+      "a": "Viettel không còn 3G. Theo Nhân Dân ngày 16/9/2026, Viettel đã ngừng 3G từ trước khi tắt 2G, nên chỉ còn chạy 4G và 5G. VinaPhone và MobiFone vẫn chạy song song 3G, 4G và 5G, và 3G dự kiến dừng từ tháng 9/2028. Vì vậy máy mua mới nên có 4G và VoLTE để dùng được trên cả ba nhà mạng lâu dài."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Tắt sóng 2G - từng bước hoàn tất quá trình hiện đại hóa hạ tầng viễn thông",
+      "publisher": "UBND tỉnh Hà Tĩnh (theo VTV)",
+      "url": "https://hatinh.gov.vn/vi/bai-viet/tat-song-2g-tung-buoc-hoan-tat-qua-trinh-hien-dai-hoa-ha-tang-vien-thong"
+    },
+    {
+      "title": "iPhone 17 – Mua",
+      "publisher": "Apple Việt Nam",
+      "url": "https://www.apple.com/vn/shop/buy-iphone/iphone-17"
+    },
+    {
+      "title": "Bật tính năng VoLTE trước ngày 15/9",
+      "publisher": "Nhân Dân",
+      "url": "https://nhandan.vn/bat-tinh-nang-volte-truoc-ngay-159-post988619.html"
+    },
+    {
+      "title": "Why your 4G smartphone could lose call service as Vietnam shuts down 2G",
+      "publisher": "Tuổi Trẻ News",
+      "url": "https://news.tuoitre.vn/why-your-4g-smartphone-could-lose-call-service-as-vietnam-shuts-down-2g-103260901183630326.htm"
+    },
+    {
+      "title": "Điện thoại phổ thông",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/dtdd-pho-thong"
+    },
+    {
+      "title": "iPhone 17 Pro",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/dtdd/iphone-17-pro"
+    },
+    {
+      "title": "Máy đổi trả – Điện thoại",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/may-doi-tra/dtdd"
+    },
+    {
+      "title": "Điện thoại di động",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai"
+    },
+    {
+      "title": "Xiaomi Redmi A7",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai/xiaomi-redmi-a7?sku=00929627"
+    },
+    {
+      "title": "Điện thoại di động",
+      "publisher": "Điện Máy Chợ Lớn",
+      "url": "https://dienmaycholon.com/dien-thoai-di-dong"
+    },
+    {
+      "title": "Điện thoại giá rẻ",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/bo-loc/dien-thoai-gia-re-duoi-2-trieu"
+    },
+    {
+      "title": "iPhone 17 256GB",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/iphone-17-256gb.html"
+    },
+    {
+      "title": "iPhone 17 Pro",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/iphone-17-pro.html"
+    },
+    {
+      "title": "7 chiếc iPhone bị Apple khai tử đang rớt giá sâu nhất hiện nay",
+      "publisher": "Kenh14",
+      "url": "https://kenh14.vn/7-chiec-iphone-bi-apple-khai-tu-dang-rot-gia-sau-nhat-hien-nay-215261118083820342.chn"
+    },
+    {
+      "title": "Mua bán điện thoại TP Hồ Chí Minh",
+      "publisher": "Chợ Tốt",
+      "url": "https://www.chotot.com/mua-ban-dien-thoai-tp-ho-chi-minh"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-22"
+}

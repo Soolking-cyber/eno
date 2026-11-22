@@ -3,64 +3,78 @@
 
 import g0 from '@/content/guides/apartment-for-rent-in-tay-ho.json'
 import g1 from '@/content/guides/bang-lai-xe-quoc-te-lai-xe-o-viet-nam.json'
-import g2 from '@/content/guides/car-rental-with-driver-ho-chi-minh-city.json'
-import g3 from '@/content/guides/cheapest-phone-in-vietnam.json'
-import g4 from '@/content/guides/cho-nguoi-nuoc-ngoai-thue-nha-tphcm.json'
-import g5 from '@/content/guides/cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm.json'
-import g6 from '@/content/guides/dien-thoai-gia-re-nhat-viet-nam.json'
-import g7 from '@/content/guides/gia-thue-nha-tphcm-theo-quan.json'
-import g8 from '@/content/guides/hieu-truong-phai-biet-tieng-anh-thong-tu-94.json'
-import g9 from '@/content/guides/hire-a-foreign-english-teacher-in-vietnam.json'
-import g10 from '@/content/guides/international-driving-permit-vietnam.json'
-import g11 from '@/content/guides/is-it-cheaper-to-buy-iphone-in-vietnam.json'
-import g12 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
-import g13 from '@/content/guides/mua-iphone-o-viet-nam-co-re-hon-khong.json'
-import g14 from '@/content/guides/muaban-net-alternative.json'
-import g15 from '@/content/guides/rent-prices.json'
-import g16 from '@/content/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city.json'
-import g17 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
-import g18 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
-import g19 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
-import g20 from '@/content/guides/saigonmoving.json'
-import g21 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
-import g22 from '@/content/guides/thue-can-ho-tay-ho.json'
-import g23 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g24 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
-import g25 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
-import g26 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
-import g27 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
-import g28 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
-import g29 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
+import g2 from '@/content/guides/buy-iphone-in-vietnam.json'
+import g3 from '@/content/guides/buy-phone-in-vietnam.json'
+import g4 from '@/content/guides/car-rental-with-driver-ho-chi-minh-city.json'
+import g5 from '@/content/guides/cheap-phones-in-vietnam.json'
+import g6 from '@/content/guides/cheapest-phone-in-vietnam.json'
+import g7 from '@/content/guides/cho-nguoi-nuoc-ngoai-thue-nha-tphcm.json'
+import g8 from '@/content/guides/cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm.json'
+import g9 from '@/content/guides/dien-thoai-gia-re-nhat-viet-nam.json'
+import g10 from '@/content/guides/english-teaching-jobs-in-ho-chi-minh-city.json'
+import g11 from '@/content/guides/gia-thue-nha-tphcm-theo-quan.json'
+import g12 from '@/content/guides/hieu-truong-phai-biet-tieng-anh-thong-tu-94.json'
+import g13 from '@/content/guides/hire-a-foreign-english-teacher-in-vietnam.json'
+import g14 from '@/content/guides/international-driving-permit-vietnam.json'
+import g15 from '@/content/guides/is-it-cheaper-to-buy-iphone-in-vietnam.json'
+import g16 from '@/content/guides/kinh-nghiem-thue-xe-may-viet-nam.json'
+import g17 from '@/content/guides/mua-dien-thoai-gia-re-o-dau.json'
+import g18 from '@/content/guides/mua-dien-thoai-o-dau-uy-tin.json'
+import g19 from '@/content/guides/mua-iphone-o-viet-nam-co-re-hon-khong.json'
+import g20 from '@/content/guides/muaban-net-alternative.json'
+import g21 from '@/content/guides/rent-prices.json'
+import g22 from '@/content/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city.json'
+import g23 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
+import g24 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
+import g25 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
+import g26 from '@/content/guides/saigonmoving.json'
+import g27 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
+import g28 from '@/content/guides/thue-can-ho-tay-ho.json'
+import g29 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g30 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g31 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
+import g32 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
+import g33 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
+import g34 from '@/content/guides/viec-lam-giao-vien-tieng-anh-tphcm.json'
+import g35 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
+import g36 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'apartment-for-rent-in-tay-ho': g0,
   'bang-lai-xe-quoc-te-lai-xe-o-viet-nam': g1,
-  'car-rental-with-driver-ho-chi-minh-city': g2,
-  'cheapest-phone-in-vietnam': g3,
-  'cho-nguoi-nuoc-ngoai-thue-nha-tphcm': g4,
-  'cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm': g5,
-  'dien-thoai-gia-re-nhat-viet-nam': g6,
-  'gia-thue-nha-tphcm-theo-quan': g7,
-  'hieu-truong-phai-biet-tieng-anh-thong-tu-94': g8,
-  'hire-a-foreign-english-teacher-in-vietnam': g9,
-  'international-driving-permit-vietnam': g10,
-  'is-it-cheaper-to-buy-iphone-in-vietnam': g11,
-  'kinh-nghiem-thue-xe-may-viet-nam': g12,
-  'mua-iphone-o-viet-nam-co-re-hon-khong': g13,
-  'muaban-net-alternative': g14,
-  'rent-prices': g15,
-  'rent-your-apartment-to-foreigners-ho-chi-minh-city': g16,
-  'renting-a-motorbike-in-ho-chi-minh-city': g17,
-  'renting-a-motorbike-in-vietnam': g18,
-  'renting-to-foreigners-ho-chi-minh-city': g19,
-  'saigonmoving': g20,
-  'thay-the-muaban-net-dang-tin-mien-phi': g21,
-  'thue-can-ho-tay-ho': g22,
-  'thue-xe-dien-vinfast-tphcm': g23,
-  'thue-xe-may-sai-gon-kinh-nghiem': g24,
-  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g25,
-  'tuyen-giao-vien-nuoc-ngoai': g26,
-  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g27,
-  'vietnam-school-leaders-english-requirements': g28,
-  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g29,
+  'buy-iphone-in-vietnam': g2,
+  'buy-phone-in-vietnam': g3,
+  'car-rental-with-driver-ho-chi-minh-city': g4,
+  'cheap-phones-in-vietnam': g5,
+  'cheapest-phone-in-vietnam': g6,
+  'cho-nguoi-nuoc-ngoai-thue-nha-tphcm': g7,
+  'cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm': g8,
+  'dien-thoai-gia-re-nhat-viet-nam': g9,
+  'english-teaching-jobs-in-ho-chi-minh-city': g10,
+  'gia-thue-nha-tphcm-theo-quan': g11,
+  'hieu-truong-phai-biet-tieng-anh-thong-tu-94': g12,
+  'hire-a-foreign-english-teacher-in-vietnam': g13,
+  'international-driving-permit-vietnam': g14,
+  'is-it-cheaper-to-buy-iphone-in-vietnam': g15,
+  'kinh-nghiem-thue-xe-may-viet-nam': g16,
+  'mua-dien-thoai-gia-re-o-dau': g17,
+  'mua-dien-thoai-o-dau-uy-tin': g18,
+  'mua-iphone-o-viet-nam-co-re-hon-khong': g19,
+  'muaban-net-alternative': g20,
+  'rent-prices': g21,
+  'rent-your-apartment-to-foreigners-ho-chi-minh-city': g22,
+  'renting-a-motorbike-in-ho-chi-minh-city': g23,
+  'renting-a-motorbike-in-vietnam': g24,
+  'renting-to-foreigners-ho-chi-minh-city': g25,
+  'saigonmoving': g26,
+  'thay-the-muaban-net-dang-tin-mien-phi': g27,
+  'thue-can-ho-tay-ho': g28,
+  'thue-xe-dien-vinfast-tphcm': g29,
+  'thue-xe-may-sai-gon-kinh-nghiem': g30,
+  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g31,
+  'tuyen-giao-vien-nuoc-ngoai': g32,
+  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g33,
+  'viec-lam-giao-vien-tieng-anh-tphcm': g34,
+  'vietnam-school-leaders-english-requirements': g35,
+  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g36,
 }

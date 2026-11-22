@@ -59,6 +59,13 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'dien-thoai-gia-re-nhat-viet-nam', lang: 'vi', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: '77ce25d1dec477e2', pair: 'cheapest-phone-in-vietnam' },
   { slug: 'gia-thue-nha-tphcm-theo-quan', lang: 'vi', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: 'a717a85038880616', pair: 'rent-prices' },
   { slug: 'rent-prices', lang: 'en', published: '2026-11-20', reviewed: '2026-11-20', reviewedDigest: '8b69cd20f37da914', pair: 'gia-thue-nha-tphcm-theo-quan' },
+  { slug: 'buy-iphone-in-vietnam', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: 'f6ec19a4ed19895f' },
+  { slug: 'mua-dien-thoai-o-dau-uy-tin', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '35ca5ccfe75f3c58', pair: 'buy-phone-in-vietnam' },
+  { slug: 'english-teaching-jobs-in-ho-chi-minh-city', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: 'd8ec140b05cd315c', pair: 'viec-lam-giao-vien-tieng-anh-tphcm' },
+  { slug: 'viec-lam-giao-vien-tieng-anh-tphcm', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '6df66ad202e60e3d', pair: 'english-teaching-jobs-in-ho-chi-minh-city' },
+  { slug: 'mua-dien-thoai-gia-re-o-dau', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '7d9de566272b5e0a', pair: 'cheap-phones-in-vietnam' },
+  { slug: 'buy-phone-in-vietnam', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: 'aa3ce07b0d9d4d4e', pair: 'mua-dien-thoai-o-dau-uy-tin' },
+  { slug: 'cheap-phones-in-vietnam', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: 'c33f12bdc455655e', pair: 'mua-dien-thoai-gia-re-o-dau' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

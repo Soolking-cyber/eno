@@ -1,0 +1,475 @@
+{
+  "slug": "buy-phone-in-vietnam",
+  "title": "Buy a phone in Vietnam: where, prices, 4G rules (2026)",
+  "description": "Where to buy a phone in Vietnam, November 2026 prices for iPhone and Samsung, why a phone should support VoLTE since 2G ended, and warranty traps to avoid.",
+  "h1": "Buying a phone in Vietnam: where to buy, what it costs and which phones still make calls",
+  "eyebrow": "Living in Vietnam",
+  "intro": "You can buy a phone in Vietnam from Apple's online store or from national chains such as Thế Giới Di Động and FPT Shop. Since 2G was switched off from 16 September 2026, make sure the phone supports 4G calling (VoLTE). Official stock carries a manufacturer warranty whose length depends on the brand and model. Prices change weekly, so check the product page on the day you buy. The tables below give prices seen on 21 November 2026.",
+  "keyPoints": [
+    "Buy official stock (marked **chính hãng**, and **VN/A** on iPhones) from Apple's Vietnam online store or an authorised chain. Imported \"xách tay\" handsets carry the highest risk of losing calls since 2G ended.",
+    "2G ran until the end of **15 September 2026** and was switched off nationwide from 0:00 on **16 September 2026**. A phone without 4G calling (VoLTE) may now lose calls, depending on the network and whether it falls back to 3G: Viettel runs only 4G and 5G, while VinaPhone and MobiFone still run 3G. The government has said 3G will end by 2028.",
+    "On 21 November 2026, Thế Giới Di Động's cheapest Samsung Galaxy A was {{vnd:3270000}} and its cheapest iPhone was {{vnd:11790000}} (an iPhone 12).",
+    "Apple Vietnam priced the iPhone 18 Pro from {{vnd:38999000}} in September 2026, and chains listed the same phone at about the same price.",
+    "Thế Giới Di Động's \"Hư gì đổi nấy\" scheme swaps a faulty phone at no charge in the first month. A refund costs 20% of the invoice in that month.",
+    "If you're leaving Vietnam, check the VAT refund at the airport. It needs at least {{vnd:2000000}} spent in one shop on one day, and the goods must be unused."
+  ],
+  "sections": [
+    {
+      "id": "where-to-buy-a-phone-in-vietnam",
+      "title": "Where to buy a phone in Vietnam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Buy from Apple's own Vietnamese online store or from a large authorised chain. These sellers have **official Vietnamese stock**, give a proper invoice and honour the manufacturer warranty. Apple launched its online store in Vietnam in May 2023. [According to Apple](https://www.apple.com/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/), it offers trade-in and up to 24 months of financing through MoMo."
+        },
+        {
+          "type": "p",
+          "text": "Thế Giới Di Động is the largest of the chains. Its product pages said on 21 November 2026 that its exchange scheme runs at 3,281 stores nationwide. FPT Shop calls itself an authorised Apple dealer, and its iPhone page says its iPhones carry the VN/A code and Apple-standard warranty. Several smaller phone chains also sell official iPhones. VnExpress named Di Dong Viet, Hoang Ha Mobile and Minh Tuan Mobile in October 2026."
+        },
+        {
+          "type": "table",
+          "caption": "Where to buy a phone in Vietnam, compared (from the sellers' own pages, read 21 November 2026)",
+          "headers": [
+            "Where",
+            "What you get",
+            "The catch"
+          ],
+          "rows": [
+            [
+              "Apple online store (apple.com/vn)",
+              "Official iPhones at Apple's list price, trade-in, financing through MoMo",
+              "Rarely the cheapest. Chains often discount older models"
+            ],
+            [
+              "National chains (Thế Giới Di Động, FPT Shop)",
+              "Official stock of every major brand, store warranty schemes on top of the maker's, many branches in every city",
+              "Promotions change daily, and the headline price often depends on a bank card or trade-in"
+            ],
+            [
+              "Smaller phone chains (Di Dong Viet, Hoang Ha Mobile, Minh Tuan Mobile)",
+              "Official iPhones and Android phones, sometimes keener prices",
+              "Check the shop says chính hãng and gives a VAT invoice"
+            ],
+            [
+              "Small shops selling \"xách tay\" (imported) phones",
+              "Models not sold officially, sometimes lower prices",
+              "No Vietnamese warranty. These are the phones most at risk of losing calls since 2G ended (see below)"
+            ],
+            [
+              "Second-hand from a person",
+              "The lowest price",
+              "No warranty. Test calls with your own SIM before you pay"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For second-hand phones and other electronics, people post on eno.vn's [electronics listings](/c/electronics). The same page works when you sell your phone before you leave. See [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "how-much-is-a-phone-in-vietnam",
+      "title": "How much is a phone in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 21 November 2026, a new smartphone at Thế Giới Di Động cost between {{vnd:3270000}} for a basic Samsung Galaxy A07 and {{vnd:64990000}} for Apple's foldable iPhone Duo. Mid-range Android phones sit in the {{vnd:5000000-10000000}} band. In the table below, the Galaxy A18, A26 and A37 fall in it. The listed prices are promotional and change often. Thế Giới Di Động's Galaxy A18 page said its price for Ho Chi Minh City applied until 22 November."
+        },
+        {
+          "type": "table",
+          "caption": "Samsung Galaxy A prices at Thế Giới Di Động, as listed on 21 November 2026 (promotional price, list price in brackets)",
+          "headers": [
+            "Model",
+            "Price",
+            "List price"
+          ],
+          "rows": [
+            [
+              "Galaxy A07 4GB/64GB",
+              "{{vnd:3270000}}",
+              "{{vnd:3890000}}"
+            ],
+            [
+              "Galaxy A17 4GB/128GB",
+              "{{vnd:4670000}}",
+              "{{vnd:5690000}}"
+            ],
+            [
+              "Galaxy A07 5G 6GB/128GB",
+              "{{vnd:4700000}}",
+              "{{vnd:6990000}}"
+            ],
+            [
+              "Galaxy A18 4GB/128GB",
+              "{{vnd:6370000}}",
+              "{{vnd:6590000}}"
+            ],
+            [
+              "Galaxy A26 5G 8GB/256GB",
+              "{{vnd:7340000}}",
+              "{{vnd:8390000}}"
+            ],
+            [
+              "Galaxy A37 5G 6GB/128GB",
+              "{{vnd:9500000}}",
+              "{{vnd:11190000}}"
+            ],
+            [
+              "Galaxy A57 5G 12GB/256GB",
+              "{{vnd:12600000}}",
+              "{{vnd:16490000}}"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "caption": "Selected iPhone prices at Thế Giới Di Động and FPT Shop, as listed on 21 November 2026",
+          "headers": [
+            "Model",
+            "Thế Giới Di Động",
+            "FPT Shop"
+          ],
+          "rows": [
+            [
+              "iPhone 12 64GB",
+              "{{vnd:11790000}}",
+              "not checked"
+            ],
+            [
+              "iPhone 13 128GB",
+              "{{vnd:11990000}}",
+              "not checked"
+            ],
+            [
+              "iPhone 16e 128GB",
+              "{{vnd:15990000}}",
+              "{{vnd:17990000}}"
+            ],
+            [
+              "iPhone 15 128GB",
+              "{{vnd:21990000}}",
+              "{{vnd:20990000}}"
+            ],
+            [
+              "iPhone 17e 256GB",
+              "{{vnd:21990000}}",
+              "{{vnd:20990000}}"
+            ],
+            [
+              "iPhone 17 256GB",
+              "{{vnd:28990000}}",
+              "{{vnd:27990000}}"
+            ],
+            [
+              "iPhone 18 Pro 256GB",
+              "{{vnd:38990000}}",
+              "not checked"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Prices for the same model differ between chains, sometimes by more than {{vnd:1000000}}, so compare at least two before you buy. A budget phone from Thế Giới Di Động comes without a charger. The Galaxy A18 box holds only a USB-C cable and a SIM tool. For the cheapest phones that still work on today's network, see eno.vn's guide to the [cheapest phone in Vietnam](/guides/cheapest-phone-in-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "buying-an-iphone-in-vietnam",
+      "title": "Buying an iPhone in Vietnam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "An official iPhone in Vietnam costs about the same at Apple and at the big chains when it is new. Chains then cut prices on older models. According to VietNamNet, as of September 2026, Apple's Vietnamese prices were {{vnd:38999000}} for the iPhone 18 Pro and {{vnd:41999000}} for the iPhone 18 Pro Max. Thế Giới Di Động listed both at {{vnd:9000}} less on 21 November 2026."
+        },
+        {
+          "type": "p",
+          "text": "Cheap new iPhones are disappearing. According to VnExpress, as of October 2026, Apple's Vietnamese online store listed no iPhone below {{vnd:20000000}}, and the iPhone 17e had risen from its March launch price of {{vnd:18000000}} to {{vnd:22000000}}. On 21 November 2026, Thế Giới Di Động still listed some older stock below that, including the iPhone 16e, 13 and 12 (see the table above)."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Look for VN/A",
+          "text": "Official iPhones for the Vietnamese market carry a model code ending in **VN/A** (Settings, General, About). [FPT Shop's iPhone page](https://fptshop.com.vn/dien-thoai/apple-iphone) says its stock carries that code. If a cheap iPhone has a different code, it is an import (xách tay) and the Vietnamese warranty schemes do not cover it."
+        },
+        {
+          "type": "p",
+          "text": "Whether an iPhone costs less in Vietnam than at home depends on your home price and on whether you can claim the VAT refund when you leave. eno.vn's guide [is it cheaper to buy an iPhone in Vietnam?](/guides/is-it-cheaper-to-buy-iphone-in-vietnam) compares the two."
+        }
+      ]
+    },
+    {
+      "id": "phones-in-vietnam-after-the-2g-shutdown",
+      "title": "Which phones work in Vietnam after the 2G shutdown?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "In Vietnam, a phone needs 4G with **VoLTE** (voice over 4G) switched on to be sure of making and receiving calls. Under the national roadmap, 2G ran until the end of 15 September 2026, and mobile operators switched it off nationwide from 0:00 on 16 September 2026. The only exceptions are services for the Truong Sa and Hoang Sa islands and the DK platforms. [VietNamNet reported](https://vietnamnet.vn/en/vietnam-says-goodbye-to-2g-after-a-30-year-mobile-revolution-2555265.html) the switch-off on 15 September. 3G is next: according to VnExpress, the Authority of Telecommunications said in April 2025 that 3G would end by 2028."
+        },
+        {
+          "type": "p",
+          "text": "Whether a phone without VoLTE still makes calls depends on the network. [According to VietNamNet](https://vietnamnet.vn/en/vietnam-officially-retires-2g-auctions-900mhz-spectrum-for-4g-5g-2553308.html), as of September 2026, Viettel had already retired 3G and runs only 4G and 5G, while VNPT (VinaPhone) and MobiFone switched off only 2G and keep running 3G alongside 4G and 5G. A phone without VoLTE may lose calls after the 2G switch-off, depending on the network and whether it falls back to 3G."
+        },
+        {
+          "type": "p",
+          "text": "According to Tuoi Tre News, as of September 2026, a 4G phone without VoLTE, or with VoLTE not switched on, may be unable to make or receive calls, although it can still use mobile data. The SIM must also be a 4G or 5G SIM, and the operator must have activated VoLTE on the line. The phones most at risk are those imported from overseas markets, older smartphones and models not officially sold in Vietnam."
+        },
+        {
+          "type": "p",
+          "text": "Phones sold officially in Vietnam should be safe. [VnExpress reported](https://e.vnexpress.net/news/tech/tech-news/vietnam-to-switch-fully-to-4g-5g-by-2028-4877527.html) that from 1 July 2024, every 4G phone made in or imported into Vietnam must support VoLTE. Before you buy any phone, or bring one from home, check for the VoLTE setting."
+        },
+        {
+          "type": "table",
+          "caption": "Where to find the VoLTE switch (from Tuoi Tre News, September 2026)",
+          "headers": [
+            "Phone",
+            "Menu path"
+          ],
+          "rows": [
+            [
+              "iPhone",
+              "Settings → Mobile (Cellular) → Mobile Data Options → Voice & Data, turn on VoLTE"
+            ],
+            [
+              "Samsung",
+              "Settings → Connections → Mobile Networks, enable VoLTE calls"
+            ],
+            [
+              "Oppo / Realme",
+              "Settings → Mobile Network (or SIM & Mobile Network), turn on VoLTE calls"
+            ],
+            [
+              "Xiaomi / Redmi",
+              "Settings → SIM cards & mobile networks → choose the SIM → Use VoLTE"
+            ],
+            [
+              "Other Android phones",
+              "Settings → SIM & Mobile Network, look for Use VoLTE or 4G Calling"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Test a call before you pay",
+          "text": "A phone can show full signal bars and still fail every call. Put your own Vietnamese SIM in the phone and make and receive a real call before you hand over money, especially for a second-hand or xách tay phone. If you are buying a phone to claim the VAT refund when you leave, test calls on the shop's demo unit or check the phone without breaking the seal, because the refund needs the phone unused. If calls fail with VoLTE switched on, take the phone and SIM to your operator's service centre. For SIMs and numbers, see the [eSIM and SIM guide](/esim-vietnam-guide)."
+        }
+      ]
+    },
+    {
+      "id": "buying-a-phone-in-vietnam-step-by-step",
+      "title": "Buying a phone in Vietnam, step by step",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Pick the model and compare two chains",
+              "text": "Check the price on Apple's Vietnamese store or the maker's site, then on two chains. Look at the price for your city. Listings change often and often run to a set date."
+            },
+            {
+              "title": "Read the conditions on the price",
+              "text": "Many headline prices need a particular bank card, a pay-later plan or a trade-in. On 21 November 2026, Thế Giới Di Động's Galaxy A18 page offered VPBank and HOME PayLater discounts. Ask for the price you pay in cash or by your own card."
+            },
+            {
+              "title": "Check it is official stock",
+              "text": "Ask whether the phone is chính hãng (official). On an iPhone, look for a model code ending in VN/A. Check the box is sealed."
+            },
+            {
+              "title": "Test calls and VoLTE in the shop",
+              "text": "Insert your SIM, find the VoLTE switch and make a call. Most shops will open the box and set the phone up with you. If you plan to claim the VAT refund when you leave, check the phone in the shop without activating it, because the refund needs the phone unused."
+            },
+            {
+              "title": "Get the invoice and the warranty terms",
+              "text": "Ask for the invoice (hóa đơn) and keep the box. Both matter for exchanges, warranty claims and, if you are leaving, the VAT refund."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warranty-and-returns",
+      "title": "Warranty and returns on a phone bought in Vietnam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "An official phone comes with a **manufacturer warranty** at the brand's service centres, and its length depends on the brand and model. On 22 November 2026, [FPT Shop's phone listings](https://fptshop.com.vn/dien-thoai/tu-1-3-trieu) showed **18 months** on several budget models, including the TCL 60R 5G and Nubia V70 Design, and 2 years on others. Chains add their own exchange scheme on top, and the scheme's terms matter more than the price tag. Imported xách tay phones do not get either. Whatever warranty they have is the seller's own."
+        },
+        {
+          "type": "p",
+          "text": "[Thế Giới Di Động's policy page](https://www.thegioididong.com/chinh-sach-bao-hanh-san-pham) was checked on 21 November 2026. Its \"Hư gì đổi nấy\" (replace whatever breaks) scheme swaps a faulty phone for the same model, capacity and colour at no charge in the first month. From the second to the twelfth month, it charges a fee based on the invoice value. Software faults are repaired, not swapped. The phone must be unscratched and returned with the box and every accessory."
+        },
+        {
+          "type": "p",
+          "text": "Changing your mind costs money. The same policy charges 20% of the invoice value to return a phone for a refund in the first month, plus deductions for a missing box or accessories. Store policies differ between chains, so ask before you pay and keep the invoice."
+        }
+      ]
+    },
+    {
+      "id": "vat-refund-when-leaving-vietnam",
+      "title": "Getting the VAT back when you leave Vietnam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Foreigners leaving Vietnam can claim back part of the VAT on goods they take abroad unused. The legal basis is Circular 84/2026/TT-BTC of 30 June 2026. [According to LuatVietnam](https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html), as of July 2026, the main conditions are:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "You need a foreign passport, and you leave through a border gate that handles VAT refunds, such as an international airport.",
+            "You spend at least {{vnd:2000000}} in the same shop on the same day. Invoices from that shop on that day can be combined.",
+            "The shop must be registered for VAT refunds and must issue the refund declaration no more than 60 days before you leave.",
+            "The phone must be unused and in its original packaging.",
+            "You show the goods and paperwork to customs at least 30 minutes before departure.",
+            "You get back 85% of the VAT, paid in đồng. The refund bank keeps the other 15% as its fee."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Ask at the till whether the shop issues the VAT refund declaration before you pay. You cannot claim it afterwards. For everything else to sort out before a move, see the [checklist for leaving Vietnam](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How much is a phone in Vietnam?",
+      "a": "On 21 November 2026, the cheapest new Samsung Galaxy A at Thế Giới Di Động, the Galaxy A07, cost about 28% of the cheapest new iPhone it listed, a little over a quarter. Most mid-range Android phones sat between those two prices. New iPhone 18 Pro models cost several times more. Phone prices in Vietnam are promotional and change weekly, so check the chain's product page for your city on the day you buy."
+    },
+    {
+      "q": "Where to buy a phone in Vietnam?",
+      "a": "The safest places to buy a phone in Vietnam are Apple's Vietnamese online store and authorised national chains such as Thế Giới Di Động and FPT Shop. These sellers have official Vietnamese stock, give a VAT invoice and honour the manufacturer warranty, whose length depends on the brand and model. Smaller chains such as Di Dong Viet and Hoang Ha Mobile also sell official phones. Small shops selling imported xách tay phones are cheaper but carry no Vietnamese warranty."
+    },
+    {
+      "q": "Is it cheaper to buy an iPhone in Vietnam?",
+      "a": "An iPhone in Vietnam is not automatically cheaper. Apple sets Vietnamese list prices for new models, and the big chains sell at almost the same price at launch, then discount older models. The comparison depends on your home price after tax and on whether you can claim the VAT refund when leaving Vietnam. That refund returns 85% of the VAT on unused goods taken abroad."
+    },
+    {
+      "q": "Will my phone from home work in Vietnam?",
+      "a": "A phone from home is safest for calls in Vietnam if it supports 4G with VoLTE and VoLTE is switched on. Vietnam switched off 2G from 16 September 2026, and a phone without VoLTE may lose calls, depending on the network and whether it falls back to 3G. Viettel no longer runs 3G, while VinaPhone and MobiFone still do. Tuoi Tre News reported that phones imported from overseas markets are most at risk. Check the VoLTE setting and test a call with a Vietnamese SIM."
+    },
+    {
+      "q": "What does VN/A mean on an iPhone in Vietnam?",
+      "a": "VN/A at the end of an iPhone's model code means the iPhone was made for official sale in Vietnam. The code is under Settings, General, About. FPT Shop says the iPhones it sells as an authorised Apple dealer carry the VN/A code and Apple-standard warranty. An iPhone with a different code sold in Vietnam is usually an import (xách tay) and is not covered by Vietnamese store warranty schemes."
+    },
+    {
+      "q": "Should I buy a xách tay phone in Vietnam?",
+      "a": "A xách tay phone in Vietnam is a handset imported outside official channels. It can be cheaper or a model not sold locally, but it has no Vietnamese manufacturer warranty. Since 2G ended in September 2026, these phones are also the most likely to lose calls. If you still buy one, insert your own SIM, switch on VoLTE and make and receive a real call before paying."
+    },
+    {
+      "q": "Can foreigners get a VAT refund on a phone bought in Vietnam?",
+      "a": "Foreigners leaving Vietnam can claim a VAT refund on a phone under Circular 84/2026/TT-BTC. The purchase must reach the minimum spend in one shop on one day, and the shop must be registered for VAT refunds. The phone must be unused and in its box, and you must leave Vietnam within 60 days of the date on the shop's VAT refund invoice. Customs checks the goods at the airport, and the refund is 85% of the VAT paid."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Apple Vietnam",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/vn/"
+    },
+    {
+      "title": "Apple launches Apple Store online in Vietnam",
+      "publisher": "Apple Newsroom",
+      "url": "https://www.apple.com/newsroom/2023/05/apple-launches-apple-store-online-in-vietnam/"
+    },
+    {
+      "title": "Điện thoại iPhone (Apple) chính hãng",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/dtdd-apple-iphone"
+    },
+    {
+      "title": "Điện thoại Samsung Galaxy A",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/dtdd-samsung-galaxy-a"
+    },
+    {
+      "title": "Samsung Galaxy A18 4GB/128GB",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/dtdd/samsung-galaxy-a18-4gb-128gb"
+    },
+    {
+      "title": "Chính sách bảo hành sản phẩm",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/chinh-sach-bao-hanh-san-pham"
+    },
+    {
+      "title": "iPhone chính hãng",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai/apple-iphone"
+    },
+    {
+      "title": "Điện thoại",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/dien-thoai/tu-1-3-trieu"
+    },
+    {
+      "title": "Why your 4G smartphone could lose call service as Vietnam shuts down 2G",
+      "publisher": "Tuoi Tre News",
+      "url": "https://news.tuoitre.vn/why-your-4g-smartphone-could-lose-call-service-as-vietnam-shuts-down-2g-103260901183630326.htm"
+    },
+    {
+      "title": "Vietnam says goodbye to 2G after a 30-year mobile revolution",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/vietnam-says-goodbye-to-2g-after-a-30-year-mobile-revolution-2555265.html"
+    },
+    {
+      "title": "Vietnam officially retires 2G, auctions 900MHz spectrum for 4G and 5G",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/vietnam-officially-retires-2g-auctions-900mhz-spectrum-for-4g-5g-2553308.html"
+    },
+    {
+      "title": "Vietnam to switch fully to 4G, 5G by 2028",
+      "publisher": "VnExpress International",
+      "url": "https://e.vnexpress.net/news/tech/tech-news/vietnam-to-switch-fully-to-4g-5g-by-2028-4877527.html"
+    },
+    {
+      "title": "Apple reveals Vietnam prices for iPhone 18 Pro and foldable duo",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/apple-reveals-vietnam-prices-for-iphone-18-pro-and-foldable-duo-2553978.html"
+    },
+    {
+      "title": "Cheapest new iPhone in Vietnam now starts at $770 as older models vanish",
+      "publisher": "VnExpress International",
+      "url": "https://e.vnexpress.net/news/tech/tech-news/cheapest-new-iphone-in-vietnam-now-starts-at-770-as-older-models-vanish-5133061.html"
+    },
+    {
+      "title": "Conditions for VAT refunds for foreigners upon departure",
+      "publisher": "LuatVietnam",
+      "url": "https://english.luatvietnam.vn/legal-news/conditions-for-vat-refunds-for-foreigners-upon-departure-4729-110896-article.html"
+    }
+  ],
+  "related": [
+    "your-first-weeks-in-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "banking-and-sending-money-home-from-vietnam",
+    "leaving-vietnam-checklist-for-teachers"
+  ],
+  "lastChecked": "2026-11-22",
+  "images": {
+    "hero": {
+      "id": "047584c39a716cdfc7397867416fd488cab5e01a440b2fbc1ffc8fd259c1fc4b",
+      "w": 1672,
+      "h": 941,
+      "alt": "A stylized phone stands between an abstract shop and laptop, surrounded by foliage and a shield symbol.",
+      "caption": "Buying a phone in Vietnam, online or in a shop."
+    },
+    "figures": [
+      {
+        "id": "00a3045b38cce16688fca0b8a9015dca30957006d020c6b5871c6f08a093f2ad",
+        "w": 1448,
+        "h": 1086,
+        "after": "phones-in-vietnam-after-the-2g-shutdown",
+        "alt": "A blank phone, handset symbol, radio waves and mobile tower appear beside a green check mark.",
+        "caption": "Check that the phone supports 4G calling through VoLTE."
+      },
+      {
+        "id": "7bf03c36785560d485fde5e7f2ecede8d0ffd5b8cf135a7a5a6713201ad64ed3",
+        "w": 1448,
+        "h": 1086,
+        "after": "buying-a-phone-in-vietnam-step-by-step",
+        "alt": "A dotted path connects two phones, a phone under a magnifying glass, and a boxed phone beside a shield.",
+        "caption": "Compare phones, inspect the device and check warranty terms before buying."
+      }
+    ]
+  }
+}
