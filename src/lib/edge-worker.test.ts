@@ -249,7 +249,7 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
 
   it('⛔ an AI fetcher asking for /, /terms or /privacy with Accept: text/html is sent to the origin asking for markdown', async () => {
     await call('/') // plant an HTML entry
-    for (const [ua, path] of [['Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)', '/'], ['Claude-User/1.0', '/terms'], ['Perplexity-User/1.0', '/privacy'], ['GPTBot/1.2', '/']]) {
+    for (const [ua, path] of [['Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)', '/'], ['Claude-User/1.0', '/terms'], ['Perplexity-User/1.0', '/privacy']]) {
       h.matched = []
       h.origin = []
       h.respond = () => ({ html: '# eno.vn', headers: { 'content-type': 'text/markdown; charset=utf-8' } })
@@ -262,11 +262,14 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
     h.respond = () => ({})
   })
 
-  it('⛔ never for a search engine\'s crawler, a browser, another path or the forum\'s zone', async () => {
+  it('⛔ never for a crawler (search engines\' or the AI assistants\'), a browser, another path or the forum\'s zone', async () => {
     // The origin answers markdown ONLY when asked for it: if the Worker wrongly asked, the response turns markdown and
     // this fails, whether or not the request was answered from the cache (commit gate, opus).
     h.respond = (req: Request) => (req.headers.get('accept') === 'text/markdown' ? { html: '# md', headers: { 'content-type': 'text/markdown; charset=utf-8' } } : {})
     for (const [ua, path, host] of [['Mozilla/5.0 (compatible; Googlebot/2.1)', '/', 'eno.vn'], ['Mozilla/5.0 (compatible; bingbot/2.0)', '/', 'eno.vn'],
+      // The AI assistants' crawlers read the HTML, as an audit of "content in the raw HTML" does (owner 2026-11-22).
+      ['Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)', '/', 'eno.vn'], ['ClaudeBot/1.0', '/', 'eno.vn'], ['OAI-SearchBot/1.0', '/', 'eno.vn'],
+      ['Claude-SearchBot/1.0', '/', 'eno.vn'], ['PerplexityBot/1.0', '/', 'eno.vn'],
       ['Mozilla/5.0 (Macintosh) Safari/605.1.15', '/terms', 'eno.vn'], ['ChatGPT-User/1.0', '/c/rentals', 'eno.vn'], ['ChatGPT-User/1.0', '/', 'www.eno.forum'],
       ['ChatGPT-User/1.0', '/?category=teachers', 'eno.vn']]) {
       const r = await worker.fetch(new Request(`https://${host}${path}`, { headers: { 'user-agent': ua, accept: 'text/html' } }), {}, ctx)

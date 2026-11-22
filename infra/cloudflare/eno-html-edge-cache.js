@@ -835,7 +835,13 @@ export default {
 };
 
 /** The AI fetchers and crawlers that get markdown for a negotiated page (see the bypass in handle()). */
-const AGENT_MARKDOWN_UA = /\b(?:ChatGPT-User|OAI-SearchBot|GPTBot|Claude-User|Claude-SearchBot|ClaudeBot|Perplexity-User|PerplexityBot)\b/i;
+/**
+ * ⛔ ONLY THE ASSISTANTS FETCHING FOR A PERSON (owner 2026-11-22): ChatGPT-User, Claude-User and Perplexity-User — a page a reader's
+ * question pulled in, where markdown is what the assistant reads. The CRAWLERS (GPTBot, ClaudeBot, OAI-SearchBot, Claude-SearchBot,
+ * PerplexityBot) get the HTML, as Googlebot does: an audit of "content in the raw HTML" fetches as one of them, and the home page's
+ * HTML is what it measures (H1, headings, ~11k characters). Any agent still gets markdown by asking for it (Accept: text/markdown).
+ */
+const AGENT_MARKDOWN_UA = /\b(?:ChatGPT-User|Claude-User|Perplexity-User)\b/i;
 const AGENT_MARKDOWN_PATHS = new Set(["/", "/terms", "/privacy"]);
 
 function agentWantsMarkdown(request, url) {
@@ -911,12 +917,12 @@ async function handle(request, env, ctx, url) {
     if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
     /**
      * ⛔ AN AI FETCHER ASKING FOR A PAGE THE ORIGIN ALSO SERVES AS MARKDOWN GETS THE MARKDOWN (ora.ai agent-ua-markdown,
-     * owner 2026-11-16 "do recommended"): ChatGPT-User, Claude-User, Perplexity-User and their crawlers send Accept:
-     * text/html, so the negotiation above never fires for them. ONLY the three paths the origin negotiates (`/`, `/terms`,
-     * `/privacy` — next.config.ts ACCEPT_MARKDOWN), only on eno.vn's own hosts, and NEVER Google's or Bing's crawler
-     * (Googlebot, bingbot are not on the list): their index keeps the HTML. The AI assistants' own search crawlers
-     * (OAI-SearchBot, Claude-SearchBot, PerplexityBot) ARE on it, deliberately — markdown is what they read. Same bypass as
-     * above — never stored here, and the origin's markdown is `no-store` + `vary: accept` (markdown-response.ts).
+     * owner 2026-11-16 "do recommended"): ChatGPT-User, Claude-User and Perplexity-User send Accept: text/html, so the
+     * negotiation above never fires for them. ONLY the three paths the origin negotiates (`/`, `/terms`, `/privacy` —
+     * next.config.ts ACCEPT_MARKDOWN), only on eno.vn's own hosts, and NEVER a crawler: since 2026-11-22 (owner) the AI
+     * assistants' crawlers (GPTBot, ClaudeBot, OAI-SearchBot, Claude-SearchBot, PerplexityBot) get the HTML like Googlebot and
+     * bingbot (AGENT_MARKDOWN_UA has why). Same bypass as above — never stored here, and the origin's markdown is `no-store`
+     * + `vary: accept` (markdown-response.ts).
      */
     if (agentWantsMarkdown(request, url)) {
       const headers = new Headers(request.headers);
