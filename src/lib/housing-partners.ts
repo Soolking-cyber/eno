@@ -138,7 +138,8 @@ const AMOUNT = String.raw`(\d{1,3}(?:[,.]\d{3})+|\d+)`
 /** "US$1,200", "USD 70", "$950", then "70 usd", "1.200 USD", "950$" — prefix forms first, so "US$" is eaten whole. */
 const DOLLARS = new RegExp(String.raw`(?:US\$|USD|\$)\s?${AMOUNT}(?![\d.,]*\d)|(?<![\d.,])${AMOUNT}\s?(?:USD|US\$|\$)`, 'gi')
 /** Anything dollar-like left after the rewrite: such a line is DROPPED (fail closed), never published half-converted. */
-const DOLLAR_LEFT = /\$|usd|\bdollars?\b|\bđô\b/i
+// "50 đô" is fifty dollars; "đô thị" (urban) is not money, so only a number before it counts.
+const DOLLAR_LEFT = /\$|usd|\bdollars?\b|\d\s*đô(?!\p{L})/iu
 /** A range or a pair of amounts around one currency mark ("50-60 USD", "$700 - 800", "700 to 800$"): never rewritten. */
 const DOLLAR_RANGE = /\d[\d,.]*\s?(?:[-–~]|to)\s?(?:US\$|USD|\$)?\s?\d[\d,.]*\s?(?:USD|US\$|\$)|(?:US\$|USD|\$)\s?\d[\d,.]*\s?(?:[-–~]|to)\s?\d/i
 

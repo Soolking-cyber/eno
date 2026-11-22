@@ -100,6 +100,9 @@ describe('dollarsToDong', () => {
     expect(dollarsToDong('Rent 700 to 800$ by floor', 25_000)).toBeNull()
     expect(dollarsToDong('Rent $700 - 800 by floor', 25_000)).toBeNull()
     expect(dollarsToDong('Cleaning 500 US dollars a month', 25_000)).toBeNull()
+    // Vietnamese "đô" (dollars) — a word boundary cannot see non-ASCII letters, so the rule anchors on letters itself.
+    expect(dollarsToDong('Phí quản lý 50 đô/tháng', 25_000)).toBeNull()
+    expect(dollarsToDong('Gần khu đô thị mới', 25_000)).toBe('Gần khu đô thị mới')
     expect(dollarsToDong('A quiet lane near the lake', 25_000)).toBe('A quiet lane near the lake')
   })
 })
