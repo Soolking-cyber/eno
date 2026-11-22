@@ -163,6 +163,7 @@ export const UI_STRINGS: string[] = [
   "AI help is free with an account. Tip: sign in with an email code to keep your photos on this page.",
   "AI help is off. Fill in the details yourself, or turn it on in Settings → Preferences.",
   "AI help when posting",
+  "AI illustration",
   "AI is unavailable right now",
   "AI isn’t available right now — please try again later.",
   "AI shopping assistant",
