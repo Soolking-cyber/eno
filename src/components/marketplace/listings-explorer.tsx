@@ -51,7 +51,6 @@ import { BusinessRail } from './business-rail'
 import { TeacherShelf } from './teacher-shelf'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, ShelfSkeleton } from './shelf'
 import { HOME_ORIGIN, homeItemListsJsonLd, jsonLdText } from '@/lib/home-item-lists'
-import { CATEGORY_ENTRY_LABELS } from '@/lib/category-entry-label'
 import { CategoryLane, CategoryRails, useFreshCategoryLanes, visibleCategoryRails, type CategoryLaneData, type CategoryRailData } from './category-rails'
 import { LATE_LANE_SLUGS, allCards, homeRailClaims, type HomeCard } from '@/lib/home-lanes'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
@@ -1443,8 +1442,9 @@ export function ListingsExplorer({
     // is visibleCategoryRails' output: already at its floor and deduped, as the lanes draw it.
     // ⛔ ONLY THE RAILS WHOSE CARDS ARE IN THE SERVER HTML (measured live 2026-11-17: the other lanes and the businesses lane
     // draw behind a gate — useLaneGate, DeferredShelf — so their cards are not in the raw page): Trending (the phone lane
-    // draws its seed), the FIRST product lane (`initialShow`, as the lanes block draws it — LATE_LANE_SLUGS excluded), Find
-    // a teacher and Recommended (both in the feed grid).
+    // draws its seed), the FIRST product lane (`initialShow`, as the lanes block draws it — LATE_LANE_SLUGS excluded) and
+    // Recommended (the feed grid). Find a teacher draws behind the gate too since 2026-11-22 (teacher-shelf.tsx `deferCards`,
+    // the home page's HTML size), so it lists nothing here.
     const vi = lang === 'vi'
     // ⛔ …AND ONLY WHOLE CARDS: the page sends the others as ids (src/lib/home-lanes.ts slimHomeRails), and a lane with any
     // draws placeholders (CategoryLane), so a first lane that is not all whole lists nothing.
@@ -1452,10 +1452,9 @@ export function ListingsExplorer({
     return homeItemListsJsonLd([
       { name: tr('Trending now', 'Đang thịnh hành'), items: drawn(initialTrending) },
       ...(firstLane ? [{ name: vi ? (firstLane.cat.nameVi || firstLane.cat.name) : firstLane.cat.name, items: allCards(firstLane.items) ? firstLane.items : [] }] : []),
-      { name: tr(CATEGORY_ENTRY_LABELS.teachers.name, CATEGORY_ENTRY_LABELS.teachers.nameVi ?? CATEGORY_ENTRY_LABELS.teachers.name), items: drawn(initialTeachers) },
       { name: tr('Recommended', 'Đề xuất'), items: initialListings },
     ], HOME_ORIGIN)
-  }, [homeItemLists, showDiscovery, sellerId, startedOffSeed, lang, tr, initialTrending, serverCategoryLanes, initialTeachers, initialListings])
+  }, [homeItemLists, showDiscovery, sellerId, startedOffSeed, lang, tr, initialTrending, serverCategoryLanes, initialListings])
   /**
    * A storefront's phone results row is sr-only while the shop is undirected (UI climb r12 S3, the `#results` row's note). A
    * COLD directed link (`serverDirected`: `?q=`, `?category=`, `?view=map` …) still paints its first frame undirected — the URL

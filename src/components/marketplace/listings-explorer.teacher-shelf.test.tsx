@@ -20,6 +20,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 import { installFakeIntersectionObserver } from '@/test/fake-intersection-observer'
 
+/**
+ * The shelf draws its cards when it nears the screen (teacher-shelf.tsx `deferCards`, owner 2026-11-22: the home page's HTML size):
+ * an observer that reports ONLY the shelf's lane as in view, at the next task, so nothing else (the load-more sentinel) moves.
+ */
+function shelfInView() {
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(el: Element) {
+      if (el.closest('[data-teacher-shelf]')) setTimeout(() => act(() => { this.cb([{ isIntersecting: true, target: el } as unknown as IntersectionObserverEntry], this as unknown as IntersectionObserver) }), 0)
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords() { return [] }
+  })
+}
+const nextTask = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+
 // Same budget as the other explorer harnesses (a heavy render on a loaded machine is timing, not behaviour).
 configure({ asyncUtilTimeout: 5_000 })
 vi.setConfig({ testTimeout: 30_000 })
@@ -192,14 +209,15 @@ describe('the home page\'s ItemList JSON-LD (home-item-lists.ts)', () => {
       container.innerHTML = renderToString(el)
       const ld = ldOf(container)!
       const { CATEGORY_ENTRY_LABELS } = await import('@/lib/category-entry-label')
-      expect(ld['@graph'].map((l) => l.name)).toEqual(['Trending now', CATEGORY_ENTRY_LABELS.teachers.name, 'Recommended'])
-      const [trending, teachers, recommended] = ld['@graph']
+      // Find a teacher draws behind the lane gate (teacher-shelf.tsx deferCards), so it is not one of the lists.
+      expect(ld['@graph'].map((l) => l.name)).toEqual(['Trending now', 'Recommended'])
+      const [trending, recommended] = ld['@graph']
       expect(ids(trending)).toEqual(TRENDING().map((l) => l.id))
-      expect(ids(teachers)).toEqual(['t0', 't1', 't2'])
       expect(ids(recommended)).toEqual(SEED().map((l) => l.id))
-      // ⛔ Only what the page draws: every teacher and feed item is a card in this same server HTML.
+      // ⛔ Only what the page draws: every feed item is a card in this same server HTML, and no teacher card is.
       const drawn = new Set([...container.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id')))
-      for (const id of [...ids(teachers), ...ids(recommended)]) expect(drawn.has(id), id).toBe(true)
+      for (const id of ids(recommended)) expect(drawn.has(id), id).toBe(true)
+      for (const id of ['t0', 't1', 't2']) expect(drawn.has(id), id).toBe(false)
       expect(recommended.itemListElement[0]).toEqual({ '@type': 'ListItem', position: 1, url: expect.stringMatching(/^https?:\/\/[^/]+\/listings\/r0$/) })
       await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
       expect(errors).toEqual([])
@@ -307,16 +325,20 @@ describe('the server HTML and its hydration', () => {
     let root: Root | null = null
     // ONE try for the whole test: a failure before the hydration must still take its container away, or every later
     // test of this file reads that stale server HTML from document.body (`shelfEl()` is document-wide).
+    shelfInView()
     try {
       container.innerHTML = renderToString(el)
-      // In the server HTML already — crawlers and a cold phone see it without JS. Ends at the capture row: no sr-only
+      // In the server HTML already, at its place — crawlers and a cold phone see the row (its cards draw when it nears the screen). Ends at the capture row: no sr-only
       // feed heading after the shelf while it closes page one (the seed is exactly one page).
       const serverGrid = container.querySelector('.feed-grid')!
       expect(gridOrder(serverGrid)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
+      // …holding the shelf's placeholders, not its cards (teacher-shelf.tsx deferCards).
+      expect(container.querySelector('[data-teacher-shelf] [data-testid="card"]')).toBeNull()
       await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
       expect(errors).toEqual([])
       expect(gridOrder(container.querySelector('.feed-grid')!)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
-      // The shelf's cards are in it, and none of them is a feed card (the e2e suites count those).
+      // Once it nears the screen, the shelf draws its cards — none of them a feed card (the e2e suites count those).
+      await nextTask()
       const shelf = container.querySelector('[data-teacher-shelf]')!
       expect([...shelf.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id'))).toEqual(['t0', 't1', 't2'])
       expect(shelf.querySelector('[data-feed-card]')).toBeNull()
@@ -425,7 +447,9 @@ describe('a tap on the shelf', () => {
     const push = vi.fn()
     h.router.push = push
     const client = newClient()
+    shelfInView()
     const first = mount(client)
+    await nextTask()
     scrollY(1_800)
     act(() => { (shelfEl()!.querySelectorAll('[data-testid="card"]')[1] as HTMLButtonElement).click() })
     expect(push).toHaveBeenCalledWith('/listings/t1')

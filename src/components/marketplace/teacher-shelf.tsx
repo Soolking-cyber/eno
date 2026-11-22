@@ -78,7 +78,11 @@ export function TeacherShelf({
   const title = CATEGORY_ENTRY_LABELS.teachers
   return (
     <div data-teacher-shelf="" className="col-span-full min-w-0 border-t border-border pt-6 pb-4 not-last:border-b">
-      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))} look={look}>
+      {/* Deferred (owner 2026-11-22, the home page's HTML size): this shelf sits below the first screen at every width, so its
+          cards are drawn when it nears the screen, after placeholders at their own geometry (shelf.tsx useLaneGate, the rule the
+          later category lanes use). So, like those lanes, it is not one of the page's ItemLists (listings-explorer.tsx homeItemLists:
+          only what the server HTML draws), and a reader without JavaScript sees its placeholders; /c/teachers lists everyone. */}
+      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))} look={look} deferCards={listings.length}>
         {listings.map((l) => (
           <div key={l.id} data-sid={l.sellerId} className={look === 'lane' ? LANE_CARD_W : RAIL_CARD_W}>
             <ListingCard listing={l} onOpen={onOpen} lane={look === 'lane'} sizes={look === 'lane' ? LANE_CARD_SIZES : undefined} />
