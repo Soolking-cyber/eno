@@ -1160,7 +1160,6 @@ const R = ICON_SPRITE_REST
 function Glyph({ size = 24, strokeWidth: _sw, absoluteStrokeWidth: _asw, n, s, ...rest }: IconProps & { n: string; s: string }) {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
       viewBox="0 0 24 24"
