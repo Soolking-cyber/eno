@@ -363,8 +363,8 @@ const ALL_SECTIONS: readonly AboutSection[] = [
     q: { en: 'How do I find an English teaching job in Vietnam on eno.vn?', vi: 'Tìm việc dạy tiếng Anh ở Việt Nam trên eno.vn như thế nào?' },
     open: [
       {
-        en: 'Go to eno.vn/jobs-vietnam-expats: it lists jobs teaching English in Vietnam, and other subjects taught in English, sorted by city, with the pay where the posting states it.',
-        vi: 'Vào eno.vn/jobs-vietnam-expats: trang này liệt kê việc dạy tiếng Anh tại Việt Nam, và các môn khác dạy bằng tiếng Anh, theo từng thành phố, kèm mức lương nếu tin có ghi.',
+        en: 'Go to the jobs page on eno.vn: it lists jobs teaching English in Vietnam, and other subjects taught in English, with the pay where the posting states it.',
+        vi: 'Vào trang việc làm trên eno.vn: trang này liệt kê việc dạy tiếng Anh tại Việt Nam, và các môn khác dạy bằng tiếng Anh, kèm mức lương nếu tin có ghi.',
       },
       {
         en: 'A linked job’s Apply button opens the original posting, where you apply to the employer; a job posted directly on eno.vn has a chat button instead.',
