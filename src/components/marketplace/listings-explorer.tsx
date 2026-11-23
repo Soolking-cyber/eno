@@ -1013,6 +1013,14 @@ export function ListingsExplorer({
   // down the ladder they stand for, each step only when given — the explorer reads every one back (explorer-url.ts).
   const tileHref = useCallback((param: FilterHrefParam | null) => {
     if (!param) return localizedHref(pathname, tileVariant)
+    // ⛔ A BARE CATEGORY ON THE MARKETPLACE HOME LINKS ITS HUB, `/c/<slug>` (Seobility audit, 2026-11-23). `/?category=x`
+    // declares `canonical: /`, so the home's most prominent links handed the category pages nothing and pointed crawlers
+    // back at the home. The click is unchanged — taken over, filtering in place (category-rail `tile`); only a new tab
+    // (and a crawler) lands on the hub, which links on to the filtered feed. Never on a storefront: its `/` is the shop.
+    if (!sellerId && pathname === '/' && param.category && param.category !== 'all'
+      && !param.subcategory && !param.brand && !param.model && !param.line && !param.type) {
+      return localizedHref(`/c/${encodeURIComponent(param.category)}`, tileVariant)
+    }
     const q = new URLSearchParams()
     if (param.category && param.category !== 'all') q.set('category', param.category)
     if (param.subcategory && param.subcategory !== 'all' && param.category && param.category !== 'all') q.set('subcategory', param.subcategory)
@@ -1022,7 +1030,7 @@ export function ListingsExplorer({
     if (param.type) q.set('type', param.type)
     const qs = q.toString()
     return localizedHref(qs ? `${pathname}?${qs}` : pathname, tileVariant)
-  }, [pathname, tileVariant])
+  }, [pathname, tileVariant, sellerId])
   // ⛔ NO FILTERS DRAWER ANY MORE, AND NO 'open-mobile-filters' LISTENER. The bottom drawer
   // (explorer-filters.tsx) could only be opened by that window event, and nothing had dispatched it
   // since the header's events moved to the `eno:*` names — so its "Quận / Huyện" picker was the one

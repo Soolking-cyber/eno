@@ -64,7 +64,7 @@ const h = vi.hoisted(() => {
 const pilot = vi.hoisted(() => ({ on: false }))
 vi.mock('@/lib/lang-pinned', async (importOriginal) => {
   const m = await importOriginal<typeof import('@/lib/lang-pinned')>()
-  return { ...m, localizedHref: (href: string, variant: string) => m.localizedHref(href, variant, pilot.on ? { live: m.VI_PREFIX_PATHS, retired: [] } : m.VI_PILOT) }
+  return { ...m, localizedHref: (href: string, variant: string) => m.localizedHref(href, variant, pilot.on ? { live: m.VI_PREFIX_PATHS, retired: [], families: m.VI_TWIN_FAMILIES } : m.VI_PILOT) }
 })
 
 vi.mock('next/navigation', () => ({
@@ -109,12 +109,13 @@ vi.mock('./brand-rail', () => ({ BrandRail: () => <div data-testid="brand-rail" 
 // It also carries one subcategory chip wired to the explorer's own `onSubcategory` — on a phone the subcategories wait in the
 // ladder the strip's chip opens (every phone feed one row, owner 2026-11-17), so that is where a reader narrows.
 vi.mock('./category-rail', () => ({
-  CategoryRail: ({ hrefFor, onSubcategory, noTeacherDoor }: { hrefFor?: (p: { category?: string; type?: string } | null) => string; onSubcategory?: (slug: string) => void; noTeacherDoor?: boolean }) => (
+  CategoryRail: ({ hrefFor, onSubcategory, noTeacherDoor }: { hrefFor?: (p: { category?: string; subcategory?: string; type?: string } | null) => string; onSubcategory?: (slug: string) => void; noTeacherDoor?: boolean }) => (
     <div data-testid="category-rail" data-no-teacher-door={noTeacherDoor ? '' : undefined}>
       {hrefFor ? (
         <>
           <a data-testid="tile-category" href={hrefFor({ category: 'rentals' })} />
           <a data-testid="tile-intent" href={hrefFor({ type: 'free' })} />
+          <a data-testid="tile-sub" href={hrefFor({ category: 'rentals', subcategory: 'apartments' })} />
           <a data-testid="tile-clear" href={hrefFor(null)} />
         </>
       ) : null}
@@ -1609,12 +1610,15 @@ describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-T
     return { html, href, unmount: () => { act(() => root?.unmount()); container.remove() } }
   }
 
-  it.each(['/en', '/vi'])('the home prerendered as %s writes /?category=…, never the internal path', async (internal) => {
+  it.each(['/en', '/vi'])('the home prerendered as %s writes /c/… and /?…, never the internal path', async (internal) => {
     const v = await prerenderThenHydrate(internal, '/')
     try {
       expect(v.html).not.toMatch(/href="\/(en|vi)[?/"]/)
-      expect(v.href('tile-category')).toBe('/?category=rentals')
+      // A bare category on the marketplace home links its hub (Seobility audit, 2026-11-23): `/?category=x` is canonical `/`.
+      expect(v.href('tile-category')).toBe('/c/rentals')
       expect(v.href('tile-intent')).toBe('/?type=free')
+      // Only a BARE category has a hub: a deeper step keeps the filtered feed's query.
+      expect(v.href('tile-sub')).toBe('/?category=rentals&subcategory=apartments')
       expect(v.href('tile-clear')).toBe('/')
     } finally {
       v.unmount()
@@ -1627,13 +1631,13 @@ describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-T
    * left Vietnamese. They write the `/vi` twin now, on both sides of hydration. A storefront's never do:
    * a shop's host has no pilot, and a `/vi` tile there would leave the shop it filters.
    */
-  it('the Vietnamese home (/vi) writes /vi?category=…, prerendered and hydrated — a storefront keeps /?…', async () => {
+  it('the Vietnamese home (/vi) writes /vi/c/… and /vi?…, prerendered and hydrated — a storefront keeps /?…', async () => {
     pilot.on = true
     h.language.lang = 'vi'
     try {
       const v = await prerenderThenHydrate('/vi', '/vi')
       try {
-        expect(v.href('tile-category')).toBe('/vi?category=rentals')
+        expect(v.href('tile-category')).toBe('/vi/c/rentals')
         expect(v.href('tile-intent')).toBe('/vi?type=free')
         expect(v.href('tile-clear')).toBe('/vi')
       } finally {
@@ -1650,10 +1654,10 @@ describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-T
     }
   })
 
-  it('a per-request render (the storefront, served at / on its own host) already reads / — and still writes /?…', async () => {
+  it('a per-request render already reads / — and writes the same hrefs as the prerender', async () => {
     const v = await prerenderThenHydrate('/', '/')
     try {
-      expect(v.href('tile-category')).toBe('/?category=rentals')
+      expect(v.href('tile-category')).toBe('/c/rentals')
       expect(v.href('tile-clear')).toBe('/')
     } finally {
       v.unmount()

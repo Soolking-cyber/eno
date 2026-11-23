@@ -43,7 +43,7 @@ test.describe('Guest · language pipeline', () => {
     // The rail's own accessible name localizes too ("Categories" → "Danh mục").
     const tile = categoryRail(page, 'Danh mục').getByRole('link', { name: /Điện tử/ }) // "Electronics" in VI
     await expect(tile).toBeVisible()
-    await expect(tile).toHaveAttribute('href', /[?&]category=electronics(?:&|$)/)
+    await expect(tile).toHaveAttribute('href', /^(?:\/vi)?\/c\/electronics$/) // the category hub (Seobility audit, 2026-11-23)
     // No English label anywhere on the page, whichever role the tile is rendered with (link or button).
     await expect(page.locator('a:visible, button:visible', { hasText: /^Electronics$/ })).toHaveCount(0)
   })
@@ -89,6 +89,6 @@ test.describe('Guest · language pipeline', () => {
     await page.goto('/')
     const tile = categoryRail(page, 'Categories').getByRole('link', { name: /Electronics/ })
     await expect(tile).toBeVisible()
-    await expect(tile).toHaveAttribute('href', /[?&]category=electronics(?:&|$)/)
+    await expect(tile).toHaveAttribute('href', '/c/electronics') // the category hub (Seobility audit, 2026-11-23)
   })
 })
