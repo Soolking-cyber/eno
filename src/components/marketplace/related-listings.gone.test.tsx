@@ -56,8 +56,9 @@ function renderIn(lang: 'en' | 'vi', node: React.ReactNode) {
   return render(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
 }
 const params = (u: string) => new URLSearchParams(u.slice(u.indexOf('?') + 1))
-// What a pass asks for: its scope, without the paging and the payload switches (facets=0, lang) every pass carries.
-const PER_REQUEST = ['limit', 'sort', 'facets', 'lang']
+// What a pass asks for: its scope, without the paging and the payload switches (facets=0, lang) every pass carries, nor
+// `ads=0` (only the narrowest pass may carry a paid ad, src/lib/ads/serve.ts — related-listings.test.tsx pins it).
+const PER_REQUEST = ['limit', 'sort', 'facets', 'lang', 'ads']
 const scopeOf = (u: string) => Object.fromEntries([...params(u)].filter(([k]) => !PER_REQUEST.includes(k)))
 const has = (andFilters: unknown[], clause: unknown) => andFilters.some((f) => JSON.stringify(f) === JSON.stringify(clause))
 

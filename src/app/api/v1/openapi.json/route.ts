@@ -1037,6 +1037,29 @@ export const SPEC = {
           secret: { type: 'string', description: '⛔ RETURNED ONCE, HERE, AND NEVER AGAIN. Store it: it is the HMAC key for the `webhook-signature` header on every delivery.' },
         },
       },
+      Ad: {
+        type: 'object',
+        description: 'A paid ad (x402). `status`: active (paid; shown from starts_at to ends_at), pending or unknown (payment sent, confirmation not yet found).',
+        required: ['id', 'listing_id', 'status', 'starts_at', 'ends_at', 'tx_hash', 'network', 'amount_atomic'],
+        properties: {
+          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] },
+          starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
+          tx_hash: { type: ['string', 'null'] }, network: { type: 'string', example: 'eip155:8453' }, amount_atomic: { type: 'string', example: '3760000' },
+        },
+      },
+      AdStats: {
+        type: 'object',
+        required: ['id', 'listing_id', 'status', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
+        properties: {
+          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string' },
+          starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
+          impressions: { type: 'integer', description: 'Times the ad card was at least half on screen for a second during its run.' },
+          clicks: { type: 'integer', description: 'Taps on the ad card during its run.' },
+          listing_views: { type: ['integer', 'null'], description: 'The listing\'s page views over the ad\'s days (daily snapshots); null until measurable.' },
+          listing_contacts: { type: ['integer', 'null'] },
+          amount_usdc_atomic: { type: 'string' }, network: { type: 'string' }, tx_hash: { type: ['string', 'null'] },
+        },
+      },
       AnalyticsSummary: {
         type: 'object',
         description: 'Shop-wide rollup. Counts cover every listing the shop has ever had, in any status.',
@@ -1640,6 +1663,71 @@ export const SPEC = {
           }),
           ...authFailures(),
           '422': fail('`from` is after `to`.', ['invalid_input']),
+        },
+      },
+    },
+    '/ads/offer': {
+      get: {
+        operationId: 'getAdOffer',
+        summary: 'The paid ad offer (public)',
+        description: 'What one ad costs and where it shows, with public audience figures. No credential. An ad puts one of your live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for `duration_days`. Paid in USDC over x402 (see `buyAd`); `available` is false while ads are not on sale.',
+        security: [],
+        responses: {
+          '200': ok('The offer.', {
+            type: 'object',
+            required: ['available', 'price', 'price_vnd_reference', 'duration_days', 'placements', 'label', 'requires', 'how_to_buy', 'audience'],
+            properties: {
+              available: { type: 'boolean' },
+              price: { type: ['object', 'null'], description: 'Null when not on sale.', properties: { usdc: { type: 'string', example: '3.76' }, amount_atomic: { type: 'string', example: '3760000' }, asset: { type: 'string' }, network: { type: 'string', example: 'eip155:8453' }, network_name: { type: 'string' }, pay_to: { type: 'string' } } },
+              price_vnd_reference: { type: 'integer', example: 99000 },
+              duration_days: { type: 'integer', example: 7 },
+              placements: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } } } },
+              label: { type: 'string' },
+              requires: { type: 'string' },
+              how_to_buy: { type: 'object', properties: { http: { type: 'string' }, mcp: { type: 'string' } } },
+              audience: { type: 'object', properties: { public_listings: { type: 'integer' }, by_category: { type: 'array', items: { type: 'object', properties: { category: { type: 'string' }, listings: { type: 'integer' } } } }, running_ads: { type: 'integer' } } },
+            },
+          }),
+        },
+      },
+    },
+    '/ads': {
+      post: {
+        operationId: 'buyAd',
+        summary: 'Buy a 7-day ad for one of your listings (x402)',
+        description: [
+          'Paid over x402 v2 (HTTP transport, scheme `exact`, USDC). Without a `PAYMENT-SIGNATURE` header the answer is 402 with `PAYMENT-REQUIRED` (base64 JSON PaymentRequired; the body is the same object) — no credential needed to read the price.',
+          'Sign the payment with an x402 client and repeat the request with `PAYMENT-SIGNATURE` and your Bearer credential (scope listings:write). The listing must be yours and live; it is checked before any money moves.',
+          'Repeating the same payment returns the same ad (200) and never charges twice. A 202 means the payment was sent and its confirmation is being looked up: repeat the same request later. Two ads for one listing run back to back.',
+        ].join(' '),
+        security: requires('listings:write'),
+        parameters: [
+          { name: 'PAYMENT-SIGNATURE', in: 'header', required: false, description: 'Base64 JSON x402 v2 PaymentPayload for the offer in the 402 answer.', schema: { type: 'string' } },
+        ],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['listingId'], properties: { listingId: { type: 'string', description: 'One of your live listings.' } } } } },
+        },
+        responses: {
+          '201': ok('Paid: the ad, with `PAYMENT-RESPONSE` (base64 JSON SettlementResponse).', { type: 'object', required: ['ad'], properties: { ad: schemaRef('Ad') } }),
+          '200': ok('The same payment again: the ad it bought.', { type: 'object', required: ['ad'], properties: { ad: schemaRef('Ad') } }),
+          '202': ok('Payment sent, confirmation not yet found: repeat the same request later.', { type: 'object', required: ['ad', 'message'], properties: { ad: schemaRef('Ad'), message: { type: 'string' } } }),
+          '402': { description: 'Payment required, or the payment was refused (nothing charged): `PAYMENT-REQUIRED` says what to pay, and `error` why the last one failed.' },
+          ...authFailures(),
+          '400': fail('No `listingId`.', ['invalid_input']),
+          '404': fail('Not a listing of this shop.', ['not_found']),
+          '409': fail('This payment was already used for another ad.', ['payment_already_used']),
+          '503': fail('Ads are not on sale, or the payment service did not answer (nothing charged).', ['ads_unavailable', 'payment_unavailable']),
+        },
+      },
+      get: {
+        operationId: 'listAds',
+        summary: 'Your ads and what they did',
+        description: 'Newest first: each ad with impressions and taps on the ad card during its run, and the listing\'s own views and contacts over the ad\'s days (daily snapshots). Refused payments are not listed.',
+        security: requires('analytics:read'),
+        responses: {
+          '200': ok('Your ads.', { type: 'object', required: ['ads'], properties: { ads: { type: 'array', items: schemaRef('AdStats') } } }),
+          ...authFailures(),
         },
       },
     },

@@ -1405,6 +1405,51 @@ model JobAdSighting {
   @@index([board, firstSeenAt])
 }
 
+/// A PAID "Ad" placement (owner 2026-11-23: "paid ad creation via mcp for ai agents … pay through x402"). One row per
+/// payment: an AI agent (or any x402 client) signed in as a shop pays USDC over x402 (src/lib/x402) and one of that shop's
+/// public listings is shown first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and
+/// the similar-listings row for AD_DAYS (src/lib/ads). Written by scripts/listing-ad-ddl.mjs — NO foreign keys (nothing
+/// here locks Listing; a removed listing simply stops matching the feed, so its ad stops showing).
+/// ⛔ THE AUTHORIZATION IS KEPT WHOLE (authFrom … signature, payloadJson) BEFORE SETTLEMENT, so a payment whose answer was
+/// lost can be matched to the chain afterwards (src/lib/ads/book.ts reconcile) — a paid ad is never just forgotten.
+model ListingAd {
+  id               String    @id @default(cuid())
+  listingId        String
+  sellerId         String
+  /// The ApiKey (an API key or a sign-in grant) the purchase was made with.
+  bookedByKeyId    String
+  /// 'http' (POST /api/v1/ads) | 'mcp' (promote_listing).
+  via              String
+  /// pending: verified, settlement asked, outcome not yet known — never shown · active: paid; shown from startsAt to
+  /// endsAt · failed: the facilitator refused, nothing moved · unknown: settlement answer lost and not found on chain yet.
+  status           String
+  startsAt         DateTime?
+  endsAt           DateTime?
+  amount           String
+  asset            String
+  network          String
+  payTo            String
+  /// sha256 of network|asset|from|nonce, lower-cased: one signed authorization, one row (a replay finds it).
+  paymentId        String    @unique
+  authFrom         String
+  authNonce        String
+  authValidBefore  String
+  signature        String
+  /// The buyer's PaymentPayload as received (for a re-settle after a lost answer).
+  payloadJson      Json
+  txHash           String?   @unique
+  settlementJson   Json?
+  failReason       String?
+  impressions      Int       @default(0)
+  clicks           Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status, endsAt])
+  @@index([listingId, status])
+  @@index([sellerId, createdAt])
+}
+
 /// TEACHER JOB DMs (owner, 2026-10-20: "send related jobs cover lessons to our teachers in chat inside eno.vn from the admin
 /// account") — src/lib/teachers/job-dms. A job or cover post from a Facebook group (contacts redacted on the Mac), a
 /// LinkedIn job-alert email or a post the outreach team forwarded. ⛔ PRIVATE: never a Listing, never public, never

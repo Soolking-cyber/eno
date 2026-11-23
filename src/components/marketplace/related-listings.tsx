@@ -125,8 +125,10 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
      * as it is made: a wider pass failing (or cancelled: an aborted fetch rejects too) while a narrower one is still
      * awaited would otherwise surface as an unhandled rejection.
      */
-    const passes = scopes.map((scope) =>
-      fetch(`/api/listings?${scope}&limit=12&sort=newest&facets=0&lang=${lang}`, { signal: ac.signal })
+    // ⛔ ONE PAID AD PER ROW (owner 2026-11-23, src/lib/ads/serve.ts): the feed puts one first in every first-page answer, so
+    // only the narrowest pass may carry one (`ads=0` on the wider ones); the merge below keeps it first.
+    const passes = scopes.map((scope, i) =>
+      fetch(`/api/listings?${scope}&limit=12&sort=newest&facets=0&lang=${lang}${i > 0 ? '&ads=0' : ''}`, { signal: ac.signal })
         .then((r) => r.json())
         .catch(() => null))
     ;(async () => {

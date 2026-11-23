@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
    * ask for (src/lib/ai-consent.ts). The UA is the apps' own token (app-review-gates.ts). Gate off ⇒ false: unchanged.
    */
   const noAi = appReviewGate('app-ai-notice') && isNativeAppUserAgent(req.headers.get('user-agent'))
-  let payload = await buildFeedPayload(searchParams, { noAi })
+  let payload = await buildFeedPayload(searchParams, { noAi, ads: true })
   /**
    * ⛔ A SEARCH THAT FINDS NOTHING IS ANSWERED FOR ITS LIKELY SPELLING — "iphnoe" found 0 while "iphone"
    * found 3,439 (production, 2026-09-29). Vertex was the typo-tolerant path and it is off in
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     if (fixed && fixed !== fold(rawQ)) {
       const corrected = new URLSearchParams(searchParams)
       corrected.set('q', fixed)
-      const retry = await buildFeedPayload(corrected, { noAi })
+      const retry = await buildFeedPayload(corrected, { noAi, ads: true })
       if (retry.body.total > 0) {
         payload = retry
         correctedQuery = fixed

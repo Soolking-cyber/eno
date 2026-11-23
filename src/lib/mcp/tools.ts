@@ -33,6 +33,7 @@ import { cutText } from '@/lib/feed-text'
 import { SHOP_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
 import { ToolError, type ToolAnnotations, type McpTool } from './tool-types'
 import { MESSAGING_TOOLS } from './messaging-tools'
+import { AD_TOOLS } from './ad-tools'
 import { logWarn } from '@/lib/log'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
@@ -821,6 +822,8 @@ export const TOOLS: McpTool[] = [
 
 // The chat tools (owner 2026-11-17, agent messaging): scope messages:read / messages:write, granted only at sign-in.
 TOOLS.push(...MESSAGING_TOOLS)
+// The paid-ad tools (owner 2026-11-23, x402): get_ad_offer, promote_listing, list_ads — src/lib/mcp/ad-tools.ts.
+TOOLS.push(...AD_TOOLS)
 export const TOOLS_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 // JSON-Schema list for tools/list (zod v4 → JSON Schema), with each tool's read/write hints.
