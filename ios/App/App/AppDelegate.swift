@@ -35,10 +35,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private static let appOrigin = "https://eno.vn"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // 1.2 (EnoShell): the last visit's home picture shows only on a launch from the icon — a link, a notification, a
-        // shortcut or a handed-off activity opens somewhere else, and a picture of home would be the wrong screen.
-        EnoShell.plainLaunch = launchOptions?[.url] == nil && launchOptions?[.remoteNotification] == nil
-            && launchOptions?[.shortcutItem] == nil && launchOptions?[.userActivityDictionary] == nil
+        // (EnoShell.plainLaunch is set by SceneDelegate: under the UIScene life cycle a launch's link, notification, shortcut or
+        // activity arrives in the scene's connection options, never in these launchOptions.)
         if let shortcutItem = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             // Cold launch from a quick action. The Capacitor bridge (and the App plugin's
             // capacitorOpenURL observer) doesn't exist yet, so forwarding now would post into the
@@ -61,7 +59,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// Translate a quick action into the shared deep-link scheme (enovn://open?path=…) and deliver it
     /// the same way every other deep link is delivered (see `deliver(_:options:)`).
     @discardableResult
-    private func forward(shortcutItem: UIApplicationShortcutItem) -> Bool {
+    func forward(shortcutItem: UIApplicationShortcutItem) -> Bool {
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&=+?#")
         guard let path = shortcutItem.userInfo?["path"] as? String,
@@ -121,17 +119,29 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-        // Called when the app was launched with an activity, including Universal Links: https://eno.vn
-        // links, once the box serves /.well-known/apple-app-site-association (APPLE_TEAM_ID in
-        // eno-vn.env; App.entitlements claims applinks:eno.vn and nothing else). Same delivery as
-        // `open url`.
+        if loadsNatively(userActivity) { return true }
+        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+    /// The same, for SceneDelegate (1.3 groundwork): under the UIScene life cycle the activity arrives at the scene, not here.
+    @discardableResult
+    func continueWeb(_ userActivity: NSUserActivity) -> Bool {
+        if loadsNatively(userActivity) { return true }
+        return ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
+    }
+
+    // Called when the app was launched with an activity, including Universal Links: https://eno.vn
+    // links, once the box serves /.well-known/apple-app-site-association (APPLE_TEAM_ID in
+    // eno-vn.env; App.entitlements claims applinks:eno.vn and nothing else). Same delivery as
+    // `open url`.
+    private func loadsNatively(_ userActivity: NSUserActivity) -> Bool {
         if userActivity.activityType == NSUserActivityTypeBrowsingWeb,
            let incoming = userActivity.webpageURL,
            case .native(let target) = route(for: incoming) {
             loadInWebView(target)
             return true
         }
-        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+        return false
     }
 
     // MARK: - Origin-agnostic deep-link delivery
@@ -151,7 +161,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     @discardableResult
-    private func deliver(_ url: URL, options: [UIApplication.OpenURLOptionsKey: Any]) -> Bool {
+    func deliver(_ url: URL, options: [UIApplication.OpenURLOptionsKey: Any]) -> Bool {
         switch route(for: url) {
         case .native(let target):
             loadInWebView(target)

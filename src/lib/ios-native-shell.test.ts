@@ -356,3 +356,23 @@ describe('iOS 1.2 — the native shell over the web (EnoShell.swift ↔ ios-shel
     }
   })
 })
+
+describe('the UIScene life cycle (iOS 27 SDK groundwork — TN3187, ITMS-90725)', () => {
+  it('Info.plist declares one window scene, run by SceneDelegate on the Main storyboard', () => {
+    const plist = read('ios/App/App/Info.plist')
+    expect(plist).toMatch(/<key>UIApplicationSceneManifest<\/key>\s*<dict>/)
+    expect(plist).toMatch(/<key>UISceneDelegateClassName<\/key>\s*<string>\$\(PRODUCT_MODULE_NAME\)\.SceneDelegate<\/string>/)
+    expect(plist).toMatch(/<key>UISceneStoryboardFile<\/key>\s*<string>Main<\/string>/)
+    expect(plist).toMatch(/<key>UIApplicationSupportsMultipleScenes<\/key>\s*<false\/>/)
+  })
+
+  it('SceneDelegate is compiled in and hands every way in to the AppDelegate code that always ran', () => {
+    const pbx = read('ios/App/App.xcodeproj/project.pbxproj')
+    const sources = pbx.slice(pbx.indexOf('/* Begin PBXSourcesBuildPhase section */'), pbx.indexOf('/* End PBXSourcesBuildPhase section */'))
+    expect(sources).toContain('/* SceneDelegate.swift in Sources */')
+    const scene = read('ios/App/App/SceneDelegate.swift')
+    for (const call of ['app?.deliver(', 'app?.continueWeb(', 'app?.forward(shortcutItem:', 'EnoShell.plainLaunch =', 'app?.window = window']) {
+      expect(scene).toContain(call)
+    }
+  })
+})

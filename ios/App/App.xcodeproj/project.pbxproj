@@ -21,6 +21,7 @@
 		ED000000000000000000000A /* EnoSignInPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED000000000000000000000B /* EnoSignInPlugin.swift */; };
 		ED000000000000000000000C /* AgeGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED000000000000000000000D /* AgeGate.swift */; };
 		ED000000000000000000000E /* EnoShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED000000000000000000000F /* EnoShell.swift */; };
+		ED0000000000000000000010 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000011 /* SceneDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +39,7 @@
 		ED000000000000000000000B /* EnoSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnoSignInPlugin.swift; sourceTree = "<group>"; };
 		ED000000000000000000000D /* AgeGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgeGate.swift; sourceTree = "<group>"; };
 		ED000000000000000000000F /* EnoShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnoShell.swift; sourceTree = "<group>"; };
+		ED0000000000000000000011 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		ED0000000000000000000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED0000000000000000000009 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		ED0000000000000000000007 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -82,6 +84,7 @@
 				ED000000000000000000000B /* EnoSignInPlugin.swift */,
 				ED000000000000000000000D /* AgeGate.swift */,
 				ED000000000000000000000F /* EnoShell.swift */,
+				ED0000000000000000000011 /* SceneDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -185,6 +188,7 @@
 				ED000000000000000000000A /* EnoSignInPlugin.swift in Sources */,
 				ED000000000000000000000C /* AgeGate.swift in Sources */,
 				ED000000000000000000000E /* EnoShell.swift in Sources */,
+				ED0000000000000000000010 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
