@@ -34,8 +34,9 @@ type Props = {
    * there, as the shell did for cards (owner-approved 2026-11-14), BlurFillImage's "one hero slide that never crops": each
    * photo FILLS its square (`object-cover`) — no blurred backdrop, no flat edge fill, no watermark texture; the lightbox still
    * shows the whole photo. And the page lays a 16px white sheet edge over the photo's bottom, so the counter and the video's
-   * mute toggle sit 28px up (`bottom-7`), the counter at the END (bottom-right): it reverses "⚠️ BOTTOM-CENTRE since
-   * 2026-09-13" there — the corner it kept free was the app-drawn eno.vn mark's, which is off (image-mark.tsx ON_SCREEN_MARK).
+   * mute toggle sit 28px up (`bottom-7`). The counter sat at the END (bottom-right) while the app-drawn eno.vn mark was off;
+   * since 2026-11-23 the mark is drawn again in that corner (image-mark.tsx ON_SCREEN_MARK, 28px up here) and the counter is
+   * back at the bottom-CENTRE.
    * ⚠️ UNTOUCHED: the sharp photo keeps `priority` + fetchPriority=high (it is the LCP element, now with no backdrop to
    * compete), and the cover video, its eager overlay and its no-`poster` rule are exactly as they were.
    */
@@ -382,7 +383,9 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, cover = false, 
         onLoad={(e) => { if (isShowing(e.currentTarget, img)) { setSharpSrc(img); setFailedSrc((f) => (f === img ? null : f)) } }}
         onError={() => setFailedSrc(img)}
       />
-      {failedSrc !== img && <ImageMark src={img} fit={cover ? 'cover' : 'contain'} />}
+      {/* Both phone sheets lay a 16px white edge over the photo's bottom: the mark rides above it — 28px up on the rental
+          sheet (the counter's line; the counter moved to the centre for it), 16px up on the goods sheet's whole photo. */}
+      {failedSrc !== img && <ImageMark src={img} fit={cover ? 'cover' : 'contain'} className={cover ? 'bottom-7' : plain ? '-translate-y-4' : undefined} />}
       <span className="img-watermark" aria-hidden />
     </>
   )
@@ -750,11 +753,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 ⚠️ BOTTOM-CENTRE since 2026-09-13: bottom-right belongs to the app-drawn eno.vn mark
                 (image-mark.tsx, one corner on every image), and bottom-left is the video slide's
                 mute toggle.
-                ⛔ …EXCEPT UNDER THE RENTAL SHEET (`sheet`, owner-approved 2026-11-14, cook r05 "rental-c"): bottom-RIGHT, 28px up,
-                above the sheet's 16px edge (z-10 over its z 6) — the mark that corner was kept for is off (ON_SCREEN_MARK).
+                ⛔ …UNDER THE RENTAL SHEET (`sheet`, owner-approved 2026-11-14, cook r05 "rental-c"): 28px up, above the sheet's
+                16px edge (z-10 over its z 6) — bottom-CENTRE again since 2026-11-23, when the mark that owns bottom-right was
+                drawn again (owner: "apply eno.vn watermark … for all products all images"); it was bottom-right while it was off.
                 ⛔ …AND UNDER THE GOODS SHEET (`plain`, owner-approved 2026-11-14, cook r06 "item"): bottom-LEFT, 28px up — but
                 bottom-centre (28px up) on a gallery with a video, whose mute toggle owns bottom-left. */}
-            <span className={cn('pointer-events-none absolute photo-badge', sheet ? 'bottom-7 right-3 z-10' : plain ? (hasVideo ? 'bottom-7 left-1/2 z-10 -translate-x-1/2' : 'bottom-7 left-3 z-10') : 'bottom-3 left-1/2 -translate-x-1/2')}>
+            <span className={cn('pointer-events-none absolute photo-badge', sheet ? 'bottom-7 left-1/2 z-10 -translate-x-1/2' : plain ? (hasVideo ? 'bottom-7 left-1/2 z-10 -translate-x-1/2' : 'bottom-7 left-3 z-10') : 'bottom-3 left-1/2 -translate-x-1/2')}>
               {slide + 1} / {mediaCount}
             </span>
           </div>

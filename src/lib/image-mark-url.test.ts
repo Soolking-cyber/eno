@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isOverlayImageUrl, overlayImagePath, overlayMarkFromUrl } from './image-mark-url'
+import { drawnMarkFromUrl, isOverlayImageUrl, overlayImagePath, overlayMarkFromUrl } from './image-mark-url'
 import { hashFromUrl } from './image-hash-url'
 
 vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://sb.eno.vn/')
@@ -48,5 +48,25 @@ describe('overlayImagePath', () => {
 
   it('drops a malformed hash rather than writing one hashFromUrl would misread', () => {
     expect(overlayImagePath('a', { cover: 'light', contain: 'light' }, 10, 20, 'nothex', 's', 'r')).toBe('affiliate/m/a-s-r-ill-10x20.webp')
+  })
+})
+
+describe('drawnMarkFromUrl — what the on-screen mark reads (owner 2026-11-23: every photo, new uploads too)', () => {
+  it('a clean import, and a member\'s clean upload at the root, under bulk/ or api/', () => {
+    expect(drawnMarkFromUrl(`${BASE}affiliate/m/x-1-a-idl-500x400.webp`)).toEqual({ cover: 'dark', contain: 'light', width: 500, height: 400 })
+    expect(drawnMarkFromUrl(`${BASE}1794127133406-gruw9b-ild-1600x1200-h6d6929292b2cb0c1.webp`)).toEqual({ cover: 'light', contain: 'dark', width: 1600, height: 1200 })
+    expect(drawnMarkFromUrl(`${BASE}bulk/1794127133406-gruw9b-ill-800x600.webp`)).toMatchObject({ width: 800, height: 600 })
+    expect(drawnMarkFromUrl(`${BASE}api/1794127133406-gruw9b-idd-800x600.webp`)).toMatchObject({ width: 800, height: 600 })
+  })
+
+  it('never a photo with its mark baked in (stored before 2026-11-10: no -i..-WxH), another folder, or another host', () => {
+    expect(drawnMarkFromUrl(`${BASE}1787899111917-wdme70-h07822068618be83c.webp`)).toBeNull()
+    expect(drawnMarkFromUrl(`${BASE}bulk/1794127133406-gruw9b-h6d6929292b2cb0c1.webp`)).toBeNull()
+    expect(drawnMarkFromUrl(`${BASE}covers/1794127133406-gruw9b-idd-800x600.webp`)).toBeNull()
+    expect(drawnMarkFromUrl(`${BASE}affiliate/electronics-mtv9x9k7-wz7d8.webp`)).toBeNull()
+    expect(drawnMarkFromUrl('https://evil.example/storage/v1/object/public/listings/1794127133406-gruw9b-idd-800x600.webp')).toBeNull()
+    expect(drawnMarkFromUrl(`${BASE}1794127133406-gruw9b-idd-800x600.webp?w=384`)).toBeNull()
+    // The import rule is unchanged: a member's name is not an import.
+    expect(isOverlayImageUrl(`${BASE}1794127133406-gruw9b-idd-800x600.webp`)).toBe(false)
   })
 })

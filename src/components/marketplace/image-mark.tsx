@@ -1,4 +1,4 @@
-import { overlayMarkFromUrl } from '@/lib/image-mark-url'
+import { drawnMarkFromUrl } from '@/lib/image-mark-url'
 import { cn } from '@/lib/utils'
 
 /** The wordmark's own sprite — ONE cached file, referenced by every card (see eno-mark.svg). */
@@ -9,7 +9,13 @@ export const IMAGE_MARK_SPRITE = '/brand/eno-mark.svg#m'
 export const IMAGE_MARK_BOX = { w: 9132.3, h: 1588.3 }
 
 /**
- * ⛔ THE MARK IS NOT DRAWN ON SCREEN ANY MORE (owner, 2026-11-10: "1-6 1 by one go", item 6 of the decision scorecard).
+ * ✅ THE MARK IS DRAWN AGAIN (owner, 2026-11-23: "apply eno.vn watermark small on right left corner for all products all images
+ * in the app consistent good looking visible but not jumping out" — then "also new uploads all images should have it"). Both
+ * steps below were taken: this switch, and `drawnMarkFromUrl` reading a member's clean upload as well as an import. It is
+ * SMALLER than before (MARK_SHARE, 20 % of the width, was 28 %) and keeps the bottom-right corner — where every photo stored
+ * before 2026-11-10 already carries its baked mark, so old and new photos agree on the corner.
+ * The rest of this note is the 2026-11-10 record of why it was turned off:
+ * ⛔ (2026-11-10) THE MARK IS NOT DRAWN ON SCREEN ANY MORE (owner: "1-6 1 by one go", item 6 of the decision scorecard).
  * Blind A/B against today's pages, both judges for no mark (codex 7.09 to 7.20, Fable 7.43 to 7.55): on a partner's rental the
  * photo carried two marks, GoPlus's and ours; on a linked shop's product ours sat on a photo the page itself says eno.vn did
  * not verify; and on every tile it was one more thing between the buyer and the photo. The owner took the stated cost: a
@@ -23,7 +29,13 @@ export const IMAGE_MARK_BOX = { w: 9132.3, h: 1588.3 }
  * ⚠️ What is NOT this switch: the `.img-watermark` shield (image-shield.tsx) still flashes over a photo on a save, copy or
  * drag attempt; and a photo uploaded before 2026-11-10 keeps the mark baked into its pixels, which nothing can take out.
  */
-export const ON_SCREEN_MARK: boolean = false
+export const ON_SCREEN_MARK: boolean = true
+
+/**
+ * The mark's width as a share of the photo's (owner 2026-11-23: "small … visible but not jumping out"). 28 % before; a photo
+ * stored before 2026-11-10 keeps its baked 28 % mark, which nothing can take out (≈ 300 listings, measured 2026-11-23).
+ */
+export const MARK_SHARE = 0.2
 
 // ⚠️ THE OWNER'S RULE IS ONE SIZE AND ONE CORNER (below), NOT THIS STRENGTH. At white/85 and black/40 the mark out-shouted the
 // card's own title on every photo (UI climb 2026-11-05). A save or copy still gets the full-strength `.img-watermark`
@@ -36,7 +48,7 @@ const INK = { dark: 'text-black/25', light: 'text-white/60' } as const
  * Owner, 2026-09-13: "consistent sizing and placement of eno.vn watermark on all images … one has big
  * small other missing". A burned mark could not deliver that: it was sized off each file's own width
  * and anchored to each file's own corner, and the square card crop then cut it off (landscape), hid it
- * (portrait) or shrank it. Drawn by the app it is 28% of the width, inset 3% of the short edge,
+ * (portrait) or shrank it. Drawn by the app it is MARK_SHARE of the width (28% until 2026-11-23), inset 3% of the short edge,
  * bottom-right — the proportions the burned rule used, measured against what the viewer actually sees:
  *
  *   fit="cover"   (cards, map popup, SEO cards — square frames that crop): the FRAME's corner, which is
@@ -59,7 +71,7 @@ const INK = { dark: 'text-black/25', light: 'text-white/60' } as const
  */
 export function ImageMark({ src, fit = 'cover', className }: { src: string | null | undefined; fit?: 'cover' | 'contain'; className?: string }) {
   if (!ON_SCREEN_MARK) return null
-  const mark = overlayMarkFromUrl(src)
+  const mark = drawnMarkFromUrl(src)
   if (!mark) return null
 
   if (fit === 'cover') {
@@ -68,7 +80,7 @@ export function ImageMark({ src, fit = 'cover', className }: { src: string | nul
         aria-hidden="true"
         focusable="false"
         viewBox={`0 0 ${IMAGE_MARK_BOX.w} ${IMAGE_MARK_BOX.h}`}
-        className={cn('pointer-events-none absolute bottom-[3%] right-[3%] z-[1] h-auto w-[28%] select-none', INK[mark.cover], className)}
+        className={cn('pointer-events-none absolute bottom-[3%] right-[3%] z-[1] h-auto w-[20%] select-none', INK[mark.cover], className)}
       >
         <use href={IMAGE_MARK_SPRITE} width="100%" height="100%" />
       </svg>
@@ -77,8 +89,8 @@ export function ImageMark({ src, fit = 'cover', className }: { src: string | nul
 
   const { width: W, height: H } = mark
   const pad = Math.min(W, H) * 0.03
-  // Same clamp as watermarkPlacement: 28% of the width, but never taller than the photo allows.
-  const mw = Math.max(1, Math.min(W * 0.28, W - 2 * pad, ((H - 2 * pad) * IMAGE_MARK_BOX.w) / IMAGE_MARK_BOX.h))
+  // MARK_SHARE of the width (the `w-[20%]` above; image-mark.test.tsx pins the two equal), never taller than the photo allows.
+  const mw = Math.max(1, Math.min(W * MARK_SHARE, W - 2 * pad, ((H - 2 * pad) * IMAGE_MARK_BOX.w) / IMAGE_MARK_BOX.h))
   const mh = (mw * IMAGE_MARK_BOX.h) / IMAGE_MARK_BOX.w
   return (
     <svg

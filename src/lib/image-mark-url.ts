@@ -50,6 +50,34 @@ export function overlayMarkFromUrl(url: string | null | undefined): OverlayMark 
   return { cover: ink(m[1]), contain: ink(m[2]), width, height }
 }
 
+/**
+ * A MEMBER's listing photo stored clean since 2026-11-10 (core/media.ts storeListingImage): `<ts>-<rand>-i<c><c>-<W>x<H>
+ * [-h<16hex>].webp` at the bucket root, or under the bulk / API upload folders. A name WITHOUT the `-i..-WxH` segment was
+ * stored before that day with the mark baked into its pixels, and never matches — so nothing is ever marked twice.
+ */
+const MEMBER_NAME = /^(?:(?:bulk|api)\/)?\d{13}-[a-z0-9]{1,8}-i([dl])([dl])-(\d{1,5})x(\d{1,5})(?:-h[0-9a-f]{16})?\.webp$/i
+function bucketPrefix(): string | null {
+  const host = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
+  return host ? `${host}/storage/v1/object/public/listings/` : null
+}
+
+/**
+ * What the ON-SCREEN mark needs for this image (owner, 2026-11-23: "apply eno.vn watermark … for all products all images in
+ * the app" and "also new uploads all images should have it"): a clean import (overlayMarkFromUrl) OR a member's clean
+ * upload. Only the renderer reads this; the import scripts keep `isOverlayImageUrl`, which still means "a clean import".
+ */
+export function drawnMarkFromUrl(url: string | null | undefined): OverlayMark | null {
+  const imported = overlayMarkFromUrl(url)
+  if (imported) return imported
+  const prefix = bucketPrefix()
+  if (!url || !prefix || !url.startsWith(prefix)) return null
+  const m = MEMBER_NAME.exec(url.slice(prefix.length))
+  if (!m) return null
+  const width = Number(m[3]), height = Number(m[4])
+  if (!(width > 0 && height > 0)) return null
+  return { cover: ink(m[1]), contain: ink(m[2]), width, height }
+}
+
 /** True when a stored image is a clean import the app marks — the ONE test scripts and renderers share. */
 export function isOverlayImageUrl(url: string | null | undefined): boolean {
   return overlayMarkFromUrl(url) !== null

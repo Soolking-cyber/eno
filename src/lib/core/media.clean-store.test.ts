@@ -103,9 +103,9 @@ describe('storeListingImage — a listing photo is stored clean', () => {
 describe('the new name passes every shared reader of a stored listing photo', () => {
   // Commit review, twice: "another consumer expecting the old name could reject new uploads". These are the readers there
   // are (grep `webp` regexes: the rest are GoPlus's and the import overlay's own names), run on what the pipeline really wrote.
-  it('listing save accepts it, the duplicate hash reads it, the feeds keep it, and no overlay is drawn on it yet', async () => {
+  it('listing save accepts it, the duplicate hash reads it, the feeds keep it, and the drawn mark reads it', async () => {
     const { isListingImageUrl } = await import('@/lib/listing-image')
-    const { overlayMarkFromUrl, isOverlayImageUrl } = await import('@/lib/image-mark-url')
+    const { drawnMarkFromUrl, overlayMarkFromUrl, isOverlayImageUrl } = await import('@/lib/image-mark-url')
     const { feedImages } = await import('@/lib/rentals-feed')
     const url = (await storeListingImage(await flat(1200, 900, 128)))!
     const viaApi = (await storeListingImage(await flat(800, 600, 128), { pathPrefix: 'api/' }))!
@@ -114,19 +114,22 @@ describe('the new name passes every shared reader of a stored listing photo', ()
     for (const u of [url, viaApi]) {
       expect(isListingImageUrl(u)).toBe(true)
       expect(hashFromUrl(u)).toMatch(/^[0-9a-f]{16}$/)
-      // `affiliate/m/` names only, until the mark is turned back on (image-mark.tsx has the two steps).
+      // The import rule stays imports-only (the import scripts read it); the renderer's rule reads a member's clean name too
+      // (owner 2026-11-23: "also new uploads all images should have it").
       expect(overlayMarkFromUrl(u)).toBeNull()
+      expect(drawnMarkFromUrl(u)).toMatchObject({ width: u === url ? 1200 : 800, height: u === url ? 900 : 600 })
     }
     expect(feedImages([url, viaApi])).toEqual([url, viaApi])
   })
 
-  // ⛔ THE SECOND STEP, AS A GATE (commit review). Turning ON_SCREEN_MARK back on draws the mark on imports only until
-  // `overlayMarkFromUrl` also reads a member's clean name. Whoever flips the switch meets this test instead of a note.
+  // ⛔ THE SECOND STEP, AS A GATE (commit review). Turning ON_SCREEN_MARK back on draws the mark on imports only unless the
+  // renderer's rule (`drawnMarkFromUrl`, since 2026-11-23) also reads a member's clean name. Whoever flips the switch meets this.
   it('the mark cannot be switched back on while a member\'s clean photo would stay unmarked', async () => {
     const { ON_SCREEN_MARK } = await import('@/components/marketplace/image-mark')
-    const { overlayMarkFromUrl } = await import('@/lib/image-mark-url')
+    const { drawnMarkFromUrl } = await import('@/lib/image-mark-url')
     const member = (await storeListingImage(await flat(1200, 900, 128)))!
-    expect(ON_SCREEN_MARK && overlayMarkFromUrl(member) === null).toBe(false)
+    const bulk = (await storeListingImage(await flat(1200, 900, 128), { pathPrefix: 'bulk/' }))!
+    expect(ON_SCREEN_MARK && (drawnMarkFromUrl(member) === null || drawnMarkFromUrl(bulk) === null)).toBe(false)
   })
 })
 

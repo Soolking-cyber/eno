@@ -57,11 +57,12 @@ describe('ListingGallery `sheet` (the rental sheet, phone mount)', () => {
     expect(container.querySelector('img[aria-hidden="true"]')).toBeNull()
   })
 
-  it('the counter is at the end, 28px up, over the sheet edge — not bottom-centre', () => {
+  // The eno.vn mark is drawn again in the bottom-right corner (owner 2026-11-23), so the counter is back at the centre.
+  it('the counter is at the bottom-centre, 28px up, over the sheet edge — the mark owns bottom-right', () => {
     const { container } = render(<ListingGallery variant="mobile" images={[A, B]} title="Studio" sheet />)
     const c = counter(container)!.className.split(/\s+/)
-    expect(c).toEqual(expect.arrayContaining(['bottom-7', 'right-3', 'z-10', 'photo-badge']))
-    expect(c).not.toContain('left-1/2')
+    expect(c).toEqual(expect.arrayContaining(['bottom-7', 'left-1/2', '-translate-x-1/2', 'z-10', 'photo-badge']))
+    expect(c).not.toContain('right-3')
     expect(c).not.toContain('bottom-3')
   })
 
