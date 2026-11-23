@@ -51,7 +51,7 @@ import { openerVoice } from '@/lib/teachers/first-message'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt, chipContext, JobsDeskReplyChips, jobsDeskChipsShown } from '@/components/marketplace/quick-reply-chips'
 import { isStopReply } from '@/lib/teachers/job-dms/replies'
-import { jobsDeskLinks } from '@/lib/chat-links'
+import { enoMessageLinks, jobsDeskLinks } from '@/lib/chat-links'
 import { MarkSoldFlow, soldSheetApplies, type MarkSoldRequest } from '@/components/marketplace/mark-sold-flow'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { SaleQuestions, type SaleQuestionsState } from '@/components/marketplace/sale-questions'
@@ -312,7 +312,9 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
    * and its newest message carries the teacher's two replies. Optional — a cached thread, a realtime append and my own
    * sends lack it, and absent is plain text, as every message was before.
    */
-  fromDesk?: boolean }
+  fromDesk?: boolean
+  /** Written by eno itself — a desk's operator or support (the thread GET): every https link in it is drawn as a link. */
+  fromEno?: boolean }
 
 /**
  * What the composer holds while a reply is armed — and what a retry re-attaches.
@@ -3668,8 +3670,15 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // words are a machine's (src/lib/chat-links.ts says which links). Every other bubble: plain, as before.
                   // A message that arrived live has no server flag: in a jobs-desk thread, the teacher's only counterpart is
                   // the desk (codex, gate 4b).
+                  // Owner, 2026-11-23: "make it clickable for all previous and future dms from us any link clickable instant
+                  // redirect" — a message eno wrote (`fromEno`; one that arrived live in a thread with eno, from the other side)
+                  // has every https link drawn, eno.vn ones opening in place (chat-links.ts enoMessageLinks). Still never a
+                  // translation, and never a member's message.
+                  // The live fallback (no server flag yet) only in a DESK thread, where the person's one counterpart is the desk —
+                  // never support's, which an admin can read as neither side (commit gate, Opus): there the next poll's flag decides.
+                  const fromEno = (m.fromEno === true || (!!thread.desk && !m.mine && thread.iAmSeller === false)) && shown === m.body
                   const deskLinks = thread.desk === 'jobs' && (m.fromDesk === true || (!m.mine && thread.iAmSeller === false)) && shown === m.body
-                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode} chipsFrom={shown !== m.body ? m.body : undefined} linkify={deskLinks ? jobsDeskLinks : undefined}>{shown}</MessageBubble>
+                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode} chipsFrom={shown !== m.body ? m.body : undefined} linkify={fromEno ? enoMessageLinks : deskLinks ? jobsDeskLinks : undefined}>{shown}</MessageBubble>
                 })()}
                 </div>
                 </ChatCardMetaProvider>

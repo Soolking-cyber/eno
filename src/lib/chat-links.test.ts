@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { JOBS_DESK_LINK_HOSTS, deskLinkHref, jobsDeskLinks } from './chat-links'
+import { JOBS_DESK_LINK_HOSTS, deskLinkHref, jobsDeskLinks, enoLinkHref, enoMessageLinks } from './chat-links'
 
 /**
  * THE JOBS DESK'S TAPPABLE LINKS (src/lib/chat-links.ts). Plain text is the default and every rule is a reason to stay
@@ -189,5 +189,39 @@ describe('deskLinkHref', () => {
     expect(deskLinkHref('https://eno.vn:443/listings/x')).toBe('https://eno.vn/listings/x')
     expect(deskLinkHref('not a url')).toBeNull()
     expect(deskLinkHref('ftp://eno.vn/x')).toBeNull()
+  })
+})
+
+// Owner, 2026-11-23: "why these dm links are not clickable make it clickable for all previous and future dms from us any
+// link clickable instant redirect" — the schools ask's two links were plain (not a jobs-desk shape, and one has a fragment).
+describe('enoMessageLinks — a message eno itself wrote', () => {
+  const ask = 'Rate a school you\'ve worked at: https://eno.vn/schools\nSee who\'s hiring now: https://eno.vn/schools#schools-hiring'
+  it('draws every https link: eno.vn ones in place (path + query + fragment), others in a new tab', () => {
+    expect(enoMessageLinks(ask)).toEqual([
+      { text: 'Rate a school you\'ve worked at: ' },
+      { text: 'https://eno.vn/schools', href: 'https://eno.vn/schools', internal: true },
+      { text: '\nSee who\'s hiring now: ' },
+      { text: 'https://eno.vn/schools#schools-hiring', href: 'https://eno.vn/schools#schools-hiring', internal: true },
+    ])
+    expect(enoMessageLinks('Apply: https://www.linkedin.com/jobs/view/123?trk=x.')).toEqual([
+      { text: 'Apply: ' },
+      { text: 'https://www.linkedin.com/jobs/view/123?trk=x', href: 'https://www.linkedin.com/jobs/view/123?trk=x', internal: false },
+      { text: '.' },
+    ])
+    expect(enoMessageLinks('https://www.eno.vn/listings/abc?ref=dm')).toEqual([{ text: 'https://www.eno.vn/listings/abc?ref=dm', href: 'https://www.eno.vn/listings/abc?ref=dm', internal: true }])
+  })
+  it('still never http:, javascript:, data:, userinfo, a port or a bare host', () => {
+    for (const t of ['http://eno.vn/schools', 'javascript://eno.vn/%0aalert(1)', 'https://eno.vn@evil.io/x', 'https://eno.vn:8443/x', 'https://localhost/x']) {
+      expect(enoMessageLinks(t)).toEqual([{ text: t }])
+    }
+    expect(enoLinkHref('https://evil.io/eno.vn')).toEqual({ href: 'https://evil.io/eno.vn', internal: false })
+    // The href is the whole URL, so a double slash in the path cannot become another host (commit gate, codex).
+    expect(enoLinkHref('https://eno.vn//evil.example/pay')).toEqual({ href: 'https://eno.vn//evil.example/pay', internal: true })
+    // Never the forum, from the licensed site (commit gate, Opus).
+    for (const t of ['https://eno.forum/visa', 'https://www.eno.forum/itinerary', 'https://eno.forum./visa', 'https://www.eno.forum../itinerary']) expect(enoMessageLinks(t)).toEqual([{ text: t }])
+    expect(enoLinkHref('https://eno.vn./schools')).toEqual({ href: 'https://eno.vn./schools', internal: true })
+  })
+  it('a message with no link is one text run', () => {
+    expect(enoMessageLinks('Hi, how can we help?')).toEqual([{ text: 'Hi, how can we help?' }])
   })
 })

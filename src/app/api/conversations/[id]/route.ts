@@ -655,9 +655,19 @@ export const GET = route({ auth: 'userId', agent: true }, async ({ req, params, 
     //    is the thread's sellerProfileId (the rental-desk pattern); the teacher's messages — and any from an operator the
     //    thread has since been re-pointed away from — are not flagged. A boolean, never the sender's id. Jobs desk only:
     //    no other thread's messages change shape.
+    // ⛔ …AND EVERY MESSAGE eno ITSELF WROTE IS FLAGGED `fromEno` (owner, 2026-11-23: "make it clickable for all previous and
+    //    future dms from us any link clickable instant redirect"): a desk's operator in a desk thread, or — in this edition's
+    //    support thread — anyone but the person it belongs to (replies come from the admin surface). Its links are drawn as
+    //    links (chat-links.ts enoMessageLinks). Nobody else's message is ever scanned.
     messages: [...convo.messages].reverse().map((m) => {
       const wire = serializeMessage(m, meId)
-      return desk === 'jobs' && !!convo.sellerProfileId && m.senderProfileId === convo.sellerProfileId ? { ...wire, fromDesk: true as const } : wire
+      const byDesk = !!desk && !!convo.sellerProfileId && m.senderProfileId === convo.sellerProfileId
+      const bySupport = convo.seller.id === SUPPORT_SELLER_ID && !!m.senderProfileId && m.senderProfileId !== convo.buyerProfileId
+      return {
+        ...wire,
+        ...(desk === 'jobs' && byDesk ? { fromDesk: true as const } : {}),
+        ...(byDesk || bySupport ? { fromEno: true as const } : {}),
+      }
     }),
     // The site-wide top five, so the quick reaction bar shows what people actually use rather than
     // five glyphs picked in a constant. Cached for an hour per instance — see reaction-tally.ts.

@@ -185,6 +185,8 @@ export function MessageBubble({
  * 2026-10-05) is what keeps a 584px link inside a 230px bubble at 320px — restated so the anchor can never opt out.
  * It leaves the app, to an address only the allow-list vouches for: noopener + noreferrer, and nofollow (it is a
  * message, not an endorsement), never target=_blank without them.
+ * An `internal` link (an eno.vn address in a message eno wrote, chat-links.ts enoLinkHref) opens IN PLACE — the owner's
+ * "instant redirect": no new tab, no warning page.
  */
 function LinkedText({ segments, mine, failed }: { segments: readonly TextSegment[]; mine?: boolean; failed?: boolean }) {
   return (
@@ -193,8 +195,7 @@ function LinkedText({ segments, mine, failed }: { segments: readonly TextSegment
         <a
           key={i}
           href={s.href}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
+          {...(s.internal ? {} : { target: '_blank', rel: 'noopener noreferrer nofollow' })}
           className={cn('font-semibold underline underline-offset-2 [overflow-wrap:anywhere]', failed ? 'text-destructive' : mine ? 'text-white' : 'text-accent-foreground')}
         >
           {s.text}

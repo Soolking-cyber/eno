@@ -285,6 +285,8 @@ describe('a jobs-desk thread', () => {
     })
     const { body } = await get()
     expect(body.messages.map((m: Row) => [m.id, m.fromDesk ?? null])).toEqual([['m1', true], ['m2', null], ['m3', true], ['m4', null]])
+    // …and the same messages are eno's own (`fromEno`: every link in them drawn, owner 2026-11-23).
+    expect(body.messages.map((m: Row) => [m.id, m.fromEno ?? null])).toEqual([['m1', true], ['m2', null], ['m3', true], ['m4', null]])
   })
 
   /**
@@ -356,5 +358,37 @@ describe('the desk flag stays on the desks', () => {
     const { body } = await get()
     expect('desk' in body).toBe(false)
     expect(body.counterpart.sellerId).toBe('eno-support-desk')
+  })
+})
+
+/**
+ * EVERY MESSAGE eno ITSELF WROTE (owner, 2026-11-23: "make it clickable for all previous and future dms from us any link
+ * clickable instant redirect"): `fromEno` on a desk operator's message and on support's replies; never on the person's
+ * own, and never in an ordinary thread between two members.
+ */
+describe('fromEno — eno\'s own messages, whose links the thread page draws', () => {
+  it('a rental desk: the operator\'s messages only', async () => {
+    h.convo = thread({ messages: [{ id: 'm2', senderProfileId: 'asker-1', body: 'hi' }, { id: 'm1', senderProfileId: 'op-1', body: 'https://eno.vn/listings/x' }] })
+    const { body } = await get()
+    expect(body.messages.map((m: Row) => [m.id, m.fromEno ?? null, m.fromDesk ?? null])).toEqual([['m1', true, null], ['m2', null, null]])
+  })
+
+  it('this edition\'s support thread: every reply that is not the person\'s own', async () => {
+    h.convo = thread({
+      sellerProfileId: null,
+      seller: { ...thread().seller, id: 'eno-support-desk', name: 'eno Support' },
+      messages: [{ id: 'm2', senderProfileId: 'admin-7', body: 'See https://eno.vn/help#refunds' }, { id: 'm1', senderProfileId: 'asker-1', body: 'help' }],
+    })
+    const { body } = await get()
+    expect(body.messages.map((m: Row) => [m.id, m.fromEno ?? null])).toEqual([['m1', null], ['m2', true]])
+  })
+
+  it('an ordinary thread between two members: nothing flagged', async () => {
+    h.convo = thread({
+      seller: { ...thread().seller, id: 'shop-9', ownerId: 'op-1', name: 'A shop' },
+      messages: [{ id: 'm1', senderProfileId: 'op-1', body: 'https://evil.io/pay' }],
+    })
+    const { body } = await get()
+    expect(body.messages[0].fromEno).toBeUndefined()
   })
 })
