@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { ImageMark } from './image-mark'
+import { openNativePhotos } from '@/components/native/ios-shell-bridge'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
@@ -559,7 +560,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    *  today. It costs one call to guarantee a fresh open never inherits `animate-out` plus an armed
    *  400ms timer, and removes the need to re-derive that argument next time this file changes. */
   // `setDragY(0)`: a swipe-down dismissal leaves the photo where the finger let go, so the next open must start centred.
-  const openAt = (n: number) => { setClosing(false); setDragY(0); setIdx(n); setOpen(true) }
+  // iOS 1.3: the app's native photo viewer takes the tap when the shell draws photos (ios-shell-bridge openNativePhotos).
+  const openWeb = (n: number) => { setClosing(false); setDragY(0); setIdx(n); setOpen(true) }
+  const openAt = (n: number) => { if (openNativePhotos(images, n, title, () => openWeb(n))) return; openWeb(n) }
 
   // Leaving a photo (or the lightbox) always resets the zoom.
   useEffect(() => { setZoom(null) }, [idx, open])

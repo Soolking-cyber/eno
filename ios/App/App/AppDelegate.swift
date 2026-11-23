@@ -119,6 +119,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        if let listing = EnoSpotlight.url(from: userActivity) { return deliver(listing, options: [:]) }
         if loadsNatively(userActivity) { return true }
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
@@ -126,6 +127,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// The same, for SceneDelegate (1.3 groundwork): under the UIScene life cycle the activity arrives at the scene, not here.
     @discardableResult
     func continueWeb(_ userActivity: NSUserActivity) -> Bool {
+        // 1.3: a Spotlight result (a listing this reader opened) goes through the same routing as a link to it.
+        if let listing = EnoSpotlight.url(from: userActivity) { return deliver(listing, options: [:]) }
         if loadsNatively(userActivity) { return true }
         return ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
     }

@@ -311,14 +311,14 @@ describe('iOS 1.2 — the native shell over the web (EnoShell.swift ↔ ios-shel
   })
 
   it('the shell announces what it draws in one document-start flag the web reads', () => {
-    expect(shellSwift).toContain('static let userScript = "window.__enoShell={tabs:1,nav:1,menus:1};"')
+    expect(shellSwift).toContain('static let userScript = "window.__enoShell={tabs:1,nav:1,menus:1,photos:1,spotlight:1};"')
     expect(shellSwift).toContain('injectionTime: .atDocumentStart, forMainFrameOnly: true')
     expect(bridge).toContain('__enoShell')
     expect(layout).toContain("var ES=window.__enoShell;if(ES){if(ES.tabs)dc.add('native-tabbar');if(ES.menus)dc.add('native-menus');}")
   })
 
   it('every message the web posts has a native handler, and the native side answers only the app\'s own main frame', () => {
-    for (const name of ['enoTabs', 'enoNav']) {
+    for (const name of ['enoTabs', 'enoNav', 'enoPhotos', 'enoViewed']) {
       expect(bridge).toContain(`post('${name}'`)
       expect(shellSwift).toContain(`"${name}"`)
     }

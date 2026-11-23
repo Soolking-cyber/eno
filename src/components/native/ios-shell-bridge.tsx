@@ -26,8 +26,31 @@ import { useLanguage } from '@/context/language-context'
  *   preview is a picture of the web's own card), link, saved state and the action labels in the page's language — and
  *   sends the chosen action back as `eno:native-card`.
  */
-type Shell = { tabs?: number; nav?: number; menus?: number }
+type Shell = { tabs?: number; nav?: number; menus?: number; photos?: number; spotlight?: number }
 type Handler = { postMessage: (body: unknown) => void }
+
+/**
+ * ⛔ iOS 1.3: A LISTING'S PHOTOS OPEN IN THE NATIVE VIEWER (owner, 2026-11-23: "make it super native" → native photo viewer).
+ * Called by listing-gallery's openAt before its own lightbox: when the shell draws photos (`__enoShell.photos`, which no
+ * older binary sets), it gets the photos and the one tapped, and the web lightbox stays shut — returns true. Each photo goes
+ * by the site's own image optimizer (the stored URL may be internal to the box), at its widest allowed size (next.config
+ * deviceSizes: 1080) and its upper quality (70); the shell draws the eno.vn mark over each, as the web does.
+ */
+export function openNativePhotos(images: readonly string[], index: number, title?: string, fallback?: () => void): boolean {
+  if (!shell()?.photos || images.length === 0 || location.protocol !== 'https:') return false
+  // The shell confirms it showed the viewer; without that within a beat (another sheet up, the age gate) the page's own
+  // lightbox opens after all — a tap never does nothing (review).
+  if (fallback) {
+    let shown = false
+    const onShown = () => { shown = true }
+    window.addEventListener('eno:native-photos-shown', onShown, { once: true })
+    window.setTimeout(() => { window.removeEventListener('eno:native-photos-shown', onShown); if (!shown) fallback() }, 1200)
+  }
+  // Always through the site's own optimizer, so the shell can accept this origin alone (review: never an arbitrary host).
+  const urls = images.map((src) => `${location.origin}/_next/image?url=${encodeURIComponent(src)}&w=1080&q=70`)
+  post('enoPhotos', { urls, index: Math.max(0, Math.min(index, urls.length - 1)), title: title ?? document.title })
+  return true
+}
 
 /** iOS's swipe-back starts at the left edge; a touch there is the system's gesture, not a tap on the page. */
 const EDGE_PX = 24
@@ -207,6 +230,20 @@ export function IosShellBridge() {
 
     return () => cleanups.forEach((f) => f())
   }, [])
+
+  // iOS 1.3 (`spotlight`): a listing page that has rendered tells the shell what it is — its page's own title, description
+  // and share image (the og: tags the page already publishes) — so iPhone search finds the listings this reader opened.
+  useEffect(() => {
+    if (!shell()?.spotlight || !/^\/listings\/[^/]+$/.test(pathname)) return
+    const at = window.setTimeout(() => {
+      const meta = (p: string) => document.querySelector<HTMLMetaElement>(`meta[property="${p}"]`)?.content ?? ''
+      const title = meta('og:title')
+      // Only once the page's own og:url is THIS listing: a slow client navigation must not index the previous one (review).
+      if (!meta('og:url').endsWith(location.pathname)) return
+      if (title) post('enoViewed', { url: location.origin + location.pathname, title, description: meta('og:description'), image: meta('og:image') })
+    }, 1500)
+    return () => window.clearTimeout(at)
+  }, [pathname])
 
   useEffect(() => {
     if (!shell()) return

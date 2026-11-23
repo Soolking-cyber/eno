@@ -27,9 +27,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Delivered here, as `application(_:open:)` was at a cold launch: with no WebView yet the link goes to Capacitor's
         // launch-URL store (ApplicationDelegateProxy), which the web's boot code reads (App.getLaunchUrl) — the same path.
         if let context = connectionOptions.urlContexts.first { app?.deliver(context.url, options: Self.options(context)) }
-        if let activity = connectionOptions.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb }) {
-            app?.continueWeb(activity)
-        }
+        // Any activity: a universal link, or (1.3) a Spotlight result for a listing — continueWeb tells them apart.
+        if let activity = connectionOptions.userActivities.first { app?.continueWeb(activity) }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {

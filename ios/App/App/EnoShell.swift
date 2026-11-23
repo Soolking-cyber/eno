@@ -13,7 +13,7 @@ final class EnoShell: NSObject {
     /// Set by AppDelegate before the first page loads: a launch from the icon, with no link, notification, shortcut or activity.
     static var plainLaunch = false
 
-    static let userScript = "window.__enoShell={tabs:1,nav:1,menus:1};"
+    static let userScript = "window.__enoShell={tabs:1,nav:1,menus:1,photos:1,spotlight:1};"
     static let appHosts: Set<String> = {
         var hosts: Set<String> = ["eno.vn", "www.eno.vn"]
         #if DEBUG
@@ -58,7 +58,7 @@ final class EnoShell: NSObject {
         guard let wv = webView else { return }
         let ucc = wv.configuration.userContentController
         ucc.addUserScript(WKUserScript(source: Self.userScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        for name in ["enoTabs", "enoNav", "enoPainted"] { ucc.add(WeakHandler(self), name: name) }
+        for name in ["enoTabs", "enoNav", "enoPainted", "enoPhotos", "enoViewed"] { ucc.add(WeakHandler(self), name: name) }
         if let inner = wv.uiDelegate {
             let proxy = ContextMenuDelegate(inner: inner, shell: self)
             uiProxy = proxy // the WebView holds its delegate WEAKLY
@@ -94,6 +94,7 @@ final class EnoShell: NSObject {
         showLaunchCoverIfFresh()
         // The picture is taken while the app is still on screen (a backgrounded WebView can answer with a blank frame — review).
         NotificationCenter.default.addObserver(self, selector: #selector(willResignActive), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(didBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         // Every page that finishes loading must report its nav — including the first, and any full load into a page without
         // the bridge (an edge error page, the offline page): silence takes the bar down (review).
         expectTabs()
@@ -265,6 +266,9 @@ final class EnoShell: NSObject {
     private static let launchMetaKey = "eno.shell.launch"
 
     /// Leaving the app on the home page, at its top: keep a picture of it for the next cold launch from the icon.
+    /// Back in the app: if a different account (or nobody) is signed in now, the last one's listings leave iPhone search.
+    @objc private func didBecomeActive() { account { who in EnoSpotlight.claim(for: who) } }
+
     @objc private func willResignActive() {
         guard let wv = webView, !isBlocked(), ["/", "/vi"].contains(currentPath), wv.scrollView.contentOffset.y < 40 else { return }
         let style = host?.traitCollection.userInterfaceStyle == .dark ? "dark" : "light"
@@ -470,6 +474,29 @@ extension EnoShell: WKScriptMessageHandler {
         case "enoPainted":
             dropLaunchCover()
             expectTabs()
+        case "enoViewed":
+            // 1.3: a listing this reader opened, into iPhone search (EnoSystem.swift EnoSpotlight; on-device only).
+            guard let body = message.body as? [String: Any], let url = (body["url"] as? String).flatMap(URL.init(string:)) else { return }
+            // Tied to WHO is signed in: another account (or a sign-out) clears what the last one opened first (review).
+            account { who in
+                // An unreadable session indexes nothing (its clear-out runs, and nothing follows it).
+                EnoSpotlight.claim(for: who) {
+                    guard who != "unknown" else { return }
+                    EnoSpotlight.index(url: url, title: body["title"] as? String ?? "", description: body["description"] as? String ?? "",
+                                       image: (body["image"] as? String).flatMap(URL.init(string:)), owner: who)
+                }
+            }
+        case "enoPhotos":
+            // 1.3: the gallery's photos in the native viewer (EnoPhotos.swift). Only https photos of this site's image path.
+            guard let body = message.body as? [String: Any], let raw = body["urls"] as? [String], !isBlocked(),
+                  let host, host.presentedViewController == nil else { return }
+            let urls = raw.compactMap(URL.init(string:)).filter { $0.scheme == "https" && Self.appHosts.contains($0.host?.lowercased() ?? "") }
+            guard !urls.isEmpty else { return }
+            let viewer = EnoPhotoViewer(urls: urls, index: body["index"] as? Int ?? 0, title: body["title"] as? String ?? "")
+            // Acknowledged the moment it is decided, not after the animation: the page waits for this before giving up and
+            // opening its own lightbox (ios-shell-bridge openNativePhotos), and must never open it under the viewer (review).
+            webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('eno:native-photos-shown'))", completionHandler: nil)
+            host.present(viewer, animated: true)
         default:
             break
         }
