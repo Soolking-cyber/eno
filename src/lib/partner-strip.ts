@@ -47,7 +47,7 @@ export type StripPartner = {
 
 export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'goplus', name: 'GoPlus', logo: { src: '/partners/goplus.webp', width: 463, height: 96 }, label: { en: 'Apartments', vi: 'Căn hộ' }, size: 'wide' },
-  { handle: 'blvck', name: 'Blvck Motorbike', logo: { src: '/partners/blvck.webp', width: 65, height: 96 }, label: { en: 'Motorbikes', vi: 'Xe máy' }, size: 'square', dark: true },
+  // Blvck Motorbike left the strip 2026-11-23 (owner: "hide all blvck motorbike listings"): its 19 bikes are hidden.
   { handle: 'saigonmoving', name: 'Saigon Moving', logo: { src: '/partners/saigonmoving.webp', width: 171, height: 96 }, label: { en: 'Moving', vi: 'Chuyển nhà' }, size: 'square' },
   { handle: 'vinwonders', name: 'VinWonders', logo: { src: '/partners/vinwonders.webp', width: 174, height: 96 }, label: { en: 'Tickets', vi: 'Vé tham quan' }, size: 'square' },
   { handle: 'vietkite', name: 'VietKite', logo: { src: '/partners/vietkite.webp', width: 96, height: 96 }, label: { en: 'e-Visa', vi: 'Visa' }, size: 'square', marketplaceOnly: true },

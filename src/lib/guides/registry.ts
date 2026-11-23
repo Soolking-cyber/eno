@@ -73,8 +73,6 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'mua-iphone-chinh-hang-o-dau-uy-tin', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '8863fa9b3cb4c266', pair: 'buy-iphone-in-vietnam' },
   { slug: 'mua-sofa-cu-tphcm', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '6398c220b02d9ea3', pair: 'used-sofa' },
   { slug: 'used-sofa', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '65caa06d720e0421', pair: 'mua-sofa-cu-tphcm' },
-  { slug: 'thue-xe-may-blvck-motorbike-sai-gon', lang: 'vi', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: '2ff15057fee046bf', pair: 'blvck-motorbike' },
-  { slug: 'blvck-motorbike', lang: 'en', published: '2026-11-22', reviewed: '2026-11-22', reviewedDigest: 'b6d21b44658cafd8', pair: 'thue-xe-may-blvck-motorbike-sai-gon' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
