@@ -22,6 +22,7 @@ import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { pdpBreadcrumbLd } from '@/lib/pdp-breadcrumb'
 import { getTeacherPageRow } from '@/lib/teachers/page-row'
 import { teacherPublicVideo, teacherSearchFacts, teacherSearchVerdict } from '@/lib/teachers/search-floor'
+import { teacherTitleLine } from '@/lib/teachers/search-title'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { Tr } from '@/context/language-context'
@@ -344,7 +345,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   but a canonical listing-bucket image) is passed through as before. The JSON-LD, the share card
                   and TeacherContact keep the original URL (`photo`). */}
               {photo
-                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full object-cover ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />
+                ? <Image src={photo} alt={name} aria-hidden width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full object-cover ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />
                 : <span className="col-start-1 row-span-2 row-start-1 size-24 shrink-0 self-center rounded-full bg-muted ring-1 ring-border max-[359px]:size-18 lg:row-span-3 lg:self-start" />}
               {/* ⛔ THE NAME IS THE FIGURE ROLE BELOW lg (owner-approved 2026-11-15, build 7 — cook r07 teachers; it reverses, on this
                   page, the shell's "--t-display 28/34, ONE per page"): `text-t-figure` 32px bold −0.03em on a 36px line (two
@@ -353,7 +354,13 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               <h1 className={cn(
                 'col-start-2 row-start-1 min-w-0 text-t-figure max-lg:leading-9 text-balance text-foreground [overflow-wrap:anywhere] max-[359px]:text-t-h2 max-[359px]:leading-7 lg:self-start lg:text-2xl lg:font-bold lg:tracking-normal',
                 identityShown ? 'self-end' : 'row-span-2 self-center lg:row-span-1',
-              )}>{name}</h1>
+              )}>
+                {name}
+                {/* What the <title> says after the name, for crawlers and screen readers, not on screen (Seobility, 2026-11-23: a
+                    name alone is under the 20 characters an h1 should have). The page states the same subjects and city below.
+                    English only: the Vietnamese line can carry an untranslated subject ("Phonics"), and the vi body holds none. */}
+                {pageLang === 'en' && <span className="sr-only">{' — '}{teacherTitleLine(tp ?? {}, pageLang)}</span>}
+              </h1>
               {/* "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a fact about the person, under the name:
                   the card's own BadgeCheck in the success green, the label in ink, no pill. It may wrap; never nowrap. */}
               {identityShown && (

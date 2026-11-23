@@ -579,7 +579,8 @@ describe('the trail — site › Find a teacher › name', () => {
   it('⛔ a masked name is printed exactly as the h1 prints it — never unmasked, and with no structured data', async () => {
     const p = await page('en', { fullName: 'nn***' })
     expect(trail(p.el)!.querySelector('[aria-current="page"]')?.textContent).toBe('nn***')
-    expect(p.el.querySelector('h1')?.textContent).toBe('nn***')
+    // The name is the h1's own text; its sr-only title line (Seobility, 2026-11-23) follows it.
+    expect(p.el.querySelector('h1')?.firstChild?.textContent).toBe('nn***')
     expect(p.crumbs).toBeNull()
   })
 })

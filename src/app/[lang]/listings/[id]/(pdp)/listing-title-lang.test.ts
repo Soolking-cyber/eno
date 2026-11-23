@@ -96,8 +96,9 @@ const tmeta = async (lang: string, over: Record<string, unknown> = {}, listing: 
 }
 describe('a teacher profile\'s <title>', () => {
   it('"<Name> — IELTS & English teacher, Ho Chi Minh City" — and in Vietnamese — no price ever', async () => {
-    expect((await tmeta('en')).title).toMatch(/^Jane Doe — IELTS & English teacher, Ho Chi Minh City \| eno\.(forum|vn)$/)
-    expect((await tmeta('vi')).title).toMatch(/^Jane Doe — Giáo viên IELTS và tiếng Anh tại TP\. Hồ Chí Minh \| /)
+    // 61 characters with " | eno.vn": over 60, so the site's name goes (Seobility, 2026-11-23); the teacher's words stay whole.
+    expect((await tmeta('en')).title).toBe('Jane Doe — IELTS & English teacher, Ho Chi Minh City')
+    expect((await tmeta('vi')).title).toBe('Jane Doe — Giáo viên IELTS và tiếng Anh tại TP. Hồ Chí Minh') // over 60 with the site's name
   })
   it('the name is the h1\'s — the profile\'s fullName', async () => {
     expect((await tmeta('en', { fullName: 'Jane A. Doe' })).title).toMatch(/^Jane A\. Doe — /)
