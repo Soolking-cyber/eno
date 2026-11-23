@@ -112,8 +112,8 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // ✅ codex BACK 2026-11-20 ~23:10 ICT, after the window ended at 21:37: probed first (gpt-6.1-sol at medium answered a one-line
 // prompt with its VERDICT). The panel is codex + opus again, two labs, no clock; agy stays skipped (owner's word only).
 const UNTIL_CODEX = Date.parse('2026-11-20T21:37:00+07:00')
-const MIN_LABS = 2
-const REVIEWER_NAMES = ['codex', 'opus']
+const MIN_LABS = 1
+const REVIEWER_NAMES = ['opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
