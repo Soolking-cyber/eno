@@ -4,6 +4,7 @@ import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { formatInteger } from '@/lib/vnd'
+import { firstThatFits } from '@/lib/meta-description'
 import { LICENCE_CHECK_SUBCATEGORIES, POST_HIDDEN_ON_MARKETPLACE, SUBCATEGORIES, type SubcatDefLegacy } from '@/lib/taxonomy'
 
 /**
@@ -643,7 +644,9 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
     const description = homesDescription(homes, f.place, short, f.homesLinked ?? 'none', lang)
     if (headline) {
       const place = lang === 'vi' ? f.place.vi : f.place.en
-      return { title: `${DISTRICT_RENTALS_TITLE[headline][lang]} ${place}${short[lang]} | ${siteName}`, description }
+      // Within ~60 characters: the site's name goes first, then ", HCMC" (Seobility, 2026-11-23: 621 px against ~580).
+      const head = `${DISTRICT_RENTALS_TITLE[headline][lang]} ${place}`
+      return { title: firstThatFits([`${head}${short[lang]} | ${siteName}`, `${head}${short[lang]}`, head]), description }
     }
     return { title: districtMetadata({ ...f, homes: null }, lang, siteName).title, description }
   }
@@ -664,7 +667,7 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
     // categoryMetadata do (review: it printed "14 tin  tại Quận 1").
     const nameVi = f.category.nameVi || f.category.name
     return {
-      title: `${nameVi} tại ${f.place.vi}${city} | ${siteName}`,
+      title: firstThatFits([`${nameVi} tại ${f.place.vi}${city} | ${siteName}`, `${nameVi} tại ${f.place.vi}${city}`, `${nameVi} tại ${f.place.vi}`]),
       description: withTail(`${n} tin ${nameVi.toLowerCase()} tại ${f.place.vi}${city}.`, districtTail('vi')),
     }
   }
@@ -676,7 +679,7 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
       ? f.total === 1 ? 'place for rent' : 'places for rent'
       : `${f.category.name.toLowerCase()} ${f.total === 1 ? 'listing' : 'listings'}`
   return {
-    title: `${f.category.name} in ${f.place.en}${city} | ${siteName}`,
+    title: firstThatFits([`${f.category.name} in ${f.place.en}${city} | ${siteName}`, `${f.category.name} in ${f.place.en}${city}`, `${f.category.name} in ${f.place.en}`]),
     description: withTail(`${n} ${what} in ${f.place.en}${city}.`, tail),
   }
 }

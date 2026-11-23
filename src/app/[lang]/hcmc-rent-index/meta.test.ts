@@ -17,7 +17,7 @@ function index(over: Partial<RentIndex['cityBands']> = {}, computedAt = '2026-11
 describe('rentIndexMeta (owner 2026-11-22: rank for "rent prices in Ho Chi Minh City by district")', () => {
   it('English: the words people ask in, the snapshot month, and the 1- and 2-bedroom medians', () => {
     const m = rentIndexMeta(index(), 'en')
-    expect(m.title).toBe(`Ho Chi Minh City Rent Prices by District, November 2026 | ${SITE_NAME}`)
+    expect(m.title).toBe('Ho Chi Minh City Rent Prices by District, November 2026') // over 60 with the site's name: it goes (Seobility 2026-11-23)
     expect(m.description).toBe(
       'Median asking rent in Ho Chi Minh City, 22 Nov 2026: 1-bedroom 8,000,000 đ, 2-bedroom 9,700,000 đ a month. By district, from 6,304 listings, updated daily.',
     )
@@ -41,7 +41,7 @@ describe('rentIndexMeta (owner 2026-11-22: rank for "rent prices in Ho Chi Minh 
   it('a band without a published median drops out of the sentence; no median at all gives the plain wording', () => {
     expect(rentIndexMeta(index({ br1: stats(null, 4) }), 'en').description).toContain(': 2-bedroom 9,700,000 đ a month.')
     const none = rentIndexMeta(index({ br1: stats(null, 4), br2: stats(null, 3) }), 'en')
-    expect(none.title).toBe(`Ho Chi Minh City Rent Prices by District, November 2026 | ${SITE_NAME}`)
+    expect(none.title).toBe('Ho Chi Minh City Rent Prices by District, November 2026') // over 60 with the site's name: it goes (Seobility 2026-11-23)
     expect(none.description).not.toMatch(/\d/)
   })
 

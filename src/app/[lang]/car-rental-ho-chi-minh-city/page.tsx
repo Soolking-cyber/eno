@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { SITE_NAME } from '@/lib/edition'
+import { titleWithSite } from '@/lib/meta-description'
 import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
@@ -18,7 +19,8 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('car')
   return {
-    title: `Self-Drive Car Rental in Ho Chi Minh City: Prices per Day | ${SITE_NAME}`,
+    // 57 characters without the site's name, 66 with it (Seobility, 2026-11-23: over the ~580 px a result shows): titleWithSite drops it.
+    title: titleWithSite('Self-Drive Car Rental in Ho Chi Minh City: Prices per Day', SITE_NAME, 60),
     // Answer first: the day prices the page prints (src/lib/vehicle-hub-meta.ts), else the old wording.
     description: carHubDescription(data, 'en', 'Self-drive cars for hire in Ho Chi Minh City (Saigon) from local rental shops on one page — day prices by car size and for 7-seaters, where the cars are and how booking works.'),
     alternates: marketplaceGuideAlternates(SLUG),

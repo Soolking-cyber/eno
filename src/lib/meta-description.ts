@@ -60,3 +60,12 @@ export function shopTitle(name: string, siteName: string, lang: string | undefin
   const full = `${name} — ${lang === 'vi' ? 'tin đăng trên' : 'listings on'} ${siteName}`
   return full.length <= max ? full : titleWithSite(name, siteName, max)
 }
+
+/**
+ * The first of `candidates` (longest first: the whole title, then shorter forms of it) that fits `max`, else the last
+ * (Seobility, 2026-11-23: "Apartments & Houses for Rent in Binh Thanh District, HCMC | eno.vn" measured 621 px against ~580).
+ * Whole words dropped, never a word cut.
+ */
+export function firstThatFits(candidates: readonly string[], max = 60): string {
+  return candidates.find((c) => c.length <= max) ?? candidates[candidates.length - 1]
+}

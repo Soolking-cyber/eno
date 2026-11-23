@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { titleWithSite } from '@/lib/meta-description'
 import { formatMoneyFull } from '@/lib/vnd'
 import type { RentIndex } from '@/lib/rent-index'
 
@@ -37,7 +38,8 @@ export function rentIndexMeta(index: RentIndex | null, lang: string): { title: s
   }
 
   const month = ok ? `, ${hcmc('en-GB', { month: 'long', year: 'numeric' })}` : ''
-  const title = `Ho Chi Minh City Rent Prices by District${month} | ${SITE_NAME}`
+  // The site's name only within 60 characters (Seobility, 2026-11-23: 64 with the month was over the ~580 px a result shows).
+  const title = titleWithSite(`Ho Chi Minh City Rent Prices by District${month}`, SITE_NAME, 60)
   const parts = index && ok ? figures(index, (b) => (b === 'br1' ? '1-bedroom' : '2-bedroom'), money) : []
   const description =
     parts.length && ok

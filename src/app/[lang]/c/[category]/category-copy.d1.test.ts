@@ -61,20 +61,20 @@ describe('listsHomesOnly — an indexable page always lists at least the floor',
 
 describe('rentals district titles (D-a)', () => {
   it('"Apartments & Houses for Rent in District 7 (Phu My Hung), HCMC" while both are listed', () => {
-    expect(districtMetadata(facts(D7_STOCK), 'en', 'eno.vn').title).toBe('Apartments & Houses for Rent in District 7 (Phu My Hung), HCMC | eno.vn')
-    expect(districtMetadata(facts(D7_STOCK), 'vi', 'eno.vn').title).toBe('Cho thuê căn hộ và nhà tại Quận 7 (Phú Mỹ Hưng), TP.HCM | eno.vn')
+    expect(districtMetadata(facts(D7_STOCK), 'en', 'eno.vn').title).toBe('Apartments & Houses for Rent in District 7 (Phu My Hung)') // over 60 with the site or the city: both go (Seobility 2026-11-23)
+    expect(districtMetadata(facts(D7_STOCK), 'vi', 'eno.vn').title).toBe('Cho thuê căn hộ và nhà tại Quận 7 (Phú Mỹ Hưng), TP.HCM')
   })
   it('"Apartments for Rent in …" with no house; today\'s title with no apartment', () => {
-    expect(districtMetadata(facts({ 'apartment-rental': 20 }), 'en', 'eno.vn').title).toBe('Apartments for Rent in District 7 (Phu My Hung), HCMC | eno.vn')
+    expect(districtMetadata(facts({ 'apartment-rental': 20 }), 'en', 'eno.vn').title).toBe('Apartments for Rent in District 7 (Phu My Hung), HCMC')
     expect(districtMetadata(facts({ 'apartment-rental': 20 }), 'vi', 'eno.vn').title).toBe('Cho thuê căn hộ tại Quận 7 (Phú Mỹ Hưng), TP.HCM | eno.vn')
-    expect(districtMetadata(facts({ 'room-rental': 20 }), 'en', 'eno.vn').title).toBe('Rentals in District 7 (Phu My Hung), Ho Chi Minh City | eno.vn')
+    expect(districtMetadata(facts({ 'room-rental': 20 }), 'en', 'eno.vn').title).toBe('Rentals in District 7 (Phu My Hung), Ho Chi Minh City')
   })
   it('names the city only for an HCMC district', () => {
     expect(districtMetadata(facts(D7_STOCK, { inHcmc: false, place: { en: 'Binh Trung', vi: 'Bình Trưng' } }), 'en', 'eno.vn').title).toBe('Apartments & Houses for Rent in Binh Trung | eno.vn')
   })
   it('leaves other categories untouched', () => {
     const f = { ...facts(D7_STOCK), category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } }
-    expect(districtMetadata(f, 'en', 'eno.vn').title).toBe('Electronics in District 7 (Phu My Hung), Ho Chi Minh City | eno.vn')
+    expect(districtMetadata(f, 'en', 'eno.vn').title).toBe('Electronics in District 7 (Phu My Hung), Ho Chi Minh City')
   })
 })
 
@@ -86,7 +86,7 @@ describe('the search labels (D-d)', () => {
     expect(rentalsPlaceLabel('d7', D7)).toBe(D7)
     expect(rentalsPlaceLabel('constructor', D7)).toBe(D7)
     const t = (slug: string) => districtMetadata(facts(D7_STOCK, { place: RENTALS_PLACE_LABEL[slug] }), 'en', 'eno.vn').title
-    expect(t('d2')).toBe('Apartments & Houses for Rent in District 2 (Thao Dien), HCMC | eno.vn')
+    expect(t('d2')).toBe('Apartments & Houses for Rent in District 2 (Thao Dien), HCMC')
     expect(t('d9')).toBe('Apartments & Houses for Rent in District 9, HCMC | eno.vn')
     expect(t('thu-duc')).toBe('Apartments & Houses for Rent in Thu Duc City, HCMC | eno.vn')
   })

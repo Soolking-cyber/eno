@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clip, fillDescription, shopTitle, titleWithPrice, titleWithSite } from './meta-description'
+import { clip, fillDescription, firstThatFits, shopTitle, titleWithPrice, titleWithSite } from './meta-description'
 
 describe('fillDescription (Bing 2026-11-20: descriptions too short)', () => {
   it('adds the facts in order, only until the text is long enough', () => {
@@ -69,5 +69,14 @@ describe('shopTitle (Seobility 2026-11-23: "ShopDunk | eno.vn" too short to say 
   it('falls back to "<name> | <site>" (or the name cut) when the phrase does not fit', () => {
     expect(shopTitle('A'.repeat(40), 'eno.vn', 'en')).toBe(`${'A'.repeat(40)} | eno.vn`)
     expect(shopTitle('word '.repeat(20).trim(), 'eno.vn', 'en').length).toBeLessThanOrEqual(60)
+  })
+})
+
+describe('firstThatFits (Seobility 2026-11-23: a district title at 621 px)', () => {
+  it('takes the longest form within 60, else the shortest', () => {
+    const forms = ['Apartments & Houses for Rent in Binh Thanh District, HCMC | eno.vn', 'Apartments & Houses for Rent in Binh Thanh District, HCMC', 'Apartments & Houses for Rent in Binh Thanh District']
+    expect(firstThatFits(forms)).toBe('Apartments & Houses for Rent in Binh Thanh District, HCMC')
+    expect(firstThatFits(['Rentals in District 1, HCMC | eno.vn', 'x'])).toBe('Rentals in District 1, HCMC | eno.vn')
+    expect(firstThatFits(['a'.repeat(70), 'b'.repeat(65)])).toBe('b'.repeat(65))
   })
 })
