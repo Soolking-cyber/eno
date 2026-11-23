@@ -35,6 +35,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private static let appOrigin = "https://eno.vn"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // 1.2 (EnoShell): the last visit's home picture shows only on a launch from the icon — a link, a notification, a
+        // shortcut or a handed-off activity opens somewhere else, and a picture of home would be the wrong screen.
+        EnoShell.plainLaunch = launchOptions?[.url] == nil && launchOptions?[.remoteNotification] == nil
+            && launchOptions?[.shortcutItem] == nil && launchOptions?[.userActivityDictionary] == nil
         if let shortcutItem = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             // Cold launch from a quick action. The Capacitor bridge (and the App plugin's
             // capacitorOpenURL observer) doesn't exist yet, so forwarding now would post into the

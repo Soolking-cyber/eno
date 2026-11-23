@@ -70,6 +70,8 @@ function tabsSnapshot() {
       && !document.documentElement.hasAttribute('data-phone-search') && !overlayOpen(),
     items: items.map((el) => ({
       label: el.getAttribute('aria-label') ?? '',
+      // Where it goes, so the shell picks the tab's symbol by destination, never by position (review: a variant with fewer tabs).
+      href: el.getAttribute('href') ?? '',
       active: ['page', 'true'].includes(el.getAttribute('aria-current') ?? ''),
       // The count badge (ui/badge carries no hook): the item's one leaf whose whole text is a count, "3" or "9+".
       badge: Array.from(el.querySelectorAll('span, div')).find((n) => n.childElementCount === 0 && /^\d+\+?$/.test(n.textContent?.trim() ?? ''))?.textContent?.trim() ?? null,

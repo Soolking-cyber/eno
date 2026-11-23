@@ -41,6 +41,8 @@ class MainViewController: CAPBridgeViewController {
     private let ageGate = AgeGate()
     private var heldURL: URL?
     private var ageBlockController: AgeGateBlockViewController?
+    /// 1.2's native chrome over the web (EnoShell.swift): tab bar, page slides, long-press previews, the launch picture.
+    private var shell: EnoShell?
     /// Opaque, over the page, while Apple is asked where the law applies (`.pending`): the site may already be up (the
     /// first page is not held), but it cannot be used until the answer. Apple's sheet presents above it.
     private lazy var ageCover: UIView = {
@@ -75,6 +77,20 @@ class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(EnoSignInPlugin())
         installNavigationFailureFilter()
+        installShell()
+    }
+
+    /// Before the first load, like the filter: the first document must already see `__enoShell`, and WebKit reads the menu
+    /// delegate's methods when it is assigned.
+    private func installShell() {
+        guard shell == nil, let wv = webView else { return }
+        let shell = EnoShell(host: self, webView: wv)
+        shell.isBlocked = { [weak self] in
+            guard let self else { return true }
+            return !self.ageGate.isAllowed || self.ageCover.superview != nil || self.ageBlockController != nil
+        }
+        shell.installEarly()
+        self.shell = shell
     }
 
     override func viewDidLoad() {
@@ -83,6 +99,7 @@ class MainViewController: CAPBridgeViewController {
         installNavigationFailureFilter()
         super.viewDidLoad()
         configureNativeFeel()
+        shell?.installViews()
         ageGate.onChange = { [weak self] state, previous in self?.ageGateChanged(state, previous: previous) }
         ageGate.check(presenter: self) // once per cold launch; the block screen's Try again asks again
         scheduleWatchdog(after: 3.0)
@@ -303,6 +320,7 @@ class MainViewController: CAPBridgeViewController {
                 ageCover.frame = view.bounds
                 view.addSubview(ageCover)
             }
+            shell?.dropLaunchCover() // the launch picture never sits on, or outlives, a closing gate
             return
         case .allowed:
             ageCover.removeFromSuperview()
@@ -322,6 +340,7 @@ class MainViewController: CAPBridgeViewController {
             if let target, let wv = webView { _ = wv.load(URLRequest(url: target)) }
             scheduleWatchdog(after: 3.0)
         case let .blocked(reason):
+            shell?.dropLaunchCover()
             // The site loads before Apple answers (it is not held at launch): never leave it running — or still loading —
             // behind the screen. ⚠️ about:blank is not an app URL, so Capacitor's own policy CANCELS it (measured: the
             // page stayed https://eno.vn/); the filter lets exactly this one through.
@@ -459,7 +478,15 @@ private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
 
     /// The hosts that may render in this WebView — byte-for-byte `allowNavigation` in capacitor.config.ts.
     /// eno.vn is the app (server.url); www.eno.vn only 308s to it.
-    static let appHosts: Set<String> = ["eno.vn", "www.eno.vn"]
+    static let appHosts: Set<String> = {
+        var hosts: Set<String> = ["eno.vn", "www.eno.vn"]
+        #if DEBUG
+        // Simulator testing against a local preview only: a DEBUG build launched with ENO_DEV_HOST (simctl
+        // SIMCTL_CHILD_ENO_DEV_HOST=1) also renders localhost. Compiled out of every Release/App Store build.
+        if ProcessInfo.processInfo.environment["ENO_DEV_HOST"] != nil { hosts.insert("localhost") }
+        #endif
+        return hosts
+    }()
 
     /// ⛔ EXACT HOSTS, NOT A PREFIX (security, 2026-10-06). Capacitor treats any URL whose STRING merely starts
     /// with `server.url` as the app itself (WebViewDelegationHandler: `navURL.absoluteString.starts(with:

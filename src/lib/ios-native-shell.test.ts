@@ -114,8 +114,9 @@ describe('EnoSignInPlugin.swift implements src/lib/native-sign-in-plugin.ts', ()
 describe('the shell carries the plugin into the binary', () => {
   it('MainViewController registers it before the first page loads', () => {
     const vc = read('ios/App/App/MainViewController.swift')
-    // 1.1 adds the navigation filter's install after it, in the same pre-first-load hook (the age gate needs that).
-    expect(vc).toMatch(/override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(EnoSignInPlugin\(\)\)\s*installNavigationFailureFilter\(\)\s*\}/)
+    // 1.1 adds the navigation filter's install after it, in the same pre-first-load hook (the age gate needs that); 1.2 the
+    // native shell's (EnoShell.swift: its document-start script and menu delegate must be in place before the first load too).
+    expect(vc).toMatch(/override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(EnoSignInPlugin\(\)\)\s*installNavigationFailureFilter\(\)\s*installShell\(\)\s*\}/)
   })
 
   it('project.pbxproj compiles EnoSignInPlugin.swift into the App target', () => {
@@ -294,5 +295,64 @@ describe('build-3 purpose strings and privacy manifest (D20)', () => {
       expect(e.purposes, e.type).toContain('NSPrivacyCollectedDataTypePurposeAppFunctionality')
     }
     expect(manifest).toMatch(/<key>NSPrivacyTracking<\/key>\s*<false\/>/)
+  })
+})
+
+describe('iOS 1.2 — the native shell over the web (EnoShell.swift ↔ ios-shell-bridge.tsx)', () => {
+  const shellSwift = read('ios/App/App/EnoShell.swift')
+  const bridge = read('src/components/native/ios-shell-bridge.tsx')
+  const layout = read('src/app/[lang]/layout.tsx')
+
+  it('EnoShell.swift is compiled into the App target', () => {
+    const pbx = read('ios/App/App.xcodeproj/project.pbxproj')
+    const sources = pbx.slice(pbx.indexOf('/* Begin PBXSourcesBuildPhase section */'), pbx.indexOf('/* End PBXSourcesBuildPhase section */'))
+    expect(sources).toContain('/* EnoShell.swift in Sources */')
+    expect(pbx).toMatch(/\/\* EnoShell\.swift \*\/ = \{isa = PBXFileReference; lastKnownFileType = sourcecode\.swift; path = EnoShell\.swift;/)
+  })
+
+  it('the shell announces what it draws in one document-start flag the web reads', () => {
+    expect(shellSwift).toContain('static let userScript = "window.__enoShell={tabs:1,nav:1,menus:1};"')
+    expect(shellSwift).toContain('injectionTime: .atDocumentStart, forMainFrameOnly: true')
+    expect(bridge).toContain('__enoShell')
+    expect(layout).toContain("var ES=window.__enoShell;if(ES){if(ES.tabs)dc.add('native-tabbar');if(ES.menus)dc.add('native-menus');}")
+  })
+
+  it('every message the web posts has a native handler, and the native side answers only the app\'s own main frame', () => {
+    for (const name of ['enoTabs', 'enoNav']) {
+      expect(bridge).toContain(`post('${name}'`)
+      expect(shellSwift).toContain(`"${name}"`)
+    }
+    expect(layout).toContain('window.webkit.messageHandlers.enoPainted.postMessage(1)')
+    expect(shellSwift).toContain('"enoPainted"')
+    expect(shellSwift).toContain('guard message.frameInfo.isMainFrame, Self.appHosts.contains(message.frameInfo.securityOrigin.host.lowercased()) else { return }')
+  })
+
+  it('every event the shell sends has a listener in the bridge (a missing one would leave a tap that does nothing)', () => {
+    for (const name of ['eno:native-tab', 'eno:native-card']) {
+      expect(shellSwift).toContain(`new CustomEvent('${name}'`)
+      expect(bridge).toContain(`window.addEventListener('${name}'`)
+    }
+    // iOS's own swipe-back starts at the left edge: a touch there never arms a slide, so Back never animates twice.
+    expect(bridge).toMatch(/t\.clientX >= EDGE_PX/)
+  })
+
+  it('the class that hides the web nav follows the native bar both ways', () => {
+    expect(shellSwift).toContain(`document.documentElement.classList.toggle('native-tabbar',`)
+    expect(read('src/app/globals.css')).toContain('html.native-tabbar .mobile-nav { visibility: hidden; pointer-events: none; }')
+  })
+
+  it('the launch picture\'s account check reads the session cookie by the name the web uses', async () => {
+    const { sessionCookieName } = await import('./supabase/session-cookie')
+    expect(shellSwift).toContain(`static let sessionCookie = "${sessionCookieName('https://sb.eno.vn')}"`)
+    expect(shellSwift).toContain('now == was && now != "unknown"')
+  })
+
+  it('localhost renders only in a DEBUG build launched for the simulator', () => {
+    for (const file of ['ios/App/App/EnoShell.swift', 'ios/App/App/MainViewController.swift']) {
+      const src = read(file)
+      const at = src.indexOf('hosts.insert("localhost")')
+      expect(at, file).toBeGreaterThan(0)
+      expect(src.lastIndexOf('#if DEBUG', at), file).toBeGreaterThan(src.lastIndexOf('#endif', at))
+    }
   })
 })
