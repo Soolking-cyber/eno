@@ -91,12 +91,15 @@ android {
         // 6 (2026-10-29): everything 5 had, plus the voice guide's microphone (RECORD_AUDIO +
         //   MODIFY_AUDIO_SETTINGS) and the `EnoVoice/1` user-agent token; App Links stop claiming
         //   /classroom and /concierge ("/c" → "/c/" + /checkout + /contact).
-        versionCode 6
+        // 7 (2026-11-23): pull-to-refresh declines a sideways drag (MainActivity SidewaysAwareRefreshLayout), so a photo
+        //   strip or a sideways row at the top of a page swipes instead of being cancelled by the pull (owner: "on android
+        //   product image swipe is very bad").
+        versionCode 7
         /** ⚠️ 1.0.4: 1.0.2 (versionCode 4) IS THE LIVE PRODUCTION RELEASE, and 1.0.3 named versionCode 5,
          *  built and never uploaded. Play allows two bundles to share a versionName, and the result is
          *  two different builds with one name in the release list, in crash reports and in the app's own
          *  about screen. The name is what humans read; the code is what Play enforces. Move both. */
-        versionName "1.0.4"
+        versionName "1.0.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

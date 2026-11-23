@@ -951,6 +951,38 @@ export function ListingsExplorer({
     const cur = viewModeRef.current
     if (m !== cur && m !== 'video' && cur !== 'video' && (m === 'map' || cur === 'map')) commitView()
     setViewMode((c) => { if (m === 'video' && c !== 'video') prevViewRef.current = c; return m })
+    /**
+     * ⛔ INTO THE MAP FROM BELOW IT, LAND ON THE MAP (owner, 2026-11-23: "when scrolled … and clicked it shows another product
+     * and user has to scroll up to see the map"). A phone's map is the FIRST block of the results (order-1, 60dvh, the list
+     * under it), and the rentals feed floats its Map toggle once the reader is past the results line (`floatMapAfter`) — so a
+     * tap from deep in the grid swapped the view in place and left the reader on the list, the map far above. Same landing as
+     * "show on map" (locateOnMap): two frames for the commit, then the map box, whose scroll-mt clears the header. Only when
+     * the map's top is ABOVE the screen: a tap at the top of the page already has it in view and moves nothing. Instant, not
+     * smooth: from deep in a feed a smooth scroll is seconds of list racing past.
+     */
+    // ⚠️ AND AGAIN ONCE THE CHROME ABOVE HAS SETTLED: measured on a phone (Android Chrome, preview), the rows above the map
+    // shrink a beat after the swap, so a map scrolled to its scroll-mt (56px) rose to 0 — under the header. The second pass
+    // re-seats it at its own scroll-margin, and runs only when the first one moved the page — and only if nothing has moved
+    // it since (review): a reader who flicks on, or taps back to the list, inside that beat is never pulled back. A layout
+    // shift moves the map, not scrollY, so an unchanged scrollY is exactly "the reader has not scrolled".
+    // `instant`, not `auto`: `auto` follows the page's CSS scroll-behavior.
+    if (m === 'map' && cur !== 'map') {
+      const seat = (el: HTMLElement) => {
+        const want = parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+        window.scrollTo({ top: window.scrollY + el.getBoundingClientRect().top - want, behavior: 'instant' })
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const el = mapWrapRef.current
+        if (!el || el.getBoundingClientRect().top >= 0) return
+        seat(el)
+        const seatedAt = window.scrollY
+        window.setTimeout(() => {
+          const again = mapWrapRef.current
+          if (!again || viewModeRef.current !== 'map' || Math.abs(window.scrollY - seatedAt) > 2) return
+          if (Math.abs(again.getBoundingClientRect().top - (parseFloat(getComputedStyle(again).scrollMarginTop) || 0)) > 4) seat(again)
+        }, 350)
+      }))
+    }
     // Grid and list are the reader's say on this; the map and the video takeover are neither, and coming back from
     // them returns to the presentation chosen before.
     if (m === 'grid') setGridAsked(true)

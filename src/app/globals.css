@@ -2821,6 +2821,14 @@ html.os-android [data-store="ios"] {
   html:not(.native) .standalone-back { display: flex; }
   html:not(.native) .standalone-back + [data-header-logo] { display: none; }
 }
+/* ⛔ THE STORE APPS GET THE SAME BACK (owner, 2026-11-23: "on ios there is no back button when you enter the product page").
+   The iOS shell has no browser chrome and no system Back button — only the edge swipe (MainViewController
+   allowsBackForwardNavigationGestures), which nobody finds — and the header there keeps its logo on a listing page (the
+   photo-first rule above is `html:not(.native)`). So every page but home shows Back where the logo was, as an iOS
+   navigation bar does; on Android it is the app bar's Up, beside the system Back the shell already routes (native-bootstrap
+   `backButton`). Same button, same `useSafeBack('/')`: one of our pages behind it pops, a cold open goes home. */
+html.native .standalone-back { display: flex; }
+html.native .standalone-back + [data-header-logo] { display: none; }
 
 /* ⚠️ THE FOOTER'S LINK GROUPS ARE AN ACCORDION ON A PHONE AND ALWAYS OPEN FROM sm UP. Measured on
    prod at 390: the fully expanded footer was 1,748px — five link groups stacked above the legal block.
@@ -5605,7 +5613,7 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
    (listing-card.tsx says which and why): they are not utilities, and other rules key on their text. */
 @layer components {
   .card-root {
-    @apply relative flex h-full w-full cursor-pointer flex-col text-left transition-transform duration-200 [touch-action:manipulation] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97];
+    @apply relative flex h-full w-full cursor-pointer flex-col text-left transition-transform duration-200 [touch-action:manipulation] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] data-swiping:scale-100;
   }
   .card-link {
     @apply absolute inset-0 z-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;

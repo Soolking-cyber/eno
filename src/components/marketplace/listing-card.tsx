@@ -491,6 +491,7 @@ function ListingCardImpl({
     if (!strip) return
     strip.style.transition = ''
     strip.style.transform = `translateX(-${to * 100}%)`
+    strip.closest('[data-card-root]')?.removeAttribute('data-swiping')
   }
   /**
    * ⚠️ SIZED TO THE SYNTHETIC CLICK, NOT TO "a while". The browser's touch-derived click follows
@@ -898,7 +899,12 @@ function ListingCardImpl({
           // saw `!rewinding && idx !== 0` and bailed, so the card stayed on photo 3 with every
           // slide mounted, forever. A touch that does not move the strip has not chosen anything.
           if (collapseTimer.current) { clearTimeout(collapseTimer.current); collapseTimer.current = null }
-          if (segments > 1) setExpanded(true)
+          // ⛔ NO TOUCH PHOTO SWIPE ON A `lane` CARD (owner, 2026-11-23: "on android product image swipe is very bad"). A lane is a
+          // row that scrolls SIDEWAYS, so one leftward drag on a photo both advanced the photo and scrolled the row — measured in
+          // the Play app (adb swipe on a home lane card): strip translateX(-100%) AND the row's scrollLeft 0 → 123. One gesture,
+          // one motion: the row owns the drag there, natively; the photos are a tap away on the listing (the phone hides a
+          // lane card's pips anyway, so nothing promises a swipe). Mouse hover-scan is untouched.
+          if (segments > 1 && !lane) setExpanded(true)
           /**
            * ⚠️ THERE IS DELIBERATELY NO PINCH BRANCH HERE, and that is a decision, not an omission.
            * Four reviewer rounds went into detecting a second finger — `targetTouches`, a tracked
@@ -931,7 +937,7 @@ function ListingCardImpl({
         onTouchMove={(e) => {
           const sx = touchStartX.current
           const sy = touchStartY.current
-          if (segments < 2 || sx == null || sy == null) return
+          if (segments < 2 || lane || sx == null || sy == null) return
           const t = Array.from(e.changedTouches).find((c) => c.identifier === touchId.current)
           if (!t) return
           const dx = t.clientX - sx
@@ -954,6 +960,9 @@ function ListingCardImpl({
           }
           const strip = stripRef.current
           if (dragAxis.current !== 'x' || !strip) return
+          // The card's press scale (`.card-root` active:scale-[0.97]) holds for the whole touch once nothing scrolls, so a
+          // photo swipe shrank the card under the finger; `data-swiping` lifts it (globals.css) until releaseStrip.
+          if (dragReach.current === 0) strip.closest('[data-card-root]')?.setAttribute('data-swiping', '')
           dragReach.current = Math.max(dragReach.current, Math.abs(dx))
           strip.style.transition = 'none'
           strip.style.transform = `translateX(calc(${-idx * 100}% + ${rubberBand(dx, idx === last ? 0 : -Infinity, idx === 0 ? 0 : Infinity)}px))`
@@ -984,7 +993,7 @@ function ListingCardImpl({
           const locked = dragAxis.current
           const dragged = locked === 'x'
           dragAxis.current = null
-          if (!end || sx == null || segments < 2) { if (dragged) releaseStrip(idx); return }
+          if (!end || sx == null || segments < 2 || lane) { if (dragged) releaseStrip(idx); return }
           const dx = end.clientX - sx
           const dy = sy == null ? 0 : end.clientY - sy
           // The decision itself is `isSwipe` in card-slots.ts — pure, so it can be unit-tested.

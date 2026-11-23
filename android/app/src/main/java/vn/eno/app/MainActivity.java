@@ -3,8 +3,11 @@ package vn.eno.app;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.content.Context;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
@@ -42,6 +45,51 @@ import java.util.Set;
  * on the app's origin (https://eno.vn), e.g. on the local offline page (see onNewIntent).
  */
 public class MainActivity extends BridgeActivity {
+    /**
+     * ⛔ A SIDEWAYS DRAG IS NEVER A PULL (owner, 2026-11-23: "on android product image swipe is very bad make it frictionless
+     * smooth"). SwipeRefreshLayout starts its pull as soon as the finger has gone touch-slop DOWNWARD while the page is at its
+     * top — it never looks at the horizontal travel. A listing page opens at the top with its photo strip there, and a thumb
+     * swiping photos always drifts a little downward: the layout intercepted the gesture, the WebView got ACTION_CANCEL, and the
+     * strip did not move. Measured in the Play app (adb swipe on a 10-photo gallery): flat → photo 2, drifting up → photo 2,
+     * drifting 30 CSS px down → touchcancel, still photo 1. The same theft hit the home page's sideways rows at the top.
+     * So a gesture whose horizontal travel passes touch slop first, and leads, is declined for its whole length: super never
+     * sees another MOVE until the next DOWN, so it cannot start dragging. A pull that leads downward is untouched.
+     */
+    static final class SidewaysAwareRefreshLayout extends SwipeRefreshLayout {
+        private final int touchSlop;
+        private float downX;
+        private float downY;
+        private boolean sideways;
+
+        SidewaysAwareRefreshLayout(Context context) {
+            super(context);
+            touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(MotionEvent ev) {
+            switch (ev.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    downX = ev.getX();
+                    downY = ev.getY();
+                    sideways = false;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (sideways) return false;
+                    final float dx = Math.abs(ev.getX() - downX);
+                    final float dy = Math.abs(ev.getY() - downY);
+                    if (dx > touchSlop && dx > dy) {
+                        sideways = true;
+                        return false;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return super.onInterceptTouchEvent(ev);
+        }
+    }
+
     private SwipeRefreshLayout swipeRefresh;
 
     // Written from the WebView's JS thread, read on the UI thread during touch dispatch.
@@ -221,7 +269,7 @@ public class MainActivity extends BridgeActivity {
         final ViewGroup.LayoutParams originalParams = webView.getLayoutParams();
         parent.removeView(webView);
 
-        swipeRefresh = new SwipeRefreshLayout(this);
+        swipeRefresh = new SidewaysAwareRefreshLayout(this);
         swipeRefresh.setLayoutParams(originalParams);
         /*
          * ⚠️ THE SPINNER WAS THE PLATFORM DEFAULT — a grey arc on a white puck, in an app whose
