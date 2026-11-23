@@ -156,7 +156,7 @@ export function MonthsField({ id, label, value, onChange, read, shown, onEnter, 
  * A plain number for a generated tool (src/app/[lang]/tools/[slug]): a count, a rate, a percent (`suffix` "%"). Its errors come
  * whole from the caller, which knows the tool's range; `regroup` writes the figure back as it was read when the reader leaves.
  */
-export function NumberField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, message, suffix, regroup: rewrite }: Omit<Props, 'message'> & { message: string; suffix?: string; regroup?: (v: number) => string }) {
+export function NumberField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, message, suffix, regroup: rewrite, negative }: Omit<Props, 'message'> & { message: string; suffix?: string; regroup?: (v: number) => string; negative?: boolean }) {
   const error = shown && !read.ok ? message : null
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
@@ -164,8 +164,9 @@ export function NumberField({ id, label, value, onChange, read, shown, onEnter, 
         <Input
           id={id}
           type="text"
-          // "decimal", not "numeric": a rate has a decimal point, and iOS's numeric pad has none.
-          inputMode="decimal"
+          // "decimal", not "numeric": a rate has a decimal point, and iOS's numeric pad has none. A range that goes below 0 gets the
+          // full keyboard instead: iOS's decimal pad has no minus key (Opus gate 2026-11-23).
+          inputMode={negative ? 'text' : 'decimal'}
           autoComplete="off"
           value={value}
           onChange={(e) => onChange(e.target.value)}

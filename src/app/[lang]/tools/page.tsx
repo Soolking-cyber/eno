@@ -29,6 +29,8 @@ const INTRO = {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  // The page is a 404 on eno.forum (below); its head must not carry eno.vn's canonical and title into that 404 (Opus gate 2026-11-23).
+  if (IS_SERVICES) return {}
   const { lang } = await params
   return toolPageMetadata('/tools', lang, META)
 }
