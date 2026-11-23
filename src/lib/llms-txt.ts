@@ -120,11 +120,11 @@ const DEVELOPER_SECTION = `## For developers and agents
   answers 405). Tools are listed at runtime via tools/list and each one is scope-gated. Chat tools
   (list_conversations, get_conversation, contact_seller, send_message, decline_offer) need messages:read or
   messages:write, which only a person's sign-in grants: an agent messages sellers, replies and makes or counters offers in
-  that person's name, every message it sends shows as written by an AI assistant, and accepting an offer stays with the person.
+  that person's name, every message it sends shows as written by an AI assistant, and accepting an offer stays with the person.${!IS_SERVICES ? `
 - Paid ads, bought by an agent for its shop over x402 (USDC): get_ad_offer, promote_listing and list_ads on the MCP server,
-  or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). One of the shop's live listings is shown
-  first, labelled "Ad", in matching search and category results, the home feed and similar listings for 7 days; the public
-  offer and audience figures are at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).
+  or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). One of the shop's public listings is
+  shown first, labelled "Ad", in matching search and category results, the home feed and similar listings for 7 days; the
+  public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.

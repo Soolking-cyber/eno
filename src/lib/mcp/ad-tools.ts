@@ -54,7 +54,7 @@ const OFFER_OUT = z.strictObject({
   network: z.string().nullable().describe('Where it is paid: a CAIP-2 network id (eip155:8453 is Base); null when not on sale'),
   duration_days: z.number().describe('How long one ad runs'),
   placements: z.array(z.string()).describe('Where the ad is shown, first and labelled "Ad"'),
-  public_listings: z.number().describe('Listings live on eno.vn now, the pool the ad is shown among'),
+  public_listings: z.number().describe('Listings public on the marketplace now, the pool the ad is shown among'),
   running_ads: z.number().describe('Ads running now (they take turns in the one slot)'),
   listing: z.strictObject({
     id: z.string().describe('The listing you asked about'),
@@ -69,7 +69,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'get_ad_offer',
     title: 'Get the ad offer',
-    description: 'Read what a paid ad on eno.vn costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for 7 days. Pass `listingId` to check that listing can be advertised.\n\nReturns `available`, `price_usdc`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
+    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for 7 days. Pass `listingId` to check that listing can be advertised.\n\nReturns `available`, `price_usdc`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
     scope: 'listings:read',
     annotations: READ_ONLY,
     input: z.object({ listingId: LISTING_ID.optional() }),
