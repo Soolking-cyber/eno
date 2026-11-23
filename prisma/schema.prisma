@@ -1421,7 +1421,8 @@ model ListingAd {
   /// 'http' (POST /api/v1/ads) | 'mcp' (promote_listing).
   via              String
   /// pending: verified, settlement asked, outcome not yet known — never shown · active: paid; shown from startsAt to
-  /// endsAt · failed: the facilitator refused, nothing moved · unknown: settlement answer lost and not found on chain yet.
+  /// endsAt · failed: refused before any broadcast, or never used by validBefore — nothing moved · unknown: outcome not
+  /// found on chain yet · review: used on chain with no transfer of its own after a week — for the owner, no more retries.
   status           String
   startsAt         DateTime?
   endsAt           DateTime?
@@ -1437,7 +1438,8 @@ model ListingAd {
   signature        String
   /// The buyer's PaymentPayload as received (for a re-settle after a lost answer).
   payloadJson      Json
-  txHash           String?   @unique
+  /// NOT unique: one transaction can settle several authorizations (x402 batch settlement). paymentId is the identity.
+  txHash           String?
   settlementJson   Json?
   failReason       String?
   impressions      Int       @default(0)
@@ -1448,6 +1450,7 @@ model ListingAd {
   @@index([status, endsAt])
   @@index([listingId, status])
   @@index([sellerId, createdAt])
+  @@index([txHash])
 }
 
 /// TEACHER JOB DMs (owner, 2026-10-20: "send related jobs cover lessons to our teachers in chat inside eno.vn from the admin

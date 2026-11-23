@@ -15,6 +15,7 @@ import type { X402Config } from './config'
 const DEFAULT_RPC: Record<string, string> = { 'eip155:8453': 'https://mainnet.base.org', 'eip155:84532': 'https://sepolia.base.org' }
 const hexOf = (s: string) => `0x${Buffer.from(keccak_256(new TextEncoder().encode(s))).toString('hex')}`
 const AUTHORIZATION_USED = hexOf('AuthorizationUsed(address,bytes32)')
+const AUTHORIZATION_CANCELED = hexOf('AuthorizationCanceled(address,bytes32)')
 const TRANSFER = hexOf('Transfer(address,address,uint256)')
 const WINDOW = 2_000
 const BLOCK_SECONDS = 2
@@ -34,7 +35,7 @@ async function rpc<T>(url: string, method: string, params: unknown[], fetchImpl:
   return j.result
 }
 
-export type ChainPayment = { found: true; txHash: string } | { found: false }
+export type ChainPayment = { found: true; txHash: string } | { found: false; cancelled: boolean }
 
 const AUTH_STATE_SELECTOR = hexOf('authorizationState(address,bytes32)').slice(0, 10)
 
@@ -85,17 +86,40 @@ export async function findAuthorizationPayment(
       if (await paidInTx(url, cfg, log.transactionHash, p, fetchImpl)) return { found: true, txHash: log.transactionHash }
     }
   }
-  return { found: false }
+  // Not paid: was it CANCELLED (EIP-3009 cancelAuthorization — authorizationState is then true too, with no transfer)?
+  // ⚠️ Searched in the same window only: cancelAuthorization has no time check, so a cancel made after the window is not
+  // seen here — such a row ends in `review` (book.ts), never in `failed` or `active`.
+  let cancelled = false
+  for (let to = ceil; to >= floor && !cancelled; to -= WINDOW) {
+    const from = Math.max(floor, to - WINDOW + 1)
+    const logs = await rpc<unknown[]>(url, 'eth_getLogs', [{
+      address: cfg.asset,
+      fromBlock: `0x${from.toString(16)}`,
+      toBlock: `0x${to.toString(16)}`,
+      topics: [AUTHORIZATION_CANCELED, pad32(p.from), p.nonce.toLowerCase()],
+    }], fetchImpl)
+    cancelled = logs.length > 0
+  }
+  return { found: false, cancelled }
 }
 
-/** The receipt succeeded and carries a Transfer(from → payTo, amount) of the asset. */
-async function paidInTx(url: string, cfg: Pick<X402Config, 'asset' | 'payTo'>, txHash: string, p: { from: string; amount: string }, fetchImpl: typeof fetch): Promise<boolean> {
+/**
+ * The receipt succeeded and THIS authorization paid: its own AuthorizationUsed(from, nonce) log is followed, as the very
+ * next log of the token contract, by Transfer(from → payTo, amount) — the order FiatToken's transferWithAuthorization
+ * emits them in (_markAuthorizationAsUsed, then _transfer). ⛔ Not merely "some matching Transfer in the receipt" (gate
+ * review 2026-11-23): one transaction can carry several authorizations (batch settlement, or a buyer's own multicall that
+ * spends another authorization to themselves beside a real payment), and each ad must be bound to its own transfer.
+ */
+async function paidInTx(url: string, cfg: Pick<X402Config, 'asset' | 'payTo'>, txHash: string, p: { from: string; nonce: string; amount: string }, fetchImpl: typeof fetch): Promise<boolean> {
   const r = await rpc<{ status: string; logs: { address: string; topics: string[]; data: string }[] } | null>(url, 'eth_getTransactionReceipt', [txHash], fetchImpl)
   if (!r || r.status !== '0x1') return false
-  return r.logs.some((l) =>
-    l.address.toLowerCase() === cfg.asset.toLowerCase() &&
-    l.topics[0] === TRANSFER &&
-    l.topics[1]?.toLowerCase() === pad32(p.from) &&
-    l.topics[2]?.toLowerCase() === pad32(cfg.payTo) &&
-    BigInt(l.data) === BigInt(p.amount))
+  const asset = cfg.asset.toLowerCase()
+  const token = r.logs.filter((l) => l.address.toLowerCase() === asset)
+  const at = token.findIndex((l) => l.topics[0] === AUTHORIZATION_USED && l.topics[1]?.toLowerCase() === pad32(p.from) && l.topics[2]?.toLowerCase() === p.nonce.toLowerCase())
+  const next = at >= 0 ? token[at + 1] : undefined
+  return !!next &&
+    next.topics[0] === TRANSFER &&
+    next.topics[1]?.toLowerCase() === pad32(p.from) &&
+    next.topics[2]?.toLowerCase() === pad32(cfg.payTo) &&
+    BigInt(next.data) === BigInt(p.amount)
 }

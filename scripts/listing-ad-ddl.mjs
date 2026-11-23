@@ -51,10 +51,11 @@ const STATEMENTS = [
      )`,
   ],
   ['ListingAd paymentId unique', `CREATE UNIQUE INDEX IF NOT EXISTS "ListingAd_paymentId_key" ON public."ListingAd"("paymentId")`],
-  ['ListingAd txHash unique', `CREATE UNIQUE INDEX IF NOT EXISTS "ListingAd_txHash_key" ON public."ListingAd"("txHash")`],
   ['ListingAd (status, endsAt) index', `CREATE INDEX IF NOT EXISTS "ListingAd_status_endsAt_idx" ON public."ListingAd"("status", "endsAt")`],
   ['ListingAd (listingId, status) index', `CREATE INDEX IF NOT EXISTS "ListingAd_listingId_status_idx" ON public."ListingAd"("listingId", "status")`],
   ['ListingAd (sellerId, createdAt) index', `CREATE INDEX IF NOT EXISTS "ListingAd_sellerId_createdAt_idx" ON public."ListingAd"("sellerId", "createdAt")`],
+  // NOT unique: one transaction can settle several authorizations (x402 batch settlement); paymentId is the identity.
+  ['ListingAd (txHash) index', `CREATE INDEX IF NOT EXISTS "ListingAd_txHash_idx" ON public."ListingAd"("txHash")`],
   ['ListingAd RLS on', `ALTER TABLE public."ListingAd" ENABLE ROW LEVEL SECURITY`],
   [
     // ⚠️⚠️ REVOKE — Supabase's default privileges hand every new public table to `anon` and `authenticated`. Each role only
@@ -101,7 +102,7 @@ try {
     `SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
       WHERE i.indrelid = 'public."ListingAd"'::regclass AND i.indisunique ORDER BY a.attname`)
   const uniques = uq.rows.map((r) => r.attname).join(',')
-  if (uniques !== 'id,paymentId,txHash') throw new Error(`unique keys are (${uniques}), not (id, paymentId, txHash) — one payment must be one ad; rolled back.`)
+  if (uniques !== 'id,paymentId') throw new Error(`unique keys are (${uniques}), not (id, paymentId) — one payment must be one ad; rolled back.`)
   const rel = await client.query(`SELECT relrowsecurity FROM pg_class WHERE oid = 'public."ListingAd"'::regclass`)
   if (!rel.rows[0]?.relrowsecurity) throw new Error('RLS did not switch on for ListingAd — rolled back.')
   // has_table_privilege asks Postgres directly, whoever runs this (rum-ddl.mjs: information_schema lists only grants

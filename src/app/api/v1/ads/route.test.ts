@@ -72,7 +72,7 @@ describe('POST /api/v1/ads', () => {
     h.booked = { kind: 'payment_failed', reason: 'insufficient_funds', settlement: { success: false, transaction: '', network: 'eip155:8453', errorReason: 'insufficient_funds' } }
     const failed = await POST(req(PAID))
     expect(failed.status).toBe(402)
-    expect((decodeHeader(failed.headers.get('PAYMENT-REQUIRED')) as { error: string }).error).toMatch(/insufficient_funds.*nothing was charged/)
+    expect((decodeHeader(failed.headers.get('PAYMENT-REQUIRED')) as { error: string }).error).toMatch(/insufficient_funds.*never charged twice/)
     expect(decodeHeader(failed.headers.get('PAYMENT-RESPONSE'))).toMatchObject({ success: false })
     h.booked = { kind: 'refused', status: 403, code: 'not_public', message: 'Only a live, public listing can be advertised.' }
     expect((await POST(req(PAID))).status).toBe(403)

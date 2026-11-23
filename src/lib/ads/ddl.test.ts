@@ -31,17 +31,17 @@ describe('scripts/listing-ad-ddl.mjs ↔ prisma/schema.prisma', () => {
     expect(create).toContain('CONSTRAINT "ListingAd_pkey" PRIMARY KEY ("id")')
   })
 
-  it("has the model's two unique keys and three indexes, and no foreign key", () => {
+  it("has the model's one unique key (paymentId — never txHash: one transaction can settle several), four indexes, no foreign key", () => {
     expect(modelBody).toMatch(/paymentId\s+String\s+@unique/)
-    expect(modelBody).toMatch(/txHash\s+String\?\s+@unique/)
+    expect(modelBody).toMatch(/txHash\s+String\?\s*$/m)
     expect(DDL_STATEMENTS.slice(1, 6)).toEqual([
       'CREATE UNIQUE INDEX IF NOT EXISTS "ListingAd_paymentId_key" ON public."ListingAd"("paymentId")',
-      'CREATE UNIQUE INDEX IF NOT EXISTS "ListingAd_txHash_key" ON public."ListingAd"("txHash")',
       'CREATE INDEX IF NOT EXISTS "ListingAd_status_endsAt_idx" ON public."ListingAd"("status", "endsAt")',
       'CREATE INDEX IF NOT EXISTS "ListingAd_listingId_status_idx" ON public."ListingAd"("listingId", "status")',
       'CREATE INDEX IF NOT EXISTS "ListingAd_sellerId_createdAt_idx" ON public."ListingAd"("sellerId", "createdAt")',
+      'CREATE INDEX IF NOT EXISTS "ListingAd_txHash_idx" ON public."ListingAd"("txHash")',
     ])
-    for (const idx of ['@@index([status, endsAt])', '@@index([listingId, status])', '@@index([sellerId, createdAt])']) expect(modelBody).toContain(idx)
+    for (const idx of ['@@index([status, endsAt])', '@@index([listingId, status])', '@@index([sellerId, createdAt])', '@@index([txHash])']) expect(modelBody).toContain(idx)
     expect(modelBody).not.toMatch(/@relation/)
   })
 
@@ -95,7 +95,7 @@ describe.skipIf(!pglite && !process.env.CI)(`the DDL, run in PGlite${pglite ? ''
     await pg.exec(row('a1', 'p1', null))
     await pg.exec(row('a2', 'p2', null)) // two NULL tx hashes are fine
     await expect(pg.exec(row('a3', 'p1', null))).rejects.toThrow(/duplicate key/)
-    await pg.exec(`UPDATE public."ListingAd" SET "txHash" = '0x1' WHERE id = 'a1'`)
-    await expect(pg.exec(`UPDATE public."ListingAd" SET "txHash" = '0x1' WHERE id = 'a2'`)).rejects.toThrow(/duplicate key/)
+    // One transaction may settle both (batch settlement): the same tx hash on two rows is allowed.
+    await pg.exec(`UPDATE public."ListingAd" SET "txHash" = '0x1' WHERE id IN ('a1', 'a2')`)
   })
 })
