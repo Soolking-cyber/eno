@@ -136,11 +136,13 @@ const MOTO_PARTNER_SELLER_IDS: readonly string[] = [
 
 /**
  * …and the housing agencies (src/lib/housing-partners.ts, owner 2026-11-22): ~570 listings written at once from two
- * storefronts. Their seller ids: Alpha Housing registered 2026-11-22, Housing Saigon 2026-11-21.
+ * storefronts, then ~100 from Central Vietnam Realty (owner 2026-11-23). Their seller ids: Alpha Housing registered
+ * 2026-11-22, Housing Saigon 2026-11-21, Central Vietnam Realty 2026-11-23.
  */
 const HOUSING_PARTNER_SELLER_IDS: readonly string[] = [
   'd03f6c20-48b4-4db9-b09d-85b201e20e3b', // Alpha Housing
   'f784ec38-25a9-47a3-9f77-55ec5aa66104', // Housing Saigon
+  '4d4a7189-ab10-4e05-8bcb-04cabefc7179', // Central Vietnam Realty (CVR)
 ]
 
 export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {

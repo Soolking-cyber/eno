@@ -275,6 +275,20 @@ const PARTNERS = {
     avatarColor: '#1d1d1f',
     dailyReminderOptIn: false,
   },
+  // ── ĐÀ NẴNG RENTAL AGENCY (owner, 2026-11-23). Asked to import anhducproperty.com, a copy of CVR's site, the owner
+  // chose "Partner with CVR instead". An eno-held login like the other agencies; scripts/import-housing-partners.ts.
+  cvr: {
+    email: 'support+cvr@eno.vn',
+    handle: 'cvr',
+    name: 'Central Vietnam Realty',
+    // Its site's footer, as printed: "© 2026 Cat Viet Rong Limited Company, CVR - Central Vietnam Realty" (read 2026-11-23).
+    legalName: 'Cat Viet Rong Limited Company',
+    bio: 'Real estate agency in Đà Nẵng and Hội An: apartments, villas and houses for rent, and office and shop space, in Sơn Trà, Ngũ Hành Sơn, Hải Châu and more. Message Central Vietnam Realty here on eno to check availability and book a viewing. eno introduces Central Vietnam Realty; the tenancy is arranged with them.',
+    avatarUrl: null,
+    // The brick red of their house mark.
+    avatarColor: '#a61d18',
+    dailyReminderOptIn: false,
+  },
   saigonscootercentre: {
     email: 'support+saigonscootercentre@eno.vn',
     handle: 'saigonscootercentre',

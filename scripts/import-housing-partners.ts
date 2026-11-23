@@ -1,15 +1,16 @@
 /**
- * eno's housing agency partners (src/lib/housing-partners.ts) → their own storefronts: Alpha Housing's Hà Nội rentals and
- * Housing Saigon's Ho Chi Minh City rentals, created ONCE.
+ * eno's housing agency partners (src/lib/housing-partners.ts) → their own storefronts: Alpha Housing's Hà Nội rentals,
+ * Housing Saigon's Ho Chi Minh City rentals and CVR's Đà Nẵng / Hội An rentals (2026-11-23), created ONCE.
  *
  * What is written and why: src/lib/housing-partners.ts. This file is the I/O around it, after scripts/import-moto-partners.ts.
  *
  *   DRY (reads the research and the DB read-only; writes nothing, uploads nothing):
  *     set -a; . ~/eno.vn/.env; set +a; npx tsx scripts/import-housing-partners.ts all
  *   WRITE (journal first):
- *     … scripts/import-housing-partners.ts <alphahousing|housingsaigon|all> --journal-dir <durable dir> --identity-gate on|off --apply
- *   --research-dir <dir>  defaults to ~/eno-housing-partners-2026-11-22 (<research>/data.json, photos/<id>/NN.ext,
- *                         photo-verdicts.json, raw/logo/logo.{png,webp,jpg})
+ *     … scripts/import-housing-partners.ts <alphahousing|housingsaigon|cvr|all> --journal-dir <durable dir> --identity-gate on|off --apply
+ *   --research-dir <dir>  overrides every partner's research root (<research>/data.json, photos/<id>/NN.ext,
+ *                         photo-verdicts.json, raw/logo/logo.{png,webp,jpg}). Defaults: RESEARCH_ROOT below —
+ *                         ~/eno-housing-partners-2026-11-22 for Alpha and Housing Saigon, ~/eno-cvr-partner-2026-11-23 for CVR.
  *
  * ⛔ CREATE-ONLY, AND NOT A JOB: a listing whose row exists is SKIPPED, whatever it now says; nothing schedules this file.
  * ⛔ PHOTOS: only those photo-verdicts.json keeps (photo-check.mjs: decode + size floor, OCR for a phone, link or email,
@@ -51,7 +52,12 @@ const str = (k: string) => { const i = argv.indexOf(k); return i > -1 ? argv[i +
 const WHICH = argv.find((a) => !a.startsWith('--') && !argv[argv.indexOf(a) - 1]?.startsWith('--')) ?? null
 const JOURNAL_DIR = str('--journal-dir')
 const GATE_ARG = str('--identity-gate')
-const RESEARCH = resolve(str('--research-dir') ?? join(homedir(), 'eno-housing-partners-2026-11-22'))
+const RESEARCH_ROOT: Record<HousingPartner['handle'], string> = {
+  alphahousing: join(homedir(), 'eno-housing-partners-2026-11-22'),
+  housingsaigon: join(homedir(), 'eno-housing-partners-2026-11-22'),
+  cvr: join(homedir(), 'eno-cvr-partner-2026-11-23'),
+}
+const researchOf = (p: HousingPartner) => resolve(str('--research-dir') ?? RESEARCH_ROOT[p.handle], p.research)
 if (!WHICH || (WHICH !== 'all' && !HOUSING_PARTNERS.some((p) => p.handle === WHICH))) {
   throw new Error(`name a shop or all: ${HOUSING_PARTNERS.map((p) => p.handle).join(' | ')} | all`)
 }
@@ -95,17 +101,17 @@ function prepareJournalDir(dir: string): string {
 }
 
 function logoFile(p: HousingPartner): string | null {
-  for (const f of ['logo.png', 'logo.webp', 'logo.jpg']) { const path = join(RESEARCH, p.research, 'raw', 'logo', f); if (existsSync(path)) return path }
+  for (const f of ['logo.png', 'logo.webp', 'logo.jpg']) { const path = join(researchOf(p), 'raw', 'logo', f); if (existsSync(path)) return path }
   return null
 }
 
 /** The first MAX_PHOTOS kept photos that decode and clear the size floor — what the run would host. Read-only. */
-async function passingPhotos(p: HousingPartner, id: number, v: Verdicts): Promise<Buffer[]> {
+async function passingPhotos(p: HousingPartner, id: number | string, v: Verdicts): Promise<Buffer[]> {
   const out: Buffer[] = []
   const keep = v[String(id)]?.keep ?? []
   for (const [i, f] of keep.entries()) {
     if (out.length >= MAX_PHOTOS) break
-    const body = readFileSync(join(RESEARCH, p.research, 'photos', String(id), f))
+    const body = readFileSync(join(researchOf(p), 'photos', String(id), f))
     const verdict = imageVerdict(await measureImage(body), PHOTO_FLOOR)
     // ⛔ The cover was looked at by a person: if IT fails, the listing is left out rather than another photo promoted into
     // its place unseen (commit-gate review, codex 2026-11-22).
@@ -135,8 +141,8 @@ async function main() {
 
     const plans: Plan[] = []
     for (const p of partners) {
-      const recs = (JSON.parse(readFileSync(join(RESEARCH, p.research, 'data.json'), 'utf8')) as { records: HousingRecord[] }).records
-      const vf = join(RESEARCH, p.research, 'photo-verdicts.json')
+      const recs = (JSON.parse(readFileSync(join(researchOf(p), 'data.json'), 'utf8')) as { records: HousingRecord[] }).records
+      const vf = join(researchOf(p), 'photo-verdicts.json')
       if (!existsSync(vf)) throw new Error(`${p.handle}: no photo-verdicts.json — every photo is screened before it is published`)
       const verdicts = JSON.parse(readFileSync(vf, 'utf8')) as Verdicts
       if (!logoFile(p)) throw new Error(`${p.handle}: no raw/logo/logo.{png,webp,jpg} in the research — nothing written`)

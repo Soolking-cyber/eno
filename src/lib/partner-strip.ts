@@ -91,6 +91,8 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // Saigon's logo.png (housingsgn.com/wp-content/uploads/2023/11/), each trimmed to its artwork.
   { handle: 'alphahousing', name: 'Alpha Housing', logo: { src: '/partners/alphahousing.webp', width: 305, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
   { handle: 'housingsaigon', name: 'Housing Saigon', logo: { src: '/partners/housingsaigon.webp', width: 282, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
+  // Central Vietnam Realty (owner, 2026-11-23; Đà Nẵng): cvr.com.vn's own /images/icons/logo.svg, rendered and trimmed.
+  { handle: 'cvr', name: 'Central Vietnam Realty', logo: { src: '/partners/cvr.webp', width: 89, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'square' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

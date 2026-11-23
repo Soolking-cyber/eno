@@ -37,6 +37,8 @@ export const PARTNER_INBOX_HANDLES = [
   'theextramile', 'saigonscootercentre',
   // The housing agencies (owner, 2026-11-22; src/lib/housing-partners.ts): official, chat-only, eno-held logins.
   'alphahousing', 'housingsaigon',
+  // Central Vietnam Realty (owner, 2026-11-23; src/lib/housing-partners.ts): official, chat-only, an eno-held login.
+  'cvr',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 
