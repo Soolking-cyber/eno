@@ -18,7 +18,7 @@ import { moneyLocale } from '@/lib/vnd'
 type Lang = 'en' | 'vi'
 type Read = { read: Field<number>; message?: string }
 
-const plain = (v: number, lang: Lang, decimals: number) =>
+export const plain = (v: number, lang: Lang, decimals: number) =>
   new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: decimals, useGrouping: false }).format(v)
 
 /** The starting text of a field: the default as the field would write it back. */
@@ -30,14 +30,61 @@ function startText(input: ToolInput, lang: Lang): string {
   }
 }
 
-/** A plain number as typed: one decimal point or comma, a minus only where the range goes below 0. */
-function readPlain(text: string, decimals: number): Field<number> {
-  const t = (text ?? '').trim().replace('−', '-')
+/**
+ * A plain number as typed, read the way the page's language writes numbers. "1,500" on an English page is fifteen hundred, never
+ * 1.5 (Opus gate, 2026-11-23: the old reader took any `.`/`,` as a decimal point and returned a confident wrong figure).
+ *   · both marks present: the LAST one is the decimal point, the other must group by threes ("1,234.5" / "1.234,5");
+ *   · one mark used more than once: thousands grouping ("1,234,567" / "1.234.567");
+ *   · one mark used once: followed by exactly three digits it is ambiguous, so the page's convention decides (en: `,` groups,
+ *     `.` is decimal; vi: the reverse); followed by any other count of digits it can only be a decimal point ("1.5", "1,25").
+ * Anything else is refused, never guessed.
+ */
+export function readPlain(text: string, decimals: number, lang: 'en' | 'vi' = 'en'): Field<number> {
+  let t = (text ?? '').trim().replace('−', '-')
   if (!t) return { ok: false, error: 'empty' }
-  const m = /^(-?)(\d+)(?:[.,](\d+))?$/.exec(t)
-  if (!m) return { ok: false, error: 'notNumber' }
-  if ((m[3] ?? '').length > decimals) return { ok: false, error: 'notWhole' }
-  return { ok: true, value: Number(`${m[1]}${m[2]}.${m[3] ?? '0'}`) }
+  // A space inside the number is only ever a thousands separator ("1 500 000"); anywhere else ("1 5", "7 25") it is a typo, refused
+  // rather than joined into a different number.
+  if (/\s/.test(t)) {
+    if (!/^-?[1-9]\d{0,2}(?: \d{3})+(?:[.,]\d+)?$/.test(t)) return { ok: false, error: 'notNumber' }
+    t = t.replace(/ /g, '')
+  }
+  const m = /^(-?)([\d.,]+)$/.exec(t)
+  if (!m || !/^\d/.test(m[2]) || !/\d$/.test(m[2])) return { ok: false, error: 'notNumber' }
+  const body = m[2]
+  const dots = (body.match(/\./g) ?? []).length
+  const commas = (body.match(/,/g) ?? []).length
+  // A leading group never starts with 0: "0,125" is not a thousand-grouped number, so it can only be a decimal.
+  const grouped = (s: string, sep: string) => s.split(sep).every((g, i) => (i === 0 ? /^[1-9]\d{0,2}$/.test(g) : /^\d{3}$/.test(g)))
+  let int: string
+  let frac = ''
+  if (dots && commas) {
+    const dec = body.lastIndexOf('.') > body.lastIndexOf(',') ? '.' : ','
+    const grp = dec === '.' ? ',' : '.'
+    if ((dec === '.' ? dots : commas) !== 1) return { ok: false, error: 'notNumber' }
+    const [head, tail] = body.split(dec)
+    if (!grouped(head, grp)) return { ok: false, error: 'notNumber' }
+    int = head.split(grp).join('')
+    frac = tail
+  } else if (dots + commas === 0) {
+    int = body
+  } else {
+    const sep = dots ? '.' : ','
+    const parts = body.split(sep)
+    const ambiguous = parts.length === 2 && parts[1].length === 3
+    const groups = parts.length > 2 || (ambiguous && sep === (lang === 'vi' ? '.' : ',') && /^[1-9]/.test(parts[0]))
+    if (groups) {
+      if (!grouped(body, sep)) return { ok: false, error: 'notNumber' }
+      int = parts.join('')
+    } else {
+      if (parts.length !== 2) return { ok: false, error: 'notNumber' }
+      int = parts[0]
+      frac = parts[1]
+    }
+  }
+  // A whole part with a leading zero ("012,5", "007") is not how anyone writes a number in either language: refused, not guessed.
+  if (/^0\d/.test(int)) return { ok: false, error: 'notNumber' }
+  if (frac.length > decimals) return { ok: false, error: 'notWhole' }
+  return { ok: true, value: Number(`${m[1]}${int}.${frac || '0'}`) }
 }
 
 export function GeneratedToolCalculator({ spec }: { spec: ToolSpec }) {
@@ -70,7 +117,7 @@ export function GeneratedToolCalculator({ spec }: { spec: ToolSpec }) {
     }
     else if (input.kind === 'choice') r = { ok: true, value: Number(t) }
     else {
-      r = readPlain(t, DECIMALS[input.kind])
+      r = readPlain(t, DECIMALS[input.kind], lang)
       if (!r.ok) {
         const en = r.error === 'notWhole' ? 'Use at most {n} decimals.' : 'Enter a number, e.g. 12 or 1.5.'
         const said = r.error === 'notWhole' ? tr('Use at most {n} decimals.', 'Dùng tối đa {n} chữ số thập phân.') : tr('Enter a number, e.g. 12 or 1.5.', 'Hãy nhập một số, ví dụ 12 hoặc 1,5.')
@@ -103,7 +150,7 @@ export function GeneratedToolCalculator({ spec }: { spec: ToolSpec }) {
             return <ChoiceField key={id} id={id} label={common.label} hint={common.hint} value={common.value} onChange={common.onChange} choices={(input.choices ?? []).map((ch) => ({ value: String(ch.value), label: c(ch.label) }))} />
           }
           const decimals = DECIMALS[input.kind]
-          return <NumberField key={id} {...common} message={message ?? ''} suffix={input.kind === 'percent' ? '%' : undefined} regroup={(v) => plain(v, lang, decimals)} />
+          return <NumberField key={id} {...common} message={message ?? ''} suffix={input.kind === 'percent' ? '%' : undefined} regroup={(v) => plain(v, lang, decimals)} negative={input.min < 0} />
         })}
       </div>
       <ResultWell>

@@ -115,3 +115,52 @@ describe('a generated tool’s calculator', () => {
     expect(screen.getByRole('alert').textContent).toBe('Hãy nhập giá trị từ 0,25% đến 7,25%.')
   })
 })
+
+describe('readPlain: a plain number is read the way the page writes numbers, never guessed (Opus gate 2026-11-23)', () => {
+  it('"1,500" on an English page is fifteen hundred, not 1.5; "1.500" on a Vietnamese page is too', async () => {
+    const { readPlain } = await import('./calculator')
+    expect(readPlain('1,500', 4, 'en')).toEqual({ ok: true, value: 1500 })
+    expect(readPlain('12,000', 4, 'en')).toEqual({ ok: true, value: 12000 })
+    expect(readPlain('1.500', 4, 'vi')).toEqual({ ok: true, value: 1500 })
+    expect(readPlain('1,234,567.5', 4, 'en')).toEqual({ ok: true, value: 1234567.5 })
+    expect(readPlain('1.234.567,5', 4, 'vi')).toEqual({ ok: true, value: 1234567.5 })
+  })
+  it('a mark followed by anything but three digits can only be a decimal point, in either language', async () => {
+    const { readPlain } = await import('./calculator')
+    expect(readPlain('1.5', 4, 'en')).toEqual({ ok: true, value: 1.5 })
+    expect(readPlain('1,5', 4, 'en')).toEqual({ ok: true, value: 1.5 })
+    expect(readPlain('7,25', 2, 'vi')).toEqual({ ok: true, value: 7.25 })
+    expect(readPlain('7.25', 2, 'vi')).toEqual({ ok: true, value: 7.25 })
+    expect(readPlain('-3.5', 2, 'en')).toEqual({ ok: true, value: -3.5 })
+    expect(readPlain('−3,5', 2, 'vi')).toEqual({ ok: true, value: -3.5 })
+  })
+  it('three digits after one mark follow the page: decimal on the side that writes it as decimal', async () => {
+    const { readPlain } = await import('./calculator')
+    expect(readPlain('1.125', 4, 'en')).toEqual({ ok: true, value: 1.125 })
+    expect(readPlain('1,125', 4, 'vi')).toEqual({ ok: true, value: 1.125 })
+  })
+  it('what the field writes back on leaving reads back to the same value, both languages', async () => {
+    const { readPlain, plain } = await import('./calculator')
+    for (const v of [0, 0.125, 0.25, 1, 1.5, 1.125, 7.25, 1500, 1500.5, 1234567.0625, -40.5]) {
+      for (const lang of ['en', 'vi'] as const) {
+        const written = plain(v, lang, 4) // the field's own writer, used on leaving
+        expect(readPlain(written, 4, lang)).toEqual({ ok: true, value: v })
+      }
+    }
+  })
+  it('malformed grouping, two decimal points or stray marks are refused, never read', async () => {
+    const { readPlain } = await import('./calculator')
+    for (const s of ['1,50,0', '1.2.3,4.5', '1,', ',5', '1..5', '12,34,567', 'abc', '1,234.5.6']) expect(readPlain(s, 4, 'en').ok).toBe(false)
+    expect(readPlain('', 4, 'en')).toEqual({ ok: false, error: 'empty' })
+    expect(readPlain('1.23456', 4, 'en')).toEqual({ ok: false, error: 'notWhole' })
+  })
+  it('a leading 0 group is a decimal, never thousands; inner spaces only as thousands separators (Opus gate round 2)', async () => {
+    const { readPlain } = await import('./calculator')
+    expect(readPlain('0,125', 4, 'en')).toEqual({ ok: true, value: 0.125 })
+    expect(readPlain('0.250', 4, 'vi')).toEqual({ ok: true, value: 0.25 })
+    expect(readPlain('012,500', 4, 'en').ok).toBe(false)
+    expect(readPlain('1 500 000', 4, 'en')).toEqual({ ok: true, value: 1500000 })
+    expect(readPlain('1 500 000,5', 4, 'vi')).toEqual({ ok: true, value: 1500000.5 })
+    for (const s of ['1 5', '7 25', '12 34', '1  500']) expect(readPlain(s, 4, 'en').ok).toBe(false)
+  })
+})
