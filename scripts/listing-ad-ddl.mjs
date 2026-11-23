@@ -56,6 +56,8 @@ const STATEMENTS = [
   ['ListingAd (sellerId, createdAt) index', `CREATE INDEX IF NOT EXISTS "ListingAd_sellerId_createdAt_idx" ON public."ListingAd"("sellerId", "createdAt")`],
   // NOT unique: one transaction can settle several authorizations (x402 batch settlement); paymentId is the identity.
   ['ListingAd (txHash) index', `CREATE INDEX IF NOT EXISTS "ListingAd_txHash_idx" ON public."ListingAd"("txHash")`],
+  // Added after the table shipped on 2026-11-23 (the 1-hour ad): a constant default, so no table rewrite.
+  ['ListingAd durationSec column', `ALTER TABLE public."ListingAd" ADD COLUMN IF NOT EXISTS "durationSec" INTEGER NOT NULL DEFAULT 604800`],
   ['ListingAd RLS on', `ALTER TABLE public."ListingAd" ENABLE ROW LEVEL SECURITY`],
   [
     // ⚠️⚠️ REVOKE — Supabase's default privileges hand every new public table to `anon` and `authenticated`. Each role only
@@ -76,6 +78,7 @@ const SHAPE = [
   'network:text:NO', 'payTo:text:NO', 'paymentId:text:NO', 'authFrom:text:NO', 'authNonce:text:NO', 'authValidBefore:text:NO',
   'signature:text:NO', 'payloadJson:jsonb:NO', 'txHash:text:YES', 'settlementJson:jsonb:YES', 'failReason:text:YES',
   'impressions:integer:NO', 'clicks:integer:NO', 'createdAt:timestamp without time zone:NO', 'updatedAt:timestamp without time zone:NO',
+  'durationSec:integer:NO',
 ].join(',')
 
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL

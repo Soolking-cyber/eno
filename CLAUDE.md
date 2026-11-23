@@ -16,7 +16,7 @@ Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
 | **Second opinion** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | the seats in `REVIEWER_NAMES` (`scripts/second-opinion.mjs`); load the `second-opinion` skill | as pinned there — never restate the seat list here |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | ⛔ **OUT OF BUDGET since 2026-09-09** — do not dispatch. Use Opus · xhigh in its place until the owner says otherwise. |
-| Commit-gate panel | `node scripts/second-opinion.mjs` (PreToolUse hook enforces) | seats = `REVIEWER_NAMES`; two labs must answer; Opus is the author's own model, so a REFUTED from a non-Anthropic seat is the real objection — measure it |
+| Commit-gate panel | `node scripts/second-opinion.mjs` (PreToolUse hook enforces) | seats = `REVIEWER_NAMES` — ⛔ **opus alone since 2026-11-23 (owner: "only claude review and deploy drop codex reviews entirely")**, one lab; Opus is the author's own model, so measure its REFUTEDs rather than trusting them |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
@@ -26,8 +26,9 @@ Three habits that follow:
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
 - ⛔ **Never sleep waiting for a reviewer's quota reset.** Seats change only on the owner's word, by editing `REVIEWER_NAMES` (every name needs a seat in `REVIEWERS`; agy's is only skipped) and the other seat-list strings `scripts/second-opinion.mjs` names (the secret-scan message), plus the hook's refusal text (`.claude/hooks/second-opinion.sh`). When only one non-Anthropic family voted, say single-sourced.
-- ⚠️ **codex's MEDIUM EFFORT IS DELIBERATE AND IS THE ONE SEAT BELOW the others' high/max.** It is what the owner asked for
-  (*"which has normal token consumption and good reasoning needs a balance there"*); do not "correct" it upward.
+- ⛔ **codex IS DROPPED FROM REVIEWS ENTIRELY (owner, 2026-11-23: "only claude review and deploy drop codex reviews entirely").**
+  The gate runs opus alone; do not re-add codex (or agy) to `REVIEWER_NAMES` without the owner's word. Where this file asks for
+  a non-Opus reviewer, the owner's 2026-11-23 decision overrides it.
 - ⛔ **A MODEL ID THAT ERRORS TELLS YOU NOTHING ABOUT ONE THAT DOES NOT — MEASURE, DO NOT INFER.** Probe a new id and read the banner before pinning it (the episodes, and agy's transient `invalid model selection`: `second-opinion` skill).
 - ⚠️ **VERIFY a reviewer's factual claims** — on 2026-07-23 Gemini called two TRUE facts (VN's 63→34 province merger, MPI→Ministry-of-Finance) "hallucinations" because its training predates the mid-2025 reforms; both were confirmed via primary sources. Test what a reviewer tells you rather than trusting it. They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax.
 - **TWO MOMENTS, NOT ONE (owner, 2026-07-22 — applies to Kai and Murat equally).** The second

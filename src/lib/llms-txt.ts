@@ -123,8 +123,8 @@ const DEVELOPER_SECTION = `## For developers and agents
   that person's name, every message it sends shows as written by an AI assistant, and accepting an offer stays with the person.${!IS_SERVICES ? `
 - Paid ads, bought by an agent for its shop over x402 (USDC): get_ad_offer, promote_listing and list_ads on the MCP server,
   or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). One of the shop's public listings is
-  shown first, labelled "Ad", in matching search and category results, the home feed and similar listings for 7 days; the
-  public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
+  shown first, labelled "Ad", in matching search and category results, the home feed and similar listings, for 1 hour up to
+  90 days at the weekly price pro rata; the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.

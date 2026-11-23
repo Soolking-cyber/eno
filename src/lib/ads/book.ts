@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { buildFeedFilters } from '@/app/api/listings/feed-query'
 import { logError, logWarn } from '@/lib/log'
-import { AD_DAYS, adRequirements, type X402Config } from '@/lib/x402/config'
+import { AD_WEEK_HOURS, adRequirements, type X402Config } from '@/lib/x402/config'
 import { facilitatorSettle, facilitatorVerify } from '@/lib/x402/facilitator'
 import { authorizationUsed, findAuthorizationPayment } from '@/lib/x402/chain'
 import { UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
@@ -35,7 +35,6 @@ export function settledBeforeBroadcast(reason: string): boolean {
   return /^(insufficient_funds|invalid_exact_evm_\w+|invalid_network|invalid_payload|invalid_payment_requirements|invalid_scheme|unsupported_scheme|invalid_x402_version)$/.test(reason) ||
     /^settle answered (401|403|429)$/.test(reason)
 }
-const DAY_MS = 86_400_000
 
 export type AdRow = Prisma.ListingAdGetPayload<object>
 
@@ -86,7 +85,9 @@ async function activate(rowId: string, listingId: string, txHash: string, settle
       select: { endsAt: true },
     })
     const startsAt = last?.endsAt && last.endsAt > now ? last.endsAt : now
-    const endsAt = new Date(startsAt.getTime() + AD_DAYS * DAY_MS)
+    // The row's own length (whole hours, as bought), stored when it was booked.
+    const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true } })
+    const endsAt = new Date(startsAt.getTime() + row.durationSec * 1000)
     await tx.listingAd.updateMany({
       where: { id: rowId, status: { in: ['pending', 'unknown'] } },
       data: { status: 'active', startsAt, endsAt, txHash, settlementJson: settlement as unknown as Prisma.InputJsonValue, failReason: null },
@@ -215,8 +216,12 @@ export async function bookAd(p: {
   listingId: string
   rawPayload: unknown
   via: 'http' | 'mcp'
+  /** Whole hours, 1..AD_MAX_HOURS (default a week; callers validate with adHours): the price the payment must match, and
+   *  how long the ad runs. */
+  hours?: number
   fetchImpl?: typeof fetch
 }): Promise<BookResult> {
+  const hours = p.hours ?? AD_WEEK_HOURS
   const fetchImpl = p.fetchImpl ?? fetch
   // ⛔ THE SAME PAYMENT FINDS ITS ROW BEFORE IT IS CHECKED AGAINST TODAY'S OFFER (gate review 2026-11-23): a price, wallet or
   // network changed since must not stop an already-paid ad from being recovered. The id comes from the payload's own
@@ -228,7 +233,7 @@ export async function bookAd(p: {
   const existing = await db.listingAd.findUnique({ where: { paymentId } })
   if (existing) return outcomeOf(p.cfg, existing, p.listingId, p.sellerId, fetchImpl)
 
-  const ours = adRequirements(p.cfg)
+  const ours = adRequirements(p.cfg, hours)
   const checked = checkPayload(p.rawPayload, ours)
   if (!checked.ok) return { kind: 'payment_invalid', reason: checked.reason }
   const payload: PaymentPayload = checked.payload
@@ -252,6 +257,7 @@ export async function bookAd(p: {
         sellerId: p.sellerId,
         bookedByKeyId: p.keyId,
         via: p.via,
+        durationSec: hours * 3600,
         status: 'pending',
         amount: ours.amount,
         asset: ours.asset,
@@ -318,7 +324,7 @@ export async function bookAd(p: {
 /** What an ad has done: exact impressions and taps (counted only inside its window — /api/ads/[id]/event), and the
  *  listing's own views and contacts over the ad's days, from the daily snapshots (src/lib/listing-analytics.ts). */
 export type AdStats = {
-  id: string; listing_id: string; status: string; starts_at: string | null; ends_at: string | null
+  id: string; listing_id: string; status: string; hours: number; starts_at: string | null; ends_at: string | null
   impressions: number; clicks: number; listing_views: number | null; listing_contacts: number | null
   amount_usdc_atomic: string; network: string; tx_hash: string | null
 }
@@ -337,7 +343,8 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
   for (const ad of ads) {
     let views: number | null = null
     let contacts: number | null = null
-    if (ad.status === 'active' && ad.startsAt && ad.startsAt <= now) {
+    // Daily snapshots cannot resolve an ad shorter than a day: its listing figures stay null (impressions/taps are exact).
+    if (ad.status === 'active' && ad.startsAt && ad.startsAt <= now && ad.durationSec >= 86_400) {
       const startDay = new Date(ad.startsAt); startDay.setUTCHours(0, 0, 0, 0)
       const base = await db.listingDailyStat.findFirst({ where: { listingId: ad.listingId, day: { lt: startDay } }, orderBy: { day: 'desc' }, select: { views: true, leads: true } })
       let end: { views: number; leads: number } | null = null
@@ -354,7 +361,7 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
       }
     }
     out.push({
-      id: ad.id, listing_id: ad.listingId, status: ad.status,
+      id: ad.id, listing_id: ad.listingId, status: ad.status, hours: Math.round(ad.durationSec / 3600),
       starts_at: ad.startsAt?.toISOString() ?? null, ends_at: ad.endsAt?.toISOString() ?? null,
       impressions: ad.impressions, clicks: ad.clicks, listing_views: views, listing_contacts: contacts,
       amount_usdc_atomic: ad.amount, network: ad.network, tx_hash: ad.txHash,

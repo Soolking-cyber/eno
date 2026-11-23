@@ -82,6 +82,15 @@ describe('POST /api/v1/ads', () => {
     expect((await POST(req(PAID))).status).toBe(403)
   })
 
+  it('hours that are not a whole number from 1 to 2160 → 400 before anything else; a valid one prices the 402', async () => {
+    expect((await POST(req({}, { listingId: 'l1', hours: 0 }))).status).toBe(400)
+    expect((await POST(req({}, { listingId: 'l1', hours: 1.5 }))).status).toBe(400)
+    expect((await POST(req({}, { listingId: 'l1', hours: 3000 }))).status).toBe(400)
+    expect((await POST(req({}, { listingId: 'l1', hours: null }))).status).toBe(400)
+    expect((await POST(req({}, { listingId: 'l1', hours: 24 }))).status).toBe(402)
+    expect(h.calls).toBe(0)
+  })
+
   it('a payment header that is not base64 JSON → 402 invalid_payload; no listingId → 400', async () => {
     const bad = await POST(req({ ...PAID, 'payment-signature': '!!!' }))
     expect(bad.status).toBe(402)

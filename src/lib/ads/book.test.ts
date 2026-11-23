@@ -75,14 +75,15 @@ function payload(nonceByte = 'f3') {
 }
 
 type Step = { verify?: object | 'throw'; settle?: object | 'throw' | { status: number; body: object } }
-function facilitator(step: Step) {
+function facilitator(step: Step, hours = 168) {
   const calls: string[] = []
   const f = (async (url: URL | string, init?: RequestInit) => {
     const op = String(url).endsWith('/verify') ? 'verify' : 'settle'
     calls.push(op)
     const body = JSON.parse(String(init?.body))
     // ⛔ OUR requirements go to the facilitator, never the buyer's copy.
-    expect(body.paymentRequirements).toEqual(adRequirements(cfg))
+    // ⛔ OUR requirements for the length bought go to the facilitator, never the buyer's copy.
+    expect(body.paymentRequirements).toEqual(adRequirements(cfg, hours))
     const v = step[op]
     if (v === 'throw' || v === undefined) throw new Error('timeout')
     if ('status' in (v as object)) { const s = v as { status: number; body: object }; return new Response(JSON.stringify(s.body), { status: s.status }) }
@@ -292,6 +293,19 @@ describe('bookAd', () => {
     await reconcileOpenAds(cfg, {}, sweep.f)
     expect(sweep.calls).toEqual([])
     expect(h.ads[0].status).toBe('unknown')
+  })
+
+  it('an ad bought for 1 hour costs the hourly price and runs exactly one hour', async () => {
+    const ours = adRequirements(cfg, 1)
+    const p = payload()
+    p.accepted = ours
+    p.payload.authorization.value = ours.amount
+    const r = await bookAd({ cfg, keyId: 'k1', sellerId: 's1', listingId: 'l1', rawPayload: p, via: 'mcp', hours: 1, fetchImpl: facilitator({ verify: OK.verify, settle: OK.settle }, 1).f })
+    expect(r.kind).toBe('booked')
+    expect(h.ads[0]).toMatchObject({ amount: '22381', durationSec: 3600 })
+    expect(h.ads[0].endsAt.getTime() - h.ads[0].startsAt.getTime()).toBe(3_600_000)
+    // A week's payment offered for an hour-long ad is the wrong amount: refused before anything is called.
+    expect((await bookAd({ cfg, keyId: 'k1', sellerId: 's1', listingId: 'l1', rawPayload: payload('e4'), via: 'mcp', hours: 1, fetchImpl: facilitator(OK).f })).kind).toBe('payment_invalid')
   })
 })
 

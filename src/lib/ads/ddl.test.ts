@@ -24,10 +24,12 @@ function prismaColumns(): [string, string][] {
 }
 
 describe('scripts/listing-ad-ddl.mjs ↔ prisma/schema.prisma', () => {
-  it("creates exactly the model's columns, in order, as Prisma types them", () => {
+  it("creates exactly the model's columns, in order, as Prisma types them (the table, then the columns added after it shipped)", () => {
     const create = DDL_STATEMENTS[0]!
     const cols = [...create.matchAll(/^\s*"(\w+)" ([A-Z0-9() _]+?),?$/gm)].map((m) => [m[1], m[2]])
-    expect(cols).toEqual(prismaColumns())
+    const added = DDL_STATEMENTS.map((s) => /ADD COLUMN IF NOT EXISTS "(\w+)" ([A-Z0-9 ]+?)$/.exec(s)).filter((m): m is RegExpExecArray => !!m).map((m) => [m[1], m[2]])
+    expect(added).toEqual([['durationSec', 'INTEGER NOT NULL DEFAULT 604800']])
+    expect([...cols, ...added]).toEqual(prismaColumns())
     expect(create).toContain('CONSTRAINT "ListingAd_pkey" PRIMARY KEY ("id")')
   })
 
@@ -46,14 +48,14 @@ describe('scripts/listing-ad-ddl.mjs ↔ prisma/schema.prisma', () => {
   })
 
   it('⛔ is additive only, in ONE transaction under a lock_timeout; RLS on with NO policy; anon, authenticated and PUBLIC revoked', () => {
-    expect(DDL_STATEMENTS).toHaveLength(8)
+    expect(DDL_STATEMENTS).toHaveLength(9)
     expect(DDL_STATEMENTS.join('\n')).not.toMatch(/\bdrop\b|alter\s+column|\btruncate\b|\breferences\b|foreign\s+key/i)
     expect(ddlCode).not.toMatch(/\bdrop\b|create\s+policy|\bgrant\b/i)
     const at = (s: string) => ddlCode.indexOf(s)
     expect(at("client.query('BEGIN')") > -1 && at("client.query('BEGIN')") < at("SET LOCAL lock_timeout = '5s'") &&
       at("SET LOCAL lock_timeout = '5s'") < at('for (const [label, sql] of STATEMENTS)') && at('for (const [label, sql] of STATEMENTS)') < at("client.query('COMMIT')")).toBe(true)
-    expect(DDL_STATEMENTS[6]).toBe('ALTER TABLE public."ListingAd" ENABLE ROW LEVEL SECURITY')
-    for (const role of ['anon', 'authenticated', 'PUBLIC']) expect(DDL_STATEMENTS[7]).toContain(`REVOKE ALL ON public."ListingAd" FROM ${role}`)
+    expect(DDL_STATEMENTS[7]).toBe('ALTER TABLE public."ListingAd" ENABLE ROW LEVEL SECURITY')
+    for (const role of ['anon', 'authenticated', 'PUBLIC']) expect(DDL_STATEMENTS[8]).toContain(`REVOKE ALL ON public."ListingAd" FROM ${role}`)
   })
 })
 

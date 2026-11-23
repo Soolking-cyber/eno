@@ -4,7 +4,7 @@ import { UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
 
 /** One ad as every answer states it (HTTP and MCP). */
 export type AdView = {
-  id: string; listing_id: string; status: string; starts_at: string | null; ends_at: string | null
+  id: string; listing_id: string; status: string; hours: number; starts_at: string | null; ends_at: string | null
   tx_hash: string | null; network: string; amount_atomic: string
 }
 
@@ -13,6 +13,7 @@ export function adView(ad: AdRow): AdView {
     id: ad.id,
     listing_id: ad.listingId,
     status: ad.status,
+    hours: Math.round(ad.durationSec / 3600),
     starts_at: ad.startsAt?.toISOString() ?? null,
     ends_at: ad.endsAt?.toISOString() ?? null,
     tx_hash: ad.txHash,

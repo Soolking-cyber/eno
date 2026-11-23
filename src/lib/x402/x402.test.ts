@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 vi.mock('server-only', () => ({}))
 const { checkPayload, decodeHeader, encodeHeader } = await import('./wire')
-const { x402Config, adRequirements, usdcText } = await import('./config')
+const { x402Config, adRequirements, usdcText, adHours, adPriceAtomicFor } = await import('./config')
 const { cdpJwt } = await import('./cdp-jwt')
 
 const PAY_TO = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C'
@@ -50,6 +50,19 @@ describe('config', () => {
     expect(usdcText('3760000')).toBe('3.76')
     expect(usdcText('3000000')).toBe('3')
     expect(usdcText('3500000')).toBe('3.50')
+  })
+  it('any whole number of hours, 1 to 90 days, priced pro rata from the weekly price (rounded up; a week is exact)', () => {
+    const cfg = x402Config(ENV)!
+    expect(adPriceAtomicFor(cfg, 168)).toBe('3760000')
+    expect(adPriceAtomicFor(cfg, 1)).toBe('22381')
+    expect(adPriceAtomicFor(cfg, 24)).toBe('537143')
+    expect(adPriceAtomicFor(cfg, 720)).toBe('16114286')
+    expect(adRequirements(cfg, 1).amount).toBe('22381')
+    expect(adHours(undefined)).toBe(168)
+    expect(adHours(1)).toBe(1)
+    expect(adHours('24')).toBe(24)
+    for (const bad of [0, -1, 1.5, 2161, 'week', '1e3', NaN, null, '']) expect(adHours(bad), String(bad)).toBeNull()
+    expect(adHours(2160)).toBe(2160)
   })
 })
 
@@ -125,5 +138,19 @@ describe('CDP JWT', () => {
 
   it('refuses a secret of neither kind', () => {
     expect(() => cdpJwt({ keyId: 'k', secret: Buffer.alloc(10).toString('base64'), ...req })).toThrow('cdp_key_format')
+  })
+})
+
+describe('the offer\'s discovery entry', () => {
+  it('its example body asks for the same length the 402 beside it is priced for', async () => {
+    vi.doMock('@/lib/db', () => ({ db: {} }))
+    vi.doMock('@/app/api/listings/feed-query', () => ({ buildFeedFilters: async () => ({ where: {} }) }))
+    const { adPaymentRequired } = await import('@/lib/ads/offer')
+    const cfg = x402Config(ENV)!
+    for (const hours of [1, 24, 168]) {
+      const pr = adPaymentRequired(cfg, 'http', undefined, hours) as unknown as { accepts: { amount: string }[]; extensions: { bazaar: { info: { input: { body: { hours: number } } } } } }
+      expect(pr.accepts[0].amount).toBe(adRequirements(cfg, hours).amount)
+      expect(pr.extensions.bazaar.info.input.body.hours).toBe(hours)
+    }
   })
 })

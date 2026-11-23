@@ -10,8 +10,11 @@ import type { PaymentRequirements } from './wire'
  *   X402_FACILITATOR_URL  default Coinbase CDP (https://api.cdp.coinbase.com/platform/v2/x402), which also lists the offer
  *                         in the x402 Bazaar after its first settlement; https://x402.org/facilitator is testnet-only.
  *   CDP_API_KEY_ID / CDP_API_KEY_SECRET   the CDP API key (cdp-jwt.ts); required when the facilitator is CDP.
- *   X402_AD_PRICE_ATOMIC  the ad's price in USDC atomic units (6 decimals). Default 3760000 = 3.76 USDC, the owner's
- *                         99.000 đ (2026-11-23) at about 26.300 đ to the dollar; change it here, not in code.
+ *   X402_AD_PRICE_ATOMIC  the price of one WEEK of ad, in USDC atomic units (6 decimals). Default 3760000 = 3.76 USDC, the
+ *                         owner's 99.000 đ (2026-11-23) at about 26.300 đ to the dollar; change it here, not in code.
+ *   The buyer picks the length in whole hours (owner 2026-11-23: "hourly daily weekly monthly etc — agent can specify
+ *   time"), from 1 hour to AD_MAX_HOURS, and pays the weekly price pro rata, rounded up to the atomic unit
+ *   (adPriceAtomicFor): 1 hour ≈ 0.022381 USDC, a day ≈ 0.537143, 7 days exactly the weekly price.
  */
 export const CDP_FACILITATOR_URL = 'https://api.cdp.coinbase.com/platform/v2/x402'
 
@@ -25,6 +28,24 @@ export const AD_DAYS = 7
 /** The owner's price in đồng (2026-11-23), shown beside the USDC figure. */
 export const AD_PRICE_VND = 99_000
 const DEFAULT_AD_PRICE_ATOMIC = '3760000'
+
+/** An ad runs for whole hours: 1 hour up to 90 days. The default is a week. */
+export const AD_WEEK_HOURS = AD_DAYS * 24
+export const AD_MAX_HOURS = 90 * 24
+/** A buyer's `hours`, or null when it is not a whole number of hours in 1..AD_MAX_HOURS. ONLY an absent value means a week:
+ *  null or "" is refused, never read as a week the buyer did not ask for. */
+export function adHours(v: unknown): number | null {
+  if (v === undefined) return AD_WEEK_HOURS
+  const n = typeof v === 'string' && /^\d{1,5}$/.test(v.trim()) ? Number(v) : v
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= AD_MAX_HOURS ? n : null
+}
+/** The weekly price pro rata for `hours`, rounded UP to the atomic unit (so a week is exactly the weekly price). */
+export function adPriceAtomicFor(cfg: Pick<X402Config, 'adPriceAtomic'>, hours: number): string {
+  const week = BigInt(cfg.adPriceAtomic)
+  const h = BigInt(hours)
+  const weekHours = BigInt(AD_WEEK_HOURS)
+  return ((week * h + weekHours - BigInt(1)) / weekHours).toString()
+}
 
 export type X402Config = {
   network: string
@@ -72,12 +93,12 @@ export function usdcText(atomic: string): string {
   return frac ? `${whole}.${frac.length < 2 ? frac.padEnd(2, '0') : frac}` : `${whole}`
 }
 
-/** The one offer an ad is sold at. maxTimeoutSeconds bounds how long a signed authorization may wait for settlement. */
-export function adRequirements(cfg: X402Config): PaymentRequirements {
+/** The offer an ad of `hours` is sold at. maxTimeoutSeconds bounds how long a signed authorization may wait for settlement. */
+export function adRequirements(cfg: X402Config, hours: number = AD_WEEK_HOURS): PaymentRequirements {
   return {
     scheme: 'exact',
     network: cfg.network,
-    amount: cfg.adPriceAtomic,
+    amount: adPriceAtomicFor(cfg, hours),
     asset: cfg.asset,
     payTo: cfg.payTo,
     maxTimeoutSeconds: 300,

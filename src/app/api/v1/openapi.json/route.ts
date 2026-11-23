@@ -1040,18 +1040,18 @@ export const SPEC = {
       Ad: {
         type: 'object',
         description: 'A paid ad (x402). `status`: active (paid; shown from starts_at to ends_at), pending or unknown (payment sent, confirmation not yet found).',
-        required: ['id', 'listing_id', 'status', 'starts_at', 'ends_at', 'tx_hash', 'network', 'amount_atomic'],
+        required: ['id', 'listing_id', 'status', 'hours', 'starts_at', 'ends_at', 'tx_hash', 'network', 'amount_atomic'],
         properties: {
-          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] },
+          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           tx_hash: { type: ['string', 'null'] }, network: { type: 'string', example: 'eip155:8453' }, amount_atomic: { type: 'string', example: '3760000' },
         },
       },
       AdStats: {
         type: 'object',
-        required: ['id', 'listing_id', 'status', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
+        required: ['id', 'listing_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
         properties: {
-          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string' },
+          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string' }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           impressions: { type: 'integer', description: 'Times the ad card was at least half on screen for a second during its run.' },
           clicks: { type: 'integer', description: 'Taps on the ad card during its run.' },
@@ -1670,16 +1670,19 @@ export const SPEC = {
       get: {
         operationId: 'getAdOffer',
         summary: 'The paid ad offer (public)',
-        description: 'What one ad costs and where it shows, with public audience figures. No credential. An ad puts one of your live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for `duration_days`. Paid in USDC over x402 (see `buyAd`); `available` is false while ads are not on sale.',
+        description: 'What an ad costs and where it shows, with public audience figures. No credential. An ad puts one of your live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for 1 hour up to 90 days (`min_hours`..`max_hours`), priced pro rata from the weekly price (`prices` gives samples). Paid in USDC over x402 (see `buyAd`); `available` is false while ads are not on sale.',
         security: [],
         responses: {
           '200': ok('The offer.', {
             type: 'object',
-            required: ['available', 'price', 'price_vnd_reference', 'duration_days', 'placements', 'label', 'requires', 'how_to_buy', 'audience'],
+            required: ['available', 'price', 'prices', 'min_hours', 'max_hours', 'price_vnd_reference', 'duration_days', 'placements', 'label', 'requires', 'how_to_buy', 'audience'],
             properties: {
               available: { type: 'boolean' },
               price: { type: ['object', 'null'], description: 'Null when not on sale.', properties: { usdc: { type: 'string', example: '3.76' }, amount_atomic: { type: 'string', example: '3760000' }, asset: { type: 'string' }, network: { type: 'string', example: 'eip155:8453' }, network_name: { type: 'string' }, pay_to: { type: 'string' } } },
-              price_vnd_reference: { type: 'integer', example: 99000 },
+              prices: { type: 'array', description: 'Sample lengths with their price; any whole number of hours from min_hours to max_hours is sold, pro rata from the weekly price.', items: { type: 'object', properties: { hours: { type: 'integer' }, label: { type: 'string' }, usdc: { type: 'string' }, amount_atomic: { type: 'string' } } } },
+              min_hours: { type: 'integer', example: 1 },
+              max_hours: { type: 'integer', example: 2160 },
+              price_vnd_reference: { type: 'integer', example: 99000, description: 'The weekly price in đồng, for reference.' },
               duration_days: { type: 'integer', example: 7 },
               placements: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } } } },
               label: { type: 'string' },
@@ -1694,7 +1697,7 @@ export const SPEC = {
     '/ads': {
       post: {
         operationId: 'buyAd',
-        summary: 'Buy a 7-day ad for one of your listings (x402)',
+        summary: 'Buy an ad for one of your listings, 1 hour to 90 days (x402)',
         description: [
           'Paid over x402 v2 (HTTP transport, scheme `exact`, USDC). Without a `PAYMENT-SIGNATURE` header the answer is 402 with `PAYMENT-REQUIRED` (base64 JSON PaymentRequired; the body is the same object) — no credential needed to read the price.',
           'Sign the payment with an x402 client and repeat the request with `PAYMENT-SIGNATURE` and your Bearer credential (scope listings:write). The listing must be yours and live; it is checked before any money moves.',
@@ -1706,7 +1709,7 @@ export const SPEC = {
         ],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', required: ['listingId'], properties: { listingId: { type: 'string', description: 'One of your live listings.' } } } } },
+          content: { 'application/json': { schema: { type: 'object', required: ['listingId'], properties: { listingId: { type: 'string', description: 'One of your live listings.' }, hours: { type: 'integer', minimum: 1, maximum: 2160, default: 168, description: 'How many hours the ad runs: 1 to try it, 24 a day, 168 a week (default), 720 thirty days. Priced pro rata from the weekly price.' } } } } },
         },
         responses: {
           '201': ok('Paid: the ad, with `PAYMENT-RESPONSE` (base64 JSON SettlementResponse).', { type: 'object', required: ['ad'], properties: { ad: schemaRef('Ad') } }),

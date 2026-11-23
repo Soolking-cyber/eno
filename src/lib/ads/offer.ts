@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { buildFeedFilters } from '@/app/api/listings/feed-query'
-import { AD_DAYS, AD_PRICE_VND, adRequirements, usdcText, type X402Config } from '@/lib/x402/config'
+import { AD_DAYS, AD_MAX_HOURS, AD_PRICE_VND, AD_WEEK_HOURS, adPriceAtomicFor, adRequirements, usdcText, type X402Config } from '@/lib/x402/config'
 import { X402_VERSION, type PaymentRequired } from '@/lib/x402/wire'
 import { logError } from '@/lib/log'
 
@@ -23,15 +23,17 @@ export const AD_PLACEMENTS = [
 ] as const
 
 const DESCRIPTION =
-  `A ${AD_DAYS}-day paid placement for one listing of your eno.vn shop (eno.vn: Vietnam's marketplace for expats). ` +
-  'The listing is shown first, labelled "Ad", in matching search and category results, the home feed and the ' +
-  'similar-listings row. Requires a signed-in eno.vn shop (Bearer token with scope listings:write); the listing must be ' +
-  'yours and live. Two purchases for one listing run back to back.'
+  `A paid placement for one listing of your eno.vn shop (eno.vn: Vietnam's marketplace for expats), for any whole number ` +
+  `of hours from 1 to ${AD_MAX_HOURS} (default ${AD_WEEK_HOURS}, a week), priced pro rata. The listing is shown first, labelled "Ad", in matching search and category ` +
+  'results, the home feed and the similar-listings row. Requires a signed-in eno.vn shop (Bearer token with scope ' +
+  'listings:write); the listing must be yours and live. Two purchases for one listing run back to back.'
 
 const LISTING_ID_SCHEMA = { type: 'string', description: 'The id of one of your live listings (list_listings or GET /api/v1/listings)', minLength: 1, maxLength: 64 }
+const HOURS_SCHEMA = { type: 'integer', minimum: 1, maximum: AD_MAX_HOURS, description: `How many hours the ad runs: 1 (a cheap way to try it), 24 a day, 168 a week (default), 720 thirty days; the price is the weekly price pro rata` }
 const OUTPUT_EXAMPLE = { ad: { id: 'cmabc123', listing_id: 'cmlisting1', status: 'active', starts_at: '2026-11-23T08:00:00.000Z', ends_at: '2026-11-30T08:00:00.000Z' } }
 
-function bazaar(transport: 'http' | 'mcp') {
+/** The discovery entry, its example body the SAME length the offer beside it is priced for. */
+function bazaar(transport: 'http' | 'mcp', hours: number) {
   if (transport === 'mcp') {
     return {
       info: {
@@ -40,8 +42,8 @@ function bazaar(transport: 'http' | 'mcp') {
           toolName: 'promote_listing',
           transport: 'streamable-http',
           description: DESCRIPTION,
-          inputSchema: { type: 'object', properties: { listingId: LISTING_ID_SCHEMA }, required: ['listingId'], additionalProperties: false },
-          example: { listingId: 'cmlisting1' },
+          inputSchema: { type: 'object', properties: { listingId: LISTING_ID_SCHEMA, hours: HOURS_SCHEMA }, required: ['listingId'], additionalProperties: false },
+          example: { listingId: 'cmlisting1', hours },
         },
         output: { type: 'json', example: OUTPUT_EXAMPLE },
       },
@@ -69,7 +71,7 @@ function bazaar(transport: 'http' | 'mcp') {
   }
   return {
     info: {
-      input: { type: 'http', method: 'POST', bodyType: 'json', body: { listingId: 'cmlisting1' } },
+      input: { type: 'http', method: 'POST', bodyType: 'json', body: { listingId: 'cmlisting1', hours } },
       output: { type: 'json', example: OUTPUT_EXAMPLE },
     },
     schema: {
@@ -82,7 +84,7 @@ function bazaar(transport: 'http' | 'mcp') {
             type: { type: 'string', const: 'http' },
             method: { type: 'string', enum: ['POST'] },
             bodyType: { type: 'string', enum: ['json'] },
-            body: { type: 'object', properties: { listingId: LISTING_ID_SCHEMA }, required: ['listingId'], additionalProperties: false },
+            body: { type: 'object', properties: { listingId: LISTING_ID_SCHEMA, hours: HOURS_SCHEMA }, required: ['listingId'], additionalProperties: false },
             headers: { type: 'object', additionalProperties: { type: 'string' } },
           },
           required: ['type', 'method', 'bodyType', 'body'],
@@ -95,7 +97,7 @@ function bazaar(transport: 'http' | 'mcp') {
   }
 }
 
-export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', error?: string): PaymentRequired {
+export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', error?: string, hours: number = AD_WEEK_HOURS): PaymentRequired {
   return {
     x402Version: X402_VERSION,
     ...(error ? { error } : {}),
@@ -107,8 +109,8 @@ export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', er
       tags: ['advertising', 'marketplace', 'classifieds', 'vietnam'],
       iconUrl: `${SITE_ORIGIN}/icon-512.png`,
     },
-    accepts: [adRequirements(cfg)],
-    extensions: { bazaar: bazaar(transport) },
+    accepts: [adRequirements(cfg, hours)],
+    extensions: { bazaar: bazaar(transport, hours) },
   }
 }
 
@@ -136,6 +138,10 @@ export async function adAudience(now = Date.now()): Promise<AdAudience> {
 export type AdOffer = {
   available: boolean
   price: { usdc: string; amount_atomic: string; asset: string; network: string; network_name: string; pay_to: string } | null
+  /** Sample lengths with their price (any whole number of hours from 1 to max_hours is sold, pro rata). */
+  prices: { hours: number; label: string; usdc: string; amount_atomic: string }[]
+  min_hours: number
+  max_hours: number
   price_vnd_reference: number
   duration_days: number
   placements: { id: string; text: string }[]
@@ -150,14 +156,20 @@ export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
   return {
     available: !!cfg,
     price: cfg && r ? { usdc: usdcText(r.amount), amount_atomic: r.amount, asset: r.asset, network: r.network, network_name: cfg.networkLabel, pay_to: r.payTo } : null,
+    prices: cfg ? ([[1, '1 hour'], [24, '1 day'], [AD_WEEK_HOURS, '7 days'], [720, '30 days']] as const).map(([h, label]) => {
+      const a = adPriceAtomicFor(cfg, h)
+      return { hours: h, label, usdc: usdcText(a), amount_atomic: a }
+    }) : [],
+    min_hours: 1,
+    max_hours: AD_MAX_HOURS,
     price_vnd_reference: AD_PRICE_VND,
     duration_days: AD_DAYS,
     placements: AD_PLACEMENTS.map((p) => ({ ...p })),
     label: 'Ad / Quảng cáo',
     requires: 'A signed-in eno.vn shop (OAuth sign-in or an API key) with scope listings:write; the listing must be yours and live.',
     how_to_buy: {
-      http: `POST ${AD_RESOURCE_URL} with {"listingId": "…"}: the first answer is 402 with PAYMENT-REQUIRED (x402 v2, scheme exact, USDC); repeat it with PAYMENT-SIGNATURE and your Bearer token.`,
-      mcp: `promote_listing on ${MCP_URL}: the first result asks for payment (x402 MCP transport); call it again with _meta["x402/payment"].`,
+      http: `POST ${AD_RESOURCE_URL} with {"listingId": "…", "hours": 1 to ${AD_MAX_HOURS}}: the first answer is 402 with PAYMENT-REQUIRED (x402 v2, scheme exact, USDC); repeat it with PAYMENT-SIGNATURE and your Bearer token.`,
+      mcp: `promote_listing on ${MCP_URL} (listingId, hours 1 to ${AD_MAX_HOURS}): the first result asks for payment (x402 MCP transport); call it again with _meta["x402/payment"].`,
     },
     audience: await adAudience(),
   }

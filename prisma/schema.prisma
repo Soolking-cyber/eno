@@ -1446,6 +1446,9 @@ model ListingAd {
   clicks           Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  /// How long it runs once paid: 604800 (7 days) or 3600 (1 hour, owner 2026-11-23 "add hourly rate so agents can test it
+  /// out"). Added after the table shipped (scripts/listing-ad-ddl.mjs ADD COLUMN), so it is the last column.
+  durationSec      Int       @default(604800)
 
   @@index([status, endsAt])
   @@index([listingId, status])
