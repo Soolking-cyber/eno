@@ -6,6 +6,7 @@ import { FIXED_LANG, VI_PILOT, VI_PILOT_MARKETPLACE, VI_RETIRED_FAMILIES, VI_TWI
 import { LANG_VARIANTS } from './lang-variant'
 import { EXPAT_GUIDES, MARKETPLACE_GUIDES } from './expat-guides'
 import { PHONE_GUIDES } from './phone-guides'
+import { RENT_TOOL_SLUGS } from './rent-tools/registry'
 
 /**
  * ⛔ THE PIN LIST IS A COPY OF THE REGISTRIES, SO IT IS HELD EQUAL TO THEM IN BOTH DIRECTIONS (SEO wave B,
@@ -295,7 +296,8 @@ describe('the phase-1 families', () => {
     walk('src/app/[lang]', [])
     return out
   })()
-  const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]', 'hcmc-rent-index']
+  const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]', 'hcmc-rent-index',
+    'rent-affordability-calculator', 'move-in-cost-calculator', 'rental-cost-comparison', 'vietnamese-price-converter']
 
   it('⛔ against the real route tree: exactly the family routes (and the home pilot) have a twin', () => {
     expect(routes.length).toBeGreaterThan(50)
@@ -303,6 +305,15 @@ describe('the phase-1 families', () => {
     expect(twinned).toEqual([...FAMILY_ROUTES].sort())
     // …and every family pattern names at least one real route (no dead pattern)
     for (const re of VI_TWIN_FAMILIES) expect(routes.some((r) => re.test(r.sample)), String(re)).toBe(true)
+  })
+
+  it('the rent tools pattern names exactly the registry\'s slugs (a literal for the proxy bundle)', () => {
+    const twinned = (slug: string) => hasViTwin(`/${slug}`, MARKET)
+    expect(RENT_TOOL_SLUGS.filter(twinned)).toEqual([...RENT_TOOL_SLUGS])
+    const re = VI_TWIN_FAMILIES.find((r) => r.test('/rental-cost-comparison'))!
+    const listed = /\(\?:([^)]*)\)/.exec(re.source)![1].split('|')
+    expect([...listed].sort()).toEqual([...RENT_TOOL_SLUGS].sort())
+    for (const p of ['/rental-cost-comparison/x', '/vi/rental-cost-comparison', '/rent-affordability']) expect(re.test(p), p).toBe(false)
   })
 
   it('pinnedRoute: `/vi` + a family path renders vi at the plain internal path; the plain path negotiates; the pilot keeps V-a', () => {

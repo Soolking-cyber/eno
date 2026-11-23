@@ -148,6 +148,9 @@ export const VI_TWIN_FAMILIES: readonly RegExp[] = [
   /^\/schools\/awards\/\d{4}$/,
   // The HCMC rent index (owner, 2026-11-19): its Vietnamese render is complete, and Vietnamese press pitches link it.
   /^\/hcmc-rent-index$/,
+  // The four rent tools (2026-11-23, src/lib/rent-tools/registry.ts): authored in both languages. lang-pinned.test.ts
+  // holds this literal equal to RENT_TOOL_SLUGS.
+  /^\/(?:rent-affordability-calculator|move-in-cost-calculator|rental-cost-comparison|vietnamese-price-converter)$/,
 ]
 
 /** Families that were live and are withdrawn (rollback V-R): their `/vi…` answers a 308 to the plain path. */

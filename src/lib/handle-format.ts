@@ -9,6 +9,7 @@
 import { PHONE_GUIDE_PATHS } from './phone-guides'
 import { EXPAT_GUIDE_SLUGS, MARKETPLACE_GUIDE_SLUGS } from './expat-guides'
 import { fold } from './fold'
+import { RENT_TOOL_SLUGS } from './rent-tools/registry'
 
 // Pure @handle rules — client-safe (no db / server-only), shared by the server lib
 // (src/lib/handle.ts), the editor UI, the /@name route, and unit tests.
@@ -127,6 +128,9 @@ const RESERVED = new Set([
   // The HCMC Teacher Cost & Pay Index built on it (D1, 2026-10-21) — the same two reasons; its editions live under it.
   // Unclaimed when reserved (measured 2026-10-21: eno.vn/hcmc-teacher-cost-pay-index 404).
   'hcmc-teacher-cost-pay-index',
+  // The four rent tools (2026-11-23), read from their registry like the guides below, so a fifth reserves itself.
+  // Checked before reserving (prod, read-only, 2026-11-23): no live handle uses any of the four slugs (0 rows).
+  ...RENT_TOOL_SLUGS,
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
   // simply stops existing with no error anywhere.

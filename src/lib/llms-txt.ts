@@ -8,6 +8,7 @@ import { guideBlurb, guideLabel, guidePath, liveGuides } from '@/lib/guides/regi
 import { TEACHER_COST_INDEX_CSV_PATH, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
+import { RENT_TOOLS, RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
 import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
@@ -355,6 +356,12 @@ const DATA_SECTION = `- [HCMC Rent Index](${SITE_ORIGIN}/hcmc-rent-index) — me
 - [${TEACHER_COST_INDEX_NAME}](${SITE_ORIGIN}${TEACHER_COST_INDEX_PATH}) — monthly editions: those apartment rents as a share of a full-time English teacher's modelled take-home pay, by district; every edition as [CSV](${SITE_ORIGIN}${TEACHER_COST_INDEX_CSV_PATH}), open, no auth; the citation terms are on the page.`
 
 /**
+ * The four rent tools (src/lib/rent-tools/registry.ts) — calculators that run in the browser on the reader's own figures.
+ * Marketplace only, like their pages. English labels and the plain (English) URL; each also has a `/vi` twin.
+ */
+const TOOLS_SECTION = RENT_TOOL_SLUGS.map((s) => `- [${RENT_TOOLS[s].label.en}](${SITE_ORIGIN}/${s}): ${RENT_TOOLS[s].blurb.en}`).join('\n')
+
+/**
  * ⛔ THE ROOT IS A NAVIGATION INDEX UNDER 30,000 CHARACTERS (ora.ai, 2026-11-15: 34,003 > the 30,000 an llms.txt index
  * should stay under; agents truncate past 100,000). The two long sections — the guides and the Teaching in Vietnam
  * library, ~24,500 of those characters — live in their own files, each linked from here; /llms-full.txt is the whole
@@ -418,6 +425,10 @@ ${marketplaceAbout(f)}
 ## Categories
 
 ${marketplaceCategories(f)}
+
+## Tools
+
+${TOOLS_SECTION}
 
 ${full ? `${MARKETPLACE_GUIDES_SECTION}${librarySection()}${teachSection()}` : guidesPointer()}
 

@@ -19,7 +19,9 @@ const entries = [
   { slug: 'stale', lang: 'en', label: 'Stale', blurb: 'b', published: '2026-11-01', updated: '2026-11-03', reviewed: '2026-11-02', reviewedDigest: 'x' },
 ]
 
-vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<object>()), IS_SERVICES: false }))
+// The edition, switchable per test (read on every access, as library-guide.tsx reads it per call); marketplace unless a test says.
+const edition = vi.hoisted(() => ({ services: false }))
+vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<object>()), get IS_SERVICES() { return edition.services } }))
 vi.mock('next/navigation', async (orig) => ({ ...(await orig<object>()), notFound: () => { throw new Error('NOT_FOUND') } }))
 vi.mock('@/lib/guides/content', () => ({ guideContent: (slug: string) => guide(slug) }))
 vi.mock('./seo-article', async (orig) => {
@@ -36,7 +38,7 @@ vi.mock('@/lib/guides/registry', async (orig) => {
 })
 
 vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://sb.eno.test')
-const { LibraryGuide, LibraryHub, libraryGuideMetadata, libraryHubMetadata } = await import('./library-guide')
+const { LibraryGuide, LibraryHub, libraryGuideMetadata, libraryHubMetadata, rentToolsHubSection } = await import('./library-guide')
 
 describe('a page in the general guide library', () => {
   beforeEach(() => vi.setSystemTime(new Date('2026-11-04T05:00:00Z')))
@@ -104,6 +106,34 @@ describe('a page in the general guide library', () => {
     expect(en, 'nobody read it').not.toContain('/guides/unreviewed')
     expect(en).toContain('href="/huong-dan"')
     expect(libraryHubMetadata('vi').alternates).toEqual({ canonical: '/huong-dan' })
+  })
+
+  it('each hub lists the four rent tools under Tools, in its own language and at its own language’s address', () => {
+    const en = renderToStaticMarkup(<LibraryHub lang="en" />)
+    expect(en).toContain('<h2>Tools</h2>')
+    for (const href of ['/rent-affordability-calculator', '/move-in-cost-calculator', '/rental-cost-comparison', '/vietnamese-price-converter']) expect(en).toContain(`href="${href}"`)
+    expect(en).toContain('Rent affordability calculator')
+    const vi = renderToStaticMarkup(<LibraryHub lang="vi" />)
+    expect(vi).toContain('<h2>Công cụ</h2>')
+    for (const href of ['/vi/rent-affordability-calculator', '/vi/move-in-cost-calculator', '/vi/rental-cost-comparison', '/vi/vietnamese-price-converter']) expect(vi).toContain(`href="${href}"`)
+    expect(vi).toContain('So sánh chi phí thuê nhà')
+    expect(vi).not.toContain('Rental cost comparison')
+    // Between the guides and "How these are made".
+    expect(en.indexOf('<h2>Tools</h2>')).toBeGreaterThan(en.indexOf('<h2>All guides</h2>'))
+    expect(en.indexOf('<h2>Tools</h2>')).toBeLessThan(en.indexOf('<h2>How these are made</h2>'))
+  })
+
+  it('the services build gets no Tools section: the tool pages 404 there', () => {
+    expect(rentToolsHubSection('en')).toHaveLength(1)
+    edition.services = true
+    try {
+      expect(rentToolsHubSection('en')).toEqual([])
+      expect(rentToolsHubSection('vi')).toEqual([])
+      // …and the hub itself is a 404 there, so no render carries one either.
+      expect(() => renderToStaticMarkup(<LibraryHub lang="en" />)).toThrow('NOT_FOUND')
+    } finally {
+      edition.services = false
+    }
   })
 
   it('metadata names its own address and its pair', () => {

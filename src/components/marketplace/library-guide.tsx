@@ -14,6 +14,7 @@ import { HereLink, P, SeoArticle, type ArticleContent, type ArticleSection } fro
 import { GuideFigure, TeachKeyPoints, teachGuideSections } from './teach-guide-body'
 import { guideImageSrc, readingMinutes, storedSize } from '@/lib/guides/guide-images'
 import { titleWithSite } from '@/lib/meta-description'
+import { RENT_TOOLS, RENT_TOOL_SLUGS, rentToolPath } from '@/lib/rent-tools/registry'
 
 /**
  * One page for a guide in the general library (src/lib/guides), at /guides/<slug> in English and /huong-dan/<slug> in Vietnamese. A slug asked for at the other language's address is a 404, so
@@ -52,13 +53,13 @@ function load(slug: string, lang: Lang, now: Date) {
 /** Each language's list of its guides, in its own words, so no guide is reachable from the sitemap alone. A 404 until that language has one: an empty hub is a thin URL. */
 const HUB = {
   en: {
-    path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
+    path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', toolsTitle: 'Tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
     title: 'Guides to living and doing business in Vietnam',
     description: 'Practical guides from eno.vn on renting, getting around, hiring and selling in Vietnam, checked against their sources and approved by the eno.vn team.',
     how: 'Each guide is drafted with AI from pages it cites, its key facts are checked against those pages, and a person on the eno.vn team reads and approves it before it goes live. Every guide lists its sources, the day they were last checked and the day it was approved; a guide changed after that is approved again.',
   },
   vi: {
-    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
+    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', toolsTitle: 'Công cụ', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
     title: 'Hướng dẫn về cuộc sống và kinh doanh ở Việt Nam',
     description: 'Hướng dẫn thực tế từ eno.vn về thuê nhà, đi lại, tuyển dụng và bán hàng ở Việt Nam, được kiểm tra với nguồn và do đội ngũ eno.vn duyệt trước khi đăng.',
     how: 'Mỗi bài được AI soạn từ các trang mà bài trích dẫn, các thông tin chính được đối chiếu với chính các trang đó, rồi một người trong đội ngũ eno.vn đọc và duyệt trước khi đăng. Mỗi bài đều ghi nguồn, ngày kiểm tra nguồn gần nhất và ngày được duyệt; bài sửa sau đó phải được duyệt lại.',
@@ -72,6 +73,36 @@ export function libraryHubMetadata(lang: Lang): Metadata {
   const hub = HUB[lang]
   const title = titleWithSite(hub.title, SITE_NAME)
   return { title, description: hub.description, alternates: { canonical: hub.path }, robots: TEACH_ROBOTS, ...pageShare({ title, description: hub.description, url: hub.path, type: 'website' }) }
+}
+
+/**
+ * The hub's Tools section: the rent tools (src/lib/rent-tools/registry.ts), in the hub's language and at its address, in
+ * the same row shape as the guides. MARKETPLACE ONLY, like the tool pages themselves (they 404 on the services build), so
+ * eno.forum gets no section and no link to a 404 — an empty list, spread into the sections.
+ */
+export function rentToolsHubSection(lang: Lang): ArticleSection[] {
+  if (IS_SERVICES) return []
+  return [
+    {
+      id: 'tools',
+      title: HUB[lang].toolsTitle,
+      body: (
+        <Rows bordered className="max-w-[60ch]">
+          {RENT_TOOL_SLUGS.map((s) => (
+            <Row key={s} className="py-0">
+              <Link href={rentToolPath(s, lang)} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                <span className="min-w-0">
+                  <span className="block text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">{RENT_TOOLS[s].label[lang]}</span>
+                  <span className="mt-1 block text-base leading-relaxed text-body">{RENT_TOOLS[s].blurb[lang]}</span>
+                </span>
+                <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+              </Link>
+            </Row>
+          ))}
+        </Rows>
+      ),
+    },
+  ]
 }
 
 export function LibraryHub({ lang }: { lang: Lang }) {
@@ -106,6 +137,7 @@ export function LibraryHub({ lang }: { lang: Lang }) {
         </>
       ),
     },
+    ...rentToolsHubSection(lang),
     { id: 'how', title: hub.howTitle, body: <P>{hub.how}</P> },
   ]
   const dates = guides.map((e) => guideDates(e).published).sort()

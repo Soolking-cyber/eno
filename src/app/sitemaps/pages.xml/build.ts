@@ -33,6 +33,7 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { langUrlEntries, submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
+import { RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
 import { storefrontCanonicals } from '@/lib/storefront'
 import { awardYearsForSitemap, schoolsForSitemap } from '@/lib/schools/queries'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
@@ -540,6 +541,15 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
       urls.push(`  <url><loc>${hostUrl}${TEACHER_COST_INDEX_PATH}</loc>${lm(seriesLastmod(TEACHER_COST_INDEX_EDITIONS, TEACHER_COST_INDEX_ERRATA))}</url>\n`)
       for (const e of superseded) urls.push(`  <url><loc>${hostUrl}${editionPath(e.edition)}</loc>${lm(editionPageLastmod(e, newest, TEACHER_COST_INDEX_ERRATA))}</url>\n`)
     }
+  }
+
+  /**
+   * THE FOUR RENT TOOLS (2026-11-23, src/lib/rent-tools/registry.ts) — calculators with static copy, MARKETPLACE ONLY like
+   * their pages (the services build 404s them). Each is a `/vi` family path, so each goes in as a plain + `/vi` pair. No
+   * lastmod, like the static info pages above: nothing on them changes with the data.
+   */
+  if (!IS_SERVICES) {
+    for (const slug of RENT_TOOL_SLUGS) urls.push(...langUrlEntries(hostUrl, `/${slug}`))
   }
 
   /**

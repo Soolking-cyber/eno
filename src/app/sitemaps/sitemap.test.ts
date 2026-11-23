@@ -310,6 +310,7 @@ import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import * as teachRegistry from '@/lib/teach-guides/registry'
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { isTeacherSurfacePath } from '@/lib/teachers/surface'
+import { RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -864,6 +865,19 @@ describe('the pages child: lastmod from what each page shows', () => {
     h.services = false
     await pagesGET()
     expect(h.rentReads).toBe(1)
+  })
+
+  it('submits the four rent tools on eno.vn, undated, each with its /vi twin — and none of them on eno.forum, where they 404', async () => {
+    h.rows = [row({ id: 'book' })]
+    const xml = await (await pagesGET()).text()
+    for (const s of RENT_TOOL_SLUGS) {
+      expect(locs(xml), s).toContain(`${HOST}/${s}`)
+      expect(locs(xml), s).toContain(`${HOST}/vi/${s}`)
+      expect(lastmodOf(xml, `${HOST}/${s}`), s).toBeUndefined()
+    }
+    h.services = true
+    const forum = locs(await (await pagesGET()).text())
+    for (const s of RENT_TOOL_SLUGS) expect(forum.some((u) => u.endsWith(`/${s}`)), s).toBe(false)
   })
 
   it('dates a help answer by editedAt, else createdAt — never by updatedAt, which a vote moves', async () => {
@@ -1468,7 +1482,9 @@ describe('the /vi twins in the sitemaps (phase 1, 2026-11-19)', () => {
     for (const e of all.filter((x) => isVi(x.loc))) expect(e.links.en && all.some((x) => x.loc === e.links.en), e.loc).toBe(true)
     const vis = all.filter((e) => isVi(e.loc)).map((e) => path(e.loc))
     expect(vis).not.toContain('/vi') // pilot V-c: the home page's twin is not submitted
-    for (const p of vis) expect(p, p).toMatch(/^\/vi\/(c|help|schools|hcmc-rent-index)(\/|$)/)
+    // …and the rent tools (2026-11-23), each a family path of its own.
+    for (const p of vis) expect(p, p).toMatch(new RegExp(`^/vi/(c|help|schools|hcmc-rent-index|${RENT_TOOL_SLUGS.join('|')})(/|$)`))
+    for (const s of RENT_TOOL_SLUGS) expect(vis, s).toContain(`/vi/${s}`)
     expect(vis.some((p) => /^\/vi\/(listings|sellers|teachers|about|developers|guide)(\/|$)/.test(p))).toBe(false)
     expect(all.find((e) => e.loc === `${HOST}/teachers/cover`)?.links).toEqual({})
     expect(all.find((e) => e.loc === `${HOST}/about`)?.links).toEqual({})

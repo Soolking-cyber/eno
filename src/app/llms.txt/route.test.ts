@@ -104,6 +104,12 @@ describe('/llms.txt on the services edition', () => {
     h.facts = MEASURED
   })
 
+  it('never lists the rent tools, which 404 on this edition', async () => {
+    const body = await bodyOf()
+    expect(body).not.toContain('## Tools')
+    expect(body).not.toContain('rent-affordability-calculator')
+  })
+
   it('⛔ never names eno.vn\'s npm package or registry records on the other edition', async () => {
     const body = await bodyOf()
     expect(body).not.toContain('eno-vn-mcp')
@@ -121,6 +127,13 @@ describe('/llms.txt on the marketplace', () => {
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
     h.facts = MEASURED
+  })
+
+  it('lists the four rent tools under Tools, at their plain URLs (and the full file too)', async () => {
+    for (const body of [await bodyOf(), await fullBodyOf()]) {
+      expect(body).toContain('## Tools\n\n- [Rent affordability calculator](https://eno.vn/rent-affordability-calculator): ')
+      for (const s of ['move-in-cost-calculator', 'rental-cost-comparison', 'vietnamese-price-converter']) expect(body).toContain(`](https://eno.vn/${s}): `)
+    }
   })
 
   it('links the Schema Map: since 2026-11-19 the only place it is advertised (robots.txt dropped its `schemamap:` line for Lighthouse)', async () => {
