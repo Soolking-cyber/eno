@@ -220,7 +220,9 @@ export function parseVnPrice(input: string): PriceResult {
   }
   s = s.replace(/^giá\s*:?\s*/, '').trim()
   // Space as the thousands separator ("15 000 000"): adjacent digit groups can only be one number.
-  s = s.replace(/(?<![\d.,])\d{1,3}(?: \d{3})+(?![\d.,])/g, (m) => m.replace(/ /g, ''))
+  // ⛔ No lookbehind: Safari 16.0–16.3 cannot parse one and drops the whole chunk (chunk-lookbehind-guard fails the
+  // build). The character before the number is consumed as a prefix group and put back.
+  s = s.replace(/(^|[^\d.,])(\d{1,3}(?: \d{3})+)(?![\d.,])/g, (_m, pre: string, num: string) => pre + num.replace(/ /g, ''))
   if (!s) return refuse({ code: 'empty' })
   if (/^[-−–]\s*\d/.test(s)) return refuse({ code: 'negative' })
   if (/\d\s*[a-zà-ỹđ]*\s*[-–—~]\s*\d/.test(s) || /(?:^|\s)(?:đến|tới|to)(?:\s|$)/.test(s)) return refuse({ code: 'range' })
