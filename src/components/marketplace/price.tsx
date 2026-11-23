@@ -1,7 +1,8 @@
 'use client'
 
 import { useLanguage, useTr } from '@/context/language-context'
-import { useCurrency, vndPerUsd } from '@/context/currency-context'
+import { useCurrency } from '@/context/currency-context'
+import { approxCurrency, vndPerUsd } from '@/lib/fx-band'
 import { compactVnd, compactVndStep, formatMoneyFull, HUGE_VND, moneyLocale } from '@/lib/vnd'
 import { formatMoney } from '@/lib/currencies'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -115,7 +116,10 @@ type Props = {
    *  ⚠️ History, so it is not re-tried: a first cut dropped the approximation for the default viewer
    *  to make the card "clean", and the owner asked for it back the same day ("approximate price in
    *  usd disappeared add it back after d price"). A second cut showed the viewer's PICKED currency as
-   *  the "≈" instead, which reviewers showed had no rate sanity check outside USD.
+   *  the "≈" instead, which reviewers showed had no rate sanity check outside USD — so the "≈" stayed
+   *  dollars for everyone and the picker did nothing here. ⛔ SINCE 2026-11-23 it IS the pick again
+   *  ("the currency change is not working"), now behind a per-currency band (lib/fx-band
+   *  `perVndRate`); a đồng viewer still gets "≈ $", and a pick whose rate fails falls back to it.
    *  ⚠️ For a ₫ listing this can never render a foreign-only figure (ND 340/2025). */
   native?: boolean
   className?: string
@@ -264,13 +268,19 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // by a container query in CSS. Deciding it in JS would need the container's width, which is not
   // known at render and would tear on resize.
   const perUsd = vndPerUsd(rates)
+  // The "≈" currency. ⛔ ON A `native` SURFACE IT IS THE VIEWER'S PICK (2026-11-23, owner: "the currency change is not
+  // working"): đồng still leads, and a EUR viewer reads "2.25M đ ≈ €78" instead of a "≈ $" that ignored the picker — every
+  // scan surface (cards, rows, popups) looked dead to a switch. Dollars for a đồng or USD viewer, and whenever the pick's
+  // rate fails its band (approxCurrency). A non-native price (the PDP) already leads with the pick, so its "≈" stays $.
+  const est = native ? approxCurrency(displayCur, rates) : perUsd ? { code: 'USD', rate: rates.USD } : null
   if (dual !== false && currency === '₫' && price > 0) {
     // `native` already leads with đồng, so a USD viewer gets "đ ≈ $", never the đồng figure twice.
     if (displayCur === 'USD' && !native) approx = formatMoneyFull(price, '₫', locale)
     // An estimate that rounds to $0 says nothing — a "1 đ, contact me" price read "≈ $0" (break-ui,
     // 2026-10-05). Under half a dollar there is no approximation; the branch still CLAIMS the rate case,
     // so a tiny price never falls through to the reserve below.
-    else if (perUsd) { if (price / perUsd >= 0.5) approx = formatMoney(price, 'USD', rates, locale) }
+    // (Half a unit of the "≈" currency: ₩0 and ¥0 say nothing either.)
+    else if (est) { if (price * est.rate >= 0.5) approx = formatMoney(price, est.code, rates, locale) }
     // ⚠️ ONLY WITH NO SERVER RATE SINCE 2026-11-03: the HTML normally carries the real one (lib/fx-seed.ts), and this is the fallback when that failed.
     // ⛔ THIS BRANCH RENDERS A FIGURE THAT IS NEVER SHOWN, AND THAT IS THE ENTIRE POINT.
     // /api/fx is deferred to an idle slot for the default VND viewer, so the "≈ $x" slot used to

@@ -45,6 +45,17 @@ function moneyFormat(currency: string): Intl.NumberFormat {
   return f
 }
 
+/** A currency's mark as `formatMoney` prints it (Intl en-US): "$", "€", "₩", "CN¥"; a bare code gets a trailing space
+ *  ("THB "). For a compact figure the formatter cannot draw — a map pin's "€1.7k" (listings-map.tsx pinLabel). */
+export function currencyMark(currency: string): string {
+  try {
+    const mark = moneyFormat(currency).formatToParts(0).find((x) => x.type === 'currency')?.value
+    return mark && !/^[A-Z]{3}$/.test(mark) ? mark : `${currency} `
+  } catch {
+    return `${currency} `
+  }
+}
+
 /**
  * Format a VND amount in the chosen display currency. `rates` are "currency per
  * 1 VND" (from /api/fx). VND keeps the app's locale-aware suffix style

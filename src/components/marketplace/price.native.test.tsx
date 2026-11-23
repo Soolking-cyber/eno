@@ -65,6 +65,35 @@ describe('<Price native>', () => {
     expect(t.split('đ').length - 1).toBe(1)
   })
 
+  // 2026-11-23, owner: "the currency change is not working" — the "≈" on a card ignored the picker.
+  it('a viewer who picked EUR, KRW or JPY gets đồng first and their own currency as the "≈"', () => {
+    state.rates = { USD: 1 / 26_000, EUR: 0.9 / 26_000, KRW: 1_400 / 26_000, JPY: 150 / 26_000 }
+    state.currency = 'EUR'
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ €90')
+    state.currency = 'KRW'
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ ₩140,000')
+    state.currency = 'JPY'
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ ¥15,000')
+  })
+
+  it('falls back to "≈ $" when the picked currency’s rate is absurd or missing, and to nothing when the dollar’s is', () => {
+    state.currency = 'EUR'
+    state.rates = { USD: 1 / 26_000, EUR: 26_000 / 0.9 } // un-inverted
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ $100')
+    state.rates = { USD: 1 / 26_000, EUR: 0.9 / 26 } // quoted in thousands
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ $100')
+    state.rates = { USD: 1 / 26_000 }
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ≈ $100')
+    state.rates = { USD: 26_000, EUR: 0.9 / 26_000 } // the dollar's band fails → no "≈" in any currency
+    expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ')
+  })
+
+  it('the detail price (not native) still leads with the pick, and its "≈" stays dollars', () => {
+    state.currency = 'EUR'
+    state.rates = { USD: 1 / 26_000, EUR: 0.9 / 26_000 }
+    expect(text(<Price price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('€90≈ $100')
+  })
+
   it('draws no second figure when the rate is unusable', () => {
     state.rates = { USD: 26_000 } // un-inverted — the plausibility band must refuse it
     expect(text(<Price native price={2_600_000} currency="₫" priceUnit="VND" />)).toBe('2,600,000 đ')

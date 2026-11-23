@@ -9,6 +9,9 @@ import React, { createContext, useCallback, useLayoutEffect, useMemo, useContext
  *  reason it is not a plain effect. */
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 import { formatMoney, CURRENCY_CODES } from '@/lib/currencies'
+import { vndPerUsd } from '@/lib/fx-band'
+// The plausibility bands live in a plain module (lib/fx-band.ts) so that a test mocking this context cannot blank them.
+export { vndPerUsd }
 import type { MoneyLocale } from '@/lib/vnd'
 
 const CUR_KEY = 'eno-currency'
@@ -256,24 +259,4 @@ export function useDualMoney() {
       : vndPerUsd(rates) ? formatMoney(amountVnd, 'USD', rates, locale) : null
     return approx ? `${main} ≈ ${approx}` : main
   }, [currency, rates, format])
-}
-
-/**
- * ĐỒNG PER ONE DOLLAR (≈ 26 000) from the /api/fx table, or null when the rate is unusable.
- *
- * ⚠️ THE BAND IS THE POINT, and it is the same reasoning visa/fx.ts spells out at length: the
- * upstream publishes "currency per 1 VND", so `rates.USD` ≈ 0.0000383 and the figure we want is the
- * RECIPROCAL. Every way of getting that wrong lands far outside the tens of thousands — an
- * un-inverted rate gives 0.0000383, a rate quoted in thousands gives 26.1, a broken payload gives 0
- * or NaN — so asserting the magnitude catches all of them, while a bare `> 0` check catches none.
- *
- * Callers that merely DISPLAY an approximation degrade to showing one currency. The builder's
- * custom-budget field additionally refuses to submit, because there the number becomes the model's
- * spending target rather than a hint. Both were flagged in review as accepting an absurd rate.
- */
-export function vndPerUsd(rates: Record<string, number>): number | null {
-  const perVnd = rates.USD
-  if (!perVnd || !Number.isFinite(perVnd) || perVnd <= 0) return null
-  const rate = 1 / perVnd
-  return rate >= 5_000 && rate <= 100_000 ? rate : null
 }

@@ -13,7 +13,9 @@ import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
 import type { SerializedListingCard, BuildingPin } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
-import { useCurrency, vndPerUsd } from '@/context/currency-context'
+import { useCurrency } from '@/context/currency-context'
+import { approxCurrency } from '@/lib/fx-band'
+import { currencyMark } from '@/lib/currencies'
 import { Price } from './price'
 import { useLanguage } from '@/context/language-context'
 import { PopupPlace } from './place-name'
@@ -62,17 +64,16 @@ function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: stri
   // "$1,950" one tap later, on the same listing.
   // Mirrors price-range-filter.tsx's compactAmt: convert first, keep the vi shorthand only when the
   // viewer is actually reading đồng, and never emit a magnitude without its unit.
-  // ⚠️ SINCE THE 2026-09-13 CARD REWORK THE "FOREIGN" FIGURE IS ALWAYS DOLLARS. The popup (and every
-  // card) now reads "51,000,000 đ ≈ $1,950" — đồng first, USD as the estimate — for every viewer. So a
-  // viewer who picked ANY foreign currency gets a dollar pin ("$1.9k") that matches the popup's "≈";
-  // converting to their EUR/KRW pick would put "€1.7k" on the pin and "$1,950" one tap later, which all
-  // four reviewers flagged. The currency picker still drives the PDP. A first pass switched pins to
-  // đồng-only instead, and reviewers flagged the unit-less "51M" that handed a dollar reader.
+  // ⚠️ THE "FOREIGN" FIGURE IS THE POPUP'S "≈" CURRENCY — never a different one. The popup (and every card) reads
+  // "51,000,000 đ ≈ €1,750" — đồng first, the viewer's pick as the estimate (dollars for a đồng viewer, or when the pick's
+  // rate fails its band: lib/fx-band `approxCurrency`, which this pin and <Price native> both read). From 2026-09-13
+  // to 2026-11-23 that estimate was dollars for everyone, so the pin was too; a pin in the pick beside a "≈ $" popup is
+  // what four reviewers flagged then. A first pass switched pins to đồng-only, and reviewers flagged the unit-less "51M".
   if (l.currency === '₫') {
     const foreign = currency && currency !== 'VND' && currency !== '₫' && rate
     if (!foreign) return compactPrice(l.price, locale)
     const d = l.price * (rate as number)
-    const sym = currency === 'USD' ? '$' : `${currency} `
+    const sym = currencyMark(currency)
     if (d >= 1_000_000) return `${sym}${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`
     if (d >= 1_000) return `${sym}${(d / 1_000).toFixed(d % 1_000 === 0 ? 0 : 1)}k`
     return `${sym}${Math.round(d)}`
@@ -376,11 +377,13 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
   const { currency: pickedCurrency, rates: fxRates } = useCurrency()
-  // Any foreign pick → a DOLLAR pin, matching the popup's "≈ $" (see pinLabel). /api/fx publishes
-  // 'currency per 1 VND', so this multiplies; `vndPerUsd` is the same plausibility band <Price> uses,
-  // so a pin never shows a dollar figure the popup would refuse to. Undefined until the rates land.
-  const displayCurrency = pickedCurrency && pickedCurrency !== 'VND' && pickedCurrency !== '₫' ? 'USD' : pickedCurrency
-  const displayRate = displayCurrency === 'USD' && vndPerUsd(fxRates) ? fxRates.USD : undefined
+  // A foreign pick → a pin in the popup's "≈" currency (see pinLabel): the pick, or dollars when its rate fails the band.
+  // /api/fx publishes 'currency per 1 VND', so this multiplies; `approxCurrency` is the same check <Price native> uses, so a
+  // pin never shows a figure the popup would refuse to. Undefined until the rates land (the pin then reads đồng).
+  const foreignPick = !!pickedCurrency && pickedCurrency !== 'VND' && pickedCurrency !== '₫'
+  const est = foreignPick ? approxCurrency(pickedCurrency, fxRates) : null
+  const displayCurrency = foreignPick ? (est?.code ?? 'USD') : pickedCurrency
+  const displayRate = est?.rate
   // Pin + card amounts follow the viewer's UI language from CONTEXT — a former
   // `lang` prop was a content-localization hint some hosts hardcoded (listing-
   // detail-map passed 'vi'), so it could never drive money formatting; it was
