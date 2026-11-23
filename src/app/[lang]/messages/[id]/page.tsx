@@ -3735,9 +3735,12 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 {m.kind === 'call_request' && !m.mine && !thread.closed && m.id === lastIncomingCallRequestId(thread.messages) && <AllowCallsChip conversationId={thread.id} name={thread.counterpart.name ?? null} />}
                 {/* The partner welcome's answer: "Send my number" / "Add my number", the customer's side only, under the newest
                     welcome until their number is in the thread. Sent through this page's own send — no quote, the composer untouched. */}
-                {/* "Buy now" (src/lib/partner-buy.ts, owner 2026-11-23): the customer's side, under the buy-now welcome and every
-                    "Buy now" line the shop sent — the link only as this button's href, never as text. Before the phone chip. */}
-                {thread.buyUrl && !m.mine && !thread.closed && thread.iAmSeller === false && isPartnerBuyMessage(m) && <PartnerBuyButton href={thread.buyUrl} />}
+                {/* "Buy now" (src/lib/partner-buy.ts, owner 2026-11-23): under the buy-now welcome and every "Buy now" line the shop
+                    sent — the link only as this button's href, never as text. BOTH sides (owner 2026-11-23 "where is buy now button?"
+                    from the shop's login → "yes" to showing it there too): staff see what the customer gets, right-aligned under
+                    their own bubble. Only the seller side can author these kinds (insertMessage), and `buyUrl` reaches only the
+                    thread's two people. Before the phone chip. */}
+                {thread.buyUrl && !thread.closed && isPartnerBuyMessage(m) && <PartnerBuyButton href={thread.buyUrl} />}
                 {m.kind === 'partner_welcome' && !m.mine && !thread.closed && thread.iAmSeller === false && m.id === partnerPhoneAskId(thread.messages) && <PartnerPhoneChip myPhone={thread.myPhone ?? null} onSend={(t) => void send(t, undefined, null)} />}
                 {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
                 {!m.mine && translate.translationFor(m.id) && (
