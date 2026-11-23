@@ -239,8 +239,12 @@ export function dongFigures(text: string): number[] {
   }
   return out.filter((n) => n >= VND_BAND.min && n <= VND_BAND.max)
 }
-/** How far the card, at the run's rate, may sit from a rent the text states (the agency's own rate is weeks old). */
-export const STATED_TOLERANCE = 0.15
+/**
+ * How far the card, at the run's rate, may sit from a rent the text states. Measured 2026-11-23 on CVR's 100 rentals:
+ * 40 of the 42 stated rents sit within 3 % of the card (its rate is weeks old); the two at 7 % and 9 % are held — the
+ * headline must not sit far from the agency's own figure (commit-gate review, Opus).
+ */
+export const STATED_TOLERANCE = 0.05
 
 /** A line about the rent ("Rent:", "Giá thuê", "… /month"). */
 const RENT_LINE = /\brent(?:al)?\b|\bprice\b|\blease\b|giá|thuê|\/\s?(?:month|mo|tháng)\b|per month|a month|mỗi tháng/iu
@@ -343,8 +347,9 @@ export type HousingMapOptions = { vndPerUsd: number; now: number; buildings?: Re
 /** One record → the row create() writes (storefront, category, photos, status and rank are the script's), or why not. */
 export function mapHousingRecord(p: HousingPartner, r: HousingRecord, opts: HousingMapOptions): { ok: true; row: HousingRow; postedAt: Date } | HousingRefusal {
   if (r.status && /rented|leased|occupied|\blet\b|sold|pending/i.test(r.status)) return drop('rented', `status "${r.status}"`)
-  // A sale or a business transfer filed among the rentals ("… FOR SALE", "Lease / Transfer").
-  if (/\bfor sale\b(?!\s*(?:or|\/|&|and)\s*(?:for\s+)?rent)|(?<!airport\s)\btransfer\b|sang nhượng/i.test(r.title)) return drop('notForRent', r.title)
+  // A sale filed among the rentals ("… FOR SALE", not "for sale or rent"), or — for an office or shop — a business
+  // transfer ("Lease / Transfer", "Café for Transfer"); a home's "airport transfer" is a perk, not a sale.
+  if (/\bfor sale\b(?!\s*(?:or|\/|&|and)\s*(?:for\s+)?rent)|sang nhượng/i.test(r.title) || (!isHome(r) && /\btransfer\b/i.test(r.title))) return drop('notForRent', r.title)
   if (!r.priceUsd || r.unit !== 'month') return drop('noMonthlyPrice', `price ${r.priceUsd ?? '(none)'} / ${r.unit ?? '(none)'}`)
   if (r.priceUsd < USD_MONTHLY_BAND.min || r.priceUsd > 20_000) return hold('priceBand', `US$${r.priceUsd} a month`)
   // A whole residential building let to an operator is not a home to rent.

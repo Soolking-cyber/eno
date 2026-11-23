@@ -158,11 +158,13 @@ describe('CVR (Đà Nẵng)', () => {
   })
 
   it('the price is the card; a stated rent the card does not match holds, and nothing else does', () => {
-    // 635 US$ at 26,300 = 16.7 million; the text's "VND 16,000,000/month" is within 15 %.
+    // 635 US$ at 26,300 = 16.7 million; the text's "VND 16,000,000/month" is 4.2 % under it, inside the 5 % band.
     expect(rentConflict(cvr, cv(), 26_300)).toBeNull()
     expect(rentConflict(cvr, cv({ priceUsd: 1000, description: ['Local tenants: 25 million VND/month & foreign tenants: 27 million VND/month'] }), 26_300)).toBeNull()
+    // The headline may not sit 9 % under the agency's own rent (CVR's Filmore 2BR: card 45.9 million, text 50 million).
+    expect(rentConflict(cvr, cv({ priceUsd: 1780, description: ['Rent: VND 50 million/month'] }), 25_779)).toEqual([50_000_000])
     // A deposit or a second unit beside the rent never holds a listing whose rent the card matches…
-    expect(rentConflict(cvr, cv({ priceUsd: 1000, description: ['Rent: VND 28 million/month; deposit: VND 52 million'] }), 26_300)).toBeNull()
+    expect(rentConflict(cvr, cv({ priceUsd: 1070, description: ['Rent: VND 28 million/month; deposit: VND 52 million'] }), 26_300)).toBeNull()
     // …a text stating no rent cannot conflict (a deposit or bill line is not a rent line)…
     expect(rentConflict(cvr, cv({ description: ['Deposit: two months', 'Electricity about VND 2 million'] }), 26_300)).toBeNull()
     // …but a rent the card does not match is held, however far apart, whatever else the text prices.
@@ -208,8 +210,9 @@ describe('CVR (Đà Nẵng)', () => {
 
   it('drops a sale or a transfer, holds a whole building, a wrong bedroom count, a Vietnamese text and an unknown place', () => {
     expect(mapHousingRecord(cvr, cv({ title: 'FPT PLAZA 2 – HIGH FLOOR 2-BEDROOM APARTMENT FOR SALE', priceUsd: 15_000 }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'notForRent' })
-    expect(mapHousingRecord(cvr, cv({ title: 'Spa Building for Lease / Transfer' }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'notForRent' })
-    expect(mapHousingRecord(cvr, cv({ title: 'Café for Transfer in An Thuong' }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'notForRent' })
+    expect(mapHousingRecord(cvr, cv({ title: 'Spa Building for Lease / Transfer', kind: 'commercial' }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'notForRent' })
+    expect(mapHousingRecord(cvr, cv({ title: 'Café for Transfer in An Thuong', kind: 'commercial' }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'notForRent' })
+    expect(mapHousingRecord(hs, rec({ title: 'COZY 1BR APARTMENT, FREE AIRPORT-TRANSFER' }), OPTS).ok).toBe(true)
     // Not a sale: a rental offered for sale OR rent, or one with an airport transfer.
     expect(mapHousingRecord(cvr, cv({ title: '2-Bedroom Apartment FOR SALE OR RENT at FPT Plaza 2' }), OPTS).ok).toBe(true)
     expect(mapHousingRecord(hs, rec({ title: 'COZY 1BR APARTMENT, FREE AIRPORT TRANSFER' }), OPTS).ok).toBe(true)
