@@ -178,6 +178,26 @@ describe('parseVnPrice · a tail that is đồng, not shorthand (gate round 1)',
   })
 })
 
+describe('parseVnPrice · gate round 2', () => {
+  /** ⛔ "1 triệu 50 đồng" offered 1.500.000 / 1.050.000 and left out what was written: 1.000.050. */
+  it('two digits after a unit plus an explicit đồng: the as-written reading is among those offered', () => {
+    expect(parseVnPrice('1 triệu 50 đồng')).toEqual({ ok: false, refusal: { code: 'ambiguousTailCurrency', text: '1 triệu 50', a: 1_500_000, b: 1_050_000, c: 1_000_050 } })
+    const tr = parseVnPrice('15tr50đ')
+    expect(!tr.ok && tr.refusal).toMatchObject({ code: 'ambiguousTailCurrency', c: 15_000_050 })
+    // After nghìn the next unit already is đồng: two readings, the as-written one included.
+    expect(parseVnPrice('800 nghìn 50 đồng')).toEqual({ ok: false, refusal: { code: 'ambiguousCurrency', text: '800 nghìn 50', a: 800_500, b: 800_050 } })
+    // Without the mark, the shorthand's two readings as before.
+    expect(code('1 triệu 50')).toBe('ambiguousTail')
+  })
+
+  /** ⛔ The digit-count cap refused exactly MAX_VND; the limit is the value, inclusive. */
+  it('a full figure up to MAX_VND inclusive reads; one đồng more is too large', () => {
+    for (const s of ['1000000000000000', '1.000.000.000.000.000', '1,000,000,000,000,000', '1.000.000.000.000.000 đ', '0001000000000000000']) expect(vnd(s), s).toBe(MAX_VND)
+    for (const s of ['1000000000000001', '1.000.000.000.000.001', '99999999999999999999']) expect(code(s), s).toBe('tooLarge')
+    expect(vnd('999.999.999.999.999')).toBe(999_999_999_999_999)
+  })
+})
+
 describe('vietnameseWords ↔ parseVnPrice: every amount the words function writes parses back exactly', () => {
   /** A spread across every group shape — zero groups, linh, mười, mốt/tư/lăm, compound tỷ — plus seeded random amounts. */
   const FIXED = [

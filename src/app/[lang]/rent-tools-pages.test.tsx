@@ -170,6 +170,27 @@ describe('every rent tool page, in both languages', () => {
     expect(bad).toEqual([])
   })
 
+  /**
+   * ⛔ GATE ROUND 2: "Home A/B/C" were built as `Home ${letter}` at run time, which the string harvest cannot see, so the
+   * nine machine-translated languages printed them in English. They are authored pairs now, and in the warm catalogue.
+   */
+  it('the homes’ names are authored pairs the harvest sees — never built from a template at run time', () => {
+    const catalogue = readFileSync('src/generated/ui-strings.ts', 'utf8')
+    for (const n of ['Home A', 'Home B', 'Home C', 'Home C (optional)']) expect(catalogue, n).toContain(`"${n}"`)
+    for (const f of ['page.tsx', 'calculator.tsx', 'copy.ts']) {
+      const src = readFileSync(`src/app/[lang]/rental-cost-comparison/${f}`, 'utf8')
+      expect(src, f).not.toMatch(/`(?:Home|Căn) \$\{/)
+      expect(src, f).not.toContain("'Home {x}'")
+    }
+  })
+
+  it.each(CASES)('%s (%s): money fields open the full keyboard (inputmode text), so 15tr and 500k can be typed', async (slug, lang) => {
+    const { el } = await render(slug, lang)
+    const MONTHS = new Set(['mi-deposit', 'mi-advance', 'rc-months'])
+    for (const i of el.querySelectorAll('input')) if (!MONTHS.has(i.id)) expect(i.getAttribute('inputmode'), i.id).toBe('text')
+    for (const i of el.querySelectorAll('input')) expect(i.getAttribute('inputmode'), i.id).not.toBe('tel')
+  })
+
   it('no source file of the four pages names a licensed-services surface', () => {
     for (const s of RENT_TOOL_SLUGS) {
       for (const f of ['page.tsx', 'copy.ts', 'calculator.tsx']) {
@@ -242,10 +263,12 @@ describe('/move-in-cost-calculator', () => {
 describe('/rental-cost-comparison', () => {
   it('the example ranks B, A, C — the lowest rent is the dearest — and keeps the deposit out of the totals', async () => {
     const en = await exampleText('rental-cost-comparison', 'en')
-    expect(en).toContain('Cheapest first: Home B at 141,600,000 đ, then Home A (2,400,000 đ more) and Home C (8,400,000 đ more)')
+    const { el } = await render('rental-cost-comparison', 'en')
+    const ranking = [...el.querySelectorAll('section[aria-labelledby="example"] ol li')].map((li) => squash(li.textContent))
+    expect(ranking).toEqual(['Home B · 141,600,000 đ', 'Home A · 144,000,000 đ · 2,400,000 đ more', 'Home C · 150,000,000 đ · 8,400,000 đ more'])
     expect(en).toContain('The deposits are not in these totals')
-    const vi = await exampleText('rental-cost-comparison', 'vi')
-    expect(vi).toContain('Từ rẻ nhất: Căn B với 141.600.000 đ')
+    const vi = await render('rental-cost-comparison', 'vi')
+    expect([...vi.el.querySelectorAll('section[aria-labelledby="example"] ol li')].map((li) => squash(li.textContent))[0]).toBe('Căn B · 141.600.000 đ')
   })
   it('calls the deposit’s return an assumption, not a promise', async () => {
     const { text } = await render('rental-cost-comparison', 'en')

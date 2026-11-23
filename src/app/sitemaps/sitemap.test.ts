@@ -875,9 +875,19 @@ describe('the pages child: lastmod from what each page shows', () => {
       expect(locs(xml), s).toContain(`${HOST}/vi/${s}`)
       expect(lastmodOf(xml, `${HOST}/${s}`), s).toBeUndefined()
     }
+    // Restored in `finally`, so services mode cannot leak into a later test even if an assertion here throws (the file's
+    // beforeEach resets it too; this test does not lean on that).
     h.services = true
-    const forum = locs(await (await pagesGET()).text())
-    for (const s of RENT_TOOL_SLUGS) expect(forum.some((u) => u.endsWith(`/${s}`)), s).toBe(false)
+    try {
+      const forum = locs(await (await pagesGET()).text())
+      for (const s of RENT_TOOL_SLUGS) expect(forum.some((u) => u.endsWith(`/${s}`)), s).toBe(false)
+    } finally {
+      h.services = false
+    }
+  })
+
+  it('…and leaves the marketplace edition behind it (the services switch above was restored)', () => {
+    expect(h.services).toBe(false)
   })
 
   it('dates a help answer by editedAt, else createdAt — never by updatedAt, which a vote moves', async () => {

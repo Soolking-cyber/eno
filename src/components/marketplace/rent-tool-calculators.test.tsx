@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 /**
  * THE FOUR LIVE CALCULATORS, DRIVEN LIKE A READER DRIVES THEM: typing, leaving a field, fixing it. The language context is
@@ -16,13 +16,20 @@ vi.mock('@/context/language-context', () => ({
 const { AffordabilityCalculator } = await import('@/app/[lang]/rent-affordability-calculator/calculator')
 const { MoveInCalculator } = await import('@/app/[lang]/move-in-cost-calculator/calculator')
 const { ComparisonCalculator } = await import('@/app/[lang]/rental-cost-comparison/calculator')
-const { PriceConverter } = await import('@/app/[lang]/vietnamese-price-converter/calculator')
+const { PriceConverter, REFUSAL_PAUSE_MS } = await import('@/app/[lang]/vietnamese-price-converter/calculator')
 
 beforeEach(() => { lang.value = 'en' })
 afterEach(() => cleanup())
 
 const type = (label: string | RegExp, value: string, index = 0) => fireEvent.change(screen.getAllByLabelText(label)[index], { target: { value } })
 const leave = (label: string | RegExp, index = 0) => fireEvent.blur(screen.getAllByLabelText(label)[index])
+/** What a reader does: into the field, type, out of it. A field's error shows only once it has been left (gate round 2). */
+const commit = (label: string | RegExp, value: string, index = 0) => {
+  const el = screen.getAllByLabelText(label)[index]
+  fireEvent.focus(el)
+  fireEvent.change(el, { target: { value } })
+  fireEvent.blur(el)
+}
 const well = (c: HTMLElement) => c.querySelector('[aria-live="polite"]')!.textContent!.replace(/\s+/g, ' ')
 
 describe('rent affordability', () => {
@@ -52,11 +59,11 @@ describe('rent affordability', () => {
     const pay = screen.getByLabelText('Monthly take-home pay')
     leave('Monthly take-home pay')
     expect(screen.getByRole('alert').textContent).toBe('Enter an amount.')
-    type('Monthly take-home pay', 'abc')
+    commit('Monthly take-home pay', 'abc')
     expect(pay.getAttribute('aria-invalid')).toBe('true')
     expect(document.getElementById(pay.getAttribute('aria-describedby')!)!.textContent).toBe('Enter an amount in đồng, e.g. 15000000 or 15tr.')
     for (const [v, msg] of [['0', 'Enter an amount above 0.'], ['-3000000', 'This cannot be negative.'], ['50 tỷ', 'That is too large to be right. Check the number of zeros.'], ['25', 'Add a unit (500k, 15tr) or write the full amount (500000).']] as const) {
-      type('Monthly take-home pay', v)
+      commit('Monthly take-home pay', v)
       expect(screen.getByRole('alert').textContent, v).toBe(msg)
     }
   })
@@ -109,13 +116,13 @@ describe('move-in cost', () => {
     type('Monthly rent', '10tr')
     type('Deposit (months of rent)', '1,5')
     expect(well(container)).toContain('Deposit (1.5 months)15,000,000 đ')
-    type('Deposit (months of rent)', '13')
+    commit('Deposit (months of rent)', '13')
     expect(screen.getByRole('alert').textContent).toBe('That is too large to be right. Check the number of zeros.')
     // The rent is there: the well names the field to fix, never "Enter the monthly rent" (gate round 1).
     expect(well(container)).toContain('Check “Deposit (months of rent)” to see the result.')
     expect(well(container)).not.toContain('Enter the monthly rent')
-    type('Deposit (months of rent)', '1')
-    type('Months paid in advance', '1.5')
+    commit('Deposit (months of rent)', '1')
+    commit('Months paid in advance', '1.5')
     expect(screen.getByRole('alert').textContent).toBe('Use whole months (or halves for a deposit).')
   })
 })
@@ -153,21 +160,21 @@ describe('gate round 1 regressions', () => {
     const { container } = render(<MoveInCalculator />)
     expect(well(container)).toContain('Enter the monthly rent to see the cash needed at signing.')
     type('Monthly rent', '10tr')
-    type('Months paid in advance', '')
+    commit('Months paid in advance', '')
     expect(well(container)).toContain('Check “Months paid in advance” to see the result.')
-    type('Months paid in advance', '1')
-    type('Setup costs (optional)', 'abc')
+    commit('Months paid in advance', '1')
+    commit('Setup costs (optional)', 'abc')
     expect(well(container)).toContain('Check “Setup costs (optional)” to see the result.')
     cleanup()
     const aff = render(<AffordabilityCalculator />)
     type('Monthly take-home pay', '25tr')
-    type('Monthly rent', 'abc')
+    commit('Monthly rent', 'abc')
     expect(well(aff.container)).toContain('Check “Monthly rent” to see the result.')
     cleanup()
     const cmp = render(<ComparisonCalculator />)
     type('Monthly rent', '9tr', 0)
     type('Monthly rent', '10tr', 1)
-    type('Deposit', '16tr', 2)
+    commit('Deposit', '16tr', 2)
     expect(well(cmp.container)).toContain('Check “Home C: Monthly rent” to see the result.')
   })
 
@@ -184,13 +191,94 @@ describe('gate round 1 regressions', () => {
 
   it('the converter refuses "1 triệu 500 đồng" with both readings, and reads a spelled "năm trăm" tail as đồng, saying so', () => {
     const { container } = render(<PriceConverter />)
-    type('Price as written', '1 triệu 500 đồng')
-    expect(screen.getByRole('alert').textContent).toBe('Two readings: 1,500,000 đ if the last digits continue the unit, or 1,000,500 đ if they are đồng, as written. Write the full amount.')
+    commit('Price as written', '1 triệu 500 đồng')
+    expect(well(container)).toContain('Two readings: 1,500,000 đ if the last digits continue the unit, or 1,000,500 đ if they are đồng, as written. Write the full amount.')
     type('Price as written', '1 triệu 500')
     expect(well(container)).toContain('1,500,000 đ')
     type('Price as written', 'mười lăm triệu năm trăm')
     expect(well(container)).toContain('15,000,500 đ')
     expect(well(container)).toContain('năm trăm after triệu is read as 500 đ, as written in words. For thousands, add “nghìn”.')
+  })
+})
+
+describe('gate round 2 regressions', () => {
+  it('nothing is announced mid-typing: a field’s error waits for the reader to leave it, and hides while they edit again', () => {
+    const { container } = render(<MoveInCalculator />)
+    const rent = screen.getByLabelText('Monthly rent')
+    fireEvent.focus(rent)
+    for (const v of ['8', '85', '85t']) {
+      fireEvent.change(rent, { target: { value: v } })
+      expect(screen.queryByRole('alert'), v).toBeNull()
+      expect(rent.getAttribute('aria-invalid'), v).toBeNull()
+    }
+    fireEvent.blur(rent)
+    expect(screen.getByRole('alert').textContent).toBe('Enter an amount in đồng, e.g. 15000000 or 15tr.')
+    fireEvent.focus(rent)
+    expect(screen.queryByRole('alert'), 'editing again hides it').toBeNull()
+    fireEvent.change(rent, { target: { value: '85tr' } })
+    fireEvent.blur(rent)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(well(container)).toContain('170,000,000 đ')
+  })
+
+  it('while a field is still being typed the well stays neutral; it names the field only once that field is left', () => {
+    const { container } = render(<MoveInCalculator />)
+    commit('Monthly rent', '10tr')
+    const deposit = screen.getByLabelText('Deposit (months of rent)')
+    fireEvent.focus(deposit)
+    fireEvent.change(deposit, { target: { value: '13' } })
+    expect(well(container)).toContain('The result appears once every figure reads.')
+    expect(well(container)).not.toMatch(/Check|Enter the monthly rent/)
+    fireEvent.blur(deposit)
+    expect(well(container)).toContain('Check “Deposit (months of rent)” to see the result.')
+  })
+
+  it('money fields open the full keyboard so k, tr and tỷ can be typed; months fields keep the number pad', () => {
+    render(<MoveInCalculator />)
+    for (const l of ['Monthly rent', 'Agent fee', 'Setup costs (optional)']) expect(screen.getByLabelText(l).getAttribute('inputmode'), l).toBe('text')
+    expect(screen.getByLabelText('Deposit (months of rent)').getAttribute('inputmode')).toBe('decimal')
+    expect(screen.getByLabelText('Months paid in advance').getAttribute('inputmode')).toBe('numeric')
+  })
+
+  it('the converter’s refusal is polite, never an alert, and waits for a pause in the typing', () => {
+    vi.useFakeTimers()
+    try {
+      const { container } = render(<PriceConverter />)
+      const input = screen.getByLabelText('Price as written')
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: '15' } })
+      expect(well(container)).toContain('Type a price to see the exact amount.')
+      expect(well(container)).not.toContain('has no unit')
+      act(() => { vi.advanceTimersByTime(REFUSAL_PAUSE_MS - 100) })
+      expect(well(container)).not.toContain('has no unit')
+      fireEvent.change(input, { target: { value: '15t' } })
+      act(() => { vi.advanceTimersByTime(REFUSAL_PAUSE_MS - 100) })
+      expect(well(container)).not.toContain('Cannot read')
+      fireEvent.change(input, { target: { value: '15tr' } })
+      expect(well(container), 'a reading that works shows at once').toContain('15,000,000 đ')
+      fireEvent.change(input, { target: { value: '15tr50' } })
+      act(() => { vi.advanceTimersByTime(REFUSAL_PAUSE_MS + 10) })
+      expect(well(container)).toContain('Two readings: 15,500,000 đ')
+      expect(container.querySelector('[role="alert"]')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('"1 triệu 50 đồng" offers the as-written 1,000,050 đ among its readings', () => {
+    const { container } = render(<PriceConverter />)
+    commit('Price as written', '1 triệu 50 đồng')
+    expect(well(container)).toContain('Three readings: 1,500,000 đ if the digits continue the unit, 1,050,000 đ if they are the next unit, or 1,000,050 đ if they are đồng, as written.')
+  })
+
+  it('the homes are named from authored pairs: Vietnamese on the Vietnamese page, legend and ranking alike', () => {
+    lang.value = 'vi'
+    const { container } = render(<ComparisonCalculator />)
+    expect(screen.getByText('Căn C (không bắt buộc)')).toBeTruthy()
+    type('Tiền thuê mỗi tháng', '9tr', 0)
+    type('Tiền thuê mỗi tháng', '10tr', 1)
+    expect(well(container)).toContain('1. Căn A')
+    expect(well(container)).toContain('2. Căn B')
   })
 })
 
@@ -213,7 +301,7 @@ describe('rental cost comparison', () => {
     const { container } = render(<ComparisonCalculator />)
     type('Monthly rent', '9tr', 0)
     type('Monthly rent', '10tr', 1)
-    type('Deposit', '16tr', 2)
+    commit('Deposit', '16tr', 2)
     expect(screen.getByRole('alert').textContent).toBe('Enter an amount.')
     type('Monthly rent', '8tr', 2)
     const w = well(container)
@@ -224,9 +312,9 @@ describe('rental cost comparison', () => {
 
   it('the lease length is checked: 0 and 61 months are refused', () => {
     render(<ComparisonCalculator />)
-    type('Lease length (months)', '0')
+    commit('Lease length (months)', '0')
     expect(screen.getByRole('alert').textContent).toBe('Enter at least 1 month.')
-    type('Lease length (months)', '61')
+    commit('Lease length (months)', '61')
     expect(screen.getByRole('alert').textContent).toBe('That is too large to be right. Check the number of zeros.')
   })
 })
@@ -245,9 +333,9 @@ describe('Vietnamese price converter', () => {
 
   it('refuses what reads two ways, naming both readings', () => {
     const { container } = render(<PriceConverter />)
-    type('Price as written', '15tr50')
-    expect(screen.getByRole('alert').textContent).toBe('Two readings: 15,500,000 đ if the digits continue the unit, or 15,050,000 đ if they are the next unit. Write three digits after the unit, such as 500 or 050.')
-    type('Price as written', '15')
+    commit('Price as written', '15tr50')
+    expect(well(container)).toContain('Two readings: 15,500,000 đ if the digits continue the unit, or 15,050,000 đ if they are the next unit. Write three digits after the unit, such as 500 or 050.')
+    commit('Price as written', '15')
     expect(well(container)).toContain('“15” has no unit')
     type('Price as written', '')
     expect(well(container)).toContain('Type a price to see the exact amount.')

@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
 import { Fieldset } from '@/components/ui/fieldset'
-import { MoneyField, MonthsField, ResultWell, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
+import { MoneyField, MonthsField, ResultWell, useFieldPhase, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
 import { MAX_MONTHLY_VND, MAX_ONE_OFF_VND, compareRentals, readMoney, readMonths, type Field, type RentalOption } from '@/lib/rent-tools/calc'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { HOMES, HOME_C_OPTIONAL } from './copy'
 
 const LETTERS = ['A', 'B', 'C'] as const
 const KEYS = ['rent', 'deposit', 'fees', 'utilities', 'commute'] as const
@@ -34,13 +35,12 @@ export function ComparisonCalculator() {
   const d = (n: number) => formatMoneyFull(n, '₫', locale)
   const [months, setMonths] = useState('12')
   const [homes, setHomes] = useState<Home[]>([EMPTY, EMPTY, EMPTY])
-  const [left, setLeft] = useState<Record<string, boolean>>({})
-  const leave = (k: string) => () => setLeft((s) => ({ ...s, [k]: true }))
+  const phase = useFieldPhase()
   const set = (i: number, k: Key) => (v: string) => setHomes((hs) => hs.map((h, j) => (j === i ? { ...h, [k]: v } : h)))
 
   const monthsR = readMonths(months, { min: 1, max: 60 })
   const read = homes.map(readHome)
-  const label = (i: number) => fillBilingual(tr('Home {x}', 'Căn {x}'), 'Home {x}', { x: LETTERS[i] })
+  const label = (i: number) => tr(HOMES[i].en, HOMES[i].vi)
   const LABELS: Record<Key, string> = {
     rent: tr('Monthly rent', 'Tiền thuê mỗi tháng'),
     deposit: tr('Deposit', 'Tiền cọc'),
@@ -51,6 +51,7 @@ export function ComparisonCalculator() {
 
   // The first two homes are always compared; the third only once something is typed into it.
   const used = read.map((r, i) => i < 2 || !r.blank)
+  const cLeft = KEYS.some((k) => phase.shown(`rc-c-${k}`))
   const waiting = useWaitingLine()
   const monthsLabel = tr('Lease length (months)', 'Thời hạn thuê (tháng)')
   const ready = monthsR.ok && read.every((r, i) => !used[i] || KEYS.every((k) => r.fields[k].ok))
@@ -62,11 +63,11 @@ export function ComparisonCalculator() {
   return (
     <form noValidate onSubmit={(e) => e.preventDefault()} aria-label={tr('Rental cost comparison', 'So sánh chi phí thuê nhà')}>
       <div className="max-w-[12rem]">
-        <MonthsField id="rc-months" label={monthsLabel} value={months} onChange={setMonths} read={monthsR} shown={!!left.months || months.trim() !== ''} onLeave={leave('months')} />
+        <MonthsField id="rc-months" label={monthsLabel} value={months} onChange={setMonths} read={monthsR} shown={phase.shown('rc-months')} onEnter={phase.onEnter('rc-months')} onLeave={phase.onLeave('rc-months')} />
       </div>
       <div className="mt-6 grid gap-8 md:grid-cols-3 md:gap-6">
         {homes.map((h, i) => (
-          <Fieldset key={i} legend={i === 2 ? `${label(i)} ${tr('(optional)', '(không bắt buộc)')}` : label(i)} legendClassName="text-base font-bold" className="space-y-4">
+          <Fieldset key={i} legend={i === 2 ? tr(HOME_C_OPTIONAL.en, HOME_C_OPTIONAL.vi) : label(i)} legendClassName="text-base font-bold" className="space-y-4">
             {KEYS.map((k) => {
               const id = `rc-${LETTERS[i].toLowerCase()}-${k}`
               return (
@@ -77,9 +78,10 @@ export function ComparisonCalculator() {
                   value={h[k]}
                   onChange={set(i, k)}
                   read={read[i].fields[k]}
-                  // A started third home says at once that it still needs its rent.
-                  shown={used[i] && (!!left[id] || h[k].trim() !== '' || (i === 2 && k === 'rent'))}
-                  onLeave={leave(id)}
+                  // A started third home says it still needs its rent once the reader leaves one of its fields.
+                  shown={used[i] && (phase.shown(id) || (i === 2 && k === 'rent' && cLeft))}
+                  onEnter={phase.onEnter(id)}
+                  onLeave={phase.onLeave(id)}
                 />
               )
             })}
@@ -107,8 +109,8 @@ export function ComparisonCalculator() {
         ) : (
           <p className="text-base text-body">
             {waiting(tr('Enter the lease length and at least the rent of two homes to compare them.', 'Nhập thời hạn thuê và ít nhất tiền thuê của hai căn để so sánh.'), [
-              { label: monthsLabel, read: monthsR, empty: months.trim() === '' },
-              ...read.flatMap((r, i) => (used[i] ? KEYS.map((k) => ({ label: `${label(i)}: ${LABELS[k]}`, read: r.fields[k], empty: i < 2 && k === 'rent' && homes[i][k].trim() === '' })) : [])),
+              { label: monthsLabel, read: monthsR, empty: months.trim() === '', shown: phase.shown('rc-months') },
+              ...read.flatMap((r, i) => (used[i] ? KEYS.map((k) => ({ label: `${label(i)}: ${LABELS[k]}`, read: r.fields[k], empty: i < 2 && k === 'rent' && homes[i][k].trim() === '', shown: phase.shown(`rc-${LETTERS[i].toLowerCase()}-${k}`) || (i === 2 && k === 'rent' && cLeft) })) : [])),
             ])}
           </p>
         )}

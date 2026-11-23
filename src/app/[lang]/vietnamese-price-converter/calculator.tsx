@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
 import { ResultWell } from '@/components/marketplace/rent-tool-fields'
@@ -15,6 +15,9 @@ import { refusalCopy, refusalValues } from './copy'
  * source. ⚠️ NOT A `t(en, vi)` HELPER: that harvest keeps BOTH halves when both carry Vietnamese letters, and
  * "“rưỡi” adds half a {unit}" or "That is {units} đồng" do, so their Vietnamese went into the catalogue as English sources.
  */
+/** How long typing must stop before a refusal is printed (and so announced). */
+export const REFUSAL_PAUSE_MS = 700
+
 const COPY = {
   readAs: { en: '“{input}” read as', vi: '“{input}” được hiểu là' },
   written: { en: 'Written in Vietnam: {vi}', vi: 'Viết theo kiểu Việt Nam: {vi}' },
@@ -34,6 +37,17 @@ export function PriceConverter() {
   const d = (n: number) => formatMoneyFull(n, '₫', locale)
   const [text, setText] = useState('')
   const r = parseVnPrice(text)
+  /**
+   * ⛔ A REFUSAL WAITS FOR A PAUSE OR FOR THE READER TO LEAVE THE FIELD (gate round 2). The result area is a polite live
+   * region, and "1", "15", "15t" are each refused on the way to "15tr" — so a refusal printed per keystroke was announced
+   * per keystroke. `settled` is the text once typing has stopped for REFUSAL_PAUSE_MS, or on blur; a reading that works
+   * is shown at once.
+   */
+  const [settled, setSettled] = useState('')
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(text), REFUSAL_PAUSE_MS)
+    return () => clearTimeout(id)
+  }, [text])
   /** The amount as a Vietnamese contract writes it "bằng chữ": Vietnamese in every language, so its element says lang="vi". */
   const inWords = (n: number) => `${vietnameseWords(n)} đồng`
   const say = (c: { en: string; vi: string }, values: Record<string, string> = {}) => fillBilingual(tr(c.en, c.vi), c.en, values)
@@ -51,11 +65,13 @@ export function PriceConverter() {
         <Input
           id="pc-text"
           type="text"
+          inputMode="text"
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onBlur={() => setSettled(text)}
           aria-describedby="pc-hint"
           className="text-base"
         />
@@ -75,10 +91,11 @@ export function PriceConverter() {
             {locale !== 'vi' && <p className="text-base text-body">{say(COPY.thatIs, { units: unitReading(r.vnd, 'en') })}</p>}
             {r.notes.map((n, i) => <p key={i} className="mt-2 text-t-meta text-body">{note(n)}</p>)}
           </>
-        ) : r.refusal.code === 'empty' ? (
+        ) : r.refusal.code === 'empty' || settled !== text ? (
           <p className="text-base text-body">{tr('Type a price to see the exact amount.', 'Gõ một mức giá để xem số tiền chính xác.')}</p>
         ) : (
-          <p className="text-base font-semibold text-foreground" role="alert">
+          // Not role="alert": the well is already a polite live region, and a refusal is not urgent.
+          <p className="text-base font-semibold text-foreground">
             {(() => {
               const c = refusalCopy(r.refusal)
               return fillBilingual(tr(c.en, c.vi), c.en, refusalValues(r.refusal, d))

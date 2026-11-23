@@ -6,7 +6,7 @@ import { compareRentals } from '@/lib/rent-tools/calc'
 import { RENT_TOOLS } from '@/lib/rent-tools/registry'
 import { Formula, Inputs, Limits, P, RentToolPage, T, rentToolMetadata } from '@/components/marketplace/rent-tool-page'
 import { ComparisonCalculator } from './calculator'
-import { EXAMPLE, FAQS, INTRO, META } from './copy'
+import { EXAMPLE, FAQS, HOMES, INTRO, META } from './copy'
 
 /**
  * /rental-cost-comparison — two or three homes over one lease, ranked by total cost. The deposit is never in the total:
@@ -15,7 +15,6 @@ import { EXAMPLE, FAQS, INTRO, META } from './copy'
 export const revalidate = 3600
 
 const SLUG = 'rental-cost-comparison'
-const LETTERS = ['A', 'B', 'C'] as const
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
@@ -29,7 +28,6 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
   const homes = EXAMPLE.homes.map((h, i) => ({ ...h, index: i }))
   const ranked = compareRentals(EXAMPLE.homes, EXAMPLE.months)
   const byIndex = Object.fromEntries(ranked.map((r) => [r.index, r]))
-  const home = (i: number) => ({ en: `Home ${LETTERS[i]}`, vi: `Căn ${LETTERS[i]}` })
   const rows: { label: { en: string; vi: string }; get: (i: number) => number; strong?: boolean }[] = [
     { label: { en: 'Rent', vi: 'Tiền thuê' }, get: (i) => homes[i].rent },
     { label: { en: 'Monthly fees', vi: 'Phí hằng tháng' }, get: (i) => homes[i].fees },
@@ -40,16 +38,6 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
     { label: { en: 'Deposit (cash tied up)', vi: 'Tiền cọc (tiền bị giữ)' }, get: (i) => homes[i].deposit },
     { label: { en: 'Cash up front', vi: 'Tiền trả trước khi vào ở' }, get: (i) => byIndex[i].upFront },
   ]
-  const [first, second, third] = ranked
-  const rankValues = {
-    first: lang === 'vi' ? `Căn ${LETTERS[first.index]}` : `Home ${LETTERS[first.index]}`,
-    firstTotal: d(first.total),
-    second: lang === 'vi' ? `Căn ${LETTERS[second.index]}` : `Home ${LETTERS[second.index]}`,
-    secondMore: d(second.overCheapest),
-    third: lang === 'vi' ? `Căn ${LETTERS[third.index]}` : `Home ${LETTERS[third.index]}`,
-    thirdMore: d(third.overCheapest),
-  }
-
   return (
     <RentToolPage
       slug={SLUG}
@@ -97,7 +85,7 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
               <thead>
                 <tr className="border-b border-border text-left text-foreground">
                   <th scope="col" className="py-2 pr-3 font-semibold"><span className="sr-only"><T c={{ en: 'Cost', vi: 'Khoản' }} /></span></th>
-                  {homes.map((h) => <th key={h.index} scope="col" className="py-2 pl-3 text-right font-semibold"><T c={home(h.index)} /></th>)}
+                  {homes.map((h) => <th key={h.index} scope="col" className="py-2 pl-3 text-right font-semibold"><T c={HOMES[h.index]} /></th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -110,13 +98,18 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
               </tbody>
             </table>
           </div>
-          <P
-            c={{
-              en: 'Cheapest first: {first} at {firstTotal}, then {second} ({secondMore} more) and {third} ({thirdMore} more). The deposits are not in these totals.',
-              vi: 'Từ rẻ nhất: {first} với {firstTotal}, rồi {second} (nhiều hơn {secondMore}) và {third} (nhiều hơn {thirdMore}). Tiền cọc không nằm trong các tổng này.',
-            }}
-            values={rankValues}
-          />
+          {/* The ranking as a list, each home's name its own authored pair (HOMES), so a machine-translated reader gets it
+              translated too — a name filled into one sentence as a value never was (gate round 2). */}
+          <P c={{ en: 'Cheapest first, over the 12 months:', vi: 'Từ rẻ nhất, sau 12 tháng:' }} />
+          <ol className="mt-2 list-decimal space-y-1 pl-6 text-base leading-relaxed text-body">
+            {ranked.map((r) => (
+              <li key={r.index}>
+                <span className="font-bold text-foreground"><T c={HOMES[r.index]} /></span> · {d(r.total)}
+                {r.overCheapest > 0 && <> · <T c={{ en: '{d} more', vi: 'nhiều hơn {d}' }} values={{ d: d(r.overCheapest) }} /></>}
+              </li>
+            ))}
+          </ol>
+          <P c={{ en: 'The deposits are not in these totals.', vi: 'Tiền cọc không nằm trong các tổng này.' }} />
         </>
       }
       faqs={FAQS}

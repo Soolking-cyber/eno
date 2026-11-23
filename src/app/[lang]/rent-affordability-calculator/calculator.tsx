@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useLanguage } from '@/context/language-context'
-import { MoneyField, ResultWell, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
+import { MoneyField, ResultWell, useFieldPhase, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
 import { MAX_MONTHLY_VND, affordability, percent, readMoney } from '@/lib/rent-tools/calc'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
@@ -13,7 +13,7 @@ export function AffordabilityCalculator() {
   const d = (n: number) => formatMoneyFull(n, '₫', locale)
   const [pay, setPay] = useState('')
   const [rent, setRent] = useState('')
-  const [left, setLeft] = useState({ pay: false, rent: false })
+  const phase = useFieldPhase()
   const payR = readMoney(pay, { max: MAX_MONTHLY_VND })
   const rentR = readMoney(rent, { max: MAX_MONTHLY_VND })
   const r = payR.ok && rentR.ok ? affordability(payR.value, rentR.value) : null
@@ -37,8 +37,9 @@ export function AffordabilityCalculator() {
           value={pay}
           onChange={setPay}
           read={payR}
-          shown={left.pay || pay.trim() !== ''}
-          onLeave={() => setLeft((s) => ({ ...s, pay: true }))}
+          shown={phase.shown('ra-pay')}
+          onEnter={phase.onEnter('ra-pay')}
+          onLeave={phase.onLeave('ra-pay')}
         />
         <MoneyField
           id="ra-rent"
@@ -46,8 +47,9 @@ export function AffordabilityCalculator() {
           value={rent}
           onChange={setRent}
           read={rentR}
-          shown={left.rent || rent.trim() !== ''}
-          onLeave={() => setLeft((s) => ({ ...s, rent: true }))}
+          shown={phase.shown('ra-rent')}
+          onEnter={phase.onEnter('ra-rent')}
+          onLeave={phase.onLeave('ra-rent')}
         />
       </div>
       <ResultWell>
@@ -74,8 +76,8 @@ export function AffordabilityCalculator() {
         ) : (
           <p className="text-base text-body">
             {waiting(tr('Enter your take-home pay and the rent to see the result.', 'Nhập thu nhập thực nhận và tiền thuê để xem kết quả.'), [
-              { label: payLabel, read: payR, empty: pay.trim() === '' },
-              { label: rentLabel, read: rentR, empty: rent.trim() === '' },
+              { label: payLabel, read: payR, empty: pay.trim() === '', shown: phase.shown('ra-pay') },
+              { label: rentLabel, read: rentR, empty: rent.trim() === '', shown: phase.shown('ra-rent') },
             ])}
           </p>
         )}

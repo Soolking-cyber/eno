@@ -23,6 +23,17 @@ export const EXAMPLE = {
   ],
 } as const
 
+/**
+ * The homes' names, one authored pair per letter. ⛔ NOT A NAME BUILT FROM THE LETTER AT RUN TIME (gate round 2): the string
+ * harvest cannot see a template literal, so the nine machine-translated languages printed "Home B" in English.
+ */
+export const HOMES: readonly Copy[] = [
+  { en: 'Home A', vi: 'Căn A' },
+  { en: 'Home B', vi: 'Căn B' },
+  { en: 'Home C', vi: 'Căn C' },
+]
+export const HOME_C_OPTIONAL: Copy = { en: 'Home C (optional)', vi: 'Căn C (không bắt buộc)' }
+
 export const INTRO: Copy = {
   en: 'Add each home’s rent, monthly fees, utilities and commute, then multiply by the months of the lease: that is its total cost. The deposit is kept apart, as cash tied up that is assumed to come back in full. In the example below, the home with the lowest rent costs the most over 12 months.',
   vi: 'Cộng tiền thuê, phí hằng tháng, điện nước và chi phí đi lại của mỗi căn rồi nhân với số tháng thuê: đó là tổng chi phí. Tiền cọc được tách riêng, là tiền bị giữ lại và giả định được trả đủ khi hết hợp đồng. Trong ví dụ dưới đây, căn có tiền thuê thấp nhất lại tốn nhiều nhất sau 12 tháng.',

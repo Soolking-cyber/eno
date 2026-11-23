@@ -86,6 +86,7 @@ export function refusalCopy(r: PriceRefusal): Copy {
     case 'fraction': return { en: 'Đồng have no decimals. Write a whole amount.', vi: 'Tiền đồng không có phần lẻ. Hãy ghi số tròn.' }
     case 'ambiguousSeparator': return { en: 'Two readings: {a} if the separator groups thousands, or {b} if it is a decimal point. Write it without the separator, or with one or two decimals.', vi: 'Có hai cách hiểu: {a} nếu dấu là dấu nhóm hàng nghìn, hoặc {b} nếu là dấu thập phân. Hãy bỏ dấu, hoặc chỉ ghi một, hai chữ số thập phân.' }
     case 'ambiguousCurrency': return { en: 'Two readings: {a} if the last digits continue the unit, or {b} if they are đồng, as written. Write the full amount.', vi: 'Có hai cách hiểu: {a} nếu các chữ số cuối nối tiếp đơn vị, hoặc {b} nếu đó là số đồng như đã ghi. Hãy ghi đủ số tiền.' }
+    case 'ambiguousTailCurrency': return { en: 'Three readings: {a} if the digits continue the unit, {b} if they are the next unit, or {c} if they are đồng, as written. Write the full amount.', vi: 'Có ba cách hiểu: {a} nếu chữ số nối tiếp đơn vị, {b} nếu là đơn vị nhỏ hơn, hoặc {c} nếu đó là số đồng như đã ghi. Hãy ghi đủ số tiền.' }
     case 'ambiguousTail': return { en: 'Two readings: {a} if the digits continue the unit, or {b} if they are the next unit. Write three digits after the unit, such as 500 or 050.', vi: 'Có hai cách hiểu: {a} nếu chữ số nối tiếp đơn vị, hoặc {b} nếu là đơn vị nhỏ hơn. Hãy ghi đủ ba chữ số sau đơn vị, như 500 hoặc 050.' }
     case 'unitOrder': return { en: 'The units are repeated or out of order. If there are two prices, convert one at a time.', vi: 'Đơn vị bị lặp hoặc sai thứ tự. Nếu có hai mức giá, hãy đổi từng số một.' }
     default: return { en: 'Cannot read that as one amount. Try 15tr, 1,5 tỷ, 800k or 15000000.', vi: 'Không đọc được thành một số tiền. Thử 15tr, 1,5 tỷ, 800k hoặc 15000000.' }
@@ -96,6 +97,7 @@ export function refusalCopy(r: PriceRefusal): Copy {
 export function refusalValues(r: PriceRefusal, money: (n: number) => string): Record<string, string> {
   if (r.code === 'unknownWord') return { word: r.word }
   if (r.code === 'noUnit' || r.code === 'decimalNoUnit') return { text: r.text }
+  if (r.code === 'ambiguousTailCurrency') return { a: money(r.a), b: money(r.b), c: money(r.c) }
   if (r.code === 'ambiguousSeparator' || r.code === 'ambiguousTail' || r.code === 'ambiguousCurrency') return { a: money(r.a), b: money(r.b) }
   return {}
 }

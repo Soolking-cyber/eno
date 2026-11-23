@@ -26,7 +26,8 @@ function moneyError(r: PriceRefusal): FieldError {
     case 'decimalNoUnit': return 'noUnit'
     case 'ambiguousSeparator':
     case 'ambiguousTail':
-    case 'ambiguousCurrency': return 'ambiguous'
+    case 'ambiguousCurrency':
+    case 'ambiguousTailCurrency': return 'ambiguous'
     default: return 'notNumber'
   }
 }
@@ -85,7 +86,8 @@ export function affordability(pay: number, rent: number): Affordability {
     left: pay - rent,
     at30: Math.round(pay * 0.3),
     at40: Math.round(pay * 0.4),
-    band: share > 1 ? 'overPay' : share > 0.4 ? 'over40' : share > 0.3 ? 'upTo40' : 'upTo30',
+    // ⛔ overPay FROM THE AMOUNTS, NOT THE ROUNDED SHARE: 10.000.400 on 10.000.000 rounds to 100% and is still more than the pay.
+    band: rent > pay ? 'overPay' : share > 0.4 ? 'over40' : share > 0.3 ? 'upTo40' : 'upTo30',
   }
 }
 

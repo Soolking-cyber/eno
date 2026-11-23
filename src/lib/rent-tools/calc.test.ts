@@ -81,6 +81,13 @@ describe('affordability', () => {
     }
   })
 
+  /** ⛔ 10.000.400 on 10.000.000 rounds to 100% and was "Above both…"; the rent is more than the pay, so it says that. */
+  it('overPay is decided from the amounts, not the rounded share', () => {
+    expect(affordability(10_000_000, 10_000_400).band).toBe('overPay')
+    expect(affordability(10_000_000, 10_000_001).band).toBe('overPay')
+    expect(affordability(10_000_000, 10_000_000).band).toBe('over40')
+  })
+
   it('percent: whole numbers, one decimal when the share has one, each language’s decimal mark, never NaN%', () => {
     expect(percent(0.34, 'en')).toBe('34%')
     expect(percent(0.345, 'vi')).toBe('34,5%')

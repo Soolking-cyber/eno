@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
-import { MoneyField, MonthsField, ResultWell, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
+import { MoneyField, MonthsField, ResultWell, useFieldPhase, useWaitingLine } from '@/components/marketplace/rent-tool-fields'
 import { MAX_MONTHLY_VND, MAX_ONE_OFF_VND, moveInCost, readMoney, readMonths } from '@/lib/rent-tools/calc'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
@@ -23,9 +23,9 @@ export function MoveInCalculator() {
   const [advance, setAdvance] = useState('1')
   const [fee, setFee] = useState('0')
   const [setup, setSetup] = useState('')
-  const [left, setLeft] = useState<Record<string, boolean>>({})
-  const leave = (k: string) => () => setLeft((s) => ({ ...s, [k]: true }))
-  const shown = (k: string, v: string) => !!left[k] || v.trim() !== ''
+  const phase = useFieldPhase()
+  /** The three props that tie a field to its phase (useFieldPhase: its error only once it has been left). */
+  const at = (id: string) => ({ shown: phase.shown(id), onEnter: phase.onEnter(id), onLeave: phase.onLeave(id) })
 
   const rentR = readMoney(rent, { max: MAX_MONTHLY_VND })
   const depositR = readMonths(deposit, { min: 0, max: 12, halves: true })
@@ -47,11 +47,11 @@ export function MoveInCalculator() {
   return (
     <form noValidate onSubmit={(e) => e.preventDefault()} aria-label={tr('Move-in cost calculator', 'Tính tiền cần có khi ký hợp đồng thuê')}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <MoneyField id="mi-rent" label={LABELS.rent} value={rent} onChange={setRent} read={rentR} shown={shown('rent', rent)} onLeave={leave('rent')} />
-        <MonthsField id="mi-deposit" label={LABELS.deposit} value={deposit} onChange={setDeposit} read={depositR} shown={shown('deposit', deposit)} onLeave={leave('deposit')} halves />
-        <MonthsField id="mi-advance" label={LABELS.advance} value={advance} onChange={setAdvance} read={advanceR} shown={shown('advance', advance)} onLeave={leave('advance')} />
-        <MoneyField id="mi-fee" label={LABELS.fee} value={fee} onChange={setFee} read={feeR} shown={shown('fee', fee)} onLeave={leave('fee')} />
-        <MoneyField id="mi-setup" label={LABELS.setup} value={setup} onChange={setSetup} read={setupR} shown={shown('setup', setup)} onLeave={leave('setup')} />
+        <MoneyField id="mi-rent" label={LABELS.rent} value={rent} onChange={setRent} read={rentR} {...at('mi-rent')} />
+        <MonthsField id="mi-deposit" label={LABELS.deposit} value={deposit} onChange={setDeposit} read={depositR} {...at('mi-deposit')} halves />
+        <MonthsField id="mi-advance" label={LABELS.advance} value={advance} onChange={setAdvance} read={advanceR} {...at('mi-advance')} />
+        <MoneyField id="mi-fee" label={LABELS.fee} value={fee} onChange={setFee} read={feeR} {...at('mi-fee')} />
+        <MoneyField id="mi-setup" label={LABELS.setup} value={setup} onChange={setSetup} read={setupR} {...at('mi-setup')} />
       </div>
       <ResultWell>
         {r ? (
@@ -79,11 +79,11 @@ export function MoveInCalculator() {
           <p className="text-base text-body">
             {/* Only an empty rent asks for the rent: any other field that does not read is named. */}
             {waiting(tr('Enter the monthly rent to see the cash needed at signing.', 'Nhập tiền thuê mỗi tháng để xem số tiền cần có khi ký.'), [
-              { label: LABELS.rent, read: rentR, empty: rent.trim() === '' },
-              { label: LABELS.deposit, read: depositR, empty: false },
-              { label: LABELS.advance, read: advanceR, empty: false },
-              { label: LABELS.fee, read: feeR, empty: false },
-              { label: LABELS.setup, read: setupR, empty: false },
+              { label: LABELS.rent, read: rentR, empty: rent.trim() === '', shown: phase.shown('mi-rent') },
+              { label: LABELS.deposit, read: depositR, empty: false, shown: phase.shown('mi-deposit') },
+              { label: LABELS.advance, read: advanceR, empty: false, shown: phase.shown('mi-advance') },
+              { label: LABELS.fee, read: feeR, empty: false, shown: phase.shown('mi-fee') },
+              { label: LABELS.setup, read: setupR, empty: false, shown: phase.shown('mi-setup') },
             ])}
           </p>
         )}

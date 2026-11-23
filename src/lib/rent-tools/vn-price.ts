@@ -46,6 +46,8 @@ export type PriceRefusal =
   | { code: 'ambiguousSeparator'; text: string; a: number; b: number }
   /** "15tr50": `a` continues the unit (15,50 triệu), `b` reads the digits as the next unit (15 triệu 50 nghìn). */
   | { code: 'ambiguousTail'; text: string; a: number; b: number }
+  /** "1 triệu 50 đồng": three readings — continued (`a`, 1.500.000), the next unit (`b`, 1.050.000), as written (`c`, 1.000.050). */
+  | { code: 'ambiguousTailCurrency'; text: string; a: number; b: number; c: number }
   /** "1 triệu 500 đồng": `a` continues the unit (the shorthand, 1.500.000), `b` takes the digits as the đồng they say (1.000.500). */
   | { code: 'ambiguousCurrency'; text: string; a: number; b: number }
   /** Units out of order or repeated ("15tr 20tr", "500 nghìn 2 triệu") — often two amounts in one box. */
@@ -122,15 +124,18 @@ type Numeral =
 
 function readNumeral(raw: string): Numeral | 'tooLarge' | null {
   const s = raw.replace(/[.,]+$/, '')
-  if (/^\d+$/.test(s)) return s.replace(/^0+(?=\d)/, '').length > 15 ? 'tooLarge' : { kind: 'int', value: Number(s), digits: s, grouped: false }
+  // ⛔ BY VALUE AGAINST MAX_VND, INCLUSIVE — not by digit count, which refused 1000000000000000 (exactly MAX_VND). Any
+  // figure up to MAX_VND is a safe integer, so Number() reads it exactly; anything past it is refused before it is used.
+  const big = (n: number) => !Number.isFinite(n) || n > MAX_VND
+  if (/^\d+$/.test(s)) return big(Number(s)) ? 'tooLarge' : { kind: 'int', value: Number(s), digits: s, grouped: false }
   // Two or more separators: grouping only, and the groups must be whole (8.000.000, 8,000,000 — never mixed).
   if (/^\d{1,3}([.,])\d{3}(?:\1\d{3})+$/.test(s)) {
     const digits = s.replace(/[.,]/g, '')
-    return digits.replace(/^0+(?=\d)/, '').length > 15 ? 'tooLarge' : { kind: 'int', value: Number(digits), digits, grouped: true }
+    return big(Number(digits)) ? 'tooLarge' : { kind: 'int', value: Number(digits), digits, grouped: true }
   }
   const one = /^(\d+)[.,](\d{1,3})$/.exec(s)
   if (one) {
-    if (one[1].replace(/^0+(?=\d)/, '').length > 15) return 'tooLarge'
+    if (big(Number(one[1]))) return 'tooLarge'
     return { kind: 'dec', int: Number(one[1]), frac: one[2], sepThree: one[2].length === 3, raw: s }
   }
   return null
@@ -365,7 +370,15 @@ function evaluate(toks: Tok[], hadCurrency: boolean): Evaluated {
       }
       if (places > 3) return no({ code: 'malformed' })
       if (places === 2) {
-        return no({ code: 'ambiguousTail', text, a: total + (value * f) / 100, b: total + (value * f) / 1000 })
+        const a = total + (value * f) / 100
+        const b = total + (value * f) / 1000
+        // ⛔ WITH AN EXPLICIT ĐỒNG, THE AS-WRITTEN READING IS ONE OF THEM: "1 triệu 50 đồng" may be 1.000.050 as well as
+        // 1.500.000 or 1.050.000. After nghìn "the next unit" already is đồng, so there it is two readings, not three.
+        if (hadCurrency) {
+          const c = total + value
+          return no(c === b ? { code: 'ambiguousCurrency', text, a, b } : { code: 'ambiguousTailCurrency', text, a, b, c })
+        }
+        return no({ code: 'ambiguousTail', text, a, b })
       }
       const adds = places === 1 ? (value * f) / 10 : (value * f) / 1000
       // ⛔ AN EXPLICIT ĐỒNG AFTER THE TAIL SAYS THE DIGITS MAY BE ĐỒNG: "1 triệu 500 đồng" is 1.500.000 by the shorthand and

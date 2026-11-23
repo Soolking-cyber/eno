@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
 import { Input } from '@/components/ui/input'
@@ -11,9 +12,20 @@ import type { Field, FieldError } from '@/lib/rent-tools/calc'
  * The rent tools' form fields: a real <label> for every control (never a placeholder for one), the error under its field
  * and wired to it (`aria-describedby`, `aria-invalid`), and an amount regrouped on blur ("15tr" → "15,000,000") so the
  * reader sees how it was read.
- * ⚠️ AN EMPTY REQUIRED FIELD SAYS NOTHING UNTIL IT HAS BEEN LEFT ONCE — the result area asks for the missing figures
- * instead — so a fresh page is not a wall of red.
+ * ⛔ A FIELD'S ERROR IS SHOWN ONLY ONCE THE READER HAS LEFT IT, AND HIDDEN AGAIN WHILE THEY EDIT IT (gate round 2): shown
+ * on every keystroke, "8" then "85" each announced "add a unit" (the error is role="alert") before the "tr" was typed.
+ * `useFieldPhase` keeps that state; a fresh page is never a wall of red, and nothing is announced mid-typing.
  */
+export function useFieldPhase() {
+  const [phase, setPhase] = useState<Record<string, 'editing' | 'left'>>({})
+  return {
+    /** Has the reader left this field (and not come back to it)? Only then is its error printed. */
+    shown: (id: string) => phase[id] === 'left',
+    onEnter: (id: string) => () => setPhase((s) => ({ ...s, [id]: 'editing' })),
+    onLeave: (id: string) => () => setPhase((s) => ({ ...s, [id]: 'left' })),
+  }
+}
+
 export function useFieldErrors() {
   const { tr } = useLanguage()
   return (e: FieldError, kind: 'money' | 'months'): string => {
@@ -32,14 +44,16 @@ export function useFieldErrors() {
 
 /**
  * What the result area says while there is no result: the tool's own "enter …" line when the first field that does not
- * read is simply empty, otherwise the name of that field — never "enter the rent" beside a rent that is already there.
- * `fields` in form order: the visible label, the field as read, and whether it is empty.
+ * read is simply empty (`empty`: only the tool's key fields count as that); the name of that field once its error is
+ * shown; and while it is still being typed, a neutral line — never "enter the rent" beside a rent that is already there,
+ * and never a field's error before the field's own line says it. `fields` in form order.
  */
 export function useWaitingLine() {
   const { tr } = useLanguage()
-  return (enterLine: string, fields: readonly { label: string; read: Field<number>; empty: boolean }[]): string => {
+  return (enterLine: string, fields: readonly { label: string; read: Field<number>; empty: boolean; shown: boolean }[]): string => {
     const first = fields.find((f) => !f.read.ok)
     if (!first || first.empty) return enterLine
+    if (!first.shown) return tr('The result appears once every figure reads.', 'Kết quả sẽ hiện khi mọi ô đều hợp lệ.')
     const en = 'Check “{field}” to see the result.'
     return fillBilingual(tr('Check “{field}” to see the result.', 'Hãy kiểm tra ô “{field}” để xem kết quả.'), en, { field: first.label })
   }
@@ -50,9 +64,10 @@ type Props = {
   label: string
   value: string
   onChange: (v: string) => void
-  /** The field as read; `shown` decides whether its error is printed yet. */
+  /** The field as read; `shown` (useFieldPhase) decides whether its error is printed yet. */
   read: Field<number>
   shown: boolean
+  onEnter: () => void
   onLeave: () => void
   hint?: string
 }
@@ -74,7 +89,7 @@ export function regroup(value: number, locale: 'en' | 'vi'): string {
   return value < 1000 ? `${grouped} đ` : grouped
 }
 
-export function MoneyField({ id, label, value, onChange, read, shown, onLeave, hint }: Props) {
+export function MoneyField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint }: Props) {
   const { lang } = useLanguage()
   const message = useFieldErrors()
   const error = shown && !read.ok ? message(read.error, 'money') : null
@@ -84,10 +99,15 @@ export function MoneyField({ id, label, value, onChange, read, shown, onLeave, h
         <Input
           id={id}
           type="text"
-          inputMode="numeric"
+          // ⛔ "text", NOT "numeric" (gate round 2): iOS gives "numeric" a digits-only pad, and the shorthand the page
+          // advertises (15tr, 500k, 1,5 tỷ) cannot be typed on it.
+          inputMode="text"
           autoComplete="off"
+          autoCapitalize="none"
+          spellCheck={false}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={onEnter}
           onBlur={() => {
             // Regroup what was read, so "15tr" visibly becomes 15,000,000 (15.000.000 in Vietnamese). ⛔ Under 1.000 the "đ"
             // stays: a bare "500" has no unit and is refused, so "500đ" must not become "500" on the way out of the field.
@@ -104,7 +124,7 @@ export function MoneyField({ id, label, value, onChange, read, shown, onLeave, h
   )
 }
 
-export function MonthsField({ id, label, value, onChange, read, shown, onLeave, hint, halves }: Props & { halves?: boolean }) {
+export function MonthsField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, halves }: Props & { halves?: boolean }) {
   const message = useFieldErrors()
   const error = shown && !read.ok ? message(read.error, 'months') : null
   return (
@@ -116,6 +136,7 @@ export function MonthsField({ id, label, value, onChange, read, shown, onLeave, 
         autoComplete="off"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onEnter}
         onBlur={onLeave}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-err` : hint ? `${id}-hint` : undefined}
