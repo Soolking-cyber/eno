@@ -46,10 +46,12 @@ describe('the voice guide\'s capability token travels with the microphone it nee
     expect(strings('ios/App/App/vi.lproj/InfoPlist.strings')).toContain('hồ sơ giáo viên')
   })
 
-  it('Play: versionCode 6, 1.0.4 — never 5, built and never uploaded', () => {
+  // 7 / 1.0.5 since 2026-11-23 (Play production: the sideways-aware pull-to-refresh). 6 / 1.0.4 carried the voice guide's
+  // microphone; 5 was built and never uploaded, so no build may name it again.
+  it('Play: versionCode 7, 1.0.5 — after 6 / 1.0.4, never 5', () => {
     const gradle = read('android/app/build.gradle')
-    expect(gradle).toMatch(/^\s*versionCode 6$/m)
-    expect(gradle).toMatch(/^\s*versionName "1\.0\.4"$/m)
+    expect(gradle).toMatch(/^\s*versionCode 7$/m)
+    expect(gradle).toMatch(/^\s*versionName "1\.0\.5"$/m)
   })
 })
 
