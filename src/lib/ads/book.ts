@@ -7,6 +7,7 @@ import { logError, logWarn } from '@/lib/log'
 import { AD_DAYS, adRequirements, type X402Config } from '@/lib/x402/config'
 import { facilitatorSettle, facilitatorVerify } from '@/lib/x402/facilitator'
 import { authorizationUsed, findAuthorizationPayment } from '@/lib/x402/chain'
+import { UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
 import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRequirements, type SettlementResponse } from '@/lib/x402/wire'
 
 /**
@@ -25,10 +26,10 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
 
 /**
- * A settle refusal that PROVES nothing was broadcast (gate review 2026-11-23): the facilitator's own verification codes
- * (x402 v2 §9 — funds, signature, window, recipient, value, network, scheme, payload), or an HTTP refusal of the call
- * itself (auth, rate limit). Only these make a row `failed` at once; anything else — unexpected_settle_error,
- * invalid_transaction_state, a 400 without a body — may follow a broadcast, so the row stays `unknown` for the chain.
+ * A settle refusal the BUYER is told about as a refusal (402): the facilitator's own verification codes (x402 v2 §9 —
+ * funds, signature, window, recipient, value, network, scheme, payload) or an HTTP refusal of the call itself (auth, rate
+ * limit). Anything else — unexpected_settle_error, invalid_transaction_state, a 400 without a body — is answered as
+ * "outcome not known" (202). In BOTH cases the row stays `unknown` and only the chain makes it final (reconcileAd).
  */
 export function settledBeforeBroadcast(reason: string): boolean {
   return /^(insufficient_funds|invalid_exact_evm_\w+|invalid_network|invalid_payload|invalid_payment_requirements|invalid_scheme|unsupported_scheme|invalid_x402_version)$/.test(reason) ||
@@ -137,7 +138,7 @@ export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof 
       if (await authorizationUsed(ours, { from: ad.authFrom, nonce: ad.authNonce }, fetchImpl)) {
         // Used or cancelled. A cancellation (its own event, searched with the payment) moved nothing: unpaid for good.
         if (hit.cancelled) {
-          await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: 'authorization_cancelled' } })
+          await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: UNPAID_CANCELLED } })
           return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
         }
         // Used (or cancelled after its window) with no transfer of its own found: never "failed", never shown. After a week
@@ -149,7 +150,7 @@ export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof 
         await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: review ? 'review' : 'unknown', failReason: 'used_no_transfer_found' } })
         return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
       }
-      await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: 'authorization_expired_unpaid' } })
+      await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: UNPAID_EXPIRED } })
       return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
     }
     // ⛔ ONLY A `pending` ROW IS EVER SETTLED AGAIN — one whose request died before the facilitator answered. An `unknown` row
