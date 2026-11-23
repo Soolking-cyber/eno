@@ -6,6 +6,7 @@ import { resolveApiKey } from '@/lib/api/auth'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { TOOLS_BY_NAME, toolDescriptors, ToolError } from '@/lib/mcp/tools'
+import { ToolPaymentRequired, ToolResultWithMeta } from '@/lib/mcp/tool-types'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { publishBlockedApiMessage } from '@/lib/api/publish-blocked-message'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
@@ -142,10 +143,21 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       const callBudget = await rateLimit('mcp-tool-call', auth.keyId, MCP_TOOL_CALLS_PER_MIN, '1 m', { strict: true })
       if (!callBudget.success) return toolErr(msg.id, 'rate_limited', 'Too many tool calls for this key. Slow down or back off.')
       try {
-        const result = await tool.handler(auth, parsed.data as Record<string, unknown>)
+        const meta = msg.params?._meta
+        const answer = await tool.handler(auth, parsed.data as Record<string, unknown>, { meta: meta && typeof meta === 'object' && !Array.isArray(meta) ? (meta as Record<string, unknown>) : undefined })
+        // An answer with result `_meta` (x402: the settlement, src/lib/mcp/ad-tools.ts) — the same content shape, plus `_meta`.
+        const result = answer instanceof ToolResultWithMeta ? answer.result : answer
         // The same object twice: `structuredContent` for clients that read the tool's outputSchema, the JSON text for the rest.
-        return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result })
+        return rpcResult(msg.id, {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result,
+          ...(answer instanceof ToolResultWithMeta ? { _meta: answer.meta } : {}),
+        })
       } catch (e) {
+        // x402 over MCP: an unpaid (or refused) payment is the PaymentRequired object as an error result (tool-types.ts).
+        if (e instanceof ToolPaymentRequired) {
+          return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(e.paymentRequired) }], structuredContent: e.paymentRequired, isError: true })
+        }
         if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message, e.detail)
         // ⚖️ AN IDENTITY REFUSAL IS AN ANSWER, NOT A CRASH: the code goes back verbatim with the same
         // English copy the partner API sends, so the agent can tell its operator to verify.

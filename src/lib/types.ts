@@ -71,6 +71,10 @@ export type SerializedListingCard = {
   /// 2026-10-01). A rental portal, a vehicle-hire site or a job board pays nothing and gets no marker.
   /// Optional: a card built from a payload that predates it shows no marker.
   isSponsored?: boolean
+  /** A PAID AD placement (owner 2026-11-23, x402 ads — src/lib/ads/serve.ts): the ListingAd id, set only on the one card the
+   *  feed puts first for it, which also carries `isSponsored: true` (the same "Ad / Quảng cáo" marker). The card renders it as
+   *  `data-ad-id` so <AdBeacons> can count what is seen and tapped. Absent on every organic card. */
+  adId?: string
   /** Listing.listingType ('sell' | 'rent' | 'job' | …) — <Price> labels a price-0 job. Optional: some card builders predate it. */
   listingType?: string
   /** A JOB's `jobtype` facet value ('fulltime', 'parttime', …), projected from its attributes by

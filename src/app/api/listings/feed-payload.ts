@@ -15,6 +15,7 @@ import { semanticRank } from './semantic-rank'
 import { keywordRank } from './keyword-rank'
 import type { MatchClass } from '@/lib/text-relevance'
 import { buildHistogram } from '@/lib/price-histogram'
+import { adEligibleRequest, pickAd, withAd } from '@/lib/ads/serve'
 
 /**
  * THE BROWSE FEED'S ONE BUILDER — `GET /api/listings` (route.ts) answers through it, and so does the voice concierge's
@@ -27,7 +28,7 @@ import { buildHistogram } from '@/lib/price-histogram'
  * the Cache-Control it is served with. Split out of GET so a zero-result search can be asked again
  * with its corrected spelling (route.ts, GET) through exactly the same code.
  */
-export async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: boolean } = {}): Promise<{ body: { total: number } & Record<string, unknown>; cacheControl: string; histogram: boolean }> {
+export async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: boolean; /** Paid ads (src/lib/ads/serve.ts): only the public feed route asks; the MCP search tool and the concierge stay organic. */ ads?: boolean } = {}): Promise<{ body: { total: number } & Record<string, unknown>; cacheControl: string; histogram: boolean }> {
   // ⚠️ RESOLVED, not merely built: a district read out of `q` that would find nothing where the plain
   // words find something is dropped here (resolveFeedFilters), and every figure below — rows, total,
   // histogram, facet counts — follows that one decision.
@@ -404,7 +405,7 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
         null,
       )
     : null
-  const [answerListings, related] = await Promise.all([
+  const [organicListings, related, ad] = await Promise.all([
     // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
     // key varies with the payload — the cookie-read variant poisoned the shared edge
     // entry with whichever language hit first (audit P2).
@@ -413,7 +414,10 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
       searchParams.get('lang') || undefined,
     ),
     relatedPromise,
+    // ⛔ A PAID AD matches `feedWhere`, this request's own final filter (src/lib/ads/serve.ts) — first page only.
+    opts.ads && adEligibleRequest(searchParams, offset, false) ? pickAd(feedWhere, searchParams.get('lang') || undefined, now) : Promise.resolve(null),
   ])
+  const answerListings = withAd(organicListings, ad)
 
   return {
     body: {

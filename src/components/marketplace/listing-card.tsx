@@ -735,6 +735,8 @@ function ListingCardImpl({
       // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
       // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
       data-sid={listing.sellerId}
+      // A PAID AD's card (src/lib/ads/serve.ts): <AdBeacons> counts it seen and tapped by this attribute. Absent on organic cards.
+      data-ad-id={listing.adId || undefined}
       // The goods phone card (`look`): globals.css takes the scroll reveal off it below 40rem (no fade-in on scroll).
       data-look={goods ? 'goods' : undefined}
       data-pending={pending || undefined}

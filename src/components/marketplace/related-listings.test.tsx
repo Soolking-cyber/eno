@@ -127,6 +127,8 @@ describe('RelatedListings — every pass asked at once, merged narrowest first',
       expect(q(p.url).get('facets'), p.url).toBe('0')
       expect(q(p.url).get('lang'), p.url).toBe('vi')
     }
+    // ⛔ One paid ad per row (src/lib/ads/serve.ts): only the narrowest pass may carry one.
+    expect(pending.map((p) => q(p.url).get('ads'))).toEqual([null, '0', '0'])
   })
 
   it('the widest pass answering first changes nothing: the cards keep pass order, duplicates keep their narrow place', async () => {

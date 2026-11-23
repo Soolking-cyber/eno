@@ -171,6 +171,10 @@ declare -A SCHED=(
   # changed, and the weekly walk. POLICY: a real run holds and strips listings and bells their sellers. Enabled by hand once
   # the owner has read the dry-run counts; until PHOTO_RULES_WRITE=1 is in the container every run is a dry run anyway.
   [listing-photos]="*-*-* *:20:00 UTC"
+  # Paid ads (owner 2026-11-23 — src/app/api/cron/ads-reconcile/route.ts): every 10 minutes, settles or closes ads whose x402
+  # payment outcome was lost. Does nothing until X402_PAY_TO is in the container. Enabled by hand AFTER the deploy that ships
+  # the route and scripts/listing-ad-ddl.mjs (`systemctl enable --now eno-cron-ads-reconcile.timer`).
+  [ads-reconcile]="*-*-* *:00/10:40 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).

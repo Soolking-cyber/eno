@@ -4,6 +4,7 @@ import "../globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
+import { AdBeacons } from "@/components/marketplace/ad-beacons";
 import { Providers } from "./providers";
 import { fxSeedUsd } from "@/lib/fx-seed";
 import { notFound } from "next/navigation";
@@ -715,6 +716,8 @@ export default async function RootLayout({
         <OutsideConciergeFrame>
           <AnalyticsTags />
           <AttributionCapture />
+          {/* Paid ads seen and tapped (src/lib/ads): idle-started, renders nothing, counts only cards carrying data-ad-id. */}
+          <AdBeacons />
           {/* WebMCP: the public search tools, plus save-a-listing and message-a-seller on the visitor's own session, for a
               browser agent; does nothing without `modelContext`, nor in a frame. ⛔ A PLAIN
               <script src>, not a client component: agent-readiness checkers read only the scripts the HTML names. The
