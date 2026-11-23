@@ -116,6 +116,7 @@ describe('/llms.txt on the services edition', () => {
     const body = await bodyOf()
     expect(body).not.toContain('eno-vn-mcp')
     expect(body).not.toContain('vn.eno/search')
+    expect(body).not.toContain('vn.eno/commerce')
   })
 
   it('⛔ never links eno.vn\'s agent-skills repo (or any GitHub account)', async () => {
@@ -158,11 +159,13 @@ describe('/llms.txt on the marketplace', () => {
     expect(body).toContain('[skills.sh](https://skills.sh/eno-vn/eno-agent-skills)')
   })
 
-  it('links the npm package and BOTH registry records (ora mcp-registry-listed: "link the registry entry or package")', async () => {
+  it('links the npm package and THE registry record of the one server (ora mcp-registry-listed: "link the registry entry or package")', async () => {
     const body = await bodyOf()
     expect(body).toContain('- [npm package eno-vn-mcp](https://www.npmjs.com/package/eno-vn-mcp)')
-    expect(body).toContain('- [MCP Registry entry vn.eno/search](https://registry.modelcontextprotocol.io/v0.1/servers/vn.eno%2Fsearch/versions/latest)')
-    expect(body).toContain('- [MCP Registry entry vn.eno/partner-api](')
+    // One server since 2026-11-23 (owner): vn.eno/commerce; the two records it replaces are deprecated and linked nowhere.
+    expect(body).toContain('- [MCP Registry entry vn.eno/commerce](https://registry.modelcontextprotocol.io/v0.1/servers/vn.eno%2Fcommerce/versions/latest)')
+    expect(body).not.toContain('vn.eno/search')
+    expect(body).not.toContain('vn.eno/partner-api')
     const { MCP_NPM_PACKAGE } = await import('@/lib/mcp-registry')
     const pkg = JSON.parse((await import('node:fs')).readFileSync('packages/eno-vn-mcp/package.json', 'utf8'))
     expect(MCP_NPM_PACKAGE).toBe(pkg.name)
@@ -393,7 +396,7 @@ describe('/llms.txt on the marketplace', () => {
   it('lists the MCP server page, the versioning policy and the API catalogue under developers, each a real route', async () => {
     const body = await bodyOf()
     const dev = body.split('## For developers and agents')[1]
-    expect(dev).toContain('[MCP server](https://eno.vn/developers/mcp)')
+    expect(dev).toContain('[eno Agentic Commerce, the MCP server](https://eno.vn/developers/mcp)')
     expect(dev).toContain('[Versioning and deprecation policy](https://eno.vn/developers/versioning)')
     expect(dev).toContain('[API catalogue](https://eno.vn/.well-known/api-catalog)')
     expect(dev).toContain('[eno-vn CLI](https://eno.vn/developers/cli)')

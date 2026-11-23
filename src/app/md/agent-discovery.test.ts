@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { OAUTH_SCOPES, OAUTH_ISSUER } from '@/lib/api/oauth'
-import { toolDescriptors } from '@/lib/mcp/tools'
+import { allToolDescriptors as toolDescriptors } from '@/lib/mcp/all-tools'
 
 /**
  * The agent-discovery documents published on 2026-08-23 in response to the audit scan whose nginx
@@ -277,7 +277,7 @@ describe('/auth.md', () => {
     try {
       const body = await (await (await import('./agents/route')).GET()).text()
       expect(body).toContain('## Packages and registries')
-      for (const t of ['https://www.npmjs.com/package/eno-vn-mcp', 'vn.eno/partner-api', 'vn.eno/search', 'https://github.com/eno-vn/eno-agent-skills']) expect(body).toContain(t)
+      for (const t of ['https://www.npmjs.com/package/eno-vn-mcp', 'vn.eno/commerce', 'https://github.com/eno-vn/eno-agent-skills']) expect(body).toContain(t)
     } finally {
       vi.unstubAllEnvs()
       vi.resetModules()
@@ -317,10 +317,10 @@ describe('/auth.md', () => {
 })
 
 describe('/agents.md', () => {
-  it('/agents.md says when to use these interfaces, with the search server\'s own URL, and what they are not for', async () => {
+  it('/agents.md says when to use these interfaces, with the one MCP server\'s URL, and what they are not for', async () => {
     const { body } = await md(await load.agents())
     expect(body).toContain('## When to use these interfaces')
-    expect(body).toMatch(/at the listing search MCP server, `https:\/\/[^`]+\/api\/mcp\/search`/)
+    expect(body).toMatch(/on the MCP server, eno Agentic Commerce, `https:\/\/[^`]+\/api\/mcp`/)
     expect(body).toContain('There is no checkout')
   })
 

@@ -28,11 +28,11 @@ describe('the listing-search server card (<server>/server-card)', () => {
     expect(GET(req('application/mcp-server-card+json;profile=x;q=0, application/json;q=1')).headers.get('content-type')).toMatch(/^application\/json/)
     expect(GET(req('application/mcp-server-card+json;q=0.5')).headers.get('content-type')).toMatch(/^application\/mcp-server-card\+json/)
   })
-  it('its name is the key the site-wide card\'s mcpServers map gives the search server, at the same URL', async () => {
+  it('one server since 2026-11-23: the site-wide card no longer lists this one beside it (its tools are on /api/mcp)', async () => {
     const { GET: siteCard } = await import('@/app/api/well-known/mcp-server-card/route')
     const site = await siteCard(new Request('https://eno.vn/.well-known/mcp.json') as never).json()
-    const card = searchServerCard()
-    expect(site.mcpServers[card.name]).toEqual({ url: card.remotes[0].url, transport: 'streamable-http' })
+    expect(site.mcpServers[searchServerCard().name]).toBeUndefined()
+    expect(Object.keys(site.mcpServers)).toEqual([site.name])
   })
   it('every protocol version on the card is one the search server\'s initialize accepts', async () => {
     for (const v of searchServerCard().remotes[0].supportedProtocolVersions) {

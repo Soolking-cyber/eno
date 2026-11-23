@@ -7,9 +7,10 @@ import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
 import { TOOLS } from '@/lib/mcp/tools'
 import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
+import { DOCS_TOOLS } from '@/lib/mcp/docs-tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
-import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
 import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
@@ -31,15 +32,17 @@ import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
  * English only, like every page under developers/ (eslint.config.mjs).
  */
 
+// ONE server since 2026-11-23 (owner: "make all into 1 … eno agentic commerce"): the title still says "<site> MCP server", which
+// is what a name-based search for it matches (the scan above).
 export const metadata: Metadata = withShare({
-  title: `${SITE_NAME} MCP server | Manage your shop from an AI agent`,
-  description: `The ${SITE_NAME} MCP server: connect Claude, Cursor or any MCP client to your ${SITE_NAME} storefront — listings, catalogue sync, analytics and webhooks. Sign in with your ${SITE_NAME} shop, or use an API key.`,
+  title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`,
+  description: `${MCP_SERVER_TITLE}, the ${SITE_NAME} MCP server: an AI agent searches the listings with no sign-in, and runs your storefront — listings, catalogue sync, analytics, webhooks, chat and paid ads — once you sign in with your shop or use an API key.`,
   alternates: { canonical: DOC_PATHS.mcp },
 })
 
 const ENDPOINT = `${SITE_ORIGIN}/api/mcp`
-/** The public listing-search server (src/app/api/mcp/search): no key, read-only. Its browser GET lands on #search. */
-const SEARCH_ENDPOINT = `${SITE_ORIGIN}/api/mcp/search`
+/** The tools that need no credential: the listing search and the docs (the old /api/mcp/search's browser GET lands on #search). */
+const OPEN_TOOLS = [...SEARCH_TOOLS, ...DOCS_TOOLS]
 
 /** The client-side name in the examples: the site's first label, e.g. `eno`. */
 const CLIENT_NAME = SITE_NAME.split('.')[0]
@@ -50,11 +53,12 @@ export default function McpServerPage() {
     <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
-        <h1 className="h-display text-foreground">{SITE_NAME} MCP server</h1>
+        <h1 className="h-display text-foreground">{MCP_SERVER_TITLE}</h1>
         <p className="mt-3 text-base leading-relaxed text-body">
-          A hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server
-          for the <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link>. An AI agent
-          manages your {SITE_NAME} storefront directly: listings, bulk import, catalogue sync, analytics and webhooks.
+          The {SITE_NAME} MCP server: one hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server
+          for AI agents that source, sell and promote on {SITE_NAME}. An agent searches the listings with no sign-in, and runs your storefront
+          through the <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link>: listings, bulk
+          import, catalogue sync, analytics, webhooks, chat with buyers and sellers, and paid ads.
         </p>
 
         <section className="mt-8">
@@ -100,7 +104,8 @@ Authorization: Bearer eno_live_…`}</Code></div>
               • <strong className="text-foreground">Transport:</strong> Streamable HTTP, stateless — JSON-RPC over POST, no SSE stream (a GET answers 405).
             </li>
             <li>
-              • <strong className="text-foreground">Discovery is open:</strong> <C>initialize</C> and <C>tools/list</C> answer without a key; every{' '}
+              • <strong className="text-foreground">Discovery is open:</strong> <C>initialize</C>, <C>tools/list</C> and the{' '}
+              <a href="#search" className="font-semibold text-accent-foreground underline">search and docs tools</a> answer without a key; every other{' '}
               <C>tools/call</C> needs one.
             </li>
             <li>
@@ -141,8 +146,8 @@ Authorization: Bearer eno_live_…`}</Code></div>
               a scanner can tie the package to this site (ora.ai mcp-registry-listed); its own homepage is this page. */}
           <h3 className="mt-6 text-base font-semibold text-foreground">Clients that start a local server</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            The <a href={MCP_NPM_URL} className="font-semibold text-accent-foreground underline">{MCP_NPM_PACKAGE}</a> package runs these servers as a
-            local command. As below it opens the listing search; add <C>{'"env": { "ENO_API_KEY": "eno_live_…" }'}</C> for your shop.
+            The <a href={MCP_NPM_URL} className="font-semibold text-accent-foreground underline">{MCP_NPM_PACKAGE}</a> package runs this server as a
+            local command. As below it opens the search and docs tools; add <C>{'"env": { "ENO_API_KEY": "eno_live_…" }'}</C> for your shop.
           </p>
           <div className="mt-3"><Code>{JSON.stringify({ mcpServers: { [CLIENT_NAME]: { command: 'npx', args: ['-y', MCP_NPM_PACKAGE] } } }, null, 2)}</Code></div>
 
@@ -167,14 +172,15 @@ Authorization: Bearer eno_live_…`}</Code></div>
             Press <strong className="text-foreground">Add MCP</strong>, then ask Grok to use {SITE_NAME}. Where Grok asks for an OAuth{' '}
             <strong className="text-foreground">Client ID</strong> instead, enter <C>{GROK_CLIENT_ID}</C> with no client secret and the token auth
             method <C>none</C>, then sign in with your {SITE_NAME} shop and press <strong className="text-foreground">Allow</strong>. On Grok Business or
-            Enterprise, a team admin adds the connector first. The listing search below needs only its URL, with no header.
+            Enterprise, a team admin adds the connector first. The search and docs tools below need only the URL, with no header.
           </p>
         </section>
 
         <section className="mt-8">
           <h2 className="h-section text-foreground">Tools</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            {TOOLS.length} tools. The shop tools are scoped like their REST endpoints; the chat tools need <C>messages:read</C> or{' '}
+            {OPEN_TOOLS.length + TOOLS.length} tools: the {TOOLS.length} below act for a shop or a person, and the {OPEN_TOOLS.length}{' '}
+            <a href="#search" className="font-semibold text-accent-foreground underline">search and docs tools</a> need no key. The shop tools are scoped like their REST endpoints; the chat tools need <C>messages:read</C> or{' '}
             <C>messages:write</C>, which only a sign-in grants (never an API key) and any account can give, with or without a shop, and
             every message they send shows as written by an AI assistant. A call that lacks the scope shown is refused with <C>insufficient_scope</C>.
           </p>
@@ -192,15 +198,15 @@ Authorization: Bearer eno_live_…`}</Code></div>
         </section>
 
         <section id="search" className="mt-8 scroll-mt-20">
-          <h2 className="h-section text-foreground">Listing search, no key</h2>
+          <h2 className="h-section text-foreground">Search and docs, no key</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            A second server, open to anyone: an AI assistant searches live listings for the person it is helping and links to each one. Read-only, no
-            sign-in, nothing to set up.
+            Open to anyone, on the same server: an AI assistant searches live listings for the person it is helping and links to each one, with
+            sponsored listings marked, and reads this site&apos;s documentation. Read-only, no sign-in, nothing to set up. The older addresses{' '}
+            <C>{`${SITE_ORIGIN}/api/mcp/search`}</C> and <C>{`${SITE_ORIGIN}/api/mcp/docs`}</C> still answer with these tools alone.
           </p>
-          <div className="mt-3"><Code>{SEARCH_ENDPOINT}</Code></div>
-          <div className="mt-3"><Code whole>{`claude mcp add --transport http ${CLIENT_NAME}-search ${SEARCH_ENDPOINT}`}</Code></div>
+          <div className="mt-3"><Code whole>{`claude mcp add --transport http ${CLIENT_NAME} ${ENDPOINT}`}</Code></div>
           <ul className="mt-4 space-y-3">
-            {SEARCH_TOOLS.map((t) => (
+            {OPEN_TOOLS.map((t) => (
               <li key={t.name} className="border-t border-border pt-3">
                 <code className="font-mono text-sm font-semibold text-foreground">{t.name}</code>
                 <p className="mt-1 text-sm leading-relaxed text-body">{t.description}</p>

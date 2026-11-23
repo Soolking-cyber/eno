@@ -10,7 +10,7 @@ import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { RENT_TOOLS, RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
 import { liveTools } from '@/lib/tools/content'
-import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
@@ -86,14 +86,12 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
 const DEVELOPER_SECTION = `## For developers and agents
 
 - [Developer documentation](${SITE_ORIGIN}/developers) — authentication, scopes, endpoints, copy-pasteable requests.
-- [MCP server](${SITE_ORIGIN}/developers/mcp) — connect an AI agent (Claude Code, Cursor, any MCP client) to a
-  storefront: the endpoint, the header, and every tool with the scope it needs.
-- [Listing search MCP server](${SITE_ORIGIN}/developers/mcp#search): \`${SITE_ORIGIN}/api/mcp/search\`, open to any MCP client with
-  no key: search the listings, read one listing's details, list the categories. Read-only; every result links to its page.
+- [eno Agentic Commerce, the MCP server](${SITE_ORIGIN}/developers/mcp): \`${SITE_ORIGIN}/api/mcp\`, one server for AI agents
+  that source, sell and promote: search the listings, read one listing's details and list the categories (no key), run a
+  shop's listings, catalogue, analytics and webhooks, chat with buyers and sellers, buy ads for a listing, and search this
+  site's docs. The search and docs tools need no key; every other tool needs a sign-in or an API key and the scope it names.
 - [A2A agent](${SITE_ORIGIN}/.well-known/agent-card.json): \`${SITE_ORIGIN}/api/a2a\`, an Agent2Agent (JSON-RPC, A2A 1.0
   and 0.3) agent open to any A2A client with no key: the same listing search, listing details and categories. Read-only.
-- Docs MCP server: \`${SITE_ORIGIN}/api/mcp/docs\`, open to any MCP client with no key: search this site's documentation and
-  read one whole document, such as this index or the authentication guide. Read-only.
 - [eno-vn CLI](${SITE_ORIGIN}/developers/cli) — the command-line client on npm (${SITE_ORIGIN === 'https://eno.vn' ? '' : `\`export ENO_BASE_URL=${SITE_ORIGIN}\` then `}\`npx eno-vn status\`): listings,
   catalogue sync, photos, analytics and webhooks from a terminal or a script; one API call per command (--all
   follows every page).
@@ -108,16 +106,14 @@ const DEVELOPER_SECTION = `## For developers and agents
   Protocol server: transport, supported protocol versions, and the header to connect with. The same
   document also answers at [/.well-known/mcp-server-card.json](${SITE_ORIGIN}/.well-known/mcp-server-card.json)
   and [/.well-known/mcp/server-card.json](${SITE_ORIGIN}/.well-known/mcp/server-card.json).${!IS_SERVICES ? `
-- [MCP Registry entry ${MCP_REGISTRY_NAME}](${MCP_REGISTRY_URL}) — the hosted MCP server's record in the official MCP
+- [MCP Registry entry ${MCP_REGISTRY_NAME}](${MCP_REGISTRY_URL}) — the MCP server's record in the official MCP
   Registry, published under the eno.vn domain namespace.
-- [MCP Registry entry ${MCP_SEARCH_REGISTRY_NAME}](${MCP_SEARCH_REGISTRY_URL}) — the listing search server's record, with the
-  npm package below as its local form.
-- [npm package ${MCP_NPM_PACKAGE}](${MCP_NPM_URL}) — the MCP servers as a local (stdio) command for clients that start one:
-  \`npx -y ${MCP_NPM_PACKAGE}\` (the listing search; with \`ENO_API_KEY\`, your shop).
+- [npm package ${MCP_NPM_PACKAGE}](${MCP_NPM_URL}) — the MCP server as a local (stdio) command for clients that start one:
+  \`npx -y ${MCP_NPM_PACKAGE}\` (search and docs; with \`ENO_API_KEY\`, your shop too).
 - [Agent skills](${AGENT_SKILLS_REPO_URL}) — eno.vn's own skills for searching the listings and running a shop, an
   AGENTS.md for AI coding agents and an Agent Plugin manifest; also on [skills.sh](${AGENT_SKILLS_SH_URL}).` : ''}
-- Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an
-  API key as the Bearer token. Streamable HTTP, stateless: JSON-RPC over POST, no SSE stream (a GET
+- Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent searches the listings with no key, and manages a storefront
+  directly with an API key as the Bearer token (or a sign-in). Streamable HTTP, stateless: JSON-RPC over POST, no SSE stream (a GET
   answers 405). Tools are listed at runtime via tools/list and each one is scope-gated. Chat tools
   (list_conversations, get_conversation, contact_seller, send_message, decline_offer) need messages:read or
   messages:write, which only a person's sign-in grants: an agent messages sellers, replies and makes or counters offers in

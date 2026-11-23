@@ -177,8 +177,9 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     expect(h.isSecret).toBe(true)
     expect((h.variables as Record<string, { isSecret?: boolean }>).api_key.isSecret).toBe(true)
     // ⛔ Only what the server controls (2026-11-11): never "never passed to / never reaches the model" — a client can show
-    // its own settings to a model. The MCP Registry entry vn.eno/partner-api carries the same sentence.
-    expect(h.description).toBe('Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument.')
+    // its own settings to a model. The MCP Registry entry vn.eno/commerce carries the same sentence. One server since
+    // 2026-11-23: its search and docs tools take no credential, and the card says so.
+    expect(h.description).toBe('Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument. The search and docs tools need none.')
     expect(JSON.stringify(doc)).not.toMatch(/never (passed to|reaches) the model/i)
   })
 
@@ -199,7 +200,7 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
 
   it('routes a 401 back to the OAuth metadata, with the scope list the token endpoint enforces', async () => {
     const { doc } = await card('marketplace', 'https://eno.vn')
-    const meta = doc._meta['vn.eno/partner-api'] as { scopes: string[]; protectedResourceMetadata: string; authorizationServer: string }
+    const meta = doc._meta['vn.eno/commerce'] as { scopes: string[]; protectedResourceMetadata: string; authorizationServer: string }
     // Not a retyped list — SIGN_IN_SCOPES: the API's scopes plus the sign-in-only messaging pair (2026-11-17), the same
     // constant the authorization server and the MCP server's RFC 9728 document publish, and `tool.scope` is checked against.
     expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write', 'messages:read', 'messages:write'])
@@ -244,8 +245,8 @@ describe('MCP server card — HTTP contract', () => {
 describe('MCP server card — edition boundary', () => {
   it('⛔ the services edition NEVER says eno.vn — the leak class this repo has shipped four times', async () => {
     const { doc } = await card('services', 'https://www.eno.forum')
-    expect(doc.name).toBe('forum.eno/partner-api')
-    expect(doc.title).toBe('eno.forum Partner API')
+    expect(doc.name).toBe('forum.eno/commerce')
+    expect(doc.title).toBe('eno Agentic Commerce')
     // The blanket assertion, because the failure was never one field: /developers had a correct
     // <title> above 49 occurrences of the other host.
     expect(JSON.stringify(doc)).not.toContain('eno.vn')
@@ -253,9 +254,9 @@ describe('MCP server card — edition boundary', () => {
 
   it('the marketplace edition names eno.vn everywhere it names itself', async () => {
     const { doc } = await card('marketplace', 'https://eno.vn')
-    expect(doc.name).toBe('vn.eno/partner-api')
-    expect(doc.title).toBe('eno.vn Partner API')
-    expect(doc.websiteUrl).toBe('https://eno.vn/developers')
+    expect(doc.name).toBe('vn.eno/commerce')
+    expect(doc.title).toBe('eno Agentic Commerce')
+    expect(doc.websiteUrl).toBe('https://eno.vn/developers/mcp')
     expect(JSON.stringify(doc)).not.toContain('eno.forum')
   })
 

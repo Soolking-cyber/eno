@@ -1,8 +1,8 @@
 import { OAUTH_SCOPES } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
-import { toolDescriptors } from '@/lib/mcp/tools'
+import { allToolDescriptors } from '@/lib/mcp/all-tools'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL } from '@/lib/agent-skills'
 import { markdownResponse, SITE_ORIGIN, withFrontmatter } from '../markdown-response'
 
@@ -49,7 +49,7 @@ export async function GET() {
    * added or renamed there changes this document with no second edit, which is the only way a
    * hand-written list of fifteen tools stays true for longer than a month.
    */
-  const tools = toolDescriptors()
+  const tools = allToolDescriptors()
 
   const body = `# ${SITE_NAME} for agents
 
@@ -63,9 +63,9 @@ its own catalogue; this one describes its interfaces.
 ## When to use these interfaces
 
 - **A person wants to find something on ${SITE_NAME}** (somewhere to rent, something to buy, a job): search the
-  live listings with no account at the listing search MCP server, \`${SITE_ORIGIN}/api/mcp/search\`, and send them
-  to each listing's page to contact the seller there.
-- **A seller wants their stock on ${SITE_NAME}, kept current, or measured**: use the Partner API or the shop MCP
+  live listings with no account on the MCP server, eno Agentic Commerce, \`${SITE_ORIGIN}/api/mcp\` (its search tools need
+  no sign-in), and send them to each listing's page to contact the seller there.
+- **A seller wants their stock on ${SITE_NAME}, kept current, promoted or measured**: use the Partner API or the same MCP
   server, \`${SITE_ORIGIN}/api/mcp\`, with that shop's credential (see "With a credential" below).
 - **Not for**: paying, holding money or contacting a seller outside the site. There is no checkout, and contact
   details are exchanged in the in-app chat only (see Rules).
@@ -97,8 +97,9 @@ only ever sees that storefront's data.
 
 - **REST** — \`${SITE_ORIGIN}/api/v1\`. Listings (read, create, edit, delete, re-status), bulk
   import, catalogue sync by your own \`externalId\`, analytics, media upload, webhooks.
-- **MCP** — \`${SITE_ORIGIN}/api/mcp\`. A stateless Model Context Protocol server over the
-  Streamable-HTTP transport, wrapping the same shop-scoped operations. \`POST\` only; \`GET\`
+- **MCP** — \`${SITE_ORIGIN}/api/mcp\`, eno Agentic Commerce. A stateless Model Context Protocol server over the
+  Streamable-HTTP transport, wrapping the same shop-scoped operations, plus chat and paid ads; its listing search and
+  docs tools need no credential. \`POST\` only; \`GET\`
   answers 405. Put the key in your MCP client's connection config as the Bearer token, never as a
   tool argument. No tool takes it as an argument.
 
@@ -157,8 +158,8 @@ real URLs instead of probing.
 
 ${IS_SERVICES ? '' : `## Packages and registries
 
-- npm: [\`${MCP_NPM_PACKAGE}\`](${MCP_NPM_URL}) — the MCP servers as a local (stdio) command, \`npx -y ${MCP_NPM_PACKAGE}\`.
-- Official MCP Registry: [\`${MCP_REGISTRY_NAME}\`](${MCP_REGISTRY_URL}) and [\`${MCP_SEARCH_REGISTRY_NAME}\`](${MCP_SEARCH_REGISTRY_URL}), under the eno.vn domain namespace.
+- npm: [\`${MCP_NPM_PACKAGE}\`](${MCP_NPM_URL}) — the MCP server as a local (stdio) command, \`npx -y ${MCP_NPM_PACKAGE}\`.
+- Official MCP Registry: [\`${MCP_REGISTRY_NAME}\`](${MCP_REGISTRY_URL}), under the eno.vn domain namespace.
 - Agent skills, an AGENTS.md and an Agent Plugin manifest: [eno-agent-skills](${AGENT_SKILLS_REPO_URL}).
 
 `}## Contact

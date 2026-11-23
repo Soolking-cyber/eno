@@ -1,19 +1,21 @@
 # eno-vn-mcp
 
-The [eno.vn](https://eno.vn) MCP servers for MCP clients that start a local (stdio) server. eno.vn is Vietnam's
-classifieds marketplace for expats and locals.
+**eno Agentic Commerce**, the [eno.vn](https://eno.vn) MCP server, for MCP clients that start a local (stdio) server.
+eno.vn is a marketplace in Vietnam for rentals, furniture, vehicles, jobs, services and second-hand goods, built for AI
+agents that source, sell and promote as well as for people.
 
-This package is a bridge to eno.vn's hosted servers, not a separate implementation. Each message your client sends is
+This package is a bridge to eno.vn's hosted server, not a separate implementation. Each message your client sends is
 forwarded to eno.vn, so the tools, their schemas and their rules are always the hosted ones. Clients that connect to a
-remote server can add the URLs from <https://eno.vn/developers/mcp> directly and do not need this package.
+remote server can add `https://eno.vn/api/mcp` directly (see <https://eno.vn/developers/mcp>) and do not need this package.
 
 ## Servers
 
 | `--server` | What it does | Key |
 |---|---|---|
-| `search` | Search live eno.vn listings and open one. The default without `ENO_API_KEY`. | none |
-| `docs` | Search and read eno.vn's documentation for agents. | none |
-| `shop` | Manage your eno.vn shop: listings, catalogue sync, analytics, webhooks. The default with `ENO_API_KEY`. | `ENO_API_KEY` |
+| `all` | The default: every tool. Search listings and read the docs with no key; with `ENO_API_KEY`, also run your shop (listings, catalogue sync, analytics, webhooks) and buy ads. | optional |
+| `search` | Search live eno.vn listings only (the older `/api/mcp/search`). | none |
+| `docs` | eno.vn's documentation for agents only (the older `/api/mcp/docs`). | none |
+| `shop` | The same server as `all`, insisting on `ENO_API_KEY`. | `ENO_API_KEY` |
 
 ## Set up
 

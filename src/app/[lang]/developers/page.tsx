@@ -1,5 +1,5 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL } from '@/lib/agent-skills'
 import type { Metadata } from 'next'
 import { withShare } from '@/lib/site-identity'
@@ -298,8 +298,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             {!IS_SERVICES && (
               <>
                 {' '}Also on npm as <a href={MCP_NPM_URL} className="font-mono font-semibold text-accent-foreground underline">{MCP_NPM_PACKAGE}</a>, in the
-                official MCP Registry as <a href={MCP_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground underline">{MCP_REGISTRY_NAME}</a> and{' '}
-                <a href={MCP_SEARCH_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground underline">{MCP_SEARCH_REGISTRY_NAME}</a>, with agent skills
+                official MCP Registry as <a href={MCP_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground underline">{MCP_REGISTRY_NAME}</a>, with agent skills
                 and an AGENTS.md at <a href={AGENT_SKILLS_REPO_URL} className="font-semibold text-accent-foreground underline">eno-agent-skills</a>.
               </>
             )}

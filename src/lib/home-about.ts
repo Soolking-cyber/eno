@@ -119,8 +119,8 @@ const ALL_SECTIONS: readonly AboutSection[] = [
     more: [
       [
         {
-          en: 'eno is listed in Claude’s connector directory, and its MCP servers are in the official MCP Registry, so any AI tool that speaks MCP can find and use it.',
-          vi: 'eno có trong danh mục kết nối của Claude, và các máy chủ MCP của eno có trong MCP Registry chính thức, nên mọi công cụ AI hỗ trợ MCP đều tìm và dùng được.',
+          en: 'eno is listed in Claude’s connector directory, and its MCP server, eno Agentic Commerce, is in the official MCP Registry, so any AI tool that speaks MCP can find and use it.',
+          vi: 'eno có trong danh mục kết nối của Claude, và máy chủ MCP của eno, eno Agentic Commerce, có trong MCP Registry chính thức, nên mọi công cụ AI hỗ trợ MCP đều tìm và dùng được.',
         },
         {
           en: 'Shops can sync and manage their whole catalogue from an AI chat, and AI search engines can read eno’s llms.txt and markdown pages. Details are at eno.vn/developers.',

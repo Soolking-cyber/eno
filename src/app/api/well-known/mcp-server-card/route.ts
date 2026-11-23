@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { SITE_NAME } from '@/lib/edition'
+import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 
 /**
  * ── MCP Server Card — the discovery document for the MCP server we ALREADY RUN ────────────────
@@ -94,7 +95,7 @@ const RDNS = SITE_NAME.split('.').reverse().join('.')
  * route module, and Next rejects non-handler exports), so route.test.ts asserts the two agree by
  * reading route.ts's source. Bump both together or the test fails.
  */
-const SERVER_VERSION = '1.0.1'
+const SERVER_VERSION = '2.0.0'
 
 /**
  * ⛔ THE VALUES IN `SUPPORTED` IN route.ts, IN ITS ORDER, NEWEST FIRST. `initialize` echoes
@@ -116,7 +117,8 @@ function serverCard() {
      */
     $schema: 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json',
     /** Reverse-DNS, exactly one slash — `^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$`. */
-    name: `${RDNS}/partner-api`,
+    // ONE server since 2026-11-23 (owner): `commerce`, its new MCP Registry name (a registry name cannot be renamed).
+    name: `${RDNS}/commerce`,
     version: SERVER_VERSION,
     /**
      * ⚠️ HARD CAP OF 100 CHARACTERS in the schema, and it names no host on purpose: this one
@@ -124,9 +126,9 @@ function serverCard() {
      * domain. The identity lives in `name` and `title`, both derived. It also names no visa,
      * itinerary or PayPal surface — this document ships in the LICENSED marketplace build.
      */
-    description: 'Manage one storefront: listings, bulk catalogue sync, analytics and webhooks.',
-    title: `${SITE_NAME} Partner API`,
-    websiteUrl: `${OAUTH_ISSUER}/developers`,
+    description: 'Source, sell and promote for AI agents: search listings, run a shop, chat with buyers, buy ads.',
+    title: MCP_SERVER_TITLE,
+    websiteUrl: `${OAUTH_ISSUER}/developers/mcp`,
     // The site's 512px icon, in the `icons` shape of the MCP spec's Implementation (2025-11-25: src, mimeType, sizes) that the
     // registry's server.json shares; ora's registry-branding check reads it here (2026-11-16).
     icons: [{ src: `${OAUTH_ISSUER}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] }],
@@ -164,8 +166,8 @@ function serverCard() {
             name: 'Authorization',
             // ⚠️ NOT "never passed to the model" (corrected 2026-11-11): the server never asks the model for the key, but a
             // client can show its own settings to a model. Say only what the server controls — the MCP Registry entry
-            // (vn.eno/partner-api) carries this same sentence.
-            description: 'Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument.',
+            // (vn.eno/commerce) carries this same sentence.
+            description: 'Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument. The search and docs tools need none.',
             // Optional since "Sign in with eno" (2026-11-14): a client that leaves it out gets the 401 on tools/call and signs in
             // through the OAuth documents in `_meta`; required here, a client would ask for a key and never offer sign-in.
             isRequired: false,
@@ -193,7 +195,7 @@ function serverCard() {
      * constant the authorization server and this server's RFC 9728 document publish, so a client sees one scope set.
      */
     _meta: {
-      [`${RDNS}/partner-api`]: {
+      [`${RDNS}/commerce`]: {
         authorizationServer: OAUTH_ISSUER,
         // The MCP server's OWN document (resource …/api/mcp, RFC 9728 §3.1), the one its 401 names — not the REST API's.
         protectedResourceMetadata: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource/api/mcp`,
@@ -290,9 +292,8 @@ export function GET(req: NextRequest) {
     ...card,
     url: remote.url,
     transport: remote.type,
-    // The public listing-search server sits beside it in this Claude-Desktop-style map ONLY: it is a different server
-    // (no key, read-only), so it is never a `remotes` entry of this card, which describes the Partner API alone.
-    mcpServers: { [card.name]: { url: remote.url, transport: remote.type }, [`${RDNS}/search`]: { url: `${OAUTH_ISSUER}/api/mcp/search`, transport: 'streamable-http' } },
+    // One server since 2026-11-23: the listing search is one of its tools, so the map has one entry.
+    mcpServers: { [card.name]: { url: remote.url, transport: remote.type } },
   }
 
   return NextResponse.json(body, {

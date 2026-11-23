@@ -5345,7 +5345,7 @@ export const UI_STRINGS: string[] = [
   "eno guide",
   "eno is a classified marketplace for expats and locals in Vietnam, and for the AI agents that work for them. People set the goal and the limits; their agents do the legwork.",
   "eno is building toward a marketplace where agents do more of the work for their owners, listing, selling and arranging delivery, with people always in control.",
-  "eno is listed in Claude’s connector directory, and its MCP servers are in the official MCP Registry, so any AI tool that speaks MCP can find and use it.",
+  "eno is listed in Claude’s connector directory, and its MCP server, eno Agentic Commerce, is in the official MCP Registry, so any AI tool that speaks MCP can find and use it.",
   "eno is the marketplace, not the provider. A partner performs its service under its own licence and the contract for it is between the buyer and the partner — exactly as with any other seller, and each partner storefront says so.",
   "eno is the marketplace, not the provider: the contract is between the buyer and the partner.",
   "eno may also earn a commission from some partner shops when someone buys through a link here, which does not change the price you pay. The fees are set out at eno.vn/regulations.",

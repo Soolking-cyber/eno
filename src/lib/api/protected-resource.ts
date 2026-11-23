@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER, OAUTH_SCOPES, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
+import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 
 /**
  * RFC 9728 protected-resource metadata, one document per resource (§3.3: the `resource` a client fetched metadata for
@@ -41,7 +42,8 @@ export function protectedResourceResponse(which: 'origin' | 'rest' | 'mcp') {
       // parameter, no form body. Advertising either would invite a client to put a credential in a
       // URL, where it lands in every access log and Referer header on the way.
       bearer_methods_supported: ['header'],
-      resource_name: which === 'origin' ? new URL(OAUTH_ISSUER).host : `${new URL(OAUTH_ISSUER).host} Partner API`,
+      // The MCP resource is the one server, eno Agentic Commerce, since 2026-11-23; the REST API keeps its name.
+      resource_name: which === 'origin' ? new URL(OAUTH_ISSUER).host : which === 'mcp' ? MCP_SERVER_TITLE : `${new URL(OAUTH_ISSUER).host} Partner API`,
       resource_documentation: `${OAUTH_ISSUER}/developers`,
     },
     {

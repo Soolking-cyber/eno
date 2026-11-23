@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// eno-vn-mcp — eno.vn's MCP servers for MCP clients that start a local (stdio) server (https://eno.vn/developers/mcp).
+// eno-vn-mcp — eno.vn's MCP server, eno Agentic Commerce, for MCP clients that start a local (stdio) server (https://eno.vn/developers/mcp).
 // Zero dependencies: Node 18+ (global fetch). A BRIDGE, NOT A SECOND SERVER: each JSON-RPC message the client writes to
 // stdin is POSTed to one of eno.vn's hosted MCP servers and the answer written back to stdout, one message per line. So
 // the tools, their schemas, limits and rules are exactly the hosted server's, and nothing here can drift from them.
@@ -8,26 +8,29 @@ import { createInterface } from 'node:readline'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const VERSION = '1.0.1'
+export const VERSION = '2.0.0'
 
-/** The hosted servers. Only `shop` needs a key, and only `shop` is ever sent one. */
+/** The hosted servers. `all` (the default since 2.0.0, owner 2026-11-23: one server) and `shop` are the same endpoint and the
+ *  only ones ever sent a key; `all` works without one (search and docs), `shop` insists on it. */
 export const SERVERS = {
-  search: { path: '/api/mcp/search', key: false, about: 'Search live eno.vn listings. No key.' },
+  all: { path: '/api/mcp', key: 'optional', about: 'eno Agentic Commerce, every tool: search and docs with no key; with ENO_API_KEY, your shop too (listings, catalogue sync, analytics, webhooks, ads).' },
+  search: { path: '/api/mcp/search', key: false, about: 'Search live eno.vn listings only. No key.' },
   docs: { path: '/api/mcp/docs', key: false, about: "Search and read eno.vn's documentation for agents. No key." },
   shop: { path: '/api/mcp', key: true, about: 'Manage your eno.vn shop: listings, catalogue sync, analytics, webhooks. Needs ENO_API_KEY.' },
 }
 
-export const USAGE = `eno-vn-mcp ${VERSION} — eno.vn's MCP servers, for MCP clients that start a local server.
+export const USAGE = `eno-vn-mcp ${VERSION} — eno.vn's MCP server, eno Agentic Commerce, for MCP clients that start a local server.
 
-Usage: npx -y eno-vn-mcp [--server search|docs|shop]
+Usage: npx -y eno-vn-mcp [--server all|search|docs|shop]
 
 Servers:
-  search   ${SERVERS.search.about} The default without ENO_API_KEY.
+  all      ${SERVERS.all.about} The default.
+  search   ${SERVERS.search.about}
   docs     ${SERVERS.docs.about}
-  shop     ${SERVERS.shop.about} The default with it.
+  shop     ${SERVERS.shop.about}
 
 Environment:
-  ENO_API_KEY    your eno_live_… key (dashboard → Developers on eno.vn); sent to the shop server only
+  ENO_API_KEY    your eno_live_… key (dashboard → Developers on eno.vn); sent to /api/mcp only (all, shop)
   ENO_BASE_URL   default https://eno.vn
 
 Client config (Claude Desktop, Cursor, …):
@@ -54,9 +57,9 @@ export function pickServer(argv, env = {}) {
     else throw new UsageError(`unknown argument: ${a}`)
   }
   const key = env.ENO_API_KEY || ''
-  if (name === null) name = key ? 'shop' : 'search'
+  if (name === null) name = 'all'
   const server = Object.prototype.hasOwnProperty.call(SERVERS, name) ? SERVERS[/** @type {keyof typeof SERVERS} */ (name)] : null
-  if (!server) throw new UsageError(`--server must be search, docs or shop (got ${name || 'nothing'})`)
+  if (!server) throw new UsageError(`--server must be all, search, docs or shop (got ${name || 'nothing'})`)
   const raw = env.ENO_BASE_URL || 'https://eno.vn'
   // ⛔ HTTPS only (localhost aside): the shop server is sent the key. And an ORIGIN only, as the eno-vn CLI requires.
   let base
@@ -66,10 +69,11 @@ export function pickServer(argv, env = {}) {
   }
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname)
   if (base.protocol !== 'https:' && !(local && base.protocol === 'http:')) throw new UsageError(`ENO_BASE_URL must be https:// (got ${raw})`)
-  if (server.key && !key) throw new UsageError('the shop server needs ENO_API_KEY: your eno_live_… key (dashboard → Developers on eno.vn)')
+  if (server.key === true && !key) throw new UsageError('the shop server needs ENO_API_KEY: your eno_live_… key (dashboard → Developers on eno.vn)')
+  const sends = server.key === true || (server.key === 'optional' && !!key)
   // A header value must be printable ASCII, or fetch throws on every message; the docs' `eno_live_…` placeholder is the likely culprit.
-  if (server.key && !/^[\x21-\x7e]+$/.test(key)) throw new UsageError('ENO_API_KEY has a character a key cannot contain (did you paste the … placeholder?)')
-  return { name, url: `${base.origin}${server.path}`, key: server.key ? key : null }
+  if (sends && !/^[\x21-\x7e]+$/.test(key)) throw new UsageError('ENO_API_KEY has a character a key cannot contain (did you paste the … placeholder?)')
+  return { name, url: `${base.origin}${server.path}`, key: sends ? key : null }
 }
 
 /** @param {unknown} id @param {number} code @param {string} message */

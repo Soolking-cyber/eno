@@ -1,9 +1,9 @@
 {
   "name": "eno-vn-mcp",
-  "version": "1.0.1",
-  "mcpName": "vn.eno/search",
-  "description": "MCP server for eno.vn, Vietnam's classifieds marketplace: search live listings, read the docs for agents, or manage your shop with an API key. A stdio bridge to eno.vn's hosted MCP servers.",
-  "keywords": ["mcp", "mcp-server", "model-context-protocol", "eno", "eno.vn", "vietnam", "marketplace", "classifieds"],
+  "version": "2.0.0",
+  "mcpName": "vn.eno/commerce",
+  "description": "eno Agentic Commerce: the MCP server of eno.vn, a marketplace in Vietnam, for AI agents that source, sell and promote. Search live listings and read the docs with no key; with an API key, run your shop, chat and buy ads. A stdio bridge to eno.vn's hosted MCP server.",
+  "keywords": ["mcp", "mcp-server", "model-context-protocol", "agentic-commerce", "eno", "eno.vn", "vietnam", "marketplace", "classifieds"],
   "homepage": "https://eno.vn/developers/mcp",
   "bugs": { "email": "support@eno.vn" },
   "license": "MIT",

@@ -11,9 +11,10 @@ const PAGE = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)),
 const DEV = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8')
 
 describe('/developers/mcp', () => {
-  it('leads its title and <h1> with "<site> MCP server", canonical at its own path', () => {
-    expect(PAGE).toContain('title: `${SITE_NAME} MCP server | Manage your shop from an AI agent`')
-    expect(PAGE).toMatch(/<h1 className="h-display text-foreground">\{SITE_NAME\} MCP server<\/h1>/)
+  it('names the one server (eno Agentic Commerce, 2026-11-23) in its <h1>, keeps "<site> MCP server" in its title, canonical at its own path', () => {
+    // The title still carries "<site> MCP server": that is what a name-based search for the server matches (the scan above).
+    expect(PAGE).toContain('title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`')
+    expect(PAGE).toMatch(/<h1 className="h-display text-foreground">\{MCP_SERVER_TITLE\}<\/h1>/)
     expect(PAGE).toContain('alternates: { canonical: DOC_PATHS.mcp }')
   })
 
@@ -39,9 +40,10 @@ describe('/developers/mcp', () => {
     expect(pkg.homepage).toBe('https://eno.vn/developers/mcp')
   })
 
-  it('/developers (the docs entry page) links the npm package, both registry records and the skills repo — eno.vn only', () => {
+  it('/developers (the docs entry page) links the npm package, the one server\'s registry record and the skills repo — eno.vn only', () => {
     expect(DEV).toContain('{!IS_SERVICES && (')
-    for (const t of ['href={MCP_NPM_URL}', 'href={MCP_REGISTRY_URL}', 'href={MCP_SEARCH_REGISTRY_URL}', 'href={AGENT_SKILLS_REPO_URL}']) expect(DEV).toContain(t)
+    for (const t of ['href={MCP_NPM_URL}', 'href={MCP_REGISTRY_URL}', 'href={AGENT_SKILLS_REPO_URL}']) expect(DEV).toContain(t)
+    expect(DEV).not.toContain('MCP_SEARCH_REGISTRY')
   })
 
   it('stays a server component, and /developers links to it', () => {

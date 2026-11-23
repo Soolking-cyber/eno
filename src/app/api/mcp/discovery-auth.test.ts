@@ -75,12 +75,16 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     // covered.
     // The real pin: the name must be DERIVED from SITE_NAME, so on the services edition it must
     // say eno.forum and must not contain the marketplace's domain anywhere.
+    // ONE server since 2026-11-23 (owner): "eno Agentic Commerce", a name that holds no host at all, so neither edition can
+    // name the other; the edition shows in the website and icon below, which are derived.
     const { SITE_NAME } = await import('@/lib/edition')
-    expect(body.result.serverInfo.name).toBe(`${SITE_NAME} Partner API`)
+    const { MCP_SERVER_TITLE } = await import('@/lib/mcp-registry')
+    expect(MCP_SERVER_TITLE).toBe('eno Agentic Commerce')
+    expect(body.result.serverInfo.name).toBe(MCP_SERVER_TITLE)
     // What directories show for the server (Manufact, mcptry, 2026-11-13): title, description, website and an icon of at
     // least 128px — the website and icon on THIS deployment's origin, never another edition's.
     const info = body.result.serverInfo
-    expect(info.title).toBe(`${SITE_NAME} Partner API`)
+    expect(info.title).toBe(MCP_SERVER_TITLE)
     expect(info.description.length).toBeGreaterThan(40)
     expect(new URL(info.websiteUrl).host).toBe(new URL(info.icons[0].src).host)
     // …and that origin is THIS edition's own host (apex or www) — eno.vn's server must never point at eno.forum.
@@ -126,7 +130,11 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       ...looseOrOptional(s.items as Obj | undefined, `${at}[]`),
       ...[...(s.anyOf ?? []), ...(s.oneOf ?? []), ...(s.allOf ?? [])].flatMap((x) => looseOrOptional(x as Obj, at)),
     ]
-    for (const t of result.tools) {
+    // The shop, chat and ad tools (TOOLS). The search and docs tools beside them keep their own servers' standards
+    // (search.test.ts, docs.test.ts) and are pinned below as reads that need no credential.
+    const shopTools = result.tools.filter((t: { name: string }) => TOOLS.some((x) => x.name === t.name))
+    expect(shopTools.length).toBe(TOOLS.length)
+    for (const t of shopTools) {
       const scope = TOOLS.find((x) => x.name === t.name)!.scope
       // A hint is not enforcement (the key's scopes are), but a read hint on a write tool would let a client skip asking.
       expect(t.annotations?.readOnlyHint, `${t.name}: readOnlyHint must say what its scope says`).toBe(scope.endsWith(':read'))
@@ -148,6 +156,33 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       expect(t.outputSchema.$schema, `${t.name}: no meta-schema URI for a client validator to choke on`).toBeUndefined()
       expect(t.title.length, `${t.name}: a title is a short label`).toBeLessThanOrEqual(40)
     }
+  })
+
+  it('one server: the search and docs tools are listed and answer WITHOUT a credential; a shop tool still asks for one', async () => {
+    const { POST } = await import('./route')
+    const { TOOLS } = await import('@/lib/mcp/tools')
+    const { SEARCH_TOOLS } = await import('./search/tools')
+    const { DOCS_TOOLS } = await import('@/lib/mcp/docs-tools')
+    const names = (await (await POST(post({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).json()).result.tools.map((t: { name: string }) => t.name)
+    expect(names).toEqual([...SEARCH_TOOLS, ...TOOLS, ...DOCS_TOOLS].map((t) => t.name))
+    expect(new Set(names).size, 'no name is served twice').toBe(names.length)
+    const open = await POST(post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_categories', arguments: {} } }))
+    expect(open.status).toBe(200)
+    const body = await open.json()
+    expect(body.result.isError).toBeUndefined()
+    expect(body.result.structuredContent.categories.length).toBeGreaterThan(0)
+    expect(body.result.structuredContent.categories.some((c: { slug: string }) => c.slug === 'teachers'), 'teachers are not served here either').toBe(false)
+    // In one batch with a public call, a shop call still makes the whole request ask for a credential.
+    const shut = await POST(post([
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_categories', arguments: {} } },
+      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_shop', arguments: {} } },
+    ]))
+    expect(shut.status).toBe(401)
+    expect(shut.headers.get('www-authenticate')).toContain('resource_metadata=')
+    // A keyless body too large to be a search is a shop call (bulk import, sync): the sign-in challenge, never a bare 413.
+    const big = await POST(post({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'bulk_create_listings', arguments: { listings: [{ title: 'x'.repeat(70_000) }] } } }))
+    expect(big.status).toBe(401)
+    expect(big.headers.get('www-authenticate')).toContain('resource_metadata=')
   })
 
   it('⛔ tools/list never advertises a services surface — the licensing pin', async () => {
@@ -215,7 +250,8 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
     const init = (await (await POST(post({ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 't', version: '1' } } }))).json()).result
     expect(init.capabilities.resources).toBeDefined()
     const list = (await (await POST(post({ jsonrpc: '2.0', id: 3, method: 'resources/list' }))).json()).result.resources
-    expect(list).toEqual([expect.objectContaining({ uri: SHOP_UI_URI, mimeType: UI_MIME })])
+    const { SEARCH_UI_URI } = await import('@/lib/mcp/apps')
+    expect(list).toEqual([expect.objectContaining({ uri: SEARCH_UI_URI, mimeType: UI_MIME }), expect.objectContaining({ uri: SHOP_UI_URI, mimeType: UI_MIME })])
     const read = await POST(post({ jsonrpc: '2.0', id: 4, method: 'resources/read', params: { uri: SHOP_UI_URI } }))
     expect(read.status).toBe(200)
     expect((await read.json()).result.contents[0].mimeType).toBe(UI_MIME)

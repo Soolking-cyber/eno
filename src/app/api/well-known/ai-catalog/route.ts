@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER, OAUTH_SCOPES, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
-import { toolDescriptors } from '@/lib/mcp/tools'
+import { allToolDescriptors } from '@/lib/mcp/all-tools'
 import { SITE_NAME } from '@/lib/edition'
 import { COMPANY } from '@/lib/site-legal'
-import { MCP_REGISTRY_URL } from '@/lib/mcp-registry'
+import { MCP_REGISTRY_URL, MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 
 // ── Agentic Resource Discovery · /.well-known/ai-catalog.json ─────────────────────
 // Served at /.well-known/ai-catalog.json via a rewrite in next.config.ts, for the same reason the
@@ -75,7 +75,7 @@ export async function GET() {
    * cannot name a tool the server does not expose, and a tool added there appears here without
    * anybody remembering to. Only the names are used — see the note on that field.
    */
-  const tools = toolDescriptors()
+  const tools = allToolDescriptors()
 
   return NextResponse.json(
     {
@@ -166,8 +166,8 @@ export async function GET() {
            * finds the card only there (probed 2026-11-19: mcp.json, mcp/server-cards.json, mcp/server-card.json).
            */
           url: `${OAUTH_ISSUER}/api/mcp/server-card`,
-          description: `Hosted MCP server at ${OAUTH_ISSUER}/api/mcp — Streamable HTTP, JSON-RPC over POST, stateless. Manage one storefront: listings, bulk import, catalogue sync, analytics, webhooks. An API key is the Bearer token, held in the client's connection config; no tool takes it as an argument.`,
-          tags: ['mcp', 'tools', 'storefront'],
+          description: `${MCP_SERVER_TITLE}, the hosted MCP server at ${OAUTH_ISSUER}/api/mcp — Streamable HTTP, JSON-RPC over POST, stateless. Search the listings with no key; with a shop's sign-in or API key, run its listings, bulk import, catalogue sync, analytics, webhooks, chat and paid ads. The credential is held in the client's connection config; no tool takes it as an argument.`,
+          tags: ['mcp', 'tools', 'storefront', 'search', 'agentic-commerce'],
           /**
            * ARD: "Skill identifiers". The tool names are the only honest answer to that here — and
            * this is the ONE thing this entry adds that the server card deliberately does not carry.
@@ -190,6 +190,7 @@ export async function GET() {
            * an aspirational example routes a request here and then fails it.
            */
           representativeQueries: [
+            'find a furnished apartment for rent in District 2 under 15 million đồng a month',
             "list my shop's active listings",
             'create a listing for a used motorbike with photos',
             'how many views and leads did my listings get last week',

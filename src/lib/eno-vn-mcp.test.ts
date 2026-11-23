@@ -29,9 +29,10 @@ const line = (m: unknown) => JSON.stringify(m)
 const KEY = `eno_live_${'A'.repeat(32)}`
 
 describe('eno-vn-mcp: which server', () => {
-  it('search without a key, shop with one, and --server picks', () => {
-    expect(pickServer([], {})).toEqual({ name: 'search', url: 'https://eno.vn/api/mcp/search', key: null })
-    expect(pickServer([], { ENO_API_KEY: KEY })).toEqual({ name: 'shop', url: 'https://eno.vn/api/mcp', key: KEY })
+  it('the one server by default (2.0.0), with the key when there is one; --server picks an older single-purpose one', () => {
+    expect(pickServer([], {})).toEqual({ name: 'all', url: 'https://eno.vn/api/mcp', key: null })
+    expect(pickServer([], { ENO_API_KEY: KEY })).toEqual({ name: 'all', url: 'https://eno.vn/api/mcp', key: KEY })
+    expect(pickServer(['--server', 'shop'], { ENO_API_KEY: KEY })).toEqual({ name: 'shop', url: 'https://eno.vn/api/mcp', key: KEY })
     expect(pickServer(['--server', 'docs'], {}).url).toBe('https://eno.vn/api/mcp/docs')
     expect(pickServer(['--server=search'], { ENO_API_KEY: KEY }).name).toBe('search')
   })
@@ -43,13 +44,13 @@ describe('eno-vn-mcp: which server', () => {
 
   it('refuses: shop without a key, an unknown server or argument, a placeholder key, a non-https or non-origin base', () => {
     expect(() => pickServer(['--server', 'shop'], {})).toThrow(UsageError)
-    expect(() => pickServer(['--server', 'admin'], {})).toThrow(/search, docs or shop/)
+    expect(() => pickServer(['--server', 'admin'], {})).toThrow(/all, search, docs or shop/)
     expect(() => pickServer(['--server', 'constructor'], {})).toThrow(UsageError)
     expect(() => pickServer(['--verbose'], {})).toThrow(/unknown argument/)
     expect(() => pickServer([], { ENO_API_KEY: 'eno_live_…' })).toThrow(/placeholder/)
     expect(() => pickServer([], { ENO_BASE_URL: 'http://eno.vn' })).toThrow(/https/)
     expect(() => pickServer([], { ENO_BASE_URL: 'https://eno.vn/x' })).toThrow(/bare origin/)
-    expect(pickServer([], { ENO_BASE_URL: 'http://localhost:3000' }).url).toBe('http://localhost:3000/api/mcp/search')
+    expect(pickServer([], { ENO_BASE_URL: 'http://localhost:3000' }).url).toBe('http://localhost:3000/api/mcp')
   })
 
   it('the usage names every server and the client config', () => {
@@ -173,10 +174,10 @@ describe('eno-vn-mcp: the package', () => {
     expect(pkg.dependencies).toBeUndefined()
     expect(pkg.files).toContain('bin/eno-vn-mcp.mjs')
   })
-  it('names its official MCP Registry entry (mcpName): the registry checks it to tie the npm package to vn.eno/search', () => {
-    // The default server without a key is search, so the package is that entry's local form (owner 2026-11-16 "yes").
-    expect(pkg.mcpName).toBe('vn.eno/search')
-    expect(pickServer([], {}).name).toBe('search')
+  it('names its official MCP Registry entry (mcpName): the registry checks it to tie the npm package to vn.eno/commerce', () => {
+    // The default is the one server (owner 2026-11-23), so the package is vn.eno/commerce's local form.
+    expect(pkg.mcpName).toBe('vn.eno/commerce')
+    expect(pickServer([], {}).name).toBe('all')
   })
   it('its version is the one the program reports', () => {
     expect(readFileSync(new URL('../../packages/eno-vn-mcp/bin/eno-vn-mcp.mjs', import.meta.url), 'utf8')).toContain(`export const VERSION = '${pkg.version}'`)
