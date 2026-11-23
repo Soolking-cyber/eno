@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { SIGN_IN_PLUGIN } from './apple-signin'
 import { NATIVE_OAUTH_REDIRECT } from './native-auth'
 import { signInPluginErrorCode } from './native-sign-in-plugin'
+import { CHAT_CATEGORY, CHAT_REPLY_ACTION } from './native-push-reply'
 
 /**
  * ⛔ NO CI JOB COMPILES THE iOS SHELL, SO THIS IS WHAT KEEPS ITS NATIVE FILES AND THE WEB CONTRACTS IN STEP.
@@ -126,9 +127,10 @@ describe('the shell carries the plugin into the binary', () => {
     expect(pbx).toMatch(/\/\* EnoSignInPlugin\.swift \*\/ = \{isa = PBXFileReference; lastKnownFileType = sourcecode\.swift; path = EnoSignInPlugin\.swift;/)
     // The App target's version, Debug and Release alike — build 3 is still 1.0.3 (plan §7.18), and a later bump moves
     // both lines together. Not pinned to 1.0.3 itself: the next version must not fail this suite. (The build NUMBER is
-    // scripts/ios-release.sh's to write; it is not asserted here.)
+    // scripts/ios-release.sh's to write; it is not asserted here.) Since 1.3 the two app extensions carry the same
+    // version in their own two configurations each — App Store Connect refuses an extension at another version.
     const versions = [...pbx.matchAll(/MARKETING_VERSION = ([\d.]+);/g)].map((m) => m[1])
-    expect(versions).toHaveLength(2)
+    expect(versions).toHaveLength(6)
     expect(new Set(versions).size).toBe(1)
     const [major = 0, minor = 0, patch = 0] = versions[0].split('.').map(Number)
     expect(major * 1e6 + minor * 1e3 + patch).toBeGreaterThanOrEqual(1_000_003)
@@ -374,5 +376,127 @@ describe('the UIScene life cycle (iOS 27 SDK groundwork — TN3187, ITMS-90725)'
     for (const call of ['app?.deliver(', 'app?.continueWeb(', 'app?.forward(shortcutItem:', 'EnoShell.plainLaunch =', 'app?.window = window']) {
       expect(scene).toContain(call)
     }
+  })
+})
+
+/**
+ * iOS 1.3 — the Home Screen widget and rich notifications (owner, 2026-11-23: "make it super native"). Two app extensions
+ * added to project.pbxproj BY HAND, and a three-way contract (server payload ↔ Swift category ↔ web listener) that only a
+ * device would otherwise test. No CI job compiles the shell, so this is what notices a target dropped from the embed
+ * phase, a source file left out of its target, or a renamed category.
+ */
+describe('iOS 1.3 — EnoWidgets (Home Screen widget) and EnoNotify (notification photo)', () => {
+  const pbx = read('ios/App/App.xcodeproj/project.pbxproj')
+  const section = (name: string) => pbx.slice(pbx.indexOf(`/* Begin ${name} section */`), pbx.indexOf(`/* End ${name} section */`))
+  /** One object's body in the project, by its id. */
+  const object = (id: string) => {
+    // Its DEFINITION: a line indented exactly two tabs (a reference to it in a list is indented four).
+    const start = pbx.indexOf(`\n\t\t${id} /* `)
+    if (start < 0) throw new Error(`${id} not in project.pbxproj`)
+    return pbx.slice(start, pbx.indexOf('\n\t\t};', start))
+  }
+  const targetId = (name: string) => section('PBXNativeTarget').match(new RegExp(`\\t\\t(\\w{24}) /\\* ${name} \\*/ = \\{`))?.[1] ?? ''
+  const phaseIds = (target: string) => [...object(targetId(target)).matchAll(/(\w{24}) \/\* ([^*]+) \*\//g)].map((m) => ({ id: m[1], name: m[2] }))
+  const configs = (target: string) => {
+    const list = object(targetId(target)).match(/buildConfigurationList = (\w{24})/)?.[1] ?? ''
+    return [...object(list).matchAll(/(\w{24}) \/\* (Debug|Release) \*\//g)].map((m) => object(m[1]))
+  }
+
+  it.each([
+    ['EnoWidgets', 'EnoWidgets.swift', 'vn.eno.app.EnoWidgets', '17.0'],
+    ['EnoNotify', 'NotificationService.swift', 'vn.eno.app.EnoNotify', '16.4'],
+  ])('%s is an app extension that compiles %s, signs automatically on the app\'s team, as %s from iOS %s', (target, source, bundle, os) => {
+    const native = object(targetId(target))
+    expect(native).toContain('productType = "com.apple.product-type.app-extension";')
+    expect(native).toContain(`/* ${target}.appex */`)
+    const sources = phaseIds(target).find((p) => p.name === 'Sources')
+    expect(sources).toBeDefined()
+    expect(object(sources!.id)).toContain(`/* ${source} in Sources */`)
+    expect(object(sources!.id).match(/in Sources \*\//g)).toHaveLength(1)
+    const both = configs(target)
+    expect(both).toHaveLength(2)
+    for (const c of both) {
+      expect(c).toContain(`PRODUCT_BUNDLE_IDENTIFIER = ${bundle};`)
+      expect(c).toContain('DEVELOPMENT_TEAM = DTP9SKVFMQ;')
+      expect(c).toContain('CODE_SIGN_STYLE = Automatic;')
+      expect(c).toContain(`IPHONEOS_DEPLOYMENT_TARGET = ${os};`)
+      expect(c).toContain(`INFOPLIST_FILE = ${target}/Info.plist;`)
+      expect(c).toContain('SKIP_INSTALL = YES;')
+      expect(c).not.toContain('CODE_SIGN_ENTITLEMENTS')
+    }
+    // The app's own target keeps its minimum: only the widget needs iOS 17 (containerBackground).
+    for (const c of configs('App')) expect(c).toContain('IPHONEOS_DEPLOYMENT_TARGET = 16.4;')
+  })
+
+  it('the App target builds both first and embeds both in PlugIns (Embed Foundation Extensions, dstSubfolderSpec 13)', () => {
+    const app = object(targetId('App'))
+    const embed = phaseIds('App').find((p) => p.name === 'Embed Foundation Extensions')
+    expect(embed).toBeDefined()
+    const phase = object(embed!.id)
+    expect(phase).toContain('isa = PBXCopyFilesBuildPhase;')
+    expect(phase).toContain('dstSubfolderSpec = 13;')
+    expect(phase).toContain('/* EnoWidgets.appex in Embed Foundation Extensions */')
+    expect(phase).toContain('/* EnoNotify.appex in Embed Foundation Extensions */')
+    const deps = app.match(/dependencies = \(([\s\S]*?)\);/)?.[1] ?? ''
+    const depTargets = [...deps.matchAll(/(\w{24}) \/\* PBXTargetDependency \*\//g)].map((m) => object(m[1]).match(/target = \w{24} \/\* (\w+) \*\//)?.[1])
+    expect(depTargets.sort()).toEqual(['EnoNotify', 'EnoWidgets'])
+    expect(section('PBXProject')).toMatch(/targets = \([\s\S]*\/\* EnoWidgets \*\/[\s\S]*\/\* EnoNotify \*\/[\s\S]*\);/)
+  })
+
+  it('each extension declares its extension point (and the service extension its class)', () => {
+    const widget = read('ios/App/EnoWidgets/Info.plist')
+    expect(plistString(widget, 'NSExtensionPointIdentifier')).toBe('com.apple.widgetkit-extension')
+    const notify = read('ios/App/EnoNotify/Info.plist')
+    expect(plistString(notify, 'NSExtensionPointIdentifier')).toBe('com.apple.usernotifications.service')
+    expect(plistString(notify, 'NSExtensionPrincipalClass')).toBe('$(PRODUCT_MODULE_NAME).NotificationService')
+    expect(read('ios/App/EnoNotify/NotificationService.swift')).toContain('final class NotificationService: UNNotificationServiceExtension')
+    for (const plist of [widget, notify]) {
+      expect(plistString(plist, 'CFBundleShortVersionString')).toBe('$(MARKETING_VERSION)')
+      expect(plistString(plist, 'CFBundleVersion')).toBe('$(CURRENT_PROJECT_VERSION)')
+    }
+  })
+
+  it('the widget reads the site\'s own feed route, takes photos from the optimizer on eno.vn only, and opens listings through the app\'s deep link', () => {
+    const widget = read('ios/App/EnoWidgets/EnoWidgets.swift')
+    expect(widget).toContain('static let endpoint = "https://eno.vn/api/native/widget"')
+    expect(read('src/app/api/native/widget/route.ts')).toContain('export async function GET')
+    expect(widget).toContain('url.scheme == "https", url.host?.lowercased() == "eno.vn"')
+    expect(widget).toContain('url.path == "/_next/image"')
+    expect(widget).toContain('URL(string: "enovn://open?path=" + encoded)')
+    expect(widget).toContain('"/listings/" + listing.id')
+    expect(widget).toContain('.supportedFamilies([.systemSmall, .systemMedium, .systemLarge])')
+    // No App Group, no shared defaults: nothing of the app's (an account, a history) can reach the widget.
+    expect(widget).not.toMatch(/UserDefaults|appGroup|suiteName/)
+  })
+
+  it('the notification extension attaches only an optimizer photo on eno.vn and otherwise delivers the notification as it came', () => {
+    const nse = read('ios/App/EnoNotify/NotificationService.swift')
+    expect(nse).toContain('request.content.userInfo["image"] as? String')
+    expect(nse).toContain('url.scheme == "https", url.host?.lowercased() == "eno.vn"')
+    expect(nse).toContain('url.path == "/_next/image"')
+    expect(nse).toContain('override func serviceExtensionTimeWillExpire()')
+    expect(nse).not.toMatch(/UserDefaults/)
+  })
+
+  it('Reply: the Swift category, the server payload and the web listener use one pair of names, and the action opens the app', () => {
+    const system = read('ios/App/App/EnoSystem.swift')
+    expect(system).toContain(`static let category = "${CHAT_CATEGORY}"`)
+    expect(system).toContain(`static let reply = "${CHAT_REPLY_ACTION}"`)
+    // A FOREGROUND text input: the web sends the words with its own session (no background send, no credential here).
+    expect(system).toMatch(/UNTextInputNotificationAction\(identifier: reply, [^)]*options: \[\.foreground\]/)
+    expect(read('ios/App/App/AppDelegate.swift')).toMatch(/didFinishLaunchingWithOptions[\s\S]{0,800}EnoChatNotifications\.register\(\)/)
+    expect(read('src/lib/native-push.ts')).toContain('category: CHAT_CATEGORY')
+    expect(read('src/components/native/native-push.tsx')).toContain('replyPlan(')
+  })
+
+  it('scripts/ios-release.sh checks both extensions in the archive, one version across targets, and scans their binaries', () => {
+    const script = read('scripts/ios-release.sh')
+    expect(script).toContain('for x in EnoWidgets EnoNotify; do')
+    expect(script).toContain('"$BUNDLE.$x"')
+    expect(script).toContain("MARKETING_VERSION differs between targets")
+    expect(script).toContain('PlugIns/EnoNotify.appex/EnoNotify:\nPlugIns/EnoWidgets.appex/EnoWidgets:'.replace('\\n', '\n'))
+    // The App target's checks still find the App target first.
+    expect(pbx.match(/PRODUCT_BUNDLE_IDENTIFIER = ([\w.-]+);/)?.[1]).toBe('vn.eno.app')
+    expect(pbx.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(2)
   })
 })

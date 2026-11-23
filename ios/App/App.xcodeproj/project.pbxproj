@@ -24,7 +24,43 @@
 		ED0000000000000000000010 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000011 /* SceneDelegate.swift */; };
 		ED0000000000000000000012 /* EnoPhotos.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000013 /* EnoPhotos.swift */; };
 		ED0000000000000000000014 /* EnoSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000015 /* EnoSystem.swift */; };
+		ED0000000000000000000020 /* EnoWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000021 /* EnoWidgets.swift */; };
+		ED000000000000000000002E /* EnoWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000023 /* EnoWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		ED0000000000000000000030 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000031 /* NotificationService.swift */; };
+		ED000000000000000000003E /* EnoNotify.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000033 /* EnoNotify.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		ED000000000000000000002C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ED0000000000000000000028;
+			remoteInfo = EnoWidgets;
+		};
+		ED000000000000000000003C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ED0000000000000000000038;
+			remoteInfo = EnoNotify;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		ED0000000000000000000040 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				ED000000000000000000002E /* EnoWidgets.appex in Embed Foundation Extensions */,
+				ED000000000000000000003E /* EnoNotify.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -48,6 +84,12 @@
 		ED0000000000000000000009 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		ED0000000000000000000007 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		ED0000000000000000000008 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		ED0000000000000000000021 /* EnoWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnoWidgets.swift; sourceTree = "<group>"; };
+		ED0000000000000000000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ED0000000000000000000023 /* EnoWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EnoWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		ED0000000000000000000031 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		ED0000000000000000000032 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ED0000000000000000000033 /* EnoNotify.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EnoNotify.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -59,6 +101,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		ED0000000000000000000026 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED0000000000000000000036 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -67,6 +123,8 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				ED0000000000000000000024 /* EnoWidgets */,
+				ED0000000000000000000034 /* EnoNotify */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -75,6 +133,8 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				ED0000000000000000000023 /* EnoWidgets.appex */,
+				ED0000000000000000000033 /* EnoNotify.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -104,6 +164,24 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		ED0000000000000000000024 /* EnoWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				ED0000000000000000000021 /* EnoWidgets.swift */,
+				ED0000000000000000000022 /* Info.plist */,
+			);
+			path = EnoWidgets;
+			sourceTree = "<group>";
+		};
+		ED0000000000000000000034 /* EnoNotify */ = {
+			isa = PBXGroup;
+			children = (
+				ED0000000000000000000031 /* NotificationService.swift */,
+				ED0000000000000000000032 /* Info.plist */,
+			);
+			path = EnoNotify;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -114,10 +192,13 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				ED0000000000000000000040 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				ED000000000000000000002D /* PBXTargetDependency */,
+				ED000000000000000000003D /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -126,6 +207,40 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		ED0000000000000000000028 /* EnoWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ED0000000000000000000029 /* Build configuration list for PBXNativeTarget "EnoWidgets" */;
+			buildPhases = (
+				ED0000000000000000000025 /* Sources */,
+				ED0000000000000000000026 /* Frameworks */,
+				ED0000000000000000000027 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EnoWidgets;
+			productName = EnoWidgets;
+			productReference = ED0000000000000000000023 /* EnoWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		ED0000000000000000000038 /* EnoNotify */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ED0000000000000000000039 /* Build configuration list for PBXNativeTarget "EnoNotify" */;
+			buildPhases = (
+				ED0000000000000000000035 /* Sources */,
+				ED0000000000000000000036 /* Frameworks */,
+				ED0000000000000000000037 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EnoNotify;
+			productName = EnoNotify;
+			productReference = ED0000000000000000000033 /* EnoNotify.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -140,6 +255,14 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					ED0000000000000000000028 = {
+						CreatedOnToolsVersion = 26.5;
+						ProvisioningStyle = Automatic;
+					};
+					ED0000000000000000000038 = {
+						CreatedOnToolsVersion = 26.5;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -162,6 +285,8 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				ED0000000000000000000028 /* EnoWidgets */,
+				ED0000000000000000000038 /* EnoNotify */,
 			);
 		};
 /* End PBXProject section */
@@ -179,6 +304,20 @@
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				ED0000000000000000000003 /* PrivacyInfo.xcprivacy in Resources */,
 				ED0000000000000000000005 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED0000000000000000000027 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED0000000000000000000037 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -200,7 +339,36 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		ED0000000000000000000025 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ED0000000000000000000020 /* EnoWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED0000000000000000000035 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ED0000000000000000000030 /* NotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		ED000000000000000000002D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ED0000000000000000000028 /* EnoWidgets */;
+			targetProxy = ED000000000000000000002C /* PBXContainerItemProxy */;
+		};
+		ED000000000000000000003D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ED0000000000000000000038 /* EnoNotify */;
+			targetProxy = ED000000000000000000003C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -412,6 +580,98 @@
 			};
 			name = Release;
 		};
+		ED000000000000000000002A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = DTP9SKVFMQ;
+				INFOPLIST_FILE = EnoWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app.EnoWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		ED000000000000000000002B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = DTP9SKVFMQ;
+				INFOPLIST_FILE = EnoWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app.EnoWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		ED000000000000000000003A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = DTP9SKVFMQ;
+				INFOPLIST_FILE = EnoNotify/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app.EnoNotify;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		ED000000000000000000003B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 7;
+				DEVELOPMENT_TEAM = DTP9SKVFMQ;
+				INFOPLIST_FILE = EnoNotify/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app.EnoNotify;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -429,6 +689,24 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ED0000000000000000000029 /* Build configuration list for PBXNativeTarget "EnoWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ED000000000000000000002A /* Debug */,
+				ED000000000000000000002B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ED0000000000000000000039 /* Build configuration list for PBXNativeTarget "EnoNotify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ED000000000000000000003A /* Debug */,
+				ED000000000000000000003B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

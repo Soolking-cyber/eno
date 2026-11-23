@@ -2,6 +2,7 @@ import UIKit
 import CoreSpotlight
 import UniformTypeIdentifiers
 import AppIntents
+import UserNotifications
 
 /// iOS 1.3 — eno in the system (owner, 2026-11-23: "make it super native" → Spotlight + Siri).
 ///
@@ -147,5 +148,28 @@ struct EnoShortcuts: AppShortcutsProvider {
                     shortTitle: "Search eno", systemImageName: "magnifyingglass")
         AppShortcut(intent: OpenEnoIntent(), phrases: ["Open \(\.$place) in \(.applicationName)", "Show my \(\.$place) in \(.applicationName)"],
                     shortTitle: "Open in eno", systemImageName: "square.grid.2x2")
+    }
+}
+
+// MARK: - Chat notifications: Reply (1.3)
+
+/// A chat notification's "Reply" (owner, 2026-11-23: "make it super native" → rich notifications). The server files every
+/// thread push under `category` (src/lib/native-push.ts apnsBody); the names are src/lib/native-push-reply.ts's.
+/// ⛔ A FOREGROUND ACTION: the typed words open the app, and the WEB sends them — native-push.tsx, with the WebView's own
+/// session, after checking the push was for the account signed in. Nothing here holds a credential or calls the server,
+/// and a background send was ruled out on purpose: it would need one.
+enum EnoChatNotifications {
+    static let category = "eno.chat"
+    static let reply = "reply"
+
+    /// Once per launch, before any notification can be answered. The app registers no other category (no local
+    /// notifications plugin), so replacing the set replaces nothing else.
+    static func register() {
+        let vi = Locale.preferredLanguages.first?.lowercased().hasPrefix("vi") == true
+        let action = UNTextInputNotificationAction(identifier: reply, title: vi ? "Trả lời" : "Reply", options: [.foreground],
+                                                   textInputButtonTitle: vi ? "Gửi" : "Send", textInputPlaceholder: vi ? "Tin nhắn" : "Message")
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: category, actions: [action], intentIdentifiers: [], options: []),
+        ])
     }
 }

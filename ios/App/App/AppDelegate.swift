@@ -37,6 +37,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // (EnoShell.plainLaunch is set by SceneDelegate: under the UIScene life cycle a launch's link, notification, shortcut or
         // activity arrives in the scene's connection options, never in these launchOptions.)
+        // 1.3: a chat notification's Reply (EnoSystem.swift) — registered before any notification can be answered.
+        EnoChatNotifications.register()
         if let shortcutItem = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             // Cold launch from a quick action. The Capacitor bridge (and the App plugin's
             // capacitorOpenURL observer) doesn't exist yet, so forwarding now would post into the

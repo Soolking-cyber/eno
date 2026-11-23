@@ -23,7 +23,12 @@
 # later headless build hangs at CodeSign (fix once: security set-key-partition-list -S
 # apple-tool:,apple:,codesign: -s ~/Library/Keychains/login.keychain-db).
 # ⛔ Never pass PRODUCT_BUNDLE_IDENTIFIER on the xcodebuild command line: it renames IONCameraLib.framework
-# too and the install fails with DuplicateIdentifier. It lives in project.pbxproj, App target only.
+# too and the install fails with DuplicateIdentifier. It lives in project.pbxproj, per target.
+# 1.3 — TWO APP EXTENSIONS ride in App.app/PlugIns: EnoWidgets.appex (vn.eno.app.EnoWidgets, the Home Screen widget,
+# iOS 17+) and EnoNotify.appex (vn.eno.app.EnoNotify, a chat notification's photo). Neither has entitlements or an App
+# Group. Automatic signing registers both App IDs and makes their profiles on the first archive with
+# -allowProvisioningUpdates — through the Xcode account, or an ASC key with the Admin role. Their version and build are
+# the app's (MARKETING_VERSION is checked below; the build-number bump rewrites every target's CURRENT_PROJECT_VERSION).
 #
 # No `set -e` (a no-op in the agent shell): every step that must stop the run checks its own status.
 
@@ -47,6 +52,9 @@ TEAM=$(grep -m1 -oE 'DEVELOPMENT_TEAM = [A-Z0-9]{10};' "$PBX" | sed -E 's/.* = (
 [ "$(grep -c "DEVELOPMENT_TEAM = $TEAM;" "$PBX")" = "$(grep -c 'DEVELOPMENT_TEAM = ' "$PBX")" ] || fail "project.pbxproj carries more than one DEVELOPMENT_TEAM"
 BUNDLE=$(grep -m1 -oE 'PRODUCT_BUNDLE_IDENTIFIER = [A-Za-z0-9.-]+;' "$PBX" | sed -E 's/.* = (.*);/\1/')
 [ "$(grep -c "PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE;" "$PBX")" = "2" ] || fail "the App target's two PRODUCT_BUNDLE_IDENTIFIER lines disagree"
+# An extension whose CFBundleShortVersionString differs from its app's is refused by App Store Connect (1.3 on).
+[ "$(grep -oE 'MARKETING_VERSION = [0-9.]+;' "$PBX" | sort -u | wc -l | tr -d ' ')" = "1" ] \
+  || fail "MARKETING_VERSION differs between targets — the app and its extensions must carry one version: $(grep -oE 'MARKETING_VERSION = [0-9.]+;' "$PBX" | sort -u | tr '\n' ' ')"
 # The uploaded binary must be a commit (plus the build-number bump made below).
 if [ "$UPLOAD" = "--upload" ] && [ -z "${IOS_RELEASE_ALLOW_DIRTY:-}" ]; then
   DIRTY=$(git status --porcelain -- ios capacitor capacitor.config.ts package.json package-lock.json)
@@ -93,6 +101,14 @@ for f in error.html index.html; do
   grep -q "var ORIGIN = 'https://eno.vn'" "$APP/public/$f" || fail "bundled public/$f does not return to https://eno.vn (capacitor/www ORIGIN)"
 done
 [ "$(pl CFBundleIdentifier)" = "$BUNDLE" ] || fail "CFBundleIdentifier is $(pl CFBundleIdentifier), project says $BUNDLE"
+# 1.3 — the widget and the notification extension, each embedded, named under the app, at the app's version and build.
+for x in EnoWidgets EnoNotify; do
+  XP="$APP/PlugIns/$x.appex/Info.plist"
+  [ -f "$XP" ] || fail "App.app/PlugIns/$x.appex is missing — the Embed Foundation Extensions phase did not run"
+  [ "$(plutil -extract CFBundleIdentifier raw "$XP")" = "$BUNDLE.$x" ] || fail "$x.appex is $(plutil -extract CFBundleIdentifier raw "$XP"), expected $BUNDLE.$x"
+  [ "$(plutil -extract CFBundleShortVersionString raw "$XP")" = "$(pl CFBundleShortVersionString)" ] && [ "$(plutil -extract CFBundleVersion raw "$XP")" = "$BUILD" ] \
+    || fail "$x.appex carries $(plutil -extract CFBundleShortVersionString raw "$XP") ($(plutil -extract CFBundleVersion raw "$XP")), the app $(pl CFBundleShortVersionString) ($BUILD)"
+done
 # The live site is Tailwind v4 = WebKit 16.4+; an older iOS would install the app and render it broken.
 [ "$(pl MinimumOSVersion)" = "16.4" ] || fail "MinimumOSVersion is $(pl MinimumOSVersion), expected 16.4"
 # Owner, 2026-10-06 (Appendix B): eKYC is hidden in the iOS app (ios-hide-kyc ON); the e-Visa flow is NOT (ios-hide-visa
@@ -132,7 +148,9 @@ LOADS=$(find "$APP" -maxdepth 1 -type f \( -name App -o -name 'App.debug.dylib' 
 EXPECTED='App: _OBJC_CLASS_$_NSUserDefaults
 Frameworks/Capacitor.framework/Capacitor:
 Frameworks/Cordova.framework/Cordova:
-Frameworks/IONCameraLib.framework/IONCameraLib: _NSURLCreationDateKey'
+Frameworks/IONCameraLib.framework/IONCameraLib: _NSURLCreationDateKey
+PlugIns/EnoNotify.appex/EnoNotify:
+PlugIns/EnoWidgets.appex/EnoWidgets:'
 SCAN=$(find "$APP" -type f | while read -r f; do
   file "$f" | grep -q Mach-O || continue
   echo "${f#$APP/}: $(nm -u "$f" 2>/dev/null | grep -E 'UserDefaults|CreationDate|ModificationDate|_stat$|_fstat$|_lstat$|getattrlist|systemUptime|mach_absolute_time|VolumeAvailableCapacity|_statfs|_statvfs|FileSystemFreeSize|activeInputModes' | sort -u | tr '\n' ' ' | sed 's/ $//')"
