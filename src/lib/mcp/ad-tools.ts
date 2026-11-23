@@ -50,18 +50,18 @@ const STATS_OUT = z.strictObject({
 })
 
 const OFFER_OUT = z.strictObject({
-  available: z.boolean().describe('Whether ads are on sale now; when false, promote_listing refuses'),
-  price_usdc: z.string().nullable().describe('The price of one WEEK (168 hours) in USDC, e.g. "3.76"; null when not on sale'),
-  price_usdc_per_hour: z.string().nullable().describe('The price of one hour in USDC; any length is the weekly price pro rata. Null when not on sale'),
-  price_usdc_for_hours: z.string().nullable().describe('The price for the `hours` you passed (a week when you passed none); null when not on sale'),
-  min_hours: z.number().describe('The shortest ad, in hours (1)'),
-  max_hours: z.number().describe('The longest ad, in hours'),
-  price_vnd_reference: z.number().describe('The weekly price in Vietnamese đồng, for reference (99000)'),
-  network: z.string().nullable().describe('Where it is paid: a CAIP-2 network id (eip155:8453 is Base); null when not on sale'),
-  duration_days: z.number().describe('The default length in days (a week) when promote_listing gets no `hours`'),
-  placements: z.array(z.string()).describe('Where the ad is shown, first and labelled "Ad"'),
-  public_listings: z.number().describe('Listings public on the marketplace now, the pool the ad is shown among'),
-  running_ads: z.number().describe('Ads running now (they take turns in the one slot)'),
+  available: z.boolean().describe('Whether ads are on sale now; when false, promote_listing refuses and the price fields are null'),
+  price_usdc: z.string().nullable().describe('The price of one week (168 hours) in USDC, as a decimal string such as "3.76"; null when not on sale'),
+  price_usdc_per_hour: z.string().nullable().describe('The price of one hour in USDC, as a decimal string; an ad of any length costs this times its hours. Null when not on sale'),
+  price_usdc_for_hours: z.string().nullable().describe('The price of the `hours` you passed (of a week when you passed none), in USDC: what promote_listing will ask to be paid. Null when not on sale'),
+  min_hours: z.number().describe('The shortest ad you can buy, in hours'),
+  max_hours: z.number().describe('The longest ad you can buy, in hours'),
+  price_vnd_reference: z.number().describe('The weekly price in Vietnamese đồng, to tell a person in Vietnam what it costs; payment is in USDC only'),
+  network: z.string().nullable().describe('Where it is paid: a CAIP-2 network id such as "eip155:8453" (Base); null when not on sale'),
+  duration_days: z.number().describe('How many days an ad runs when promote_listing gets no `hours` (a week)'),
+  placements: z.array(z.string()).describe('Where the ad is shown, one short sentence each: it comes first there, labelled "Ad"'),
+  public_listings: z.number().describe('How many listings are public on the marketplace now: the pool the ad stands out from'),
+  running_ads: z.number().describe('How many ads are running now; running ads take turns in the one ad slot'),
   listing: z.strictObject({
     id: z.string().describe('The listing you asked about'),
     eligible: z.boolean().describe('Whether promote_listing will accept it'),
@@ -71,7 +71,9 @@ const OFFER_OUT = z.strictObject({
 
 const LISTING_ID = z.string().describe('The id of one of this shop\'s live listings, from list_listings')
 // A plain number, bounded by the server (adHours), as this server's other numeric inputs are: the reviewers flag schema bounds.
-const HOURS = z.number().optional().describe(`How many hours the ad runs: a whole number from 1 to ${AD_MAX_HOURS} — 1 to try it, 24 a day, 168 a week, 720 thirty days. Leave it out for a week. Priced pro rata from the weekly price`)
+// Its prose says what to pass, never the bounds again: Manufact flagged "a whole number from 1 to 2160" as validation
+// repeated (2026-11-24); get_ad_offer's `max_hours` states the longest.
+const HOURS = z.number().optional().describe('How long the ad should run, in hours: 24 for a day, 168 for a week, 720 for thirty days, or 1 to try it out. Leave it out for a week. It is priced pro rata from the weekly price; get_ad_offer prices any length before you buy')
 
 export const AD_TOOLS: McpTool[] = [
   {
@@ -117,8 +119,8 @@ export const AD_TOOLS: McpTool[] = [
     annotations: PAID_WRITE,
     input: z.object({ listingId: LISTING_ID, hours: HOURS }),
     output: z.strictObject({
-      ad: AD_OUT.describe('The ad bought'),
-      message: z.string().nullable().describe('What to do next when the payment is still being confirmed; null once the ad is paid'),
+      ad: AD_OUT.describe('The ad bought: its id, its status and when it runs'),
+      message: z.string().nullable().describe('What to do next while the payment is still being confirmed, to pass on to the person; null once the ad is paid'),
     }),
     handler: async (auth, args, ctx) => {
       const cfg = x402Config()

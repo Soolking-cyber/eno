@@ -88,10 +88,47 @@ describe('search_listings', { timeout: 20_000 }, () => {
     expect(h.feedCalls[0].params.get('condition')).toBe('used')
   })
 
-  it('refuses more than 20 rows or an offset past 200 instead of quietly honouring it', async () => {
-    expect((await call('search_listings', { limit: 100 })).body.result.isError).toBe(true)
-    expect((await call('search_listings', { offset: 5000 })).body.result.isError).toBe(true)
+  it('caps a page at 20 rows (a larger limit is capped, as the shop tools\' pager does) and refuses an offset past 200', async () => {
+    await call('search_listings', { limit: 100 })
+    expect(h.feedCalls[0].params.get('limit')).toBe('20')
+    vi.resetModules()
+    await call('search_listings', { limit: 2.7 })
+    expect(h.feedCalls[1].params.get('limit')).toBe('2')
+    h.feedCalls = []
+    // A clamped offset would answer a different page as if it were the one asked for: refused, and the feed never runs.
+    for (const args of [{ offset: 5000 }, { offset: -1 }, { price_min: -5 }]) {
+      vi.resetModules()
+      expect((await call('search_listings', args)).body.result.isError, JSON.stringify(args)).toBe(true)
+    }
+    // JSON carries no NaN or Infinity (they arrive as null, which the schema refuses), so the handler's own guard is
+    // reached only by a direct caller: called directly, it refuses too.
+    const { SEARCH_TOOLS_BY_NAME, SearchToolError } = await import('./tools')
+    for (const args of [{ price_max: Number.NaN }, { price_min: Infinity }, { offset: Number.NaN }]) {
+      await expect(SEARCH_TOOLS_BY_NAME.get('search_listings')!.handler(args), JSON.stringify(args)).rejects.toBeInstanceOf(SearchToolError)
+    }
     expect(h.feedCalls).toHaveLength(0)
+  })
+
+  it('cuts free text to its old bounds in the handler (the schema carries none) and floors a price', async () => {
+    await call('search_listings', { q: `  ${'x'.repeat(500)}  `, province: 'p'.repeat(100), price_min: 5_000_000.9 })
+    const p = h.feedCalls[0].params
+    expect(p.get('q')).toBe('x'.repeat(120))
+    expect(p.get('province')).toBe('p'.repeat(60))
+    expect(p.get('priceMin')).toBe('5000000')
+  })
+
+  it('every answer parses with the tool\'s own CLOSED output schema: no key missing, none extra', async () => {
+    const { SEARCH_TOOLS_BY_NAME } = await import('./tools')
+    const out = (await call('search_listings', { q: 'studio' })).body.result.structuredContent
+    expect(SEARCH_TOOLS_BY_NAME.get('search_listings')!.output.safeParse(out).error?.issues ?? []).toEqual([])
+    // A card missing every optional field still conforms: each value is coerced to its type or null.
+    vi.resetModules()
+    h.feedRows = [{ id: 'bare', title: 'Bare' }]
+    const bare = (await call('search_listings', {})).body.result.structuredContent
+    expect(SEARCH_TOOLS_BY_NAME.get('search_listings')!.output.safeParse(bare).error?.issues ?? []).toEqual([])
+    vi.resetModules()
+    const cats = (await call('list_categories')).body.result.structuredContent
+    expect(SEARCH_TOOLS_BY_NAME.get('list_categories')!.output.safeParse(cats).error?.issues ?? []).toEqual([])
   })
 
   it('a row carries no map pin, seller id or tracker link; a commission listing is flagged sponsored', async () => {
@@ -164,6 +201,25 @@ describe('search_listings', { timeout: 20_000 }, () => {
 describe('get_listing_details', { timeout: 20_000 }, () => {
   const ROW = { id: 'l1', title: 'Studio', description: 'x'.repeat(5000), price: 9e6, priceUnit: 'VND/month', negotiable: true, listingType: 'rent', condition: null, brandSlug: null, model: null, location: 'Thảo Điền', district: null, city: 'Hồ Chí Minh', subcategorySlug: null, images: JSON.stringify(['https://img/1.jpg']), postedAt: new Date('2026-11-12T00:00:00Z'), status: 'active', verified: true, affiliateUrl: null, category: { slug: 'rentals' } }
 
+  it('its answer parses with the tool\'s CLOSED output schema, nullable columns null', async () => {
+    const { SEARCH_TOOLS_BY_NAME } = await import('./tools')
+    for (const d of [ROW, { ...ROW, condition: 'used', brandSlug: 'honda', model: 'Vision', district: 'Quận 7', subcategorySlug: 'apartment-rental', status: 'sold' }]) {
+      h.detail = d
+      vi.resetModules()
+      const out = (await call('get_listing_details', { id: 'l1' })).body.result.structuredContent
+      expect(SEARCH_TOOLS_BY_NAME.get('get_listing_details')!.output.safeParse(out).error?.issues ?? []).toEqual([])
+    }
+  })
+
+  it('an empty or over-long id is not found without a database read (the schema carries no bounds)', async () => {
+    for (const id of ['', '   ', 'x'.repeat(65)]) {
+      vi.resetModules()
+      const r = await call('get_listing_details', { id })
+      expect(r.body.result.content[0].text, JSON.stringify(id)).toContain('not_found')
+    }
+    expect(h.dbReads).toBe(0)
+  })
+
   it('reads through the listing page\'s scope with teachers excluded', async () => {
     h.detail = ROW
     await call('get_listing_details', { id: 'l1' })
@@ -212,7 +268,15 @@ describe('the server', { timeout: 20_000 }, () => {
       expect(t.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false })
       for (const [k, p] of Object.entries((t.inputSchema.properties ?? {}) as Record<string, Row>)) expect(p.description, `${t.name}.${k}`).toBeTruthy()
       expect(t.outputSchema.$schema).toBeUndefined()
-      expect(JSON.stringify(t.outputSchema)).not.toContain('"additionalProperties":false')
+      // THE OUTPUT FORMAT (2026-11-24, the shop tools' since 2026-11-15): every object closed, every key required, every
+      // field described. It replaced this server's open shapes of 2026-11-13, which Manufact scored 30–72 on outputs.
+      const flaws = (s: Row | undefined, at: string): string[] => !s ? [] : [
+        ...(s.properties && s.additionalProperties !== false ? [`${at}: open object`] : []),
+        ...Object.keys(s.properties ?? {}).filter((k) => !(s.required ?? []).includes(k)).map((k) => `${at}.${k}: optional`),
+        ...Object.entries((s.properties ?? {}) as Record<string, Row>).flatMap(([k, p]) => [...(p.description ? [] : [`${at}.${k}: undescribed`]), ...flaws(p, `${at}.${k}`)]),
+        ...flaws(s.items, `${at}[]`),
+      ]
+      expect(flaws(t.outputSchema, t.name)).toEqual([])
     }
     // The same licensing pin as /api/mcp's tools/list (discovery-auth.test.ts).
     const blob = JSON.stringify(result).toLowerCase()

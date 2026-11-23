@@ -81,8 +81,27 @@ describe('docs MCP server', () => {
     expect((await loadDocs('https://eno.vn', t0 + 31_000)).map((d) => d.id)).toContain('auth')
   })
 
+  it('every answer parses with its tool\'s CLOSED output schema, and tools/list says so (closed, required, described)', async () => {
+    const { DOCS_TOOLS_BY_NAME } = await import('@/lib/mcp/docs-tools')
+    const found = (await call('search_docs', { query: 'rate limits' })).structuredContent
+    expect(DOCS_TOOLS_BY_NAME.get('search_docs')!.output.safeParse(found).error?.issues ?? []).toEqual([])
+    const doc = (await call('get_doc', { id: 'agents' })).structuredContent
+    expect(DOCS_TOOLS_BY_NAME.get('get_doc')!.output.safeParse(doc).error?.issues ?? []).toEqual([])
+    type S = { properties?: Record<string, S & { description?: string }>; required?: string[]; additionalProperties?: unknown; items?: S }
+    const flaws = (s: S | undefined, at: string): string[] => !s ? [] : [
+      ...(s.properties && s.additionalProperties !== false ? [`${at}: open object`] : []),
+      ...Object.keys(s.properties ?? {}).filter((k) => !(s.required ?? []).includes(k)).map((k) => `${at}.${k}: optional`),
+      ...Object.entries(s.properties ?? {}).flatMap(([k, p]) => [...(p.description ? [] : [`${at}.${k}: undescribed`]), ...flaws(p, `${at}.${k}`)]),
+      ...flaws(s.items, `${at}[]`),
+    ]
+    const tools = (await rpc('tools/list')).result!.tools as { name: string; outputSchema: S }[]
+    expect(tools.flatMap((t) => flaws(t.outputSchema, t.name))).toEqual([])
+  })
+
   it('rejects bad input as a tool error, and an unknown tool as a JSON-RPC error', async () => {
     expect((await call('search_docs', { query: '' })).isError).toBe(true)
+    expect((await call('search_docs', { query: '   ' })).content[0].text).toContain('invalid_input')
+    expect((await call('get_doc', { id: ' ' })).content[0].text).toContain('not_found')
     expect((await rpc('tools/call', { name: 'delete_everything', arguments: {} })).error!.message).toContain('Unknown tool')
   })
 })

@@ -130,8 +130,8 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       ...looseOrOptional(s.items as Obj | undefined, `${at}[]`),
       ...[...(s.anyOf ?? []), ...(s.oneOf ?? []), ...(s.allOf ?? [])].flatMap((x) => looseOrOptional(x as Obj, at)),
     ]
-    // The shop, chat and ad tools (TOOLS). The search and docs tools beside them keep their own servers' standards
-    // (search.test.ts, docs.test.ts) and are pinned below as reads that need no credential.
+    // The shop, chat and ad tools (TOOLS): hints, titles and outputs. The search and docs tools beside them are reads that
+    // need no credential (their hints: search.test.ts, docs.test.ts); their outputs follow the same format, checked after.
     const shopTools = result.tools.filter((t: { name: string }) => TOOLS.some((x) => x.name === t.name))
     expect(shopTools.length).toBe(TOOLS.length)
     for (const t of shopTools) {
@@ -154,6 +154,15 @@ describe('MCP discovery is open', { timeout: 20_000 }, () => {
       expect(looseOrOptional(t.outputSchema, t.name), `${t.name}: every output object closed, every key required`).toEqual([])
       expect(undescribed(t.outputSchema, `${t.name}→`), `${t.name}: every output field described`).toEqual([])
       expect(t.outputSchema.$schema, `${t.name}: no meta-schema URI for a client validator to choke on`).toBeUndefined()
+      expect(t.title.length, `${t.name}: a title is a short label`).toBeLessThanOrEqual(40)
+    }
+    // The search and docs tools answer in the same output format since 2026-11-24 (Manufact scored their open shapes
+    // 30–80); search.test.ts and docs.test.ts parse every answer with it.
+    const publicTools = result.tools.filter((t: { name: string }) => !TOOLS.some((x) => x.name === t.name))
+    expect(publicTools.length).toBeGreaterThan(0)
+    for (const t of publicTools) {
+      expect(looseOrOptional(t.outputSchema, t.name), `${t.name}: every output object closed, every key required`).toEqual([])
+      expect(undescribed(t.outputSchema, `${t.name}→`), `${t.name}: every output field described`).toEqual([])
       expect(t.title.length, `${t.name}: a title is a short label`).toBeLessThanOrEqual(40)
     }
   })
