@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   ads: [] as Ad[],
   listing: { id: 'l1', title: 'Honda Vision', sellerId: 's1', subcategorySlug: 'motorbikes', category: { slug: 'vehicles' } } as Record<string, any> | null,
   live: 1,
-  chain: { found: false } as { found: boolean; txHash?: string },
+  chain: { found: false } as { found: boolean; txHash?: string; cancelled?: boolean },
   used: false,
 }))
 const matches = (row: Ad, where: Ad): boolean => Object.entries(where).every(([k, v]) => {
@@ -154,10 +154,25 @@ describe('bookAd', () => {
     expect(h.ads).toHaveLength(0)
   })
 
-  it('a refused settlement marks the row failed and shows nothing', async () => {
+  it('⛔ a refused settlement: the buyer hears "refused", the row stays open for the contract to decide (shows nothing)', async () => {
     const r = await book(payload(), facilitator({ ...OK, settle: { success: false, errorReason: 'insufficient_funds', transaction: '', network: 'eip155:84532' } }).f)
     expect(r).toMatchObject({ kind: 'payment_failed', reason: 'insufficient_funds' })
-    expect(h.ads[0].status).toBe('failed')
+    expect(h.ads[0]).toMatchObject({ status: 'unknown', failReason: 'insufficient_funds' })
+    // Past validBefore: never used → failed; used and paid to us (someone submitted it after all) → active.
+    const later = new Date((Number(h.ads[0].authValidBefore) + 601) * 1000)
+    expect((await reconcileAd(cfg, { ...h.ads[0] } as never, facilitator(OK).f, later)).status).toBe('failed')
+  })
+
+  it('a refused settlement that was paid on chain after all → the ad starts', async () => {
+    await book(payload(), facilitator({ ...OK, settle: { success: false, errorReason: 'invalid_exact_evm_payload_signature', transaction: '', network: 'eip155:84532' } }).f)
+    h.chain = { found: true, txHash: TX }
+    expect((await reconcileAd(cfg, h.ads[0] as never, facilitator(OK).f)).status).toBe('active')
+  })
+
+  it('a row handed to the owner (review) answers the buyer plainly, never "pending" forever', async () => {
+    await book(payload(), facilitator({ ...OK, settle: 'throw' }).f)
+    h.ads[0].status = 'review'
+    expect(await book(payload(), facilitator(OK).f)).toMatchObject({ kind: 'refused', status: 409, code: 'payment_under_review' })
   })
 
   it('⛔ a LOST settlement answer is never shown and never forgotten: unknown → found on chain → active', async () => {
@@ -199,9 +214,10 @@ describe('bookAd', () => {
     expect(r).toMatchObject({ status: 'active', txHash: TX })
   })
 
-  it('a re-settle the facilitator refuses is NOT a failure (the first broadcast may still be mining): the row stays unknown', async () => {
+  it('a re-settle the facilitator refuses is NOT a failure (the first broadcast may still be mining): the row becomes unknown', async () => {
     await book(payload(), facilitator({ ...OK, settle: 'throw' }).f)
     const row = h.ads[0]
+    row.status = 'pending'
     row.updatedAt = new Date(Date.now() - 120_000)
     const r = await reconcileAd(cfg, row as never, facilitator({ ...OK, settle: { success: false, errorReason: 'invalid_transaction_state', transaction: '', network: 'eip155:84532' } }).f)
     expect(r.status).toBe('unknown')
@@ -240,6 +256,42 @@ describe('bookAd', () => {
     await reconcileOpenAds(cfg, { sellerId: 's1', resettle: false }, read.f)
     expect(read.calls).toEqual([])
     expect(h.ads[0].status).toBe('pending')
+  })
+
+  it('a settle refusal that does not prove nothing was broadcast (unexpected_settle_error) is NOT failed: unknown, the chain decides', async () => {
+    const r = await book(payload(), facilitator({ ...OK, settle: { success: false, errorReason: 'unexpected_settle_error', transaction: '', network: 'eip155:84532' } }).f)
+    expect(r.kind).toBe('pending')
+    expect(h.ads[0]).toMatchObject({ status: 'unknown', failReason: 'unexpected_settle_error' })
+  })
+
+  it('a CANCELLED authorization (used in the contract, its cancel event on chain, no transfer) is unpaid for good', async () => {
+    await book(payload(), facilitator({ ...OK, settle: 'throw' }).f)
+    const row = h.ads[0]
+    h.used = true
+    h.chain = { found: false, cancelled: true }
+    const r = await reconcileAd(cfg, row as never, facilitator(OK).f, new Date((Number(row.authValidBefore) + 601) * 1000))
+    expect(r).toMatchObject({ status: 'failed', failReason: 'authorization_cancelled' })
+  })
+
+  it('a retry that finds its payment now unpaid for good answers payment_failed, not "still confirming"', async () => {
+    await book(payload(), facilitator({ ...OK, settle: 'throw' }).f)
+    vi.useFakeTimers({ now: (Number(h.ads[0].authValidBefore) + 601) * 1000, toFake: ['Date'] })
+    try {
+      const r = await book(payload(), facilitator(OK).f)
+      expect(r).toMatchObject({ kind: 'payment_failed', reason: 'authorization_expired_unpaid' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('⛔ an `unknown` row (refused or lost — its buyer was told) is NEVER re-sent to the facilitator, only looked up', async () => {
+    await book(payload(), facilitator({ ...OK, settle: { success: false, errorReason: 'insufficient_funds', transaction: '', network: 'eip155:84532' } }).f)
+    const row = h.ads[0]
+    row.updatedAt = new Date(Date.now() - 120_000)
+    const sweep = facilitator(OK)
+    await reconcileOpenAds(cfg, {}, sweep.f)
+    expect(sweep.calls).toEqual([])
+    expect(h.ads[0].status).toBe('unknown')
   })
 })
 

@@ -23,6 +23,17 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
  * (x402/chain.ts), and a retry of the same payload, or `reconcileAd`, activates it once the transfer is found.
  */
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
+
+/**
+ * A settle refusal that PROVES nothing was broadcast (gate review 2026-11-23): the facilitator's own verification codes
+ * (x402 v2 §9 — funds, signature, window, recipient, value, network, scheme, payload), or an HTTP refusal of the call
+ * itself (auth, rate limit). Only these make a row `failed` at once; anything else — unexpected_settle_error,
+ * invalid_transaction_state, a 400 without a body — may follow a broadcast, so the row stays `unknown` for the chain.
+ */
+export function settledBeforeBroadcast(reason: string): boolean {
+  return /^(insufficient_funds|invalid_exact_evm_\w+|invalid_network|invalid_payload|invalid_payment_requirements|invalid_scheme|unsupported_scheme|invalid_x402_version)$/.test(reason) ||
+    /^settle answered (401|403|429)$/.test(reason)
+}
 const DAY_MS = 86_400_000
 
 export type AdRow = Prisma.ListingAdGetPayload<object>
@@ -99,6 +110,8 @@ function rowRequirements(ad: AdRow): PaymentRequirements {
 const EXPIRY_GRACE_S = 600
 /** A pending row untouched this long belongs to a request that died between the row and the settlement. */
 const STALE_PENDING_MS = 60_000
+/** How long a used-but-unmatched authorization is retried before the owner looks at it by hand. */
+const REVIEW_AFTER_MS = 7 * 86_400_000
 
 /**
  * A row whose outcome is not known (gate review 2026-11-23: "a crash before settlement strands the authorization"):
@@ -106,9 +119,10 @@ const STALE_PENDING_MS = 60_000
  *   2. past validBefore + grace AND the contract says the authorization was never used (authorizationState false — the
  *      contract's own storage, not a log search) → FAILED for good: it can no longer move money. Used but no matching
  *      transfer found → stays unknown and is logged for the owner: never "failed", never "nothing was charged";
- *   3. still valid and stale (the request that wrote it died before settling) → settle it again with the stored payload
- *      and the ROW's offer — only when `resettle` (the cron sweep and the buyer's own retry; never a read such as
- *      list_ads). A refusal here is NOT a failure (the first broadcast may still be mining): the row stays unknown.
+ *   3. still `pending`, still valid and stale (the request that wrote it died before the facilitator answered) → settle it
+ *      again with the stored payload and the ROW's offer — only when `resettle` (the cron sweep and the buyer's own retry;
+ *      never a read such as list_ads). An `unknown` row (refused or lost) is never re-sent. A refusal here is NOT a
+ *      failure (the first broadcast may still be mining): the row becomes unknown.
  */
 export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof fetch = fetch, now = new Date(), opts: { resettle?: boolean } = {}): Promise<AdRow> {
   const resettle = opts.resettle ?? true
@@ -121,14 +135,27 @@ export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof 
     const nowSec = now.getTime() / 1000
     if (nowSec > validBefore + EXPIRY_GRACE_S) {
       if (await authorizationUsed(ours, { from: ad.authFrom, nonce: ad.authNonce }, fetchImpl)) {
+        // Used or cancelled. A cancellation (its own event, searched with the payment) moved nothing: unpaid for good.
+        if (hit.cancelled) {
+          await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: 'authorization_cancelled' } })
+          return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
+        }
+        // Used (or cancelled after its window) with no transfer of its own found: never "failed", never shown. After a week
+        // of sweeps it is handed to the owner (`review`: no more automatic retries) — the row holds the whole authorization.
         logWarn('ads.reconcile used but no transfer found', { adId: ad.id })
-        await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'unknown', failReason: 'used_no_transfer_found' } })
+        const review = now.getTime() - ad.createdAt.getTime() > REVIEW_AFTER_MS
+        // Loud: nothing else tells the owner a row needs a person (the row holds the whole authorization to look it up).
+        if (review) logError(new Error('ads: payment needs review'), { op: 'ads.review', adId: ad.id, from: ad.authFrom, nonce: ad.authNonce })
+        await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: review ? 'review' : 'unknown', failReason: 'used_no_transfer_found' } })
         return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
       }
       await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'failed', failReason: 'authorization_expired_unpaid' } })
       return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
     }
-    if (!resettle || now.getTime() - ad.updatedAt.getTime() < STALE_PENDING_MS) return ad
+    // ⛔ ONLY A `pending` ROW IS EVER SETTLED AGAIN — one whose request died before the facilitator answered. An `unknown` row
+    // was refused or lost, and its buyer was told so (and may have signed a new payment since): re-submitting it could charge
+    // twice for one ad they think failed. Those are only LOOKED UP on chain (above), never re-sent (gate review 2026-11-23).
+    if (!resettle || ad.status !== 'pending' || now.getTime() - ad.updatedAt.getTime() < STALE_PENDING_MS) return ad
     const parsed = paymentPayloadSchema.safeParse(ad.payloadJson)
     if (!parsed.success) return ad
     // Re-settling uses the facilitator named by the CURRENT config (the key lives there) with the row's own offer.
@@ -162,14 +189,21 @@ export async function reconcileOpenAds(cfg: X402Config, opts: { sellerId?: strin
   return { checked: rows.length, activated, failed }
 }
 
+function reviewAnswer(ad: AdRow): BookResult {
+  return { kind: 'refused', status: 409, code: 'payment_under_review', message: `This payment is being checked by hand. Write to support@eno.vn with the ad id ${ad.id}.` }
+}
+
 async function outcomeOf(cfg: X402Config, ad: AdRow, listingId: string, sellerId: string, fetchImpl: typeof fetch): Promise<BookResult> {
   if (ad.listingId !== listingId || ad.sellerId !== sellerId) {
     return { kind: 'refused', status: 409, code: 'payment_already_used', message: 'This payment was already used for another ad.' }
   }
   if (ad.status === 'active') return { kind: 'booked', ad, settlement: storedSettlement(ad), replay: true }
   if (ad.status === 'failed') return { kind: 'payment_failed', reason: ad.failReason || 'settle_refused', settlement: (ad.settlementJson as SettlementResponse | null) ?? null }
+  if (ad.status === 'review') return reviewAnswer(ad)
   const after = await reconcileAd(cfg, ad, fetchImpl)
   if (after.status === 'active') return { kind: 'booked', ad: after, settlement: storedSettlement(after), replay: true }
+  if (after.status === 'failed') return { kind: 'payment_failed', reason: after.failReason || 'unpaid', settlement: null }
+  if (after.status === 'review') return reviewAnswer(after)
   return { kind: 'pending', ad: after }
 }
 
@@ -240,16 +274,24 @@ export async function bookAd(p: {
   }
 
   const settled = await facilitatorSettle(p.cfg, payload, ours, fetchImpl)
-  if (settled.kind === 'refused') {
+  if (settled.kind === 'refused' && settledBeforeBroadcast(settled.reason)) {
+    // ⛔ THE BUYER HEARS "REFUSED", THE ROW STAYS OPEN (gate review 2026-11-23): even a verification code can come back
+    // after the money moved (the signed payload is public once sent — anyone may submit it first, and the USDC still lands
+    // in payTo). So the row is `unknown`, and reconcileAd lets the contract decide once the authorization expires: used and
+    // paid to us → the ad starts after all; never used → failed.
     await db.listingAd.updateMany({
       where: { id: row.id, status: 'pending' },
-      data: { status: 'failed', failReason: settled.reason, ...(settled.response ? { settlementJson: settled.response as unknown as Prisma.InputJsonValue } : {}) },
+      data: { status: 'unknown', failReason: settled.reason, ...(settled.response ? { settlementJson: settled.response as unknown as Prisma.InputJsonValue } : {}) },
     })
     return { kind: 'payment_failed', reason: settled.reason, settlement: settled.response }
   }
-  if (settled.kind === 'unknown') {
-    logWarn('ads.settle answer lost', { adId: row.id, detail: settled.detail })
-    await db.listingAd.updateMany({ where: { id: row.id, status: 'pending' }, data: { status: 'unknown', failReason: settled.detail.slice(0, 200) } })
+  if (settled.kind !== 'settled') {
+    // Lost, or refused for a reason that does not prove nothing was broadcast: never "failed" here — the chain decides
+    // (reconcileAd: paid → active; past validBefore and never used → failed).
+    const detail = settled.kind === 'unknown' ? settled.detail : settled.reason
+    logWarn('ads.settle outcome not final', { adId: row.id, detail })
+    if (settled.kind === 'refused' && settled.response) await db.listingAd.updateMany({ where: { id: row.id, status: 'pending' }, data: { settlementJson: settled.response as unknown as Prisma.InputJsonValue } })
+    await db.listingAd.updateMany({ where: { id: row.id, status: 'pending' }, data: { status: 'unknown', failReason: detail.slice(0, 200) } })
     const fresh = await db.listingAd.findUniqueOrThrow({ where: { id: row.id } })
     const after = await reconcileAd(p.cfg, fresh, fetchImpl)
     if (after.status === 'active') return { kind: 'booked', ad: after, settlement: storedSettlement(after), replay: false }
@@ -285,7 +327,7 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
   // ⛔ LOOK-UP ONLY (resettle: false): this answers a read (list_ads is readOnlyHint), so it never asks for a settlement.
   if (cfg) await reconcileOpenAds(cfg, { sellerId, limit: 5, resettle: false }).catch((e) => logError(e, { op: 'ads.reconcile-shop' }))
   const ads = await db.listingAd.findMany({
-    where: { sellerId, status: { in: ['active', 'pending', 'unknown'] } },
+    where: { sellerId, status: { in: ['active', 'pending', 'unknown', 'review'] } },
     orderBy: { createdAt: 'desc' },
     take: Math.min(Math.max(limit, 1), 100),
   })
