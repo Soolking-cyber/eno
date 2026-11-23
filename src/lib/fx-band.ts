@@ -14,8 +14,8 @@
  * custom-budget field additionally refuses to submit, because there the number becomes the model's
  * spending target rather than a hint. Both were flagged in review as accepting an absurd rate.
  */
-export function vndPerUsd(rates: Record<string, number>): number | null {
-  const perVnd = rates.USD
+export function vndPerUsd(rates: Record<string, number> | null | undefined): number | null {
+  const perVnd = rates?.USD
   if (!perVnd || !Number.isFinite(perVnd) || perVnd <= 0) return null
   const rate = 1 / perVnd
   return rate >= 5_000 && rate <= 100_000 ? rate : null
@@ -38,8 +38,8 @@ const NOMINAL_PER_USD: Readonly<Record<string, number>> = {
  * dollar rate passes `vndPerUsd` AND the currency's own cross rate (units per dollar) sits within 3× of its nominal one —
  * which still catches an un-inverted, thousand-scaled, zero or NaN value, each of which lands orders of magnitude away.
  */
-export function perVndRate(rates: Record<string, number>, currency: string): number | null {
-  if (!vndPerUsd(rates)) return null
+export function perVndRate(rates: Record<string, number> | null | undefined, currency: string): number | null {
+  if (!rates || !vndPerUsd(rates)) return null
   if (currency === 'USD') return rates.USD
   const nominal = NOMINAL_PER_USD[currency]
   const r = rates[currency]
@@ -53,7 +53,7 @@ export function perVndRate(rates: Record<string, number>, currency: string): num
  * and dollars again whenever the pick's rate fails `perVndRate`, so a broken rate degrades to the old "≈ $", never to a
  * wrong figure. Null when even the dollar rate is unusable: no "≈" at all.
  */
-export function approxCurrency(picked: string, rates: Record<string, number>): { code: string; rate: number } | null {
+export function approxCurrency(picked: string, rates: Record<string, number> | null | undefined): { code: string; rate: number } | null {
   if (picked && picked !== 'VND' && picked !== '₫' && picked !== 'USD') {
     const r = perVndRate(rates, picked)
     if (r) return { code: picked, rate: r }
