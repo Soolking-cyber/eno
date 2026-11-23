@@ -41,7 +41,8 @@ export function titleWithSite(title: string, siteName: string, max = 70): string
 /**
  * A listing's <title>: "<title> — <price> | <site>" within `max` characters (Seobility, 2026-11-23: imported titles measured
  * 953–1045 px against the ~580 px a result shows, ~60 characters). The site's name goes first, then the title is cut at a word;
- * the price is never cut.
+ * the price is never cut. ⚠️ So a stated salary range long enough to leave the title under 24 characters ("15–25 triệu / tháng"
+ * and longer) runs past `max`: a title that says nothing is worse than a long one.
  */
 export function titleWithPrice(title: string, price: string, siteName: string, max = 60): string {
   const tail = price ? ` — ${price}` : ''

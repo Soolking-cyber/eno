@@ -304,9 +304,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // In the page's language: the variant's price grouping (titlePrice) and category name — a Vietnamese description never
   // reads "12,000,000 đ, Furniture". ⛔ "Free" only while POSTING_IS_FREE (site-identity.ts) says so.
   const place = [vi ? listing.category.nameVi || listing.category.name : listing.category.name, listing.location].filter(Boolean).join(', ')
-  // Without "on <site>" (the <title> carries it): 51 characters, so a ~100-character body still reaches Bing's 120 under the
-  // 155 cap (Seobility, 2026-11-23); at 60 it was skipped whole and the description stayed short.
-  const siteLine = !POSTING_IS_FREE ? '' : vi ? 'Rao vặt miễn phí cho người nước ngoài và người Việt.' : 'Free classifieds for expats and locals in Vietnam.'
+  // ~40 characters, so a ~100-character body still reaches Bing's 120 under the 155 cap (Seobility, 2026-11-23): the old 60-character
+  // line was skipped whole there and the description stayed short. It keeps the site's name, which a long <title> drops (titleWithPrice).
+  const siteLine = !POSTING_IS_FREE ? '' : vi ? `Rao vặt miễn phí tại Việt Nam trên ${SITE_NAME}.` : `Free classifieds in Vietnam on ${SITE_NAME}.`
   const desc = bodyDesc
     ? fillDescription(bodyDesc, [[titlePrice, place].filter(Boolean).join(', ') && `${[titlePrice, place].filter(Boolean).join(', ')}.`, siteLine])
     // The composed fallback is English on both variants (above), so its closing line is too.
