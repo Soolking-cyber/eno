@@ -2830,6 +2830,15 @@ html.os-android [data-store="ios"] {
 html.native .standalone-back { display: flex; }
 html.native .standalone-back + [data-header-logo] { display: none; }
 
+/* ⛔ THE iOS 1.2 SHELL DRAWS THE TAB BAR NATIVELY (owner, 2026-11-23: "make ios app more native"; ios-shell-bridge.tsx). The web
+   nav stays exactly where and how big it is — invisible, NEVER display:none — so no page's bottom spacing, fixed bar or
+   keyboard rule moves; the native UITabBar sits over the same strip and reads its labels, current tab, badges and
+   visibility from it. `display` is left to the web's own rules: a page that hides the nav still hides it, and the shell
+   reads that as "no tab bar here". Only a shell that announces it (window.__enoShell.tabs → html.native-tabbar, set before first
+   paint) gets this — and ⛔ THE SHELL TAKES THE CLASS AWAY whenever its own bar is not on screen (an open sheet, a page that
+   never answered, any misread), so the web nav comes back rather than leaving the reader with no nav at all (review). */
+html.native-tabbar .mobile-nav { visibility: hidden; pointer-events: none; }
+
 /* ⚠️ THE FOOTER'S LINK GROUPS ARE AN ACCORDION ON A PHONE AND ALWAYS OPEN FROM sm UP. Measured on
    prod at 390: the fully expanded footer was 1,748px — five link groups stacked above the legal block.
    footer.tsx wraps the groups in ui/accordion (hiddenUntilFound, so a closed group's links stay in the

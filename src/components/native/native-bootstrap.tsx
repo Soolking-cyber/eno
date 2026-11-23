@@ -296,7 +296,9 @@ export function NativeBootstrap() {
   // survives no finger movement fires the sheet; the follow-up tap (which would navigate) is
   // swallowed once.
   useEffect(() => {
-    if (!isNative()) return
+    // ⛔ NOT WHERE THE SHELL DRAWS ITS OWN MENU (iOS 1.2, `native-menus`): a long-press on a card opens the native preview
+    // with its actions (ios-shell-bridge.tsx), and this sheet would open on top of it.
+    if (!isNative() || document.documentElement.classList.contains('native-menus')) return
     let timer: ReturnType<typeof setTimeout> | null = null
     let suppressClick = false
     const clear = () => { if (timer) { clearTimeout(timer); timer = null } }

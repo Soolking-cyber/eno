@@ -29,6 +29,7 @@ import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
+import { IosShellBridge } from "@/components/native/ios-shell-bridge";
 import { AppSheetHost } from "@/components/native/app-sheet-host";
 import { NativePush } from "@/components/native/native-push";
 import { NativeBadge } from "@/components/native/native-badge";
@@ -62,6 +63,7 @@ export function Providers({
               and (needs LanguageProvider) localizes the long-press action sheet. Still inside
               ThemeProvider, so status-bar theming is unchanged. */}
           <NativeBootstrap />
+          <IosShellBridge />
           <SkipLink />
           {/* THE AMENDMENT STRIP (tos-change-notice.tsx) IS NOT MOUNTED: every amendment is immediate — the Terms'
               version 3 (2026-10-07) and, since the owner's "apply from now no need for warning" (2026-10-15),
