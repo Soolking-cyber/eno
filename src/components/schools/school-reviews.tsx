@@ -160,6 +160,12 @@ function HelpfulVote({ review }: { review: PublicReview }) {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         revert()
+        if (body?.error === 'teacher_profile_required') {
+          toast.error(tr('Only teachers can rate reviews. Create your free teacher profile first.', 'Chỉ giáo viên mới có thể đánh giá bài viết. Hãy tạo hồ sơ giáo viên miễn phí trước.'), {
+            action: { label: tr('Create profile', 'Tạo hồ sơ'), onClick: () => { window.location.href = '/teachers/join' } },
+          })
+          return
+        }
         toast.error(
           body?.error === 'forbidden' ? tr("You can't rate your own review.", 'Bạn không thể tự đánh giá bài của mình.')
           : body?.error === 'business_account' ? tr('Business accounts cannot rate reviews.', 'Tài khoản doanh nghiệp không thể đánh giá bài viết.')

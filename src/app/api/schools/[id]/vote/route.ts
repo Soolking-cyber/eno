@@ -5,7 +5,7 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
-import { isCountedVoter, writeEligibility } from '@/lib/schools/queries'
+import { isCountedVoter, hasTeacherProfile, writeEligibility } from '@/lib/schools/queries'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,10 +31,11 @@ export const POST = route(
     // The school's own shop owner is refused HERE, not only uncounted at read time: a stored vote would
     // start counting the day the shop is unlinked (codex, diff review).
     if (school.seller?.ownerId === profile.id) throw new ApiError('forbidden', 403)
-    const gate = writeEligibility(profile)
+    const gate = writeEligibility(profile, await hasTeacherProfile(profile.id))
     if (!gate.ok) {
       // Each code spelled out as a literal: errors.test.ts harvests the wire vocabulary from literals.
       if (gate.code === 'business_account') throw new ApiError('business_account', 403)
+      if (gate.code === 'teacher_profile_required') throw new ApiError('teacher_profile_required', 403)
       if (gate.code === 'phone_required') throw new ApiError('phone_required', 403)
       throw new ApiError('account_restricted', 403)
     }

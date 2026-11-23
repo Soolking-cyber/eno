@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+// Only teachers vote on, review and rate schools (owner 2026-11-23): every probe account is one unless a case says not.
+const PROBE_TEACHER = { fullName: 'Probe Teacher', headline: 'English teacher', nationality: 'GB', currentCity: 'Ho Chi Minh City', consentPublicAt: new Date('2026-01-01T00:00:00Z') }
+
 /**
  * The /api/schools write paths end to end against a REAL Postgres (2026-10-04): route wrapper, zod body,
  * eligibility, text screening, pay band, moderation transitions and the database's own CHECKs. Only the
@@ -95,7 +98,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
     await reset()
     const old = new Date(Date.now() - 30 * DAY)
     for (const [id, accountType] of [[T1, 'individual'], [T2, 'individual'], [BIZ, 'business'], [OWNER, 'individual'], [T3, 'individual'], [T4, 'individual'], [T5, 'individual']] as const) {
-      await db.profile.create({ data: { id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType, createdAt: old } })
+      await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType, createdAt: old } })
     }
     await db.seller.create({ data: { id: SHOP, name: 'Probe Route Shop', ownerId: OWNER } })
     await db.school.create({ data: { id: SCHOOL, slug: SCHOOL, name: 'Probe Route School', kind: 'language_centre', sellerId: SHOP } })
@@ -375,7 +378,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
     const [ready, waiting] = [uuid(9213), uuid(9214)]
     const text = { current: false, tenure: '1to2', role: 'teacher', employment: 'full_time', pros: GOOD.pros, cons: GOOD.cons, status: 'pending' }
     try {
-      for (const id of [ready, waiting]) await db.profile.create({ data: { id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+      for (const id of [ready, waiting]) await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
       await db.schoolEmployment.create({ data: { schoolId: SCHOOL2, profileId: ready, method: 'linkedin', status: 'verified', linkedinHash: `${'7'.repeat(64)}`, decidedAt: new Date(), decidedBy: 'probe' } })
       await db.schoolEmployment.create({ data: { schoolId: SCHOOL2, profileId: waiting, method: 'linkedin', status: 'pending', linkedinHash: `${'8'.repeat(64)}`, challenge: 'abcd-efgh', purgeAt: new Date(Date.now() + DAY) } })
       const older = await db.schoolReview.create({ data: { schoolId: SCHOOL2, profileId: waiting, ...text } })
@@ -392,7 +395,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
 
   it('a stale Verify claims nothing: the compare-and-set fails first and the ledger stays empty', async () => {
     const T7 = uuid(9209)
-    await db.profile.create({ data: { id: T7, email: '9209@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T7, email: '9209@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await as(T7)
     expect((await call(proof, 'POST', { id: SCHOOL }, { action: 'linkedin', url: 'linkedin.com/in/probe-attacker', consent: true })).status).toBe(200)
     const seen = await db.schoolEmployment.findUniqueOrThrow({ where: { profileId_schoolId: { profileId: T7, schoolId: SCHOOL } } })
@@ -410,7 +413,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
   it('retention runs on a schedule: a decided proof is erased after 30 days, an undecided one closed after 60', async () => {
     const { sweepProofRetention } = await import('@/lib/schools/employment')
     const T8 = uuid(9210)
-    await db.profile.create({ data: { id: T8, email: '9210@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T8, email: '9210@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     const row = await db.schoolEmployment.create({ data: { schoolId: SCHOOL, profileId: T8, method: 'linkedin', status: 'pending', linkedinUrl: 'https://www.linkedin.com/in/probe-eight/', linkedinHash: `${'3'.repeat(64)}`, challenge: 'abcd-efgh', purgeAt: new Date(Date.now() + DAY) } })
     // T8 writes a review while the proof waits; nobody checks it in time (its 60 days run out).
     await as(T8)
@@ -435,7 +438,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
     await db.profile.delete({ where: { id: T8 } })
     // A review with NO proof row at all (written before proofs existed) goes too, counted from its last change.
     const T9 = uuid(9211)
-    await db.profile.create({ data: { id: T9, email: '9211@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 400 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T9, email: '9211@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 400 * DAY) } })
     const text = { current: false, tenure: '1to2', role: 'teacher', employment: 'full_time', pros: GOOD.pros, cons: GOOD.cons, status: 'published' }
     const stale = await db.schoolReview.create({ data: { schoolId: SCHOOL, profileId: T9, ...text } })
     const fresh = await db.schoolReview.create({ data: { schoolId: SCHOOL2, profileId: T9, ...text } })
@@ -511,7 +514,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
 
   it('withdrawing is no way out of a revocation: a withdrawn proof that once verified can still be revoked', async () => {
     const T11 = uuid(9208)
-    await db.profile.create({ data: { id: T11, email: '9208@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T11, email: '9208@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await as(T11)
     expect((await call(proof, 'POST', { id: SCHOOL2 }, { action: 'linkedin', url: 'linkedin.com/in/probe-eleven', consent: true })).status).toBe(200)
     const p = await db.schoolEmployment.findUniqueOrThrow({ where: { profileId_schoolId: { profileId: T11, schoolId: SCHOOL2 } } })
@@ -532,7 +535,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
 
   it('swapping profiles is no way out of a revocation either: every profile the account proved is burnt', async () => {
     const T13 = uuid(9215)
-    await db.profile.create({ data: { id: T13, email: '9215@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T13, email: '9215@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await as(T13)
     expect((await call(proof, 'POST', { id: SCHOOL2 }, { action: 'linkedin', url: 'linkedin.com/in/probe-x-thirteen', consent: true })).status).toBe(200)
     let p = await db.schoolEmployment.findUniqueOrThrow({ where: { profileId_schoolId: { profileId: T13, schoolId: SCHOOL2 } } })
@@ -565,7 +568,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
 
   it('a revocation never burns a profile the account does not own (no griefing a victim whose URL it submitted)', async () => {
     const T14 = uuid(9216)
-    await db.profile.create({ data: { id: T14, email: '9216@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T14, email: '9216@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await as(T14)
     expect((await call(proof, 'POST', { id: SCHOOL }, { action: 'linkedin', url: 'linkedin.com/in/probe-a-fourteen', consent: true })).status).toBe(200)
     const own = await db.schoolEmployment.findUniqueOrThrow({ where: { profileId_schoolId: { profileId: T14, schoolId: SCHOOL } } })
@@ -586,7 +589,7 @@ describe.skipIf(!live)('/api/schools routes against a real Postgres', () => {
 
   it("an erased account's profile stays spent (ownerless key); a hidden school still lets a teacher withdraw", async () => {
     const T10 = uuid(9212)
-    await db.profile.create({ data: { id: T10, email: '9212@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: T10, email: '9212@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await as(T10)
     expect((await call(proof, 'POST', { id: SCHOOL }, { action: 'linkedin', url: 'linkedin.com/in/probe-ten', consent: true })).status).toBe(200)
     h.admin = 'probe-admin@eno.vn'

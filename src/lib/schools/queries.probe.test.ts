@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+// Only teachers vote on, review and rate schools (owner 2026-11-23): every probe account is one unless a case says not.
+const PROBE_TEACHER = { fullName: 'Probe Teacher', headline: 'English teacher', nationality: 'GB', currentCity: 'Ho Chi Minh City', consentPublicAt: new Date('2026-01-01T00:00:00Z') }
 // ⛔ THIS PROBE PINS THE STRICT RULES (identity for votes, a 7-day account age, a proof for reviews): they are off in
 // production since 2026-10-06 (constants.ts — owner: any signed-in account votes and reviews) but stay in the code
 // behind switches, and this keeps them working for the day they are turned back on. The open rules have their own
@@ -48,7 +51,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     await reset()
     const old = new Date(Date.now() - 30 * DAY)
     const mk = (id: string, extra: Record<string, unknown> = {}) =>
-      db.profile.create({ data: { id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType: 'individual', createdAt: old, ...extra } })
+      db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id, email: `${id.slice(-4)}@probe.test`, displayName: 'Probe', accountType: 'individual', createdAt: old, ...extra } })
     await Promise.all([
       mk(P.old1), mk(P.old2), mk(P.old3), mk(P.old4), mk(P.old5),
       mk(P.young, { createdAt: new Date(Date.now() - 2 * DAY) }),
@@ -94,6 +97,21 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     expect(s.counts[SCHOOL_B]).toEqual({ up: 0, down: 2 })
     // The young voter still sees their OWN vote (it is stored, just not counted yet).
     expect(s.mine[SCHOOL]).toBe(1)
+  })
+
+  // Owner 2026-11-23: "to upvote or downvote or comment on school users should have teacher profiles" — read at COUNT time
+  // too, so a vote stored by an account without one (before the rule, or after its profile was deleted) never counts.
+  it('a vote counts only while its author has a teacher profile', async () => {
+    const before = (await q.liveState([SCHOOL], null)).counts[SCHOOL]
+    await db.teacherProfile.delete({ where: { profileId: P.old1 } })
+    try {
+      const after = (await q.liveState([SCHOOL], null)).counts[SCHOOL]
+      const v = await db.schoolVote.findUnique({ where: { schoolId_profileId: { schoolId: SCHOOL, profileId: P.old1 } }, select: { value: true } })
+      expect(v).not.toBeNull()
+      expect(after).toEqual(v!.value === 1 ? { up: before.up - 1, down: before.down } : { up: before.up, down: before.down - 1 })
+    } finally {
+      await db.teacherProfile.create({ data: { ...PROBE_TEACHER, profileId: P.old1 } })
+    }
   })
 
   it('a young account starts counting the moment it ages in — no stored counter to fix', async () => {
@@ -188,7 +206,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
   })
 
   it("erasing a reviewer's account keeps the complaint about their review (the moderation trail)", async () => {
-    const victim = await db.profile.create({ data: { id: uuid(9199), email: 'erase@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    const victim = await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id: uuid(9199), email: 'erase@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     const r = await db.schoolReview.create({ data: { schoolId: SCHOOL_B, profileId: victim.id, current: true, tenure: 'lt1', role: 'teacher', employment: 'full_time', pros: 'x'.repeat(30), cons: 'y'.repeat(30), status: 'published' } })
     const c = await db.schoolReport.create({ data: { kind: 'school_complaint', schoolId: SCHOOL_B, reviewId: r.id, reason: 'reply', detail: 'We would like to reply.' } })
     await db.profile.delete({ where: { id: victim.id } })
@@ -230,7 +248,7 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
 
   it('the vote log records every change in the database (the awards cutoff reads it), and nothing on a cascade', async () => {
     const id = uuid(9199)
-    await db.profile.create({ data: { id, email: '9199@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.profile.create({ data: { teacherProfile: { create: PROBE_TEACHER }, id, email: '9199@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
     await db.schoolVote.create({ data: { schoolId: SCHOOL_B, profileId: id, value: 1 } })
     await db.schoolVote.update({ where: { schoolId_profileId: { schoolId: SCHOOL_B, profileId: id } }, data: { value: -1 } })
     await db.schoolVote.delete({ where: { schoolId_profileId: { schoolId: SCHOOL_B, profileId: id } } })

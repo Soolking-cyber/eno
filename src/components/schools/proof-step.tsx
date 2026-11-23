@@ -64,6 +64,7 @@ export function ProofStep({ schoolId, schoolName, onChange }: { schoolId: string
     : code === 'proof_already_verified' ? tr('You are already verified for this school.', 'Bạn đã được xác minh cho trường này.')
     : code === 'review_changed_reload' ? tr('Your proof changed in the meantime. Refresh the page.', 'Bằng chứng của bạn vừa thay đổi. Hãy tải lại trang.')
     : code === 'phone_required' ? tr('Add a phone number to your account first.', 'Hãy thêm số điện thoại vào tài khoản trước.')
+    : code === 'teacher_profile_required' ? tr('Only teachers can review schools. Create your free teacher profile first.', 'Chỉ giáo viên mới có thể đánh giá trường. Hãy tạo hồ sơ giáo viên miễn phí trước.')
     : code === 'business_account' ? tr('Business accounts cannot review schools.', 'Tài khoản doanh nghiệp không thể đánh giá trường.')
     : code === 'account_restricted' || code === 'forbidden' ? tr('Your account cannot do this right now.', 'Tài khoản của bạn hiện không thể làm việc này.')
     : tr('Not saved. Try again.', 'Chưa lưu được. Thử lại nhé.')

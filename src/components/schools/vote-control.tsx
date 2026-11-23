@@ -56,6 +56,13 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
         if (value === 0) live.setMineOnly(schoolId, prev, at)
         else live.setMine(schoolId, prev, value, at)
         if (res.status === 401) { openSignIn({ note: tr('Sign in to vote on schools.', 'Đăng nhập để bình chọn trường.') }); return }
+        // Only teachers vote on schools (owner 2026-11-23): say so, and offer the free profile.
+        if (d.error === 'teacher_profile_required') {
+          toast.error(tr('Only teachers can vote on schools. Create your free teacher profile first.', 'Chỉ giáo viên mới có thể bình chọn trường. Hãy tạo hồ sơ giáo viên miễn phí trước.'), {
+            action: { label: tr('Create profile', 'Tạo hồ sơ'), onClick: () => { window.location.href = '/teachers/join' } },
+          })
+          return
+        }
         toast.error(
           d.error === 'business_account' ? tr('Business accounts cannot vote on schools.', 'Tài khoản doanh nghiệp không thể bình chọn trường.')
           : d.error === 'account_restricted' ? tr('Your account cannot vote right now.', 'Tài khoản của bạn hiện không thể bình chọn.')

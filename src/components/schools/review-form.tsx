@@ -66,6 +66,8 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
   const YEARS = React.useMemo(() => { const y = new Date().getFullYear(); return Array.from({ length: 12 }, (_, i) => String(y - i)) }, [])
 
   const [loaded, setLoaded] = React.useState(false)
+  // Has this account a teacher profile (the GET says)? Only teachers review schools (owner 2026-11-23).
+  const [teacher, setTeacher] = React.useState(true)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [attempt, setAttempt] = React.useState(0)
   const [existing, setExisting] = React.useState<Mine | null>(null)
@@ -104,6 +106,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         if (gone) return
         const m: Mine | null = d?.review ?? null
         setExisting(m)
+        setTeacher(d?.teacher !== false)
         if (m) {
           setConfirm(true)
           setCurrent(m.current ? 'current' : 'former')
@@ -159,6 +162,23 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
     )
   }
   if (!loaded) return <Skeleton className="h-96 w-full rounded-2xl" />
+
+  // Only teachers review schools (owner 2026-11-23: "to upvote or downvote or comment on school users should have teacher
+  // profiles"): no form the save would refuse — the free profile first. A review already written stays reachable (to read
+  // or delete — commit gate, Opus); its save then says why it is refused.
+  if (!teacher && !existing) {
+    return (
+      <div className="max-w-xl rounded-2xl bg-card p-6 ring-1 ring-border">
+        <p className="text-base font-semibold text-foreground">{tr('Create your teacher profile to review schools', 'Tạo hồ sơ giáo viên để đánh giá trường')}</p>
+        <p className="mt-2 text-sm text-body">
+          {tr('Only teachers can review and vote on schools. Your profile is free, and your name is never shown on a review.', 'Chỉ giáo viên mới có thể đánh giá và bình chọn trường. Hồ sơ miễn phí, và tên bạn không bao giờ hiển thị trên đánh giá.')}
+        </p>
+        <Button asChild variant="cta" className="mt-4">
+          <Link href="/teachers/join">{tr('Create teacher profile', 'Tạo hồ sơ giáo viên')}</Link>
+        </Button>
+      </div>
+    )
+  }
 
   if (saved) {
     return (
@@ -223,6 +243,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         : code === 'pay_out_of_range' ? tr('That pay looks off — check the amount and whether it is per hour or per month.', 'Mức lương có vẻ chưa đúng — hãy kiểm tra số tiền và kỳ trả (theo giờ hay theo tháng).')
         : code === 'fx_unavailable' ? tr('We could not convert USD right now. Enter the pay in VND, or try again later.', 'Hiện chưa quy đổi được USD. Hãy nhập lương bằng VND hoặc thử lại sau.')
         : code === 'business_account' ? tr('Business accounts cannot review schools.', 'Tài khoản doanh nghiệp không thể đánh giá trường.')
+        : code === 'teacher_profile_required' ? tr('Only teachers can review schools. Create your free teacher profile first.', 'Chỉ giáo viên mới có thể đánh giá trường. Hãy tạo hồ sơ giáo viên miễn phí trước.')
         : code === 'account_restricted' ? tr('Your account cannot post reviews right now.', 'Tài khoản của bạn hiện không thể đăng đánh giá.')
         : code === 'forbidden' ? tr("A school's own account cannot review it.", 'Tài khoản của chính trường không thể tự đánh giá.')
         : code === 'rate_limited' ? tr('Too many saves — try again in an hour.', 'Bạn lưu quá nhiều lần — thử lại sau một giờ.')

@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
-import { writeEligibility } from '@/lib/schools/queries'
+import { hasTeacherProfile, writeEligibility } from '@/lib/schools/queries'
 import { EXPIRED_PROOF_REASON, PROOFS_PENDING_MAX, REVIEWS_NEED_PROOF } from '@/lib/schools/constants'
 import { PENDING_MAX_DAYS, newChallenge, normaliseLinkedIn, proofConfigured, proofHash, proofKeyMatches, proofKeyMayMatch } from '@/lib/schools/employment'
 
@@ -104,10 +104,11 @@ export const POST = route(
     // other edition already hashes with (employment.ts proofKeyMatches).
     if (!proofConfigured() || !(await proofKeyMatches())) throw new ApiError('not_configured', 503)
     // The same who-may-write rule as votes and reviews; the school's own shop owner can never prove employment.
-    const gate = writeEligibility(profile)
+    const gate = writeEligibility(profile, await hasTeacherProfile(profile.id))
     if (!gate.ok) {
       // Each code spelled out as a literal: errors.test.ts harvests the wire vocabulary from literals.
       if (gate.code === 'business_account') throw new ApiError('business_account', 403)
+      if (gate.code === 'teacher_profile_required') throw new ApiError('teacher_profile_required', 403)
       if (gate.code === 'phone_required') throw new ApiError('phone_required', 403)
       throw new ApiError('account_restricted', 403)
     }

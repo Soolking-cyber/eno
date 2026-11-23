@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
-import { writeEligibility } from '@/lib/schools/queries'
+import { hasTeacherProfile, writeEligibility } from '@/lib/schools/queries'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { payInBand, screenReviewText, toVnd } from '@/lib/schools/logic'
 import {
@@ -30,7 +30,8 @@ const MINE = {
 
 export const GET = route({ auth: 'profile' }, async ({ profile, params }) => {
   const review = await db.schoolReview.findUnique({ where: { schoolId_profileId: { schoolId: params.id, profileId: profile.id } }, select: MINE })
-  return { review: review && review.status !== 'removed' ? review : null }
+  // `teacher`: the form shows "create your teacher profile" instead of a form the save would refuse (owner 2026-11-23).
+  return { review: review && review.status !== 'removed' ? review : null, teacher: await hasTeacherProfile(profile.id) }
 })
 
 const Body = z.object({
@@ -76,10 +77,11 @@ export const POST = route(
   async ({ profile, body, params }) => {
     const school = await db.school.findFirst({ where: { id: params.id, status: 'active' }, select: { id: true, seller: { select: { ownerId: true } } } })
     if (!school) throw new ApiError('not_found', 404)
-    const gate = writeEligibility(profile)
+    const gate = writeEligibility(profile, await hasTeacherProfile(profile.id))
     if (!gate.ok) {
       // Each code spelled out as a literal: errors.test.ts harvests the wire vocabulary from literals.
       if (gate.code === 'business_account') throw new ApiError('business_account', 403)
+      if (gate.code === 'teacher_profile_required') throw new ApiError('teacher_profile_required', 403)
       if (gate.code === 'phone_required') throw new ApiError('phone_required', 403)
       throw new ApiError('account_restricted', 403)
     }

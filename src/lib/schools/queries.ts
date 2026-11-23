@@ -42,7 +42,8 @@ function standingSql(): Prisma.Sql {
 function eligibleSql(): Prisma.Sql {
   // ⚠️ UTC EXPLICITLY: Prisma stores naive UTC timestamps, and comparing one with now() (timestamptz)
   // reads it in the SESSION time zone — a +7 h error on a database whose session runs in Saigon time.
-  return Prisma.sql`p."createdAt" <= (now() at time zone 'UTC') - make_interval(days => ${ELIGIBLE_ACCOUNT_AGE_DAYS}::int) and ${standingSql()}`
+  return Prisma.sql`p."createdAt" <= (now() at time zone 'UTC') - make_interval(days => ${ELIGIBLE_ACCOUNT_AGE_DAYS}::int) and ${standingSql()}
+    and exists (select 1 from "TeacherProfile" tp where tp."profileId" = p.id)`
 }
 
 /**
@@ -438,6 +439,11 @@ export async function liveState(schoolIds: string[], profileId: string | null) {
 }
 
 /** Does this account's vote count as a person's vote (VOTES_NEED_IDENTITY)? The write routes answer with it. */
+/** Has this account a teacher profile (any status — a hidden one is still a teacher)? The school write rule's input. */
+export async function hasTeacherProfile(profileId: string): Promise<boolean> {
+  return !!(await db.teacherProfile.findUnique({ where: { profileId }, select: { id: true } }))
+}
+
 export async function isCountedVoter(profileId: string): Promise<boolean> {
   // FRESH, not the one-minute memo (diff review): this answers the caller about their OWN vote, and someone who has
   // just verified must not be told to verify. The answer refreshes the memo the counts use.
@@ -457,13 +463,18 @@ export async function myReviewVotes(reviewIds: string[], profileId: string) {
  * A business account, a suspended/held/throttled account or a trust-restricted one cannot; a young account
  * can, and its vote starts counting when it reaches ELIGIBLE_ACCOUNT_AGE_DAYS.
  */
-export function writeEligibility(p: { accountType: string | null; enforcementState: string; trustTier: string; createdAt: Date; phone?: string | null }) {
+export function writeEligibility(p: { accountType: string | null; enforcementState: string; trustTier: string; createdAt: Date; phone?: string | null }, teacher: boolean) {
   if (p.accountType === 'business') return { ok: false as const, code: 'business_account' as const }
   // ⚠️ AN ALLOWLIST, THE SAME ONE THE READ RULE USES (eligibleSql): a state this code has never heard of
   // must not be able to write something that then silently never counts (diff review, Opus).
   if (p.enforcementState !== 'good_standing') return { ok: false as const, code: 'account_restricted' as const }
   if (p.trustTier === 'restricted') return { ok: false as const, code: 'account_restricted' as const }
   if (REQUIRE_PHONE && !p.phone) return { ok: false as const, code: 'phone_required' as const }
+  // ⛔ A TEACHER PROFILE (owner, 2026-11-23: "to upvote or downvote or comment on school users should have teacher profiles"):
+  // a vote on a school, a review, a helpful-vote on a review and a proof all need one — read at write time here (teacher =
+  // hasTeacherProfile) and at count time in eligibleSql, so a vote stored before the rule never counts without one either.
+  // LAST, after the account checks (commit gate, Opus): a restricted account is never sent off to make a profile first.
+  if (!teacher) return { ok: false as const, code: 'teacher_profile_required' as const }
   const countsFrom = new Date(p.createdAt.getTime() + ELIGIBLE_ACCOUNT_AGE_DAYS * 86_400_000)
   return { ok: true as const, countsNow: countsFrom <= new Date(), countsFrom }
 }
