@@ -305,11 +305,13 @@ describe('CategoryGuides', () => {
       { href: '/guides/vn-a-vs-xach-tay', label: 'Chính hãng VN/A vs xách tay, explained', blurb: 'What the model-number suffix means.', lang: 'en' as const },
     ]
     const out = html('en', <CategoryGuides guides={guides} compactOnPhone />)
-    for (const c of ['max-sm:mt-8', 'max-sm:border-t-0', 'max-sm:pt-0', 'max-sm:[--text-section:var(--text-t-h2)]', 'max-sm:py-0', 'max-sm:min-h-12', 'max-sm:flex-row', 'max-sm:items-center', 'max-sm:active:bg-muted', 'max-sm:justify-between', 'max-sm:font-normal', 'max-sm:size-5', 'max-sm:text-muted-foreground']) {
+    for (const c of ['max-sm:mt-8', 'max-sm:border-t-0', 'max-sm:pt-0', 'max-sm:[--text-section:var(--text-t-h2)]', 'max-sm:py-0', 'max-sm:min-h-12', 'max-sm:flex-row', 'max-sm:items-center', 'max-sm:has-[a:active]:bg-muted', 'max-sm:justify-between', 'max-sm:font-normal', 'max-sm:size-5', 'max-sm:text-muted-foreground']) {
       expect(out).toContain(c)
     }
     expect(out.match(/max-sm:hidden/g)).toHaveLength(guides.length) // one blurb per guide, each in the HTML
     for (const g of guides) expect(out).toContain(g.blurb)
+    // The link is the name only (Seobility, 2026-11-23: an anchor of name + blurb was too long); its ::after covers the row.
+    for (const g of guides) expect(out).toMatch(new RegExp(`<a [^>]*after:inset-0[^>]*>${g.label.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}</a>`))
     expect(out).not.toMatch(/\shidden(=|\s|>)/)
     // Desktop's classes are all still there.
     expect(out).toContain('mt-12 border-t border-border pt-8')

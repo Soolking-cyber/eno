@@ -44,7 +44,17 @@ const RAIL_ORDER = [{ rankScore: 'desc' }, { views: 'desc' }, { id: 'desc' }] sa
  * logs it and renders no category rails (`.catch` in (home)/page.tsx). `scopedListingWhere` throws DeskResolutionError by
  * design; the home page's own `publicScope` read rethrows that one first.
  */
-export async function homeCategoryRails(onlyTitleLang?: string): Promise<CategoryRailRow[]> {
+export async function homeCategoryRails(
+  onlyTitleLang?: string,
+  /**
+   * Listings the page already shows above the shelves — the feed's first page (Seobility, 2026-11-23: three Electronics cards
+   * stood in "Recommended" too, the same card twice in one page). Awaited only after each rail's own read, so the home page's
+   * reads still run side by side. Left out only while the rail keeps MIN_LISTINGS without them: a shelf is never dropped for it.
+   */
+  opts: { excludeIds?: Promise<readonly string[]> | readonly string[] } = {},
+): Promise<CategoryRailRow[]> {
+  // A failed first page excludes nothing (and never rejects here unhandled, nor takes the shelves down with it).
+  const shownAbove = Promise.resolve(opts.excludeIds ?? []).catch((): readonly string[] => []).then((ids) => new Set(ids))
   // Rank categories by demand over their live listings (like the brand rail), falling
   // back to listing count where there's no traffic yet.
   const grouped = await db.listing.groupBy({
@@ -123,7 +133,9 @@ export async function homeCategoryRails(onlyTitleLang?: string): Promise<Categor
         })
         cards.push(...more.filter((l) => !have.has(l.id)).map(serializeListingCard))
       }
-      return { slug, listings: diversifyRail(cards, { take: PER_RAIL, min: MIN_LISTINGS, fillCapped: crowding.length > 0 }) }
+      const above = await shownAbove
+      const fresh = above.size ? cards.filter((c) => !above.has(c.id)) : cards
+      return { slug, listings: diversifyRail(fresh.length >= MIN_LISTINGS ? fresh : cards, { take: PER_RAIL, min: MIN_LISTINGS, fillCapped: crowding.length > 0 }) }
     }),
   )
 

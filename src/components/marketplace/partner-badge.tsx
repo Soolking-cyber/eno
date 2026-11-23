@@ -160,6 +160,8 @@ export function PartnerBadge({ size = 'sm', className, asLink = true, onPhoto = 
           <ShieldVerifiedGlyph size={11} className="shrink-0" />
         </span>
         )}
+        {/* The link's words as text too (Seobility, 2026-11-23: an icon-only link read as empty); the aria-label still names it. */}
+        {asLink && !onPhoto && <span className="sr-only">{full}</span>}
       </LinkOrSpan>
     </Tooltip>
   )

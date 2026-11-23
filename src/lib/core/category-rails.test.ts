@@ -105,4 +105,20 @@ describe('homeCategoryRails top-up', () => {
     await homeCategoryRails('en')
     expect(h.wheres.filter((w) => w.AND?.[1]?.sellerId)).toHaveLength(0)
   })
+
+  it('leaves out what the page shows above (the feed\'s first page), never below MIN_LISTINGS (Seobility 2026-11-23)', async () => {
+    h.poolSize = 12
+    const rails = await homeCategoryRails('en', { excludeIds: Promise.resolve(['id-rentals-0', 'id-rentals-1', 'id-jobs-3']) })
+    const rentals = rails.find((r) => r.slug === 'rentals')!.listings.map((l) => l.id)
+    expect(rentals).toEqual(['id-rentals-2', 'id-rentals-3', 'id-rentals-4', 'id-rentals-5', 'id-rentals-6', 'id-rentals-7', 'id-rentals-8', 'id-rentals-9'])
+    expect(rails.find((r) => r.slug === 'jobs')!.listings.map((l) => l.id)).not.toContain('id-jobs-3')
+    h.poolSize = 4
+    const thin = await homeCategoryRails('en', { excludeIds: ['id-services-0'] })
+    expect(thin.find((r) => r.slug === 'services')!.listings.map((l) => l.id)).toContain('id-services-0') // 3 left would be under 4: kept whole
+  })
+  it('a first page that failed excludes nothing and takes no shelf down (gate 2026-11-23)', async () => {
+    const rails = await homeCategoryRails('en', { excludeIds: Promise.reject(new Error('feed down')) })
+    expect(rails.map((r) => r.slug)).toEqual(['rentals', 'jobs', 'services'])
+    expect(rails.every((r) => r.listings.length === 8)).toBe(true)
+  })
 })

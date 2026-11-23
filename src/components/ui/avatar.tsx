@@ -22,7 +22,10 @@ export function Avatar({
   color,
   size = 'md',
   className,
+  alt,
 }: {
+  /** The photo's alt — ONLY a public name the page already prints beside it (a shop's), never by default: see AvatarImage. */
+  alt?: string
   name?: string | null
   url?: string | null
   color?: string | null
@@ -55,7 +58,7 @@ export function Avatar({
           opaque over the initials — but painting the IDENTITY colour there made every transparent
           pixel of a logo come out brand blue (owner, 2026-08-12). The photo plates itself on the
           neutral surface instead; `bg` below still owns the initials, which is its actual job. */}
-      {url && <AvatarImage key={url} src={url} />}
+      {url && <AvatarImage key={url} src={url} alt={alt} />}
     </span>
   )
 }

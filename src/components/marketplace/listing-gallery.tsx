@@ -831,7 +831,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                       aria-label={tr('Video', 'Video')}
                       className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === 0 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                     >
-                      <Image src={images[0]} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" />
+                      <Image src={images[0]} alt={photoAlt(1, images.length)} fill sizes="80px" quality={60} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" />
                       <span className="absolute inset-0 flex items-center justify-center bg-black/25">
                         <Play className="h-6 w-6 fill-white text-white" />
                       </span>
@@ -849,7 +849,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                         aria-label={tr('Photo {n} of {total}', 'Ảnh {n}/{total}').replace('{n}', String(i + 1)).replace('{total}', String(images.length))}
                         className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === s2 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                       >
-                        <Image src={img} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
+                        <Image src={img} alt={photoAlt(i + 1, images.length)} fill sizes="80px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
                       </Button>
                     </CarouselItem>
                   )

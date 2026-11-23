@@ -31,13 +31,17 @@ import { useState } from 'react'
 // genuinely gone, and the fallback is the person's own initials rather than an error state, so
 // the cost of being wrong is low. It self-heals on the next navigation, and a changed `src`
 // remounts via the key in <Avatar>.
-export function AvatarImage({ src }: { src: string }) {
+export function AvatarImage({ src, alt }: { src: string; alt?: string }) {
   const [failed, setFailed] = useState(false)
   if (failed) return null
   return (
     <img
       src={src}
-      alt=""
+      // `alt` only where the caller passes one: a public shop name printed beside the photo (Seobility, 2026-11-23: an empty alt
+      // counts as missing). ⛔ Never the account's name by default — an avatar can stand where the page shows less than the full
+      // name, and the alt would publish it. aria-hidden when set: the name beside it is what a screen reader hears.
+      alt={alt ?? ''}
+      aria-hidden={alt ? true : undefined}
       // Google serves account photos without CORS but rejects some hotlink referrers; sending
       // no referrer is the difference between a photo and a grey circle for anyone who signed
       // in with Google. Harmless for our own Supabase objects, which are public.

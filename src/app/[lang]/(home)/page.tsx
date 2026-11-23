@@ -134,7 +134,8 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // window. `initialFetchedAt` below, stamped in this same render, names the snapshot the answer applies to.
       // ⚠️ LOGGED and fail-soft like the teacher shelf: a failed read is a home page without category lanes for the 6h
       // window, and only the log says why. (`publicScope` above already rethrew a desk failure.)
-      homeCategoryRails(onlyTitleLang).catch((e) => { logError(e, { op: 'home.categoryRails' }); return [] }),
+      // Not the feed's first page again (Seobility, 2026-11-23: the same card twice in one page).
+      homeCategoryRails(onlyTitleLang, { excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch((e) => { logError(e, { op: 'home.categoryRails' }); return [] }),
     ])
 
     // ⚡ PAYLOAD (speed plan item 8): on the /vi ISR entry embed NO titleI18n — a vi reader renders from

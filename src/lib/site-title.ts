@@ -10,7 +10,9 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * Vietnam" over a shelf mostly linked from other sites was a claim, not a description (the Organization
  * note in the layout says the same). It mirrors /about's title; "free" follows POSTING_IS_FREE.
  */
-export const SITE_TITLE = `${SITE_NAME} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam`
+// ⚠️ THE SITE'S NAME LAST, as every other page's "<page> | eno.vn" (Seobility, 2026-11-23: a title that opens on the domain is a
+// "critical" there, on / and /vi). Same words as before.
+export const SITE_TITLE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} for expats and locals in Vietnam | ${SITE_NAME}`
 
 /**
  * The marketplace's short self-description, for the OG and Twitter cards. ⛔ NOT "the community keeps

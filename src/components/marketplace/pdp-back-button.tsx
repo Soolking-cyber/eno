@@ -38,6 +38,8 @@ export function PdpBackButton({ fallbackHref }: { fallbackHref: string }) {
         {/* ChevronLeftIcon, not ChevronLeft: the one in the core sprite, as in the header's own Back. `size-5`, not h-5 w-5:
             ui/button resizes any icon that carries no `size-` class to 16px. */}
         <ChevronLeftIcon className="size-5" aria-hidden />
+        {/* Text in the link, not only aria-label (Seobility, 2026-11-23: an empty link on every listing page). */}
+        <span className="sr-only">{tr('Back', 'Quay lại')}</span>
       </Link>
     </Button>
   )

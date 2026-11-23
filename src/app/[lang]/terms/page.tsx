@@ -79,8 +79,9 @@ import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/c
 // with that gate on (src/lib/app-review-gates.ts); without it the paragraph is false the day it is published.
 
 const METADATA: Metadata = withShare({
-  // The h1's words exactly (it carries the site's name since Seobility, 2026-11-23 — the title and the h1 stay identical).
-  title: `${SITE_NAME} Terms of Service`,
+  // The h1's words exactly (it carries the site's name since Seobility, 2026-11-23 — the title and the h1 stay identical), the
+  // name last: a title that opens on the domain is a "critical" there.
+  title: `Terms of Service for ${SITE_NAME}`,
   // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
   description: `The terms for using ${SITE_NAME}: accounts, posted and linked listings, our role as an intermediary, fees, liability, complaints and governing law.`,
   alternates: { canonical: '/terms' },
@@ -448,7 +449,7 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
   return (
     <ContentPage
       // The site's name in the h1 (Seobility, 2026-11-23: "Terms of Service" was under the 20 characters an h1 should have).
-      title={`${SITE_NAME} Terms of Service`}
+      title={`Terms of Service for ${SITE_NAME}`}
       titleVi={`Điều khoản dịch vụ ${SITE_NAME}`}
       meta={
         <>

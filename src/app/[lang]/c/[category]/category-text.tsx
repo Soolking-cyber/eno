@@ -529,15 +529,18 @@ export function CategoryGuides({ guides, compactOnPhone = false }: {
       <Rows className={cn('mt-2 max-w-3xl lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0', c && 'max-sm:mt-1')}>
         {guides.map((g) => (
           <Row key={g.href} className={c ? 'max-sm:py-0' : undefined}>
-            <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className={cn('group flex flex-col', c && 'max-sm:min-h-12 max-sm:flex-row max-sm:items-center max-sm:py-3 max-sm:active:bg-muted')}>
+            {/* ⚠️ THE LINK IS THE GUIDE'S NAME ONLY, stretched over the row by its ::after (Seobility, 2026-11-23: name + blurb in one
+                <a> was an anchor text of 150+ characters on every category page). The whole row still opens the guide, as before. */}
+            <div className={cn('group relative flex flex-col', c && 'max-sm:min-h-12 max-sm:flex-row max-sm:items-center max-sm:py-3 max-sm:has-[a:active]:bg-muted')}>
               {/* 2026-11-06 audit: the guide's name a step above its blurb (16px over 14px) and the blurb on the reading measure —
                   at one size and 700px wide the rail read as a block of footer links, not buying advice. ⛔ On a goods phone the
                   plain row instead (`compactOnPhone`, owner-approved 2026-11-14, cook r06 goods); from sm this, unchanged. */}
               <span className={cn('flex items-center gap-1 text-base font-semibold text-foreground group-hover:text-accent-foreground', c && 'max-sm:w-full max-sm:justify-between max-sm:gap-4 max-sm:font-normal')}>
-                {g.label} <ArrowRight className={cn('h-4 w-4 shrink-0', c && 'max-sm:size-5 max-sm:text-muted-foreground')} />
+                <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-ring">{g.label}</Link>{' '}
+                <ArrowRight className={cn('h-4 w-4 shrink-0', c && 'max-sm:size-5 max-sm:text-muted-foreground')} />
               </span>
               <span className={cn('mt-1 max-w-prose text-sm leading-relaxed text-body', c && 'max-sm:hidden')}>{g.blurb}</span>
-            </Link>
+            </div>
           </Row>
         ))}
       </Rows>

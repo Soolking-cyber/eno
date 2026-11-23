@@ -218,7 +218,7 @@ export function SellerCard({
               listing, where it is one fact among many (ST-HEADER, 2026-09-29). 84px on a storefront's phone (S1, above). Its
               initials on the closed type scale: the display role (28px) in 84, the h3 role (17px) in 64 — a third of the disc,
               as `lg`'s 16 in 48. */}
-          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={storefront ? 'size-21 text-t-display sm:size-16 sm:text-t-h3' : undefined} />
+          <Avatar name={seller.name} alt={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={storefront ? 'size-21 text-t-display sm:size-16 sm:text-t-h3' : undefined} />
         </span>
         {storefront && (
           <div data-store-stats="" className="flex min-w-0 gap-4 sm:hidden">

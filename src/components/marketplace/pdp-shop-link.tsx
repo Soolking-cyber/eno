@@ -210,7 +210,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
         {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the row's
             note below. */}
         <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="col-start-1 row-span-2 row-start-1 shrink-0 self-center rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
-          <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-11" />
+          <Avatar name={name} alt={name} url={avatarUrl} color={avatarColor} size="lg" className="size-11" />
         </Link>
         <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-end">
           {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
@@ -257,7 +257,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
         {/* The avatar and the name both open the storefront (owner, 2026-07-24); the avatar is the aria-hidden twin — the
             row's note below. */}
         <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className={cn('col-start-1 row-start-1 shrink-0 self-center rounded-full active:opacity-60', allRows)} title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
-          <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className="size-14 ring-1 ring-border" />
+          <Avatar name={name} alt={name} url={avatarUrl} color={avatarColor} size="lg" className="size-14 ring-1 ring-border" />
         </Link>
         <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 self-end">
           {/* `truncate` on the span, `tap-44` on the link: the row's note below. */}
@@ -307,7 +307,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
           row is on every PDP, twice, and /sellers/<id> is a real render (`private, no-store`) — auto prefetch cost
           two origin renders per listing view, for a link most visitors never take. */}
       <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
-        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg"  />
+        <Avatar name={name} alt={name} url={avatarUrl} color={avatarColor} size="lg"  />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -19,7 +19,8 @@ import { X_SITE } from '@/lib/socials'
  * positioning, word for word from the live /about title. No "trusted" (CS-3 claim 1).
  * ⚠️ THE TITLE IS AT 60 CHARACTERS WITH THE FLAG ON. Do not lengthen it.
  */
-export const HOME_TITLE_VI = `${SITE_NAME} — ${POSTING_IS_FREE ? 'rao vặt miễn phí' : 'rao vặt'} cho người nước ngoài và người Việt`
+// The site's name last, as SITE_TITLE (Seobility, 2026-11-23).
+export const HOME_TITLE_VI = `${POSTING_IS_FREE ? 'Rao vặt miễn phí' : 'Rao vặt'} cho người nước ngoài và người Việt | ${SITE_NAME}`
 /** The four shelves are the English description's typed list (layout.tsx SITE_DESCRIPTION); they change together. */
 export const HOME_DESCRIPTION_VI = `${SITE_NAME} là chợ rao vặt${POSTING_IS_FREE ? ' miễn phí' : ''} cho người nước ngoài và người Việt tại Việt Nam: nhà cho thuê, việc làm, nội thất, đồ điện tử và nhiều hơn nữa.`
 
