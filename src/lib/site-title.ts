@@ -8,7 +8,8 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  *
  * ⛔ NO "TRUSTED" (SEO wave B, V2; CS-3 claim 1, owner 2026-10-01): "eno.vn - Trusted Expat Marketplace in
  * Vietnam" over a shelf mostly linked from other sites was a claim, not a description (the Organization
- * note in the layout says the same). It mirrors /about's title; "free" follows POSTING_IS_FREE.
+ * note in the layout says the same). The words are /about's ("About eno.vn — free classifieds …"); the order is not since
+ * 2026-11-23 (the site's name last, below). "free" follows POSTING_IS_FREE.
  */
 // ⚠️ THE SITE'S NAME LAST, as every other page's "<page> | eno.vn" (Seobility, 2026-11-23: a title that opens on the domain is a
 // "critical" there, on / and /vi). Same words as before.

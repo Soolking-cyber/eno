@@ -16,7 +16,7 @@ import { X_SITE } from '@/lib/socials'
  * sends no language, so the card must not depend on which variant it happened to hit.
  * ⚠️ "MIỄN PHÍ" ONLY THROUGH `POSTING_IS_FREE` (site-identity.ts), which cites the legal clauses it rests
  * on; it is rendered from the flag, never typed. "cho người nước ngoài và người Việt" is the site's
- * positioning, word for word from the live /about title. No "trusted" (CS-3 claim 1).
+ * positioning in the /about title's words (the site's name last since 2026-11-23, as SITE_TITLE). No "trusted" (CS-3 claim 1).
  * ⚠️ THE TITLE IS AT 60 CHARACTERS WITH THE FLAG ON. Do not lengthen it.
  */
 // The site's name last, as SITE_TITLE (Seobility, 2026-11-23).
