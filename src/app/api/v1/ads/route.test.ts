@@ -68,12 +68,16 @@ describe('POST /api/v1/ads', () => {
     h.booked = { kind: 'pending', ad: { ...AD, status: 'unknown', startsAt: null, endsAt: null, txHash: null } }
     const pending = await POST(req(PAID))
     expect(pending.status).toBe(202)
-    expect((await pending.json()).message).toMatch(/not be charged twice/)
+    expect((await pending.json()).message).toMatch(/never charged twice/)
     h.booked = { kind: 'payment_failed', reason: 'insufficient_funds', settlement: { success: false, transaction: '', network: 'eip155:8453', errorReason: 'insufficient_funds' } }
     const failed = await POST(req(PAID))
     expect(failed.status).toBe(402)
     expect((decodeHeader(failed.headers.get('PAYMENT-REQUIRED')) as { error: string }).error).toMatch(/insufficient_funds.*never charged twice/)
     expect(decodeHeader(failed.headers.get('PAYMENT-RESPONSE'))).toMatchObject({ success: false })
+    // A final "never charged" reason says so, and does not suggest the payment may still land.
+    h.booked = { kind: 'payment_failed', reason: 'authorization_expired_unpaid', settlement: null }
+    const expired = await POST(req(PAID))
+    expect((decodeHeader(expired.headers.get('PAYMENT-REQUIRED')) as { error: string }).error).toMatch(/expired or was cancelled without being charged/)
     h.booked = { kind: 'refused', status: 403, code: 'not_public', message: 'Only a live, public listing can be advertised.' }
     expect((await POST(req(PAID))).status).toBe(403)
   })
