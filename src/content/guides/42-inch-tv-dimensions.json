@@ -1,0 +1,409 @@
+{
+  "slug": "42-inch-tv-dimensions",
+  "title": "42-Inch TV Dimensions: What the Screen Size Really Means",
+  "description": "A 42-inch TV's picture is about 93 x 52 cm, but the whole set is bigger. See real width, height and depth by model, and how to measure your space before you buy.",
+  "h1": "42-inch TV dimensions: what the screen size measures, and how big the set really is",
+  "eyebrow": "Home and electronics",
+  "intro": "A 42-inch TV measures 42 inches (106.7 cm) diagonally across the screen, so a 16:9 picture is about 36.6 inches wide and 20.6 inches high (93 by 52 cm). The set itself is larger. LG's 42-inch OLED42C5PSA, for example, measures 93.2 cm wide and 54.0 cm high without its stand, according to LG's spec page as of November 2026. Measure your space against the exact model's spec sheet, not against the screen size.",
+  "keyPoints": [
+    "**42 inches is the diagonal** of the screen, corner to corner. It is not the width and it does not include the frame or stand.",
+    "A 16:9 picture on a 42-inch screen works out to about **93.0 cm wide and 52.3 cm high**. That is geometry, so it applies to every 42-inch 16:9 screen.",
+    "The whole set varies by model. LG's OLED42C5PSA is **93.2 x 54.0 x 4.11 cm** without its stand and **93.2 x 57.7 x 17 cm** with it, according to LG as of November 2026.",
+    "The stand changes height and depth far more than width. On the four sets compared below, the stand added between 3.7 and 6.4 cm of height.",
+    "Vietnamese retailers list sizes as **Ngang – Cao – Dày** (width – height – depth), with separate lines for **có chân, đặt bàn** (on its stand) and **không chân, treo tường** (wall-mounted)."
+  ],
+  "sections": [
+    {
+      "id": "what-42-inches-measures",
+      "title": "What 42 inches actually measures",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A TV's screen size is the **diagonal of the screen**, measured from one corner to the opposite corner. It is not the width of the set, and it does not include the plastic or metal frame around the picture or the stand underneath."
+        },
+        {
+          "type": "p",
+          "text": "This is a convention, not a law. The US Federal Trade Commission (FTC) once had a rule about how TV screen sizes could be advertised. It [repealed that rule in a notice published on 9 October 2018](https://www.govinfo.gov/content/pkg/FR-2018-10-09/html/2018-21803.htm), and said the industry standard is now a screen's diagonal dimension. Marketers advertise that diagonal for TVs, monitors, tablets and phones alike. Shops in Vietnam use the same convention: a \"tivi 42 inch\" is 42 inches across the diagonal."
+        },
+        {
+          "type": "p",
+          "text": "Some listings add the word \"class\". LG's US page, for example, calls the same panel a \"42 Inch Class\" TV. When a seller also gives a separate diagonal figure, that figure is the measured screen. Use it, and the maker's dimension table, for anything that has to fit."
+        }
+      ]
+    },
+    {
+      "id": "picture-size",
+      "title": "The picture itself is about 36.6 by 20.6 inches",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On a 42-inch screen with the standard 16:9 shape, the picture is about **36.6 inches wide and 20.6 inches high (93.0 by 52.3 cm)**. These figures come from the diagonal and the 16:9 ratio alone, so they hold for any brand."
+        },
+        {
+          "type": "p",
+          "text": "The calculation is simple. A 16:9 rectangle's diagonal is about 18.36 units when it is 16 units wide and 9 high. Divide 42 by 18.36, then multiply by 16 for the width and by 9 for the height. The picture area comes to roughly 754 square inches, or about 0.49 square metres."
+        },
+        {
+          "type": "table",
+          "caption": "Picture size worked out from the diagonal for 16:9 screens (arithmetic, not a maker's figure)",
+          "headers": [
+            "Screen size",
+            "Diagonal",
+            "Picture width",
+            "Picture height"
+          ],
+          "rows": [
+            [
+              "42-inch",
+              "106.7 cm",
+              "about 93.0 cm (36.6 in)",
+              "about 52.3 cm (20.6 in)"
+            ],
+            [
+              "43-inch",
+              "109.2 cm",
+              "about 95.2 cm (37.5 in)",
+              "about 53.5 cm (21.1 in)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "That makes a 43-inch picture only about 2.2 cm wider and 1.2 cm taller than a 42-inch one. If a shop only has a 43-inch set in the series you want, the picture size difference is small. What matters is the overall size of the set you are buying."
+        }
+      ]
+    },
+    {
+      "id": "why-sizes-differ",
+      "title": "Why two 42-inch TVs have different overall dimensions",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Two TVs with the same screen size have different overall dimensions because of the **frame (bezel), the body depth and the stand**. Every 16:9 set of the same screen size has the same picture. What you fit into the space is the whole set."
+        },
+        {
+          "type": "p",
+          "text": "The table below puts the maker's or retailer's published figures side by side. It includes two 43-inch sets so you can compare them with a 42-inch."
+        },
+        {
+          "type": "table",
+          "caption": "Overall dimensions, width x height x depth, as published by LG (Singapore) and Điện Máy Xanh, read in November 2026",
+          "headers": [
+            "Model",
+            "Without stand (W x H x D)",
+            "With stand (W x H x D)",
+            "Source"
+          ],
+          "rows": [
+            [
+              "LG OLED42C5PSA (42-inch, 2025)",
+              "93.2 x 54.0 x 4.11 cm",
+              "93.2 x 57.7 x 17 cm",
+              "[LG](https://www.lg.com/sg/tvs-soundbars/oled-evo/oled42c5psa/)"
+            ],
+            [
+              "LG 42C2PSA (42-inch, discontinued)",
+              "93.2 x 54.0 x 4.11 cm",
+              "93.2 x 57.7 x 17 cm",
+              "[Điện Máy Xanh](https://www.dienmayxanh.com/tivi/smart-oled-lg-4k-42-inch-42c2psa)"
+            ],
+            [
+              "Samsung QA43Q60D (43-inch, discontinued)",
+              "96.55 x 55.94 x 2.57 cm",
+              "96.55 x 62.37 x 18.76 cm",
+              "[Điện Máy Xanh](https://www.dienmayxanh.com/tivi/smart-tivi-qled-samsung-4k-43-inch-qa43q60d)"
+            ],
+            [
+              "Casper 43FGK610 (43-inch, discontinued)",
+              "95.4 x 55.6 x 8 cm",
+              "95.4 x 60.7 x 22.6 cm",
+              "[Điện Máy Xanh](https://www.dienmayxanh.com/tivi/google-tivi-casper-fhd-43-inch-43fgk610)"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Which dimension changes most between models?"
+        },
+        {
+          "type": "p",
+          "text": "**Depth and height on a stand** change the most. Width barely moves, because modern frames are thin. Every set in the table is within about 1.5 cm of its calculated picture width. Depth without a stand runs from 2.57 cm on the Samsung to 8 cm on the Casper. On a stand, the depth runs from 17 cm to 22.6 cm, because the feet stick out in front and behind. Height on a stand runs from 57.7 cm to 62.37 cm."
+        },
+        {
+          "type": "h3",
+          "text": "Does a newer model keep the same size?"
+        },
+        {
+          "type": "p",
+          "text": "Sometimes, but do not assume it. LG's 2025 OLED42C5PSA and the older 42C2PSA have identical published dimensions. Other brands change their frames and stands between years. Always check the dimensions for the exact model code."
+        }
+      ]
+    },
+    {
+      "id": "find-exact-dimensions",
+      "title": "How to find the exact width, height and depth for one model",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Look up the **full model code** on the maker's own product page or in the manual. That is where the width, height and depth with and without the stand, the stand's footprint, the weight and the wall-mount (VESA) pattern are published."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Get the full model code",
+              "text": "A shop listing, the box or the label on the back of the set gives the code, such as OLED42C5PSA. The letters at the end vary by country, so search for the code the seller actually has."
+            },
+            {
+              "title": "Open the maker's spec table",
+              "text": "On LG's pages, look for \"TV dimensions without stand\", \"TV dimensions with stand\" and \"Stand footprint\". Other brands use similar wording in a Dimensions or Specifications tab."
+            },
+            {
+              "title": "Note the order of the figures",
+              "text": "Makers usually list width x height x depth. Some retail pages, such as John Lewis's listing for an older Samsung, put height first, so check the labels before you copy numbers."
+            },
+            {
+              "title": "Write down six numbers",
+              "text": "Write down the width, height and depth on the stand, then the height and depth without it. Add the stand footprint and the weight if you are wall-mounting."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "The same name can hide different sizes",
+          "text": "A listing titled \"42 inch\" or \"43 inch\" tells you the screen, not the set. Two sets from different brands, or from different years of the same brand, can differ by several centimetres in height and depth. Measure against the model code, never against the headline size."
+        }
+      ]
+    },
+    {
+      "id": "measuring-checklist",
+      "title": "A measuring checklist for the space it goes in",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Measure the space for the way the TV will actually be used: **on its stand or on the wall**. Then compare it with the matching line of the spec table. Each layout has different limits."
+        },
+        {
+          "type": "h3",
+          "text": "What do I measure for a TV on a cabinet or shelf?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Width of the top surface.** It must be at least as wide as the stand's footprint. On LG's OLED42C5PSA the feet span 71.8 cm, but the screen overhangs them to 93.2 cm.",
+            "**Depth of the top surface.** It must be at least the stand depth (17 cm on the LG, 22.6 cm on the Casper above), with a little spare at the front.",
+            "**Height to anything above.** Check the clearance to a shelf, window ledge or air-conditioner unit above the cabinet, using the with-stand height.",
+            "**Width of a recess or alcove.** Leave room either side of the set's overall width so you can reach the ports and the power cable."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "What do I measure for a wall-mounted TV?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Wall-mount pattern (VESA).** The bracket must match the holes on the back of the set. LG lists 300 x 200 mm for the OLED42C5PSA. Other models differ.",
+            "**Weight.** LG gives 9.8 kg without the stand for the OLED42C5PSA. Choose a bracket rated above that, and fixings that suit the wall.",
+            "**Distance from the wall.** The without-stand depth (4.11 cm on the LG) plus the bracket's own depth sets how far the screen stands off the wall.",
+            "**Power and aerial or network sockets.** Note where they sit relative to the screen's 54.0 cm height, so the cables can be hidden or reached."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Renting? Ask before drilling",
+          "text": "Wall-mounting means drilling holes. In a rented flat, get the landlord's agreement in writing first. The [rental deposit guide](/rental-deposit-vietnam) covers how deductions at move-out work, and [renting an apartment as a foreigner](/renting-an-apartment-vietnam-foreigner) covers what a lease usually says."
+        }
+      ]
+    },
+    {
+      "id": "confirm-with-local-seller",
+      "title": "How to confirm dimensions with a local seller",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ask the seller for the **exact model code**, then check the dimension lines on their page or on the maker's page. Large Vietnamese retailers publish dimensions on each product page, in Vietnamese."
+        },
+        {
+          "type": "table",
+          "caption": "Dimension labels as written on Điện Máy Xanh product pages, read in November 2026",
+          "headers": [
+            "Vietnamese label",
+            "Meaning"
+          ],
+          "rows": [
+            [
+              "Kích thước có chân, đặt bàn",
+              "Size on its stand, standing on a table or cabinet"
+            ],
+            [
+              "Kích thước không chân, treo tường",
+              "Size without the stand, wall-mounted"
+            ],
+            [
+              "Ngang – Cao – Dày",
+              "Width – height – depth, in that order"
+            ],
+            [
+              "Khối lượng có chân / không chân",
+              "Weight with / without the stand"
+            ],
+            [
+              "NGƯNG KINH DOANH",
+              "Discontinued: no longer sold by that retailer"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The Điện Máy Xanh pages read for this guide listed free installation at delivery and said the LG stand can be removed for wall-mounting. Those terms belong to those listings. Ask the shop what installation includes for the set you buy, and whether a wall bracket costs extra."
+        },
+        {
+          "type": "h3",
+          "text": "What should I check when buying a used TV?"
+        },
+        {
+          "type": "p",
+          "text": "With a used TV, **read the model code from the label on the back** and look that code up yourself. A seller's description of \"42 inch\" does not tell you the depth on the stand or whether the original stand is included. If you are buying from a classified listing, such as in eno.vn's [electronics category](/c/electronics), ask for a photo of the back label and of the stand before you go to see it."
+        }
+      ]
+    },
+    {
+      "id": "worked-example",
+      "title": "One model's footprint, as a worked example",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "According to LG's Singapore product page, read in November 2026, the LG OLED42C5PSA needs a surface at least **71.8 cm wide and 17 cm deep** for its stand. It also needs **93.2 cm of width and 57.7 cm of height** for the set itself. On the wall, it needs a 300 x 200 mm bracket rated above 9.8 kg."
+        },
+        {
+          "type": "table",
+          "caption": "LG OLED42C5PSA published specifications, LG Singapore, read November 2026",
+          "headers": [
+            "Measurement",
+            "Figure"
+          ],
+          "rows": [
+            [
+              "Screen size (diagonal)",
+              "42 inches"
+            ],
+            [
+              "Without stand (W x H x D)",
+              "932 x 540 x 41.1 mm"
+            ],
+            [
+              "With stand (W x H x D)",
+              "932 x 577 x 170 mm"
+            ],
+            [
+              "Stand footprint (W x D)",
+              "718 x 170 mm"
+            ],
+            [
+              "Weight without / with stand",
+              "9.8 kg / 10.1 kg"
+            ],
+            [
+              "Wall-mount pattern (VESA, W x H)",
+              "300 x 200 mm"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Compare the 932 mm overall width with the 930 mm picture width worked out from a 42-inch diagonal. The frame adds almost nothing. On this model, the overall width alone is a fair guide to the picture width. Height is a different story: the stand lifts the set by 3.7 cm, and the depth goes from 4.11 cm to 17 cm."
+        },
+        {
+          "type": "p",
+          "text": "LG's Vietnamese site did not return a product page for this code when checked, so these are the Singapore figures for the same model code. The older 42C2PSA, which Điện Máy Xanh listed in Vietnam, has the same published dimensions. If you buy the OLED42C5PSA in Vietnam, confirm the dimensions with the shop or with LG Vietnam."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "Where the numbers stop being enough",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Dimensions tell you whether a TV fits. They do not tell you whether it suits the room, or how to get it there. This guide does not cover:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Viewing distance.** The charts found during research gave contradictory figures for a 42-inch set, so none are given here. Stand in a shop at the distance your sofa will be from the screen, and judge for yourself.",
+            "**Prices and which model to buy.** Prices change weekly. Check current listings with the retailer, or browse used sets in [electronics](/c/electronics).",
+            "**Wall strength and fixings.** Whether a particular wall can hold a bracket is a question for the installer or the building management. Moving a TV along with the rest of a flat is covered in [moving apartment and furniture in Saigon](/guides/saigonmoving).",
+            "**Furnishing the rest of the flat.** See [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How wide is a 42 inch TV in cm?",
+      "a": "A 42-inch TV with a 16:9 screen has a picture about 93 cm wide, worked out from its 106.7 cm diagonal. The whole set is at least as wide as the picture. LG's 42-inch OLED42C5PSA measures 93.2 cm across, according to LG's spec page as of November 2026. Frames differ by brand, so check the overall width on the exact model's spec sheet before buying a cabinet or choosing a recess."
+    },
+    {
+      "q": "How tall is a 42 inch TV with stand?",
+      "a": "The height of a 42-inch TV on its stand depends on the model. The LG OLED42C5PSA is 57.7 cm tall on its stand and 54.0 cm without it, according to LG's spec page as of November 2026. The picture alone is about 52.3 cm high on any 42-inch 16:9 screen. Stands differ between brands, so use the 'with stand' height from the maker's table for the exact model."
+    },
+    {
+      "q": "Is a 42 inch TV the same size as a 43 inch TV?",
+      "a": "A 42-inch TV and a 43-inch TV are close, but not the same. A 16:9 picture on a 43-inch screen is about 95.2 by 53.5 cm, roughly 2.2 cm wider and 1.2 cm taller than a 42-inch picture. Overall sizes vary more. Điện Máy Xanh listed the 43-inch Samsung QA43Q60D at 96.55 cm wide, against 93.2 cm for LG's 42-inch OLED42C5PSA, as of November 2026."
+    },
+    {
+      "q": "Does the 42 inch TV size include the frame?",
+      "a": "The 42-inch size of a TV is the diagonal of the screen, corner to corner, and does not include the frame or stand. The US Federal Trade Commission said in its October 2018 notice that the diagonal is the industry standard for advertising screen size. The overall width, height and depth of the set are separate figures on the maker's spec sheet. Those are the ones to measure against."
+    },
+    {
+      "q": "What VESA size is a 42 inch TV?",
+      "a": "The VESA wall-mount pattern on a 42-inch TV is set by the model, not by the screen size. According to LG's spec page as of November 2026, the LG OLED42C5PSA uses a 300 x 200 mm pattern and weighs 9.8 kg without its stand. Other 42-inch and 43-inch sets use other patterns, so read the pattern for the exact model code before buying a wall bracket."
+    },
+    {
+      "q": "How deep does a TV cabinet need to be for a 42 inch TV?",
+      "a": "A TV cabinet for a 42-inch TV needs to be at least as deep as the set's stand. The LG OLED42C5PSA is 17 cm deep on its stand, and its feet span 71.8 cm, according to LG as of November 2026. Some 43-inch sets listed by Điện Máy Xanh were deeper, up to 22.6 cm on the Casper 43FGK610. Leave a little room at the front."
+    },
+    {
+      "q": "How do I find the dimensions of a used TV in Vietnam?",
+      "a": "To find the dimensions of a used TV in Vietnam, read the model code from the label on the back of the set and look it up on the maker's website or a Vietnamese retailer's page. Retailers such as Điện Máy Xanh list sizes as Ngang – Cao – Dày (width – height – depth), with separate lines for on its stand (có chân) and wall-mounted (không chân)."
+    }
+  ],
+  "sources": [
+    {
+      "title": "42 inch LG OLED evo AI C5 4K Smart TV 2025 (OLED42C5PSA) specifications",
+      "publisher": "LG Electronics Singapore",
+      "url": "https://www.lg.com/sg/tvs-soundbars/oled-evo/oled42c5psa/"
+    },
+    {
+      "title": "Deceptive Advertising as to Sizes of Viewable Pictures Shown by Television Receiving Sets (repeal of 16 CFR part 410)",
+      "publisher": "US Federal Trade Commission, Federal Register (govinfo)",
+      "url": "https://www.govinfo.gov/content/pkg/FR-2018-10-09/html/2018-21803.htm"
+    },
+    {
+      "title": "42 Inch Class LG OLED evo AI C5 4K Smart TV 2025 (OLED42C5PUA)",
+      "publisher": "LG Electronics USA",
+      "url": "https://www.lg.com/us/tvs/lg-oled42c5pua-oled-4k-tv"
+    },
+    {
+      "title": "Smart Tivi OLED LG 4K 42 inch 42C2PSA",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/tivi/smart-oled-lg-4k-42-inch-42c2psa"
+    },
+    {
+      "title": "Smart Tivi QLED Samsung 4K 43 inch QA43Q60D",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/tivi/smart-tivi-qled-samsung-4k-43-inch-qa43q60d"
+    },
+    {
+      "title": "Google Tivi Casper FHD 43 inch 43FGK610",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/tivi/google-tivi-casper-fhd-43-inch-43fgk610"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-24"
+}

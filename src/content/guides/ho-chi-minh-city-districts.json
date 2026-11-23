@@ -1,0 +1,396 @@
+{
+  "slug": "ho-chi-minh-city-districts",
+  "title": "Ho Chi Minh City districts: a newcomer's guide (2026)",
+  "description": "The old HCMC district names, the new wards behind them since July 2025, how the city map fits together and what apartments in each area were listed at.",
+  "h1": "Ho Chi Minh City districts: what the old names mean now, and where to stay or rent",
+  "eyebrow": "Living in Saigon",
+  "intro": "Ho Chi Minh City has officially had no districts since 1 July 2025, when 168 wards, communes and a special zone replaced them, but listings and locals still use the old names such as District 1 and Thu Duc. This guide explains what each old district name covers today, how the areas fit on a map, and what each part of the city is like to rent in, with asking rents from the eno.vn Rent Index dated 23 November 2026.",
+  "keyPoints": [
+    "Since **1 July 2025** Ho Chi Minh City has two tiers of local government, the city and **168 wards, communes and one special zone**. Districts no longer exist officially, but listings still use the old district names.",
+    "Your lease and any official form use the **new ward name**. Thao Dien, for example, is now part of An Khanh ward, and most of District 1 is now Saigon, Ben Thanh, Tan Dinh and Cau Ong Lanh wards.",
+    "On **23 November 2026** the eno.vn Rent Index put the median apartment asking rent at {{vnd:11000000}} in District 1, {{vnd:8000000}} in District 3, {{vnd:14000000}} in District 7 and {{vnd:4900000}} in Go Vap.",
+    "\"Mon district\" is **Hoc Mon**, a former rural district on the north-west edge of the city. Its area is now split into communes, and apartment asking rents there were among the lowest in the index on 23 November 2026.",
+    "Since the 2025 merger the city also covers the former **Binh Duong and Ba Ria-Vung Tau** provinces, so an address saying \"Ho Chi Minh City\" can be a long way from the centre."
+  ],
+  "sections": [
+    {
+      "id": "why-listings-use-old-district-names",
+      "title": "Why does a rental listing name a district that no longer exists?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Rental listings still name districts because people do. The districts themselves were abolished on 1 July 2025. Since then Ho Chi Minh City has run on two levels only: the city itself and its ward-level units. Landlords, agents, job ads and the eno.vn Rent Index still say \"District 7\" or \"Binh Thanh\", because everyone knows those names and the new wards are smaller and less familiar."
+        },
+        {
+          "type": "p",
+          "text": "The change came from two decisions. [Resolution 202/2025/QH15](https://english.luatvietnam.vn/co-cau-to-chuc/resolution-202-2025-qh15-reorganization-of-provincial-level-administrative-divisions-402728-d1.html) of the National Assembly merged Ho Chi Minh City with Binh Duong and Ba Ria-Vung Tau provinces. According to that resolution, the merged city covers 6,772.59 km² and had a population of 14,002,598. Then [Resolution 1685/NQ-UBTVQH15](https://luatvietnam.vn/hanh-chinh/nghi-quyet-1685-nq-ubtvqh15-2025-sap-xep-don-vi-hanh-chinh-cap-xa-tp-ho-chi-minh-403012-d1.html) of the National Assembly Standing Committee, adopted on 16 June 2025, redrew the city into 168 units: 113 wards (phường), 54 communes (xã) and one special zone (đặc khu, Con Dao). Both took effect from 1 July 2025."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Two names for one address",
+          "text": "A listing might say \"Thao Dien, District 2\", while the lease and the landlord's paperwork say **phường An Khánh, TP. Hồ Chí Minh**. Both describe the same place. Use the old name when searching and the new ward name for anything official. The [renting guide](/renting-an-apartment-vietnam-foreigner) covers the lease and the landlord's residence declaration."
+        },
+        {
+          "type": "p",
+          "text": "One older layer adds to the confusion. Districts 2 and 9 and the old Thu Duc district were merged into Thu Duc City in 2021, as the [eno.vn Rent Index](/hcmc-rent-index) notes. Many listings still say \"District 2\" or \"District 9\", so you will meet all three generations of names: pre-2021 districts, Thu Duc City and the 2025 wards."
+        }
+      ]
+    },
+    {
+      "id": "ho-chi-minh-district-map",
+      "title": "How do I read a Ho Chi Minh City district map?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "To read most HCMC city maps, start with District 1 in the centre on the west bank of the Saigon River. The numbered districts and named inner districts surround it, Thu Duc lies across the river to the east, and the former rural districts form the outer ring. Most maps online, including the default map in Google Maps, still label the old districts, which is why they match the listings."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Centre:** District 1 and District 3, with Ben Thanh as the reference point. Metro Line 1 starts there.",
+            "**East, across the river:** Thu Duc, which takes in the old Districts 2 and 9 and Thao Dien. Metro Line 1 runs out this way to Suoi Tien.",
+            "**South:** District 7 (Phu My Hung), with Districts 4 and 8 and Nha Be between it and the centre.",
+            "**North and north-west:** Binh Thanh, Phu Nhuan, Tan Binh (the airport), Go Vap and District 12.",
+            "**West:** District 5 (Cho Lon), Districts 6, 10 and 11, Tan Phu and Binh Tan.",
+            "**Outer ring:** Cu Chi and Hoc Mon to the north-west, Binh Chanh to the south-west and Can Gio on the coast to the south-east. Beyond them are the former Binh Duong and Ba Ria-Vung Tau provinces."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "[Metro Line 1](https://www.jica.go.jp/english/information/press/2024/20241225_21.html) is the one fixed line on the map worth knowing. According to JICA, which co-financed the line, it began commercial operation on 22 December 2024. It runs 19.7 km with 14 stations, from Ben Thanh in the city centre to Suoi Tien in the north-east. If you will commute east, a home near that line makes a real difference. The [getting around guide](/teach-in-vietnam/getting-around-ho-chi-minh-city) covers the rest of the city's transport."
+        },
+        {
+          "type": "table",
+          "caption": "Old district names and the new wards that replaced them in popular rental areas (Resolution 1685/NQ-UBTVQH15, in effect from 1 July 2025)",
+          "headers": [
+            "Name in listings",
+            "New ward(s) since 1 July 2025",
+            "Formed from (old wards)"
+          ],
+          "rows": [
+            [
+              "District 1",
+              "Sài Gòn, Bến Thành, Tân Định, Cầu Ông Lãnh",
+              "Bến Nghé, Bến Thành, Phạm Ngũ Lão, Đa Kao, Tân Định, Nguyễn Cư Trinh, Cầu Kho, Cô Giang and others"
+            ],
+            [
+              "District 3",
+              "Bàn Cờ, Xuân Hòa, Nhiêu Lộc",
+              "Wards 1–5, Võ Thị Sáu, wards 9, 11, 12, 14"
+            ],
+            [
+              "Thao Dien / An Phu (District 2)",
+              "An Khánh, Bình Trưng",
+              "Thảo Điền, An Khánh, Thủ Thiêm, An Lợi Đông, An Phú, Bình Trưng Đông and Tây"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "Tân Mỹ, Tân Hưng, Tân Thuận, Phú Thuận",
+              "Tân Phú, Phú Mỹ, Tân Phong, Tân Quy, Tân Kiểng, Tân Hưng, Bình Thuận, Tân Thuận Đông and Tây, Phú Thuận"
+            ],
+            [
+              "Binh Thanh",
+              "Gia Định, Bình Thạnh, Bình Lợi Trung, Thạnh Mỹ Tây, Bình Quới",
+              "The old numbered wards"
+            ],
+            [
+              "Phu Nhuan",
+              "Đức Nhuận, Cầu Kiệu, Phú Nhuận",
+              "The old numbered wards"
+            ],
+            [
+              "Go Vap",
+              "Hạnh Thông, An Nhơn, Gò Vấp, Thông Tây Hội, An Hội Tây, An Hội Đông",
+              "The old numbered wards"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "central-districts-1-and-3",
+      "title": "Is District 1 or District 3 the best place to stay as a newcomer?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "District 1 and District 3 are the easiest places to start: everything is close, and Ben Thanh station is at the start of Metro Line 1. You pay for that. On 23 November 2026 the eno.vn Rent Index put the median apartment asking rent at {{vnd:11000000}} in District 1 and {{vnd:8000000}} in District 3, against a citywide apartment median of {{vnd:4600000}}."
+        },
+        {
+          "type": "p",
+          "text": "District 1 is now four wards: Sài Gòn, Bến Thành, Tân Định and Cầu Ông Lãnh. It suits a first month, or anyone whose work and social life are in the centre. District 3 sits right beside it to the west and north, with Bàn Cờ, Xuân Hòa and Nhiêu Lộc wards. It is still central, usually a little quieter and, going by the index, a step cheaper."
+        },
+        {
+          "type": "p",
+          "text": "Browse homes by the old names: [District 1 rentals](/c/rentals/d1) and [District 3 rentals](/c/rentals/d3)."
+        }
+      ]
+    },
+    {
+      "id": "eastern-side-thao-dien-thu-duc-district-7",
+      "title": "Thao Dien, Thu Duc or District 7: which side of the city suits you?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thao Dien (old District 2) and District 7 (Phu My Hung) are the two areas you will see most often in English-language listings. Thu Duc is the large area behind Thao Dien to the east. These are mostly newer areas with apartment blocks, and both Thao Dien and District 7 are a bridge or a ride away from District 1 rather than in it."
+        },
+        {
+          "type": "h3",
+          "text": "Where is Thao Dien now?"
+        },
+        {
+          "type": "p",
+          "text": "Thao Dien is in **An Khánh ward**, which Resolution 1685 formed from Thảo Điền, An Khánh, Thủ Thiêm, An Lợi Đông and the rest of An Phú. Listings may say \"Thao Dien\", \"District 2\", \"An Phu\" or \"Thu Duc\" for the same few streets. On eno.vn, [Thu Duc rentals](/c/rentals/thu-duc) also lists District 2, Thao Dien and District 9 homes, and there are separate [District 2](/c/rentals/d2) and [District 9](/c/rentals/d9) pages."
+        },
+        {
+          "type": "h3",
+          "text": "What does District 7 cover?"
+        },
+        {
+          "type": "p",
+          "text": "District 7 is now four wards: Tân Mỹ, Tân Hưng, Tân Thuận and Phú Thuận. Phu My Hung, the planned area that most listings mean, falls mainly in Tân Mỹ and Phú Thuận, which were formed from the old Phú Mỹ and Tân Phú wards. Browse [District 7 rentals](/c/rentals/d7)."
+        },
+        {
+          "type": "table",
+          "caption": "Median apartment asking rent a month, eastern and southern areas, eno.vn Rent Index snapshot of 23 November 2026",
+          "headers": [
+            "Area in listings",
+            "Median apartment asking rent"
+          ],
+          "rows": [
+            [
+              "District 2 (Thu Duc)",
+              "{{vnd:34800000}}"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "{{vnd:14000000}}"
+            ],
+            [
+              "District 9 (Thu Duc)",
+              "{{vnd:14100000}}"
+            ],
+            [
+              "Thu Duc City, all listings",
+              "{{vnd:8000000}}"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Read a median for what it is",
+          "text": "On 23 November 2026 the District 2 median was far above District 1's. That reflects which homes happened to be listed with that tag, not a rule that Thao Dien costs three times the centre. The index uses asking prices, not signed leases, and its page says negotiated rents are often lower. Compare homes of the same size and type, not district averages."
+        }
+      ]
+    },
+    {
+      "id": "where-the-city-feels-more-local",
+      "title": "Which districts in Ho Chi Minh City feel more local and cost less?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The inner districts north and west of the centre are where most of the city lives. You will find mostly Vietnamese neighbourhoods, alley houses and smaller apartment blocks, at lower rents. They include Binh Thanh, Phu Nhuan, Tan Binh, Go Vap and Districts 4, 5 and 10. Most of them are a short ride from District 1."
+        },
+        {
+          "type": "table",
+          "caption": "Median apartment asking rent a month, inner districts, eno.vn Rent Index snapshot of 23 November 2026",
+          "headers": [
+            "Area in listings",
+            "Position",
+            "Median apartment asking rent"
+          ],
+          "rows": [
+            [
+              "[Binh Thanh](/c/rentals/binh-thanh)",
+              "North-east of District 1, on the river",
+              "{{vnd:6300000}}"
+            ],
+            [
+              "[Phu Nhuan](/c/rentals/phu-nhuan)",
+              "Between District 3 and the airport",
+              "{{vnd:5500000}}"
+            ],
+            [
+              "[Tan Binh](/c/rentals/tan-binh)",
+              "Around Tan Son Nhat airport",
+              "{{vnd:6000000}}"
+            ],
+            [
+              "[Go Vap](/c/rentals/go-vap)",
+              "North of Phu Nhuan and Tan Binh",
+              "{{vnd:4900000}}"
+            ],
+            [
+              "[District 10](/c/rentals/d10)",
+              "West of District 3",
+              "{{vnd:7200000}}"
+            ],
+            [
+              "[District 5](/c/rentals/d5)",
+              "West, the Cho Lon area",
+              "{{vnd:6500000}}"
+            ],
+            [
+              "[District 4](/c/rentals/d4)",
+              "South of District 1, across the canal",
+              "{{vnd:20200000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "District 4's median on 23 November 2026 was above District 1's. As with District 2, that is the mix of listings talking: apartment towers on the District 1 side of the canal pull the median up. District 5 is now Chợ Quán, An Đông and Chợ Lớn wards. District 4 is Vĩnh Hội, Khánh Hội and Xóm Chiếu."
+        },
+        {
+          "type": "p",
+          "text": "For how these areas compare for a working day, see [where to live in Ho Chi Minh City](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher). For a whole monthly budget, see the [cost of living guide](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers)."
+        }
+      ]
+    },
+    {
+      "id": "fringe-can-gio-binh-chanh-hoc-mon-cu-chi",
+      "title": "What is Hoc Mon district, and the rest of the city's fringe?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hoc Mon, the \"mon district\" people search for, is one of the former rural districts on the city's north-western edge. Cu Chi lies beyond it, Binh Chanh is to the south-west and Can Gio is on the coast to the south-east. Since 1 July 2025 these areas are mostly communes (xã) rather than wards. They are cheaper to rent in but far from the centre, which suits you only if your work is out there too."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Hoc Mon:** now communes including Hóc Môn, Bà Điểm and Xuân Thới Sơn. Median apartment asking rent {{vnd:3400000}} on 23 November 2026, according to the eno.vn Rent Index. [Hoc Mon rentals](/c/rentals/hoc-mon).",
+            "**Binh Chanh:** now communes including Bình Chánh, Hưng Long and Bình Hưng. Median apartment asking rent {{vnd:3900000}} on 23 November 2026. [Binh Chanh rentals](/c/rentals/binh-chanh).",
+            "**Nha Be:** south of District 7. Median apartment asking rent {{vnd:3600000}} on 23 November 2026. [Nha Be rentals](/c/rentals/nha-be).",
+            "**Cu Chi:** now seven communes, including Củ Chi, Tân An Hội and An Nhơn Tây. Too few listings for an index figure.",
+            "**Can Gio:** coastal communes including Cần Giờ, and Thạnh An island, which Resolution 1685 left unchanged. Too few listings for an index figure."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "An address that says \"TP. Hồ Chí Minh\" can now be in the former Binh Duong or Ba Ria-Vung Tau provinces, which joined the city in 2025. Check the ward or commune on a map before you arrange a viewing."
+        }
+      ]
+    },
+    {
+      "id": "renters-checklist",
+      "title": "How do I choose a district and find a rental in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Start from where you will spend your weekdays, then pick an area and compare homes there. Use the new ward name only when it comes to paperwork. These steps follow that order."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Fix your anchor point",
+              "text": "Find your workplace or school on a map and note how far it is from each candidate area at rush hour. Ask whether the trip runs along Metro Line 1."
+            },
+            {
+              "title": "Pick two or three old district names",
+              "text": "Search with the names landlords use, such as District 3, Binh Thanh or District 7, and open each area's page under [rentals](/c/rentals)."
+            },
+            {
+              "title": "Check the going rate",
+              "text": "Compare asking prices with the [eno.vn Rent Index](/hcmc-rent-index) for that district and type of home. Note the snapshot date, and expect to negotiate below the asking price."
+            },
+            {
+              "title": "View in person",
+              "text": "Go at the time of day you would commute. Check noise, flooding after rain and what is downstairs. The [renting guide](/renting-an-apartment-vietnam-foreigner) has a fuller viewing list."
+            },
+            {
+              "title": "Get the new address in writing",
+              "text": "Make sure the lease gives the post-2025 ward name, with the street and house or unit number, and agree the deposit terms. See [rental deposits](/rental-deposit-vietnam)."
+            },
+            {
+              "title": "Move in",
+              "text": "Ask the landlord to make the residence declaration for you, then sort out furniture and a phone number: see [furnishing a home](/furnishing-a-home-in-vietnam) and the [eSIM guide](/esim-vietnam-guide)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "**Hanoi's districts and neighbourhoods**: see [apartments for rent in Tay Ho](/guides/apartment-for-rent-in-tay-ho).",
+            "**A full district-by-district rent breakdown by home size**: see [rent prices by district](/guides/rent-prices) and the live [Rent Index](/hcmc-rent-index).",
+            "**Neighbourhoods in the former Binh Duong and Ba Ria-Vung Tau provinces**, which this guide does not compare.",
+            "**Safety by area**: see [is Ho Chi Minh City safe?](/teach-in-vietnam/is-ho-chi-minh-city-safe)"
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What is Hoc Mon district in Ho Chi Minh City?",
+      "a": "Hoc Mon is a former rural district on the north-western edge of Ho Chi Minh City, between the inner districts and Cu Chi. Since 1 July 2025 Hoc Mon has had no district government. Its area is split into communes, including Hóc Môn, Bà Điểm and Xuân Thới Sơn. Rental listings still say \"Hoc Mon\", and apartment asking rents there were among the lowest in the eno.vn Rent Index snapshot of 23 November 2026."
+    },
+    {
+      "q": "How many districts are in Ho Chi Minh City now?",
+      "a": "Ho Chi Minh City officially has no districts. Since 1 July 2025 the city has been divided into 168 units: 113 wards, 54 communes and the Con Dao special zone, under Resolution 1685/NQ-UBTVQH15. People, rental listings and maps still use the old district names, such as District 1, Binh Thanh and Thu Duc, so you will need both the old and the new names."
+    },
+    {
+      "q": "Which district in Ho Chi Minh City is best for foreigners to live in?",
+      "a": "No single district in Ho Chi Minh City is best for foreigners. Newcomers often start in District 1 or District 3 for central access, in Thao Dien (old District 2) or District 7 (Phu My Hung) for newer apartment blocks, or in Binh Thanh, Phu Nhuan and Go Vap for lower rents. The right choice depends mostly on your daily commute."
+    },
+    {
+      "q": "Where can I find a Ho Chi Minh City district map?",
+      "a": "Most online maps of Ho Chi Minh City, including Google Maps, still label the old districts. Those labels match what rental listings use. Official addresses since 1 July 2025 use the new ward and commune names from Resolution 1685/NQ-UBTVQH15. When you agree a lease, check the property's new ward name against the old district shown on the map."
+    },
+    {
+      "q": "Is Thao Dien in District 2 or Thu Duc?",
+      "a": "Thao Dien was a ward of District 2. District 2 merged into Thu Duc City in 2021. Since 1 July 2025 Thao Dien has been part of An Khánh ward, together with Thủ Thiêm, An Lợi Đông, An Khánh and most of An Phú. Rental listings use all of these names for the same area, so search under District 2, Thao Dien and Thu Duc."
+    },
+    {
+      "q": "What is District 1 called now in Ho Chi Minh City?",
+      "a": "District 1 of Ho Chi Minh City no longer exists as an official unit. Since 1 July 2025 its area has been split into four wards: Sài Gòn (mostly the old Bến Nghé), Bến Thành, Tân Định and Cầu Ông Lãnh. Locals and rental listings still call the area District 1, but leases and official forms use the new ward names."
+    },
+    {
+      "q": "Is Vung Tau part of Ho Chi Minh City now?",
+      "a": "Yes. Under Resolution 202/2025/QH15, Ho Chi Minh City merged with Binh Duong and Ba Ria-Vung Tau provinces, and the merged city government began work on 1 July 2025. According to the resolution, the enlarged Ho Chi Minh City covers 6,772.59 square kilometres. An address in Ho Chi Minh City can therefore be a long way from the old centre."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Nghị quyết 1685/NQ-UBTVQH15 về sắp xếp các đơn vị hành chính cấp xã của Thành phố Hồ Chí Minh năm 2025",
+      "publisher": "LuatVietnam (text of the National Assembly Standing Committee resolution)",
+      "url": "https://luatvietnam.vn/hanh-chinh/nghi-quyet-1685-nq-ubtvqh15-2025-sap-xep-don-vi-hanh-chinh-cap-xa-tp-ho-chi-minh-403012-d1.html"
+    },
+    {
+      "title": "Resolution 202/2025/QH15 on the reorganization of provincial-level administrative divisions",
+      "publisher": "LuatVietnam (text of the National Assembly resolution)",
+      "url": "https://english.luatvietnam.vn/co-cau-to-chuc/resolution-202-2025-qh15-reorganization-of-provincial-level-administrative-divisions-402728-d1.html"
+    },
+    {
+      "title": "First metro line starts operation in Ho Chi Minh City",
+      "publisher": "Vietnam Government Portal",
+      "url": "https://en.baochinhphu.vn/first-metro-line-starts-operation-in-ho-chi-minh-city-111241223160018449.htm"
+    },
+    {
+      "title": "Inauguration of Vietnam's First Underground Urban Metro Line in Ho Chi Minh City",
+      "publisher": "Japan International Cooperation Agency (JICA)",
+      "url": "https://www.jica.go.jp/english/information/press/2024/20241225_21.html"
+    },
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "getting-around-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "is-ho-chi-minh-city-safe"
+  ],
+  "lastChecked": "2026-11-24"
+}

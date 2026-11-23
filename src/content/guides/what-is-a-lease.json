@@ -1,0 +1,398 @@
+{
+  "slug": "what-is-a-lease",
+  "title": "What Is a Lease? Lease and Lessor Explained Simply",
+  "description": "A lease in plain words: what lessor and lessee each owe under Vietnam's Civil Code and Housing Law, the key terms, and three things to settle before signing.",
+  "h1": "What is a lease? The lease, the lessor and the lessee in plain language",
+  "eyebrow": "Renting a home",
+  "intro": "A lease is a contract in which the lessor, usually the owner, lets you use a property for a fixed term in return for rent, as Article 472 of Vietnam's 2015 Civil Code defines it. You, the tenant, are the lessee. For homes, the 2023 Housing Law, in force since 1 August 2024, says the lease must be in writing and lists what it must contain. It does not have to be notarised.",
+  "keyPoints": [
+    "A lease gives you the **right to use** a property for a term. Ownership stays with the **lessor** (bên cho thuê). You are the **lessee** (bên thuê).",
+    "If the lease says nothing on rent, the rent is the market price at the place and time the lease was made. If it sets no term and its purpose shows none, either side may end it at any time with reasonable notice (Civil Code Articles 473–474).",
+    "A house lease in Vietnam must be in writing but **does not need notarising** unless the parties want it (Housing Law 2023, Article 164).",
+    "During the agreed term a landlord may end a house lease only on listed grounds, such as **3 months or more of unpaid rent**. Whoever ends it gives **at least 30 days' written notice** unless the contract says otherwise (Housing Law 2023, Article 172).",
+    "You return the home in the condition you received it, **except for natural wear** (Civil Code Article 482). That is why a written handover record matters."
+  ],
+  "sections": [
+    {
+      "id": "what-a-lease-actually-says",
+      "title": "What a lease actually says",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A lease says who lets what to whom, for how long and for how much, and what each side must do until the property is handed back. Vietnam's Civil Code (Law 91/2015/QH13, in force since 1 January 2017) defines a contract for lease of property as an agreement under which **the lessor delivers property to the lessee for use during a fixed term, and the lessee pays rent** ([Civil Code 2015, Article 472](https://english.luatvietnam.vn/civil-code-no-91-2015-qh13-dated-november-24-2015-of-the-national-assembly-101333-doc1.html))."
+        },
+        {
+          "type": "p",
+          "text": "The two parties have fixed names. The **lessor** grants the right to possess and use the property and keeps ownership of it throughout. The **lessee** receives that right for the lease term and pays for it, usually as rent ([Cornell Law School, Legal Information Institute](https://www.law.cornell.edu/wex/lease)). A lease can cover a flat, a shop, a car or a piece of equipment, but the core idea is the same: **you pay to use something that stays someone else's.**"
+        },
+        {
+          "type": "h3",
+          "text": "Which law applies to a lease on a flat or house in Vietnam?"
+        },
+        {
+          "type": "p",
+          "text": "Two laws apply to a home: the Civil Code and the Housing Law. Article 472 of the Civil Code says leases of houses, for living in or for other uses, must also follow the Housing Law. Vietnam's current Housing Law is Law 27/2023/QH15, in force since 1 August 2024 ([Housing Law 2023, Article 163](https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-163)). The Civil Code sets the general rules for any lease. The Housing Law adds what a house lease must contain, when it takes effect and how it can be ended early. These rules are as we read them on 24 November 2026."
+        },
+        {
+          "type": "table",
+          "caption": "The words in a Vietnamese house lease and what they mean (Housing Law 2023, Article 172; Civil Code 2015, Articles 472–474)",
+          "headers": [
+            "English term",
+            "Vietnamese term in the contract",
+            "What it means"
+          ],
+          "rows": [
+            [
+              "Lessor (landlord)",
+              "bên cho thuê",
+              "The party who lets the property and keeps ownership"
+            ],
+            [
+              "Lessee (tenant)",
+              "bên thuê",
+              "The party who gets the right to use the property and pays rent"
+            ],
+            [
+              "Rent",
+              "tiền thuê nhà ở",
+              "What the lessee pays for the use, at the agreed times"
+            ],
+            [
+              "Lease term",
+              "thời hạn thuê nhà ở",
+              "How long the right to use lasts"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "what-is-granted-and-returned",
+      "title": "What is granted, how long it lasts, and what you give back",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A lease grants you the right to use the property for the agreed purpose and term, in return for rent. When the term ends, you give the property back in the condition you received it, apart from natural wear. Ownership never moves to you. The Housing Law files a lease with the transactions that pass on the right to use a home, not the ones that sell it."
+        },
+        {
+          "type": "p",
+          "text": "The Civil Code fills the gaps when a lease is silent. These defaults are worth knowing because informal leases often leave things out ([Civil Code 2015, Articles 473–482](https://english.luatvietnam.vn/civil-code-no-91-2015-qh13-dated-november-24-2015-of-the-national-assembly-101333-doc1.html))."
+        },
+        {
+          "type": "table",
+          "caption": "What Vietnam's Civil Code says when a lease leaves something out (Civil Code 2015, as read on 24 November 2026)",
+          "headers": [
+            "If the lease does not say…",
+            "The default rule",
+            "Article"
+          ],
+          "rows": [
+            [
+              "How much the rent is, or says it unclearly",
+              "Rent follows the market price at the place and time the lease was made",
+              "473"
+            ],
+            [
+              "How long the lease lasts",
+              "The term follows the purpose of the lease. If the purpose shows no term either, either side may end it at any time with reasonable advance notice",
+              "474"
+            ],
+            [
+              "When rent is due",
+              "Local custom where payment is made decides. If custom cannot decide, rent is due when the property is returned",
+              "481"
+            ],
+            [
+              "What condition to return it in",
+              "The same condition as when received, except for natural wear",
+              "482"
+            ],
+            [
+              "What happens if you return it late",
+              "The lessor may demand it back, charge rent for the extra time and claim damages. A late-return fine applies only if the lease includes one",
+              "482"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "What does natural wear mean when you move out?"
+        },
+        {
+          "type": "p",
+          "text": "Natural wear is the deterioration that ordinary use causes over time, and you do not pay for it. Article 479 says the lessee is not responsible for wear from normal use. Article 482 lets the lessor claim damages only for loss of value beyond that. A written record of the home's condition when you move in is the only way to show what was already there. See [rental deposits in Vietnam](/rental-deposit-vietnam) for how that ties into getting your deposit back."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "text": "Between the end of the term and the day you actually return the property, **you carry all the risk** of loss or damage to it (Civil Code Article 482(5)). If your move-out date slips, agree an extension in writing before the term ends."
+        }
+      ]
+    },
+    {
+      "id": "who-grants-what-to-whom",
+      "title": "Who grants what to whom, in practice",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The lessor grants the use of the property and must keep it usable. The lessee pays for that use and must look after the property. Articles 476 to 482 of the Civil Code split the duties as set out below. The Housing Law adds the rules on ending a house lease early."
+        },
+        {
+          "type": "h3",
+          "text": "What must the lessor do?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Hand the property over** at the agreed time and place, in the agreed condition, and give you the information you need to use it (Article 476). If it does not match the agreement, you may ask for repairs or lower rent, or cancel and claim damages.",
+            "**Keep it fit for the agreed purpose** for the whole term and fix damage and defects. The exception is small repairs that custom leaves to the tenant (Article 477). If you report a defect and the lessor does not fix it, or fixes it late, you may make reasonable repairs after telling the lessor and ask them to pay.",
+            "**Guarantee your stable use** (Article 478). If an ownership dispute stops you using the home, you may end the lease and claim damages."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "What must you do as the lessee?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Look after the property**, do routine maintenance and minor repairs, and pay for damage you cause (Article 479). Improvements need the lessor's consent.",
+            "**Use it for the agreed purpose** (Article 480). Using it otherwise lets the lessor end the lease and claim damages.",
+            "**Pay the rent in full and on time** (Article 481).",
+            "**Return it** in the condition you received it, apart from natural wear (Article 482).",
+            "**Sublet only with the lessor's consent** (Article 475)."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "When can either side end a house lease early?"
+        },
+        {
+          "type": "p",
+          "text": "During the agreed term, a landlord may end a house lease and take the home back only on grounds listed in Article 172 of the Housing Law ([Housing Law 2023, Article 172](https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-172)). These include:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "rent unpaid for **3 months or more** without a reason agreed in the contract",
+            "using the home for a different purpose",
+            "altering, demolishing or extending it without permission",
+            "subletting, lending or changing its use without the landlord's consent",
+            "repeated serious disturbance or hygiene problems recorded by local officials"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A tenant may end the lease early under the same article in three cases:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "the landlord does not repair serious damage",
+            "the landlord raises the rent unreasonably, or without the notice the contract requires",
+            "a third party's lawful interests restrict the tenant's use of the home"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Either way, the side ending the lease must give **at least 30 days' notice** in writing, or by another method the contract agrees, unless the parties agreed otherwise. A side that breaks this rule and causes damage must pay compensation."
+        }
+      ]
+    },
+    {
+      "id": "terms-in-a-listing-or-agreement",
+      "title": "The terms you will meet in a listing or an agreement",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A listing gives the headline terms: the rent, the deposit, the minimum term and what is included. The agreement must spell out the rest in writing. Under Article 163 of the Housing Law, a house contract must be in writing and contain the following ([Housing Law 2023, Article 163](https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-163)):"
+        },
+        {
+          "type": "ol",
+          "items": [
+            "the names and addresses of both parties",
+            "a description of the home and the land it stands on",
+            "the price (the rent)",
+            "when and how rent is paid",
+            "the handover date and the lease term",
+            "each party's rights and obligations",
+            "each party's commitments",
+            "any other agreed terms",
+            "the date the contract takes effect",
+            "the signing date",
+            "each party's signature and full name, plus a stamp and the signer's title for an organisation"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A lease is valid without notarisation. Under Article 164 of the Housing Law, house leases **do not need to be notarised or certified unless the parties want it**. The lease takes effect on the date the parties agree, or on the signing date if they agree none ([Housing Law 2023, Article 164](https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-164)). If you do want it, notarisation is done at a notary office, and certification at the People's Committee of the commune or ward where the home is."
+        },
+        {
+          "type": "table",
+          "caption": "Terms you will see in rental listings and leases, and what to check for each",
+          "headers": [
+            "Term",
+            "What it means",
+            "What to check"
+          ],
+          "rows": [
+            [
+              "Rent",
+              "The price of using the home for each period",
+              "Whether it includes management fees, internet or cleaning, and how much notice a rent increase needs"
+            ],
+            [
+              "Deposit",
+              "Money held against unpaid rent or damage",
+              "The amount, and exactly when and how it is returned. See [rental deposits](/rental-deposit-vietnam)"
+            ],
+            [
+              "Lease term",
+              "The fixed period of the lease",
+              "The start and end dates, and what happens if you leave early"
+            ],
+            [
+              "Handover",
+              "The day the home and keys pass to you",
+              "A signed list of the home's condition and contents"
+            ],
+            [
+              "Notice period",
+              "How far ahead either side must announce an early end",
+              "30 days by default for a house lease unless the contract sets another period"
+            ],
+            [
+              "Sublease",
+              "Letting all or part of the home to someone else",
+              "Needs the lessor's written consent"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Which address goes on a lease in Ho Chi Minh City?"
+        },
+        {
+          "type": "p",
+          "text": "The lease should use the official address, which may not match the district name in the listing. Listings, agents and the [eno.vn Rent Index](/hcmc-rent-index) still use old names such as District 1, Binh Thanh or District 7. Since 1 July 2025, however, Vietnam has no district level of government. According to [Vietnam News](https://vietnamnews.vn/society/1719053/hcm-city-prepares-to-operate-new-wards-communes.html), the city has 168 ward and commune-level units. Ask the landlord for the address in the new ward form, because you may need it later for bills and paperwork. To compare asking rents by area before you sign, see [rent prices by district](/guides/rent-prices) or browse [homes for rent](/c/rentals)."
+        }
+      ]
+    },
+    {
+      "id": "three-things-to-settle-before-you-sign",
+      "title": "Three things to settle before you sign",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Before you sign, settle three things: who the lessor really is, how and when the lease can end, and what condition the home is in on day one. Most rental disputes go back to one of these three."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Confirm who the lessor is and that they can let the home",
+              "text": "The person named as lessor should be the owner or someone the owner has authorised. If the person is a tenant themselves, they need the owner's consent to sublet (Civil Code Article 475). Without that consent, the owner has grounds to end the lease under Housing Law Article 172, and you would lose the home. Ask to see the owner's papers or the written authorisation, and make sure the name matches the lease."
+            },
+            {
+              "title": "Fix the term, the rent and the way out",
+              "text": "Write in a start date, an end date, the rent, the payment dates and the payment method, as Article 163 requires. Agree how much notice a rent increase needs, because an increase without that notice lets you end the lease. Check the notice period for ending early (30 days unless the contract says otherwise) and what you lose if you leave before the term ends."
+            },
+            {
+              "title": "Record the condition and who repairs what",
+              "text": "At handover, list the home's condition and contents, take dated photos and have both sides sign. Agree in writing which minor repairs are yours and which are the lessor's. By law, you pay for minor repairs and damage you cause, and the lessor fixes everything else. A clear record is what lets you claim the natural-wear exception when you move out."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "For the practical side of renting as a foreigner, including viewings, bills and the landlord's paperwork, see [renting an apartment in Vietnam](/renting-an-apartment-vietnam-foreigner). For choosing an area, see [where to live in Ho Chi Minh City](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher)."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "**A dispute with your landlord.** This guide explains the rules but is not legal advice. For a real dispute, ask a lawyer licensed in Vietnam.",
+            "**Deposits and getting them back.** See [rental deposits in Vietnam](/rental-deposit-vietnam).",
+            "**Leases for vehicles.** See [renting a motorbike in Ho Chi Minh City](/guides/renting-a-motorbike-in-ho-chi-minh-city).",
+            "**The landlord's side of letting to foreigners.** See [rent your apartment to foreigners](/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What is the definition of a lease?",
+      "a": "A lease is a contract in which one party, the lessor, gives another party, the lessee, the right to use a property for a set term in return for rent, while the lessor keeps ownership. Vietnam's Civil Code (Article 472) defines a contract for lease of property the same way: the lessor delivers the property for use during a fixed term and the lessee pays rent. Leases can cover homes, offices, vehicles or equipment."
+    },
+    {
+      "q": "What is a lessor?",
+      "a": "A lessor is the party who lets out a property under a lease. The lessor is usually the owner, and sometimes a company or agent acting with the owner's authority. In a Vietnamese rental contract the lessor is called bên cho thuê. Under Articles 476 to 478 of the Civil Code, the lessor keeps ownership, must hand the property over in the agreed condition, keep it fit for use and repair damage that is not the tenant's fault."
+    },
+    {
+      "q": "What is the difference between a lessor and a lessee?",
+      "a": "The lessor grants the right to use a property and the lessee receives that right. In a home rental, the lessor is the landlord (bên cho thuê) and the lessee is the tenant (bên thuê). Under Vietnam's Civil Code, the lessor keeps ownership and must keep the home usable. The lessee pays rent on time, uses the home for the agreed purpose, does minor repairs and returns it in the condition received, apart from natural wear."
+    },
+    {
+      "q": "Does a rental lease in Vietnam need to be notarised?",
+      "a": "A house lease in Vietnam does not have to be notarised or certified unless the parties want it to be, under Article 164 of the 2023 Housing Law. The lease must still be in writing. A house lease takes effect on the date the parties agree or, if they agree none, on the date it is signed. Notarisation is done at a notary office, and certification at the People's Committee of the commune or ward where the home is."
+    },
+    {
+      "q": "Can a landlord in Vietnam end a lease early?",
+      "a": "A landlord in Vietnam cannot end a house lease early during the agreed term except on grounds listed in Article 172 of the 2023 Housing Law. These include rent unpaid for 3 months or more, using the home for another purpose, unauthorised alterations and subletting without consent. Whoever ends the lease must give at least 30 days' written notice unless the contract says otherwise, and must pay compensation for any damage caused by not doing so."
+    },
+    {
+      "q": "What happens if a lease does not say how long it lasts?",
+      "a": "If a lease in Vietnam does not state a term, Article 474 of the Civil Code says the term follows the purpose of the lease. If the purpose does not show a term either, the landlord or the tenant may end the lease at any time by giving the other side reasonable advance notice. Writing an end date into the lease avoids that uncertainty for both sides."
+    },
+    {
+      "q": "Can I sublet my rented apartment in Vietnam?",
+      "a": "A tenant in Vietnam may sublet a rented apartment only with the landlord's consent, under Article 475 of the Civil Code. Under Article 172 of the 2023 Housing Law, subletting or lending the home without the landlord's consent is one of the grounds on which the landlord may end the lease early. A tenant who plans to sublet should get the landlord's consent in writing, ideally as a clause in the lease."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Civil Code No. 91/2015/QH13 dated November 24, 2015 of the National Assembly (Articles 472–482, 689)",
+      "publisher": "LuatVietnam",
+      "url": "https://english.luatvietnam.vn/civil-code-no-91-2015-qh13-dated-november-24-2015-of-the-national-assembly-101333-doc1.html"
+    },
+    {
+      "title": "Law No. 27/2023/QH15 on Housing, Article 163: contents of housing contracts",
+      "publisher": "Hệ thống pháp luật",
+      "url": "https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-163"
+    },
+    {
+      "title": "Law No. 27/2023/QH15 on Housing, Article 164: notarisation and effective date of housing contracts",
+      "publisher": "Hệ thống pháp luật",
+      "url": "https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-164"
+    },
+    {
+      "title": "Law No. 27/2023/QH15 on Housing, Article 172: unilateral termination of a house lease",
+      "publisher": "Hệ thống pháp luật",
+      "url": "https://hethongphapluat.com/law-no-27-2023-qh15-dated-december-27-2023-on-housing/dieu-172"
+    },
+    {
+      "title": "Lease",
+      "publisher": "Cornell Law School, Legal Information Institute",
+      "url": "https://www.law.cornell.edu/wex/lease"
+    },
+    {
+      "title": "HCM City prepares to operate new wards, communes",
+      "publisher": "Vietnam News",
+      "url": "https://vietnamnews.vn/society/1719053/hcm-city-prepares-to-operate-new-wards-communes.html"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "leaving-vietnam-checklist-for-teachers"
+  ],
+  "lastChecked": "2026-11-24"
+}
