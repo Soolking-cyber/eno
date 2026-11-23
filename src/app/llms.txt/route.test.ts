@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SiteFacts } from '@/lib/site-facts'
 import { GUIDES, guideBlurb, guideLabel, guidePath } from '@/lib/guides/registry'
+import { liveTools } from '@/lib/tools/content'
 
 /**
  * /llms.txt is the file agents read to decide who this site is. It used to live in `public/`,
@@ -108,6 +109,7 @@ describe('/llms.txt on the services edition', () => {
     const body = await bodyOf()
     expect(body).not.toContain('## Tools')
     expect(body).not.toContain('rent-affordability-calculator')
+    expect(body).not.toContain('eno.vn/tools')
   })
 
   it('⛔ never names eno.vn\'s npm package or registry records on the other edition', async () => {
@@ -129,11 +131,21 @@ describe('/llms.txt on the marketplace', () => {
     h.facts = MEASURED
   })
 
-  it('lists the four rent tools under Tools, at their plain URLs (and the full file too)', async () => {
-    for (const body of [await bodyOf(), await fullBodyOf()]) {
+  it('lists the four rent tools under Tools, then the hub; the tools eno Reach wrote one by one in the full file only', async () => {
+    const converter = '](https://eno.vn/vietnamese-price-converter): Read 15tr, 1,5 tỷ or 800k as an exact amount in đồng.'
+    const toolUrls = (body: string) => [...new Set([...body.matchAll(/https:\/\/eno\.vn\/tools\/([a-z0-9-]+)/g)].map((m) => m[1]))].sort()
+    const [root, full] = [await bodyOf(), await fullBodyOf()]
+    for (const body of [root, full]) {
       expect(body).toContain('## Tools\n\n- [Rent affordability calculator](https://eno.vn/rent-affordability-calculator): ')
       for (const s of ['move-in-cost-calculator', 'rental-cost-comparison', 'vietnamese-price-converter']) expect(body).toContain(`](https://eno.vn/${s}): `)
     }
+    // The root keeps under its 30,000 characters however many tools Reach writes: the four, then the hub, never one line per tool.
+    expect(root).toContain(`${converter}\n- [All tools](https://eno.vn/tools): `)
+    expect(toolUrls(root)).toEqual([])
+    // The full file lists every tool the registry has live (none when eno.vn first ships), between the four and the hub.
+    const live = liveTools()
+    expect(full).toContain([converter, ...live.map(({ spec }) => `- [${spec.title.en}](https://eno.vn/tools/${spec.slug}): ${spec.description.en}`), '- [All tools](https://eno.vn/tools): '].join('\n'))
+    expect(toolUrls(full)).toEqual(live.map(({ spec }) => spec.slug).sort())
   })
 
   it('links the Schema Map: since 2026-11-19 the only place it is advertised (robots.txt dropped its `schemamap:` line for Lighthouse)', async () => {

@@ -5,11 +5,12 @@ import { useLanguage } from '@/context/language-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Radio, RadioGroup } from '@/components/ui/radio-group'
 import { groupVnd, moneyLocale } from '@/lib/vnd'
 import type { Field, FieldError } from '@/lib/rent-tools/calc'
 
 /**
- * The rent tools' form fields: a real <label> for every control (never a placeholder for one), the error under its field
+ * The tools' form fields (the four rent tools, and the generated tools' Number and Choice fields below): a real <label> for every control (never a placeholder for one), the error under its field
  * and wired to it (`aria-describedby`, `aria-invalid`), and an amount regrouped on blur ("15tr" → "15,000,000") so the
  * reader sees how it was read.
  * ⛔ A FIELD'S ERROR IS SHOWN ONLY ONCE THE READER HAS LEFT IT, AND HIDDEN AGAIN WHILE THEY EDIT IT (gate round 2): shown
@@ -70,6 +71,11 @@ type Props = {
   onEnter: () => void
   onLeave: () => void
   hint?: string
+  /**
+   * The error to print instead of the one `read.error` names: a generated tool's range ("Enter a value from 1 to 24"), which
+   * the rent tools' fixed messages cannot say. Unset, the field says what it always said.
+   */
+  message?: string
 }
 
 function FieldShell({ id, label, hint, error, children }: { id: string; label: string; hint?: string; error: string | null; children: React.ReactNode }) {
@@ -89,10 +95,10 @@ export function regroup(value: number, locale: 'en' | 'vi'): string {
   return value < 1000 ? `${grouped} đ` : grouped
 }
 
-export function MoneyField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint }: Props) {
+export function MoneyField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, message: override }: Props) {
   const { lang } = useLanguage()
   const message = useFieldErrors()
-  const error = shown && !read.ok ? message(read.error, 'money') : null
+  const error = shown && !read.ok ? override ?? message(read.error, 'money') : null
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <div className="relative">
@@ -124,9 +130,9 @@ export function MoneyField({ id, label, value, onChange, read, shown, onEnter, o
   )
 }
 
-export function MonthsField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, halves }: Props & { halves?: boolean }) {
+export function MonthsField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, halves, message: override }: Props & { halves?: boolean }) {
   const message = useFieldErrors()
-  const error = shown && !read.ok ? message(read.error, 'months') : null
+  const error = shown && !read.ok ? override ?? message(read.error, 'months') : null
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <Input
@@ -143,6 +149,59 @@ export function MonthsField({ id, label, value, onChange, read, shown, onEnter, 
         className="text-base"
       />
     </FieldShell>
+  )
+}
+
+/**
+ * A plain number for a generated tool (src/app/[lang]/tools/[slug]): a count, a rate, a percent (`suffix` "%"). Its errors come
+ * whole from the caller, which knows the tool's range; `regroup` writes the figure back as it was read when the reader leaves.
+ */
+export function NumberField({ id, label, value, onChange, read, shown, onEnter, onLeave, hint, message, suffix, regroup: rewrite }: Omit<Props, 'message'> & { message: string; suffix?: string; regroup?: (v: number) => string }) {
+  const error = shown && !read.ok ? message : null
+  return (
+    <FieldShell id={id} label={label} hint={hint} error={error}>
+      <div className="relative">
+        <Input
+          id={id}
+          type="text"
+          // "decimal", not "numeric": a rate has a decimal point, and iOS's numeric pad has none.
+          inputMode="decimal"
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onEnter}
+          onBlur={() => {
+            if (read.ok && rewrite) onChange(rewrite(read.value))
+            onLeave()
+          }}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-err` : hint ? `${id}-hint` : undefined}
+          className={suffix ? 'pr-10 text-base' : 'text-base'}
+        />
+        {suffix && <span aria-hidden className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-base text-muted-foreground">{suffix}</span>}
+      </div>
+    </FieldShell>
+  )
+}
+
+/**
+ * One of a few fixed answers, for a generated tool: Base UI's radio group (role="radiogroup", one tab stop, arrow keys) named by
+ * a real <label> through aria-labelledby, each choice a radio named by its own words.
+ */
+export function ChoiceField({ id, label, value, onChange, choices, hint }: { id: string; label: string; value: string; onChange: (v: string) => void; choices: readonly { value: string; label: string }[]; hint?: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <Label id={`${id}-label`} className="text-sm font-bold leading-5 text-foreground">{label}</Label>
+      <RadioGroup value={value} onValueChange={onChange} aria-labelledby={`${id}-label`} aria-describedby={hint ? `${id}-hint` : undefined} className="flex flex-wrap gap-2">
+        {choices.map((c) => (
+          // The picked one is the selected grey under ink, as on the onboarding cards (owner, 2026-11-17: "Grey everywhere").
+          <Radio key={c.value} value={c.value} className={c.value === value ? 'rounded-full bg-line-strong px-3.5 py-2 text-base text-foreground' : 'rounded-full px-3.5 py-2 text-base text-body hover:bg-muted'}>
+            {c.label}
+          </Radio>
+        ))}
+      </RadioGroup>
+      {hint && <p id={`${id}-hint`} className="text-t-meta text-body">{hint}</p>}
+    </div>
   )
 }
 

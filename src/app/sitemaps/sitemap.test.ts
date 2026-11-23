@@ -311,6 +311,7 @@ import * as teachRegistry from '@/lib/teach-guides/registry'
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { isTeacherSurfacePath } from '@/lib/teachers/surface'
 import { RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
+import { liveTools } from '@/lib/tools/content'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -888,6 +889,23 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   it('…and leaves the marketplace edition behind it (the services switch above was restored)', () => {
     expect(h.services).toBe(false)
+  })
+
+  it('submits the tools hub on eno.vn with its /vi twin, and exactly the generated tools the registry has live, each dated by its review — none of it on eno.forum', async () => {
+    h.rows = [row({ id: 'book' })]
+    const xml = await (await pagesGET()).text()
+    expect(locs(xml)).toContain(`${HOST}/tools`)
+    expect(locs(xml)).toContain(`${HOST}/vi/tools`)
+    // Whatever src/lib/tools/registry.ts holds: none when eno.vn first ships, then every carried tool.
+    const live = liveTools()
+    expect(locs(xml).filter((u) => u.includes('/tools/')).sort()).toEqual(live.flatMap(({ entry }) => [`${HOST}/tools/${entry.slug}`, `${HOST}/vi/tools/${entry.slug}`]).sort())
+    for (const { entry } of live) expect(xml, entry.slug).toContain(`<loc>${HOST}/tools/${entry.slug}</loc><lastmod>${entry.reviewed}</lastmod>`)
+    h.services = true
+    try {
+      expect(locs(await (await pagesGET()).text()).some((u) => /\/tools(\/|$)/.test(u))).toBe(false)
+    } finally {
+      h.services = false
+    }
   })
 
   it('dates a help answer by editedAt, else createdAt — never by updatedAt, which a vote moves', async () => {
@@ -1492,8 +1510,9 @@ describe('the /vi twins in the sitemaps (phase 1, 2026-11-19)', () => {
     for (const e of all.filter((x) => isVi(x.loc))) expect(e.links.en && all.some((x) => x.loc === e.links.en), e.loc).toBe(true)
     const vis = all.filter((e) => isVi(e.loc)).map((e) => path(e.loc))
     expect(vis).not.toContain('/vi') // pilot V-c: the home page's twin is not submitted
-    // …and the rent tools (2026-11-23), each a family path of its own.
-    for (const p of vis) expect(p, p).toMatch(new RegExp(`^/vi/(c|help|schools|hcmc-rent-index|${RENT_TOOL_SLUGS.join('|')})(/|$)`))
+    // …and the rent tools (2026-11-23), each a family path of its own, and the tools hub (generated tools sit under it).
+    for (const p of vis) expect(p, p).toMatch(new RegExp(`^/vi/(c|help|schools|hcmc-rent-index|tools|${RENT_TOOL_SLUGS.join('|')})(/|$)`))
+    expect(vis).toContain('/vi/tools')
     for (const s of RENT_TOOL_SLUGS) expect(vis, s).toContain(`/vi/${s}`)
     expect(vis.some((p) => /^\/vi\/(listings|sellers|teachers|about|developers|guide)(\/|$)/.test(p))).toBe(false)
     expect(all.find((e) => e.loc === `${HOST}/teachers/cover`)?.links).toEqual({})

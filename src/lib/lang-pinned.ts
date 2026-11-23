@@ -151,6 +151,8 @@ export const VI_TWIN_FAMILIES: readonly RegExp[] = [
   // The four rent tools (2026-11-23, src/lib/rent-tools/registry.ts): authored in both languages. lang-pinned.test.ts
   // holds this literal equal to RENT_TOOL_SLUGS.
   /^\/(?:rent-affordability-calculator|move-in-cost-calculator|rental-cost-comparison|vietnamese-price-converter)$/,
+  // The tools hub and the tools eno Reach writes (2026-11-23, src/lib/tools/registry.ts): every word authored in both languages.
+  new RegExp(`^/tools(?:/${SEG})?$`),
 ]
 
 /** Families that were live and are withdrawn (rollback V-R): their `/vi…` answers a 308 to the plain path. */

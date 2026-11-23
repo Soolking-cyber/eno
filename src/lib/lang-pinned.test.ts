@@ -297,7 +297,7 @@ describe('the phase-1 families', () => {
     return out
   })()
   const FAMILY_ROUTES = ['(home)', 'c/[category]/(index)', 'c/[category]/[district]', 'help', 'help/[id]', 'schools', 'schools/[slug]', 'schools/awards', 'schools/awards/[year]', 'hcmc-rent-index',
-    'rent-affordability-calculator', 'move-in-cost-calculator', 'rental-cost-comparison', 'vietnamese-price-converter']
+    'rent-affordability-calculator', 'move-in-cost-calculator', 'rental-cost-comparison', 'vietnamese-price-converter', 'tools', 'tools/[slug]']
 
   it('⛔ against the real route tree: exactly the family routes (and the home pilot) have a twin', () => {
     expect(routes.length).toBeGreaterThan(50)

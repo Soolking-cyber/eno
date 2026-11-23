@@ -118,6 +118,11 @@ describe('a page in the general guide library', () => {
     for (const href of ['/vi/rent-affordability-calculator', '/vi/move-in-cost-calculator', '/vi/rental-cost-comparison', '/vi/vietnamese-price-converter']) expect(vi).toContain(`href="${href}"`)
     expect(vi).toContain('So sánh chi phí thuê nhà')
     expect(vi).not.toContain('Rental cost comparison')
+    // …and, last, every tool on one page (the ones eno Reach writes included).
+    expect(en).toContain('href="/tools"')
+    expect(en).toContain('All tools')
+    expect(vi).toContain('href="/vi/tools"')
+    expect(vi).toContain('Tất cả công cụ')
     // Between the guides and "How these are made".
     expect(en.indexOf('<h2>Tools</h2>')).toBeGreaterThan(en.indexOf('<h2>All guides</h2>'))
     expect(en.indexOf('<h2>Tools</h2>')).toBeLessThan(en.indexOf('<h2>How these are made</h2>'))

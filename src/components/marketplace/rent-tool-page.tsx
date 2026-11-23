@@ -38,9 +38,13 @@ export function T({ c, values }: { c: Copy; values?: Values }) {
 
 /** Title, description, canonical and the reciprocal `/vi` alternates, one language per variant. */
 export function rentToolMetadata(slug: RentToolSlug, lang: string, meta: { title: Copy; description: Copy }): Metadata {
+  return toolPageMetadata(`/${slug}`, lang, meta)
+}
+
+/** The same for any tool page by its plain path: the generated tools (/tools/<slug>) and their hub (/tools). */
+export function toolPageMetadata(path: string, lang: string, meta: { title: Copy; description: Copy }): Metadata {
   const title = titleWithSite(copyIn(meta.title, lang), SITE_NAME)
   const description = copyIn(meta.description, lang)
-  const path = `/${slug}`
   const metadata: Metadata = { title, description, alternates: { canonical: path } }
   const twin = langAlternatesFor(path, lang, metadata.robots)
   return {
@@ -135,9 +139,23 @@ const TEXT = {
 }
 
 export function RentToolPage({
-  slug, lang, h1, intro, introValues, calculator, how, example, faqs, related,
-}: {
+  slug, lang, related, ...page
+}: Omit<ToolPageProps, 'more'> & {
   slug: RentToolSlug
+  /** Which of the site's pages fit this tool, after the other tools. */
+  related: readonly (keyof typeof LINKS)[]
+}) {
+  const more: MoreLink[] = [
+    ...RENT_TOOL_SLUGS.filter((s) => s !== slug).map((s) => ({ href: rentToolPath(s, lang), label: RENT_TOOLS[s].label, blurb: RENT_TOOLS[s].blurb })),
+    ...related.map((k) => ({ href: localizedHref(LINKS[k].href, lang), label: LINKS[k].label })),
+  ]
+  return <ToolPageShell lang={lang} {...page} more={more} />
+}
+
+/** A link under "More tools and data": the page's own address for it, its name, and a line on what it does (optional). */
+export type MoreLink = { href: string; label: Copy; blurb?: Copy }
+
+type ToolPageProps = {
   lang: string
   h1: Copy
   /** The answer, first: what the tool tells you and the one formula behind it. */
@@ -147,10 +165,14 @@ export function RentToolPage({
   how: React.ReactNode
   example: React.ReactNode
   faqs: readonly FaqEntry[]
-  /** Which of the site's pages fit this tool, after the other tools. */
-  related: readonly (keyof typeof LINKS)[]
-}) {
-  const others = RENT_TOOL_SLUGS.filter((s) => s !== slug)
+  more: readonly MoreLink[]
+}
+
+/**
+ * The page itself, for the rent tools above and the generated tools (src/app/[lang]/tools/[slug]): one layout, so a tool Reach
+ * writes reads like the four written by hand.
+ */
+export function ToolPageShell({ lang, h1, intro, introValues, calculator, how, example, faqs, more }: ToolPageProps) {
   const node = faqPageJsonLd(faqs, lang)
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -183,15 +205,10 @@ export function RentToolPage({
         <section className="mt-12 max-w-3xl" aria-labelledby="more">
           <h2 id="more" className="h-section text-foreground mb-2"><T c={TEXT.more} /></h2>
           <ul className="divide-y divide-border">
-            {others.map((s) => (
-              <li key={s} className="py-3">
-                <Link href={rentToolPath(s, lang)} className="font-semibold text-accent-foreground hover:underline"><T c={RENT_TOOLS[s].label} /></Link>
-                <p className="mt-0.5 text-sm text-body"><T c={RENT_TOOLS[s].blurb} /></p>
-              </li>
-            ))}
-            {related.map((k) => (
-              <li key={k} className="py-3">
-                <Link href={localizedHref(LINKS[k].href, lang)} className="font-semibold text-accent-foreground hover:underline"><T c={LINKS[k].label} /></Link>
+            {more.map((m) => (
+              <li key={m.href} className="py-3">
+                <Link href={m.href} className="font-semibold text-accent-foreground hover:underline"><T c={m.label} /></Link>
+                {m.blurb && <p className="mt-0.5 text-sm text-body"><T c={m.blurb} /></p>}
               </li>
             ))}
           </ul>

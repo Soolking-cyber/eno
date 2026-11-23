@@ -34,6 +34,7 @@ import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { langUrlEntries, submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
+import { liveTools } from '@/lib/tools/content'
 import { storefrontCanonicals } from '@/lib/storefront'
 import { awardYearsForSitemap, schoolsForSitemap } from '@/lib/schools/queries'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
@@ -550,6 +551,10 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    */
   if (!IS_SERVICES) {
     for (const slug of RENT_TOOL_SLUGS) urls.push(...langUrlEntries(hostUrl, `/${slug}`))
+    // …their hub, and the tools eno Reach wrote that a person approved (src/lib/tools/registry.ts), each dated by its review:
+    // an approved spec never changes after it, and a new version is a new review.
+    urls.push(...langUrlEntries(hostUrl, '/tools'))
+    for (const { entry } of liveTools()) urls.push(...langUrlEntries(hostUrl, `/tools/${entry.slug}`, lm(entry.reviewed)))
   }
 
   /**

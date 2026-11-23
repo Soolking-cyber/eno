@@ -9,6 +9,7 @@ import { TEACHER_COST_INDEX_CSV_PATH, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDE
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { RENT_TOOLS, RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
+import { liveTools } from '@/lib/tools/content'
 import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SEARCH_REGISTRY_NAME, MCP_SEARCH_REGISTRY_URL } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
@@ -366,6 +367,17 @@ const DATA_SECTION = `- [HCMC Rent Index](${SITE_ORIGIN}/hcmc-rent-index) — me
 const TOOLS_SECTION = RENT_TOOL_SLUGS.map((s) => `- [${RENT_TOOLS[s].label.en}](${SITE_ORIGIN}/${s}): ${RENT_TOOLS[s].blurb.en}`).join('\n')
 
 /**
+ * After them, the hub that lists every tool. The tools eno Reach wrote and a person approved (src/lib/tools/registry.ts) are listed
+ * one by one in the FULL file only, as the guides are: one line each in the root would push it past its 30,000 characters within
+ * months, and the carry's check would then refuse every tool. Read per call: a carry adds them.
+ */
+const toolsSection = (full: boolean) => [
+  TOOLS_SECTION,
+  ...(full ? liveTools().map(({ spec }) => `- [${spec.title.en}](${SITE_ORIGIN}/tools/${spec.slug}): ${spec.description.en}`) : []),
+  `- [All tools](${SITE_ORIGIN}/tools): every calculator on one page.`,
+].join('\n')
+
+/**
  * ⛔ THE ROOT IS A NAVIGATION INDEX UNDER 30,000 CHARACTERS (ora.ai, 2026-11-15: 34,003 > the 30,000 an llms.txt index
  * should stay under; agents truncate past 100,000). The two long sections — the guides and the Teaching in Vietnam
  * library, ~24,500 of those characters — live in their own files, each linked from here; /llms-full.txt is the whole
@@ -432,7 +444,7 @@ ${marketplaceCategories(f)}
 
 ## Tools
 
-${TOOLS_SECTION}
+${toolsSection(full)}
 
 ${full ? `${MARKETPLACE_GUIDES_SECTION}${librarySection()}${teachSection()}` : guidesPointer()}
 

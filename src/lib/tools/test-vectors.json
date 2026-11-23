@@ -1,0 +1,930 @@
+{
+  "$comment": "Shared by eno.vn (src/lib/tools) and eno Reach (app/api/_tool-spec): both run every case, with ctx.banned (a stand-in list) plus TOOL_INTERNALS_BANNED. Each app tests its own edition list separately. Change both copies together.",
+  "version": 1,
+  "ctx": {
+    "relatedPaths": [
+      "/tools",
+      "/rent-affordability-calculator",
+      "/move-in-cost-calculator",
+      "/rental-cost-comparison",
+      "/vietnamese-price-converter",
+      "/hcmc-rent-index",
+      "/c/rentals",
+      "/c/vehicles",
+      "/c/electronics",
+      "/c/furniture-appliances",
+      "/c/jobs",
+      "/rental-deposit-vietnam",
+      "/renting-an-apartment-vietnam-foreigner",
+      "/furnishing-a-home-in-vietnam",
+      "/selling-up-before-you-leave-vietnam"
+    ],
+    "banned": [
+      "\\blotter(?:y|ies)\\b|xổ\\s+số"
+    ]
+  },
+  "expressions": {
+    "names": {
+      "a": "number",
+      "b": "number",
+      "big": "number",
+      "ok": "bool"
+    },
+    "values": {
+      "a": 5,
+      "b": 2,
+      "big": 10000000000000000,
+      "ok": true
+    },
+    "cases": [
+      {
+        "formula": "1 + 2 * 3",
+        "result": 7
+      },
+      {
+        "formula": "(1 + 2) * 3",
+        "result": 9
+      },
+      {
+        "formula": "10 - 4 - 3",
+        "result": 3
+      },
+      {
+        "formula": "12 / 4 / 3",
+        "result": 1
+      },
+      {
+        "formula": "-a + 2",
+        "result": -3
+      },
+      {
+        "formula": "−a",
+        "result": -5
+      },
+      {
+        "formula": "- -a",
+        "result": 5
+      },
+      {
+        "formula": "a / b",
+        "result": 2.5
+      },
+      {
+        "formula": "a / 0",
+        "result": null
+      },
+      {
+        "formula": "a / (b - 2)",
+        "result": null
+      },
+      {
+        "formula": "if(b > 2, a / (b - 2), 0)",
+        "result": 0
+      },
+      {
+        "formula": "if(b == 2, 1, 2)",
+        "result": 1
+      },
+      {
+        "formula": "a > b and not (b > a)",
+        "result": true
+      },
+      {
+        "formula": "a < b or b != 2",
+        "result": false
+      },
+      {
+        "formula": "a >= 5 and a <= 5",
+        "result": true
+      },
+      {
+        "formula": "min(a, b, 3)",
+        "result": 2
+      },
+      {
+        "formula": "max(a, b)",
+        "result": 5
+      },
+      {
+        "formula": "round(2.5)",
+        "result": 3
+      },
+      {
+        "formula": "round(-2.5)",
+        "result": -3
+      },
+      {
+        "formula": "round(1.005, 2)",
+        "result": 1.01
+      },
+      {
+        "formula": "round(1234567, -3)",
+        "result": 1235000
+      },
+      {
+        "formula": "round(a / 3, 2)",
+        "result": 1.67
+      },
+      {
+        "formula": "floor(-1.5) + ceil(1.2) + abs(-3)",
+        "result": 3
+      },
+      {
+        "formula": "a * 1000000 * 1000000 * 1000",
+        "result": null
+      },
+      {
+        "formula": "big * 0",
+        "result": null
+      },
+      {
+        "formula": "if(a > 1, 1, 0) * 2",
+        "result": 2
+      },
+      {
+        "formula": "ok",
+        "result": true
+      },
+      {
+        "formula": "not ok",
+        "result": false
+      },
+      {
+        "formula": "missing + 1",
+        "error": "type"
+      },
+      {
+        "formula": "a + ok",
+        "error": "type"
+      },
+      {
+        "formula": "if(a, 1, 2)",
+        "error": "type"
+      },
+      {
+        "formula": "if(ok, 1, ok)",
+        "error": "type"
+      },
+      {
+        "formula": "round(a, b)",
+        "error": "type"
+      },
+      {
+        "formula": "round(a, 7)",
+        "error": "type"
+      },
+      {
+        "formula": "max(a)",
+        "error": "type"
+      },
+      {
+        "formula": "abs(a, b)",
+        "error": "type"
+      },
+      {
+        "formula": "a < b < 3",
+        "error": "parse"
+      },
+      {
+        "formula": "a +",
+        "error": "parse"
+      },
+      {
+        "formula": "1.",
+        "error": "parse"
+      },
+      {
+        "formula": "a = b",
+        "error": "parse"
+      },
+      {
+        "formula": "a ^ 2",
+        "error": "parse"
+      },
+      {
+        "formula": "alert(1)",
+        "error": "parse"
+      },
+      {
+        "formula": "a; b",
+        "error": "parse"
+      },
+      {
+        "formula": "if",
+        "error": "parse"
+      },
+      {
+        "formula": "((((((((((((((((((((((a))))))))))))))))))))))",
+        "error": "parse"
+      },
+      {
+        "formula": "a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a",
+        "error": "parse"
+      },
+      {
+        "formula": "a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a",
+        "error": "parse"
+      },
+      {
+        "formula": "round(a * 1000000 * 1000000 * 200, 6)",
+        "result": 1000000000000000
+      },
+      {
+        "formula": "round(a / 7, 6)",
+        "result": 0.714286
+      }
+    ]
+  },
+  "spec": {
+    "version": 1,
+    "slug": "shared-home-cost-split",
+    "title": {
+      "en": "Shared home cost splitter",
+      "vi": "Chia tiền nhà ở ghép"
+    },
+    "description": {
+      "en": "Split the rent and the monthly bills of a shared home between the people living there, and see each share for a year.",
+      "vi": "Chia tiền thuê và các khoản phí hằng tháng của căn nhà ở ghép cho từng người, và xem mỗi người trả bao nhiêu trong một năm."
+    },
+    "intro": {
+      "en": "Each person's share is the rent plus the monthly bills, divided by the number of people. Enter what your contract and your bills say, choose how many people share the home, and see each share for a month and for a year.",
+      "vi": "Phần của mỗi người là tiền thuê cộng các khoản phí hằng tháng, chia cho số người ở. Nhập đúng số tiền trong hợp đồng và hóa đơn, chọn số người ở cùng, rồi xem mỗi người trả bao nhiêu mỗi tháng và mỗi năm."
+    },
+    "howItWorks": {
+      "en": "The rent and the monthly bills are added together, then divided equally between the people who share the home.\n\nThe yearly figure is the monthly share times 12. It assumes the rent and the bills stay the same all year.",
+      "vi": "Tiền thuê và các khoản phí hằng tháng được cộng lại, rồi chia đều cho những người ở cùng.\n\nCon số cả năm bằng phần mỗi tháng nhân 12. Công cụ giả định tiền thuê và các khoản phí không đổi trong năm."
+    },
+    "limitations": {
+      "en": "It splits everything equally, not by the size of each room.\nBills that change from month to month are an estimate: use an average.",
+      "vi": "Công cụ chia đều cho mọi người, không theo diện tích từng phòng.\nCác khoản phí thay đổi theo tháng chỉ là ước tính: hãy dùng mức trung bình."
+    },
+    "inputs": [
+      {
+        "id": "rent",
+        "kind": "money",
+        "label": {
+          "en": "Monthly rent",
+          "vi": "Tiền thuê mỗi tháng"
+        },
+        "help": {
+          "en": "The rent in the contract, for the whole home.",
+          "vi": "Tiền thuê ghi trong hợp đồng, cho cả căn."
+        },
+        "default": 12000000,
+        "min": 100000,
+        "max": 10000000000
+      },
+      {
+        "id": "bills",
+        "kind": "money",
+        "label": {
+          "en": "Monthly bills",
+          "vi": "Phí hằng tháng"
+        },
+        "help": {
+          "en": "Electricity, water, internet and management fees, added up.",
+          "vi": "Điện, nước, internet và phí quản lý, cộng lại."
+        },
+        "default": 1500000,
+        "min": 0,
+        "max": 1000000000
+      },
+      {
+        "id": "people",
+        "kind": "choice",
+        "label": {
+          "en": "People sharing",
+          "vi": "Số người ở"
+        },
+        "help": {
+          "en": "Everyone who pays a share.",
+          "vi": "Những người cùng chia tiền."
+        },
+        "default": 2,
+        "min": 2,
+        "max": 5,
+        "choices": [
+          {
+            "value": 2,
+            "label": {
+              "en": "2 people",
+              "vi": "2 người"
+            }
+          },
+          {
+            "value": 3,
+            "label": {
+              "en": "3 people",
+              "vi": "3 người"
+            }
+          },
+          {
+            "value": 4,
+            "label": {
+              "en": "4 people",
+              "vi": "4 người"
+            }
+          },
+          {
+            "value": 5,
+            "label": {
+              "en": "5 people",
+              "vi": "5 người"
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "id": "perPerson",
+        "label": {
+          "en": "Each person pays a month",
+          "vi": "Mỗi người trả mỗi tháng"
+        },
+        "formula": "(rent + bills) / people",
+        "format": "money"
+      },
+      {
+        "id": "total",
+        "label": {
+          "en": "The whole home a month",
+          "vi": "Cả căn mỗi tháng"
+        },
+        "formula": "rent + bills",
+        "format": "money"
+      },
+      {
+        "id": "perPersonYear",
+        "label": {
+          "en": "Each person pays a year",
+          "vi": "Mỗi người trả mỗi năm"
+        },
+        "formula": "perPerson * 12",
+        "format": "money"
+      }
+    ],
+    "notes": [
+      {
+        "when": "bills > rent",
+        "text": {
+          "en": "The bills are more than the rent: check the figures.",
+          "vi": "Phí hằng tháng cao hơn tiền thuê: hãy kiểm tra lại các số."
+        }
+      }
+    ],
+    "example": {
+      "inputs": {
+        "rent": 12000000,
+        "bills": 1500000,
+        "people": 2
+      }
+    },
+    "tests": [
+      {
+        "inputs": {
+          "rent": 12000000,
+          "bills": 1500000,
+          "people": 2
+        },
+        "expect": {
+          "perPerson": 6750000,
+          "total": 13500000,
+          "perPersonYear": 81000000
+        }
+      },
+      {
+        "inputs": {
+          "rent": 9000000,
+          "bills": 600000,
+          "people": 3
+        },
+        "expect": {
+          "perPerson": 3200000,
+          "perPersonYear": 38400000
+        }
+      },
+      {
+        "inputs": {
+          "rent": 20000000,
+          "bills": 2000000,
+          "people": 4
+        },
+        "expect": {
+          "perPerson": 5500000,
+          "perPersonYear": 66000000
+        }
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "Does it split by room size?",
+          "vi": "Công cụ có chia theo diện tích phòng không?"
+        },
+        "a": {
+          "en": "No. It splits the rent and the bills equally. If one room is bigger, agree a different split between you and use it instead.",
+          "vi": "Không. Công cụ chia đều tiền thuê và các khoản phí. Nếu có phòng rộng hơn, hãy tự thỏa thuận cách chia khác."
+        }
+      },
+      {
+        "q": {
+          "en": "What counts as monthly bills?",
+          "vi": "Phí hằng tháng gồm những gì?"
+        },
+        "a": {
+          "en": "Whatever the home costs each month on top of the rent: electricity, water, internet, management and parking fees.",
+          "vi": "Mọi khoản phải trả mỗi tháng ngoài tiền thuê: điện, nước, internet, phí quản lý và phí gửi xe."
+        }
+      },
+      {
+        "q": {
+          "en": "Is anything I type stored?",
+          "vi": "Những gì tôi nhập có được lưu không?"
+        },
+        "a": {
+          "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+          "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+        }
+      }
+    ],
+    "related": [
+      "/c/rentals",
+      "/move-in-cost-calculator"
+    ]
+  },
+  "digest": "977f49aa0c7de72d",
+  "mutations": [
+    {
+      "name": "a real-world rate written into a formula",
+      "problem": "is not a unit constant",
+      "set": [
+        [
+          [
+            "outputs",
+            0,
+            "formula"
+          ],
+          "(rent + bills) / people * 1.1"
+        ]
+      ]
+    },
+    {
+      "name": "an output that is a condition",
+      "problem": "must give a number",
+      "set": [
+        [
+          [
+            "outputs",
+            0,
+            "formula"
+          ],
+          "rent > bills"
+        ]
+      ]
+    },
+    {
+      "name": "an output reading a later output",
+      "problem": "is not an input or an earlier output",
+      "set": [
+        [
+          [
+            "outputs",
+            1,
+            "formula"
+          ],
+          "perPersonYear + 1"
+        ]
+      ]
+    },
+    {
+      "name": "a worked answer the formulas do not give",
+      "problem": "should be 7000000 by your own working",
+      "set": [
+        [
+          [
+            "tests",
+            0,
+            "expect",
+            "perPerson"
+          ],
+          7000000
+        ]
+      ]
+    },
+    {
+      "name": "HTML in a title",
+      "problem": "plain text only, no HTML",
+      "set": [
+        [
+          [
+            "title",
+            "en"
+          ],
+          "<b>Split</b> the rent today"
+        ]
+      ]
+    },
+    {
+      "name": "a word the app's ctx bans",
+      "problem": "may not appear on eno.vn",
+      "set": [
+        [
+          [
+            "intro",
+            "en"
+          ],
+          "Each person's share is the rent plus the bills, divided by the number of people, whatever a lottery win says about where you live."
+        ]
+      ]
+    },
+    {
+      "name": "an internals word",
+      "problem": "may not appear on eno.vn",
+      "set": [
+        [
+          [
+            "faqs",
+            0,
+            "a",
+            "en"
+          ],
+          "No. And it says nothing about your trust score on eno.vn, which is not what this tool is about at all."
+        ]
+      ]
+    },
+    {
+      "name": "a link off the allowlist",
+      "problem": "is not a path a tool may link",
+      "set": [
+        [
+          [
+            "related"
+          ],
+          [
+            "/c/rentals",
+            "/admin"
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a slug that is not an address",
+      "problem": "slug must be",
+      "set": [
+        [
+          [
+            "slug"
+          ],
+          "Bad_Slug"
+        ]
+      ]
+    },
+    {
+      "name": "a field nobody defined",
+      "problem": "unknown field \"script\"",
+      "set": [
+        [
+          [
+            "script"
+          ],
+          "alert(1)"
+        ]
+      ]
+    },
+    {
+      "name": "a choice default that is not a choice",
+      "problem": "default is outside",
+      "set": [
+        [
+          [
+            "inputs",
+            2,
+            "default"
+          ],
+          7
+        ]
+      ]
+    },
+    {
+      "name": "a note that is not a condition",
+      "problem": "must be a yes/no condition",
+      "set": [
+        [
+          [
+            "notes",
+            0,
+            "when"
+          ],
+          "bills"
+        ]
+      ]
+    },
+    {
+      "name": "\"free\" in the description",
+      "problem": "says \"free\"",
+      "set": [
+        [
+          [
+            "description",
+            "en"
+          ],
+          "A free way to split the rent and the monthly bills of a shared home between the people living there."
+        ]
+      ]
+    },
+    {
+      "name": "another version",
+      "problem": "version must be 1",
+      "set": [
+        [
+          [
+            "version"
+          ],
+          2
+        ]
+      ]
+    },
+    {
+      "name": "no FAQ",
+      "problem": "faqs must be a list of 3-5",
+      "set": [
+        [
+          [
+            "faqs"
+          ],
+          []
+        ]
+      ]
+    },
+    {
+      "name": "Vietnamese that is English",
+      "problem": "no Vietnamese diacritics",
+      "set": [
+        [
+          [
+            "title",
+            "vi"
+          ],
+          "Shared home cost splitter"
+        ]
+      ]
+    },
+    {
+      "name": "a placeholder in the text",
+      "problem": "placeholder",
+      "set": [
+        [
+          [
+            "intro",
+            "en"
+          ],
+          "Each person's share is {share}: the rent plus the bills, divided by the number of people who live in the home."
+        ]
+      ]
+    },
+    {
+      "name": "a web address in the text",
+      "problem": "web address",
+      "set": [
+        [
+          [
+            "howItWorks",
+            "en"
+          ],
+          "The rent and the bills are added up and divided equally. See https://example.com for more on how a shared home splits its costs."
+        ]
+      ]
+    },
+    {
+      "name": "an example outside an input range",
+      "problem": "is outside",
+      "set": [
+        [
+          [
+            "example",
+            "inputs",
+            "rent"
+          ],
+          50
+        ]
+      ]
+    },
+    {
+      "name": "an input nothing reads",
+      "set": [
+        [
+          [
+            "outputs",
+            0,
+            "formula"
+          ],
+          "rent / people"
+        ],
+        [
+          [
+            "outputs",
+            1,
+            "formula"
+          ],
+          "rent * 1"
+        ],
+        [
+          [
+            "notes"
+          ],
+          []
+        ],
+        [
+          [
+            "tests",
+            0,
+            "expect"
+          ],
+          {
+            "perPerson": 6000000
+          }
+        ],
+        [
+          [
+            "tests",
+            1,
+            "expect"
+          ],
+          {
+            "perPerson": 3000000
+          }
+        ],
+        [
+          [
+            "tests",
+            2,
+            "expect"
+          ],
+          {
+            "perPerson": 5000000
+          }
+        ]
+      ],
+      "problem": "input \"bills\" is not used by any formula"
+    },
+    {
+      "name": "the same spec, valid",
+      "set": [],
+      "problem": null
+    },
+    {
+      "name": "a rate built out of unit constants",
+      "problem": "arithmetic between numbers alone",
+      "set": [
+        [
+          [
+            "outputs",
+            0,
+            "formula"
+          ],
+          "(rent + bills) / people * (100 + 7) / 100"
+        ]
+      ]
+    },
+    {
+      "name": "a single-star emphasis",
+      "problem": "has markdown",
+      "set": [
+        [
+          [
+            "intro",
+            "en"
+          ],
+          "Each person's share is the rent plus the monthly bills, divided by the *number* of people who live in the home."
+        ]
+      ]
+    },
+    {
+      "name": "a C1 control character",
+      "problem": "invisible character",
+      "set": [
+        [
+          [
+            "faqs",
+            0,
+            "a",
+            "en"
+          ],
+          "No. It splits the rent and the bills equally. Agree a different split between you if one room is bigger."
+        ]
+      ]
+    },
+    {
+      "name": "an address with another scheme",
+      "problem": "web address",
+      "set": [
+        [
+          [
+            "howItWorks",
+            "en"
+          ],
+          "The rent and the bills are added up and divided equally. The figures come from ftp://files.example.xyz and nowhere else at all."
+        ]
+      ]
+    },
+    {
+      "name": "an output no test works out",
+      "set": [
+        [
+          [
+            "tests",
+            0,
+            "expect"
+          ],
+          {
+            "perPerson": 6750000
+          }
+        ],
+        [
+          [
+            "tests",
+            1,
+            "expect"
+          ],
+          {
+            "perPerson": 3200000
+          }
+        ],
+        [
+          [
+            "tests",
+            2,
+            "expect"
+          ],
+          {
+            "perPerson": 5500000,
+            "total": 22000000
+          }
+        ]
+      ],
+      "problem": "output \"perPersonYear\" is not in any test"
+    },
+    {
+      "name": "a default written to more decimals than the field takes",
+      "problem": "must be whole đồng",
+      "set": [
+        [
+          [
+            "inputs",
+            1,
+            "default"
+          ],
+          1500000.5
+        ]
+      ]
+    },
+    {
+      "name": "a division the example cannot compute",
+      "problem": "cannot be computed from the example",
+      "set": [
+        [
+          [
+            "outputs",
+            1,
+            "formula"
+          ],
+          "rent / (bills - bills)"
+        ]
+      ]
+    }
+  ],
+  "canonical": [
+    {
+      "value": {
+        "2": false,
+        "10": true,
+        "b": 1,
+        "a": [
+          3,
+          {
+            "d": "x",
+            "c": null
+          }
+        ],
+        "é": "ạ"
+      },
+      "json": "{\"10\":true,\"2\":false,\"a\":[3,{\"c\":null,\"d\":\"x\"}],\"b\":1,\"é\":\"ạ\"}",
+      "digest": "d5aec6848cc12e76"
+    },
+    {
+      "value": [
+        1.5,
+        0,
+        1e+21,
+        "line\nbreak",
+        {
+          "z": {},
+          "y": []
+        }
+      ],
+      "json": "[1.5,0,1e+21,\"line\\nbreak\",{\"y\":[],\"z\":{}}]",
+      "digest": "dd8a95b497498fb5"
+    }
+  ]
+}

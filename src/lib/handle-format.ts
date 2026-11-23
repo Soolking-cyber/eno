@@ -131,6 +131,10 @@ const RESERVED = new Set([
   // The four rent tools (2026-11-23), read from their registry like the guides below, so a fifth reserves itself.
   // Checked before reserving (prod, read-only, 2026-11-23): no live handle uses any of the four slugs (0 rows).
   ...RENT_TOOL_SLUGS,
+  // The tools hub and the generated tools under it (2026-11-23, src/lib/tools/registry.ts). Checked against prod before
+  // reserving (2026-11-23, read-only: `select count(*) from "Handle" where translate(lower(handle), '-_', '') = 'tools'` → 0),
+  // so no shop loses its page to the hub.
+  'tools',
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
   // simply stops existing with no error anywhere.

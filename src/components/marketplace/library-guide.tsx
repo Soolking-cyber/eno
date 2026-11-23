@@ -15,6 +15,7 @@ import { GuideFigure, TeachKeyPoints, teachGuideSections } from './teach-guide-b
 import { guideImageSrc, readingMinutes, storedSize } from '@/lib/guides/guide-images'
 import { titleWithSite } from '@/lib/meta-description'
 import { RENT_TOOLS, RENT_TOOL_SLUGS, rentToolPath } from '@/lib/rent-tools/registry'
+import { localizedHref } from '@/lib/lang-pinned'
 
 /**
  * One page for a guide in the general library (src/lib/guides), at /guides/<slug> in English and /huong-dan/<slug> in Vietnamese. A slug asked for at the other language's address is a 404, so
@@ -53,13 +54,13 @@ function load(slug: string, lang: Lang, now: Date) {
 /** Each language's list of its guides, in its own words, so no guide is reachable from the sitemap alone. A 404 until that language has one: an empty hub is a thin URL. */
 const HUB = {
   en: {
-    path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', toolsTitle: 'Tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
+    path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', toolsTitle: 'Tools', allTools: 'All tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
     title: 'Guides to living and doing business in Vietnam',
     description: 'Practical guides from eno.vn on renting, getting around, hiring and selling in Vietnam, checked against their sources and approved by the eno.vn team.',
     how: 'Each guide is drafted with AI from pages it cites, its key facts are checked against those pages, and a person on the eno.vn team reads and approves it before it goes live. Every guide lists its sources, the day they were last checked and the day it was approved; a guide changed after that is approved again.',
   },
   vi: {
-    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', toolsTitle: 'Công cụ', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
+    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', toolsTitle: 'Công cụ', allTools: 'Tất cả công cụ', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
     title: 'Hướng dẫn về cuộc sống và kinh doanh ở Việt Nam',
     description: 'Hướng dẫn thực tế từ eno.vn về thuê nhà, đi lại, tuyển dụng và bán hàng ở Việt Nam, được kiểm tra với nguồn và do đội ngũ eno.vn duyệt trước khi đăng.',
     how: 'Mỗi bài được AI soạn từ các trang mà bài trích dẫn, các thông tin chính được đối chiếu với chính các trang đó, rồi một người trong đội ngũ eno.vn đọc và duyệt trước khi đăng. Mỗi bài đều ghi nguồn, ngày kiểm tra nguồn gần nhất và ngày được duyệt; bài sửa sau đó phải được duyệt lại.',
@@ -99,6 +100,13 @@ export function rentToolsHubSection(lang: Lang): ArticleSection[] {
               </Link>
             </Row>
           ))}
+          {/* Then the hub of every tool, the ones eno Reach writes included (/tools). */}
+          <Row className="py-0">
+            <Link href={localizedHref('/tools', lang)} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+              <span className="block min-w-0 text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">{HUB[lang].allTools}</span>
+              <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+            </Link>
+          </Row>
         </Rows>
       ),
     },
