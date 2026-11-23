@@ -117,6 +117,15 @@ DOMAINS=$(ent com.apple.developer.associated-domains)
 # NEXT_PUBLIC_APPLE_SIGNIN — would offer Google beside a broken Apple: the exact Guideline 4.8 gap this build closes.
 [ "$(ent com.apple.developer.applesignin:0)" = "Default" ] && [ -z "$(ent com.apple.developer.applesignin:1)" ] \
   || fail "signed app must carry com.apple.developer.applesignin = [Default] — it carries: $(ent com.apple.developer.applesignin | tr -s '[:space:]' ' ')"
+# 1.1 — Apple's Declared Age Range gate (ios/App/App/AgeGate.swift; D17). Without the entitlement every age request
+# throws, and the gate — which opens on Apple's failure — would silently never check anyone.
+[ "$(ent com.apple.developer.declared-age-range)" = "true" ] \
+  || fail "signed app must carry com.apple.developer.declared-age-range = true (App ID vn.eno.app › Declared Age Range)"
+# ⛔ WEAK, NEVER STRONG: the framework exists from iOS 26 and the app runs from 16.4 — a strong load refuses to launch
+# on every older iPhone. OTHER_LDFLAGS -weak_framework DeclaredAgeRange (project.pbxproj) is what makes it weak.
+LOADS=$(find "$APP" -maxdepth 1 -type f \( -name App -o -name 'App.debug.dylib' \) -exec otool -l {} \; \
+  | awk '/cmd LC_/{c=$2} /name .*DeclaredAgeRange\.framework/{print c}' | sort -u)
+[ "$LOADS" = "LC_LOAD_WEAK_DYLIB" ] || fail "DeclaredAgeRange must be loaded weak only — load commands: ${LOADS:-none}"
 
 # Required-reason APIs: every Mach-O, undefined symbols only. A change here means PrivacyInfo.xcprivacy
 # needs a matching category (runbook §2) — then update EXPECTED.
