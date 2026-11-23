@@ -58,10 +58,10 @@ describe('homeMetadata under the /vi pilot (V3b, lists on)', () => {
     pilot.on = true
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     const m = homeMetadata('en')
-    expect(m.alternates).toEqual({ canonical: 'https://eno.vn', languages: { en: 'https://eno.vn', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn' }, types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } })
+    expect(m.alternates).toEqual({ canonical: 'https://eno.vn/', languages: { en: 'https://eno.vn/', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn/' }, types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } })
     expect(m.title).toBeUndefined() // the layout's English title stays
     // The card's own short lines (an SEO checker's ranges: title 25–35, description 55–65), and eno.vn as the creator.
-    expect(m.openGraph).toMatchObject({ url: 'https://eno.vn', locale: 'en_US', title: "eno.vn — Vietnam's free classifieds", description: 'Rentals, jobs and used goods for expats and locals in Vietnam.' })
+    expect(m.openGraph).toMatchObject({ url: 'https://eno.vn/', locale: 'en_US', title: "eno.vn — Vietnam's free classifieds", description: 'Rentals, jobs and used goods for expats and locals in Vietnam.' })
     expect(m.twitter).toMatchObject({ title: "eno.vn — Vietnam's free classifieds", site: '@enovietnam', creator: '@enovietnam' })
     const og = m.openGraph as { title: string; description: string }
     expect(og.title.length).toBeGreaterThanOrEqual(25); expect(og.title.length).toBeLessThanOrEqual(35)

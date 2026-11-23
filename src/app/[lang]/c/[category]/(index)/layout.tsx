@@ -138,7 +138,10 @@ export default async function CategoryIndexLayout({
         <h1 className={cn(cat.slug === TEACHERS_CATEGORY_SLUG || isGoodsCategory(cat.slug) ? 'h-display text-balance text-foreground' : 'h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', cat.slug === 'rentals' && 'max-sm:sr-only', cat.slug === 'jobs' && 'max-sm:sr-only')}>
           {headline ? <RentalsHeading headline={headline} />
             : cat.slug === TEACHERS_CATEGORY_SLUG ? <TeachersHeading />
-            : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
+            : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" />
+              {/* The site's name for crawlers and screen readers, not on screen: the approved one-line heading stays as it is
+                  (Seobility, 2026-11-23: "Jobs in Vietnam" was under the 20 characters an h1 should have). */}
+              <span className="sr-only"> <Bilingual en={`on ${SITE_NAME}`} vi={`trên ${SITE_NAME}`} /></span></>}
         </h1>
         {/* The wrapper only takes it off a phone (the page's copy speaks there); with no box of its own, the line's `mt-2`
             collapses through it, so from sm nothing moves. */}

@@ -123,7 +123,8 @@ describe('ListingCard — a clip chunk that fails', () => {
     const view = render(<RouteError><ListingCard listing={listing('a')} onOpen={vi.fn()} /></RouteError>)
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
     expect(view.queryByText(ROUTE_ERROR)).toBeNull()
-    expect(view.getByText('Clip card a')).toBeTruthy()
+    // The card's links carry its title as sr-only text too (Seobility, 2026-11-23), so the title is found more than once.
+    expect(view.getAllByText('Clip card a').length).toBeGreaterThan(0)
     expect(view.container.querySelector('img')).toBeTruthy()
     expect(view.queryByTestId('clip')).toBeNull()
     expect(clip.asks).toBe(2) // the first ask and one retry, never a loop
@@ -138,7 +139,7 @@ describe('ListingCard — a clip chunk that fails', () => {
     )
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
     expect(view.queryByText(ROUTE_ERROR)).toBeNull()
-    expect(view.getByText('Clip card b')).toBeTruthy()
+    expect(view.getAllByText('Clip card b').length).toBeGreaterThan(0)
     expect(clip.asks).toBe(2)
   })
 

@@ -137,7 +137,7 @@ import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
 import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
-import { fillDescription } from '@/lib/meta-description'
+import { fillDescription, titleWithPrice } from '@/lib/meta-description'
 import { isThinImport } from '@/lib/thin-import'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
@@ -304,7 +304,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // In the page's language: the variant's price grouping (titlePrice) and category name — a Vietnamese description never
   // reads "12,000,000 đ, Furniture". ⛔ "Free" only while POSTING_IS_FREE (site-identity.ts) says so.
   const place = [vi ? listing.category.nameVi || listing.category.name : listing.category.name, listing.location].filter(Boolean).join(', ')
-  const siteLine = !POSTING_IS_FREE ? '' : vi ? `Rao vặt miễn phí cho người nước ngoài và người Việt trên ${SITE_NAME}.` : `Free classifieds for expats and locals in Vietnam on ${SITE_NAME}.`
+  // Without "on <site>" (the <title> carries it): 51 characters, so a ~100-character body still reaches Bing's 120 under the
+  // 155 cap (Seobility, 2026-11-23); at 60 it was skipped whole and the description stayed short.
+  const siteLine = !POSTING_IS_FREE ? '' : vi ? 'Rao vặt miễn phí cho người nước ngoài và người Việt.' : 'Free classifieds for expats and locals in Vietnam.'
   const desc = bodyDesc
     ? fillDescription(bodyDesc, [[titlePrice, place].filter(Boolean).join(', ') && `${[titlePrice, place].filter(Boolean).join(', ')}.`, siteLine])
     // The composed fallback is English on both variants (above), so its closing line is too.
@@ -333,7 +335,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const teacherSearch = isTeacher ? teacherSearchVerdict(teacherSearchFacts(teacherRow, listing)) : null
   const teacherTitle = isTeacher ? `${teacherRow?.fullName ?? listing.title} — ${teacherTitleLine(teacherRow ?? {}, vi ? 'vi' : 'en')} | ${SITE_NAME}` : null
   return {
-    title: teacherTitle ?? (titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`),
+    title: teacherTitle ?? titleWithPrice(titleFor, titlePrice, SITE_NAME),
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why — and so, since
@@ -1403,7 +1405,8 @@ export default async function ListingPage({ params }: Props) {
    */
   const detailsTwin = goodsSheet && showDetails ? (
     <div className={GOODS_DETAILS_TWIN}>
-      <h2 className="sr-only"><Tr text="Details" /></h2>
+      {/* Its own words, not "Details" again (Seobility, 2026-11-23: two h2 "Details" in one page's HTML, one always display:none). */}
+      <h2 className="sr-only"><Bilingual en="Item details" vi="Chi tiết sản phẩm" /></h2>
       <dl className={cn('[&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]', GOODS_DETAILS_ROWS)}>{detailsRows}</dl>
     </div>
   ) : null
@@ -1415,7 +1418,7 @@ export default async function ListingPage({ params }: Props) {
    */
   const jobTags = isJob && showDetails ? (
     <div className={JOB_TAGS}>
-      <h2 className="sr-only"><Tr text="Details" /></h2>
+      <h2 className="sr-only"><Bilingual en="Job details" vi="Chi tiết công việc" /></h2>
       <dl className={JOB_TAG_ROWS}>{detailsRows}</dl>
     </div>
   ) : null

@@ -35,7 +35,7 @@ describe('langAlternatesFor — the head of a page with a /vi twin', () => {
     }
     expect(langAlternatesFor('/', 'vi', undefined, 'https://eno.vn', MARKET)).toEqual({
       canonical: 'https://eno.vn/vi',
-      languages: { en: 'https://eno.vn', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn' },
+      languages: { en: 'https://eno.vn/', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn/' },
     })
   })
 

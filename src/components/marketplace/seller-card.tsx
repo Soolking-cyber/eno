@@ -1,5 +1,6 @@
 'use client'
 
+import { SITE_NAME } from '@/lib/edition'
 import { fillTemplate, safeTemplate } from '@/lib/i18n/placeholders'
 import Link from 'next/link'
 import { MessageCircle, Store, Star } from "@/components/ui/icons"
@@ -255,7 +256,12 @@ export function SellerCard({
                 the role is applied `!important` below sm, which a layered declaration needs to beat an unlayered one. From sm the
                 title tier as before. */}
             {variant === 'storefront' ? (
-              <h1 title={seller.name} className="h-title line-clamp-2 text-foreground [overflow-wrap:anywhere] max-sm:text-t-h2!">{seller.name}</h1>
+              <h1 title={seller.name} className="h-title line-clamp-2 text-foreground [overflow-wrap:anywhere] max-sm:text-t-h2!">
+                {seller.name}
+                {/* Not on screen: what the page is, for crawlers and screen readers (Seobility, 2026-11-23: "ShopDunk" was under
+                    the 20 characters an h1 should have). */}
+                <span className="sr-only">{' · '}{tr('listings on', 'tin đăng trên')}{' '}{SITE_NAME}</span>
+              </h1>
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}

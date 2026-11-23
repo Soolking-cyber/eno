@@ -49,7 +49,8 @@ export function langAlternatesFor(
 ): { canonical: string; languages: HreflangSet } | null {
   if (isNoindex(robots) || !hasViTwin(path, lists)) return null
   const base = origin.replace(/\/+$/, '')
-  const at = (p: string) => (base ? (p === '/' ? base : `${base}${p}`) : p)
+  // The root WITH its slash (Seobility, 2026-11-23: "https://eno.vn" was crawled as a link to a redirect). One URL either way.
+  const at = (p: string) => (base ? `${base}${p}` : p)
   const en = at(path)
   const vi = at(viTwinPath(path))
   return { canonical: lang === 'vi' ? vi : en, languages: { en, 'vi-VN': vi, 'x-default': en } }

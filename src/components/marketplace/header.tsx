@@ -1569,6 +1569,8 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                 aria-current={hydrated && pathname === '/saved' ? 'page' : undefined}
                 data-header-saved=""
               >
+                {/* Text in the link, not only aria-label (Seobility, 2026-11-23: an empty link on every page). */}
+                <span className="sr-only">{tr('Saved', 'Đã lưu')}</span>
                 <Heart className="size-7" strokeWidth={STROKE} />
                 {savedCount > 0 && (
                   <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1">

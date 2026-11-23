@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { shopTitle } from '@/lib/meta-description'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic'
 type Props = { params: Promise<{ lang?: string; id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
+  const { id, lang } = await params
   const seller = await loadSeller(id)
   // Call notFound() HERE (in generateMetadata, before any streaming/Suspense
   // boundary) so a missing seller returns a real HTTP 404 — not a soft-404 (200
@@ -41,10 +42,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    */
   const canonical = seller.handle ? await storefrontCanonical(seller.handle.handle, hostUrl) : `${hostUrl}/sellers/${id}`
   return {
-    title: `${seller.name} | ${SITE_NAME}`,
+    title: shopTitle(seller.name, SITE_NAME, lang),
     description,
     // The share card carries the canonical URL and the site's preview image (C-SHARE).
-    ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
+    ...pageShare({ title: shopTitle(seller.name, SITE_NAME, lang), description, url: canonical }),
     alternates: { canonical },
     // ⛔ A teacher-only storefront carries its profile's search verdict (src/lib/teachers/search-index.ts) — the 111
     // storefronts the sitemap submitted on 2026-10-20 were all of this kind. Undefined for every other shop.

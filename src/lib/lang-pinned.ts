@@ -371,7 +371,8 @@ export function langAlternates(
   lists: ViPilot = VI_PILOT,
 ): { canonical: string; languages: Record<'en' | 'vi-VN' | 'x-default', string> } | null {
   if (!lists.live.includes(plain)) return null
-  const at = (p: string) => (p === '/' ? origin : `${origin}${p}`)
+  // The root WITH its slash, as langAlternatesFor (Seobility, 2026-11-23: the bare origin is a redirect).
+  const at = (p: string) => `${origin.replace(/\/+$/, '')}${p}`
   const en = at(plain)
   const vi = at(viTwin(plain))
   return { canonical: variant === 'vi' ? vi : en, languages: { en, 'vi-VN': vi, 'x-default': en } }

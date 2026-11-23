@@ -116,6 +116,8 @@ export function AppDownload() {
       // concatenated, not merged (CLAUDE.md), and this branch is the one a phone renders.
       <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] max-sm:hidden">
         <a href={storeHref} data-app-download="" aria-label={label}>
+          {/* Text in the link, not only aria-label (Seobility, 2026-11-23: an empty link). */}
+          <span className="sr-only">{label}</span>
           <Download className="h-7 w-7" strokeWidth={1.75} />
         </a>
       </Button>

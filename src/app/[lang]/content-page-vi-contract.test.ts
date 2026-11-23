@@ -39,7 +39,6 @@ const KNOWN_ENGLISH_ONLY = new Map<string, string>([
   // /regulations — the h1 is already both languages, by design (the page renders Vietnamese first).
   ['Quy chế hoạt động (Operating Regulations)', 'already bilingual: the document is published in Vietnamese and English together'],
   // /account-deletion
-  ['Delete your account', FOLLOW_ON],
   ['Where to write', FOLLOW_ON],
   // /contact and /guide carry authored Vietnamese since 2026-11-06 (UI climb, info pages).
   // /partners and /prohibited carry authored Vietnamese since 2026-10-01 (legal-copy pass W-B).

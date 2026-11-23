@@ -202,14 +202,15 @@ describe('NAV-7: a desktop guest reaches Saved from the header', () => {
     expect(heart.className).toMatch(/(^|\s)hidden(\s|$)/)
     expect(heart.className).toMatch(/(^|\s)lg:flex(\s|$)/)
     expect(heart.getAttribute('aria-label')).toBe('Saved, 3')
-    expect(heart.textContent).toBe('3')
+    // The words are the sr-only text (Seobility, 2026-11-23: an icon-only link read as empty); the count is the badge.
+    expect(heart.textContent).toBe('Saved3')
   })
 
   it('no number while nothing is saved, and no heart for a signed-in reader (their rail has Saved)', async () => {
     const { Header } = await loadHeader()
     const view = render(<Header />)
     const heart = document.querySelector('a[data-header-saved]') as HTMLAnchorElement
-    expect(heart.textContent).toBe('')
+    expect(heart.textContent).toBe('Saved')
     expect(heart.getAttribute('aria-label')).toBe('Saved')
     view.unmount()
     h.auth.user = { id: 'u1' }

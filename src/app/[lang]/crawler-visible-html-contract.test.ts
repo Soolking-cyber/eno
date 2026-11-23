@@ -217,7 +217,7 @@ describe('the home page renders its header, <main>, one H1 and its feed inline',
 
   it('(home)/layout.tsx renders the header, <main id="main">, the sr-only H1 opening on SITE_NAME (the site title, 2026-11-17) and the footer', () => {
     const s = src(`${HOME}/layout.tsx`)
-    for (const re of [/<Header\b/, /<main\b[^>]*\bid="main"/, /<h1 className="sr-only"><Tr text=\{POSTING_IS_FREE \? `\$\{SITE_NAME\} — free classifieds/, /<Footer\b/]) expect(s).toMatch(re)
+    for (const re of [/<Header\b/, /<main\b[^>]*\bid="main"/, /<h1 className="sr-only">\{POSTING_IS_FREE\s*\? <Bilingual en=\{`\$\{SITE_NAME\} — free classifieds/, /<Footer\b/]) expect(s).toMatch(re)
     expect(s).toMatch(/<\/h1>[\s\S]*\{\s*children\s*\}[\s\S]*<\/main>/)
   })
 

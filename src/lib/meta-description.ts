@@ -7,7 +7,9 @@
  */
 export function fillDescription(lead: string, extras: readonly (string | null | undefined | false)[], opts: { min?: number; max?: number } = {}): string {
   const min = opts.min ?? 120
-  const max = opts.max ?? 160
+  // 155, not 160 (Seobility, 2026-11-23: listing descriptions cut at ~160 characters measured ~1030 px against the ~1000 px a
+  // result shows, ~6.4 px a character). Bing's floor (`min`) is unchanged, so callers keep their extras short enough to reach it.
+  const max = opts.max ?? 155
   let s = lead.replace(/\s+/g, ' ').trim()
   for (const raw of extras) {
     if (s.length >= min) break
@@ -34,4 +36,26 @@ export function clip(s: string, max = 160): string {
 export function titleWithSite(title: string, siteName: string, max = 70): string {
   const full = `${title} | ${siteName}`
   return full.length <= max ? full : clip(title, max)
+}
+
+/**
+ * A listing's <title>: "<title> — <price> | <site>" within `max` characters (Seobility, 2026-11-23: imported titles measured
+ * 953–1045 px against the ~580 px a result shows, ~60 characters). The site's name goes first, then the title is cut at a word;
+ * the price is never cut.
+ */
+export function titleWithPrice(title: string, price: string, siteName: string, max = 60): string {
+  const tail = price ? ` — ${price}` : ''
+  const withSite = `${title}${tail} | ${siteName}`
+  if (withSite.length <= max) return withSite
+  if (`${title}${tail}`.length <= max) return `${title}${tail}`
+  return `${clip(title, Math.max(24, max - tail.length))}${tail}`
+}
+
+/**
+ * A shop's <title>: "<name> — listings on <site>" (Seobility, 2026-11-23: "CellphoneS | eno.vn" measured under the ~200 px a title
+ * needs to say what the page is). A name too long for the phrase keeps the old "<name> | <site>" rule (titleWithSite).
+ */
+export function shopTitle(name: string, siteName: string, lang: string | undefined, max = 60): string {
+  const full = `${name} — ${lang === 'vi' ? 'tin đăng trên' : 'listings on'} ${siteName}`
+  return full.length <= max ? full : titleWithSite(name, siteName, max)
 }

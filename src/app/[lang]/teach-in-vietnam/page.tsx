@@ -413,7 +413,7 @@ export default async function TeachHubPage() {
         {rentFact && (
           <li>
             A one-bedroom apartment in Ho Chi Minh City has a median asking rent of{' '}
-            <strong className="font-semibold text-foreground whitespace-nowrap">{formatMoneyFull(rentFact.median, '₫', 'en')}</strong> a month (
+            <span className="font-semibold text-foreground whitespace-nowrap">{formatMoneyFull(rentFact.median, '₫', 'en')}</span> a month (
             {rentFact.n.toLocaleString('en-US')} listings, <HereLink href="/hcmc-rent-index">eno.vn Rent Index</HereLink>, {rentFact.date}).
           </li>
         )}
@@ -497,7 +497,8 @@ export default async function TeachHubPage() {
     lang: 'en',
     ...hubDates(live),
     breadcrumb: [
-      { label: 'Home', href: '/' },
+      // The site's name, not "Home" (Seobility, 2026-11-23: "Home" also names the furniture category's tile, two targets for one anchor).
+      { label: SITE_NAME, href: '/' },
       { label: 'Teach in Vietnam', href: TEACH_BASE },
     ],
     ledeRow: facts,

@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { shopTitle } from '@/lib/meta-description'
 import type { Metadata } from 'next'
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
@@ -58,7 +59,7 @@ const resolve = cache(async (raw: string) => {
 })
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { handle } = await params
+  const { handle, lang } = await params
   // Legacy eno.vn/@name → the page redirects it to the clean URL; no metadata needed.
   if (decodeURIComponent(handle).startsWith('@')) return {}
   const row = await resolve(handle)
@@ -100,12 +101,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      */
     const canonical = await storefrontCanonical(row.handle, hostUrl)
     return {
-      title: `${seller.name} | ${SITE_NAME}`,
+      title: shopTitle(seller.name, SITE_NAME, lang),
       description,
       alternates: { canonical },
       // The SITE's card, not the shop banner: banners are 1280×300 (banner-image.tsx), and a 1.91:1 unfurl
       // crop keeps only the middle 45% of that artwork — a sliver of the creative, words cut mid-line.
-      ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
+      ...pageShare({ title: shopTitle(seller.name, SITE_NAME, lang), description, url: canonical }),
       // ⛔ A teacher-only storefront carries its profile's search verdict (src/lib/teachers/search-index.ts); the
       // cache()d loadSeller above (non-null here) holds the shop's own live count. Undefined for every other shop.
       robots: await storefrontTeacherRobots(seller.id, (await loadSeller(seller.id))?._count.listings ?? 0),

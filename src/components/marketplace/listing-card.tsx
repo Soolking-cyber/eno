@@ -790,7 +790,11 @@ function ListingCardImpl({
           open()
         }}
         className="rounded-media corner-round card-link"
-      />
+      >
+        {/* The link's words in its text, not only in aria-label (Seobility, 2026-11-23, counted these as empty links on 24 pages).
+            The aria-label still names it for assistive tech; sr-only paints nothing. */}
+        <span className="sr-only">{lineTitle}</span>
+      </a>
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
           overflow-hidden actually clips the translateX-transformed carousel row
@@ -1237,6 +1241,8 @@ function ListingCardImpl({
           onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
           className="absolute inset-0 z-[1]"
         >
+          {/* Text for crawlers that do not read aria-label (Seobility, 2026-11-23); inside aria-hidden, so nobody hears it twice. */}
+          <span className="sr-only">{displayTitle}</span>
           {segments > 1 && (
             <span className="pointer-events-none absolute inset-0 hidden hover-pointer:flex">
               {Array.from({ length: segments }, (_, i) => (

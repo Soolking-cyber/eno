@@ -137,7 +137,7 @@ describe('/terms', () => {
 
   it('serves a curated Vietnamese body on the vi variant, with no "English governs" note', async () => {
     const html = await renderLang('./terms/page', 'vi')
-    expect(html).toContain('<h1>Điều khoản dịch vụ</h1>')
+    expect(html).toContain('<h1>Điều khoản dịch vụ eno.vn</h1>')
     expect(html).toContain('<section id="linked"><h2>Tin đăng liên kết</h2>')
     expect(html).toContain('trang nguồn')
     expect(html).toContain('ít nhất 20 ngày trước ngày áp dụng')

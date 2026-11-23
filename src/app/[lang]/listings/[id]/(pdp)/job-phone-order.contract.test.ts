@@ -67,7 +67,7 @@ describe('the head: role + Share → employer → pay → place → tags (DOM or
     expect(PAGE).toMatch(/<div className="order-7 hidden md:block">\s*<PdpShopLink /)
   })
   it('the tags are the Details rows themselves (no second label or value logic), and the table steps down below md', () => {
-    expect(PAGE).toMatch(/const jobTags = isJob && showDetails \? \(\s*<div className=\{JOB_TAGS\}>\s*<h2 className="sr-only"><Tr text="Details" \/><\/h2>\s*<dl className=\{JOB_TAG_ROWS\}>\{detailsRows\}<\/dl>/)
+    expect(PAGE).toMatch(/const jobTags = isJob && showDetails \? \(\s*<div className=\{JOB_TAGS\}>\s*<h2 className="sr-only"><Bilingual en="Job details" vi="Chi tiết công việc" \/><\/h2>\s*<dl className=\{JOB_TAG_ROWS\}>\{detailsRows\}<\/dl>/)
     expect(PAGE).toContain("<div className={cn('space-y-2', goodsSheet || isJob || detailsPhoneHidden ? 'max-md:hidden' : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP)}>")
     expect(JOB.JOB_TAG_ROWS).toContain("[&_dt]:after:content-[':']")
   })

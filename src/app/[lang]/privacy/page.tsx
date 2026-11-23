@@ -24,7 +24,8 @@ import { PRIVACY_PARTNER_VISA_RECIPIENTS, PRIVACY_PARTNER_VISA_SECTIONS } from '
 
 const METADATA: Metadata = withShare({
   title: `Privacy Policy | ${SITE_NAME}`,
-  description: `How ${SITE_NAME} collects, uses, shares and protects personal data under Vietnam’s Personal Data Protection Law 91/2025 — where it is stored, who receives it, sensitive data, processing outside Vietnam, and the rights you can exercise.`,
+  // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
+  description: `How ${SITE_NAME} collects, uses, shares and protects personal data under Vietnam’s Personal Data Protection Law 91/2025, and your rights.`,
   alternates: { canonical: '/privacy' },
 })
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {

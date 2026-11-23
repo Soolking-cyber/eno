@@ -422,7 +422,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         >
           <img
             src={IS_MARKETPLACE ? '/logo-dotvn.svg?v=50550388' : '/logo.svg'}
-            alt=""
+            // i18n-invariant: the edition's name rather than "" (Seobility 2026-11-23 counts an empty alt as missing, and this is
+            // on every page); still aria-hidden, so a screen reader hears the brand once, from the mark beside it.
+            alt={SITE_NAME}
             aria-hidden
             // ⚠️ THESE ARE THE ASSETS' OWN viewBox NUMBERS AND THEY MUST TRACK IT. They only
             // supply the intrinsic ratio the browser reserves before the SVG loads; a stale pair

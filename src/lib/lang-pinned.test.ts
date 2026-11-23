@@ -238,8 +238,8 @@ describe('langAlternates (V3b head, decision V-g)', () => {
 
   it('on: self-canonical per variant, reciprocal en / vi-VN / x-default', () => {
     expect(langAlternates('/', 'en', 'https://eno.vn', ON)).toEqual({
-      canonical: 'https://eno.vn',
-      languages: { en: 'https://eno.vn', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn' },
+      canonical: 'https://eno.vn/',
+      languages: { en: 'https://eno.vn/', 'vi-VN': 'https://eno.vn/vi', 'x-default': 'https://eno.vn/' },
     })
     expect(langAlternates('/c/furniture-appliances', 'vi', 'https://eno.vn', ON)).toEqual({
       canonical: 'https://eno.vn/vi/c/furniture-appliances',

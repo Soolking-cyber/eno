@@ -9,7 +9,8 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 const METADATA: Metadata = withShare({
   title: `Official partners — ${SITE_NAME}`,
   description:
-    'What the Official partner badge means on eno: a company that has signed an agreement with eno. Every other shop whose catalogue appears here is a Linked shop — what that means for buyers, and how commissions are disclosed.',
+    // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
+    'What the Official partner badge means on eno: a company that signed an agreement with eno. Every other shop here is a Linked shop, and why.',
   alternates: { canonical: '/partners' },
 })
 
@@ -75,8 +76,9 @@ function Check({ title, children }: { title: React.ReactNode; children: React.Re
 export default function PartnersPage() {
   return (
     <ContentPage
-      title="Official partners"
-      titleVi="Đối tác chính thức"
+      // The site's name in the h1 (Seobility, 2026-11-23: "Official partners" was under 20 characters).
+      title={`Official partners of ${SITE_NAME}`}
+      titleVi={`Đối tác chính thức của ${SITE_NAME}`}
       /* ⛔ PHRASING CONTENT ONLY. ContentPage renders `intro` INSIDE a <p>; a block element here closed the
          outer <p> early and broke hydration (React #418, C-HYDRATION, 2026-09-29).
          src/app/[lang]/html-nesting-contract.test.ts fails the build on a block element here. */

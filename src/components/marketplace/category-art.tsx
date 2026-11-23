@@ -87,7 +87,9 @@ export function CategoryArt({
   return (
     <ArtImage
       src={src}
-      alt=""
+      // A name, not "" (Seobility 2026-11-23 counts an empty alt as a missing one, on every page that draws the rail). The
+      // i18n-invariant: the slug's words, as in the URL; aria-hidden, so the tile's own (translated) label is what is heard.
+      alt={`${slug.replace(/-/g, ' ')} icon`}
       aria-hidden
       width={184}
       height={184}

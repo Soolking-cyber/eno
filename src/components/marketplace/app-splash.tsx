@@ -249,7 +249,8 @@ export function AppSplash() {
           render on eno.forum, and logo-dotforum.svg the reverse. */}
       <img
         src={IS_SERVICES ? '/logo-dotforum.svg?v=06b1301a' : '/logo-dotvn.svg?v=50550388'}
-        alt=""
+        // i18n-invariant: the brand's name, not "" (Seobility 2026-11-23 counts an empty alt as a missing one).
+        alt={IS_SERVICES ? 'eno.forum' : 'eno.vn'}
         fetchPriority="high"
         decoding="sync"
         draggable={false}

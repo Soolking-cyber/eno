@@ -134,7 +134,9 @@ const SECTIONS: [id: string, title: string, paras: Copy[], steps?: Copy[][]][] =
 export default function AccountDeletionPage() {
   return (
     <ContentPage
-      title="Delete your account"
+      // The site's name in the h1 (Seobility, 2026-11-23: "Delete your account" was under 20 characters).
+      title={`Delete your ${SITE_NAME} account`}
+      titleVi={`Xóa tài khoản ${SITE_NAME} của bạn`}
       meta={<p className="mt-3 text-sm text-ink-4"><Bilingual en="Last updated: October 2026" vi="Cập nhật lần cuối: Tháng 10 năm 2026" /></p>}
       intro={<><Tr text="You can delete your account and the personal data attached to it at any time, either yourself in the app or by asking us. This page explains both, and what happens afterwards." />{' '}<Link className="mt-2 flex min-h-11 w-fit max-w-full items-center gap-1 font-semibold text-accent-foreground underline-offset-2 hover:underline" href={SETTINGS_SHORTCUT.href}><Bilingual en={SETTINGS_SHORTCUT.en} vi={SETTINGS_SHORTCUT.vi} /><ChevronRight className="size-4 shrink-0" aria-hidden="true" /></Link></>}
       /* ⚠️ THE CONTACT SECTION IS IN THE RAIL TOO. It is rendered separately from SECTIONS (it

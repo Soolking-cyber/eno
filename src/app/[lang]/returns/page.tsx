@@ -72,7 +72,8 @@ const WINDOW_DAYS = 7
 const METADATA: Metadata = withShare({
   // ⚠️ SENTENCE CASE, MATCHING THE H1. /terms keeps its title and its H1 identical for the same reason.
   title: `Returns and exchanges | ${SITE_NAME}`,
-  description: `How returns and exchanges work on ${SITE_NAME}: a ${WINDOW_DAYS}-day window on items bought from business sellers that sell through chat here and have accepted this policy, who pays return shipping, how to start a return, why linked listings follow the source shop's own policy, and what private person-to-person sales mean for buyers.`,
+  // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
+  description: `Returns on ${SITE_NAME}: a ${WINDOW_DAYS}-day window on items from business sellers that accept this policy, who pays shipping and how to start one.`,
   alternates: { canonical: '/returns' },
 })
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
@@ -295,7 +296,7 @@ export default async function ReturnsPage({ params }: { params: Promise<{ lang: 
               <p key={j} className="text-base leading-relaxed text-body">
                 {'lead' in p && (
                   <>
-                    <strong className="font-semibold text-foreground">{vi ? linkifyLegal(p.lead.vi) : <LinkifiedTr text={p.lead.en} />}</strong>{' '}
+                    {/* A <span>, not <strong> (Seobility, 2026-11-23): the lead is a whole sentence, and emphasis that long reads as none. Same pixels. */}<span className="font-semibold text-foreground">{vi ? linkifyLegal(p.lead.vi) : <LinkifiedTr text={p.lead.en} />}</span>{' '}
                   </>
                 )}
                 {vi ? linkifyLegal(p.vi) : <LinkifiedTr text={p.en} />}

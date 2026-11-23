@@ -384,7 +384,8 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * Main landing page — ONE entry, deliberately: its `/vi` twin is the pilot's, and pilot decision V-c (no `/vi` in a
    * sitemap) stands for it (owner's scoping, 2026-11-19: the pilot paths keep their behaviour).
    */
-  urls.push(`  <url><loc>${hostUrl}</loc>${lm(siteLastmod)}</url>\n`)
+  // The root WITH its slash (Seobility, 2026-11-23: the bare origin is a redirect to it).
+  urls.push(`  <url><loc>${hostUrl.replace(/\/+$/, '')}/</loc>${lm(siteLastmod)}</url>\n`)
 
   // Static info pages — no lastmod, deliberately (see the note at the top of this file).
   //

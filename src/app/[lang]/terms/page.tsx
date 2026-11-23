@@ -79,12 +79,14 @@ import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/c
 // with that gate on (src/lib/app-review-gates.ts); without it the paragraph is false the day it is published.
 
 const METADATA: Metadata = withShare({
-  title: `Terms of Service | ${SITE_NAME}`,
-  description: `The terms that apply when you use ${SITE_NAME}: accounts, listings posted here and listings linked from other sites, our role as an intermediary platform, fees and commissions, liability, complaints and governing law.`,
+  // The h1's words exactly (it carries the site's name since Seobility, 2026-11-23 — the title and the h1 stay identical).
+  title: `${SITE_NAME} Terms of Service`,
+  // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
+  description: `The terms for using ${SITE_NAME}: accounts, posted and linked listings, our role as an intermediary, fees, liability, complaints and governing law.`,
   alternates: { canonical: '/terms' },
 })
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
-  return langMetadata(params, METADATA, { title: `Điều khoản dịch vụ | ${SITE_NAME}` })
+  return langMetadata(params, METADATA, { title: `Điều khoản dịch vụ ${SITE_NAME}` })
 }
 
 /** One paragraph. `vi` absent = English source only (the services-edition copy). */
@@ -445,8 +447,9 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
   const inForce = tosVersionInForce()
   return (
     <ContentPage
-      title="Terms of Service"
-      titleVi="Điều khoản dịch vụ"
+      // The site's name in the h1 (Seobility, 2026-11-23: "Terms of Service" was under the 20 characters an h1 should have).
+      title={`${SITE_NAME} Terms of Service`}
+      titleVi={`Điều khoản dịch vụ ${SITE_NAME}`}
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">

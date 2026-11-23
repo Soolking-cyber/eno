@@ -82,7 +82,8 @@ export default async function TeachGuidePage({ params }: Props) {
     lang: 'en',
     ...teachGuideDates(slug),
     breadcrumb: [
-      { label: 'Home', href: '/' },
+      // The site's name, not "Home" (Seobility, 2026-11-23: "Home" also names the furniture category's tile, two targets for one anchor).
+      { label: SITE_NAME, href: '/' },
       { label: 'Teach in Vietnam', href: TEACH_BASE },
       { label: entry.label, href: teachPath(slug) },
     ],

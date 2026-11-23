@@ -1,27 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { clip, fillDescription, titleWithSite } from './meta-description'
+import { clip, fillDescription, shopTitle, titleWithPrice, titleWithSite } from './meta-description'
 
 describe('fillDescription (Bing 2026-11-20: descriptions too short)', () => {
   it('adds the facts in order, only until the text is long enough', () => {
     const d = fillDescription('iPhone 17 Pro Max 512GB - Used, with scratches and dents.', [
       '35,000,000 đ, Electronics, District 7.',
-      'Free classifieds for expats and locals in Vietnam on eno.vn.',
+      'Free classifieds for expats and locals in Vietnam.',
       'never reached',
     ])
-    expect(d).toBe('iPhone 17 Pro Max 512GB - Used, with scratches and dents. 35,000,000 đ, Electronics, District 7. Free classifieds for expats and locals in Vietnam on eno.vn.')
-    expect(d.length).toBeLessThanOrEqual(160)
+    expect(d).toBe('iPhone 17 Pro Max 512GB - Used, with scratches and dents. 35,000,000 đ, Electronics, District 7. Free classifieds for expats and locals in Vietnam.')
+    expect(d.length).toBeGreaterThanOrEqual(120)
+    expect(d.length).toBeLessThanOrEqual(155)
   })
   it('leaves a long enough lead alone and skips empty extras', () => {
     const lead = 'x'.repeat(130)
     expect(fillDescription(lead, ['more'])).toBe(lead)
     expect(fillDescription('Short', ['', null, undefined, false, 'Fact'])).toBe('Short. Fact')
   })
-  it('skips an extra that would pass 160 whole, and tries the next', () => {
+  it('skips an extra that would pass 155 whole, and tries the next (Seobility 2026-11-23: 160 measured over 1000 px)', () => {
+    expect(fillDescription('x'.repeat(100), ['y'.repeat(55), 'Short fact.'])).toBe(`${'x'.repeat(100)}. Short fact.`)
     expect(fillDescription('A lead', ['word '.repeat(60).trim(), 'Short fact.'])).toBe('A lead. Short fact.')
   })
   it('cuts only a lead that is itself too long, at a word', () => {
     const d = fillDescription('word '.repeat(60).trim(), ['never'])
-    expect(d.length).toBeLessThanOrEqual(160)
+    expect(d.length).toBeLessThanOrEqual(155)
     expect(d.endsWith('word…')).toBe(true)
   })
 })
@@ -41,5 +43,31 @@ describe('titleWithSite (Bing 2026-11-20: title too long)', () => {
     const t = 'Cheap 5G phones in Vietnam — coverage, bands and the specs that matter'
     expect(titleWithSite(t, 'eno.vn')).toBe(t)
     expect(titleWithSite('word '.repeat(20).trim(), 'eno.vn').length).toBeLessThanOrEqual(70)
+  })
+})
+
+describe('titleWithPrice (Seobility 2026-11-23: listing titles 953–1045 px against ~580)', () => {
+  it('keeps the whole "<title> — <price> | <site>" while it fits in 60', () => {
+    expect(titleWithPrice('Honda Vision 2022', '18,000,000 đ', 'eno.vn')).toBe('Honda Vision 2022 — 18,000,000 đ | eno.vn')
+    expect(titleWithPrice('Studio in Thao Dien', '', 'eno.vn')).toBe('Studio in Thao Dien | eno.vn')
+  })
+  it('drops the site first, then cuts the title at a word, never the price', () => {
+    expect(titleWithPrice('Studio apartment in Thao Dien, District 2', '9,000,000 đ', 'eno.vn')).toBe('Studio apartment in Thao Dien, District 2 — 9,000,000 đ')
+    expect(titleWithPrice('2-bedroom apartment with a river view, District 2', '25,000,000 đ', 'eno.vn')).toBe('2-bedroom apartment with a river view… — 25,000,000 đ')
+    const long = titleWithPrice('Robusta clean 25% black & broken - Robusta coffee 25% black & broken. 10 packs', '1,250,000 đ', 'eno.vn')
+    expect(long.length).toBeLessThanOrEqual(60)
+    expect(long.endsWith('… — 1,250,000 đ')).toBe(true)
+    expect(long.startsWith('Robusta clean 25% black')).toBe(true)
+  })
+})
+
+describe('shopTitle (Seobility 2026-11-23: "ShopDunk | eno.vn" too short to say what the page is)', () => {
+  it('names the page in the variant\'s language', () => {
+    expect(shopTitle('ShopDunk', 'eno.vn', 'en')).toBe('ShopDunk — listings on eno.vn')
+    expect(shopTitle('ShopDunk', 'eno.vn', 'vi')).toBe('ShopDunk — tin đăng trên eno.vn')
+  })
+  it('falls back to "<name> | <site>" (or the name cut) when the phrase does not fit', () => {
+    expect(shopTitle('A'.repeat(40), 'eno.vn', 'en')).toBe(`${'A'.repeat(40)} | eno.vn`)
+    expect(shopTitle('word '.repeat(20).trim(), 'eno.vn', 'en').length).toBeLessThanOrEqual(60)
   })
 })

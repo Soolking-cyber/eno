@@ -573,7 +573,7 @@ describe('the pages child', () => {
     expect(urls.filter((u) => u.endsWith('/c/fashion-beauty/d2'))).toEqual([`${HOST}/c/fashion-beauty/d2`, `${HOST}/vi/c/fashion-beauty/d2`])
     expect(xml).toContain(`<loc>${HOST}/c/fashion-beauty/d2</loc><lastmod>2025-07-01T00:00:00.000Z</lastmod>`)
     // The home page's lastmod is the freshest live row anywhere.
-    expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/</loc><lastmod>${FRESH.toISOString()}</lastmod>`)
   }, 60_000)
 
   /**
@@ -742,7 +742,7 @@ describe('the pages child: lastmod from what each page shows', () => {
     // Every row was re-written on SYNCED (an import re-sync, a flag) but posted on POSTED.
     h.rows = many(MIN_INDEXABLE_LISTINGS, 'own', { sellerId: 'old-shop', district: 'Quận 5', postedAt: POSTED, updatedAt: SYNCED })
     const xml = await (await pagesGET()).text()
-    expect(lastmodOf(xml, HOST)).toBe(POSTED.toISOString())
+    expect(lastmodOf(xml, `${HOST}/`)).toBe(POSTED.toISOString())
     expect(lastmodOf(xml, `${HOST}/c/fashion-beauty`)).toBe(POSTED.toISOString())
     expect(lastmodOf(xml, `${HOST}/c/fashion-beauty/d5`)).toBe(POSTED.toISOString())
     expect(lastmodOf(xml, `${HOST}/old_shop`)).toBe(POSTED.toISOString())
@@ -772,7 +772,7 @@ describe('the pages child: lastmod from what each page shows', () => {
       row({ id: 'book', categoryId: 'cat-fashion', postedAt: d(25) }),
     ]
     const xml = await (await pagesGET()).text()
-    const home = lastmodOf(xml, HOST)
+    const home = lastmodOf(xml, `${HOST}/`)
     expect(home).toBe(d(25).toISOString())
     const landings = {
       'housing-vietnam-expats': d(2).toISOString(),
@@ -1365,7 +1365,7 @@ describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
     h.rows = [...fixtures(), row({ id: 'teacher-newest', sellerId: 'teacher-seller-0', categoryId: 'cat-teachers', listingType: 'teacher', postedAt: NEW, updatedAt: NEW, teacherProfile })]
     h.services = true
     const xml = (await buildPagesSitemap({ rentIndex: 'require' })).xml
-    expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${NEW.toISOString()}</lastmod>`)
+    expect(xml).toContain(`<loc>${HOST}/</loc><lastmod>${NEW.toISOString()}</lastmod>`)
     expect(xml).not.toContain(`${HOST}/c/teachers`)
   })
 })

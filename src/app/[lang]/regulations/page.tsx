@@ -1030,7 +1030,8 @@ const ARTICLES: Article[] = [
 
 export const metadata: Metadata = withShare({
   title: `Quy chế hoạt động | Operating Regulations | ${SITE_NAME}`,
-  description: `Quy chế hoạt động sàn giao dịch thương mại điện tử ${SITE_NAME}: phạm vi hoạt động, quyền và nghĩa vụ của các bên, quy trình đăng tin, rà soát nội dung, khiếu nại và tiêu chí hiển thị. Operating regulations of the ${SITE_NAME} e-commerce platform.`,
+  // ≤150 characters (Seobility, 2026-11-23: over the ~1000 px a result shows).
+  description: `Quy chế hoạt động sàn TMĐT ${SITE_NAME}: quyền và nghĩa vụ các bên, đăng tin, rà soát, khiếu nại. Operating regulations of ${SITE_NAME}.`,
   alternates: { canonical: '/regulations' },
 })
 
