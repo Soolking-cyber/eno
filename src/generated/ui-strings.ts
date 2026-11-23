@@ -5142,6 +5142,7 @@ export const UI_STRINGS: string[] = [
   "Your proof changed in the meantime. Refresh the page.",
   "Your proof of employment is checked first; the review can appear only after that.",
   "Your proof of employment is missing or was not checked in time. Send it again above, then save your review.",
+  "Your reply was not sent",
   "Your reply wasn’t posted: it contains language we don’t allow (slurs, threats of violence, sexual solicitation or sexual content involving minors). Please rephrase it.",
   "Your report opened a dispute case",
   "Your report was found abusive",

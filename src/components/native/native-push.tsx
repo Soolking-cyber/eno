@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { leavingForHomeTwin } from '@/lib/app-home-language'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
+import { useLanguage } from '@/context/language-context'
 import { canonicalAppPath } from '@/lib/deep-link'
 import { nativePushEnabled } from '@/lib/native-push-flags'
+import { replyPlan, type PushAction } from '@/lib/native-push-reply'
 
 // Native push registration (Capacitor). Mounted inside AuthProvider so it registers only for a
 // signed-in user (the token endpoint is auth-gated).
@@ -49,6 +52,10 @@ export function NativePush() {
   const router = useRouter()
   const routerRef = useRef(router)
   useEffect(() => { routerRef.current = router }, [router])
+  // The same, for the one line this file ever says (a reply that did not go — below).
+  const { tr } = useLanguage()
+  const trRef = useRef(tr)
+  useEffect(() => { trRef.current = tr }, [tr])
 
   useEffect(() => {
     // ⛔ Not in a `/` document being replaced with `/vi` (app-home-language.ts): its retained tap belongs to `/vi`.
@@ -94,7 +101,24 @@ export function NativePush() {
           // route. router.push lands on it instantly and keeps the SPA warm — the same path
           // native-bootstrap's deep-link router already takes. Fall back to the old hard
           // navigation only if the router is somehow unavailable, so a tap is never swallowed.
-          try { routerRef.current.push(path) } catch { window.location.assign(path) }
+          const go = () => { try { routerRef.current.push(path) } catch { window.location.assign(path) } }
+          // iOS 1.3: "Reply" typed under a chat notification (src/lib/native-push-reply.ts). This page sends it, with its
+          // own session, the way the thread's composer does — then opens the thread, where the message now is. Only for the
+          // account the push was addressed to; anything else is an ordinary tap.
+          const reply = replyPlan(a as PushAction, path, user.id)
+          if (!reply) { go(); return }
+          void fetch(`/api/conversations/${encodeURIComponent(reply.conversationId)}/messages`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ body: reply.text, clientId: reply.clientId }),
+            // A send that hangs (a dead network) must not hold the thread back: after 10 s it counts as not sent.
+            signal: AbortSignal.timeout(10_000),
+          }).then((res) => res.ok, () => false).then((sent) => {
+            // Not sent (offline, a closed thread, a block): the words are shown back rather than lost.
+            const tr = trRef.current
+            if (!sent) toast.error(tr('Your reply was not sent', 'Tin trả lời chưa được gửi'), { description: reply.text })
+            go()
+          })
         }))
 
         if (!disposed) await PushNotifications.register()

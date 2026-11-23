@@ -6,6 +6,8 @@ import { badgeCountFor } from './unread'
 import type { PushPayload } from './push'
 import { logError } from '@/lib/log'
 import { IS_SERVICES } from '@/lib/edition'
+import { CHAT_CATEGORY } from '@/lib/native-push-reply'
+import { chatPushPhoto } from '@/lib/native-surfaces'
 
 /**
  * NATIVE push (Capacitor apps): FCM for Android, APNs for iOS — the counterpart to
@@ -105,7 +107,7 @@ function apnsJwt(cfg: NonNullable<ReturnType<typeof apnsConfig>>): string {
 }
 
 /** Returns 'ok' | 'dead' | 'fail'. */
-function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, token: string, p: PushPayload, badge: number | null): Promise<'ok' | 'dead' | 'fail'> {
+function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, token: string, p: PushPayload, badge: number | null, chat: ChatExtras | null): Promise<'ok' | 'dead' | 'fail'> {
   return new Promise((resolve) => {
     const client = http2.connect(cfg.host)
     client.on('error', () => { try { client.close() } catch { /* noop */ }; resolve('fail') })
@@ -123,16 +125,62 @@ function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, 
       resolve(status === 410 || reason === 'Unregistered' || reason === 'BadDeviceToken' ? 'dead' : 'fail')
     })
     req.on('error', () => { try { client.close() } catch { /* noop */ }; resolve('fail') })
-    // `aps.badge` is the app-icon counter. iOS applies it on delivery — no plugin and no
-    // native rebuild needed, which is why the badge works on the CURRENTLY installed build.
-    // It is ABSOLUTE, not a delta, so sending the true unread total also self-heals a badge
-    // that drifted while the app was closed. Omitted (not 0) when the count failed, because
-    // sending 0 would clear a badge we simply couldn't measure.
-    req.end(JSON.stringify({
-      aps: { alert: { title: p.title, body: p.body ?? '' }, sound: 'default', ...(badge === null ? {} : { badge }) },
-      url: p.url,
-    }))
+    req.end(JSON.stringify(apnsBody(p, badge, chat)))
   })
+}
+
+/**
+ * What a thread push adds on iOS (1.3): who it is for, and its listing's photo. See `apnsBody`.
+ */
+export type ChatExtras = { to: string; photo: string | null }
+
+/**
+ * The conversation a push is about, or null: its `tag` is `convo-<id>` AND it opens exactly that thread — the thread
+ * pushes (an offer and the answer to one, an availability request, a call request, a first lead, a teacher's thread).
+ * A call's ring and its missed-call line are `call-…` tags: they stay plain notifications.
+ */
+export function threadOf(p: Pick<PushPayload, 'tag' | 'url'>): string | null {
+  const id = /^convo-([\w-]{1,64})$/.exec(p.tag ?? '')?.[1]
+  return id && p.url === `/messages/${id}` ? id : null
+}
+
+/**
+ * The APNs JSON.
+ * `aps.badge` is the app-icon counter. iOS applies it on delivery — no plugin and no
+ * native rebuild needed, which is why the badge works on the CURRENTLY installed build.
+ * It is ABSOLUTE, not a delta, so sending the true unread total also self-heals a badge
+ * that drifted while the app was closed. Omitted (not 0) when the count failed, because
+ * sending 0 would clear a badge we simply couldn't measure.
+ * iOS 1.3 — A THREAD PUSH (`chat`) carries:
+ *   · `aps.category` = CHAT_CATEGORY: the Reply action (EnoSystem.swift EnoChatNotifications; the web sends the words,
+ *     src/lib/native-push-reply.ts), with `to` = the recipient's profile id, which the web checks against the account
+ *     signed in before it sends anything;
+ *   · with a photo, `aps.mutable-content` = 1 and `image` = the listing photo through the optimizer on eno.vn: the
+ *     EnoNotify extension downloads it and attaches it, and delivers the plain notification on any failure. No photo, no
+ *     mutable-content: the extension would have nothing to do.
+ * A binary without the category or the extension (1.2 and older) ignores all four keys and shows what it always showed —
+ * so this deploys BEFORE 1.3 ships, and must, for 1.3 to show either.
+ */
+export function apnsBody(p: PushPayload, badge: number | null, chat: ChatExtras | null): Record<string, unknown> {
+  return {
+    aps: {
+      alert: { title: p.title, body: p.body ?? '' },
+      sound: 'default',
+      ...(badge === null ? {} : { badge }),
+      ...(chat ? { category: CHAT_CATEGORY, ...(chat.photo ? { 'mutable-content': 1 } : {}) } : {}),
+    },
+    url: p.url,
+    ...(chat ? { to: chat.to, ...(chat.photo ? { image: chat.photo } : {}) } : {}),
+  }
+}
+
+const PHOTO_WAIT_MS = 2_000
+
+function photoFor(conversationId: string): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), PHOTO_WAIT_MS) })
+  const read = chatPushPhoto(conversationId).catch((e) => { logError(e, { op: 'native-push.chatPushPhoto' }); return null })
+  return Promise.race([read, late]).finally(() => clearTimeout(timer))
 }
 
 /**
@@ -158,12 +206,17 @@ export async function sendNativePushToProfile(profileId: string, payload: PushPa
   const badge = await badgeCountFor(profileId)
   const accessToken = fcm ? await fcmAccessToken(fcm.sa) : null
   const jwt = apns ? apnsJwt(apns) : null
+  // A thread push to an iPhone names its reader and carries its listing's photo (apnsBody) — one read for the whole
+  // fan-out, and only when an iOS device will get it. A failed or slow read (past PHOTO_WAIT_MS) costs the photo, never
+  // the push, and never holds it back.
+  const thread = apns && tokens.some((t) => t.platform === 'ios') ? threadOf(payload) : null
+  const chat: ChatExtras | null = thread ? { to: profileId, photo: await photoFor(thread) } : null
 
   await Promise.all(tokens.map(async (t) => {
     try {
       let r: 'ok' | 'dead' | 'fail' = 'fail'
       if (t.platform === 'android' && fcm && accessToken) r = await sendFcm(fcm.projectId, accessToken, t.token, payload, badge)
-      else if (t.platform === 'ios' && apns && jwt) r = await sendApns(apns, jwt, t.token, payload, badge)
+      else if (t.platform === 'ios' && apns && jwt) r = await sendApns(apns, jwt, t.token, payload, badge, chat)
       if (r === 'ok') sent++
       else if (r === 'dead') dead.push(t.token)
     } catch { /* swallow per-token */ }
