@@ -476,18 +476,24 @@ extension EnoShell: WKScriptMessageHandler {
             expectTabs()
         case "enoViewed":
             // 1.3: a listing this reader opened, into iPhone search (EnoSystem.swift EnoSpotlight; on-device only).
-            guard let body = message.body as? [String: Any], let url = (body["url"] as? String).flatMap(URL.init(string:)) else { return }
+            // Never while the age gate holds the app: nothing seen behind it may reach iPhone search (review).
+            guard !isBlocked(), let body = message.body as? [String: Any], let url = (body["url"] as? String).flatMap(URL.init(string:)) else { return }
             // Tied to WHO is signed in: another account (or a sign-out) clears what the last one opened first (review).
             account { who in
                 // An unreadable session indexes nothing (its clear-out runs, and nothing follows it).
-                EnoSpotlight.claim(for: who) {
-                    guard who != "unknown" else { return }
+                EnoSpotlight.claim(for: who) { [weak self] in
+                    guard who != "unknown", self?.isBlocked() == false else { return }
                     EnoSpotlight.index(url: url, title: body["title"] as? String ?? "", description: body["description"] as? String ?? "",
                                        image: (body["image"] as? String).flatMap(URL.init(string:)), owner: who)
                 }
             }
         case "enoPhotos":
             // 1.3: the gallery's photos in the native viewer (EnoPhotos.swift). Only https photos of this site's image path.
+            // A second tap while the viewer is already up: acknowledged, so the page does not open its lightbox under it (review).
+            if let open = host?.presentedViewController as? EnoPhotoViewer, !open.isBeingDismissed {
+                webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('eno:native-photos-shown'))", completionHandler: nil)
+                return
+            }
             guard let body = message.body as? [String: Any], let raw = body["urls"] as? [String], !isBlocked(),
                   let host, host.presentedViewController == nil else { return }
             let urls = raw.compactMap(URL.init(string:)).filter { $0.scheme == "https" && Self.appHosts.contains($0.host?.lowercased() ?? "") }
