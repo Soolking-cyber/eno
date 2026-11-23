@@ -28,7 +28,7 @@ import {
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { cutText } from '@/lib/feed-text'
 import { DEAL_WITHDRAWN_LINE, SERVICE_DEAL_KINDS, dealConfirmedLine, isDealLineKind } from '@/lib/service-deal'
-import { PARTNER_WELCOME_LINE } from './partner-welcome-line'
+import { PARTNER_BUY_LINE, PARTNER_WELCOME_LINES } from './partner-welcome-line'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -98,6 +98,12 @@ export const MESSAGE_KINDS = [
   // the body is the canonical line. It leaves the thread's preview (lastMessageAt / lastMessageText) alone, so the shop's
   // inbox still shows what the customer wrote, and response-rate.ts never counts it ('text' / 'offer' only).
   'partner_welcome',
+  // ⚠️ THE SHOP'S "BUY NOW" LINE (src/lib/partner-welcome-line.ts PARTNER_BUY_LINE, owner 2026-11-23) — the welcome's class: no
+  // metaJson, one fixed bilingual body, the viewer's half; the thread page draws the "Buy now" button under it from the thread
+  // payload's `buyUrl` (the URL is never in the body). SERVER-AUTHORED ONLY, by POST /api/conversations/[id]/buy-now: insertMessage
+  // below refuses it unless the sender is the thread's seller and the body is the canonical line. Unlike the welcome it is the
+  // shop's own act, so it moves the preview like a message (response-rate.ts still counts only 'text' / 'offer').
+  'partner_buy',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
@@ -977,7 +983,11 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   }
   if (kind === 'partner_welcome') {
     if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('partner_welcome_author_forbidden')
-    if (text !== PARTNER_WELCOME_LINE) throw new Error('partner_welcome_body_invalid')
+    if (!PARTNER_WELCOME_LINES.includes(text)) throw new Error('partner_welcome_body_invalid')
+  }
+  if (kind === 'partner_buy') {
+    if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('partner_buy_author_forbidden')
+    if (text !== PARTNER_BUY_LINE) throw new Error('partner_buy_body_invalid')
   }
   const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
   const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null

@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   inserts: [] as unknown[][],
   insertThrows: false,
   errors: [] as unknown[],
+  buyUrl: null as string | null | Error,
+  buyArgs: [] as unknown[],
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -35,13 +37,16 @@ vi.mock('@/lib/ratelimit', () => ({
 vi.mock('@/lib/messages', () => ({
   insertMessage: async (...a: unknown[]) => { if (h.insertThrows) throw new Error('db down'); h.inserts.push(a); return { id: 'm1' } },
 }))
+vi.mock('@/lib/partner-buy', () => ({
+  partnerBuyUrl: async (id: unknown) => { h.buyArgs.push(id); if (h.buyUrl instanceof Error) throw h.buyUrl; return h.buyUrl },
+}))
 vi.mock('@/lib/user-blocks', () => ({ isBlockedBetween: async () => h.blocked }))
 vi.mock('@/lib/log', () => ({ logError: (e: unknown) => { h.errors.push(e) } }))
 vi.mock('@/lib/partner-inbox', () => ({ isPartnerInboxSeller: (s: { handle?: { handle: string } | null } | null) => ['evisasaigon', 'vietkite'].includes(s?.handle?.handle ?? '') }))
 vi.mock('@/lib/support-thread', () => ({ SUPPORT_SELLER_ID: 'eno-support-desk', FOREIGN_SUPPORT_SELLER_ID: 'eno-support-desk-forum' }))
 
 import { PARTNER_WELCOME_QUIET_DAYS, maybeSendPartnerWelcome } from './partner-welcome'
-import { PARTNER_WELCOME_LINE } from './partner-welcome-line'
+import { PARTNER_BUY_WELCOME_LINE, PARTNER_WELCOME_LINE } from './partner-welcome-line'
 
 const NOW = new Date('2026-11-18T08:00:00Z')
 const partnerThread = (over: Convo = {}): Convo => ({
@@ -53,10 +58,25 @@ const partnerThread = (over: Convo = {}): Convo => ({
 
 beforeEach(() => {
   h.convo = partnerThread(); h.spoke = null; h.spokeArgs = null; h.blocked = false; h.nx = 'OK'
-  h.kvSets = []; h.kvDels = []; h.inserts = []; h.insertThrows = false; h.errors = []
+  h.kvSets = []; h.kvDels = []; h.inserts = []; h.insertThrows = false; h.errors = []; h.buyUrl = null; h.buyArgs = []
 })
 
 describe('maybeSendPartnerWelcome', () => {
+  it('a listing with a "Buy now" link gets the buy-now welcome (owner 2026-11-23), asked for THIS thread\'s listing', async () => {
+    h.buyUrl = 'https://go.isclix.com/deep_link/1/2?url=https%3A%2F%2Fshopdunk.com%2Fx'
+    expect(await maybeSendPartnerWelcome('c1', NOW)).toBe('sent')
+    expect(h.buyArgs).toEqual(['L1'])
+    expect(h.inserts[0][2]).toBe(PARTNER_BUY_WELCOME_LINE)
+    expect(h.inserts[0][3]).toEqual({ kind: 'partner_welcome' })
+  })
+
+  it('a failed buy-link read is the plain welcome, logged — never no welcome', async () => {
+    h.buyUrl = new Error('db down')
+    expect(await maybeSendPartnerWelcome('c1', NOW)).toBe('sent')
+    expect(h.inserts[0][2]).toBe(PARTNER_WELCOME_LINE)
+    expect(h.errors).toHaveLength(1)
+  })
+
   it('a rostered partner that answers from its OWN account (VietKite, GoPlus, Blvck, Saigon Moving) gets it too (owner 2026-11-19: "yes")', async () => {
     // Its owner login is VietKite's own (no @eno.vn address is read or required any more).
     h.convo = partnerThread({ sellerId: 'vk', seller: { id: 'vk', ownerId: 'shop-login', officialPartner: true, handle: { handle: 'vietkite' } }, listing: { listingType: 'service', subcategorySlug: 'tours' } })

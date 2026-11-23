@@ -29,9 +29,10 @@ import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { localizeOfferLine } from '@/lib/offer-lines'
 import { isDealLineKind, localizeDealLine, type ServiceDealKind } from '@/lib/service-deal'
-import { localizePartnerWelcome } from '@/lib/partner-welcome-line'
+import { isPartnerBuyMessage, localizePartnerWelcome } from '@/lib/partner-welcome-line'
 import { containsPhoneNumber } from '@/lib/phone'
 import { PartnerPhoneChip } from '@/components/marketplace/partner-phone-chip'
+import { PartnerBuyButton } from '@/components/marketplace/partner-buy-button'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -379,6 +380,8 @@ type Thread = {
   sellerIsPartner?: boolean
   /** The customer's own verified number, present only on a thread with a partner welcome (api/conversations/[id]). */
   myPhone?: string | null
+  /** The listing's "Buy now" link (src/lib/partner-buy.ts): an eno-run partner's live listing only, both sides of the thread. */
+  buyUrl?: string | null
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   mayReviewSale?: boolean // buyer side: the seller named ME as the buyer and I never said "No" (the server's mayReviewDeal)
   mayReviewOffer?: boolean // buyer side: an accepted offer here would count (not taken down; I never said "No")
@@ -1175,7 +1178,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
           if (!p.id || !p.body) { load(); return }
           // Offers / offer-actions carry structured fields (kind/amount/status) the
           // realtime payload doesn't include — refetch to hydrate the offer card.
-          if (/^(💰|✅|❌)/.test(p.body)) { load(); return }
+          // The shop's "Buy now" line (🛒, kind 'partner_buy') and the partner welcome (👋, its "Buy now" button and phone chip)
+          // likewise: they key on the kind, and appended bare they would flash their bilingual body (commit gate, opus).
+          if (/^(💰|✅|❌|🛒|👋)/.test(p.body)) { load(); return }
           setThread((t) => {
             if (!t) return t
             if (p.senderProfileId === t.me) return t // my own message: handled by optimistic send + POST
@@ -2662,6 +2667,23 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   }
 
   /**
+   * "Send Buy now" — the shop's side posts the "Buy now" button again (owner 2026-11-23: "the admin can resurface buy now button
+   * which will take into affeliate link"). POST /api/conversations/[id]/buy-now writes the fixed line; the reload shows it.
+   */
+  const sendBuyNow = async () => {
+    const tid = thread?.id
+    if (!tid) return
+    try {
+      const res = await fetch(`/api/conversations/${tid}/buy-now`, { method: 'POST' })
+      if (!res.ok) throw new Error('buy_now_failed')
+    } catch {
+      toast.error(tr('Could not send — please try again.', 'Chưa gửi được — vui lòng thử lại.'))
+    } finally {
+      if (idRef.current === tid) await load()
+    }
+  }
+
+  /**
    * B6 — "WHO BOUGHT IT?" (mark-sold-flow.tsx) on a SALE, from three doors: the strip's 'Đã bán', the
    * "Deal! Mark as sold?" chip and the post-accept prompt. Anything else (a rental, a service…) keeps the
    * AlertDialog above (soldSheetApplies says why). The doors open only on a live listing (`stripSold`).
@@ -3056,7 +3078,11 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               … admin can quickly link to original on goplus website but user shouldnt see the links". Nothing renders
               until that answer says so, and it follows the room the thread is about now. */}
           {thread?.listing && showStrip && thread.sellerIsPartner === true && (
-            <GoplusRoomLink listingId={thread.listing.id} className="shrink-0 border-t border-border bg-background px-4 py-1.5" />
+            <GoplusRoomLink
+              listingId={thread.listing.id}
+              className="shrink-0 border-t border-border bg-background px-4 py-1.5"
+              onSendBuy={thread.iAmSeller && thread.buyUrl && !thread.closed ? sendBuyNow : undefined}
+            />
           )}
           {/* "Who bought it?" (B6) — portalled, so its place in the tree changes nothing on screen. Mounted on
               the snapshot taken at the tap (see openSoldSheet), so neither its own optimistic flip nor a
@@ -3654,7 +3680,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // language and never machine-translated — the stored body already carries both.
                   // The partner welcome (src/lib/partner-welcome-line.ts) is the same class: a fixed bilingual line, the viewer's half.
                   const dealLine = isDealLineKind(m.kind)
-                  const welcomeLine = m.kind === 'partner_welcome'
+                  const welcomeLine = m.kind === 'partner_welcome' || m.kind === 'partner_buy'
                   const translated = dealLine || welcomeLine ? null : translate.translationFor(m.id)
                   // An accepted / declined offer line is stored with English grouping; it reads "3.000.000 đ" for a
                   // Vietnamese reader, like the offer card above it (localizeOfferLine; any other text is unchanged).
@@ -3709,6 +3735,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 {m.kind === 'call_request' && !m.mine && !thread.closed && m.id === lastIncomingCallRequestId(thread.messages) && <AllowCallsChip conversationId={thread.id} name={thread.counterpart.name ?? null} />}
                 {/* The partner welcome's answer: "Send my number" / "Add my number", the customer's side only, under the newest
                     welcome until their number is in the thread. Sent through this page's own send — no quote, the composer untouched. */}
+                {/* "Buy now" (src/lib/partner-buy.ts, owner 2026-11-23): the customer's side, under the buy-now welcome and every
+                    "Buy now" line the shop sent — the link only as this button's href, never as text. Before the phone chip. */}
+                {thread.buyUrl && !m.mine && !thread.closed && thread.iAmSeller === false && isPartnerBuyMessage(m) && <PartnerBuyButton href={thread.buyUrl} />}
                 {m.kind === 'partner_welcome' && !m.mine && !thread.closed && thread.iAmSeller === false && m.id === partnerPhoneAskId(thread.messages) && <PartnerPhoneChip myPhone={thread.myPhone ?? null} onSend={(t) => void send(t, undefined, null)} />}
                 {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
                 {!m.mine && translate.translationFor(m.id) && (

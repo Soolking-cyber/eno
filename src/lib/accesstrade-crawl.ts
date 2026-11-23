@@ -504,9 +504,10 @@ const SD_IN_STOCK = new Set(['InStock', 'LimitedAvailability', 'OnlineOnly', 'In
  *   - The one sold-out product found (/iphone-11, tagged `het_hang.png` in site search) answers
  *     `302 Location: /page-not-found` — which the fetcher counts as a FAILED page (→ `unknown`), not a sale.
  * So the page carries no out-of-stock signal for a product it still renders. `inStock` follows the
- * microdata (OutOfStock and the other non-sellable values are honoured if they ever appear); the real
- * "gone" signal is the category listing — a product it stops showing drops out of `rows` and `unknown`,
- * which the nightly job may act on only when the read is complete.
+ * microdata (OutOfStock and the other non-sellable values are honoured if they ever appear); the
+ * category listing is one "gone" signal — a product it stops showing drops out of `rows` and `unknown`,
+ * which the nightly job may act on only when the read is complete — and the product's UNIT LIST is the
+ * other (parseShopDunkUnits, 2026-11-23: a listed product with no unit is "Sản phẩm tạm hết").
  * ⚠️ Microdata missing = not a page we understand → null (retried, then `unknown`).
  */
 export function parseShopDunkProduct(html: string, sku: string): ShopDunkProduct | null {
@@ -548,6 +549,31 @@ export function parseShopDunkProduct(html: string, sku: string): ShopDunkProduct
   }
 }
 
+/** The product's used-unit list: what the page's "Mua ngay" opens (one request per product, no special header). */
+export const shopDunkUnitsUrl = (sku: string) => `${SD_ORIGIN}/Product/LoadOldProductDetail?productId=${encodeURIComponent(sku)}`
+
+/**
+ * The unit list → how many real used units product `sku` has, or null when it is not that product's list.
+ *
+ * ⛔ THE ONE OUT-OF-STOCK SIGNAL SHOPDUNK SERVES (owner 2026-11-23, with a screenshot of a listed MacBook reading "THE PRODUCT IS
+ * TEMPORARILY OUT OF STOCK"). MEASURED 2026-11-23, 5 products, truthful UA: every product page says microdata InStock, but the
+ * unit list is empty (`<ul class="option-list …"></ul>`) for the three the browser shows as "Sản phẩm tạm hết" (4789, 6776,
+ * 4939) and holds one `old-product-item` per unit (with its IMEI) for the two that sell (4368: 1, 5057: 2). Sent with
+ * `X-Requested-With`, the empty answer also carries the script that turns the button into "Sản phẩm tạm hết" — the browser's
+ * own rule; the count is used, so no header is needed.
+ * ⚠️ RECOGNISED, NOT GUESSED: the answer must name the product (`main-product-img-popup-<sku>`) and carry the list
+ * (`old-product-list` → `ul.option-list`); anything else is null (retried, then UNKNOWN — never "sold out").
+ */
+export function parseShopDunkUnits(html: string, sku: string): number | null {
+  if (!new RegExp(`\\bid=["']?main-product-img-popup-${sku}(?:["'\\s>])`).test(html)) return null
+  const list = /class=["']?old-product-list(?=["'\s>])/.exec(html)
+  if (!list) return null
+  const ul = /<ul\b[^>]*\bclass=["']?option-list(?=["'\s>])[^>]*>([\s\S]*?)<\/ul>/.exec(html.slice(list.index))
+  if (!ul) return null
+  // A class LIST too (`class="x old-product-item"` — opus review): a unit missed here would read as sold out.
+  return (ul[1].match(/class=(?:"(?:[^"]*\s)?old-product-item(?=[\s"])|'(?:[^']*\s)?old-product-item(?=[\s'])|old-product-item(?=[\s>]))/g) ?? []).length
+}
+
 /**
  * Product page → gallery photos `…/images/thumbs/<n>_<slug>[_<size>].<ext>`, one per image number, the
  * largest size present (no size suffix = the full-size original: MEASURED 447 KB against 219 KB for
@@ -570,7 +596,8 @@ export function parseShopDunkGallery(html: string): string[] {
 
 /**
  * ShopDunk's used catalogue, ONE ROW PER PRODUCT id: /may-cu → categories (?pagenumber=N) → cards →
- * EVERY product page (authoritative price + stock). ~214 products measured 2026-11-14.
+ * EVERY product's unit list (the stock: parseShopDunkUnits) → the product page of each one WITH units
+ * (authoritative price). ~214 products measured 2026-11-14; 49 with units 2026-11-23 → ~280 requests a night.
  * ⛔ A product page that fails after retries puts its sku in `unknown`; more than 2% of them makes the read
  * incomplete. Any category page failing is fatal.
  */
@@ -610,6 +637,16 @@ export async function readShopDunkUsed(opts: CrawlOpts): Promise<CrawlRead> {
       for (const sku of badCards) { productPages++; productFailures++; read.unknown.add(sku) }
       for (const [sku, card] of cards) {
         productPages++
+        // The unit list FIRST (parseShopDunkUnits — the stock): unreadable = UNKNOWN; no unit = sold out, and the product page
+        // is not fetched (nothing of it is written for a sold-out row) — so a sold-out product costs one request, not two
+        // (MEASURED 2026-11-23: 165 of 214 listed products had no unit; the night's budget is affiliate-night.ts CRAWL_BUDGET_MIN).
+        const u: { n: number | null } = { n: null }
+        const gotUnits = await f.get(shopDunkUnitsUrl(sku), (h) => (u.n = parseShopDunkUnits(h, sku)) !== null)
+        if (!gotUnits.ok || u.n === null) { productFailures++; read.unknown.add(sku); continue }
+        if (u.n === 0) {
+          read.rows.set(sku, { sku, name: card.name, price: card.price, url: card.url, inStock: false, images: card.thumb ? [card.thumb] : [], desc: '' })
+          continue
+        }
         const parsed: { p: ShopDunkProduct | null } = { p: null }
         const got = await f.get(card.url, (h) => (parsed.p = parseShopDunkProduct(h, sku)) !== null)
         const p = parsed.p

@@ -22,6 +22,8 @@ import { dayCoarse } from '@/lib/last-seen'
 import { takesOffers } from '@/lib/taxonomy'
 import { blockStateBetween } from '@/lib/user-blocks'
 import { logError } from '@/lib/log'
+import { isEnoRunPartner } from '@/lib/eno-run-partners'
+import { partnerBuyUrl } from '@/lib/partner-buy'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
@@ -550,11 +552,24 @@ export const GET = route({ auth: 'userId', agent: true }, async ({ req, params, 
     })()
     : undefined
 
+  /**
+   * THE "BUY NOW" BUTTON'S LINK (src/lib/partner-buy.ts, owner 2026-11-23): the listing's AccessTrade link, for the thread's two
+   * people only, on an open listing thread with an eno-run partner (a PINNED pair — the cheap in-hand test first, so every other
+   * thread pays no read). The thread page shows it only as a "Buy now" button under the buy-now welcome or the shop's "Buy now"
+   * line — never as text. Omitted otherwise; fails soft (no button).
+   */
+  const buyUrl = (iAmBuyer || iAmSeller) && blockState === 'none' && kind === 'listing' && !!convo.listing
+    && isEnoRunPartner(convo.seller)
+    ? await partnerBuyUrl(convo.listing.id).catch((e) => { logError(e, { op: 'thread.buyUrl' }); return null })
+    : null
+
   const body = {
     id: convo.id,
     me: meId,
     // Present only on a thread with a partner welcome, for its customer (above) — every other payload is unchanged.
     ...(myPhone !== undefined ? { myPhone } : {}),
+    // Present only on an eno-run partner's listing thread with a live buy link (above).
+    ...(buyUrl ? { buyUrl } : {}),
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
     kind,
     // Which "eno team" desk this listing-less thread is with ('rental' | 'jobs', DESK_BY_SELLER_ID) — present only on a

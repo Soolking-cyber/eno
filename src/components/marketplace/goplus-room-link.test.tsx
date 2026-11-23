@@ -144,6 +144,23 @@ describe('GoplusRoomLink — an eno-run partner\'s purchase link (staff only)', 
     expect(a.getAttribute('rel')).toContain('sponsored')
     expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy()
   })
+  it('in the chat thread (onSendBuy): "Send Buy now" posts once, busy until done; absent without it', async () => {
+    h.user = { id: 'eno-login' }
+    fetchMock.mockResolvedValue(purchase(BUY))
+    let done!: () => void
+    const onSendBuy = vi.fn(() => new Promise<void>((r) => { done = r }))
+    render(<GoplusRoomLink listingId="L1" onSendBuy={onSendBuy} />)
+    const send = await screen.findByRole('button', { name: 'Send Buy now' })
+    await act(async () => { send.click(); send.click() })
+    expect(onSendBuy).toHaveBeenCalledTimes(1)
+    expect((send as HTMLButtonElement).disabled).toBe(true)
+    await act(async () => { done() })
+    expect((send as HTMLButtonElement).disabled).toBe(false)
+    cleanup()
+    render(<GoplusRoomLink listingId="L1" />)
+    await screen.findByRole('button', { name: 'Copy' })
+    expect(screen.queryByRole('button', { name: 'Send Buy now' })).toBeNull()
+  })
   it('⛔ a "purchase" answer that is not an AccessTrade link host shows nothing', async () => {
     h.user = { id: 'eno-login' }
     fetchMock.mockResolvedValue(purchase('https://evil.example/x'))

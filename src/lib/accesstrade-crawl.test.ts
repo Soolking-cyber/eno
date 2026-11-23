@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   HH_ORIGIN, SD_ORIGIN, hoangHaDesc, hoangHaNextPage, isHoangHaListing, isHoangHaModelGone, isNewGoodsTitle, isShopDunkListing,
   parseHoangHaCategoryLinks, parseHoangHaGallery, parseHoangHaModelLinks, parseHoangHaUnitIds, parseHoangHaUnits,
-  parseShopDunkCards, parseShopDunkCategoryLinks, parseShopDunkGallery, parseShopDunkProduct, readHoangHaUsed,
+  parseShopDunkCards, parseShopDunkCategoryLinks, parseShopDunkGallery, parseShopDunkProduct, parseShopDunkUnits, readHoangHaUsed, shopDunkUnitsUrl,
   readShopDunkUsed, type CrawlOpts,
 } from './accesstrade-crawl'
 import { UA } from './partner-fetch'
@@ -17,6 +17,8 @@ const HH = {
 const SD = {
   index: fixture('sd-index.html'), cat: fixture('sd-cat.html'), catEnd: fixture('sd-cat-end.html'),
   prod: fixture('sd-prod.html'), prodMin: fixture('sd-prod-min.html'),
+  // The "Mua ngay" unit lists of 5057 (2 units) and 4789 (none — "Sản phẩm tạm hết"), measured 2026-11-23; serials replaced.
+  units: fixture('sd-units.html'), unitsEmpty: fixture('sd-units-empty.html'),
 }
 
 afterEach(() => { vi.restoreAllMocks() })
@@ -95,6 +97,9 @@ const sdListing = (cards: string[]) =>
   `<div class=products-container><div class=products-wrapper>${cards.length ? `<div class=product-grid><div class=item-grid>${cards.join('')}</div></div>` : '<div class=no-result>Không tìm thấy</div>'}</div></div>`
 const sdProduct = (sku: string, price: number, availability = 'InStock', name = '') =>
   `<div itemprop=offers itemscope itemtype=http://schema.org/Offer><meta itemprop=price content=${price}.00><meta itemprop=availability content=http://schema.org/${availability}></div><div data-productid=${sku}><h1><span class=main-name>${name}</span></h1></div>`
+/** A product's unit list with `n` units (parseShopDunkUnits' shape). */
+const sdUnits = (sku: string, n = 1) =>
+  `<div class=old-product><div class=old-product-body-left><div class=old-product-list><ul class="option-list color-squares darkcontrols">${'<li><div class=old-product-item><input name=Imei type=radio></div></li>'.repeat(n)}</ul></div></div><img id=main-product-img-popup-${sku}></div>`
 const sdIndex = (cats: string[]) => cats.map((c) => `<h2 class=title><a href=${c}> x </a></h2>`).join('')
 
 // ═════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -243,6 +248,30 @@ describe('ShopDunk parsers (real pages)', () => {
       ['0000001_x_100.png', '0000001_x_550.png', '0000001_x.png', '0000002_x_100.jpg', '0000002_x_550.jpg', '0000003_x_550.webp', '0000004_x_100.png', '0000005_x_550.png', '0000006_x_550.png']
         .map((f) => `<img src=${T}${f}>`).join('') + '</div><div class=overview><img src=' + T + '0000007_y_550.png></div>'
     expect(parseShopDunkGallery(html)).toEqual(['0000001_x.png', '0000002_x_550.jpg', '0000003_x_550.webp', '0000004_x_100.png', '0000005_x_550.png'].map((f) => T + f))
+  })
+})
+
+describe('parseShopDunkUnits — the stock (real unit lists, 2026-11-23)', () => {
+  it('counts the units of the product it names', () => {
+    expect(parseShopDunkUnits(SD.units, '5057')).toBe(2)
+    expect(parseShopDunkUnits(SD.unitsEmpty, '4789')).toBe(0)
+  })
+  it('a unit whose class is a list still counts (quoted either way); a look-alike class does not', () => {
+    const list = (items: string) => `<div class=old-product-list><ul class="option-list x">${items}</ul></div><img id=main-product-img-popup-1>`
+    expect(parseShopDunkUnits(list('<li><div class="item old-product-item"></div><li><div class=\'old-product-item a\'></div><li><div class=old-product-item></div>'), '1')).toBe(3)
+    expect(parseShopDunkUnits(list('<li><div class="old-product-items"></div><li><div class=old-product-item-x></div>'), '1')).toBe(0)
+  })
+  it('another product\'s list, or a page that is no unit list, is null — never 0', () => {
+    expect(parseShopDunkUnits(SD.units, '4789')).toBeNull()
+    expect(parseShopDunkUnits(SD.unitsEmpty, '478')).toBeNull()
+    expect(parseShopDunkUnits(SD.prod, '5939')).toBeNull()
+    expect(parseShopDunkUnits('', '4789')).toBeNull()
+  })
+  it('the URL is the product id\'s', () => {
+    expect(shopDunkUnitsUrl('4789')).toBe('https://shopdunk.com/Product/LoadOldProductDetail?productId=4789')
+  })
+  it('no device serial is in the fixtures', () => {
+    expect(SD.units).not.toMatch(/data-imei=(?!FAKESERIAL)/)
   })
 })
 
@@ -425,8 +454,12 @@ describe('readShopDunkUsed', () => {
       [`${SD_ORIGIN}/ipad-cu-dep?pagenumber=1`]: sdListing([sdCard('5939', 'dup', 1), sdCard('8001', 'iPad Air M2 | 128GB | Cũ đẹp 99%', 9_990_000)]),
       [`${SD_ORIGIN}/ipad-cu-dep?pagenumber=2`]: sdListing([]),
       [`${SD_ORIGIN}/p-8001`]: sdProduct('8001', 9_890_000),
+      [shopDunkUnitsUrl('8001')]: sdUnits('8001'),
     }
-    for (const c of realCards) r[c.url] = c.sku === '5939' ? SD.prod : sdProduct(c.sku, c.price - 10_000)
+    for (const c of realCards) {
+      r[c.url] = c.sku === '5939' ? SD.prod : sdProduct(c.sku, c.price - 10_000)
+      r[shopDunkUnitsUrl(c.sku)] = sdUnits(c.sku, 2)
+    }
     return r
   }
 
@@ -439,7 +472,7 @@ describe('readShopDunkUsed', () => {
     expect(read.rows.get('8001')!.price).toBe(9_890_000)
     expect(read.rows.get('5939')!.images).toEqual(['https://shopdunk.com/images/thumbs/0053064_iphone-17-pro-256gb-troi-bh_550.png'])
     expect(read.rows.get('5939')!.desc).toBe('Dòng sản phẩm: iPhone 17 series')
-    expect(read).toMatchObject({ complete: true, skippedNew: 0, log: { pages: 1 + 2 + 2 + 10, failed: 0, fatal: false } })
+    expect(read).toMatchObject({ complete: true, skippedNew: 0, log: { pages: 1 + 2 + 2 + 10 + 10, failed: 0, fatal: false } })
     expect(site.urls().filter((u) => u === 'https://shopdunk.com/dien-thoai-iphone-17-pro-256gb-troi-bh')).toHaveLength(1)
     for (const { init } of site.calls) expect((init!.headers as Record<string, string>)['User-Agent']).toBe(UA)
   })
@@ -450,10 +483,30 @@ describe('readShopDunkUsed', () => {
     expect(read.rows.get('5939')!.images[0]).toBe('https://shopdunk.com/images/thumbs/0053064_iphone-17-pro-256gb-troi-bh.png')
   })
 
-  it('OutOfStock on the product page → a row with inStock=false', async () => {
+  it('OutOfStock on the product page (units listed) → a row with inStock=false', async () => {
     const read = await readShopDunkUsed(fakeSite({ ...sdRoutes(), [`${SD_ORIGIN}/p-8001`]: sdProduct('8001', 9_890_000, 'OutOfStock') }).opts())
     expect(read.rows.get('8001')!.inStock).toBe(false)
     expect(read.complete).toBe(true)
+  })
+
+  it('NO unit in its list ("Sản phẩm tạm hết", 2026-11-23) → inStock=false at the card\'s price; the product page is never fetched', async () => {
+    const site = fakeSite({ ...sdRoutes(), [shopDunkUnitsUrl('8001')]: sdUnits('8001', 0) })
+    const read = await readShopDunkUsed(site.opts())
+    expect(read.rows.get('8001')).toMatchObject({ inStock: false, price: 9_990_000, url: `${SD_ORIGIN}/p-8001` })
+    expect(site.urls()).not.toContain(`${SD_ORIGIN}/p-8001`)
+    expect(read.rows.get('5939')!.inStock).toBe(true)
+    expect(read.complete).toBe(true)
+  })
+
+  it.each([
+    ['failing 3 times', 503],
+    ['answering another product\'s list', sdUnits('9999')],
+    ['answering a page that is no unit list', '<html>Đang bảo trì</html>'],
+  ])('a unit list %s → the product is UNKNOWN (never sold out); 1 of 10 → incomplete', async (_, reply) => {
+    const read = await readShopDunkUsed(fakeSite({ ...sdRoutes(), [shopDunkUnitsUrl('8001')]: reply }).opts())
+    expect(read.unknown).toEqual(new Set(['8001']))
+    expect(read.rows.has('8001')).toBe(false)
+    expect(read.complete).toBe(false)
   })
 
   it('a product page failing twice then answering is fine', async () => {
@@ -481,7 +534,10 @@ describe('readShopDunkUsed', () => {
         [`${SD_ORIGIN}/iphone-cu-dep?pagenumber=1`]: sdListing(cards),
         [`${SD_ORIGIN}/iphone-cu-dep?pagenumber=2`]: sdListing([]),
       }
-      for (let i = 0; i < 60; i++) r[`${SD_ORIGIN}/p-${9000 + i}`] = i < failing ? 500 : sdProduct(String(9000 + i), 2_000_000)
+      for (let i = 0; i < 60; i++) {
+        r[`${SD_ORIGIN}/p-${9000 + i}`] = i < failing ? 500 : sdProduct(String(9000 + i), 2_000_000)
+        r[shopDunkUnitsUrl(String(9000 + i))] = sdUnits(String(9000 + i))
+      }
       return r
     }
     const one = await readShopDunkUsed(fakeSite(routes(1)).opts())
@@ -502,7 +558,7 @@ describe('readShopDunkUsed', () => {
     const DEADLINE = 1_800_000_000_000
     let past = false
     vi.spyOn(Date, 'now').mockImplementation(() => (past ? DEADLINE + 1 : DEADLINE - 60_000))
-    const site = fakeSite(sdRoutes(), (n) => { if (n === 8) past = true }) // 5 listing pages + 3 product pages
+    const site = fakeSite(sdRoutes(), (n) => { if (n === 11) past = true }) // 5 listing pages + 3 × (product page + unit list)
     const read = await readShopDunkUsed(site.opts({ deadline: DEADLINE }))
     expect(read.rows.size).toBe(3)
     expect(read.unknown.size).toBe(7)
@@ -513,18 +569,20 @@ describe('readShopDunkUsed', () => {
     const routes = sdRoutes()
     routes[`${SD_ORIGIN}/ipad-cu-dep?pagenumber=1`] = sdListing([sdCard('8001', 'iPad Air M2 | 128GB | Nguyên seal', 9_990_000), sdCard('8002', 'iPad mini 7 | 128GB', 9_000_000)])
     routes[`${SD_ORIGIN}/p-8002`] = sdProduct('8002', 9_000_000, 'InStock', 'iPad mini 7 | 128GB | Chưa kích hoạt')
+    routes[shopDunkUnitsUrl('8002')] = sdUnits('8002')
     const site = fakeSite(routes)
     const read = await readShopDunkUsed(site.opts())
     expect(read.skippedNew).toBe(2)
+    expect(site.urls()).not.toContain(shopDunkUnitsUrl('8001'))
     expect(read.rows.has('8001') || read.rows.has('8002')).toBe(false)
     expect(site.urls()).not.toContain(`${SD_ORIGIN}/p-8001`)
     expect(read.complete).toBe(true)
   })
 
-  it('a host that stops answering product pages: the read stops after five, every product left is unknown', async () => {
+  it('a host that stops answering: the read stops after five, every product left is unknown', async () => {
     const routes = sdRoutes()
-    for (const c of realCards) routes[c.url] = 503
-    routes[`${SD_ORIGIN}/p-8001`] = 503
+    for (const c of realCards) routes[shopDunkUnitsUrl(c.sku)] = 503
+    routes[shopDunkUnitsUrl('8001')] = 503
     const site = fakeSite(routes)
     const read = await readShopDunkUsed(site.opts())
     expect(read.unknown.size).toBe(10)

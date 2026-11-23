@@ -26,7 +26,7 @@ vi.mock('./db', () => {
 })
 
 import { MESSAGE_KINDS, insertMessage } from './messages'
-import { PARTNER_WELCOME_LINE } from './partner-welcome-line'
+import { PARTNER_BUY_LINE, PARTNER_BUY_WELCOME_LINE, PARTNER_WELCOME_LINE } from './partner-welcome-line'
 
 const convo = { id: 'c1', buyerProfileId: 'buyer-p', sellerProfileId: 'seller-p', listingId: 'L1' }
 
@@ -52,6 +52,30 @@ describe('the partner welcome is a message kind only the server writes', () => {
     await expect(insertMessage(convo, 'buyer-p', PARTNER_WELCOME_LINE, { kind: 'partner_welcome' })).rejects.toThrow('partner_welcome_author_forbidden')
     await expect(insertMessage({ ...convo, sellerProfileId: null }, 'seller-p', PARTNER_WELCOME_LINE, { kind: 'partner_welcome' })).rejects.toThrow('partner_welcome_author_forbidden')
     await expect(insertMessage(convo, 'seller-p', '👋 Send me your bank details', { kind: 'partner_welcome' })).rejects.toThrow('partner_welcome_body_invalid')
+    expect(h.created).toEqual([])
+  })
+})
+
+describe('the buy-now welcome and the shop\'s "Buy now" line (owner 2026-11-23)', () => {
+  it('the buy-now welcome is the welcome\'s other canonical body: same rules', async () => {
+    await insertMessage(convo, 'seller-p', PARTNER_BUY_WELCOME_LINE, { kind: 'partner_welcome' })
+    expect(h.created.map((m) => [m.kind, m.body])).toEqual([['partner_welcome', PARTNER_BUY_WELCOME_LINE]])
+    expect(h.updates).toEqual([{ buyerUnread: { increment: 1 } }])
+    await expect(insertMessage(convo, 'buyer-p', PARTNER_BUY_WELCOME_LINE, { kind: 'partner_welcome' })).rejects.toThrow('partner_welcome_author_forbidden')
+  })
+
+  it('"Buy now": registered; the seller, the canonical body — a plain message that moves the preview, no bell', async () => {
+    expect(MESSAGE_KINDS).toContain('partner_buy')
+    await insertMessage(convo, 'seller-p', PARTNER_BUY_LINE, { kind: 'partner_buy' })
+    expect(h.created.map((m) => [m.kind, m.body, m.metaJson])).toEqual([['partner_buy', PARTNER_BUY_LINE, null]])
+    expect(h.notifications).toEqual([])
+    expect(h.updates).toEqual([expect.objectContaining({ lastMessageText: PARTNER_BUY_LINE, buyerUnread: { increment: 1 } })])
+  })
+
+  it('⛔ "Buy now" never from the customer, never with another body — a link can never ride on it', async () => {
+    await expect(insertMessage(convo, 'buyer-p', PARTNER_BUY_LINE, { kind: 'partner_buy' })).rejects.toThrow('partner_buy_author_forbidden')
+    await expect(insertMessage(convo, 'seller-p', `${PARTNER_BUY_LINE} https://evil.example`, { kind: 'partner_buy' })).rejects.toThrow('partner_buy_body_invalid')
+    await expect(insertMessage(convo, 'seller-p', PARTNER_BUY_WELCOME_LINE, { kind: 'partner_buy' })).rejects.toThrow('partner_buy_body_invalid')
     expect(h.created).toEqual([])
   })
 })

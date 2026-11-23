@@ -49,17 +49,54 @@ export type CrawlFeed = {
   dropped: number
   /** Ids whose title now DECLARES new goods — the night's not-used set (retired uncapped, alarmed), never "missing". */
   newSkus: Set<string>
+  /**
+   * Ids the shop itself shows as SOLD OUT (a ShopDunk product with no unit — "Sản phẩm tạm hết", or microdata OutOfStock):
+   * POSITIVE evidence like `newSkus` (owner 2026-11-23: "check should be on availability like this product is out of stock"),
+   * so the night sends them to `sold` outside the absence floors (affiliate-night.ts). Empty unless the read is TRUSTED for
+   * it (soldOutTrusted); an untrusted read's sold-out ids are UNKNOWN instead (in `seenIds`: never retired as missing).
+   */
+  soldOutSkus: Set<string>
+  /** Sold-out ids this read saw but did not trust (soldOutTrusted false) — the night goes red. */
+  soldOutDistrusted: number
   /** What the reader reported, for the night's result line. */
   read: { rows: number; unknown: number; skippedNew: number; pages: number; failed: number; fatal: boolean; reason?: string }
+}
+
+/**
+ * A read is trusted for its sold-out ids only with at least this many products IN stock… (low on purpose — opus review: at
+ * 20 a shelf that legitimately thinned out would go red every night and keep its sold-out units up; the failure this guards
+ * against is a unit list answering empty for EVERYTHING, which 5 catches)
+ */
+export const SOLD_OUT_MIN_IN_STOCK = 5
+/** …and at most this share of what it read sold out (MEASURED 2026-11-23: 165 of 214, 77 %). */
+export const SOLD_OUT_MAX_SHARE = 0.98
+
+/**
+ * ⛔ "SOLD OUT" FROM A BROKEN PAGE MUST NOT EMPTY THE SHELF. The sold-out ids skip the absence floors (they are positive
+ * evidence), so the read itself must look sane first: COMPLETE, at least SOLD_OUT_MIN_IN_STOCK products in stock, and no
+ * more than SOLD_OUT_MAX_SHARE of them sold out. A unit list that starts answering empty for everything (a site change)
+ * fails the first floor; one that answers half-empty and half-broken is incomplete (> 2 % unknown).
+ */
+export function soldOutTrusted(read: CrawlRead): boolean {
+  const out = [...read.rows.values()].filter((r) => !r.inStock).length
+  return read.complete && read.rows.size - out >= SOLD_OUT_MIN_IN_STOCK && out <= read.rows.size * SOLD_OUT_MAX_SHARE
 }
 
 export function crawlToFeed(read: CrawlRead, campaignId: string): CrawlFeed {
   const prices: CrawlFeed['prices'] = new Map()
   const unpriced: CrawlFeed['unpriced'] = new Map()
   const seenIds = new Set<string>(read.unknown)
+  const soldOutSkus = new Set<string>()
+  const trusted = soldOutTrusted(read)
+  let soldOutDistrusted = 0
   let dropped = 0
   for (const [sku, r] of read.rows) {
-    if (!r.inStock) continue // seen OUT of stock → missing: retired only by a complete read inside the floors
+    // Seen SOLD OUT → the night's sold-out pass when the read is trusted for it; otherwise UNKNOWN (seen, so never "missing").
+    if (!r.inStock) {
+      if (trusted) soldOutSkus.add(sku)
+      else { seenIds.add(sku); soldOutDistrusted++ }
+      continue
+    }
     if (!Number.isInteger(r.price) || r.price <= 0) { unpriced.set(sku, { name: r.name, url: r.url }); seenIds.add(sku); dropped++; continue }
     let link: string
     try { link = trackingLink(campaignId, r.url) } catch { unpriced.set(sku, { name: r.name, url: r.url }); seenIds.add(sku); dropped++; continue }
@@ -68,6 +105,7 @@ export function crawlToFeed(read: CrawlRead, campaignId: string): CrawlFeed {
   }
   return {
     prices, unpriced, seenIds, seen: read.rows.size + read.unknown.size, complete: read.complete, dropped, newSkus: new Set(read.newSkus),
+    soldOutSkus, soldOutDistrusted,
     read: { rows: read.rows.size, unknown: read.unknown.size, skippedNew: read.skippedNew, ...read.log },
   }
 }

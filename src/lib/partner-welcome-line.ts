@@ -17,10 +17,46 @@ export const PARTNER_WELCOME_PARTS = {
 } as const
 export const PARTNER_WELCOME_LINE = `${PARTNER_WELCOME_MARK} ${PARTNER_WELCOME_PARTS.vi} · ${PARTNER_WELCOME_PARTS.en}`
 
-/** The viewer's half of the stored line; any other text is returned unchanged. */
+/**
+ * THE BUY-NOW WELCOME (owner, 2026-11-23: "when a customer wants a product from accesstrade affiliated products and texts tell
+ * them if they want to purchase right away they can do so in our official storefront otherwise we are happy to assist them with
+ * any question regarding the product and it will be faster if they leave a number"). The welcome's other line, sent INSTEAD of
+ * it on a listing with a buy link (src/lib/partner-buy.ts — an eno-run partner's staff purchase link); the thread page puts the
+ * "Buy now" button under it, then the phone chip. Same kind ('partner_welcome'), same rules.
+ */
+export const PARTNER_BUY_WELCOME_PARTS = {
+  vi: 'Cảm ơn bạn đã nhắn tin! Muốn mua ngay, hãy bấm Mua ngay để đặt hàng tại cửa hàng chính hãng. Cần hỏi thêm về sản phẩm? Chúng tôi luôn sẵn lòng hỗ trợ — để lại số điện thoại để được liên hệ nhanh hơn.',
+  en: 'Thanks for your message! To buy right away, tap Buy now to order from the official store. Have a question about this product? We’re happy to help — leave your phone number and we’ll reach you faster.',
+} as const
+export const PARTNER_BUY_WELCOME_LINE = `${PARTNER_WELCOME_MARK} ${PARTNER_BUY_WELCOME_PARTS.vi} · ${PARTNER_BUY_WELCOME_PARTS.en}`
+
+/** The two welcome bodies insertMessage accepts for kind 'partner_welcome'. */
+export const PARTNER_WELCOME_LINES: readonly string[] = [PARTNER_WELCOME_LINE, PARTNER_BUY_WELCOME_LINE]
+
+/**
+ * THE "BUY NOW" LINE (owner, 2026-11-23: "the admin can resurface buy now button which will take into affiliate link"): what the
+ * shop's side posts from the thread's staff row (POST /api/conversations/[id]/buy-now, kind 'partner_buy'); the thread page puts
+ * the button under it. The URL is NEVER in the body — the button reads it from the thread payload (`buyUrl`).
+ */
+export const PARTNER_BUY_MARK = '🛒'
+export const PARTNER_BUY_PARTS = {
+  vi: 'Sẵn sàng mua? Bấm Mua ngay để đặt hàng tại cửa hàng chính hãng.',
+  en: 'Ready to buy? Tap Buy now to order from the official store.',
+} as const
+export const PARTNER_BUY_LINE = `${PARTNER_BUY_MARK} ${PARTNER_BUY_PARTS.vi} · ${PARTNER_BUY_PARTS.en}`
+
+/** A message the "Buy now" button sits under: the buy-now welcome or the shop's "Buy now" line, by kind AND exact body. */
+export function isPartnerBuyMessage(m: { kind?: string | null; body: string }): boolean {
+  return (m.kind === 'partner_welcome' && m.body === PARTNER_BUY_WELCOME_LINE) || (m.kind === 'partner_buy' && m.body === PARTNER_BUY_LINE)
+}
+
+/** The viewer's half of a stored welcome or "Buy now" line; any other text is returned unchanged. */
 export function localizePartnerWelcome(text: string, lang: string): string {
-  if (text !== PARTNER_WELCOME_LINE) return text
-  return `${PARTNER_WELCOME_MARK} ${lang === 'vi' ? PARTNER_WELCOME_PARTS.vi : PARTNER_WELCOME_PARTS.en}`
+  const vi = lang === 'vi'
+  if (text === PARTNER_WELCOME_LINE) return `${PARTNER_WELCOME_MARK} ${vi ? PARTNER_WELCOME_PARTS.vi : PARTNER_WELCOME_PARTS.en}`
+  if (text === PARTNER_BUY_WELCOME_LINE) return `${PARTNER_WELCOME_MARK} ${vi ? PARTNER_BUY_WELCOME_PARTS.vi : PARTNER_BUY_WELCOME_PARTS.en}`
+  if (text === PARTNER_BUY_LINE) return `${PARTNER_BUY_MARK} ${vi ? PARTNER_BUY_PARTS.vi : PARTNER_BUY_PARTS.en}`
+  return text
 }
 
 /**

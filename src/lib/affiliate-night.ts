@@ -247,7 +247,27 @@ export async function affiliateNight(source: NightSource) {
         blocked++
         console.warn('affiliate-prices: %s %d active rows the shop no longer calls used went to sold (budget %d) — check isUsedTitle against the feed; e.g. SKUs %s', campaign, nowNew.length, nightRetireCap, [...notUsedSkus].slice(0, 5).join(', '))
       }
-      const existing = held.filter((l) => !offShelf(l))
+      /**
+       * ⛔ A UNIT THE SHOP ITSELF SHOWS AS SOLD OUT IS POSITIVE EVIDENCE TOO (owner 2026-11-23, a ShopDunk MacBook reading
+       * "temporarily out of stock" while eno still offered it; MEASURED that night: 165 of ShopDunk's 214 listed used
+       * products had no unit). Left to the reconcile it is "missing", and the floors (≥50 % of live rows matched) would block
+       * every retire on a shelf that is 77 % sold out. So, the not-used pass's shape: out of the reconcile, ACTIVE rows to
+       * `sold` (the restock brings one back the night it has a unit again), uncapped, the night red when it is more than the
+       * budget. Only from a read the feed trusted for it (accesstrade-crawl-feed.ts soldOutTrusted) — an untrusted one is
+       * UNKNOWN and red (`soldOutDistrusted`).
+       */
+      const soldOutSkus = 'soldOutSkus' in feed ? feed.soldOutSkus : new Set<string>()
+      const soldOutDistrusted = 'soldOutDistrusted' in feed ? feed.soldOutDistrusted : 0
+      const shownSoldOut = (l: (typeof held)[number]) => !offShelf(l) && !!l.externalId && soldOutSkus.has(l.externalId)
+      const goneOut = held.filter((l) => l.status === 'active' && shownSoldOut(l)).map((l) => l.id)
+      const soldOut = goneOut.length ? (await applyStockReconcile(db, Prisma, { retire: goneOut, restore: [] })).retired : 0
+      retiredNow = [...nowNew, ...goneOut]
+      const soldOutAlarm = goneOut.length > Math.max(0, nightRetireCap - soldNotUsed)
+      if (soldOutAlarm || soldOutDistrusted) {
+        blocked++
+        console.warn('affiliate-prices: %s sold out: %d active rows to sold (budget %d), %d sold-out ids not trusted', campaign, goneOut.length, nightRetireCap, soldOutDistrusted)
+      }
+      const existing = held.filter((l) => !offShelf(l) && !shownSoldOut(l))
 
       const diff = diffPrices(existing, prices, seenIds)
       const { unchanged, missingFromFeed, missingIds, presentIds } = diff
@@ -305,8 +325,8 @@ export async function affiliateNight(source: NightSource) {
        * way back — `activeHeld` could never recover, because recovery is exactly what was blocked.
        */
       const retireCandidates = missingIds.filter((id) => byId.get(id)?.status === 'active')
-      // What this night's not-used pass left of the shared budget (no other cause: the whole budget, as before).
-      const retireCap = Math.max(0, nightRetireCap - soldNotUsed)
+      // What this night's not-used and sold-out passes left of the shared budget (no other cause: the whole budget, as before).
+      const retireCap = Math.max(0, nightRetireCap - soldNotUsed - soldOut)
       // ⚠️ REFUSED WHOLESALE, NOT TRUNCATED TO THE CAP. Retiring "the first 870 of 8,700" would be
       // the same wrong inference, applied to an arbitrary tenth of it, and it would look like a
       // healthy night in the logs.
@@ -370,9 +390,9 @@ export async function affiliateNight(source: NightSource) {
        */
       // An eno-run shop's link-only change alters no public page (the link is staff-only): only its price changes purge (opus).
       const pageChanges = enoRun ? changes.filter((c) => c.from !== c.to) : changes
-      const flushed = await flushRecent(seller.id, [...pageChanges.map((c) => c.id), ...(screen?.hide.map((f) => f.id) ?? []), ...nowNew, ...movedNow, ...drain])
+      const flushed = await flushRecent(seller.id, [...pageChanges.map((c) => c.id), ...(screen?.hide.map((f) => f.id) ?? []), ...nowNew, ...goneOut, ...movedNow, ...drain])
       results.push({
-        campaign, ...(crawlRead ? { crawl: crawlRead } : {}), feedRows: seen, feedDropped: dropped, feedNotUsed: notUsedSkus.size, soldNotUsed, nowNewAlarm, ...(nowNewAlarm ? { notUsedSample: [...notUsedSkus].slice(0, 5) } : {}), listings: existing.length,
+        campaign, ...(crawlRead ? { crawl: crawlRead } : {}), feedRows: seen, feedDropped: dropped, feedNotUsed: notUsedSkus.size, soldNotUsed, nowNewAlarm, soldOut, ...(soldOutAlarm ? { soldOutAlarm } : {}), ...(soldOutDistrusted ? { soldOutDistrusted } : {}), ...(nowNewAlarm ? { notUsedSample: [...notUsedSkus].slice(0, 5) } : {}), listings: existing.length,
         changed: written, ...(enoRun ? { enoRun: true, staffLinks } : {}), unchanged, missingFromFeed, stock, mayRetire, cappedOut, ...(drain.length ? { drained: drain.length } : {}),
         matchedActive, activeHeld, retireCandidates: retireCandidates.length, retireCap,
         ...(screen ? restockReport(screen) : screenError ? { restockScreen: { failed: true, candidates: restoreCandidates.length } } : {}),

@@ -3,7 +3,8 @@ import { kv } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { insertMessage } from '@/lib/messages'
 import { isPartnerInboxSeller } from '@/lib/partner-inbox'
-import { PARTNER_WELCOME_LINE } from '@/lib/partner-welcome-line'
+import { PARTNER_BUY_WELCOME_LINE, PARTNER_WELCOME_LINE } from '@/lib/partner-welcome-line'
+import { partnerBuyUrl } from '@/lib/partner-buy'
 import { FOREIGN_SUPPORT_SELLER_ID, SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
@@ -62,10 +63,13 @@ export async function maybeSendPartnerWelcome(conversationId: string, now: Date 
     const claim = `partner-welcome:${conversationId}`
     if (!(await kv.set(claim, 1, { nx: true, ex: 120 }))) return 'skipped'
     try {
+      // A listing with a "Buy now" link (src/lib/partner-buy.ts, owner 2026-11-23) gets the buy-now welcome: buy right away from
+      // the official store, or ask — with the phone ask kept. A failed read is the plain welcome, never no welcome.
+      const buy = await partnerBuyUrl(c.listingId).catch((e) => { logError(e, { op: 'partnerWelcome.buyUrl', conversationId }); return null })
       await insertMessage(
         { id: c.id, buyerProfileId: c.buyerProfileId, sellerProfileId: c.sellerProfileId, listingId: c.listingId },
         c.sellerProfileId,
-        PARTNER_WELCOME_LINE,
+        buy ? PARTNER_BUY_WELCOME_LINE : PARTNER_WELCOME_LINE,
         { kind: 'partner_welcome' },
       )
     } catch (e) {

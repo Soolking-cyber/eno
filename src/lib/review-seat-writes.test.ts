@@ -34,6 +34,7 @@ const EXEMPT: Record<string, string> = {
   'src/app/api/visa/applications/[id]/help/route.svc.ts': 'the forum\'s visa desk thread — the other side is eno\'s desk',
   'src/app/api/visa/applications/[id]/submit/route.svc.ts': 'the forum\'s visa desk thread — the other side is eno\'s desk',
   'src/app/api/conversations/[id]/call-consent/route.ts': 'stores the giver\'s OWN consent row — no card, no bell, no push; any call it would allow is refused by callPermit, both ways',
+  'src/app/api/conversations/[id]/buy-now/route.ts': 'only the CURRENT login of a pinned eno-run partner storefront (eno-run-partners.ts — eno-held shop logins, never a seat) writes, one fixed "Buy now" line, and only on a listing with a live AccessTrade buy link (partner-buy.ts) — never a teacher listing',
   'src/app/api/conversations/[id]/typing/route.ts': 'an ephemeral typing dot, nothing stored, nothing rung — and the seat can send nothing after it (the messages route)',
   'src/app/api/messages/translate/route.ts': 'translates messages for the CALLER\'s own screen — nothing is written into the thread, nothing reaches the other side',
 }

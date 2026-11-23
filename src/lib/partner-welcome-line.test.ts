@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { PARTNER_WELCOME_LINE, PARTNER_WELCOME_PARTS, localizePartnerWelcome, phoneShareText, typedPhone } from './partner-welcome-line'
+import {
+  PARTNER_BUY_LINE, PARTNER_BUY_PARTS, PARTNER_BUY_WELCOME_LINE, PARTNER_BUY_WELCOME_PARTS, PARTNER_WELCOME_LINE, PARTNER_WELCOME_LINES, PARTNER_WELCOME_PARTS,
+  isPartnerBuyMessage, localizePartnerWelcome, phoneShareText, typedPhone,
+} from './partner-welcome-line'
 
 describe('the partner welcome line', () => {
   it('is stored "VI · EN" and shown to each viewer in their own language', () => {
@@ -28,5 +31,35 @@ describe('typedPhone — what the chip accepts', () => {
 
   it('the chat line is the number in the form the reader’s chips recognise', () => {
     expect(phoneShareText('+84901234567')).toBe('📞 +84901234567')
+  })
+})
+
+describe('the buy-now lines (owner 2026-11-23)', () => {
+  it('stored "VI · EN", each viewer their half', () => {
+    expect(localizePartnerWelcome(PARTNER_BUY_WELCOME_LINE, 'en')).toBe(`👋 ${PARTNER_BUY_WELCOME_PARTS.en}`)
+    expect(localizePartnerWelcome(PARTNER_BUY_WELCOME_LINE, 'vi')).toBe(`👋 ${PARTNER_BUY_WELCOME_PARTS.vi}`)
+    expect(localizePartnerWelcome(PARTNER_BUY_LINE, 'en')).toBe(`🛒 ${PARTNER_BUY_PARTS.en}`)
+    expect(localizePartnerWelcome(PARTNER_BUY_LINE, 'vi')).toBe(`🛒 ${PARTNER_BUY_PARTS.vi}`)
+    expect(PARTNER_WELCOME_LINES).toEqual([PARTNER_WELCOME_LINE, PARTNER_BUY_WELCOME_LINE])
+  })
+
+  it('the buy-now welcome says both: buy now from the official store, or ask — and still asks for the phone', () => {
+    expect(PARTNER_BUY_WELCOME_PARTS.en).toMatch(/Buy now.*official store.*question.*phone number/)
+    expect(PARTNER_BUY_WELCOME_PARTS.vi).toMatch(/Mua ngay.*chính hãng.*sản phẩm.*số điện thoại/)
+  })
+
+  it('the "Buy now" line fits the inbox preview whole (cutText 140), so the inbox can show the reader\'s half', () => {
+    expect(PARTNER_BUY_LINE.length).toBeLessThanOrEqual(140)
+  })
+  it('no URL in any stored line — the link lives only behind the button', () => {
+    for (const line of [PARTNER_BUY_WELCOME_LINE, PARTNER_BUY_LINE]) expect(line).not.toMatch(/https?:|www\.|\.vn|\.com/)
+  })
+
+  it('the button sits under a buy line by kind AND exact body only', () => {
+    expect(isPartnerBuyMessage({ kind: 'partner_welcome', body: PARTNER_BUY_WELCOME_LINE })).toBe(true)
+    expect(isPartnerBuyMessage({ kind: 'partner_buy', body: PARTNER_BUY_LINE })).toBe(true)
+    expect(isPartnerBuyMessage({ kind: 'partner_welcome', body: PARTNER_WELCOME_LINE })).toBe(false)
+    expect(isPartnerBuyMessage({ kind: 'text', body: PARTNER_BUY_LINE })).toBe(false)
+    expect(isPartnerBuyMessage({ kind: undefined, body: PARTNER_BUY_WELCOME_LINE })).toBe(false)
   })
 })

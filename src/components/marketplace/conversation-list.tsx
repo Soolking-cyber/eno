@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { localizeOfferLine } from '@/lib/offer-lines'
+import { localizePartnerWelcome } from '@/lib/partner-welcome-line'
 import { inboxTime } from '@/lib/types'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
@@ -411,7 +412,8 @@ export function ConversationList() {
                           : o.status === 'countered' ? tr('Counter-offer', 'Đã trả giá khác')
                           : o.mine ? `${tr('You offered', 'Bạn đề nghị')} ${amt}`
                           : `${tr('New offer', 'Đề nghị mới')}: ${amt}`
-                        : (c.lastMessageText ? localizeOfferLine(c.lastMessageText, moneyLocale(lang)) : tr('New conversation', 'Cuộc trò chuyện mới'))
+                        // The shop's "Buy now" line moves the preview stored "VI · EN" (128 chars < the 140 cut): the reader's half.
+                        : (c.lastMessageText ? localizeOfferLine(localizePartnerWelcome(c.lastMessageText, lang), moneyLocale(lang)) : tr('New conversation', 'Cuộc trò chuyện mới'))
                       const incoming = !!o && o.status === 'pending' && !o.mine
                       // 2026-11-06 audit: the preview takes the list's 14px from lg — at 12px beside a 14px name it read as fine print on a desktop.
                       return (

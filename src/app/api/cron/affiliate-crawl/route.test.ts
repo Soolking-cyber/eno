@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   enoRun: true,
   complete: true,
   newSkus: new Set<string>(),
+  soldOutSkus: new Set<string>(),
+  soldOutDistrusted: 0,
   sql: [] as string[],
 }))
 
@@ -28,6 +30,7 @@ vi.mock('@/lib/accesstrade-crawl-feed', () => ({
   fetchCrawlPrices: async (campaign: string, campaignId: string) => {
     h.crawlCalls.push({ campaign, campaignId })
     return { prices: h.prices, unpriced: new Map(), seenIds: new Set(h.prices.keys()), seen: h.prices.size, complete: h.complete, dropped: 0, newSkus: h.newSkus,
+      soldOutSkus: h.soldOutSkus, soldOutDistrusted: h.soldOutDistrusted,
       read: { rows: h.prices.size, unknown: 0, skippedNew: 0, pages: 3, failed: 0, fatal: false } }
   },
 }))
@@ -64,6 +67,8 @@ beforeEach(() => {
   h.enoRun = true
   h.complete = true
   h.newSkus = new Set()
+  h.soldOutSkus = new Set()
+  h.soldOutDistrusted = 0
   h.sql = []
   const url = 'https://hoanghamobile.com/kho-san-pham-cu/iphone-13-128gb-p70001'
   // A crawl title does not say "cũ" — the used-wording rule must NOT judge it (the section is the evidence).
@@ -145,6 +150,43 @@ describe('affiliate-crawl — the crawl campaigns, chat only', () => {
     expect(status).toBe(502)
     expect(body.results[0]).toMatchObject({ mayRetire: false, retireCandidates: 60 })
     expect(body.results[0].drained).toBeUndefined()
+  })
+
+  // Owner 2026-11-23: "check should be on availability like this product is out of stock" (ShopDunk: 165 of 214 sold out).
+  const shelf = (n: number) => {
+    const url = (i: number) => `https://shopdunk.com/p-${i}`
+    h.rows = Array.from({ length: n }, (_, i) => ({ id: `S${i}`, externalId: String(7000 + i), price: 1_000_000, affiliateUrl: null, status: 'active', condition: 'used', staff: LINK(url(i)) }))
+    return url
+  }
+  it('units the shop SHOWS sold out go to sold as positive evidence — outside the 50 % floor that would hold a 77 % sold-out shelf', async () => {
+    const url = shelf(100)
+    h.prices = new Map(h.rows.slice(0, 23).map((r: Row, i: number) => [r.externalId, { price: 1_000_000, affiliateUrl: r.staff, name: 'x', url: url(i) }]))
+    h.soldOutSkus = new Set(h.rows.slice(23).map((r: Row) => r.externalId))
+    const { status, body } = await run()
+    // 77 > the night's budget of 25 → done, and the night is red so a person looks.
+    expect(status).toBe(502)
+    expect(body.results[0]).toMatchObject({ soldOutAlarm: true, retireCandidates: 0, mayRetire: true, activeHeld: 23, matchedActive: 23 })
+    const retire = h.sql.find((s) => s.includes("SET status = 'sold'"))
+    expect(retire).toBeTruthy()
+  })
+  it('a few sold out within the budget: sold, a green night', async () => {
+    const url = shelf(30)
+    h.prices = new Map(h.rows.slice(0, 27).map((r: Row, i: number) => [r.externalId, { price: 1_000_000, affiliateUrl: r.staff, name: 'x', url: url(i) }]))
+    h.soldOutSkus = new Set(h.rows.slice(27).map((r: Row) => r.externalId))
+    const { status, body } = await run()
+    expect(status).toBe(200)
+    expect(body.results[0]).toMatchObject({ retireCandidates: 0, mayRetire: true })
+    expect(body.results[0].soldOutAlarm).toBeUndefined()
+    expect(h.sql.some((s) => s.includes("SET status = 'sold'"))).toBe(true)
+  })
+  it('⛔ sold-out ids the feed did not trust: nothing sold for them, the night is red', async () => {
+    shelf(30)
+    h.prices = new Map(h.rows.map((r: Row, i: number) => [r.externalId, { price: 1_000_000, affiliateUrl: r.staff, name: 'x', url: `https://shopdunk.com/p-${i}` }]))
+    h.soldOutDistrusted = 4
+    const { status, body } = await run()
+    expect(status).toBe(502)
+    expect(body.results[0]).toMatchObject({ soldOutDistrusted: 4, soldOut: 0 })
+    expect(h.sql.some((s) => s.includes("SET status = 'sold'"))).toBe(false)
   })
 
   it('an empty crawl list reads nothing, as a 200', async () => {

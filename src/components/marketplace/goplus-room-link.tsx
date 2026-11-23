@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { handleExternalClick } from '@/lib/native-browser'
@@ -24,7 +24,16 @@ export const GOPLUS_ROOM_PAGE = /^https:\/\/goplus\.com\.vn\/phong\/[a-f0-9]{24}
  * "no" takes back a link shown before (access revoked, then back on the room: commit review, codex).
  * In the app the link opens the in-app browser over eno (native-browser.ts); on the web, a new tab.
  */
-export function GoplusRoomLink({ listingId, className }: { listingId: string; className?: string }) {
+export function GoplusRoomLink({ listingId, className, onSendBuy }: {
+  listingId: string
+  className?: string
+  /**
+   * The chat thread only, on the shop's side, when the listing has a live buy link (the thread payload's `buyUrl`): "Send Buy
+   * now" posts the "Buy now" button into the chat (owner 2026-11-23: "the admin can resurface buy now button"). Resolves when
+   * the post is done; the button is busy until then.
+   */
+  onSendBuy?: () => Promise<void>
+}) {
   const { tr } = useLanguage()
   const { user, loading } = useAuth()
   const viewer = loading ? null : (user?.id ?? null)
@@ -32,6 +41,9 @@ export function GoplusRoomLink({ listingId, className }: { listingId: string; cl
   const [answer, setAnswer] = useState<{ key: string; url: string | null; kind: 'goplus' | 'purchase' | null } | null>(null)
   // Keyed on the link itself (commit gate, codex): another listing's link never shows as "Copied".
   const [copiedHref, setCopiedHref] = useState<string | null>(null)
+  const [sendingBuy, setSendingBuy] = useState(false)
+  // A ref, not the state alone: two taps in one tick both read the state before it re-renders (the test's double tap).
+  const sendingBuyRef = useRef(false)
   useEffect(() => {
     setAnswer(null)
     if (!viewer) return
@@ -62,6 +74,20 @@ export function GoplusRoomLink({ listingId, className }: { listingId: string; cl
         <Button type="button" variant="link" size="none" className="font-semibold text-accent-foreground underline-offset-2" onClick={() => { void navigator.clipboard?.writeText(href).then(() => setCopiedHref(href), () => {}) }}>
           {copiedHref === href ? tr('Copied', 'Đã sao chép') : tr('Copy', 'Sao chép')}
         </Button>
+        {onSendBuy && (
+          <Button
+            type="button" variant="link" size="none" disabled={sendingBuy}
+            className="font-semibold text-accent-foreground underline-offset-2"
+            onClick={() => {
+              if (sendingBuyRef.current) return
+              sendingBuyRef.current = true
+              setSendingBuy(true)
+              void onSendBuy().finally(() => { sendingBuyRef.current = false; setSendingBuy(false) })
+            }}
+          >
+            {tr('Send Buy now', 'Gửi nút Mua ngay')}
+          </Button>
+        )}
       </p>
     )
   }
