@@ -123,7 +123,7 @@ export const pageLimitArg = (v: unknown): string | undefined => {
   const n = Math.trunc(Number(v))
   return Number.isFinite(n) ? String(Math.max(1, Math.min(n, 1000))) : undefined
 }
-const PAGE_SIZE = z.number().optional().describe('How many listings to return in this call. Leave it out for a normal-size answer; the server caps a very large number. To go through every listing, call again with `next_cursor` until it comes back null')
+const PAGE_SIZE = z.number().optional().describe('How many listings to return in this call. Leave it out for a page of 50; the server caps a larger number. To go through every listing, call again with `next_cursor` until it comes back null')
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
@@ -409,7 +409,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'update_shop',
     title: 'Update shop',
-    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat.\n\nSend only the fields to change; changes are saved at once. Long text is shortened: name 120 characters, bio 1,000, location 120; a name needs at least 2. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.',
+    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.\n\nSend only the fields to change; changes are saved at once, and text longer than the page shows is shortened, not refused. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`; get_shop reads it again later.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ shop: SHOP_OUT.nullable().describe('The saved shop profile after the update, the same fields get_shop returns; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
@@ -432,7 +432,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'list_listings',
     title: 'Get shop listings',
-    description: 'Get this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. A page holds 50 listings unless you set `limit` (at most 100); pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: `id`, `title`, `price` and `priceUnit`, `status`, `verified`, `district`, `city`, the `cover` photo and `photos` count, `categorySlug`, `postedAt`, `views`, `contactCount` (leads) and page `url`; and `next_cursor`. Use get_listing for one listing in full, and analytics_listings for its views and leads by day.',
+    description: 'Get this shop\'s own listings, newest first, in every status unless you ask for one: active (on sale), sold or hidden.\n\nDeleted listings never appear. Pass `next_cursor` back as `cursor` until it comes back null to read them all.\n\nReturns `listings`, each in summary: `id`, `title`, `price` and `priceUnit`, `status`, `verified`, `district`, `city`, the `cover` photo and `photos` count, `categorySlug`, `postedAt`, `views`, `contactCount` (leads) and page `url`; and `next_cursor`. Use get_listing for one listing in full, and analytics_listings for its views and leads by day.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first, each in summary; call get_listing with an id for every field of one listing'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
@@ -471,7 +471,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'create_listing',
     title: 'Create marketplace listing',
-    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job\'s monthly salary goes in `salaryM`) and the district; text, condition, brand and model are optional. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none.\n\nIt goes live at once unless eno must check it first. Long text is shortened (title 140 characters, text 5,000, district 80, condition 60). It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
+    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job\'s monthly salary goes in `salaryM`) and the district; text, condition, brand and model are optional. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none.\n\nIt goes live at once unless eno must check it first; text longer than the page shows is shortened, not refused. It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ listing: CREATED_OUT }).describe('The new listing\'s id and whether it is public yet'),

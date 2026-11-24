@@ -28,6 +28,9 @@ const PAID_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: fals
 // (shopAds' where), so its enum has those.
 const AD_STATUS = z.enum(['active', 'pending', 'unknown', 'review'])
 const AD_STATUS_ANY = z.enum(['active', 'pending', 'unknown', 'review', 'failed'])
+// ⛔ tools.ts' rule for a value READ FROM THE DATABASE: one the enum does not list must never fail a validating client's
+// whole answer, so it reads as 'unknown' ("confirmation not yet found") — book.ts writes no other value today.
+const asAdStatus = <E extends z.ZodEnum>(e: E, v: string): z.infer<E> => (e.options as readonly string[]).includes(v) ? (v as z.infer<E>) : ('unknown' as z.infer<E>)
 
 const AD_OUT = z.strictObject({
   id: z.string().describe('The ad\'s id, as list_ads shows it'),
@@ -146,9 +149,9 @@ export const AD_TOOLS: McpTool[] = [
       const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, listingId, rawPayload: payment, via: 'mcp', hours })
       switch (out.kind) {
         case 'booked':
-          return new ToolResultWithMeta({ ad: adView(out.ad), message: null }, { [MCP_META_RESPONSE]: out.settlement })
+          return new ToolResultWithMeta({ ad: { ...adView(out.ad), status: asAdStatus(AD_STATUS_ANY, out.ad.status) }, message: null }, { [MCP_META_RESPONSE]: out.settlement })
         case 'pending':
-          return { ad: adView(out.ad), message: PENDING_MESSAGE }
+          return { ad: { ...adView(out.ad), status: asAdStatus(AD_STATUS_ANY, out.ad.status) }, message: PENDING_MESSAGE }
         case 'payment_invalid':
         case 'payment_failed':
           throw new ToolPaymentRequired(adPaymentRequired(cfg, 'mcp', bookFailureMessage(out), hours))
@@ -162,12 +165,12 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'list_ads',
     title: 'List this shop\'s ads',
-    description: 'List this shop\'s ads, newest first, with what each has done: impressions and taps on the ad card during its run, and the listing\'s own views and contacts over the ad\'s days. Ads whose payment was refused are not listed.\n\nReturns `ads`, each with `id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `impressions`, `clicks`, `listing_views`, `listing_contacts`, `amount_usdc_atomic`, `network` and `tx_hash`.',
+    description: 'List this shop\'s ads, newest first, with what each has done: impressions and taps on the ad card during its run, and the listing\'s own views and contacts over the ad\'s days. Ads whose payment was refused are not listed. Use it when the seller asks whether an ad is running or how it did; get_ad_offer prices a new one and promote_listing buys it.\n\nReturns `ads`, each with `id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `impressions`, `clicks`, `listing_views`, `listing_contacts`, `amount_usdc_atomic`, `network` and `tx_hash`.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     input: z.object({}),
     output: z.strictObject({ ads: z.array(STATS_OUT).describe('The shop\'s ads, newest first (up to 50)') }),
-    handler: async (auth) => ({ ads: auth.sellerId ? await shopAds(auth.sellerId, 50, x402Config()) : [] }),
+    handler: async (auth) => ({ ads: auth.sellerId ? (await shopAds(auth.sellerId, 50, x402Config())).map((a) => ({ ...a, status: asAdStatus(AD_STATUS, a.status) })) : [] }),
   },
 ]
 

@@ -249,7 +249,7 @@ const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 // that tool needs, in the shape of the best-scoring descriptions: what it does; its limits and refusals; Returns; Use it.
 /** send_message's own note: the wording its description scored 97 with (11-17), plus the deposit line. */
 const SEND_NOTE = 'You act for the signed-in person. Every message you send is shown to the other person starting with "🤖 AI:". An offer you make is the person\'s offer: if the other side accepts it, the person has agreed that price, so offer only what the person told you they would pay or take. Never send phone numbers, emails, links to other sites or account numbers (refused), never ask for payment or a deposit: payment is arranged between the people, never through eno. You cannot accept an offer: tell the person to accept it in the app.'
-const SENDS = `Everything you send is shown to the other person starting with "🤖 AI:", and an offer you make binds the person you act for if it is accepted, so offer only what they agreed to. Never ask for a deposit or a payment: people pay each other directly, never through eno or an agent. A message is up to ${TEXT_MAX.toLocaleString('en')} characters.`
+const SENDS = `Everything you send is shown to the other person starting with "🤖 AI:", and an offer you make binds the person you act for if it is accepted, so offer only what they agreed to. Never ask for a deposit or a payment: people pay each other directly, never through eno or an agent.`
 
 export const MESSAGING_TOOLS: McpTool[] = [
   {
@@ -362,7 +362,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
   {
     name: 'contact_seller',
     title: 'Message a seller about a listing',
-    description: `Message the seller of a listing for the person you act for: a question, an offer in VND, or both. It opens their conversation about the listing, or continues the one they already have with that seller.\n\n${SENDS} Refused with a reason code: an offer on a fixed-price listing, phone numbers, emails, outside links or account numbers, a teacher profile, more than ${AGENT_LIMITS.newThreadsPerDay} new conversations a day.\n\nReturns the \`conversation_id\`, whether it was \`created\` just now, and its \`app_url\`. Use it when the person wants to ask about or bid on a listing found with search_listings; then get_conversation reads the reply.`,
+    description: `Message the seller of a listing for the person you act for: a question, an offer in VND, or both. Use it when the person wants to ask about or bid on a listing found with search_listings; it opens their conversation about the listing, or continues the one they already have with that seller.\n\n${SENDS} Refused with a reason code: \`not_negotiable\` (an offer on a fixed-price listing), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`not_available_to_agents\` (a teacher profile, or a listing with no seller to message) and \`rate_limited\` (${AGENT_LIMITS.newThreadsPerDay} new conversations a day).\n\nReturns the \`conversation_id\`, whether it was \`created\` just now, and its \`app_url\`; get_conversation then reads the seller's reply.`,
     scope: scopeWrite,
     annotations: WRITE,
     input: z.object({
