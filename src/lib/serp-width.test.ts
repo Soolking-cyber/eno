@@ -19,6 +19,11 @@ describe('serp-width', () => {
     expect(titlePx('Căn hộ')).toBe(titlePx('Can ho'))
     expect(titlePx('Đ')).toBeGreaterThan(titlePx('D') - 1)
   })
+  it('decomposed Vietnamese (Unikey "tổ hợp") and an emoji’s variation selector measure like the composed text', () => {
+    const composed = 'Căn hộ dịch vụ Thảo Điền'
+    expect(titlePx(composed.normalize('NFD'))).toBeCloseTo(titlePx(composed), 5)
+    expect(titlePx('🛵\uFE0F Rental')).toBeCloseTo(titlePx('🛵 Rental') - titlePx(' ') + titlePx(' '), 5)
+  })
   it('a Korean name measures by its syllables, not their jamo (Seobility: "박채원매니저 — eno.vn" 180 px)', () => {
     expect(Math.abs(titlePx('박채원매니저 — eno.vn') - 180)).toBeLessThanOrEqual(10)
   })

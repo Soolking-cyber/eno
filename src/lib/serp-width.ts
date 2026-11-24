@@ -25,6 +25,9 @@ const OTHER: Readonly<Record<string, number>> = {
 function units(ch: string): number {
   const k = ch.codePointAt(0)!
   if (k >= 32 && k < 127) return ASCII[k - 32]
+  // Nothing of their own: a combining mark NFC could not fold (it sits on the letter before it), a variation selector
+  // (the U+FE0F after an emoji), a zero-width joiner or space.
+  if ((k >= 0x300 && k < 0x370) || (k >= 0xfe00 && k <= 0xfe0f) || (k >= 0x200b && k <= 0x200d)) return 0
   const own = OTHER[ch]
   if (own !== undefined) return own
   if (k >= 0x1f000 || (k >= 0x2600 && k < 0x2800)) return 1000
@@ -36,10 +39,12 @@ function units(ch: string): number {
  * Width in px of `text` set in Arial at `sizePx`. Character by character: a Latin letter with marks measures as its base
  * letter, anything else as itself. ⚠️ NOT `normalize('NFD')` OVER THE WHOLE STRING (gate review, 2026-11-24): that splits
  * every Hangul syllable into two or three jamo, each scored as a Latin letter — a Korean name measured about twice its width.
+ * NFC first (gate review): Vietnamese typed in Unikey's "Unicode tổ hợp" mode arrives decomposed, letter + separate mark,
+ * and each mark would otherwise score as a letter of its own.
  */
 export function serpWidth(text: string, sizePx: number): number {
   let u = 0
-  for (const ch of text) {
+  for (const ch of text.normalize('NFC')) {
     const base = ch.normalize('NFD')[0]
     u += units(base.codePointAt(0)! < 0x250 ? base : ch)
   }
