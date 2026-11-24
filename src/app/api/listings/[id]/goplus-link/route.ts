@@ -6,6 +6,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { goplusRoomPageUrl } from '@/lib/goplus-listing'
 import { isCommissionLink } from '@/lib/affiliate-commission'
 import { isEnoRunPartner } from '@/lib/eno-run-partners'
+import { partnerSourceUrlOk } from '@/lib/partner-source-link'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +36,7 @@ export const GET = route(
     const listing = id
       ? await db.listing.findFirst({
         where: await scopedListingWhere({ id }),
-        select: { externalId: true, sellerId: true, seller: { select: { ownerId: true, officialPartner: true } }, purchaseLink: { select: { url: true } } },
+        select: { externalId: true, sellerId: true, seller: { select: { ownerId: true, officialPartner: true, handle: { select: { handle: true } } } }, purchaseLink: { select: { url: true } } },
       })
       : null
     const goplus = listing?.seller.officialPartner === true ? goplusRoomPageUrl(listing.externalId) : null
@@ -46,11 +47,20 @@ export const GET = route(
      */
     const purchase = !goplus && listing && isEnoRunPartner({ id: listing.sellerId, ownerId: listing.seller.ownerId, officialPartner: listing.seller.officialPartner })
       && isCommissionLink(listing.purchaseLink?.url) ? listing.purchaseLink!.url : null
-    const url = goplus ?? purchase
+    /**
+     * …OR any other partner's ORIGINAL PAGE (owner 2026-11-24: "why all partner shop products dont have direct links to
+     * original website for respective admins" → "build it" + "from now on all partner shops should have links for admins"):
+     * the same staff-only row, on an official partner storefront, answered only when it is an https page on THAT partner's
+     * own website (src/lib/partner-source-link.ts holds each partner's hosts). Never a "Buy now": partner-buy.ts answers
+     * AccessTrade links only.
+     */
+    const source = !goplus && !purchase && listing?.seller.officialPartner === true
+      && partnerSourceUrlOk(listing.seller.handle?.handle, listing.purchaseLink?.url) ? listing.purchaseLink!.url : null
+    const url = goplus ?? purchase ?? source
     const entitled = !!url && (
-      listing!.seller.ownerId === userId
+      (listing!.seller.ownerId !== null && listing!.seller.ownerId === userId)
       || ((await isCurrentUserAdminByClaims()) && !!(await getAdmin()))
     )
-    return NextResponse.json({ url: entitled ? url : null, kind: entitled && url ? (goplus ? 'goplus' : 'purchase') : null }, { headers: NO_STORE })
+    return NextResponse.json({ url: entitled ? url : null, kind: entitled && url ? (goplus ? 'goplus' : purchase ? 'purchase' : 'source') : null }, { headers: NO_STORE })
   },
 )

@@ -106,6 +106,32 @@ describe('GoplusRoomLink', () => {
   })
 })
 
+describe('any other partner\'s original page (owner 2026-11-24: "all partner shops should have links for admins")', () => {
+  const PAGE = 'https://theextramile.co/motorbikes/adv-160-model-2026/'
+  const source = (url: unknown) => ({ ok: true, json: async () => ({ url, kind: 'source' }) })
+  it('staff (the server answers kind "source"): "Original page (staff only)" in a new tab, no referrer, and a Copy', async () => {
+    h.user = { id: 'staff' }
+    fetchMock.mockResolvedValue(source(PAGE))
+    render(<GoplusRoomLink listingId="L1" />)
+    const a = await screen.findByRole('link', { name: /Original page \(staff only\)/ })
+    expect(a.getAttribute('href')).toBe(PAGE)
+    expect(a.getAttribute('target')).toBe('_blank')
+    expect(a.getAttribute('rel')).toContain('noreferrer')
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy()
+  })
+  it('⛔ a "source" answer that is no web address shows nothing', async () => {
+    h.user = { id: 'staff' }
+    for (const bad of ['javascript:alert(1)', '//evil.example/x', 'data:text/html,x', 42]) {
+      fetchMock.mockReset().mockResolvedValue(source(bad))
+      const { container, unmount } = render(<GoplusRoomLink listingId="L1" />)
+      await act(async () => {})
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(container.textContent).toBe('')
+      unmount()
+    }
+  })
+})
+
 describe('⛔ no page or payload carries the URL — only the endpoint does', () => {
   const pdp = readFileSync('src/app/[lang]/listings/[id]/(pdp)/page.tsx', 'utf8')
   const thread = readFileSync('src/app/[lang]/messages/[id]/page.tsx', 'utf8')

@@ -2276,7 +2276,7 @@ export default async function ListingPage({ params }: Props) {
             {/* 8a — A GoPlus room's page on goplus.com.vn, for the GoPlus account and eno's admins only (api/listings/[id]/
                 goplus-link decides; owner, 2026-10-30). Its own `order-8` item, like 8b below: it renders nothing for
                 everyone else, so it never holds open the section above or earns a gap (commit review, codex + opus). */}
-            {(goplusRoom || staffPurchaseLink) && <GoplusRoomLink listingId={listing.id} className="order-8" />}
+            {(goplusRoom || staffPurchaseLink || rawListing.seller.officialPartner === true) && <GoplusRoomLink listingId={listing.id} className="order-8" />}
 
             {/* 8b — Seller information (owner, 2026-10-01): right after Description/Details, sharing their
                 `order-8` slot so DOM order places it below them on phones too. Renders nothing when there is

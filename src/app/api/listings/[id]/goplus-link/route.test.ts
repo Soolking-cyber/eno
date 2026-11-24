@@ -127,3 +127,42 @@ describe('an eno-run partner\'s staff-only purchase link', () => {
     expect((await call()).body).toEqual({ url: null, kind: null })
   })
 })
+
+describe('any other partner\'s original page (owner 2026-11-24: "all partner shops should have links for admins")', () => {
+  const PAGE = 'https://theextramile.co/motorbikes/honda-xr150/'
+  const sourceRow = (over: Partial<{ url: string; handle: string | null; officialPartner: boolean }> = {}) => ({
+    externalId: 'theextramile:honda-xr150', sellerId: 'tem',
+    seller: { ownerId: 'eno-login', officialPartner: over.officialPartner ?? true, handle: 'handle' in over ? (over.handle === null ? null : { handle: over.handle! }) : { handle: 'theextramile' } },
+    purchaseLink: { url: over.url ?? PAGE },
+  })
+  it('the storefront\'s eno-held login gets the page, kind "source", never cached', async () => {
+    h.userId = 'eno-login'; h.listing = sourceRow() as never
+    expect(await call()).toEqual({ status: 200, cache: 'private, no-store', body: { url: PAGE, kind: 'source' } })
+  })
+  it('an admin gets it too', async () => {
+    h.userId = 'staff'; h.claimsAdmin = true; h.admin = 'support@eno.forum'; h.listing = sourceRow() as never
+    expect((await call()).body).toEqual({ url: PAGE, kind: 'source' })
+  })
+  it('⛔ a buyer in the chat, or any other viewer, gets nothing', async () => {
+    h.userId = 'buyer'; h.listing = sourceRow() as never
+    expect((await call()).body).toEqual({ url: null, kind: null })
+  })
+  it('⛔ a page on ANOTHER partner\'s (or any other) website, http, or no handle: never answered', async () => {
+    h.userId = 'eno-login'
+    for (const row of [
+      sourceRow({ url: 'https://saigoncribs.com/x' }),
+      sourceRow({ url: 'https://evil.example/theextramile.co/' }),
+      sourceRow({ url: 'https://theextramile.co.evil.example/x' }),
+      sourceRow({ url: 'http://theextramile.co/motorbikes/x/' }),
+      sourceRow({ handle: null }),
+      sourceRow({ handle: 'someone-else' }),
+    ]) {
+      h.listing = row as never
+      expect((await call()).body).toEqual({ url: null, kind: null })
+    }
+  })
+  it('⛔ not an official partner\'s storefront: nothing, whoever asks', async () => {
+    h.userId = 'eno-login'; h.listing = sourceRow({ officialPartner: false }) as never
+    expect((await call()).body).toEqual({ url: null, kind: null })
+  })
+})

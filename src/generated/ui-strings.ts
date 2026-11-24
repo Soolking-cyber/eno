@@ -2636,6 +2636,7 @@ export const UI_STRINGS: string[] = [
   "Or create a teacher profile: schools and others looking for a teacher can message you, and your phone, email and CV stay private until you share them.",
   "Ordinary chat messages don’t send a notification — they show as unread in Messages.",
   "Origin",
+  "Original page (staff only)",
   "Other",
   "Other accessories",
   "Other books",

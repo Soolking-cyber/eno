@@ -9,6 +9,11 @@
  * meant a third copy, and the copies would drift — the VietKite one already carried a broken INSERT
  * (ten columns, eleven values) that nobody hit because nobody ran it twice. One table, one code path.
  *
+ * ⛔ EVERY PARTNER GETS ADMIN LINKS TO ITS ORIGINAL PAGES (owner, 2026-11-24: "from now on all partner shops should have
+ * links for admins"). A new entry here needs its website in PARTNER_SOURCES (src/lib/partner-source-link.ts) — the test
+ * there fails otherwise — and, after its import, `npx tsx scripts/backfill-partner-source-links.ts <handle> --journal-dir <durable dir> --apply`
+ * (env from ~/eno.vn/.env; dry run first, without the last two flags).
+ *
  * ⚠️ THE PASSWORD IS READ FROM THE ENVIRONMENT AND IS NEVER STORED IN THIS FILE.
  * It must not be committed, pasted into a commit message, or echoed to a log. This script prints
  * only whether one was supplied and how long it is. Whoever runs it should treat the value as

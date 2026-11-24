@@ -38,7 +38,7 @@ export function GoplusRoomLink({ listingId, className, onSendBuy }: {
   const { user, loading } = useAuth()
   const viewer = loading ? null : (user?.id ?? null)
   const key = `${viewer}:${listingId}`
-  const [answer, setAnswer] = useState<{ key: string; url: string | null; kind: 'goplus' | 'purchase' | null } | null>(null)
+  const [answer, setAnswer] = useState<{ key: string; url: string | null; kind: 'goplus' | 'purchase' | 'source' | null } | null>(null)
   // Keyed on the link itself (commit gate, codex): another listing's link never shows as "Copied".
   const [copiedHref, setCopiedHref] = useState<string | null>(null)
   const [sendingBuy, setSendingBuy] = useState(false)
@@ -56,6 +56,9 @@ export function GoplusRoomLink({ listingId, className, onSendBuy }: {
         // Each kind shows only its own shape, whatever the answer says: a GoPlus room page, or (an eno-run partner's staff
         // purchase link, owner 2026-11-14) an AccessTrade link host.
         if (url && d?.kind === 'purchase' && isCommissionLink(url) && url.startsWith('https://')) setAnswer({ key, url, kind: 'purchase' })
+        // Any other partner's original page (owner 2026-11-24): the server answers only a page on that partner's own hosts
+        // (src/lib/partner-source-link.ts — https, or http for the one site that has no https); here, a web address only.
+        else if (url && d?.kind === 'source' && /^https?:\/\//.test(url)) setAnswer({ key, url, kind: 'source' })
         else setAnswer({ key, url: url && GOPLUS_ROOM_PAGE.test(url) ? url : null, kind: 'goplus' })
       })
       .catch(() => {})
@@ -63,6 +66,20 @@ export function GoplusRoomLink({ listingId, className, onSendBuy }: {
   }, [viewer, listingId, key])
   const href = answer?.key === key ? answer.url : null
   if (!href) return null
+  if (answer?.kind === 'source') {
+    // Staff only (the endpoint answers nobody else): the listing's page on the partner's own website, to check it or copy it.
+    return (
+      <p className={cn('flex flex-wrap items-center gap-x-3 text-sm text-body', className)}>
+        <a href={href} target="_blank" rel="noopener noreferrer" onClick={handleExternalClick} className="font-semibold text-accent-foreground underline-offset-2 hover:underline">
+          {tr('Original page (staff only)', 'Trang gốc (chỉ nhân viên)')}
+          <span className="sr-only"> {tr('(opens in a new tab)', '(mở trong tab mới)')}</span>
+        </a>
+        <Button type="button" variant="link" size="none" className="font-semibold text-accent-foreground underline-offset-2" onClick={() => { void navigator.clipboard?.writeText(href).then(() => setCopiedHref(href), () => {}) }}>
+          {copiedHref === href ? tr('Copied', 'Đã sao chép') : tr('Copy', 'Sao chép')}
+        </Button>
+      </p>
+    )
+  }
   if (answer?.kind === 'purchase') {
     // Staff only (the endpoint answers nobody else): open it to buy, or copy it to send in the chat (owner 2026-11-14).
     return (
