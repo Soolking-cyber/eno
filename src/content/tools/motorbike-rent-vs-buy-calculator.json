@@ -1,0 +1,369 @@
+{
+  "faqs": [
+    {
+      "a": {
+        "en": "It depends on how long you stay and how much value the bike keeps. Buying has a cost up front, the purchase price minus what you sell it for, but then usually costs less each month than rent. The longer you stay past the break-even month, the more buying saves.",
+        "vi": "Còn tùy bạn ở bao lâu và chiếc xe giữ giá đến đâu. Mua xe tốn một khoản ban đầu, tức giá mua trừ giá bán lại, nhưng sau đó mỗi tháng thường tốn ít hơn tiền thuê. Bạn ở càng lâu sau tháng hòa vốn thì mua càng tiết kiệm."
+      },
+      "q": {
+        "en": "Is it cheaper to rent or buy a motorbike in Vietnam?",
+        "vi": "Ở Việt Nam thuê hay mua xe máy thì rẻ hơn?"
+      }
+    },
+    {
+      "a": {
+        "en": "It is the month when the total cost of buying and reselling equals the total cost of renting. If you keep the bike for fewer months, renting costs less; for more months, buying costs less.",
+        "vi": "Đó là tháng mà tổng chi phí mua rồi bán lại bằng tổng chi phí thuê. Nếu bạn dùng xe ít tháng hơn thì thuê rẻ hơn, nếu nhiều tháng hơn thì mua rẻ hơn."
+      },
+      "q": {
+        "en": "What is the break-even month?",
+        "vi": "Tháng hòa vốn là gì?"
+      }
+    },
+    {
+      "a": {
+        "en": "Look at asking prices for the same model, a year or two older, in listings near you, and use a figure a little below them. Bikes sold in a hurry before a departure often fetch less.",
+        "vi": "Xem giá rao bán của cùng mẫu xe, đời cũ hơn một hai năm, ở khu vực của bạn, rồi lấy con số thấp hơn một chút. Xe bán gấp trước khi rời đi thường được giá thấp hơn."
+      },
+      "q": {
+        "en": "How do I estimate the resale price?",
+        "vi": "Làm sao ước tính giá bán lại?"
+      }
+    },
+    {
+      "a": {
+        "en": "You pay for fuel whether you rent or buy, so it does not change which option is cheaper. Leave it out of both sides.",
+        "vi": "Dù thuê hay mua bạn đều phải đổ xăng, nên tiền xăng không làm thay đổi bên nào rẻ hơn. Hãy bỏ nó ra khỏi cả hai bên."
+      },
+      "q": {
+        "en": "Why is fuel not included?",
+        "vi": "Sao không tính tiền xăng?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+        "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+      },
+      "q": {
+        "en": "Is anything I type stored?",
+        "vi": "Những gì tôi nhập có được lưu không?"
+      }
+    }
+  ],
+  "slug": "motorbike-rent-vs-buy-calculator",
+  "intro": {
+    "en": "Renting costs the monthly rent times the months of use, while buying costs the purchase price plus one-off costs minus the resale price, plus the monthly running costs times the months. Enter the prices you have been quoted and how long you will stay, and see both totals, the difference and the break-even month.",
+    "vi": "Chi phí thuê bằng tiền thuê mỗi tháng nhân số tháng sử dụng, còn chi phí mua bằng giá mua cộng các khoản phí ban đầu trừ giá bán lại, cộng chi phí vận hành mỗi tháng nhân số tháng. Nhập giá thuê, giá mua mà bạn đã hỏi được và thời gian bạn ở lại, rồi xem hai tổng chi phí, phần chênh lệch và tháng hòa vốn."
+  },
+  "notes": [
+    {
+      "text": {
+        "en": "Owning costs as much each month as renting or more, so buying never catches up and there is no break-even month.",
+        "vi": "Chi phí sở hữu mỗi tháng bằng hoặc cao hơn tiền thuê, nên mua xe không bao giờ hòa vốn và không có tháng hòa vốn."
+      },
+      "when": "rentMonthly + rentExtra <= ownRunning"
+    },
+    {
+      "text": {
+        "en": "Over these months, buying and reselling costs less than renting.",
+        "vi": "Trong số tháng này, mua rồi bán lại rẻ hơn thuê."
+      },
+      "when": "buyingSaves > 0"
+    },
+    {
+      "text": {
+        "en": "Over these months, renting costs less than buying and reselling.",
+        "vi": "Trong số tháng này, thuê rẻ hơn mua rồi bán lại."
+      },
+      "when": "buyingSaves < 0"
+    },
+    {
+      "text": {
+        "en": "The resale price is higher than the purchase price: check the figures.",
+        "vi": "Giá bán lại cao hơn giá mua: hãy kiểm tra lại các số."
+      },
+      "when": "resalePrice > purchasePrice"
+    }
+  ],
+  "tests": [
+    {
+      "expect": {
+        "buyTotal": 10600000,
+        "rentTotal": 30000000,
+        "buyPerMonth": 883333.33,
+        "buyingSaves": 19400000,
+        "breakEvenMonth": 3.2
+      },
+      "inputs": {
+        "months": 12,
+        "rentExtra": 0,
+        "ownRunning": 300000,
+        "oneOffCosts": 1000000,
+        "rentMonthly": 2500000,
+        "resalePrice": 14000000,
+        "purchasePrice": 20000000
+      }
+    },
+    {
+      "expect": {
+        "buyTotal": 7000000,
+        "rentTotal": 0,
+        "buyPerMonth": 0,
+        "buyingSaves": -7000000,
+        "breakEvenMonth": 3.2
+      },
+      "inputs": {
+        "months": 0,
+        "rentExtra": 0,
+        "ownRunning": 300000,
+        "oneOffCosts": 1000000,
+        "rentMonthly": 2500000,
+        "resalePrice": 14000000,
+        "purchasePrice": 20000000
+      }
+    },
+    {
+      "expect": {
+        "buyTotal": 14000000,
+        "rentTotal": 9000000,
+        "buyPerMonth": 2333333.33,
+        "buyingSaves": -5000000,
+        "breakEvenMonth": 0
+      },
+      "inputs": {
+        "months": 6,
+        "rentExtra": 0,
+        "ownRunning": 1500000,
+        "oneOffCosts": 0,
+        "rentMonthly": 1500000,
+        "resalePrice": 10000000,
+        "purchasePrice": 15000000
+      }
+    },
+    {
+      "expect": {
+        "buyTotal": -1400000,
+        "rentTotal": 6600000,
+        "buyPerMonth": -466666.67,
+        "buyingSaves": 8000000,
+        "breakEvenMonth": 0
+      },
+      "inputs": {
+        "months": 3,
+        "rentExtra": 200000,
+        "ownRunning": 200000,
+        "oneOffCosts": 0,
+        "rentMonthly": 2000000,
+        "resalePrice": 12000000,
+        "purchasePrice": 10000000
+      }
+    },
+    {
+      "expect": {
+        "buyTotal": 12000000,
+        "rentTotal": 12000000,
+        "buyPerMonth": 3000000,
+        "buyingSaves": 0,
+        "breakEvenMonth": 4
+      },
+      "inputs": {
+        "months": 4,
+        "rentExtra": 0,
+        "ownRunning": 500000,
+        "oneOffCosts": 1500000,
+        "rentMonthly": 3000000,
+        "resalePrice": 16500000,
+        "purchasePrice": 25000000
+      }
+    }
+  ],
+  "title": {
+    "en": "Motorbike rent vs buy calculator",
+    "vi": "So sánh thuê hay mua xe máy"
+  },
+  "inputs": [
+    {
+      "id": "rentMonthly",
+      "max": 100000000,
+      "min": 0,
+      "help": {
+        "en": "The monthly price the rental shop or owner quoted you.",
+        "vi": "Giá thuê mỗi tháng mà cửa hàng hoặc chủ xe báo cho bạn."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Rent per month",
+        "vi": "Tiền thuê mỗi tháng"
+      },
+      "default": 2500000
+    },
+    {
+      "id": "rentExtra",
+      "max": 100000000,
+      "min": 0,
+      "help": {
+        "en": "Anything renting costs on top of the rent each month, such as delivery or helmet hire. Enter 0 if none.",
+        "vi": "Các khoản ngoài tiền thuê mỗi tháng, như phí giao xe hay thuê mũ bảo hiểm. Nhập 0 nếu không có."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Extra cost of renting a month",
+        "vi": "Phụ phí khi thuê mỗi tháng"
+      },
+      "default": 0
+    },
+    {
+      "id": "months",
+      "max": 600,
+      "min": 0,
+      "help": {
+        "en": "How long you will need the bike.",
+        "vi": "Thời gian bạn cần dùng xe."
+      },
+      "kind": "months",
+      "label": {
+        "en": "Months of use",
+        "vi": "Số tháng sử dụng"
+      },
+      "default": 12
+    },
+    {
+      "id": "purchasePrice",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "What you would pay for the bike.",
+        "vi": "Số tiền bạn trả để mua chiếc xe."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Purchase price",
+        "vi": "Giá mua xe"
+      },
+      "default": 20000000
+    },
+    {
+      "id": "oneOffCosts",
+      "max": 1000000000,
+      "min": 0,
+      "help": {
+        "en": "Ownership transfer, first repairs, a lock or helmet bought once, added up.",
+        "vi": "Phí sang tên, sửa chữa ban đầu, khóa hoặc mũ bảo hiểm mua một lần, cộng lại."
+      },
+      "kind": "money",
+      "label": {
+        "en": "One-off buying costs",
+        "vi": "Chi phí ban đầu khi mua"
+      },
+      "default": 1000000
+    },
+    {
+      "id": "resalePrice",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "What you expect to get when you sell the bike at the end.",
+        "vi": "Số tiền bạn dự kiến nhận được khi bán xe lúc rời đi."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Expected resale price",
+        "vi": "Giá bán lại dự kiến"
+      },
+      "default": 14000000
+    },
+    {
+      "id": "ownRunning",
+      "max": 100000000,
+      "min": 0,
+      "help": {
+        "en": "Servicing, repairs, insurance and parking, averaged per month.",
+        "vi": "Bảo dưỡng, sửa chữa, bảo hiểm và gửi xe, tính trung bình mỗi tháng."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Running costs of owning a month",
+        "vi": "Chi phí sở hữu mỗi tháng"
+      },
+      "default": 300000
+    }
+  ],
+  "example": {
+    "inputs": {
+      "months": 12,
+      "rentExtra": 0,
+      "ownRunning": 300000,
+      "oneOffCosts": 1000000,
+      "rentMonthly": 2500000,
+      "resalePrice": 14000000,
+      "purchasePrice": 20000000
+    }
+  },
+  "outputs": [
+    {
+      "id": "rentTotal",
+      "label": {
+        "en": "Total cost of renting",
+        "vi": "Tổng chi phí thuê"
+      },
+      "format": "money",
+      "formula": "(rentMonthly + rentExtra) * months"
+    },
+    {
+      "id": "buyTotal",
+      "label": {
+        "en": "Total cost of buying and reselling",
+        "vi": "Tổng chi phí mua và bán lại"
+      },
+      "format": "money",
+      "formula": "purchasePrice + oneOffCosts - resalePrice + ownRunning * months"
+    },
+    {
+      "id": "buyingSaves",
+      "label": {
+        "en": "Buying saves (negative: renting saves)",
+        "vi": "Mua tiết kiệm được (số âm: thuê rẻ hơn)"
+      },
+      "format": "money",
+      "formula": "rentTotal - buyTotal"
+    },
+    {
+      "id": "buyPerMonth",
+      "label": {
+        "en": "Cost of buying per month",
+        "vi": "Chi phí mua tính mỗi tháng"
+      },
+      "format": "money",
+      "formula": "if(months > 0, buyTotal / months, 0)"
+    },
+    {
+      "id": "breakEvenMonth",
+      "label": {
+        "en": "Break-even month",
+        "vi": "Tháng hòa vốn"
+      },
+      "format": "months",
+      "formula": "if(rentMonthly + rentExtra > ownRunning, round(max(0, (purchasePrice + oneOffCosts - resalePrice) / (rentMonthly + rentExtra - ownRunning)), 1), 0)"
+    }
+  ],
+  "related": [
+    "/c/vehicles",
+    "/selling-up-before-you-leave-vietnam",
+    "/vietnamese-price-converter",
+    "/tools"
+  ],
+  "version": 1,
+  "howItWorks": {
+    "en": "The cost of renting is the monthly rent plus any extra monthly cost of renting, such as a helmet or delivery fee spread over the months, times the number of months.\n\nThe cost of buying is the purchase price plus one-off costs such as ownership transfer and first repairs, minus what you expect to get when you sell, plus the monthly running costs of owning, such as servicing and insurance, times the number of months.\n\nThe break-even month is the net cost of buying and selling divided by how much less owning costs each month than renting. Before that month renting is cheaper; after it buying is cheaper.",
+    "vi": "Chi phí thuê bằng tiền thuê mỗi tháng cộng các khoản phụ khi thuê, ví dụ phí giao xe hay thuê mũ bảo hiểm tính bình quân theo tháng, rồi nhân với số tháng.\n\nChi phí mua bằng giá mua cộng các khoản phí ban đầu như sang tên và sửa chữa lúc đầu, trừ số tiền bạn dự kiến thu về khi bán lại, cộng chi phí vận hành mỗi tháng khi sở hữu xe, như bảo dưỡng và bảo hiểm, nhân với số tháng.\n\nTháng hòa vốn bằng phần chi phí mua và bán lại chia cho số tiền mỗi tháng mà sở hữu xe rẻ hơn đi thuê. Trước tháng đó thuê rẻ hơn, sau tháng đó mua rẻ hơn."
+  },
+  "description": {
+    "en": "Compare the total cost of renting a motorbike with buying one and reselling it later, and see the month when buying starts to cost less.",
+    "vi": "So sánh tổng chi phí thuê xe máy với mua xe rồi bán lại, và xem từ tháng thứ mấy thì mua xe bắt đầu rẻ hơn thuê."
+  },
+  "limitations": {
+    "en": "The resale price is a single figure you type: it does not fall automatically the longer you keep the bike.\nFuel is left out because it costs the same whether you rent or buy.\nRunning costs are treated as the same every month: use an average.\nIt does not count the time and effort of buying and selling a bike.",
+    "vi": "Giá bán lại là một con số bạn tự nhập: công cụ không tự giảm giá theo thời gian bạn giữ xe.\nTiền xăng không được tính vì thuê hay mua đều tốn như nhau.\nChi phí vận hành được coi là như nhau mỗi tháng: hãy dùng mức trung bình.\nCông cụ không tính thời gian và công sức bỏ ra để mua và bán xe."
+  }
+}

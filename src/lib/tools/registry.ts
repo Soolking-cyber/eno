@@ -13,5 +13,6 @@ export type ToolEntry = { slug: string; published: string; reviewed: string; rev
 
 export const TOOLS: readonly ToolEntry[] = [
   // <generated-tools>
+  { slug: 'motorbike-rent-vs-buy-calculator', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '67605bd18483a3b2' },
   // </generated-tools>
 ]
