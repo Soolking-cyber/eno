@@ -60,7 +60,8 @@ const DESCRIPTION =
 // Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
 // sends no language, so the card must not depend on which variant it happened to hit.
 const METADATA: Metadata = withShare({
-  title: `Safe trading | ${SITE_NAME}`,
+  // Seobility crawl 3: "Safe trading | eno.vn" measured 186 px, under the ~200 px a title needs to say what the page is.
+  title: `Safe trading tips for buyers and sellers | ${SITE_NAME}`,
   // The services build swaps the whole description rather than appending to it — an
   // appended clause pushes the useful half past the ~160 chars a result actually shows.
   description: IS_SERVICES && SERVICES_SAFETY.metaDescription ? SERVICES_SAFETY.metaDescription : DESCRIPTION,
@@ -71,7 +72,7 @@ const METADATA: Metadata = withShare({
 // reader's tab and history said "Safe trading". The description stays one string for both.
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  return lang === 'vi' ? { ...METADATA, title: `Giao dịch an toàn | ${SITE_NAME}` } : METADATA
+  return lang === 'vi' ? { ...METADATA, title: `Mẹo giao dịch an toàn cho người mua và người bán | ${SITE_NAME}` } : METADATA
 }
 
 // A tip's glyph is a lucide icon OR the eno seal. The seal is bespoke first-party art, not

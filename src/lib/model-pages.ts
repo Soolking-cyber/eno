@@ -25,7 +25,8 @@ import type { SerializedListingCard } from '@/lib/types'
 /**
  * ── MODEL PRICE PAGES (owner-approved 2026-11-17) ─────────────────────────────────────────────────────
  * `/price/<slug>` (English) and `/gia/<slug>` (Vietnamese): one brand + model's live sale listings on its home shelf,
- * cheapest first, under "Typical ask P25–P75 · N listings" when that band can claim a market.
+ * cheapest first, under "Typical asking price P25–P75 · N listings" when that band can claim a market (the word "price" in
+ * the body: Seobility crawl 3 flagged 25 price pages whose H1 word "price" appeared nowhere in their text).
  *
  * ⛔ ONE SET, READ THROUGH THE FEED: every read is `buildFeedFilters` (verified, active, edition scope, teachers out) with
  * `type=sell&priceMin=1`, so the grid's "Show more" (/api/listings, same params) continues exactly this set. Nothing is
@@ -213,7 +214,7 @@ export function modelPageMetadata(entry: ModelPageEntry, page: Pick<ModelPage, '
   const n = b ? formatInteger(b.n, lang) : ''
   const title = vi ? `Giá ${entry.name} tại Việt Nam | ${SITE_NAME}` : `${entry.name} price in Vietnam | ${SITE_NAME}`
   const description = b
-    ? (vi ? `Giá rao phổ biến ${range} cho ${entry.name}, từ ${n} tin trên ${SITE_NAME}. Rẻ nhất trước.` : `Typical ask ${range} for ${entry.name}, from ${n} listings on ${SITE_NAME}. Cheapest first.`)
+    ? (vi ? `Giá rao phổ biến ${range} cho ${entry.name}, từ ${n} tin trên ${SITE_NAME}. Rẻ nhất trước.` : `Typical asking price ${range} for ${entry.name}, from ${n} listings on ${SITE_NAME}. Cheapest first.`)
     : (vi ? `Tin rao ${entry.name} trên ${SITE_NAME}, rẻ nhất trước.` : `${entry.name} listings on ${SITE_NAME}, cheapest first.`)
   const canonical = modelPagePath(entry.slug, lang)
   const en = modelPagePath(entry.slug, 'en')

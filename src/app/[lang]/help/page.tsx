@@ -15,7 +15,8 @@ import { ViTwinLinkFromParams } from '@/components/marketplace/vi-twin-link'
 // Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
 // sends no language, so the card must not depend on which variant it happened to hit.
 const METADATA: Metadata = withShare({
-  title: `Help center | ${SITE_NAME}`,
+  // Seobility crawl 3: "Help center | eno.vn" measured 180 px, under the ~200 px a title needs.
+  title: `Help center: answers about buying and selling | ${SITE_NAME}`,
   description: 'Answers about buying, selling, trust, messaging, offers and safe trading on eno.vn — plus practical guides for travelling in Vietnam.',
   alternates: { canonical: '/help' },
 })
@@ -26,7 +27,7 @@ const METADATA: Metadata = withShare({
 // stays the English one above on both variants.
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  const meta = lang === 'vi' ? { ...METADATA, title: `Trung tâm trợ giúp | ${SITE_NAME}` } : METADATA
+  const meta = lang === 'vi' ? { ...METADATA, title: `Trung tâm trợ giúp: giải đáp về mua bán | ${SITE_NAME}` } : METADATA
   const twin = langAlternatesFor('/help', lang, meta.robots)
   return twin ? { ...meta, alternates: twin } : meta
 }

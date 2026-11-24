@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react'
+import { fitsTitle } from '@/lib/meta-description'
 import { readFileSync } from 'node:fs'
 import type { Metadata } from 'next'
 import { renderToString } from 'react-dom/server'
@@ -115,7 +116,8 @@ describe('every rent tool page, in both languages', () => {
       canonical: lang === 'vi' ? `/vi/${slug}` : `/${slug}`,
       languages: { en: `/${slug}`, 'vi-VN': `/vi/${slug}`, 'x-default': `/${slug}` },
     })
-    expect(String(m.title)).toMatch(/\| eno\.vn$/)
+    // Within a result's width (serp-width.ts): " | eno.vn" while it fits, the tool's own words when it does not.
+    expect(fitsTitle(String(m.title), 70)).toBe(true)
     expect(String(m.description).length).toBeGreaterThanOrEqual(100)
     expect(String(m.description).length).toBeLessThanOrEqual(160)
     expect((m.openGraph as { url?: string }).url).toBe(lang === 'vi' ? `/vi/${slug}` : `/${slug}`)

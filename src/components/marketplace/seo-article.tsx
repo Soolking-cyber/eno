@@ -635,13 +635,18 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               <Rows bordered>
                 {related.map((r) => (
                   <Row key={r.href} className="py-0">
-                    <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                    {/* ⛔ THE LINK IS THE TITLE, STRETCHED OVER THE ROW (category-text.tsx's guide rows, the same reason): the whole
+                        row as one <a> made its anchor text the title AND the blurb — over 120 characters on 98 guides (Seobility
+                        crawl 3, "anchor text too long"). The row still takes the click, the hover and the focus ring. */}
+                    <div className="group relative grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
                       <span className="min-w-0">
-                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground lg:text-lg">{r.label}</span>
+                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground lg:text-lg">
+                          <Link href={r.href} className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">{r.label}</Link>
+                        </span>
                         <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body lg:text-base">{r.blurb}</span>
                       </span>
                       <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-                    </Link>
+                    </div>
                   </Row>
                 ))}
               </Rows>
@@ -654,7 +659,11 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               <div className="space-y-6">
                 {content.faqs.map((f, i) => (
                   <div key={i}>
-                    <h3 className="text-base font-bold text-foreground lg:text-lg">{f.q}</h3>
+                    {/* ⛔ A HEADING TO A SCREEN READER, NOT AN <h3> (Seobility crawl 3, 2026-11-24: 23 guides repeat a section's
+                        <h2> as an FAQ question, "duplicate headings", and 75 carry "too many headings"). The FAQ restates the
+                        article by design, so the questions keep role="heading" — the footer's pattern — and drop the tag a
+                        crawler counts. Preflight styles <p> and <h3> alike, so nothing moves. */}
+                    <p role="heading" aria-level={3} className="text-base font-bold text-foreground lg:text-lg">{f.q}</p>
                     <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body lg:text-lg">{f.a}</p>
                   </div>
                 ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clip, fillDescription, firstThatFits, shopTitle, titleWithPrice, titleWithSite } from './meta-description'
+import { clip, fillDescription, firstThatFits, shopTitle, titleWithPrice, titleWithSite, fitsTitle } from './meta-description'
 
 describe('fillDescription (Bing 2026-11-20: descriptions too short)', () => {
   it('adds the facts in order, only until the text is long enough', () => {
@@ -40,8 +40,12 @@ describe('titleWithSite (Bing 2026-11-20: title too long)', () => {
     expect(titleWithSite('eSIM in Vietnam', 'eno.vn')).toBe('eSIM in Vietnam | eno.vn')
   })
   it('drops it when it would not fit, and cuts a title that is itself too long', () => {
+    // 70 characters fits the character limit but not the result's 570 px (serp-width.ts), so it is cut at a word.
     const t = 'Cheap 5G phones in Vietnam — coverage, bands and the specs that matter'
-    expect(titleWithSite(t, 'eno.vn')).toBe(t)
+    const out = titleWithSite(t, 'eno.vn')
+    expect(out.startsWith('Cheap 5G phones in Vietnam')).toBe(true)
+    expect(fitsTitle(out, 70)).toBe(true)
+    expect(titleWithSite('Cheap 5G phones in Vietnam', 'eno.vn')).toBe('Cheap 5G phones in Vietnam | eno.vn')
     expect(titleWithSite('word '.repeat(20).trim(), 'eno.vn').length).toBeLessThanOrEqual(70)
   })
 })
@@ -67,7 +71,9 @@ describe('shopTitle (Seobility 2026-11-23: "ShopDunk | eno.vn" too short to say 
     expect(shopTitle('ShopDunk', 'eno.vn', 'vi')).toBe('ShopDunk — tin đăng trên eno.vn')
   })
   it('falls back to "<name> | <site>" (or the name cut) when the phrase does not fit', () => {
-    expect(shopTitle('A'.repeat(40), 'eno.vn', 'en')).toBe(`${'A'.repeat(40)} | eno.vn`)
+    expect(shopTitle('Saigon Scooter Centre Motorbike Rentals D1', 'eno.vn', 'en')).toBe('Saigon Scooter Centre Motorbike Rentals D1 | eno.vn')
+    // 40 capitals are ~530 px on their own: past the result's width with any suffix, so the name is cut (serp-width.ts).
+    expect(fitsTitle(shopTitle('A'.repeat(40), 'eno.vn', 'en'))).toBe(true)
     expect(shopTitle('word '.repeat(20).trim(), 'eno.vn', 'en').length).toBeLessThanOrEqual(60)
   })
 })

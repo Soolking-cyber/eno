@@ -220,7 +220,7 @@ describe('modelPageMetadata', () => {
   it('titles and the claim description in each language, with reciprocal alternates', () => {
     const en = modelPageMetadata(ENTRY, { band: BAND, indexable: true }, 'en')
     expect(en.title).toBe(`Apple iPhone 13 price in Vietnam | ${SITE_NAME}`)
-    expect(en.description).toBe(`Typical ask 9.3M–11.8M đ for Apple iPhone 13, from 6 listings on ${SITE_NAME}. Cheapest first.`)
+    expect(en.description).toBe(`Typical asking price 9.3M–11.8M đ for Apple iPhone 13, from 6 listings on ${SITE_NAME}. Cheapest first.`)
     expect(en.alternates).toEqual({ canonical: '/price/apple-iphone-13', languages: { en: '/price/apple-iphone-13', 'vi-VN': '/gia/apple-iphone-13', 'x-default': '/price/apple-iphone-13' } })
     expect(en.robots).toBeUndefined()
     const vi = modelPageMetadata(ENTRY, { band: BAND, indexable: true }, 'vi')

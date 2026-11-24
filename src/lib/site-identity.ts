@@ -4,7 +4,8 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
 import { SOCIALS, X_SITE } from '@/lib/socials'
-import { clip, firstThatFits } from '@/lib/meta-description'
+import { clipDescription, firstThatFits } from '@/lib/meta-description'
+import { titlePx } from '@/lib/serp-width'
 import type { LegalOperator } from '@/lib/site-legal'
 
 /**
@@ -325,11 +326,17 @@ const SITE_SUFFIX = ` | ${SITE_NAME}`
 
 /**
  * A title and description that fit what a search result shows (Seobility, 2026-11-24: 51 titles over ~580 px and 63
- * descriptions over ~1000 px among the guides and tools that come through withShare). The title drops " | <site>" past 60
- * characters — the writer's own words are never cut, so a title that is long by itself stays as written; the description is
- * cut at a word past 155 characters, where a result cuts it anyway (meta-description.ts clip).
+ * descriptions over ~1000 px among the guides and tools that come through withShare). The title drops " | <site>" when it does
+ * not fit (60 characters and 570 px, meta-description.ts fitsTitle); a title still too wide by itself falls back to its own
+ * head — the words before its first ": ", " — ", " – " or " | " ("How to become an English teacher in Vietnam: step by step"
+ * → "How to become an English teacher in Vietnam"), never a word cut — when that head still says something (200 px and up).
+ * ⚠️ A title that names eno.vn itself keeps the suffix while it fits: Seobility flags the repeat ("word repeats") and, once the
+ * suffix is gone, the domain inside the title ("domain in title") — one finding either way, so the old rule stands. The
+ * description is cut at a word where a result cuts it (meta-description.ts clipDescription: 155 characters and 980 px).
  */
 export function withinResult(title: string, description: string): { title: string; description: string } {
   const bare = title.endsWith(SITE_SUFFIX) ? title.slice(0, -SITE_SUFFIX.length) : title
-  return { title: firstThatFits([title, bare]), description: description.length > 155 ? clip(description, 155) : description }
+  const head = bare.split(/:\s|\s[—–|]\s/)[0].trim()
+  const heads = head !== bare && titlePx(head) >= 200 ? [`${head}${SITE_SUFFIX}`, head] : []
+  return { title: firstThatFits([title, bare, ...heads]), description: clipDescription(description, 155) }
 }

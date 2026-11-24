@@ -34,7 +34,7 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
         </h1>
         {band && (
           <p className="mt-2 text-base text-body tabular-nums">
-            <Bilingual en="Typical ask {range} · {n} listings" vi="Giá rao phổ biến {range} · {n} tin" values={{ range: compactVndRange(band.p25, band.p75, lang), n: formatInteger(band.n, lang) }} />
+            <Bilingual en="Typical asking price {range} · {n} listings" vi="Giá rao phổ biến {range} · {n} tin" values={{ range: compactVndRange(band.p25, band.p75, lang), n: formatInteger(band.n, lang) }} />
           </p>
         )}
         <h2 className="sr-only"><Tr text="Listings" /></h2>

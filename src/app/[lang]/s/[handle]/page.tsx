@@ -29,6 +29,7 @@ import { canonicalAppHost, storefrontByLabel, storefrontCanonical } from '@/lib/
 import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import { storefrontHandleFromHost } from '@/lib/storefront-host'
 import { apexOrigin } from '@/lib/teachers/host'
+import { shopTitle } from '@/lib/meta-description'
 import { SiteOriginProvider } from '@/components/marketplace/site-href'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
@@ -81,7 +82,7 @@ type Props = {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { handle } = await params
+  const { handle, lang } = await params
   // ⚠️ A LABEL ON THE SUBDOMAIN (`sdcstore` for `sdc_store`, 2026-09-28), the handle itself when
   // `eno.vn/<handle>` renders this in place — `storefrontByLabel` answers both, exact handle first.
   const shop = await storefrontByLabel(handle)
@@ -97,7 +98,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // CANONICAL address, so it is the snippet search actually shows. `loadSeller` is cache()d — the
   // page body makes the same call for its header.
   return {
-    title: `${shop.name} — ${SITE_NAME}`,
+    // The apex page's title (eno.vn/<handle>, shopTitle): "VietKite — eno.vn" measured 161 px, under the ~200 px a title
+    // needs to say what the page is (Seobility crawl 3, 9 shop hosts).
+    title: shopTitle(shop.name, SITE_NAME, lang),
     description: (await storefrontMetaDescription(shop.sellerId)) ?? `Browse everything ${shop.name} has for sale on ${SITE_NAME}.`,
     /**
      * ⚠️ ABSOLUTE, AND POINTING AT THE SUBDOMAIN. Everywhere else in this app a canonical is the

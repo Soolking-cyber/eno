@@ -1,3 +1,5 @@
+import { DESCRIPTION_MAX_PX, TITLE_MAX_PX, descriptionPx, titlePx } from './serp-width'
+
 /**
  * A META DESCRIPTION LONG ENOUGH TO SAY WHAT THE PAGE IS (Bing Webmaster Tools, 2026-11-20: "Meta descriptions on many of
  * your pages are too short" — 21 pages, from a 28-character seller page to ~90-character category pages; owner "yes").
@@ -16,9 +18,37 @@ export function fillDescription(lead: string, extras: readonly (string | null | 
     const e = (raw || '').replace(/\s+/g, ' ').trim()
     if (!e) continue
     const next = !s ? e : `${s}${/[.!?…:]$/.test(s) ? ' ' : '. '}${e}`
-    if (next.length <= max || !s) s = next
+    if (fitsDescription(next, max) || !s) s = next
   }
-  return clip(s, max)
+  return clipDescription(s, max)
+}
+
+/**
+ * ⛔ CHARACTERS AND PIXELS BOTH (Seobility crawl 3, 2026-11-24): 136 listing titles within 60 characters still measured past
+ * 580 px — capitals, "Đ", "—" are wide — and 85 descriptions within 155 characters past 1,000 px. A title or description
+ * fits when it is within the caller's character limit AND within the result's width (serp-width.ts, Seobility's own measure).
+ * The pixel test only ever makes a limit stricter.
+ */
+export function fitsTitle(s: string, max = 60): boolean {
+  return s.length <= max && titlePx(s) <= TITLE_MAX_PX
+}
+export function fitsDescription(s: string, max = 155): boolean {
+  return s.length <= max && descriptionPx(s) <= DESCRIPTION_MAX_PX
+}
+
+/** clip() to `max` characters, then a word at a time shorter until `width(s)` is within `maxPx`. */
+function clipToWidth(s: string, max: number, width: (t: string) => number, maxPx: number): string {
+  let out = clip(s, max)
+  for (let m = Math.min(max, out.length); width(out) > maxPx && m > 12; m--) out = clip(s, m)
+  return out
+}
+/** A title cut at a word to fit `max` characters and, by default, the result's width (`maxPx`). */
+export function clipTitle(s: string, max = 60, maxPx = TITLE_MAX_PX): string {
+  return clipToWidth(s, max, titlePx, maxPx)
+}
+/** A description cut at a word to fit `max` characters and the result's width. */
+export function clipDescription(s: string, max = 155): string {
+  return clipToWidth(s, max, descriptionPx, DESCRIPTION_MAX_PX)
 }
 
 /** At most `max` characters, cut at the last word boundary and closed with "…". */
@@ -35,7 +65,7 @@ export function clip(s: string, max = 160): string {
  */
 export function titleWithSite(title: string, siteName: string, max = 70): string {
   const full = `${title} | ${siteName}`
-  return full.length <= max ? full : clip(title, max)
+  return fitsTitle(full, max) ? full : clipTitle(title, max)
 }
 
 /**
@@ -47,9 +77,10 @@ export function titleWithSite(title: string, siteName: string, max = 70): string
 export function titleWithPrice(title: string, price: string, siteName: string, max = 60): string {
   const tail = price ? ` — ${price}` : ''
   const withSite = `${title}${tail} | ${siteName}`
-  if (withSite.length <= max) return withSite
-  if (`${title}${tail}`.length <= max) return `${title}${tail}`
-  return `${clip(title, Math.max(24, max - tail.length))}${tail}`
+  if (fitsTitle(withSite, max)) return withSite
+  if (fitsTitle(`${title}${tail}`, max)) return `${title}${tail}`
+  // The title gets what the price leaves, in characters and in pixels — never under 24 characters / 200 px (the note above).
+  return `${clipTitle(title, Math.max(24, max - tail.length), Math.max(200, TITLE_MAX_PX - titlePx(tail)))}${tail}`
 }
 
 /**
@@ -58,7 +89,7 @@ export function titleWithPrice(title: string, price: string, siteName: string, m
  */
 export function shopTitle(name: string, siteName: string, lang: string | undefined, max = 60): string {
   const full = `${name} — ${lang === 'vi' ? 'tin đăng trên' : 'listings on'} ${siteName}`
-  return full.length <= max ? full : titleWithSite(name, siteName, max)
+  return fitsTitle(full, max) ? full : titleWithSite(name, siteName, max)
 }
 
 /**
@@ -67,5 +98,5 @@ export function shopTitle(name: string, siteName: string, lang: string | undefin
  * Whole words dropped, never a word cut.
  */
 export function firstThatFits(candidates: readonly string[], max = 60): string {
-  return candidates.find((c) => c.length <= max) ?? candidates[candidates.length - 1]
+  return candidates.find((c) => fitsTitle(c, max)) ?? candidates[candidates.length - 1]
 }

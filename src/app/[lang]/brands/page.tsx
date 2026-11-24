@@ -20,13 +20,15 @@ import { localizedHref } from '@/lib/lang-pinned'
 
 // The wall lists only brands with LIVE listings (live-brands.ts), so the description names no category it may not hold.
 const METADATA: Metadata = {
-  title: `Brands | ${SITE_NAME}`,
+  // Seobility crawl 3: "Brands | eno.vn" measured 140 px, under the ~200 px a title needs. No category named: the wall
+  // holds only brands with live listings, so it may hold none of a given kind (gate review).
+  title: `Shop by brand: every brand with live listings | ${SITE_NAME}`,
   description: `Browse live listings by brand on ${SITE_NAME} — straight to the listings from the brands buyers in Vietnam search for.`,
   alternates: { canonical: '/brands' },
 }
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
   return langMetadata(params, METADATA, {
-    title: `Thương hiệu | ${SITE_NAME}`,
+    title: `Mua theo thương hiệu: mọi thương hiệu đang có tin | ${SITE_NAME}`,
     description: `Xem tin đăng theo thương hiệu trên ${SITE_NAME} — đến thẳng tin của những thương hiệu người mua tìm nhiều nhất.`,
   })
 }

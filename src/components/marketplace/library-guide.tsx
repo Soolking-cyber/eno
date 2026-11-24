@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { guideContent } from '@/lib/guides/content'
 import { GUIDE_BASE, guideBlurb, guideDates, guideEntry, guideLabel, guidePath, isGuideLive, liveGuides } from '@/lib/guides/registry'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, withinResult } from '@/lib/site-identity'
 import { guideEntry as teachEntry, isLive as teachLive, isLiveTeachHref, teachPath } from '@/lib/teach-guides/registry'
 import { requestNow } from '@/lib/teach-guides/request-clock'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
@@ -160,15 +160,17 @@ export function LibraryHub({ lang }: { lang: Lang }) {
 export function libraryGuideMetadata(slug: string, lang: Lang): Metadata {
   const hit = load(slug, lang, requestNow())
   if (!hit) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
-  const title = titleWithSite(hit.guide.title, SITE_NAME)
+  // Within a result, the site named once (site-identity.ts withinResult; Seobility crawl 3: 24 guide titles over 580 px,
+  // 12 descriptions over 1,000 px).
+  const { title, description } = withinResult(`${hit.guide.title} | ${SITE_NAME}`, hit.guide.description)
   const path = guidePath(hit.entry)
   const pair = hit.entry.pair ? guideEntry(hit.entry.pair) : null
   return {
     title,
-    description: hit.guide.description,
+    description,
     alternates: { canonical: path, ...(pair && isGuideLive(pair, requestNow()) ? { languages: { [pair.lang]: guidePath(pair), [lang]: path } } : {}) },
     robots: TEACH_ROBOTS,
-    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article', ...heroShare(hit.guide) }),
+    ...pageShare({ title, description, url: path, type: 'article', ...heroShare(hit.guide) }),
     // Which approved text this page is showing: eno Reach reads it to say "On eno.vn", because a rewritten guide's address answers with the old words until the deploy.
     ...(hit.entry.reviewedDigest ? { other: { 'eno-guide-digest': hit.entry.reviewedDigest } } : {}),
   }

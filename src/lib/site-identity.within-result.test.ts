@@ -5,11 +5,15 @@ const { withinResult, withShare } = await import('./site-identity')
 
 /** Seobility 2026-11-24: guide and tool titles over ~580 px and descriptions over ~1000 px, through withShare. */
 describe('withinResult', () => {
-  it('keeps " | <site>" while the title fits 60, drops it past that, never cuts the writer\'s words', () => {
+  it('keeps " | <site>" while the title fits, drops it past that, then falls back to the title\'s head — never a word cut', () => {
     expect(withinResult('eSIM in Vietnam | eno.vn', 'd').title).toBe('eSIM in Vietnam | eno.vn')
     expect(withinResult('Buying a used iPhone in Vietnam — the ten-minute inspection | eno.vn', 'd').title).toBe('Buying a used iPhone in Vietnam — the ten-minute inspection')
+    // Too wide even bare (570 px, serp-width.ts): the words before " — ", with the site while that fits.
     const long = 'Cheap 5G phones in Vietnam — coverage, bands and the specs that matter'
-    expect(withinResult(long, 'd').title).toBe(long)
+    expect(withinResult(long, 'd').title).toBe('Cheap 5G phones in Vietnam | eno.vn')
+    // A head too short to say anything (under 200 px) is not offered: the bare title stands.
+    const shortHead = 'Visa: everything a foreigner needs to know about entering, staying and leaving Vietnam'
+    expect(withinResult(shortHead, 'd').title).toBe(shortHead)
   })
   it('cuts a description past 155 at a word, and leaves a shorter one alone', () => {
     const d = 'word '.repeat(50).trim()

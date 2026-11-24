@@ -332,9 +332,12 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, cover = false, 
           lazy, i.e. held until after hydration. It is a 64px source, so loading it eagerly costs ~1 KB
           and does not compete with the sharp layer's fetchPriority=high. */}
       {/* `cover` (the rental sheet): no backdrop, no gutter fill, no gutter texture — a filled frame has no gutters. */}
+      {/* ⛔ alt={alt}, NOT "" (Seobility crawl 3, 2026-11-24: 1,262 listing pages "images without alt" — this copy is each one's
+          only image without it; Seobility counts an empty alt as missing). `aria-hidden` keeps it out of the accessibility tree,
+          so a screen reader still meets the photo's words once, on the sharp layer below. */}
       {!sharpOnly && (
       <Image
-        src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined}
+        src={img} alt={alt} fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined}
         // A late load event from the PREVIOUS photo (a reused instance) must not stamp its colour on this one: isShowing.
         onLoad={(e) => {
           const el = e.currentTarget

@@ -1,5 +1,5 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
-import { organizationId, withShare } from '@/lib/site-identity'
+import { organizationId, withShare, withinResult } from '@/lib/site-identity'
 import { langAlternatesFor } from '@/lib/lang-alternates'
 import type { Metadata } from 'next'
 import { cookies, headers } from 'next/headers'
@@ -37,7 +37,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   // keeps the plain canonical alone. The share card above, og:url included, is the same on both variants.
   const twin = langAlternatesFor(`/help/${id}`, lang, meta.robots)
   const head = twin ? { ...meta, alternates: twin } : meta
-  return viTitle ? { ...head, title: `${viTitle} | ${SITE_NAME}` } : head
+  // Within a result like the English one (withShare runs withinResult on it; Seobility crawl 3: 4 Vietnamese titles too long).
+  return viTitle ? { ...head, title: withinResult(`${viTitle} | ${SITE_NAME}`, '').title } : head
 }
 
 export default async function HelpThreadPage({ params }: Params) {

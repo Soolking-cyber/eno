@@ -4366,7 +4366,7 @@ export const UI_STRINGS: string[] = [
   "Type your province or town",
   "Type your question first.",
   "Type:",
-  "Typical ask {range} · {n} listings",
+  "Typical asking price {range} · {n} listings",
   "Typical price",
   "Typical rent for {kind} in {place}",
   "Tyres and brakes",

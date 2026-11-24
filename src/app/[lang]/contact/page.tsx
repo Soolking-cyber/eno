@@ -34,7 +34,8 @@ import { SupportChatChip } from '@/components/marketplace/support-chat-chip'
 // Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
 // sends no language, so the card must not depend on which variant it happened to hit.
 const METADATA: Metadata = withShare({
-  title: `Contact ${SITE_NAME}`,
+  // Seobility crawl 3: "Contact eno.vn" measured 136 px; the page's own sections are help, problem reports and privacy.
+  title: `Contact us: help, reports and privacy requests | ${SITE_NAME}`,
   description: `How to reach ${SITE_NAME} — support email, phone, registered address and the fastest route for account, listing or safety questions.`,
   alternates: { canonical: '/contact' },
 })
@@ -42,7 +43,7 @@ const METADATA: Metadata = withShare({
 // The <title> follows the `[lang]` variant the proxy served (B5-HELP-VI, as /safety does).
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  return lang === 'vi' ? { ...METADATA, title: `Liên hệ ${SITE_NAME}` } : METADATA
+  return lang === 'vi' ? { ...METADATA, title: `Liên hệ: hỗ trợ, báo cáo vi phạm và quyền riêng tư | ${SITE_NAME}` } : METADATA
 }
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
