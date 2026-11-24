@@ -93,7 +93,8 @@ const listingItem = z.object({
  *  create_listing, which explains each field once. ora.ai docks a tools/list over 10,000 tokens (2026-11-24, 11,219): the
  *  full texts repeated three times cost ~2,000 characters. tool-list-budget.test.ts holds the line. */
 const rowItem = listingItem.extend({
-  categorySlug: z.string().describe('The category slug, as create_listing takes it'),
+  // Where the value comes from (Manufact 11-24 scored "as create_listing takes it" 82/86: "Clarify … where to obtain this value").
+  categorySlug: z.string().describe('The category\'s slug from list_categories, e.g. "electronics"'),
   title: z.string().describe('The headline buyers see first, as in create_listing'),
   description: z.string().optional().describe('The listing page\'s text, in the seller\'s words. Leave it out for no text'),
   district: z.string().optional().describe('Where the item is, as a district or area buyers recognise; a new listing needs it'),
@@ -455,7 +456,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first, each in summary; call get_listing with an id for every field of one listing'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
-    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Only listings in one state, e.g. sold to review sales or hidden for those taken off the site; leave it out for every listing') }),
+    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find the ones the shop took off the site; leave it out to see every listing') }),
     handler: async (auth, args) => {
       checkStatusArg(args.status)
       const sp = new URLSearchParams()

@@ -8,11 +8,12 @@ import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
  * ora docks a server whose tools/list "costs" more than 10,000 tokens. Its figure is characters ÷ 4 of the tools as
  * name + title + description + inputSchema + annotations (outputSchema and _meta excluded) written as SPACED JSON — ", "
  * and ": " between items: on its 2026-11-24 scan that measure was 44,986 characters = 11,246 against ora's "about 11,219".
- * `oraTokens` reproduces it (compact JSON plus one space per structural separator). The budget is 9,800 — 2% under the
- * line. A tool added to the one server, or a description grown in a Manufact round, fails here before ora docks it; trim
+ * `oraTokens` reproduces it (compact JSON plus one space per structural separator; it ran 0.24% above ora's own figure).
+ * The budget is 9,900 — 1% under the line (9,800 until three field texts the trim had cut went back for their Manufact
+ * scores, 11-24). A tool added to the one server, or a description grown in a Manufact round, fails here before ora docks it; trim
  * repeated text first (the 2026-11-24 pass: rowItem, annotations.title, restated rules).
  */
-const BUDGET_TOKENS = 9_800
+const BUDGET_TOKENS = 9_900
 
 /** Structural separators in a JSON value: one ", " per item after the first, one ": " per key. */
 function separators(v: unknown): number {

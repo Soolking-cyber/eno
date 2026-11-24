@@ -259,7 +259,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
     scope: scopeRead,
     annotations: READ,
     input: z.object({
-      unread_only: z.boolean().optional().describe('true for only the conversations with unread messages; left out, every conversation comes back'),
+      // The pre-trim text (inputs 99): the 11-24 short form scored 75 ("Remove validation rules already expressed in this field's schema").
+      unread_only: z.boolean().optional().describe('Whether to narrow the list to the conversations with messages the person has not read yet, the most unread first, to see what is waiting for an answer; without it every conversation comes back, newest first'),
     }),
     output: z.strictObject({
       conversations: z.array(z.strictObject({
