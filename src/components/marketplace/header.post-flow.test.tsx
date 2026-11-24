@@ -33,7 +33,8 @@ vi.mock('@/context/language-context', () => ({
   useTr: (s: string) => s,
   Tr: ({ text }: { text?: string | null }) => <>{text}</>,
 }))
-vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth, preloadSignIn: () => {} }))
+// useAuthMaybe: the 404 body asks it whether to look up the reader's own listing (not-found-body.tsx, 2026-11-24).
+vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth, useAuthMaybe: () => h.auth, preloadSignIn: () => {} }))
 vi.mock('./account-panel', () => ({ useAccountPanel: () => ({ open: false }) }))
 vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
 vi.mock('./notification-bell', () => ({ NotificationBell: () => null }))
