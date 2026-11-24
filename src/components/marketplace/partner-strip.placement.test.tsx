@@ -21,7 +21,7 @@ vi.mock('@/context/language-context', () => ({
 }))
 
 import { PartnerStrip } from './partner-strip'
-import { stripPartners } from '@/lib/partner-strip'
+import { partnerLogoSrcSet, stripPartners } from '@/lib/partner-strip'
 
 const CSS = readFileSync('src/app/globals.css', 'utf8')
 const sectionClass = (html: string) => /<section[^>]*class="([^"]*)"/.exec(html)![1].split(' ')
@@ -163,8 +163,11 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
 
   it('⛔ top: one preload per logo, fetched only from sm up and at high priority; feed: none', () => {
     const top = preloads(renderToString(<PartnerStrip />))
-    expect(top.map((l) => [attr(l, 'href'), attr(l, 'as'), attr(l, 'media'), attr(l, 'fetchPriority')])).toEqual(
-      logos().map((src) => [src, 'image', '(min-width: 40rem)', 'high']))
+    // The preload names the <img>'s own srcset (partnerLogoSrcSet, SEO Site Checkup 2026-11-24), so each browser preloads
+    // the density its <img> will pick; React then writes no href (measured: Chromium, WebKit and Firefox each fetch one
+    // file per logo, the right density, ahead of the CSS).
+    expect(top.map((l) => [attr(l, 'imageSrcSet'), attr(l, 'href'), attr(l, 'as'), attr(l, 'media'), attr(l, 'fetchPriority')])).toEqual(
+      stripPartners().map((p) => [partnerLogoSrcSet(p), undefined, 'image', '(min-width: 40rem)', 'high']))
     expect(renderToString(<PartnerStrip placement="feed" />)).not.toContain('rel="preload"')
   })
 
@@ -182,7 +185,7 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
     const head = page.slice(0, page.indexOf('</head>'))
     const links: string[] = head.match(/<link\b[^>]*>/g) ?? []
     const partnerLinks = links.filter((l) => l.includes('/partners/'))
-    expect(partnerLinks.map((l) => [attr(l, 'href'), attr(l, 'media')])).toEqual(logos().map((src) => [src, '(min-width: 40rem)']))
+    expect(partnerLinks.map((l) => [attr(l, 'imageSrcSet'), attr(l, 'media')])).toEqual(stripPartners().map((p) => [partnerLogoSrcSet(p), '(min-width: 40rem)']))
     const sheet = links.findIndex((l) => l.includes('rel="stylesheet"'))
     expect(sheet).toBeGreaterThan(-1)
     for (const l of partnerLinks) expect(links.indexOf(l)).toBeLessThan(sheet)

@@ -13,7 +13,8 @@ import { IS_SERVICES } from './edition'
  * ⛔ THE LOGOS ARE THE PARTNERS' OWN, FROM THEIR OWN SITES (read 2026-11-09), only trimmed to their artwork and, where a
  * tagline or URL line sat under the mark, cut back to the mark (GoPlus's "Kết Nối Tạo Giá Trị Thực", Saigon Moving's
  * "Saigonmoving.com") — at strip height that line is unreadable noise. VietKite's is a white-ground JPEG, its white made
- * transparent. 96 px tall WebP in public/partners/, shown at 18–26 px: 3–5× for any screen.
+ * transparent. 96 px tall WebP in public/partners/, shown at 18–28 px; the strip serves each screen a copy at its own density
+ * (PARTNER_LOGO_HEIGHTS below).
  *   GoPlus       goplus.com.vn/logo.png
  *   Blvck        thuexemaysaigon.vn/…/Black_Retro_Motorcycle_Circle_Logo__1_-removebg-preview.png (BLVCK_LOGO_URL)
  *   VinWonders   static.vinwonders.com/production/logo_footer.png
@@ -98,6 +99,23 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */
 export function stripHref(p: StripPartner): string {
   return p.enoRunSellerId ? `/sellers/${p.enoRunSellerId}` : `/${p.handle}`
+}
+
+/**
+ * ⛔ EACH LOGO AT THE HEIGHTS THE STRIP PAINTS IT (SEO Site Checkup 2026-11-24, "Resize oversized images"): the 96 px
+ * originals are shown 28 px tall (a wide mark 18–20 px), so a 1x desktop downloaded 3–5× the pixels it showed — 216 KB of
+ * marks where ~31–43 KB is enough. scripts/gen-partner-logo-sizes.mjs writes `<name>-h<H>.webp` beside each roster logo at
+ * these heights (it reads `size` from this file's roster lines); the strip offers them as srcset 1x / 2x / 3x, the square
+ * marks' 3x being the original (a wide mark's 3x is its 64 px copy: 60 px is all a 3x screen paints).
+ * Adding a partner: run the script and commit its files — partner-strip.logo-sizes.test.ts fails until they exist.
+ */
+export const PARTNER_LOGO_HEIGHTS = { wide: [24, 48, 64], square: [32, 64] } as const satisfies Record<StripPartner['size'], readonly number[]>
+
+/** A roster logo's srcset (`PARTNER_LOGO_HEIGHTS`). */
+export function partnerLogoSrcSet(p: Pick<StripPartner, 'logo' | 'size'>): string {
+  const base = p.logo.src.replace(/\.webp$/, '')
+  const sized = PARTNER_LOGO_HEIGHTS[p.size].map((h, i) => `${base}-h${h}.webp ${i + 1}x`)
+  return p.size === 'square' ? [...sized, `${p.logo.src} 3x`].join(', ') : sized.join(', ')
 }
 
 /** The partners this edition shows: eno.forum leaves out the visa partner that competes with its own desk. */

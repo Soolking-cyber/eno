@@ -6,7 +6,7 @@ import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
-import { stripHref, stripPartners, type StripPartner } from '@/lib/partner-strip'
+import { partnerLogoSrcSet, stripHref, stripPartners, type StripPartner } from '@/lib/partner-strip'
 import { LANE_HEADER_ROW, LANE_TITLE } from './shelf'
 
 /** The top band's page box: the home layout's max-w-7xl and gutters, so its row (and hairline) is as wide as the content under it. */
@@ -94,9 +94,11 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   const feed = placement === 'feed'
   const partners = stripPartners()
   // From `sm` up only, and ahead of the stylesheets (why and what was measured: PartnerItem).
-  // ⚠️ React keys an image preload by its href and the first one wins: a plain eager `<img>` of one of these files
-  // rendered earlier on the page would preload it for every width. Today nothing else on the page draws them eagerly.
-  if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP, fetchPriority: 'high' })
+  // ⚠️ React keys an image preload by its srcset (by its href when it has none) and the first one wins: a plain eager `<img>`
+  // with this srcset rendered earlier on the page would preload it for every width. Nothing else on the page draws them.
+  // ⚠️ The preload carries the image's own srcset (partnerLogoSrcSet): with the href alone a 1x desktop would fetch the 96 px
+  // original here and its 1x file again for the <img>.
+  if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP, fetchPriority: 'high', imageSrcSet: partnerLogoSrcSet(p) })
   const [looping, setLooping] = useState(false)
   // The feed copy's own row turns eager once it is on screen (why: PartnerItem). Sticky, and false on the server and in
   // hydration, so the served row is adopted as it is.
@@ -190,6 +192,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
  *     old automatic preloads sat. Without it the link lands after the CSS and ~47 script tags and the logos still miss
  *     the first frame (0 of 5 in 21 of 21 loads); with it 5 of 5, at full speed and at 1.6 Mbps (the live build: 5 and
  *     3 of 5). A preload whose media does not match is not fetched (Firefox notes each one in the console).
+ *     (2026-11-24: 20 logos, 171 KB at full size; with each screen's own copy, partnerLogoSrcSet, 29 KB at 1x, 71 KB at 2x.)
  *     ⚠️ THE PRICE, MEASURED: high priority puts 35 KB of logos ahead of the CSS, so a desktop's first paint is a
  *     little later than the live build's (median +8 ms unthrottled, +24 ms at 10 Mbps, +84 ms at 1.6 Mbps, n=3 each);
  *     with the logos left to arrive late it was 140 ms EARLIER at 1.6 Mbps but the band painted empty. Chosen: a
@@ -213,7 +216,7 @@ function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: Stri
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={stripHref(p)} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          <img src={p.logo.src} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
+          <img src={p.logo.src} srcSet={partnerLogoSrcSet(p)} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
         <span className={tile ? 'whitespace-nowrap text-sm leading-4.5 font-bold text-body' : 'text-xs font-medium text-ink-4'}>{label}</span>
       </Link>
