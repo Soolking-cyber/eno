@@ -809,6 +809,51 @@ function oraRecord(request, url, status, env, ctx, startedAt) {
   );
 }
 
+/**
+ * ── THE 404's LINKS FOR A READER WITHOUT JAVASCRIPT (owner 2026-11-24, "go" on the SEO/GEO audit's 404 row) ─────────────
+ * Every eno 404 now reaches the wire as Next's error-fallback document: `<body><div hidden><!--$--><!--/$--></div><script…>`
+ * and the not-found UI only inside the RSC payload (measured 2026-11-24 on /nope/xyz/abc, /listings/<unknown>,
+ * /help/<unknown>, /c/<unknown>: 0 `<a>`, no theme-color; src/app/[lang]/not-found.tsx documents the shape). A browser
+ * renders the full 404; a crawler or a non-JS audit sees an empty page — the audit's "404 page contains a link back to
+ * homepage" and "theme-color present" both fail on it. So, on a 404 HTML document only: a small nav of the way back (home,
+ * search, help, contact, sitemap) at the top of <body>, and the no-JS theme-color the layout writes on every other page.
+ * ⛔ A BROWSER NEVER SEES IT: the inline script right after the nav removes both the nav and that meta before paint, so the
+ * React 404 is exactly what it was. React 19 skips an unexpected top-level <body> child while hydrating, so the nav cannot
+ * cause a mismatch even if the script did not run first. CSP allows the inline script ('unsafe-inline', measured).
+ * Not on RSC requests (a client navigation's 404 has no document), not on HEAD, not on any non-404 or non-HTML response.
+ * ⚠️ The removal script needs `'unsafe-inline'` in script-src WITHOUT a nonce or 'strict-dynamic' (either would make browsers
+ * ignore it and show the nav above the React 404) — edge-worker-404.test.ts reads next.config.ts's CSP and fails first.
+ * The try/catch around the call covers setting the rewrite up; an error inside the streamed transform cannot fall back.
+ */
+const STATIC_404_ATTR = "data-eno-static-404";
+export function static404Wanted(request, response) {
+  if (!response || response.status !== 404) return false;
+  if (request.method !== "GET") return false;
+  if (request.headers.has("rsc")) return false;
+  return (response.headers.get("content-type") || "").includes("text/html");
+}
+export function static404Nav(vi) {
+  const t = vi
+    // Brand-free: this Worker serves eno.forum's routes too (commit gate, opus).
+    ? { home: "Trang chủ", search: "Tìm tin đăng", help: "Trung tâm trợ giúp", contact: "Liên hệ", sitemap: "Sơ đồ trang", label: "Không tìm thấy trang này. Đi tới" }
+    : { home: "Home", search: "Search listings", help: "Help center", contact: "Contact us", sitemap: "Sitemap", label: "Page not found. Go to" };
+  return `<nav ${STATIC_404_ATTR} aria-label="${t.label}"><p>${t.label}:</p><ul>` +
+    `<li><a href="/">${t.home}</a></li><li><a href="/?q=">${t.search}</a></li><li><a href="/help">${t.help}</a></li>` +
+    `<li><a href="/contact">${t.contact}</a></li><li><a href="/sitemap.xml">${t.sitemap}</a></li></ul></nav>` +
+    `<script>document.querySelectorAll("[${STATIC_404_ATTR}]").forEach(function(n){n.remove()})</script>`;
+}
+export const STATIC_404_THEME = `<meta name="theme-color" content="#ffffff" ${STATIC_404_ATTR}>`;
+function withStatic404(request, response) {
+  if (typeof HTMLRewriter === "undefined" || !static404Wanted(request, response)) return response;
+  const vi = /^vi\b/i.test(response.headers.get("content-language") || "");
+  let themed = false;
+  return new HTMLRewriter()
+    .on('meta[name="theme-color"]', { element() { themed = true; } })
+    .on("head", { element(el) { el.onEndTag((end) => { if (!themed) end.before(STATIC_404_THEME, { html: true }); }); } })
+    .on("body", { element(el) { el.prepend(static404Nav(vi), { html: true }); } })
+    .transform(response);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -830,7 +875,8 @@ export default {
     } catch {
       /* the report never costs the reader their page */
     }
-    return response;
+    // After the report (it reads only the status) and outside handle(): the cache stores what the origin sent, never this.
+    try { return withStatic404(request, response); } catch { return response; }
   },
 };
 
