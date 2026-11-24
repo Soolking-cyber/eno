@@ -1,4 +1,5 @@
 import { LocalizedLink } from './localized-link'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 
 /**
  * An in-site link inside a guide (SeoArticle's `HereLink`), in the ARTICLE's language.
@@ -12,10 +13,11 @@ import { LocalizedLink } from './localized-link'
  * article's language — the client context does. On a guide it IS the article's: a guide is pinned to its
  * variant (lang-pinned.ts FIXED_LANG), the server renders in it, and the provider refuses to swap a
  * pinned page into the other variant, so the href agrees on both sides of hydration.
+ * A link with a query (a filtered feed, canonical to its path) is nofollow; a page link stays followed (filter-link-rel.ts).
  */
 export function HereLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <LocalizedLink href={href} className="font-semibold text-accent-foreground hover:underline">
+    <LocalizedLink href={href} rel={filterLinkRel(href)} className="font-semibold text-accent-foreground hover:underline">
       {children}
     </LocalizedLink>
   )

@@ -150,4 +150,10 @@ describe('a partly imported hub and a monthly-only one', () => {
     expect(linkTo(both, 'priced by the month')).toContain('attr_rentalPeriod=monthly')
     expect(linkTo(both, 'Priced by the day')).toContain('attr_rentalPeriod=daily')
   })
+  it('every link into the filtered feed is nofollow (a query, canonical to its path; filter-link-rel.ts)', () => {
+    const root = renderHub(hub([...SHOP_POSTED, row(2_000_000, 'automatic', 'monthly')], 0), 'en')
+    const feed = [...root.querySelectorAll('a')].filter((a) => a.getAttribute('href')?.includes('?'))
+    expect(feed.length).toBeGreaterThan(2)
+    for (const a of feed) expect(a.getAttribute('rel'), a.getAttribute('href')!).toBe('nofollow')
+  })
 })

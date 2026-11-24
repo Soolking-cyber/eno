@@ -163,7 +163,8 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
   it('the brand link goes through localizedHref, like the breadcrumb (disc-missed) — an inline link in the facts line since batch 89', () => {
     // (The goods sheet greys it below md since 2026-11-14 — still underlined.)
     // brandHref: the brand with its category, the explorer's end URL (brand-category.ts; Seobility 2026-11-23).
-    expect(PAGE).toContain("<Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link>")
+    // rel=nofollow: that URL is the home filtered, canonical `/` (filter-link-rel.ts; Seobility 2026-11-24).
+    expect(PAGE).toContain("<Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} rel=\"nofollow\" prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link>")
     // The old chip is gone: one brand link on the page.
     expect(PAGE.match(/brandHref\(listing\.brandSlug!/g)).toHaveLength(1)
   })

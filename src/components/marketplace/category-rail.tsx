@@ -20,6 +20,7 @@ import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { localizedHref } from '@/lib/lang-pinned'
 import type { FilterHrefParam } from '@/lib/explorer-url'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
@@ -815,7 +816,7 @@ export function CategoryRail({
     }
     return (
       <Button key={props.key} asChild variant="bare" size="none" className={props.className}>
-        <Link href={props.href} prefetch={false} scroll={false} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={onClick}>
+        <Link href={props.href} rel={filterLinkRel(props.href)} prefetch={false} scroll={false} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={onClick}>
           {props.children}
         </Link>
       </Button>

@@ -105,6 +105,8 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
         href={listed
           ? '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used&model=iPhone+Duo'
           : '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used'}
+        rel="nofollow"
+        prefetch={false}
         className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
       >
         {listed ? <Tr text="See every second-hand iPhone Duo" /> : <Tr text="Browse second-hand Apple phones" />}

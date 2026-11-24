@@ -48,6 +48,9 @@ describe('<CategoryRail> tiles are links (E-TILES)', () => {
     expect(tile('rentals').tagName).toBe('A')
     expect(tile('rentals').getAttribute('href')).toBe('/?category=rentals')
     expect(tile('electronics').getAttribute('href')).toBe('/')
+    // A query is a filtered view canonical to its path: nofollow; the bare path stays followed (filter-link-rel.ts).
+    expect(tile('rentals').getAttribute('rel')).toBe('nofollow')
+    expect(tile('electronics').getAttribute('rel')).toBeNull()
     expect(tile('electronics').getAttribute('aria-current')).toBe('true')
     expect(tile('rentals').hasAttribute('aria-pressed')).toBe(false)
     expect(document.querySelector('[data-intent="wholesale"]')!.getAttribute('href')).toBe('/?type=wholesale')
@@ -92,6 +95,7 @@ describe('<CategoryRail> subcategory chips are links too (2026-11-07)', () => {
     const chip = (slug: string) => document.querySelector(`[data-subcat="${slug}"]`)!
     expect(chip('apartment-rental').tagName).toBe('A')
     expect(chip('apartment-rental').getAttribute('href')).toBe('/?category=rentals&subcategory=apartment-rental')
+    expect(chip('apartment-rental').getAttribute('rel')).toBe('nofollow')
     expect(chip('office-rental').getAttribute('href')).toBe('/?category=rentals')
     expect(chip('office-rental').getAttribute('aria-current')).toBe('true')
     const all = screen.getByRole('link', { name: /^All/ })

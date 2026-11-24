@@ -1168,7 +1168,8 @@ export default async function ListingPage({ params }: Props) {
     if (brand) {
       // The goods sheet below md: the link in the line's own grey, still underlined (owner-approved 2026-11-14, cook r06 "item").
       // With the brand's category, the URL the explorer would end on (brand-category.ts): a bare ?brand= is rewritten after load.
-      facts.push({ key: 'brand', node: <Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link> })
+      // nofollow: brandHref is always the home filtered (`/?…brand=…`), canonical `/` (filter-link-rel.ts).
+      facts.push({ key: 'brand', node: <Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} rel="nofollow" prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link> })
     }
     for (const s of numericSpecs) facts.push({ key: `spec-${s.label}`, node: <><Tr text={s.label} /> {s.value}</> })
     if (bedrooms) {

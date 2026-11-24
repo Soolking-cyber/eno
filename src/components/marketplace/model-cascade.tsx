@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ChevronDown } from '@/components/ui/icons'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { isPlainClick } from '@/lib/plain-click'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 import { CountChip } from './count-chip'
 import { splitModel, type ModelParts } from '@/lib/model-lineage'
 import { linesFor, canonicalModel } from '@/generated/model-lineage'
@@ -176,9 +177,10 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick, hrefFor }: 
   if (line.models.length < 2) {
     const pick = () => onPick('', on ? 'all' : line.models[0].model)
     if (hrefFor) {
+      const href = hrefFor(on ? {} : { model: line.models[0].model })
       return (
         <Button asChild variant="bare" size="none" className={cn(chipCls, on ? chipOn : chipOff)}>
-          <a href={hrefFor(on ? {} : { model: line.models[0].model })} draggable={false} aria-current={on ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); pick() }}>
+          <a href={href} rel={filterLinkRel(href)} draggable={false} aria-current={on ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); pick() }}>
             {line.label}
             <CountChip count={line.count} className="ml-auto pl-2" />
           </a>

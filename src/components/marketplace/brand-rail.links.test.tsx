@@ -41,6 +41,7 @@ describe('BrandRail chips are links', () => {
     const yamaha = document.querySelector('[data-brand="yamaha"]')!
     expect(yamaha.tagName).toBe('A')
     expect(yamaha.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes&brand=yamaha')
+    expect(yamaha.getAttribute('rel')).toBe('nofollow')
     const honda = document.querySelector('[data-brand="honda"]')!
     expect(honda.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes')
     expect(honda.getAttribute('aria-current')).toBe('true')
@@ -50,6 +51,7 @@ describe('BrandRail chips are links', () => {
     rail({ activeModel: 'Vision' })
     await waitFor(() => expect(document.querySelector('[data-model="Wave"]')).not.toBeNull())
     expect(document.querySelector('[data-model="Wave"]')!.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes&brand=honda&model=Wave')
+    expect(document.querySelector('[data-model="Wave"]')!.getAttribute('rel')).toBe('nofollow')
     expect(document.querySelector('[data-model="Vision"]')!.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes&brand=honda')
   })
 
@@ -80,6 +82,7 @@ describe('BrandRail chips are links', () => {
     const row = await screen.findByRole('menuitem', { name: /M12/ })
     expect(row.tagName).toBe('A')
     expect(row.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes&brand=honda&model=M12')
+    expect(row.getAttribute('rel')).toBe('nofollow')
     expect(row.getAttribute('data-model')).toBe('M12')
     await user.click(row)
     expect(onPickModel).toHaveBeenCalledWith('M12')

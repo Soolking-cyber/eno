@@ -20,6 +20,7 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import type { FacetCounts } from '@/lib/facet-counts'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import type { FilterHrefParam } from '@/lib/explorer-url'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 import { isPlainClick } from '@/lib/plain-click'
 import { DropdownMenuLinkItem } from '@/components/ui/dropdown-menu'
 
@@ -122,7 +123,7 @@ export function BrandRail({
     }
     return (
       <Button key={props.key} asChild variant="bare" size="none" iconSize={props.iconSize} className={props.className}>
-        <a href={props.href} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); props.onSelect() }}>
+        <a href={props.href} rel={filterLinkRel(props.href)} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); props.onSelect() }}>
           {props.children}
         </a>
       </Button>

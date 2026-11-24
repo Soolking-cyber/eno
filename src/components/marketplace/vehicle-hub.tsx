@@ -8,6 +8,7 @@ import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 import { BAND_MIN, RANGE_MIN, hcmcIsoDate, linkState, referenceSources, type LinkState, type PriceSummary } from '@/lib/vehicle-hub-stats'
 import type { VehicleHubData, VehicleHubKind } from '@/lib/vehicle-hubs'
 import { hubBooking, hubDisclosure, hubIntro, type HubCopyInput } from '@/lib/vehicle-hub-copy'
@@ -118,7 +119,7 @@ function Grid({ data, lang }: { data: VehicleHubData; lang: Lang }) {
         {/* whitespace-normal ON THE PRIMITIVE (a class on the child is concatenated, not merged — CLAUDE.md):
             the base is nowrap, and the Vietnamese label overflowed a 360px screen by 39px (measured). */}
         <Button asChild variant="cta" size="none" className="gap-1.5 whitespace-normal text-left">
-          <Link href={localizedHref(explorer(data.kind), lang)} className="px-5 py-2.5">
+          <Link href={localizedHref(explorer(data.kind), lang)} rel={filterLinkRel(explorer(data.kind))} prefetch={false} className="px-5 py-2.5">
             {lang === 'vi' ? `Xem tất cả ${count(data.total, lang)} ${noun}, có bộ lọc` : `See all ${count(data.total, lang)} ${noun} with filters`}{' '}
             <ArrowRight className="h-4 w-4" />
           </Link>

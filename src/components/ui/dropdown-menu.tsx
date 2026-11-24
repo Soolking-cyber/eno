@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "@/components/ui/icons"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { isPlainClick } from "@/lib/plain-click"
+import { filterLinkRel } from "@/lib/filter-link-rel"
 import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
 import {
   LazyPickerSheet,
@@ -474,6 +475,7 @@ function DropdownMenuLinkItem({ href, onSelect, className, pressed, data, childr
       data-slot="dropdown-menu-link-item"
       {...data}
       href={href}
+      rel={filterLinkRel(href)}
       closeOnClick
       draggable={false}
       aria-current={pressed ? "true" : undefined}

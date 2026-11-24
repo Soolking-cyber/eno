@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { brandHref, dominantCategories } from '@/lib/brand-category'
+import { filterLinkRel } from '@/lib/filter-link-rel'
 import type { Metadata } from 'next'
 import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import Link from 'next/link'
@@ -135,9 +136,13 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
              rows, the last under the tab bar; now ~130px, far past the 44px tap floor. The grid gaps are unchanged. */
           <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
             {items.map((b) => (
+              // nofollow + prefetch={false}: each tile opens the home filtered by brand (`/?category=…&brand=…`), canonical `/`;
+              // followed, the wall seeded Seobility's walk through 1,228 copies of the home page (filter-link-rel.ts).
               <Link
                 key={b.slug}
                 href={home(b.href)}
+                rel={filterLinkRel(b.href)}
+                prefetch={false}
                 className="flex flex-col items-center gap-2 rounded-2xl border border-border px-4 py-4 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
                 {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall.
