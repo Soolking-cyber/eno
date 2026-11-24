@@ -4,6 +4,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
 import { SOCIALS, X_SITE } from '@/lib/socials'
+import { clip, firstThatFits } from '@/lib/meta-description'
 import type { LegalOperator } from '@/lib/site-legal'
 
 /**
@@ -311,8 +312,24 @@ export function pageShare(og: PageOg): Pick<Metadata, 'openGraph' | 'twitter'> {
  */
 export function withShare(m: Metadata & { title: string; description: string }, og?: Pick<PageOg, 'type' | 'images'>): Metadata {
   const canonical = m.alternates?.canonical
+  const { title, description } = withinResult(m.title, m.description)
   return {
     ...m,
-    ...pageShare({ title: m.title, description: m.description, ...(typeof canonical === 'string' ? { url: canonical } : {}), ...og }),
+    title,
+    description,
+    ...pageShare({ title, description, ...(typeof canonical === 'string' ? { url: canonical } : {}), ...og }),
   }
+}
+
+const SITE_SUFFIX = ` | ${SITE_NAME}`
+
+/**
+ * A title and description that fit what a search result shows (Seobility, 2026-11-24: 51 titles over ~580 px and 63
+ * descriptions over ~1000 px among the guides and tools that come through withShare). The title drops " | <site>" past 60
+ * characters — the writer's own words are never cut, so a title that is long by itself stays as written; the description is
+ * cut at a word past 155 characters, where a result cuts it anyway (meta-description.ts clip).
+ */
+export function withinResult(title: string, description: string): { title: string; description: string } {
+  const bare = title.endsWith(SITE_SUFFIX) ? title.slice(0, -SITE_SUFFIX.length) : title
+  return { title: firstThatFits([title, bare]), description: description.length > 155 ? clip(description, 155) : description }
 }
