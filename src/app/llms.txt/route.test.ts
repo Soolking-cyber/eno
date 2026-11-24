@@ -171,6 +171,15 @@ describe('/llms.txt on the marketplace', () => {
     expect(MCP_NPM_PACKAGE).toBe(pkg.name)
   })
 
+  it('names the docs MCP server, after the one promoted server (owner 2026-11-24; ora "Product + docs MCP coverage")', async () => {
+    const body = await bodyOf()
+    const main = body.indexOf('eno Agentic Commerce, the MCP server')
+    const docs = body.indexOf('- [Docs MCP server](')
+    expect(main).toBeGreaterThan(-1)
+    expect(docs).toBeGreaterThan(main)
+    expect(body).toMatch(/\/api\/mcp\/docs`, a separate read-only server/)
+  })
+
   it('⛔ NAMES eno.vn, NOT THE OTHER EDITION', async () => {
     const body = await bodyOf()
     expect(body).toContain('# eno.vn')
