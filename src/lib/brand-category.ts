@@ -27,8 +27,9 @@ export async function dominantCategory(brandSlug: string): Promise<string | null
 
 /**
  * `dominantCategory` for many brands in three reads, whatever their number (/brands lists ~170): the same rule — the
- * category with the most live non-rental listings, else the most live listings — and the same tie order as one groupBy
- * per brand would give (count, then the row order the database returns). A brand with no live listing is left out.
+ * category with the most live non-rental listings, else the most live listings. ⚠️ A TIE IS BROKEN BY ROW ORDER, which the
+ * database does not fix, so on a tie this and `dominantCategory` may name different categories; either is a valid link (the
+ * brand has listings in both). A brand with no live listing is left out.
  */
 export async function dominantCategories(brandSlugs: readonly string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>()
