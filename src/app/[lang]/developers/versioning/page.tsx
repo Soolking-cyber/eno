@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
-import { API_BASE, API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
+import { API_BASE, API_NAME, API_TITLE_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
+import { SITE_NAME } from '@/lib/edition'
 import { C, Code } from '../doc-parts'
 
 /**
@@ -23,7 +24,7 @@ import { C, Code } from '../doc-parts'
  */
 
 export const metadata: Metadata = withShare({
-  title: `${API_NAME} versioning and deprecation policy`,
+  title: `${API_TITLE_NAME} versioning and deprecation policy | ${SITE_NAME}`,
   description: `How the ${API_NAME} is versioned, what may change inside v1 without notice, and how a deprecation is announced: deprecated: true in the OpenAPI spec, and Deprecation and Sunset headers.`,
   alternates: { canonical: DOC_PATHS.versioning },
 })

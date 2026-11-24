@@ -46,8 +46,15 @@ export const SITE_ORIGIN = OAUTH_ISSUER
 /** Where every documented request goes. Matches the OpenAPI `servers[0].url` and RFC 9728 `resource`. */
 export const API_BASE = `${OAUTH_ISSUER}/api/v1`
 
-/** Product name for the <title> and <h1>. Derived — never the literal "eno.vn". */
+/** Product name for the <h1> and the docs (titles lead with API_TITLE_NAME below). Derived — never the literal "eno.vn". */
 export const API_NAME = `${SITE_NAME} Partner API`
+/**
+ * The developer pages' TITLE head (Seobility crawl 3, 2026-11-24: "eno.vn" mid-title is its "domain in title" problem; it
+ * passes when the domain is only the trailing " | eno.vn" every other page ends on). The head stays the product's
+ * distinctive name, which is what a name-based query matches (page.tsx's header note); /developers/mcp keeps its
+ * "<site> MCP server" title on purpose (mcp/page.tsx).
+ */
+export const API_TITLE_NAME = 'eno Partner API'
 
 /** Support inbox for this edition (support@eno.vn / support@eno.forum). */
 export const SUPPORT_EMAIL = COMPANY.email

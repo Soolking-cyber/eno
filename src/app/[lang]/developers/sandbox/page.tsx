@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
-import { API_BASE, API_NAME } from '../reference'
+import { API_BASE, API_NAME, API_TITLE_NAME } from '../reference'
 import { C, Code } from '../doc-parts'
 
 /**
@@ -18,7 +18,7 @@ import { C, Code } from '../doc-parts'
  */
 
 export const metadata: Metadata = withShare({
-  title: `${API_NAME} sandbox | Test keys with no sign-up`,
+  title: `${API_TITLE_NAME} sandbox: test keys, no sign-up | ${SITE_NAME}`,
   description: `Try the ${API_NAME} without an account or real data: a 24-hour test key from one call, sample listings in the live shapes, writes that run the live checks and store nothing.`,
   alternates: { canonical: DOC_PATHS.sandbox },
 })

@@ -8,7 +8,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown } from '@/components/ui/icons'
-import { API_BASE, API_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPORT_EMAIL } from './reference'
+import { API_BASE, API_NAME, API_TITLE_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPORT_EMAIL } from './reference'
 import { Code } from './doc-parts'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { TOOLS } from '@/lib/mcp/tools'
@@ -34,7 +34,7 @@ import { TOOLS } from '@/lib/mcp/tools'
  */
 
 export const metadata: Metadata = withShare({
-  title: `${API_NAME} | Developer documentation`,
+  title: `${API_TITLE_NAME}: developer documentation | ${SITE_NAME}`,
   description: `${API_NAME} — manage your shop programmatically over REST or MCP. Bearer keys or OAuth 2.0 client credentials, four scopes, OpenAPI 3.1 spec.`,
   alternates: { canonical: '/developers' },
 })

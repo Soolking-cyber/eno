@@ -21,7 +21,7 @@ import { CLI_EXAMPLES } from './examples'
  */
 
 export const metadata: Metadata = withShare({
-  title: `${SITE_NAME} CLI (eno-vn) | Manage your shop from the command line`,
+  title: `eno CLI (eno-vn): manage your shop from a terminal | ${SITE_NAME}`,
   description: `eno-vn, the command-line client for the ${API_NAME}: list, create and sync listings, upload photos, read analytics and manage webhooks from a terminal, a script or an AI agent. npx eno-vn, no dependencies.`,
   alternates: { canonical: DOC_PATHS.cli },
 })
