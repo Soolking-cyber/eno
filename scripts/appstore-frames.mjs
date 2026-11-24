@@ -41,10 +41,12 @@ for (const s of SETS) mkdirSync(dirname(s.out), { recursive: true })
 // over the first image.
 const frames = [
   { file: '01-apartment', hero: true, title: 'Find your place in Vietnam', sub: 'Apartments and houses, with real photos' },
-  { file: '02-map', title: 'Search on the map', sub: 'Every building’s flats and prices' },
-  { file: '03-jobs', title: 'Find work, including teaching', sub: 'Jobs at schools across Vietnam' },
-  { file: '04-teacher', title: 'Teachers, get found by schools', sub: 'A free profile, contacts kept private' },
-  { file: '05-post', title: 'Sell in a minute', sub: 'Photos from your phone, no listing fees' },
+  { file: '02-rentals', title: 'Apartments by neighbourhood', sub: 'Rent in đồng, with dollars alongside' },
+  { file: '03-map', title: 'Search on the map', sub: 'Every building’s flats and prices' },
+  { file: '04-motorbikes', title: 'Rent a motorbike', sub: 'By the day or by the month' },
+  { file: '05-jobs', title: 'Find work, including teaching', sub: 'Jobs at schools across Vietnam' },
+  { file: '06-teacher', title: 'Teachers, get found by schools', sub: 'A free profile, contacts kept private' },
+  { file: '07-post', title: 'Sell in a minute', sub: 'Photos from your phone, no listing fees' },
 ]
 
 try { execFileSync('magick', ['-version'], { stdio: 'ignore' }) } catch { throw new Error('ImageMagick 7 (`magick`) is required — brew install imagemagick') }

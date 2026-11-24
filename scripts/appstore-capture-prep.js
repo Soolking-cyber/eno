@@ -13,8 +13,9 @@
  *                page it was taken of still passes.
  *
  * ⛔ THE SCAN IS THE SAME BOUNDARY AS scripts/play-capture.mjs, PLUS THE SECOND-HAND FOCUS: no e-Visa /
- * itinerary / PayPal surface, no CellphoneS (new goods, retired 2026-10-03), no "official partner" claim.
- * A hit fails the shot; there is no allowlist. It reads TEXT NODES joined per block, like play-capture —
+ * itinerary / PayPal surface, no CellphoneS (new goods, retired 2026-10-03), no "official partner" claim —
+ * except the badge ON A LISTING CARD (owner, 2026-11-24: "partner badge is ok to show"; `cardBadge` in scan()).
+ * A hit fails the shot; there is no other allowlist. It reads TEXT NODES joined per block, like play-capture —
  * a leaf-element walk missed a label sitting beside an icon (`<a>e-Visa <svg/></a>`), which is the most
  * common link shape in this UI (reviewers, 2026-10-04).
  * ⚠️ WHAT IT CANNOT SEE: text painted into an image or a canvas, native iOS alerts (they are outside
@@ -50,13 +51,22 @@
       must([...document.querySelectorAll('body *')].find((e) => /^[\d.,]+\s*đ\s*\/\s*month\s*≈\s*\$[\d.,]+$/.test((e.textContent || '').trim()) && onScreen(e)), 'the rent in đồng with the dollar reference')
       must([...document.querySelectorAll('a,button')].find((b) => /^Chat now$/.test((b.textContent || '').trim()) && onScreen(b)), '"Chat now" button')
     },
+    // A district's rentals grid (Tay Ho, Hanoi), from the top: the title, the bedroom and area chips, two rows of
+    // apartments with the rent in đồng and dollars. The cards carry the Official partner badge (allowed, owner 2026-11-24).
+    // ⚠️ Look at the framed shot for a watermark painted into a photo before an upload (the scan cannot).
+    '02-rentals': async () => {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      await sleep(2500)
+      heading(/^Apartments & houses for rent in Tay Ho$/, 'the Tay Ho rentals title')
+      cards(4)
+    },
     // Rentals on the map, reached the way a person does — Home → Rentals → Map view. (A deep link to `/?…&view=map` from
     // Home changes the URL and leaves the Home page on screen: same route, so nothing re-renders — measured on a fresh
     // install.) The map first fits every pin in Vietnam — zoomed out to southern China, with the tiles' Chinese name
     // for the East Sea on screen — so the shot opens the busiest building's pin: the map zooms in (Thao Dien today)
     // and the building card shows its flats, photos and prices.
     // ⚠️ Those are listing photos: look at the framed shot for a watermark before an upload (the scan cannot).
-    '02-map': async () => {
+    '03-map': async () => {
       const until = async (ok, what, s = 20) => { for (let i = 0; i < s; i++) { if (ok()) return; await sleep(1000) } throw new Error(`timed out waiting for ${what}`) }
       // Home's Rentals chip (a link to /c/rentals) opens, in the app, the listings view filtered to rentals
       // (`/?category=rentals`, measured), whose toggle is "Map view" — the category page's is "Map".
@@ -81,8 +91,25 @@
       const prices = [...document.querySelectorAll('body *')].filter((e) => rent.test((e.textContent || '').trim()) && onScreen(e) && ![...e.children].some((c) => rent.test((c.textContent || '').trim())))
       if (prices.length < 2) throw new Error(`${prices.length} price(s) on the building card, expected at least 2`)
     },
+    // The motorbike-rental page's grid, from its SECOND row: the first card's photo (a private listing) shows a shop's
+    // signboard. Since 1.3 the native tab bar slides away while the page scrolls down, so the shot ends on a short
+    // scroll UP, which brings it back.
+    // ⚠️ The grid is live: look at the framed shot for a watermark or a shop sign before an upload.
+    '04-motorbikes': async () => {
+      const h = must([...document.querySelectorAll('h2,h3')].find((e) => /available now/i.test(e.textContent || '')), '"available now" heading')
+      const cardsBelow = [...document.querySelectorAll('a[data-card-link]')].filter((a) => a.getBoundingClientRect().top > h.getBoundingClientRect().top)
+      const distinct = []
+      for (const a of cardsBelow) if (!distinct.some((x) => x.getAttribute('href') === a.getAttribute('href'))) distinct.push(a)
+      if (distinct.length < 6) throw new Error(`${distinct.length} motorbike(s) in the grid, expected at least 6`)
+      const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom || 0
+      window.scrollTo({ top: distinct[2].getBoundingClientRect().top + scrollY - (headerBottom + 12) + 60, behavior: 'instant' })
+      await sleep(1500)
+      window.scrollBy({ top: -60, behavior: 'instant' })
+      await sleep(2500)
+      cards(4)
+    },
     // Text-only cards by design (a job has no photo): the capture runs this shot with `text` (no image required).
-    '03-jobs': async () => {
+    '05-jobs': async () => {
       // The h1 is visually hidden ("Jobs in Vietnam on eno.vn", measured); the title on screen is its visible twin.
       must([...document.querySelectorAll('body *')].find((e) => e.children.length === 0 && /^Jobs in Vietnam$/.test((e.textContent || '').trim()) && onScreen(e)), '"Jobs in Vietnam" title')
       // Job cards are rows (`a[data-row-link]`), not photo cards (measured 2026-11-23).
@@ -90,12 +117,12 @@
       if (rows < 4) throw new Error(`${rows} job row(s) on screen, expected at least 4`)
     },
     // The teacher profile's first step (`text`: a form, no photo).
-    '04-teacher': async () => {
+    '06-teacher': async () => {
       heading(/^Create your teacher profile$/, '"Create your teacher profile" heading')
       for (const city of ['Ho Chi Minh City', 'Hanoi', 'Da Nang']) must([...document.querySelectorAll('button,[role="radio"],label')].find((b) => (b.textContent || '').trim() === city && onScreen(b)), `${city} choice`)
     },
     // The posting form before anything is picked (`text` too: it shows the photo pickers, not photos).
-    '05-post': async () => {
+    '07-post': async () => {
       heading(/^Create a listing$/, '"Create a listing" heading')
       for (const label of ['Electronics', 'Rentals', 'Jobs']) must([...document.querySelectorAll('button,[role="radio"],label')].find((b) => (b.textContent || '').trim() === label && onScreen(b)), `${label} category chip`)
     },
@@ -140,13 +167,37 @@
       return false
     }
     const isBlock = (el) => { const d = getComputedStyle(el).display; return !d.startsWith('inline') && d !== 'contents' }
+    /**
+     * ✅ OWNER DECISION 2026-11-24: "partner badge is ok to show". The Official partner badge (PartnerBadge,
+     * `role="img"`, "Official partner" / "Đối tác chính thức") may appear ON A LISTING CARD — the green shield, or the
+     * white plate on a wide card's photo. A card never shows the seller, so the badge names no shop; since the Terms it
+     * marks only a company with a signed agreement. ONLY on a card: the nearest ancestor holding any card link (a photo
+     * card's `a[data-card-link]` or a row's `a[data-row-link]`) must hold exactly ONE, i.e. the badge sits inside that one
+     * card. The same words in a shop header, beside a seller's name on a listing page, or anywhere else still fail the
+     * shot, and so does every other banned word. (Watermarks painted into photos were never visible to this scan —
+     * look at the framed set.)
+     */
+    const CARD_LINK = 'a[data-card-link],a[data-row-link]'
+    // …and its screen-reader twin: the card announces the badge in a visually hidden `.sr-only` span (listing-card.tsx),
+    // which a text range still measures as on screen, though nothing of it is painted.
+    const BADGE_WORDS = /^\s*(Official partner|Đối tác chính thức)\s*$/
+    const cardBadge = (el) => {
+      const b = el.closest('[role="img"][aria-label="Official partner"],[role="img"][aria-label="Đối tác chính thức"]')
+        || (el.matches('.sr-only') && BADGE_WORDS.test(el.textContent || '') ? el : null)
+      if (!b) return false
+      for (let p = b.parentElement, i = 0; p && i < 14; p = p.parentElement, i++) {
+        const n = p.querySelectorAll(CARD_LINK).length
+        if (n) return n === 1
+      }
+      return false
+    }
     const buckets = new Map()
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.data.trim() || !n.parentElement) continue
       const range = document.createRange()
       range.selectNodeContents(n)
-      if (!onScreenRect(range.getBoundingClientRect()) || hidden(n.parentElement)) continue
+      if (!onScreenRect(range.getBoundingClientRect()) || hidden(n.parentElement) || cardBadge(n.parentElement)) continue
       let block = n.parentElement
       while (block.parentElement && !isBlock(block)) block = block.parentElement
       const runs = buckets.get(block) || []
@@ -163,7 +214,7 @@
     // and CSS-generated ::before / ::after content.
     for (const e of document.querySelectorAll('[aria-label],[title],img[alt],[placeholder],input,textarea,svg title')) {
       const box = e.tagName.toLowerCase() === 'title' ? e.parentElement : e
-      if (!box || !onScreen(box) || hidden(box)) continue
+      if (!box || !onScreen(box) || hidden(box) || cardBadge(box)) continue
       const t = `${e.getAttribute('aria-label') || ''} ${e.getAttribute('title') || ''} ${e.getAttribute('alt') || ''} ${e.getAttribute('placeholder') || ''} ${'value' in e ? e.value : ''} ${e.tagName.toLowerCase() === 'title' ? e.textContent : ''}`
       if (banned(t)) hits.push(t.trim().slice(0, 70))
     }

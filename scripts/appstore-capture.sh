@@ -64,17 +64,19 @@ PREP="$(cat "$ROOT/scripts/appstore-capture-prep.js")" || exit 1
 # shows no photo by design (job cards, the empty posting form): only that shot skips the "an image is on
 # screen" check — the pixel-spread check and its action's own assertions still apply.
 # ⚠️ Look at every framed image before an upload: the scan cannot see a watermark painted into a photo, and
-# the map's building card (02) is live and changes daily.
-# ⚠️ No second-hand GRID is in the set (2026-11-23): every electronics, rental and motorbike grid carries the
-# Official partner badge on its cards, which the scan refuses (appstore-capture-prep.js); the owner decides
-# whether a card's badge may appear — until then the set shows renting, jobs, teaching and posting. (Also out:
-# the listing page's Location block — its approximate-area circle sat on District 1 for a Phu My Hung flat.)
+# the grids (02, 04) and the map's building card (03) are live and change daily.
+# ✅ Grids carry the Official partner badge on their cards — allowed since 2026-11-24 (owner: "partner badge is ok to
+# show"; cards only — appstore-capture-prep.js `cardBadge`). Still out: the electronics grid (a retailer's logo in its
+# first photo, 2026-11-24) and the listing page's Location block (its approximate-area circle sat on District 1 for a
+# Phu My Hung flat).
 SHOTS=(
   "01-apartment|/listings/cmvgi6mc8000f01ucmmotkuhl"
-  "02-map|/"
-  "03-jobs|/c/jobs|text"
-  "04-teacher|/teachers/join|text"
-  "05-post|/post|text"
+  "02-rentals|/c/rentals/tay-ho"
+  "03-map|/"
+  "04-motorbikes|/motorbike-rental-ho-chi-minh-city"
+  "05-jobs|/c/jobs|text"
+  "06-teacher|/teachers/join|text"
+  "07-post|/post|text"
 )
 
 [ -d "$APP" ] || { echo "no app at $APP" >&2; exit 1; }
