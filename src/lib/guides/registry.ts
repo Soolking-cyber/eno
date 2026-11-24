@@ -79,6 +79,20 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'what-is-a-lease', lang: 'en', published: '2026-11-23', reviewed: '2026-11-23', reviewedDigest: '5baae3c6d3bcf96f', pair: 'hop-dong-thue-la-gi-ben-cho-thue-ben-thue' },
   { slug: 'hop-dong-thue-la-gi-ben-cho-thue-ben-thue', lang: 'vi', published: '2026-11-23', reviewed: '2026-11-23', reviewedDigest: 'e956aa03f4529fa1', pair: 'what-is-a-lease' },
   { slug: 'kich-thuoc-tivi-42-inch', lang: 'vi', published: '2026-11-23', reviewed: '2026-11-23', reviewedDigest: '3c197a5c64b75be7', pair: '42-inch-tv-dimensions' },
+  { slug: 'district-1-ho-chi-minh-city', lang: 'en', published: '2026-11-24', reviewed: '2026-11-23', reviewedDigest: 'da4769001b072c2a', pair: 'quan-1-tphcm-thue-can-ho' },
+  { slug: 'thue-nha-quan-7-phu-my-hung', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '03e09ed8819b6e6b', pair: 'district-7-ho-chi-minh-city' },
+  { slug: 'district-7-ho-chi-minh-city', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: 'f90a4407a71ea074', pair: 'thue-nha-quan-7-phu-my-hung' },
+  { slug: 'quan-1-tphcm-thue-can-ho', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '8575b2af30acd3fc', pair: 'district-1-ho-chi-minh-city' },
+  { slug: 'danh-gia-noi-lam-viec-giao-vien-tphcm', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: 'b727e408f72dd820', pair: 'best-schools-to-work-for-in-ho-chi-minh-city' },
+  { slug: 'best-schools-to-work-for-in-ho-chi-minh-city', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '6661dcc4cdad6154', pair: 'danh-gia-noi-lam-viec-giao-vien-tphcm' },
+  { slug: 'nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: 'dacd4f67ccff901c', pair: 'vinpearl-theatre-ocean-city' },
+  { slug: 'vinpearl-theatre-ocean-city', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: 'c1f836a0973f1f0e', pair: 'nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca' },
+  { slug: 'hp-vs-lenovo-used-laptop', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '1089641c89165ddc', pair: 'nen-mua-laptop-cu-hp-hay-lenovo' },
+  { slug: 'cho-thue-can-ho-tphcm', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '27240973d880f652', pair: 'apartments-for-rent-ho-chi-minh-city-by-district' },
+  { slug: 'apartments-for-rent-ho-chi-minh-city-by-district', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '747fcab97182585c', pair: 'cho-thue-can-ho-tphcm' },
+  { slug: '14-inch-vs-15-6-inch-laptop', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '7bec54ae612973a7', pair: 'nen-mua-laptop-14-inch-hay-15-6-inch' },
+  { slug: 'nen-mua-laptop-14-inch-hay-15-6-inch', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '42c4de23b984eb0a', pair: '14-inch-vs-15-6-inch-laptop' },
+  { slug: 'nen-mua-laptop-cu-hp-hay-lenovo', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '23db10ad2b5ed461', pair: 'hp-vs-lenovo-used-laptop' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

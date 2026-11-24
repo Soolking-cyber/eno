@@ -1,0 +1,377 @@
+{
+  "slug": "cho-thue-can-ho-tphcm",
+  "title": "Cho thuê căn hộ TP.HCM: lọc theo quận và giá (2026)",
+  "description": "Giá chào thuê trung vị căn hộ studio, 1 và 2 phòng ngủ theo từng quận TP.HCM ngày 24/11/2026, cách lọc tin, hỏi căn còn trống và nhắn chủ nhà trên eno.vn.",
+  "h1": "Cho thuê căn hộ TP.HCM: chọn quận, lọc theo giá và hỏi căn còn trống",
+  "eyebrow": "Thuê nhà ở Sài Gòn",
+  "intro": "Ngày 24/11/2026, Chỉ số giá thuê eno.vn cho thấy căn hộ 1 phòng ngủ ở TP.HCM có giá chào thuê thấp nhất ở Quận 12 và Gò Vấp, cao nhất ở Thảo Điền (Quận 2). Studio là loại rẻ nhất và nhiều nhất, chiếm 5.605 trong 6.755 căn hộ được tính hôm đó. Đây là giá chủ nhà chào, giá chốt thường thấp hơn.",
+  "keyPoints": [
+    "Ngày 24/11/2026, theo Chỉ số giá thuê eno.vn, giá chào thuê trung vị toàn thành phố là {{vnd:4300000}} một tháng cho studio, {{vnd:8800000}} cho căn 1 phòng ngủ và {{vnd:19600000}} cho căn 2 phòng ngủ.",
+    "Trong 13 quận có số liệu căn 1 phòng ngủ ngày 24/11/2026, rẻ nhất là Quận 12 ({{vnd:5800000}}), Gò Vấp ({{vnd:6600000}}) và Tân Phú ({{vnd:7000000}}). Đắt nhất có Quận 2 – Thảo Điền ({{vnd:23800000}}) và Quận 1 ({{vnd:19900000}}).",
+    "Đây là giá chào trên tin đang đăng, không phải giá trong hợp đồng đã ký. Chỉ số giá thuê eno.vn ghi rõ giá chốt sau thương lượng thường thấp hơn.",
+    "Tin đăng vẫn ghi tên quận cũ. Từ 1/7/2025, địa chỉ chính thức dùng tên phường, xã mới, ví dụ phường Sài Gòn đã nhận toàn bộ phường Bến Nghé cũ.",
+    "Trên trang cho thuê của eno.vn, nút \"Check availability\" nhờ đội eno kiểm tra tối đa 5 căn giúp bạn. Tin của đối tác chính thức như GoPlus thì đối tác trả lời qua chat trên eno.vn."
+  ],
+  "sections": [
+    {
+      "id": "gia-thue-can-ho-tphcm-theo-quan",
+      "title": "Thuê căn hộ ở TP.HCM giá bao nhiêu, theo từng quận?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giá thuê phụ thuộc chủ yếu vào quận và số phòng ngủ. Ngày 24/11/2026, theo Chỉ số giá thuê eno.vn, giá chào thuê trung vị căn 1 phòng ngủ thấp nhất ở Quận 12, {{vnd:5800000}} một tháng, và cao nhất ở Quận 2 (Thảo Điền), {{vnd:23800000}}. Tính chung toàn thành phố hôm đó, căn 1 phòng ngủ trung vị là {{vnd:8800000}}, studio là {{vnd:4300000}}."
+        },
+        {
+          "type": "p",
+          "text": "**Chỉ số giá thuê eno.vn** (HCMC Rent Index) là thước đo do eno.vn tự tính. Chỉ số đưa ra giá chào thuê trung vị của nhà đăng trên eno.vn theo quận và loại nhà, xem tại [trang Chỉ số giá thuê](/hcmc-rent-index). Ghi chú phương pháp của trang cho biết chỉ số được tính lại hằng ngày, chỉ tính giá thuê tháng từ {{vnd:1000000}} đến {{vnd:500000000}}, và chỉ công bố trung vị khi có từ 10 tin trở lên. Bản ngày 24/11/2026 lấy từ tin riêng của ba đối tác chính thức của eno.vn (GoPlus, Housing Saigon, Saigon Cribs) và tin do thành viên eno.vn đăng."
+        },
+        {
+          "type": "table",
+          "caption": "Giá chào thuê trung vị một tháng theo quận, Chỉ số giá thuê eno.vn, ngày 24/11/2026. Chỉ gồm các quận có số liệu căn 1 phòng ngủ, xếp từ rẻ đến đắt. Dấu gạch: dưới 10 tin, không công bố.",
+          "headers": [
+            "Quận",
+            "Studio",
+            "1 phòng ngủ",
+            "2 phòng ngủ",
+            "Số căn hộ đăng"
+          ],
+          "rows": [
+            [
+              "Quận 12",
+              "{{vnd:4000000}}",
+              "{{vnd:5800000}}",
+              "—",
+              "1.106"
+            ],
+            [
+              "Gò Vấp",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:7800000}}",
+              "1.575"
+            ],
+            [
+              "Tân Phú",
+              "{{vnd:3900000}}",
+              "{{vnd:7000000}}",
+              "—",
+              "262"
+            ],
+            [
+              "Tân Bình",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:10500000}}",
+              "379"
+            ],
+            [
+              "Phú Nhuận",
+              "{{vnd:5300000}}",
+              "{{vnd:8000000}}",
+              "—",
+              "162"
+            ],
+            [
+              "Quận 10",
+              "{{vnd:6500000}}",
+              "{{vnd:8700000}}",
+              "{{vnd:12900000}}",
+              "84"
+            ],
+            [
+              "Bình Thạnh",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:11000000}}",
+              "597"
+            ],
+            [
+              "Quận 3",
+              "{{vnd:6400000}}",
+              "{{vnd:10100000}}",
+              "—",
+              "98"
+            ],
+            [
+              "Quận 7 (Phú Mỹ Hưng)",
+              "{{vnd:5400000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:16800000}}",
+              "103"
+            ],
+            [
+              "Quận 4",
+              "{{vnd:7200000}}",
+              "{{vnd:15300000}}",
+              "{{vnd:22800000}}",
+              "60"
+            ],
+            [
+              "Quận 1",
+              "{{vnd:6500000}}",
+              "{{vnd:19900000}}",
+              "{{vnd:34800000}}",
+              "203"
+            ],
+            [
+              "TP Thủ Đức (toàn bộ, gồm Quận 2 và Quận 9)",
+              "{{vnd:4200000}}",
+              "{{vnd:22700000}}",
+              "{{vnd:27600000}}",
+              "698"
+            ],
+            [
+              "Quận 2 (Thảo Điền)",
+              "—",
+              "{{vnd:23800000}}",
+              "{{vnd:30900000}}",
+              "300"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Mẫu nhỏ thì số liệu đổi nhanh",
+          "text": "Một số trung vị dựa trên rất ít tin. Trong bản ngày 24/11/2026, số liệu 1 phòng ngủ của Quận 4 chỉ từ 10 tin, 2 phòng ngủ của Quận 10 từ 10 tin, 1 phòng ngủ của Tân Phú từ 11 tin, Phú Nhuận từ 13 tin và Quận 12 từ 16 tin. Vài tin mới là đủ làm những con số này lệch hàng triệu đồng, nên hãy xem lại [Chỉ số giá thuê](/hcmc-rent-index) trước khi chốt ngân sách."
+        }
+      ]
+    },
+    {
+      "id": "nen-thue-can-ho-quan-nao",
+      "title": "Với ngân sách của mình, nên thuê căn hộ ở quận nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bắt đầu từ cột 1 phòng ngủ, hoặc cột studio nếu bạn ở một mình và ngân sách eo hẹp. Sau đó giữ lại hai, ba quận đi làm thuận tiện nhất. Các nhóm dưới đây dựa trên trung vị ngày 24/11/2026 trong bảng trên: ở mỗi quận, một nửa số tin chào thấp hơn mức trung vị và một nửa chào cao hơn."
+        },
+        {
+          "type": "h3",
+          "text": "Quận nào có căn 1 phòng ngủ rẻ hơn mức chung của thành phố?"
+        },
+        {
+          "type": "p",
+          "text": "Ngày 24/11/2026, sáu quận có trung vị căn 1 phòng ngủ dưới mức {{vnd:8800000}} của toàn thành phố: Quận 12, Gò Vấp, Tân Phú, Tân Bình, Phú Nhuận và Quận 10. Gò Vấp và Quận 12 cũng có nhiều căn hộ đăng nhất, lần lượt 1.575 và 1.106 căn, nhưng phần lớn là studio. Bình Thạnh chỉ nhích trên mức chung một chút, {{vnd:9000000}}."
+        },
+        {
+          "type": "h3",
+          "text": "Thuê căn hộ ở đâu đắt nhất Sài Gòn?"
+        },
+        {
+          "type": "p",
+          "text": "Ngày 24/11/2026, Quận 2 (Thảo Điền), TP Thủ Đức tính chung và Quận 1 có trung vị căn 1 phòng ngủ cao nhất, đều trên {{vnd:19000000}}. Quận 1 cũng đứng đầu cột 2 phòng ngủ với {{vnd:34800000}}. Quận 7 (Phú Mỹ Hưng) và Quận 4 ở giữa, khoảng {{vnd:15000000}} cho căn 1 phòng ngủ."
+        },
+        {
+          "type": "h3",
+          "text": "Studio có được tính chung với căn 1 phòng ngủ không?"
+        },
+        {
+          "type": "p",
+          "text": "Không. Từ 21/10/2026, chỉ số tách studio thành một nhóm riêng, nên con số 1 phòng ngủ không gồm studio. Studio là mức đáy của thị trường: ngày 24/11/2026, trung vị studio cao nhất ở Quận 4 ({{vnd:7200000}}), còn thấp nhất ở các khu ven như Bình Chánh, Bình Tân, Nhà Bè và Hóc Môn. Bốn khu này hôm đó có quá ít tin 1 phòng ngủ để công bố trung vị."
+        },
+        {
+          "type": "p",
+          "text": "Muốn biết mỗi khu sống ra sao, xem [các quận TP.HCM: người mới đến nên ở đâu](/huong-dan/cac-quan-tphcm-nen-thue-nha-o-dau). Bảng giá thuê nhà theo quận, gồm cả nhà nguyên căn, có ở [giá thuê nhà TP.HCM theo quận](/huong-dan/gia-thue-nha-tphcm-theo-quan)."
+        }
+      ]
+    },
+    {
+      "id": "yens-house-quan-7",
+      "title": "Yen's House quận 7: tìm giá và căn trống ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Khi tìm trên web ngày 24/11/2026, chúng tôi không thấy trang nào nói về một tòa nhà hay căn hộ dịch vụ tên Yen's House ở Quận 7, nên bài này không thể cho bạn giá hay tình trạng phòng của nơi đó. Cách nhanh nhất là hỏi trực tiếp chủ nhà hoặc người quản lý, và so giá họ báo với mức chung của Quận 7."
+        },
+        {
+          "type": "p",
+          "text": "Ngày 24/11/2026, theo Chỉ số giá thuê eno.vn, Quận 7 (Phú Mỹ Hưng) có studio trung vị {{vnd:5400000}}, căn 1 phòng ngủ {{vnd:15000000}} và căn 2 phòng ngủ {{vnd:16800000}}, trên 103 căn hộ đăng. Trên [trang cho thuê](/c/rentals), chọn Quận 7 ở mục \"By area\" để xem các căn đang đăng ở khu này. Lưu ý cột 2 phòng ngủ của Quận 7 chỉ dựa trên 17 tin."
+        }
+      ]
+    },
+    {
+      "id": "ten-quan-sau-thang-7-2025",
+      "title": "Đã bỏ cấp quận, sao tin cho thuê vẫn ghi Quận 1, Quận 7?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Tin đăng vẫn ghi Quận 1, Quận 7 vì chủ nhà và người thuê vẫn quen dùng tên cũ. Cấp quận đã bị bỏ từ 1/7/2025, và địa chỉ chính thức nay dùng tên phường, xã."
+        },
+        {
+          "type": "p",
+          "text": "Theo [bài của VietnamNet về Nghị quyết 1685](https://vietnamnet.vn/en/ho-chi-minh-city-creates-con-dao-special-district-new-saigon-ward-2412311.html) của Ủy ban Thường vụ Quốc hội, TP.HCM nay có 168 đơn vị cấp xã: 113 phường, 54 xã và đặc khu Côn Đảo. Ví dụ, phường Sài Gòn mới nhận toàn bộ phường Bến Nghé cũ và một phần phường Đa Kao, Nguyễn Thái Bình. Chỉ số giá thuê eno.vn đặt tên quận theo cách tin đăng ghi. Ghi chú phương pháp của chỉ số cũng nói thành phố nay gồm cả Bình Dương và Bà Rịa – Vũng Tàu cũ, và Quận 2, Quận 9 có dòng riêng nhưng vẫn được tính vào TP Thủ Đức."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Hỏi cả hai tên khi xem nhà",
+          "text": "Khi trao đổi với chủ nhà, hỏi cả tên quận cũ lẫn tên phường mới của căn hộ. Hợp đồng và giấy tờ chính thức sẽ dùng tên phường mới."
+        }
+      ]
+    },
+    {
+      "id": "cach-loc-can-ho-tren-eno",
+      "title": "Cách tìm căn hộ cho thuê ở TP.HCM trên eno.vn",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Vào [nhà cho thuê ở TP.HCM](/c/rentals), lọc theo khu vực, sắp xếp theo giá, rồi chỉ gửi những căn thật sự muốn thuê để kiểm tra. Các nhãn dưới đây là nhãn trang hiển thị ngày 24/11/2026, bằng tiếng Anh."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chọn khu vực",
+              "text": "Ở mục \"By area\", chọn từng quận một, ví dụ \"Go Vap District\", \"District 12\" hay \"Binh Thanh District\". Mỗi lần xem một quận giúp bạn so giá với đúng trung vị của quận đó."
+            },
+            {
+              "title": "Thu hẹp kết quả",
+              "text": "Mở \"Filters\" để lọc thêm. Sau đó so từng tin với trung vị của quận trên [Chỉ số giá thuê](/hcmc-rent-index) để biết căn đó rẻ hay đắt so với khu vực."
+            },
+            {
+              "title": "Sắp xếp danh sách",
+              "text": "Ở \"Sort by\", chọn \"Price low → high\" để xem căn rẻ trước, hoặc \"Newest\" để xem tin mới nhất. Nút \"Map\" hiện các căn trên bản đồ, giúp bạn ước lượng đường đi làm."
+            },
+            {
+              "title": "Đọc kỹ từng tin",
+              "text": "Ghi lại diện tích, nội thất, tiền cọc và các khoản tính riêng như điện, nước, phí dịch vụ, gửi xe. Studio thường nhỏ, nên so cả diện tích chứ không chỉ giá. Tin của đối tác có nhãn \"Official partner\"."
+            },
+            {
+              "title": "Hỏi căn còn trống hoặc nhắn tin",
+              "text": "Thêm những căn bạn nghiêm túc cân nhắc vào \"Check availability\". Với tin của đối tác chính thức, nhắn đối tác qua chat trên eno.vn. Làm việc này trước khi hẹn xem nhà."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Lập ngân sách bằng tiền đồng",
+          "text": "Trang cho thuê hiện thêm con số đô-la ước tính cạnh mỗi giá. Hãy đặt ngân sách theo số tiền đồng, vì chủ nhà báo giá bằng tiền đồng và Chỉ số giá thuê cũng đo bằng tiền đồng."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-con-trong-va-nhan-tin-chu-nha",
+      "title": "Làm sao hỏi căn còn trống và nhắn tin chủ nhà?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Tùy ai đăng tin. Với đa số căn, nút \"Check availability\" nhờ đội eno kiểm tra xem căn còn trống không. Với tin riêng của đối tác chính thức như GoPlus, đối tác trả lời bạn qua chat trên eno.vn."
+        },
+        {
+          "type": "h3",
+          "text": "Nút Check availability hoạt động thế nào?"
+        },
+        {
+          "type": "p",
+          "text": "Ngày 24/11/2026, trang cho thuê ghi: chọn tối đa 5 căn và đội eno kiểm tra tình trạng trống giúp bạn, là dịch vụ miễn phí. Vì giới hạn là 5 căn, hãy dành nó cho danh sách cuối cùng, không phải mọi căn bạn thấy thích."
+        },
+        {
+          "type": "h3",
+          "text": "Ai trả lời trên tin của đối tác?"
+        },
+        {
+          "type": "p",
+          "text": "GoPlus là đối tác chính thức của eno.vn, đăng căn hộ trong [mục cho thuê](/c/rentals). Bạn xem các căn của GoPlus tại [gian hàng GoPlus](/goplus). Tin trả lời nằm trong mục Messages sau khi bạn đăng nhập. Nếu có trục trặc với tin đăng hay cuộc chat, [trung tâm trợ giúp](/help) hướng dẫn cách xử lý."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Xem nhà rồi mới chuyển tiền",
+          "text": "Đừng đặt cọc hay trả phí giữ chỗ khi chưa xem nhà và chưa biết ai là chủ. [Hợp đồng thuê là gì](/huong-dan/hop-dong-thue-la-gi-ben-cho-thue-ben-thue) giải thích bên cho thuê và bên thuê trong hợp đồng."
+        }
+      ]
+    },
+    {
+      "id": "tien-thue-can-ho-gom-nhung-gi",
+      "title": "Tiền thuê căn hộ ở TP.HCM đã gồm những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Tiền thuê thường chỉ tính cho căn hộ. Điện, nước, phí dịch vụ tòa nhà và gửi xe máy có thể tính riêng, mỗi chủ nhà đặt mức giá riêng. Đọc phần chi phí trên từng tin, hỏi những gì còn thiếu, và ghi mọi mức giá vào văn bản trước khi ký."
+        },
+        {
+          "type": "p",
+          "text": "Tiền cọc và thời gian báo trước khi trả nhà cũng khác nhau giữa các chủ nhà. Cách lấy lại tiền cọc có trong [tiền cọc thuê nhà ở Việt Nam](/rental-deposit-vietnam) (tiếng Anh). Nếu bạn là chủ nhà muốn cho người nước ngoài thuê, xem [cho người nước ngoài thuê căn hộ TP.HCM](/huong-dan/cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm)."
+        },
+        {
+          "type": "h3",
+          "text": "Có trả giá được giá thuê không?"
+        },
+        {
+          "type": "p",
+          "text": "Thường là được. Chỉ số giá thuê eno.vn ghi rõ số liệu là giá chào trên tin đang đăng, không phải giá hợp đồng đã ký, và giá chốt sau thương lượng thường thấp hơn. Dùng mức trung vị của quận làm mốc khi bạn đưa ra giá."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Thuê căn hộ ở Hà Nội: xem [thuê căn hộ Tây Hồ](/huong-dan/thue-can-ho-tay-ho).",
+            "Chứng chỉ quốc tế (IELTS, TEFL, CELTA…): bài này chỉ nói về thuê nhà. Nếu bạn tìm chứng chỉ để dạy tiếng Anh, xem [TEFL, TESOL hay CELTA cho việc dạy ở Việt Nam](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam) (tiếng Anh).",
+            "Chuyển nhà và nội thất: xem [chuyển nhà ở Sài Gòn](/saigonmoving) và [mua sofa cũ TP.HCM](/huong-dan/mua-sofa-cu-tphcm).",
+            "Nhà nguyên căn và phòng trọ: ngày 24/11/2026, Chỉ số giá thuê không có số liệu phòng trọ, nên bài này chỉ nói về căn hộ."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Thuê căn hộ ở TP.HCM giá bao nhiêu một tháng?",
+      "a": "Giá thuê căn hộ ở TP.HCM phụ thuộc chủ yếu vào quận và số phòng ngủ. Ngày 24/11/2026, Chỉ số giá thuê eno.vn cho thấy căn 1 phòng ngủ ở Thảo Điền hay Quận 1 cao hơn gấp đôi mức trung vị toàn thành phố, còn Quận 12, Gò Vấp và Tân Phú thấp hơn mức đó. Studio là loại rẻ nhất. Bảng theo quận ở phần trên là giá chào, giá chốt thường thấp hơn."
+    },
+    {
+      "q": "Quận nào thuê căn hộ rẻ nhất TP.HCM?",
+      "a": "Ngày 24/11/2026, Quận 12 có giá chào thuê trung vị căn 1 phòng ngủ thấp nhất trong Chỉ số giá thuê eno.vn, tiếp theo là Gò Vấp và Tân Phú. Gò Vấp và Quận 12 cũng có nhiều căn hộ đăng nhất, nhưng phần lớn là studio. Với studio, các khu ven như Bình Chánh, Bình Tân, Nhà Bè và Hóc Môn có giá thấp nhất, nhưng quá ít tin 1 phòng ngủ để tính trung vị."
+    },
+    {
+      "q": "Thuê căn hộ ở đâu đắt nhất Sài Gòn?",
+      "a": "Ngày 24/11/2026, Quận 2 (Thảo Điền) có giá chào thuê trung vị căn 1 phòng ngủ cao nhất trong Chỉ số giá thuê eno.vn, sau đó là TP Thủ Đức tính chung và Quận 1. Quận 1 có trung vị căn 2 phòng ngủ cao nhất hôm đó. Ở cả ba khu, một căn 1 phòng ngủ điển hình chào giá cao hơn gấp đôi mức trung vị căn 1 phòng ngủ của toàn thành phố."
+    },
+    {
+      "q": "Yen's House quận 7 giá thuê bao nhiêu?",
+      "a": "Khi tìm trên web ngày 24/11/2026, eno.vn không thấy trang nào nói về Yen's House ở Quận 7, nên không có giá đáng tin để đưa ra. Hãy hỏi thẳng chủ nhà hoặc người quản lý. Để biết giá họ báo cao hay thấp, so với mức trung vị của Quận 7 (Phú Mỹ Hưng) trên Chỉ số giá thuê eno.vn, nơi có số liệu cho studio, căn 1 và 2 phòng ngủ."
+    },
+    {
+      "q": "Làm sao biết căn hộ cho thuê trên eno.vn còn trống?",
+      "a": "Với đa số tin cho thuê căn hộ TP.HCM trên eno.vn, nút Check availability nhờ đội eno kiểm tra xem căn còn trống không. Ngày 24/11/2026, trang cho thuê mô tả đây là dịch vụ kiểm tra miễn phí cho tối đa 5 căn. Tin của đối tác chính thức của eno.vn như GoPlus thì do chính đối tác trả lời qua chat trên eno.vn."
+    },
+    {
+      "q": "Giá thuê căn hộ ở TP.HCM có thương lượng được không?",
+      "a": "Giá thuê căn hộ ở TP.HCM thường thương lượng được. Chỉ số giá thuê eno.vn ghi rõ số liệu của mình là giá chào trên tin đang đăng, không phải giá hợp đồng đã ký, và giá chốt sau thương lượng thường thấp hơn. Trước khi trả giá, so căn hộ với mức trung vị của quận đó, rồi ghi giá thuê cuối cùng cùng mọi khoản phí vào văn bản."
+    },
+    {
+      "q": "Tin cho thuê căn hộ còn ghi Quận 1, Quận 7 có sai không?",
+      "a": "Không sai. Tin cho thuê căn hộ ở TP.HCM vẫn dùng tên quận cũ như Quận 1, Bình Thạnh, Quận 7 vì người thuê quen tìm theo đó. Cấp quận đã bị bỏ từ 1/7/2025, và địa chỉ chính thức nay dùng một trong 168 đơn vị phường, xã, đặc khu của thành phố. Vì vậy một tin có thể ghi cả tên phường mới lẫn tên quận cũ."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Ho Chi Minh City Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Homes for rent in Ho Chi Minh City",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/c/rentals"
+    },
+    {
+      "title": "Ho Chi Minh City creates Con Dao special district, new Saigon ward",
+      "publisher": "VietnamNet",
+      "url": "https://vietnamnet.vn/en/ho-chi-minh-city-creates-con-dao-special-district-new-saigon-ward-2412311.html"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "getting-around-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-24"
+}

@@ -1,0 +1,434 @@
+{
+  "slug": "hp-vs-lenovo-used-laptop",
+  "title": "Notebook HP vs Lenovo: choosing a used laptop",
+  "description": "HP EliteBook and ProBook against Lenovo ThinkPad when bought used: keyboards, ports, soldered or socketed RAM, warranty checks and real Saigon listings.",
+  "h1": "HP vs Lenovo notebooks: how to choose the right used laptop",
+  "eyebrow": "Buying electronics",
+  "intro": "Used, an HP EliteBook and a Lenovo ThinkPad T-series are close equals; on spec sheets checked on 24 November 2026, the bigger difference is upgrades: the EliteBook 840 G8 has 2 memory slots, the ThinkPad T14s none. So pick the model before the brand. Choose a business line over a consumer one, check whether the RAM is soldered, check the serial number with the maker, and buy where the shop gives you a written warranty.",
+  "keyPoints": [
+    "Compare lines, not logos: HP sells ProBook (mainstream business), EliteBook (premium business) and ZBook (workstations), according to HP's October 2026 business-laptop glossary.",
+    "**Memory is the big catch.** Lenovo's PSREF sheets list the ThinkPad T14s Gen 1 and T14s Gen 4 as 'memory soldered to systemboard, no slots'. The standard T14 Gen 1 has one SO-DIMM slot, and iFixit shows two in the HP EliteBook 840 G8.",
+    "Both makers' business keyboards are spill-resistant. HP itself says that does not make a laptop water-resistant, and that MIL-STD-810 testing is not a military certification.",
+    "Check the serial number on the maker's site before you pay. HP's checker asks for the country where the laptop was bought, and HP's warranty runs from the purchase date.",
+    "On 24 November 2026, a used EliteBook 840 G8 (i7, 16GB, 512GB) was listed at {{vnd:7790000}} with a 6-month store warranty, and a ThinkPad T14s Gen 2 at {{vnd:12000000}} on Chotot."
+  ],
+  "sections": [
+    {
+      "id": "is-hp-or-lenovo-better-used",
+      "title": "Is HP or Lenovo better for a used notebook?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Neither brand wins outright. **The product line and the generation decide more than the logo.** An HP EliteBook and a Lenovo ThinkPad T-series are both business machines, with spill-resistant keyboards and durability testing. Either one is usually a safer used buy than a consumer model from the same brand. The differences that matter after purchase are model-specific, above all whether you can add memory later."
+        },
+        {
+          "type": "p",
+          "text": "HP describes its three business families like this: ProBook for small and growing businesses and everyday office work, EliteBook as the premium line with better materials and more security and privacy features, and ZBook as mobile workstations. That is from [HP's business-laptop glossary](https://www.hp.com/us-en/tech-takes/business/glossary/business-laptops.html), dated 22 October 2026. Lenovo publishes the exact specification of each ThinkPad in its Product Specifications Reference (PSREF), and that is where the Lenovo figures below come from."
+        },
+        {
+          "type": "table",
+          "caption": "Business lines you will meet on the used market, from HP's own pages and Lenovo PSREF sheets (read 24 November 2026)",
+          "headers": [
+            "Line",
+            "Maker's positioning",
+            "What to expect used"
+          ],
+          "rows": [
+            [
+              "HP ProBook",
+              "Mainstream business, 'essential security and manageability at a more accessible price' (HP)",
+              "Cheapest business HP. HP says it is durable but 'not as rugged as EliteBook'"
+            ],
+            [
+              "HP EliteBook",
+              "Premium business: premium materials, advanced security and privacy (HP)",
+              "Metal build, MIL-STD-810 tested according to HP. Common as ex-office stock"
+            ],
+            [
+              "HP ZBook",
+              "Mobile workstation with workstation-class processors and graphics (HP)",
+              "Heavier and pricier. Only worth it if you need the graphics"
+            ],
+            [
+              "Lenovo ThinkPad T14",
+              "Mainstream ThinkPad (PSREF lists TrackPoint, spill-resistant keyboard, MIL-STD-810 testing)",
+              "Thicker. The Gen 1 has an Ethernet port and one RAM slot"
+            ],
+            [
+              "Lenovo ThinkPad T14s",
+              "Slimmer ThinkPad (PSREF)",
+              "Lighter, but the memory is soldered with no slots on the Gen 1 and Gen 4"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hp-and-lenovo-business-lines",
+      "title": "Which HP and Lenovo lines should you look at?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For a used laptop that has to last several years, look at HP EliteBook and Lenovo ThinkPad T first, and HP ProBook if your budget is tight. Within each family, HP says higher tier numbers generally mean more advanced design, features and performance. An EliteBook 840 sits above a ProBook 440, for example."
+        },
+        {
+          "type": "h3",
+          "text": "What separates an EliteBook from a ProBook?"
+        },
+        {
+          "type": "p",
+          "text": "Build and security. [HP's EliteBook vs ProBook comparison](https://www.hp.com/gb-en/tech-takes/laptops/comparison/elitebook-vs-probook.html) describes the EliteBook as having 'premium build quality with all-metal construction' and as MIL-STD 810 tested. It describes the ProBook as durable but less rugged, aimed at small and medium-sized businesses and budget-conscious professionals. Both lines carry HP Wolf Security. The EliteBook adds extras such as the Sure View privacy screen on some models."
+        },
+        {
+          "type": "p",
+          "text": "One HP security feature matters more on a second-hand machine than a new one. HP Sure Start is a self-healing BIOS that checks itself at start-up and restores a clean copy if it finds tampering or corruption, according to HP's October 2026 glossary. Feature availability varies by model, so check the exact model's spec sheet."
+        },
+        {
+          "type": "h3",
+          "text": "Why do the ThinkPad T14 and T14s differ so much?"
+        },
+        {
+          "type": "p",
+          "text": "The names are similar, but the insides are not. The 's' model is the slim one, and slimness costs you upgrades and ports. According to the [PSREF sheet for the T14 Gen 1 (Intel)](https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14_Gen_1_Intel/ThinkPad_T14_Gen_1_Intel_Spec.html), it weighs from 1.49 kg and has one memory slot and a full Ethernet port. The [T14s Gen 1 (Intel)](https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_1_Intel/ThinkPad_T14s_Gen_1_Intel_Spec.html) starts at 1.27 kg, has soldered memory, and uses an Ethernet extension connector instead of a full port."
+        }
+      ]
+    },
+    {
+      "id": "keyboards",
+      "title": "How do HP and Lenovo keyboards compare?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On business models, both makers fit spill-resistant keyboards. Lenovo's distinctive extra is the TrackPoint, the red pointing stick in the middle of the keys. Lenovo's PSREF sheets for the T14 Gen 1 and T14s Gen 4 list a 'spill-resistant keyboard' with multimedia Fn keys, and the T14 Gen 1 sheet lists the TrackPoint with a multi-touch touchpad. HP says business laptops often have spill-resistant keyboards, with a pointing stick on select models."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Spill-resistant is not waterproof",
+          "text": "HP's own glossary says a spill-resistant keyboard 'doesn't make a laptop water-resistant', and that MIL-STD-810 testing does not make a laptop rugged and is not a military certification. On a used machine, a past spill can show up as sticky or dead keys. Type every key, including Fn and the arrows, before you pay."
+        },
+        {
+          "type": "p",
+          "text": "Backlighting is not guaranteed. On the ThinkPad T14 Gen 1, PSREF lists the LED backlight as **optional**, so two laptops with the same model name can differ. Switch it on in the shop (Fn plus Space on ThinkPads) rather than relying on the listing."
+        }
+      ]
+    },
+    {
+      "id": "ports",
+      "title": "Which ports do you get?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Business ThinkPads and EliteBooks keep full-size USB-A and HDMI alongside USB-C or Thunderbolt, so you rarely need a dongle for a classroom projector. The exact set changes with each generation and sometimes with each build, so check the spec sheet for the model and generation you are offered. Then ask for photos of both sides."
+        },
+        {
+          "type": "table",
+          "caption": "Ports on three ThinkPad generations, from Lenovo PSREF sheets (read 24 November 2026)",
+          "headers": [
+            "Model",
+            "USB",
+            "Video",
+            "Network and extras"
+          ],
+          "rows": [
+            [
+              "ThinkPad T14 Gen 1 (Intel)",
+              "2× USB-A 3.2 Gen 1, 1× USB-C 3.2 Gen 1, 1× USB-C/Thunderbolt 3",
+              "HDMI 1.4b",
+              "Ethernet (RJ-45), microSD reader, side docking connector"
+            ],
+            [
+              "ThinkPad T14s Gen 1 (Intel)",
+              "2× USB-A 3.2 Gen 1, 1× USB-C 3.2 Gen 1, 1× USB-C/Thunderbolt 3",
+              "HDMI 1.4b",
+              "Ethernet extension connector (needs an adapter), side docking connector"
+            ],
+            [
+              "ThinkPad T14s Gen 4 (Intel)",
+              "2× USB-A 3.2 Gen 1, 2× Thunderbolt 4 / USB4 40Gbps",
+              "HDMI up to 4K/60Hz",
+              "No Ethernet listed. Smart card reader optional"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For HP, read the model's QuickSpecs document on HP's support site. Port layouts on the EliteBook 840 G8 vary between builds, and third-party listings disagree with one another."
+        }
+      ]
+    },
+    {
+      "id": "upgrades",
+      "title": "Can you upgrade the memory and storage?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Often, but not always. **Slim models usually have soldered memory, so you live with the RAM the laptop came with.** Storage is easier: every model below has one M.2 slot for the SSD. Ask the seller for the exact generation and memory configuration, then check it against the sheet."
+        },
+        {
+          "type": "table",
+          "caption": "Memory and storage upgrade options, from Lenovo PSREF and iFixit (read 24 November 2026)",
+          "headers": [
+            "Model",
+            "Memory",
+            "Can you add RAM?",
+            "SSD"
+          ],
+          "rows": [
+            [
+              "ThinkPad T14 Gen 1 (Intel)",
+              "8GB or 16GB soldered plus 1 DDR4 SO-DIMM slot",
+              "Yes, up to 40GB or 48GB in total",
+              "1× M.2, up to 2TB (2280)"
+            ],
+            [
+              "ThinkPad T14s Gen 1 (Intel)",
+              "8, 16 or 32GB soldered, no slots",
+              "No",
+              "1× M.2, up to 2TB (2280)"
+            ],
+            [
+              "ThinkPad T14s Gen 4 (Intel)",
+              "16 or 32GB LPDDR5x soldered, no slots",
+              "No",
+              "1× M.2 2280 PCIe 4.0, up to 2TB"
+            ],
+            [
+              "HP EliteBook 840 G8",
+              "2 DDR4 SO-DIMM slots (iFixit). CellphoneS lists up to 64GB",
+              "Yes",
+              "1× M.2"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Upgrading the EliteBook 840 G8 is a home job, but not a quick one. [iFixit's memory guide](https://www.ifixit.com/Guide/HP+Elitebook+840+G8+Memory+Module+Replacement/186237) rates it moderate and puts it at 20–30 minutes. You undo five captive screws, pry off the bottom cover, disconnect the battery and peel back the SSD and memory covers. If you fit only one module, iFixit says to use the slot labelled DIMM 1."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "If you plan to keep the laptop for years, or you run video calls with lots of browser tabs open for online lessons, buy 16GB now or buy a model with a free slot. On a soldered T14s, the RAM in the listing is the RAM you will have for as long as you own it."
+        }
+      ]
+    },
+    {
+      "id": "checks-before-paying",
+      "title": "What should you check before paying for a used HP or Lenovo?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Check that the machine is the model the seller claims, look up its warranty on the maker's site, and test the parts that wear out. Listings are often wrong. A Chotot advert read on 24 November 2026 called the same laptop a 'T14s Gen 2' in its title and a 'T14 Gen 3' in its details. ThinkPro's T14 Gen 2 page described a different configuration from the one on sale."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Read the label and the system",
+              "text": "HP puts the serial number on the bottom or back of a notebook. If there is no label, **Ctrl+Alt+S** opens HP System Information, according to [HP's warranty-check guide](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html). On a ThinkPad, match the model and generation against the label on the base."
+            },
+            {
+              "title": "Match the spec to the official sheet",
+              "text": "Look the model up in Lenovo's PSREF or HP's QuickSpecs, and check the memory, ports and screen against what you are being sold."
+            },
+            {
+              "title": "Check the warranty with the maker",
+              "text": "On HP's Product Warranty Checker, choose the country or region where the laptop was bought and enter the serial number. HP says its limited warranty starts on the purchase date, and you may need the receipt as proof."
+            },
+            {
+              "title": "Test the wear parts",
+              "text": "Type every key. Try each USB port, HDMI and the charger. Check the hinges and look for dents. Ask for the battery's health report: CellphoneS warns that a trade-in's battery performs below new and that some units have had parts replaced."
+            },
+            {
+              "title": "Get the shop warranty in writing",
+              "text": "Note how many months it covers, whether it includes the screen and battery, and the exchange window. Then keep the receipt."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "used-prices-ho-chi-minh-city",
+      "title": "What does a used EliteBook or ThinkPad cost in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "There is no published average price, so the table below shows real listings read on 24 November 2026, not a market range. Prices move with stock, so treat these as examples only. Shops add a warranty, while private sellers usually do not."
+        },
+        {
+          "type": "table",
+          "caption": "Used business laptops listed in Ho Chi Minh City, as read on 24 November 2026",
+          "headers": [
+            "Listing",
+            "Specification",
+            "Price",
+            "Seller's warranty"
+          ],
+          "rows": [
+            [
+              "CellphoneS, HP EliteBook 840 G8 (used, scuffed trade-in; out of stock)",
+              "i7-1185G7, 16GB, 512GB SSD",
+              "{{vnd:7790000}} incl. VAT",
+              "6 months, plus 30-day exchange for factory defects"
+            ],
+            [
+              "Chotot, ThinkPad T14s Gen 2 (shop in District 10)",
+              "i7-1185G7, 16GB, 256GB SSD",
+              "{{vnd:12000000}}, negotiable",
+              "4–6 months hardware (seller's text)"
+            ],
+            [
+              "ThinkPro, ThinkPad T14 Gen 2 (used, imported; out of stock)",
+              "i7-1165G7, 16GB, 512GB SSD",
+              "No price shown",
+              "12 months, 15-day exchange. 24 months for {{vnd:999000}} extra"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Listings and job ads still use the old district names, such as District 10. Since July 2025, official addresses use the new ward names."
+        },
+        {
+          "type": "p",
+          "text": "HP Vietnam runs a [Certified Refurbished programme](https://www.hp.com/vn-vi/services/workforce-solutions/workforce-computing/renew-solutions/refurbished-hardware.html) aimed at businesses. HP says refurbished EliteBook 840 G5, G6, G7, G8 and 850 G8 units come with a 1-year HP limited warranty on parts and labour, without on-site service. The page gives no prices. You can also browse second-hand laptops in [eno.vn's Electronics category](/c/electronics). If you are buying with an eye to selling before you leave, see [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Lenovo's consumer lines (IdeaPad, Yoga, Legion) and ThinkBook, and HP's Pavilion and Envy. The specs checked for this guide were business models only.",
+            "Apple MacBooks and gaming laptops.",
+            "Whether a used laptop's maker warranty can be transferred or serviced in Vietnam. Ask HP or Lenovo support with the serial number.",
+            "Phones. See [buying a phone in Vietnam](/guides/buy-phone-in-vietnam)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is HP or Lenovo better for a used laptop?",
+      "a": "For a used laptop, the product line matters more than the brand. An HP EliteBook and a Lenovo ThinkPad T-series are both business machines with spill-resistant keyboards and durability testing. The practical difference is model by model: the HP EliteBook 840 G8 has two memory slots, while Lenovo's spec sheets list the ThinkPad T14s Gen 1 and Gen 4 with soldered memory and no slots."
+    },
+    {
+      "q": "Can you upgrade the RAM on a ThinkPad T14s?",
+      "a": "The ThinkPad T14s Gen 1 and T14s Gen 4 cannot take more RAM. Lenovo's PSREF sheets list their memory as soldered to the system board with no slots. The standard ThinkPad T14 Gen 1 is different: it has 8GB or 16GB soldered plus one DDR4 SO-DIMM slot, for up to 40GB or 48GB in total. Check the exact generation before buying."
+    },
+    {
+      "q": "Does the HP EliteBook 840 G8 have RAM slots?",
+      "a": "Yes. The HP EliteBook 840 G8 has two DDR4 SO-DIMM memory slots, according to iFixit's replacement guide, which rates the job moderate at about 20 to 30 minutes. You remove the bottom cover, disconnect the battery and peel back the memory cover. A single module goes in the slot labelled DIMM 1. The laptop also has one M.2 slot for the SSD."
+    },
+    {
+      "q": "What is the difference between HP EliteBook and ProBook?",
+      "a": "HP EliteBook is HP's premium business line, with all-metal construction, MIL-STD 810 testing and extra security and privacy features such as Sure View on some models. HP ProBook is the mainstream business line for small businesses and budget-conscious buyers. HP describes it as durable but less rugged. Both lines include HP Wolf Security, according to HP's own comparison pages."
+    },
+    {
+      "q": "How do I check the warranty on a used HP laptop?",
+      "a": "To check an HP laptop's warranty, find the serial number on the bottom or back of the notebook, or press Ctrl+Alt+S to open HP System Information. Then open HP's Product Warranty Checker, choose the country or region where the laptop was bought, and enter the serial number. HP says its limited warranty starts on the purchase date."
+    },
+    {
+      "q": "Are ThinkPad keyboards waterproof?",
+      "a": "ThinkPad keyboards are spill-resistant, not waterproof. Lenovo's PSREF sheets list a spill-resistant keyboard on models such as the ThinkPad T14 Gen 1 and T14s Gen 4. HP says the same of its own business keyboards, and adds that spill resistance does not make a laptop water-resistant. On a used ThinkPad, test every key, because damage from an old spill often shows up as dead keys."
+    },
+    {
+      "q": "Where can I buy a used business laptop in Ho Chi Minh City?",
+      "a": "Used business laptops in Ho Chi Minh City are sold by electronics chains such as CellphoneS and ThinkPro, by shops and individuals on classifieds such as Chotot, and on eno.vn's Electronics category. On 24 November 2026, CellphoneS gave a 6-month store warranty on a trade-in EliteBook, and ThinkPro offered 12 months on a used ThinkPad. Private sellers usually give no warranty."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Business laptops: glossary (ProBook, EliteBook, ZBook, Sure Start, durability)",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/business/glossary/business-laptops.html"
+    },
+    {
+      "title": "EliteBook vs ProBook",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/comparison/elitebook-vs-probook.html"
+    },
+    {
+      "title": "HP warranty check",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html"
+    },
+    {
+      "title": "Thiết bị Tân trang Được HP Chứng nhận",
+      "publisher": "HP Vietnam",
+      "url": "https://www.hp.com/vn-vi/services/workforce-solutions/workforce-computing/renew-solutions/refurbished-hardware.html"
+    },
+    {
+      "title": "ThinkPad T14 Gen 1 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14_Gen_1_Intel/ThinkPad_T14_Gen_1_Intel_Spec.html"
+    },
+    {
+      "title": "ThinkPad T14s Gen 1 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_1_Intel/ThinkPad_T14s_Gen_1_Intel_Spec.html"
+    },
+    {
+      "title": "ThinkPad T14s Gen 4 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_4_Intel/ThinkPad_T14s_Gen_4_Intel_Spec.html"
+    },
+    {
+      "title": "HP EliteBook 840 G8 Memory Module Replacement",
+      "publisher": "iFixit",
+      "url": "https://www.ifixit.com/Guide/HP+Elitebook+840+G8+Memory+Module+Replacement/186237"
+    },
+    {
+      "title": "Laptop HP EliteBook 840 G8 6Q0N7UC - Cũ Xước Cấn",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/laptop-hp-elitebook-840-g8-6q0n7uc-cu-xuoc-can.html"
+    },
+    {
+      "title": "Lenovo ThinkPad T14 Gen 2 (Intel)",
+      "publisher": "ThinkPro",
+      "url": "https://thinkpro.vn/laptop/lenovo-thinkpad-t14-gen-2-intel?skuId=10751"
+    },
+    {
+      "title": "ThinkPad T14s Gen 2 i7-1185G7 listing",
+      "publisher": "Chợ Tốt",
+      "url": "https://www.chotot.com/mua-ban-laptop-quan-10-tp-ho-chi-minh/133234929.htm"
+    }
+  ],
+  "related": [
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers"
+  ],
+  "lastChecked": "2026-11-24",
+  "images": {
+    "hero": {
+      "id": "866ee22536f5aaf9909d65e85ef7cfc9a5a48882e4fc2bede20e7c39db89fb17",
+      "w": 1672,
+      "h": 941,
+      "alt": "Two illustrated laptops sit beside a balance holding a memory module and a shield.",
+      "caption": "Choosing a used business laptop by model and upgrade options."
+    },
+    "figures": [
+      {
+        "id": "1e93f00e333ebada65953e088bea28f0226bcd85f538008458407e973c4d8558",
+        "w": 1448,
+        "h": 1086,
+        "after": "upgrades",
+        "alt": "Two illustrated boards compare removable memory with fixed chips, above a storage module and magnifying glass.",
+        "caption": "Check whether memory is removable or soldered before choosing a model."
+      },
+      {
+        "id": "882b52d12ca4dc979c01d234828a5665b4bdfabcfae6fc1e0780f3dbc6c470df",
+        "w": 1448,
+        "h": 1086,
+        "after": "checks-before-paying",
+        "alt": "An illustrated laptop is surrounded by a magnifying glass, battery, cable and shield over blank papers.",
+        "caption": "Inspect the laptop and ask for a written warranty before paying."
+      }
+    ]
+  }
+}

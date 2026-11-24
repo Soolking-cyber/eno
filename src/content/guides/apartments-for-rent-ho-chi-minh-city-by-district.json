@@ -1,0 +1,357 @@
+{
+  "slug": "apartments-for-rent-ho-chi-minh-city-by-district",
+  "title": "Apartments for rent in Ho Chi Minh City by district",
+  "description": "Median asking rents by district on 24 November 2026, from studio to two-bed, and how to shortlist, check availability and message landlords on eno.vn.",
+  "h1": "Apartments for rent in Ho Chi Minh City: shortlist by district and price",
+  "eyebrow": "Renting in Saigon",
+  "intro": "Shortlist apartments for rent in Ho Chi Minh City by district: on 24 November 2026, eno.vn's Rent Index put one-bedroom asking rents lowest in District 12 and Go Vap and highest in Thao Dien. Studios were the cheapest and most common homes, with 5,605 of the 6,755 apartments counted that day. These are asking prices, and landlords often agree lower rents.",
+  "keyPoints": [
+    "On 24 November 2026, the eno.vn Rent Index put the city-wide median asking rent at {{vnd:4300000}} a month for a studio, {{vnd:8800000}} for a one-bedroom and {{vnd:19600000}} for a two-bedroom apartment.",
+    "Of the 13 districts with a one-bedroom figure on 24 November 2026, District 12 ({{vnd:5800000}}), Go Vap ({{vnd:6600000}}) and Tan Phu ({{vnd:7000000}}) were the cheapest. District 2 (Thao Dien) ({{vnd:23800000}}) and District 1 ({{vnd:19900000}}) were among the dearest.",
+    "The figures are asking prices from live listings, not signed leases. The Rent Index says landlords and agents often agree lower rents.",
+    "Listings still use the old district names. Since July 2025, official addresses use ward names instead, such as Saigon Ward, which took in the old Ben Nghe Ward.",
+    "On eno.vn rentals, \"Check availability\" asks the eno team to check up to 5 homes for you. Listings from official partners such as GoPlus are answered by the partner in eno.vn chat."
+  ],
+  "sections": [
+    {
+      "id": "apartment-for-rent-in-ho-chi-minh-city-prices-by-district",
+      "title": "How much is an apartment for rent in Ho Chi Minh City, by district?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The rent depends mostly on the district and the number of bedrooms. On 24 November 2026, the eno.vn Rent Index put median one-bedroom asking rents between {{vnd:5800000}} a month in District 12 and {{vnd:23800000}} in District 2 (Thao Dien). Across the whole city that day, the median one-bedroom was {{vnd:8800000}} and the median studio {{vnd:4300000}}."
+        },
+        {
+          "type": "p",
+          "text": "The **eno.vn Rent Index** is eno.vn's own measure of rents. It gives median asking rents for the homes listed on eno.vn, by district and type of home, on [the Rent Index page](/hcmc-rent-index). Its method notes say it is recalculated daily, counts only monthly rents from {{vnd:1000000}} to {{vnd:500000000}}, and publishes a median only when at least 10 listings back it. Its 24 November 2026 snapshot was built from the own listings of three official eno.vn partners (GoPlus, Housing Saigon and Saigon Cribs) and from listings posted by eno.vn members."
+        },
+        {
+          "type": "table",
+          "caption": "Median monthly asking rent by district, eno.vn Rent Index, 24 November 2026. Districts with a one-bedroom figure, cheapest one-bedroom first. A dash means fewer than 10 listings.",
+          "headers": [
+            "District",
+            "Studio",
+            "1 bedroom",
+            "2 bedrooms",
+            "Apartments listed"
+          ],
+          "rows": [
+            [
+              "District 12",
+              "{{vnd:4000000}}",
+              "{{vnd:5800000}}",
+              "—",
+              "1,106"
+            ],
+            [
+              "Go Vap",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:7800000}}",
+              "1,575"
+            ],
+            [
+              "Tan Phu",
+              "{{vnd:3900000}}",
+              "{{vnd:7000000}}",
+              "—",
+              "262"
+            ],
+            [
+              "Tan Binh",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:10500000}}",
+              "379"
+            ],
+            [
+              "Phu Nhuan",
+              "{{vnd:5300000}}",
+              "{{vnd:8000000}}",
+              "—",
+              "162"
+            ],
+            [
+              "District 10",
+              "{{vnd:6500000}}",
+              "{{vnd:8700000}}",
+              "{{vnd:12900000}}",
+              "84"
+            ],
+            [
+              "Binh Thanh",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:11000000}}",
+              "597"
+            ],
+            [
+              "District 3",
+              "{{vnd:6400000}}",
+              "{{vnd:10100000}}",
+              "—",
+              "98"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "{{vnd:5400000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:16800000}}",
+              "103"
+            ],
+            [
+              "District 4",
+              "{{vnd:7200000}}",
+              "{{vnd:15300000}}",
+              "{{vnd:22800000}}",
+              "60"
+            ],
+            [
+              "District 1",
+              "{{vnd:6500000}}",
+              "{{vnd:19900000}}",
+              "{{vnd:34800000}}",
+              "203"
+            ],
+            [
+              "Thu Duc City (all, incl. Districts 2 and 9)",
+              "{{vnd:4200000}}",
+              "{{vnd:22700000}}",
+              "{{vnd:27600000}}",
+              "698"
+            ],
+            [
+              "District 2 (Thao Dien)",
+              "—",
+              "{{vnd:23800000}}",
+              "{{vnd:30900000}}",
+              "300"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Small samples move fast",
+          "text": "Some medians rest on very few listings. In the 24 November 2026 snapshot, District 4's one-bedroom figure came from 10 listings, District 10's two-bedroom figure from 10, Phu Nhuan's one-bedroom from 13 and District 12's one-bedroom from 16. A few new listings can shift figures like these by millions of đồng, so check [the Rent Index](/hcmc-rent-index) again before you fix a budget."
+        }
+      ]
+    },
+    {
+      "id": "which-district-fits-my-budget",
+      "title": "Which district should I rent an apartment in for my budget?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Start with the one-bedroom column, or the studio column if you live alone on a tight budget. Then keep two or three districts that are an easy trip from where you work. The bands below use the 24 November 2026 Rent Index medians in the table above. Half the listings in each district asked less than the median and half asked more."
+        },
+        {
+          "type": "h3",
+          "text": "Where can I rent a one-bedroom below the city median?"
+        },
+        {
+          "type": "p",
+          "text": "On 24 November 2026, six districts had median one-bedroom asking rents below the city-wide {{vnd:8800000}}: District 12, Go Vap, Tan Phu, Tan Binh, Phu Nhuan and District 10. Go Vap and District 12 also had the most apartments listed, at 1,575 and 1,106, but most of those were studios. Binh Thanh came in just above the median at {{vnd:9000000}}."
+        },
+        {
+          "type": "h3",
+          "text": "Where are the dearest apartments for rent in HCMC?"
+        },
+        {
+          "type": "p",
+          "text": "On 24 November 2026, District 2 (Thao Dien), Thu Duc City as a whole and District 1 had the highest one-bedroom medians, all above {{vnd:19000000}}. District 1 also topped the two-bedroom column at {{vnd:34800000}}. District 7 (Phu My Hung) and District 4 sat in the middle, at around {{vnd:15000000}} for a one-bedroom."
+        },
+        {
+          "type": "h3",
+          "text": "Is a studio counted as a one-bedroom in these figures?"
+        },
+        {
+          "type": "p",
+          "text": "No. Since 21 October 2026 the index has counted studios and duplex rooms as a separate band, so they are left out of the one-bedroom figure. Studios set the bottom of the market. On 24 November 2026, studio medians ranged from {{vnd:3000000}} in Binh Tan to {{vnd:7200000}} in District 4. Binh Tan, Binh Chanh, Hoc Mon and Nha Be had the lowest overall apartment medians that day, but too few one-bedroom listings for a figure."
+        },
+        {
+          "type": "p",
+          "text": "For what each area is like to live in, see [Ho Chi Minh City districts: a newcomer's guide](/guides/ho-chi-minh-city-districts). If you work at a school, [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) compares the districts by commute."
+        }
+      ]
+    },
+    {
+      "id": "district-names-after-july-2025",
+      "title": "Why do apartments in HCM still say District 1 if districts were abolished?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Listings still say District 1 because landlords and renters still use the old names. The district level of local government was removed from 1 July 2025, and official addresses now use ward and commune names."
+        },
+        {
+          "type": "p",
+          "text": "According to [VietnamNet's report on Resolution 1685](https://vietnamnet.vn/en/ho-chi-minh-city-creates-con-dao-special-district-new-saigon-ward-2412311.html), Ho Chi Minh City now has 168 commune-level units: 113 wards, 54 communes and the Con Dao special zone. For example, the new Saigon Ward took in all of the old Ben Nghe Ward and parts of Da Kao and Nguyen Thai Binh. The Rent Index names districts the way listings do. Its method notes also point out that the city now includes the former Binh Duong and Ba Ria–Vung Tau provinces, and that Districts 2 and 9 keep their own rows inside Thu Duc City."
+        }
+      ]
+    },
+    {
+      "id": "how-to-shortlist-apartments-on-eno",
+      "title": "How do I find an apartment for rent in Ho Chi Minh City on eno.vn?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Go to [Ho Chi Minh City rentals](/c/rentals), narrow the list by area, sort it by price, and send only your real shortlist for a check. The labels below are the ones the page showed on 24 November 2026."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Pick an area",
+              "text": "Under \"By area\", choose one district at a time, such as Go Vap District, Binh Thanh District, District 1 or Thu Duc City. District 2 (Thu Duc) and District 9 (Thu Duc) have their own links too."
+            },
+            {
+              "title": "Narrow the results",
+              "text": "Open \"Filters\" to narrow the list further. Then compare each listing with its district's median on [the Rent Index](/hcmc-rent-index) to see whether it is cheap or dear for the area."
+            },
+            {
+              "title": "Sort the list",
+              "text": "Under \"Sort by\", choose \"Price low → high\" to see the cheapest first or \"Newest\" to see the latest. \"Map\" shows listings on a map, which helps you judge the commute."
+            },
+            {
+              "title": "Read each listing in full",
+              "text": "Note the floor area, furnishing, deposit and any separate charges for electricity, water, service and parking. Studios are often small, so compare floor area as well as price."
+            },
+            {
+              "title": "Check availability or chat",
+              "text": "Add the homes you are serious about to \"Check availability\". On an official partner's listing, message the partner in eno.vn chat. Do this before you arrange a viewing."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Budget in đồng",
+          "text": "eno.vn shows a rough dollar figure next to each price on the rentals page. Set your budget from the đồng amount, because that is what the landlord will ask for and what the Rent Index measures."
+        }
+      ]
+    },
+    {
+      "id": "check-availability-and-message-landlords",
+      "title": "How do I check availability and message a landlord?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "It depends who posted the listing. On most homes, the \"Check availability\" button asks the eno team to find out whether the home is still free. On an official partner's own listings, such as GoPlus, the partner answers you in eno.vn chat."
+        },
+        {
+          "type": "h3",
+          "text": "How does the check availability button work?"
+        },
+        {
+          "type": "p",
+          "text": "On 24 November 2026 the rentals page said: \"Pick up to 5 rentals and the eno team checks availability for you\", and the button read \"Free check, up to 5 rentals\". Because the limit is five, save it for your final shortlist, not every listing you like."
+        },
+        {
+          "type": "h3",
+          "text": "Who answers on a partner's listing?"
+        },
+        {
+          "type": "p",
+          "text": "GoPlus is an official eno.vn partner that lists apartments in [the rentals section](/c/rentals). You can see its homes on [the GoPlus storefront](/goplus). Replies arrive under Messages once you are signed in. If something goes wrong with a listing or a chat, [the help centre](/help) explains what to do."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "See the home before you pay",
+          "text": "Do not pay a deposit or a holding fee until you have seen the home and know who owns it. [Renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner) covers viewings and the checks to make before you sign."
+        }
+      ]
+    },
+    {
+      "id": "whats-included-in-the-rent",
+      "title": "What does apartment rent in HCMC include?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Rent usually covers the home itself. Electricity, water, a building service fee and motorbike parking may be charged separately, and each landlord sets its own rates. Read the costs on each listing, ask about anything missing, and get the rates in writing before you sign."
+        },
+        {
+          "type": "p",
+          "text": "Deposits and notice periods also vary from landlord to landlord. Getting a deposit back is covered in [rental deposits in Vietnam](/rental-deposit-vietnam), and leases and bills in [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner)."
+        },
+        {
+          "type": "h3",
+          "text": "Can I negotiate the asking rent?"
+        },
+        {
+          "type": "p",
+          "text": "Often, yes. The Rent Index says its figures are asking prices from live listings, not signed leases, and that landlords and agents often agree lower rents. Use the district median as your guide when you make an offer."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Renting in Hanoi: see [apartments for rent in Tay Ho](/guides/apartment-for-rent-in-tay-ho).",
+            "Lease terms, viewings and the landlord's residence declaration: see [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner).",
+            "Furnishing a flat and moving in: see [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam) and [moving apartment in Saigon](/guides/saigonmoving).",
+            "Houses and rooms: on 24 November 2026, the Rent Index had no room listings, and house figures only for Thu Duc City and District 2."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How much is an apartment for rent in Ho Chi Minh City?",
+      "a": "Apartment rent in Ho Chi Minh City depends mainly on the district and the number of bedrooms. On 24 November 2026, the eno.vn Rent Index put a one-bedroom in Thao Dien or District 1 at well over twice the city-wide median, while District 12, Go Vap and Tan Phu sat below it. Studios were the cheapest homes. The figures by district are in the table above, and they are asking prices, so signed rents are often lower."
+    },
+    {
+      "q": "What is the cheapest district to rent an apartment in HCMC?",
+      "a": "On 24 November 2026, District 12 had the lowest median one-bedroom asking rent in the eno.vn Rent Index, followed by Go Vap and Tan Phu. Go Vap and District 12 also had the most apartments listed, though most were studios. For any apartment type, Binh Tan, Hoc Mon and Binh Chanh had the lowest overall medians that day, but too few one-bedroom listings for a one-bedroom figure."
+    },
+    {
+      "q": "Where is the most expensive area to rent an apartment in Ho Chi Minh City?",
+      "a": "On 24 November 2026, District 2 (Thao Dien) had the highest median one-bedroom asking rent in the eno.vn Rent Index. Thu Duc City as a whole and District 1 came next. District 1 had the highest median two-bedroom asking rent that day. In all three areas, a typical one-bedroom asked more than twice the city-wide median one-bedroom rent."
+    },
+    {
+      "q": "How do I check if an apartment for rent in HCM is still available on eno.vn?",
+      "a": "On most eno.vn rental listings in Ho Chi Minh City, the Check availability button asks the eno team to find out whether the home is still free. On 24 November 2026, the rentals page described this as a free check covering up to 5 rentals. Listings from an official eno.vn partner such as GoPlus are answered by the partner in eno.vn chat instead."
+    },
+    {
+      "q": "Is apartment rent in Ho Chi Minh City negotiable?",
+      "a": "Apartment rent in Ho Chi Minh City is often negotiable. The eno.vn Rent Index says its figures are asking prices from live listings, not signed leases, and that landlords and agents often agree lower rents. Compare a listing with its district's median on the Rent Index before you make an offer, and agree the final rent and all extra charges in writing."
+    },
+    {
+      "q": "Do apartments for rent in HCMC still use district names like District 1?",
+      "a": "Yes. Apartment listings in Ho Chi Minh City still use the old district names, such as District 1, Binh Thanh and District 7. The district level was removed from 1 July 2025, and official addresses now use one of the city's 168 ward, commune and special-zone units. That is why a listing may give a new ward name alongside the old district."
+    },
+    {
+      "q": "What bills do I pay on top of rent for an apartment in Ho Chi Minh City?",
+      "a": "For an apartment in Ho Chi Minh City, electricity, water, a building service fee and motorbike parking may be charged on top of the rent. Each landlord sets its own rates and method, for example per kWh or per person. Read the costs on each listing, ask about anything not shown, and get every rate in writing before signing the lease."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Ho Chi Minh City Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Homes for rent in Ho Chi Minh City",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/c/rentals"
+    },
+    {
+      "title": "Ho Chi Minh City creates Con Dao special district, new Saigon ward",
+      "publisher": "VietnamNet",
+      "url": "https://vietnamnet.vn/en/ho-chi-minh-city-creates-con-dao-special-district-new-saigon-ward-2412311.html"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "getting-around-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-24"
+}

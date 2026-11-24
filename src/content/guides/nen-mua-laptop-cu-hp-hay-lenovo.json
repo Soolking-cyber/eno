@@ -1,0 +1,434 @@
+{
+  "slug": "nen-mua-laptop-cu-hp-hay-lenovo",
+  "title": "Nên mua laptop cũ HP hay Lenovo? EliteBook và ThinkPad",
+  "description": "So sánh laptop cũ HP EliteBook, ProBook và Lenovo ThinkPad: bàn phím, cổng kết nối, RAM hàn hay có khe, cách kiểm tra bảo hành và giá máy cũ ở TP.HCM.",
+  "h1": "Notebook HP hay Lenovo: cách chọn laptop cũ phù hợp",
+  "eyebrow": "Mua đồ điện tử",
+  "intro": "Khi mua cũ, HP EliteBook và Lenovo ThinkPad dòng T gần như ngang nhau. Theo thông số đọc ngày 24/11/2026, khác biệt lớn nhất nằm ở khả năng nâng cấp: EliteBook 840 G8 có 2 khe RAM, ThinkPad T14s không có khe nào. Vì vậy hãy chọn đúng mẫu máy trước khi chọn hãng. Ưu tiên dòng doanh nhân hơn dòng phổ thông, kiểm tra RAM có bị hàn không, tra số serial trên trang của hãng và mua ở nơi ghi bảo hành bằng giấy.",
+  "keyPoints": [
+    "So dòng máy chứ đừng so logo. Theo bảng thuật ngữ laptop doanh nghiệp HP đăng tháng 10/2026, HP có ProBook (doanh nghiệp phổ thông), EliteBook (doanh nghiệp cao cấp) và ZBook (máy trạm di động).",
+    "**RAM là điểm cần để ý nhất.** Bảng PSREF của Lenovo ghi RAM của ThinkPad T14s Gen 1 và T14s Gen 4 được hàn lên bo mạch, không có khe. T14 Gen 1 bản thường có 1 khe SO-DIMM, còn iFixit cho thấy HP EliteBook 840 G8 có 2 khe.",
+    "Bàn phím trên dòng doanh nhân của cả hai hãng đều chống tràn nước. Chính HP nói chống tràn không có nghĩa là laptop chống nước, và đạt bài kiểm tra MIL-STD-810 không phải là chứng nhận của quân đội.",
+    "Hãy tra số serial trên trang của hãng trước khi trả tiền. Công cụ của HP hỏi quốc gia nơi máy được mua, và theo HP, bảo hành tính từ ngày mua.",
+    "Ngày 24/11/2026, một chiếc EliteBook 840 G8 cũ (i7, 16GB, 512GB) được niêm yết {{vnd:7790000}} kèm bảo hành cửa hàng 6 tháng tại CellphoneS. Một chiếc ThinkPad T14s Gen 2 đăng {{vnd:12000000}} trên Chợ Tốt."
+  ],
+  "sections": [
+    {
+      "id": "nen-mua-hp-hay-lenovo",
+      "title": "Laptop cũ nên mua HP hay Lenovo?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Không hãng nào thắng tuyệt đối. **Dòng máy và đời máy quan trọng hơn logo.** HP EliteBook và Lenovo ThinkPad dòng T đều là máy doanh nhân, có bàn phím chống tràn và đã qua kiểm tra độ bền. Khi mua cũ, cả hai thường an toàn hơn dòng phổ thông của chính hãng đó. Những khác biệt bạn thấy sau khi mua tùy vào từng mẫu, nhất là chuyện máy có nâng cấp RAM được hay không."
+        },
+        {
+          "type": "p",
+          "text": "HP tự mô tả ba dòng máy doanh nghiệp của mình như sau. ProBook dành cho doanh nghiệp nhỏ đang phát triển và việc văn phòng hằng ngày. EliteBook là dòng cao cấp, vật liệu tốt hơn, nhiều tính năng bảo mật và riêng tư hơn. ZBook là máy trạm di động. Các mô tả này lấy từ [bảng thuật ngữ laptop doanh nghiệp của HP](https://www.hp.com/us-en/tech-takes/business/glossary/business-laptops.html), đăng ngày 22/10/2026. Lenovo công bố thông số chi tiết của từng mẫu ThinkPad trong PSREF (Product Specifications Reference), và các số liệu Lenovo trong bài đều lấy từ đó."
+        },
+        {
+          "type": "table",
+          "caption": "Các dòng máy doanh nhân hay gặp trên thị trường máy cũ, theo trang của HP và bảng PSREF của Lenovo (đọc ngày 24/11/2026)",
+          "headers": [
+            "Dòng máy",
+            "Hãng định vị",
+            "Khi mua cũ nên biết"
+          ],
+          "rows": [
+            [
+              "HP ProBook",
+              "Doanh nghiệp phổ thông: bảo mật và quản lý cơ bản với giá dễ tiếp cận hơn (HP)",
+              "Máy doanh nhân HP rẻ nhất. HP nói máy bền nhưng không cứng cáp bằng EliteBook"
+            ],
+            [
+              "HP EliteBook",
+              "Doanh nghiệp cao cấp: vật liệu cao cấp, bảo mật và riêng tư nâng cao (HP)",
+              "Vỏ kim loại, theo HP đã qua kiểm tra MIL-STD 810. Hay gặp ở hàng thanh lý văn phòng"
+            ],
+            [
+              "HP ZBook",
+              "Máy trạm di động, CPU và đồ họa cấp máy trạm (HP)",
+              "Nặng hơn, đắt hơn. Chỉ đáng mua nếu bạn cần card đồ họa"
+            ],
+            [
+              "Lenovo ThinkPad T14",
+              "ThinkPad bản thường: TrackPoint, bàn phím chống tràn, đạt kiểm tra MIL-STD-810G (PSREF)",
+              "Dày hơn. Bản Gen 1 có cổng LAN và 1 khe RAM"
+            ],
+            [
+              "Lenovo ThinkPad T14s",
+              "ThinkPad bản mỏng (PSREF)",
+              "Nhẹ hơn, nhưng RAM hàn chết, không có khe ở bản Gen 1 và Gen 4"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dong-may-hp-va-lenovo",
+      "title": "Nên chọn dòng nào của HP và Lenovo?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu cần một chiếc laptop cũ dùng được vài năm, hãy xem HP EliteBook và Lenovo ThinkPad dòng T trước, còn HP ProBook khi ngân sách eo hẹp. HP nói trong cùng một dòng, số hiệu càng cao thì thiết kế, tính năng và hiệu năng thường càng cao. Ví dụ EliteBook 840 đứng trên ProBook 440."
+        },
+        {
+          "type": "h3",
+          "text": "EliteBook khác ProBook ở điểm nào?"
+        },
+        {
+          "type": "p",
+          "text": "Khác ở độ hoàn thiện và bảo mật. [Bài so sánh EliteBook và ProBook của HP](https://www.hp.com/gb-en/tech-takes/laptops/comparison/elitebook-vs-probook.html) viết EliteBook có vỏ hoàn toàn bằng kim loại và đã qua kiểm tra MIL-STD 810. ProBook được mô tả là bền nhưng không cứng cáp bằng, nhắm tới doanh nghiệp vừa và nhỏ cùng người dùng muốn tiết kiệm. Cả hai dòng đều có HP Wolf Security. Một số mẫu EliteBook có thêm màn hình chống nhìn trộm Sure View."
+        },
+        {
+          "type": "p",
+          "text": "Có một tính năng bảo mật của HP quan trọng với máy cũ hơn là với máy mới. Theo bảng thuật ngữ tháng 10/2026 của HP, HP Sure Start là BIOS tự phục hồi: máy kiểm tra BIOS mỗi lần khởi động và tự khôi phục bản sạch nếu phát hiện bị can thiệp hoặc lỗi. Tính năng này thay đổi tùy mẫu, nên hãy xem bảng thông số của đúng mẫu máy bạn định mua."
+        },
+        {
+          "type": "h3",
+          "text": "Vì sao ThinkPad T14 và T14s khác nhau nhiều vậy?"
+        },
+        {
+          "type": "p",
+          "text": "Tên gần giống nhau nhưng bên trong khác hẳn. Chữ 's' là bản mỏng, và mỏng thì phải bớt cổng và bớt khả năng nâng cấp. Theo [bảng PSREF của T14 Gen 1 (Intel)](https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14_Gen_1_Intel/ThinkPad_T14_Gen_1_Intel_Spec.html), máy nặng từ 1,49 kg, có 1 khe RAM và cổng LAN RJ-45 đầy đủ. [T14s Gen 1 (Intel)](https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_1_Intel/ThinkPad_T14s_Gen_1_Intel_Spec.html) nặng từ 1,27 kg, RAM hàn, và chỉ có đầu nối mở rộng Ethernet, phải mua thêm bộ chuyển mới cắm được dây mạng."
+        }
+      ]
+    },
+    {
+      "id": "ban-phim",
+      "title": "Bàn phím HP và Lenovo khác nhau thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trên dòng doanh nhân, cả hai hãng đều dùng bàn phím chống tràn. Thứ riêng của Lenovo là TrackPoint, cái núm đỏ nằm giữa bàn phím để di chuột. Bảng PSREF của T14 Gen 1 và T14s Gen 4 đều ghi bàn phím 6 hàng chống tràn, có phím Fn đa phương tiện. Bảng của T14 Gen 1 còn ghi TrackPoint đi kèm touchpad cảm ứng đa điểm. HP thì nói laptop doanh nghiệp thường có bàn phím chống tràn, và một số mẫu có cần trỏ (pointing stick)."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Chống tràn không phải chống nước",
+          "text": "Bảng thuật ngữ của chính HP viết bàn phím chống tràn không làm laptop chống nước. Đạt các bài kiểm tra MIL-STD-810 cũng không làm máy thành máy siêu bền, và đó không phải chứng nhận do quân đội cấp. Với máy cũ, từng bị đổ nước thì phím thường bị dính hoặc liệt. Hãy gõ thử từng phím, kể cả phím Fn và phím mũi tên, trước khi trả tiền."
+        },
+        {
+          "type": "p",
+          "text": "Đèn nền bàn phím không phải máy nào cũng có. Trên ThinkPad T14 Gen 1 và T14s Gen 1, PSREF ghi đèn nền LED là **tùy chọn**, nên hai máy cùng tên có thể khác nhau. Hãy bật thử đèn ngay tại cửa hàng thay vì tin vào tin đăng."
+        }
+      ]
+    },
+    {
+      "id": "cong-ket-noi",
+      "title": "Máy có những cổng kết nối nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "ThinkPad và EliteBook dòng doanh nhân vẫn giữ cổng USB-A và HDMI cỡ lớn bên cạnh USB-C hoặc Thunderbolt, nên hiếm khi phải mua thêm hub để cắm máy chiếu. Bộ cổng thay đổi theo từng đời máy, có khi theo từng cấu hình, nên hãy xem bảng thông số đúng mẫu và đúng đời người bán đưa ra. Sau đó nhờ người bán chụp ảnh hai cạnh máy."
+        },
+        {
+          "type": "table",
+          "caption": "Cổng kết nối trên ba đời ThinkPad, theo bảng PSREF của Lenovo (đọc ngày 24/11/2026)",
+          "headers": [
+            "Mẫu máy",
+            "USB",
+            "Xuất hình",
+            "Mạng và cổng khác"
+          ],
+          "rows": [
+            [
+              "ThinkPad T14 Gen 1 (Intel)",
+              "2× USB-A 3.2 Gen 1, 1× USB-C 3.2 Gen 1, 1× USB-C/Thunderbolt 3",
+              "HDMI 1.4b",
+              "LAN RJ-45, khe thẻ microSD, cổng dock cạnh máy"
+            ],
+            [
+              "ThinkPad T14s Gen 1 (Intel)",
+              "2× USB-A 3.2 Gen 1, 1× USB-C 3.2 Gen 1, 1× USB-C/Thunderbolt 3",
+              "HDMI 1.4b",
+              "Đầu nối mở rộng Ethernet (cần bộ chuyển), cổng dock cạnh máy"
+            ],
+            [
+              "ThinkPad T14s Gen 4 (Intel)",
+              "2× USB-A 3.2 Gen 1, 2× Thunderbolt 4 / USB4 40Gbps",
+              "HDMI tới 4K/60Hz",
+              "Không có LAN trên máy. Đầu đọc thẻ thông minh là tùy chọn"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Với máy HP, hãy đọc tài liệu QuickSpecs của đúng mẫu trên trang hỗ trợ của HP. Bố trí cổng trên EliteBook 840 G8 khác nhau giữa các cấu hình, và các trang bán hàng bên ngoài ghi không thống nhất với nhau."
+        }
+      ]
+    },
+    {
+      "id": "nang-cap-ram-ssd",
+      "title": "Có nâng cấp được RAM và ổ cứng không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thường là được, nhưng không phải máy nào cũng vậy. **Máy bản mỏng hay bị hàn RAM, mua máy bao nhiêu RAM thì dùng bấy nhiêu.** Ổ cứng thì dễ hơn: mọi mẫu trong bảng dưới đều có 1 khe M.2 cho SSD. Hãy hỏi người bán đúng đời máy và cấu hình RAM, rồi đối chiếu với bảng thông số."
+        },
+        {
+          "type": "table",
+          "caption": "Khả năng nâng cấp RAM và SSD, theo PSREF của Lenovo, iFixit và CellphoneS (đọc ngày 24/11/2026)",
+          "headers": [
+            "Mẫu máy",
+            "RAM",
+            "Gắn thêm RAM được không?",
+            "SSD"
+          ],
+          "rows": [
+            [
+              "ThinkPad T14 Gen 1 (Intel)",
+              "8GB hoặc 16GB hàn sẵn, cộng 1 khe DDR4 SO-DIMM",
+              "Được, tối đa 40GB hoặc 48GB",
+              "1× M.2, tới 2TB (2280)"
+            ],
+            [
+              "ThinkPad T14s Gen 1 (Intel)",
+              "8, 16 hoặc 32GB hàn sẵn, không có khe",
+              "Không",
+              "1× M.2, tới 2TB (2280)"
+            ],
+            [
+              "ThinkPad T14s Gen 4 (Intel)",
+              "16 hoặc 32GB LPDDR5x hàn sẵn, không có khe",
+              "Không",
+              "1× M.2 2280 PCIe 4.0, tới 2TB"
+            ],
+            [
+              "HP EliteBook 840 G8",
+              "2 khe DDR4 SO-DIMM (iFixit). CellphoneS ghi hỗ trợ tối đa 64GB",
+              "Được",
+              "1× M.2"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Tự nâng RAM cho EliteBook 840 G8 ở nhà được, nhưng không phải việc vài phút. [Hướng dẫn thay RAM của iFixit](https://www.ifixit.com/Guide/HP+Elitebook+840+G8+Memory+Module+Replacement/186237) xếp mức độ trung bình, mất khoảng 20 đến 30 phút, gồm 10 bước. Bạn nới 5 con ốc giữ (không tháo rời), cạy nắp đáy, ngắt pin rồi lật tấm che SSD và RAM. Nếu chỉ lắp một thanh, iFixit dặn cắm vào khe ghi DIMM 1."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "Nếu định dùng máy vài năm, hoặc hay họp và học trực tuyến với nhiều tab trình duyệt mở cùng lúc, hãy mua máy 16GB ngay từ đầu hoặc chọn mẫu còn khe trống. Trên T14s bị hàn RAM, tin đăng ghi bao nhiêu RAM thì bạn dùng đúng bấy nhiêu suốt thời gian giữ máy."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-truoc-khi-tra-tien",
+      "title": "Cần kiểm tra gì trước khi trả tiền cho máy HP, Lenovo cũ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hãy kiểm tra máy đúng là mẫu người bán nói, tra bảo hành trên trang của hãng và thử các bộ phận hay hỏng. Tin đăng ghi sai khá thường xuyên. Một tin trên Chợ Tốt đọc ngày 24/11/2026 ghi tiêu đề là 'T14s Gen 2', nhưng mục dòng máy lại ghi 'T14 Gen 3'. Trang ThinkPad T14 Gen 2 của ThinkPro có phần mô tả ghi cấu hình i5, 8GB, 256GB, khác với cấu hình đang chọn."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Đọc tem và thông tin hệ thống",
+              "text": "HP dán tem số serial trên máy, thường ở mặt sau, mặt đáy hoặc cạnh máy. Nếu mất tem, giữ **Ctrl+Alt+S** để mở cửa sổ HP System Information, theo [hướng dẫn kiểm tra bảo hành của HP](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html). Với ThinkPad, đối chiếu tên mẫu và đời máy với tem dưới đáy."
+            },
+            {
+              "title": "So cấu hình với bảng thông số chính thức",
+              "text": "Tra mẫu máy trên PSREF của Lenovo hoặc QuickSpecs của HP, rồi so RAM, cổng kết nối và màn hình với máy đang được bán."
+            },
+            {
+              "title": "Tra bảo hành với hãng",
+              "text": "Trên HP Product Warranty Checker, chọn quốc gia hoặc khu vực nơi máy được mua rồi nhập số serial. HP nói bảo hành bắt đầu từ ngày mua và hãng có thể yêu cầu hóa đơn để xác nhận ngày đó."
+            },
+            {
+              "title": "Thử các bộ phận hay hao mòn",
+              "text": "Gõ từng phím. Cắm thử từng cổng USB, HDMI và sạc. Xem bản lề và tìm vết móp. Hỏi báo cáo tình trạng pin: CellphoneS ghi rõ máy cũ có hiệu suất pin thấp hơn máy mới và có thể đã qua bảo hành hãng hoặc thay linh kiện."
+            },
+            {
+              "title": "Lấy bảo hành cửa hàng bằng giấy",
+              "text": "Ghi rõ bảo hành mấy tháng, có gồm màn hình và pin không, được đổi trong bao nhiêu ngày. Sau đó giữ hóa đơn."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gia-laptop-cu-tphcm",
+      "title": "EliteBook, ThinkPad cũ ở TP.HCM giá bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Chưa có nguồn nào công bố giá trung bình, nên bảng dưới đây là các tin đăng thật đọc ngày 24/11/2026, không phải khoảng giá thị trường. Giá thay đổi theo hàng có sẵn, nên chỉ xem đây là ví dụ. Cửa hàng có bảo hành, người bán cá nhân thường thì không."
+        },
+        {
+          "type": "table",
+          "caption": "Laptop doanh nhân cũ rao bán ở TP.HCM, đọc ngày 24/11/2026",
+          "headers": [
+            "Tin đăng",
+            "Cấu hình",
+            "Giá",
+            "Bảo hành của người bán"
+          ],
+          "rows": [
+            [
+              "[CellphoneS](https://cellphones.com.vn/laptop-hp-elitebook-840-g8-6q0n7uc-cu-xuoc-can.html), HP EliteBook 840 G8 (cũ, xước cấn; tạm hết hàng)",
+              "i7-1185G7, 16GB, 512GB SSD",
+              "{{vnd:7790000}}, đã gồm VAT",
+              "6 tháng gồm linh kiện, nguồn và màn hình; đổi 1 đổi 1 trong 30 ngày nếu lỗi phần cứng từ nhà sản xuất"
+            ],
+            [
+              "[Chợ Tốt](https://www.chotot.com/mua-ban-laptop-quan-10-tp-ho-chi-minh/133234929.htm), ThinkPad T14s Gen 2 (cửa hàng ở Quận 10)",
+              "i7-1185G7, 16GB, 256GB SSD",
+              "{{vnd:12000000}}, có nút trả giá",
+              "Mô tả ghi 6 tháng phần cứng, mục thông số ghi 4–6 tháng"
+            ],
+            [
+              "[ThinkPro](https://thinkpro.vn/laptop/lenovo-thinkpad-t14-gen-2-intel?skuId=10751), ThinkPad T14 Gen 2 (cũ, nhập khẩu; hết hàng)",
+              "i7-1165G7, 16GB, 512GB SSD",
+              "Không hiển thị giá",
+              "12 tháng, đổi trong 15 ngày. Gói bảo hành toàn diện 24 tháng thêm {{vnd:999000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Tin đăng và người bán vẫn dùng tên quận cũ như Quận 10, nhưng từ tháng 7/2025 địa chỉ chính thức dùng tên phường mới. Chính tin Chợ Tốt ở trên xếp vào mục Quận 10 nhưng ghi địa chỉ thuộc Phường Hòa Hưng."
+        },
+        {
+          "type": "p",
+          "text": "HP Việt Nam có [chương trình Thiết bị Tân trang Được HP Chứng nhận](https://www.hp.com/vn-vi/services/workforce-solutions/workforce-computing/renew-solutions/refurbished-hardware.html), nhắm tới doanh nghiệp. HP cho biết các máy EliteBook 840 G5, G6, G7, G8 và 850 G8 tân trang được bảo hành giới hạn 1 năm cho linh kiện và công sửa, không gồm dịch vụ tại chỗ. Trang không ghi giá, chỉ hướng người mua tới đối tác của HP. Bạn cũng có thể xem laptop cũ trong [mục Đồ điện tử trên eno.vn](/c/electronics)."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Các dòng phổ thông của Lenovo (IdeaPad, Yoga, Legion) và ThinkBook, cũng như HP Pavilion và Envy. Thông số kiểm tra cho bài này chỉ gồm máy dòng doanh nhân.",
+            "MacBook của Apple và laptop gaming.",
+            "Bảo hành hãng của máy cũ có được chuyển nhượng hay sửa tại Việt Nam không. Hãy hỏi tổng đài hỗ trợ của HP hoặc Lenovo kèm số serial.",
+            "Điện thoại. Xem [mua điện thoại ở đâu uy tín](/huong-dan/mua-dien-thoai-o-dau-uy-tin)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Laptop cũ nên mua HP hay Lenovo?",
+      "a": "Với laptop cũ, dòng máy quan trọng hơn hãng. HP EliteBook và Lenovo ThinkPad dòng T đều là máy doanh nhân, có bàn phím chống tràn và đã qua kiểm tra độ bền. Khác biệt thực tế nằm ở từng mẫu: HP EliteBook 840 G8 có hai khe RAM, còn bảng thông số PSREF của Lenovo ghi ThinkPad T14s Gen 1 và Gen 4 hàn RAM, không có khe."
+    },
+    {
+      "q": "ThinkPad T14s có nâng cấp RAM được không?",
+      "a": "ThinkPad T14s Gen 1 và T14s Gen 4 không nâng cấp RAM được, vì bảng PSREF của Lenovo ghi RAM hàn lên bo mạch và không có khe. ThinkPad T14 Gen 1 bản thường thì khác: máy có 8GB hoặc 16GB hàn sẵn cộng một khe DDR4 SO-DIMM, tổng tối đa 40GB hoặc 48GB. Hãy hỏi đúng đời máy trước khi mua."
+    },
+    {
+      "q": "HP EliteBook 840 G8 có mấy khe RAM?",
+      "a": "HP EliteBook 840 G8 có hai khe RAM DDR4 SO-DIMM, theo hướng dẫn thay RAM của iFixit. iFixit xếp việc này ở mức trung bình, mất khoảng 20 đến 30 phút: tháo nắp đáy, ngắt pin rồi lật tấm che RAM. Nếu chỉ lắp một thanh thì cắm vào khe ghi DIMM 1. Máy còn có một khe M.2 cho ổ SSD."
+    },
+    {
+      "q": "HP EliteBook và ProBook khác nhau thế nào?",
+      "a": "HP EliteBook là dòng doanh nghiệp cao cấp của HP, vỏ hoàn toàn bằng kim loại, đã qua kiểm tra MIL-STD 810 và có thêm tính năng bảo mật, riêng tư như màn hình Sure View trên một số mẫu. HP ProBook là dòng doanh nghiệp phổ thông cho doanh nghiệp nhỏ và người muốn tiết kiệm, bền nhưng không cứng cáp bằng. Theo HP, cả hai dòng đều có HP Wolf Security."
+    },
+    {
+      "q": "Cách kiểm tra bảo hành laptop HP cũ?",
+      "a": "Để kiểm tra bảo hành laptop HP, tìm số serial trên tem ở mặt đáy, mặt sau hoặc cạnh máy, hoặc giữ Ctrl+Alt+S để mở HP System Information. Sau đó vào HP Product Warranty Checker, chọn quốc gia hoặc khu vực nơi máy được mua và nhập số serial. HP cho biết bảo hành tính từ ngày mua và có thể yêu cầu hóa đơn."
+    },
+    {
+      "q": "Bàn phím ThinkPad có chống nước không?",
+      "a": "Bàn phím ThinkPad chỉ chống tràn, không chống nước. Bảng PSREF của Lenovo ghi bàn phím chống tràn trên các mẫu như ThinkPad T14 Gen 1 và T14s Gen 4. HP nói điều tương tự về bàn phím máy doanh nghiệp của mình và nhấn mạnh chống tràn không làm laptop chống nước. Khi mua ThinkPad cũ, hãy gõ thử từng phím vì máy từng đổ nước hay bị liệt phím."
+    },
+    {
+      "q": "Mua laptop doanh nhân cũ ở TP.HCM ở đâu?",
+      "a": "Laptop doanh nhân cũ ở TP.HCM được bán ở các chuỗi như CellphoneS và ThinkPro, bởi cửa hàng và cá nhân trên Chợ Tốt, và trong mục Đồ điện tử của eno.vn. Ngày 24/11/2026, CellphoneS bảo hành 6 tháng cho một chiếc EliteBook cũ, còn ThinkPro ghi bảo hành 12 tháng cho một chiếc ThinkPad cũ. Người bán cá nhân thường không bảo hành."
+    }
+  ],
+  "sources": [
+    {
+      "title": "ThinkPad T14 Gen 1 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14_Gen_1_Intel/ThinkPad_T14_Gen_1_Intel_Spec.html"
+    },
+    {
+      "title": "ThinkPad T14s Gen 1 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_1_Intel/ThinkPad_T14s_Gen_1_Intel_Spec.html"
+    },
+    {
+      "title": "ThinkPad T14s Gen 4 (Intel) specifications",
+      "publisher": "Lenovo PSREF",
+      "url": "https://psref.lenovo.com/syspool/Sys/PDF/ThinkPad/ThinkPad_T14s_Gen_4_Intel/ThinkPad_T14s_Gen_4_Intel_Spec.html"
+    },
+    {
+      "title": "Business laptops: glossary (ProBook, EliteBook, ZBook, Sure Start, durability)",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/business/glossary/business-laptops.html"
+    },
+    {
+      "title": "EliteBook vs ProBook",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/comparison/elitebook-vs-probook.html"
+    },
+    {
+      "title": "HP warranty check",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html"
+    },
+    {
+      "title": "Thiết bị Tân trang Được HP Chứng nhận",
+      "publisher": "HP Vietnam",
+      "url": "https://www.hp.com/vn-vi/services/workforce-solutions/workforce-computing/renew-solutions/refurbished-hardware.html"
+    },
+    {
+      "title": "HP EliteBook 840 G8 Memory Module Replacement",
+      "publisher": "iFixit",
+      "url": "https://www.ifixit.com/Guide/HP+Elitebook+840+G8+Memory+Module+Replacement/186237"
+    },
+    {
+      "title": "Laptop HP EliteBook 840 G8 6Q0N7UC - Cũ Xước Cấn",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/laptop-hp-elitebook-840-g8-6q0n7uc-cu-xuoc-can.html"
+    },
+    {
+      "title": "Lenovo ThinkPad T14 Gen 2 (Intel)",
+      "publisher": "ThinkPro",
+      "url": "https://thinkpro.vn/laptop/lenovo-thinkpad-t14-gen-2-intel?skuId=10751"
+    },
+    {
+      "title": "ThinkPad T14s Gen 2 | i7-1185G7 Siêu nhẹ 1.28kg",
+      "publisher": "Chợ Tốt",
+      "url": "https://www.chotot.com/mua-ban-laptop-quan-10-tp-ho-chi-minh/133234929.htm"
+    }
+  ],
+  "related": [
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "your-first-weeks-in-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers"
+  ],
+  "lastChecked": "2026-11-24",
+  "images": {
+    "hero": {
+      "id": "866ee22536f5aaf9909d65e85ef7cfc9a5a48882e4fc2bede20e7c39db89fb17",
+      "w": 1672,
+      "h": 941,
+      "alt": "Hai máy tính xách tay được minh họa cạnh chiếc cân có thanh RAM và biểu tượng chiếc khiên.",
+      "caption": "Chọn laptop doanh nghiệp cũ theo mẫu máy và khả năng nâng cấp."
+    },
+    "figures": [
+      {
+        "id": "1e93f00e333ebada65953e088bea28f0226bcd85f538008458407e973c4d8558",
+        "w": 1448,
+        "h": 1086,
+        "after": "nang-cap-ram-ssd",
+        "alt": "Hai bo mạch minh họa RAM tháo rời và chip gắn cố định, phía dưới là ổ lưu trữ và kính lúp.",
+        "caption": "Kiểm tra RAM tháo rời hay hàn trên bo mạch trước khi chọn mẫu máy."
+      },
+      {
+        "id": "882b52d12ca4dc979c01d234828a5665b4bdfabcfae6fc1e0780f3dbc6c470df",
+        "w": 1448,
+        "h": 1086,
+        "after": "kiem-tra-truoc-khi-tra-tien",
+        "alt": "Một laptop minh họa nằm giữa kính lúp, biểu tượng pin, dây cáp và chiếc khiên trên các tờ giấy trống.",
+        "caption": "Kiểm tra laptop và yêu cầu bảo hành bằng văn bản trước khi thanh toán."
+      }
+    ]
+  }
+}

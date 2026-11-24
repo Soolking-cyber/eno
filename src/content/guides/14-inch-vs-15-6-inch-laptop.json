@@ -1,0 +1,422 @@
+{
+  "slug": "14-inch-vs-15-6-inch-laptop",
+  "title": "14-Inch vs 15.6-Inch Laptop: Which Size to Choose",
+  "description": "How a 14-inch and a 15.6-inch laptop differ in footprint, weight, usable screen area, numpad and ports, with manufacturer figures and a check for used listings.",
+  "h1": "14-inch or 15.6-inch laptop: which size fits the way you work and travel",
+  "eyebrow": "Buying electronics",
+  "intro": "Choose a 14-inch laptop if you carry it most days, and a 15.6-inch one if it mostly stays on a desk. As of November 2026, Dell's matched 14 and 15 models differ by about 4.5 cm in width and up to roughly 0.3 kg. The bigger screen adds width more than height, so the extra space is smaller than the numbers suggest.",
+  "keyPoints": [
+    "Screen size is the diagonal of the visible display only. Two laptops with the same screen size can have different footprints because of their bezels, according to HP Tech Takes, as of November 2026.",
+    "Dell's 14 (DC14250) is 314.00 × 226.15 mm and the Dell 15 (DC15250) is 358.50 × 235.56 mm, according to Dell's US product pages, as of November 2026. The 15 takes up about a fifth more desk or bag area.",
+    "A 15.6-inch 16:9 screen has about 18% more area than a 14-inch 16:10 screen but is only about 0.6 cm taller. Most of the gain is width.",
+    "A number pad is common on 15.6-inch laptops but not guaranteed, so check the keyboard photo of the exact model.",
+    "A larger chassis does not automatically mean a bigger battery or more ports. Dell's matched pair both list a 54 Whr battery, and the 14 has more fast USB ports."
+  ],
+  "sections": [
+    {
+      "id": "start-with-how-you-carry-it",
+      "title": "Start with how you carry it, not how it looks",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Decide by how many hours a week the laptop spends in a bag. If you carry it between home, classes, cafés or clients most days, a 14-inch laptop is usually the better buy. If it lives on one desk and leaves only now and then, the 15.6-inch screen and keyboard are worth the extra bulk."
+        },
+        {
+          "type": "p",
+          "text": "**Screen size** is the diagonal of the visible display, measured corner to corner, and it leaves out the bezel. That is how HP's [laptop screen size guide](https://www.hp.com/us-en/tech-takes/laptops/glossary/size.html) defines it, as of November 2026. It is the same convention TV makers use, which the [42-inch TV dimensions guide](/guides/42-inch-tv-dimensions) explains. So the number on the box tells you about the panel, not the body you carry."
+        },
+        {
+          "type": "p",
+          "text": "HP's guide also notes that thin bezels let a current 14-inch laptop take up roughly the footprint of an older 13-inch model. When you compare two machines, compare their width, depth and weight from the spec sheet, not the screen size alone."
+        }
+      ]
+    },
+    {
+      "id": "what-changes-in-the-chassis",
+      "title": "What actually changes in the chassis",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Going from 14 to 15.6 inches mainly makes the laptop wider, by about 4 to 5 cm. It also makes the laptop slightly deeper and usually a few hundred grams heavier. Thickness barely changes. The cleanest way to see this is one maker's 14-inch and 15-inch models from the same range."
+        },
+        {
+          "type": "table",
+          "caption": "Dell 14 vs Dell 15, from Dell's US product pages (read 24 November 2026; weight varies by configuration)",
+          "headers": [
+            "Spec",
+            "Dell 14 (DC14250)",
+            "Dell 15 (DC15250, plastic)"
+          ],
+          "rows": [
+            [
+              "Screen",
+              "14.0-inch, 1920 × 1200 (16:10)",
+              "15.6-inch, 1920 × 1080 (16:9)"
+            ],
+            [
+              "Width × depth",
+              "314.00 × 226.15 mm",
+              "358.50 × 235.56 mm"
+            ],
+            [
+              "Height",
+              "15.86–18.90 mm",
+              "16.96–18.99 mm"
+            ],
+            [
+              "Weight",
+              "1.56–1.65 kg",
+              "up to 1.90 kg (aluminium version up to 1.94 kg)"
+            ],
+            [
+              "Battery",
+              "54 Whr",
+              "54 Whr"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "According to Dell, as of November 2026, the 15 is 44.5 mm wider and about 9 mm deeper than the 14. That works out to roughly 19% more footprint. The heaviest Dell 15 is about 0.25 to 0.35 kg heavier than the Dell 14."
+        },
+        {
+          "type": "p",
+          "text": "HP's typical ranges point the same way. According to HP Tech Takes, as of November 2026, a 14-inch laptop usually weighs 2.5 to 3.5 lb and a 15.6-inch one 3.5 to 4.5 lb. That is about 1.1 to 1.6 kg against 1.6 to 2.0 kg. HP gives typical footprints of about 12.3 × 8.7 inches and 14.1 × 9.3 inches."
+        }
+      ]
+    },
+    {
+      "id": "where-the-extra-screen-space-goes",
+      "title": "Where the extra screen space actually goes",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A 15.6-inch screen gives you mostly extra width. Most 15.6-inch laptops use a 16:9 panel, while many current 14-inch models use the taller 16:10 shape. Against a 16:10 14-inch screen, a 15.6-inch screen is only marginally taller. Height is what decides how many lines of a document or spreadsheet you see without scrolling."
+        },
+        {
+          "type": "table",
+          "caption": "Approximate visible screen area, calculated from the diagonal and aspect ratio",
+          "headers": [
+            "Screen",
+            "Width × height",
+            "Area",
+            "Compared with 15.6-inch 16:9"
+          ],
+          "rows": [
+            [
+              "14-inch 16:9",
+              "31.0 × 17.4 cm",
+              "about 539 cm²",
+              "about 20% smaller"
+            ],
+            [
+              "14-inch 16:10",
+              "30.2 × 18.9 cm",
+              "about 568 cm²",
+              "about 15% smaller"
+            ],
+            [
+              "15.6-inch 16:9",
+              "34.5 × 19.4 cm",
+              "about 671 cm²",
+              "—"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "HP's guide says, as of November 2026, that 15.6-inch screens are usually 16:9 and that newer 16-inch laptops often use 16:10. HP gives the example of a 16-inch 16:10 screen at about 13.6 × 8.5 inches, against 13.6 × 7.6 inches for a 15.6-inch 16:9 one. That is the same width with more height, in a similar footprint. If you want the extra height, look at 16-inch models too."
+        },
+        {
+          "type": "p",
+          "text": "Resolution matters as much as size. HP's screen-size buying guide notes that a larger screen does not always mean a higher resolution. A 1920 × 1200 14-inch panel shows more rows of pixels than a 1920 × 1080 15.6-inch one, so on the larger screen you get the same content at a bigger scale, not more of it."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Side-by-side windows",
+          "text": "Extra width helps most when you keep two windows side by side, such as a lesson plan next to a browser or a spreadsheet next to an email. If you mostly work in one full-screen window, a 16:10 14-inch screen loses less than the diagonal suggests."
+        }
+      ]
+    },
+    {
+      "id": "keyboard-numpad-ports-and-cooling",
+      "title": "Keyboard, numpad, ports and cooling",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The keyboard is where a 15.6-inch laptop is most clearly different. The wider deck often has room for a number pad, which a 14-inch laptop usually lacks. Ports and cooling depend far more on the model than on the size, so check the spec sheet of the exact laptop."
+        },
+        {
+          "type": "h3",
+          "text": "Will a 15.6-inch laptop have a number pad?"
+        },
+        {
+          "type": "p",
+          "text": "A 15.6-inch laptop often has a number pad, but not always. HP's guide says 15-inch laptops are usually full-size and often include one, as of November 2026. Dell's 15 page describes an \"enlarged ergonomic keyboard\" without saying whether it has a numpad. Look at the keyboard photo of the exact model. On some numpad layouts the main keys sit left of the trackpad's centre, which takes getting used to."
+        },
+        {
+          "type": "h3",
+          "text": "Does the bigger laptop have more ports?"
+        },
+        {
+          "type": "p",
+          "text": "The bigger laptop sometimes has more ports, but you should check. HP's guide says 15-inch laptops often have more ports, including USB-A and HDMI. In Dell's matched pair the reverse is true. According to Dell, as of November 2026, the Dell 14 has two 5 Gbps USB-A ports and a 10 Gbps USB-C port with Power Delivery and DisplayPort. The plastic Dell 15 has one 5 Gbps USB-A port, one USB 2.0 port and a 5 Gbps USB-C port, plus an SD card slot. Its USB-C port gains DisplayPort and Power Delivery only in the aluminium version."
+        },
+        {
+          "type": "h3",
+          "text": "Does a bigger chassis run cooler?"
+        },
+        {
+          "type": "p",
+          "text": "None of the manufacturer pages read for this guide settle whether the bigger chassis runs cooler. A bigger body has more room for heat to spread, but the processor, fan design and thickness matter more. If you will run heavy software in a hot room, read an independent review of the exact model that tests sustained load."
+        }
+      ]
+    },
+    {
+      "id": "portability-by-scenario",
+      "title": "Portability by scenario",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The smaller size wins in any routine where you carry the laptop every day. The larger size wins where it stays in one place. The table below matches common routines to a size and gives the reason."
+        },
+        {
+          "type": "table",
+          "caption": "Which size suits which routine (based on the size and weight figures above)",
+          "headers": [
+            "Routine",
+            "Better fit",
+            "Why"
+          ],
+          "rows": [
+            [
+              "Carried daily between workplaces, on a motorbike or by Grab",
+              "14-inch",
+              "Smaller backpack, less weight on your shoulders in the heat"
+            ],
+            [
+              "Teaching online or tutoring from one home desk",
+              "15.6-inch",
+              "Bigger screen for video plus notes, full-size keyboard"
+            ],
+            [
+              "Spreadsheets, accounts, data entry",
+              "15.6-inch with numpad",
+              "Number pad and wider rows"
+            ],
+            [
+              "Frequent flights and working from cafés",
+              "14-inch",
+              "Fits small tables and seat-back trays more easily"
+            ],
+            [
+              "Used with an external monitor most of the time",
+              "14-inch",
+              "The big screen is redundant at the desk; carry the light one"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If you ride a motorbike to work, a lighter bag matters more than it looks on paper. The [getting around Ho Chi Minh City guide](/teach-in-vietnam/getting-around-ho-chi-minh-city) covers the daily commute. Anyone tutoring or teaching online from home should read the [private tutoring and online teaching guide](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam) for the work itself."
+        }
+      ]
+    },
+    {
+      "id": "apply-it-to-a-used-listing",
+      "title": "How to apply the trade-off to a real used listing",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Find the exact model number and check it against the maker's own spec page before you look at the screen size in the advert. Sellers often list only \"14 inch\" or \"15.6 inch\". The real weight, footprint, panel resolution and keyboard depend on the model and configuration. Dell's pages say weight varies by configuration."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Get the model number",
+              "text": "Ask the seller for a photo of the sticker on the underside or the system information screen. The model number is something like \"DC15250\", not just \"Dell 15\"."
+            },
+            {
+              "title": "Open the maker's spec page",
+              "text": "Search the model number on the maker's own site (Dell, HP, Lenovo, ASUS and so on). Note the width, depth, weight range and panel resolution."
+            },
+            {
+              "title": "Check the aspect ratio",
+              "text": "A resolution of 1920 × 1200 is 16:10 and 1920 × 1080 is 16:9. This tells you how much height you get, as explained above."
+            },
+            {
+              "title": "Check the keyboard and ports",
+              "text": "Compare the keyboard photo with the spec sheet for a numpad. Then check whether the USB-C port supports charging and a display (Power Delivery and DisplayPort) if you plan to use one cable at a desk."
+            },
+            {
+              "title": "Weigh it with the charger",
+              "text": "At the viewing, lift the laptop in your own bag with its charger. That combined weight is what you will carry every day."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Used laptops are listed in [Electronics on eno.vn](/c/electronics). If you are selling one before a move, the [selling up before you leave Vietnam guide](/selling-up-before-you-leave-vietnam) covers how to price and hand over."
+        }
+      ]
+    },
+    {
+      "id": "the-three-questions-people-ask-most",
+      "title": "The three questions people ask most",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Three questions come up most when people compare the two sizes: everyday comfort, battery life and whether 16 inches is a better middle ground. Each answer below is short because the detail is in the sections above."
+        },
+        {
+          "type": "h3",
+          "text": "Is a 14-inch screen big enough for all-day work?"
+        },
+        {
+          "type": "p",
+          "text": "For most office work, writing and web use, a 14-inch screen is big enough. HP's July 2026 screen-size guide calls 14 inches the most balanced size and a default starting point for students, office staff and hybrid workers. HP's buying guide adds that designers and video editors typically need at least 15 inches."
+        },
+        {
+          "type": "h3",
+          "text": "Will the 15.6-inch model's battery last longer?"
+        },
+        {
+          "type": "p",
+          "text": "The 15.6-inch model's battery will not necessarily last longer. HP's buying guide says larger screens use more power and that 15 to 16-inch laptops tend to have shorter battery life. Dell's matched 14 and 15 both list a 54 Whr battery, as of November 2026. Compare battery capacity in Wh on the two spec sheets rather than assuming."
+        },
+        {
+          "type": "h3",
+          "text": "Should I look at 16-inch instead of 15.6-inch?"
+        },
+        {
+          "type": "p",
+          "text": "Look at a 16-inch model if you want the larger size for reading or spreadsheets. HP says a 16-inch 16:10 screen gives more height than a 15.6-inch 16:9 one in a similar footprint, though HP's typical 16-inch weight runs up to 5.5 lb."
+        }
+      ]
+    },
+    {
+      "id": "checklist-before-you-commit",
+      "title": "A short checklist before you commit",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Check these points before you pay, whether you buy new or used."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "How many days a week will the laptop be in a bag? Four or more points to **14-inch**.",
+            "Do you type numbers every day? If yes, confirm a **numpad** on the exact model.",
+            "Is the panel **16:10 or 16:9**, and what resolution? This matters as much as the diagonal.",
+            "Does the **USB-C port** support charging and a display, if you plan to use a monitor?",
+            "What do the laptop and charger weigh **together**, in your own bag?",
+            "Have you checked the **maker's spec page** for the model number, not just the advert?"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Prices of new or used laptops in Vietnam. They vary by model, condition and seller, and no price was confirmed for this guide. Compare current listings in [Electronics](/c/electronics).",
+            "Processor, memory and graphics choices, which matter more than screen size for heavy software. Read an independent review of the exact model.",
+            "Warranty and repair coverage in Vietnam, which depend on the maker and where the laptop was first sold. Ask the maker's local service centre about the serial number."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is 14 inch or 15.6 inch laptop better?",
+      "a": "A 14-inch laptop is better if you carry it most days, and a 15.6-inch laptop is better if it mostly stays on a desk. According to Dell's product pages in November 2026, its matched 15-inch model is 44.5 mm wider than the 14-inch one and up to about 0.3 kg heavier. In return, the 15.6-inch model gives a wider screen and often a number pad."
+    },
+    {
+      "q": "How much bigger is a 15.6 inch laptop than a 14 inch?",
+      "a": "A 15.6-inch laptop is typically about 4 to 5 cm wider and around 1 cm deeper than a 14-inch laptop, with similar thickness. Dell lists its Dell 14 at 314.00 × 226.15 mm and its Dell 15 at 358.50 × 235.56 mm, as of November 2026. That makes the 15.6-inch model's footprint about 19% larger."
+    },
+    {
+      "q": "How much more screen does a 15.6 inch laptop have than a 14 inch?",
+      "a": "A 15.6-inch 16:9 screen has about 24% more area than a 14-inch 16:9 screen and about 18% more than a 14-inch 16:10 screen. Most of the extra space on a 15.6-inch laptop is width. Compared with a 16:10 14-inch panel, the 15.6-inch 16:9 screen is only about 0.6 cm taller."
+    },
+    {
+      "q": "Do 14 inch laptops have a number pad?",
+      "a": "Most 14-inch laptops do not have a number pad, because the keyboard deck is too narrow for one alongside full-size keys. HP's laptop size guide, read in November 2026, says number pads are common on 15-inch laptops. Anyone who types figures daily should check the keyboard photo of the exact model before buying, whatever the screen size."
+    },
+    {
+      "q": "How much does a 15.6 inch laptop weigh?",
+      "a": "A 15.6-inch laptop usually weighs about 1.6 to 2.0 kg, against about 1.1 to 1.6 kg for a 14-inch laptop, according to HP's typical ranges as of November 2026. HP gives these as 3.5 to 4.5 lb and 2.5 to 3.5 lb. The exact weight depends on the model and configuration, so check the maker's spec page."
+    },
+    {
+      "q": "Does a 15.6 inch laptop have better battery life than a 14 inch?",
+      "a": "A 15.6-inch laptop does not automatically have better battery life than a 14-inch one. HP's buying guide says larger screens use more power. Dell's matched Dell 14 and Dell 15 both list a 54 Whr battery, as of November 2026. Compare the battery capacity in watt-hours on each model's spec sheet."
+    },
+    {
+      "q": "Is a 14 inch laptop too small for working all day?",
+      "a": "A 14-inch laptop is not too small for most all-day office work, writing or browsing. HP's July 2026 guide calls 14 inches the most balanced laptop size for students and office workers. People who edit video, design or keep two windows side by side often prefer 15.6 inches or larger, or plug a 14-inch laptop into a monitor."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Dell 15 Laptop (DC15250) tech specs",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/en-us/shop/laptop-computers/spd/dell15laptopdc15250"
+    },
+    {
+      "title": "Dell 14 Laptop (DC14250) tech specs",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/en-us/shop/laptop-computers/spd/dell14laptopdc14250"
+    },
+    {
+      "title": "Laptop Screen Size Guide: How It's Measured, Common Sizes, and Resolution",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/glossary/size.html"
+    },
+    {
+      "title": "How to Choose the Best Laptop Screen Size for Your Needs",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/choosing-the-best-laptop-screen-size.html"
+    },
+    {
+      "title": "Laptop Screen Sizes Explained: 13\" to 17\"",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/laptop-screen-sizes.html"
+    },
+    {
+      "title": "Dell Inspiron 15 3530 specifications",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/Dell-Inspiron-15-3530.777024.0.html"
+    }
+  ],
+  "related": [
+    "getting-around-ho-chi-minh-city",
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "leaving-vietnam-checklist-for-teachers"
+  ],
+  "lastChecked": "2026-11-24",
+  "images": {
+    "hero": {
+      "id": "15f8d53e5b1d7b47233a8f384ee9ba2e5f163fda20a988394ffb1eb535900fae",
+      "w": 1672,
+      "h": 941,
+      "alt": "A compact laptop sits beside a backpack, while a larger laptop rests on a desk beside a mug and plant.",
+      "caption": "Choosing a laptop size for daily travel or desk use."
+    },
+    "figures": [
+      {
+        "id": "cd52d63fd595102755d696fc2adf48f87d6c93452b5ff20f6c166d6a52cb9db6",
+        "w": 1448,
+        "h": 1086,
+        "after": "what-changes-in-the-chassis",
+        "alt": "Two overlapping laptop footprints use colored bands to show differences in width and depth.",
+        "caption": "A conceptual comparison of the desk space each laptop occupies."
+      }
+    ]
+  }
+}

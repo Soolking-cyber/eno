@@ -1,0 +1,411 @@
+{
+  "slug": "nen-mua-laptop-14-inch-hay-15-6-inch",
+  "title": "Nên mua laptop 14 inch hay 15.6 inch? So sánh chi tiết",
+  "description": "Laptop 14 inch và 15.6 inch khác nhau bao nhiêu về kích thước, cân nặng, diện tích màn hình, bàn phím số và cổng kết nối, kèm số liệu của hãng và cách xem máy cũ.",
+  "h1": "Laptop 14 inch hay 15.6 inch: chọn cỡ nào hợp với cách bạn làm việc và di chuyển",
+  "eyebrow": "Mua đồ điện tử",
+  "intro": "Nên chọn laptop 14 inch nếu ngày nào bạn cũng mang máy theo, và 15.6 inch nếu máy chủ yếu nằm trên bàn. Theo Dell, tính đến tháng 11/2026, cặp Dell 14 và Dell 15 chênh nhau 44,5 mm chiều ngang và tối đa khoảng 0,3 kg. Màn hình lớn hơn chủ yếu rộng ra theo chiều ngang, nên phần diện tích tăng thêm nhỏ hơn con số inch gợi ý.",
+  "keyPoints": [
+    "Kích thước màn hình là **đường chéo của phần hiển thị**, không tính viền. Vì vậy hai máy cùng cỡ màn hình vẫn có thể to nhỏ khác nhau, theo hướng dẫn của HP, tính đến tháng 11/2026.",
+    "Theo trang sản phẩm của Dell tại Mỹ, tính đến tháng 11/2026, Dell 14 (DC14250) có kích thước 314,00 × 226,15 mm, còn Dell 15 (DC15250) là 358,50 × 235,56 mm. Máy 15 chiếm thêm khoảng 19% diện tích trên bàn hoặc trong balo.",
+    "Màn hình 15.6 inch tỉ lệ 16:9 có diện tích lớn hơn màn 14 inch 16:10 khoảng 18%, nhưng chỉ cao hơn khoảng 0,6 cm. Phần lớn diện tích tăng thêm nằm ở chiều ngang.",
+    "Laptop 15.6 inch thường có **bàn phím số** nhưng không phải máy nào cũng có. Hãy xem ảnh bàn phím của đúng mã máy.",
+    "Thân máy to hơn không có nghĩa là pin lớn hơn hay nhiều cổng hơn. Cặp Dell 14 và Dell 15 đều ghi pin 54 Wh, và Dell 14 có nhiều cổng USB tốc độ cao hơn."
+  ],
+  "sections": [
+    {
+      "id": "chon-theo-cach-mang-may",
+      "title": "Chọn theo cách bạn mang máy, không phải theo vẻ ngoài",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Câu hỏi nên đặt ra đầu tiên là mỗi tuần laptop nằm trong balo bao nhiêu giờ. Nếu gần như ngày nào bạn cũng mang máy đi học, đi làm, ra quán cà phê hay gặp khách, laptop 14 inch thường là lựa chọn hợp lý hơn. Nếu máy đặt cố định trên một bàn làm việc và chỉ thỉnh thoảng mới mang đi, màn hình và bàn phím của bản 15.6 inch đáng với phần cồng kềnh thêm."
+        },
+        {
+          "type": "p",
+          "text": "**Kích thước màn hình laptop** là độ dài đường chéo của vùng hiển thị, đo từ góc này sang góc kia và không tính phần viền. Đây là cách HP định nghĩa trong [hướng dẫn về kích thước màn hình laptop](https://www.hp.com/us-en/tech-takes/laptops/glossary/size.html), tính đến tháng 11/2026. Tivi cũng được đo theo đúng quy ước này, như bài [kích thước tivi 42 inch](/huong-dan/kich-thuoc-tivi-42-inch) đã giải thích. Con số in trên hộp cho bạn biết về tấm nền, không phải về cái thân máy bạn phải xách."
+        },
+        {
+          "type": "p",
+          "text": "HP cũng lưu ý rằng nhờ viền mỏng, một chiếc laptop 14 inch đời mới có thể chỉ chiếm diện tích tương đương một máy 13 inch đời cũ. Khi so hai máy, hãy so chiều ngang, chiều sâu và cân nặng trên bảng thông số, đừng chỉ nhìn cỡ màn hình."
+        }
+      ]
+    },
+    {
+      "id": "than-may-khac-nhau-bao-nhieu",
+      "title": "Laptop 15.6 inch to hơn 14 inch bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Lên từ 14 inch lên 15.6 inch chủ yếu làm máy rộng thêm khoảng 4–5 cm, sâu thêm chừng 1 cm và thường nặng thêm vài trăm gram. Độ dày gần như không đổi. Cách dễ thấy nhất là so hai mẫu 14 và 15 inch cùng một dòng của cùng một hãng."
+        },
+        {
+          "type": "table",
+          "caption": "Dell 14 và Dell 15, theo trang sản phẩm của Dell tại Mỹ (đọc ngày 24/11/2026; cân nặng thay đổi theo cấu hình)",
+          "headers": [
+            "Thông số",
+            "Dell 14 (DC14250)",
+            "Dell 15 (DC15250, vỏ nhựa)"
+          ],
+          "rows": [
+            [
+              "Màn hình",
+              "14.0 inch, 1920 × 1200 (16:10)",
+              "15.6 inch, 1920 × 1080 (16:9)"
+            ],
+            [
+              "Ngang × sâu",
+              "314,00 × 226,15 mm",
+              "358,50 × 235,56 mm"
+            ],
+            [
+              "Độ dày",
+              "15,86–18,90 mm",
+              "16,96–18,99 mm"
+            ],
+            [
+              "Cân nặng",
+              "1,56–1,65 kg",
+              "tối đa 1,90 kg (bản vỏ nhôm tối đa 1,94 kg)"
+            ],
+            [
+              "Pin",
+              "54 Wh",
+              "54 Wh"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo Dell, tính đến tháng 11/2026, Dell 15 rộng hơn Dell 14 44,5 mm và sâu hơn khoảng 9 mm. Tính ra, Dell 15 chiếm thêm khoảng 19% diện tích. Cấu hình nặng nhất của Dell 15 nặng hơn Dell 14 khoảng 0,25–0,35 kg."
+        },
+        {
+          "type": "p",
+          "text": "Các khoảng điển hình của HP cũng cho thấy điều tương tự. Theo HP, tính đến tháng 11/2026, laptop 14 inch thường nặng 2,5–3,5 lb, còn laptop 15.6 inch nặng 3,5–4,5 lb. Đổi ra là khoảng 1,1–1,6 kg so với 1,6–2,0 kg. HP đưa ra kích thước mặt bằng điển hình khoảng 12,3 × 8,7 inch cho máy 14 inch và 14,1 × 9,3 inch cho máy 15.6 inch."
+        }
+      ]
+    },
+    {
+      "id": "dien-tich-man-hinh-tang-them",
+      "title": "Màn hình 15.6 inch rộng hơn 14 inch bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Phần màn hình tăng thêm của bản 15.6 inch chủ yếu nằm ở chiều ngang. Đa số laptop 15.6 inch dùng tấm nền 16:9, trong khi nhiều mẫu 14 inch hiện nay dùng tỉ lệ 16:10, cao hơn. So với màn 14 inch 16:10, màn 15.6 inch chỉ cao hơn một chút. Mà chiều cao mới quyết định bạn thấy được bao nhiêu dòng văn bản hay bảng tính mà không phải cuộn."
+        },
+        {
+          "type": "table",
+          "caption": "Diện tích hiển thị ước tính, tính từ đường chéo và tỉ lệ khung hình",
+          "headers": [
+            "Màn hình",
+            "Ngang × cao",
+            "Diện tích",
+            "So với 15.6 inch 16:9"
+          ],
+          "rows": [
+            [
+              "14 inch 16:9",
+              "31,0 × 17,4 cm",
+              "khoảng 539 cm²",
+              "nhỏ hơn khoảng 20%"
+            ],
+            [
+              "14 inch 16:10",
+              "30,2 × 18,9 cm",
+              "khoảng 568 cm²",
+              "nhỏ hơn khoảng 15%"
+            ],
+            [
+              "15.6 inch 16:9",
+              "34,5 × 19,4 cm",
+              "khoảng 671 cm²",
+              "—"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Có nên xem cả laptop 16 inch không?"
+        },
+        {
+          "type": "p",
+          "text": "Nên xem, nếu bạn cần thêm chiều cao màn hình. Theo HP, tính đến tháng 11/2026, màn 15.6 inch thường là 16:9, còn laptop 16 inch đời mới hay dùng 16:10. HP lấy ví dụ màn 16 inch 16:10 có kích thước khoảng 13,6 × 8,5 inch, so với 13,6 × 7,6 inch của màn 15.6 inch 16:9. Hai màn rộng bằng nhau nhưng màn 16 inch cao hơn, trong khi thân máy chênh không nhiều."
+        },
+        {
+          "type": "h3",
+          "text": "Màn to hơn có hiển thị được nhiều nội dung hơn không?"
+        },
+        {
+          "type": "p",
+          "text": "Không hẳn, vì độ phân giải quan trọng ngang với kích thước. [Hướng dẫn chọn cỡ màn hình của HP](https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/choosing-the-best-laptop-screen-size.html) nhấn mạnh rằng màn to hơn không phải lúc nào cũng có độ phân giải cao hơn. Một tấm nền 14 inch 1920 × 1200 có nhiều hàng điểm ảnh hơn tấm 15.6 inch 1920 × 1080. Như vậy trên màn lớn bạn thấy cùng một lượng nội dung, chỉ to hơn, chứ không thấy được nhiều hơn."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Khi nào chiều ngang thật sự có ích",
+          "text": "Chiều ngang tăng thêm có ích nhất khi bạn hay mở hai cửa sổ cạnh nhau, ví dụ bảng tính bên cạnh email, hoặc tài liệu bên cạnh trình duyệt. Nếu bạn chủ yếu làm việc trên một cửa sổ toàn màn hình, màn 14 inch 16:10 thiệt ít hơn nhiều so với con số đường chéo."
+        }
+      ]
+    },
+    {
+      "id": "ban-phim-so-cong-va-tan-nhiet",
+      "title": "Bàn phím số, cổng kết nối và tản nhiệt",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bàn phím là chỗ laptop 15.6 inch khác rõ nhất, vì mặt máy rộng thường đủ chỗ cho cụm phím số mà máy 14 inch hiếm khi có. Còn cổng kết nối và tản nhiệt phụ thuộc vào từng mẫu nhiều hơn là vào kích thước, nên phải xem bảng thông số của đúng máy."
+        },
+        {
+          "type": "h3",
+          "text": "Laptop 15.6 inch có bàn phím số không?"
+        },
+        {
+          "type": "p",
+          "text": "Laptop 15.6 inch thường có bàn phím số nhưng không phải lúc nào cũng có. Theo HP, tính đến tháng 11/2026, laptop 15 inch thường có bàn phím cỡ đầy đủ và hay kèm cụm phím số. Trang Dell 15 chỉ mô tả bàn phím là \"enlarged ergonomic\" (bàn phím công thái học mở rộng) mà không nói có phím số hay không. Hãy xem ảnh bàn phím của đúng mã máy. Trên một số máy có phím số, cụm phím chữ bị lệch sang trái so với touchpad, cần thời gian để quen."
+        },
+        {
+          "type": "h3",
+          "text": "Máy to hơn có nhiều cổng hơn không?"
+        },
+        {
+          "type": "p",
+          "text": "Đôi khi có, nhưng phải kiểm tra. HP cho rằng laptop 15 inch thường có nhiều cổng hơn, gồm cả USB-A và HDMI. Với cặp máy của Dell thì ngược lại. Theo Dell, tính đến tháng 11/2026, Dell 14 có hai cổng USB-A 5 Gbps và một cổng USB-C 10 Gbps hỗ trợ sạc (Power Delivery) và xuất hình (DisplayPort). Dell 15 vỏ nhựa có một cổng USB-A 5 Gbps, một cổng USB 2.0, khe thẻ SD và một cổng USB-C 5 Gbps không ghi hỗ trợ sạc hay xuất hình; Dell ghi cổng USB-C có DisplayPort và Power Delivery chỉ ở bản vỏ nhôm."
+        },
+        {
+          "type": "h3",
+          "text": "Thân máy to hơn có mát hơn không?"
+        },
+        {
+          "type": "p",
+          "text": "Các trang của hãng được đọc cho bài này không trả lời được câu hỏi đó. Thân máy lớn có thêm chỗ để tản nhiệt, nhưng con chip, thiết kế quạt và độ dày ảnh hưởng nhiều hơn. Nếu bạn chạy phần mềm nặng trong phòng nóng, hãy đọc một bài đánh giá độc lập của đúng mẫu máy có thử tải nặng kéo dài."
+        }
+      ]
+    },
+    {
+      "id": "chon-theo-nhu-cau-su-dung",
+      "title": "Chọn theo nhu cầu: đi lại nhiều hay ngồi một chỗ",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cỡ 14 inch hợp với mọi kiểu sinh hoạt phải mang máy theo hằng ngày, còn cỡ 15.6 inch hợp khi máy nằm yên một chỗ. Bảng dưới đây ghép các tình huống thường gặp với cỡ máy phù hợp và lý do."
+        },
+        {
+          "type": "table",
+          "caption": "Cỡ máy nào hợp với nhu cầu nào (dựa trên số liệu kích thước và cân nặng ở trên)",
+          "headers": [
+            "Nhu cầu",
+            "Nên chọn",
+            "Lý do"
+          ],
+          "rows": [
+            [
+              "Sinh viên mang máy lên lớp mỗi ngày, đi xe máy hoặc Grab",
+              "14 inch",
+              "Balo gọn hơn, đỡ nặng vai dưới trời nóng"
+            ],
+            [
+              "Làm việc hoặc dạy online tại một bàn cố định ở nhà",
+              "15.6 inch",
+              "Màn lớn để vừa gọi video vừa xem tài liệu, bàn phím rộng"
+            ],
+            [
+              "Kế toán, nhập liệu, làm bảng tính nhiều",
+              "15.6 inch có phím số",
+              "Có cụm phím số, hàng ngang rộng hơn"
+            ],
+            [
+              "Hay đi công tác, ngồi làm ở quán cà phê",
+              "14 inch",
+              "Dễ đặt trên bàn nhỏ và khay ghế máy bay"
+            ],
+            [
+              "Phần lớn thời gian cắm màn hình rời",
+              "14 inch",
+              "Ở bàn đã có màn lớn, khi mang đi thì chọn máy nhẹ"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn đi xe máy mỗi ngày, một chiếc balo nhẹ hơn vài trăm gram đáng giá hơn nhiều so với vẻ ngoài của con số. Cộng thêm cục sạc, chênh lệch giữa hai cỡ máy còn rõ hơn khi bạn đeo balo cả ngày."
+        }
+      ]
+    },
+    {
+      "id": "ap-dung-khi-mua-laptop-cu",
+      "title": "Cách áp dụng khi xem một chiếc laptop cũ",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trước khi tin con số inch trong tin đăng, hãy tìm đúng mã máy và đối chiếu với trang thông số của hãng. Người bán thường chỉ ghi \"14 inch\" hay \"15.6 inch\", trong khi cân nặng, kích thước, độ phân giải và bàn phím thật sự phụ thuộc vào mẫu và cấu hình. Chính Dell cũng ghi rằng cân nặng thay đổi theo cấu hình."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Xin mã máy",
+              "text": "Nhờ người bán chụp tem dưới đáy máy hoặc màn hình thông tin hệ thống. Mã máy có dạng như \"DC15250\", không chỉ là \"Dell 15\"."
+            },
+            {
+              "title": "Mở trang thông số của hãng",
+              "text": "Tìm mã máy trên trang chính thức của hãng (Dell, HP, Lenovo, ASUS…). Ghi lại chiều ngang, chiều sâu, khoảng cân nặng và độ phân giải màn hình."
+            },
+            {
+              "title": "Xem tỉ lệ màn hình",
+              "text": "Độ phân giải 1920 × 1200 là tỉ lệ 16:10, còn 1920 × 1080 là 16:9. Con số này cho biết màn hình cao bao nhiêu, như đã giải thích ở phần trên."
+            },
+            {
+              "title": "Kiểm tra bàn phím và cổng",
+              "text": "So ảnh bàn phím với bảng thông số để biết có phím số hay không. Nếu định cắm một sợi cáp ở bàn làm việc, kiểm tra cổng USB-C có hỗ trợ sạc và xuất hình (Power Delivery và DisplayPort) không."
+            },
+            {
+              "title": "Cân thử cùng cục sạc",
+              "text": "Khi xem máy, bỏ laptop và cục sạc vào chính balo của bạn rồi nhấc thử. Tổng cân nặng đó mới là thứ bạn mang mỗi ngày."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Laptop cũ được đăng bán trong mục [Đồ điện tử trên eno.vn](/c/electronics). Nếu bạn muốn bán lại máy cũ trước khi đổi máy, bạn cũng có thể đăng tin ở cùng mục này."
+        }
+      ]
+    },
+    {
+      "id": "cau-hoi-thuong-gap-khi-chon-co-man-hinh",
+      "title": "Ba thắc mắc hay gặp nhất",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ba câu hỏi xuất hiện nhiều nhất khi so hai cỡ máy là màn 14 inch có đủ dùng cả ngày không, pin máy to có lâu hơn không, và có nên chọn hẳn 16 inch. Câu trả lời ngắn gọn vì chi tiết đã nằm ở các phần trên."
+        },
+        {
+          "type": "h3",
+          "text": "Màn 14 inch có đủ để làm việc cả ngày không?"
+        },
+        {
+          "type": "p",
+          "text": "Với văn phòng, viết lách và lướt web, màn 14 inch là đủ. [Bài viết về các cỡ màn hình laptop của HP](https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/laptop-screen-sizes.html), đăng ngày 28/7/2026, gọi laptop 14 inch là lựa chọn linh hoạt nhất cho đa số người dùng, cân bằng giữa tính di động và hiệu quả làm việc, hợp với sinh viên, freelancer, nhân viên văn phòng và người làm việc kết hợp. Hướng dẫn chọn màn hình của HP thì cho rằng người làm thiết kế đồ họa và dựng video thường cần màn từ 15 inch trở lên."
+        },
+        {
+          "type": "h3",
+          "text": "Pin laptop 15.6 inch có lâu hơn không?"
+        },
+        {
+          "type": "p",
+          "text": "Không nhất thiết. Hướng dẫn chọn màn hình của HP nói màn hình lớn tốn điện hơn và laptop 15–16 inch thường có thời lượng pin ngắn hơn máy nhỏ. Theo Dell, tính đến tháng 11/2026, Dell 14 và Dell 15 đều ghi pin 54 Wh. Hãy so dung lượng pin (Wh) trên bảng thông số của hai máy thay vì đoán."
+        },
+        {
+          "type": "h3",
+          "text": "Có nên chọn 16 inch thay vì 15.6 inch?"
+        },
+        {
+          "type": "p",
+          "text": "Nên cân nhắc 16 inch nếu bạn chọn máy lớn để đọc tài liệu hay làm bảng tính. Theo HP, màn 16 inch 16:10 cho thêm chiều cao so với màn 15.6 inch 16:9 trong một thân máy cỡ tương tự. Theo HP, tính đến tháng 11/2026, phần lớn laptop 16 inch nặng 4–5 lb (khoảng 1,8–2,3 kg), nên hãy chắc là bạn ít phải mang máy đi."
+        }
+      ]
+    },
+    {
+      "id": "checklist-truoc-khi-mua",
+      "title": "Danh sách kiểm tra trước khi xuống tiền",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Dù mua máy mới hay cũ, hãy trả lời các câu sau trước khi thanh toán."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Mỗi tuần máy nằm trong balo bao nhiêu ngày? Từ bốn ngày trở lên thì nghiêng về **14 inch**.",
+            "Bạn có gõ số mỗi ngày không? Nếu có, xác nhận đúng mã máy có **bàn phím số**.",
+            "Màn hình là **16:10 hay 16:9**, độ phân giải bao nhiêu? Điều này quan trọng ngang với đường chéo.",
+            "**Cổng USB-C** có hỗ trợ sạc và xuất hình không, nếu bạn định cắm màn hình rời?",
+            "Laptop và cục sạc **cộng lại** nặng bao nhiêu khi bỏ vào balo của bạn?",
+            "Bạn đã đối chiếu mã máy với **trang thông số của hãng**, chứ không chỉ đọc tin đăng?"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Giá laptop mới hay cũ tại Việt Nam. Giá thay đổi theo mẫu, tình trạng máy và người bán, và bài này không xác nhận được mức giá nào. Hãy so các tin đang đăng trong mục [Đồ điện tử](/c/electronics).",
+            "Chọn chip, RAM và card đồ họa, những thứ quan trọng hơn cỡ màn hình nếu bạn chạy phần mềm nặng. Hãy đọc bài đánh giá độc lập của đúng mẫu máy.",
+            "Bảo hành và sửa chữa tại Việt Nam, vốn phụ thuộc vào hãng và nơi máy được bán lần đầu. Hãy hỏi trung tâm bảo hành của hãng bằng số serial của máy."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Nên mua laptop 14 inch hay 15.6 inch?",
+      "a": "Laptop 14 inch hợp hơn nếu gần như ngày nào bạn cũng mang máy theo, còn laptop 15.6 inch hợp hơn nếu máy chủ yếu đặt trên bàn. Theo trang sản phẩm của Dell, tính đến tháng 11/2026, Dell 15 rộng hơn Dell 14 44,5 mm và nặng hơn tối đa khoảng 0,3 kg. Đổi lại, laptop 15.6 inch có màn hình rộng hơn và thường có bàn phím số."
+    },
+    {
+      "q": "Laptop 15.6 inch to hơn laptop 14 inch bao nhiêu cm?",
+      "a": "Laptop 15.6 inch thường rộng hơn laptop 14 inch khoảng 4–5 cm và sâu hơn chừng 1 cm, độ dày gần như tương đương. Theo Dell, tính đến tháng 11/2026, Dell 14 có kích thước 314,00 × 226,15 mm và Dell 15 là 358,50 × 235,56 mm. Như vậy mặt bằng của máy 15.6 inch lớn hơn khoảng 19%."
+    },
+    {
+      "q": "Màn hình 15.6 inch lớn hơn 14 inch bao nhiêu?",
+      "a": "Màn hình 15.6 inch tỉ lệ 16:9 có diện tích lớn hơn màn 14 inch 16:9 khoảng 24% và lớn hơn màn 14 inch 16:10 khoảng 18%. Phần lớn diện tích tăng thêm của màn 15.6 inch nằm ở chiều ngang. So với màn 14 inch 16:10, màn 15.6 inch 16:9 chỉ cao hơn khoảng 0,6 cm."
+    },
+    {
+      "q": "Laptop 14 inch có bàn phím số không?",
+      "a": "Phần lớn laptop 14 inch không có bàn phím số, vì mặt máy không đủ rộng để đặt cụm phím số cạnh các phím cỡ đầy đủ. Theo hướng dẫn về kích thước laptop của HP, đọc vào tháng 11/2026, bàn phím số phổ biến ở laptop 15 inch. Người phải gõ số hằng ngày nên xem ảnh bàn phím của đúng mã máy trước khi mua, dù màn hình cỡ nào."
+    },
+    {
+      "q": "Laptop 15.6 inch nặng bao nhiêu kg?",
+      "a": "Laptop 15.6 inch thường nặng khoảng 1,6–2,0 kg, so với khoảng 1,1–1,6 kg của laptop 14 inch, theo các khoảng điển hình của HP tính đến tháng 11/2026. HP ghi các mức này là 3,5–4,5 lb và 2,5–3,5 lb. Cân nặng chính xác của laptop 15.6 inch tùy mẫu và cấu hình, nên hãy xem trang thông số của hãng."
+    },
+    {
+      "q": "Laptop 15.6 inch có pin trâu hơn laptop 14 inch không?",
+      "a": "Laptop 15.6 inch không tự động có pin lâu hơn laptop 14 inch. Hướng dẫn chọn màn hình của HP cho biết màn hình lớn tốn điện hơn. Theo Dell, tính đến tháng 11/2026, cả Dell 14 và Dell 15 đều ghi pin 54 Wh. Muốn biết máy nào pin tốt hơn, hãy so dung lượng pin tính bằng Wh trên bảng thông số của từng mẫu."
+    },
+    {
+      "q": "Laptop 14 inch có quá nhỏ để làm việc cả ngày không?",
+      "a": "Laptop 14 inch không quá nhỏ cho phần lớn công việc văn phòng, viết lách hay lướt web cả ngày. Bài viết ngày 28/7/2026 của HP gọi laptop 14 inch là lựa chọn linh hoạt nhất cho đa số người dùng, kể cả sinh viên và nhân viên văn phòng. Người dựng video, làm thiết kế hoặc hay mở hai cửa sổ cạnh nhau thường chọn từ 15.6 inch trở lên, hoặc cắm laptop 14 inch vào màn hình rời."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Dell 14 Laptop (DC14250) tech specs",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/en-us/shop/laptop-computers/spd/dell14laptopdc14250"
+    },
+    {
+      "title": "Dell 15 Laptop (DC15250) tech specs",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/en-us/shop/laptop-computers/spd/dell15laptopdc15250"
+    },
+    {
+      "title": "Laptop Screen Size Guide: How It's Measured, Common Sizes, and Resolution",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/glossary/size.html"
+    },
+    {
+      "title": "How to Choose the Best Laptop Screen Size for Your Needs",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/choosing-the-best-laptop-screen-size.html"
+    },
+    {
+      "title": "Laptop Screen Sizes Explained: 13\" to 17\"",
+      "publisher": "HP",
+      "url": "https://www.hp.com/us-en/tech-takes/laptops/buyers-guide/laptop-screen-sizes.html"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-24",
+  "images": {
+    "hero": {
+      "id": "15f8d53e5b1d7b47233a8f384ee9ba2e5f163fda20a988394ffb1eb535900fae",
+      "w": 1672,
+      "h": 941,
+      "alt": "Laptop nhỏ gọn đặt cạnh ba lô, còn laptop lớn hơn nằm trên bàn cạnh một chiếc cốc và chậu cây.",
+      "caption": "Chọn kích thước laptop để mang theo hằng ngày hoặc dùng tại bàn."
+    }
+  }
+}
