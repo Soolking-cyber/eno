@@ -16,7 +16,7 @@ import { logError } from '@/lib/log'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { homeMetadata, homeWebPageId, homeWebPageJsonLd } from './home-metadata'
-import { HomeFaq } from '@/components/marketplace/home-faq'
+import { HomeFaq, HomeFaqJsonLd } from '@/components/marketplace/home-faq'
 import { jsonLdText } from '@/lib/home-item-lists'
 import { slimHomeRails } from '@/lib/home-lanes'
 
@@ -196,6 +196,8 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
     <>
     {/* The page itself as a WebPage (home-metadata.ts homeWebPageJsonLd); its lists are ItemLists from the explorer. */}
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeWebPageJsonLd(lang)) }} />
+    {/* The questions' FAQPage + Article JSON-LD up here, before the feed's ~330 KB, where checkers that read only the start find it. */}
+    <HomeFaqJsonLd lang={lang} webPageId={homeWebPageId(lang)} />
     <ListingsExplorer
       categories={categories}
       initialListings={listings}
@@ -211,7 +213,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       homeItemLists
     />
     {/* Seven questions in one accordion, drawn and as FAQPage JSON-LD (home-faq.tsx); after the feed, so products stay first. */}
-    <HomeFaq lang={lang} webPageId={homeWebPageId(lang)} />
+    <HomeFaq />
     </>
   )
 }

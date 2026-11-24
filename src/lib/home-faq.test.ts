@@ -30,8 +30,20 @@ describe('the home FAQ', () => {
   it('the home page renders it after the feed, once (the About block folded into it)', async () => {
     const { readFileSync } = await import('node:fs')
     const src = readFileSync(new URL('../app/[lang]/(home)/page.tsx', import.meta.url), 'utf8')
-    expect(src.indexOf('<HomeFaq lang={lang}')).toBeGreaterThan(src.indexOf('<ListingsExplorer'))
+    expect(src.indexOf('<HomeFaq />')).toBeGreaterThan(src.indexOf('<ListingsExplorer'))
     expect(src).not.toContain('<HomeAbout')
+  })
+
+  it('⛔ its FAQPage + Article JSON-LD render BEFORE the feed, once (checkers read only the HTML\'s first ~200 KB)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(new URL('../app/[lang]/(home)/page.tsx', import.meta.url), 'utf8')
+    const at = src.indexOf('<HomeFaqJsonLd lang={lang}')
+    expect(at).toBeGreaterThan(-1)
+    expect(at).toBeLessThan(src.indexOf('<ListingsExplorer'))
+    expect(src.split('<HomeFaqJsonLd').length).toBe(2)
+    const faq = readFileSync(new URL('../components/marketplace/home-faq.tsx', import.meta.url), 'utf8')
+    // The section draws the questions; only HomeFaqJsonLd writes their JSON-LD, so it is never on the page twice.
+    expect(faq.split('homeFaqJsonLd(lang)').length).toBe(2)
   })
 
   it('the block is an Article by eno.vn, dated, and PART OF the home WebPage, never its main entity', () => {

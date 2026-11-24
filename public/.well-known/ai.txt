@@ -1,0 +1,22 @@
+# ai.txt for eno.vn: what AI crawlers and agents may use, in the robots.txt syntax ai.txt uses.
+# It states the same policy as https://eno.vn/robots.txt (its "User-agent: *" group and Content-Signal line): the public
+# marketplace pages, guides and tools may be read, cited and used for AI answers and training; private, admin and API
+# paths may not. robots.txt stays the rule crawlers obey; this file says the same thing for tools that read ai.txt.
+# Its Allow/Disallow lines are robots.txt's "User-agent: *" group, held equal by src/app/robots.txt/ai-txt.test.ts.
+# Guidance for language models: https://eno.vn/llms.txt (full text: https://eno.vn/llms-full.txt).
+# Agents that act for a person: https://eno.vn/auth.md and the MCP server named in llms.txt.
+
+User-Agent: *
+# Order for readers that take the FIRST rule that matches: the specific Allows, then every Disallow, then Allow: / last.
+# (robots.txt readers take the longest match, so the order changes nothing for them.)
+Allow: /api/v1/status
+Allow: /api/category-rails
+Allow: /api/home/cards
+Disallow: /admin
+Disallow: /api
+Disallow: /appeal
+Disallow: /disputes
+Disallow: /md/
+Disallow: /reports
+Disallow: /unsubscribe
+Allow: /

@@ -22,12 +22,24 @@ const Para = ({ parts, className }: { parts: readonly AboutText[]; className: st
   </p>
 )
 
-export function HomeFaq({ lang, webPageId }: { lang: string; webPageId: string | null }) {
+/**
+ * The questions' JSON-LD: the FAQPage, and the block as an Article (author eno.vn, dated) that is part of the home WebPage, not
+ * its main entity (home-faq.ts). ⚠️ RENDERED AT THE TOP OF THE PAGE, NOT IN THE SECTION (websiteaeogeochecker, 2026-11-24): the
+ * home HTML runs ~777 KB, and checkers that read only its first ~200 KB found "No FAQPage schema" in the section at ~384 KB.
+ * JSON-LD is data, so where it sits changes nothing on screen; the answers are the section's own, from one source.
+ */
+export function HomeFaqJsonLd({ lang, webPageId }: { lang: string; webPageId: string | null }) {
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeFaqJsonLd(lang)) }} />
+      {webPageId ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeQuestionsArticleJsonLd(lang, webPageId)) }} /> : null}
+    </>
+  )
+}
+
+export function HomeFaq() {
   return (
     <section aria-labelledby="home-faq" className="mt-10 border-t border-border pb-8 pt-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeFaqJsonLd(lang)) }} />
-      {/* The block as an Article (author eno.vn, dated), part of the home WebPage, not its main entity (home-faq.ts). */}
-      {webPageId ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(homeQuestionsArticleJsonLd(lang, webPageId)) }} /> : null}
       <p id="home-faq" className="text-base font-bold text-foreground">
         <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
       </p>
