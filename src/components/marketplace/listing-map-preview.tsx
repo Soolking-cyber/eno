@@ -59,6 +59,8 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
    * without its blur. From md (a touch tablet) the r05 sheet look above is unchanged. The full-screen map it opens is the
    * live map, as before.
    */
+  // ⚠️ No page passes 'sheet' since 2026-11-24 (owner: "make it consistent all across the app our style" — the rental page
+  // draws this default map). The look is kept, unused, until it is deleted with its tests.
   look?: 'default' | 'sheet'
 }) {
   const sheet = look === 'sheet'

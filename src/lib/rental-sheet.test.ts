@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_FACTS, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE,
+  HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_FACTS, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE,
   SHEET_PRICE_ROW, SHEET_ROWS, SHEET_STATS, SHEET_TIER_APPROX, SHEET_TITLE, isRentalSheet, pinsRentalAction, sheetStatCols,
 } from './rental-sheet'
 
@@ -77,8 +77,6 @@ describe('below md only — from md the page paints as before', () => {
     expect(SHEET_FACTS).not.toMatch(/nowrap|truncate|line-clamp/)
     expect(words(SHEET_STATS)).toEqual(expect.arrayContaining(['grid', 'border-y', 'border-border', 'py-4']))
     expect([sheetStatCols(2), sheetStatCols(3)]).toEqual(['grid-cols-2', 'grid-cols-3'])
-    for (const c of words(SHEET_MAP_BOX)) expect(c).toMatch(/^max-md:/)
-    expect(words(SHEET_MAP_BOX)).toEqual(expect.arrayContaining(['max-md:h-96', 'max-md:rounded-xl', 'max-md:border', 'max-md:border-line-strong']))
     // The tier's ≈ under the figure: the meta role, its own line (the tier's price is md:hidden whole — ContactComposer).
     expect(words(SHEET_TIER_APPROX)).toEqual(expect.arrayContaining(['block', 'text-t-meta']))
   })
@@ -170,7 +168,9 @@ describe('page.tsx: DOM order is the phone\'s paint order', () => {
     expect(PAGE.search(/^\s*\{!rentalSheet && locationSection\}$/m)).toBeGreaterThan(PAGE.indexOf('{sellerInfo && <SellerInfo '))
     // Costs (in the buy box, before the left column in the DOM) comes before it; the host row before Costs.
     expect(PAGE.indexOf('<RentalCosts ')).toBeLessThan(sheetLoc)
-    expect(PAGE).toContain("look={rentalSheet ? 'sheet' : 'default'}")
+    // Owner, 2026-11-24: one map look on every listing page — the rental sheet draws the app's map, not its own card.
+    expect(PAGE).toContain("<ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} />")
+    expect(PAGE).not.toContain("look={rentalSheet ? 'sheet'")
     expect(PAGE.split('data-safety-block=""').length - 1).toBe(1)
     // (`accent` is the goods sheet's own, build 7 — goods-sheet.test.ts.)
     expect(PAGE).toContain('<ProtectionsRow inline shortLabel={rentalSheet || goodsSheet} accent={goodsSheet} />')

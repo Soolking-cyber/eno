@@ -136,7 +136,7 @@ import { isCommissionLink } from '@/lib/affiliate-commission'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
-import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
+import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
 import { fillDescription, firstThatFits, titleWithPrice } from '@/lib/meta-description'
 import { brandHref, dominantCategory } from '@/lib/brand-category'
 import { isThinImport } from '@/lib/thin-import'
@@ -1469,7 +1469,7 @@ export default async function ListingPage({ params }: Props) {
           before the description's controls. ⚠️ The safety block still lives in the buy box (it must exist once — the note there),
           so below md "Open map" paints above the safety links it follows in the focus order, as before. Heading → content 16px;
           under the heading the listing's place (`placeOnMap`, moved from the head's facts), 8 over the map; the box a 384px card
-          with "Open map" as its footer row (SHEET_MAP_BOX; ListingMapPreview `look="sheet"`). */}
+          with "Open map" as its footer row — until 2026-11-24, when the owner asked for one map look everywhere (below). */}
       {/* The goods sheet: no line, 32px over it, the 17px heading, the map on the media edge (GOODS_MAP_BOX). */}
       <div id="location-on-map" className={cn(rentalSheet ? 'order-8 md:order-11' : 'order-11', 'space-y-2 scroll-mt-20', goodsSheet ? GOODS_SECTION : sectionLine(rentalSheet), rentalSheet && SHEET_HEAD_GAP, goodsSheet && 'max-md:space-y-3')}>
         <h2 className={goodsSheet ? GOODS_SECTION_TITLE : SECTION_TITLE}><Tr text="Location" /></h2>
@@ -1486,8 +1486,12 @@ export default async function ListingPage({ params }: Props) {
             indicator on the clipper itself, where nothing can crop it.
             ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
             draw a keyboard ring, and Leaflet focuses its container on click. */}
-        <div className={cn("relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100", rentalSheet && SHEET_MAP_BOX, goodsSheet && GOODS_MAP_BOX)}>
-          <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} look={rentalSheet ? 'sheet' : 'default'} />
+        <div className={cn("relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100", goodsSheet && GOODS_MAP_BOX)}>
+          {/* ⛔ ONE MAP LOOK ON EVERY LISTING PAGE (owner, 2026-11-24, of the rental page's phone map: "why some pages have this
+              kinda map make it consistent all across the app our style"): the rental sheet no longer draws its own map card
+              (Voyager tiles, ink pin, "Open map" footer — `look="sheet"`, builds 5–7); it gets the app's light map, brand pin
+              and area, as every other listing does. */}
+          <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} approximate={approxArea} />
         </div>
       </div>
     </>

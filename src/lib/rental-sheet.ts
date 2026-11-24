@@ -152,11 +152,8 @@ export const HOST_CARD_SLOT = 'order-7 md:hidden'
  */
 export const SHEET_ROWS = 'max-md:flex max-md:flex-col max-md:divide-y-0 max-md:text-base max-md:[&>div]:min-h-11 max-md:[&>div]:items-center max-md:[&>div]:py-0 max-md:[&_dt]:text-body max-md:[&_dd]:font-normal'
 
-/**
- * The map's box on the sheet: a 384px card (owner-approved 2026-11-15 (build 7)) — the panel radius (12) and a 1px strong
- * hairline round it; its bottom 48px is the "Open map" row (ListingMapPreview `look="sheet"`), so the picture is 334 tall.
- */
-export const SHEET_MAP_BOX = 'max-md:h-96 max-md:rounded-xl max-md:border max-md:border-line-strong'
+// (SHEET_MAP_BOX, the rental sheet's own 384px map card, was removed 2026-11-24: owner, "make it consistent all across the
+// app our style" — the rental page draws the same map as every other listing.)
 
 /**
  * Amenities on the sheet: two columns of a glyph beside its name (RentalAmenities `sheet`). A name longer than this many
