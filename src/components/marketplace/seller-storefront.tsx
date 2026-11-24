@@ -9,7 +9,7 @@ import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck, CheckCircle2 } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
-import { serializeListing, serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
+import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { diverseFeedWindow } from '@/lib/feed-window'
 import { diversifyBySeller } from '@/lib/feed-diversity'
 import { localizeListingTitles } from '@/lib/translate'
@@ -395,7 +395,10 @@ export async function SellerStorefront({ id }: { id: string }) {
 
   // The remainder, from the two indexed counts — see the note beside marketplaceTotal.
   const otherCount = Math.max(0, marketplaceTotal - seller._count.listings)
-  const listings = await localizeListingTitles(seller.listings.map(serializeListing))
+  // The CARD shape, as the "More on" grid below and every other card grid (page weight, owner 2026-11-24 "Start it, measure first"):
+  // SellerListings reads card fields only, and the full shape sent each row's description in both languages and every
+  // verification field into the page's flight data — ~0.75 KB a row, ~45 KB on a 60-row shop (measured on /sellers, 939 KB).
+  const listings = await localizeListingTitles(seller.listings.map(serializeListingCard))
   // ⚠️ `diversifyBySeller` on top of the window, and sliced AFTER the reorder — see the home feed's
   // note: the window picks WHICH rows, this interleaves them, and the window's fallback paths (a
   // groupBy failure, one seller, an under-filled fan-out) return a plain top-N nobody interleaved.

@@ -25,7 +25,7 @@ vi.mock('@/lib/edition-scope', () => ({ isSellerHiddenHere: async () => false, s
 vi.mock('@/lib/storefront-gone', async (orig) => ({ ...(await orig<typeof import('@/lib/storefront-gone')>()), isStorefrontGone: async () => false }))
 vi.mock('@/lib/feed-window', async (orig) => ({ ...(await orig<typeof import('@/lib/feed-window')>()), diverseFeedWindow: async () => [] }))
 vi.mock('@/lib/translate', async (orig) => ({ ...(await orig<typeof import('@/lib/translate')>()), localizeListingTitles: async (rows: unknown[]) => rows }))
-vi.mock('@/lib/serialize', async (orig) => ({ ...(await orig<typeof import('@/lib/serialize')>()), serializeListing: (r: unknown) => r }))
+vi.mock('@/lib/serialize', async (orig) => ({ ...(await orig<typeof import('@/lib/serialize')>()), serializeListing: (r: unknown) => r, serializeListingCard: (r: unknown) => r }))
 vi.mock('@/lib/visa-shop', async (orig) => ({ ...(await orig<typeof import('@/lib/visa-shop')>()), getVisaShopSeller: async () => null }))
 vi.mock('@/lib/enforcement', async (orig) => ({ ...(await orig<typeof import('@/lib/enforcement')>()), getEnforcement: async () => null }))
 vi.mock('@/lib/user-blocks', () => ({ isShopOnlyBlock: async (ownerId: string | null) => !ownerId }))
