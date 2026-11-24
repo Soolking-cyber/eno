@@ -6,6 +6,10 @@ import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { REVIEW_SEAT_LISTING_COPY } from '@/lib/review-seat-accounts'
+import { db } from '@/lib/db'
+import { scopedListingWhere } from '@/lib/edition-scope'
+import { LICENCE_HELD_NOTE } from '@/lib/licence-stamp'
+import { isListingViewable } from '@/app/[lang]/listings/[id]/(pdp)/get-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,6 +30,47 @@ export const dynamic = 'force-dynamic'
 // body"}`, which is not an ApiErrorCode and so cannot be an `invalidBodyCode`; and `String(body
 // .status || '')` accepts a number or null where zod would 400. `setStatusCore` also returns
 // `invalid_status` through `r.error`, a code absent from the ApiErrorCode union.
+/** What the listing page's 404 tells its OWNER (GET below). */
+export type OwnListingState = 'pending' | 'held' | 'hidden' | 'off' | 'live' | 'sold'
+
+/**
+ * GET — THE OWNER'S VIEW OF A LISTING THE PUBLIC PAGE WILL NOT SHOW (owner, 2026-11-24, from the iOS app: "when i click on
+ * products … this page has moved on … it was my uploaded product clicked through my listings, same in teacher job links").
+ * The listing page renders only verified active/sold rows, for everyone and from cache (page.tsx), so a seller opening their
+ * own pending, held or hidden listing — from My listings, the step after posting, a notification — got "This page has moved
+ * on." (nginx 2026-11-24: 27 such 404s from /dashboard/listings, 3 from /post). The 404 page asks this route from the browser
+ * and, for the owner only, says why the listing is not public and links Edit / My listings (not-found-body.tsx).
+ * Refusals: 401 signed out, 404 for everything else (not yours, no shop, gone); no-store — it is one person's view.
+ */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const noStore = { 'Cache-Control': 'private, no-store' }
+  const auth = await checkListingOwner(id)
+  // Signed out stays 401. Every other refusal — not your listing, no shop, no such listing — is the same 404, so this read
+  // (asked from every signed-in listing 404) cannot be used to learn whether someone else's hidden listing exists.
+  if (!auth.ok) {
+    return auth.code === 401
+      ? NextResponse.json({ error: auth.error }, { status: 401, headers: noStore })
+      : NextResponse.json({ error: 'not_found' }, { status: 404, headers: noStore })
+  }
+  const row = await db.listing.findFirst({
+    where: await scopedListingWhere({ id }, { teachers: true }),
+    select: { status: true, verified: true, identityHold: true, verificationNotes: true },
+  })
+  if (!row) return NextResponse.json({ error: 'not_found' }, { status: 404, headers: noStore })
+  const held = row.identityHold || row.verificationNotes === LICENCE_HELD_NOTE
+  // `live` only when the listing page's own rule says so (isListingViewable, the same cached read the page makes), never a
+  // second copy of it here: a row that looks public by these columns but fails the page's rule reads `off`.
+  const state: OwnListingState =
+    row.status === 'hidden' ? 'hidden'
+      : row.status === 'sold' ? 'sold'
+        : row.status !== 'active' ? 'off'
+          : held ? 'held'
+            : !row.verified ? 'pending'
+              : (await isListingViewable(id)) ? 'live' : 'off'
+  return NextResponse.json({ state }, { headers: noStore })
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
