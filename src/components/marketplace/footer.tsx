@@ -28,6 +28,7 @@ import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 /** eno.vn on Product Hunt, with the badge's own campaign tags (the owner's embed code, 2026-11-17). */
 const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/eno-vn?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-eno-vn'
@@ -167,6 +168,8 @@ export function Footer({ compact = false }: { compact?: boolean } = {}) {
 
 function FooterBody({ compact }: { compact: boolean }) {
   const { tr, lang } = useLanguage()
+  // On a shop's or the teacher host, a page link names eno.vn — those hosts 301 every page but `/` there (site-href.tsx).
+  const siteHref = useSiteHref()
   /**
    * ⚠️ LITERAL `tr()` PAIRS, NOT A TEMPLATE. scripts/gen-ui-strings.mjs harvests `tr('…', '…')` by
    * regex, so the interpolated label this replaced was invisible to it — the nine machine-translated
@@ -667,7 +670,7 @@ function FooterBody({ compact }: { compact: boolean }) {
                       {/* teacherSurfaceHref: on eno.forum "Find a teacher" is eno.vn's page (the forum 308s it there,
                           src/lib/teachers/surface.ts), linked directly; every other category, and eno.vn, unchanged. */}
                       {/* 2026-11-06 audit: 14px body ink, not 12px tertiary grey — two judges read the desktop link grid as fine print. */}
-                      <a href={teacherSurfaceHref(localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang)))} className="text-sm text-body transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">{tr(cat.name, cat.nameVi)}</a>
+                      <a href={siteHref(teacherSurfaceHref(localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang))))} className="text-sm text-body transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">{tr(cat.name, cat.nameVi)}</a>
                     </li>
                   ))}
                 </ul>
@@ -698,7 +701,7 @@ function FooterBody({ compact }: { compact: boolean }) {
                             column's dofollow decision is made once, in src/lib/cross-site-links.ts,
                             rather than being re-litigated in the footer markup. */}
                         <a
-                          href={link.href}
+                          href={siteHref(link.href)}
                           rel={link.rel}
                           hrefLang={link.hrefLang}
                           onClick={link.forumPath
@@ -861,21 +864,21 @@ function FooterBody({ compact }: { compact: boolean }) {
               up the row is unchanged. */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 max-sm:justify-start max-sm:gap-y-0 lg:justify-end">
             {/* The compact footer's link to help: its link columns, where Help center sat, are gone. */}
-            {compact && <a href="/help" className={LEGAL_LINK}>{tr('Help center', 'Trung tâm trợ giúp')}</a>}
-            <a href="/terms" className={LEGAL_LINK}>{tr('Terms', 'Điều khoản')}</a>
-            <a href="/privacy" className={LEGAL_LINK}>{tr('Privacy', 'Quyền riêng tư')}</a>
-            <a href="/regulations" className={LEGAL_LINK}>{tr('Regulations', 'Quy chế')}</a>
+            {compact && <a href={siteHref('/help')} className={LEGAL_LINK}>{tr('Help center', 'Trung tâm trợ giúp')}</a>}
+            <a href={siteHref('/terms')} className={LEGAL_LINK}>{tr('Terms', 'Điều khoản')}</a>
+            <a href={siteHref('/privacy')} className={LEGAL_LINK}>{tr('Privacy', 'Quyền riêng tư')}</a>
+            <a href={siteHref('/regulations')} className={LEGAL_LINK}>{tr('Regulations', 'Quy chế')}</a>
             {/* ⚠️ IN THE LEGAL ROW ON EVERY PAGE, AND NOT ONLY FOR TIDINESS. Google Merchant Center
                 verifies a store partly by FINDING the return policy on the site, and a page nothing
                 links to is a page a crawler cannot report — the same failure /developers had in the
                 2026-08-23 audit. It is also what a buyer looks for before paying a stranger. */}
-            <a href="/returns" className={LEGAL_LINK}>{tr('Returns', 'Đổi trả')}</a>
+            <a href={siteHref('/returns')} className={LEGAL_LINK}>{tr('Returns', 'Đổi trả')}</a>
             {/* ⚠️ REACHABLE WITHOUT SIGNING IN, AND THAT IS THE POINT. Google Play's Data safety
                 form requires a public URL where account + data deletion can be requested by someone
                 who has not installed the app and is not logged in — uninstalling must not be the
                 only way out. The real control lives behind auth in Settings; this is the doorway to
                 it, and a link in the footer is what makes it findable rather than merely existing. */}
-            <a href="/account-deletion" className={LEGAL_LINK}>{tr('Delete account', 'Xoá tài khoản')}</a>
+            <a href={siteHref('/account-deletion')} className={LEGAL_LINK}>{tr('Delete account', 'Xoá tài khoản')}</a>
             {/* Consent withdrawal entry point — reopens the cookie banner (PDPL). */}
             <Button type="button" variant="bare" size="none" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer text-xs font-normal transition-colors hover:text-accent-foreground max-sm:min-h-11">{tr('Cookie settings', 'Cài đặt cookie')}</Button>
           </div>

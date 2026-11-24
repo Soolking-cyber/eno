@@ -28,6 +28,8 @@ import { headers } from 'next/headers'
 import { canonicalAppHost, storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
 import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import { storefrontHandleFromHost } from '@/lib/storefront-host'
+import { apexOrigin } from '@/lib/teachers/host'
+import { SiteOriginProvider } from '@/components/marketplace/site-href'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { StorefrontMoreMenu } from '@/components/marketplace/storefront-more-menu'
@@ -352,7 +354,11 @@ export default async function Storefront({ params, searchParams }: Props) {
     listings: ldListings,
   })
 
+  // ⛔ ON THE SHOP'S HOST EVERY PAGE LINK NAMES eno.vn (site-href.tsx): this host serves the shop at `/` and 301s every other
+  // page path to the apex, so a relative card or footer link was a link to a redirect (Seobility crawl 3: 1,462 of them on 35
+  // shop hosts). In the server HTML here; the bottom nav, outside this tree, finds the host in the browser.
   return (
+    <SiteOriginProvider origin={onShopHost ? apexOrigin(process.env.NEXT_PUBLIC_APP_URL) : ''}>
     <div className="flex min-h-page flex-col blob-bg">
       {/* `<` escaping matches every other JSON-LD emitter in the app: a `<` inside a listing
           title would otherwise be able to close this script tag. */}
@@ -538,5 +544,6 @@ export default async function Storefront({ params, searchParams }: Props) {
       </main>
       <Footer />
     </div>
+    </SiteOriginProvider>
   )
 }

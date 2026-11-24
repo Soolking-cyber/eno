@@ -14,6 +14,7 @@ import { useSafeBack } from '@/lib/safe-back'
 import { useBackToClose } from '@/lib/back-to-close'
 import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
 import { isBrowseSurface } from '@/lib/browse-surface'
+import { useSiteHref } from '@/components/marketplace/site-href'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
@@ -119,6 +120,8 @@ export { isPostFlowPath }
  */
 export function Header({ postBar = false }: { postBar?: boolean } = {}) {
   const { t, tr, lang, setLang } = useLanguage()
+  // On a shop's or the teacher host, Saved / Sign in / Post name eno.vn: those hosts 301 every page but `/` (site-href.tsx).
+  const siteHref = useSiteHref()
   // The server variant this page renders in: every explorer-bound link goes to its `/vi` twin on a
   // Vietnamese page, so a search, brand pick or map tap never lands on the English-pinned `/?…`
   // (A1-LANG, field-01). Identity for English and for any target outside the live pilot list.
@@ -1561,7 +1564,7 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
               className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] lg:flex"
             >
               <Link
-                href={localizedHref('/saved', variant)}
+                href={siteHref(localizedHref('/saved', variant))}
                 prefetch={false}
                 aria-label={savedCount > 0 ? `${tr('Saved', 'Đã lưu')}, ${savedCount}` : tr('Saved', 'Đã lưu')}
                 // Hydration-gated like the Sign in link's `?next=`: the server's pathname can be the internal
@@ -1606,7 +1609,9 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
               visible from lg, and the User glyph is aria-hidden (ui/icons). */}
           {!user && (
             <Link
-              href={offHome ? `/signin?next=${encodeURIComponent(pathname)}` : '/signin'}
+              href={siteHref(offHome ? `/signin?next=${encodeURIComponent(pathname)}` : '/signin')}
+              // nofollow: `?next=` makes one sign-in URL per page (noindex, and Seobility walked ~100 of them, crawl 3).
+              rel="nofollow"
               prefetch={false}
               onPointerEnter={preloadSignIn}
               onFocus={preloadSignIn}
@@ -1660,7 +1665,7 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
                 Q14), which has no accent fill. See the variant's own ⛔ note in ui/button. */}
             <Button asChild variant="commerce" size="none" className="gap-1.5 font-semibold">
               <Link
-                href={user ? '/dashboard?tab=post' : '/post'}
+                href={siteHref(user ? '/dashboard?tab=post' : '/post')}
                 prefetch={false}
                 className="px-4 py-2 text-sm inline-flex cursor-pointer"
               >

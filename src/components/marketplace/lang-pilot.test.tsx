@@ -179,7 +179,7 @@ describe('localizedHref at each link site (source contract)', () => {
     ['src/components/marketplace/mobile-nav.tsx', [/<Link href=\{localizedHref\('\/', variantOfLanguage\(lang\)\)\} prefetch=\{at\('\/'\)/]],
     // Inside teacherSurfaceHref since 2026-10-20: on eno.forum "Find a teacher" is eno.vn's page (src/lib/teachers/surface.ts);
     // on eno.vn it hands back the localized href untouched (src/lib/teachers/host.surface.test.ts).
-    ['src/components/marketplace/footer.tsx', [/<a href=\{teacherSurfaceHref\(localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\)\}/]],
+    ['src/components/marketplace/footer.tsx', [/<a href=\{siteHref\(teacherSurfaceHref\(localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\)\)\}/]],
     // prefetch={false} since speed plan item 7 (the PDP crumbs' rule).
     ['src/app/[lang]/c/[category]/(index)/layout.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} prefetch=\{false\} \/>/]],
     ['src/app/[lang]/c/[category]/[district]/page.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} className=/]],

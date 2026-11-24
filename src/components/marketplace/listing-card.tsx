@@ -62,6 +62,7 @@ import { isModifiedClick } from '@/lib/plain-click'
 import { warmListing } from '@/lib/warm-listing'
 import { isFocusVisible } from '@/lib/focus-visible'
 import { withOneRetry } from '@/lib/import-retry'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -249,6 +250,8 @@ function ListingCardImpl({
   onLocate,
 }: Props) {
   const { lang, t, tr } = useLanguage()
+  // On a shop's host the listing lives on eno.vn: the card links there, not to the 301 (site-href.tsx).
+  const siteHref = useSiteHref()
   const images = listing.images
   /**
    * ⛔ THE MEDIA-SCOPED LCP PRELOAD (`lcp` as a media query — the prop's note). During render, like next/image's own
@@ -779,7 +782,7 @@ function ListingCardImpl({
           `rounded-media`, the photo's own corner (and the root's above), so the focus ring and the press
           shape follow the photo instead of pinching against it at the corners. */}
       <a
-        href={`/listings/${listing.id}`}
+        href={siteHref(`/listings/${listing.id}`)}
         aria-label={lineTitle}
         aria-describedby={[titleShortened ? fullTitleId : null, identityMarked ? identityMarkId : null].filter(Boolean).join(' ') || undefined}
         data-card-link
@@ -1232,7 +1235,7 @@ function ListingCardImpl({
               zone is still the link's. hover-pointer, not `pc`: the precondition is a real hovering pointer; touch devices
               emit a synthetic mouseenter on tap, which would jump the photo out from under the thumb. */}
         <a
-          href={`/listings/${listing.id}`}
+          href={siteHref(`/listings/${listing.id}`)}
           tabIndex={-1}
           aria-hidden
           aria-label={displayTitle}

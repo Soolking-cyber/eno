@@ -25,6 +25,7 @@ import { scrollBehavior } from '@/lib/reduced-motion'
 import { localizedHref, stripViPrefix } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { isBrowseSurface } from '@/lib/browse-surface'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 /** The signed-in tools outside /dashboard that the Account tab owns (it lights there; see `accountToolHere`). */
 const ACCOUNT_TOOL_PATHS = ['/account', '/account-deletion', '/disputes', '/teachers/edit', '/teachers/check-in', '/teachers/cover', '/teachers/cover-zalo', '/teachers/job-messages']
@@ -196,6 +197,8 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   onGuestIntent?: () => void }) {
   const { openSignIn, user, loading } = useAuth()
   const router = useRouter()
+  // The tab's link names eno.vn on a shop's or the teacher host (site-href.tsx); `href` itself stays the app path.
+  const siteHref = useSiteHref()
   // ⚠️ THE BOOT WINDOW WAS A DOUBLE REDIRECT TO A SECOND LOGIN PAGE (owner, 2026-08-03: "mobile
   // login issue with 2 redirects … user can log/signup in directly from popup").
   // `gate` is `!loading && !user`, so while auth is still resolving this tab is a plain <Link>. A
@@ -244,7 +247,7 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   // handles the taps that are NOT a navigation, and preventDefault()s those.
   return (
     <Link
-      href={href}
+      href={siteHref(href)}
       // ⚠️ `loading` GATES THE PREFETCH, not just the tap. While auth is unresolved the tap handler
       // below already swallows the tap and replays it — so during that exact window the tab is not
       // a navigation at all, yet Next was still prefetching /post, /messages and /dashboard/account.
@@ -271,6 +274,8 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
  *  there, behind a sticky contact CTA; that bar was deleted and the tab bar came
  *  back, so any layout that still reserves its own clearance on a PDP is stale.) */
 export function MobileNav() {
+  // Saved and Post name eno.vn on a shop's or the teacher host (site-href.tsx).
+  const siteHref = useSiteHref()
   // `/vi` + a piloted path is that path for every tab check (SEO wave B, V3a; the identity while the
   // pilot is off) — Explore stays lit on `/vi`.
   const pathname = stripViPrefix(usePathname())
@@ -478,7 +483,7 @@ export function MobileNav() {
 
       {/* Saved is public — a guest's saves live on the device (a signed-in person's also on the
           account), so a logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
+      <Link href={siteHref('/saved')} prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
@@ -524,7 +529,7 @@ export function MobileNav() {
           to the swallowed boot-window tap that no longer exists here.
           Re-tapping never scrolls to top (`false`), as before. */}
       <Link
-        href="/post"
+        href={siteHref('/post')}
         prefetch={at('/post') || loading || leanConnection || !engaged ? false : undefined}
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}

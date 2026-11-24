@@ -423,7 +423,8 @@ describe('the page wiring — /c/teachers only, and the route ISR exactly as bef
 
   it('the list links the card’s own target — if the card’s link moves, this list must move with it', () => {
     const card = readFileSync(join(process.cwd(), 'src/components/marketplace/listing-card.tsx'), 'utf8')
-    expect(card).toMatch(/<a\s+href=\{`\/listings\/\$\{listing\.id\}`\}/)
+    // siteHref (site-href.tsx) is the path itself on eno.vn, where this list lives; only a shop's host gets the apex prefix.
+    expect(card).toMatch(/<a\s+href=\{siteHref\(`\/listings\/\$\{listing\.id\}`\)\}/)
     expect(code('src/app/[lang]/c/[category]/teacher-links.tsx')).toMatch(/<a href=\{`\/listings\/\$\{t\.id\}`\}>\{t\.title\}<\/a>/)
   })
 })
