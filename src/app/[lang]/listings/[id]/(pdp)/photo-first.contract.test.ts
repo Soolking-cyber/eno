@@ -38,8 +38,8 @@ describe('item 3: the photo-first hook', () => {
     expect(block.indexOf('absolute left-3 top-3')).toBeLessThan(block.indexOf('absolute right-3 top-3'))
   })
 
-  it('one stylesheet block hides the header, hands the notch inset to <main>, shows Back and moves the Video chip out from under it: same condition, phones, never the store apps', () => {
-    const cond = 'html:not(.native):has(main [data-photo-first])'
+  it('one stylesheet block hides the header, hands the notch inset to <main>, shows Back and moves the Video chip out from under it: same condition, phones, the store apps included (owner 2026-11-24)', () => {
+    const cond = 'html:has(main [data-photo-first])'
     const at = CSS.indexOf('@media (max-width: 767.98px) {\n  ' + cond + ' #app-header')
     expect(at).toBeGreaterThan(-1)
     const block = CSS.slice(at, CSS.indexOf('\n}\n', at)).replace(/\s+/g, ' ')

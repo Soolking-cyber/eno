@@ -2733,7 +2733,10 @@ html.os-android [data-store="ios"] {
      the server's HTML and holds from the first frame: nothing shifts. A page without a gallery (a linked job, a teacher's
      profile) has no hook and keeps its header.
    · Below md only: from md the gallery is one column of two and the header stays.
-   · `html:not(.native)`: the store apps keep their header (their top bar is theirs to change, with a store review behind it).
+   · ⛔ THE STORE APPS TOO (owner, 2026-11-24, comparing the iOS app with Safari: "mobile version product page looks cleaner
+     no need for search bar there and back button on image match so they have similar feel"). Until then the apps kept
+     their header here. In the apps the WebView runs under the status bar like the installed PWA, so the notch note
+     below holds as written: `#status-bar-backdrop` paints the strip and <main> takes the inset.
    · The Back control over the photo (pdp-back-button.tsx) is shown by the SAME condition, so a browser without `:has()`
      keeps the header and shows no second Back.
    · ⚠️ THE NOTCH. In the installed PWA the page runs under the status bar and `#status-bar-backdrop` covers that strip in
@@ -2745,16 +2748,16 @@ html.os-android [data-store="ios"] {
      Back at 12,12). While Back is shown the chip stands beside it: 3.5rem is Back's 12px + 36px + 8px, 1.25rem centres the
      19px chip on Back's 36px. Anywhere Back is not shown the chip keeps its corner. */
 @media (max-width: 767.98px) {
-  html:not(.native):has(main [data-photo-first]) #app-header {
+  html:has(main [data-photo-first]) #app-header {
     display: none;
   }
-  html:not(.native):has(main [data-photo-first]) main#main {
+  html:has(main [data-photo-first]) main#main {
     padding-top: calc(1rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)));
   }
-  html:not(.native):has(main [data-photo-first]) [data-photo-back] {
+  html:has(main [data-photo-first]) [data-photo-back] {
     display: flex;
   }
-  html:not(.native):has(main [data-photo-first]) [data-photo-first] [data-video-chip] {
+  html:has(main [data-photo-first]) [data-photo-first] [data-video-chip] {
     left: 3.5rem;
     top: 1.25rem;
   }
@@ -2824,7 +2827,7 @@ html.os-android [data-store="ios"] {
 /* ⛔ THE STORE APPS GET THE SAME BACK (owner, 2026-11-23: "on ios there is no back button when you enter the product page").
    The iOS shell has no browser chrome and no system Back button — only the edge swipe (MainViewController
    allowsBackForwardNavigationGestures), which nobody finds — and the header there keeps its logo on a listing page (the
-   photo-first rule above is `html:not(.native)`). So every page but home shows Back where the logo was, as an iOS
+   photo-first rule above hides the header there since 2026-11-24, and its own Back over the photo takes over). So every page but home shows Back where the logo was, as an iOS
    navigation bar does; on Android it is the app bar's Up, beside the system Back the shell already routes (native-bootstrap
    `backButton`). Same button, same `useSafeBack('/')`: one of our pages behind it pops, a cold open goes home. */
 html.native .standalone-back { display: flex; }
