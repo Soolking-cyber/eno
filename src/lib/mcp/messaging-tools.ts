@@ -466,8 +466,8 @@ export const MESSAGING_TOOLS: McpTool[] = [
   },
   {
     name: 'send_message',
-    title: 'Send chat message or offer',
-    description: `Reply in a conversation with a message, an offer or counter-offer in VND, or both; an offer sent while one is pending counters it. At most ${AGENT_LIMITS.unansweredInARow} agent messages in a row without an answer from the other side, and ${AGENT_LIMITS.offersPerConversationPerDay} offers per conversation a day; a fixed-price listing takes no offers, and a message is up to ${TEXT_MAX.toLocaleString('en')} characters.\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`. ${SEND_NOTE}`,
+    title: 'Send a message or offer',
+    description: `Reply in a conversation for the person you act for: a message, an offer or counter-offer in VND, or both. Use it to answer the other side or to make or counter an offer; start a new conversation with contact_seller, and turn an offer down with decline_offer.\n\nAn offer sent while one is pending counters it. Refused with a reason code: \`not_negotiable\` (a fixed-price listing takes no offers), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`invalid_offer\`, \`waiting_for_reply\` (${AGENT_LIMITS.unansweredInARow} agent messages in a row with no answer) and \`rate_limited\` (${AGENT_LIMITS.offersPerConversationPerDay} offers in a conversation a day).\n\n${SEND_NOTE}\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`.`,
     scope: scopeWrite,
     annotations: WRITE,
     input: z.object({

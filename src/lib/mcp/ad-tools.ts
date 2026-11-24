@@ -21,10 +21,18 @@ const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false,
 // Spends money and changes what the public sees; never removes anything; a repeat with a NEW payment buys another week.
 const PAID_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
 
+// The stored ListingAd.status values (book.ts writes exactly these five). An enum, not prose (Manufact 2026-11-24,
+// outputs 87/88/85: a closed set described in words reads as an undocumented string). promote_listing takes all five:
+// book.ts's settle-error path answers `pending` with the row as reconcileAd left it, which can be 'failed' — an answer
+// after a payment attempt must never fail a client's output validation. list_ads reads only the four live ones
+// (shopAds' where), so its enum has those.
+const AD_STATUS = z.enum(['active', 'pending', 'unknown', 'review'])
+const AD_STATUS_ANY = z.enum(['active', 'pending', 'unknown', 'review', 'failed'])
+
 const AD_OUT = z.strictObject({
   id: z.string().describe('The ad\'s id, as list_ads shows it'),
   listing_id: z.string().describe('The advertised listing'),
-  status: z.string().describe('"active" (paid: shown between starts_at and ends_at), "pending" or "unknown" (payment sent, confirmation not yet found: it starts once found; call promote_listing again with the same payment to check)'),
+  status: AD_STATUS_ANY.describe('"active": paid, shown between starts_at and ends_at; "pending" or "unknown": payment sent, confirmation not yet found, it starts once found (call promote_listing again with the same payment to check); "review": being checked by hand; "failed": the payment did not go through, so the ad will not run'),
   hours: z.number().describe('How many hours it runs, as bought'),
   starts_at: z.string().nullable().describe('When it starts being shown (ISO 8601); a second ad for the same listing starts when the first ends. Null until paid'),
   ends_at: z.string().nullable().describe('When it stops being shown (ISO 8601). Null until paid'),
@@ -36,7 +44,7 @@ const AD_OUT = z.strictObject({
 const STATS_OUT = z.strictObject({
   id: z.string().describe('The ad\'s id'),
   listing_id: z.string().describe('The advertised listing'),
-  status: z.string().describe('"active", "pending", "unknown" (see promote_listing) or "review" (being checked by hand)'),
+  status: AD_STATUS.describe('"active" (running or booked), "pending" or "unknown" (payment not yet confirmed, see promote_listing) or "review" (being checked by hand)'),
   hours: z.number().describe('How many hours it runs, as bought'),
   starts_at: z.string().nullable().describe('When it started or starts (ISO 8601); null until paid'),
   ends_at: z.string().nullable().describe('When it ends or ended (ISO 8601); null until paid'),
@@ -79,7 +87,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'get_ad_offer',
     title: 'Get the ad offer',
-    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for as many whole hours as you choose (1 hour up to 90 days; a week by default), priced pro rata. Pass `listingId` to check that listing can be advertised, and `hours` to price that length.\n\nReturns `available`, `price_usdc` (a week), `price_usdc_per_hour`, `price_usdc_for_hours`, `min_hours`, `max_hours`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
+    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for as many whole hours as you choose (a week when you choose none), priced pro rata from the weekly price. Pass `listingId` to check that listing can be advertised, and `hours` to price that length.\n\nReturns `available`, `price_usdc` (a week), `price_usdc_per_hour`, `price_usdc_for_hours`, `min_hours`, `max_hours`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
     scope: 'listings:read',
     annotations: READ_ONLY,
     input: z.object({ listingId: LISTING_ID.optional(), hours: HOURS }),
@@ -114,7 +122,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'promote_listing',
     title: 'Buy an ad for a listing',
-    description: 'Buy an ad for one of this shop\'s live listings for `hours` (1 hour up to 90 days; a week when left out), paid in USDC over x402, priced pro rata from the weekly price. The first call returns the payment request (an error result holding the x402 PaymentRequired: price, network, recipient); sign it with an x402 client and call again with the same `listingId` and `hours` and the payment in `_meta["x402/payment"]`. Check the listing and the price with get_ad_offer first. A second ad for the same listing starts when the first ends.\n\nReturns `ad` (`id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `tx_hash`, `network`, `amount_atomic`) and `message`; the paid result also carries `_meta["x402/payment-response"]`.',
+    description: 'Buy an ad for one of this shop\'s live listings for `hours` (a week when left out), paid in USDC over x402, priced pro rata from the weekly price. The first call returns the payment request (an error result holding the x402 PaymentRequired: price, network, recipient); sign it with an x402 client and call again with the same `listingId` and `hours` and the payment in `_meta["x402/payment"]`. Check the listing and the price with get_ad_offer first. A second ad for the same listing starts when the first ends.\n\nReturns `ad` (`id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `tx_hash`, `network`, `amount_atomic`) and `message`; the paid result also carries `_meta["x402/payment-response"]`.',
     scope: 'listings:write',
     annotations: PAID_WRITE,
     input: z.object({ listingId: LISTING_ID, hours: HOURS }),

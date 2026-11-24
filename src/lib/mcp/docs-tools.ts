@@ -169,10 +169,11 @@ export const DOCS_TOOLS: DocsTool[] = [
   {
     name: 'get_doc',
     title: 'Read a documentation page',
-    description: `Read one of ${SITE_NAME}'s published documents for agents and developers in full, as markdown. Needs no sign-in.\n\nThe documents: "llms" (/llms.txt: what the site is and where everything is), "agents" (/agents.md: when to use this MCP server and the Partner API, rate limits and rules), "auth" (/auth.md: signing in, API keys and OAuth scopes) and "pricing" (/pricing.md, where this site publishes one). To find a passage first, use search_docs; each result carries its \`doc_id\`. Fails with \`not_found\` for a document this site does not publish.\n\nReturns \`id\`, \`title\`, \`url\`, \`text\` and \`truncated\`.`,
+    description: `Read a whole document from ${SITE_NAME}'s documentation for agents and developers, as markdown. Needs no sign-in.\n\nUse it when the person needs the full rules or setup steps, not one passage: "llms" maps the site (what it is and where everything is), "agents" covers this MCP server and the Partner API with their rate limits and rules, "auth" covers signing in, API keys and OAuth scopes, and "pricing" covers prices. For a single passage, search_docs is faster; each of its results carries the \`doc_id\` to pass here. Fails with \`not_found\` when this site does not publish that document.\n\nReturns \`id\`, \`title\`, \`url\`, \`text\` and \`truncated\`; cite \`url\` when you quote it.`,
     annotations: READ,
     input: z.object({
-      id: z.string().describe('Which document to read: "llms", "agents", "auth" or "pricing", or the `doc_id` of a search_docs result'),
+      // An enum (Manufact 2026-11-24, get_doc 93): the ids are a closed set, and search_docs' `doc_id` is always one of them.
+      id: z.enum(['llms', 'agents', 'auth', 'pricing']).describe('Which document to read; a search_docs result\'s `doc_id` names one'),
     }),
     output: z.strictObject({
       id: z.string().describe('The document\'s id, as passed'),

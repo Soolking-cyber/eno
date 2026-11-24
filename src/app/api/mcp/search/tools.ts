@@ -11,6 +11,7 @@ import { buildFeedPayload } from '@/app/api/listings/feed-payload'
 import { listingIsViewable } from '@/app/[lang]/listings/[id]/(pdp)/get-listing'
 import type { ToolAnnotations } from '@/lib/mcp/tools'
 import { SEARCH_UI_URI, toolUiMeta } from '@/lib/mcp/apps'
+import { logWarn } from '@/lib/log'
 
 /**
  * ── THE PUBLIC BUYER SEARCH SERVER's TOOLS (https://<site>/api/mcp/search, owner 2026-11-13) ─────────────────────────
@@ -69,17 +70,25 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : n
 const withheld = (category: string | null, sub: string | null) => !!(sub && category && !isPostableSubcategory(category, sub))
 
 /** One feed card → the public row. Field by field, so a field added to the card never leaks here by default. */
-/** Typed by LISTING_ROW: a key added here and not there (or there and not here) fails the typecheck, not a client. */
-function searchRow(l: Row): z.infer<typeof LISTING_ROW> {
+/** Typed by LISTING_ROW: a key added here and not there (or there and not here) fails the typecheck, not a client.
+ *  Null — the row is left out — when the card lacks a value the row promises: the feed card always carries price,
+ *  priceUnit, listingType, negotiable, postedAt and category (serialize.ts serializeListingCard, all non-null in
+ *  schema.prisma), so this never drops a real listing; it keeps the schema's "always set" true if a card ever changes. */
+function searchRow(l: Row): z.infer<typeof LISTING_ROW> | null {
   const category = (l.category ?? null) as Row | null
   const categorySlug = category ? str(category.slug) : null
+  const price = num(l.price)
+  const priceUnit = str(l.priceUnit)
+  const listingType = LISTING_TYPE.safeParse(l.listingType)
+  const postedAt = l.postedAt instanceof Date ? l.postedAt.toISOString() : str(l.postedAt)
+  if (price === null || !priceUnit || !listingType.success || typeof l.negotiable !== 'boolean' || !postedAt || !categorySlug) return null
   return {
     id: String(l.id),
     title: offSite(String(l.title ?? '')),
-    price: num(l.price),
-    price_unit: str(l.priceUnit),
-    negotiable: typeof l.negotiable === 'boolean' ? l.negotiable : null,
-    listing_type: str(l.listingType),
+    price,
+    price_unit: priceUnit,
+    negotiable: l.negotiable,
+    listing_type: listingType.data,
     condition: offSiteOrNull(l.condition),
     location: offSiteOrNull(l.location),
     district: offSiteOrNull(l.district),
@@ -87,7 +96,7 @@ function searchRow(l: Row): z.infer<typeof LISTING_ROW> {
     category: categorySlug,
     subcategory: str(l.subcategorySlug),
     image: firstImages(l.images, 1)[0] ?? null,
-    posted_at: l.postedAt instanceof Date ? l.postedAt.toISOString() : str(l.postedAt),
+    posted_at: postedAt,
     // The card's isSponsored IS isCommissionLink(affiliateUrl) (serialize.ts serializeListingCard), the same test
     // get_listing_details applies to the row — one definition of an ad on both tools.
     sponsored: l.isSponsored === true,
@@ -100,21 +109,27 @@ function searchRow(l: Row): z.infer<typeof LISTING_ROW> {
 // is built key by key (searchRow, get_listing_details, list_categories), every value coerced to its type by str/num/
 // offSiteOrNull, and search.test.ts parses every answer with these schemas. Manufact scored the open, half-described
 // shapes 30–72 on outputs ("align the output schema with the tool's documented result").
+// What a listing offers — the stored Listing.listingType values this server serves (teacher profiles never are). An
+// enum, not prose (Manufact 2026-11-24, search_listings output 83: a closed set described in words).
+const LISTING_TYPE = z.enum(['sell', 'rent', 'service', 'job', 'wanted', 'free'])
+
+// Price, unit, type, negotiable, posting time and category are ALWAYS set (non-null in schema.prisma; get_listing_details
+// declares them so): nullable here they told an agent to handle a null that never comes (Manufact 2026-11-24).
 const LISTING_ROW = z.strictObject({
   id: z.string().describe('The listing id: pass it to get_listing_details for the full description and photos'),
   title: z.string().describe('The seller\'s headline for the listing, without contact details'),
-  price: z.number().nullable().describe('The asking price in Vietnamese đồng (VND), for what `price_unit` says; null when the seller gave none'),
-  price_unit: z.string().nullable().describe('What the price is for: "VND" for a one-off price, "VND/month" for a monthly rent or salary, and similar; null when unknown'),
-  negotiable: z.boolean().nullable().describe('Whether the seller takes offers below the price; null when not stated'),
-  listing_type: z.string().nullable().describe('What the listing offers: "sell", "rent", "service", "job", "wanted" or "free" (given away); null when unknown'),
+  price: z.number().describe('The asking price in Vietnamese đồng (VND), for what `price_unit` says'),
+  price_unit: z.string().describe('What the price is for: "VND" for a one-off price, "VND/month" for a monthly rent or salary, and similar'),
+  negotiable: z.boolean().describe('Whether the seller takes offers below the price'),
+  listing_type: LISTING_TYPE.describe('What the listing offers: "sell", "rent", "service", "job", "wanted" (someone looking to buy or hire) or "free" (given away)'),
   condition: z.string().nullable().describe('The item\'s condition as the seller gave it, usually "new", "like_new" or "used"; null for a job or a service, or when not stated'),
   location: z.string().nullable().describe('The area or street the seller gave, e.g. "Thảo Điền"; null when none'),
   district: z.string().nullable().describe('The district, e.g. "Quận 7"; null when not set'),
   city: z.string().nullable().describe('The city or province, e.g. "Hồ Chí Minh"; null when not set'),
-  category: z.string().nullable().describe('The category slug, as list_categories names it; null when unknown'),
+  category: z.string().describe('The category slug, as list_categories names it'),
   subcategory: z.string().nullable().describe('The subcategory slug within that category, as list_categories names it; null when the listing has none'),
   image: z.string().nullable().describe('The cover photo\'s URL, ready to show; null when it has none'),
-  posted_at: z.string().nullable().describe('When the listing was posted or last confirmed available, as an ISO 8601 UTC timestamp; null when unknown'),
+  posted_at: z.string().describe('When the listing was posted or last confirmed available, as an ISO 8601 UTC timestamp'),
   sponsored: z.boolean().describe('true for a paid or commission listing: say it is an ad when you show it'),
   url: z.string().describe('The listing\'s page on the site: send the person there to see every photo and contact the seller'),
 })
@@ -200,7 +215,7 @@ export const SEARCH_TOOLS: SearchTool[] = [
     name: 'search_listings',
     title: 'Search listings',
     description:
-      'Search what is for sale or rent in Vietnam on this marketplace: apartments and rooms, motorbikes and cars, electronics, furniture, jobs, services and more. Needs no sign-in.\n\nPut what the person wants in `q`, in English or Vietnamese; a district in the words narrows to it ("2 bedroom apartment district 7", "căn hộ quận 2"). Narrow further with `category` and `subcategory` (slugs from list_categories), `province`, `type`, `condition` and a price range in VND. A page holds 10 listings unless you set `limit` (at most 20); pass `next_offset` back as `offset` for the next page.\n\nReturns `total`, `listings` (each with `id`, `title`, `price` and `price_unit`, `negotiable`, `listing_type`, `condition`, `location`, `district`, `city`, `category`, `subcategory`, `image`, `posted_at`, `sponsored` and page `url`), `next_offset` and `capped`. Say a `sponsored` listing is an ad. Use get_listing_details for one listing\'s full text and photos, and send the person to its `url` to contact the seller.',
+      'Search what is for sale or rent in Vietnam on this marketplace: apartments and rooms, motorbikes and cars, electronics, furniture, jobs, services and more. Needs no sign-in.\n\nPut what the person wants in `q`, in English or Vietnamese; a district in the words narrows to it ("2 bedroom apartment district 7", "căn hộ quận 2"). Narrow further with `category` and `subcategory` (slugs from list_categories), `province`, `type`, `condition` and a price range in VND, and pass `next_offset` back as `offset` for the next page. Fails with `not_available` for teacher profiles or a subcategory this site does not offer, and `invalid_input` for an offset past the pages it serves.\n\nReturns `total`, `listings` (each with `id`, `title`, `price` and `price_unit`, `negotiable`, `listing_type`, `condition`, `location`, `district`, `city`, `category`, `subcategory`, `image`, `posted_at`, `sponsored` and page `url`), `next_offset` and `capped`. Say a `sponsored` listing is an ad. Use get_listing_details for one listing\'s full text and photos, and send the person to its `url` to contact the seller.',
     annotations: READ,
     input: z.object({
       q: z.string().optional().describe('What the person is looking for, in their own words, English or Vietnamese, e.g. "2 bedroom apartment district 7" or "xe Honda Vision"; a district or area named in the words narrows the results to it. Leave it out to browse a category'),
@@ -255,7 +270,10 @@ export const SEARCH_TOOLS: SearchTool[] = [
       const nextOffset = offset + rows.length
       const shown = rows.filter((l) => !withheld(str((l.category as Row | null)?.slug), str(l.subcategorySlug)))
       const more = rows.length === limit && nextOffset < total
-      return { total, listings: shown.map(searchRow), next_offset: more && nextOffset <= OFFSET_MAX ? nextOffset : null, capped: more && nextOffset > OFFSET_MAX }
+      const listings = shown.map(searchRow).filter((r) => r !== null)
+      // Never expected (searchRow's note): a card that lost a field the row promises. Logged, so a drop is never silent.
+      if (listings.length < shown.length) logWarn('[mcp-search] rows dropped: card lacks a promised field', { op: 'mcp.search.row_incomplete', dropped: shown.length - listings.length })
+      return { total, listings, next_offset: more && nextOffset <= OFFSET_MAX ? nextOffset : null, capped: more && nextOffset > OFFSET_MAX }
     },
   },
   {
