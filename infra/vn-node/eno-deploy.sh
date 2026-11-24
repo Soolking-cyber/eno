@@ -1319,3 +1319,31 @@ install -m 0755 "$APP/infra/vn-node/eno-docker-prune.sh" "/opt/eno/bin/.eno-dock
 rm -f "/opt/eno/bin/.eno-docker-prune.sh.new.$$"
 timeout --foreground 900 bash "$APP/infra/vn-node/eno-docker-prune.sh" 2>&1 | sed 's/^/  /' \
   || warn "docker prune: exit $? (advisory; the deploy itself is complete — 1 = a prune failed or under 15G free; the lines above say which)"
+
+say "15. Manufact leaderboard (advisory): rescan eno Agentic Commerce after every deploy"
+# Owner 2026-11-24: Manufact's "Rescan on every deploy" card for https://eno.vn/api/mcp. eno deploys from this script, not
+# from GitHub Actions, so the one call their action makes (mcp-use/manufact-leaderboard@v1, rescan.sh) is made here, after
+# the deploy is complete: POST <api>/api/v1/public/catalog {url} with x-api-key. It only STARTS the rescan (the action's
+# wait=false); the new score lands on manufact.com/leaderboard/<slug> minutes later, so no deploy waits ten minutes for it.
+# ⛔ DORMANT UNTIL THE KEY IS ON THE BOX: /opt/eno/secrets/manufact-api-key (0600, root), from the owner's clipboard —
+#   pbpaste | ssh … 'umask 077; cat > /opt/eno/secrets/manufact-api-key'
+# never in the repo, an env file or argv: the header reaches curl on stdin (cf_purge's rule above). Warn-only, like
+# steps 12–14 — nothing here can fail or roll back this deploy.
+MANUFACT_KEY_FILE=/opt/eno/secrets/manufact-api-key
+if [ -s "$MANUFACT_KEY_FILE" ]; then
+  mf_key=$(tr -d '[:space:]' < "$MANUFACT_KEY_FILE")
+  mf_key=${mf_key//\\/\\\\}   # curl config quoting: backslashes first, then quotes
+  mf_out=$(curl -sS --connect-timeout 5 --max-time 20 --config - -X POST "https://cloud.manufact.com/api/v1/public/catalog" \
+    -H "Content-Type: application/json" --data '{"url":"https://eno.vn/api/mcp"}' -w '\n%{http_code}' 2>&1 \
+    <<<"header = \"x-api-key: ${mf_key//\"/\\\"}\"")
+  unset mf_key
+  mf_code=$(tail -n1 <<<"$mf_out")
+  mf_slug=$(sed '$d' <<<"$mf_out" | grep -oE '"slug" *: *"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [[ "$mf_code" =~ ^2[0-9][0-9]$ ]]; then
+    ok "Manufact rescan started — score in a few minutes at https://manufact.com/leaderboard/${mf_slug:-}"
+  else
+    warn "Manufact rescan did not start (HTTP ${mf_code:-none}): $(sed '$d' <<<"$mf_out" | grep -vi 'x-api-key' | tr -d '\n' | head -c 200)"
+  fi
+else
+  ok "Manufact rescan: skipped (no key at $MANUFACT_KEY_FILE)"
+fi
