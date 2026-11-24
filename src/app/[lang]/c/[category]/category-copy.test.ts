@@ -22,6 +22,9 @@ import {
   type PageLang,
   type RentalsFacts,
   type RentalsHeadline,
+  namedCitiesHold,
+  NAMED_CITY_FLOOR,
+  NAMED_CITIES_SHARE,
 } from './category-copy'
 import { SITE_NAME } from '@/lib/edition'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
@@ -78,6 +81,25 @@ describe('rentals headline — the HCMC wording only while the stock supports it
     expect(rentalsHeadline({ allHcmc: true, kinds: rentalKinds({ 'room-rental': 3 }) })).toBe('rentals-hcmc')
   })
 
+  it('names HCMC, Hanoi and Da Nang only while the three hold the apartments (Rankspot 2026-11-24)', () => {
+    expect(rentalsHeadline({ ...LIVE, allHcmc: false, namedCities: true })).toBe('apartments-cities')
+    expect(rentalsHeadline({ allHcmc: false, namedCities: true, kinds: rentalKinds({ 'apartment-rental': 3 }) })).toBe('apartments-cities')
+    // An apartments headline never names the cities over rooms or offices alone.
+    expect(rentalsHeadline({ allHcmc: false, namedCities: true, kinds: rentalKinds({ 'office-rental': 3 }) })).toBe('rentals-vietnam')
+    expect(rentalsHeadline({ ...LIVE, allHcmc: false, namedCities: false })).toBe('rentals-vietnam')
+    expect(RENTALS_H1['apartments-cities']).toEqual({ en: 'Apartments for rent in Ho Chi Minh City, Hanoi & Da Nang', vi: 'Cho thuê căn hộ ở TP.HCM, Hà Nội và Đà Nẵng' })
+  })
+
+  it('namedCitiesHold: every named city has real stock and the three hold nearly all of it', () => {
+    // Live 2026-11-24: apartments per city against every place.
+    const today = { total: 7536, hcmc: 6755, hanoi: 185, daNang: 137 }
+    expect(namedCitiesHold(today)).toBe(true)
+    expect(namedCitiesHold({ ...today, daNang: NAMED_CITY_FLOOR - 1 })).toBe(false)
+    expect(namedCitiesHold({ ...today, hanoi: 0 })).toBe(false)
+    expect(namedCitiesHold({ ...today, total: Math.ceil((6755 + 185 + 137) / NAMED_CITIES_SHARE) + 1 })).toBe(false)
+    expect(namedCitiesHold({ total: 0, hcmc: 0, hanoi: 0, daNang: 0 })).toBe(false)
+  })
+
   it('falls back to the old "Rentals in Vietnam" the moment one rental is elsewhere', () => {
     expect(rentalsHeadline({ ...LIVE, allHcmc: false })).toBe('rentals-vietnam')
     expect(RENTALS_H1['rentals-vietnam']).toEqual({ en: 'Rentals in Vietnam', vi: 'Cho thuê tại Việt Nam' })
@@ -126,7 +148,11 @@ describe('rentalsMetadata', () => {
 })
 
 describe('rentalsMetadata takes the headline variant the H1 prints', () => {
-  const VARIANTS: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'rentals-vietnam']
+  const VARIANTS: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'apartments-cities', 'rentals-vietnam']
+
+  it.each(VARIANTS)('%s: the title fits 60 characters in both languages', (v) => {
+    for (const lang of ['en', 'vi'] as const) expect(rentalsMetadata(LIVE, lang, 'eno.vn', v).title.length).toBeLessThanOrEqual(60)
+  })
 
   /**
    * ⛔ THE H1 AND THE TITLE ARE BUILT FROM ONE CACHED VALUE (SEO wave B, H1b). The H1 renders in

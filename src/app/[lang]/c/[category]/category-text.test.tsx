@@ -48,7 +48,7 @@ describe('RentalsHeading', () => {
    * `loadRentalsHeadline`, and `rentalsMetadata` builds the title from the same value
    * (category-copy.test.ts pins the title side), so the H1 and the title name one variant.
    */
-  const cases: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'rentals-vietnam']
+  const cases: RentalsHeadline[] = ['apartments-houses-hcmc', 'apartments-hcmc', 'rentals-hcmc', 'apartments-cities', 'rentals-vietnam']
   it.each(cases)('%s renders exactly RENTALS_H1 in both languages', (key) => {
     for (const lang of ['en', 'vi'] as const) {
       expect(text(lang, <RentalsHeading headline={key} />)).toBe(RENTALS_H1[key][lang])
@@ -59,6 +59,8 @@ describe('RentalsHeading', () => {
     expect(text('en', <RentalsHeadingShort headline="apartments-hcmc" />)).toBe('Apartments for rent in HCMC')
     expect(text('vi', <RentalsHeadingShort headline="apartments-houses-hcmc" />)).toBe('Cho thuê căn hộ và nhà tại TP.HCM')
     expect(text('en', <RentalsHeadingShort headline="rentals-vietnam" />)).toBe('')
+    expect(text('en', <RentalsHeadingShort headline="apartments-cities" />)).toBe('Apartments in HCMC, Hanoi & Da Nang')
+    expect(text('vi', <RentalsHeadingShort headline="apartments-cities" />)).toBe('Căn hộ ở TP.HCM, Hà Nội, Đà Nẵng')
   })
 
   /**

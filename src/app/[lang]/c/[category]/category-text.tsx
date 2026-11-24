@@ -56,6 +56,8 @@ export function RentalsHeading({ headline }: { headline: RentalsHeadline }) {
       return <>{tr('Apartments for rent in Ho Chi Minh City', 'Cho thuê căn hộ ở TP. Hồ Chí Minh')}</>
     case 'rentals-hcmc':
       return <>{tr('Rentals in Ho Chi Minh City', 'Cho thuê ở TP. Hồ Chí Minh')}</>
+    case 'apartments-cities':
+      return <>{tr('Apartments for rent in Ho Chi Minh City, Hanoi & Da Nang', 'Cho thuê căn hộ ở TP.HCM, Hà Nội và Đà Nẵng')}</>
     default:
       return <>{tr('Rentals in Vietnam', 'Cho thuê tại Việt Nam')}</>
   }
@@ -73,7 +75,9 @@ export function RentalsHeadingShort({ headline, className }: { headline: Rentals
     <p aria-hidden className={className}>
       {headline === 'apartments-houses-hcmc'
         ? tr('Apartments & houses for rent in HCMC', 'Cho thuê căn hộ và nhà tại TP.HCM')
-        : tr('Apartments for rent in HCMC', 'Cho thuê căn hộ ở TP.HCM')}
+        : headline === 'apartments-hcmc'
+          ? tr('Apartments for rent in HCMC', 'Cho thuê căn hộ ở TP.HCM')
+          : tr('Apartments in HCMC, Hanoi & Da Nang', 'Căn hộ ở TP.HCM, Hà Nội, Đà Nẵng')}
     </p>
   )
 }

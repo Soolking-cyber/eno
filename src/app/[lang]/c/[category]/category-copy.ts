@@ -117,18 +117,56 @@ export function rentalKinds(counts: Partial<Record<string, number>>): RentalsFac
  * Ho Chi Minh City" (~720 searches/month, no matching page before this), so that is the wording —
  * but only while there are apartments to show and every rental is in HCMC.
  */
-export type RentalsHeadline = 'apartments-houses-hcmc' | 'apartments-hcmc' | 'rentals-hcmc' | 'rentals-vietnam'
-export function rentalsHeadline(f: Pick<RentalsFacts, 'allHcmc' | 'kinds'>): RentalsHeadline {
-  if (!f.allHcmc) return 'rentals-vietnam'
+export type RentalsHeadline =
+  | 'apartments-houses-hcmc' | 'apartments-hcmc' | 'rentals-hcmc'
+  | 'apartments-cities'
+  | 'rentals-vietnam'
+
+/**
+ * For the three-city headline (`namedCitiesHold`): every live rental PLACE (`total`), and the live APARTMENTS in each city, because
+ * the headline says "Apartments for rent in <city>" of each of them (Opus gate 2026-11-24: counting all places per city let a city
+ * with no apartment be named). Counted with the area filter's own predicate (category-data.ts), like `allHcmc`.
+ */
+export type RentalCityCounts = { total: number; hcmc: number; hanoi: number; daNang: number }
+
+/** Each named city must hold at least this many live apartments before the headline may name it. */
+export const NAMED_CITY_FLOOR = 25
+/** …and their apartments together at least this share of every live place. */
+export const NAMED_CITIES_SHARE = 0.9
+
+/**
+ * May the headline say "in HCMC, Hanoi & Da Nang"? (Rankspot, 2026-11-24.) The page's queries are "apartment(s) for rent in Ho Chi
+ * Minh City / HCMC / Hanoi", and eno.vn sat at positions 45–70 on them under "Rentals in Vietnam". That fallback took over when the
+ * Hanoi and Da Nang partners broke "every rental is in HCMC" (eno-housing-partners, eno-cvr-partner, 11-22/23).
+ * ⛔ TRUE OF THE STOCK, NOT ASPIRATIONAL: each city it names holds real apartments (NAMED_CITY_FLOOR), and those apartments are nearly
+ * everything listed (NAMED_CITIES_SHARE). 2026-11-24: apartments 6,755 HCMC, 185 Hanoi, 137 Da Nang, of ~7,536 places (161 in Đồng Nai,
+ * unnamed). A city that runs out, or stock that spreads elsewhere, drops the claim back to "Rentals in Vietnam", the safe direction, as
+ * `allHcmc` does. ⚠️ ONE VARIANT, APARTMENTS ONLY: an "& houses" form would need houses counted per city too, for a claim the house
+ * queries are better served by elsewhere (the house-or-villa guide).
+ */
+export function namedCitiesHold(c: RentalCityCounts): boolean {
+  if (c.total <= 0) return false
+  if ([c.hcmc, c.hanoi, c.daNang].some((n) => n < NAMED_CITY_FLOOR)) return false
+  return c.hcmc + c.hanoi + c.daNang >= NAMED_CITIES_SHARE * c.total
+}
+
+export function rentalsHeadline(f: Pick<RentalsFacts, 'allHcmc' | 'kinds'> & { namedCities?: boolean }): RentalsHeadline {
   const has = (s: RentalKind) => f.kinds.some((k) => k.slug === s)
+  if (!f.allHcmc) return f.namedCities && has('apartment-rental') ? 'apartments-cities' : 'rentals-vietnam'
   if (has('apartment-rental')) return has('house-rental') ? 'apartments-houses-hcmc' : 'apartments-hcmc'
   return 'rentals-hcmc'
 }
 
+/**
+ * ⚠️ THE THREE-CITY TITLE FITS 60 CHARACTERS (Seobility measures pixels, ~580; mk1e3-6f's rounds hold titles to 60): with " | eno.vn"
+ * where it fits (Vietnamese), without it where it doesn't (English, 56 alone): `rentalsMetadata`, firstThatFits. The English keeps
+ * "Ho Chi Minh City" whole over the brand, since that is the query.
+ */
 const HEADLINE_TITLE: Record<RentalsHeadline, Record<PageLang, string>> = {
   'apartments-houses-hcmc': { en: 'Apartments & Houses for Rent in Ho Chi Minh City', vi: 'Cho thuê căn hộ và nhà tại TP. Hồ Chí Minh' },
   'apartments-hcmc': { en: 'Apartments for Rent in Ho Chi Minh City', vi: 'Cho thuê căn hộ ở TP. Hồ Chí Minh' },
   'rentals-hcmc': { en: 'Rentals in Ho Chi Minh City', vi: 'Cho thuê ở TP. Hồ Chí Minh' },
+  'apartments-cities': { en: 'Apartments for Rent in Ho Chi Minh City, Hanoi & Da Nang', vi: 'Cho thuê căn hộ ở TP.HCM, Hà Nội và Đà Nẵng' },
   // ⚠️ THE FALLBACK IS THE OLD WORDING WITHOUT ITS "— Trusted listings" TAIL (see the header).
   'rentals-vietnam': { en: 'Rentals in Vietnam', vi: 'Cho thuê tại Việt Nam' },
 }
@@ -154,7 +192,7 @@ export function rentalsMetadata(
   headline: RentalsHeadline,
 ): { title: string; description: string } {
   const place = f.allHcmc ? HCMC_NAME : VIETNAM_NAME
-  const title = `${HEADLINE_TITLE[headline][lang]} | ${siteName}`
+  const title = firstThatFits([`${HEADLINE_TITLE[headline][lang]} | ${siteName}`, HEADLINE_TITLE[headline][lang]])
   /**
    * ⛔ WITH HOMES, THE DESCRIPTION COUNTS HOMES (SEO wave B, D1b; CS-2 D1b-1): it listed "2,270
    * offices" and ended on "a partner property portal" (peer finding 2a). Now: homes, their kinds, the
@@ -188,13 +226,14 @@ export function rentalsMetadata(
 /** Too long for the phone's one-line H1, so a phone paints RentalsHeadingShort instead. Here, not in category-text.tsx: that file is
  *  'use client', and the server layout calling a function from it is a 500 on the whole page (measured 2026-11-05). */
 export function rentalsHeadlineHasShortForm(headline: RentalsHeadline): boolean {
-  return headline === 'apartments-houses-hcmc' || headline === 'apartments-hcmc'
+  return headline === 'apartments-houses-hcmc' || headline === 'apartments-hcmc' || headline === 'apartments-cities'
 }
 
 export const RENTALS_H1: Record<RentalsHeadline, Record<PageLang, string>> = {
   'apartments-houses-hcmc': { en: 'Apartments & houses for rent in Ho Chi Minh City', vi: HEADLINE_TITLE['apartments-houses-hcmc'].vi },
   'apartments-hcmc': { en: 'Apartments for rent in Ho Chi Minh City', vi: HEADLINE_TITLE['apartments-hcmc'].vi },
   'rentals-hcmc': { en: 'Rentals in Ho Chi Minh City', vi: HEADLINE_TITLE['rentals-hcmc'].vi },
+  'apartments-cities': { en: 'Apartments for rent in Ho Chi Minh City, Hanoi & Da Nang', vi: HEADLINE_TITLE['apartments-cities'].vi },
   'rentals-vietnam': { en: 'Rentals in Vietnam', vi: HEADLINE_TITLE['rentals-vietnam'].vi },
 }
 

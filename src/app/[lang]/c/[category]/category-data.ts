@@ -11,7 +11,8 @@ import { provinceWhere } from '@/lib/province-match'
 import { mergeDistrictGroups, type DistrictChip } from '@/lib/district-canonical'
 import { DISTRICTS_PROVINCE_CODE } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
-import { homeFacts, linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
+import { homeFacts, linkedTier, namedCitiesHold, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
+import { CITY_PROVINCES } from '@/lib/site-facts'
 import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { jobCityChips, type JobCity } from './job-cities'
@@ -238,14 +239,25 @@ export const RENTALS_HEADLINE_TTL = 21600
 const computeRentalsHeadline = async (categoryId: string): Promise<RentalsHeadline | null> => {
   // ⛔ PLACES ONLY, like loadRentalsFacts: the H1 and title must name the same set the lede counts.
   // With no place live this is null and the page keeps the generic H1, as loadRentalsFacts does.
+  const inProvince = async (province: string, only?: Prisma.ListingWhereInput) =>
+    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(province), ...(only ? [only] : [])] }, { teachers: true }) })
   const [inHcmc, kinds] = await Promise.all([
-    db.listing.count({ where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES, provinceWhere(HCMC_PROVINCE)] }, { teachers: true }) }),
+    inProvince(HCMC_PROVINCE),
     db.listing.groupBy({ by: ['subcategorySlug'], where: await scopedListingWhere({ AND: [live(categoryId), RENTAL_PLACES] }, { teachers: true }), _count: { _all: true } }),
   ])
   const total = kinds.reduce((n, k) => n + k._count._all, 0)
   if (total === 0) return null
+  const allHcmc = inHcmc >= total
+  // The three-city headline (category-copy.ts `namedCitiesHold`), counted only when HCMC alone no longer holds everything: the
+  // APARTMENTS in each city, since the headline says apartments of each. The same predicate as the HCMC count (the area filter's own),
+  // so a city the headline names is the city ?province= would show.
+  const APARTMENTS: Prisma.ListingWhereInput = { subcategorySlug: 'apartment-rental' }
+  const named = allHcmc
+    ? null
+    : await Promise.all([inProvince(HCMC_PROVINCE, APARTMENTS), inProvince(CITY_PROVINCES.hanoi, APARTMENTS), inProvince(CITY_PROVINCES.daNang, APARTMENTS)])
   return rentalsHeadline({
-    allHcmc: inHcmc >= total,
+    allHcmc,
+    namedCities: !!named && namedCitiesHold({ total, hcmc: named[0], hanoi: named[1], daNang: named[2] }),
     kinds: rentalKinds(Object.fromEntries(kinds.map((k) => [k.subcategorySlug ?? '', k._count._all]))),
   })
 }
