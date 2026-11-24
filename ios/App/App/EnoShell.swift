@@ -80,6 +80,12 @@ final class EnoShell: NSObject {
             tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        // ⛔ Before iOS 26 a standalone bar's own height is 49pt INCLUDING the home-indicator inset: its buttons got 14pt and
+        // the icons rode 30pt above the bar, over the page (measured on the iOS 18.4 simulator, 1.2 build 7). There it is
+        // 49pt above the safe area plus the inset, as UITabBarController makes it. iOS 26 sizes the glass bar itself.
+        if #unavailable(iOS 26.0) {
+            tabBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -49).isActive = true
+        }
         // The last visit's tabs, so the bar is there from the first frame; the web corrects it as soon as it posts.
         if let data = UserDefaults.standard.data(forKey: Self.tabsKey),
            let saved = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
