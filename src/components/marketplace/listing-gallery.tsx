@@ -79,7 +79,7 @@ const PLAIN_FRAME = 'isolate bg-tint dark:bg-background'
  *  play/pause (TikTok-conditioned reflex); a mute toggle restores sound. `preload` starts
  *  "none" and flips on first visibility — the mobile carousel and desktop mosaic BOTH mount
  *  (CSS-hidden per breakpoint), and this keeps the hidden twin from fetching anything. */
-function GalleryVideo({ src, poster, className, sheet = false }: { src: string; poster?: string; className?: string; /** The rental sheet's edge covers the slide's bottom 16px: the mute toggle sits above it (`bottom-7`). */ sheet?: boolean }) {
+function GalleryVideo({ src, poster, alt = '', className, sheet = false }: { src: string; poster?: string; /** The poster's alt: the listing's first photo's (it stays aria-hidden, like the backdrop copy). */ alt?: string; className?: string; /** The rental sheet's edge covers the slide's bottom 16px: the mute toggle sits above it (`bottom-7`). */ sheet?: boolean }) {
   const { tr } = useLanguage()
   const ref = useRef<HTMLVideoElement>(null)
   const [muted, setMuted] = useState(true)
@@ -159,7 +159,9 @@ function GalleryVideo({ src, poster, className, sheet = false }: { src: string; 
             revealed ? 'opacity-0' : 'opacity-100',
           )}
         >
-          <Image src={poster} alt="" fill sizes="(max-width:768px) 100vw, 60vw" quality={60} loading="eager" className="object-cover" unoptimized={isMockImageUrl(poster)} />
+          {/* alt, not "" (Seobility crawl 4, 2026-11-25: 59 video listings "images without alt" — an empty alt counts as
+              missing there); the overlay is aria-hidden, so a screen reader still hears the video, not the photo. */}
+          <Image src={poster} alt={alt} fill sizes="(max-width:768px) 100vw, 60vw" quality={60} loading="eager" className="object-cover" unoptimized={isMockImageUrl(poster)} />
         </div>
       )}
       {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
@@ -744,7 +746,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
               {hasVideo && (
                 <div className="relative aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none">
-                  <GalleryVideo src={video!} poster={images[0]} sheet={sheet || plain} />
+                  <GalleryVideo src={video!} poster={images[0]} alt={photoAlt(1)} sheet={sheet || plain} />
                 </div>
               )}
               {images.map((img, i) => (
@@ -791,7 +793,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 24rem floor keeps a short landscape window from collapsing the hero. */}
             <div className="relative aspect-square max-h-[max(24rem,calc(100dvh-19rem))] w-full overflow-hidden rounded-2xl bg-tint">
               {hasVideo && sel === 0 ? (
-                <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
+                <GalleryVideo src={video!} poster={images[0]} alt={photoAlt(1)} className="rounded-none" />
               ) : (
                 (() => {
                   const photoIdx = hasVideo ? sel - 1 : sel

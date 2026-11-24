@@ -1,5 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
-import { titleWithSite } from '@/lib/meta-description'
+import { sentenceDescription, titleWithSite } from '@/lib/meta-description'
 import { formatMoneyFull } from '@/lib/vnd'
 import type { RentIndex } from '@/lib/rent-index'
 
@@ -32,9 +32,10 @@ export function rentIndexMeta(index: RentIndex | null, lang: string): { title: s
     const parts = index && ok ? figures(index, (b) => (b === 'br1' ? 'căn hộ 1 phòng ngủ' : '2 phòng ngủ'), money) : []
     const description =
       parts.length && ok
-        ? `Giá thuê trung vị TP.HCM ngày ${hcmc('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}: ${parts.join(', ')}/tháng. Từng quận, từ ${count(index!.used)} tin đang đăng, cập nhật mỗi ngày.`
+        ? `Giá thuê trung vị TP.HCM ngày ${hcmc('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}: ${parts.join(', ')}/tháng. Từng quận, từ ${count(index!.used)} tin, cập nhật mỗi ngày.`
         : 'Giá thuê nhà trung vị theo quận tại TP.HCM: căn hộ, nhà nguyên căn và phòng, tính mỗi ngày từ tin đang đăng, được tự do trích dẫn.'
-    return { title, description }
+    // Within a result (Seobility crawl 4, 2026-11-25: /vi at 1,022 px of 1,000) — the figures' sentence stays whole.
+    return { title, description: sentenceDescription(description) }
   }
 
   const month = ok ? `, ${hcmc('en-GB', { month: 'long', year: 'numeric' })}` : ''
@@ -45,7 +46,7 @@ export function rentIndexMeta(index: RentIndex | null, lang: string): { title: s
     parts.length && ok
       ? `Median asking rent in Ho Chi Minh City, ${hcmc('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}: ${parts.join(', ')} a month. By district, from ${count(index!.used)} listings, updated daily.`
       : 'Median asking rent by district in Ho Chi Minh City for apartments, houses and rooms, recalculated every day from live listings and free to cite.'
-  return { title, description }
+  return { title, description: sentenceDescription(description) }
 }
 
 /** "1-bedroom 8,000,000 đ", "2-bedroom 9,700,000 đ" — the bands with a published median, in that order. */

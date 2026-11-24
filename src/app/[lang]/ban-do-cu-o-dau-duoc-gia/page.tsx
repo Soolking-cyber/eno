@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -347,7 +347,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Bán đồ cũ ở đâu được giá | ${SITE_NAME}`,
   description:
     'Khoảng giá thật đang rao cho đồ gia dụng và nội thất cũ tại TP.HCM theo từng loại món, vì sao bán xô cho cửa hàng thu mua luôn thấp hơn, cách định giá và chụp ảnh để bán nhanh, và khi nào bán xô mới là lựa chọn đúng.',
@@ -358,7 +358,7 @@ export const metadata: Metadata = {
       'Trung vị giá rao 2.480.000 đ, và khoảng giá theo từng loại món: máy lạnh, máy giặt, sofa, tủ quần áo, bàn, kệ. Định giá bằng số liệu thay vì nghe báo giá.',
     type: 'article',
   }),
-}
+})
 
 export default function BanDoCuODauDuocGiaPage() {
   return <SeoArticle content={CONTENT} />

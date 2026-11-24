@@ -67,13 +67,19 @@ export function titleSubjects(t: Pick<TeacherTitleFields, 'subjects' | 'teachLan
 }
 
 /**
+ * Shorter lines for a <title> the full one makes too wide (Seobility crawl 4, 2026-11-25: 40 profiles at 587–638 px of
+ * 580): without the place, then with the first subject alone. Each is the full line's own words, so the page's text (the
+ * profile's sr-only line, teacher-profile-view.tsx) still holds every word of the title.
+ */
+export type TitleLineOpts = { place?: boolean; subjects?: number }
+/**
  * "IELTS & English teacher, Ho Chi Minh City" / "Giáo viên IELTS và tiếng Anh tại TP. Hồ Chí Minh" — the place is the
  * city (or the province) the teacher lives in, in the page's language (places.ts, never machine-translated).
  */
-export function teacherTitleLine(t: TeacherTitleFields, lang: string): string {
+export function teacherTitleLine(t: TeacherTitleFields, lang: string, opts?: TitleLineOpts): string {
   const vi = lang === 'vi'
-  const names = titleSubjects(t, lang)
-  const place = homeLocationName(publicSituation(t), vi ? 'vi' : 'en')
+  const names = titleSubjects(t, lang).slice(0, opts?.subjects ?? 2)
+  const place = opts?.place === false ? null : homeLocationName(publicSituation(t), vi ? 'vi' : 'en')
   if (vi) return `Giáo viên${names.length ? ` ${names.join(' và ')}` : ''}${place ? ` tại ${place}` : ''}`
   return `${names.length ? `${names.join(' & ')} teacher` : 'Teacher'}${place ? `, ${place}` : ''}`
 }

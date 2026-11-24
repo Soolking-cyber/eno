@@ -248,6 +248,9 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   return (
     <Link
       href={siteHref(href)}
+      // nofollow (Seobility crawl 4, 2026-11-25): Messages and Account are signed-in pages; on a shop or teacher host the
+      // bar's links are the apex's and redirect there before the client knows its origin. Crawlers skip them.
+      rel="nofollow"
       // ⚠️ `loading` GATES THE PREFETCH, not just the tap. While auth is unresolved the tap handler
       // below already swallows the tap and replays it — so during that exact window the tab is not
       // a navigation at all, yet Next was still prefetching /post, /messages and /dashboard/account.
@@ -483,7 +486,7 @@ export function MobileNav() {
 
       {/* Saved is public — a guest's saves live on the device (a signed-in person's also on the
           account), so a logged-out visitor can save and review listings without an account. */}
-      <Link href={siteHref('/saved')} prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
+      <Link href={siteHref('/saved')} rel="nofollow" prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
@@ -530,6 +533,7 @@ export function MobileNav() {
           Re-tapping never scrolls to top (`false`), as before. */}
       <Link
         href={siteHref('/post')}
+        rel="nofollow"
         prefetch={at('/post') || loading || leanConnection || !engaged ? false : undefined}
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}

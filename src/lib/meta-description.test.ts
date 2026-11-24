@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clip, fillDescription, firstThatFits, shopTitle, titleWithPrice, titleWithSite, fitsTitle } from './meta-description'
+import { clip, fillDescription, firstThatFits, shopTitle, titleWithPrice, titleWithSite, fitsTitle, fitsDescription, sentenceDescription } from './meta-description'
 
 describe('fillDescription (Bing 2026-11-20: descriptions too short)', () => {
   it('adds the facts in order, only until the text is long enough', () => {
@@ -84,5 +84,37 @@ describe('firstThatFits (Seobility 2026-11-23: a district title at 621 px)', () 
     expect(firstThatFits(forms)).toBe('Apartments & Houses for Rent in Binh Thanh District, HCMC')
     expect(firstThatFits(['Rentals in District 1, HCMC | eno.vn', 'x'])).toBe('Rentals in District 1, HCMC | eno.vn')
     expect(firstThatFits(['a'.repeat(70), 'b'.repeat(65)])).toBe('b'.repeat(65))
+  })
+})
+
+describe('sentenceDescription (Seobility crawl 4, 2026-11-25: 29 guide descriptions past 1,000 px)', () => {
+  it('a description that fits is untouched', () => {
+    expect(sentenceDescription('Short and whole.')).toBe('Short and whole.')
+  })
+  it('keeps the longest run of whole sentences that fits and reaches 120 characters', () => {
+    const two = 'Hourly and monthly pay by employer type in Ho Chi Minh City, Hanoi and Da Nang, mostly from this year’s job ads and school offers. Take-home pay is worked out under the new tax rules.'
+    expect(fitsDescription(two)).toBe(false)
+    expect(sentenceDescription(two)).toBe('Hourly and monthly pay by employer type in Ho Chi Minh City, Hanoi and Da Nang, mostly from this year’s job ads and school offers.')
+  })
+  it('⛔ a first sentence under 120 characters never replaces the word cut (gate review: 72 characters for ~150)', () => {
+    const s = 'What a rental deposit in Vietnam covers and where the money sits while you live there. How to get every đồng of it back when you leave, and what a landlord may keep.'
+    const out = sentenceDescription(s)
+    expect(out.length).toBeGreaterThan(130)
+    expect(out.endsWith('…')).toBe(true)
+    expect(fitsDescription(out)).toBe(true)
+  })
+  it('"TP.HCM", "2.5", "TP. Hồ Chí Minh", "Q. 1" and "e.g. this" are not sentence ends', () => {
+    const s = 'Giáo viên IELTS tại TP. Hồ Chí Minh dạy ở Q. 1 và Q. 7, giá từ 2.5 triệu một tháng tại TP.HCM, xem hồ sơ và lịch rảnh của từng người trước khi nhắn tin. Cách liên hệ.'
+    const out = sentenceDescription(s)
+    expect(out).not.toMatch(/(TP|Q)\.$/)
+    expect(fitsDescription(out)).toBe(true)
+    const eg = 'Shops quote by the day or month, e.g. this one rents a scooter for a week at the monthly rate when you ask before booking with them. A second sentence that pushes it past the limit.'
+    expect(sentenceDescription(eg)).not.toBe('Shops quote by the day or month, e.g.')
+  })
+  it('one long sentence: cut at a word like clipDescription', () => {
+    const long = 'Motorbikes and scooters for rent in Ho Chi Minh City from local rental shops with automatic or manual bikes and day and month prices worked out from live listings and how booking works.'
+    const out = sentenceDescription(long)
+    expect(fitsDescription(out)).toBe(true)
+    expect(out.endsWith('…')).toBe(true)
   })
 })

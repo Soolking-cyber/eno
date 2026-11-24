@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -355,7 +355,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Renting an Apartment in Vietnam as a Foreigner | ${SITE_NAME}`,
   description:
     'How listings and viewings really work in Ho Chi Minh City, what a normal lease contains, the deposit norm and how it comes back, who declares your residence, which bills sit outside the rent, and the clauses worth negotiating.',
@@ -366,7 +366,7 @@ export const metadata: Metadata = {
       'The half a brokerage leaves out: lease terms, what the deposit really covers and how to get it back, metered bills, handover photos and the clauses that are actually negotiable.',
     type: 'article',
   }),
-}
+})
 
 export default function Page() {
   return <SeoArticle content={CONTENT} />

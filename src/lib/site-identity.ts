@@ -4,7 +4,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
 import { SOCIALS, X_SITE } from '@/lib/socials'
-import { clipDescription, firstThatFits } from '@/lib/meta-description'
+import { firstThatFits, sentenceDescription } from '@/lib/meta-description'
 import { titlePx } from '@/lib/serp-width'
 import type { LegalOperator } from '@/lib/site-legal'
 
@@ -335,7 +335,8 @@ const SITE_BRAND = 'eno'
  * ⛔ THE DOMAIN ONCE, AT THE END (Seobility crawl 3, 19 pages): a title that names eno.vn mid-title ("How to post a listing on
  * eno.vn, step by step") says the brand, "eno", there instead. With the suffix, "eno.vn" mid-title was "title word repeats";
  * without it (when it did not fit) "domain in title". The page's own text keeps its words; only the <title> changes. The
- * description is cut at a word where a result cuts it (meta-description.ts clipDescription: 155 characters and 980 px).
+ * description is cut where a result cuts it (155 characters and 980 px), after a whole sentence when one fits
+ * (meta-description.ts sentenceDescription), else at a word.
  * `keepDomain`: a title that names the domain ON PURPOSE keeps it — /developers/mcp, "The eno.vn MCP server for AI agents",
  * what a name-based search for the server matches (developers/mcp/page.tsx; 07, 2026-11-24).
  */
@@ -347,5 +348,14 @@ export function withinResult(title: string, description: string, opts?: WithinRe
   title = bare === rawBare ? title : `${bare}${SITE_SUFFIX}`
   const head = bare.split(/:\s|\s[—–|]\s/)[0].trim()
   const heads = head !== bare && titlePx(head) >= 200 ? [`${head}${SITE_SUFFIX}`, head] : []
-  return { title: firstThatFits([title, bare, ...heads]), description: clipDescription(description, 155) }
+  return { title: firstThatFits([title, bare, ...heads]), description: sentenceDescription(description, 155) }
+}
+
+/**
+ * A page's own metadata with its description fitted to a result (sentenceDescription), for a page that sets a hand-written
+ * one (Seobility crawl 4, 2026-11-25: 29 guide pages at 1,006–1,591 px of 1,000). The share cards keep the full text — they
+ * are built from their own `openGraph` / `twitter` fields, which this leaves alone.
+ */
+export function fitMeta<M extends Metadata>(m: M): M {
+  return typeof m.description === 'string' ? { ...m, description: sentenceDescription(m.description) } : m
 }

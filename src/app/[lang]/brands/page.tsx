@@ -8,6 +8,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -94,7 +95,7 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href={home('/')} />} className="hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={home('/')} />} className="hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
@@ -104,7 +105,8 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
         </Breadcrumb>
 
         <h1 className="h-display text-foreground">
-          <Tr text="Browse by brand" />
+          {/* Past 20 characters (Seobility crawl 4, 2026-11-25: "Browse by brand" was an H1 too short). */}
+          <Bilingual en="Browse listings by brand" vi="Duyệt tin đăng theo thương hiệu" />
         </h1>
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           <Tr text="Jump straight to listings from the brands people search for most." />

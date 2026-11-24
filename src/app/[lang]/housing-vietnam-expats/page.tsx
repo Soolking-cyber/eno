@@ -1,7 +1,7 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { teachGuideLinks } from '@/lib/teach-guides/site-links'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import Link from 'next/link'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
@@ -48,7 +48,7 @@ export const revalidate = 3600
  * not this page, is the target for "apartment for rent in Ho Chi Minh City", so the two do not compete
  * for one query with one rail.
  */
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Expat Housing in Vietnam: Renting in Ho Chi Minh City | ${SITE_NAME}`,
   description:
     'Expat housing in Ho Chi Minh City — apartments, houses and rooms for rent in Thao Dien, District 2, District 7, District 1 and Binh Thanh, and what to check before you view, sign and pay a deposit.',
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
     title: `Expat Housing in Vietnam: Renting in Ho Chi Minh City | ${SITE_NAME}`,
     description: 'Apartments, houses and rooms for rent in Ho Chi Minh City, and what to check before you sign.',
   }),
-}
+})
 
 /**
  * ⚠️ FROM THE REGISTRY, NOT HAND-TYPED, so a renamed guide or a changed label cannot leave a dead card

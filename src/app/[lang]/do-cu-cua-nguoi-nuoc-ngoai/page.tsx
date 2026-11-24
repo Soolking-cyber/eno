@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -339,7 +339,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Thanh lý đồ cũ của người nước ngoài: mua ở đâu, giá bao nhiêu | ${SITE_NAME}`,
   description:
     `Đồ gia dụng và nội thất cũ ở TP.HCM trên ${SITE_NAME}: giá thật của máy lạnh, máy giặt, sofa và tủ theo chính các tin đang đăng, cách biết mình đang mua của nhà bán chuyên hay của chính chủ dọn nhà, cách đọc điểm uy tín người bán và cách nhận hàng an toàn.`,
@@ -350,7 +350,7 @@ export const metadata: Metadata = {
       'Máy lạnh cũ trung vị 4.298.000 đ, tủ quần áo 6.200.000 đ, sofa 2.515.000 đ — số đo từ chính các tin đang đăng ở TP.HCM, kèm cách thử tại chỗ trước khi trả tiền.',
     type: 'article',
   }),
-}
+})
 
 export default function DoCuCuaNguoiNuocNgoaiPage() {
   return <SeoArticle content={CONTENT} />

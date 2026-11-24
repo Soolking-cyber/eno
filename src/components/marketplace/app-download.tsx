@@ -11,6 +11,7 @@ import { ANDROID_APP_URL, IOS_APP_URL, storeOs } from '@/lib/app-store-links'
 import { isNativeShell } from '@/lib/native-browser'
 import { browserContext } from '@/lib/in-app-browser'
 import { cn } from '@/lib/utils'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 /**
  * "Download the app" — the header's door to the mobile apps, on BOTH editions (owner, 2026-09-16:
@@ -64,6 +65,8 @@ export function AppDownload() {
    * hydration moves nothing on screen.
    */
   const [storeHref, setStoreHref] = useState('/app')
+  // The apex's /app on a shop's own host, where a relative one redirected (Seobility crawl 4); a store URL passes through.
+  const siteHref = useSiteHref()
 
   useEffect(() => {
     // (Until the App Store listing went live on 2026-11-07 this also stood down on iPhones and in an installed PWA, whose
@@ -115,7 +118,7 @@ export function AppDownload() {
       // `max-sm:hidden` (the phone header's ruling, top of this file) rides the BUTTON, not the child: a render child's class is
       // concatenated, not merged (CLAUDE.md), and this branch is the one a phone renders.
       <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-foreground transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] max-sm:hidden">
-        <a href={storeHref} data-app-download="" aria-label={label}>
+        <a href={siteHref(storeHref)} data-app-download="" aria-label={label}>
           {/* Text in the link, not only aria-label (Seobility, 2026-11-23: an empty link). */}
           <span className="sr-only">{label}</span>
           <Download className="h-7 w-7" strokeWidth={1.75} />

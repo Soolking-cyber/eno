@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -340,7 +340,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Secondhand Furniture in Ho Chi Minh City: Real Prices | ${SITE_NAME}`,
   description:
     'What used furniture and appliances actually cost in HCMC, measured from 3,201 live listings — median prices for wardrobes, sofas, air conditioners and washing machines, what to test before paying, and how delivery really works.',
@@ -351,7 +351,7 @@ export const metadata: Metadata = {
       'Measured price bands from 3,201 used furniture and appliance listings in Ho Chi Minh City, plus the checks to run on a used air conditioner, washing machine or sofa before you pay.',
     type: 'article',
   }),
-}
+})
 
 export default function SecondhandFurnitureHoChiMinhCityPage() {
   return <SeoArticle content={CONTENT} />

@@ -19,7 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('motorbike')
   return {
     title: titleWithSite(`Motorbike Rental in Ho Chi Minh City: Scooters by Day or Month`, SITE_NAME),
-    description: 'Motorbikes and scooters for rent in Ho Chi Minh City (Saigon) from local rental shops — automatic or manual, day and month prices worked out from live listings, and how booking with the shop works.',
+    // Within a result: 899 px of 1,000 (Seobility crawl 4, 2026-11-25: the old one was 1,230).
+    description: 'Motorbikes and scooters for rent in Ho Chi Minh City (Saigon) from local shops: automatic or manual, with day and month prices from live listings.',
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
     ...(data.total === 0 ? { robots: { index: false, follow: true } } : {}),

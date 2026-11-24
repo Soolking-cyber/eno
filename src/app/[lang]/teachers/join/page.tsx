@@ -8,6 +8,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { TeacherForm } from '@/components/teachers/teacher-form'
 import { TeacherHostHeader } from '@/components/teachers/teacher-host-header'
 import { apexOrigin, isTeacherHost, teacherOrigin } from '@/lib/teachers/host'
+import { SiteOriginProvider } from '@/components/marketplace/site-href'
 import { getGeminiVertex } from '@/lib/gemini'
 import { NATIVE_UA_RE } from '@/lib/consent-value'
 import { campaignQuery } from '@/components/teachers/teacher-form-rules'
@@ -70,6 +71,9 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
     campaign: campaignQuery(`?${new URLSearchParams(Object.entries(q).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v]] : [])))}`).slice(1),
   }
   return (
+    // On teacher.<base> the header's, footer's and tab bar's links are the apex's: every other path 301s there (Seobility
+    // crawl 4, 2026-11-25: /saved, /post, /terms, /privacy … from this host were links to redirects).
+    <SiteOriginProvider origin={draftHost ? apexOrigin(APP_URL) : ''}>
     <div className="flex min-h-page flex-col">
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
       {/* `data-teacher-host`: on teacher.<base> the phone tab bar is hidden (globals.css) — every tab there led off the
@@ -91,5 +95,6 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
       </main>
       <Footer />
     </div>
+    </SiteOriginProvider>
   )
 }

@@ -6,6 +6,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { ShieldVerifiedGlyph } from '@/components/marketplace/shield-verified-glyph'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 /**
  * THE OFFICIAL-PARTNER BADGE — a shield plate (icon only since 2026-09-30) in partner green that explains itself when tapped.
@@ -178,7 +179,9 @@ const LinkOrSpan = React.forwardRef<HTMLElement, { asLink: boolean; className?: 
      would render against nothing. It fails silently — no type error, no console warning, just a
      popup in the wrong place — which is why a reviewer had to catch it rather than a gate. */
   function LinkOrSpan({ asLink, className, children, ...rest }, ref) {
+    // The apex's /partners on a shop's own host, where a relative one redirected (Seobility crawl 4, 2026-11-25).
+    const siteHref = useSiteHref()
     if (!asLink) return <span ref={ref as React.Ref<HTMLSpanElement>} className={className} {...rest}>{children}</span>
-    return <Link ref={ref as React.Ref<HTMLAnchorElement>} href="/partners" prefetch={false} className={className} {...rest}>{children}</Link>
+    return <Link ref={ref as React.Ref<HTMLAnchorElement>} href={siteHref('/partners')} prefetch={false} className={className} {...rest}>{children}</Link>
   },
 )

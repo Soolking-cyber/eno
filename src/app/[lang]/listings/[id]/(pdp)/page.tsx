@@ -12,7 +12,7 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { getTeacherPageRow } from '@/lib/teachers/page-row'
 import { teacherRobots, teacherSearchFacts, teacherSearchVerdict } from '@/lib/teachers/search-floor'
-import { teacherTitleLine } from '@/lib/teachers/search-title'
+import { teacherTitleLine, type TitleLineOpts } from '@/lib/teachers/search-title'
 import { PostJobLink, TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
@@ -335,10 +335,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    */
   const teacherRow = isTeacher ? await getTeacherPageRow(listing.id) : null
   const teacherSearch = isTeacher ? teacherSearchVerdict(teacherSearchFacts(teacherRow, listing)) : null
-  // The site's name only within 60 characters (Seobility, 2026-11-23: "<name> — IELTS & English teacher, Ho Chi Minh City | eno.vn"
-  // measured 637 px against ~580); the teacher's own words are never cut.
-  const teacherHead = isTeacher ? `${teacherRow?.fullName ?? listing.title} — ${teacherTitleLine(teacherRow ?? {}, vi ? 'vi' : 'en')}` : null
-  const teacherTitle = teacherHead ? firstThatFits([`${teacherHead} | ${SITE_NAME}`, teacherHead]) : null
+  // The site's name only where it fits (Seobility, 2026-11-23: "<name> — IELTS & English teacher, Ho Chi Minh City | eno.vn"
+  // measured 637 px against ~580), then the line without its place, then with one subject (crawl 4, 2026-11-25: 40 profiles
+  // still too wide without the site); the teacher's own words are never cut.
+  const teacherName = teacherRow?.fullName ?? listing.title
+  const teacherLine = (opts?: TitleLineOpts) => `${teacherName} — ${teacherTitleLine(teacherRow ?? {}, vi ? 'vi' : 'en', opts)}`
+  const teacherHead = isTeacher ? teacherLine() : null
+  const teacherTitle = teacherHead ? firstThatFits([`${teacherHead} | ${SITE_NAME}`, teacherHead, teacherLine({ place: false }), teacherLine({ place: false, subjects: 1 })]) : null
   // A live import an older one of the same seller repeats (src/lib/duplicate-import.ts) — one read, imports only.
   const duplicateImport = listing.status === 'active' && !isTeacher && await isDuplicateImport(listing)
   return {

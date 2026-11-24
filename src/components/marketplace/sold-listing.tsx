@@ -4,6 +4,7 @@ import { Store, ArrowRight, Home } from '@/components/ui/icons'
 import { Header } from './header'
 import { Footer } from './footer'
 import { categoryBrowsePath } from '@/lib/retired-categories'
+import { SITE_NAME } from '@/lib/edition'
 import { Mascot } from './mascot'
 import { SameSellerShelf } from './same-seller-shelf'
 import { RelatedListings } from './related-listings'
@@ -159,7 +160,8 @@ function SoldActions({ sellerHref, categoryHref, homeHref, className }: { seller
           href={homeHref}
           className="inline-flex items-center px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
         >
-          <Home className="h-4 w-4" /> <Tr text="Home" ctx="page" />
+          {/* The site's name, not "Home" (NAV-10; Seobility crawl 4): "Home" is also the furniture category's link text. */}
+          <Home className="h-4 w-4" /> {SITE_NAME}
         </Link>
       </Button>
     </div>

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -358,7 +358,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Đăng tin bán hàng miễn phí — điều kiện để tin được duyệt | ${SITE_NAME}`,
   description:
     `Đăng tin miễn phí ở mọi danh mục. Tin cần tối thiểu 3 ảnh khác góc, không số điện thoại trong tiêu đề, và bộ lọc trùng tin chặn đăng lại — kèm công thức xếp hạng đầy đủ.`,
@@ -369,7 +369,7 @@ export const metadata: Metadata = {
       `Miễn phí thật, và vì sao miễn phí không có nghĩa là tin rác: điều kiện đăng, bộ lọc trùng tin, và công thức xếp hạng không mua được.`,
     type: 'article',
   }),
-}
+})
 
 export default function DangTinBanHangMienPhiPage() {
   return <SeoArticle content={CONTENT} />

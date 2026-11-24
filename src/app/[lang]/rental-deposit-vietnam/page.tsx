@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -392,7 +392,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: titleWithSite(`Rental Deposit in Vietnam: What Is Fair and How to Get It Back`, SITE_NAME),
   description:
     'What a rental deposit in Vietnam covers, where the fair wear and tear line sits in this climate, real secondhand replacement prices to answer a deduction with, and what to do when a landlord does not return it.',
@@ -403,7 +403,7 @@ export const metadata: Metadata = {
       'The handover photo routine that settles deposit arguments, real replacement prices for a damaged item, and the escalation path when the money is withheld.',
     type: 'article',
   }),
-}
+})
 
 export default function Page() {
   return <SeoArticle content={CONTENT} />

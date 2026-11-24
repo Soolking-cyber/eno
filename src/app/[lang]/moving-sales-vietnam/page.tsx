@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { formatMoneyFull } from '@/lib/vnd'
 import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
@@ -31,7 +31,7 @@ export const revalidate = 3600
  * arrives with. The trust strip is off for the jobs-landing reason: its "every seller has a public
  * trust score … fakes get caught fast" is not a claim about a partner shop's website.
  */
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
   description:
     'Used sofas, wardrobes, air conditioners and washing machines in Ho Chi Minh City, mostly from secondhand shops — measured asking prices, what to check before you pay, and how to sell up when you move out.',
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
     description: 'Used furniture and appliances in Ho Chi Minh City, mostly from secondhand shops, with measured asking prices.',
   }),
-}
+})
 
 /**
  * ⚠️ MEASURED, DATED AND SAMPLED — the same 2026-09-23 sample the secondhand-furniture guide quotes

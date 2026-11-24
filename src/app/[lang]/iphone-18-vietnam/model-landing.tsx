@@ -7,6 +7,7 @@ import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { modelProductLd } from './model-product-ld'
 import { onSaleYet } from './price-guard'
 import { pageShare } from '@/lib/site-identity'
+import { sentenceDescription } from '@/lib/meta-description'
 
 /**
  * ONE MODEL, ONE PAGE — the machinery the per-variant landing pages share.
@@ -157,7 +158,8 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = tru
 // ⚠️ NO "— live prices" IN THE TITLE (2026-10-03): it promised a table that is empty until second-hand units appear.
 export const modelMeta = (cfg: ModelPageConfig, description: string) => ({
   title: `${cfg.h1} | ${SITE_NAME}`,
-  description,
+  // Within a result (Seobility crawl 4, 2026-11-25: three model pages at 1,240–1,262 px of 1,000); the card keeps it all.
+  description: sentenceDescription(description),
   alternates: { canonical: `/${cfg.slug}` },
   ...pageShare({ title: cfg.h1, description }),
 })

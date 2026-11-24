@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
@@ -179,7 +179,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Selling Up Before You Leave Vietnam: A Six-Week Plan | ${SITE_NAME}`,
   description:
     'When to list, how to price against the market rather than what you paid, what makes a listing sell, and the collection and handover details that decide whether you keep your rental deposit.',
@@ -190,7 +190,7 @@ export const metadata: Metadata = {
       'Six weeks out you price properly. Six days out you give things away. The order that works, and the handover that protects your deposit.',
     type: 'article',
   }),
-}
+})
 
 export default function Page() {
   return <SeoArticle content={CONTENT} />

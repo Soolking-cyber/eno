@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -23,12 +23,12 @@ const PATH = '/teachers/cover'
 const TITLE = `Cover teachers in Vietnam · Giáo viên dạy thay | ${SITE_NAME}`
 const DESCRIPTION = 'Teachers show the periods they are usually free, the districts they can reach and their hourly rate. Schools filter by district and free period, then message them in the app. Giáo viên dạy thay theo quận và buổi rảnh.'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
   ...pageShare({ title: TITLE, description: DESCRIPTION, url: PATH }),
-}
+})
 
 // ⚠️ `/` is the English-pinned home (lang-pinned.ts): this link goes through LocalizedLink so a Vietnamese reader
 // lands on the `/vi` twin with the same filters (lang-links.ratchet.test.ts cannot see a constant — do not inline it raw).

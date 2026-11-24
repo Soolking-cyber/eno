@@ -38,3 +38,17 @@ describe('withinResult', () => {
     expect((m.openGraph as { title?: string }).title).toBe(m.title)
   })
 })
+
+describe('fitMeta (Seobility crawl 4, 2026-11-25: hand-written guide descriptions past 1,000 px)', () => {
+  it('fits the page\'s description and leaves the rest, the share cards included, alone', async () => {
+    const { fitMeta } = await import('./site-identity')
+    const description = 'What a rental deposit in Vietnam covers, where the money sits while you live there, and what a landlord may keep from it at the end. How to get every đồng back when you leave.'
+    const og = { title: 'Deposits', description }
+    const m = fitMeta({ title: 'Rental deposits | eno.vn', description, openGraph: og })
+    expect(m.description).toBe('What a rental deposit in Vietnam covers, where the money sits while you live there, and what a landlord may keep from it at the end.')
+    expect(m.openGraph).toBe(og)
+    expect(m.title).toBe('Rental deposits | eno.vn')
+    expect(fitMeta({ title: 'x' })).toEqual({ title: 'x' })
+  })
+})
+

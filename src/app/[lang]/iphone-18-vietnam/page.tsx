@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { Tr } from '@/context/language-context'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
@@ -40,7 +40,7 @@ const fromPrice = (model: 'iPhone 18 Pro' | 'iPhone 18 Pro Max' | 'iPhone Duo') 
 const DESCRIPTION =
   `Apple Vietnam prices: iPhone 18 Pro from ${fromPrice('iPhone 18 Pro')}, Pro Max from ${fromPrice('iPhone 18 Pro Max')}, iPhone Duo from ${fromPrice('iPhone Duo')}. Second-hand prices today, and what VN/A means.`
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: '/iphone-18-vietnam' },
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     description:
       'Apple Vietnam’s iPhone 18 and iPhone Duo prices, what second-hand iPhone 18 and iPhone 17 units are listed for here, and the launch dates.',
   }),
-}
+})
 
 /**
  * ⚠️ `formatMoneyFull`, NEVER A LOCAL `Intl` CALL — design-lint fails the build on a hand-rolled

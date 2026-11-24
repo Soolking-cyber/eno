@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RentIndex, Stats } from '@/lib/rent-index'
 import { SITE_NAME } from '@/lib/edition'
 import { rentIndexMeta } from './meta'
+import { fitsDescription } from '@/lib/meta-description'
 
 const stats = (median: number | null, n = 100): Stats => ({ n, median, p25: median, p75: median, nArea: 0, medianPerM2: null })
 
@@ -28,8 +29,14 @@ describe('rentIndexMeta (owner 2026-11-22: rank for "rent prices in Ho Chi Minh 
     const m = rentIndexMeta(index(), 'vi')
     expect(m.title).toBe(`Giá thuê nhà TP.HCM theo quận, tháng 11/2026 | ${SITE_NAME}`)
     expect(m.description).toBe(
-      'Giá thuê trung vị TP.HCM ngày 22/11/2026: căn hộ 1 phòng ngủ 8.000.000 đ, 2 phòng ngủ 9.700.000 đ/tháng. Từng quận, từ 6.304 tin đang đăng, cập nhật mỗi ngày.',
+      'Giá thuê trung vị TP.HCM ngày 22/11/2026: căn hộ 1 phòng ngủ 8.000.000 đ, 2 phòng ngủ 9.700.000 đ/tháng. Từng quận, từ 6.304 tin, cập nhật mỗi ngày.',
     )
+  })
+
+  it('within a result (Seobility crawl 4: /vi at 1,022 px): bigger figures still fit, the figures sentence whole', () => {
+    const m = rentIndexMeta({ ...index(), used: 1_234_567 }, 'vi')
+    expect(fitsDescription(m.description)).toBe(true)
+    expect(m.description).toContain('9.700.000 đ/tháng.')
   })
 
   it('the month and day are Ho Chi Minh City time: 17:30 UTC on 30 November is already 1 December there', () => {

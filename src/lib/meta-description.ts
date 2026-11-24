@@ -51,6 +51,41 @@ export function clipDescription(s: string, max = 155): string {
   return clipToWidth(s, max, descriptionPx, DESCRIPTION_MAX_PX)
 }
 
+/**
+ * A description that fits (fitsDescription), cut after a sentence where it can be: the longest run of its own whole
+ * sentences that fits and is still as long as fillDescription's floor (120 characters, Bing's "too short"), otherwise
+ * clipDescription's cut at a word — never shorter than that cut would be by much (gate review, 2026-11-25: a 72-character
+ * first sentence must not replace a ~150-character clip). Seobility crawl 4 (2026-11-25): 29 hand-written guide
+ * descriptions at 1,006–1,591 px of 1,000.
+ * A sentence ends at ".", "!" or "?" followed by a space and a capital or digit (or the end), and not after an abbreviation
+ * or a single letter: "TP.HCM", "2.5", "TP. Hồ Chí Minh", "Q. 1", "e.g. this" are not ends (gate review).
+ * ⚠️ Scanned, not a lookbehind regex (the marketplace build refuses those).
+ */
+const SENTENCE_MIN = 120
+const NOT_AN_END = new Set(['tp', 'q', 'p', 'tx', 'st', 'mr', 'mrs', 'ms', 'dr', 'no', 'vs', 'e.g', 'i.e', 'etc', 'approx'])
+function endsSentence(s: string, i: number): boolean {
+  if (!'.!?'.includes(s[i])) return false
+  if (i + 1 < s.length) {
+    if (!/\s/.test(s[i + 1])) return false
+    const next = s.slice(i + 1).trimStart()[0]
+    if (next && !(/[0-9"“(]/.test(next) || next !== next.toLowerCase())) return false
+  }
+  if (s[i] !== '.') return true
+  const word = s.slice(s.lastIndexOf(' ', i - 1) + 1, i).toLowerCase()
+  return word.length > 1 && !NOT_AN_END.has(word)
+}
+export function sentenceDescription(s: string, max = 155): string {
+  if (fitsDescription(s, max)) return s
+  let best = ''
+  for (let i = 0; i < s.length; i++) {
+    if (!endsSentence(s, i)) continue
+    const cut = s.slice(0, i + 1)
+    if (!fitsDescription(cut, max)) break
+    best = cut
+  }
+  return best.length >= SENTENCE_MIN ? best : clipDescription(s, max)
+}
+
 /** At most `max` characters, cut at the last word boundary and closed with "…". */
 export function clip(s: string, max = 160): string {
   if (s.length <= max) return s

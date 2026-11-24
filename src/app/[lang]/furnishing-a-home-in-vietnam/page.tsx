@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -189,7 +189,7 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
-export const metadata: Metadata = {
+export const metadata: Metadata = fitMeta({
   title: `Furnishing a Home in Vietnam Without Overpaying | ${SITE_NAME}`,
   description:
     'What a landlord should already supply, what is worth buying new, what to buy secondhand, and how to check a used fridge, washing machine or wardrobe before you pay for it.',
@@ -200,7 +200,7 @@ export const metadata: Metadata = {
       'What to buy new, what to buy used, and the five-minute test that separates a working secondhand appliance from an expensive one.',
     type: 'article',
   }),
-}
+})
 
 export default function Page() {
   return <SeoArticle content={CONTENT} />

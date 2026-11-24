@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, withinResult } from '@/lib/site-identity'
 import { SeoArticle, type ArticleContent } from '@/components/marketplace/seo-article'
 import { TEACH_PROFILE_CTA, TeachDataLink, TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
 import { TEACHER_COST_INDEX_GUIDES, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
@@ -42,16 +42,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const hit = load(slug, requestNow())
   if (!hit) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
-  const title = `${hit.guide.title} | ${SITE_NAME}`
+  // The site's name only where it fits (Seobility crawl 4, 2026-11-25: 26 guides at 581–633 px of 580 with it).
+  const { title, description } = withinResult(`${hit.guide.title} | ${SITE_NAME}`, hit.guide.description)
   const path = teachPath(slug)
   return {
     title,
-    description: hit.guide.description,
+    description,
     alternates: { canonical: path },
     // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
     robots: TEACH_ROBOTS,
     // The guide's own share card (share-cards.ts), not the marketplace's — og:image and, through pageShare, twitter:image.
-    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article', images: [teachCardImage(slug)] }),
+    ...pageShare({ title, description, url: path, type: 'article', images: [teachCardImage(slug)] }),
   }
 }
 

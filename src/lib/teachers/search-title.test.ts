@@ -68,3 +68,14 @@ describe('titleSubjects — at most two, in the order the page lists them', () =
     expect(titleSubjects({ subjects: null }, 'en')).toEqual([])
   })
 })
+
+describe('shorter title lines (Seobility crawl 4, 2026-11-25: 40 profile titles past 580 px)', () => {
+  const t = { ...HCMC, subjects: ['general-english', 'ielts'] }
+  it('without the place, then with the first subject alone — each the full line\'s own words', () => {
+    expect(teacherTitleLine(t, 'en', { place: false })).toBe('IELTS & English teacher')
+    expect(teacherTitleLine(t, 'en', { place: false, subjects: 1 })).toBe('IELTS teacher')
+    expect(teacherTitleLine(t, 'vi', { place: false, subjects: 1 })).toBe('Giáo viên IELTS')
+    expect(teacherTitleLine(t, 'en')).toBe('IELTS & English teacher, Ho Chi Minh City')
+  })
+})
+

@@ -45,6 +45,8 @@ const { SoldListing } = await import('./sold-listing')
 afterEach(cleanup)
 afterAll(() => { vi.unstubAllEnvs() })
 
+// The way home is the site's name (NAV-10): "Home" is the furniture category's link text too (Seobility crawl 4).
+const SITE_LINK = /^eno\.(vn|forum)$/
 const FIRST_PARTY = 'https://sb.example.test/storage/v1/object/public/listings/a/b.webp'
 const listing = (images: string[]) => ({
   id: 'l1',
@@ -138,14 +140,14 @@ describe('SoldListing', () => {
     expect(PAGE).toContain('titleI18n={soldI18n[sold.title] ?? null}')
   })
 
-  it('the category and Home links keep a Vietnamese reader in Vietnamese (localizedHref)', () => {
+  it('the category and site-name links keep a Vietnamese reader in Vietnamese (localizedHref)', () => {
     const SRC = readFileSync(join(process.cwd(), 'src/components/marketplace/sold-listing.tsx'), 'utf8')
     expect(SRC).toContain('localizedHref(categoryBrowsePath(listing.category.slug), lang)')
     expect(SRC).toContain("const homeHref = localizedHref('/', lang)")
     expect(SRC).not.toMatch(/href="\/"/)
     // English stays plain — in both copies of the row.
     const { getAllByText } = renderSold([FIRST_PARTY], 0, 'en')
-    expect(getAllByText('Home').map((el) => el.closest('a')!.getAttribute('href'))).toEqual(['/', '/'])
+    expect(getAllByText(SITE_LINK).map((el) => el.closest('a')!.getAttribute('href'))).toEqual(['/', '/'])
   })
 
   it('on eno.vn a Vietnamese reader gets the /vi twins (the pilot lists are the marketplace edition’s)', async () => {
@@ -154,13 +156,13 @@ describe('SoldListing', () => {
     try {
       const { SoldListing: Sold } = await import('./sold-listing')
       const at = (lang: string) => render(<Sold listing={listing([FIRST_PARTY])} moreFromSeller={[]} sellerName="Shop" sellerHref="/sellers/s1" lang={lang} />)
-      const hrefs = (r: ReturnType<typeof at>, text: string) => r.getAllByText(text).map((el) => el.closest('a')!.getAttribute('href'))
+      const hrefs = (r: ReturnType<typeof at>, text: string | RegExp) => r.getAllByText(text).map((el) => el.closest('a')!.getAttribute('href'))
       const vi_ = at('vi')
-      expect(hrefs(vi_, 'Home')).toEqual(['/vi', '/vi'])
+      expect(hrefs(vi_, SITE_LINK)).toEqual(['/vi', '/vi'])
       // Pets is a retired shelf: it browses in the explorer (`/?category=`), whose Vietnamese twin is /vi.
       expect(hrefs(vi_, 'Browse this category')).toEqual(['/vi?category=pets', '/vi?category=pets'])
       cleanup()
-      expect(hrefs(at('en'), 'Home')).toEqual(['/', '/'])
+      expect(hrefs(at('en'), SITE_LINK)).toEqual(['/', '/'])
     } finally {
       vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
       vi.resetModules()
