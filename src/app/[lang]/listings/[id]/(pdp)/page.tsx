@@ -138,6 +138,7 @@ import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEA
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
 import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_MAP_BOX, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
 import { fillDescription, firstThatFits, titleWithPrice } from '@/lib/meta-description'
+import { brandHref, dominantCategory } from '@/lib/brand-category'
 import { isThinImport } from '@/lib/thin-import'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
@@ -611,7 +612,7 @@ export default async function ListingPage({ params }: Props) {
   // and the seller's 90d conversation count — the honest denominator behind the
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
-  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug, areaRent] = await Promise.all([
+  const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug, areaRent, brandCategory] = await Promise.all([
     cachedTranslations([listing.title, listing.description, listing.location]),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
@@ -637,6 +638,8 @@ export default async function ListingPage({ params }: Props) {
     modelPageSlugFor({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, status: rawListing.status }).catch(() => null),
     // The area rent line (areaRentOf above): the rent index's cell for this home to rent, null for every other row.
     areaRentOf({ ...rawListing, categorySlug: rawListing.category.slug }).catch(() => null),
+    // The brand link's category (brand-category.ts): a failed read is the bare ?brand= link, as before.
+    listing.brandSlug ? dominantCategory(listing.brandSlug).catch(() => null) : Promise.resolve(null),
   ])
   /**
    * The gallery's photo names and its lightbox's name follow the variant too (viTitle above): on the Vietnamese page a
@@ -690,7 +693,8 @@ export default async function ListingPage({ params }: Props) {
   // dialog's words depend on it (src/lib/user-blocks.ts isShopOnlyBlock). No query while ugc-safety is off.
   const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(rawListing.seller.ownerId) : false
   const chatOnlyPartner = isChatOnlyPartner({ officialPartner: listing.seller.officialPartner, hasOwner: rawListing.seller.ownerId != null })
-  const sellerHref = `/sellers/${listing.sellerId}`
+  // The storefront's own address when it has one: /sellers/<id> redirects there (sellers/[id]/page.tsx).
+  const sellerHref = rawListing.seller.handle ? `/${rawListing.seller.handle.handle}` : `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
   // public). Held/suspended pages are usually pulled (404) — direct-link stragglers
   // still get the stronger wording.
@@ -1163,7 +1167,8 @@ export default async function ListingPage({ params }: Props) {
     // (review, 2026-11-13; globals.css tap-44's tap-stealing note). The chip it replaces had no tap floor either.
     if (brand) {
       // The goods sheet below md: the link in the line's own grey, still underlined (owner-approved 2026-11-14, cook r06 "item").
-      facts.push({ key: 'brand', node: <Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link> })
+      // With the brand's category, the URL the explorer would end on (brand-category.ts): a bare ?brand= is rewritten after load.
+      facts.push({ key: 'brand', node: <Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link> })
     }
     for (const s of numericSpecs) facts.push({ key: `spec-${s.label}`, node: <><Tr text={s.label} /> {s.value}</> })
     if (bedrooms) {

@@ -162,13 +162,14 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
 
   it('the brand link goes through localizedHref, like the breadcrumb (disc-missed) — an inline link in the facts line since batch 89', () => {
     // (The goods sheet greys it below md since 2026-11-14 — still underlined.)
-    expect(PAGE).toContain("<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link>")
+    // brandHref: the brand with its category, the explorer's end URL (brand-category.ts; Seobility 2026-11-23).
+    expect(PAGE).toContain("<Link href={localizedHref(brandHref(listing.brandSlug!, brandCategory), pageVariant)} prefetch={false} className={cn('text-foreground underline underline-offset-4', goodsSheet && 'max-md:text-muted-foreground')}>{brand.name}</Link>")
     // The old chip is gone: one brand link on the page.
-    expect(PAGE.match(/\?brand=\$\{encodeURIComponent/g)).toHaveLength(1)
+    expect(PAGE.match(/brandHref\(listing\.brandSlug!/g)).toHaveLength(1)
   })
 
   it('⛔ the inline brand link has no tap-44: its 44px hit area covered "See original" right above the line (review, 2026-11-13)', () => {
-    const link = PAGE.match(/<Link href=\{localizedHref\(`\/\?brand=[^\n]*/)?.[0] ?? ''
+    const link = PAGE.match(/<Link href=\{localizedHref\(brandHref\([^\n]*/)?.[0] ?? ''
     expect(link).not.toBe('')
     expect(link).not.toMatch(/tap-44/)
     // ⛔ Always underlined, not only on hover: axe link-in-text-block (serious) failed on live branded listings (2026-11-14).

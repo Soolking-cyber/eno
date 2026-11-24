@@ -75,7 +75,9 @@ export const getListing = cache(async (id: string) =>
     // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
     // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
     // owner.avatarUrl: a person's shop link shows their photo, as their storefront does (src/lib/storefront-avatar.ts).
-    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } } } } },
+    // handle: the shop link goes straight to /<handle>, not /sellers/<id>, which only redirects there (Seobility, 2026-11-23: a link
+    // to a redirect on every listing of a shop with a handle).
+    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } }, handle: { select: { handle: true } } } } },
   }),
 )
 

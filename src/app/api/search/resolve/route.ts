@@ -6,6 +6,7 @@ import { matchBrand, categoryHasBrand } from '@/lib/brand'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
 import { route } from '@/lib/api/handler'
+import { dominantCategory } from '@/lib/brand-category'
 
 export const runtime = 'nodejs'
 
@@ -26,22 +27,6 @@ const empty = ok({ brand: null })
  *  is shopping intent, and the all-rent `rentals` category would otherwise outweigh
  *  the brand's sales category (Honda: 36 rentals vs 23 vehicles → must open
  *  vehicles). Rent-only brands still resolve via the all-intents fallback. */
-async function dominantCategory(brandSlug: string): Promise<string | null> {
-  const topCategoryId = async (excludeRent: boolean): Promise<string | null> => {
-    const grouped = await db.listing.groupBy({
-      by: ['categoryId'],
-      where: await scopedListingWhere({ verified: true, status: 'active', brandSlug, ...(excludeRent ? { listingType: { not: 'rent' } } : {}) }),
-      _count: { _all: true },
-      orderBy: { _count: { categoryId: 'desc' } },
-      take: 1,
-    })
-    return grouped[0]?.categoryId ?? null
-  }
-  const categoryId = (await topCategoryId(true)) ?? (await topCategoryId(false))
-  if (!categoryId) return null
-  const cat = await db.category.findUnique({ where: { id: categoryId }, select: { slug: true } })
-  return cat?.slug ?? null
-}
 
 type ModelHit = { brand: string; model: string; category: string | null }
 

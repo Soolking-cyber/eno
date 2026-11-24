@@ -1,4 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
+import { brandHref, dominantCategories } from '@/lib/brand-category'
 import type { Metadata } from 'next'
 import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import Link from 'next/link'
@@ -72,9 +73,12 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
      both would keep shipping the full ~241 kB of SVG source that this change exists to remove —
      it would just no longer be percent-encoded. A reviewer caught that. */
   // `fit`: the box each mark is drawn in, one optical size for a wordmark and a glyph alike (brand-logo-url.ts brandLogoFit).
+  // Each brand's link carries its category, the URL the explorer would end on (brand-category.ts; Seobility, 2026-11-23: a bare
+  // ?brand= is rewritten after load, a link to a redirect for a crawler that runs JavaScript). A failed read is the bare links.
+  const categories = await dominantCategories(brands.map((b) => b.slug)).catch(() => new Map<string, string>())
   const items = brands.map((b) => {
     const iconPath = brandIconPath(b)
-    return { ...b, iconPath, iconUrl: brandLogoUrl(b), fit: brandLogoFit(iconPath) }
+    return { ...b, iconPath, iconUrl: brandLogoUrl(b), fit: brandLogoFit(iconPath), href: brandHref(b.slug, categories.get(b.slug)) }
   })
 
   return (
@@ -133,7 +137,7 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
             {items.map((b) => (
               <Link
                 key={b.slug}
-                href={home(`/?brand=${encodeURIComponent(b.slug)}`)}
+                href={home(b.href)}
                 className="flex flex-col items-center gap-2 rounded-2xl border border-border px-4 py-4 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
                 {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall.
