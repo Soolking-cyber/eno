@@ -84,13 +84,13 @@ const LISTING_ID = z.string().describe('The id of one of this shop\'s live listi
 // A plain number, bounded by the server (adHours), as this server's other numeric inputs are: the reviewers flag schema bounds.
 // Its prose says what to pass, never the bounds again: Manufact flagged "a whole number from 1 to 2160" as validation
 // repeated (2026-11-24); get_ad_offer's `max_hours` states the longest.
-const HOURS = z.number().optional().describe('How long the ad should run, in hours: 24 for a day, 168 for a week, 720 for thirty days, or 1 to try it out. Leave it out for a week. It is priced pro rata from the weekly price; get_ad_offer prices any length before you buy')
+const HOURS = z.number().optional().describe('How many hours the ad runs: 24 a day, 168 a week (when left out); get_ad_offer prices any length')
 
 export const AD_TOOLS: McpTool[] = [
   {
     name: 'get_ad_offer',
     title: 'Get the ad offer',
-    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching search and category results, the home feed and the similar-listings row, for as many whole hours as you choose (a week when you choose none), priced pro rata from the weekly price. Pass `listingId` to check that listing can be advertised, and `hours` to price that length.\n\nReturns `available`, `price_usdc` (a week), `price_usdc_per_hour`, `price_usdc_for_hours`, `min_hours`, `max_hours`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
+    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching results, the home feed and the similar-listings row, for the whole hours you choose (a week by default), priced pro rata. Pass `listingId` to check that listing can be advertised, and `hours` to price that length.\n\nReturns `available`, `price_usdc` (a week), `price_usdc_per_hour`, `price_usdc_for_hours`, `min_hours`, `max_hours`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
     scope: 'listings:read',
     annotations: READ_ONLY,
     input: z.object({ listingId: LISTING_ID.optional(), hours: HOURS }),
@@ -125,7 +125,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'promote_listing',
     title: 'Buy an ad for a listing',
-    description: 'Buy an ad for one of this shop\'s live listings for `hours` (a week when left out), paid in USDC over x402, priced pro rata from the weekly price. The first call returns the payment request (an error result holding the x402 PaymentRequired: price, network, recipient); sign it with an x402 client and call again with the same `listingId` and `hours` and the payment in `_meta["x402/payment"]`. Check the listing and the price with get_ad_offer first. A second ad for the same listing starts when the first ends.\n\nReturns `ad` (`id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `tx_hash`, `network`, `amount_atomic`) and `message`; the paid result also carries `_meta["x402/payment-response"]`.',
+    description: 'Buy an ad for one of this shop\'s live listings for `hours` (a week when left out), paid in USDC over x402. The first call returns the payment request (an error result holding the x402 PaymentRequired); sign it with an x402 client and call again with the same `listingId` and `hours` and the payment in `_meta["x402/payment"]`. Check the listing and the price with get_ad_offer first. A second ad for the same listing starts when the first ends.\n\nReturns `ad` (`id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `tx_hash`, `network`, `amount_atomic`) and `message`; the paid result also carries `_meta["x402/payment-response"]`.',
     scope: 'listings:write',
     annotations: PAID_WRITE,
     input: z.object({ listingId: LISTING_ID, hours: HOURS }),
@@ -165,7 +165,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'list_ads',
     title: 'List this shop\'s ads',
-    description: 'List this shop\'s ads, newest first, with what each has done: impressions and taps on the ad card during its run, and the listing\'s own views and contacts over the ad\'s days. Ads whose payment was refused are not listed. Use it when the seller asks whether an ad is running or how it did; get_ad_offer prices a new one and promote_listing buys it.\n\nReturns `ads`, each with `id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `impressions`, `clicks`, `listing_views`, `listing_contacts`, `amount_usdc_atomic`, `network` and `tx_hash`.',
+    description: 'List this shop\'s ads, newest first, with impressions and taps during its run and the listing\'s views and contacts over its days. Ads whose payment was refused are not listed. Use it when the seller asks whether an ad is running or how it did; get_ad_offer prices a new one and promote_listing buys it.\n\nReturns `ads`, each with `id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `impressions`, `clicks`, `listing_views`, `listing_contacts`, `amount_usdc_atomic`, `network` and `tx_hash`.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     input: z.object({}),

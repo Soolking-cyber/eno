@@ -13,7 +13,7 @@ import { bulkImportCore, claimRehostedImages, discardRehostedImages, rehostListi
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow, type SyncRowResult } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
 import { postingGate } from '@/lib/enforcement'
-import { paysSalary, resolveListingType, TAXONOMY, isPostableCategory, type ListingType } from '@/lib/taxonomy'
+import { paysSalary, resolveListingType, type ListingType } from '@/lib/taxonomy'
 import type { TrustTier } from '@/lib/trust-math'
 import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
@@ -73,21 +73,33 @@ async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<
   return { images, fresh }
 }
 
-// The category slugs a listing can be filed under, from the taxonomy itself (no tool or endpoint lists them otherwise).
-const POSTABLE_SLUGS = TAXONOMY.filter((c) => isPostableCategory(c.slug)).map((c) => c.slug).join(', ')
 
 // One partner-supplied listing item → BulkRow (shared by bulk + sync mapping).
 const listingItem = z.object({
-  categorySlug: z.string().describe(`Category slug: ${POSTABLE_SLUGS} (rooms and flats to let: rentals)`),
+  // list_categories (the same server since 2026-11-23) names exactly the postable set: TAXONOMY less 'teachers' on both sides.
+  categorySlug: z.string().describe('The category\'s slug from list_categories, e.g. "electronics"; rooms and flats to let go under "rentals"'),
   // Its minimum length is the server's (create_listing's handler, bulk.ts per row): a short title in a bulk call fails its row, not the batch.
   title: z.string().describe('The headline buyers see first: the item and what sets it apart, e.g. "Honda Vision 2022, 8,000 km"'),
   // A negative price is refused per row by bulk.ts ("Invalid price") and by updateListingCore (invalid_price): no schema bound.
   price: z.number().describe('The asking price in Vietnamese đồng (VND); for a job, its monthly salary in VND'),
   description: z.string().optional().describe('The listing page\'s text, in the seller\'s words: what it is, its state and what comes with it. Leave it out for no text'),
   district: z.string().optional().describe('Where the item is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức". A new listing needs it (else `location_required`)'),
-  condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used" (other words are kept as written); ignored for a job. Leave it out when it does not apply'),
-  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order, the cover first; eno copies them. Show the item from different angles: a listing with too few is refused with `photos_min` (a service with none: `photo_required`). On a new listing, leave it out only for a job'),
+  condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used" (other words kept as written); ignored for a job. Leave it out when it does not apply'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order, the cover first; eno copies them. Too few is refused with `photos_min` (a service with none: `photo_required`); leave it out only for a job'),
   externalId: z.string().optional().describe('Your own id for this listing, such as your SKU, echoed back in the results so you can match each row to your system; leave it out if you have none'),
+})
+
+/** bulk_create_listings' and sync_catalogue's row: listingItem's fields and types, with short descriptions that point at
+ *  create_listing, which explains each field once. ora.ai docks a tools/list over 10,000 tokens (2026-11-24, 11,219): the
+ *  full texts repeated three times cost ~2,000 characters. tool-list-budget.test.ts holds the line. */
+const rowItem = listingItem.extend({
+  categorySlug: z.string().describe('The category slug, as create_listing takes it'),
+  title: z.string().describe('The headline buyers see first, as in create_listing'),
+  description: z.string().optional().describe('The listing page\'s text, in the seller\'s words. Leave it out for no text'),
+  district: z.string().optional().describe('Where the item is, as a district or area buyers recognise; a new listing needs it'),
+  condition: z.string().optional().describe('The item\'s condition, as create_listing takes it. Leave it out when it does not apply'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order, as create_listing takes them'),
+  externalId: z.string().optional().describe('Your own id for the row, such as a SKU, echoed back in the results'),
 })
 
 /** MCP tool annotations (spec 2025-06-18): hints a client uses to tell a read from a write before calling, e.g. to ask
@@ -123,7 +135,7 @@ export const pageLimitArg = (v: unknown): string | undefined => {
   const n = Math.trunc(Number(v))
   return Number.isFinite(n) ? String(Math.max(1, Math.min(n, 1000))) : undefined
 }
-const PAGE_SIZE = z.number().optional().describe('How many listings to return in this call. Leave it out for a page of 50; the server caps a larger number. To go through every listing, call again with `next_cursor` until it comes back null')
+const PAGE_SIZE = z.number().optional().describe('How many listings to return; leave it out for 50. Pass back `next_cursor` until it is null to read them all')
 /**
  * A photo, video or logo as an app can open it (2026-11-14): a seeded or older row can hold a site-relative path such as
  * "/listings/x.png", which ChatGPT, Claude or Muse cannot resolve, so MCP output names it in full on THIS edition's site
@@ -406,7 +418,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'get_shop',
     title: 'Get shop',
-    description: 'Read the storefront this connection acts for: its profile, trust standing and how many of its listings are live.\n\nIt does not list the listings themselves (list_listings) or their views and leads (analytics_summary). Fails with `not_found` when the storefront has been closed.\n\nReturns `shop` with `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`. Use it first to confirm which shop this connection acts for, and before update_shop to see the current values.',
+    description: 'Read the storefront this connection acts for: its profile, trust standing and how many of its listings are live.\n\nFails with `not_found` when the storefront has been closed.\n\nReturns `shop` with `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`. Use it first to confirm which shop this connection acts for.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ shop: SHOP_OUT }).describe('The shop profile'),
@@ -416,16 +428,16 @@ export const TOOLS: McpTool[] = [
   {
     name: 'update_shop',
     title: 'Update shop',
-    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.\n\nSend only the fields to change; changes are saved at once, and text longer than the page shows is shortened, not refused. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile: `id`, `name`, `bio`, `location`, `phone`, `avatar_url`, `trust_score`, `trust_tier`, `response_rate`, `member_since` and `active_listings`; get_shop reads it again later.',
+    description: 'Update this shop\'s profile: the name, bio, location and logo on its page, and the contact phone eno shares with a buyer inside its chat. Use it when the seller asks to rename the shop, rewrite its bio, or change its location, logo or phone.\n\nSend only the fields to change; changes are saved at once, and text longer than the page shows is shortened, not refused. A phone number another shop uses is refused with `phone_taken`, and nothing is changed.\n\nReturns `shop`, the saved profile with get_shop\'s fields.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ shop: SHOP_OUT.nullable().describe('The saved shop profile after the update, the same fields get_shop returns; null only if it could not be read back, and the change is saved either way') }).describe('The saved shop profile after the update'),
     input: z.object({
       name: z.string().optional().describe('The shop\'s public name, shown on its page and beside its listings. Leave it out to keep the current name'),
-      bio: z.string().optional().describe('About the shop in a few sentences, shown on its page: what it sells and how it serves buyers. Send an empty string to clear it, or leave it out to keep it'),
-      location: z.string().optional().describe('Where the shop is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức", shown on its page. Send an empty string to clear it, or leave it out to keep it'),
-      avatarUrl: z.string().optional().describe('The shop\'s logo: an image URL already on eno\'s storage, such as one from a listing\'s images. Send an empty string to remove it, or leave it out to keep it'),
-      phone: z.string().optional().describe('The contact phone, a Vietnamese mobile such as 0901 234 567; eno shares it with a buyer only inside its chat, never on the public page. Leave it out to keep it'),
+      bio: z.string().optional().describe('About the shop in a few sentences for its page: what it sells, how it serves buyers. An empty string clears it; leave it out to keep it'),
+      location: z.string().optional().describe('Where the shop is, as a district or area, e.g. "Thảo Điền, Thủ Đức". An empty string clears it; leave it out to keep it'),
+      avatarUrl: z.string().optional().describe('The shop\'s logo: an image URL already on eno\'s storage, e.g. from a listing\'s images. An empty string removes it; leave it out to keep it'),
+      phone: z.string().optional().describe('The contact phone, a Vietnamese mobile such as 0901 234 567; eno shares it with a buyer only in chat, never on the page. Leave it out to keep it'),
     }),
     handler: async (auth, args) => {
       const res = await updateSellerCore(auth.sellerId, auth.profileId, args)
@@ -443,7 +455,7 @@ export const TOOLS: McpTool[] = [
     scope: 'listings:read',
     annotations: READ_ONLY,
     output: z.strictObject({ listings: z.array(LISTING_SUMMARY_OUT).describe('This page of the shop\'s listings, newest first, each in summary; call get_listing with an id for every field of one listing'), next_cursor: CURSOR_OUT }).describe('One page of the shop\'s listings'),
-    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Show only listings in one state, e.g. sold to review what has sold or hidden to find the ones the shop took off the site; leave it out to see every listing') }),
+    input: z.object({ limit: PAGE_SIZE, cursor: z.string().optional().describe('Where to continue: the `next_cursor` of the previous page; leave it out for the first page'), status: z.enum(LISTING_STATUS).optional().describe('Only listings in one state, e.g. sold to review sales or hidden for those taken off the site; leave it out for every listing') }),
     handler: async (auth, args) => {
       checkStatusArg(args.status)
       const sp = new URLSearchParams()
@@ -478,18 +490,18 @@ export const TOOLS: McpTool[] = [
   {
     name: 'create_listing',
     title: 'Create marketplace listing',
-    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job\'s monthly salary goes in `salaryM`) and the district; text, condition, brand and model are optional. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none; the first 8 are kept.\n\nIt goes live at once unless eno must check it first; text longer than the page shows is shortened, not refused. It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
+    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price (a job\'s pay goes in `salaryM`) and the district. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none; the first 8 are kept.\n\nIt goes live at once unless eno must check it first; text longer than the page shows is shortened, not refused. It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ listing: CREATED_OUT }).describe('The new listing\'s id and whether it is public yet'),
     input: listingItem.omit({ externalId: true }).extend({
       // Optional HERE because a job needs none; every other listing still has to send one (checked below).
-      price: z.number().optional().describe('The asking price in VND. Needed for everything except a job (category "jobs"), whose pay is `salaryM`; a job sent with only a price has it read as the monthly salary.'),
+      price: z.number().optional().describe('The asking price in VND; needed except for a job, whose pay is `salaryM` (a job sent with only a price has it read as the monthly salary)'),
       negotiable: z.boolean().optional().describe('Whether buyers may send offers below the price (yes unless you say no); services and jobs never take offers'),
       listingType: z.string().optional().describe('What the listing offers: "sell" or "rent" where the category allows it ("job" or "wanted" in jobs); otherwise the category\'s usual one is used'),
-      brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only used in categories that have brands. Leave it out when the item has none'),
+      brand: z.string().optional().describe('The brand, matched to eno\'s brand list even with typos; only for categories with brands'),
       model: z.string().optional().describe('The model within that brand; kept only when the brand was recognised. Leave it out when unknown'),
-      salaryM: z.number().optional().describe('A job\'s monthly salary in millions of VND, as a whole number: 25 means 25.000.000 đ a month (category "jobs"). Leave it out when the pay is agreed with the candidate'),
+      salaryM: z.number().optional().describe('A job\'s monthly salary in whole millions of VND: 25 means 25.000.000 đ a month. Leave it out when the pay is agreed with the candidate'),
     }),
     handler: async (auth, args) => {
       checkSalaryArg(args.salaryM)
@@ -543,7 +555,7 @@ export const TOOLS: McpTool[] = [
     title: 'Update marketplace listing',
     // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
     // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
-    description: 'Update one of this shop\'s listings: its title, text, price, district, condition, photos or a job\'s salary.\n\nSend its id and only the fields to change; the rest stay as they are, and changes are saved at once. Photos you send replace the whole set. A phone number in the title or contact details in the text are refused, and long text is shortened (title 140 characters, text 5,000). A refused edit changes nothing and returns its reason code, such as `title_too_short` or `invalid_price`. It cannot change a subcategory or the licence values, nor the category or the status (use set_listing_status for that).\n\nReturns `held` and `unpublished`, which say when the saved edit is not public yet (`held: true` while the listing waits for eno\'s licence check), and `listing` as it now stands: `id`, `title`, `description`, `price`, `priceUnit`, `district`, `condition`, `images`, `status`, `verified`, `url` and the rest of get_listing\'s fields.',
+    description: 'Update one of this shop\'s listings: its title, text, price, district, condition, photos or a job\'s salary.\n\nSend its id and only the fields to change; changes are saved at once. Photos you send replace the whole set. A phone number in the title or contact details in the text are refused, and long text is shortened. A refused edit changes nothing and returns its reason code (e.g. `invalid_price`). It cannot change a subcategory or the licence values, nor the category or status (set_listing_status changes the status).\n\nReturns `held` and `unpublished`, which say when the saved edit is not public yet (`held: true` while the listing waits for eno\'s licence check), and `listing` as it now stands, with get_listing\'s fields.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
@@ -557,9 +569,9 @@ export const TOOLS: McpTool[] = [
       description: z.string().optional().describe('The new text for the listing page, in the seller\'s words. Leave it out to keep the current text'),
       // A negative price is refused by updateListingCore (`invalid_price`), so the schema carries no bound to repeat.
       price: z.number().optional().describe('The new asking price in VND (for a job: its monthly salary in VND). Leave it out to keep the current price'),
-      district: z.string().optional().describe('Where the item is, as a district or area. Send an empty string to clear it, or leave it out to keep it'),
-      condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used". Send an empty string to clear it, or leave it out to keep it'),
-      images: z.array(z.string()).optional().describe('The complete new set of photo URLs, in display order; it replaces the current photos. To add one, send the current `images` from get_listing plus the new URL. Leave it out to keep them'),
+      district: z.string().optional().describe('Where the item is, as a district or area. An empty string clears it; leave it out to keep it'),
+      condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used". An empty string clears it; leave it out to keep it'),
+      images: z.array(z.string()).optional().describe('The complete new set of photo URLs, in display order, replacing the current ones (to add one, send get_listing\'s `images` plus it). Leave it out to keep them'),
       salaryM: z.number().nullable().optional().describe('A job\'s monthly salary in whole millions of VND (25 = 25.000.000 đ); it wins over `price`. Send null to remove it, or leave it out to keep it'),
     }),
     handler: async (auth, args) => {
@@ -595,13 +607,13 @@ export const TOOLS: McpTool[] = [
   {
     name: 'set_listing_status',
     title: 'Set listing status',
-    description: 'Set the status of one of this shop\'s listings: active (on sale), sold, or hidden from the site without deleting it. Setting active again undoes sold or hidden, unless it is refused (a held account, a pending licence check) with a reason code; an unknown status is refused too. Returns the listing\'s `id` and the `status` it now has.',
+    description: 'Set the status of one of this shop\'s listings: active (on sale), sold, or hidden from the site without deleting it. Setting active again undoes sold or hidden, unless it is refused (a held account, a pending licence check) with a reason code. Returns the listing\'s `id` and the `status` it now has.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ id: z.string().describe('The id of the listing whose status was set, as you passed it; get_listing reads the listing as it now stands'), status: LISTING_STATUS_SET }).describe('The listing and the status it has now'),
     // `status` is checked by setStatusCore (invalid_status, worded below), not by an enum: an enum input is the one field the
     // reviewers flag as "validation repeated" whatever its prose says (2026-11-15).
-    input: z.object({ id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings, get_listing or create_listing'), status: z.string().describe('The state to move the listing to: sold once the item has gone to a buyer, hidden to take it off the site for now (for example while it is out of stock), or active to put it back on sale') }),
+    input: z.object({ id: z.string().describe('The listing to change: its id (such as `cmh0q2x8f0001...`), from list_listings, get_listing or create_listing'), status: z.string().describe('sold once the item has gone to a buyer, hidden to take it off the site for now (e.g. out of stock), or active to put it back on sale') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -640,7 +652,7 @@ export const TOOLS: McpTool[] = [
       reason: z.enum(DELETE_HOLD_REASONS).nullable().describe('Why it was hidden instead. account_held or account_suspended: the account is under review. open_report: a report about it or the shop is still open. null when it was deleted'),
       message: z.string().nullable().describe('A sentence to show the seller, saying why it was hidden and when it can be deleted; null when it was deleted'),
     }).describe('Whether the listing was deleted, or hidden instead and why'),
-    input: z.object({ id: z.string().describe('The listing to delete for good (its id, from list_listings or get_listing); read it with get_listing first, since a deletion cannot be undone') }),
+    input: z.object({ id: z.string().describe('The listing to delete for good: its id from list_listings or get_listing') }),
     handler: async (auth, args) => {
       const id = String(args.id)
       await ownedListing(id, auth.sellerId)
@@ -655,7 +667,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'bulk_create_listings',
     title: 'Create listings in bulk',
-    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos by create_listing\'s rules), e.g. to move a stock list onto eno.\n\nRows are independent: a bad row fails alone, with its reason (create_listing\'s rules: a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
+    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos by create_listing\'s rules).\n\nRows are independent: a bad row fails alone, with its reason, under create_listing\'s rules. When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
@@ -666,7 +678,7 @@ export const TOOLS: McpTool[] = [
     // The schema bounds STAY here (unlike sync_catalogue): without them this input scored 89/88 on two scans against 92–93
     // with them (Manufact 2026-11-24, round 4). Over MCP the dispatcher's schema check answers first (route.ts safeParse →
     // invalid_input); rowCountArg guards a direct handler call.
-    input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
+    input: z.object({ listings: z.array(rowItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
     handler: async (auth, args) => {
       rowCountArg(args.listings, BULK_MAX_ROWS)
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
@@ -687,7 +699,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'sync_catalogue',
     title: 'Sync shop catalogue',
-    description: 'Sync this shop\'s listings with your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row\'s status can mark it sold or hidden.\n\nIn mode "full", every active listing whose externalId is missing from this payload is also hidden; listings without an externalId are never touched. Each row follows create_listing\'s rules (a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish, new rows are refused while edits still apply.\n\nReturns counts of `created`, `updated`, `retired` and `failed` rows; `results`, one per row, with its `external_id`, the listing `id`, the `action` taken and any `error` and `detail`; and `publish_blocked` (its `code` and `message`) when new rows were refused, null otherwise. Not for a one-off post (use create_listing) or new listings without your own ids (use bulk_create_listings).',
+    description: 'Sync this shop\'s listings with your own catalogue, matched by your externalId: a new externalId creates a listing, a known one updates it in place, and a row\'s status can mark it sold or hidden.\n\nIn mode "full", every active listing whose externalId is missing from this payload is also hidden; listings without an externalId are never touched. Each row follows create_listing\'s rules. When the account may not publish, new rows are refused while edits still apply.\n\nReturns counts of `created`, `updated`, `retired` and `failed` rows; `results`, one per row, with its `external_id`, the listing `id`, the `action` taken and any `error` and `detail`; and `publish_blocked` (its `code` and `message`) when new rows were refused, null otherwise. Not for a one-off post (use create_listing) or new listings without your own ids (use bulk_create_listings).',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
@@ -702,11 +714,11 @@ export const TOOLS: McpTool[] = [
       }).nullable().describe('Set when the account may not publish new listings right now: new rows were refused, edits still applied; null otherwise'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
-      mode: z.string().optional().describe(`Your listings missing from this payload. partial (when left out): they stay as they are. full: each active one whose externalId you did not send is hidden, so eno mirrors your catalogue; use it only when the whole catalogue fits in one call; a bigger one syncs in partial, since separate full calls hide each other's rows`),
-      listings: z.array(listingItem.extend({
+      mode: z.string().optional().describe(`partial (when left out): your listings missing from this payload stay as they are. full: each active one whose externalId you did not send is hidden, so eno mirrors your catalogue; only for one that fits in one call, since separate full calls hide each other's rows`),
+      listings: z.array(rowItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
-        status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
-      })).describe('Your catalogue rows, each matched to its listing by externalId. For a known externalId, the fields you leave out keep their current values'),
+        status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep its status; a new row ignores it and goes live as a new listing'),
+      })).describe('Your catalogue rows, matched to listings by externalId; a known row keeps the fields you leave out'),
     }),
     handler: async (auth, args) => {
       rowCountArg(args.listings, SYNC_MAX_ROWS)
@@ -730,7 +742,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'analytics_summary',
     title: 'Get shop analytics summary',
-    description: 'Read this shop\'s totals in one call: its listings counted by status, and their views and leads.\n\nDeleted listings are not counted. The totals cover each listing\'s whole life, not a date range.\n\nReturns `summary` with `total_listings`, `active`, `sold`, `hidden`, `held`, `total_views` and `total_leads`. For per-listing, per-day figures over a date range, use analytics_listings.',
+    description: 'Read this shop\'s totals in one call: its listings counted by status, and their views and leads.\n\nTotals cover each listing\'s whole life; deleted listings are not counted.\n\nReturns `summary` with `total_listings`, `active`, `sold`, `hidden`, `held`, `total_views` and `total_leads`. For per-listing, per-day figures over a date range, use analytics_listings.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     output: z.strictObject({ summary: z.strictObject({
@@ -796,11 +808,11 @@ export const TOOLS: McpTool[] = [
   {
     name: 'register_webhook',
     title: 'Register webhook',
-    description: 'Register an HTTPS endpoint of yours that eno will POST signed events to when this shop\'s listings are created, updated, change status or are deleted.\n\nThe address must be public: one reachable only inside your own network is refused with `invalid_input`. A shop can have up to 10 webhooks (`limit_reached` after that), and each call registers a new one, even for an address already registered.\n\nReturns `webhook` with its `id`, `url`, `events`, `enabled`, `created_at` and signing `secret`, shown only this once: store it to verify each event\'s signature. Use list_webhooks to see them all and delete_webhook to remove one.',
+    description: 'Register an HTTPS endpoint of yours that eno will POST signed events to when this shop\'s listings are created, updated, change status or are deleted.\n\nA private-network address is refused with `invalid_input`. A shop can have up to 10 webhooks (`limit_reached` after that), and each call registers a new one, even for an address already registered.\n\nReturns `webhook` with its `id`, `url`, `events`, `enabled`, `created_at` and signing `secret`, shown only this once: store it to verify each event\'s signature. Use list_webhooks to see them all and delete_webhook to remove one.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ webhook: REGISTERED_WEBHOOK_OUT }).describe('The new webhook and its one-time signing secret'),
-    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive each event as a signed POST; an address reachable only inside your own network is refused'), events: z.array(z.string()).optional().describe('Which changes to be told about, by event name: listing.created, listing.updated, listing.status_changed (e.g. sold or hidden) or listing.deleted. Leave it out to receive every event') }),
+    input: z.object({ url: z.string().describe('Your public HTTPS address that will receive each event as a signed POST'), events: z.array(z.string()).optional().describe('Which changes to be told about, by event name: listing.created, listing.updated, listing.status_changed (e.g. sold or hidden) or listing.deleted. Leave it out to receive every event') }),
     handler: async (auth, args) => {
       const url = String(args.url || '').trim()
       // `events` is a list of described strings (no enum input): an unknown name is refused here, as /api/v1/webhooks does.
@@ -818,7 +830,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'delete_webhook',
     title: 'Delete webhook',
-    description: 'Remove one of this shop\'s webhook endpoints, for example one you no longer run or whose secret may have leaked. eno stops sending it events at once.\n\nIt cannot be undone: registering the address again gives a new id and a new secret. To change which events an endpoint gets, register it again with the new list, then delete the old one. A second call for the same id changes nothing more and answers `not_found`.\n\nReturns the removed webhook\'s `id`.',
+    description: 'Remove one of this shop\'s webhook endpoints, e.g. one whose secret may have leaked. eno stops sending it events at once.\n\nIt cannot be undone; to change an endpoint\'s events, register it again with the new list, then delete the old one. A second call for the same id answers `not_found`.\n\nReturns the removed webhook\'s `id`.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     output: z.strictObject({ id: z.string().describe('The webhook that was removed, as you passed it; eno sends it no more events') }).describe('The webhook that was removed'),
@@ -858,9 +870,11 @@ const UI_TOOLS: ReadonlyMap<string, { invoking: string; invoked: string }> = new
 ])
 
 export function toolDescriptors() {
-  // `annotations.title` repeats the title for clients that only read the older spot (MCP 2025-03-26).
+  // The title once, as the top-level `title` (MCP 2025-06-18+). `annotations.title` repeated it for 2025-03-26 clients
+  // until 2026-11-24, when ora.ai docked the one 28-tool list for passing 10,000 tokens (tool-list-budget.test.ts); an
+  // older client shows the tool's name instead, which is descriptive on its own.
   return TOOLS.map((t) => ({
-    name: t.name, title: t.title, description: t.description, inputSchema: inputJsonSchema(t.input), outputSchema: outputJsonSchema(t.output), annotations: { title: t.title, ...t.annotations },
+    name: t.name, title: t.title, description: t.description, inputSchema: inputJsonSchema(t.input), outputSchema: outputJsonSchema(t.output), annotations: { ...t.annotations },
     // MCP Apps (src/lib/mcp/apps.ts): the two listing reads show their listings as cards where the host renders ui:// resources.
     ...(UI_TOOLS.has(t.name) ? { _meta: toolUiMeta(SHOP_UI_URI, UI_TOOLS.get(t.name)!) } : {}),
   }))

@@ -142,12 +142,12 @@ export const DOCS_TOOLS: DocsTool[] = [
   {
     name: 'search_docs',
     title: 'Search the docs',
-    description: `Search ${SITE_NAME}'s documentation for agents and developers by keyword: what the site is, this MCP server and the Partner API, signing in and OAuth scopes, rate limits, rules and pricing. Needs no sign-in.\n\nUse it to answer a question about using ${SITE_NAME} from code or an agent; read a whole document with get_doc.\n\nReturns \`results\`, up to 5 matching sections, best first, each with \`doc_id\`, \`doc_title\`, \`section\`, \`url\` and a \`snippet\`; empty when nothing matches.`,
+    description: `Search ${SITE_NAME}'s documentation for agents and developers by keyword: what the site is, this MCP server, the Partner API, sign-in and OAuth scopes, limits, rules and pricing. Needs no sign-in.\n\nUse it to answer a question about using ${SITE_NAME} from code or an agent; read a whole document with get_doc.\n\nReturns \`results\`, up to 5 matching sections, best first, each with \`doc_id\`, \`doc_title\`, \`section\`, \`url\` and a \`snippet\`; empty when nothing matches.`,
     annotations: READ,
     input: z.object({
       // The bounds live in the handler, not the schema: Manufact's judge marks a bounded field "validation repeated"
       // (2026-11-24; the shop tools' lesson of 2026-11-15).
-      query: z.string().describe('What to look up, as a few keywords rather than a sentence, e.g. "rate limits", "OAuth scopes" or "webhook events"; sections whose heading matches rank first'),
+      query: z.string().describe('A few keywords rather than a sentence, e.g. "rate limits", "OAuth scopes" or "webhook events"; matching headings rank first'),
     }),
     // ⛔ CLOSED, every key required and described: the shop tools' output format (src/lib/mcp/tools.ts "Output schemas");
     // each answer is built key by key below and docs.test.ts parses it with these schemas.
@@ -169,7 +169,7 @@ export const DOCS_TOOLS: DocsTool[] = [
   {
     name: 'get_doc',
     title: 'Read a documentation page',
-    description: `Read a whole document from ${SITE_NAME}'s documentation for agents and developers, as markdown. Needs no sign-in.\n\nUse it when the person needs the full rules or setup steps, not one passage: "llms" maps the site (what it is and where everything is), "agents" covers this MCP server and the Partner API with their rate limits and rules, "auth" covers signing in, API keys and OAuth scopes, and "pricing" covers prices. For a single passage, search_docs is faster; each of its results carries the \`doc_id\` to pass here. Fails with \`not_found\` when this site does not publish that document.\n\nReturns \`id\`, \`title\`, \`url\`, \`text\` and \`truncated\`; cite \`url\` when you quote it.`,
+    description: `Read a whole document from ${SITE_NAME}'s documentation for agents and developers, as markdown.\n\nUse it when the person needs the full rules or setup steps, not one passage: "llms" maps the site, "agents" covers this MCP server and the Partner API with their limits and rules, "auth" covers sign-in, API keys and OAuth scopes, and "pricing" covers prices. For a single passage, search_docs is faster; each of its results carries the \`doc_id\` to pass here. Fails with \`not_found\` when this site does not publish that document.\n\nReturns \`id\`, \`title\`, \`url\`, \`text\` and \`truncated\`.`,
     annotations: READ,
     input: z.object({
       // A described string, NOT an enum: as an enum it scored 75 against 94 as this string (Manufact 2026-11-24, "Remove
@@ -198,6 +198,6 @@ export function docsToolDescriptors() {
   return DOCS_TOOLS.map((t) => {
     const { $schema: _dialect, ...outputSchema } = z.toJSONSchema(t.output) as Record<string, unknown>
     void _dialect
-    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { title: t.title, ...t.annotations } }
+    return { name: t.name, title: t.title, description: t.description, inputSchema: z.toJSONSchema(t.input), outputSchema, annotations: { ...t.annotations } }
   })
 }
