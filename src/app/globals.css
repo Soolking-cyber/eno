@@ -2723,6 +2723,16 @@ html.os-ios [data-store="play"],
 html.os-android [data-store="ios"] {
   display: none !important;
 }
+/* The footer's QR card is for a computer (owner, 2026-11-24): a phone or tablet, at any width, gets the plain store row instead
+   (footer.tsx `data-app-qr` / `data-app-row`, whose `sm:hidden` alone would hand an iPad the card). */
+html.os-ios [data-app-qr],
+html.os-android [data-app-qr] {
+  display: none !important;
+}
+html.os-ios [data-app-row],
+html.os-android [data-app-row] {
+  display: flex !important;
+}
 
 /* ⛔ ON A PHONE A LISTING WITH PHOTOS OPENS ON ITS PHOTO: NO SITE HEADER (owner, 2026-11-10: item 3 of the decision scorecard).
    The header spent 56px of a listing's first screen on a logo, search, voice, notifications and install, none of them about

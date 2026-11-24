@@ -30,8 +30,11 @@ import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { useSiteHref } from '@/components/marketplace/site-href'
 
-/** eno.vn on Product Hunt, with the badge's own campaign tags (the owner's embed code, 2026-11-17). */
-const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/eno-vn?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-eno-vn'
+/** The two app stores, in the order every "Get the app" surface lists them (src/lib/app-store-links.ts holds the URLs). */
+const STORES = [
+  { name: 'App Store', href: IOS_APP_URL, os: 'ios' },
+  { name: 'Google Play', href: ANDROID_APP_URL, os: 'play' },
+] as const
 
 /**
  * One footer entry.
@@ -791,12 +794,19 @@ function FooterBody({ compact }: { compact: boolean }) {
               "apple device should be shown ios download and android one the android version"): `data-store`
               meets the pre-paint `os-ios` / `os-android` class in globals.css, so the server renders both and
               the other store is gone before the first frame; a desktop keeps both. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* ⛔ THE PRODUCT HUNT BADGE IS GONE (owner, 2026-11-24: "remove producthunt"), and the app is asked for with a QR
+              (same day: "put qr on footer nicely visibly asking to download the app").
+              A PHONE keeps the plain row: it cannot scan its own screen, and it sees only its own store (data-store).
+              FROM sm, a card: the code on a white plate (a QR inverted by dark mode does not scan on many readers, as in the
+              header's panel, app-download.tsx), the ask, and both stores. The code is public/badges/app-qr.svg, made once
+              from https://eno.vn/app with qrcode-generator, the header's encoder: /app sends each scanning device to its own
+              store. A static file costs no script, and the payload never changes.
+              ⚠️ "FROM sm" IS WIDTH, NOT DEVICE (Opus gate, 2026-11-24): an iPad or a landscape phone is ≥640px and cannot scan its own
+              screen either. The pre-paint `os-ios` / `os-android` classes (globals.css) swap the card back for the row there, before
+              the first frame, and `data-app-download` drops the card inside the app shell (html.native). */}
+          <div data-app-row="" className="mt-3 flex flex-wrap items-center gap-2 sm:hidden">
             <span className="text-ink-4">{tr('Get the app', 'Tải ứng dụng')}:</span>
-            {[
-              { name: 'App Store', href: IOS_APP_URL, os: 'ios' },
-              { name: 'Google Play', href: ANDROID_APP_URL, os: 'play' },
-            ].map((store) => (
+            {STORES.map((store) => (
               <a
                 key={store.name}
                 data-store={store.os}
@@ -809,12 +819,38 @@ function FooterBody({ compact }: { compact: boolean }) {
                 {store.name}
               </a>
             ))}
-            {/* Product Hunt (owner 2026-11-17, "embed nicely to boost ranking"; "our copy, no count", "footer, by the app
-                badges"): eno.vn's own copy of the "Find us on" badge (public/badges/product-hunt.svg, the upvote count cut), so no
-                page loads anything from Product Hunt, at the row's pill height. */}
-            <a href={PRODUCT_HUNT_URL} onClick={handleExternalClick} target="_blank" rel="noopener noreferrer" className="inline-flex">
-              <img src="/badges/product-hunt.svg" alt={tr('Find eno.vn on Product Hunt', 'Tìm eno.vn trên Product Hunt')} width={119} height={32} loading="lazy" decoding="async" className="h-8 w-auto" />
-            </a>
+          </div>
+          <div data-app-qr="" data-app-download="" className="mt-4 hidden items-center gap-4 rounded-2xl border border-border/60 p-3 pr-5 sm:inline-flex">
+            <div className="shrink-0 rounded-xl bg-white p-1.5">
+              <img
+                src="/badges/app-qr.svg"
+                alt={tr('QR code — scan to download the eno app', 'Mã QR — quét để tải ứng dụng eno')}
+                width={96}
+                height={96}
+                loading="lazy"
+                decoding="async"
+                className="h-24 w-24 [image-rendering:pixelated]"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">{tr('Get the eno app', 'Tải ứng dụng eno')}</p>
+              <p className="mt-0.5 text-t-meta text-body">{tr('Scan with your phone’s camera — it opens the right store.', 'Quét bằng camera điện thoại — mở đúng cửa hàng ứng dụng.')}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {STORES.map((store) => (
+                  <a
+                    key={store.name}
+                    data-store={store.os}
+                    href={store.href}
+                    onClick={handleExternalClick}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-border/60 px-3 py-1 text-t-meta transition-colors hover:text-accent-foreground"
+                  >
+                    {store.name}
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
         )}
