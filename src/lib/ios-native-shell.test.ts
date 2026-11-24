@@ -500,3 +500,17 @@ describe('iOS 1.3 — EnoWidgets (Home Screen widget) and EnoNotify (notificatio
     expect(pbx.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(2)
   })
 })
+
+describe('the native tab bar steps aside with the web bar (1.3, owner 2026-11-24: "one disappears another pops")', () => {
+  it('reads mobile-nav.tsx\'s own retract class, and the shell keeps the web nav hidden while it is away', () => {
+    const nav = readFileSync(join(process.cwd(), 'src/components/marketplace/mobile-nav.tsx'), 'utf8')
+    const bridge = readFileSync(join(process.cwd(), 'src/components/native/ios-shell-bridge.tsx'), 'utf8')
+    const swift = readFileSync(join(process.cwd(), 'ios/App/App/EnoShell.swift'), 'utf8')
+    expect(nav).toContain("off ? 'translate-y-full opacity-0 pointer-events-none'")
+    expect(bridge).toContain("nav.classList.contains('translate-y-full')")
+    expect(bridge).toContain('retracted: navRetracted(nav)')
+    expect(swift).toContain('let retracted = visible && (body["retracted"] as? Bool ?? false)')
+    expect(swift).toContain('let onScreen = visible && !retracted')
+    expect(swift).toContain('keep["retracted"] = nil')
+  })
+})

@@ -129,6 +129,9 @@ final class EnoShell: NSObject {
     private func applyTabs(_ body: [String: Any]) {
         let items = body["items"] as? [[String: Any]] ?? []
         let visible = (body["visible"] as? Bool ?? false) && !items.isEmpty
+        // 1.3: the web bar has slid away (scrolling down, the keyboard up) — this one steps aside with it, so the listing's
+        // own action that takes the slot never sits under it (owner, 2026-11-24: "one disappears another pops").
+        let retracted = visible && (body["retracted"] as? Bool ?? false)
         let labels = items.map { ($0["label"] as? String ?? "") + "\u{1}" + ($0["href"] as? String ?? "") }
         if labels != tabLabels {
             tabLabels = labels
@@ -149,19 +152,23 @@ final class EnoShell: NSObject {
             tabBar.selectedItem = nil
         }
         lastTabs = body
-        setTabBar(visible: visible)
+        setTabBar(visible: visible, retracted: retracted)
     }
 
-    private func setTabBar(visible: Bool) {
+    private func setTabBar(visible: Bool, retracted: Bool = false) {
         // ⛔ THE WEB NAV IS HIDDEN ONLY WHILE THIS BAR IS UP: the class that hides it follows the bar, both ways — an open sheet,
         // a page that stopped answering or any misread brings the web nav back instead of leaving no nav at all.
+        // A bar that only stepped aside with the web's (`retracted`) keeps the class: the web nav has slid away as well, and
+        // when it comes back it must come back hidden, under this bar.
         webView?.evaluateJavaScript("document.documentElement.classList.toggle('native-tabbar',\(visible))", completionHandler: nil)
-        guard visible != tabsShown else { return }
-        tabsShown = visible
-        if visible { tabBar.isHidden = false }
+        let onScreen = visible && !retracted
+        guard onScreen != tabsShown else { return }
+        tabsShown = onScreen
+        if onScreen { tabBar.isHidden = false }
         let height = tabBar.bounds.height
-        UIView.animate(withDuration: 0.2, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
-            self.tabBar.transform = visible ? .identity : CGAffineTransform(translationX: 0, y: height)
+        // 0.25 s ease-out: the web bar's own slide (mobile-nav.tsx), so the two move as one.
+        UIView.animate(withDuration: 0.25, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
+            self.tabBar.transform = onScreen ? .identity : CGAffineTransform(translationX: 0, y: height)
         }, completion: { _ in
             if !self.tabsShown { self.tabBar.isHidden = true }
         })
@@ -467,6 +474,7 @@ extension EnoShell: WKScriptMessageHandler {
             applyTabs(body)
             // Saved for the next launch WITHOUT badges: a count belongs to whoever is signed in when the page next reports.
             var keep = body
+            keep["retracted"] = nil // the next launch starts with the bar up
             keep["items"] = (body["items"] as? [[String: Any]])?.map { var i = $0; i["badge"] = nil; return i }
             if let data = try? JSONSerialization.data(withJSONObject: keep) { UserDefaults.standard.set(data, forKey: Self.tabsKey) }
         case "enoNav":

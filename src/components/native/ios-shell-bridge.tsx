@@ -82,10 +82,22 @@ const overlayOpen = () => {
   })
 }
 
+/**
+ * The web bar has slid away for its own reasons — the reader scrolling down, the keyboard up (mobile-nav.tsx `off`): the native
+ * bar steps aside with it (owner, 2026-11-24: "when scroll up native navbar overlaps chat button … dont stack one above another
+ * one disappears another pops just like web version"). The listing's own action (pdp-action-bar.tsx) shows only while the
+ * tab bar has left, so the two take turns, as they do on the web. ⛔ `translate-y-full` is mobile-nav.tsx's own retract class
+ * (ios-native-shell.test.ts pins the pair). Focus is not read: under `native-tabbar` the web nav is `visibility: hidden`, so
+ * nothing in it can take focus.
+ */
+const navRetracted = (nav: Element | null) => !!nav && nav.classList.contains('translate-y-full')
+
 function tabsSnapshot() {
   const nav = document.querySelector<HTMLElement>('.mobile-nav')
   const items = navItems()
   return {
+    // 1.3 shells slide their bar away while this holds, and keep the web nav hidden (it has left too); older ones ignore it.
+    retracted: navRetracted(nav),
     // On screen at all — its own display, an ancestor's, a :has() rule — but NOT our `visibility: hidden` (it still has a box);
     // nor while the phone search hides it (its own visibility rule), nor under an open dialog or sheet: the native bar sits
     // ABOVE every web layer, so a sheet's bottom button would be under it and its taps would go to a tab (review).
@@ -118,24 +130,34 @@ export function IosShellBridge() {
 
     if (s.tabs) {
       let last = ''
+      let lastRetracted = false
       let frame: ReturnType<typeof setTimeout> | undefined
       let watched: Element | null = null
+      const read = () => {
+        // A remounted nav (a flow that drops it and brings it back) is a new node: follow it (review).
+        if (document.querySelector('.mobile-nav') !== watched) watch()
+        const snap = tabsSnapshot()
+        lastRetracted = snap.retracted
+        const next = JSON.stringify(snap)
+        if (next === last) return
+        last = next
+        post('enoTabs', JSON.parse(next)) // plain JSON only reaches the shell (review)
+      }
       // Throttled, not per frame and never starved: the first change schedules ONE read 120ms on, which sees every change
       // made meanwhile (the page-wide observer below fires on each carousel slide and image load — review).
       const sync = () => {
         if (frame) return
-        frame = setTimeout(() => {
-          frame = undefined
-          // A remounted nav (a flow that drops it and brings it back) is a new node: follow it (review).
-          if (document.querySelector('.mobile-nav') !== watched) watch()
-          const next = JSON.stringify(tabsSnapshot())
-          if (next === last) return
-          last = next
-          post('enoTabs', JSON.parse(next))
-        }, 120)
+        frame = setTimeout(() => { frame = undefined; read() }, 120)
+      }
+      // …but the bar sliding away or back is told at once, so the native bar moves WITH the web's (one cheap class check).
+      const onMutation = () => {
+        if (navRetracted(document.querySelector('.mobile-nav')) === lastRetracted) { sync(); return }
+        clearTimeout(frame)
+        frame = undefined
+        read()
       }
       syncTabs.current = sync
-      const obs = new MutationObserver(sync)
+      const obs = new MutationObserver(onMutation)
       const watch = () => {
         obs.disconnect()
         const nav = document.querySelector('.mobile-nav')
