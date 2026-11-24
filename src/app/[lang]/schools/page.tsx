@@ -32,9 +32,13 @@ import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 export const revalidate = 300
 
 const PATH = '/schools'
-const TITLE = `Saigon schools ranked by teachers · Đánh giá trường tại TP.HCM | ${SITE_NAME}`
+// One title per language since the page has a /vi twin (Seobility, 2026-11-24: the bilingual one measured 664 px against ~580);
+// both halves are the bilingual title's own words.
+const TITLE = `Saigon schools ranked by teachers | ${SITE_NAME}`
+const TITLE_VI = `Đánh giá trường tại TP.HCM | ${SITE_NAME}`
+// ≤150 characters (Seobility, 2026-11-24: 1073 px against ~1000).
 const DESCRIPTION =
-  'English centres, international and bilingual schools and recruiters in Ho Chi Minh City, voted on and reviewed by teachers who worked there — with pay ranges and open jobs.'
+  'English centres, international schools and recruiters in Ho Chi Minh City, rated by teachers who worked there, with pay ranges and open jobs.'
 
 const METADATA: Metadata = {
   title: TITLE,
@@ -51,7 +55,8 @@ const METADATA: Metadata = {
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
   const twin = langAlternatesFor(PATH, lang, METADATA.robots)
-  return twin ? { ...METADATA, alternates: twin } : METADATA
+  if (!twin) return METADATA
+  return lang === 'vi' ? { ...METADATA, title: TITLE_VI, alternates: twin } : { ...METADATA, alternates: twin }
 }
 
 export default async function SchoolsPage({ params }: { params: Promise<{ lang: string }> }) {

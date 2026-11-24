@@ -75,7 +75,10 @@ export function SchoolLogo({ slug, logo, name, kind, size = 'md' }: { slug: stri
       sizes={SIZES[size]}
       width={240}
       height={120}
-      alt=""
+      // i18n-invariant: the school's own name, for crawlers (Seobility, 2026-11-24: 172 logos without alt on /schools); aria-hidden
+      // because the name is printed beside it.
+      alt={name}
+      aria-hidden
       loading={size === 'lg' ? 'eager' : 'lazy'}
       decoding="async"
       className={cn('shrink-0 bg-card object-cover ring-1 ring-border', TILE[size])}
