@@ -48,9 +48,12 @@ describe('described-string inputs are checked by the handler', () => {
       await expect(tool(name).handler(AUTH, { listings: [] })).rejects.toMatchObject({ code: 'invalid_input', message: 'Send at least one row in `listings`.' })
       await expect(tool(name).handler(AUTH, { listings: Array.from({ length: 201 }, () => row) })).rejects.toMatchObject({ code: 'invalid_input', message: 'Send at most 200 rows in one call; send the rest in further calls.' })
     }
-    const json = JSON.stringify(toolDescriptors().map((d) => d.inputSchema))
-    expect(json).not.toContain('"minItems"')
-    expect(json).not.toContain('"maxItems"')
+    // bulk_create_listings keeps its schema bounds (they scored better, round 4); no other input publishes item bounds.
+    const bulk = toolDescriptors().find((d) => d.name === 'bulk_create_listings')!.inputSchema as { properties: { listings: { minItems?: number; maxItems?: number } } }
+    expect([bulk.properties.listings.minItems, bulk.properties.listings.maxItems]).toEqual([1, 200])
+    const others = JSON.stringify(toolDescriptors().filter((d) => d.name !== 'bulk_create_listings').map((d) => d.inputSchema))
+    expect(others).not.toContain('"minItems"')
+    expect(others).not.toContain('"maxItems"')
   })
   it('no published input carries the ±2^53 bounds of zod .int()', () => {
     expect(JSON.stringify(toolDescriptors().map((d) => d.inputSchema))).not.toContain(String(Number.MAX_SAFE_INTEGER))

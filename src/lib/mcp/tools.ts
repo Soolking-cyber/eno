@@ -655,7 +655,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'bulk_create_listings',
     title: 'Create listings in bulk',
-    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos: 3 for most categories, 1 for a service, none for a job; the first 8 are kept), e.g. to move a stock list onto eno.\n\nRows are independent: a bad row fails alone, with its reason (create_listing\'s rules: a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
+    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos by create_listing\'s rules), e.g. to move a stock list onto eno.\n\nRows are independent: a bad row fails alone, with its reason (create_listing\'s rules: a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
@@ -663,9 +663,10 @@ export const TOOLS: McpTool[] = [
       failed: z.number().describe('How many rows were refused and created nothing; each one\'s reason is in its result\'s error'),
       results: z.array(BULK_ROW_OUT).describe('One result for every row you sent, in the same order, saying whether it was created and why not'),
     }).describe('Counts of created and failed rows, and a result per row'),
-    // The row count is checked in the handler (rowCountArg), not by schema bounds: Manufact flagged these inputs "Remove repeated
-    // schema validation from descriptions" (2026-11-24, 92–93), the house rule for every other bound in this file.
-    input: z.object({ listings: z.array(listingItem).describe('The new listings, one row each; every row succeeds or fails on its own') }),
+    // The schema bounds STAY here (unlike sync_catalogue): without them this input scored 89/88 on two scans against 92–93
+    // with them (Manufact 2026-11-24, round 4). Over MCP the dispatcher's schema check answers first (route.ts safeParse →
+    // invalid_input); rowCountArg guards a direct handler call.
+    input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
     handler: async (auth, args) => {
       rowCountArg(args.listings, BULK_MAX_ROWS)
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
