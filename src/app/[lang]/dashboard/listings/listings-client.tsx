@@ -380,14 +380,14 @@ function AvailabilityButton({ dash, tr, lang }: {
           and `justify-center`, and an asChild child's classes are CONCATENATED, not merged (CLAUDE.md) — only
           <Button className> goes through tailwind-merge. Without the wrap, "Xác nhận còn hàng · Chưa xác
           nhận lần nào" pushed the whole dashboard to 342px on a 320px phone. */}
-      <Button variant="bare" size="none" asChild className="max-w-full flex-wrap justify-start whitespace-normal text-left">
+      <Button variant="bare" size="none" asChild className="rounded-2xl max-w-full flex-wrap justify-start whitespace-normal text-left">
         <Link
           href="/dashboard/availability"
           className={
             // The one blue, not red (2026-11-05): a review that is due is the next thing to do, not an alarm, and red is the Report colour.
             overdue
-              ? 'availability-overdue press inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-bold text-primary-foreground cursor-pointer'
-              : 'press inline-flex items-center gap-2 rounded-xl bg-tint px-4 py-2.5 font-semibold text-body transition-colors hover:bg-muted cursor-pointer'
+              ? 'availability-overdue press inline-flex items-center gap-2 bg-primary px-4 py-2.5 font-bold text-primary-foreground cursor-pointer'
+              : 'press inline-flex items-center gap-2 bg-tint px-4 py-2.5 font-semibold text-body transition-colors hover:bg-muted cursor-pointer'
           }
         >
           <ListChecks className="h-4 w-4 shrink-0" />

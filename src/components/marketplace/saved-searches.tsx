@@ -85,7 +85,7 @@ export function SavedSearches() {
                 it in place as before, any other is the browser's new tab or window.
                 The stored URL is the plain `/?…`; a Vietnamese reader runs it on the `/vi` twin (A1-LANG). On a
                 shop's host the proxy sends that twin on to the apex — where a marketplace-wide search belongs. */}
-            <Button asChild variant="bare" size="none" className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer">
+            <Button asChild variant="bare" size="none" className="rounded-2xl flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer">
               <a
                 href={localizedHref(s.url, variantOfLanguage(lang))}
                 draggable={false}

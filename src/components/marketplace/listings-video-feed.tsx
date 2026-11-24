@@ -423,7 +423,7 @@ function VideoFeedItem({
               original box (the base is inline-flex). */}
           {/* The title and "View listing" are LINKS to the listing (owner, 2026-11-07: right-click "Open link in new tab"
               did nothing): a plain click opens it in place as before, any other click is the browser's. */}
-          <Button asChild variant="bare" size="none" className="block max-w-md whitespace-normal text-left">
+          <Button asChild variant="bare" size="none" className="rounded-2xl block max-w-md whitespace-normal text-left">
             <a href={`/listings/${listing.id}`} draggable={false} onClick={openHere} onMouseEnter={() => onPrefetch?.(listing.id)}>
               <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
             </a>

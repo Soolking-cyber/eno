@@ -84,7 +84,10 @@ export const PIN_TIER = '[html:not(.native)_&]:max-md:fixed [html:not(.native)_&
 
 /** The photo's slot: a 16px white sheet edge over the photo's bottom (the rental sheet's, src/lib/rental-sheet.ts SHEET_PHOTO,
  *  minus its lift), and 24px given back so the price stands 16px under that edge. */
-export const GOODS_PHOTO = "max-md:-mb-6 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[6] after:h-4 after:rounded-t-2xl after:bg-background after:content-['']"
+// ⛔ NO ROUNDED LIP (owner, 2026-11-24, hub round 16 Q29 "yes"): the photo meets the page on a straight line, as YouTube's
+// player meets its page; the 16px white band with rounded top corners (`after:`) is gone, and with it the 24px overlap
+// it existed to cover (commit gate, opus: kept alone, the photo painted over the sheet's top and the price lost its gap).
+export const GOODS_PHOTO = ""
 /** Share and Save over the photo: 12px apart (8 elsewhere). */
 export const GOODS_PLATES_GAP = 'max-md:gap-3'
 

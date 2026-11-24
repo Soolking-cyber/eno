@@ -61,23 +61,23 @@ describe('cn — the photo-tile corner', () => {
     expect(cn('aspect-square rounded-xl bg-tint', 'rounded-media')).toBe('aspect-square bg-tint rounded-media')
   })
 
-  it('is a STATIC token with a squircle override — inline would bake 16px in and the override would do nothing', () => {
+  it('is a STATIC 4px token, and there is NO squircle anywhere (owner 2026-11-24, hub round 16 Q24: "move away from squircle")', () => {
     const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
-    expect(css).toMatch(/@theme static \{\s*--radius-media: 16px;\s*\}/)
+    expect(css).toMatch(/@theme static \{[^}]*--radius-media: 4px;\s*\}/)
     const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)
     expect(inline, 'the @theme inline block').not.toBeNull()
     expect(inline![1]).not.toMatch(/^\s*--radius-media:/m)
-    const squircle = css.match(/@supports \(corner-shape: squircle\) \{([\s\S]*?)\n\}/)
-    expect(squircle, 'the squircle block').not.toBeNull()
-    expect(squircle![1]).toMatch(/:root \{ --radius-media: 20px; \}/)
-    for (const d of ['', 't-', 'b-', 'l-', 'r-']) expect(squircle![1]).toContain(`[class*="rounded-${d}media"]`)
+    // No rule may DRAW a squircle again: no `corner-shape: squircle` declaration and no `@supports (corner-shape…)` block.
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(rules).not.toMatch(/corner-shape:\s*squircle/)
+    expect(rules).not.toMatch(/@supports\s*\(corner-shape/)
   })
 
-  it('the authored tiers are 8 / 12 / 16 (owner-approved 2026-11-14)', () => {
+  it('the authored tiers are all 6px (owner 2026-11-24, hub round 16 Q24: no rounded-square tiles)', () => {
     const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
     const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)![1]
     const tier = (n: string) => inline.match(new RegExp(`^\\s*--radius-${n}:\\s*([^;]+);`, 'm'))?.[1]
-    expect([tier('lg'), tier('xl'), tier('2xl')]).toEqual(['8px', '12px', '16px'])
+    expect([tier('lg'), tier('xl'), tier('2xl'), tier('3xl')]).toEqual(['6px', '6px', '6px', '6px'])
   })
 })
 

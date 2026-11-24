@@ -90,8 +90,8 @@ describe('below md only — from md the page paints as before', () => {
     expect(words(HOST_CARD_SLOT)).toEqual(['order-7', 'md:hidden'])
     expect(words(HOST_BAND)).toContain('md:hidden')
   })
-  it('the photo: the 16px rounded sheet edge, above the slides and under the controls, never taking a tap', () => {
-    expect(words(SHEET_PHOTO)).toEqual(expect.arrayContaining(['-mb-6', 'after:pointer-events-none', 'after:absolute', 'after:bottom-0', 'after:h-4', 'after:rounded-t-2xl', 'after:bg-background', 'after:shadow-sheet', 'after:z-[6]']))
+  it('the photo: the sheet starts under it on a STRAIGHT line — no rounded lip, no overlap (owner 2026-11-24, hub round 16 Q29)', () => {
+    expect(SHEET_PHOTO).toBe('')
     // On the phone gallery's wrapper only, which is md:hidden.
     // (The goods sheet's edge since 2026-11-14, cook r06 "item": GOODS_PHOTO, src/lib/goods-sheet.ts — never both, the two sheets exclude each other.)
     expect(PAGE).toContain("<div data-photo-first=\"\" className={cn('relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden', rentalSheet && SHEET_PHOTO, goodsSheet && GOODS_PHOTO)}>")

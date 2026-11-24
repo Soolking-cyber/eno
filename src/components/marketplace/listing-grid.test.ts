@@ -36,34 +36,43 @@ const bleedPx = (bp: Bp, classes: string) => {
   return m ? (m[1] === '-' ? 1 : -1) * Number(m[2]) * PX_PER_STEP || 0 : 0 // `|| 0`: mx-0 is 0, not -0
 }
 
-describe('LISTING_GRID ↔ RAIL_CARD_W / RAIL_SCROLLER', () => {
+describe('LISTING_GRID (edge to edge) and the swipe rails (RAIL_CARD_W / RAIL_SCROLLER) part ways', () => {
+  // Owner, 2026-11-24 (hub round 16 Q27): "the cards that swipe 4px corners the other cards edge to edge", then "also desktop".
+  // A grid runs square-cut with 2px between cards at every width; a rail keeps the geometry it had (4px apart on a phone,
+  // 8px from sm) and its 4px photo corner, so a rail card is no longer exactly one grid column.
+  const RAIL_GAP_PX: Record<Bp, number> = { '': 4, 'sm:': 8, 'lg:': 8 }
   for (const bp of BREAKPOINTS) {
     const label = bp || 'phone'
-
-    it(`${label}: the rail card's calc is (columns − 1) × the grid's column gap, over the grid's columns`, () => {
+    it(`${label}: the grid's cards are 2px apart; the rail keeps ${RAIL_GAP_PX[bp]}px, and its card calc follows its own gap`, () => {
+      expect(gapPx(bp)).toBe(2)
+      expect(num(bp, RAIL_SCROLLER, /^gap-([\d.]+)$/) * PX_PER_STEP).toBe(RAIL_GAP_PX[bp])
       const m = resolve(RAIL_CARD_W, bp, /^w-\[calc\(\(100%-([\d.]+)rem\)\/(\d+)\)\]$/)
       expect(m, `${label} rail card width`).toBeDefined()
       expect(Number(m![2])).toBe(cols(bp))
-      expect(Number(m![1]) * 16).toBeCloseTo((cols(bp) - 1) * gapPx(bp), 6)
-    })
-
-    it(`${label}: the rail scroller's gap is the grid's column gap`, () => {
-      expect(num(bp, RAIL_SCROLLER, /^gap-([\d.]+)$/) * PX_PER_STEP).toBe(gapPx(bp))
-    })
-
-    it(`${label}: rail and grid bleed out of the page frame by the same amount, never past the screen edge`, () => {
-      expect(bleedPx(bp, RAIL_SCROLLER)).toBe(bleedPx(bp, LISTING_GRID))
-      expect(bleedPx(bp, LISTING_GRID)).toBeLessThan(FRAME_PX[bp])
+      expect(Number(m![1]) * 16).toBeCloseTo((cols(bp) - 1) * RAIL_GAP_PX[bp], 6)
     })
   }
-
-  it("the phone geometry is the owner's Facebook spacing: 4px from the edge, 4px apart, 12px between rows", () => {
-    expect(FRAME_PX[''] - bleedPx('', LISTING_GRID)).toBe(4)
-    expect(gapPx('')).toBe(4)
+  it('the grid is `edge-grid` (globals.css takes its corners off and insets its words); a rail never is', () => {
+    expect(LISTING_GRID.split(/\s+/)).toContain('edge-grid')
+    expect(RAIL_SCROLLER.split(/\s+/)).not.toContain('edge-grid')
+  })
+  it('phone: the grid bleeds the whole 12px gutter (square-cut to the screen edge), 12px between rows; the rail stays 4px in', () => {
+    expect(FRAME_PX[''] - bleedPx('', LISTING_GRID)).toBe(0)
     expect(num('', LISTING_GRID, /^gap-y-([\d.]+)$/) * PX_PER_STEP).toBe(12)
+    expect(FRAME_PX[''] - bleedPx('', RAIL_SCROLLER)).toBe(4)
+    // 194px at 390, never smaller than the 189px card it replaces (owner, 2026-11-14).
+    expect((390 - gapPx('')) / 2).toBe(194)
+  })
+  it('from sm the grid keeps the page frame, as the rail does', () => {
+    for (const bp of ['sm:', 'lg:'] as const) {
+      expect(bleedPx(bp, LISTING_GRID), bp).toBe(0)
+      expect(bleedPx(bp, RAIL_SCROLLER), bp).toBe(bleedPx(bp, LISTING_GRID))
+    }
+  })
+  it('2 / 3 / 4 columns — 12 cards a page fill all three, never 5', () => {
     expect(cols('')).toBe(2)
     expect(cols('sm:')).toBe(3)
-    expect(cols('lg:')).toBe(4) // 12 cards a page fill all three — never 5
+    expect(cols('lg:')).toBe(4)
   })
 })
 
@@ -81,7 +90,7 @@ describe('LISTING_CARD_SIZES follows the grid', () => {
     return { vw: Number(m![1]), px: Number(m![2]) }
   }
 
-  it('phone: the last (default) term is 50vw − 6px', () => {
+  it('phone: the last (default) term is 50vw − 1px (edge to edge, 2px gutter)', () => {
     const got = calc(terms.at(-1)!)
     expect(got.vw).toBeCloseTo(expected('').vw, 1)
     expect(got.px).toBe(expected('').px)
@@ -95,7 +104,7 @@ describe('LISTING_CARD_SIZES follows the grid', () => {
   })
   it('≥1280: the frame is 1280 to a 1368 screen, follows it to 1448, then caps at 1360 (--container-7xl)', () => {
     expect(terms.find((s) => s.startsWith('(min-width: 1280px)'))).toBe(`(min-width: 1280px) ${(1216 - 3 * gapPx('lg:')) / 4}px`)
-    expect(terms.find((s) => s.startsWith('(min-width: 1368px)'))).toBe('(min-width: 1368px) calc(25vw - 44px)')
+    expect(terms.find((s) => s.startsWith('(min-width: 1368px)'))).toBe(`(min-width: 1368px) calc(25vw - ${(152 + 3 * gapPx('lg:')) / 4}px)`)
     expect(terms.find((s) => s.startsWith('(min-width: 1448px)'))).toBe(`(min-width: 1448px) ${(1296 - 3 * gapPx('lg:')) / 4}px`)
   })
   it("map mode's two cards from xl: no gap above 1280 that advertises one wide column for a 292px card", () => {
@@ -142,13 +151,14 @@ describe('the home lane is the rail plus phone-only classes', () => {
  */
 describe('LISTING_GRID_WIDE: one column on a phone, LISTING_GRID from sm', () => {
   const wideNum = (bp: Bp, re: RegExp) => num(bp, LISTING_GRID_WIDE, re)
-  it('phone: one column, no bleed, 24px between cards — a card the frame wide', () => {
+  it('phone: one column, edge to edge (the whole gutter bled), 24px between cards — a card the screen wide', () => {
     expect(wideNum('', /^grid-cols-(\d+)$/)).toBe(1)
-    expect(bleedPx('', LISTING_GRID_WIDE)).toBe(0)
+    expect(bleedPx('', LISTING_GRID_WIDE)).toBe(FRAME_PX[''])
+    expect(LISTING_GRID_WIDE.split(/\s+/)).toContain('edge-grid')
     expect(wideNum('', /^gap-y-([\d.]+)$/) * PX_PER_STEP).toBe(24)
-    // At 390: 390 − 2 × 12 = 366, against the two-up card's (390 − 2 × 4 − 4) / 2 = 189.
-    expect(390 - 2 * FRAME_PX['']).toBe(366)
-    expect(390 - 2 * FRAME_PX['']).toBeGreaterThan((390 - 2 * (FRAME_PX[''] - bleedPx('', LISTING_GRID)) - gapPx('')) / 2)
+    // At 390: the whole 390, against the two-up card's (390 − 2) / 2 = 194.
+    expect(390 - 2 * (FRAME_PX[''] - bleedPx('', LISTING_GRID_WIDE))).toBe(390)
+    expect(390).toBeGreaterThan((390 - 2 * (FRAME_PX[''] - bleedPx('', LISTING_GRID)) - gapPx('')) / 2)
   })
   it('sm and lg: the same columns, gaps and bleed as LISTING_GRID', () => {
     for (const bp of ['sm:', 'lg:'] as const) {
@@ -158,9 +168,9 @@ describe('LISTING_GRID_WIDE: one column on a phone, LISTING_GRID from sm', () =>
       expect(bleedPx(bp, LISTING_GRID_WIDE), bp).toBe(bleedPx(bp, LISTING_GRID))
     }
   })
-  it('WIDE_CARD_SIZES: LISTING_CARD_SIZES from sm, the full frame width below it', () => {
+  it('WIDE_CARD_SIZES: LISTING_CARD_SIZES from sm, the full screen width below it', () => {
     const terms = (x: string) => x.split(/,\s*/)
     expect(terms(WIDE_CARD_SIZES).slice(0, -1)).toEqual(terms(LISTING_CARD_SIZES).slice(0, -1))
-    expect(terms(WIDE_CARD_SIZES).at(-1)).toBe(`calc(100vw - ${2 * FRAME_PX['']}px)`)
+    expect(terms(WIDE_CARD_SIZES).at(-1)).toBe('100vw')
   })
 })

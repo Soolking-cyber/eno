@@ -150,7 +150,7 @@ export function MapBuildingCard({
                     {/* A LINK to the unit (owner, 2026-11-07: right-click "Open link in new tab" did nothing): a plain click
                         opens it as before, any other is the browser's. A drag of the carousel still swallows the click
                         (embla prevents it), and draggable={false} keeps a mouse drag the carousel's. */}
-                    <Button asChild variant="bare" size="none" className="block w-full cursor-pointer whitespace-normal text-left font-normal active:scale-100">
+                    <Button asChild variant="bare" size="none" className="rounded-2xl block w-full cursor-pointer whitespace-normal text-left font-normal active:scale-100">
                       <a href={`/listings/${u.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); onOpenListing(u) }}>
                         <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-tint">
                           {u.images[0] && (

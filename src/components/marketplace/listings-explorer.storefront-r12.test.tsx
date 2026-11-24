@@ -243,7 +243,7 @@ describe('a storefront — S6: the guest row is the calm panel', () => {
     await waitFor(() => expect(screen.getByTestId('capture')).toBeTruthy())
     expect(screen.getByTestId('capture').getAttribute('data-panel')).toBe('true')
     // The grid's padding-back skips the panel (it sits on the gutter by its own margin).
-    expect(tokens(screen.getByTestId('capture').parentElement)).toContain('max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2')
+    expect(tokens(screen.getByTestId('capture').parentElement)).toContain('max-sm:[&>.col-span-full:not([data-capture-panel])]:px-3')
     cleanup()
     await act(async () => { mount() })
     await waitFor(() => expect(screen.getByTestId('capture')).toBeTruthy())

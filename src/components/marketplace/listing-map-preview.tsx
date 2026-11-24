@@ -124,7 +124,7 @@ export function ListingMapPreview({ listing, liveMap, approximate = null, look =
               /* ⚠️ `active:scale-100` — THE DOCUMENTED OPT-OUT FOR A BUTTON WRAPPING MEDIA
                  (docs/design-language.md, the press-scale contract). A 366px map shrinking to 0.97 reads
                  as the page lurching; the pill below carries the press instead. */
-              className="group absolute inset-0 block h-full w-full overflow-hidden p-0 active:scale-100"
+              className="rounded-[inherit] group absolute inset-0 block h-full w-full overflow-hidden p-0 active:scale-100"
             />
           }
         >

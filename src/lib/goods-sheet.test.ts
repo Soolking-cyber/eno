@@ -105,7 +105,7 @@ describe('the pinned tier', () => {
 describe('the class contract: below md only', () => {
   const PHONE_ONLY = ['GOODS_PHOTO', 'GOODS_PLATES_GAP', 'GOODS_HEAD', 'GOODS_PRICE_ROW', 'GOODS_FACTS', 'GOODS_FACT', 'GOODS_SECTION', 'GOODS_DESC_SECTION', 'GOODS_MAP_BOX', 'COUNSEL_INFO', 'COUNSEL_WELL_JOINED', 'COUNSEL_WELL_ALONE', 'COUNSEL_STRIP', 'GOODS_NOTE'] as const
   it.each(PHONE_ONLY)('%s is max-md: (or a sheet-edge after: pseudo) only', (k) => {
-    for (const c of (G[k] as string).split(' ')) expect(c, `${k}: ${c}`).toMatch(/^(max-md:|after:)/)
+    for (const c of (G[k] as string).split(' ').filter(Boolean)) expect(c, `${k}: ${c}`).toMatch(/^(max-md:|after:)/)
   })
   it('the price and the H1 put back their md paint (30px / 24px)', () => {
     expect(G.GOODS_PRICE).toBe('text-t-figure md:text-3xl md:tracking-tight')

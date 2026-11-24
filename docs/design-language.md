@@ -185,16 +185,21 @@ consumed by CSS rules in `globals.css` only — never as utilities in markup
 
 ## 2. Radius
 
-Three tiers, the pill, and one photo corner: **8 / 12 / 16 / full, photos 16** (owner-approved
-2026-11-14; the tiers were 10 / 12 / 18 and the photo corner 8). Pick by element role, not by taste.
+⛔ **NO SQUIRCLES, NO ROUNDED-SQUARE TILES (owner, 2026-11-24, hub round 16 Q24 "yes": "move away from squircle since
+its cliche and tells ai slop", YouTube's November 2026 app as the reference).** Photos are square-cut (4px on cards that
+swipe; 0 in every phone card grid, which runs edge to edge — Q27, listing-grid.ts `edge-grid`), cards and panels 6px, **every button a capsule** (`ui/button.tsx`
+base `rounded-full`; a caller that is a row or a tile names its own corner), icon discs circles. `corner-shape` is
+gone from globals.css; do not bring it back.
+
+Tiers: **6 / 6 / 6 / full, photos 4** — every box 6px, every control a capsule. Pick by element role, not by taste.
 
 | Utility | Value | Use for |
 |---|---|---|
-| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons and rail tiles (a pill is `rounded-full` at source — the squircle never touches it) |
-| `rounded-media` | 16px round / 20px squircle | **EVERY photo, at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame), the native shell's `.ph`. ⏳ The PDP gallery and banners move onto it in the redesign's next step (cards and photos), so a 16px squircle never sits beside the 20px one |
-| `rounded-2xl` | 16px | cards, panels, dialogs, popovers, menus, sheets' tops, non-photo surfaces ≥ ~96px |
-| `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls |
-| `rounded-lg` | 8px | small non-photo boxes ≤ ~64px, tiny nested boxes, compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items), and **the phone header's search field**: the mark's own tile corner beside it (112/512 of 40px = 8.75, scanned equal to this tier at 3x; `search-tile`, round 13 — it was `rounded-full`). From `sm` the field is `rounded-2xl`, the panel it fuses with |
+| `rounded-full` | pill | **every button (the Button base)**, circles, pills, chips, badges, avatars, icon buttons, rail tiles, the phone search field |
+| `rounded-media` | 4px | **EVERY photo, at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame), the native shell's `.ph`. ⏳ The PDP gallery and banners move onto it in the redesign's next step (cards and photos), so a 16px squircle never sits beside the 20px one |
+| `rounded-2xl` | 6px | cards, panels, dialogs, popovers, menus, sheets' tops, non-photo surfaces ≥ ~96px, and a Button that is a row |
+| `rounded-xl` | 6px | inputs, selects, textareas, a tile a caller names (buttons are capsules) |
+| `rounded-lg` | 6px | small non-photo boxes ≤ ~64px, tiny nested boxes, compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items). (The phone header's search field is a CAPSULE since 2026-11-24 — `search-tile`, hub round 16 Q24; it was this tier.) |
 
 **Banned:** bare `rounded`, `rounded-sm`, `rounded-md` (map: tiny element →
 `lg`, control → `xl`). Directional variants (`rounded-t-*` for sheets/drawers)

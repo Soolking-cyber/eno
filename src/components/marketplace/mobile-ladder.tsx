@@ -888,7 +888,7 @@ export function MobileLadder({
               variant="bare"
               size="none"
               onClick={reopen}
-              className="min-h-11 w-full min-w-0 justify-start gap-1 py-1.5 text-left text-xs font-semibold"
+              className="rounded-2xl min-h-11 w-full min-w-0 justify-start gap-1 py-1.5 text-left text-xs font-semibold"
             >
               {path.map((c, i) => {
                 const last = i === path.length - 1

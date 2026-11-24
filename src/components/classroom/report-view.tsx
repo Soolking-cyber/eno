@@ -243,7 +243,7 @@ export function ReportView({ sessionId, justEnded = false }: { sessionId: string
       )}
 
       <Collapsible className="border-t border-border pt-4">
-        <CollapsibleTrigger render={<Button variant="ghost" className="min-h-12 w-full justify-between" />}>
+        <CollapsibleTrigger render={<Button variant="ghost" className="rounded-2xl min-h-12 w-full justify-between" />}>
           {tr('Transcript', 'Bản ghi chữ')}
           <ChevronDown aria-hidden />
         </CollapsibleTrigger>

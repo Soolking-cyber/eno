@@ -1674,7 +1674,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               // Short map (listing detail) → slim horizontal card: thumb + title + price
               // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
               <div className="flex items-center gap-2.5 p-2">
-                <Button asChild variant="bare" size="none" className="flex min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal text-left font-normal cursor-pointer active:scale-100">
+                <Button asChild variant="bare" size="none" className="rounded-2xl flex min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal text-left font-normal cursor-pointer active:scale-100">
                   <a href={`/listings/${card.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); activateCard(card) }}>
                     <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
                       {card.images[0] && (
@@ -1731,7 +1731,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               : 'fill-none')} />
                   </IconButton>
                 </div>
-                <Button asChild variant="bare" size="none" className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
+                <Button asChild variant="bare" size="none" className="rounded-2xl block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
                   <a href={`/listings/${card.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); activateCard(card) }}>
                     <div className="relative aspect-square w-full bg-tint">
                       {card.images[0] && (

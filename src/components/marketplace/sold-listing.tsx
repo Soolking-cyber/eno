@@ -149,7 +149,7 @@ function SoldActions({ sellerHref, categoryHref, homeHref, className }: { seller
       <Button asChild variant="outline" size="none" className="font-bold">
         <Link
           href={categoryHref}
-          className="inline-flex items-center rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex items-center border border-border bg-card px-4 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <Tr text="Browse this category" /> <ArrowRight className="h-4 w-4" />
         </Link>
@@ -157,7 +157,7 @@ function SoldActions({ sellerHref, categoryHref, homeHref, className }: { seller
       <Button asChild variant="ghost" size="none" className="gap-1.5 font-semibold">
         <Link
           href={homeHref}
-          className="inline-flex items-center rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+          className="inline-flex items-center px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
         >
           <Home className="h-4 w-4" /> <Tr text="Home" ctx="page" />
         </Link>

@@ -35,7 +35,14 @@
  * moved to `gap-2` — the same card sat 8px narrower on /c/* than on / (K-GRID-GAP, 2026-09-29).
  * listing-grid.test.ts pins RAIL_CARD_W to these columns and gaps.
  */
-export const LISTING_GRID = '-mx-2 grid grid-cols-2 gap-x-1 gap-y-3 sm:mx-0 sm:grid-cols-3 sm:gap-x-2 sm:gap-y-4 lg:grid-cols-4'
+/* ⛔ EDGE TO EDGE ON A PHONE (owner, 2026-11-24, hub round 16 Q27 "edge to edge" + "the cards that swipe 4px corners the
+   other cards edge to edge"; YouTube's grids): below `sm` the grid bleeds the WHOLE 12px gutter (`-mx-3`) with a 2px gutter,
+   so photos meet the screen edge, square-cut — 194px cards at 390 (189 before, never smaller: the owner's 11-14 rule).
+   `edge-grid` is the hook for globals.css, which takes the cards' corners off and puts their words back on the 12px gutter.
+   …AND ON DESKTOP TOO (owner, 2026-11-24, "also desktop"): from `sm` the grid keeps the page frame but its cards sit 2px
+   apart (8 before), square-cut, with their words on a 12px inset. Swipe rails (shelf.tsx RAIL_*) keep their own geometry
+   (4 / 8px apart) and the 4px photo corner at every width — a rail card is no longer exactly one grid column. */
+export const LISTING_GRID = '-mx-3 grid grid-cols-2 gap-x-0.5 gap-y-3 sm:mx-0 sm:grid-cols-3 sm:gap-x-0.5 sm:gap-y-4 lg:grid-cols-4 edge-grid'
 
 /**
  * The `sizes` of a card photo in LISTING_GRID (and in a rail, whose card is one grid column) — derived from
@@ -47,7 +54,7 @@ export const LISTING_GRID = '-mx-2 grid grid-cols-2 gap-x-1 gap-y-3 sm:mx-0 sm:g
  * next.config.ts (deviceSizes [360,420,640,1080] + imageSizes); at 390 a DPR2 phone now asks for 378px → the
  * 420w rung, a DPR3 one 567px → 640w.
  */
-export const LISTING_CARD_SIZES = '(min-width: 1448px) 318px, (min-width: 1368px) calc(25vw - 44px), (min-width: 1280px) 298px, (min-width: 1024px) calc(25vw - 22px), (min-width: 640px) calc(33.33vw - 21px), calc(50vw - 6px)'
+export const LISTING_CARD_SIZES = '(min-width: 1448px) 322.5px, (min-width: 1368px) calc(25vw - 39.5px), (min-width: 1280px) 302.5px, (min-width: 1024px) calc(25vw - 17.5px), (min-width: 640px) calc(33.33vw - 17.33px), calc(50vw - 1px)'
 
 /**
  * ⛔ RENTAL RESULTS ARE ONE COLUMN OF LARGE SQUARE CARDS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a: "after this
@@ -60,12 +67,12 @@ export const LISTING_CARD_SIZES = '(min-width: 1448px) 318px, (min-width: 1368px
  * between cards. From `sm` it is LISTING_GRID exactly (listing-grid.test.ts pins both breakpoints), so 3 / 4 columns and
  * the 12-card first page are untouched there.
  */
-export const LISTING_GRID_WIDE = 'grid grid-cols-1 gap-y-6 sm:grid-cols-3 sm:gap-x-2 sm:gap-y-4 lg:grid-cols-4'
+export const LISTING_GRID_WIDE = '-mx-3 grid grid-cols-1 gap-y-6 sm:mx-0 sm:grid-cols-3 sm:gap-x-0.5 sm:gap-y-4 lg:grid-cols-4 edge-grid'
 
 /** The photo `sizes` of a card in LISTING_GRID_WIDE: LISTING_CARD_SIZES from `sm` up, and the full content width below it
  *  (100vw − the 12px gutter on each side: 366px at 390). ⚠️ A DPR2/DPR3 phone then asks for the 1080w rung where the two-up
  *  card asked for 420w/640w — the cost of the bigger photo, measured as LCP (part plan "risks"), not hidden by a smaller hint. */
-export const WIDE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 6px\)$/, 'calc(100vw - 24px)')
+export const WIDE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 1px\)$/, '100vw')
 
 /**
  * The explorer's MAP-mode list (listings-explorer.tsx): one full-width column below lg — no bleed there, so

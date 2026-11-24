@@ -6054,7 +6054,7 @@ export function ListingsExplorer({
                    everywhere (see the viewMode useState).
                    `data-feed-restoring`: every restored card renders at its REAL size while the
                    back-nav restore aligns — see the rule beside `[data-feed-card]` in globals.css.
-                   `max-sm:[&>.col-span-full]:px-2`: on a phone LISTING_GRID bleeds 8px past the page gutter
+                   `max-sm:[&>.col-span-full]:px-3`: on a phone LISTING_GRID bleeds the whole 12px page gutter (8px before 2026-11-24)
                    (owner 2026-10-18), so a FULL-WIDTH row inside it — the teacher shelf, the guest capture
                    row — would start its text 4px from the screen edge. 8px of padding puts its content back
                    on the 12px gutter while its hairlines keep the grid's width, the cards' own edges (the
@@ -6074,7 +6074,9 @@ export function ListingsExplorer({
                    8px margin), so the grid's 8px padding-back onto the gutter skips it (`:not([data-capture-panel])`). */
                 /* A storefront's guest row is the same calm panel (UI climb r12, cook store-r12c S6), so its padding-back skips it too. */
                 /* `drawnRows`: `gridListings`, its identical twins spread on a storefront's default order (S4, beside `gridListings`). */
-                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-0' : (goodsGrid || sellerId) ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2' : 'max-sm:[&>.col-span-full]:px-2', goodsGrid && 'max-sm:gap-y-10')}>
+                /* ⛔ Every phone grid runs EDGE TO EDGE since 2026-11-24 (hub round 16 Q27; listing-grid.ts): it bleeds the whole 12px
+                   gutter, so its full-width rows pad back by 12 (8 before; the wide rentals grid had no bleed, 0). */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-3' : (goodsGrid || sellerId) ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-3' : 'max-sm:[&>.col-span-full]:px-3', goodsGrid && 'max-sm:gap-y-10')}>
                   {drawnRows.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed

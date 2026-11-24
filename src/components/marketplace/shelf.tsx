@@ -138,7 +138,7 @@ export const LANE_CARD_W = `${RAIL_CARD_W} max-sm:w-55`
  *  12px text edge, 12px between cards, and that same edge when the rail is scrolled to a card; each card its own height. */
 export const LANE_SCROLLER = `${RAIL_SCROLLER} max-sm:-mx-3 max-sm:gap-3 max-sm:px-3 max-sm:scroll-px-3 max-sm:items-start`
 /** A lane card photo's `sizes`: the grid's own from `sm` (a lane is a rail there), a fixed 220px below it. */
-export const LANE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 6px\)$/, '220px')
+export const LANE_CARD_SIZES = LISTING_CARD_SIZES.replace(/calc\(50vw - 1px\)$/, '220px')
 /** A lane's heading row: the shared row, 32px tall at the least on a phone (the See all disc; build 8), 16px over the cards. */
 export const LANE_HEADER_ROW = `${SECTION_HEADER_ROW} max-sm:mb-4 max-sm:min-h-8`
 /** A lane's heading: the redesign's section role on a phone (`t-h2`, 22/28, -0.02em, bold ink); SECTION_TITLE from `sm`. */

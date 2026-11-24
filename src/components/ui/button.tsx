@@ -101,7 +101,9 @@ const buttonVariants = cva(
   // that must be re-stated at every call site is a defect in the primitive, not in the
   // callers. (`disabled:pointer-events-none` below already suppresses hover on a disabled
   // button, so this needs no disabled: counterpart.)
-  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-spring-snappy active:duration-[60ms] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  // ⛔ A CAPSULE (owner, 2026-11-24, hub round 16 Q24 "squircles out"): controls are full capsules or circles, never a
+  // rounded-square tile. A caller that is a ROW or a tile (a map list row, a photo fill) names its own corner.
+  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-spring-snappy active:duration-[60ms] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
@@ -241,8 +243,8 @@ const buttonVariants = cva(
       // test is "a direct svg, OR one directly inside that span". Nothing else is ever in the span.
       size: {
         default: "min-h-9 px-4 py-1.5 has-[>svg,>[data-slot=button-label]>svg]:px-3",
-        sm: "min-h-8 rounded-xl gap-1.5 px-3 has-[>svg,>[data-slot=button-label]>svg]:px-2.5",
-        lg: "min-h-10 rounded-xl px-6 has-[>svg,>[data-slot=button-label]>svg]:px-4",
+        sm: "min-h-8 rounded-full gap-1.5 px-3 has-[>svg,>[data-slot=button-label]>svg]:px-2.5",
+        lg: "min-h-10 rounded-full px-6 has-[>svg,>[data-slot=button-label]>svg]:px-4",
         icon: "size-9",
         "icon-sm": "size-7",
         "icon-xs": "size-6",

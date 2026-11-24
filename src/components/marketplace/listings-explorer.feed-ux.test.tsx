@@ -734,7 +734,7 @@ describe('a directed feed folds its category ladder — on a phone into ONE titl
     await waitFor(() => expect(document.querySelector('.feed-grid')?.className).toContain('max-sm:gap-y-10'))
     expect(document.querySelector('.feed-grid')!.className).not.toMatch(/max-sm:gap-y-(5|8)\b/)
     // The guest capture row sits on the gutter by its own margin: the grid's padding-back skips the goods panel.
-    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full:not([data-capture-panel])]:px-2')
+    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full:not([data-capture-panel])]:px-3')
     cleanup()
     mountAt('/?category=rentals')
     await waitFor(() => expect(cardIds().length).toBeGreaterThan(0))
@@ -745,7 +745,7 @@ describe('a directed feed folds its category ladder — on a phone into ONE titl
     mountAt('/')
     await waitFor(() => expect(cardIds()).toHaveLength(12))
     expect(document.querySelector('.feed-grid')!.className).not.toContain('max-sm:gap-y-10')
-    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full]:px-2')
+    expect(document.querySelector('.feed-grid')!.className).toContain('max-sm:[&>.col-span-full]:px-3')
     expect(document.querySelector('#explorer-toolbar [data-scope-chip]')).toBeNull()
   })
 

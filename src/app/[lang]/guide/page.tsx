@@ -154,7 +154,7 @@ export default function GuidePage() {
           {/* font-semibold on the BUTTON (see CLAUDE.md): on the asChild child it would be
               settled by stylesheet order rather than intent. gap-2 is the base already. */}
           <Button asChild variant="ghost" size="none" className="font-semibold">
-            <LocalizedLink href="/" className="flex cursor-pointer items-center rounded-xl px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
+            <LocalizedLink href="/" className="flex cursor-pointer items-center px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
               <Search className="h-4 w-4" /> <Tr text="Browse listings" />
             </LocalizedLink>
           </Button>

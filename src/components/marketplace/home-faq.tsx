@@ -37,39 +37,56 @@ export function HomeFaqJsonLd({ lang, webPageId }: { lang: string; webPageId: st
   )
 }
 
-export function HomeFaq() {
+/** One question row: the H2 trigger and its answer (the first carries the founder's quote). */
+function FaqItem({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean }) {
   return (
-    <section aria-labelledby="home-faq" className="mt-10 border-t border-border pb-8 pt-6">
+    <AccordionItem value={s.id}>
+      <AccordionTrigger headerRender={<h2 id={`about-${s.id}`} />} className="py-2.5 text-sm">
+        <Bilingual en={s.q.en} vi={s.q.vi} />
+      </AccordionTrigger>
+      <AccordionPanel>
+        <div className="pb-3">
+          <Para parts={s.open} className="text-sm leading-relaxed text-foreground" />
+          {s.more.map((p) => (
+            <Para key={p[0].en} parts={p} className="mt-2 text-sm leading-relaxed text-body" />
+          ))}
+          {first ? (
+            <blockquote className="mt-3">
+              <p className="text-sm italic leading-relaxed text-body">
+                “<Bilingual en={FOUNDER_QUOTE.text.en} vi={FOUNDER_QUOTE.text.vi} />”
+              </p>
+              <footer className="mt-1 text-t-meta text-muted-foreground">
+                <Bilingual en={FOUNDER_QUOTE.by.en} vi={FOUNDER_QUOTE.by.vi} />
+              </footer>
+            </blockquote>
+          ) : null}
+        </div>
+      </AccordionPanel>
+    </AccordionItem>
+  )
+}
+
+/**
+ * ⛔ TWO COLUMNS, COMPACT (owner, 2026-11-24: "make it 2 rows faq more compact"): from `sm` the questions run in two columns,
+ * each its OWN accordion — one grid of items would leave a hole beside an opened answer, and CSS columns would move questions
+ * between columns as one opens. The first half (rounded up) on the left, in order; on a phone the halves stack into the same
+ * single list (the left half's last row keeps its rule, so the seam reads as any other). Rows 40px (py-2.5), not 44.
+ */
+export function HomeFaq() {
+  const half = Math.ceil(HOME_ABOUT.length / 2)
+  return (
+    <section aria-labelledby="home-faq" className="mt-8 border-t border-border pb-6 pt-5">
       <p id="home-faq" className="text-base font-bold text-foreground">
         <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
       </p>
-      <Accordion multiple className="mt-2 max-w-3xl">
-        {HOME_ABOUT.map((s, i) => (
-          <AccordionItem key={s.id} value={s.id}>
-            <AccordionTrigger headerRender={<h2 id={`about-${s.id}`} />} className="py-3 text-sm">
-              <Bilingual en={s.q.en} vi={s.q.vi} />
-            </AccordionTrigger>
-            <AccordionPanel>
-              <div className="pb-4">
-                <Para parts={s.open} className="text-sm leading-relaxed text-foreground" />
-                {s.more.map((p) => (
-                  <Para key={p[0].en} parts={p} className="mt-2 text-sm leading-relaxed text-body" />
-                ))}
-                {i === 0 ? (
-                  <blockquote className="mt-3">
-                    <p className="text-sm italic leading-relaxed text-body">
-                      “<Bilingual en={FOUNDER_QUOTE.text.en} vi={FOUNDER_QUOTE.text.vi} />”
-                    </p>
-                    <footer className="mt-1 text-t-meta text-muted-foreground">
-                      <Bilingual en={FOUNDER_QUOTE.by.en} vi={FOUNDER_QUOTE.by.vi} />
-                    </footer>
-                  </blockquote>
-                ) : null}
-              </div>
-            </AccordionPanel>
-          </AccordionItem>
-        ))}
-      </Accordion>
+      <div className="mt-1 sm:grid sm:grid-cols-2 sm:items-start sm:gap-x-8">
+        <Accordion multiple className="max-sm:[&>*:last-child]:border-b">
+          {HOME_ABOUT.slice(0, half).map((s, i) => <FaqItem key={s.id} s={s} first={i === 0} />)}
+        </Accordion>
+        <Accordion multiple>
+          {HOME_ABOUT.slice(half).map((s) => <FaqItem key={s.id} s={s} first={false} />)}
+        </Accordion>
+      </div>
     </section>
   )
 }

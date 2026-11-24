@@ -157,7 +157,7 @@ describe('the rentals feed on a phone: one column of large square cards (owner-a
   it('?category=rentals: LISTING_GRID_WIDE, every card wide with the full-width sizes, held from the third', async () => {
     mountAt('/?category=rentals')
     await waitFor(() => expect(cardIds()).toEqual(RENTALS.slice(0, 12).map((r) => r.id)))
-    expect(gridOf().className.split(' ')).toEqual(expect.arrayContaining(['feed-grid', ...LISTING_GRID_WIDE.split(' '), 'max-sm:[&>.col-span-full]:px-0']))
+    expect(gridOf().className.split(' ')).toEqual(expect.arrayContaining(['feed-grid', ...LISTING_GRID_WIDE.split(' '), 'max-sm:[&>.col-span-full]:px-3']))
     expect(wideIds()).toHaveLength(12)
     const cards = screen.getAllByTestId('card')
     expect(cards.every((c) => c.getAttribute('data-sizes') === WIDE_CARD_SIZES)).toBe(true)

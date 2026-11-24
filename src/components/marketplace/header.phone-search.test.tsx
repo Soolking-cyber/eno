@@ -225,7 +225,7 @@ describe('the header bar: 56px, no glow; a 40px logo beside a 40px field at ever
     expect(start).toBeGreaterThan(-1)
     const tile = css.slice(start, css.indexOf('\n}', start)).replace(/\s+/g, ' ')
     expect(tile).toContain('isolation: isolate;')
-    expect(tile).toMatch(/&::before \{ content: ''; position: absolute; inset: 2px 0; z-index: -1; border: 1px solid transparent; border-radius: var\(--radius-lg\); background-color: var\(--tint\); pointer-events: none; \}/)
+    expect(tile).toMatch(/&::before \{ content: ''; position: absolute; inset: 2px 0; z-index: -1; border: 1px solid transparent; border-radius: 9999px; background-color: var\(--tint\); pointer-events: none; \}/)
     expect(tile).toContain('&:is(.dark *)::before { background-color: var(--secondary); }')
     // The ring follows focus; the 44px fill follows the OPEN phone search (`data-search-open`), never focus — a submitted search
     // closes the panel and keeps the field focused, and a focus-keyed 44px tile sat beside the 40px mark (review, 2026-11-17).
@@ -236,7 +236,7 @@ describe('the header bar: 56px, no glow; a 40px logo beside a 40px field at ever
     // Flat: no lift and no ring at rest — the only outline is the focus one.
     expect(tile).not.toMatch(/box-shadow|search-edge/)
     expect(tile.match(/outline/g)).toHaveLength(1)
-    expect(css).toMatch(/--radius-lg: 8px;/)
+    expect(css).toMatch(/--radius-lg: 6px;/)
   })
 })
 

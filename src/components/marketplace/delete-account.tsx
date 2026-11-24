@@ -163,7 +163,7 @@ export function DeleteAccount() {
         <Button asChild variant="ghost" size="none" className="font-bold">
           <a
             href="/api/account/export"
-            className="mt-2 inline-block rounded-xl px-4 py-2 text-sm text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground cursor-pointer"
+            className="mt-2 inline-block px-4 py-2 text-sm text-accent-foreground transition-colors hover:bg-muted hover:text-accent-foreground cursor-pointer"
           >
             {tr('Export my data', 'Xuất dữ liệu của tôi')}
           </a>

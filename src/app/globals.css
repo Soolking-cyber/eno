@@ -230,11 +230,16 @@
      only, so no layout moves. `sm`/`md` stay banned bare by design-lint, `3xl` has no consumer. */
   --radius-sm: 6px;
   --radius-md: 8px;
-  --radius-lg: 8px;   /* small thumbs ≤64px, compact controls ≤28px, menu items, and the phone header's 40px search tile
-                         (`search-tile`, round 13: the logo mark's own corner, 8.75px at 40, scans equal to it) */
-  --radius-xl: 12px;  /* buttons, inputs, selects — capped by the pill cliff above */
-  --radius-2xl: 16px; /* cards, panels, dialogs, popovers, non-photo media ≥96px */
-  --radius-3xl: 26px; /* sheets and drawers (no consumer in src/ today — headroom) */
+  --radius-lg: 6px;   /* small thumbs ≤64px, compact controls ≤28px, menu items — 6px since 2026-11-24, the card tier's own
+                         value, so no small box sits rounder than the card it is in (hub round 16 Q24; commit gate, opus) */
+  --radius-xl: 6px;   /* inputs, selects, textareas, tiles a caller asks for by name — 6px since 2026-11-24 (it was 12): no
+                         field rounder than the card or dialog it sits in (hub round 16 Q24; commit gate, opus). BUTTONS
+                         ARE CAPSULES (ui/button.tsx base `rounded-full`). */
+  /* ⛔ NO ROUNDED-SQUARE TILES (owner, 2026-11-24, hub round 16 Q24 "yes": "move away from squircle since its cliche
+     and tells ai slop", YouTube's November 2026 app as the reference): cards, panels, dialogs and sheets 6px, photos 4px
+     (`--radius-media`), controls full capsules, icon discs circles. Reverses the 2026-11-14 16 / 26 and the squircle. */
+  --radius-2xl: 6px;  /* cards, panels, dialogs, popovers, non-photo media ≥96px */
+  --radius-3xl: 6px;  /* sheets and drawers (no consumer in src/ today — headroom) */
   /* `--radius-media` (listing/product photo tiles) is NOT here: an inline token cannot be overridden at runtime,
      and that one is (16px round → 20px squircle). See its own `@theme static` block below. */
 
@@ -335,18 +340,17 @@
    corners") ──────────────────────────────────────────────────────────────────────────────────────────────────
    One corner for EVERY photo: the card photo, its skeleton, the SEO tile, the wizard Preview, the dashboard cover —
    and (the redesign's next step) the PDP gallery and banners, so a 16px squircle never sits beside this 20px one.
-   ⛔ 16px ROUND / 20px SQUIRCLE SINCE 2026-11-14 (owner-approved 2026-11-14, cook r05: "after this cook round build
-   all best options and deploy"; reverses the 2026-10-18 8px / 14px "minimal" corner). 16px round here; the
-   `@supports (corner-shape: squircle)` block further down raises it to a 20px SQUIRCLE, the compensated corner (the
-   same ~1.25× a squircle reads squarer by, measured 2026-10-18 at 8 → 14) — so Safari/iOS and Firefox show 16px
-   round, Chromium/Samsung the squircle, and iOS switches by itself the day Safari ships corner-shape.
+   ⛔ 4px ROUND SINCE 2026-11-24 (owner, hub round 16 Q24: squircles out; it was 16px round / a 20px squircle since
+   2026-11-14). One plain arc on every engine — there is no squircle block any more.
    ⛔ `static`, NEVER `@theme inline`. Inline bakes the value into the utility, and the @supports override below
    would compile to nothing — the exact trap the squircle block records for the tiers. Declared here, Tailwind
    4.3.3 emits `.rounded-media{border-radius:var(--radius-media)}` (and the t/b/l/r forms) with the variable on
    :root in `@layer theme`, which the block's UNLAYERED :root beats. Checked against this repo's own compile.
    ⚠️ After the curves block, not before it: utils.test.ts reads the FIRST `@theme static` for the curves. */
 @theme static {
-  --radius-media: 16px;
+  /* ⛔ 4px SINCE 2026-11-24 (owner, hub round 16 Q24: squircles out): a square-cut photo, YouTube's media corner, on every card
+     that SWIPES; 0 in every phone card grid, which runs edge to edge (Q27, `.edge-grid` below). Reverses the 2026-11-14 16px round / 20px squircle. */
+  --radius-media: 4px;
 }
 
 /* ── THE CLOSED TYPE SCALE — six ROLES (owner-approved 2026-11-14, cook r05: "after this cook round build all best
@@ -1635,98 +1639,12 @@
 }
 
 /* ============================================================
-   CONTINUOUS CURVATURE (squircles) — progressive enhancement
+   NO SQUIRCLES (owner, 2026-11-24, hub round 16 Q24 "yes")
    ============================================================
-   `corner-shape: squircle` replaces the circular corner arc with a superellipse: the
-   curvature is continuous into the straight edge instead of joining it at a tangent
-   discontinuity. It is the actual geometry behind the "Apple corner" (owner, 2026-08-09).
-
-   ⚠️ THIS IS AN ENHANCEMENT AND MUST STAY ONE. Measured 2026-08-09: Chromium-only
-   (Chrome 139+, ~65% of users, NOT Baseline, no announced Safari or Firefox timeline).
-   Unsupported engines ignore the declaration and keep the arc from `border-radius`, which
-   is why the tiers above were retuned FIRST and independently — every browser gets the
-   better scale, Chromium additionally gets the better curve. Never move a value that
-   only exists inside this block into the base tiers.
-
-   ⚠️ A SQUIRCLE READS SQUARER THAN AN ARC AT THE SAME RADIUS (rendered side by side to
-   check: sq18 ≈ arc14, so ~1.25×). THE RADIUS IS DELIBERATELY *NOT* COMPENSATED FOR THAT,
-   and the reason is worth keeping because the obvious fix does not work:
-
-     `@theme inline` (line 20) INLINES token values into the utility declarations — it
-     does not emit `var(--radius-2xl)` for `rounded-2xl` to read at runtime. So the
-     natural implementation, re-declaring `--radius-2xl` on `:root` inside this block,
-     compiles to nothing and fails SILENTLY. It was written that way first and caught only
-     by measuring the rendered corner: the card media reported 18px when the override said
-     22px. A per-class `border-radius` override would work, but it would also flatten the
-     23 live directional variants (`rounded-t-2xl` and friends) into all-corner rounding.
-
-   Uncompensated is also the better design, not just the cheaper one: the win here is
-   tangent continuity, not extra roundness, and a Chromium corner reading slightly tighter
-   than a Safari one is a difference nobody can see without the two side by side. Two sets
-   of numbers to keep in sync would have been the real cost.
-
-   ⚠️ ONE TOKEN IS COMPENSATED, ON PURPOSE: `--radius-media`, the photo-tile corner (owner,
-   2026-10-18: "minimal squircle corners"). It is declared in `@theme static`, not inline, so
-   the utility reads `var(--radius-media)` at runtime and the `:root` below really does move
-   it: 16px round everywhere, a 20px squircle here since 2026-11-14 (owner-approved; it was 8px / 14px,
-   measured ≤ 0.16px apart on 2026-10-18). Uncompensated, a squircle reads visibly tighter than
-   Safari's arc at the same radius — and it is ONE number, on the one
-   surface the brief is about. The tiers above stay uncompensated; never do this for lg/xl,
-   whose 1.75× squircle value would cross the pill cliff (see `@theme inline`).
-   Support, re-checked 2026-10-18: Chrome/Edge 139+, Samsung 30+, Android WebView; WebKit
-   turned it on in main (2026-08-14, STP 251) but no shipping Safari has it yet; Firefox
-   Nightly only.
-
-   ⚠️ THE TIER NAME IS MATCHED AS A SUBSTRING, BUT NEVER A BARE `[class*="rounded-"]`.
-   The distinction is the whole safety argument. A bare prefix match also catches
-   `rounded-t-none` (2 live uses) and would catch `rounded-*-full` the day one appears —
-   putting a superellipse on something that must stay a true square corner or a true
-   circle. Including the TIER in the pattern makes that impossible, because `-none` and
-   `-full` are not tiers.
-   Matching the substring rather than the exact class is what covers VARIANT PREFIXES:
-   `md:rounded-2xl` compiles to `.md\:rounded-2xl`, which an exact `.rounded-2xl` selector
-   does not match. There are 5 such utilities live (`sm:`/`md:`/`lg:rounded-2xl`), and the
-   first version of this block missed every one — three review families caught it
-   independently. The failure would have been invisible in a spot check: one breakpoint
-   showing arcs beside squircled siblings.
-   ⚠️ `:not([class*="rounded-full"])` IS THE PRICE OF SUBSTRING MATCHING, AND IT IS NOT
-   OPTIONAL. An attribute selector reads the whole `class` STRING, not the class that is
-   currently winning the cascade — so `rounded-full md:rounded-2xl` matches at EVERY width,
-   and below `md` Chromium would draw a superellipse where a true circle is intended.
-   Reproduced before fixing: at 390px that element computed `border-radius: 1.67772e+07px`
-   (pill) with `corner-shape: squircle` — a distorted circle. No such combination exists in
-   `src/` today, so this is a landmine rather than a live bug, which is exactly why the
-   guard belongs here instead of in someone's memory. Two review families found it
-   independently after the exact-class version was fixed; the two selector styles fail in
-   opposite directions and this is the pairing that fails SAFE. An element that mixes
-   `rounded-full` with a tier now simply keeps arcs — a missed enhancement, never a broken
-   shape.
-   `rounded-full` alone is excluded for the same reason — avatars, dots, counters and text
-   pills are circles, and Apple uses a superellipse for containers, not for circles.
-   Per-corner (`rounded-tl-*`) and logical (`rounded-s-*`) families have ZERO uses today;
-   add them here if that changes. */
-@supports (corner-shape: squircle) {
-  /* The photo-tile corner's squircle value (see the ⚠️ above). Unlayered, so it beats the 16px that
-     `@theme static` puts on :root inside `@layer theme`. In the list below, `rounded-media` is not a
-     substring of `rounded-t-media`, so each direction of it is listed. */
-  :root { --radius-media: 20px; }
-  :is(
-    [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"],
-    [class*="rounded-t-lg"], [class*="rounded-t-xl"], [class*="rounded-t-2xl"], [class*="rounded-t-3xl"],
-    [class*="rounded-b-lg"], [class*="rounded-b-xl"], [class*="rounded-b-2xl"], [class*="rounded-b-3xl"],
-    [class*="rounded-l-lg"], [class*="rounded-l-xl"], [class*="rounded-l-2xl"], [class*="rounded-l-3xl"],
-    [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"],
-    [class*="rounded-media"], [class*="rounded-t-media"], [class*="rounded-b-media"], [class*="rounded-l-media"], [class*="rounded-r-media"]
-  ):not([class*="rounded-full"], .corner-round, .shimmer) {
-    corner-shape: squircle;
-  }
-  /* ⚡ `.corner-round` OPTS OUT (owner, 2026-11-19: "plain rounded corners on listing cards"): the card's own surfaces —
-     its root, stretched link and photo frame (listing-card.tsx) — keep the 20px radius as a plain arc. Painting 160
-     superellipses per home page measured ~0.51 s (~9%) of a throttled phone's first paint. A class check, not one more
-     substring test: this :is() already runs 25 of them against every element.
-     `.shimmer` OPTS OUT TOO (2026-11-19): every loading placeholder — mostly ~20px text bars, where a superellipse and an
-     arc look the same — draws a plain corner; measured ~0.45 s (~10%) of the same throttled first paint. */
-}
+   "we move away from squircle since its cliche and tells ai slop". The `corner-shape: squircle` enhancement (2026-08-09,
+   "the Apple squircle obsession type of good") and the photo tile's 20px squircle are gone: every corner is a plain arc,
+   and the tiers above are small (6px cards, 4px photos) or full capsules. ⛔ Do not bring `corner-shape` back. The
+   `.corner-round` class the cards still carry is now inert (it only opted out of this block). */
 
 /* ============================================================
    ELEVATION — soft diffuse shadows + Airbnb-style hover lift
@@ -1778,6 +1696,7 @@
      5px above, below and right (its `max-sm:mr-1`; measured at 3x, 320/390/412, both themes).
    ::before, not the box's own background, so the tile can be 4px shorter than the tap box around it. `isolation` keeps the
    pseudo's z-index -1 inside the field: it paints under the magnifier, the input and the assistant, never under the bar. */
+/* A CAPSULE since 2026-11-24 (owner, hub round 16 Q24: controls are capsules, no rounded-square tiles; it was the 8px tier). */
 @utility search-tile {
   isolation: isolate;
   &::before {
@@ -1786,7 +1705,7 @@
     inset: 2px 0;
     z-index: -1;
     border: 1px solid transparent;
-    border-radius: var(--radius-lg);
+    border-radius: 9999px;
     background-color: var(--tint);
     pointer-events: none;
   }
@@ -4778,6 +4697,17 @@ html[data-has-recents] .recents-row {
    never-rendered cards out at it and threw the restore off by ~300px for a frame. See the
    `data-feed-restoring` rule below, which switches it off for exactly that window. (Per-breakpoint
    since 2026-10-18 — see the derivation above; the restore rule stays, a guess is still a guess.) */
+/* ⛔ EVERY PHONE CARD GRID RUNS EDGE TO EDGE (owner, 2026-11-24, hub round 16 Q27 "edge to edge" + "the cards that swipe
+   4px corners the other cards edge to edge"; YouTube's grids): `edge-grid` is on LISTING_GRID and LISTING_GRID_WIDE
+   (listing-grid.ts), which bleed to the screen edges with a 2px gutter; here the card's photo, link and root lose their
+   corner, and the words under the photo sit on the page's 12px gutter. The photo stays square and only grows (the owner's
+   11-14 card rule). Cards that SWIPE (shelf.tsx rails and lanes) are not in an edge-grid and keep the 4px photo corner.
+   …and on desktop too ("also desktop"): the grid keeps the page frame there, its cards 2px apart (listing-grid.ts). */
+/* Grid CELLS only (`> :not(.col-span-full)`): a rail inside a full-width row of the grid (the teacher shelf) swipes, so it keeps
+   its 4px corner (commit gate, opus). The inset skips any positioned child (a badge or a heart on the card root). */
+.edge-grid > :not(.col-span-full) :is(.card-root, .card-link, .card-media, .card-img) { border-radius: 0; }
+.edge-grid > :not(.col-span-full) .card-root > :not(.card-media):not(.card-link):not(.absolute) { padding-inline: 12px; }
+
 [data-feed-card] {
   content-visibility: auto;
   contain-intrinsic-size: auto calc(50vw + 65px);
@@ -5074,7 +5004,7 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
 @media (width < 40rem) {
   html[data-explorer-directed][data-explorer-cat="rentals"] #listings .feed-grid {
     grid-template-columns: minmax(0, 1fr);
-    margin-inline: 0;
+    margin-inline: -0.75rem; /* LISTING_GRID_WIDE bleeds the 12px gutter since 2026-11-24 (edge to edge, hub round 16 Q27) */
     row-gap: 1.5rem;
   }
 }
@@ -5472,9 +5402,6 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
 .partner-strip-feed .partner-strip-link:active {
   background: var(--color-tint);
   transform: scale(0.98);
-}
-@supports (corner-shape: squircle) {
-  .partner-strip-feed .partner-strip-link { corner-shape: squircle; }
 }
 /* The mark sits on the tile itself (no inner tile), in a 28px row over the word: 28px tall, a wide wordmark 18, each drawn
    inside the tile's width (`width: 0; min-width: 100%` — the box is the row, `object-fit: contain` centres the mark in it),

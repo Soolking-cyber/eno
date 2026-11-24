@@ -76,7 +76,10 @@ export const SHEET_GRID_GAP = 'max-md:gap-8'
  * (z-10) and the controls; no pointer events. ⛔ The photo itself stays square-cornered (owner 2026-07-24, kept): only the
  * sheet over it is rounded.
  */
-export const SHEET_PHOTO = "-mb-6 after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[6] after:h-4 after:rounded-t-2xl after:bg-background after:shadow-sheet after:content-['']"
+// ⛔ NO ROUNDED LIP (owner, 2026-11-24, hub round 16 Q29 "yes"): the photo meets the page on a straight line, as YouTube's
+// player meets its page; the 16px white band with rounded top corners (`after:`) is gone, and with it the 24px overlap
+// it existed to cover (commit gate, opus: kept alone, the photo painted over the sheet's top and the price lost its gap).
+export const SHEET_PHOTO = ""
 
 /** The H1 on every other listing page (P-HIER, owner 2026-09-30: 18px/700, 24 from sm). */
 export const PAGE_TITLE = 'text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]'
