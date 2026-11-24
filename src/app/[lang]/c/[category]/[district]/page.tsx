@@ -28,7 +28,7 @@ import { staleBelowFloor } from '@/lib/stale-noindex'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { localizedHref } from '@/lib/lang-pinned'
 import { langAlternatesFor } from '@/lib/lang-alternates'
-import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
+import { HCMC_SHORT, crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { AreaChipsRow } from '../(index)/area-chips-row'
 import { CategoryLedeLinks } from '../(index)/category-lede-block'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
@@ -413,7 +413,9 @@ export default async function CategoryDistrictPage({ params }: Props) {
         {/* 2026-11-06 audit: the /c/* phone step (docs/design-language.md §1) — the title size below sm, as the category's H1.
             It wraps instead of truncating: the place is the point of this page, and "… in Go Vap Dis…" would cut it off. */}
         <h1 className="h-display text-foreground max-sm:[--text-display:var(--text-title)]">
-          {headline ? <RentalsDistrictHeading headline={headline} place={searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
+          {/* The rentals H1 names the city the <title> names (", HCMC" / ", TP.HCM", districtMetadata): Seobility crawl 3 found the
+              title's "HCMC" nowhere in the text of 43 district pages ("title words not in the body"). */}
+          {headline ? <RentalsDistrictHeading headline={headline} place={data.inHcmc ? { en: `${searchPlace.en}, ${HCMC_SHORT.en}`, vi: `${searchPlace.vi}, ${HCMC_SHORT.vi}` } : searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
         </h1>
         {/* ⛔ THE CHECK THE DESCRIPTION PROMISES IS ON THE PAGE (D1, v3): "Pick up to N and eno checks
             availability for free" is in the meta description, so the hint that says how is here, in the

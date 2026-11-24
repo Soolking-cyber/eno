@@ -101,7 +101,7 @@ afterEach(() => { vi.unstubAllEnvs() })
 describe('/about metadata', () => {
   it('describes what the site is, for whom and where — and previews as itself, image included', async () => {
     const metadata = await metadataFor('marketplace')
-    expect(metadata.title).toBe('About eno.vn — free classifieds for expats and locals in Vietnam')
+    expect(metadata.title).toBe('About us: free classifieds for expats and locals | eno.vn')
     expect(String(metadata.description)).toContain('free classifieds marketplace for expats, internationals and locals in Vietnam')
     // Both 0 live listings on 2026-09-27 — a description is a claim about the shelf.
     expect(String(metadata.description)).not.toMatch(/motorbike|moving sale/i)
@@ -118,9 +118,9 @@ describe('/about metadata', () => {
 
   it('gives the Vietnamese variant a Vietnamese <title> on the marketplace only, and keeps the share card English', async () => {
     const vi = await metadataFor('marketplace', 'vi')
-    expect(vi.title).toBe('Về eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam')
+    expect(vi.title).toBe('Giới thiệu: rao vặt miễn phí cho người nước ngoài và người Việt')
     // A share scraper sends no language: the card must not depend on which variant it hit.
-    expect(vi.openGraph).toMatchObject({ title: 'About eno.vn — free classifieds for expats and locals in Vietnam' })
+    expect(vi.openGraph).toMatchObject({ title: 'About us: free classifieds for expats and locals | eno.vn' })
     // eno.forum's title is untouched in either language (the file's rule 1).
     expect((await metadataFor('services', 'vi')).title).toBe('About eno.forum — services for travellers and newcomers to Vietnam')
   })

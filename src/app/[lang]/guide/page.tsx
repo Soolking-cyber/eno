@@ -10,7 +10,8 @@ import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight, Shield
 import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 export const metadata: Metadata = withShare({
-  title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
+  // The site named once (Seobility crawl 3: "How eno.vn works — Guide | eno.vn" is "title word repeats").
+  title: `How buying and selling works, step by step | ${SITE_NAME}`,
   description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
   alternates: { canonical: '/guide' },
 })
@@ -82,10 +83,11 @@ const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string
 export default function GuidePage() {
   return (
     <ContentPage
-      title="How eno.vn works"
+      // 20 characters and more (Seobility crawl 3: "How eno.vn works", 16, "H1 too short").
+      title="How eno.vn works, step by step"
       // `titleVi` / `labelVi`: AUTHORED Vietnamese (L-CONTENT-VI, 2026-11-06 audit) — string props the ui-strings harvester
       // never sees, so the Vietnamese server HTML carried every heading here in English (content-page-vi-contract.test.ts).
-      titleVi="eno.vn hoạt động thế nào"
+      titleVi="eno.vn hoạt động thế nào, từng bước"
       // ⛔ NOT "eno.vn is the trusted marketplace for Vietnam’s international community." (owner, 2026-10-04):
       // the site's own description, as the home page's Vietnamese says it (HOME_DESCRIPTION_VI).
       // Two literal <Tr>s, not one <Tr text={cond ? a : b}>: gen-ui-strings extracts literals only, and a string

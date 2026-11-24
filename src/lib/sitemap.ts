@@ -5,6 +5,7 @@ import { IS_SERVICES } from '@/lib/edition'
 import { VI_PILOT_MARKETPLACE, hasViTwin, viPilotFor, viTwinPath, type ViPilot } from '@/lib/lang-pinned'
 import { teacherSitemapScope } from '@/lib/teachers/search-index'
 import { MIN_IMPORT_DESCRIPTION_CHARS } from '@/lib/thin-import'
+import { DUPLICATE_IMPORT_SQL } from '@/lib/duplicate-import'
 
 /**
  * THE SITEMAP IS PAGED INTO CHILDREN, and every child is capped.
@@ -115,12 +116,16 @@ export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}
  */
 export { MIN_IMPORT_DESCRIPTION_CHARS }
 
+// ⛔ AND NOT A REPEAT (2026-11-24, src/lib/duplicate-import.ts): an import an older live listing of the same seller already
+// repeats — same title at the same price, or the same description — is `noindex, follow` on its page, so it is not
+// submitted either; the oldest copy is.
 async function notThinImport(): Promise<Prisma.ListingWhereInput> {
   const long = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT id FROM "Listing"
-    WHERE verified AND status = 'active' AND "affiliateUrl" IS NULL
-      AND "externalId" IS NOT NULL AND "externalId" NOT LIKE 'fb:%'
-      AND length(description) >= ${MIN_IMPORT_DESCRIPTION_CHARS}`)
+    SELECT l.id FROM "Listing" l
+    WHERE l.verified AND l.status = 'active' AND l."affiliateUrl" IS NULL
+      AND l."externalId" IS NOT NULL AND l."externalId" NOT LIKE 'fb:%'
+      AND length(l.description) >= ${MIN_IMPORT_DESCRIPTION_CHARS}
+      AND NOT ${DUPLICATE_IMPORT_SQL}`)
   return { OR: [{ externalId: null }, { externalId: { startsWith: 'fb:' } }, { id: { in: long.map((r) => r.id) } }] }
 }
 

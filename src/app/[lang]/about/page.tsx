@@ -66,7 +66,8 @@ const SERVICES_DESCRIPTION = `About eno.forum — services for travellers and ne
  * No motorbikes and no moving sales in either line: both were 0 live listings on 2026-09-27, and a
  * description is a claim about the shelf.
  */
-const MARKETPLACE_TITLE = `About ${SITE_NAME} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam`
+// The domain once, at the end (Seobility crawl 3: "About eno.vn — …" is "domain in title", and 576 px against 580).
+const MARKETPLACE_TITLE = `About us: ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals | ${SITE_NAME}`
 const MARKETPLACE_DESCRIPTION = `What ${SITE_NAME} is: a ${POSTING_IS_FREE ? 'free ' : ''}classifieds marketplace for expats, internationals and locals in Vietnam — rentals, jobs, furniture, electronics and more — with a public trust score or partner badge on every seller who posts here, and no payments on the platform.`
 const SERVICES_TITLE = `About ${SITE_NAME} — services for travellers and newcomers to Vietnam`
 
@@ -82,7 +83,8 @@ export const revalidate = 3600
  * title stays exactly as is (rule 1 above) — and openGraph/twitter stay English on both variants: a
  * share scraper sends no language, so the card must not depend on which variant it happened to hit.
  */
-const MARKETPLACE_TITLE_VI = `Về ${SITE_NAME} — ${POSTING_IS_FREE ? 'rao vặt miễn phí' : 'rao vặt'} cho người nước ngoài và người Việt tại Việt Nam`
+// No domain, and within 570 px (555): the site's name would not fit after these words.
+const MARKETPLACE_TITLE_VI = `Giới thiệu: ${POSTING_IS_FREE ? 'rao vặt miễn phí' : 'rao vặt'} cho người nước ngoài và người Việt`
 
 /**
  * ⚠️ `openGraph` AND `twitter` ARE SET, IMAGE INCLUDED — through withShare(), which builds both whole.

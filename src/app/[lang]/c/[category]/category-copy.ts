@@ -581,7 +581,7 @@ const DISTRICT_RENTALS_TITLE: Record<DistrictRentalsHeadline, Record<PageLang, s
   apartments: { en: 'Apartments for Rent in', vi: DISTRICT_RENTALS_H1.apartments.vi },
 }
 /** ", HCMC" / ", TP.HCM" — the short city the rentals titles and descriptions use (CS-2 conventions). */
-const HCMC_SHORT = { en: 'HCMC', vi: 'TP.HCM' } as const
+export const HCMC_SHORT = { en: 'HCMC', vi: 'TP.HCM' } as const
 
 /**
  * "Pick up to N and eno checks availability for free." — N is RENTAL_CHECK_MAX_ITEMS, the limit the

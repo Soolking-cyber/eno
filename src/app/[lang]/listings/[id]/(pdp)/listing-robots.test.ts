@@ -13,6 +13,9 @@ vi.mock('./get-listing', () => ({
   isListingViewable: async () => true,
   listingIsViewable: () => true,
 }))
+// The repeated-import read (src/lib/duplicate-import.ts): false unless a test says the row repeats an older one.
+const dup = vi.hoisted(() => ({ current: false }))
+vi.mock('@/lib/duplicate-import', () => ({ isDuplicateImport: async () => dup.current }))
 const { generateMetadata } = await import('./page')
 
 const NOINDEX = { index: false, follow: true }
@@ -87,5 +90,15 @@ describe('the listing page\'s robots', () => {
     expect(await robotsOf({ ...room, externalId: 'goplus:1', description: '🏠'.repeat(200) })).toBeUndefined()
     // An empty externalId is an import, as the sitemap's SQL reads it (`IS NOT NULL`).
     expect(await robotsOf({ ...room, externalId: '', description: 'Short.' })).toEqual(NOINDEX)
+  })
+})
+
+describe('a repeated import (src/lib/duplicate-import.ts)', () => {
+  it('⛔ is noindex, follow; the same row when it is the oldest copy is indexed', async () => {
+    const longImport = { externalId: 'partner:1', affiliateUrl: null, listingType: 'rent', subcategorySlug: 'apartment-rental', category: { name: 'Rentals', slug: 'rentals' }, description: 'x'.repeat(400) }
+    dup.current = true
+    expect(await robotsOf(longImport)).toEqual(NOINDEX)
+    dup.current = false
+    expect(await robotsOf(longImport)).toBeUndefined()
   })
 })

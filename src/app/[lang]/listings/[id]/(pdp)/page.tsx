@@ -140,6 +140,7 @@ import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHE
 import { fillDescription, firstThatFits, titleWithPrice } from '@/lib/meta-description'
 import { brandHref, dominantCategory } from '@/lib/brand-category'
 import { isThinImport } from '@/lib/thin-import'
+import { isDuplicateImport } from '@/lib/duplicate-import'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 type Props = {
@@ -338,6 +339,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // measured 637 px against ~580); the teacher's own words are never cut.
   const teacherHead = isTeacher ? `${teacherRow?.fullName ?? listing.title} — ${teacherTitleLine(teacherRow ?? {}, vi ? 'vi' : 'en')}` : null
   const teacherTitle = teacherHead ? firstThatFits([`${teacherHead} | ${SITE_NAME}`, teacherHead]) : null
+  // A live import an older one of the same seller repeats (src/lib/duplicate-import.ts) — one read, imports only.
+  const duplicateImport = listing.status === 'active' && !isTeacher && await isDuplicateImport(listing)
   return {
     title: teacherTitle ?? titleWithPrice(titleFor, titlePrice, SITE_NAME),
     description: desc,
@@ -348,6 +351,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // ⛔ A teacher profile: its search verdict (above).
     // ⛔ A THIN IMPORT (an import under 200 characters, src/lib/thin-import.ts) is live but noindex, follow since 2026-11-22:
     // the sitemap already left it out; the district and category pages that list it stay indexed.
+    // ⛔ A REPEATED IMPORT (an older live listing of the same seller has its title at its price, or its description —
+    // src/lib/duplicate-import.ts) is noindex, follow since 2026-11-24, and out of the sitemap with it; the oldest copy stays.
     // A teacher profile is judged by its own search verdict above (its own quality floor), never by this length rule.
     // ⚠️ A change here reaches every page with the deploy that ships it: the ISR cache is keyed by BUILD_ID
     // (cache-handler.cjs), so each page's first request after a deploy renders anew, and the deploy's own `eno-html` tag
@@ -357,6 +362,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         : isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
           || isLinkedJobReference({ affiliateUrl: listing.affiliateUrl, listingType: listing.listingType })
           || isThinImport(listing)
+          || duplicateImport
           ? { index: false, follow: true }
           : undefined)
       : { index: false, follow: true },

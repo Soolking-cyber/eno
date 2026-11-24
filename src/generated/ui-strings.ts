@@ -1729,7 +1729,7 @@ export const UI_STRINGS: string[] = [
   "Housing and apartment rentals for expats in Vietnam",
   "Housing in Vietnam for expats",
   "How can I check what rent costs in Ho Chi Minh City?",
-  "How can we help?",
+  "How can we help you today?",
   "How do AI agents use eno.vn?",
   "How do I buy a used iPhone safely in Vietnam?",
   "How do I contact a seller?",

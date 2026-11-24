@@ -71,7 +71,9 @@ const RAIL = [
 export default function ContactPage() {
   return (
     <ContentPage
-      title="Contact us"
+      // An h1 of 20 characters and more (Seobility crawl 3: "Contact us", 10, "H1 too short").
+      title="Contact us and get help"
+      titleVi="Liên hệ và nhận hỗ trợ"
       intro={<Tr text="Every message reaches a person. Below is who runs this site, how to reach us, and which route gets you an answer fastest." />}
       sections={RAIL}
     >

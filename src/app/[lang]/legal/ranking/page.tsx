@@ -27,12 +27,13 @@ import { RankingContent } from './ranking-content'
 // FEED_DIVERSITY_WINDOW here, so the client bundle does not pull in feed-diversity's imports.
 
 const METADATA: Metadata = withShare({
-  title: `How ${SITE_NAME} ranks results`,
+  // The domain once, at the end (Seobility crawl 3: "How eno.vn ranks results" is "domain in title"); the h1's own words.
+  title: `How we rank search results | ${SITE_NAME}`,
   description: `The parameters that determine listing order on ${SITE_NAME}, and their relative importance.`,
   alternates: { canonical: '/legal/ranking' },
 })
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
-  return langMetadata(params, METADATA, { title: `Cách ${SITE_NAME} sắp xếp kết quả` })
+  return langMetadata(params, METADATA, { title: `Cách chúng tôi sắp xếp kết quả | ${SITE_NAME}` })
 }
 
 export default function RankingPage() {

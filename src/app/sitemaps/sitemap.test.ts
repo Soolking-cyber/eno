@@ -192,7 +192,7 @@ vi.mock('@/lib/db', () => ({
     // underscore-free form is among the values.
     $queryRaw: async (q: { values: unknown[]; strings?: readonly string[] }) => {
       // The thin-import rule's read (`notThinImport`, src/lib/sitemap.ts): the live imports long enough to submit.
-      if (q.strings?.join('').includes('length(description)')) {
+      if (q.strings?.join('').includes('length(l.description)')) {
         return h.rows
           .filter((r) => r.verified && r.status === 'active' && r.affiliateUrl === null && r.externalId && !r.externalId.startsWith('fb:'))
           .filter((r) => (r.description ?? '').length >= (q.values[0] as number))

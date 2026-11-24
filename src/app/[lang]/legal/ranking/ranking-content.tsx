@@ -74,7 +74,8 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
   const { tr } = useLanguage()
   return (
     <ContentPage
-      title="How we rank results"
+      // 20 characters and more (Seobility crawl 3: "How we rank results", 19, "H1 too short").
+      title="How we rank search results"
       titleVi="Cách chúng tôi sắp xếp kết quả"
       // ⚠️ THE PAGE'S OWN DATE (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, set on deploy day), not the
       // legal amendment's: this disclosure follows the code and changes between amendments.

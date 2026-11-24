@@ -323,6 +323,8 @@ export function withShare(m: Metadata & { title: string; description: string }, 
 }
 
 const SITE_SUFFIX = ` | ${SITE_NAME}`
+/** The brand both editions share ("eno", rentalCheckSentence's word): what a <title> says where it would otherwise name the domain. */
+const SITE_BRAND = 'eno'
 
 /**
  * A title and description that fit what a search result shows (Seobility, 2026-11-24: 51 titles over ~580 px and 63
@@ -330,12 +332,16 @@ const SITE_SUFFIX = ` | ${SITE_NAME}`
  * not fit (60 characters and 570 px, meta-description.ts fitsTitle); a title still too wide by itself falls back to its own
  * head — the words before its first ": ", " — ", " – " or " | " ("How to become an English teacher in Vietnam: step by step"
  * → "How to become an English teacher in Vietnam"), never a word cut — when that head still says something (200 px and up).
- * ⚠️ A title that names eno.vn itself keeps the suffix while it fits: Seobility flags the repeat ("word repeats") and, once the
- * suffix is gone, the domain inside the title ("domain in title") — one finding either way, so the old rule stands. The
+ * ⛔ THE DOMAIN ONCE, AT THE END (Seobility crawl 3, 19 pages): a title that names eno.vn mid-title ("How to post a listing on
+ * eno.vn, step by step") says the brand, "eno", there instead. With the suffix, "eno.vn" mid-title was "title word repeats";
+ * without it (when it did not fit) "domain in title". The page's own text keeps its words; only the <title> changes. The
  * description is cut at a word where a result cuts it (meta-description.ts clipDescription: 155 characters and 980 px).
  */
 export function withinResult(title: string, description: string): { title: string; description: string } {
-  const bare = title.endsWith(SITE_SUFFIX) ? title.slice(0, -SITE_SUFFIX.length) : title
+  const rawBare = title.endsWith(SITE_SUFFIX) ? title.slice(0, -SITE_SUFFIX.length) : title
+  // Only a domain INSIDE the words: one that closes them ("How trust works — eno.vn") is already the title's suffix.
+  const bare = rawBare.endsWith(SITE_NAME) ? rawBare : rawBare.split(SITE_NAME).join(SITE_BRAND)
+  title = bare === rawBare ? title : `${bare}${SITE_SUFFIX}`
   const head = bare.split(/:\s|\s[—–|]\s/)[0].trim()
   const heads = head !== bare && titlePx(head) >= 200 ? [`${head}${SITE_SUFFIX}`, head] : []
   return { title: firstThatFits([title, bare, ...heads]), description: clipDescription(description, 155) }
