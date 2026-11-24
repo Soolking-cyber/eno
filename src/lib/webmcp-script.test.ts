@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { buildWebmcpScript, SITE_TEXT_ONLY_TOOLS, WEBMCP_HEADERS, WRITE_TOOLS, type WebMcpDescriptor } from './webmcp-script'
+import { buildWebmcpScript, SITE_TEXT_ONLY_TOOLS, WEBMCP_DESCRIPTION_MAX, WEBMCP_DESCRIPTIONS, WEBMCP_HEADERS, WRITE_TOOLS, webmcpDescription, type WebMcpDescriptor } from './webmcp-script'
 
 /**
  * WebMCP (/webmcp.js, built by src/lib/webmcp-script.ts from the search server's tool list, loaded by a plain <script src>
@@ -77,7 +77,8 @@ describe('WebMCP script', () => {
     expect(WRITES).toEqual(['update_saved_listings', 'start_seller_chat'])
     expect(fetch).not.toHaveBeenCalled() // literal definitions: nothing fetched to register
     const tool = registerTool.mock.calls[0][0]
-    expect(tool.description).toBe('Search')
+    // The WebMCP short form (Chrome's 500-character guidance), not the fixture's own text, for a tool that has one.
+    expect(tool.description).toBe(webmcpDescription(TOOLS[0]))
     expect(tool.inputSchema).toEqual(TOOLS[0].inputSchema)
     expect(tool.annotations.readOnlyHint).toBe(true)
   })
@@ -306,7 +307,7 @@ describe('WebMCP script', () => {
     const source = buildWebmcpScript(TOOLS)
     expect(source).toContain('var mc = document.modelContext || navigator.modelContext;')
     expect(source).toContain('mc.registerTool(tool)')
-    expect(source).toContain('register({"name":"search_listings","description":"Search",')
+    expect(source).toContain(`register({"name":"search_listings","description":${JSON.stringify(webmcpDescription(TOOLS[0]))},`)
     expect(source).not.toContain('post_listing')
     expect(() => new Function(source)).not.toThrow() // valid JavaScript
   })
@@ -346,10 +347,23 @@ describe('/webmcp.js — the route and the page that loads it', { timeout: 30_00
     const readOnly = listed.filter((t) => t.annotations?.readOnlyHint === true)
     expect(readOnly.length).toBeGreaterThan(0)
     // The server's own annotations, plus WebMCP's untrustedContentHint on the tools that answer with sellers' text.
+    // The description is the WebMCP one where the server's runs past Chrome's 500 (WEBMCP_DESCRIPTIONS), else the server's own.
     expect(registered).toEqual(readOnly.map((t) => ({
-      name: t.name, description: t.description, inputSchema: t.inputSchema,
+      name: t.name, description: webmcpDescription(t), inputSchema: t.inputSchema,
       annotations: SITE_TEXT_ONLY_TOOLS.has(t.name) ? t.annotations : { ...t.annotations, untrustedContentHint: true },
     })))
+    // ⛔ Chrome's WebMCP guidance (ora.ai 2026-11-24): every description a browser agent is given fits 500 characters, the
+    // visitor tools' too, and a short form exists only for a tool the server really lists.
+    for (const c of registerTool.mock.calls) expect(c[0].description.length, c[0].name).toBeLessThanOrEqual(WEBMCP_DESCRIPTION_MAX)
+    for (const name of Object.keys(WEBMCP_DESCRIPTIONS)) {
+      const server = readOnly.find((t) => t.name === name)
+      expect(server, name).toBeDefined()
+      // A short form only while the server's own text is past the cap: once it fits, the server's text is what agents read.
+      expect(server!.description.length, `${name}: drop its WebMCP short form`).toBeGreaterThan(WEBMCP_DESCRIPTION_MAX)
+    }
+    // The search short form names its filters: each must still be a parameter the server takes.
+    const searchProps = Object.keys((readOnly.find((t) => t.name === 'search_listings')!.inputSchema as { properties: object }).properties)
+    for (const p of ['q', 'category', 'subcategory', 'province', 'type', 'condition', 'offset']) expect(searchProps).toContain(p)
     // The real server today: the two listing tools carry sellers' text; list_categories is the site's own taxonomy.
     expect(registered.filter((t) => t.annotations.untrustedContentHint).map((t) => t.name).sort()).toEqual(['get_listing_details', 'search_listings'])
   })
