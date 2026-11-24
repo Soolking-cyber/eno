@@ -33,13 +33,23 @@ BUNDLE = os.environ.get('ENO_IOS_BUNDLE', 'vn.eno.app')
 def inspector_socket(udid: str) -> str:
     """The webinspectord socket is held open by THAT simulator's launchd_sim; older boots leave
     stale sockets behind in /private/tmp, so pick by process, never by `ls -t`."""
+    # ⛔ WITH SEVERAL SIMULATORS BOOTED, EVERY launchd_sim LISTS EVERY SIMULATOR'S SOCKET (measured 2026-11-23,
+    # three booted: each lsof showed all three), so "the first socket in lsof" is whichever device booted
+    # first — it drove another device's app. Each socket is created the moment its own launchd_sim starts:
+    # take the one created closest to the moment THIS simulator's launchd_sim started.
     ps = subprocess.run(['ps', '-ax', '-o', 'pid=,command='], capture_output=True, text=True).stdout
     pids = [line.split(None, 1)[0] for line in ps.splitlines() if 'launchd_sim' in line and udid in line]
     for pid in pids:
+        started = subprocess.run(['ps', '-o', 'lstart=', '-p', pid], capture_output=True, text=True, env=dict(os.environ, LC_ALL='C')).stdout.strip()
+        try:
+            t0 = time.mktime(time.strptime(started, '%a %b %d %H:%M:%S %Y'))
+        except ValueError:
+            continue
         out = subprocess.run(['lsof', '-p', pid, '-U'], capture_output=True, text=True).stdout
-        for line in out.splitlines():
-            if 'webinspectord_sim.socket' in line:
-                return line.split()[-1]
+        socks = {line.split()[-1] for line in out.splitlines() if 'webinspectord_sim.socket' in line}
+        near = sorted((abs(os.stat(s).st_ctime - t0), s) for s in socks if os.path.exists(s) and -2 <= os.stat(s).st_ctime - t0 <= 120)
+        if near:
+            return near[0][1]
     sys.exit(f'no web inspector socket for simulator {udid} — is it booted?')
 
 
@@ -107,7 +117,21 @@ def evaluate(udid: str, expr: str):
     page_id = pages[0]['WIRPageIdentifierKey']
     base = {'WIRApplicationIdentifierKey': app_id, 'WIRPageIdentifierKey': page_id, 'WIRSenderKey': w.sender}
     w.send('_rpc_forwardSocketSetup:', dict(base, WIRAutomaticallyPause=False))
+    try:
+        return _run(w, base, expr)
+    finally:
+        # ⚠️ CLOSE THE SESSION. Without this every call left an inspector session open in the simulator's
+        # webinspectord, and after a few hundred calls (one capture run is ~150) it stopped listing the app's
+        # page at all — "the app has no inspectable page yet" on every call until the simulator was rebooted
+        # (measured 2026-11-23, iOS 26.5).
+        try:
+            w.send('_rpc_forwardDidClose:', base)
+            w.s.close()
+        except OSError:
+            pass
 
+
+def _run(w: 'Wir', base: dict, expr: str):
     def send_data(obj):
         w.send('_rpc_forwardSocketData:', dict(base, WIRSocketDataKey=json.dumps(obj).encode()))
 

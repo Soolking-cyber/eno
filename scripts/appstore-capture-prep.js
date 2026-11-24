@@ -42,56 +42,62 @@
    * here instead of being certified under a caption that describes something else (reviewers).
    */
   const ACTIONS = {
-    '01-home': async () => {
-      must(byText('a,button', 'Rentals'), 'Rentals tile')
-      cards(4)
+    // An apartment its owner posted (not an agency or a partner shop): the title, the monthly rent in đồng with the
+    // dollar reference, and the Chat button — a let or removed listing renders none of these.
+    '01-apartment': async () => {
+      heading(/The Antonia Phu My Hung/i, 'listing title')
+      // The price block, measured on the live page: "45,000,000 đ / month≈ $1,755" in one span (the amount in a child span).
+      must([...document.querySelectorAll('body *')].find((e) => /^[\d.,]+\s*đ\s*\/\s*month\s*≈\s*\$[\d.,]+$/.test((e.textContent || '').trim()) && onScreen(e)), 'the rent in đồng with the dollar reference')
+      must([...document.querySelectorAll('a,button')].find((b) => /^Chat now$/.test((b.textContent || '').trim()) && onScreen(b)), '"Chat now" button')
     },
-    // Rentals → Apartment → map view: the pins carry prices, and no listing photo (several imported
-    // rental photos carry the source site's watermark) is on screen.
-    '02-rentals-map': async () => {
-      must(byText('a,button', 'Rentals'), 'Rentals tile').click()
-      await sleep(4000)
-      must(byText('a,button', 'Apartment'), 'Apartment chip').click()
-      await sleep(4000)
-      must(document.querySelector('[aria-label="Map view"]'), 'Map view toggle').click()
-      await sleep(6000)
+    // Rentals on the map, reached the way a person does — Home → Rentals → Map view. (A deep link to `/?…&view=map` from
+    // Home changes the URL and leaves the Home page on screen: same route, so nothing re-renders — measured on a fresh
+    // install.) The map first fits every pin in Vietnam — zoomed out to southern China, with the tiles' Chinese name
+    // for the East Sea on screen — so the shot opens the busiest building's pin: the map zooms in (Thao Dien today)
+    // and the building card shows its flats, photos and prices.
+    // ⚠️ Those are listing photos: look at the framed shot for a watermark before an upload (the scan cannot).
+    '02-map': async () => {
+      const until = async (ok, what, s = 20) => { for (let i = 0; i < s; i++) { if (ok()) return; await sleep(1000) } throw new Error(`timed out waiting for ${what}`) }
+      // Home's Rentals chip (a link to /c/rentals) opens, in the app, the listings view filtered to rentals
+      // (`/?category=rentals`, measured), whose toggle is "Map view" — the category page's is "Map".
+      must(byText('a,button', 'Rentals'), 'Rentals chip').click()
+      const toggle = () => document.querySelector('[aria-label="Map view"]') || (location.pathname === '/c/rentals' && document.querySelector('button[aria-label="Map"]'))
+      await until(() => location.pathname + location.search !== '/' && toggle(), 'the rentals listings')
+      await sleep(1500)
+      toggle().click()
+      // The map is a lazy chunk plus its tiles: on a fresh install it took over 10 s to mount (measured).
+      await until(() => document.querySelector('.leaflet-container .leaflet-marker-icon[title]'), 'the map and its pins', 30)
+      await sleep(2000)
       const map = must(document.querySelector('.leaflet-container'), 'map')
       if (!onScreen(map)) throw new Error('the map is not on screen')
-      // A Leaflet divIcon is a 0×0 anchor whose label overflows it (measured), so test the anchor POINT
-      // against the viewport rather than the box, and require the label to carry a number.
-      const pins = [...document.querySelectorAll('.leaflet-marker-icon')].filter((m) => {
-        const r = m.getBoundingClientRect()
-        return r.left >= 0 && r.left <= innerWidth && r.top >= 0 && r.top <= innerHeight && /\d/.test(m.textContent || '')
-      })
-      if (pins.length < 3) throw new Error(`${pins.length} numbered pin(s) on screen, expected at least 3`)
-      // The reason this shot is a map (see the 02 row in appstore-capture.sh): no listing photo may be
-      // on screen — some imported rental photos carry the source site's watermark (opus, review).
-      const photo = [...document.querySelectorAll('a[href*="/listings/"] img')].find((i) => onScreen(i))
-      if (photo) throw new Error('a listing photo is on screen over the map')
+      const count = (m) => Number(/—\s*(\d+)\s+available/.exec(m.getAttribute('title') || '')?.[1] || 0)
+      const pin = must([...document.querySelectorAll('.leaflet-marker-icon[title]')].sort((a, b) => count(b) - count(a))[0], 'a building pin')
+      if (count(pin) < 5) throw new Error(`the busiest building pin has ${count(pin)} listing(s) — expected a building with several`)
+      pin.click()
+      await sleep(7000)
+      must([...document.querySelectorAll('a,button')].find((b) => /^See all in this building$/.test((b.textContent || '').trim()) && onScreen(b)), 'the building card')
+      // Each card's price reads "18,050,000 đ / month≈ $704" (measured); the innermost such element, once per card.
+      const rent = /^[\d.,]{6,}\s*đ\s*\/\s*month/
+      const prices = [...document.querySelectorAll('body *')].filter((e) => rent.test((e.textContent || '').trim()) && onScreen(e) && ![...e.children].some((c) => rent.test((c.textContent || '').trim())))
+      if (prices.length < 2) throw new Error(`${prices.length} price(s) on the building card, expected at least 2`)
     },
-    // The SEO landing page opens with prose; the store image is the grid under "available now".
-    '03-motorbike': async () => {
-      const h = must([...document.querySelectorAll('h2,h3')].find((e) => /available now/i.test(e.textContent)), '"available now" heading')
-      window.scrollTo({ top: h.getBoundingClientRect().top + scrollY - 90, behavior: 'instant' })
-      await sleep(3000)
-      cards(4)
+    // Text-only cards by design (a job has no photo): the capture runs this shot with `text` (no image required).
+    '03-jobs': async () => {
+      // The h1 is visually hidden ("Jobs in Vietnam on eno.vn", measured); the title on screen is its visible twin.
+      must([...document.querySelectorAll('body *')].find((e) => e.children.length === 0 && /^Jobs in Vietnam$/.test((e.textContent || '').trim()) && onScreen(e)), '"Jobs in Vietnam" title')
+      // Job cards are rows (`a[data-row-link]`), not photo cards (measured 2026-11-23).
+      const rows = [...document.querySelectorAll('a[data-row-link][href*="/listings/"]')].filter(onScreen).length
+      if (rows < 4) throw new Error(`${rows} job row(s) on screen, expected at least 4`)
     },
-    '04-jobs': async () => {
-      heading(/^Jobs in Vietnam$/, '"Jobs in Vietnam" heading')
-      cards(2)
+    // The teacher profile's first step (`text`: a form, no photo).
+    '04-teacher': async () => {
+      heading(/^Create your teacher profile$/, '"Create your teacher profile" heading')
+      for (const city of ['Ho Chi Minh City', 'Hanoi', 'Da Nang']) must([...document.querySelectorAll('button,[role="radio"],label')].find((b) => (b.textContent || '').trim() === city && onScreen(b)), `${city} choice`)
     },
-    // A used item: its title, a price in đồng, and the source shop's button — a sold or removed
-    // listing renders none of these.
-    '05-item': async () => {
-      heading(/Samsung Galaxy Z Fold7/i, 'listing title')
-      // The price block: "27,990,000 đ" with the "≈ $1,092" reference inside the SAME span (measured on
-      // the live PDP), the amount and the "đ" in separate child spans.
-      must([...document.querySelectorAll('body *')].find((e) => /^[\d.,]+\s*đ\s*≈\s*\$[\d.,]+$/.test((e.textContent || '').trim()) && onScreen(e)), 'price in đồng with the dollar reference')
-      must([...document.querySelectorAll('a')].find((a) => /^Buy on /.test((a.textContent || '').trim()) && onScreen(a)), '"Buy on …" button')
-    },
-    '06-shop': async () => {
-      heading(/Minh Tuấn Mobile/, 'shop name')
-      cards(2)
+    // The posting form before anything is picked (`text` too: it shows the photo pickers, not photos).
+    '05-post': async () => {
+      heading(/^Create a listing$/, '"Create a listing" heading')
+      for (const label of ['Electronics', 'Rentals', 'Jobs']) must([...document.querySelectorAll('button,[role="radio"],label')].find((b) => (b.textContent || '').trim() === label && onScreen(b)), `${label} category chip`)
     },
   }
 

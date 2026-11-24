@@ -5,16 +5,25 @@
 #
 #   scripts/appstore-capture.sh <simulator-udid> <path/to/App.app>
 #   → play-store-assets/ios/raw/0N-*.png + manifest.json   (gitignored, like the Play assets)
-#   then: node scripts/appstore-frames.mjs                 (captions + frame → play-store-assets/ios/en/)
+#   then: node scripts/appstore-frames.mjs                 (captions + frame → play-store-assets/ios/en/ AND
+#                                                           play-store-assets/ios/en-6.3/, composed at each size)
 #
 # The App.app is a DEBUG simulator build (only Debug WebViews are inspectable):
 #   npx cap sync ios   # ENO_LOCAL_SHELL unset
 #   xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
 #     -destination 'generic/platform=iOS Simulator' -derivedDataPath <dd> CODE_SIGNING_ALLOWED=NO build
 #
-# ⛔ THE DEVICE IS AN iPhone 16 Pro Max ON THE iOS 18.4 RUNTIME. It renders 1320×2868, the 6.9-inch size
-# App Store Connect requires; the iPhone 17 Pro Max would need the 26.5 runtime, whose simulator cannot
-# decode AVIF (every listing photo comes out blank). The script refuses any other pixel size.
+# ⛔ THE DEVICE IS AN iPhone 17 Pro Max ON THE iOS 26.5 RUNTIME (since 1.2, 2026-11-23). It renders 1320×2868,
+# the 6.9-inch size App Store Connect requires. It was an iPhone 16 Pro Max on iOS 18.4 until 1.2: the 26.5
+# simulator could not decode AVIF then (every listing photo blank — measured 2026-10-04); on 2026-11-23 it
+# decodes the AVIF category icons and every listing photo. And 1.2's native tab bar (EnoShell.swift) draws
+# broken on 18.4 — its icons float above the bar's background, over the page (measured 2026-11-23, 18.4,
+# the same build): a 1.2 set captured there shows that bug. The script refuses any other device or size.
+# ⛔ THE SIMULATOR'S REGION MUST BE en_US: in a 24-hour region the 9:41 override reads "09:41".
+#   xcrun simctl spawn <udid> defaults write -g AppleLocale -string en_US
+#   xcrun simctl spawn <udid> defaults write -g AppleLanguages -array en-US   # then shutdown + boot
+# ⚠️ WITH OTHER SIMULATORS BOOTED, scripts/ios-sim-inspect.py must pick THIS device's inspector socket (it
+# does, by boot time — every launchd_sim lists every simulator's socket; the first one drove another device).
 # ⛔ HEADLESS ONLY — DO NOT OPEN Simulator.app WHILE THIS RUNS. Measured 2026-10-04: with the GUI open the
 # device took stray input (the page navigated by itself) and was shut down mid-run, twice.
 # ⚠️ A FRESH INSTALL PER SHOT, AND EVERY SCREEN IS REACHED BY AN IN-APP DEEP LINK (enovn://open?path=…,
@@ -50,14 +59,22 @@ inspect() {
 INSPECT=inspect
 PREP="$(cat "$ROOT/scripts/appstore-capture-prep.js")" || exit 1
 
-# name | app path (reached by deep link) — the Appendix A screens of docs/ios-appstore-release.md.
+# name | app path (reached by deep link) [| text] — the screens an expat in Vietnam comes for (1.2 set,
+# 2026-11-23); each one's proof is its ACTIONS entry in appstore-capture-prep.js. `text` marks a screen that
+# shows no photo by design (job cards, the empty posting form): only that shot skips the "an image is on
+# screen" check — the pixel-spread check and its action's own assertions still apply.
+# ⚠️ Look at every framed image before an upload: the scan cannot see a watermark painted into a photo, and
+# the map's building card (02) is live and changes daily.
+# ⚠️ No second-hand GRID is in the set (2026-11-23): every electronics, rental and motorbike grid carries the
+# Official partner badge on its cards, which the scan refuses (appstore-capture-prep.js); the owner decides
+# whether a card's badge may appear — until then the set shows renting, jobs, teaching and posting. (Also out:
+# the listing page's Location block — its approximate-area circle sat on District 1 for a Phu My Hung flat.)
 SHOTS=(
-  "01-home|/"
-  "02-rentals-map|/"
-  "03-motorbike|/motorbike-rental-ho-chi-minh-city"
-  "04-jobs|/c/jobs"
-  "05-item|/listings/cmtzgayju00fi0jrs1klz68ac"
-  "06-shop|/sellers/cmtsev07l00089zq4tdg845f8"
+  "01-apartment|/listings/cmvgi6mc8000f01ucmmotkuhl"
+  "02-map|/"
+  "03-jobs|/c/jobs|text"
+  "04-teacher|/teachers/join|text"
+  "05-post|/post|text"
 )
 
 [ -d "$APP" ] || { echo "no app at $APP" >&2; exit 1; }
@@ -73,18 +90,21 @@ for rt, devs in json.load(sys.stdin)["devices"].items():
             print(d["deviceTypeIdentifier"].rsplit(".", 1)[-1] + "|" + rt.rsplit(".", 1)[-1])
 ' "$U")"
 case "$DEVICE" in
-  "iPhone-16-Pro-Max|iOS-18-4") ;;   # the device TYPE — a simulator's display name is free text
-  *) echo "simulator $U is \"$DEVICE\" — use an iPhone 16 Pro Max on the iOS 18.4 runtime" >&2; exit 1 ;;
+  "iPhone-17-Pro-Max|iOS-26-5") ;;   # the device TYPE — a simulator's display name is free text
+  *) echo "simulator $U is \"$DEVICE\" — use an iPhone 17 Pro Max on the iOS 26.5 runtime (header)" >&2; exit 1 ;;
 esac
+# The region decides how the status bar prints the 9:41 override (header).
+LOCALE="$(xcrun simctl spawn "$U" defaults read -g AppleLocale 2>/dev/null)"
+[ "$LOCALE" = "en_US" ] || { echo "simulator $U region is \"$LOCALE\", not en_US — the clock would read 09:41 (header: set it, then shutdown + boot)" >&2; exit 1; }
 mkdir -p "$OUT" || exit 1
 rm -f "$OUT/manifest.json"   # a stale certificate must not outlive a failed run
 xcrun simctl status_bar "$U" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
-  --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || exit 1
+  --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100 || exit 1
 # Leave the simulator as it was found: the fake 9:41 bar and the last shot's install go on any exit.
 trap 'xcrun simctl status_bar "$U" clear >/dev/null 2>&1; xcrun simctl uninstall "$U" vn.eno.app >/dev/null 2>&1' EXIT
 
 # Fails (exit 1, reasons on stderr) unless a scan result passes every check.
-check() { # check <name> <stage> <inspector JSON output> <expected path>
+check() { # check <name> <stage> <inspector JSON output> <expected path> [text]
   # shellcheck disable=SC2016
   python3 -c '
 import json, sys, urllib.parse
@@ -95,14 +115,14 @@ if r.get("error"): problems.append("prep threw " + r["error"])
 u = urllib.parse.urlsplit(r.get("href") or "")
 if u.scheme != "https" or u.netloc != "eno.vn": problems.append("not on https://eno.vn: " + str(r.get("href")))
 if u.path != sys.argv[4].split("?")[0]: problems.append("on " + str(r.get("href")) + ", not " + sys.argv[4])
-if not r.get("images"): problems.append("no image on screen — an empty or failed page")
+if not r.get("images") and sys.argv[5] != "text": problems.append("no image on screen — an empty or failed page")
 if r.get("platform") != "ios" or not r.get("nativeIos"): problems.append("not rendering as the iOS app")
 if r.get("hits"): problems.append("regulated copy on screen: " + " | ".join(r["hits"][:3]))
 if r.get("broken"): problems.append("images failed or still loading: " + " | ".join(r["broken"][:2]))
 if not r.get("fits"): problems.append("page wider than the viewport (WebKit would zoom out)")
 if r.get("dialogs"): problems.append("a layer is open over the screen: " + " | ".join(r["dialogs"][:2]))
 if problems: sys.exit(sys.argv[1] + " (" + sys.argv[2] + "): " + "; ".join(problems))
-' "$1" "$2" "$3" "$4"
+' "$1" "$2" "$3" "$4" "${5:-}"
 }
 
 wait_for() { # wait_for <js predicate returning true> <seconds>
@@ -120,8 +140,8 @@ wait_for() { # wait_for <js predicate returning true> <seconds>
 # retry: the simulator's network stack and a resume refresh can replace the document mid-shot, which
 # loses the injected helper — a fresh install and a second try is the honest recovery, and a shot that
 # fails three times stops the run.
-shoot() { # shoot <name> <path> → prints the sha256 of the certified file
-  local NAME="$1" P="$2" ENC RESULT AFTER ACTED F SIZE
+shoot() { # shoot <name> <path> [text] → prints the sha256 of the certified file
+  local NAME="$1" P="$2" KIND="$3" ENC LANDED RESULT AFTER ACTED F SIZE
   xcrun simctl terminate "$U" vn.eno.app >/dev/null 2>&1
   xcrun simctl uninstall "$U" vn.eno.app >/dev/null 2>&1   # fails harmlessly when nothing is installed…
   # …so prove it is gone: an upgrade-install over a surviving app would keep its cookies and storage.
@@ -137,28 +157,31 @@ shoot() { # shoot <name> <path> → prints the sha256 of the certified file
   if [ "$P" != "/" ]; then
     ENC="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$P")"
     $INSPECT "location.href = 'enovn://open?path=$ENC'; true" >/dev/null || return 1
-    wait_for "location.pathname === '${P%%\?*}' && document.readyState === 'complete'" 40 \
+    # A path with a query lands on its pathname — "/" may be where the app already is — so the query proves it landed.
+    LANDED="location.pathname === '${P%%\?*}'"
+    [ "$P" != "${P%%\?*}" ] && LANDED="location.pathname + location.search === '$P'"
+    wait_for "$LANDED && document.readyState === 'complete'" 40 \
       || { echo "$NAME: the deep link did not land on $P" >&2; return 1; }
     sleep 6
   fi
   $INSPECT "$PREP" >/dev/null || return 1
   $INSPECT "window.__enoCapture.act('$NAME')" >/dev/null || return 1
   # `(window.__enoCapture || {})`: a replaced document has no helper — that is a failed attempt, not a hang.
-  wait_for "(window.__enoCapture || {}).acted != null" 40 || { echo "$NAME: the screen action did not finish" >&2; return 1; }
+  wait_for "(window.__enoCapture || {}).acted != null" 90 || { echo "$NAME: the screen action did not finish" >&2; return 1; }
   ACTED="$($INSPECT "window.__enoCapture.acted")"
   [ "$ACTED" = "\"$NAME\"" ] || { echo "$NAME: the screen action failed — $ACTED" >&2; return 1; }
   $INSPECT "window.__enoCapture.prep()" >/dev/null || return 1
   wait_for "(window.__enoCapture || {}).result != null" 40 || { echo "$NAME: prep did not finish" >&2; return 1; }
   RESULT="$($INSPECT "JSON.stringify(window.__enoCapture.result)")" || return 1
   echo "$NAME: $RESULT" >&2
-  check "$NAME" "before the shot" "$RESULT" "$P" || return 1
+  check "$NAME" "before the shot" "$RESULT" "$P" "$KIND" || return 1
   F="$OUT/$NAME.png"
   # A settle before the shutter: closing the sign-up prompt (prep) animates its scrim out.
   sleep 1
   xcrun simctl io "$U" screenshot "$F" >/dev/null 2>&1 || { echo "$NAME: screenshot failed" >&2; return 1; }
   SIZE="$(python3 -c 'import struct,sys; b=open(sys.argv[1],"rb").read(24); print("%dx%d" % struct.unpack(">II", b[16:24]))' "$F")"
   # Return 2, not 1: the wrong device is not worth a retry — the loop below stops the run on it.
-  [ "$SIZE" = "1320x2868" ] || { echo "$NAME: $SIZE is not the 6.9-inch 1320x2868 — use an iPhone 16 Pro Max on iOS 18.4" >&2; rm -f "$F"; return 2; }
+  [ "$SIZE" = "1320x2868" ] || { echo "$NAME: $SIZE is not the 6.9-inch 1320x2868 — use an iPhone 17 Pro Max on iOS 26.5" >&2; rm -f "$F"; return 2; }
   # ⛔ THE DOM CHECKS CANNOT SEE PIXELS. 2026-10-04: 06-shop passed both scans (6 images, no dialog) and
   # was certified as a uniform white frame — the WebView had not painted. The page area (below the status
   # bar, above the home indicator) must carry real contrast, or the shot is retried.
@@ -168,7 +191,7 @@ shoot() { # shoot <name> <path> → prints the sha256 of the certified file
   # The DOM can change between the scan and the shutter (a carousel, a late prompt): scan the page the
   # shot was taken of, and discard the file rather than certify it if anything new appeared.
   AFTER="$($INSPECT "window.__enoCapture.rescan()")" || { rm -f "$F"; return 1; }
-  check "$NAME" "after the shot" "$AFTER" "$P" || { rm -f "$F"; return 1; }
+  check "$NAME" "after the shot" "$AFTER" "$P" "$KIND" || { rm -f "$F"; return 1; }
   # App Store Connect refuses screenshots with an alpha channel.
   magick "$F" -alpha remove -alpha off -define png:exclude-chunk=date,time "$F" >/dev/null || { rm -f "$F"; return 1; }
   shasum -a 256 "$F" | cut -d' ' -f1
@@ -176,9 +199,9 @@ shoot() { # shoot <name> <path> → prints the sha256 of the certified file
 
 MANIFEST="{"
 for row in "${SHOTS[@]}"; do
-  NAME="${row%%|*}"; P="${row#*|}"; SHA=""
+  NAME="${row%%|*}"; REST="${row#*|}"; P="${REST%%|*}"; KIND=""; [ "$REST" != "$P" ] && KIND="${REST#*|}"; SHA=""
   for attempt in 1 2 3; do
-    SHA="$(shoot "$NAME" "$P")"; rc=$?
+    SHA="$(shoot "$NAME" "$P" "$KIND")"; rc=$?
     [ $rc -eq 0 ] && [ -n "$SHA" ] && break
     SHA=""
     [ $rc -eq 2 ] && exit 1
