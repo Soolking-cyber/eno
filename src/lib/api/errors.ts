@@ -229,6 +229,8 @@ export type NicheApiErrorCode =
   // mass-removal guard tripped, 503 a sitemap source failed. Read by the operator via eno-cron.sh.
   | 'engine_rejected'
   | 'failed'
+  // GET /api/feeds/chatgpt(.jsonl.gz): 503 when the built feed has no rows — an empty 200 would empty ChatGPT's catalogue.
+  | 'feed_empty'
   | 'file_too_large'
   | 'fund_failed'
   /**
@@ -840,6 +842,7 @@ const ALL = [
   'empty',
   'empty_file',
   'failed',
+  'feed_empty',
   'file_too_large',
   'forbidden',
   'forum_schema_not_ready',
