@@ -247,8 +247,8 @@ const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 
 // The whole agent policy is in the server's instructions (src/app/api/mcp/route.ts); each description carries the part
 // that tool needs, in the shape of the best-scoring descriptions: what it does; its limits and refusals; Returns; Use it.
-/** send_message's own note: the wording its description scored 97 with (11-17), plus the deposit line. */
-const SEND_NOTE = 'You act for the signed-in person. Every message you send is shown to the other person starting with "🤖 AI:". An offer you make is the person\'s offer: if the other side accepts it, the person has agreed that price, so offer only what the person told you they would pay or take. Never send phone numbers, emails, links to other sites or account numbers (refused), never ask for payment or a deposit: payment is arranged between the people, never through eno. You cannot accept an offer: tell the person to accept it in the app.'
+/** What both sending tools (contact_seller, send_message) tell the agent: the "🤖 AI:" label, that an offer binds, no deposits.
+ *  send_message used its own longer note until 2026-11-24 (91 that day, 97 on 11-17); contact_seller scored 98 with this. */
 const SENDS = `Everything you send is shown to the other person starting with "🤖 AI:", and an offer you make binds the person you act for if it is accepted, so offer only what they agreed to. Never ask for a deposit or a payment: people pay each other directly, never through eno or an agent.`
 
 export const MESSAGING_TOOLS: McpTool[] = [
@@ -467,7 +467,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
   {
     name: 'send_message',
     title: 'Send a message or offer',
-    description: `Reply in a conversation for the person you act for: a message, an offer or counter-offer in VND, or both. Use it to answer the other side or to make or counter an offer; start a new conversation with contact_seller, and turn an offer down with decline_offer.\n\nAn offer sent while one is pending counters it. Refused with a reason code: \`not_negotiable\` (a fixed-price listing takes no offers), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`invalid_offer\`, \`waiting_for_reply\` (${AGENT_LIMITS.unansweredInARow} agent messages in a row with no answer) and \`rate_limited\` (${AGENT_LIMITS.offersPerConversationPerDay} offers in a conversation a day).\n\n${SEND_NOTE}\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`.`,
+    description: `Reply in a conversation for the person you act for: a message, an offer or counter-offer in VND, or both. Use it to answer the other side or to make or counter an offer in a conversation from list_conversations or contact_seller; an offer sent while one is pending counters it.\n\n${SENDS} You cannot accept an offer: tell the person to accept it in the app. Refused with a reason code: \`not_negotiable\` (a fixed-price listing), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`invalid_offer\` (an amount too far from the asking price, or a listing with none), \`waiting_for_reply\` (${AGENT_LIMITS.unansweredInARow} agent messages in a row with no answer) and \`rate_limited\` (${AGENT_LIMITS.offersPerConversationPerDay} offers in a conversation a day).\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`; decline_offer turns an offer down instead.`,
     scope: scopeWrite,
     annotations: WRITE,
     input: z.object({

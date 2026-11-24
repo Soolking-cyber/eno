@@ -42,6 +42,16 @@ describe('described-string inputs are checked by the handler', () => {
     expect(json).not.toContain('"minimum"')
     expect(json).not.toContain('"integer"')
   })
+  it('bulk_create_listings and sync_catalogue refuse no rows or more than 200, before anything is read; the schema carries no item bounds', async () => {
+    const row = { categorySlug: 'electronics', title: 'A phone', price: 1, externalId: 'a' }
+    for (const name of ['bulk_create_listings', 'sync_catalogue']) {
+      await expect(tool(name).handler(AUTH, { listings: [] })).rejects.toMatchObject({ code: 'invalid_input', message: 'Send at least one row in `listings`.' })
+      await expect(tool(name).handler(AUTH, { listings: Array.from({ length: 201 }, () => row) })).rejects.toMatchObject({ code: 'invalid_input', message: 'Send at most 200 rows in one call; send the rest in further calls.' })
+    }
+    const json = JSON.stringify(toolDescriptors().map((d) => d.inputSchema))
+    expect(json).not.toContain('"minItems"')
+    expect(json).not.toContain('"maxItems"')
+  })
   it('no published input carries the ±2^53 bounds of zod .int()', () => {
     expect(JSON.stringify(toolDescriptors().map((d) => d.inputSchema))).not.toContain(String(Number.MAX_SAFE_INTEGER))
   })

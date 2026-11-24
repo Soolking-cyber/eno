@@ -101,9 +101,8 @@ describe('docs MCP server', () => {
   it('rejects bad input as a tool error, and an unknown tool as a JSON-RPC error', async () => {
     expect((await call('search_docs', { query: '' })).isError).toBe(true)
     expect((await call('search_docs', { query: '   ' })).content[0].text).toContain('invalid_input')
-    // get_doc's id is an enum since 2026-11-24 (Manufact): an unknown id is invalid_input, naming the ids it takes.
-    expect((await call('get_doc', { id: ' ' })).content[0].text).toContain('invalid_input')
-    expect((await call('get_doc', { id: 'nope' })).content[0].text).toContain('llms')
+    expect((await call('get_doc', { id: ' ' })).content[0].text).toContain('not_found')
+    expect((await call('get_doc', { id: 'nope' })).content[0].text).toContain('not_found')
     expect((await rpc('tools/call', { name: 'delete_everything', arguments: {} })).error!.message).toContain('Unknown tool')
   })
 })

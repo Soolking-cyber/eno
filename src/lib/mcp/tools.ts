@@ -86,7 +86,7 @@ const listingItem = z.object({
   description: z.string().optional().describe('The listing page\'s text, in the seller\'s words: what it is, its state and what comes with it. Leave it out for no text'),
   district: z.string().optional().describe('Where the item is, as a district or area buyers recognise, e.g. "Thảo Điền, Thủ Đức". A new listing needs it (else `location_required`)'),
   condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used" (other words are kept as written); ignored for a job. Leave it out when it does not apply'),
-  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order; eno copies them and uses the first 8. Most categories need 3 of different angles (else `photos_min`), services 1 (else `photo_required`), jobs none. On a new listing, leave it out only for a job'),
+  images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order, the cover first; eno copies them. Show the item from different angles: a listing with too few is refused with `photos_min` (a service with none: `photo_required`). On a new listing, leave it out only for a job'),
   externalId: z.string().optional().describe('Your own id for this listing, such as your SKU, echoed back in the results so you can match each row to your system; leave it out if you have none'),
 })
 
@@ -155,6 +155,13 @@ const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_ch
 // anything is written, and names the valid ones (input-checks.test.ts).
 function checkStatusArg(v: unknown, where = ''): void {
   if (v !== undefined && !(LISTING_STATUS as readonly unknown[]).includes(v)) throw new ToolError('invalid_input', `${where}status must be active, sold or hidden.`)
+}
+/** bulk_create_listings / sync_catalogue: 1..max rows per call, refused before anything is read or written (the bound the
+ *  schema's .min(1).max() carried until 2026-11-24). */
+function rowCountArg(v: unknown, max: number): void {
+  const n = Array.isArray(v) ? v.length : 0
+  if (n < 1) throw new ToolError('invalid_input', 'Send at least one row in `listings`.')
+  if (n > max) throw new ToolError('invalid_input', `Send at most ${max} rows in one call; send the rest in further calls.`)
 }
 function checkSalaryArg(v: unknown): void {
   if (v === undefined || v === null) return
@@ -471,7 +478,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'create_listing',
     title: 'Create marketplace listing',
-    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job\'s monthly salary goes in `salaryM`) and the district; text, condition, brand and model are optional. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none.\n\nIt goes live at once unless eno must check it first; text longer than the page shows is shortened, not refused. It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
+    description: 'Create one new listing for this shop: something to sell or rent out, a service, or a job.\n\nGive a category, a title, the price in VND (a job\'s monthly salary goes in `salaryM`) and the district; text, condition, brand and model are optional. Photos are public image URLs: most categories need 3 of different angles, services 1, jobs none; the first 8 are kept.\n\nIt goes live at once unless eno must check it first; text longer than the page shows is shortened, not refused. It is refused with a reason code, and nothing is created, when photos or the district are missing, the title holds a phone number or the text contact details, the category is unknown, the account may not post, or the same listing is still active (`duplicate_listing`, with its id).\n\nReturns `listing` with the new `id`, `verified` (true when already public), `held` (true while it waits for eno\'s licence check) and its page `url`. To post many at once, use bulk_create_listings.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({ listing: CREATED_OUT }).describe('The new listing\'s id and whether it is public yet'),
@@ -648,7 +655,7 @@ export const TOOLS: McpTool[] = [
   {
     name: 'bulk_create_listings',
     title: 'Create listings in bulk',
-    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos where the category needs them), e.g. to move a stock list onto eno.\n\nRows are independent: a bad row fails alone, with its reason (create_listing\'s rules: a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
+    description: 'Create many new listings in one call, one row each (category, title, price in VND, district, optional text, and photos: 3 for most categories, 1 for a service, none for a job; the first 8 are kept), e.g. to move a stock list onto eno.\n\nRows are independent: a bad row fails alone, with its reason (create_listing\'s rules: a phone number in the title or contact details in the text refused, long text shortened). When the account may not publish at all, nothing is created. A row repeating an active listing of this shop, or an earlier row of the call, fails as a duplicate.\n\nReturns `created` and `failed` counts and `results`, one per row in the order sent: its `row` number, the new `id`, your `external_id` and the `error`, if any. To keep eno matched to your system by your own ids, use sync_catalogue.',
     scope: 'listings:write',
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     output: z.strictObject({
@@ -656,8 +663,11 @@ export const TOOLS: McpTool[] = [
       failed: z.number().describe('How many rows were refused and created nothing; each one\'s reason is in its result\'s error'),
       results: z.array(BULK_ROW_OUT).describe('One result for every row you sent, in the same order, saying whether it was created and why not'),
     }).describe('Counts of created and failed rows, and a result per row'),
-    input: z.object({ listings: z.array(listingItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
+    // The row count is checked in the handler (rowCountArg), not by schema bounds: Manufact flagged these inputs "Remove repeated
+    // schema validation from descriptions" (2026-11-24, 92–93), the house rule for every other bound in this file.
+    input: z.object({ listings: z.array(listingItem).describe('The new listings, one row each; every row succeeds or fails on its own') }),
     handler: async (auth, args) => {
+      rowCountArg(args.listings, BULK_MAX_ROWS)
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
       const rows: BulkRow[] = (args.listings as z.infer<typeof listingItem>[]).map((x) => ({
@@ -695,9 +705,10 @@ export const TOOLS: McpTool[] = [
       listings: z.array(listingItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
         status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep an existing listing\'s status; on a new row it is ignored and the row is posted as a new listing'),
-      })).min(1).max(SYNC_MAX_ROWS).describe('Your catalogue rows, each matched to its listing by externalId. For a known externalId, the fields you leave out keep their current values'),
+      })).describe('Your catalogue rows, each matched to its listing by externalId. For a known externalId, the fields you leave out keep their current values'),
     }),
     handler: async (auth, args) => {
+      rowCountArg(args.listings, SYNC_MAX_ROWS)
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
       if (!seller) throw new ToolError('not_found', 'Shop not found.')
       // `mode` is a described string (an enum input is what the reviewers flag); anything but the two is refused here, before

@@ -172,8 +172,9 @@ export const DOCS_TOOLS: DocsTool[] = [
     description: `Read a whole document from ${SITE_NAME}'s documentation for agents and developers, as markdown. Needs no sign-in.\n\nUse it when the person needs the full rules or setup steps, not one passage: "llms" maps the site (what it is and where everything is), "agents" covers this MCP server and the Partner API with their rate limits and rules, "auth" covers signing in, API keys and OAuth scopes, and "pricing" covers prices. For a single passage, search_docs is faster; each of its results carries the \`doc_id\` to pass here. Fails with \`not_found\` when this site does not publish that document.\n\nReturns \`id\`, \`title\`, \`url\`, \`text\` and \`truncated\`; cite \`url\` when you quote it.`,
     annotations: READ,
     input: z.object({
-      // An enum (Manufact 2026-11-24, get_doc 93): the ids are a closed set, and search_docs' `doc_id` is always one of them.
-      id: z.enum(['llms', 'agents', 'auth', 'pricing']).describe('Which document to read; a search_docs result\'s `doc_id` names one'),
+      // A described string, NOT an enum: as an enum it scored 75 against 94 as this string (Manufact 2026-11-24, "Remove
+      // validation rules already expressed in this field's schema"). The handler answers not_found for any other id.
+      id: z.string().describe('Which document to read: "llms", "agents", "auth" or "pricing", or the `doc_id` of a search_docs result'),
     }),
     output: z.strictObject({
       id: z.string().describe('The document\'s id, as passed'),
