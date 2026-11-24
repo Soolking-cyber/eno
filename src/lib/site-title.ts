@@ -12,8 +12,12 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * 2026-11-23 (the site's name last, below). "free" follows POSTING_IS_FREE.
  */
 // ⚠️ THE SITE'S NAME LAST, as every other page's "<page> | eno.vn" (Seobility, 2026-11-23: a title that opens on the domain is a
-// "critical" there, on / and /vi). Same words as before.
-export const SITE_TITLE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} for expats and locals in Vietnam | ${SITE_NAME}`
+// "critical" there, on / and /vi).
+// The page's main words (owner 2026-11-24, SEO Site Checkup "use the main keyword in the title, description and an H1"): the home's
+// most common words are its cards' — homes, cars, used goods — so title, description (layout.tsx) and h1 ((home)/layout.tsx) name
+// them, and /vi's title, description and h1 the same in Vietnamese ((home)/home-metadata.ts); "classifieds in Vietnam" stays
+// (GSC 28 d: "vietnam classifieds" #6.5, "classifieds" #4.7). 61 characters on eno.vn with the flag on (the owner's wording).
+export const SITE_TITLE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} in Vietnam: homes, cars, used goods | ${SITE_NAME}`
 
 /**
  * The marketplace's short self-description, for the OG and Twitter cards. ⛔ NOT "the community keeps

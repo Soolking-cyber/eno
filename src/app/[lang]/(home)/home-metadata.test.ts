@@ -32,8 +32,8 @@ describe('homeMetadata (marketplace)', () => {
     expect(homeMetadata('vi')).toEqual({
       alternates: { canonical: '/', types: { 'text/markdown': '/index.md', 'application/atom+xml': '/feed.xml' } },
       robots: HOME_ROBOTS,
-      title: 'Rao vặt miễn phí cho người nước ngoài và người Việt | eno.vn',
-      description: 'eno.vn là chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam: nhà cho thuê, việc làm, nội thất, đồ điện tử và nhiều hơn nữa.',
+      title: 'Rao vặt miễn phí tại Việt Nam: nhà, xe, đồ cũ | eno.vn',
+      description: 'eno.vn là chợ rao vặt miễn phí tại Việt Nam cho người nước ngoài và người Việt: nhà và phòng cho thuê, ô tô và xe máy, việc làm và đồ cũ.',
     })
   })
 

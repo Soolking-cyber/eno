@@ -239,7 +239,7 @@ const OG_IMAGE = { ...SHARE_CARD, alt: SHARE_CARD_ALT };
  */
 const SITE_DESCRIPTION = IS_SERVICES
   ? SERVICES_SITE_DESCRIPTION
-  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more.`;
+  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace in Vietnam for expats and locals: homes and rooms for rent, cars and motorbikes, jobs and used goods.`;
 
 /** The short form, for the OG and Twitter cards. */
 const SITE_TAGLINE = IS_SERVICES ? SERVICES_SITE_TAGLINE : MARKETPLACE_TAGLINE;

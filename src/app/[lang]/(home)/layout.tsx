@@ -76,8 +76,8 @@ export default function HomeLayout({ children, params }: { children: React.React
             not the footer's tagline (Seobility, 2026-11-23: the h1 and the footer's h2 were the same sentence on every crawl of the
             home page); both languages inline. Static: nothing awaited. */}
         <h1 className="sr-only">{POSTING_IS_FREE
-          ? <Bilingual en={`${SITE_NAME} — free classifieds in Vietnam: rentals, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt miễn phí tại Việt Nam: nhà cho thuê, việc làm và đồ cũ cho người nước ngoài và người Việt`} />
-          : <Bilingual en={`${SITE_NAME} — classifieds in Vietnam: rentals, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt tại Việt Nam: nhà cho thuê, việc làm và đồ cũ cho người nước ngoài và người Việt`} />}</h1>
+          ? <Bilingual en={`${SITE_NAME} — free classifieds in Vietnam: homes, cars, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt miễn phí tại Việt Nam: nhà, xe, việc làm và đồ cũ cho người nước ngoài và người Việt`} />
+          : <Bilingual en={`${SITE_NAME} — classifieds in Vietnam: homes, cars, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt tại Việt Nam: nhà, xe, việc làm và đồ cũ cho người nước ngoài và người Việt`} />}</h1>
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {/* ⛔ THE FIRST PAINT WAITS FOR THE RESULTS ROW (speed audit, 2026-11-03). A 40 KB page arrives over several packets and the browser paints between them, so a
             phone watched the header's icons slide over, a filter chip grow from 14 px to 91 px and rows appear one by one. Everything above the feed is the first 9 KB:
