@@ -203,11 +203,16 @@ describe('ListingCard wide — the text block', () => {
 })
 
 describe('ListingCard wide — the photo', () => {
-  it('pips show (12px off the edge), badges and the heart grow and inset to the big photo — phone only', () => {
+  it('two or more photos: the COLLAGE replaces the strip and its pips on a phone (owner 2026-11-24, hub round 17); badges and the heart grow and inset to it', () => {
     const c = card()
+    const collage = c.querySelector('[data-card-collage]')!
+    expect(collage, 'the collage').not.toBeNull()
+    expect(tokens(collage)).toContain('sm:hidden')
+    expect(collage.querySelectorAll('img')).toHaveLength(2)
+    expect(tokens(c.querySelector('[data-card-strip]'))).toContain('max-sm:hidden')
+    expect(tokens(c.querySelector('[data-rail-media]'))).toContain('max-sm:aspect-auto')
     const pips = c.querySelector('[data-rail-media] > div.card-pips')!
-    expect(tokens(pips)).toContain('max-sm:bottom-3')
-    expect(tokens(pips)).not.toContain('max-sm:hidden')
+    expect(tokens(pips)).toContain('max-sm:hidden')
     expect(tokens(band(c))).toEqual(expect.arrayContaining(['max-sm:left-3', 'max-sm:top-3']))
     const heart = c.querySelector('button[aria-label="Save listing"]')!
     expect(tokens(heart)).toContain('max-sm:size-11')
@@ -235,5 +240,20 @@ describe('ListingCard without `wide` — the two-up card is untouched', () => {
       expect(html, t).not.toContain(` ${t}"`)
       expect(html, t).not.toContain(` ${t} `)
     }
+  })
+})
+
+describe('ListingCard wide — one photo keeps the one large photo (no collage)', () => {
+  it('a single photo: no collage, the strip shows at every width', () => {
+    const c = card({ images: ['https://picsum.photos/seed/a/400'] })
+    expect(c.querySelector('[data-card-collage]')).toBeNull()
+    expect(tokens(c.querySelector('[data-card-strip]'))).not.toContain('max-sm:hidden')
+  })
+})
+
+describe('ListingCard without `wide` — never a collage', () => {
+  it('the two-up card keeps its strip', () => {
+    const c = card({}, false)
+    expect(c.querySelector('[data-card-collage]')).toBeNull()
   })
 })

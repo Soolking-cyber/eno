@@ -14,6 +14,7 @@ import { ImageMark } from './image-mark'
 import { CardBadges } from './card-badges'
 import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
+import { CardCollage } from './card-collage'
 import Image, { getImageProps } from 'next/image'
 import { preload } from 'react-dom'
 import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
@@ -570,6 +571,15 @@ function ListingCardImpl({
   // `partnerMark`: the shield is drawn at all — not on a card inside its own shop's grid (`ownShop`, owner 2026-11-16).
   const partnerMark = listing.seller.officialPartner && !listing.isSponsored && !ownShop
   const photoPartner = wide && partnerMark
+  // ⛔ THE WIDE RENTAL CARD'S COLLAGE ON A PHONE (owner 2026-11-24, hub round 17 — card-collage.tsx, src/lib/photo-collage.ts):
+  // two or more photos show as a justified collage of up to four below `sm`; the swipe strip, its pips and its doorway are
+  // the `sm`-and-up card's. One photo keeps the one large photo.
+  const collage = wide && images.length >= 2
+  // On a phone the collage IS the photo, so the hidden strip must not page under a sideways drag (and a drift must not
+  // swallow the tap): the touch swipe skips it there, exactly as it skips a `lane` card (commit gate, opus).
+  // `(width < 40rem)` is Tailwind v4's `max-sm` exactly (rem follows the browser's default size), so this agrees with the CSS
+  // that shows the collage for every reader, a 20px default font included (commit gate, opus).
+  const collageShown = () => collage && typeof window !== 'undefined' && window.matchMedia('(width < 40rem)').matches
   // The wide card's photo band (build 8): its top-left status and its top-right check in one grid — only when there is a check
   // or a plate to place; otherwise the badge alone, as on every card.
   const photoTop = wide && (photoPartner || checkApplies)
@@ -827,6 +837,8 @@ function ListingCardImpl({
         // measurement before reaching for either again.
         className={cn(
           'plate-lg media-hairline aspect-square rounded-media corner-round card-media',
+          // The collage sets its own height (its aspect-ratio) below `sm`.
+          collage && 'max-sm:aspect-auto',
           // ⛔ The goods phone card has no ring (owner-approved 2026-11-14, cook r06 goods — `look`): the grey tile is the edge.
           // …nor a listing page shelf's card (`look="tile"`, owner-approved 2026-11-15 (build 7), cook r07 "item").
           tile && 'max-sm:before:hidden',
@@ -944,7 +956,7 @@ function ListingCardImpl({
         onTouchMove={(e) => {
           const sx = touchStartX.current
           const sy = touchStartY.current
-          if (segments < 2 || lane || sx == null || sy == null) return
+          if (segments < 2 || lane || collageShown() || sx == null || sy == null) return
           const t = Array.from(e.changedTouches).find((c) => c.identifier === touchId.current)
           if (!t) return
           const dx = t.clientX - sx
@@ -1000,7 +1012,7 @@ function ListingCardImpl({
           const locked = dragAxis.current
           const dragged = locked === 'x'
           dragAxis.current = null
-          if (!end || sx == null || segments < 2 || lane) { if (dragged) releaseStrip(idx); return }
+          if (!end || sx == null || segments < 2 || lane || collageShown()) { if (dragged) releaseStrip(idx); return }
           const dx = end.clientX - sx
           const dy = sy == null ? 0 : end.clientY - sy
           // The decision itself is `isSwipe` in card-slots.ts — pure, so it can be unit-tested.
@@ -1036,6 +1048,7 @@ function ListingCardImpl({
           dragAxis.current = null
         }}
       >
+        {collage && <CardCollage images={images} title={displayTitle} sizes={sizes} firstEager={lcp !== false || priority} />}
         {images.length > 0 ? (
           <div
             // ⛔ `ease-out` IS DELIBERATE HERE — DO NOT "UPGRADE" THIS TO A SPRING.
@@ -1060,7 +1073,7 @@ function ListingCardImpl({
             // carries the touch swipe and a swipe has to track the finger's direction.
             ref={stripRef}
             data-card-strip
-            className="flex h-full w-full transition-transform duration-200 ease-out"
+            className={cn('flex h-full w-full transition-transform duration-200 ease-out', collage && 'max-sm:hidden')}
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
             {images.slice(0, expanded ? photoCount : 1).map((src, i) => (
@@ -1570,7 +1583,7 @@ function ListingCardImpl({
                 doorway still says there is more; from sm, where hover-scan lives, the pips stay.
                 ⛔ EXCEPT THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a — it reverses the line above there): a
                 366px photo is a gallery on its own, and its pips say so, 12px off its bottom edge, as on Airbnb's results. */}
-            <div className={cn('card-pips', wide ? 'max-sm:bottom-3' : 'max-sm:hidden')}>
+            <div className={cn('card-pips', wide && !collage ? 'max-sm:bottom-3' : 'max-sm:hidden')}>
               {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}
