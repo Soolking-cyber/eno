@@ -749,7 +749,10 @@ function FooterBody({ compact }: { compact: boolean }) {
         {IS_MARKETPLACE && (
         // 2026-11-06 audit: on the compact footer no link grid sits above this block, so its own top margin only stacked on
         // the footer's pt-8 (80px of air under a desktop tool page, 52px on a phone); there the hairline is the separation.
-        <div className={`${compact ? '' : 'mt-12 max-sm:mt-5 '}space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:pt-4`}>
+        // TWO COLUMNS FROM sm (owner, 2026-11-25: "left company info right download app box"): the company's disclosures on the
+        // left, the app card on the right, top-aligned; a phone stacks them as before (the card is hidden there anyway).
+        <div className={`${compact ? '' : 'mt-12 max-sm:mt-5 '}border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:pt-4 sm:flex sm:items-start sm:justify-between sm:gap-10`}>
+          <div className="min-w-0 space-y-1">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
@@ -820,7 +823,8 @@ function FooterBody({ compact }: { compact: boolean }) {
               </a>
             ))}
           </div>
-          <div data-app-qr="" data-app-download="" className="mt-4 hidden items-center gap-4 rounded-2xl border border-border/60 p-3 pr-5 sm:inline-flex">
+          </div>
+          <div data-app-qr="" data-app-download="" className="hidden shrink-0 items-center gap-4 rounded-2xl border border-border/60 p-3 pr-5 sm:inline-flex">
             <div className="shrink-0 rounded-xl bg-white p-1.5">
               <img
                 src="/badges/app-qr.svg"
