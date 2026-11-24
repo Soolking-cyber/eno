@@ -1234,9 +1234,12 @@ const LAST_UPDATED = {
 }
 
 export default function PrivacyPage() {
+  // The English h1 past 20 characters (Seobility crawl 3: "Privacy Policy", 14, "H1 too short"; owner, 2026-11-24: "do it" —
+  // re-dated, privacy-updated.ts). It still OPENS with "Privacy Policy", the cookie bar's words for it: that card's copy is
+  // fingerprinted (CONSENT_COPY_VERSION), so the link keeps its name and names the start of the title.
   return (
     <ContentPage
-      title="Privacy Policy"
+      title="Privacy Policy: how we handle your data"
       titleVi="Chính sách bảo vệ dữ liệu cá nhân"
       meta={
         <>

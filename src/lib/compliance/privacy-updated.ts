@@ -250,8 +250,11 @@
  * price or type change — never a photo or an account field — and two refusals in "Publish checks" (a price under 1,000 đ, and
  * an advert or a placeholder price as Jev reads them). Live with the deploy. ⛔ THE PLANNED DAY: re-date it to the day the
  * deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-25, the English heading only (owner, 2026-11-24, on Seobility's "H1 too short": "do it"): "Privacy Policy" →
+ * "Privacy Policy: how we handle your data". No change to what the policy says. ⛔ THE PLANNED DAY: the deploy that carries it
+ * runs after midnight in Vietnam on 2026-11-25; re-date it if it slips.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-22'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -260,4 +263,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-22'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'b256cb72c3c7d5ca'
+export const PRIVACY_TEXT_FINGERPRINT = '2123399d81be1bc8'

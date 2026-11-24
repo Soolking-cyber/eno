@@ -213,13 +213,20 @@ export function HelpThreadClient({
 
   return (
     <article>
-      <Link
-        href="/help"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-foreground hover:underline"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        <Tr text="Help center" />
-      </Link>
+      {/* ⛔ A BREADCRUMB ON THE BACK LINK'S ONE LINE (Seobility crawl 3, 2026-11-24: 61 help articles whose H1 words — "Do I need
+          an account to browse LISTINGS?" — appear nowhere in the answer, which is database copy; owner: "fix"). The trail ends
+          on the article's own title, so the page's text carries its heading; one line, truncated, no new row. */}
+      <nav aria-label={tr('Breadcrumb', 'Đường dẫn')} className="flex min-w-0 items-center gap-1.5 text-sm">
+        <Link
+          href="/help"
+          className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-accent-foreground hover:underline"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          <Tr text="Help center" />
+        </Link>
+        <span aria-hidden className="text-ink-4">/</span>
+        <span aria-current="page" className="min-w-0 truncate text-muted-foreground">{title}</span>
+      </nav>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {topic && (

@@ -1031,7 +1031,7 @@ describe('/privacy — round-2 corrections hold', () => {
     }
   })
 
-  it('⛔ the cookie bar’s link is named exactly what the page it opens is titled, in both languages', async () => {
+  it('⛔ the cookie bar’s link is named what the page it opens is titled — the title’s opening words in English (2026-11-25), exactly in Vietnamese', async () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8')
@@ -1041,7 +1041,10 @@ describe('/privacy — round-2 corrections hold', () => {
     expect(en && vi).toBeTruthy()
     // ⚠️ Built with join(), never a literal `tr` + `('` in this file: scripts/gen-ui-strings.mjs walks test
     // files too and would harvest a placeholder key into the shipped catalogue (it did, 2026-10-01).
-    const call = ['{tr', `('${en}', '${vi}')}`].join('')
+    // The English h1 grew past 20 characters (Seobility, owner 2026-11-24) and still opens with the link's words; the card's
+    // copy is fingerprinted (CONSENT_COPY_VERSION), so the link keeps "Privacy Policy".
+    expect(en!.startsWith('Privacy Policy')).toBe(true)
+    const call = ['{tr', `('Privacy Policy', '${vi}')}`].join('')
     // Since speed plan item 7 the link's words are boxed (BoxedLink — cookie-consent.tsx says why): the label is the
     // same tr() pair, and the link itself still never prefetches.
     expect(card).toContain(`<BoxedLink href="/privacy" label=${call} className="font-semibold text-accent-foreground" />`)
