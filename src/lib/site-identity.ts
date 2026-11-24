@@ -311,9 +311,9 @@ export function pageShare(og: PageOg): Pick<Metadata, 'openGraph' | 'twitter'> {
  * `export const metadata: Metadata = withShare({ title, description, alternates })`, and both cards
  * take those two strings — one copy, so they cannot drift — with the canonical as og:url.
  */
-export function withShare(m: Metadata & { title: string; description: string }, og?: Pick<PageOg, 'type' | 'images'>): Metadata {
+export function withShare(m: Metadata & { title: string; description: string }, og?: Pick<PageOg, 'type' | 'images'>, opts?: WithinResultOpts): Metadata {
   const canonical = m.alternates?.canonical
-  const { title, description } = withinResult(m.title, m.description)
+  const { title, description } = withinResult(m.title, m.description, opts)
   return {
     ...m,
     title,
@@ -336,11 +336,14 @@ const SITE_BRAND = 'eno'
  * eno.vn, step by step") says the brand, "eno", there instead. With the suffix, "eno.vn" mid-title was "title word repeats";
  * without it (when it did not fit) "domain in title". The page's own text keeps its words; only the <title> changes. The
  * description is cut at a word where a result cuts it (meta-description.ts clipDescription: 155 characters and 980 px).
+ * `keepDomain`: a title that names the domain ON PURPOSE keeps it — /developers/mcp, "The eno.vn MCP server for AI agents",
+ * what a name-based search for the server matches (developers/mcp/page.tsx; 07, 2026-11-24).
  */
-export function withinResult(title: string, description: string): { title: string; description: string } {
+export type WithinResultOpts = { keepDomain?: boolean }
+export function withinResult(title: string, description: string, opts?: WithinResultOpts): { title: string; description: string } {
   const rawBare = title.endsWith(SITE_SUFFIX) ? title.slice(0, -SITE_SUFFIX.length) : title
   // Only a domain INSIDE the words: one that closes them ("How trust works — eno.vn") is already the title's suffix.
-  const bare = rawBare.endsWith(SITE_NAME) ? rawBare : rawBare.split(SITE_NAME).join(SITE_BRAND)
+  const bare = opts?.keepDomain || rawBare.endsWith(SITE_NAME) ? rawBare : rawBare.split(SITE_NAME).join(SITE_BRAND)
   title = bare === rawBare ? title : `${bare}${SITE_SUFFIX}`
   const head = bare.split(/:\s|\s[—–|]\s/)[0].trim()
   const heads = head !== bare && titlePx(head) >= 200 ? [`${head}${SITE_SUFFIX}`, head] : []

@@ -19,6 +19,11 @@ describe('withinResult', () => {
     expect(withinResult(`How to post a listing on eno.vn, step by step | eno.vn`, 'd').title).toBe(`How to post a listing on eno, step by step | eno.vn`)
     expect(withinResult(`Does it cost anything to buy or sell on eno.vn?`, 'd').title).toBe('Does it cost anything to buy or sell on eno? | eno.vn')
   })
+  it('keepDomain: a title that names the domain on purpose keeps it (the MCP page, 07 2026-11-24)', () => {
+    const mcp = 'eno Agentic Commerce | The eno.vn MCP server for AI agents'
+    expect(withinResult(mcp, 'd', { keepDomain: true }).title).toBe(mcp)
+    expect(withinResult(mcp, 'd').title).toBe('eno Agentic Commerce | The eno MCP server for AI agents')
+  })
   it('cuts a description past 155 at a word, and leaves a shorter one alone', () => {
     const d = 'word '.repeat(50).trim()
     const out = withinResult('t', d).description

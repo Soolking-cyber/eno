@@ -38,7 +38,8 @@ export const metadata: Metadata = withShare({
   title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`,
   description: `${MCP_SERVER_TITLE}, the ${SITE_NAME} MCP server: an AI agent searches the listings with no sign-in, and runs your storefront — listings, catalogue sync, analytics, webhooks, chat and paid ads — once you sign in with your shop or use an API key.`,
   alternates: { canonical: DOC_PATHS.mcp },
-})
+// keepDomain: withinResult would say "eno" for the domain mid-title (Seobility "domain in title"); this one names it on purpose.
+}, undefined, { keepDomain: true })
 
 const ENDPOINT = `${SITE_ORIGIN}/api/mcp`
 /** The tools that need no credential: the listing search and the docs (the old /api/mcp/search's browser GET lands on #search). */

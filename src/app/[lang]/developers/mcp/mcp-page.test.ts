@@ -14,6 +14,8 @@ describe('/developers/mcp', () => {
   it('names the one server (eno Agentic Commerce, 2026-11-23) in its <h1>, keeps "<site> MCP server" in its title, canonical at its own path', () => {
     // The title still carries "<site> MCP server": that is what a name-based search for the server matches (the scan above).
     expect(PAGE).toContain('title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`')
+    // …and the RENDERED title keeps it: withShare's withinResult would otherwise say "eno" there (07, 2026-11-24).
+    expect(PAGE).toContain('}, undefined, { keepDomain: true })')
     expect(PAGE).toMatch(/<h1 className="h-display text-foreground">\{MCP_SERVER_TITLE\}<\/h1>/)
     expect(PAGE).toContain('alternates: { canonical: DOC_PATHS.mcp }')
   })
