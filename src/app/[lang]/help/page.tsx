@@ -10,6 +10,7 @@ import { loadHelpCenter } from '@/lib/help-center-data'
 import { cachedTranslations } from '@/lib/translate'
 import { LANG_COOKIE } from '@/lib/lang-variant'
 import { embedLanguages, pickEmbedded, readerLanguage } from './[id]/embed-languages'
+import { ViTwinLinkFromParams } from '@/components/marketplace/vi-twin-link'
 
 // Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
 // sends no language, so the card must not depend on which variant it happened to hit.
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 // accounts. (Same reason /dashboard/forum is force-dynamic.)
 export const dynamic = 'force-dynamic'
 
-export default async function HelpPage() {
+export default async function HelpPage({ params }: { params: Promise<{ lang: string }> }) {
   const [data, jar, head] = await Promise.all([loadHelpCenter(), cookies(), headers()])
   /**
    * EVERY QUESTION AND ANSWER IN THE READER'S LANGUAGE IN THE SERVER HTML (B5-HELP-VI, auth-02) — the
@@ -58,6 +59,7 @@ export default async function HelpPage() {
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         <HelpCenter data={data} i18n={i18n} />
+        <ViTwinLinkFromParams path="/help" params={params} />
       </main>
       <Footer />
     </div>

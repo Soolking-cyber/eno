@@ -7,6 +7,7 @@ import { T, toolPageMetadata } from '@/components/marketplace/rent-tool-page'
 import { IS_SERVICES } from '@/lib/edition'
 import { RENT_TOOLS, RENT_TOOL_SLUGS, rentToolPath } from '@/lib/rent-tools/registry'
 import { liveTools, toolPath } from '@/lib/tools/content'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * /tools (and /vi/tools): every tool on eno.vn — the four rent tools written by hand, then the ones eno Reach wrote and a person
@@ -56,6 +57,7 @@ export default async function ToolsHub({ params }: { params: Promise<{ lang: str
             </li>
           ))}
         </ul>
+        <ViTwinLink path="/tools" lang={lang} />
       </main>
       <Footer />
     </div>

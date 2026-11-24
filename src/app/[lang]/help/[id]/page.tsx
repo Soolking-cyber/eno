@@ -11,6 +11,7 @@ import { cachedTranslations } from '@/lib/translate'
 import { LANG_COOKIE } from '@/lib/lang-variant'
 import { embedLanguages, pickEmbedded, readerLanguage } from './embed-languages'
 import { HelpThreadClient, type HelpComment } from './help-thread-client'
+import { ViTwinLinkFromParams } from '@/components/marketplace/vi-twin-link'
 
 export const dynamic = 'force-dynamic'
 
@@ -159,6 +160,7 @@ export default async function HelpThreadPage({ params }: Params) {
           i18n={{ title: pickEmbedded(translations[thread.post.title], keep), body: pickEmbedded(translations[thread.post.body], keep) }}
           related={related}
         />
+        <ViTwinLinkFromParams path={`/help/${id}`} params={params} />
       </main>
       <Footer />
     </div>

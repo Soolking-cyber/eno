@@ -12,6 +12,7 @@ import { AwardsResults } from '@/components/schools/awards-results'
 import { awardsPage } from '@/lib/schools/awards'
 import { AWARD_FIRST_YEAR, AWARDS_PATH } from '@/lib/schools/constants'
 import { currentAwardYear } from '@/lib/schools/award-rank'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * /schools/awards/[year] — Teachers' Choice (owner, 2026-10-05). The frozen results once a year is closed; while it
@@ -68,6 +69,7 @@ export default async function SchoolAwardsYear({ params }: Props) {
             {years.map((y) => <Link key={y} href={`${AWARDS_PATH}/${y}`} className="font-semibold text-accent-foreground hover:underline">{y}</Link>)}
           </p>
         )}
+        <ViTwinLink path={`/schools/awards/${year}`} lang={lang} />
       </main>
       <Footer />
     </div>

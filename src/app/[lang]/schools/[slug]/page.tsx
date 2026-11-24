@@ -23,6 +23,7 @@ import { AwardBadge } from '@/components/schools/award-badge'
 import { getSchoolPage, type SchoolPage } from '@/lib/schools/queries'
 import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL, areaLabel } from '@/lib/schools/constants'
 import { schoolOrgLd, schoolPageIndexable, schoolPageJobsOnly, schoolPageTitle, shownWebsite, type SchoolPageContent } from '@/lib/schools/page-seo'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * /schools/<slug> — one school: the teachers' score, pay ranges, what is good and bad, the reviews and
@@ -217,6 +218,7 @@ export default async function SchoolPageRoute({ params }: Props) {
             </p>
           </div>
         </SchoolLiveProvider>
+        <ViTwinLink path={`/schools/${slug}`} lang={lang} />
       </main>
       <Footer />
     </div>

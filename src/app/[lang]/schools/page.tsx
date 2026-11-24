@@ -16,6 +16,7 @@ import { CoverPromoCard } from '@/components/teachers/cover-promo-card'
 import { listAllSchools } from '@/lib/schools/queries'
 import { AWARDS_PATH, HCMC_AREAS } from '@/lib/schools/constants'
 import { currentAwardYear } from '@/lib/schools/award-rank'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * /schools — teacher-ranked schools, English centres, international schools and recruiters in Ho Chi
@@ -114,6 +115,7 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
           </aside>
         </div>
         <SchoolsMethodology />
+        <ViTwinLink path="/schools" lang={lang} />
       </main>
       <Footer />
     </div>

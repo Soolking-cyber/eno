@@ -18,6 +18,7 @@ import { BedroomTable, DistrictTable, Headline, Methodology, Unavailable } from 
 import { CiteBox } from './cite-box'
 import { faqPageJsonLd } from './faq'
 import { rentIndexMeta } from './meta'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * /hcmc-rent-index — median asking rent by district and property type in Ho Chi Minh City, computed
@@ -248,6 +249,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
             </span>
           ))}
         </p>
+        <ViTwinLink path="/hcmc-rent-index" lang={lang} />
       </main>
       <Footer />
     </div>

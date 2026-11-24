@@ -60,6 +60,7 @@ export default async function Page({ params }: Params) {
   return (
     <ToolPageShell
       lang={lang}
+      path={`/tools/${slug}`}
       h1={spec.title}
       intro={spec.intro}
       calculator={<GeneratedToolCalculator spec={spec} />}

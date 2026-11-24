@@ -10,6 +10,7 @@ import { localizedHref } from '@/lib/lang-pinned'
 import { titleWithSite } from '@/lib/meta-description'
 import { RENT_TOOLS, RENT_TOOL_SLUGS, rentToolPath, type RentToolSlug } from '@/lib/rent-tools/registry'
 import { pageShare } from '@/lib/site-identity'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * The page around each rent tool (src/lib/rent-tools/registry.ts): the answer first, the calculator, how it works with the
@@ -149,7 +150,7 @@ export function RentToolPage({
     ...RENT_TOOL_SLUGS.filter((s) => s !== slug).map((s) => ({ href: rentToolPath(s, lang), label: RENT_TOOLS[s].label, blurb: RENT_TOOLS[s].blurb })),
     ...related.map((k) => ({ href: localizedHref(LINKS[k].href, lang), label: LINKS[k].label })),
   ]
-  return <ToolPageShell lang={lang} {...page} more={more} />
+  return <ToolPageShell lang={lang} path={`/${slug}`} {...page} more={more} />
 }
 
 /** A link under "More tools and data": the page's own address for it, its name, and a line on what it does (optional). */
@@ -157,6 +158,8 @@ export type MoreLink = { href: string; label: Copy; blurb?: Copy }
 
 type ToolPageProps = {
   lang: string
+  /** The page's plain path, for its "Tiếng Việt" link (vi-twin-link.tsx); none, no link. */
+  path?: string
   h1: Copy
   /** The answer, first: what the tool tells you and the one formula behind it. */
   intro: Copy
@@ -172,7 +175,7 @@ type ToolPageProps = {
  * The page itself, for the rent tools above and the generated tools (src/app/[lang]/tools/[slug]): one layout, so a tool Reach
  * writes reads like the four written by hand.
  */
-export function ToolPageShell({ lang, h1, intro, introValues, calculator, how, example, faqs, more }: ToolPageProps) {
+export function ToolPageShell({ lang, path, h1, intro, introValues, calculator, how, example, faqs, more }: ToolPageProps) {
   const node = faqPageJsonLd(faqs, lang)
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -213,6 +216,7 @@ export function ToolPageShell({ lang, h1, intro, introValues, calculator, how, e
             ))}
           </ul>
         </section>
+        {path && <ViTwinLink path={path} lang={lang} />}
       </main>
       <Footer />
     </div>

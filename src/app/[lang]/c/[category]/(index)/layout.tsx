@@ -18,6 +18,7 @@ import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
 import { SITE_NAME } from '@/lib/edition'
 import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
 import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
+import { ViTwinLinkFromParams } from '@/components/marketplace/vi-twin-link'
 
 /**
  * ⚠️ UX3 FAST-8 (2026-10-05): `(index)/loading.tsx` is gone, so the grid renders inline too (crawler contract
@@ -160,6 +161,8 @@ export default async function CategoryIndexLayout({
             Account sheet's Language row, on a desktop the header's language button (owner, same day), and the footer's
             picker switch to the twin as well (setLang → pinnedPair). */}
         {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
+        {/* Every other category with a /vi twin: English → Vietnamese only, hidden below sm (vi-twin-link.tsx; owner, 2026-11-24). */}
+        {!piloted && <ViTwinLinkFromParams path={`/c/${cat.slug}`} params={params} />}
       </main>
       {piloted && <LangSuggestionBanner />}
       <Footer />

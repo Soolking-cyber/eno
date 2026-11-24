@@ -149,12 +149,15 @@ describe('a generated tool page, in both languages', () => {
 describe('the tools hub', () => {
   it('lists the four rent tools, then the generated ones, at each language’s address', async () => {
     const en = await html(await hub.default({ params: Promise.resolve({ lang: 'en' }) }), 'en')
-    const hrefs = [...en.el.querySelectorAll('main a')].map((a) => a.getAttribute('href'))
+    const hrefs = [...en.el.querySelectorAll('main a:not([hreflang])')].map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual([...RENT_TOOL_SLUGS.map((s) => `/${s}`), `/tools/${SLUG}`])
     expect(en.text).toContain(vectors.spec.title.en)
+    // The English hub links its /vi twin once (vi-twin-link.tsx; owner 2026-11-24), and the Vietnamese hub links no twin back.
+    expect([...en.el.querySelectorAll('main a[hreflang]')].map((a) => a.getAttribute('href'))).toEqual(['/vi/tools'])
     const vi = await html(await hub.default({ params: Promise.resolve({ lang: 'vi' }) }), 'vi')
-    expect([...vi.el.querySelectorAll('main a')].map((a) => a.getAttribute('href'))).toEqual([...RENT_TOOL_SLUGS.map((s) => `/vi/${s}`), `/vi/tools/${SLUG}`])
+    expect([...vi.el.querySelectorAll('main a:not([hreflang])')].map((a) => a.getAttribute('href'))).toEqual([...RENT_TOOL_SLUGS.map((s) => `/vi/${s}`), `/vi/tools/${SLUG}`])
     expect(vi.el.querySelectorAll('h1')).toHaveLength(1)
+    expect(vi.el.querySelectorAll('main a[hreflang]')).toHaveLength(0)
   })
 
   it('renders with no generated tool at all: the four, and nothing broken', async () => {
@@ -165,7 +168,7 @@ describe('the tools hub', () => {
       const { LanguageProvider: LP } = await import('@/context/language-context')
       const el = document.createElement('div')
       el.innerHTML = renderToString(<LP initialLang="en" initialViDict={VI_OVERRIDES}>{await fresh.default({ params: Promise.resolve({ lang: 'en' }) })}</LP>)
-      expect([...el.querySelectorAll('main a')].map((a) => a.getAttribute('href'))).toEqual(RENT_TOOL_SLUGS.map((s) => `/${s}`))
+      expect([...el.querySelectorAll('main a:not([hreflang])')].map((a) => a.getAttribute('href'))).toEqual(RENT_TOOL_SLUGS.map((s) => `/${s}`))
     } finally {
       state.none = false
     }

@@ -45,6 +45,7 @@ import { SlidersHorizontal } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
+import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
 
 /**
  * 1 day. It was 7 days ("long-tail combo, client fetches live, weekly regen is plenty") until the page's
@@ -514,6 +515,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
             </Link>
           </Button>
         </div>
+        <ViTwinLink path={`/c/${cat.slug}/${district}`} lang={lang} />
       </main>
       <Footer />
     </div>
