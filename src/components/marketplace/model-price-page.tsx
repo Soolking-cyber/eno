@@ -6,7 +6,9 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
-import { MODEL_PAGE_SIZE, loadModelPage, modelPageMetadata, modelProductLd, type ModelPageLang } from '@/lib/model-pages'
+import { MODEL_PAGE_SIZE, loadModelPage, modelPageMetadata, modelPagePath, modelProductLd, type ModelPageLang } from '@/lib/model-pages'
+import { LANGUAGES } from '@/lib/languages'
+import { LangPilotLink } from './lang-pilot-link'
 import { compactVndRange, formatInteger } from '@/lib/vnd'
 
 /**
@@ -25,6 +27,7 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
   const { entry, params, total, listings } = page
   const band = page.band?.claim ? page.band : null
   const ld = modelProductLd(entry, page.band, listings, lang)
+  const other: ModelPageLang = lang === 'vi' ? 'en' : 'vi'
   return (
     <div className="flex min-h-page flex-col blob-bg">
       <Header />
@@ -42,6 +45,14 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
           <SellerListings listings={listings} serverScope={{ params, total, pageSize: MODEL_PAGE_SIZE }} initialSort="price-low" look="goods" quietCount={band ? 'always' : undefined} />
         </div>
         {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\u003c') }} />}
+        {/* The other-language twin as a LINK (Seobility crawl 3: 25 /gia pages reached only through the sitemap — hreflang is not
+            a link). Both addresses are pinned to their language (lang-pinned.ts), so each direction is right, unlike a family's
+            negotiating URL (vi-twin-link.tsx). Hidden below sm, still in the HTML, like ViTwinLink. */}
+        <div className="max-sm:sr-only max-sm:focus-within:not-sr-only">
+          <div className="mt-8 flex justify-end">
+            <LangPilotLink href={modelPagePath(slug, other)} target={other} hrefLang={other === 'vi' ? 'vi-VN' : 'en'} label={LANGUAGES.find((l) => l.code === other)!.native} />
+          </div>
+        </div>
       </main>
       <Footer />
     </div>

@@ -9,7 +9,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const h = vi.hoisted(() => ({ page: null as unknown }))
 
-vi.mock('@/lib/model-pages', () => ({
+vi.mock('@/lib/model-pages', async (importOriginal) => ({
+  // The real path builder: the twin link's address is the one the routes serve.
+  modelPagePath: (await importOriginal<typeof import('@/lib/model-pages')>()).modelPagePath,
   MODEL_PAGE_SIZE: 24,
   loadModelPage: async () => h.page,
   modelPageMetadata: () => ({}),
@@ -21,6 +23,9 @@ vi.mock('@/components/marketplace/footer', () => ({ Footer: () => null }))
 vi.mock('@/context/language-context', () => ({ Tr: ({ text }: { text: string }) => text }))
 vi.mock('@/components/marketplace/bilingual', () => ({
   Bilingual: ({ en, values }: { en: string; values?: Record<string, string> }) => Object.entries(values ?? {}).reduce((s, [k, v]) => s.split(`{${k}}`).join(v), en),
+}))
+vi.mock('./lang-pilot-link', () => ({
+  LangPilotLink: ({ href, hrefLang, label }: { href: string; hrefLang: string; label: string }) => <a href={href} hrefLang={hrefLang}>{label}</a>,
 }))
 vi.mock('@/components/marketplace/seller-listings', () => ({
   SellerListings: ({ quietCount }: { quietCount?: boolean | 'always' }) => <div data-quiet={String(quietCount)} />,
@@ -53,5 +58,17 @@ describe('ModelPricePage — the count sentence', () => {
       expect(out).not.toContain('Typical ask')
       expect(out).toContain('data-quiet="undefined"')
     }
+  })
+})
+
+describe('ModelPricePage — the other-language twin is a link (Seobility crawl 3: /gia pages reached only by the sitemap)', () => {
+  it('the English page links its Vietnamese twin, the Vietnamese page its English one', async () => {
+    h.page = { entry: { name: 'Apple iPad Air' }, params: {}, total: 1, listings: [], band: null }
+    const en = renderToStaticMarkup(await ModelPricePage({ slug: 'apple-ipad-air', lang: 'en' }))
+    expect(en).toContain('href="/gia/apple-ipad-air"')
+    expect(en).toContain('hrefLang="vi-VN"')
+    const vi = renderToStaticMarkup(await ModelPricePage({ slug: 'apple-ipad-air', lang: 'vi' }))
+    expect(vi).toContain('href="/price/apple-ipad-air"')
+    expect(vi).toContain('hrefLang="en"')
   })
 })
