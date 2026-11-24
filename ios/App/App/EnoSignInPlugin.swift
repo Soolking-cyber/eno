@@ -58,7 +58,10 @@ final class EnoSignInPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("nonce must be 64 lowercase hex characters", SignInFailure.failed.rawValue)
             return
         }
-        DispatchQueue.main.async {
+        // `[weak self]` here too: Swift 6.4 warns when the inner weak capture sits in an outer implicit strong one. The plugin
+        // lives as long as the bridge; if it ever did not, the call is rejected, never left hanging.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { call.reject("Sign-in is unavailable", SignInFailure.failed.rawValue); return }
             guard let anchor = self.begin(call) else { return }
             let request = AppleIDRequest(call: call, nonce: nonce, anchor: anchor) { [weak self] in
                 self?.appleRequest = nil
@@ -84,7 +87,8 @@ final class EnoSignInPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         // The JS always sends true (D13); a missing value means the same, never a shared Safari session.
         let ephemeral = call.getBool("ephemeral") ?? true
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { call.reject("Sign-in is unavailable", SignInFailure.failed.rawValue); return }
             guard let anchor = self.begin(call) else { return }
             let request = WebAuthRequest(call: call, anchor: anchor) { [weak self] in
                 self?.webRequest = nil

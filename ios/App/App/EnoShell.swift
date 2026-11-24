@@ -487,9 +487,11 @@ extension EnoShell: WKScriptMessageHandler {
             // Never while the age gate holds the app: nothing seen behind it may reach iPhone search (review).
             guard !isBlocked(), let body = message.body as? [String: Any], let url = (body["url"] as? String).flatMap(URL.init(string:)) else { return }
             // Tied to WHO is signed in: another account (or a sign-out) clears what the last one opened first (review).
-            account { who in
+            // `[weak self]` on the OUTER closure; the inner one uses that weak self (Swift 6.4 warns on an inner weak capture
+            // inside an outer implicit strong one). `claim` itself always runs, so its clear-out never depends on self.
+            account { [weak self] who in
                 // An unreadable session indexes nothing (its clear-out runs, and nothing follows it).
-                EnoSpotlight.claim(for: who) { [weak self] in
+                EnoSpotlight.claim(for: who) {
                     guard who != "unknown", self?.isBlocked() == false else { return }
                     EnoSpotlight.index(url: url, title: body["title"] as? String ?? "", description: body["description"] as? String ?? "",
                                        image: (body["image"] as? String).flatMap(URL.init(string:)), owner: who)
