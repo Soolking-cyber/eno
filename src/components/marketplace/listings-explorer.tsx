@@ -2089,7 +2089,11 @@ export function ListingsExplorer({
 
   const handleCategorySelect = (slug: string) => {
     commitView() // a category tile is a step Back undoes (NAV-1)
-    applyCategory(slug)
+    // ⚡ INP (2026-11-24, websiteaeogeochecker → owner "Speed: LCP + INP"): the pick re-renders the whole explorer (the ladder folds,
+    // the shelves unmount, the toolbar and counts change), and as an urgent update that render ran INSIDE the tap — 236–276 ms of
+    // processing at 4× CPU, the home page's slowest interaction (inp-probe2.mjs). In the filter transition the tap paints at once
+    // and the render runs interruptibly after it. The glide (use-tap-glide.ts) follows every commit for 1.5 s, so it still sees it.
+    startFilterTransition(() => applyCategory(slug))
   }
   /** A tile in the ladder: the rows below glide to their new place instead of jumping (use-tap-glide.ts). Not the shelves' path: that one scrolls. */
   const ladderRef = useRef<HTMLDivElement>(null)
