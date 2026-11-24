@@ -18,6 +18,8 @@ echo "node $(node -v)"
 
 # --ignore-scripts: postinstall generates the Prisma client and icon set, which the app binary never uses.
 npm ci --ignore-scripts --no-audit --no-fund
+# Plugin Swift that Xcode 27 warns about and upstream has not fixed (scripts/patch-native-plugins.mjs; never fails).
+node scripts/patch-native-plugins.mjs
 
 [ -z "${ENO_LOCAL_SHELL:-}" ] || { echo "ENO_LOCAL_SHELL is set — the binary would boot the local shell" >&2; exit 1; }
 npx cap sync ios
