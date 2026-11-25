@@ -3,7 +3,8 @@
 //   p — personalization: the "For You" and "Recently viewed" rows, ranked on our own servers from
 //       the visitor's on-site searches and views. The view/category history is not even SAVED
 //       without it (src/lib/reco-signals.ts).
-//   a — analytics: Google Analytics 4 and the first-touch attribution cookie `eno_attr`.
+//   a — analytics: Google Analytics 4, the first-touch attribution cookie `eno_attr`, and Microsoft Clarity — the
+//       last only for an answer given to words that name it (src/lib/clarity.ts).
 //   d — advertising: Meta Conversions API (browser beacon + server), TikTok Events API (server, and only an answer
 //       given to words that name TikTok — src/lib/tiktok-consent.ts) and Google ad signals.
 // Nothing non-essential runs before an answer, and "no answer" is never read as a yes (PDPL
@@ -31,6 +32,7 @@ import {
   type StoredConsent,
 } from './consent-value'
 import { inAppSheetDocument } from '@/lib/app-review-gates'
+import { CONSENT_COPY_KEY, copyRecordNamesClarity, serializeConsentCopy } from './clarity'
 
 export type { ConsentAnswer, ConsentFlags, ConsentPurpose } from './consent-value'
 
@@ -134,6 +136,16 @@ export function hasPurpose(purpose: ConsentPurpose): boolean {
 export const personalizationAllowed = (): boolean => hasPurpose('p')
 export const hasAnalyticsConsent = (): boolean => hasPurpose('a')
 export const hasAdConsent = (): boolean => hasPurpose('d')
+
+/**
+ * Analytics on AND the current answer was given to a card that names Microsoft Clarity (src/lib/clarity.ts
+ * CONSENT_COPY_KEY — written by setConsent below, never by a re-sync). Native forces it off with Analytics.
+ */
+export function hasClarityConsent(): boolean {
+  if (!hasAnalyticsConsent()) return false
+  const c = readConsent()
+  return !!c && copyRecordNamesClarity(localGet(CONSENT_COPY_KEY), c.ts, CONSENT_COPY_VERSION)
+}
 
 /**
  * The registrable domain to scope the v2 cookie to, or null to leave it host-only.
@@ -248,6 +260,9 @@ export function setConsent(
 ): StoredConsent {
   const stored: StoredConsent = { p: !!flags.p, a: !!flags.a, d: !!flags.d, ts: nowS(), cid: existingConsentId() ?? newConsentId() }
   persist(stored)
+  // ⛔ HERE, NEVER IN persist(): syncConsentStorage() re-persists an OLD answer on every load, and stamping it with this
+  // build's copy version would claim the visitor read words they never saw (src/lib/clarity.ts CONSENT_COPY_KEY).
+  localSet(CONSENT_COPY_KEY, serializeConsentCopy(stored.ts, CONSENT_COPY_VERSION))
   try { window.dispatchEvent(new CustomEvent('eno:consent', { detail: { p: stored.p, a: stored.a, d: stored.d } })) } catch { /* noop */ }
   recordConsent(stored, meta)
   return stored

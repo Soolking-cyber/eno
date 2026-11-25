@@ -210,7 +210,11 @@ export function Providers({
               slow 4G lands at 6.8–8.5s — seconds after the page is interactive. See ambient-chrome.tsx.
               ⛔ AND INSIDE LanguageProvider (2026-10-05): the toaster names its live region in the reader's
               language (ui/sonner.tsx calls useLanguage), which throws outside the provider. */}
-          <SonnerToaster position="top-center" closeButton />
+          {/* data-clarity-mask: Microsoft Clarity hides toasts — they can quote messages and offers (src/lib/clarity.ts).
+              `contents`: the wrapper adds no box; sonner renders in place (no portal), so the mask covers it. */}
+          <div data-clarity-mask="true" className="contents">
+            <SonnerToaster position="top-center" closeButton />
+          </div>
         </LanguageProvider>
       </ThemeProvider>
     </>

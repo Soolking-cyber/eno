@@ -279,6 +279,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <aside
       ref={trapRef}
+      // Microsoft Clarity hides everything in it — the signed-in person's name, photo and account links show on public
+      // pages too (src/lib/clarity.ts).
+      data-clarity-mask="true"
       // DESKTOP HOVER-OPEN (owner 2026-07-23). Entering the collapsed rail reveals the labels;
       // leaving collapses them. It only sets the desktop `expanded` state — the shell no longer
       // reserves 280px, so this overlays the feed rather than reflowing it. Mobile never fires

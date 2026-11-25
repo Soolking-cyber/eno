@@ -39,6 +39,8 @@ export function MessagesShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
+      // Microsoft Clarity hides everything under it (src/lib/clarity.ts — it is also stopped on /messages).
+      data-clarity-mask="true"
       style={kbHeight ? { height: kbHeight } : undefined}
       /**
        * ⛔ NO `bg-background` HERE — IT PAINTED A FLAT PANEL OVER THE WASH (owner, 2026-09-19: "also

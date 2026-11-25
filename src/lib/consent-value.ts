@@ -8,7 +8,7 @@
 //
 // THREE PURPOSES, EACH ASKED FOR SEPARATELY, ALL OFF UNTIL SWITCHED ON:
 //   p — personalization: the For You / Recently viewed rows, ranked from on-site searches and views
-//   a — analytics: Google Analytics 4, and the first-touch attribution cookie (eno_attr)
+//   a — analytics: Google Analytics 4, the first-touch attribution cookie (eno_attr), and Microsoft Clarity
 //   d — advertising: Meta Conversions API (browser beacon and server) and Google ad signals
 //
 // ⛔ ONLY A v2 VALUE CAN GRANT ANYTHING. The v1 values ('all' | 'personalized' | 'essential', and the
@@ -64,8 +64,14 @@ export const CONSENT_VERSION = 2
  *                Analytics is on too)". Nobody is re-asked — and a "yes" given to the earlier words never reaches
  *                TikTok: the server holds the consent RECORD of the answer to this version or later
  *                (TIKTOK_COPY_VERSION, src/lib/tiktok-consent.ts), with a date floor under it.
+ *   2026-11-25 — Analytics names Microsoft Clarity beside Google Analytics: the question reads "analytics (Google
+ *                Analytics, Microsoft Clarity)" and the Analytics line says Clarity records how pages are used, as
+ *                heatmaps and replays of visits, with all text hidden, and that Microsoft may also use the data for its own purposes
+ *                (an independent controller — Clarity Terms §4.4(c)). Nobody is re-asked — and a "yes" given to the
+ *                earlier words never starts Clarity: the device keeps which version the current answer was given to
+ *                (CLARITY_COPY_VERSION / CONSENT_COPY_KEY, src/lib/clarity.ts) and Clarity loads only for this one or later.
  */
-export const CONSENT_COPY_VERSION = '2026-10-12'
+export const CONSENT_COPY_VERSION = '2026-11-25'
 
 /**
  * A choice is remembered for 12 months from the moment it was made, then asked again. The cookie's

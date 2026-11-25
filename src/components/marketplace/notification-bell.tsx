@@ -279,5 +279,7 @@ export function NotificationBell({ quiet = false }: {
 /** The list's own scroller on the popover; in the phone sheet the sheet's body scrolls, so it steps aside. */
 function PanelScroll({ children }: { children: React.ReactNode }) {
   const inSheet = useInPopoverSheet()
-  return <div className={inSheet ? undefined : 'max-h-[60vh] overflow-y-auto scroll-thin'}>{children}</div>
+  // data-clarity-mask: Microsoft Clarity hides the notifications — they quote messages and offers (src/lib/clarity.ts). On
+  // this wrapper, not on PopoverContent: on a phone the content renders as a sheet, which does not forward extra props.
+  return <div data-clarity-mask="true" className={inSheet ? undefined : 'max-h-[60vh] overflow-y-auto scroll-thin'}>{children}</div>
 }

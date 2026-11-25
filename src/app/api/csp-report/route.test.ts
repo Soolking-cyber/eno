@@ -35,6 +35,14 @@ describe('csp-report', () => {
     await post({ 'csp-report': { 'violated-directive': 'img-src', 'blocked-uri': 'data', disposition: 'x\ninjected' } }, 'application/csp-report')
     expect(lines).toEqual(['[csp] img-src disp=unknown blocked=data doc='])
   })
+
+  it('Microsoft Clarity\'s cookie-sync pixel — refused by design on every Clarity page view — is not logged; a lookalike is', async () => {
+    await post([
+      { type: 'csp-violation', body: { effectiveDirective: 'img-src', blockedURL: 'https://c.clarity.ms/c.gif', documentURL: 'https://eno.vn/', disposition: 'enforce' } },
+      { type: 'csp-violation', body: { effectiveDirective: 'img-src', blockedURL: 'https://c.clarity.ms.evil.example/c.gif', documentURL: 'https://eno.vn/', disposition: 'enforce' } },
+    ], 'application/reports+json')
+    expect(lines).toEqual(['[csp] img-src disp=enforce blocked=https://c.clarity.ms.evil.example/c.gif doc=https://eno.vn/'])
+  })
 })
 
 describe('csp-report — the 16 KB cap is enforced as the body arrives (appsec-02)', () => {

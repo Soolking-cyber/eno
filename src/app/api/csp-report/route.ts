@@ -30,6 +30,9 @@ const MAX_BODY = 16 * 1024
 //     under a `csp-report` key, or a batch array of `{type, body}`. That is what the reader below
 //     normalises; a single zod schema is the wrong tool for it.
 // Auth stays public by necessity: the reporter is a browser with no session.
+/** Blocks the CSP makes on purpose, every time — never a signal. */
+const EXPECTED_BLOCKS: readonly RegExp[] = [/^https:\/\/c\.clarity\.ms\/c\.gif/]
+
 export async function POST(req: NextRequest) {
   // Fail OPEN: telemetry must never throttle real users; the cap only blunts floods.
   const rl = await rateLimit('csp-report', clientIp(req), 60, '1 m')
@@ -47,6 +50,9 @@ export async function POST(req: NextRequest) {
       const doc = r['document-uri'] || r['documentURL'] || ''
       // `enforce` = the CSP blocked it; `report` = only the Report-Only eval probe saw it (next.config.ts, review item 24).
       const disp = r['disposition'] === 'report' || r['disposition'] === 'enforce' ? r['disposition'] : 'unknown'
+      // Refused BY DESIGN on every Clarity page view (next.config.ts, src/lib/clarity.ts: its ad cookie-sync pixel), so not
+      // logged — one line per page view would bury the violations this endpoint exists to surface.
+      if (EXPECTED_BLOCKS.some((re) => re.test(String(blocked)))) continue
       console.warn(`[csp] ${directive} disp=${disp} blocked=${String(blocked).slice(0, 200)} doc=${String(doc).slice(0, 200)}`)
     }
   } catch {

@@ -790,8 +790,8 @@ export function CookieConsent() {
                       'Bạn cho phép eno dùng hoạt động trong ứng dụng để gợi ý tin đăng không? Theo luật Việt Nam, đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
                     )
                   : tr(
-                      'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, TikTok, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
-                      'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, TikTok, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
+                      'Can we use cookies for listing suggestions, analytics (Google Analytics, Microsoft Clarity) and ad measurement (Meta, TikTok, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
+                      'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics, Microsoft Clarity) và đo lường quảng cáo (Meta, TikTok, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
                   tail={<BoxedLink href="/privacy" label={tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')} className="font-semibold text-accent-foreground" />}
                 />
@@ -856,7 +856,7 @@ export function CookieConsent() {
                   title={tr('Analytics', 'Phân tích')}
                   desc={isNative
                     ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
-                    : tr('Helps us see what works so we can improve: Google Analytics measures visits and pages, and which link brought you here.', 'Giúp chúng tôi biết điều gì hữu ích để cải thiện: Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây.')}
+                    : tr('Helps us see what works so we can improve: Google Analytics measures visits and pages, and which link brought you here; Microsoft Clarity records how pages are used, as heatmaps and replays of visits, with all text hidden, and Microsoft may also use this data for its own purposes.', 'Giúp chúng tôi biết điều gì hữu ích để cải thiện: Google Analytics đo lượt truy cập, trang đã xem và liên kết đã đưa bạn đến đây; Microsoft Clarity ghi lại cách các trang được sử dụng, dưới dạng bản đồ nhiệt và bản phát lại lượt truy cập, ẩn toàn bộ chữ, và Microsoft cũng có thể dùng dữ liệu này cho mục đích riêng.')}
                   checked={isNative ? false : flags.a}
                   onChange={setFlag('a')}
                   locked={isNative}

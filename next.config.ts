@@ -1366,6 +1366,9 @@ const nextConfig: NextConfig = {
     const gsiFrame = gis ? " https://accounts.google.com/gsi/" : "";
     const gsiConnect = gis ? " https://accounts.google.com/gsi/" : "";
     const gsiStyle = gis ? " https://accounts.google.com/gsi/style" : "";
+    // Microsoft Clarity (src/lib/clarity.ts) — why these hosts and not its pixel: the comment above script-src below.
+    const clarityScript = " https://www.clarity.ms https://scripts.clarity.ms";
+    const clarityConnect = " https://*.clarity.ms";
     /**
      * ⛔ THE CARD-TOP-UP CHECKOUT IS A CROSSMINT-HOSTED IFRAME, AND WITHOUT THESE TWO HEADERS IT IS
      * A BLANK BOX THAT NOTHING REPORTS. `frame-src` blocks the frame outright; `Permissions-Policy:
@@ -1417,7 +1420,15 @@ const nextConfig: NextConfig = {
       // CSP blocks it on both editions. If a zone still injects it, the block shows up in
       // /api/csp-report: switch Web Analytics off in the Cloudflare dashboard (both zones) rather than
       // re-adding the hosts here, and never re-add them without a consent gate (consent v2, Analytics).
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + gsiScript,
+      // MICROSOFT CLARITY (src/lib/clarity.ts — loaded only after an Analytics "yes" given to words that name it): the
+      // tag (www.clarity.ms/tag/<id>) and the versioned script it loads (scripts.clarity.ms). Its uploads go to a
+      // load-balanced `[a-z].clarity.ms/collect` (Microsoft's CSP page), hence the wildcard in connect-src.
+      // ⛔ NOT img-src: the tag's only image is `c.clarity.ms/c.gif`, a third-party cookie sync for Microsoft Advertising
+      // that fires whatever the Consent API says. eno sends Clarity `ad_Storage: denied` and runs no Microsoft ads, so
+      // the CSP refuses that pixel — expect one `img-src … c.clarity.ms` line per Clarity page view in /api/csp-report.
+      // ⚠️ Like www.google-analytics.com, a collect endpoint accepts any project id, so these hosts are an exfiltration
+      // path after an XSS; admitted on the same terms as GA's.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + clarityScript + gsiScript,
       "style-src 'self' 'unsafe-inline'" + gsiStyle,
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
@@ -1443,7 +1454,7 @@ const nextConfig: NextConfig = {
       // 2026-10-17). ⛔ NOT www.google.com or www.google.<country>: those are Google Signals / ga-audiences
       // beacons, switched off at the source instead (analytics-tags.tsx) — eno runs no Google Ads, and
       // admitting them would open connect-src to all of www.google.com plus one host per visitor country.
-      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com https://www.googletagmanager.com` + gsiConnect + extraConnect,
+      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com https://www.googletagmanager.com` + clarityConnect + gsiConnect + extraConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame + xmFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
@@ -1490,7 +1501,7 @@ const nextConfig: NextConfig = {
      * which the ISR and the HTML edge cache rule out today — an owner decision, written up in the runbook.
      */
     const cspEvalProbe = [
-      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + gsiScript,
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + clarityScript + gsiScript,
       "report-to csp-endpoint",
       "report-uri /api/csp-report",
     ].join("; ");

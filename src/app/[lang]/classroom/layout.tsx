@@ -32,7 +32,7 @@ export default async function ClassroomLayout({ children }: { children: React.Re
   // edge cache (infra/cloudflare/eno-html-edge-cache.js: origin opt-in only) never shares one reader's version.
   const inApp = isNativeAppUserAgent((await headers()).get('user-agent'))
   return (
-    <div data-classroom="" className={cn('flex min-h-page flex-col bg-background', BARS_IN_COLUMN)}>
+    <div data-classroom="" data-clarity-mask="true" className={cn('flex min-h-page flex-col bg-background', BARS_IN_COLUMN)}>
       <ClassroomHeader />
       <main id="main" tabIndex={-1} className={cn(COLUMN, 'flex flex-1 flex-col pb-[max(3rem,calc(env(safe-area-inset-bottom)+1.5rem))] pt-4')}>
         {inApp ? <ClassroomAppNotice /> : <><ClassroomCspGuard />{children}</>}

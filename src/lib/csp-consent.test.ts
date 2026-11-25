@@ -45,4 +45,17 @@ describe('CSP — consent-relevant hosts', () => {
     expect(code).toContain('https://challenges.cloudflare.com')
     expect(code).toContain('https://www.googletagmanager.com')
   })
+
+  it('admits Microsoft Clarity\'s tag, script and collectors — and ⛔ never its ad cookie-sync pixel (img-src)', () => {
+    const script = code.match(/const clarityScript = [^;]*;/)?.[0] ?? ''
+    const connect = code.match(/const clarityConnect = [^;]*;/)?.[0] ?? ''
+    expect(script).toContain('https://www.clarity.ms')
+    expect(script).toContain('https://scripts.clarity.ms')
+    expect(connect).toContain('https://*.clarity.ms')
+    expect(code.match(/"script-src [^"]*" \+ clarityScript/g)).toHaveLength(2) // enforced + report-only
+    expect(code).toMatch(/`connect-src [^`]*` \+ clarityConnect/)
+    const img = code.match(/`img-src [^`]*`/)?.[0] ?? ''
+    expect(img).not.toMatch(/clarity|bing\.com/)
+    expect(code).not.toMatch(/c\.bing\.com/)
+  })
 })

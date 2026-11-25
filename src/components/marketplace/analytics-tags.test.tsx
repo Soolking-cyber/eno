@@ -25,6 +25,10 @@ vi.mock('next/script', () => ({
   ),
 }))
 
+/** usePathname, steerable per test (Clarity is stopped on private pages — src/lib/clarity.ts). */
+const nav = vi.hoisted(() => ({ pathname: '/listings/abc' }))
+vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }))
+
 import { AnalyticsTags } from './analytics-tags'
 import { setConsent } from '@/lib/consent'
 import { GA_ID, GA_SEO_ID } from '@/lib/analytics'
@@ -101,6 +105,11 @@ beforeEach(() => {
   delete (window as unknown as { dataLayer?: unknown }).dataLayer
   delete (window as unknown as { __enoCm?: unknown }).__enoCm
   delete (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`]
+  delete window.clarity
+  delete window.__enoClarity
+  delete window.__enoClaritySealed
+  document.querySelectorAll('script[src*="clarity.ms"]').forEach((el) => el.remove())
+  nav.pathname = '/listings/abc'
 })
 afterEach(() => {
   cleanup()
@@ -234,5 +243,96 @@ describe('⛔ AnalyticsTags — a withdrawal in ANOTHER tab reaches this one', (
     await act(() => { fire() })
     expect(killSwitch()).toBe(true)
     expect(cookieNames()).not.toContain('_ga')
+  })
+})
+
+describe('AnalyticsTags — Microsoft Clarity', () => {
+  const clarityTag = () => document.querySelector('script[src="https://www.clarity.ms/tag/yoo09onx53"]')
+  const queued = () => (window.clarity?.q ?? []).map((a) => Array.from(a as ArrayLike<unknown>))
+
+  it('an Analytics "yes" given to this card loads it after the first interaction, consent queued first', async () => {
+    await grant(false, true, false)
+    await mount()
+    expect(clarityTag()).toBeNull()
+    await interact()
+    expect(clarityTag()).not.toBeNull()
+    expect(queued()[0]).toEqual(['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }])
+  })
+
+  it('⛔ no Analytics → no Clarity', async () => {
+    await grant(true, false, true)
+    await mount()
+    await interact()
+    expect(clarityTag()).toBeNull()
+    expect(window.clarity).toBeUndefined()
+  })
+
+  it('⛔ an Analytics "yes" given to an earlier card (no record of THIS answer) keeps GA but never starts Clarity', async () => {
+    otherTabWrites('010')
+    await mount()
+    await interact()
+    expect(gaScript()).not.toBeNull()
+    expect(clarityTag()).toBeNull()
+  })
+
+  it('⛔ never starts on a private page', async () => {
+    nav.pathname = '/messages/abc'
+    await grant(false, true, false)
+    await mount()
+    await interact()
+    expect(clarityTag()).toBeNull()
+  })
+
+  it('stops on a move to a private page (the effect backstop), and starts again on the way back', async () => {
+    await grant(false, true, false)
+    const { rerender } = render(<AnalyticsTags />)
+    await interact()
+    expect(clarityTag()).not.toBeNull()
+    window.clarity!.q = []
+    nav.pathname = '/dashboard/account/verify'
+    await act(() => { rerender(<AnalyticsTags />) })
+    // A page stop is `stop` alone — the consent is unchanged, so no denial (and no clarity.js restart).
+    expect(queued()).toEqual([['stop']])
+    window.clarity!.q = []
+    nav.pathname = '/'
+    await act(() => { rerender(<AnalyticsTags />) })
+    expect(queued()).toEqual([['start', {}], ['consentv2', { ad_Storage: 'denied', analytics_Storage: 'granted' }]])
+  })
+
+  it('⛔ a withdrawal stops it at once and deletes its cookies', async () => {
+    await grant(false, true, false)
+    await mount()
+    await interact()
+    document.cookie = '_clck=abc; path=/'
+    document.cookie = '_clsk=def; path=/'
+    window.clarity!.q = []
+    await grant(false, false, false)
+    expect(queued()).toEqual([['consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' }], ['stop']])
+    expect(cookieNames()).not.toContain('_clck')
+    expect(cookieNames()).not.toContain('_clsk')
+  })
+
+  it('⛔ a client-side move to a private page stops it BEFORE the address changes (guardNavigation)', async () => {
+    await grant(false, true, false)
+    await mount()
+    await interact()
+    const seen: string[] = []
+    const stub = window.clarity!
+    window.clarity = Object.assign((...a: unknown[]) => { seen.push(`${String(a[0])}@${location.pathname}`); stub(...a) }, { q: stub.q })
+    history.pushState({}, '', '/classroom/join/ABC123')
+    expect(seen).toEqual(['stop@/listings/abc'])
+    expect(window.__enoClarity).toBe('stopped')
+    history.replaceState({}, '', '/listings/abc')
+  })
+
+  it('⛔ after a classroom join page, a later public page in the same tab never starts it', async () => {
+    nav.pathname = '/classroom/join/ABC123'
+    await grant(false, true, false)
+    const { rerender } = render(<AnalyticsTags />)
+    await interact()
+    nav.pathname = '/listings/abc'
+    await act(() => { rerender(<AnalyticsTags />) })
+    expect(clarityTag()).toBeNull()
+    expect(window.__enoClaritySealed).toBe(true)
   })
 })

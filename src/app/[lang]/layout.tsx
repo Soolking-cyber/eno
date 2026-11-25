@@ -705,7 +705,11 @@ export default async function RootLayout({
           which is the bug the floor was added to fix (owner: "make sure blue all page"). Measured on
           the built preview: body computed rgb(250,250,250) with the class, the tail without it.
           ⚠️ `antialiased` and `text-foreground` stay as classes; only the background moved. */}
-      <body className="antialiased text-foreground">
+      {/* ⛔ data-clarity-mask ON <body>: Microsoft Clarity hides ALL text on every page — page copy, dialogs and popovers
+          portaled to <body>, OTP slots, chosen values — not only form fields. Fail-closed in code: the attribute overrides
+          the dashboard's masking mode (Microsoft's masking docs), so nobody can widen it from a web console
+          (src/lib/clarity.ts). Clarity still sees layout, clicks, taps, scrolling and the page address. */}
+      <body data-clarity-mask="true" className="antialiased text-foreground">
         {/* The provider pyramid + persistent chrome live in ./providers.tsx (audit §E) —
             this file keeps only document concerns (fonts, metadata, viewport, head). */}
         {/* ⛔ NO DICTIONARY PROP. It used to ride here on the vi variant — 171 KB (53 KB gz) serialized

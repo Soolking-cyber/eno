@@ -261,7 +261,8 @@ export function ConciergeHost() {
         >
           <DialogPrimitive.Title className="sr-only">{name}</DialogPrimitive.Title>
           {/* A frame that (re)loads starts quiet: an unload with no goodbye never leaves the edge lit (commit review). */}
-          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" onLoad={() => setSpeaking(false)} {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
+          {/* data-clarity-mask: Microsoft Clarity can read a same-origin frame from this page; the guide's words stay hidden (src/lib/clarity.ts). */}
+          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" data-clarity-mask="true" className="size-full border-0" onLoad={() => setSpeaking(false)} {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
           <DialogPrimitive.Close
             render={<CloseButton size="sm" variant="overlay" label={tr('Close the guide', 'Đóng trợ lý')} className="absolute right-2 top-2" />}
           />

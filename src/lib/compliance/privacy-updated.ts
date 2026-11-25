@@ -253,6 +253,12 @@
  * And 2026-11-25, the English heading only (owner, 2026-11-24, on Seobility's "H1 too short": "do it"): "Privacy Policy" →
  * "Privacy Policy: how we handle your data". No change to what the policy says. ⛔ THE PLANNED DAY: the deploy that carries it
  * runs after midnight in Vietnam on 2026-11-25; re-date it if it slips.
+ * And 2026-11-25, Microsoft Clarity (owner, 2026-11-25: "finish clarity setup all properly"; src/lib/clarity.ts): a new
+ * recipient, Microsoft (Microsoft Clarity), only with Analytics given to a consent card that names it — its recipients row
+ * (an independent controller, with the Microsoft Privacy Statement link its Terms §4.4(b) require), the Analytics
+ * paragraph (heatmaps and replays of public pages, typed text hidden, off on private pages, advertising sharing refused),
+ * the purposes line, the cookie row and the "runs only if" / "deleted" sentences. Microsoft was already in the
+ * cross-border list. ⛔ THE PLANNED DAY: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
 export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
 
@@ -263,4 +269,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '2123399d81be1bc8'
+export const PRIVACY_TEXT_FINGERPRINT = '0be63e102732c053'

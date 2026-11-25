@@ -23,7 +23,8 @@ declare global {
 
 // `_gac_*` holds Google Ads click ids that Google Analytics stores; it goes with Analytics (and is a
 // Google ad identifier, so it is also removed without Advertising).
-const isAnalyticsCookie = (n: string) => n === '_ga' || n.startsWith('_ga_') || n.startsWith('_gac_') || n === '_gid' || n.startsWith('_gat') || n === ATTR_COOKIE
+// `_clck` / `_clsk` are Microsoft Clarity's first-party cookies (user id, session) — src/lib/clarity.ts.
+const isAnalyticsCookie = (n: string) => n === '_ga' || n.startsWith('_ga_') || n.startsWith('_gac_') || n === '_gid' || n.startsWith('_gat') || n === ATTR_COOKIE || n === '_clck' || n === '_clsk'
 const isAdCookie = (n: string) => n === '_fbp' || n === '_fbc' || n.startsWith('_gcl_') || n.startsWith('_gac_')
 
 /**

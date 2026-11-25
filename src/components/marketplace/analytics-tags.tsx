@@ -2,15 +2,17 @@
 'use client'
 
 import Script from 'next/script'
+import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { hasAnalyticsConsent, syncConsentStorage } from '@/lib/consent'
+import { claritySealed, clarityPathAllowed, loadClarity, noteClarityPath, syncClarity } from '@/lib/clarity'
+import { hasAnalyticsConsent, hasClarityConsent, syncConsentStorage } from '@/lib/consent'
 import { applyConsentMode, enforceConsentCleanup } from '@/lib/consent-runtime'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { GA_ID, GA_IDS } from '@/lib/analytics'
 import { IS_SERVICES } from '@/lib/edition'
 import { appReviewGate, inAppSheetDocument, isNativeAppClient } from '@/lib/app-review-gates'
 
-// Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
+// Google Analytics (GA4) and Microsoft Clarity (src/lib/clarity.ts — the effect below). The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
 //
 // CONSENT (v2): GA loads ONLY with the Analytics purpose (`a`), reactively the instant it is
@@ -93,6 +95,9 @@ export function AnalyticsTags() {
   const [ready, setReady] = useState(false)
   // Analytics consent — reactive: flips the instant the visitor grants or withdraws it.
   const [analytics, setAnalytics] = useState(false)
+  // …and whether that answer was given to a card that names Microsoft Clarity (src/lib/clarity.ts).
+  const [clarityConsent, setClarityConsent] = useState(false)
+  const pathname = usePathname() ?? '/'
   useEffect(() => {
     // ⛔ ON EVERY LOAD, not only on a change — see the header of src/lib/consent-runtime.ts.
     syncConsentStorage()
@@ -100,6 +105,7 @@ export function AnalyticsTags() {
       enforceConsentCleanup()
       applyConsentMode()
       setAnalytics(hasAnalyticsConsent())
+      setClarityConsent(hasClarityConsent())
     }
     refresh()
     /**
@@ -151,6 +157,24 @@ export function AnalyticsTags() {
     else timer = setTimeout(go, 6000)
     return cleanup
   }, [])
+
+  /**
+   * MICROSOFT CLARITY (src/lib/clarity.ts) — the same two gates as GA (an Analytics "yes", and the first interaction or
+   * the idle fallback), plus two of its own: the answer was given to a card that names Clarity, and the page is not a
+   * private one. Loaded from this effect, at the moment all four hold; after that every change of consent or page is a
+   * `start`/`stop` (syncClarity), so a withdrawal — here or in another tab — stops the recording at once, and coming back
+   * to a public page starts it again. ⚠️ A move TO a private page is stopped earlier than this effect can — before the
+   * address changes (src/lib/clarity.ts guardNavigation); this effect is the backstop.
+   * ⚠️ GA_ID is not checked: Clarity does not depend on GA, and `ready` only waits for a first interaction when GA_ID is
+   * set — which it always is (lib/analytics.ts has a public default).
+   */
+  const clarityRun = ready && clarityConsent && clarityPathAllowed(pathname)
+  // ⛔ BEFORE the effect below (effects run in order): a page whose address may carry a secret seals this tab first.
+  useEffect(() => { noteClarityPath(pathname) }, [pathname])
+  useEffect(() => {
+    if (clarityRun && !claritySealed() && typeof window !== 'undefined' && !window.__enoClarity) loadClarity()
+    else syncClarity(clarityRun, clarityConsent)
+  }, [clarityRun, clarityConsent, pathname])
 
   return (
     <>

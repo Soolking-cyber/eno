@@ -176,7 +176,7 @@ describe('CookieConsent — the question', () => {
     // refused a bare "Change anytime" on 2026-10-03) — and that all stay off until then.
     expect(bar()!.textContent).toMatch(/all stay off until you choose\. Change anytime in Cookie settings\./)
     // Each use is a PURPOSE first, then its vendor — never the brand alone.
-    expect(bar()!.textContent).toMatch(/analytics \(Google Analytics\)/)
+    expect(bar()!.textContent).toMatch(/analytics \(Google Analytics, Microsoft Clarity\)/)
   })
 
   it('⛔ the bar\'s clearance follows the bar: it grows when Choose expands it, clears at 0 (hidden), and clears on an answer', async () => {
@@ -696,6 +696,7 @@ const COPY_FINGERPRINTS: Record<string, string> = {
   '2026-10-01c': '428474a228f1b272',
   '2026-10-03': 'a671c046917e1412',
   '2026-10-12': '68cef635b4884427',
+  '2026-11-25': '05be68168009b5f8',
 }
 
 describe('CookieConsent — the copy version is held to the words', () => {
