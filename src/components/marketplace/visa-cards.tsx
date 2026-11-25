@@ -327,13 +327,13 @@ const STEP_TITLE: Record<VisaDmStep, [string, string]> = {
 }
 
 const STEP_HINT: Record<VisaDmStep, [string, string]> = {
-  // eno.vn (photos-only, owner 2026-10-06): say where the photos go and that Google AI checks them (App Store 5.1.2(i)).
+  // eno.vn (photos-only, owner 2026-10-06): say where the photos go and that Claude AI (Google AI as its backup, since 2026-11-26) checks them (App Store 5.1.2(i)).
   1: IS_SERVICES ? [
     'Send a photo of your passport data page and a portrait photo. We read the passport automatically and fill in what we can.',
     'Gửi ảnh trang thông tin hộ chiếu và ảnh chân dung. Chúng tôi đọc hộ chiếu tự động và điền giúp bạn những gì có thể.',
   ] : [
-    'Send a photo of your passport data page and a portrait photo. We check both against the e-Visa photo rules (using Google AI), then you send them to the seller in this chat.',
-    'Gửi ảnh trang thông tin hộ chiếu và ảnh chân dung. Chúng tôi kiểm tra cả hai ảnh theo yêu cầu ảnh e-Visa (bằng Google AI), sau đó bạn gửi cho người bán trong cuộc trò chuyện này.',
+    'Send a photo of your passport data page and a portrait photo. We check both against the e-Visa photo rules (using Claude AI by Anthropic), then you send them to the seller in this chat.',
+    'Gửi ảnh trang thông tin hộ chiếu và ảnh chân dung. Chúng tôi kiểm tra cả hai ảnh theo yêu cầu ảnh e-Visa (bằng AI Claude của Anthropic), sau đó bạn gửi cho người bán trong cuộc trò chuyện này.',
   ],
   2: [
     'We read these from your passport. Confirm they are right — or correct them.',
@@ -951,8 +951,8 @@ const IMAGE_ISSUE_COPY: Record<string, [string, string]> = {
   automatic_image_check_busy: ['Your image is saved. The checker is busy — try again in about a minute.', 'Ảnh đã được lưu. Hệ thống kiểm tra đang bận — thử lại sau khoảng một phút.'],
   automatic_image_check_rate_limited: ['Checking paused after too many attempts. Your image is saved.', 'Kiểm tra tạm dừng do quá nhiều lần thử. Ảnh của bạn đã được lưu.'],
   automatic_image_check_failed: ['Automatic checking failed. Try this image again.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh này.'],
-  // The applicant said "Not now" to the Google AI check (App Store gate `app-ai-notice`): saved, not checked, never blocking.
-  automatic_image_check_declined: ['Saved without the automatic check (Google AI is off). The seller checks it by hand.', 'Đã lưu, chưa kiểm tra tự động (Google AI đang tắt). Người bán sẽ tự kiểm tra ảnh.'],
+  // The applicant said "Not now" to the AI check (App Store gate `app-ai-notice`): saved, not checked, never blocking.
+  automatic_image_check_declined: ['Saved without the automatic check (Claude AI is off). The seller checks it by hand.', 'Đã lưu, chưa kiểm tra tự động (AI Claude đang tắt). Người bán sẽ tự kiểm tra ảnh.'],
 }
 
 /**

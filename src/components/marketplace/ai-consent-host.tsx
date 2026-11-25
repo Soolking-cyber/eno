@@ -26,7 +26,7 @@ import {
 } from '@/lib/ai-consent'
 
 /**
- * THE ONE-TIME GOOGLE AI NOTICE — App Store gate `app-ai-notice` (Guideline 5.1.2(i)); the families, what each sends and
+ * THE ONE-TIME AI NOTICE (Claude AI by Anthropic, Google Gemini as its backup — since 2026-11-26) — App Store gate `app-ai-notice` (Guideline 5.1.2(i)); the families, what each sends and
  * what "Not now" leaves working are in src/lib/ai-consent.ts. Mounted once, globally (providers.tsx), so any call site —
  * a component or a plain lib function — can `await askAiConsent(family)` and get the person's answer.
  *
@@ -34,7 +34,7 @@ import {
  * (it answers true before asking). With the gate on it still shows nothing on the web: askAiConsent asks only in the apps.
  * ⚠️ A MODAL, UNLIKE THE CHAT-TRANSLATION NOTICE, AND THAT IS DELIBERATE: that one would have opened on ARRIVAL in a thread
  * whose composer owns the keyboard, so it is inline; this one opens only on a TAP that is about to send something to
- * Google — the moment to ask, and the request waits for the answer.
+ * the AI — the moment to ask, and the request waits for the answer.
  * ⚠️ BOTH ANSWERS CARRY EQUAL WEIGHT — two outline buttons of one size (the chat notice's and the cookie banner's rule): a
  * permission request with a primary "Allow" beside a ghost "Not now" would be a nudge.
  * ⚠️ PLAIN BUTTONS, NOT AlertDialogAction/Cancel. Those are Base UI Close parts: they fire onOpenChange(false) after our
@@ -88,7 +88,7 @@ function AiConsentHostOn() {
   /**
    * ⛔ SO IS A QUESTION LEFT BEHIND BY NAVIGATION (codex, review). The host is global, so the notice stays up while a
    * back-swipe takes the person to another page — and "Allow" there resumed the request of a page they had left: the
-   * description, photo or trip question it closed over still went to Google, for a result nobody would see. A new path
+   * description, photo or trip question it closed over still went to the AI, for a result nobody would see. A new path
    * answers every open question "no"; the person asks again where they are.
    */
   const pathname = usePathname()
@@ -103,21 +103,21 @@ function AiConsentHostOn() {
     switch (family) {
       case 'assistant':
         return {
-          title: tr('Use Google AI for eno AI?', 'Dùng Google AI cho eno AI?'),
+          title: tr('Use Claude AI (Anthropic) for eno AI?', 'Dùng AI Claude (Anthropic) cho eno AI?'),
           body: tr(
-            'eno AI sends what you type here, with the last few messages of this chat, to Google (Gemini) to understand what you are looking for, and your search words to Google (Vertex AI Search) to find listings. Not now: eno AI still answers, with a simple keyword search and no Google AI.',
-            'eno AI gửi nội dung bạn nhập ở đây, cùng vài tin nhắn gần nhất của cuộc trò chuyện này, đến Google (Gemini) để hiểu bạn đang tìm gì, và gửi từ khóa tìm kiếm đến Google (Vertex AI Search) để tìm tin đăng. Để sau: eno AI vẫn trả lời, bằng tìm kiếm từ khóa đơn giản, không dùng Google AI.',
+            'eno AI sends what you type here, with the last few messages of this chat, to Anthropic (Claude, with Google Gemini as backup) to understand what you are looking for, and your search words to Google (Vertex AI Search) to find listings. Not now: eno AI still answers, with a simple keyword search and no AI.',
+            'eno AI gửi nội dung bạn nhập ở đây, cùng vài tin nhắn gần nhất của cuộc trò chuyện này, đến Anthropic (Claude, dự phòng là Google Gemini) để hiểu bạn đang tìm gì, và gửi từ khóa tìm kiếm đến Google (Vertex AI Search) để tìm tin đăng. Để sau: eno AI vẫn trả lời, bằng tìm kiếm từ khóa đơn giản, không dùng AI.',
           ),
-          declined: tr('eno AI will answer with a simple keyword search. You can turn Google AI on in Settings → Preferences.', 'eno AI sẽ trả lời bằng tìm kiếm từ khóa đơn giản. Bạn có thể bật Google AI trong Cài đặt → Tùy chọn.'),
+          declined: tr('eno AI will answer with a simple keyword search. You can turn Claude AI on in Settings → Preferences.', 'eno AI sẽ trả lời bằng tìm kiếm từ khóa đơn giản. Bạn có thể bật AI Claude trong Cài đặt → Tùy chọn.'),
           off: null, // works without AI — the page says so (messages/ai)
         }
       case 'listing': {
         const off = tr('AI help is off. Fill in the details yourself, or turn it on in Settings → Preferences.', 'Trợ giúp AI đang tắt. Bạn tự điền thông tin, hoặc bật lại trong Cài đặt → Tùy chọn.')
         return {
-          title: tr('Use Google AI to help with your listing?', 'Dùng Google AI để hỗ trợ tin đăng?'),
+          title: tr('Use Claude AI (Anthropic) to help with your listing?', 'Dùng AI Claude (Anthropic) để hỗ trợ tin đăng?'),
           body: tr(
-            '“Autofill from photo” sends your cover photo, and “Polish with AI” sends your description, to Google (Gemini) to suggest the details and tidy the wording. Nothing is sent until you tap one of them. Not now: you fill in the listing yourself; everything else works the same.',
-            '“Tự điền từ ảnh” gửi ảnh bìa của bạn, và “Chỉnh bằng AI” gửi phần mô tả của bạn, đến Google (Gemini) để gợi ý thông tin và chỉnh câu chữ. Không có gì được gửi cho đến khi bạn nhấn một trong hai nút. Để sau: bạn tự điền tin đăng; mọi thứ khác vẫn như cũ.',
+            '“Autofill from photo” sends your cover photo, and “Polish with AI” sends your description, to Anthropic (Claude, with Google Gemini as backup) to suggest the details and tidy the wording. Nothing is sent until you tap one of them. Not now: you fill in the listing yourself; everything else works the same.',
+            '“Tự điền từ ảnh” gửi ảnh bìa của bạn, và “Chỉnh bằng AI” gửi phần mô tả của bạn, đến Anthropic (Claude, dự phòng là Google Gemini) để gợi ý thông tin và chỉnh câu chữ. Không có gì được gửi cho đến khi bạn nhấn một trong hai nút. Để sau: bạn tự điền tin đăng; mọi thứ khác vẫn như cũ.',
           ),
           declined: off,
           off,
@@ -126,10 +126,10 @@ function AiConsentHostOn() {
       case 'photo_search': {
         const off = tr('Search by photo is off. Type what you are looking for, or turn it on in Settings → Preferences.', 'Tìm bằng ảnh đang tắt. Hãy gõ món bạn cần tìm, hoặc bật lại trong Cài đặt → Tùy chọn.')
         return {
-          title: tr('Use Google AI to search by photo?', 'Dùng Google AI để tìm bằng ảnh?'),
+          title: tr('Use Claude AI (Anthropic) to search by photo?', 'Dùng AI Claude (Anthropic) để tìm bằng ảnh?'),
           body: tr(
-            'Search by photo sends the photo you choose to Google (Gemini) to recognise the item and turn it into a search. Not now: search by photo is unavailable; typing a search still works.',
-            'Tìm bằng ảnh gửi ảnh bạn chọn đến Google (Gemini) để nhận diện món đồ và chuyển thành từ khóa tìm kiếm. Để sau: không dùng được tìm bằng ảnh; bạn vẫn có thể gõ để tìm.',
+            'Search by photo sends the photo you choose to Anthropic (Claude, with Google Gemini as backup) to recognise the item and turn it into a search. Not now: search by photo is unavailable; typing a search still works.',
+            'Tìm bằng ảnh gửi ảnh bạn chọn đến Anthropic (Claude, dự phòng là Google Gemini) để nhận diện món đồ và chuyển thành từ khóa tìm kiếm. Để sau: không dùng được tìm bằng ảnh; bạn vẫn có thể gõ để tìm.',
           ),
           declined: off,
           off,
@@ -138,10 +138,10 @@ function AiConsentHostOn() {
       case 'teacher_cv': {
         const off = tr('Reading your CV is off. Fill in your profile yourself, or turn it on in Settings → Preferences.', 'Đọc CV đang tắt. Bạn tự điền hồ sơ, hoặc bật lại trong Cài đặt → Tùy chọn.')
         return {
-          title: tr('Use Google AI to read your CV?', 'Dùng Google AI để đọc CV?'),
+          title: tr('Use Claude AI (Anthropic) to read your CV?', 'Dùng AI Claude (Anthropic) để đọc CV?'),
           body: tr(
-            '“Fill it in from my CV” sends the CV you choose to Google (Gemini) to fill in your teacher profile. Nothing is sent until you choose a file, and eno does not keep the file. Not now: you fill in your profile yourself.',
-            '“Điền tự động từ CV của tôi” gửi CV bạn chọn đến Google (Gemini) để điền hồ sơ giáo viên. Không có gì được gửi cho đến khi bạn chọn tệp, và eno không lưu tệp. Để sau: bạn tự điền hồ sơ.',
+            '“Fill it in from my CV” sends the CV you choose to Anthropic (Claude, with Google Gemini as backup) to fill in your teacher profile. Nothing is sent until you choose a file, and eno does not keep the file. Not now: you fill in your profile yourself.',
+            '“Điền tự động từ CV của tôi” gửi CV bạn chọn đến Anthropic (Claude, dự phòng là Google Gemini) để điền hồ sơ giáo viên. Không có gì được gửi cho đến khi bạn chọn tệp, và eno không lưu tệp. Để sau: bạn tự điền hồ sơ.',
           ),
           declined: off,
           off,
@@ -151,11 +151,11 @@ function AiConsentHostOn() {
       case 'teacher_bio': {
         const off = tr('Improving your About text with AI is off. Write it yourself, or turn it on in Settings → Preferences.', 'Cải thiện phần giới thiệu bằng AI đang tắt. Bạn tự viết, hoặc bật lại trong Cài đặt → Tùy chọn.')
         return {
-          title: tr('Use Google AI to improve your About text?', 'Dùng Google AI để cải thiện phần giới thiệu?'),
+          title: tr('Use Claude AI (Anthropic) to improve your About text?', 'Dùng AI Claude (Anthropic) để cải thiện phần giới thiệu?'),
           // One sentence a tr(): gen-ui-strings harvests a literal of at most 400 characters, so one long body reached the
           // nine machine-translated languages late, as English first (gate review, opus 2026-10-22).
           body: [
-            tr('“Improve with AI” sends your About text, in your own words (minus sentences where we find contact details), to Google (Gemini) on Google Cloud, outside Vietnam, to rewrite it — with your answers in the teacher profile form.', '“Cải thiện bằng AI” gửi phần giới thiệu, nguyên văn (trừ những câu chúng tôi phát hiện có thông tin liên hệ), đến Google (Gemini) trên Google Cloud, ngoài Việt Nam, để viết lại — cùng các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên.'),
+            tr('“Improve with AI” sends your About text, in your own words (minus sentences where we find contact details), to Anthropic (Claude, with Google Gemini as backup), outside Vietnam, to rewrite it — with your answers in the teacher profile form.', '“Cải thiện bằng AI” gửi phần giới thiệu, nguyên văn (trừ những câu chúng tôi phát hiện có thông tin liên hệ), đến Anthropic (Claude, dự phòng là Google Gemini), ngoài Việt Nam, để viết lại — cùng các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên.'),
             tr('Those are your subjects, age groups, experience, teaching jobs, degree, certificates, nationality, languages, the work you want, headline, and where you live, can teach or would move to.', 'Đó là môn dạy, lứa tuổi học viên, kinh nghiệm, công việc giảng dạy, bằng cấp, chứng chỉ, quốc tịch, ngôn ngữ, loại công việc bạn tìm, tiêu đề, và nơi bạn sống, có thể dạy hoặc sẵn sàng chuyển đến.'),
             tr('Your profile’s name and phone number fields, photo, video and CV are never sent, and nothing is sent until you tap it. Not now: you write it yourself.', 'Mục họ tên và số điện thoại trong hồ sơ, ảnh, video và CV của bạn không bao giờ được gửi, và không có gì được gửi cho đến khi bạn nhấn nút. Để sau: bạn tự viết phần giới thiệu.'),
           ].join(' '),
@@ -164,6 +164,8 @@ function AiConsentHostOn() {
         }
       }
       // The voice guide, in the apps only (owner, 2026-10-29) — what each recipient gets is ai-consent.ts's `voice_guide`.
+      // ⛔ OpenAI's backup is Claude since 2026-11-26 (Gemini behind it): the words name it, and AI_NOTICE_VERSION did NOT move —
+      // the owner's "Update now, no notice": nobody who said yes is asked again.
       case 'voice_guide': {
         const off = tr('The voice guide is off — eno AI’s text chat answers instead. You can turn it on in Settings → Preferences.', 'Trợ lý giọng nói đang tắt — eno AI trả lời bằng tin nhắn. Bạn có thể bật lại trong Cài đặt → Tùy chọn.')
         return {
@@ -171,7 +173,7 @@ function AiConsentHostOn() {
           // One sentence a tr() (gen-ui-strings harvests literals of at most 400 characters).
           body: [
             tr('While the voice guide listens, your voice goes live to Soniox, outside Vietnam, to be turned into words — until you close the guide or turn its microphone off.', 'Khi trợ lý giọng nói đang nghe, giọng nói của bạn được gửi trực tiếp đến Soniox, ngoài Việt Nam, để chuyển thành chữ — cho đến khi bạn đóng trợ lý hoặc tắt micro.'),
-            tr('The words it heard, your last few turns and a summary of the page you are on go to OpenAI, outside Vietnam, to write its answers — or to Google (Gemini) when OpenAI is unavailable.', 'Những gì trợ lý nghe được, vài lượt trò chuyện gần nhất và tóm tắt trang bạn đang xem được gửi đến OpenAI, ngoài Việt Nam, để soạn câu trả lời — hoặc đến Google (Gemini) khi OpenAI không khả dụng.'),
+            tr('The words it heard, your last few turns and a summary of the page you are on go to OpenAI, outside Vietnam, to write its answers — or, when OpenAI is unavailable, to Anthropic (Claude, with Google Gemini as backup).', 'Những gì trợ lý nghe được, vài lượt trò chuyện gần nhất và tóm tắt trang bạn đang xem được gửi đến OpenAI, ngoài Việt Nam, để soạn câu trả lời — hoặc, khi OpenAI không khả dụng, đến Anthropic (Claude, dự phòng là Google Gemini).'),
             tr('Its answers are spoken by eno’s own speech server or by Soniox. eno keeps no recording and no transcript. Details: eno.vn/privacy.', 'Câu trả lời được đọc bởi máy chủ giọng nói của eno hoặc bởi Soniox. eno không lưu bản ghi âm hay bản ghi lời nói. Chi tiết: eno.vn/privacy.'),
             tr('Not now: eno AI’s text chat answers instead.', 'Để sau: eno AI trả lời bằng tin nhắn.'),
           ].join(' '),

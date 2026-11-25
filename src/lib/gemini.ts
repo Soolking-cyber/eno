@@ -1,4 +1,5 @@
 import 'server-only'
+import { claudeConfigured, claudeFirst } from './ai/claude-first'
 import { GoogleGenAI } from '@google/genai'
 
 // Gemini API-key mode is preferred when GEMINI_API_KEY is present. Vertex AI
@@ -52,11 +53,8 @@ export function getGemini(): GoogleGenAI | null {
   // back to the shared GOOGLE_VERTEX_* (eno-vn) when unset. vertex-search.ts keeps using
   // GOOGLE_VERTEX_* (where the data store lives), so the two stay decoupled.
   const apiKey = process.env.GEMINI_API_KEY?.trim()
-  if (apiKey) {
-    client = new GoogleGenAI({ apiKey })
-    return client
-  }
-  client = buildVertexClient()
+  // ⛔ Claude first, this Gemini client as its backup (src/lib/ai/claude-first.ts, owner 2026-11-26); Gemini alone without the key.
+  client = claudeFirst(apiKey ? new GoogleGenAI({ apiKey }) : buildVertexClient())
   return client
 }
 
@@ -124,7 +122,8 @@ let vertexClient: GoogleGenAI | null | undefined
  */
 export function getGeminiVertex(): GoogleGenAI | null {
   if (vertexClient !== undefined) return vertexClient
-  vertexClient = buildVertexClient()
+  // Claude first here too (owner 2026-11-26); the Vertex client stays the backup — never the Developer API key.
+  vertexClient = claudeFirst(buildVertexClient())
   return vertexClient
 }
 
@@ -151,6 +150,8 @@ export function geminiDiag() {
     }
   } catch { credServiceAccount = 'PARSE_ERROR' }
   return {
+    // Claude answers first when its key is set (src/lib/ai/claude-first.ts); everything below describes the Gemini backup.
+    claudeFirst: claudeConfigured(),
     model: GEMINI_MODEL,
     fallbackModel: GEMINI_MODEL_FALLBACK,
     authSource: apiKey ? 'GEMINI_API_KEY' : gProj?.trim() || vProj?.trim() ? 'VERTEX_AI' : 'none',

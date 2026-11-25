@@ -43,8 +43,8 @@ export function ChatTranslationNotice({ onAnswer }: { onAnswer: (value: 'on' | '
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
         {tr(
-          'To translate your chats, messages are sent to Microsoft (Azure AI Translator), or to Google (Gemini on Vertex AI) when Microsoft is unavailable. Your answer applies to all your chats in this app: turning it off stops this for the messages you receive; the other person decides for the messages you send them. You can change it any time in Settings → Preferences.',
-          'Để dịch các cuộc trò chuyện của bạn, tin nhắn được gửi đến Microsoft (Azure AI Translator), hoặc đến Google (Gemini trên Vertex AI) khi Microsoft không khả dụng. Lựa chọn của bạn áp dụng cho mọi cuộc trò chuyện trong ứng dụng này: tắt dịch sẽ ngừng việc này đối với tin nhắn bạn nhận; với tin nhắn bạn gửi, người kia tự quyết định. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt → Tùy chọn.',
+          'To translate your chats, messages are sent to Microsoft (Azure AI Translator), or, when Microsoft is unavailable, to Anthropic (Claude, with Google Gemini as backup). Your answer applies to all your chats in this app: turning it off stops this for the messages you receive; the other person decides for the messages you send them. You can change it any time in Settings → Preferences.',
+          'Để dịch các cuộc trò chuyện của bạn, tin nhắn được gửi đến Microsoft (Azure AI Translator), hoặc, khi Microsoft không khả dụng, đến Anthropic (Claude, dự phòng là Google Gemini). Lựa chọn của bạn áp dụng cho mọi cuộc trò chuyện trong ứng dụng này: tắt dịch sẽ ngừng việc này đối với tin nhắn bạn nhận; với tin nhắn bạn gửi, người kia tự quyết định. Bạn có thể thay đổi bất cứ lúc nào trong Cài đặt → Tùy chọn.',
         )}
       </p>
       <div className="mt-2 flex flex-wrap justify-end gap-2">

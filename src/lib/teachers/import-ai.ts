@@ -204,5 +204,6 @@ async function readOnce(ai: GoogleGenAI, contents: ReturnType<typeof documentCon
     throw new SyntaxError('import_unreadable_answer')
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new SyntaxError('import_unreadable_answer')
-  return { raw: parsed, model }
+  // The model that ANSWERED (Claude, or the Gemini backup), for the result record — the requested id when it does not say.
+  return { raw: parsed, model: response.modelVersion || model }
 }

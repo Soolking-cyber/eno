@@ -14,6 +14,7 @@
 // answer on both editions (CLAUDE.md gates only visa, itinerary and PayPal); the record's `host` is the public one —
 // nginx forwards it (infra/vn-node/nginx/proxy-params.conf `proxy_set_header Host $host`), only our zones reach it.
 import { createHash, randomUUID } from 'node:crypto'
+import { aiRecipient } from '@/lib/ai/claude-first'
 import { route, ApiError } from '@/lib/api/handler'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
@@ -140,7 +141,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
         // and Vietnamese words it was translated FROM; `shownSha` is the page's own hash of the words it SHOWED (sent by
         // the page, so as the page reports it).
         readId, notice: TEACHER_BIO_NOTICE_VERSION, noticeSha: NOTICE_SHA, shownSha, lang, translated: lang !== 'en' && lang !== 'vi', edition: EDITION, host, native,
-        recipient: 'Google Cloud (Vertex AI, Gemini)', location: process.env.GEMINI_LOCATION || 'global',
+        ...aiRecipient(), // who receives it, and where, as configured now (src/lib/ai/claude-first.ts)
         facts: request.facts.length, ownText: request.ownBio.length > 0,
       })
     } catch (e) {

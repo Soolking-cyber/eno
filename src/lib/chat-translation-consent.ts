@@ -35,6 +35,8 @@ export type ChatTranslationConsent = 'on' | 'off' | null
  * Vertex AI) now answers when Microsoft cannot (owner: "use azure free quota and gemini as fallback if quota ends", "wording
  * microsoft and google"), so an "OK" to Microsoft is not an OK to Google and the apps ask again. A "Turn off translation"
  * under the old key still holds (readChatTranslationConsent): an answer that sent nothing never needs asking twice.
+ * ⛔ NOT consent3 (2026-11-26): Microsoft's backup is now Anthropic's Claude, with Gemini behind it (src/lib/ai/claude-first.ts),
+ * and the notice says so — but the owner chose "Update now, no notice": nobody who said OK is asked again, so the key stays.
  */
 export const chatTranslationConsentKey = (userId: string): string => `chat-tr:consent2:${userId}`
 /** The key the Microsoft-only notice wrote (until 2026-11-13). Read only for its "off". */

@@ -77,8 +77,8 @@ describe('eno AI — gate OFF: exactly as before', () => {
 describe('eno AI — gate ON, in the app', () => {
   it('asks first and sends NOTHING until the answer; Allow ⇒ the usual request', async () => {
     await mountAndAsk(IOS_APP, 'app-ai-notice')
-    expect(await screen.findByText('Use Google AI for eno AI?')).toBeTruthy()
-    expect(screen.getByText(/to Google \(Gemini\).*Google \(Vertex AI Search\)/)).toBeTruthy()
+    expect(await screen.findByText('Use Claude AI (Anthropic) for eno AI?')).toBeTruthy()
+    expect(screen.getByText(/to Anthropic \(Claude, with Google Gemini as backup\).*Google \(Vertex AI Search\)/)).toBeTruthy()
     expect(conciergeCalls()).toHaveLength(0)
     expect((screen.getByPlaceholderText('Ask for anything…') as HTMLTextAreaElement).value).toBe(QUESTION)
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
@@ -92,7 +92,7 @@ describe('eno AI — gate ON, in the app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Not now' }))
     await waitFor(() => expect(conciergeCalls()).toHaveLength(1))
     expect(sentBody().ai).toBe(false)
-    expect(await screen.findByText('Keyword search · Google AI off')).toBeTruthy()
+    expect(await screen.findByText('Keyword search · Claude AI off')).toBeTruthy()
   })
 
   it('a second Return while the question is open does nothing — "Allow" sends the message ONCE', async () => {

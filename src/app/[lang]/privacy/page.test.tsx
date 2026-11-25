@@ -58,6 +58,46 @@ async function policy(edition: 'marketplace' | 'services', lang: 'en' | 'vi' = '
   return document.body.textContent ?? ''
 }
 
+// ⛔ CLAUDE FIRST, GEMINI AS THE BACKUP (owner, 2026-11-26 — "Update now, no notice"; src/lib/ai/claude-first.ts): every model call
+// through getGemini() / getGeminiVertex() asks Anthropic's Claude first and Google's Gemini only when Claude fails, so the policy
+// names Anthropic first wherever it named Gemini — and Vertex AI SEARCH, which is not a model, stays Google's alone.
+describe('/privacy — the AI provider: Anthropic (Claude), Google (Gemini) as its backup', () => {
+  it('heads the AI row with Anthropic, keeps Google as the backup and for search, and moves every backup chain — both editions, EN and VI', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      for (const t of [
+        'Anthropic (Claude), with Google (Vertex AI, Gemini) as backup',
+        'Outside Vietnam (Anthropic in the United States; Google’s global endpoint)',
+        'Anthropic’s Claude receives each of the following first; Google’s Gemini receives it instead only when Claude cannot answer (an error, a refusal or an input Claude cannot read).',
+        'Search goes to Google alone (Vertex AI Search): where AI search is switched on, public listing details and the words you search for.',
+        'Microsoft (Azure AI Translator); Anthropic (Claude) when Microsoft is unavailable, and Google (Gemini on Vertex AI) when Claude is too',
+        'the same text goes to Anthropic (Claude) instead, and to Google (Gemini on Vertex AI) when Claude cannot answer either; neither uses it to train its models.',
+        'or, when OpenAI is unavailable or cannot answer in time, to Anthropic’s Claude, with Google’s Gemini as backup (see them under “Who else receives your data”).',
+        'go to OpenAI’s AI — or, if it doesn’t answer, Anthropic’s Claude, with Google’s Gemini as backup — to sort them',
+        'AI moderation: after a listing is published, an AI model (Anthropic’s Claude, with Google Gemini as backup) may check its text and photos for prohibited goods.',
+        'a moderator may ask an AI model (Anthropic’s Claude, with Google Gemini as backup) to read the case — what is sent is listed for Anthropic and Google under “Who else receives your data”',
+      ]) expect(en, `${site}: ${t}`).toContain(t)
+      // No paragraph still names Gemini as the model on its own, and the job-matching row keeps the label the pipeline greps for.
+      expect(en, site).not.toMatch(/AI model \(Google Gemini\)|Google’s Gemini AI (reads|to fill)|is checked by Google’s Gemini/)
+      expect(en, site).not.toContain('or Google’s if it doesn’t answer')
+      expect(en, site).not.toContain('or to Google when OpenAI is unavailable')
+      expect(en, site).toContain('Anthropic (Claude)')
+      cleanup()
+      const vi = await policy(site, 'vi')
+      for (const t of [
+        'Anthropic (Claude), dự phòng là Google (Vertex AI, Gemini)',
+        'Ngoài Việt Nam (Anthropic tại Hoa Kỳ; điểm truy cập toàn cầu của Google)',
+        'Claude của Anthropic nhận từng dữ liệu dưới đây trước; Gemini của Google chỉ nhận thay khi Claude không trả lời được',
+        'Tìm kiếm chỉ được gửi đến Google (Vertex AI Search): khi tìm kiếm bằng AI được bật, thông tin công khai của tin đăng và từ khóa bạn tìm kiếm.',
+        'cùng văn bản đó được gửi đến Anthropic (Claude), và đến Google (Gemini trên Vertex AI) khi Claude cũng không thể xử lý',
+        'Kiểm duyệt bằng AI: sau khi tin được đăng, một mô hình AI (Claude của Anthropic, dự phòng là Google Gemini)',
+      ]) expect(vi, `${site}: ${t}`).toContain(t)
+      expect(vi, site).not.toMatch(/mô hình AI \(Google Gemini\)|AI Gemini của Google (đọc|kiểm tra)/)
+      cleanup()
+    }
+  })
+})
+
 describe('/privacy — the voice guide (owner, 2026-10-28: "processor not important add to privacy")', () => {
   it('OpenAI and Soniox as recipients, Google as the backup, the cross-border list, and the "Voice guide" paragraph — both languages', async () => {
     const en = await policy('marketplace')
@@ -195,15 +235,17 @@ describe('/privacy — a Vietnamese reader gets the authored Vietnamese', () => 
     expect(text).not.toContain('Who else receives your data')
   })
 
-  it('⛔ services edition: the passport page and portrait going to Gemini outside Vietnam is disclosed, in both languages', async () => {
-    // src/app/api/visa/applications/[id]/extract/route.svc.ts:241-244 → gemini.ts:60 (location 'global')
+  it('⛔ services edition: the passport page and portrait going to Claude (Gemini as its backup) outside Vietnam is disclosed, in both languages', async () => {
+    // src/app/api/visa/applications/[id]/extract/route.svc.ts:241-244 → getGemini(): Claude first, Gemini (location 'global') as
+    // its backup since 2026-11-26 (src/lib/ai/claude-first.ts)
     const en = await policy('services')
-    expect(en).toContain('Google (Vertex AI, Gemini — Google’s global endpoint, outside Vietnam) receives the image of the passport data page and the portrait photograph you upload')
-    expect(en).toContain('using Google’s Gemini AI model')
+    expect(en).toContain('Anthropic (Claude — in the United States, outside Vietnam) receives the image of the passport data page and the portrait photograph you upload')
+    expect(en).toContain('when Claude cannot answer, Google (Vertex AI, Gemini — Google’s global endpoint, outside Vietnam) receives them instead, for the same purpose.')
+    expect(en).toContain('using Anthropic’s Claude AI model (or Google’s Gemini, its backup)')
     cleanup()
     const vi = await policy('services', 'vi')
     expect(vi).toContain('nhận ảnh trang thông tin hộ chiếu và ảnh chân dung bạn tải lên')
-    expect(vi).toContain('mô hình AI Gemini của Google')
+    expect(vi).toContain('mô hình AI Claude của Anthropic (hoặc Gemini của Google, bên dự phòng)')
     cleanup()
     // and none of it reaches the marketplace render
     expect(await policy('marketplace')).not.toContain('passport data page')
@@ -468,53 +510,56 @@ describe('/privacy — Sign in with Apple', () => {
     expect(await policy(site, 'vi')).not.toContain('Đăng nhập bằng LinkedIn')
   })
   // Teacher CV import (owner, 2026-10-15; autofill 2026-10-16) — both editions (one codebase, one database).
-  it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, its text is never kept, the phone and a PDF fill in, and it decides nothing', async (site) => {
+  it.each(['marketplace', 'services'] as const)('%s: the CV reading — Claude (Gemini as its backup) reads the whole file, its text is never kept, the phone and a PDF fill in, and it decides nothing', async (site) => {
     const en = await policy(site)
     expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can replace or remove at any time and which is deleted with your profile)')
     expect(en).toContain('filling in a teacher profile from a CV you choose')
     expect(en).toContain('The phone number in your CV fills an empty phone field, and a CV that is a PDF is attached to your profile as your private CV unless you already have one')
-    expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Google Gemini) reads the CV you choose')
+    expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Anthropic’s Claude, with Google Gemini as backup) reads the CV you choose')
+    expect(en).toContain('is read by Anthropic’s Claude AI (or Google’s Gemini, its backup) to fill in the answers you have not given yet (see Anthropic and Google under “Who else receives your data”)')
+    expect(en).toContain('neither Anthropic nor Google uses it to train its AI, Anthropic deletes it within 30 days (up to 2 years if its automated checks flag a request as misuse), and Google may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.')
     cleanup()
     expect(await policy(site, 'vi')).toContain('Điền hồ sơ giáo viên từ CV')
   })
   // The teacher profile photo check (owner, 2026-10-16) — what is sent, what is kept, what it decides, the human route.
-  it.each(['marketplace', 'services'] as const)('%s: the profile photo check — Google sees the photo, only the result is kept, a person can approve it', async (site) => {
+  it.each(['marketplace', 'services'] as const)('%s: the profile photo check — Claude (Gemini as its backup) sees the photo, only the result is kept, a person can approve it', async (site) => {
     const en = await policy(site)
     expect(en).toContain('And the profile photo you choose for a teacher profile — and, once, the photos already on teacher profiles — to check that it is a real photo showing a face — on the same terms.')
     expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face')
-    expect(en).toContain('it does not identify you or judge your looks, Google does not use it to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse — and we keep only the result, for up to 180 days')
-    expect(en).toContain('Teacher profile photos: an AI model (Google Gemini) checks that the photo you choose for a teacher profile is a real photo showing a face')
+    expect(en).toContain('Your profile photo is checked by Anthropic’s Claude AI (or Google’s Gemini, its backup) when you choose it')
+    expect(en).toContain('it does not identify you or judge your looks, neither Anthropic nor Google uses it to train its AI, Anthropic deletes it within 30 days (up to 2 years if its automated checks flag the request as misuse) and Google keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse — and we keep only the result, for up to 180 days')
+    expect(en).toContain('Teacher profile photos: an AI model (Anthropic’s Claude, with Google Gemini as backup) checks that the photo you choose for a teacher profile is a real photo showing a face')
     expect(en).toContain('ask from the Help page for a member of our team to look at it — they can approve it')
     cleanup()
-    expect(await policy(site, 'vi')).toContain('Ảnh hồ sơ giáo viên: một mô hình AI (Google Gemini) kiểm tra ảnh bạn chọn')
+    expect(await policy(site, 'vi')).toContain('Ảnh hồ sơ giáo viên: một mô hình AI (Claude của Anthropic, dự phòng là Google Gemini) kiểm tra ảnh bạn chọn')
   })
   // "Improve with AI" under the teacher's About text (owner, 2026-10-21; deploy planned 2026-10-22) — what Google receives
   // and never receives, the suggestion staying in the form, the two records and the export, and that it decides nothing.
-  it.each(['marketplace', 'services'] as const)('%s: the About-text rewrite — what Gemini gets and never gets, the suggestion stays in the form, the records, and it decides nothing', async (site) => {
+  it.each(['marketplace', 'services'] as const)('%s: the About-text rewrite — what Claude (Gemini as its backup) gets and never gets, the suggestion stays in the form, the records, and it decides nothing', async (site) => {
     const en = await policy(site)
     // the Google row: what is sent, what never is, on the CV reader's terms — and its purpose, between the pinned clauses
     expect(en).toContain('And, only when you tap “Improve with AI” under “About you” in the teacher profile form, to suggest a better About text: the About text as you wrote it, without any sentence where we find contact details, and your answers in that form (the subjects and languages you teach,')
     expect(en).toContain('the work you want and your headline) — never the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, video, CV, expected salary, start date, cover lessons or any consent — on the same terms.')
     expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face, improving a teacher’s “About you” text when they ask, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides); and answering for eno’s voice guide when OpenAI is unavailable or cannot answer in time.')
     // the teacher paragraph: when, to whom, never what, Google's terms; the form keeps it; the records and the export
-    expect(en).toContain('If you tap “Improve with AI” under “About you”, Google’s Gemini AI reads the About text as you wrote it — any sentence where we find contact details is left out —')
+    expect(en).toContain('If you tap “Improve with AI” under “About you”, Anthropic’s Claude AI (or Google’s Gemini, its backup) reads the About text as you wrote it — any sentence where we find contact details is left out —')
     expect(en).toContain('about your teaching, qualifications, nationality and languages,')
-    expect(en).toContain('it never receives the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, intro video, CV, expected salary, start date, cover lessons or any consent you give, and Google does not use what it receives to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse.')
+    expect(en).toContain('it never receives the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, intro video, CV, expected salary, start date, cover lessons or any consent you give, and neither Anthropic nor Google uses what it receives to train its AI: Anthropic deletes it within 30 days (up to 2 years if its automated checks flag the request as misuse), and Google keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse.')
     expect(en).toContain('The suggestion replaces the text in the form, where you can undo or change it, and like anything you type there it is published only when you publish your profile or save your changes;')
     expect(en).toContain('we keep two records of each request, neither holding any of the text: one made before anything is sent — when you asked, the version and a fingerprint of the words shown beside the button,')
     expect(en).toContain('— and one of its outcome — whether a suggestion came back (or why not), the AI model, how many attempts it took and how many words it had; both are included when you download your data.')
     // automated decisions: a suggestion, nothing decided
-    expect(en).toContain('Improving a teacher’s “About you” text: when you ask, an AI model (Google Gemini) reads your About text and some of your answers in the teacher profile form (see “Teacher profiles”) and suggests a better About text. It decides nothing about you: the suggestion only replaces the text in the form, you read it and can change or undo it, and nothing is published until you publish your profile or save your changes.')
+    expect(en).toContain('Improving a teacher’s “About you” text: when you ask, an AI model (Anthropic’s Claude, with Google Gemini as backup) reads your About text and some of your answers in the teacher profile form (see “Teacher profiles”) and suggests a better About text. It decides nothing about you: the suggestion only replaces the text in the form, you read it and can change or undo it, and nothing is published until you publish your profile or save your changes.')
     expect(en).not.toMatch(/Gemini[^.]*job match/i)
     cleanup()
     const vi = await policy(site, 'vi')
     expect(vi).toContain('Và, chỉ khi bạn bấm “Cải thiện bằng AI” dưới mục “Giới thiệu” trong biểu mẫu hồ sơ giáo viên, để gợi ý một phần giới thiệu tốt hơn:')
     expect(vi).toContain('kiểm tra ảnh hồ sơ giáo viên là ảnh thật có khuôn mặt, cải thiện phần “Giới thiệu” của giáo viên khi giáo viên yêu cầu, và gợi ý hướng xử lý')
-    expect(vi).toContain('Nếu bạn bấm “Cải thiện bằng AI” dưới mục “Giới thiệu”, AI Gemini của Google đọc phần giới thiệu đúng như bạn đã viết')
+    expect(vi).toContain('Nếu bạn bấm “Cải thiện bằng AI” dưới mục “Giới thiệu”, AI Claude của Anthropic (hoặc Gemini của Google, bên dự phòng) đọc phần giới thiệu đúng như bạn đã viết')
     expect(vi).toContain('về việc giảng dạy, bằng cấp, chứng chỉ, quốc tịch và ngôn ngữ,')
     expect(vi).toContain('với mỗi lần yêu cầu, chúng tôi lưu hai bản ghi, không bản ghi nào chứa văn bản: một bản ghi lập trước khi dữ liệu được gửi đi')
     expect(vi).toContain('cả hai bản ghi đều có trong dữ liệu bạn tải xuống.')
-    expect(vi).toContain('Cải thiện phần “Giới thiệu” của giáo viên: khi bạn yêu cầu, một mô hình AI (Google Gemini)')
+    expect(vi).toContain('Cải thiện phần “Giới thiệu” của giáo viên: khi bạn yêu cầu, một mô hình AI (Claude của Anthropic, dự phòng là Google Gemini)')
   })
   // ⛔ THE CV IS OPTIONAL — TO PUBLISH AND TO KEEP (owner: "publish before video/CV" 2026-10-22, "Allow removal" 2026-10-25; live
   // with the 2026-10-25 deploy). The 23 October 2026 cutoff (profiles created from it could only replace their CV) ended
@@ -804,7 +849,7 @@ describe('/privacy — the listing photo check', () => {
     for (const site of ['marketplace', 'services'] as const) {
       const en = await policy(site)
       for (const s of [
-        'An AI model (Google Gemini) also looks at each photo you add — when you are signed in, or when the same photo was checked before — for a flyer or other advertisement, or a phone number or other contact details on it (on a job listing, only contact details count); a photo is refused only when two separate checks agree, and it is marked so you can replace it.',
+        'An AI model (Anthropic’s Claude, with Google Gemini as backup) also looks at each photo you add — when you are signed in, or when the same photo was checked before — for a flyer or other advertisement, or a phone number or other contact details on it (on a job listing, only contact details count); a photo is refused only when two separate checks agree, and it is marked so you can replace it.',
         'a listing whose photos are all flyers or show contact details may be hidden until its seller adds a real photo — it then goes live again by itself — and in any other listing such photos may be removed.',
         // Plain about where a removed photo is: off the site, kept, then deleted — never "removed and kept" alone.
         `A removed photo is no longer shown on ${site === 'services' ? 'eno.forum' : 'eno.vn'}; it is kept for up to 180 days so that our team can restore it if the check was wrong, then deleted.`,
@@ -1371,10 +1416,10 @@ describe('Continue with Facebook (2026-10-16)', () => {
 })
 
 describe('the teacher photo check says what it does (gate review, 2026-10-16)', () => {
-  it('Google\'s retention as the Google row puts it, the young-children rule, and the one-time check of photos already up', async () => {
+  it('Anthropic\'s and Google\'s retention as the AI row puts it, the young-children rule, and the one-time check of photos already up', async () => {
     const text = await policy('marketplace')
     expect(text).not.toContain('Google does not keep the photo')
-    expect(text).toContain('Google does not use it to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse')
+    expect(text).toContain('neither Anthropic nor Google uses it to train its AI, Anthropic deletes it within 30 days (up to 2 years if its automated checks flag the request as misuse) and Google keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse')
     expect(text).toContain('or one where only young children can be seen does not')
     expect(text).toContain('and, once, the photos already on teacher profiles')
     const vi = await policy('marketplace', 'vi')

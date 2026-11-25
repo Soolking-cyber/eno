@@ -76,8 +76,8 @@ describe('trip stay suggestions and the Google AI question', () => {
     await waitFor(() => expect(asker).toHaveBeenCalledTimes(1))
     const [family, userId, copy] = asker.mock.calls[0]
     expect([family, userId]).toEqual(['trip', ME])
-    expect(copy?.title).toBe('Use Google AI to plan your trip?')
-    expect(copy?.body).toMatch(/sent to Google \(Gemini\)/)
+    expect(copy?.title).toBe('Use Claude AI (Anthropic) and Google AI to plan your trip?')
+    expect(copy?.body).toMatch(/go to Anthropic \(Claude, with Google Gemini as backup\); Google \(Gemini\) drafts the plan\./)
     expect(suggestCalls()).toHaveLength(0)
   })
 
@@ -162,7 +162,7 @@ describe('trip stop suggestions and the Google AI question', () => {
     await act(async () => { fireEvent.click(button) })
     await act(async () => { fireEvent.click(button) })
     expect(asker).toHaveBeenCalledTimes(1)
-    expect(asker.mock.calls[0][2]?.title).toBe('Use Google AI to plan your trip?')
+    expect(asker.mock.calls[0][2]?.title).toBe('Use Claude AI (Anthropic) and Google AI to plan your trip?')
     await act(async () => { answer(true) })
     await waitFor(() => expect(stopSuggestCalls()).toHaveLength(1))
   })

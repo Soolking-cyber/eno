@@ -1,4 +1,5 @@
 import 'server-only'
+import { asJudge } from '@/lib/ai/claude-first'
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL } from '@/lib/gemini'
@@ -101,7 +102,8 @@ const CHECK_TIMEOUT_MS = 12_000
  */
 export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerdict> {
   const ask = async (model: string) => {
-    const response = await ai.models.generateContent({
+    // Two judges that must agree stay two models: Haiku 5.5 for the Flash-Lite seat, Sonnet 5.5 for the other (claude-first.ts).
+    const response = await (model === FLASH_LITE_MODEL ? ai : asJudge(ai)).models.generateContent({
       model,
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: jpeg.toString('base64') } }, { text: ASK }] }],
       config: {

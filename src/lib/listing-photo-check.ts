@@ -1,4 +1,5 @@
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
+import { asJudge } from '@/lib/ai/claude-first'
 import { FLASH_LITE_MODEL, GEMINI_MODEL } from '@/lib/gemini-model'
 import { isReviewSeatEmail } from '@/lib/review-seat-accounts'
 
@@ -175,7 +176,10 @@ export async function hedgedRead(ai: GoogleGenAI, jpeg: Buffer, charge: Charge):
 
 /** One model's raw answer (the parsed JSON), or a throw. Never logs. */
 export async function askPhotoFacts(ai: GoogleGenAI, jpeg: Buffer, model: string, timeout: number): Promise<unknown> {
-  const response = await ai.models.generateContent({
+  // Two reads that must agree stay two models: the fast seat on Claude Haiku 5.5, the other on Sonnet 5.5 (owner 2026-11-26,
+  // src/lib/ai/claude-first.ts). `model` stays the seat's identity on the record and names its Gemini backup.
+  const client = model === PHOTO_MODEL ? ai : asJudge(ai)
+  const response = await client.models.generateContent({
     model,
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: jpeg.toString('base64') } }, { text: ASK }] }],
     config: {

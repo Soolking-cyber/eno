@@ -1047,8 +1047,8 @@ export function TripAssistChips({
             the two modes. Small and muted: it explains, it does not shout. */}
         <p className="mt-1 max-w-60 border-t border-border px-2 pb-1 pt-2 text-2xs leading-relaxed text-ink-4">
           {aiOff
-            ? tr('Eno concierge uses Google AI, which is turned off in this app. A person can help you here — or turn it on in Settings → Preferences.',
-                 'Eno concierge dùng Google AI, hiện đang tắt trong ứng dụng này. Nhân viên có thể hỗ trợ bạn tại đây — hoặc bật lại trong Cài đặt → Tùy chọn.')
+            ? tr('Eno concierge uses Claude AI (Anthropic), which is turned off in this app. A person can help you here — or turn it on in Settings → Preferences.',
+                 'Eno concierge dùng AI Claude (Anthropic), hiện đang tắt trong ứng dụng này. Nhân viên có thể hỗ trợ bạn tại đây — hoặc bật lại trong Cài đặt → Tùy chọn.')
             : humanRequested
             ? tr('A person is answering. Eno concierge stays quiet so it never replies over them — tap it to switch back.',
                  'Nhân viên đang trả lời. Eno concierge tạm im để không trả lời chồng lên — chạm để chuyển lại.')

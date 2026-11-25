@@ -45,6 +45,15 @@ export const FLASH_LITE_MODEL = 'gemini-3.5-flash-lite'
 export const BACKGROUND_MODEL = FLASH_LITE_MODEL
 
 /**
+ * ⛔ CLAUDE ANSWERS FIRST (owner, 2026-11-26: "replace all gemini models in app with claude … choose best model with lowest
+ * pricing for each job" → "gemini fallback"; src/lib/ai/claude-first.ts). The Gemini ids above stay each call's identity and its
+ * backup model. Claude per job (owner's pick): Haiku 5.5 ($0.10 / $0.50 per 1M tokens) for everything, Sonnet 5.5 ($2 / $10)
+ * where judgment matters — listing moderation, admin AI review, the CV import, the photo checks' second opinion (asJudge()).
+ */
+export const CLAUDE_FAST_MODEL = 'claude-haiku-5-5'
+export const CLAUDE_JUDGE_MODEL = 'claude-sonnet-5-5'
+
+/**
  * ⛔ 4 HYDROGEN REFUSES `thinkingBudget`: Vertex answers 400 "Thinking budget is not supported for this model. Use
  * thinking level instead" (measured 2026-11-13; 3.8 Flash still took `thinkingBudget: 0`). Both refuse the MINIMAL
  * level. A 2.x model is the other way round: it takes the budget and refuses a level. So "think as little as you can"

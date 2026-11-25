@@ -3,6 +3,8 @@
 // ⛔ eno.vn / www.eno.forum only, signed in: the teacher host has no session and cannot write (src/proxy.ts), and a
 // consent record must name a person (PDP Law 91/2025 Art 9; Decree 356/2025 Art 6).
 import { createHash, randomUUID } from 'node:crypto'
+import { aiRecipient } from '@/lib/ai/claude-first'
+import { asJudge } from '@/lib/ai/claude-first'
 import { route, ApiError } from '@/lib/api/handler'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
@@ -102,7 +104,7 @@ async function audit(profileId: string, action: string, detail: Prisma.InputJson
 }
 
 export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
-  const ai = getGeminiVertex()
+  const ai = asJudge(getGeminiVertex()) // Sonnet 5.5 reads the CV (owner's pick, 2026-11-26)
   if (!ai) throw new ApiError('import_unavailable', 503)
 
   // A published teacher edits their profile; the import fills a NEW one (the same refusal as the draft, draft.ts).
@@ -185,7 +187,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
         // and Vietnamese words it was translated FROM; `shownSha` is the page's own hash of the words it SHOWED (sent by
         // the page, so as the page reports it — gate review, 2026-10-16).
         readId, notice: TEACHER_IMPORT_NOTICE_VERSION, noticeSha: NOTICE_SHA, shownSha, kind: input.kind, lang, translated: lang !== 'en' && lang !== 'vi', edition: EDITION, host, native,
-        recipient: 'Google Cloud (Vertex AI, Gemini)', location: process.env.GEMINI_LOCATION || 'global',
+        ...aiRecipient(), // who receives it, and where, as configured now (src/lib/ai/claude-first.ts)
       })
     } catch (e) {
       logWarn('[teacher-import] consent record failed', { name: (e as Error)?.name })

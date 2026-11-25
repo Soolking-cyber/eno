@@ -241,7 +241,7 @@ export default function AiThreadPage() {
           <div className="truncate text-sm font-bold text-foreground lg:text-base">{tr('eno AI', 'eno AI')}</div>
           <div className="truncate text-xs text-accent-foreground lg:text-sm">
             {googleAiOff
-              ? tr('Keyword search · Google AI off', 'Tìm theo từ khóa · Đã tắt Google AI')
+              ? tr('Keyword search · Claude AI off', 'Tìm theo từ khóa · Đã tắt AI Claude')
               : tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
           </div>
         </div>

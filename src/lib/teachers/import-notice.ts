@@ -21,12 +21,15 @@ export type NoticeText = { readonly en: string; readonly vi: string }
  * string, never the same day again: the server refuses any version but this one, and each consent row must name its text.
  */
 export const TEACHER_IMPORT_NOTICE_VERSION = '2026-10-16b'
+// ⛔ 2026-11-26: the words name Anthropic's Claude first, Google's Gemini as its backup (src/lib/ai/claude-first.ts) — and the
+// version did NOT move, by the owner's decision ("Update now, no notice": nobody is asked again). The hash moves, so each
+// record still names the exact words it was given to.
 
 /** Beside the button — the facts that decide the consent. */
 export const IMPORT_NOTICE_LEAD: NoticeText = {
   // ⛔ EVERY KIND OF ANSWER THE READING FILLS (import-map.ts IMPORT_FIELDS) is named here — the consent is to these.
-  en: "Google's Gemini AI reads your CV on Google Cloud, outside Vietnam, and fills in the answers you have not given yet: what and who you teach, your teaching jobs and experience, degree, certificates, name, nationality, English level, other languages, headline and summary — and your phone number, kept private, if you have not given one. If your CV is a PDF of up to 10 MB, it is also attached to your profile as your private CV when you publish (unless you already have one): schools get it only when you share it in a chat, and you can remove it on the last step. Otherwise we don't keep the file. You check every answer — nothing is public until you publish.",
-  vi: 'AI Gemini của Google đọc CV của bạn trên Google Cloud (ngoài Việt Nam) rồi điền những câu trả lời bạn chưa nhập: môn dạy và đối tượng học viên, công việc giảng dạy và kinh nghiệm, bằng cấp, chứng chỉ, họ tên, quốc tịch, trình độ tiếng Anh, ngôn ngữ khác, tiêu đề và phần giới thiệu — và số điện thoại của bạn (được giữ riêng tư) nếu bạn chưa nhập. Nếu CV là tệp PDF tối đa 10 MB, CV cũng được đính kèm vào hồ sơ dưới dạng CV riêng tư khi bạn đăng (trừ khi bạn đã có CV): các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn, và bạn có thể xoá ở bước cuối. Ngoài ra chúng tôi không lưu tệp. Bạn kiểm tra từng câu trả lời — chưa có gì được công khai cho đến khi bạn đăng hồ sơ.',
+  en: "Anthropic's Claude AI (Google's Gemini as a backup) reads your CV outside Vietnam, and fills in the answers you have not given yet: what and who you teach, your teaching jobs and experience, degree, certificates, name, nationality, English level, other languages, headline and summary — and your phone number, kept private, if you have not given one. If your CV is a PDF of up to 10 MB, it is also attached to your profile as your private CV when you publish (unless you already have one): schools get it only when you share it in a chat, and you can remove it on the last step. Otherwise we don't keep the file. You check every answer — nothing is public until you publish.",
+  vi: 'AI Claude của Anthropic (dự phòng là AI Gemini của Google) đọc CV của bạn (ngoài Việt Nam) rồi điền những câu trả lời bạn chưa nhập: môn dạy và đối tượng học viên, công việc giảng dạy và kinh nghiệm, bằng cấp, chứng chỉ, họ tên, quốc tịch, trình độ tiếng Anh, ngôn ngữ khác, tiêu đề và phần giới thiệu — và số điện thoại của bạn (được giữ riêng tư) nếu bạn chưa nhập. Nếu CV là tệp PDF tối đa 10 MB, CV cũng được đính kèm vào hồ sơ dưới dạng CV riêng tư khi bạn đăng (trừ khi bạn đã có CV): các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn, và bạn có thể xoá ở bước cuối. Ngoài ra chúng tôi không lưu tệp. Bạn kiểm tra từng câu trả lời — chưa có gì được công khai cho đến khi bạn đăng hồ sơ.',
 }
 
 /** The second layer ("How we read your CV"), always in the page (a mounted collapsible) — part of the same notice. */
@@ -38,12 +41,19 @@ export const IMPORT_NOTICE_DETAILS: readonly NoticeText[] = [
   {
     // Never "we never save it": the AI is ASKED to leave it out and the texts are screened, but a sentence it copies
     // into your summary is only as safe as that ask — so the check is said, and is the teacher's (review, 2026-10-16).
-    en: 'CVs often hold sensitive personal data — health, religion or beliefs, ethnicity, a criminal record, ID or passport numbers — and referees’ contact details. We don’t need any of it and ask the AI to leave it out, but it sees the whole file while reading it — so check what it filled in. Prefer Google not to see it? Remove it from the file first, or fill in the form yourself.',
-    vi: 'CV thường có dữ liệu cá nhân nhạy cảm — sức khoẻ, tôn giáo hoặc tín ngưỡng, dân tộc, tiền án, số giấy tờ tùy thân hoặc hộ chiếu — và thông tin liên hệ của người giới thiệu. Chúng tôi không cần các thông tin này và yêu cầu AI bỏ qua chúng, nhưng AI sẽ xem toàn bộ tệp trong lúc đọc — vì vậy hãy kiểm tra những gì được điền. Không muốn Google xem? Hãy xoá chúng khỏi tệp trước, hoặc tự điền biểu mẫu.',
+    en: 'CVs often hold sensitive personal data — health, religion or beliefs, ethnicity, a criminal record, ID or passport numbers — and referees’ contact details. We don’t need any of it and ask the AI to leave it out, but it sees the whole file while reading it — so check what it filled in. Prefer the AI not to see it? Remove it from the file first, or fill in the form yourself.',
+    vi: 'CV thường có dữ liệu cá nhân nhạy cảm — sức khoẻ, tôn giáo hoặc tín ngưỡng, dân tộc, tiền án, số giấy tờ tùy thân hoặc hộ chiếu — và thông tin liên hệ của người giới thiệu. Chúng tôi không cần các thông tin này và yêu cầu AI bỏ qua chúng, nhưng AI sẽ xem toàn bộ tệp trong lúc đọc — vì vậy hãy kiểm tra những gì được điền. Không muốn AI xem? Hãy xoá chúng khỏi tệp trước, hoặc tự điền biểu mẫu.',
   },
   {
-    en: 'Google doesn’t use your file to train its AI. It may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.',
-    vi: 'Google không dùng tệp của bạn để huấn luyện AI. Google có thể giữ tệp trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
+    // Anthropic's hold: privacy.claude.com (commercial API — no training; deleted within 30 days, up to 2 years when its
+    // trust-and-safety checks flag it), read 2026-11-26.
+    // Two parts, not one: gen-ui-strings harvests an authored pair only up to 200 characters (bio-notice.ts says why).
+    en: 'Neither Anthropic nor Google uses your file to train its AI. Anthropic deletes it within 30 days, or keeps it up to 2 years if its checks flag a request as misuse.',
+    vi: 'Cả Anthropic và Google đều không dùng tệp của bạn để huấn luyện AI. Anthropic xóa tệp trong vòng 30 ngày, hoặc giữ tối đa 2 năm nếu hệ thống của Anthropic đánh dấu yêu cầu là lạm dụng.',
+  },
+  {
+    en: 'Google may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.',
+    vi: 'Google có thể giữ tệp trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
   },
   {
     en: 'What we fill in is saved to your account as a private draft until you publish or start over (or after 90 days without changes). Your phone number and the attached CV are kept only on this page until you publish, and are never shown publicly: someone you are chatting with gets them only when you tap Share in that chat.',

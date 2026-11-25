@@ -149,7 +149,7 @@ describe('the reading panel', () => {
   it('signed out: the notice, and "Sign in to choose your CV" — nothing is read without an account', async () => {
     const user = mount({ start: PANEL })
     expect(await screen.findByRole('heading', { name: 'Fill it in from your CV' })).toBeTruthy()
-    expect(screen.getByText(/Google's Gemini AI reads your CV on Google Cloud, outside Vietnam/)).toBeTruthy()
+    expect(screen.getByText(/Anthropic's Claude AI \(Google's Gemini as a backup\) reads your CV outside Vietnam/)).toBeTruthy()
     await user.click(screen.getByTestId('import-sign-in'))
     expect(auth.openSignIn).toHaveBeenCalledTimes(1)
     expect(importPosts()).toHaveLength(0)

@@ -1,4 +1,5 @@
 import 'server-only'
+import { asJudge } from '@/lib/ai/claude-first'
 import { ThinkingLevel, Type, type GoogleGenAI } from '@google/genai'
 import { GEMINI_MODEL } from '@/lib/gemini'
 import { FLASH_LITE_MODEL } from '@/lib/gemini-model'
@@ -111,7 +112,10 @@ export async function checkTeacherPhoto(ai: GoogleGenAI, jpeg: Buffer): Promise<
 
 /** One model's raw facts about the picture (the parsed JSON), or a throw. Never logs. */
 export async function askPhotoFacts(ai: GoogleGenAI, jpeg: Buffer, model: string, timeout: number): Promise<unknown> {
-  const response = await ai.models.generateContent({
+  // The fast seat (PHOTO_MODEL) reads on Claude Haiku 5.5, the second opinion on Sonnet 5.5 (owner 2026-11-26, claude-first.ts):
+  // two reads that must agree stay two different models. `model` stays the seat's identity on the record.
+  const client = model === PHOTO_MODEL ? ai : asJudge(ai)
+  const response = await client.models.generateContent({
     model,
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: jpeg.toString('base64') } }, { text: ASK }] }],
     config: {

@@ -59,13 +59,13 @@ const inApp = (ua = IOS_APP) => {
 const mountHost = () => render(<LanguageProvider><AiConsentHost /></LanguageProvider>)
 
 describe('the notice', () => {
-  it('asks once, names Google and what is sent, offers two equal answers; Allow lets the request go', async () => {
+  it('asks once, names Claude (Anthropic) first and Google as its backup, and what is sent, offers two equal answers; Allow lets the request go', async () => {
     inApp()
     mountHost()
     let answer: boolean | undefined
     await act(async () => { void askAiConsent('photo_search', { userId: ME }).then((a) => { answer = a }) })
-    expect(await screen.findByText('Use Google AI to search by photo?')).toBeTruthy()
-    expect(screen.getByText(/sends the photo you choose to Google \(Gemini\)/)).toBeTruthy()
+    expect(await screen.findByText('Use Claude AI (Anthropic) to search by photo?')).toBeTruthy()
+    expect(screen.getByText(/sends the photo you choose to Anthropic \(Claude, with Google Gemini as backup\)/)).toBeTruthy()
     expect(screen.getByText(/Settings → Preferences/)).toBeTruthy()
     const notNow = screen.getByRole('button', { name: 'Not now' })
     const allow = screen.getByRole('button', { name: 'Allow' })
@@ -74,7 +74,7 @@ describe('the notice', () => {
     fireEvent.click(allow)
     await waitFor(() => expect(answer).toBe(true))
     expect(store.get(aiConsentKey('photo_search', ME))).toBe('on')
-    await waitFor(() => expect(screen.queryByText('Use Google AI to search by photo?')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Use Claude AI (Anthropic) to search by photo?')).toBeNull())
     // Asked once: the next request goes straight through.
     expect(await askAiConsent('photo_search', { userId: ME })).toBe(true)
   })
@@ -95,13 +95,13 @@ describe('the notice', () => {
     expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('AI help is off'), SUBTLE_PILL)
   })
 
-  it('teacher_bio ("Improve with AI" under About you): names Google (Gemini), what goes, and what never does', async () => {
+  it('teacher_bio ("Improve with AI" under About you): names Anthropic (Claude, Google Gemini as backup), what goes, and what never does', async () => {
     inApp()
     mountHost()
     let answer: boolean | undefined
     await act(async () => { void askAiConsent('teacher_bio', { userId: ME }).then((a) => { answer = a }) })
-    expect(await screen.findByText('Use Google AI to improve your About text?')).toBeTruthy()
-    expect(screen.getByText(/sends your About text, in your own words .* to Google \(Gemini\) on Google Cloud, outside Vietnam, to rewrite it — with your answers in the teacher profile form\. Those are your subjects, .* would move to\./)).toBeTruthy()
+    expect(await screen.findByText('Use Claude AI (Anthropic) to improve your About text?')).toBeTruthy()
+    expect(screen.getByText(/sends your About text, in your own words .* to Anthropic \(Claude, with Google Gemini as backup\), outside Vietnam, to rewrite it — with your answers in the teacher profile form\. Those are your subjects, .* would move to\./)).toBeTruthy()
     // Exact, never an absolute "your name is never sent": a name written in the About text goes with it (gate review, 2026-10-22).
     expect(screen.getByText(/Your profile’s name and phone number fields, photo, video and CV are never sent/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
@@ -263,7 +263,7 @@ describe('gate OFF', () => {
   })
 })
 
-describe('Settings → Preferences → Google AI', () => {
+describe('Settings → Preferences → Claude AI', () => {
   const mountSettings = () => render(<LanguageProvider><AiFeaturesSetting /></LanguageProvider>)
 
   it('BLOCKED storage: the switch still moves, and holds for the page', async () => {
@@ -291,7 +291,7 @@ describe('Settings → Preferences → Google AI', () => {
     vi.restoreAllMocks()
     inApp(ANDROID_APP)
     mountSettings()
-    expect(await screen.findByText('Google AI')).toBeTruthy()
+    expect(await screen.findByText('Claude AI')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Voice guide' })).toBeNull()
     // …and in an app built for it while the guide is CLOSED to this account (commit review, opus): no consent asked for it…
     cleanup()
@@ -301,7 +301,7 @@ describe('Settings → Preferences → Google AI', () => {
     store.delete(aiConsentKey('voice_guide', ME))
     forgetAiConsentMemory() // the page's own copy of the answer given above, too
     mountSettings()
-    expect(await screen.findByText('Google AI')).toBeTruthy()
+    expect(await screen.findByText('Claude AI')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Voice guide' })).toBeNull()
     // …unless a "yes" of theirs is stored: then the switch is there, to take it back (round 3, codex).
     cleanup()
@@ -320,7 +320,7 @@ describe('Settings → Preferences → Google AI', () => {
     void askAiConsentAnswer('voice_guide', { userId: ME }).then((a) => { answer = a })
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog.textContent).toContain('Talk to the eno voice guide?')
-    for (const named of ['Soniox', 'OpenAI', 'Google (Gemini)', 'eno keeps no recording and no transcript']) expect(dialog.textContent).toContain(named)
+    for (const named of ['Soniox', 'OpenAI', 'Anthropic (Claude, with Google Gemini as backup)', 'eno keeps no recording and no transcript']) expect(dialog.textContent).toContain(named)
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
     await waitFor(() => expect(answer).toBe('on'))
     expect(store.get(aiConsentKey('voice_guide', ME))).toBe('on')
@@ -329,7 +329,7 @@ describe('Settings → Preferences → Google AI', () => {
   it('in either app with the gate on: one switch per family, off until permission is given, and the switch IS the answer', async () => {
     inApp()
     mountSettings()
-    expect(await screen.findByText('Google AI')).toBeTruthy()
+    expect(await screen.findByText('Claude AI')).toBeTruthy()
     for (const label of ['eno AI assistant', 'AI help when posting', 'Search by photo', 'Reading your CV', 'Improving your About text', 'Trip planning', 'e-Visa photo check']) {
       expect(screen.getByRole('switch', { name: label })).toBeTruthy()
     }

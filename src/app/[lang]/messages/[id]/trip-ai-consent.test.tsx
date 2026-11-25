@@ -157,7 +157,7 @@ describe('the trip chat concierge and the Google AI question', () => {
     const asker = vi.fn(async () => 'off' as const)
     registerAiConsentAsker(asker)
     await askTheConcierge()
-    await waitFor(() => expect(asker).toHaveBeenCalledWith('trip', 'p-traveller', expect.objectContaining({ title: 'Use Google AI to plan your trip?' })))
+    await waitFor(() => expect(asker).toHaveBeenCalledWith('trip', 'p-traveller', expect.objectContaining({ title: 'Use Claude AI (Anthropic) and Google AI to plan your trip?' })))
     expect(conciergePosts()).toHaveLength(0)
     expect(await screen.findByRole('textbox', { name: 'Write a message' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Write a message' }).textContent).toBe(QUESTION)

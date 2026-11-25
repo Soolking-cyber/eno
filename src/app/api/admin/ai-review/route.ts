@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { asJudge } from '@/lib/ai/claude-first'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { db } from '@/lib/db'
@@ -131,7 +132,7 @@ async function downscale(buf: Buffer): Promise<string | null> {
 // `{"error":"internal_error"}` 500 — an improvement (a structured code, never the exception text,
 // which here could carry a Prisma query or a report's PII), but a wire change on that failure path.
 export const POST = route({ auth: 'admin' }, async ({ req }) => {
-  const ai = getGemini()
+  const ai = asJudge(getGemini()) // Sonnet 5.5: an admin's second opinion
   if (!ai) throw new ApiError('ai_unavailable', 503)
 
   let body: { reportId?: string; force?: boolean }

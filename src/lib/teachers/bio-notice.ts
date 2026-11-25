@@ -13,6 +13,9 @@ import { noticeBody, type NoticeText } from '@/lib/teachers/import-notice'
 
 // 2026-10-22 (before any deploy): the notice names "would move to", what the contact screen removes, and that a name
 // written in the About text goes with it — gate review, opus.
+// ⛔ 2026-11-26: the words name Anthropic's Claude first, Google's Gemini as its backup (src/lib/ai/claude-first.ts) — and the
+// version did NOT move, by the owner's decision ("Update now, no notice": nobody is asked again). The hash moves, so each
+// record still names the exact words it was given to.
 export const TEACHER_BIO_NOTICE_VERSION = '2026-10-22'
 
 /**
@@ -23,8 +26,8 @@ export const TEACHER_BIO_NOTICE_VERSION = '2026-10-22'
  */
 export const BIO_NOTICE: readonly NoticeText[] = [
   {
-    en: 'Improve with AI sends your About text and these answers to Google’s Gemini AI on Google Cloud, outside Vietnam:',
-    vi: 'Cải thiện bằng AI gửi phần giới thiệu và các câu trả lời sau đến AI Gemini của Google trên Google Cloud, ngoài Việt Nam:',
+    en: 'Improve with AI sends your About text and these answers to Anthropic’s Claude AI (Google’s Gemini as a backup), outside Vietnam:',
+    vi: 'Cải thiện bằng AI gửi phần giới thiệu và các câu trả lời sau đến AI Claude của Anthropic (dự phòng là AI Gemini của Google), ngoài Việt Nam:',
   },
   {
     // Every kind teacherBioRequest sends — "would move to" too (gate review, opus 2026-10-22: it was missing).
@@ -43,10 +46,11 @@ export const BIO_NOTICE: readonly NoticeText[] = [
     vi: 'Mục họ tên và số điện thoại trong hồ sơ, ảnh, video và CV của bạn không bao giờ được gửi.',
   },
   {
-    // The CV reader's words for the same Vertex path (import-notice.ts; /privacy) — gate review, opus 2026-10-22: "keeps it
-    // only if flagged" left out the brief hold to answer.
-    en: 'Google doesn’t use it to train its AI. It may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.',
-    vi: 'Google không dùng dữ liệu này để huấn luyện AI. Google có thể giữ dữ liệu trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
+    // Each recipient's hold (import-notice.ts; /privacy) — gate review, opus 2026-10-22: "keeps it only if flagged" left out
+    // the brief hold to answer. Anthropic's: privacy.claude.com (commercial API — no training; deleted within 30 days, up to
+    // 2 years when its trust-and-safety checks flag it), read 2026-11-26.
+    en: 'Neither uses it to train its AI. Each may keep it for a while to answer and check for misuse: Anthropic up to 30 days (2 years if flagged), Google up to 90 days if flagged.',
+    vi: 'Cả hai đều không dùng dữ liệu này để huấn luyện AI. Mỗi bên có thể giữ dữ liệu một thời gian để trả kết quả và kiểm tra lạm dụng: Anthropic tối đa 30 ngày (2 năm nếu bị đánh dấu lạm dụng), Google tối đa 90 ngày nếu bị đánh dấu lạm dụng.',
   },
   { en: 'We keep a record that you asked, not the text.', vi: 'Chúng tôi chỉ lưu bản ghi rằng bạn đã yêu cầu, không lưu nội dung.' },
   { en: 'Check the result before you publish.', vi: 'Hãy kiểm tra kết quả trước khi đăng hồ sơ.' },

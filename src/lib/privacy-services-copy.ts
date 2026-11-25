@@ -48,9 +48,10 @@ import { VISA_PROVIDER, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
  *     signed URLs to owner/admin-gated callers only;
  *   · automated checks — src/lib/visa/image-quality.ts, image-normalization.ts and mrz.ts, AND an AI read:
  *     src/app/api/visa/applications/[id]/extract/route.svc.ts:241-244 sends the passport-page or portrait
- *     image bytes (inlineData) to Gemini through getGemini() — src/lib/gemini.ts:60, location 'global',
- *     i.e. OUTSIDE Vietnam. Only kinds 'passport' | 'portrait' (route :33); supporting documents are not
- *     sent. That is why PRIVACY_SERVICES_RECIPIENTS names Google and the checks paragraph names Gemini;
+ *     image bytes (inlineData) to the AI through getGemini() — since 2026-11-26 Anthropic's Claude first, Gemini
+ *     (src/lib/gemini.ts, location 'global') as its backup (src/lib/ai/claude-first.ts) — i.e. OUTSIDE Vietnam. Only
+ *     kinds 'passport' | 'portrait' (route :33); supporting documents are not sent. That is why
+ *     PRIVACY_SERVICES_RECIPIENTS names Anthropic and Google and the checks paragraph names Claude and Gemini;
  *     the marketplace Google row cannot say it (this module is the only place the words may live);
  *   · retention — src/app/api/cron/visa-retention writes nothing itself: `retention_until` is set on
  *     the TERMINAL transitions only, and the sweep deletes objects fail-closed before the row. That
@@ -106,9 +107,10 @@ export const PRIVACY_SERVICES_RECIPIENTS: PrivacyText[] = [
     vi: `${B} — doanh nghiệp lữ hành Việt Nam có giấy phép, cung cấp dịch vụ e-visa niêm yết trên website này — nhận giấy tờ và thông tin hồ sơ của người xin thị thực để chuẩn bị và nộp hồ sơ. ${B} là bên kiểm soát đối với hồ sơ đó và xử lý hồ sơ theo chính sách quyền riêng tư cũng như nghĩa vụ pháp lý của chính mình theo pháp luật Việt Nam. Chúng tôi không chuyển cho ${B} bất kỳ thông tin nào khác về bạn — không tin đăng, không tin nhắn, không hoạt động của bạn trên website.`,
   },
   {
-    // extract/route.svc.ts:241-244 (inlineData → generateContent) · gemini.ts:60 (location 'global')
-    en: 'Google (Vertex AI, Gemini — Google’s global endpoint, outside Vietnam) receives the image of the passport data page and the portrait photograph you upload, to check image quality and read the form fields.',
-    vi: 'Google (Vertex AI, Gemini — điểm truy cập toàn cầu, ngoài Việt Nam) nhận ảnh trang thông tin hộ chiếu và ảnh chân dung bạn tải lên để kiểm tra chất lượng ảnh và đọc các trường thông tin.',
+    // extract/route.svc.ts:241-244 (inlineData → generateContent) · Claude first, Gemini (gemini.ts, location 'global') as its
+    // backup since 2026-11-26 (src/lib/ai/claude-first.ts)
+    en: 'Anthropic (Claude — in the United States, outside Vietnam) receives the image of the passport data page and the portrait photograph you upload, to check image quality and read the form fields; when Claude cannot answer, Google (Vertex AI, Gemini — Google’s global endpoint, outside Vietnam) receives them instead, for the same purpose.',
+    vi: 'Anthropic (Claude — tại Hoa Kỳ, ngoài Việt Nam) nhận ảnh trang thông tin hộ chiếu và ảnh chân dung bạn tải lên để kiểm tra chất lượng ảnh và đọc các trường thông tin; khi Claude không trả lời được, Google (Vertex AI, Gemini — điểm truy cập toàn cầu, ngoài Việt Nam) nhận các ảnh này thay cho Anthropic, với cùng mục đích.',
   },
   {
     // ⛔ THE ONE META CONVERSIONS API EVENT THE SHARED RECIPIENTS ROW CANNOT NAME (edition boundary).
@@ -160,8 +162,8 @@ export const PRIVACY_SERVICES_SECTIONS: PrivacySection[] = [
         vi: `Thông tin hồ sơ được lưu trữ dưới dạng mã hóa, và ảnh giấy tờ được lưu trong kho lưu trữ riêng không truy cập được từ internet — chỉ có thể mở qua đường dẫn ngắn hạn cấp cho bạn, cho người rà soát của chúng tôi và cho ${B}. Những gì chuyển cho ${B} chỉ giới hạn ở mức hồ sơ cần: ảnh hộ chiếu, ảnh chân dung và bảng dữ liệu các trường của tờ khai.`,
       },
       {
-        en: 'Uploaded documents are checked automatically before they are handed over — the passport page and the portrait using Google’s Gemini AI model as well as our own checks — for readability, image quality, portrait requirements, and consistency between the photo of the passport and the details on the form. A check can block or flag an upload. If you think an automated check has got it wrong, write to us and a person will review it.',
-        vi: 'Giấy tờ tải lên được kiểm tra tự động trước khi chuyển giao — ảnh trang hộ chiếu và ảnh chân dung được kiểm tra bằng mô hình AI Gemini của Google cùng các bước kiểm tra của chính chúng tôi — về độ rõ, chất lượng ảnh, yêu cầu đối với ảnh chân dung, và sự khớp nhau giữa ảnh hộ chiếu và thông tin trên tờ khai. Một bước kiểm tra có thể chặn hoặc gắn cờ tệp tải lên. Nếu bạn cho rằng việc kiểm tra tự động bị sai, hãy viết cho chúng tôi và một nhân viên sẽ xem xét lại.',
+        en: 'Uploaded documents are checked automatically before they are handed over — the passport page and the portrait using Anthropic’s Claude AI model (or Google’s Gemini, its backup) as well as our own checks — for readability, image quality, portrait requirements, and consistency between the photo of the passport and the details on the form. A check can block or flag an upload. If you think an automated check has got it wrong, write to us and a person will review it.',
+        vi: 'Giấy tờ tải lên được kiểm tra tự động trước khi chuyển giao — ảnh trang hộ chiếu và ảnh chân dung được kiểm tra bằng mô hình AI Claude của Anthropic (hoặc Gemini của Google, bên dự phòng) cùng các bước kiểm tra của chính chúng tôi — về độ rõ, chất lượng ảnh, yêu cầu đối với ảnh chân dung, và sự khớp nhau giữa ảnh hộ chiếu và thông tin trên tờ khai. Một bước kiểm tra có thể chặn hoặc gắn cờ tệp tải lên. Nếu bạn cho rằng việc kiểm tra tự động bị sai, hãy viết cho chúng tôi và một nhân viên sẽ xem xét lại.',
       },
       {
         en: `Payment for the visa service is taken by ${B} on its own systems. We never receive or store your card or bank details.`,

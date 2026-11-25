@@ -264,8 +264,22 @@
  * sent stay in the conversation with our team until the account is deleted. That change is PART OF A LEGAL AMENDMENT — the
  * Terms' version 4, so LEGAL_AMENDMENT.published dates it (privacy/page.tsx prints the later of the two). Both say 2026-11-25:
  * ⛔ if the deploy slips, re-date this AND LEGAL_AMENDMENT / REGULATIONS_AMENDMENT (legal-amendment.ts) to the same day.
+ * (Both shipped on 2026-11-25 — a971bc165 is live — so LEGAL_AMENDMENT keeps that day; this value moves on alone.)
+ * And 2026-11-26, THE AI PROVIDER (owner, 2026-11-26: "replace all gemini models in app with claude" → "gemini fallback";
+ * /privacy "Update now, no notice" — IMMEDIATE, in force with the deploy, no 5-day notice, no strip, no bell, and no
+ * consent version or key moved, so nobody who said yes is asked again): every AI feature now asks Anthropic's Claude
+ * first (Anthropic, PBC, United States) and Google's Gemini only when Claude fails (src/lib/ai/claude-first.ts). The
+ * policy says so: the AI recipients row is "Anthropic (Claude), with Google (Vertex AI, Gemini) as backup" (what it gets
+ * unchanged; Anthropic's terms — no training, deleted within 30 days, up to 2 years if flagged; search to Google alone,
+ * Vertex AI Search), the translation row's backup (Claude, then Gemini), the voice guide's and Import from Facebook's
+ * backup after OpenAI, the teacher paragraph (CV reading, "Improve with AI", the photo check), "Publish checks", "AI
+ * moderation", the AI review of reports and three automated-decision paragraphs; on eno.vn the partner e-Visa photo
+ * check, and on eno.forum the visa desk's (privacy-partner-visa-copy.ts, privacy-services-copy.ts). Only /privacy
+ * moves — the Terms and the Quy chế name no AI provider. NOT a legal amendment: no LEGAL_AMENDMENT_IMMEDIATE ack — the
+ * gate publishes this date only on that Vietnamese day (PRIVACY_TEXT_ACK otherwise). ⛔ THE PLANNED DAY: re-date it to the
+ * day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-26'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -274,4 +288,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '679e4b8d42a49b46'
+export const PRIVACY_TEXT_FINGERPRINT = '00a3129560f3ae6a'

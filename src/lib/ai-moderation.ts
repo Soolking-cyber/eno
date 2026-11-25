@@ -1,4 +1,5 @@
 import 'server-only'
+import { asJudge } from '@/lib/ai/claude-first'
 // ⚠️ NOT a top-level `import sharp` — see lib/sharp-lazy.ts. This module is reached from
 // /api/listings via lib/core/listings, so a module-scope native import here is a browse outage.
 import { getSharp } from '@/lib/sharp-lazy'
@@ -58,7 +59,8 @@ export function shouldAiModerate(seller: { trustTier: string }): boolean {
  *  and FAILS CLOSED on that null itself.) `imageBuffers`: photos the caller already holds (the ad review fetched and
  *  measured them), judged as they are — never fetched again, so the model sees the very bytes that were checked. */
 export async function moderateListing(input: { title: string; description: string; imageUrls: string[]; imageBuffers?: Buffer[]; extraCategories?: string }): Promise<ModerationResult | null> {
-  const ai = getGemini()
+  // Sonnet 5.5 (src/lib/ai/claude-first.ts asJudge): the publish path's net for visa offers outside the licensed aisle.
+  const ai = asJudge(getGemini())
   if (!ai) return null
 
   // Fetch + downscale the images the buyer would see (public URLs). Cap at 4 to bound cost.

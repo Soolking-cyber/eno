@@ -128,7 +128,7 @@ describe('trip chat — the "Eno concierge" menu item and trip AI turned off', (
     mountChips()
     const item = await openMenu()
     expect(item.getAttribute('aria-disabled') ?? item.getAttribute('data-disabled')).not.toBeNull()
-    expect(screen.getByText(/Eno concierge uses Google AI, which is turned off in this app/)).toBeTruthy()
+    expect(screen.getByText(/Eno concierge uses Claude AI \(Anthropic\), which is turned off in this app/)).toBeTruthy()
   })
 
   it('not asked yet, or the gate off: the item stays available', async () => {

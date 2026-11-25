@@ -12,7 +12,8 @@ import { TripAiSetting } from '@/components/marketplace/trip-ai-consent'
 import { VisaPhotoCheckAiSetting } from '@/components/marketplace/visa-ai-consent'
 
 /**
- * Settings → Preferences → GOOGLE AI — one switch per feature family, beside Chat translation. App Store gate
+ * Settings → Preferences → CLAUDE AI (Google AI until 2026-11-26: Claude by Anthropic answers first since, Google Gemini as
+ * its backup) — one switch per feature family, beside Chat translation. App Store gate
  * `app-ai-notice` (Guideline 5.1.2(i)); what each family sends and what "off" leaves working is in src/lib/ai-consent.ts,
  * and why the answers live on the device is in src/lib/chat-translation-consent.ts.
  *
@@ -35,12 +36,12 @@ export function AiFeaturesSetting() {
   if (!mounted || !user || !aiConsentAskFirst()) return null
   // The voice guide's row only in an app built for it (owner, 2026-10-29): while the guide is open to this account (commit
   // review, opus: never a consent for a feature the person cannot use) — OR while a "yes" of theirs is stored, so it can
-  // always be taken back (round 3, codex). Its recipients are not Google alone, so the heading and the sentence under it
-  // say "AI". Every earlier binary sees this section exactly as before.
+  // always be taken back (round 3, codex). Its recipients are not Claude and Google alone, so the heading and the sentence
+  // under it say "AI". Every earlier binary sees this section exactly as before.
   const voice = voiceNow || (shownFor === user.id && isNativeVoiceClient())
   return (
     <section>
-      <h2 className="text-xs font-semibold text-ink-4">{voice ? tr('AI features', 'Tính năng AI') : tr('Google AI', 'Google AI')}</h2>
+      <h2 className="text-xs font-semibold text-ink-4">{voice ? tr('AI features', 'Tính năng AI') : tr('Claude AI', 'AI Claude')}</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         {voice
           ? tr(
@@ -48,8 +49,8 @@ export function AiFeaturesSetting() {
             'Các tính năng này gửi lời bạn nói hoặc nhập, hoặc ảnh bạn chọn, đến các dịch vụ AI. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
           )
           : tr(
-            'These features send what you type, or the photo you choose, to Google. Each one asks you the first time; you can change your answer here.',
-            'Các tính năng này gửi nội dung bạn nhập, hoặc ảnh bạn chọn, đến Google. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
+            'These features send what you type, or the photo you choose, to Anthropic (Claude AI), with Google as backup. Each one asks you the first time; you can change your answer here.',
+            'Các tính năng này gửi nội dung bạn nhập, hoặc ảnh bạn chọn, đến Anthropic (AI Claude), dự phòng là Google. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
           )}
       </p>
       <div className="mt-3 space-y-4">
@@ -58,8 +59,8 @@ export function AiFeaturesSetting() {
             family="voice_guide"
             label={tr('Voice guide', 'Trợ lý giọng nói')}
             description={tr(
-              'While it listens, your voice goes to Soniox to be turned into words; what it heard, your last few turns and the page you are on go to OpenAI (Google Gemini as backup) to answer. Off: eno AI’s text chat answers instead.',
-              'Khi trợ lý nghe, giọng nói của bạn được gửi đến Soniox để chuyển thành chữ; những gì trợ lý nghe được, vài lượt gần nhất và trang bạn đang xem được gửi đến OpenAI (dự phòng là Google Gemini) để trả lời. Khi tắt: eno AI trả lời bằng tin nhắn.',
+              'While it listens, your voice goes to Soniox to be turned into words; what it heard, your last few turns and the page you are on go to OpenAI (Anthropic’s Claude as backup, then Google Gemini) to answer. Off: eno AI’s text chat answers instead.',
+              'Khi trợ lý nghe, giọng nói của bạn được gửi đến Soniox để chuyển thành chữ; những gì trợ lý nghe được, vài lượt gần nhất và trang bạn đang xem được gửi đến OpenAI (dự phòng là Claude của Anthropic, rồi Google Gemini) để trả lời. Khi tắt: eno AI trả lời bằng tin nhắn.',
             )}
           />
         )}
@@ -67,40 +68,40 @@ export function AiFeaturesSetting() {
           family="assistant"
           label={tr('eno AI assistant', 'Trợ lý eno AI')}
           description={tr(
-            'What you type to eno AI, with the last few messages of that chat, goes to Google (Gemini), and your search words to Google (Vertex AI Search). Off: eno AI answers with a simple keyword search.',
-            'Nội dung bạn nhập cho eno AI, cùng vài tin nhắn gần nhất của cuộc trò chuyện đó, được gửi đến Google (Gemini), và từ khóa tìm kiếm được gửi đến Google (Vertex AI Search). Khi tắt: eno AI trả lời bằng tìm kiếm từ khóa đơn giản.',
+            'What you type to eno AI, with the last few messages of that chat, goes to Anthropic (Claude, with Google Gemini as backup), and your search words to Google (Vertex AI Search). Off: eno AI answers with a simple keyword search.',
+            'Nội dung bạn nhập cho eno AI, cùng vài tin nhắn gần nhất của cuộc trò chuyện đó, được gửi đến Anthropic (Claude, dự phòng là Google Gemini), và từ khóa tìm kiếm được gửi đến Google (Vertex AI Search). Khi tắt: eno AI trả lời bằng tìm kiếm từ khóa đơn giản.',
           )}
         />
         <AiFamilySwitchRow
           family="listing"
           label={tr('AI help when posting', 'Trợ giúp AI khi đăng tin')}
           description={tr(
-            '“Autofill from photo” sends your cover photo, and “Polish with AI” your description, to Google (Gemini). Off: these two buttons are unavailable.',
-            '“Tự điền từ ảnh” gửi ảnh bìa, và “Chỉnh bằng AI” gửi phần mô tả của bạn, đến Google (Gemini). Khi tắt: không dùng được hai nút này.',
+            '“Autofill from photo” sends your cover photo, and “Polish with AI” your description, to Anthropic (Claude, with Google Gemini as backup). Off: these two buttons are unavailable.',
+            '“Tự điền từ ảnh” gửi ảnh bìa, và “Chỉnh bằng AI” gửi phần mô tả của bạn, đến Anthropic (Claude, dự phòng là Google Gemini). Khi tắt: không dùng được hai nút này.',
           )}
         />
         <AiFamilySwitchRow
           family="photo_search"
           label={tr('Search by photo', 'Tìm bằng ảnh')}
           description={tr(
-            'The photo you choose is sent to Google (Gemini) to recognise the item. Off: search by photo is unavailable; typing a search still works.',
-            'Ảnh bạn chọn được gửi đến Google (Gemini) để nhận diện món đồ. Khi tắt: không dùng được tìm bằng ảnh; bạn vẫn có thể gõ để tìm.',
+            'The photo you choose is sent to Anthropic (Claude, with Google Gemini as backup) to recognise the item. Off: search by photo is unavailable; typing a search still works.',
+            'Ảnh bạn chọn được gửi đến Anthropic (Claude, dự phòng là Google Gemini) để nhận diện món đồ. Khi tắt: không dùng được tìm bằng ảnh; bạn vẫn có thể gõ để tìm.',
           )}
         />
         <AiFamilySwitchRow
           family="teacher_cv"
           label={tr('Reading your CV', 'Đọc CV của bạn')}
           description={tr(
-            'The CV you choose in the teacher profile form is sent to Google (Gemini) to fill in your profile; eno does not keep it. Off: you fill in your profile yourself.',
-            'CV bạn chọn trong biểu mẫu hồ sơ giáo viên được gửi đến Google (Gemini) để điền hồ sơ; eno không lưu tệp. Khi tắt: bạn tự điền hồ sơ.',
+            'The CV you choose in the teacher profile form is sent to Anthropic (Claude, with Google Gemini as backup) to fill in your profile; eno does not keep it. Off: you fill in your profile yourself.',
+            'CV bạn chọn trong biểu mẫu hồ sơ giáo viên được gửi đến Anthropic (Claude, dự phòng là Google Gemini) để điền hồ sơ; eno không lưu tệp. Khi tắt: bạn tự điền hồ sơ.',
           )}
         />
         <AiFamilySwitchRow
           family="teacher_bio"
           label={tr('Improving your About text', 'Cải thiện phần giới thiệu')}
           description={tr(
-            '“Improve with AI” sends your About text and your answers in the teacher profile form to Google (Gemini) on Google Cloud, outside Vietnam, to rewrite the text — never your profile’s name or phone number field, photo, video or CV. Off: you write it yourself.',
-            '“Cải thiện bằng AI” gửi phần giới thiệu và các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên đến Google (Gemini) trên Google Cloud, ngoài Việt Nam, để viết lại đoạn giới thiệu — không bao giờ gồm mục họ tên hay số điện thoại trong hồ sơ, ảnh, video hay CV. Khi tắt: bạn tự viết.',
+            '“Improve with AI” sends your About text and your answers in the teacher profile form to Anthropic (Claude, with Google Gemini as backup), outside Vietnam, to rewrite the text — never your profile’s name or phone number field, photo, video or CV. Off: you write it yourself.',
+            '“Cải thiện bằng AI” gửi phần giới thiệu và các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên đến Anthropic (Claude, dự phòng là Google Gemini), ngoài Việt Nam, để viết lại đoạn giới thiệu — không bao giờ gồm mục họ tên hay số điện thoại trong hồ sơ, ảnh, video hay CV. Khi tắt: bạn tự viết.',
           )}
         />
         <TripAiSetting />

@@ -62,9 +62,14 @@ function ImportIntro({ cta }: { cta: ReactNode }) {
     <section className="space-y-3">
         <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
         <p className="text-sm text-body">
+          {/* Two tr()s, one paragraph: gen-ui-strings harvests a literal of at most 400 characters. */}
           {tr(
-            'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI, or Google’s if it doesn’t answer, to sort them, read the price and write the description. You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
-            'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI, hoặc của Google nếu OpenAI không phản hồi, để phân loại, đọc giá và viết mô tả. Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
+            'We’ll find your Facebook profile by your name and profile picture, and read the listings on your Marketplace page. The text and one photo of each go to OpenAI’s AI — or, if it doesn’t answer, Anthropic’s Claude, with Google’s Gemini as backup — to sort them, read the price and write the description.',
+            'Chúng tôi sẽ tìm trang Facebook của bạn theo tên và ảnh đại diện, rồi đọc các tin trên trang Marketplace của bạn. Nội dung và một ảnh của mỗi tin được gửi đến AI của OpenAI — hoặc, nếu OpenAI không phản hồi, AI Claude của Anthropic, dự phòng là Gemini của Google — để phân loại, đọc giá và viết mô tả.',
+          )}{' '}
+          {tr(
+            'You check every one here, including the price, and nothing is published until you press Publish. Drafts are deleted after 7 days.',
+            'Bạn kiểm tra từng tin ở đây, kể cả giá, và không có gì được đăng cho đến khi bạn nhấn Đăng. Bản nháp bị xóa sau 7 ngày.',
           )}
         </p>
         <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>

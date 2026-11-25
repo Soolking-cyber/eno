@@ -21,12 +21,18 @@ export const PERSONA_AI_NOTICE_VERSION = '2026-10-25'
 export const PERSONA_AI_ACTION: NoticeText = { en: 'Write with AI', vi: 'Viết bằng AI' }
 export const PERSONA_AI_NOTICE: readonly NoticeText[] = [
   {
-    en: 'Write with AI sends your teacher profile’s headline, About text, subjects, age groups, nationality and experience, and the chips you picked, to Google’s Gemini AI on Google Cloud, outside Vietnam.',
-    vi: 'Viết bằng AI gửi tiêu đề, phần giới thiệu, môn dạy, lứa tuổi học viên, quốc tịch, kinh nghiệm trong hồ sơ giáo viên và các lựa chọn của bạn đến AI Gemini của Google trên Google Cloud, ngoài Việt Nam.',
+    // ⛔ 2026-11-26: Claude first, Gemini as its backup (src/lib/ai/claude-first.ts); the version did NOT move (owner: "Update
+    // now, no notice"), the hash does.
+    en: 'Write with AI sends your teacher profile’s headline, About text, subjects, age groups, nationality and experience, and the chips you picked, to Anthropic’s Claude AI, outside Vietnam.',
+    vi: 'Viết bằng AI gửi tiêu đề, phần giới thiệu, môn dạy, lứa tuổi học viên, quốc tịch, kinh nghiệm trong hồ sơ giáo viên và các lựa chọn của bạn đến AI Claude của Anthropic, ngoài Việt Nam.',
   },
   {
-    en: 'Google doesn’t use it to train its AI. It may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.',
-    vi: 'Google không dùng dữ liệu này để huấn luyện AI. Google có thể giữ dữ liệu trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
+    en: 'When Claude cannot answer, the same goes to Google’s Gemini AI on Google Cloud instead.',
+    vi: 'Khi Claude không trả lời được, cùng nội dung đó được gửi đến AI Gemini của Google trên Google Cloud.',
+  },
+  {
+    en: 'Neither uses it to train its AI. Each may keep it for a while to answer and check for misuse: Anthropic up to 30 days (2 years if flagged), Google up to 90 days if flagged.',
+    vi: 'Cả hai đều không dùng dữ liệu này để huấn luyện AI. Mỗi bên có thể giữ dữ liệu một thời gian để trả kết quả và kiểm tra lạm dụng: Anthropic tối đa 30 ngày (2 năm nếu bị đánh dấu lạm dụng), Google tối đa 90 ngày nếu bị đánh dấu lạm dụng.',
   },
   { en: 'We keep a record that you asked, not the text. Read the result before you save it.', vi: 'Chúng tôi chỉ lưu bản ghi rằng bạn đã yêu cầu, không lưu nội dung. Hãy đọc kết quả trước khi lưu.' },
 ]
@@ -132,8 +138,10 @@ export const PRACTICE_NOTICE: readonly NoticeText[] = [
     vi: 'Nội dung đã nói — chỉ phần chữ, không bao giờ là bản ghi âm — được gửi đến OpenAI tại Hoa Kỳ để viết câu trả lời của avatar.',
   },
   {
-    en: 'It also goes to Google’s Gemini AI on Google Cloud, outside Vietnam, to write the report after each session, and the replies when OpenAI cannot answer.',
-    vi: 'Nội dung này cũng được gửi đến AI Gemini của Google trên Google Cloud, ngoài Việt Nam, để viết bản nhận xét sau mỗi buổi, và viết câu trả lời khi OpenAI không trả lời được.',
+    // ⛔ 2026-11-26: Claude first, Gemini as its backup — and PRACTICE_NOTICE_VERSION did NOT move: a new version re-asks every
+    // learner (practiceConsentCurrent), and the owner chose "Update now, no notice". The hash moves.
+    en: 'It also goes to Anthropic’s Claude AI (Google’s Gemini as a backup), outside Vietnam, to write the report after each session, and the replies when OpenAI cannot answer.',
+    vi: 'Nội dung này cũng được gửi đến AI Claude của Anthropic (dự phòng là AI Gemini của Google), ngoài Việt Nam, để viết bản nhận xét sau mỗi buổi, và viết câu trả lời khi OpenAI không trả lời được.',
   },
   {
     // Every field the tutor and the report send, named (core review, opus: "what was said" alone under-disclosed) — and
@@ -147,8 +155,8 @@ export const PRACTICE_NOTICE: readonly NoticeText[] = [
   },
   {
     // Each recipient's hold, in its own words (core review, opus: the learner's notice left out the hold).
-    en: 'Neither uses it to train its AI. OpenAI keeps it up to 30 days only to check for misuse. Google holds it briefly to answer, and up to 90 days if its checks flag misuse.',
-    vi: 'Cả hai đều không dùng dữ liệu này để huấn luyện AI. OpenAI chỉ giữ tối đa 30 ngày để kiểm tra lạm dụng. Google giữ trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống của Google đánh dấu lạm dụng.',
+    en: 'None of them uses it to train its AI. OpenAI keeps it up to 30 days only to check for misuse. Anthropic deletes it within 30 days (2 years if flagged); Google holds it briefly (90 days if flagged).',
+    vi: 'Không bên nào dùng dữ liệu này để huấn luyện AI. OpenAI chỉ giữ tối đa 30 ngày để kiểm tra lạm dụng. Anthropic xóa trong vòng 30 ngày (2 năm nếu bị đánh dấu lạm dụng); Google giữ trong thời gian ngắn (90 ngày nếu bị đánh dấu lạm dụng).',
   },
   {
     // Every recipient, in the purpose that produces it (round 3, opus): the tutor flags it DURING practice.

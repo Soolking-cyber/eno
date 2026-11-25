@@ -1,16 +1,23 @@
 /**
  * APP STORE GATE `app-ai-notice` (Guideline 5.1.2(i): say where personal data goes to a third-party AI, and get
- * permission first) — the GOOGLE half. The Microsoft half is chat translation (src/lib/chat-translation-consent.ts);
- * this file is its twin for every feature that sends what a person types, or a photo they choose, to Google — one
- * remembered answer per FEATURE FAMILY, asked once, before that family's first request.
+ * permission first) — the CLAUDE half (the Google half until 2026-11-26). The Microsoft half is chat translation
+ * (src/lib/chat-translation-consent.ts); this file is its twin for every feature that sends what a person types, or a
+ * photo they choose, to the AI — one remembered answer per FEATURE FAMILY, asked once, before that family's first request.
  *
- * Measured 2026-10-05 — every user action that reaches Google AI (src/app/api/ai/*, every getGemini() caller outside
+ * ⛔ SINCE 2026-11-26 EVERY getGemini() / getGeminiVertex() CALL ASKS ANTHROPIC'S CLAUDE FIRST, Google's Gemini only when
+ * Claude fails (src/lib/ai/claude-first.ts; owner: "replace all gemini models in app with claude" → "gemini fallback"). So
+ * "Gemini" below reads "Claude, Gemini as its backup" — except a call Claude cannot take (Gemini tools such as googleSearch:
+ * the trip plan's draft), which goes to Gemini alone, and Vertex AI Search, which is Google's search, not a model. The
+ * notices name Claude AI (Anthropic) first; NO family's key or version moved (owner: "Update now, no notice" — nobody who
+ * said yes is asked again).
+ *
+ * Measured 2026-10-05 — every user action that reaches the AI (src/app/api/ai/*, every getGemini() caller outside
  * admin, every Vertex AI Search caller):
  *
  *   assistant     /messages/ai → POST /api/ai/concierge: the last turns of that chat (Gemini, to understand the
  *                 request and word the reply) and the search words (Vertex AI Search).
  *                 "Not now" WORKS WITHOUT AI: the request carries `ai: false`, and the route answers from its own
- *                 keyword reading of the message and the Postgres search — no Google call.
+ *                 keyword reading of the message and the Postgres search — no AI call (Claude or Google).
  *   listing       post wizard "Autofill from photo" → POST /api/ai/classify (the cover photo, Gemini Vision) and
  *                 "Polish with AI" → POST /api/ai/rephrase (the description, Gemini).
  *                 "Not now": unavailable — the seller fills the form in, which is how it works without AI anyway.
@@ -24,7 +31,7 @@
  *   document_check  the e-Visa photo check (owner 2026-10-06: the flow is in both apps via eno.vn) → POST
  *                 /api/visa/applications/[id]/extract (the passport data page and the portrait; Gemini reads the passport too).
  *                 "Not now": the photo is still saved and goes to the seller UNCHECKED — the route marks it `unavailable`
- *                 with `automatic_image_check_declined` and calls no Google (never blocking). Its words live in
+ *                 with `automatic_image_check_declined` and calls no AI (never blocking). Its words live in
  *                 visa-ai-consent.tsx, real only where the e-Visa flow is (MARKETPLACE_HOSTS_SERVICES / eno.forum).
  *
  *   teacher_cv    the teacher form's "Fill it in from my CV" (2026-10-15) → POST /api/teachers/me/import: the CV or LinkedIn
@@ -33,7 +40,7 @@
  *   voice_guide   the VOICE GUIDE in the apps (owner, 2026-10-29: "also ios android apps add the live concierge to them too")
  *                 → the guide's window (/concierge): while it listens, the person's VOICE goes live to Soniox (speech to
  *                 text); the words it heard, their last few turns and a summary of the page they are on go to OpenAI to
- *                 write the answer (Google Gemini only when OpenAI is unavailable); its spoken answers are made by eno's own
+ *                 write the answer (Claude, then Gemini, only when OpenAI is unavailable); its spoken answers are made by eno's own
  *                 speech server or by Soniox. eno keeps no recording and no transcript (api/concierge/turn).
  *                 ⛔ ASKED IN EITHER APP ALWAYS, whatever `app-ai-notice` says (asksFirst below), and NEVER on the website,
  *                 which keeps its tap-to-start (owner's choice, 2026-10-29: "Apps only"). Its key carries a NOTICE VERSION.
@@ -57,7 +64,7 @@
  * ⚠️ DEVICE STORAGE, PER ACCOUNT — the chat-translation answer's constraint, for the same reason: there is no
  * server-side preference without a schema change (chat-translation-consent.ts says why). Key
  * `ai:consent:<family>:<profileId>`; a new device, or another account on this one, asks again — the safe direction.
- * Every family is members-only — each route answers 401 to a signed-out caller before Google is called — so a
+ * Every family is members-only — each route answers 401 to a signed-out caller before the AI is called — so a
  * signed-out tap goes to sign-in rather than to the question. When storage is blocked or full the answer is still kept
  * for the rest of the page load, in memory (`memory` below), so nothing asks twice.
  *
@@ -65,8 +72,8 @@
  * at the API boundary"). The answer is per account PER DEVICE and lives only on that device, so no route can know it. A
  * header the app sends to say "allowed" would only repeat what the same client already decided — the server could not
  * check it — while every call site that forgot it would silently break a feature in the app; that is theatre, not
- * enforcement. What the server does enforce is what it CAN know: `ai: false` (the assistant's "Not now") switches Gemini
- * and Vertex off for that turn (api/ai/concierge), and typed search from either app never reaches Vertex (api/listings,
+ * enforcement. What the server does enforce is what it CAN know: `ai: false` (the assistant's "Not now") switches the model
+ * (Claude and Gemini) and Vertex off for that turn (api/ai/concierge), and typed search from either app never reaches Vertex (api/listings,
  * by user agent). Everything else rests on the call sites, each of which asks before its request and is tested for it;
  * the apps load this site's current code, so there is no stale client to slip past them. A real server-side guarantee
  * needs the server-side preference (a Profile column — the schema change the runbook lists as the follow-up).
@@ -85,7 +92,7 @@ export type AiConsent = 'on' | 'off' | null
 
 /** What the notice says for one family, already in the reader's language. */
 export type AiConsentCopy = {
-  /** The question, e.g. "Use Google AI to search by photo?" */
+  /** The question, e.g. "Use Claude AI (Anthropic) to search by photo?" */
   title: string
   /** Who receives what, and what "Not now" leaves working. */
   body: string
@@ -96,9 +103,9 @@ export type AiConsentCopy = {
 }
 
 /**
- * Client: must the Google AI features ask first? The gate is on AND this is either native app — the same both-apps rule
+ * Client: must the AI features ask first? The gate is on AND this is either native app — the same both-apps rule
  * as chat translation (chatTranslationAskFirst): Play's User Data policy asks the same of the same WebView, and the two
- * apps should not differ on what goes to Google. False during SSR.
+ * apps should not differ on what goes to the AI. False during SSR.
  */
 export function aiConsentAskFirst(): boolean {
   return nativeAppGate('app-ai-notice')
@@ -117,6 +124,8 @@ function asksFirst(family: AiFamily): boolean {
  * voice, eno's own speech server, the Gemini hand-over): a new version is a new key, so a "yes" given to one set of
  * recipients never covers another. Bump it whenever the voice guide's notice names a new recipient or a new kind of data.
  * The other families keep their unversioned keys (their answers stand).
+ * ⛔ ONE EXCEPTION, THE OWNER'S (2026-11-26, "Update now, no notice"): OpenAI's backup became Claude (Gemini behind it) and
+ * the notice names it, but the version stays 1 — nobody who said yes is asked again.
  */
 export const AI_NOTICE_VERSION: Partial<Record<AiFamily, number>> = { voice_guide: 1 }
 export const aiConsentKey = (family: AiFamily, userId: string): string => {
@@ -200,7 +209,7 @@ export function aiConsentCanAsk(): boolean {
 /**
  * Resolve true when this family may send its request now. With the gate on, in either app: true once allowed; otherwise
  * the host shows the one-time notice (not asked yet) or says the feature is off ('off'), and the answer comes back.
- * ⛔ FAILS CLOSED: no account → sign-in instead (the route would refuse it before Google anyway); no host to show the
+ * ⛔ FAILS CLOSED: no account → sign-in instead (the route would refuse it before the AI anyway); no host to show the
  * notice → false. `copy` is required for families whose words cannot live in shared code (trip); the host knows the rest.
  */
 export function askAiConsent(family: AiFamily, opts?: { userId?: string | null; copy?: AiConsentCopy }): Promise<boolean> {

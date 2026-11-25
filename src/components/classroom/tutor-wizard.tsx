@@ -431,8 +431,8 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
             )}
           </div>
           <p className="text-xs text-ink-4">{tr(
-            'A photo of a room with nobody in it. Google’s AI checks every photo before students see it: no people, nothing unsuitable, no personal details.',
-            'Ảnh một căn phòng không có người. AI của Google kiểm tra mọi ảnh trước khi học viên nhìn thấy: không có người, không có nội dung không phù hợp, không có thông tin cá nhân.',
+            'A photo of a room with nobody in it. Anthropic’s Claude AI (Google’s as a backup) checks every photo before students see it: no people, nothing unsuitable, no personal details.',
+            'Ảnh một căn phòng không có người. AI Claude của Anthropic (dự phòng là AI của Google) kiểm tra mọi ảnh trước khi học viên nhìn thấy: không có người, không có nội dung không phù hợp, không có thông tin cá nhân.',
           )}</p>
           {err && (
             <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err.code).en, refusalCopy(err.code).vi)}{why ? ` ${why}` : ''}</p>
