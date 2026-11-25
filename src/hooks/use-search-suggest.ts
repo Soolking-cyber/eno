@@ -45,11 +45,22 @@ export type SuggestScope = {
  * (the bar is focused) and the query is ≥2 chars. Shared by the header + hero
  * search so both behave identically on mobile and desktop.
  */
+/**
+ * ⚡ ONE EMPTY ARRAY PER KIND, SHARED (phone home, 2026-11-25). The reset below runs on every mount (the header's box and the
+ * explorer's both start with no query), and `setListings([])` with a NEW array is a real state change. Measured with an
+ * instrumented React build: 12 updates after the hydration commit that re-rendered the header and the explorer for nothing.
+ * Resetting to the same empty array is no change, so React skips it. Nothing mutates these arrays (state is replaced).
+ */
+const NO_LISTINGS: SuggestListing[] = []
+const NO_CATEGORIES: SuggestCategory[] = []
+const NO_BRANDS: SuggestBrand[] = []
+const NO_LINES: SuggestLine[] = []
+
 export function useSearchSuggest(query: string, enabled: boolean) {
-  const [listings, setListings] = useState<SuggestListing[]>([])
-  const [categories, setCategories] = useState<SuggestCategory[]>([])
-  const [brands, setBrands] = useState<SuggestBrand[]>([])
-  const [lines, setLines] = useState<SuggestLine[]>([])
+  const [listings, setListings] = useState<SuggestListing[]>(NO_LISTINGS)
+  const [categories, setCategories] = useState<SuggestCategory[]>(NO_CATEGORIES)
+  const [brands, setBrands] = useState<SuggestBrand[]>(NO_BRANDS)
+  const [lines, setLines] = useState<SuggestLine[]>(NO_LINES)
   const [scope, setScope] = useState<SuggestScope | null>(null)
   // The corrected query for a typo that suggests nothing ("iphnoe" → "iphone"), or null. Actionable like
   // `lines`/`scope`, so it is gated on `entityQ` the same way.
@@ -71,7 +82,7 @@ export function useSearchSuggest(query: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || queryLength(q) < INSTANT_MIN_CHARS) {
-      setListings([]); setCategories([]); setBrands([]); setLines([]); setScope(null); setDidYouMean(null)
+      setListings(NO_LISTINGS); setCategories(NO_CATEGORIES); setBrands(NO_BRANDS); setLines(NO_LINES); setScope(null); setDidYouMean(null)
       return
     }
     const ac = new AbortController()

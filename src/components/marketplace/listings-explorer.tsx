@@ -6,7 +6,7 @@ import { extendSpread, resumeSpread, shrinkSpread, spreadTwins } from '@/lib/spr
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, useSyncExternalStore, useTransition, type Dispatch, type SetStateAction, type CSSProperties, type RefObject } from 'react'
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, useSyncExternalStore, useTransition, type Dispatch, type SetStateAction, type CSSProperties, type RefObject } from 'react'
 import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
@@ -375,7 +375,8 @@ function useShelfDue<T extends HTMLElement>() {
 const CATEGORY_RAILS_HELD = 'min-h-[calc(200vw+520px)] sm:min-h-[1400px] lg:min-h-[1480px] xl:min-h-[1735px]'
 const CATEGORY_RAILS_HEIGHT = 'h-[calc(200vw+520px)] sm:h-[1400px] lg:h-[1480px] xl:h-[1735px]'
 /** What fills the rails' held place until they are drawn: four rails' shape, clipped to exactly the held height (shelf.tsx ShelfSkeleton). */
-function CategoryRailsSkeleton() {
+// ⚡ Memoized (phone home, 2026-11-25): pure, and its props are constant or stable, so the explorer's post-hydration re-render no longer redraws it.
+const CategoryRailsSkeleton = memo(function CategoryRailsSkeleton() {
   return (
     <div className={`space-y-7 overflow-hidden ${CATEGORY_RAILS_HEIGHT}`}>
       <ShelfSkeleton />
@@ -384,7 +385,7 @@ function CategoryRailsSkeleton() {
       <ShelfSkeleton />
     </div>
   )
-}
+})
 
 // Perf Phase 1: mount the per-category rails only when the user approaches them —
 // they injected many sections above the feed right after hydration (layout shift +
@@ -434,7 +435,8 @@ function DeferredShelf({ children, className }: { children: React.ReactNode; /**
  */
 const deferShelf = (seed: readonly unknown[] | undefined, rail: React.ReactNode) => ((seed?.length ?? 0) >= MIN_RAIL_ITEMS ? <DeferredShelf className="max-sm:hidden">{rail}</DeferredShelf> : rail)
 
-function DeferredCategoryRails({ lanes, onCategory, onDrawn }: { lanes: readonly CategoryLaneData[]; onCategory: (slug: string) => void; /** CategoryRails `onDrawn` (the freshness check). */ onDrawn?: () => void }) {
+// ⚡ Memoized (phone home, 2026-11-25): pure, and its props are constant or stable, so the explorer's post-hydration re-render no longer redraws it.
+const DeferredCategoryRails = memo(function DeferredCategoryRails({ lanes, onCategory, onDrawn }: { lanes: readonly CategoryLaneData[]; onCategory: (slug: string) => void; /** CategoryRails `onDrawn` (the freshness check). */ onDrawn?: () => void }) {
   const { ref, due } = useShelfDue<HTMLDivElement>()
   // Idle-armed on top of being due: when the place starts at the first-paint fold (see above) it is due at once, and
   // without this gate the rails would still land inside the critical window.
@@ -459,7 +461,7 @@ function DeferredCategoryRails({ lanes, onCategory, onDrawn }: { lanes: readonly
       {show ? <CategoryRails lanes={lanes} onCategory={onCategory} onDrawn={onDrawn} /> : <CategoryRailsSkeleton />}
     </div>
   )
-}
+})
 /**
  * ⛔ `loading` IS THE SERVER'S FACET ROW (E-TOOLBAR, 2026-09-29). Without it the ISR HTML carried only
  * Next's bail-out template inside the toolbar's `min-h-12` slot — a blank 48px band where the filters
@@ -2137,6 +2139,14 @@ export function ListingsExplorer({
     handleCategorySelect(slug)
     requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }))
   }
+  /**
+   * ⚡ THE SAME HANDLER WITH ONE IDENTITY FOR THE LIFE OF THE EXPLORER, for the memoized lanes (category-rails.tsx CategoryLane;
+   * phone home, 2026-11-25: a fresh closure here re-rendered all six lanes on every explorer render). It calls the handler of the
+   * last commit, and a pick is a click, which always comes after one.
+   */
+  const railCategorySelect = useRef(handleRailCategorySelect)
+  useLayoutEffect(() => { railCategorySelect.current = handleRailCategorySelect })
+  const onRailCategory = useCallback((slug: string) => railCategorySelect.current(slug), [])
   /**
    * ⚠️ AN INTENT TILE THE ACTIVE CATEGORY CANNOT HOLD BROWSES IT EVERYWHERE (sweep, 2026-10-22). Free & Giveaways, Wanted
    * and Wholesale stay on the rail in every category — dropping them on a press re-flows the desktop grid ("category
@@ -5479,12 +5489,12 @@ export function ListingsExplorer({
               {/* `onDrawn` + `liveMedia`: an old ISR answer is checked once a lane's cards are drawn, on a phone only (the block is
                   display:none from sm, where the shelves under the feed ask instead) — useFreshCategoryLanes above. */}
               {productLanes.map(({ cat, items, slug, lost }, i) => (
-                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" lead={i === 0 && !phoneTrendingSeeded} initialShow={i === 0} onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={onRailCategory} look="lane" lead={i === 0 && !phoneTrendingSeeded} initialShow={i === 0} onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
               ))}
               <PartnerStrip placement="feed" />
               <BusinessRail initial={dedupedBusinesses} look="lane" />
               {lateLanes.map(({ cat, items, slug, lost }) => (
-                <CategoryLane key={slug} cat={cat} listings={items} onCategory={handleRailCategorySelect} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
+                <CategoryLane key={slug} cat={cat} listings={items} onCategory={onRailCategory} look="lane" onDrawn={checkCategoryLanes} liveMedia={PHONE_MEDIA} lost={lost} />
               ))}
             </div>
           )}
@@ -6676,7 +6686,7 @@ export function ListingsExplorer({
 
             {/* Browse by category — one horizontal rail per category, most-used first.
                 Tapping a heading / "See all" opens that category (same as a tile). */}
-            <DeferredCategoryRails lanes={categoryLanes} onCategory={handleRailCategorySelect} onDrawn={checkCategoryLanes} />
+            <DeferredCategoryRails lanes={categoryLanes} onCategory={onRailCategory} onDrawn={checkCategoryLanes} />
           </div>
         )}
       </div>

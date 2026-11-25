@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { CARD_BODY, GOODS_BODY, WIDE_BODY } from '@/lib/card-text'
@@ -54,7 +55,8 @@ export const SAVED_SKELETON_COUNT = 8
  *  inside the 28px price row 6px lower (9px above the bar, 3px under it) — 10 + 20 + 2 + 18 + 6 + 28 = 84px (card-text.ts
  *  GOODS_LINE_PX; 76 in r06/r07). The price bar is drawn in both places, like the card's row, a class picking one per width.
  *  From `sm` it is the plain skeleton. A teacher or wide cell ignores it. */
-export function ListingCardSkeleton({ className, teacher = false, wide = false, look }: { className?: string; teacher?: boolean; wide?: boolean; look?: 'goods' }) {
+// ⚡ Memoized (phone home, 2026-11-25): pure, and its props are constant or stable, so the explorer's post-hydration re-render no longer redraws it.
+export const ListingCardSkeleton = memo(function ListingCardSkeleton({ className, teacher = false, wide = false, look }: { className?: string; teacher?: boolean; wide?: boolean; look?: 'goods' }) {
   const goods = look === 'goods' && !teacher && !wide
   return (
     <div className={cn('flex flex-col', className)} data-look={goods ? 'goods' : undefined}>
@@ -99,4 +101,4 @@ export function ListingCardSkeleton({ className, teacher = false, wide = false, 
       </div>
     </div>
   )
-}
+})

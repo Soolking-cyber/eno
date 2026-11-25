@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Children, useEffect, useState } from 'react'
+import { Children, memo, startTransition, useEffect, useState } from 'react'
 import type { CSSProperties, Ref, RefObject } from 'react'
 import { ArrowRight, ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
@@ -228,7 +228,8 @@ export function useLostPlace(ref: RefObject<HTMLElement | null>, lost: boolean, 
  * Decorative: aria-hidden, and the caller clips it to the height it already reserves, so nothing moves when it goes.
  * Still, not sweeping (globals.css `.skeleton-still`): measured, the sweeps of every held place cost the scroll more than they say.
  */
-export function ShelfSkeleton({ look = 'rail' }: { look?: RailLook } = {}) {
+// ⚡ Memoized (phone home, 2026-11-25): pure, and its props are constant or stable, so the explorer's post-hydration re-render no longer redraws it.
+export const ShelfSkeleton = memo(function ShelfSkeleton({ look = 'rail' }: { look?: RailLook } = {}) {
   const lane = look === 'lane'
   // `skeleton-still`: the colour without the sweep (globals.css) — ~90 sweeping boxes under the fold cost a phone's scroll.
   return (
@@ -245,7 +246,7 @@ export function ShelfSkeleton({ look = 'rail' }: { look?: RailLook } = {}) {
       </div>
     </div>
   )
-}
+})
 
 /**
  * ⛔ THE SWIPE HINT — A COMPONENT, NOT A LINE OF JSX IN `Shelf`, AND THAT WAS THE WHOLE BUG.
@@ -306,7 +307,9 @@ export function RailBeam({ scrollerRef, canRight, seedItems, className }: {
 }) {
   // False on the server and in the hydration render, true from the first effect — see railSwipeSeed.
   const [measured, setMeasured] = useState(false)
-  useEffect(() => { setMeasured(true) }, [])
+  // ⚡ In a transition (phone home, 2026-11-25): a mount flag set in a plain effect right after hydration re-rendered this inside the
+  // page's long post-hydration task; a transition render is time-sliced. Nothing reads it before the next frame matters.
+  useEffect(() => { startTransition(() => setMeasured(true)) }, [])
   /** ⚠️ PER MOUNT, NOT PER PERSON — deliberately `useState`. The owner asked for a beam above every
    *  carousel; remembering it forever in storage would quietly delete a thing that was asked for.
    *  What the latch buys is that it stops competing with the reader the moment they are already

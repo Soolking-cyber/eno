@@ -157,10 +157,14 @@ export function BackToTop() {
       ticking = true
       requestAnimationFrame(update)
     }
-    update()
+    // ⚡ The first read waits for the next frame (phone home, 2026-11-25): run here it read scrollY, scrollHeight and the
+    // [data-fab-clear] rects in the middle of the page's post-hydration effects, a forced layout there. In a frame it is the
+    // frame's own layout; nothing is shown from it before then (the cluster starts at rest, unlifted).
+    const first = requestAnimationFrame(update)
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll, { passive: true })
     return () => {
+      cancelAnimationFrame(first)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
     }
@@ -264,7 +268,10 @@ export function BackToTop() {
     // Late layout that changes no size the observer below would see: the page's own load, and fonts.
     window.addEventListener('load', atRest)
     let live = true
-    void document.fonts?.ready.then(() => { if (live) atRest() })
+    // ⚡ `document.fonts.ready` IS READ IN THE NEXT FRAME, NOT HERE (measured 2026-11-25, Chromium): on a document with pending
+    // style changes, reading it forces a full style + layout pass, exactly as getBoundingClientRect does (66–290 ms on the home at
+    // 1× under load). Here, right after hydration, that was the single costliest line in the page's post-hydration effects.
+    const fontsRaf = requestAnimationFrame(() => { void document.fonts?.ready.then(() => { if (live) atRest() }) })
     // Content that grows or shrinks under a resting cluster (the feed rendering in, a price row
     // wrapping when the exchange rate lands) moves controls without a scroll event.
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(atRest) : undefined
@@ -273,6 +280,7 @@ export function BackToTop() {
       clearTimeout(timer)
       cancelAnimationFrame(raf)
       ro?.disconnect()
+      cancelAnimationFrame(fontsRaf)
       live = false
       kick.current = () => {}
       window.removeEventListener('scroll', onScroll)

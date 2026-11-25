@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react'
+import { memo, useEffect, useId, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode } from 'react'
 import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
@@ -88,7 +88,8 @@ const SM_UP = '(min-width: 40rem)'
  * whole tiles fill the text column and nothing of the fourth shows (the blind critics marked that cut tile broken); each
  * tile is raised like the category pills (globals.css `.partner-strip-feed`). The still band itself is unchanged.
  */
-export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
+// ⚡ Memoized (phone home, 2026-11-25): its one prop is a constant, and it re-rendered its 20 logos with every explorer render.
+export const PartnerStrip = memo(function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
   const headingId = useId()
   const feed = placement === 'feed'
@@ -132,7 +133,13 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // ⛔ BACK TO 0 BEFORE THE LOOP RUNS AGAIN (the top copy, the only one that loops). Keyboard focus and the paused state
   // both stop the animation and let the row scroll (globals.css); a scroll left behind would offset the resumed -50% loop
   // and show a gap at its end (review). The still feed copy keeps the visitor's hand scroll (owner, 2026-11-14).
-  useEffect(() => { if (placement === 'top' && !paused && viewport.current) viewport.current.scrollLeft = 0 }, [paused, placement])
+  // ⚡ Not on mount (phone home, 2026-11-25): the row starts at 0, and writing scrollLeft forces a layout, which here landed in
+  // the middle of the page's post-hydration effects. A resume (paused → playing) still resets it.
+  const resumedOnce = useRef(false)
+  useEffect(() => {
+    if (!resumedOnce.current) { resumedOnce.current = true; return }
+    if (placement === 'top' && !paused && viewport.current) viewport.current.scrollLeft = 0
+  }, [paused, placement])
   const onBlur = (e: FocusEvent<HTMLDivElement>) => {
     if (looping && !paused && !e.currentTarget.contains(e.relatedTarget as Node | null)) e.currentTarget.scrollLeft = 0
   }
@@ -182,7 +189,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
       </Frame>
     </section>
   )
-}
+})
 
 /**
  * ⛔ A PHONE NEVER FETCHES THE TOP COPY'S LOGOS, AND A DESKTOP HAS THEM IN ITS FIRST PAINTED FRAME (speed plan R26,

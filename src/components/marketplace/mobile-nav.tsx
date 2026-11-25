@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
 import dynamic from 'next/dynamic'
@@ -301,7 +301,9 @@ export function MobileNav() {
   // hydration error. Rendering every tab inactive on the server + first client paint
   // keeps them identical; the active tab lights up a frame later (imperceptible).
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  // ⚡ In a transition (phone home, 2026-11-25): a mount flag set in a plain effect right after hydration re-rendered this inside the
+  // page's long post-hydration task; a transition render is time-sliced. Nothing reads it before the next frame matters.
+  useEffect(() => { startTransition(() => setMounted(true)) }, [])
 
   /**
    * ⛔ ON A PAGE THAT PINS ITS OWN ACTION THE BAR STARTS RETRACTED (owner-approved 2026-11-14, cook r06 "item": a goods

@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
+import { Fragment, startTransition, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { Bilingual } from './bilingual'
@@ -313,7 +313,9 @@ export function CategoryRail({
    * every other row, so it leaves at the row's end. `measured` is false on the server and in the hydration render.
    */
   const [measured, setMeasured] = useState(false)
-  useEffect(() => { setMeasured(true) }, [])
+  // ⚡ In a transition (phone home, 2026-11-25): a mount flag set in a plain effect right after hydration re-rendered this inside the
+  // page's long post-hydration task; a transition render is time-sliced. Nothing reads it before the next frame matters.
+  useEffect(() => { startTransition(() => setMeasured(true)) }, [])
   /**
    * ⛔ THE HOME'S PILL ROW PINS UNDER THE HEADER WHILE THE LANES SCROLL (owner-approved 2026-11-15 (build 8), cook r08 home:
    * "search + categories, one bar"): below 640px its root is `sticky` at the header's height (the header itself stays put

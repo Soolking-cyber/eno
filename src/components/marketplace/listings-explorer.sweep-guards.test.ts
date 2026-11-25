@@ -13,10 +13,13 @@ const src = readFileSync('src/components/marketplace/listings-explorer.tsx', 'ut
 
 describe('listings-explorer sweep guards', () => {
   it('a shelf pick scrolls to #listings after the shelves unmount', () => {
-    expect(src).toContain('<DeferredCategoryRails lanes={categoryLanes} onCategory={handleRailCategorySelect}')
+    // Through `onRailCategory`, the same handler with one identity (2026-11-25: the lanes are memoized, and a fresh closure
+    // re-rendered all six on every explorer render). It calls the latest handleRailCategorySelect.
+    expect(src).toMatch(/const railCategorySelect = useRef\(handleRailCategorySelect\)\s*useLayoutEffect\(\(\) => \{ railCategorySelect\.current = handleRailCategorySelect \}\)\s*const onRailCategory = useCallback\(\(slug: string\) => railCategorySelect\.current\(slug\), \[\]\)/)
+    expect(src).toContain('<DeferredCategoryRails lanes={categoryLanes} onCategory={onRailCategory}')
     // The phone's lanes above the feed (2026-11-14) take the same handler: a lane pick leaves them and lands on the results.
     // Build 8 (owner-approved 2026-11-15): two call sites — the product lanes, then the flyer lanes after Partners.
-    expect(src.match(/<CategoryLane [^>]*onCategory=\{handleRailCategorySelect\}/g)?.length).toBe(2)
+    expect(src.match(/<CategoryLane [^>]*onCategory=\{onRailCategory\}/g)?.length).toBe(2)
     expect(src).toMatch(/const handleRailCategorySelect = \(slug: string\) => \{\s*handleCategorySelect\(slug\)\s*requestAnimationFrame\(\(\) => document\.getElementById\('listings'\)\?\.scrollIntoView/)
   })
 

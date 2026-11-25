@@ -195,7 +195,7 @@ function afterLoadIdle(run: () => void): () => void {
  * `lead`: the home page's first lane when Trending does not draw — its heading the page's one display line (shelf.tsx
  * LEAD_TITLE, owner-approved 2026-11-15 (build 7)).
  */
-export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = false, initialShow = false, onDrawn, liveMedia, lost = false }: {
+function CategoryLaneView({ cat, listings, onCategory, look = 'rail', lead = false, initialShow = false, onDrawn, liveMedia, lost = false }: {
   cat: SerializedCategory
   listings: readonly HomeCard[]
   onCategory: (slug: string) => void
@@ -285,6 +285,14 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
  * re-rendered all its cards: their onOpen / onLocate closures were new each time, so ListingCard's memo never held, and that
  * happened in the sync commits right after hydration. Here the closures are rebuilt only when the cards themselves change.
  */
+/**
+ * ⚡ MEMOIZED (phone home, 2026-11-25). The explorer re-renders right after hydration (its URL, its media flags, the seed's
+ * counts), and every lane re-rendered with it: measured with a React commit probe, 6 lanes and everything under them (skeletons,
+ * tiles, See all), ~460 components, all with shallow-equal props except `onCategory`, a fresh closure each render. The explorer
+ * now passes a stable one (listings-explorer.tsx `onRailCategory`), so a lane re-renders only when its own props or state change.
+ */
+export const CategoryLane = memo(CategoryLaneView)
+
 const LaneCards = memo(function LaneCards({ listings, lane, cardW }: { listings: readonly SerializedListingCard[]; lane: boolean; cardW: string }) {
   const router = useRouter()
   return listings.map((l) => (

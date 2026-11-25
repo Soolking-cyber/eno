@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
@@ -80,7 +80,13 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
   useEffect(() => {
     const el = scrollerRef.current
     if (!el) return
-    sync()
+    // ⚡ THE MOUNT'S MEASUREMENT LEAVES THE PAGE'S POST-HYDRATION EFFECTS (phone home, 2026-11-25). Every rail ran it there: a
+    // forced layout in the middle of them, then three state updates that re-rendered the lanes and shelves in that same long
+    // task (instrumented React build: 13 updates from here). Now it runs in the next frame, where the read is the frame's own
+    // layout, as a transition. The ResizeObserver below also measures once after the first layout, as a plain update; whichever
+    // lands first, the re-render is in a later task, not in that one (commit gate: only the transition's half is time-sliced).
+    // Scroll and resize still measure at once.
+    const raf = requestAnimationFrame(() => startTransition(sync))
     el.addEventListener('scroll', sync, { passive: true })
     const ro = new ResizeObserver(sync) // viewport / width changes
     ro.observe(el)
@@ -94,13 +100,14 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
     // leave a single captured node detached and the observer watching nothing (a reviewer's catch).
     // The count is a rail's worth of items, which is what ResizeObserver is built for.
     for (const child of Array.from(el.children)) ro.observe(child)
-    return () => { el.removeEventListener('scroll', sync); ro.disconnect() }
+    return () => { cancelAnimationFrame(raf); el.removeEventListener('scroll', sync); ro.disconnect() }
     // `watch` in deps re-runs sync (and re-attaches the listeners) once async items exist.
     // ⚠️ A MutationObserver here was TRIED and REJECTED (Gemini proposed it, 2026-07-23):
     // its callback fires as a microtask BEFORE the browser lays out the new children, so
     // sync reads a stale scrollWidth and the arrows never appear — MEASURED, 30 brands
     // stayed arrowless. The React effect runs after commit, where reading scrollWidth forces
-    // correct layout. codex's own probe used double-requestAnimationFrame for the same reason.
+    // correct layout. codex's own probe used double-requestAnimationFrame for the same reason. (A requestAnimationFrame
+    // callback reads it correctly too: it runs after this commit, before the frame's own layout.)
   }, [sync, watch])
 
   const page = useCallback((dir: 1 | -1) => {
