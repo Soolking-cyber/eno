@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
-import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { quickThinking } from '@/lib/gemini-model'
+import { getGemini } from '@/lib/gemini'
+import { BACKGROUND_MODEL, quickThinking } from '@/lib/gemini-model'
 import { aiGuard } from '@/lib/ai-guard'
 import { TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -101,13 +101,13 @@ Return ONLY JSON.`
   let parsed: { productClear?: boolean; category?: string; subcategory?: string; listingType?: string; condition?: string; title?: string; brand?: string; brandConfident?: boolean; model?: string; description?: string; color?: string; transmission?: string; fuel?: string; material?: string } = {}
   try {
     const res = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+      model: BACKGROUND_MODEL,
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: b64 } }, { text: prompt }] }],
       config: {
         temperature: 0.2,
         // A THINKING model — left at its default, its tokens eat the budget and truncate the JSON
         // (MAX_TOKENS → partial "{" → parse error). The least thinking the model allows, with room for it.
-        ...quickThinking(GEMINI_MODEL, 768),
+        ...quickThinking(BACKGROUND_MODEL, 768),
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

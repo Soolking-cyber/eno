@@ -35,6 +35,16 @@ export const GEMINI_MODEL_FALLBACK = 'gemini-3.8-flash'
 export const FLASH_LITE_MODEL = 'gemini-3.5-flash-lite'
 
 /**
+ * ⛔ THE BACKGROUND AND FORM-HELPER CALLS RUN FLASH-LITE (owner, 2026-11-25: "Flash Lite for background jobs", to bring the
+ * Google bill toward 0): the post form's photo classify and description polish (/api/ai/classify, /api/ai/rephrase) and
+ * the admin brand suggestion. Flash-Lite bills $0.30 / $2.50 per 1M tokens in / out against 4 Hydrogen's $1.50 / $7.50
+ * (Vertex pricing page, read 2026-11-25). ⛔ LISTING MODERATION (ai-moderation.ts) STAYS ON GEMINI_MODEL: it is the publish
+ * path's net for visa offers outside the licensed aisle, contact in a photo and scams, and no replay of past decisions has
+ * shown Flash-Lite catches the same listings (commit gate, opus 2026-11-25). The concierge and visual search keep it too.
+ */
+export const BACKGROUND_MODEL = FLASH_LITE_MODEL
+
+/**
  * ⛔ 4 HYDROGEN REFUSES `thinkingBudget`: Vertex answers 400 "Thinking budget is not supported for this model. Use
  * thinking level instead" (measured 2026-11-13; 3.8 Flash still took `thinkingBudget: 0`). Both refuse the MINIMAL
  * level. A 2.x model is the other way round: it takes the budget and refuses a level. So "think as little as you can"

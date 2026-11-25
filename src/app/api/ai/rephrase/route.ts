@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
-import { quickThinking } from '@/lib/gemini-model'
+import { getGemini } from '@/lib/gemini'
+import { BACKGROUND_MODEL, quickThinking } from '@/lib/gemini-model'
 import { aiGuard } from '@/lib/ai-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 import { stripMarkdown } from '@/lib/strip-md'
@@ -60,11 +60,11 @@ Seller's text:
   let out = ''
   try {
     const res = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+      model: BACKGROUND_MODEL,
       contents: prompt,
       // The least thinking the model allows, with room for it, so its tokens don't eat the budget and
       // truncate the rewrite; this is a simple rephrase, no reasoning needed.
-      config: { temperature: 0.4, ...quickThinking(GEMINI_MODEL, 1200) },
+      config: { temperature: 0.4, ...quickThinking(BACKGROUND_MODEL, 1200) },
     })
     out = (res.text || '').trim()
   } catch (e) {
