@@ -1260,8 +1260,10 @@ function ListingCardImpl({
           onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
           className="absolute inset-0 z-[1]"
         >
-          {/* Text for crawlers that do not read aria-label (Seobility, 2026-11-23); inside aria-hidden, so nobody hears it twice. */}
-          <span className="sr-only">{displayTitle}</span>
+          {/* Text for crawlers that do not read aria-label (Seobility, 2026-11-23); inside aria-hidden, so nobody hears it twice.
+              With the price after the title, as the card link's (Seobility crawl 9: this link was the bare title — the same anchor
+              for every listing a seller titled alike). */}
+          <span className="sr-only">{displayTitle}{linkPrice ? <> — {linkPrice}</> : null}</span>
           {segments > 1 && (
             <span className="pointer-events-none absolute inset-0 hidden hover-pointer:flex">
               {Array.from({ length: segments }, (_, i) => (

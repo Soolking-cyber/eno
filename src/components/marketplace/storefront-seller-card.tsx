@@ -80,6 +80,9 @@ export function StorefrontSellerCard({
         <Button variant="cta" size="none" className={cn('press gap-1.5 py-2.5', storeMember(!!actions))} asChild>
           <Link href={`${chatOrigin!.replace(/\/$/, '')}/listings/${chatListingId}#contact`}>
             <MessageCircle className="h-4 w-4" aria-hidden /> <Bilingual en="Chat on {site}" vi="Chat trên {site}" values={{ site: SITE_NAME }} />
+            {/* Whose chat, for crawlers and screen readers: "Chat on eno.vn" alone was one anchor for six shops' listings
+                (Seobility crawl 9, identical anchor text). */}
+            <span className="sr-only"> — {seller.name}</span>
           </Link>
         </Button>
         {actions}

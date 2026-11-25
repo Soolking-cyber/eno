@@ -124,6 +124,9 @@ describe('ListingCard — the one-line title', () => {
     const link = c.querySelector('[data-card-link]')!
     // In the reader's money format (this suite renders Vietnamese: dots).
     expect(link.textContent).toBe(`${link.getAttribute('aria-label')} — 12.000.000 đ`)
+    // The photo link (aria-hidden, a second door to the same page) says the same to a crawler (Seobility crawl 9).
+    const photo = c.querySelector('[data-photo-link]')
+    if (photo) expect(photo.textContent).toMatch(/ — 12\.000\.000 đ$/)
     // No price, no suffix (a job with none, "Contact"): the text is the title alone.
     const job = card({ sellerId: 'cm-member-seller', category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0 }).querySelector('[data-card-link]')!
     expect(job.textContent).toBe(job.getAttribute('aria-label'))
