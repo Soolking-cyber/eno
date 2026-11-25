@@ -620,15 +620,16 @@ function FooterBody({ compact }: { compact: boolean }) {
           {/* ⚠️ THE LINK GROUPS ARE ONE ACCORDION ON A PHONE, AND THE SAME GRID AS BEFORE FROM sm UP.
               Measured on prod at 390: the footer was 1,748px — five fully expanded groups stacked above
               the legal block, 53 small links a thumb had to scroll past on every page. Each group is a
-              ui/disclosure row whose closed panel is `until-found`, so its links stay in the SSR HTML (the
-              crawl paths this footer exists for are untouched) and the browser's find-in-page opens the
-              group that holds a match. From 40rem the root is `display: contents`, so each item is a direct
+              ui/disclosure row with `collapse="below-sm"`: its panel is NEVER `hidden`, so its links are in the
+              server HTML and displayed for every crawler (Seobility skipped them under `hidden` / until-found:
+              crawl 7, 2026-11-25), and only a phone collapses a closed group, by CSS (globals.css). On a phone,
+              find-in-page no longer reaches a closed group's links. From 40rem the root is `display: contents`, so each item is a direct
               grid child exactly where its <div> used to be, and globals.css (#app-footer) hides the rows'
-              headers and forces every panel open. That holds before hydration too: the server renders
-              a closed panel as a plain `hidden`, which Tailwind preflight hides with an @layer base
+              headers and forces every panel open. (Until 2026-11-25 that also had to hold before hydration: the
+              server rendered a closed panel as a plain `hidden`, which Tailwind preflight hides with an @layer base
               !important. So the panel's `display` override lives in @layer base with !important. It is
               measured with the JS chunks blocked: desktop is unchanged, pixel for pixel, with no shift
-              at hydration.
+              at hydration. The panels carry no `hidden` now; the rule stays as the desktop's guarantee.)
               Each group keeps its static level-3 heading for sm+ (role="heading" aria-level=3 since 2026-11-19: the HTML held each
               title twice as <h3>, the hidden copy an empty section to answer engines); on a phone the row's own header is the h3, so
               the outline stays h2 → h3 at every width.
@@ -654,6 +655,7 @@ function FooterBody({ compact }: { compact: boolean }) {
             <DisclosureItem
               className="border-border/60 sm:col-span-2 sm:space-y-3 sm:border-b-0"
               triggerClassName="min-h-11 items-center py-3 text-sm"
+              collapse="below-sm"
               trigger={tr('Explore', 'Khám phá')}
               // ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
               // inside the footer is a CHILD of the footer, not a peer of the page's own sections,
@@ -691,6 +693,7 @@ function FooterBody({ compact }: { compact: boolean }) {
                 key={col.title}
                 className={`border-border/60 sm:space-y-3 sm:border-b-0${col.wide ? ' lg:col-span-2' : ''}`}
                 triggerClassName="min-h-11 items-center py-3 text-sm"
+                collapse="below-sm"
                 trigger={col.title}
                 // h3 for the same reason as "Explore" above — one tier below the footer's tagline
                 // heading, so the document outline reads h1 → h2 → h3 with no skipped level.

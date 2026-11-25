@@ -65,6 +65,28 @@ describe('ui/disclosure: a heading holding a button, and its panel (the home FAQ
     expect(faq).toContain("import { DISCLOSURE_GROUP } from '@/components/ui/disclosure-group'")
   })
 
+  it("collapse='below-sm' (the footer): never a `hidden` attribute, so crawlers count the links; a phone collapses it by CSS", () => {
+    const html = renderToString(<DisclosureItem collapse="below-sm" trigger={Q}><a href="/help">{A}</a></DisclosureItem>)
+    expect(html).toMatch(/data-slot="disclosure-panel" data-collapse="below-sm"><a href="\/help">/)
+    expect(html).not.toMatch(/\shidden(=|\s|>)/) // the attribute (the chevron's aria-hidden is fine)
+    const { container } = render(<DisclosureItem collapse="below-sm" trigger={Q}><p>{A}</p></DisclosureItem>)
+    const button = container.querySelector('button')!
+    const panel = container.querySelector('[role="region"]')!
+    expect(panel.hasAttribute('hidden')).toBe(false) // no until-found upgrade either
+    fireEvent.click(button)
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    expect(panel.hasAttribute('data-open')).toBe(true)
+    fireEvent.click(button)
+    expect(panel.hasAttribute('data-open')).toBe(false)
+    expect(panel.hasAttribute('hidden')).toBe(false)
+  })
+
+  it('the phone collapse is a CSS rule on the data attributes, below 40rem only', async () => {
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync(`${process.cwd()}/src/app/globals.css`, 'utf8')
+    expect(css).toMatch(/@media not all and \(min-width: 40rem\) \{\s*\[data-slot=disclosure-panel\]\[data-collapse=below-sm\]:not\(\[data-open\]\) \{ display: none; \}/)
+  })
+
   it('outside any group, the arrow keys do nothing', () => {
     const { container } = render(<><DisclosureItem trigger="x"><p>{A}</p></DisclosureItem><DisclosureItem trigger="y"><p>{A}</p></DisclosureItem></>)
     const [x] = [...container.querySelectorAll<HTMLButtonElement>('[data-disclosure-trigger]')]

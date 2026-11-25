@@ -252,6 +252,12 @@ describe('Footer links', () => {
     expect([...headers].every((h) => h.tagName === 'H3')).toBe(true)
     for (const href of ['/c/rentals', '/help', '/about', '/post', '/hcmc-rent-index']) expect(hrefs).toContain(href)
     for (const p of panels) expect(p.querySelectorAll('a').length, p.textContent ?? '').toBeGreaterThan(0)
+    // ⛔ Never `hidden` (Seobility crawl 7, 2026-11-25: it skipped every link under hidden / until-found): a phone collapses a
+    // closed group by CSS alone (ui/disclosure `collapse="below-sm"`).
+    for (const p of panels) {
+      expect(p.hasAttribute('hidden'), p.textContent ?? '').toBe(false)
+      expect(p.getAttribute('data-collapse')).toBe('below-sm')
+    }
   })
 
   /**

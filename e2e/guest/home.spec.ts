@@ -146,6 +146,31 @@ test.describe('Guest · homepage', () => {
     await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 
+  test("the footer's link groups: never `hidden` (crawlers count them); a phone collapses them by CSS and a tap opens one", async ({ page }) => {
+    /**
+     * ⛔ 2026-11-25, Seobility crawl 7: it skipped every footer link under `hidden` / until-found, so /help sat at click depth 3.
+     * ui/disclosure `collapse="below-sm"` keeps the panels free of `hidden`; globals.css collapses a closed one below 40rem.
+     */
+    const panels = page.locator('#app-footer [data-slot="disclosure-panel"]')
+    expect(await panels.count()).toBeGreaterThan(0)
+    expect(await panels.evaluateAll((els) => els.filter((el) => el.hasAttribute('hidden')).length)).toBe(0)
+    const display = () => panels.evaluateAll((els) => els.map((el) => getComputedStyle(el).display))
+    if ((page.viewportSize()?.width ?? 1280) < 640) {
+      expect((await display()).every((d) => d === 'none')).toBe(true)
+      const first = page.locator('#app-footer [data-slot="disclosure-header"] button').first()
+      await first.scrollIntoViewIfNeeded()
+      // A tap before hydration does nothing (no handler yet): tap again until it opens.
+      await expect(async () => {
+        if ((await first.getAttribute('aria-expanded')) !== 'true') await first.click()
+        await expect(first).toHaveAttribute('aria-expanded', 'true', { timeout: 1000 })
+      }).toPass({ timeout: 15_000 })
+      await expect(panels.first()).toBeVisible()
+      expect((await display()).slice(1).every((d) => d === 'none')).toBe(true)
+    } else {
+      expect((await display()).every((d) => d !== 'none')).toBe(true)
+    }
+  })
+
   test('the partner band holds still on a phone, drifts on desktop', async ({ page }) => {
     /**
      * ⛔ ON A PHONE THE BAND HOLDS STILL (owner, 2026-11-14: "8 still band"; partner-strip.tsx). Below `sm` the band is the

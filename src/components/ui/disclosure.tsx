@@ -48,7 +48,7 @@ function moveFocus(e: KeyboardEvent<HTMLButtonElement>) {
   all[next].focus()
 }
 
-export function DisclosureItem({ trigger, children, level = 3, headingId, lead, className, triggerClassName }: {
+export function DisclosureItem({ trigger, children, level = 3, headingId, lead, className, triggerClassName, collapse = 'until-found' }: {
   /** The heading's text: what the button says. */
   trigger: ReactNode
   /** The panel's content. */
@@ -61,20 +61,31 @@ export function DisclosureItem({ trigger, children, level = 3, headingId, lead, 
   lead?: ReactNode
   className?: string
   triggerClassName?: string
+  /**
+   * How a closed panel is kept out of view.
+   *   · 'until-found' (the default; the home FAQ): `hidden`, upgraded to `until-found` after hydration, so find-in-page opens it.
+   *   · 'below-sm' (the footer's link groups): NO `hidden` attribute at any time. The panel is in the HTML and displayed; only
+   *     a phone collapses it, by CSS (globals.css, `[data-collapse=below-sm]:not([data-open])` under 40rem). ⛔ For crawlers:
+   *     Seobility, like other crawlers that skip links under `hidden` (until-found included), did not count the footer's
+   *     links (crawl 7, 2026-11-25: /help at click depth 3, every footer-only page deeper than it should be). The trade:
+   *     on a phone, find-in-page does not reach a closed group's links (a CSS-hidden element is not searched).
+   */
+  collapse?: 'until-found' | 'below-sm'
 }) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
   const ownId = useId()
   const hid = headingId ?? ownId
   const panel = useRef<HTMLDivElement>(null)
+  const cssOnly = collapse === 'below-sm'
   useEffect(() => {
     const el = panel.current
-    if (!el || open) return
+    if (!el || open || cssOnly) return
     el.setAttribute('hidden', 'until-found')
     const onMatch = () => setOpen(true)
     el.addEventListener('beforematch', onMatch)
     return () => el.removeEventListener('beforematch', onMatch)
-  }, [open])
+  }, [open, cssOnly])
   const Heading = level === 2 ? 'h2' : 'h3'
   return (
     <div className={cn('border-b border-border last:border-b-0', className)}>
@@ -94,7 +105,16 @@ export function DisclosureItem({ trigger, children, level = 3, headingId, lead, 
           <ChevronDown aria-hidden className="acc-chevron" />
         </button>
       </Heading>
-      <div id={panelId} ref={panel} role="region" aria-labelledby={hid} data-slot="disclosure-panel" hidden={!open}>
+      <div
+        id={panelId}
+        ref={panel}
+        role="region"
+        aria-labelledby={hid}
+        data-slot="disclosure-panel"
+        data-collapse={cssOnly ? 'below-sm' : undefined}
+        data-open={cssOnly && open ? '' : undefined}
+        hidden={cssOnly ? undefined : !open}
+      >
         {children}
       </div>
     </div>

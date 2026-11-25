@@ -69,8 +69,8 @@ const underHidden = (page: Page, selector: string) =>
   page.locator(selector).first().evaluate((el) => !!el.closest('[hidden]'))
 
 /**
- * The footer's link groups (footer.tsx, ui/disclosure rows). React SSRs each closed panel as a plain
- * `hidden=""`, and ui/disclosure switches it to `until-found` only after hydration, so with
+ * The footer's link groups (footer.tsx, ui/disclosure rows). Until 2026-11-25 React SSR'd each closed panel as a plain
+ * `hidden=""` (now never: `collapse="below-sm"`, asserted below), and ui/disclosure switched it to `until-found` only after hydration, so with
  * JavaScript off the footer's link text sits under [hidden]. That is the footer's own contract, not
  * the page's (globals.css forces the panels open from 40rem, and the links stay in the HTML), so it is
  * pinned separately below and left out of the page's hidden-word count.
@@ -115,6 +115,9 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
       // The footer's links are still in the HTML a crawler reads, each an <a href> (followable), and
       // from 40rem up the panels holding them display (globals.css), so a desktop crawler sees them.
       expect(await page.locator(`${FOOTER_PANEL} a[href]`).count()).toBeGreaterThan(0)
+      // ⛔ And none of them under [hidden] (2026-11-25, Seobility crawl 7 skipped the footer's links there): ui/disclosure
+      // `collapse="below-sm"` collapses a phone's closed group by CSS only.
+      expect(await page.locator(`${FOOTER_PANEL} a[href]`).evaluateAll((as) => as.filter((a) => a.closest('[hidden]')).length)).toBe(0)
       await page.setViewportSize({ width: 1280, height: 900 })
       const shown = await page.locator(FOOTER_PANEL).evaluateAll((els) => els.every((el) => getComputedStyle(el).display !== 'none'))
       expect(shown, 'from 40rem every footer link panel must display with JavaScript off').toBe(true)
