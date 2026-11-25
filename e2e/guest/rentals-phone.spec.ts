@@ -38,6 +38,8 @@ test.describe('Guest · rental results on a phone are one column of large square
       const figure = priceRow.querySelector<HTMLElement>('.text-price')
       return {
         x: photo.left, w: photo.width, h: photo.height,
+        // The photo collage (src/components/marketplace/card-collage.tsx) draws when the card has 2+ photos.
+        collage: !!root.querySelector('[data-rail-media] [data-card-collage]'),
         priceOverflows: priceRow.scrollWidth > priceRow.clientWidth + 1,
         // Visible lines only: a shortened title's full text rides in a zero-height span for the card's description.
         lines: [...body.children].filter((c) => (c as HTMLElement).getBoundingClientRect().height > 0).length,
@@ -54,16 +56,22 @@ test.describe('Guest · rental results on a phone are one column of large square
   }
 
   for (const [name, path] of [['/c/rentals', '/c/rentals'], ['the rentals feed', '/?category=rentals']] as const) {
-    test(`${name}: square cards the content width, three lines in one order, no check toggle, no price overflow, no sideways scroll`, async ({ page }) => {
+    test(`${name}: cards edge to edge, square or a collage, three lines in one order, no check toggle, no price overflow, no sideways scroll`, async ({ page }) => {
       await page.goto(path)
       await page.locator('main [data-card-root]').first().waitFor({ timeout: 20_000 }).catch(() => {})
       const cards = await cardsOf(page)
       if (cards.length < 2) test.skip(true, 'fewer than two live rentals on this build')
       const vw = page.viewportSize()!.width
       for (const c of cards) {
-        expect(Math.abs(c.x - 12), 'the photo sits on the 12px gutter').toBeLessThanOrEqual(1)
-        expect(Math.abs(c.w - (vw - 24)), 'the photo is the content width').toBeLessThanOrEqual(1)
-        expect(Math.abs(c.h - c.w), 'the photo stays square').toBeLessThanOrEqual(1)
+        // Round 16 (owner 2026-11-24 "27 edge to edge"): the photo runs the full screen width, no gutter. The rentals collage
+        // (owner 2026-11-25, src/lib/photo-collage.ts): a card with 2+ photos lays up to four in a frame clamped to 0.7–1.35 of
+        // its width; one photo stays square.
+        expect(Math.abs(c.x), 'the photo runs edge to edge (no gutter)').toBeLessThanOrEqual(1)
+        expect(Math.abs(c.w - vw), 'the photo is the screen width').toBeLessThanOrEqual(1)
+        if (c.collage) {
+          expect(c.h / c.w, 'a collage frame stays within 0.7–1.35 of the width').toBeGreaterThanOrEqual(0.69)
+          expect(c.h / c.w, 'a collage frame stays within 0.7–1.35 of the width').toBeLessThanOrEqual(1.36)
+        } else expect(Math.abs(c.h - c.w), 'one photo stays square').toBeLessThanOrEqual(1)
         expect(c.priceOverflows, 'a price line overflows its card').toBe(false)
         expect(c.slot, 'no slot after the price (build 8)').toBe(false)
         expect(c.lines, 'price · title · info line').toBe(3)

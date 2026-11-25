@@ -98,8 +98,9 @@ for (const lang of ['en', 'vi'] as const) {
         expect(Math.round(b.height)).toBe(44)
         expect(Math.round(b.x - (logo.x + logo.width))).toBe(8)
         expect(Math.round(b.y + 2)).toBe(Math.round(logo.y))
-        // At rest: the 8px tier, the field grey, no rim, no lift — and no outline (the ring is the typing state's alone).
-        expect(await tileLook(page)).toEqual({ top: '2px', bottom: '2px', radius: '8px', fill: 'rgb(243, 243, 243)', outline: 'none', ringColour: false, shadow: 'none', rim: '0px' })
+        // At rest: the capsule, the field grey, no rim, no lift — and no outline (the ring is the typing state's alone).
+        // Round 16 (owner 2026-11-24, away from squircles): the field is a capsule, its ::before radius 9999px (globals.css).
+        expect(await tileLook(page)).toEqual({ top: '2px', bottom: '2px', radius: '9999px', fill: 'rgb(243, 243, 243)', outline: 'none', ringColour: false, shadow: 'none', rim: '0px' })
         // A tap types (on a phone: the open search, the mark stepped out): the tile fills its whole 44px box, inside a 2px ring
         // in the focus colour (--ring), so the Clear ✕ keeps 5px of grey all round.
         await page.locator('#app-header input[name="q"]').tap()
