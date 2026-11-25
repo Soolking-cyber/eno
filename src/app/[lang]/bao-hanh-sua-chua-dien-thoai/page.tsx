@@ -288,7 +288,8 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Bảo hành và sửa chữa điện thoại — ai bảo hành cái gì | ${SITE_NAME}`,
+  // No word twice (Seobility crawl 7: "bảo hành" twice was a title word repeat).
+  title: `Bảo hành và sửa chữa điện thoại — ai chịu trách nhiệm phần nào | ${SITE_NAME}`,
   description:
     'Phân biệt bảo hành chính hãng, bảo hành cửa hàng và gói mở rộng; ép kính, màn zin bóc máy hay màn lô; các trường hợp bị từ chối bảo hành; thời gian sửa ước lượng và sáu thứ phải kiểm tra khi nhận máy.',
   alternates: phoneGuideAlternates(SLUG),

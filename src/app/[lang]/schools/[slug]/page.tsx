@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { pageShare } from '@/lib/site-identity'
+import { pageShare, withinResult } from '@/lib/site-identity'
 import { langAlternatesFor } from '@/lib/lang-alternates'
 import { SITE_NAME } from '@/lib/edition'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
@@ -66,7 +66,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : `What teachers say about ${school.name} (${kind}): votes, what is good and bad, pay reported by teachers and open jobs.`
   const path = `/schools/${school.slug}`
   const meta: Metadata = {
-    title: lang === 'vi' ? `${schoolPageTitle(school.name, content, 'vi')} | ${SITE_NAME}` : title,
+    // Within a result (Seobility crawl 7: a Vietnamese school title past 580 px).
+    title: withinResult(lang === 'vi' ? `${schoolPageTitle(school.name, content, 'vi')} | ${SITE_NAME}` : title, '').title,
     description,
     ...(schoolPageIndexable(content) ? {} : { robots: { index: false, follow: true } }),
     ...pageShare({ title, description, url: path }),

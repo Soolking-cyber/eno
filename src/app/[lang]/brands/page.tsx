@@ -26,7 +26,8 @@ import { ModelPriceLinks } from './model-price-links'
 const METADATA: Metadata = {
   // Seobility crawl 3: "Brands | eno.vn" measured 140 px, under the ~200 px a title needs. No category named: the wall
   // holds only brands with live listings, so it may hold none of a given kind (gate review).
-  title: `Shop by brand: every brand with live listings | ${SITE_NAME}`,
+  // No word twice (Seobility crawl 7: "Shop by brand: every brand…" was a title word repeat).
+  title: `Every brand with live listings, A to Z | ${SITE_NAME}`,
   description: `Browse live listings by brand on ${SITE_NAME} — straight to the listings from the brands buyers in Vietnam search for.`,
   alternates: { canonical: '/brands' },
 }

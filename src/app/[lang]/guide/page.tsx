@@ -11,7 +11,8 @@ import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 export const metadata: Metadata = withShare({
   // The site named once (Seobility crawl 3: "How eno.vn works — Guide | eno.vn" is "title word repeats").
-  title: `How buying and selling works, step by step | ${SITE_NAME}`,
+  // No word twice (Seobility crawl 7: "step by step" was a title word repeat).
+  title: `How buying and selling works, start to finish | ${SITE_NAME}`,
   description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
   alternates: { canonical: '/guide' },
 })

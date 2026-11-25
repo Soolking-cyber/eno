@@ -58,12 +58,23 @@ describe('listing <title> by variant (V2b)', () => {
 
   it('a filled description names the price once, in the variant\'s grouping, and og:description does not repeat it (review 2026-11-20)', async () => {
     const vi = await meta('vi', { description: 'Good condition' })
-    expect(vi.description).toMatch(/^Good condition\. 12\.000\.000 đ, /)
+    // Price first since 2026-11-25 (Seobility crawl 7: an importer's units share one long text — 209 duplicate descriptions).
+    expect(vi.description).toMatch(/^12\.000\.000 đ · Good condition\. /)
+    expect(String(vi.description).match(/12\.000\.000/g)).toHaveLength(1)
     expect(vi.description).not.toMatch(/12,000,000/)
+    expect(String(vi.description).length).toBeLessThanOrEqual(155)
     const og = String((vi.openGraph as { description?: string }).description)
     expect(og.match(/12\.000\.000/g)).toHaveLength(1)
     expect(og).not.toMatch(/12,000,000/)
     expect(og.length).toBeLessThanOrEqual(160)
+  })
+
+  it('two listings with one long seller text and different prices get different descriptions (Seobility crawl 7)', async () => {
+    const body = 'Apartment for rent at Gateway Thao Dien, District 2, Ho Chi Minh City: 1 bedroom, 1 bathroom, 60 m². Features. Accessible · Building staff · Elevator · Gym · Pool · Security'
+    const a = (await meta('en', { description: body, price: 13_600_000 })).description
+    const b = (await meta('en', { description: body, price: 14_200_000 })).description
+    expect(a).not.toBe(b)
+    expect(a).toMatch(/^13,600,000 đ/)
   })
 
   it('no price: just the title', async () => {

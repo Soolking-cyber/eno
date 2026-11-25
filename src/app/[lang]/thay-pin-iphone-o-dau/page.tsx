@@ -272,7 +272,8 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: `Thay pin iPhone ở đâu — chính hãng, pin zin hay pin ngoài | ${SITE_NAME}`,
+  // No word twice (Seobility crawl 7: "pin" three times was a title word repeat).
+  title: `Thay pin iPhone ở đâu — chính hãng, zin hay hàng ngoài | ${SITE_NAME}`,
   description:
     'Khi nào pin iPhone thật sự cần thay, ba loại pin trên thị trường khác nhau ra sao, vì sao máy báo Bộ phận không xác định, và các bước kiểm tra tại quầy để không bị tráo pin.',
   alternates: phoneGuideAlternates(SLUG),

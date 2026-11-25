@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/edition', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/edition')>()), SITE_NAME: 'eno.vn' }))
-const { withinResult, withShare } = await import('./site-identity')
+const { brandTwice, withinResult, withShare } = await import('./site-identity')
 
 /** Seobility 2026-11-24: guide and tool titles over ~580 px and descriptions over ~1000 px, through withShare. */
 describe('withinResult', () => {
@@ -16,13 +16,34 @@ describe('withinResult', () => {
     expect(withinResult(shortHead, 'd').title).toBe(shortHead)
   })
   it('names the domain once, at the end: "eno.vn" mid-title becomes the brand', () => {
-    expect(withinResult(`How to post a listing on eno.vn, step by step | eno.vn`, 'd').title).toBe(`How to post a listing on eno, step by step | eno.vn`)
-    expect(withinResult(`Does it cost anything to buy or sell on eno.vn?`, 'd').title).toBe('Does it cost anything to buy or sell on eno? | eno.vn')
+    // The brand is then in the words, so the suffix goes (Seobility crawl 7: "eno" twice was a title word repeat).
+    expect(withinResult(`How to post a listing on eno.vn, step by step | eno.vn`, 'd').title).toBe(`How to post a listing on eno, step by step`)
+    // …and a title that says "eno" goes without the suffix, whose "eno" would repeat it (Seobility crawl 7, 2026-11-25).
+    expect(withinResult(`Does it cost anything to buy or sell on eno.vn?`, 'd').title).toBe('Does it cost anything to buy or sell on eno?')
   })
   it('keepDomain: a title that names the domain on purpose keeps it (the MCP page, 07 2026-11-24)', () => {
     const mcp = 'eno Agentic Commerce | The eno.vn MCP server for AI agents'
     expect(withinResult(mcp, 'd', { keepDomain: true }).title).toBe(mcp)
+    // Without it, "eno.vn" mid-title becomes the brand (the suffix is not added: the words already say eno).
     expect(withinResult(mcp, 'd').title).toBe('eno Agentic Commerce | The eno MCP server for AI agents')
+  })
+  it('"eno" once: a title whose words say eno goes without the suffix; any other title is untouched (Seobility crawl 7)', () => {
+    expect(withinResult('Mua bán trên eno có mất phí không? | eno.vn', 'd').title).toBe('Mua bán trên eno có mất phí không?')
+    expect(withinResult('How to become an English teacher in Vietnam: step by step', 'd').title).toBe('How to become an English teacher in Vietnam: step by step')
+    expect(withinResult('Phones under 10 million in Vietnam | eno.vn', 'd').title).toBe('Phones under 10 million in Vietnam | eno.vn')
+    expect(brandTwice('eno Partner API: developer documentation | eno.vn')).toBe(true)
+    expect(brandTwice('Phones under 10 million | eno.vn')).toBe(false)
+    expect(brandTwice('Phones at enormous discounts | eno.vn')).toBe(false)
+    expect(brandTwice('Sell faster on eno. | eno.vn')).toBe(true)
+    expect(brandTwice('Selling on eno.vn today | eno.vn')).toBe(false)
+  })
+  it('fitMeta fits a title only when it does not fit or says eno twice; a fitting title is left as written', async () => {
+    const { fitMeta } = await import('./site-identity')
+    expect(fitMeta({ title: 'Phones under 10 million in Vietnam | eno.vn', description: 'd' }).title).toBe('Phones under 10 million in Vietnam | eno.vn')
+    expect(fitMeta({ title: 'How do offers work on eno? | eno.vn', description: 'd' }).title).toBe('How do offers work on eno?')
+    expect(fitMeta({ title: 'Thanh lý đồ cũ của người nước ngoài: mua ở đâu, giá bao nhiêu | eno.vn', description: 'd' }).title).toBe('Thanh lý đồ cũ của người nước ngoài | eno.vn')
+    // No title in, no `title` key out (a parent layout's title must not be overwritten by undefined).
+    expect('title' in fitMeta({ description: 'd' })).toBe(false)
   })
   it('cuts a description past 155 at a word, and leaves a shorter one alone', () => {
     const d = 'word '.repeat(50).trim()

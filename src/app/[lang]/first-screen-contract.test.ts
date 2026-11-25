@@ -47,7 +47,7 @@ describe('the first screen', () => {
   it('home: the `/vi` pilot switcher left the top — it renders after the feed, inside <main>', () => {
     const s = code('src/app/[lang]/(home)/layout.tsx')
     // Batch 66: an outer wrapper (sr-only below sm, shown on keyboard focus) around the padded row — still after the feed, in <main>.
-    expect(s).toMatch(/\{\s*children\s*\}\s*\{PILOTED && <div[^>]*>(<div[^>]*>)?<LangPilotSwitch path="\/" params=\{params\} \/><\/div>(<\/div>)?\}\s*<\/main>/)
+    expect(s).toMatch(/\{\s*children\s*\}\s*\{PILOTED && <div[^>]*>(<div[^>]*>)?<LangPilotSwitch path="\/" params=\{params\} name=\{HOME_TWIN_NAME\} \/><\/div>(<\/div>)?\}\s*<\/main>/)
     expect(s.indexOf('<LangPilotSwitch')).toBeGreaterThan(s.indexOf('{children}'))
   })
 

@@ -135,7 +135,7 @@ import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { JOB_COUNSEL, JOB_COUNSEL_INFO, JOB_COUNSEL_STRIP, JOB_EMPLOYER, JOB_HEADER, JOB_LINES, JOB_META, JOB_META_GLYPH, JOB_PRICE, JOB_PRICE_APPROX, JOB_PRICE_ROW, JOB_SALARY_TEXT, JOB_SHELF_GAP, JOB_TAGS, JOB_TAG_ROWS, JOB_TITLE, JOB_TITLE_ACTIONS, JOB_TITLE_CELL, JOB_TITLE_LINE } from '@/lib/job-sheet'
 import { JobApplyRow } from '@/components/marketplace/job-apply-row'
 import { HOST_BAND, HOST_CARD_SLOT, PAGE_TITLE, PAGE_WELL, SHEET_BAR_APPROX, SHEET_BAR_PRICE, SHEET_BAR_UNIT, SHEET_BLOCK, SHEET_CONTACT, SHEET_FACTS, SHEET_GRID_GAP, SHEET_HEAD_GAP, SHEET_PHOTO, SHEET_PLACE, SHEET_PRICE, SHEET_PRICE_APPROX, SHEET_PRICE_ROW, SHEET_PRICE_UNIT, SHEET_REPORT, SHEET_ROWS, SHEET_STAT, SHEET_STATS, SHEET_STAT_LABEL, SHEET_STAT_VALUE, SHEET_TIER_APPROX, SHEET_TIER_PRICE, SHEET_TIER_UNIT, SHEET_TITLE, SHEET_WELL, isRentalSheet, pinsRentalAction, sectionLine, sheetStatCols } from '@/lib/rental-sheet'
-import { fillDescription, firstThatFits, titleWithPrice } from '@/lib/meta-description'
+import { clipDescription, fillDescription, firstThatFits, titleWithPrice } from '@/lib/meta-description'
 import { brandHref, dominantCategory } from '@/lib/brand-category'
 import { isThinImport } from '@/lib/thin-import'
 import { isDuplicateImport } from '@/lib/duplicate-import'
@@ -307,7 +307,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // ~40 characters, so a ~100-character body still reaches Bing's 120 under the 155 cap (Seobility, 2026-11-23): the old 60-character
   // line was skipped whole there and the description stayed short. It keeps the site's name, which a long <title> drops (titleWithPrice).
   const siteLine = !POSTING_IS_FREE ? '' : vi ? `Rao vặt miễn phí tại Việt Nam trên ${SITE_NAME}.` : `Free classifieds in Vietnam on ${SITE_NAME}.`
-  const desc = bodyDesc
+  // ⛔ A PRICED LISTING'S DESCRIPTION LEADS WITH ITS PRICE, as its share card's does (Seobility crawl 7, 2026-11-25: 209 duplicate
+  // descriptions — an importer's units in one building share the same long text, so a body that filled the description alone
+  // made them one description). Price first, then the seller's words, then place and site line while there is room; within the
+  // result's width (clipDescription).
+  const desc = bodyDesc && titlePrice
+    ? clipDescription(`${titlePrice} · ${fillDescription(bodyDesc, [place && `${place}.`, siteLine], { max: 155 - titlePrice.length - 3 })}`)
+    : bodyDesc
     ? fillDescription(bodyDesc, [[titlePrice, place].filter(Boolean).join(', ') && `${[titlePrice, place].filter(Boolean).join(', ')}.`, siteLine])
     // The composed fallback is English on both variants (above), so its closing line is too.
     : fillDescription(fallbackDesc, [POSTING_IS_FREE && 'Free classifieds for expats and locals in Vietnam.'])

@@ -5,7 +5,7 @@ import { LANGS } from '@/lib/i18n/langs'
 import { normalizePhone } from '@/lib/phone'
 import { SOCIALS, X_SITE } from '@/lib/socials'
 import { firstThatFits, sentenceDescription } from '@/lib/meta-description'
-import { titlePx } from '@/lib/serp-width'
+import { TITLE_MAX_PX, titlePx } from '@/lib/serp-width'
 import type { LegalOperator } from '@/lib/site-legal'
 
 /**
@@ -348,14 +348,29 @@ export function withinResult(title: string, description: string, opts?: WithinRe
   title = bare === rawBare ? title : `${bare}${SITE_SUFFIX}`
   const head = bare.split(/:\s|\s[—–|]\s/)[0].trim()
   const heads = head !== bare && titlePx(head) >= 200 ? [`${head}${SITE_SUFFIX}`, head] : []
-  return { title: firstThatFits([title, bare, ...heads]), description: sentenceDescription(description, 155) }
+  // ⛔ "eno" ONCE (Seobility crawl 7, 2026-11-25: help titles "Does it cost anything to buy or sell on eno? | eno.vn" were "title
+  // word repeats"). A title whose own words say "eno" goes without " | eno.vn". Every other title is as before.
+  const candidates = opts?.keepDomain ? [title, bare, ...heads] : [title, bare, ...heads].filter((t) => !brandTwice(t))
+  return { title: firstThatFits(candidates.length ? candidates : [bare]), description: sentenceDescription(description, 155) }
 }
+
+/** A title that says the brand word ("eno") in its own words AND carries the " | eno.vn" suffix. */
+export function brandTwice(title: string): boolean {
+  if (!title.endsWith(SITE_SUFFIX)) return false
+  // "eno" as a word — also before a full stop ("…on eno.") — but not the domain ("eno.vn").
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${SITE_BRAND}(?![\\p{L}\\p{N}]|\\.[\\p{L}\\p{N}])`, 'iu').test(title.slice(0, -SITE_SUFFIX.length))
+}
+
 
 /**
  * A page's own metadata with its description fitted to a result (sentenceDescription), for a page that sets a hand-written
  * one (Seobility crawl 4, 2026-11-25: 29 guide pages at 1,006–1,591 px of 1,000). The share cards keep the full text — they
  * are built from their own `openGraph` / `twitter` fields, which this leaves alone.
  */
-export function fitMeta<M extends Metadata>(m: M): M {
-  return typeof m.description === 'string' ? { ...m, description: sentenceDescription(m.description) } : m
+export function fitMeta<M extends Metadata>(m: M, opts?: WithinResultOpts): M {
+  // The <title> too, when it does not fit a result (Seobility crawl 7: 7 hand-written guide titles past 580 px) or says "eno"
+  // twice: withinResult's rules. A title that fits is left exactly as written.
+  // Only a string title is touched; metadata without one keeps no `title` key (a parent's would be overwritten by undefined).
+  const fitted = typeof m.title === 'string' && (titlePx(m.title) > TITLE_MAX_PX || brandTwice(m.title)) ? { title: withinResult(m.title, '', opts).title } : {}
+  return typeof m.description === 'string' ? { ...m, ...fitted, description: sentenceDescription(m.description) } : { ...m, ...fitted }
 }
