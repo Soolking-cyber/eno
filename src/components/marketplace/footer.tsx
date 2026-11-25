@@ -1,7 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
+import { DisclosureItem } from '@/components/ui/disclosure'
+import { DISCLOSURE_GROUP } from '@/components/ui/disclosure-group'
 import { usePathname } from 'next/navigation'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -618,30 +619,29 @@ function FooterBody({ compact }: { compact: boolean }) {
 
           {/* ⚠️ THE LINK GROUPS ARE ONE ACCORDION ON A PHONE, AND THE SAME GRID AS BEFORE FROM sm UP.
               Measured on prod at 390: the footer was 1,748px — five fully expanded groups stacked above
-              the legal block, 53 small links a thumb had to scroll past on every page. ui/accordion is
-              `hiddenUntilFound`, so a closed group's links stay in the SSR HTML (the crawl paths this
-              footer exists for are untouched) and the browser's find-in-page opens the group that holds
-              a match. From 40rem the root is `display: contents`, so each item is a direct grid child
-              exactly where its <div> used to be, and globals.css (#app-footer) hides the accordion
+              the legal block, 53 small links a thumb had to scroll past on every page. Each group is a
+              ui/disclosure row whose closed panel is `until-found`, so its links stay in the SSR HTML (the
+              crawl paths this footer exists for are untouched) and the browser's find-in-page opens the
+              group that holds a match. From 40rem the root is `display: contents`, so each item is a direct
+              grid child exactly where its <div> used to be, and globals.css (#app-footer) hides the rows'
               headers and forces every panel open. That holds before hydration too: the server renders
               a closed panel as a plain `hidden`, which Tailwind preflight hides with an @layer base
               !important. So the panel's `display` override lives in @layer base with !important. It is
               measured with the JS chunks blocked: desktop is unchanged, pixel for pixel, with no shift
               at hydration.
               Each group keeps its static level-3 heading for sm+ (role="heading" aria-level=3 since 2026-11-19: the HTML held each
-              title twice as <h3>, the hidden copy an empty section to answer engines); on a phone the accordion's own header is the h3
-              (Base UI renders one), so the outline stays h2 → h3 at every width.
+              title twice as <h3>, the hidden copy an empty section to answer engines); on a phone the row's own header is the h3, so
+              the outline stays h2 → h3 at every width.
               ⚠️ The phone hairlines are the ITEM's own `border-b` (the primitive's, last one dropped),
               not `divide-y` on the root: the item's `sm:border-b-0` would otherwise have to be a bare
               `border-b-0`, and a plain utility outranks divide-y's `:where()` rule, so the lines vanish.
-              ⚠️ STILL BASE UI, AND MEASURED BEFORE BEING KEPT (UX program 2, A12 item 1, 2026-10-04). Mounting
-              the five panels — which a client navigation does, because route files render this footer — reads
-              getComputedStyle once per panel (Base UI 1.6 useCollapsiblePanel detects the animation type in
-              a layout effect, unconditionally) and scrollHeight never; the candidate fix (keepMounted, no
-              height transition, CSS only) measured the same five reads and zero. So no CSS or prop change
-              here removes the read, and native <details name> is out (no `name` before iOS 17.2, and it
-              would make these `multiple` groups exclusive). Re-measure before swapping the primitive. */}
-          <Accordion multiple className="col-span-2 sm:contents">
+              ⛔ NOT BASE UI'S ACCORDION SINCE 2026-11-25, AND MEASURED BEFORE THE SWAP (UX program 2 A12 item 1, 2026-10-04, had kept
+              it and asked for a re-measure first). Mounting its five panels read getComputedStyle once per panel (Base UI 1.6
+              useCollapsiblePanel, in a layout effect, unconditionally), and its CompositeList registered the items with a setState in a
+              layout effect: a Sync update inside the HYDRATION commit, which makes React flush every passive effect of the page in the
+              same task. A React commit probe on the phone home (main b3a89597e) found exactly two components scheduling Sync there:
+              this accordion and SortStrip's tabs. The reasons the other options were ruled out (native <details name> included): ui/disclosure.tsx. */}
+          <div {...DISCLOSURE_GROUP} className="col-span-2 w-full sm:contents">
             {/* Explore — crawlable internal links to every /c/{slug} category landing that has
                 listings (SEO internal linking; the empty ones are FOOTER_HIDDEN_CATEGORIES, above).
                 Slugs and bilingual names come from NAV_CATEGORIES, a
@@ -651,17 +651,20 @@ function FooterBody({ compact }: { compact: boolean }) {
                 subcategory icons and search-synonym keyword arrays these fifteen links never read.
                 src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
                 drift. */}
-            <AccordionItem value="explore" className="border-border/60 sm:col-span-2 sm:space-y-3 sm:border-b-0">
-              {/* ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
-                  inside the footer is a CHILD of the footer, not a peer of the page's own sections,
-                  and five sibling h2s with nothing above them is what made the outline flat. The
-                  class string is untouched precisely so this stays a semantics-only change.
-                  (`hidden … sm:block`: below sm the accordion header right after it is the heading.) */}
-              <p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{tr('Explore', 'Khám phá')}</p>
-              <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{tr('Explore', 'Khám phá')}</AccordionTrigger>
+            <DisclosureItem
+              className="border-border/60 sm:col-span-2 sm:space-y-3 sm:border-b-0"
+              triggerClassName="min-h-11 items-center py-3 text-sm"
+              trigger={tr('Explore', 'Khám phá')}
+              // ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
+              // inside the footer is a CHILD of the footer, not a peer of the page's own sections,
+              // and five sibling h2s with nothing above them is what made the outline flat. The
+              // class string is untouched precisely so this stays a semantics-only change.
+              // (`hidden … sm:block`: below sm the row's own h3 header right after it is the heading.)
+              lead={<p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{tr('Explore', 'Khám phá')}</p>}
+            >
               {/* `text-base leading-normal` restores the 16/24 the list inherited from <body> before it
-                  sat in a panel (the primitive's text-sm/leading-relaxed would grow every desktop row). */}
-              <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
+                  sat in a panel (the accordion panel's text-sm/leading-relaxed would grow every desktop row). */}
+              <div className="pb-3 text-base leading-normal text-body sm:pb-0">
                 <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2 lg:gap-x-8">
                   {/* Each link is a way IN, so it wears the entry label — "Find a teacher", not "Teachers"
                       (nav audit N8, category-entry-label.ts); the slug and href are the category's own.
@@ -679,17 +682,21 @@ function FooterBody({ compact }: { compact: boolean }) {
                     </li>
                   ))}
                 </ul>
-              </AccordionPanel>
-            </AccordionItem>
+              </div>
+            </DisclosureItem>
 
             {/* Link columns */}
             {columns.map((col) => (
-              <AccordionItem key={col.title} value={col.title} className={`border-border/60 sm:space-y-3 sm:border-b-0${col.wide ? ' lg:col-span-2' : ''}`}>
-                {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
-                    heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
-                <p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{col.title}</p>
-                <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{col.title}</AccordionTrigger>
-                <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
+              <DisclosureItem
+                key={col.title}
+                className={`border-border/60 sm:space-y-3 sm:border-b-0${col.wide ? ' lg:col-span-2' : ''}`}
+                triggerClassName="min-h-11 items-center py-3 text-sm"
+                trigger={col.title}
+                // h3 for the same reason as "Explore" above — one tier below the footer's tagline
+                // heading, so the document outline reads h1 → h2 → h3 with no skipped level.
+                lead={<p role="heading" aria-level={3} className="hidden text-sm font-bold text-foreground sm:block">{col.title}</p>}
+              >
+                <div className="pb-3 text-base leading-normal text-body sm:pb-0">
                   <ul className={col.wide ? 'sm:space-y-2 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-2 lg:space-y-0' : 'sm:space-y-2'}>
                     {col.links.map((link) => (
                       <li key={link.label}>
@@ -722,10 +729,10 @@ function FooterBody({ compact }: { compact: boolean }) {
                       </li>
                     ))}
                   </ul>
-                </AccordionPanel>
-              </AccordionItem>
+                </div>
+              </DisclosureItem>
             ))}
-          </Accordion>
+          </div>
         </div>
         )}
 

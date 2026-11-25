@@ -472,3 +472,62 @@ describe('ViewSwitch variant="circle" (the goods search\'s view pick, owner-appr
     expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['List view', 'Grid view', 'Map view', 'Video view'])
   })
 })
+
+/**
+ * ⛔ THE SORT TABS ARE ui/tabs' PLAIN LIST, NOT BASE UI'S (2026-11-25): Base UI's TabsList registers its tabs with a Sync setState
+ * inside the hydration commit, which pulled every passive effect of the phone home into its longest task. A later swap to Base
+ * UI was dropped in the commit gate (it lost clicks and key presses that straddled it). Same names, same click, same keys.
+ */
+describe('the sort tabs are the plain list at every width', () => {
+  const mm = (wide: boolean) => (q: string) => ({ matches: wide && q.includes('min-width: 40rem'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false })
+  const NEWEST = { name: 'Newest' }
+  const baseUi = (el: HTMLElement) => el.id.startsWith('base-ui-')
+
+  for (const wide of [false, true]) {
+    it(`${wide ? 'from 40rem' : 'on a phone'}: never Base UI's list, and a click sorts (only an inactive tab, once)`, async () => {
+      vi.stubGlobal('matchMedia', mm(wide))
+      const picked: string[] = []
+      render(<SortStrip sort="newest" onPickSort={(s) => picked.push(s)} goodPrice={false} onGoodPrice={() => {}} />)
+      await new Promise((r) => setTimeout(r, 400))
+      expect(screen.getAllByRole('tab').some(baseUi)).toBe(false)
+      screen.getByRole('tab', { name: 'Relevance' }).click() // already active: no sort
+      screen.getByRole('tab', NEWEST).click()
+      expect(picked).toEqual(['recent'])
+    })
+  }
+
+  it('the price tab: a tap picks low → high; on the active price tab a tap flips it', () => {
+    const picked: string[] = []
+    const { rerender } = render(<SortStrip sort="newest" onPickSort={(s) => picked.push(s)} goodPrice={false} onGoodPrice={() => {}} />)
+    screen.getByRole('tab', { name: 'Price: low to high' }).click()
+    rerender(<SortStrip sort="price-low" onPickSort={(s) => picked.push(s)} goodPrice={false} onGoodPrice={() => {}} />)
+    screen.getByRole('tab', { name: 'Price: low to high' }).click()
+    expect(picked).toEqual(['price-low', 'price-high'])
+  })
+
+  it('the active tab is the one Tab stop; ← / → move focus between the tabs without sorting', () => {
+    const picked: string[] = []
+    render(<SortStrip sort="newest" onPickSort={(s) => picked.push(s)} goodPrice={false} onGoodPrice={() => {}} />)
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((t) => t.tabIndex)).toEqual([0, -1, -1, -1])
+    tabs[0].focus()
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(tabs[1])
+    fireEvent.keyDown(tabs[1], { key: 'ArrowLeft' })
+    fireEvent.keyDown(tabs[0], { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(tabs[3]) // loops
+    expect(picked).toEqual([])
+  })
+
+  it('the plain list passes the caller\'s DOM props through (a name, an id)', async () => {
+    const { Tabs, TabsList, TabsTrigger } = await import('@/components/ui/tabs')
+    render(
+      <Tabs value="a">
+        <TabsList aria-label="Sort by" id="sort-tabs" plain={{ value: 'a', onValueChange: () => {} }}>
+          <TabsTrigger value="a">{NEWEST.name}</TabsTrigger>
+        </TabsList>
+      </Tabs>,
+    )
+    expect(screen.getByRole('tablist', { name: 'Sort by' }).id).toBe('sort-tabs')
+  })
+})

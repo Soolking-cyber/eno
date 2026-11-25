@@ -237,18 +237,18 @@ describe('Footer links', () => {
   })
 
   /**
-   * ⛔ THE PHONE ACCORDION IS LOAD-BEARING ON BASE UI'S data-slot NAMES. globals.css hides
-   * `#app-footer [data-slot=accordion-header]` and forces every `[data-slot=accordion-panel]` open from
+   * ⛔ THE PHONE ROWS ARE LOAD-BEARING ON ui/disclosure's data-slot NAMES. globals.css hides
+   * `#app-footer [data-slot=disclosure-header]` and forces every `[data-slot=disclosure-panel]` open from
    * 40rem; if either name changed, the desktop footer would collapse into five closed groups. And the
-   * closed panels must still hold every link (hiddenUntilFound), or the crawl paths go with them.
+   * closed panels must still hold every link (until-found), or the crawl paths go with them.
    */
-  it('renders each link group as an accordion item whose closed panel still holds its links', async () => {
+  it('renders each link group as a disclosure row whose closed panel still holds its links', async () => {
     const { container, hrefs } = await renderFooter('marketplace', 'en')
-    const headers = container.querySelectorAll('#app-footer [data-slot=accordion-header]')
-    const panels = container.querySelectorAll('#app-footer [data-slot=accordion-panel]')
+    const headers = container.querySelectorAll('#app-footer [data-slot=disclosure-header]')
+    const panels = container.querySelectorAll('#app-footer [data-slot=disclosure-panel]')
     expect(headers.length).toBe(5) // Explore + the four columns (Community is empty on both editions)
     expect(panels.length).toBe(5)
-    // Each group keeps a static level-3 heading for sm+ (role=heading, not an <h3> tag), and the accordion header is itself an h3.
+    // Each group keeps a static level-3 heading for sm+ (role=heading, not an <h3> tag), and the row's header is itself an h3.
     expect([...headers].every((h) => h.tagName === 'H3')).toBe(true)
     for (const href of ['/c/rentals', '/help', '/about', '/post', '/hcmc-rent-index']) expect(hrefs).toContain(href)
     for (const p of panels) expect(p.querySelectorAll('a').length, p.textContent ?? '').toBeGreaterThan(0)
@@ -256,7 +256,7 @@ describe('Footer links', () => {
 
   /**
    * ⛔ THE DESKTOP OVERRIDE HAS TO WIN BEFORE HYDRATION, NOT ONLY AFTER. React SSRs a closed panel as a
-   * plain `hidden=""` (it only knows the boolean); Base UI writes `until-found` in a client layout
+   * plain `hidden=""` (it only knows the boolean); ui/disclosure writes `until-found` in a client
    * effect. Until then Tailwind preflight's `[hidden]:where(:not([hidden='until-found']))` hides it with
    * a LAYERED !important, which beats any normal declaration and any unlayered !important. Measured at
    * 1280 with the JS chunks blocked, an unlayered `display: block` left all five lists display:none,
@@ -266,7 +266,7 @@ describe('Footer links', () => {
   it('forces the desktop panels open in @layer base with !important, so they show before hydration', () => {
     const css = readFileSync(join(__dirname, '../../app/globals.css'), 'utf8')
     expect(css).toMatch(
-      /@layer base \{\s*@media \(min-width: 40rem\) \{\s*#app-footer \[data-slot=accordion-panel\] \{ display: block !important; \}/,
+      /@layer base \{\s*@media \(min-width: 40rem\) \{\s*#app-footer \[data-slot=disclosure-panel\] \{ display: block !important; \}/,
     )
   })
 

@@ -387,6 +387,11 @@ export function SortStrip({
   // The phone row's scroller, for the edge "›" (category-rail.tsx's pattern — see below). `page` is the
   // desktop arrows' own step (85% of the row), so the phone button scrolls exactly as "Scroll right" does.
   const { scrollerRef: phoneRowRef, canRight: phoneRowCanRight, page: pagePhoneRow } = useScrollArrows<HTMLDivElement>({ watch: sort })
+  // The tabs' commit (the plain list's click and the root's onValueChange): the price tab's two directions collapse onto `price`.
+  const pickTab = (value: unknown) => {
+    const next = value as SortTab
+    onPickSort(next === 'price' ? (sort === 'price-low' ? 'price-high' : 'price-low') : next)
+  }
 
   return (
     <Tabs
@@ -408,15 +413,13 @@ export function SortStrip({
       // cold link's first frame is filled too.
       data-pills="filled"
       value={activeTab}
-      onValueChange={(value) => {
-        const next = value as SortTab
-        // MANUAL activation, and keep it that way. Base UI's TabsList defaults
-        // activateOnFocus={false}: ←/→ move roving focus, Enter/Space commits, and only the commit
-        // reaches this handler. Do NOT "fix" arrows-don't-sort by turning activateOnFocus on — each
-        // arrow keypress would then commit a sort and fire a fresh product query (four of them just
-        // to arrow across the strip), and on Price it would auto-flip asc→desc mid-traverse.
-        onPickSort(next === 'price' ? (sort === 'price-low' ? 'price-high' : 'price-low') : next)
-      }}
+      // MANUAL activation, and keep it that way. Base UI's TabsList defaults
+      // activateOnFocus={false}: ←/→ move roving focus, Enter/Space commits, and only the commit
+      // reaches this handler. Do NOT "fix" arrows-don't-sort by turning activateOnFocus on — each
+      // arrow keypress would then commit a sort and fire a fresh product query (four of them just
+      // to arrow across the strip), and on Price it would auto-flip asc→desc mid-traverse. (The
+      // plain list's arrows only move focus too.)
+      onValueChange={pickTab}
       className={cn(
         // `block` drops the Tabs root's base `flex` (there are no panels here — the results grid
         // is the de-facto panel and lives outside this component), so the sticky bar stays the
@@ -567,6 +570,10 @@ export function SortStrip({
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
+        // ⛔ NOT BASE UI'S LIST: its tab registration is a Sync update inside the hydration commit, which pulled every passive
+        // effect of the phone home into its longest task (measured 2026-11-25; ui/tabs `plain` has the reason and why a
+        // later swap to Base UI was dropped). Same markup, keyboard and click.
+        plain={{ value: activeTab, onValueChange: pickTab }}
         className={cn(
           // Same-modifier kills of the list base: inline-flex → flex, w-fit → full width,
           // justify-center → start (it would CENTRE the tabs in the scroller), p-[3px] → none,

@@ -2796,15 +2796,15 @@ html.native-tabbar .mobile-nav { visibility: hidden; pointer-events: none; }
 
 /* ⚠️ THE FOOTER'S LINK GROUPS ARE AN ACCORDION ON A PHONE AND ALWAYS OPEN FROM sm UP. Measured on
    prod at 390: the fully expanded footer was 1,748px — five link groups stacked above the legal block.
-   footer.tsx wraps the groups in ui/accordion (hiddenUntilFound, so a closed group's links stay in the
+   footer.tsx draws each group as a ui/disclosure row (until-found, so a closed group's links stay in the
    HTML for crawlers and for find-in-page) and renders the root `sm:contents`, so from 40rem the items
-   are grid children exactly as before. This block is what makes that true: it hides the accordion
-   headers (each group keeps its static <h3>) and forces every panel open. The height, overflow and
-   content-visibility lines are UNLAYERED on purpose: they have to beat the panel's layered height
-   utility and Chrome's until-found `content-visibility: hidden`.
+   are grid children exactly as before. This block is what makes that true: it hides the rows'
+   headers (each group keeps its static level-3 heading) and forces every panel open. The
+   content-visibility line is UNLAYERED on purpose: it has to beat Chrome's until-found
+   `content-visibility: hidden`.
    ⛔ `display` IS NOT IN THAT RULE, AND CANNOT BE. React renders `hidden` as a boolean, so the SSR
-   HTML carries a plain `hidden=""`; Base UI writes `until-found` only in a client layout effect
-   (useCollapsiblePanel, citing React issue 24740). Until then Tailwind preflight's
+   HTML carries a plain `hidden=""`; ui/disclosure writes `until-found` only in a client effect (React
+   issue 24740). Until then Tailwind preflight's
    `[hidden]:where(:not([hidden='until-found'])) { display: none !important }` matches, and a layered
    !important beats any normal declaration AND an unlayered !important. Measured at 1280 with the JS
    chunks blocked: all five lists display:none, footer 711px, then 1,048px once hydrated. That was a
@@ -2812,14 +2812,14 @@ html.native-tabbar .mobile-nav { visibility: hidden; pointer-events: none; }
    `display` lives in `@layer base`, the same layer as preflight, with !important, where the id
    selector (1,1,0) outranks preflight's (0,1,0). It also beats the UA `[hidden]` rule, which Safari
    applies to `until-found` because it doesn't support it.
-   ⛔ Load-bearing on Base UI's data-slot names: footer.test.tsx pins them. */
+   ⛔ Load-bearing on ui/disclosure's data-slot names: footer.test.tsx pins them. */
 @media (min-width: 40rem) {
-  #app-footer [data-slot=accordion-header] { display: none; }
-  #app-footer [data-slot=accordion-panel] { height: auto; overflow: visible; content-visibility: visible; }
+  #app-footer [data-slot=disclosure-header] { display: none; }
+  #app-footer [data-slot=disclosure-panel] { content-visibility: visible; }
 }
 @layer base {
   @media (min-width: 40rem) {
-    #app-footer [data-slot=accordion-panel] { display: block !important; }
+    #app-footer [data-slot=disclosure-panel] { display: block !important; }
   }
 }
 /* ⛔ THE PAGE END ON A PHONE (owner-approved 2026-11-14, cook r05: "after this cook round build all best options and

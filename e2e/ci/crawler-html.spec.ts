@@ -69,13 +69,13 @@ const underHidden = (page: Page, selector: string) =>
   page.locator(selector).first().evaluate((el) => !!el.closest('[hidden]'))
 
 /**
- * The footer's link groups (footer.tsx, ui/accordion with hiddenUntilFound). React SSRs each closed
- * panel as a plain `hidden=""`, and Base UI switches it to `until-found` only after hydration, so with
+ * The footer's link groups (footer.tsx, ui/disclosure rows). React SSRs each closed panel as a plain
+ * `hidden=""`, and ui/disclosure switches it to `until-found` only after hydration, so with
  * JavaScript off the footer's link text sits under [hidden]. That is the footer's own contract, not
  * the page's (globals.css forces the panels open from 40rem, and the links stay in the HTML), so it is
  * pinned separately below and left out of the page's hidden-word count.
  */
-const FOOTER_PANEL = '#app-footer [data-slot="accordion-panel"]'
+const FOOTER_PANEL = '#app-footer [data-slot="disclosure-panel"]'
 
 /** Words in text under `[hidden]`, leaving out script, style, template and noscript (not page text) and the footer panels' link text. */
 const hiddenWords = (page: Page) =>

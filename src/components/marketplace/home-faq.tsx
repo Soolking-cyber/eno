@@ -1,5 +1,6 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
-import { FaqItem } from '@/components/marketplace/home-faq-item'
+import { DisclosureItem } from '@/components/ui/disclosure'
+import { DISCLOSURE_GROUP } from '@/components/ui/disclosure-group'
 import { FOUNDER_QUOTE, HOME_ABOUT, type AboutText } from '@/lib/home-about'
 import { HOME_FAQ_HEADING, homeFaqJsonLd, homeQuestionsArticleJsonLd } from '@/lib/home-faq'
 import { jsonLdText } from '@/lib/home-item-lists'
@@ -9,8 +10,9 @@ import { jsonLdText } from '@/lib/home-item-lists'
  * and home-about.ts have the rules), with the FAQPage JSON-LD built from the same answers. Closed, the block is one row per
  * question. Each question is an H2 and opens on its direct answer. Every closed answer stays in the SSR HTML: crawlers, answer
  * engines and find-in-page read all of it, and the browser opens the one that holds a match.
- * ⛔ EACH ROW IS home-faq-item.tsx, NOT ui/accordion, SINCE 2026-11-25 (measured: Base UI's accordion was the largest part of
- * the phone home's worst long task). Why each alternative was ruled out is written there.
+ * ⛔ EACH ROW IS ui/disclosure.tsx, NOT ui/accordion, SINCE 2026-11-25 (measured: Base UI's accordion was the largest part of
+ * the phone home's worst long task). Why each alternative was ruled out is written there. The section is the rows' one
+ * group, so ↑ / ↓ run across both columns.
  */
 const Para = ({ parts, className }: { parts: readonly AboutText[]; className: string }) => (
   <p className={className}>
@@ -41,7 +43,7 @@ export function HomeFaqJsonLd({ lang, webPageId }: { lang: string; webPageId: st
 /** One question row: the H2 and its answer (the first carries the founder's quote). The answer wrapper is the accordion panel's. */
 function Question({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean }) {
   return (
-    <FaqItem id={s.id} question={<Bilingual en={s.q.en} vi={s.q.vi} />}>
+    <DisclosureItem level={2} headingId={`about-${s.id}`} trigger={<Bilingual en={s.q.en} vi={s.q.vi} />} triggerClassName="py-2.5 text-sm">
       <div className="pb-4 text-sm leading-relaxed text-body">
         <div className="pb-3">
           <Para parts={s.open} className="text-sm leading-relaxed text-foreground" />
@@ -60,7 +62,7 @@ function Question({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean
           ) : null}
         </div>
       </div>
-    </FaqItem>
+    </DisclosureItem>
   )
 }
 
@@ -73,7 +75,7 @@ function Question({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean
 export function HomeFaq() {
   const half = Math.ceil(HOME_ABOUT.length / 2)
   return (
-    <section aria-labelledby="home-faq" className="mt-8 border-t border-border pb-6 pt-5">
+    <section aria-labelledby="home-faq" {...DISCLOSURE_GROUP} className="mt-8 border-t border-border pb-6 pt-5">
       <p id="home-faq" className="text-base font-bold text-foreground">
         <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
       </p>
