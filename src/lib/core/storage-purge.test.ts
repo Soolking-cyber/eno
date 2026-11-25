@@ -8,6 +8,10 @@ const h = vi.hoisted(() => ({
     // the VICTIM's listing still references the canonical object
     listingImages: [] as string[],
     listingVideos: [] as string[],
+    /** Pictures of live (not removed) ad creatives. */
+    adImages: [] as string[],
+    /** Pictures of creatives eno removed. */
+    adRemoved: [] as string[],
     deletes: [] as string[],
   },
 }))
@@ -22,6 +26,11 @@ vi.mock('@/lib/db', () => ({
     },
     seller: { count: async () => 0 },
     profile: { count: async () => 0 },
+    // Only a LIVE creative may count: the query must say `status: { not: 'removed' }` (removed ones are in adRemoved).
+    adCreative: {
+      count: async ({ where }: { where: { imageUrl: { contains: string }; status?: { not?: string } } }) =>
+        [...h.s.adImages, ...(where.status?.not === 'removed' ? [] : h.s.adRemoved)].filter((u) => u.includes(where.imageUrl.contains)).length,
+    },
   },
 }))
 vi.mock('@/lib/listing-image', async () => {
@@ -37,11 +46,33 @@ beforeEach(() => {
   // every test starts from the same world: the VICTIM's listing still references the canonical object
   h.s.listingImages = [`${P}victim.webp`]
   h.s.listingVideos = [`${V}victim.mp4`]
+  h.s.adImages = []
+  h.s.adRemoved = []
   h.s.deletes = []
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') h.s.deletes.push(url)
     return { status: 200 } as Response
   }))
+})
+
+describe('⛔ an ad\'s picture (listings/ads/) is kept while its creative is live, whatever the listing columns say (2026-11-25)', () => {
+  it('kept while a live creative holds it; once the creative is removed (or never held it) it is an ordinary object', async () => {
+    h.s.listingImages = []
+    const { isStillReferenced } = await import('./storage-purge')
+    h.s.adImages = [`${P}ads/1764-abc.webp`]
+    expect(await isStillReferenced(`${P}ads/1764-abc.webp`)).toBe(true)
+    // An aliased spelling (a query, a doubled slash) still finds the creative that holds the object.
+    expect(await isStillReferenced(`${P}ads/1764-abc.webp?v=2`)).toBe(true)
+    expect(await isStillReferenced(`https://proj.supabase.co/storage/v1/object/public/listings//ads/1764-abc.webp`)).toBe(true)
+    const r = await purgeStorageObjects([`${P}ads/1764-abc.webp`])
+    expect(h.s.deletes).toEqual([])
+    expect(r.kept).toBe(1)
+    h.s.adImages = []
+    h.s.adRemoved = [`${P}ads/1764-abc.webp`]
+    expect(await isStillReferenced(`${P}ads/1764-abc.webp`)).toBe(false)
+    // A listing photo is never asked about ads.
+    expect(await isStillReferenced(`${P}bulk/1764-abc.webp`)).toBe(false)
+  })
 })
 
 describe('account deletion cannot reach another user’s object through a URL alias (review S01)', () => {

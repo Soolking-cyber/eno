@@ -42,7 +42,9 @@ const PROHIBITED_CATEGORIES = `
 - other_illegal: MLM schemes, police/military uniforms & insignia, gambling machines/services, human/organ trade
 `.trim()
 
-export type ModerationResult = { prohibited: boolean; category: string; confidence: number; reason: string }
+/** `images`: how many photos the model was actually shown (an unreadable one is skipped) — a caller that must judge the
+ *  picture (the ad review, src/lib/ads/creative-review.ts) refuses to pass a verdict that saw none. */
+export type ModerationResult = { prohibited: boolean; category: string; confidence: number; reason: string; images: number }
 
 /** Should the (paid) AI vision pass run for this seller? Skips proven-Trusted sellers to save
  *  cost, with a ~5% random sample to still catch a turned account. Everyone unproven runs. */
@@ -52,31 +54,40 @@ export function shouldAiModerate(seller: { trustTier: string }): boolean {
 }
 
 /** Classify a listing (text + up to 4 photos) against the VN prohibited categories via Gemini.
- *  FAIL-OPEN: returns null on any failure (AI unavailable / decode / parse) — never blocks. */
-export async function moderateListing(input: { title: string; description: string; imageUrls: string[] }): Promise<ModerationResult | null> {
+ *  FAIL-OPEN: returns null on any failure (AI unavailable / decode / parse) — never blocks. (The ad review calls it too
+ *  and FAILS CLOSED on that null itself.) `imageBuffers`: photos the caller already holds (the ad review fetched and
+ *  measured them), judged as they are — never fetched again, so the model sees the very bytes that were checked. */
+export async function moderateListing(input: { title: string; description: string; imageUrls: string[]; imageBuffers?: Buffer[]; extraCategories?: string }): Promise<ModerationResult | null> {
   const ai = getGemini()
   if (!ai) return null
 
   // Fetch + downscale the images the buyer would see (public URLs). Cap at 4 to bound cost.
   const parts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = []
-  for (const url of input.imageUrls.slice(0, 4)) {
+  const downscale = async (raw: Buffer) => {
+    const sharp = await getSharp()
+    const buf = await sharp(raw, { limitInputPixels: 50_000_000 })
+      .rotate()
+      .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer()
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: buf.toString('base64') } })
+  }
+  for (const raw of (input.imageBuffers ?? []).slice(0, 4)) {
+    try { await downscale(raw) } catch { /* skip an unreadable image */ }
+  }
+  for (const url of input.imageUrls.slice(0, Math.max(0, 4 - parts.length))) {
     try {
       const res = await safeFetch(url, { timeoutMs: 8000 })
       if (!res.ok) continue
-      const sharp = await getSharp()
-      const buf = await sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 50_000_000 })
-        .rotate()
-        .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer()
-      parts.push({ inlineData: { mimeType: 'image/jpeg', data: buf.toString('base64') } })
+      await downscale(Buffer.from(await res.arrayBuffer()))
     } catch { /* skip an unreadable image */ }
   }
+  const images = parts.length
 
   const prompt = `You are the content-safety reviewer for eno.vn, a marketplace for expats in Vietnam. Decide whether THIS listing offers a PROHIBITED item or service under Vietnamese law.
 
 Prohibited categories (return the matching key in "category"):
-${PROHIBITED_CATEGORIES}
+${PROHIBITED_CATEGORIES}${input.extraCategories ? `\n${input.extraCategories.trim()}` : ''}
 
 Judge the TITLE, DESCRIPTION and PHOTOS together. Be PRECISE and CONSERVATIVE — a normal, legal listing must NEVER be flagged. Do not flag an item merely because a word could be misread: a "gun" that is a glue/nail/heat gun, "weed" that is a weed killer, a toy/airsoft clearly sold as a toy, a wine fridge, a legal supplement, or a used phone/SIM tray are all FINE. Only flag when you are genuinely confident the item itself is prohibited.
 
@@ -112,6 +123,7 @@ Listing description: ${JSON.stringify(input.description).slice(0, 2000)}`
       category: String(p.category ?? ''),
       confidence: Math.max(0, Math.min(1, Number(p.confidence) || 0)),
       reason: String(p.reason ?? '').slice(0, 300),
+      images,
     }
   } catch (e) {
     console.error('[ai-moderation] classify failed (fail-open)', e)

@@ -2,6 +2,12 @@ import { db } from '@/lib/db'
 import { isFirstPartyStorageUrl, listingObjectKey, STORAGE_HOST } from '@/lib/listing-image'
 import type { TombstoneRef } from '@/lib/core/storage-tombstones'
 
+/** An object under the listings bucket's `ads/` prefix (the ad review's re-hosted pictures), in any spelling — broad on
+ *  purpose: a false match only ever KEEPS an object. */
+export function isAdObjectUrl(url: string): boolean {
+  return /\/listings\/+ads\//.test(url)
+}
+
 // ── DELETING A USER'S PUBLIC STORAGE OBJECTS ────────────────────────────────────────────────────
 //
 // Lives in lib, NOT in the account-delete route file: a Next route module may only export handlers
@@ -40,6 +46,14 @@ const secretKey = () => process.env.SUPABASE_SECRET_KEY
  * canonical, all in `listings`/`listing-videos`; profile avatars are Google-hosted (foreign).
  */
 export async function isStillReferenced(url: string): Promise<boolean> {
+  // ⛔ AN AD'S PICTURE (owner 2026-11-25, src/lib/ads/creative-review.ts): eno's reviewed copy of an advertiser's picture
+  // lives under `listings/ads/` and is referenced by its AdCreative, which no column below reads. A live (not removed)
+  // creative keeps it, so a listing that pasted the URL, or an erasure that tombstoned it, never takes a running ad's
+  // picture with it; both this purge and the tombstone sweep (storage-tombstones-sweep.svc.ts) ask here. A read that
+  // fails throws, which both callers treat as "unknown" — never as unreferenced.
+  // By the object's own key (`ads/…`, no query or fragment), so an aliased spelling still finds the creative that holds it.
+  const adKey = isAdObjectUrl(url) ? /\/listings\/+(ads\/[^?#]+)/.exec(url)?.[1] : undefined
+  if (adKey && (await db.adCreative.count({ where: { imageUrl: { contains: `/listings/${adKey}` }, status: { not: 'removed' } } })) > 0) return true
   const [inListing, listingVideo, sellerAvatar, sellerBanner, profileAvatar] = await Promise.all([
     db.listing.count({ where: { images: { contains: url } } }),
     db.listing.count({ where: { video: { contains: url } } }),

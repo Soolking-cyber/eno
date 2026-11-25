@@ -13,6 +13,7 @@ import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
 import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { safeFetch } from '@/lib/ssrf'
+import { readCapped } from '@/lib/core/read-capped'
 import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
 import { listingGuardProblems, LISTING_GUARD_REFUSAL, type ListingGuardCode } from '@/lib/listing-guard'
@@ -65,22 +66,8 @@ export const REHOST_IMAGES_PER_HOUR = 2000
  * Read a response body with a hard byte ceiling, ABORTING the transfer once it is crossed — the old code buffered the
  * whole body (`arrayBuffer()`) and only then compared the size, so a 1 GB "image" was held in memory first (item 13).
  */
-async function readCapped(res: Response, max: number): Promise<Buffer | null> {
-  const declared = Number(res.headers.get('content-length') || 0)
-  if (declared > max) { await res.body?.cancel().catch((e) => logError(e, { op: 'bulk.rehost.cancel' })); return null }
-  const reader = res.body?.getReader()
-  if (!reader) return null
-  const chunks: Uint8Array[] = []
-  let total = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    total += value.byteLength
-    if (total > max) { await reader.cancel().catch((e) => logError(e, { op: 'bulk.rehost.cancel' })); return null }
-    chunks.push(value)
-  }
-  return Buffer.concat(chunks)
-}
+/** Re-exported: the ad review (src/lib/ads/creative-review.ts) reads remote images and pages through the same cap. */
+export { readCapped }
 
 async function rehost(url: string, sellerId?: string): Promise<string | null> {
   if (isListingImageUrl(url)) return url
@@ -92,7 +79,7 @@ async function rehost(url: string, sellerId?: string): Promise<string | null> {
   try {
     const res = await safeFetch(url, { timeoutMs: 8000 })
     if (!res.ok) return null
-    const buf = await readCapped(res, IMG_MAX_BYTES)
+    const buf = await readCapped(res, IMG_MAX_BYTES, 'bulk.rehost.cancel')
     if (!buf || buf.byteLength === 0) return null
     let pending = null as TombstoneRef | null // `as`: set inside the callback, which narrowing cannot see
     const hosted = await storeListingImage(buf, {
