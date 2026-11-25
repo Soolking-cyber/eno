@@ -140,7 +140,7 @@ const CONTENT: ArticleContent = {
             Message&rdquo; saying iOS cannot verify the part, and the Battery Health screen stops
             reporting Maximum Capacity altogether: where the percentage used to be, you get
             <strong> Unknown Part</strong>. On iPhone 15 and later there is a second place to look
-            &mdash; <strong>Settings › General › About</strong> gains a Parts and Service History row
+            &mdash; <span className="font-bold">Settings › General › About</span> gains a Parts and Service History row
             that reads either <em>Genuine Apple Part</em> or <em>Unknown Part</em> for the battery.
           </P>
           <P>

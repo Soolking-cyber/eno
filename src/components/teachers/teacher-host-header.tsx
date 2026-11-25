@@ -10,8 +10,9 @@ export function TeacherHostHeader({ apexOrigin }: { apexOrigin: string }) {
   const { tr } = useLanguage()
   return (
     <header className="mx-auto flex w-full max-w-3xl items-center justify-between px-3 py-4 sm:px-6 lg:px-8">
-      <a href={apexOrigin || '/'} aria-label={tr('Home', 'Trang chủ', 'page')}>
-        <img src="/logo-mark.svg" alt="" width={40} height={40} className="size-10" />
+      {/* The mark's alt names the link (an empty alt is "image without alt" to Seobility, crawl 10); no aria-label on top. */}
+      <a href={apexOrigin || '/'}>
+        <img src="/logo-mark.svg" alt={tr('Home', 'Trang chủ', 'page')} width={40} height={40} className="size-10" />
       </a>
       <a href={`${apexOrigin}/teachers/edit`} className="text-sm font-semibold text-brand hover:underline">
         {tr('Already have a profile? Sign in', 'Đã có hồ sơ? Đăng nhập')}

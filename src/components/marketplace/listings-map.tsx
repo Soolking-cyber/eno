@@ -405,6 +405,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   const tileStyle = basemapStyle(themedBasemap && resolvedTheme === 'dark')
   const tileStyleRef = useRef(tileStyle)
   tileStyleRef.current = tileStyle
+  /** The basemap tiles' alt, read as each tile loads (the init effect below). */
+  const tileAltRef = useRef('')
+  tileAltRef.current = tr('Map', 'Bản đồ')
   const tileLayerRef = useRef<any>(null)
   const retinaRef = useRef<'@2x' | ''>('')
   const approxLayerRef = useRef<any>(null)
@@ -879,6 +882,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       keepBuffer: 1,        // hold fewer off-screen tiles → fewer requests on slow links
       updateWhenIdle: true, // defer tile fetches until a pan/zoom settles
     }).addTo(map)
+    // ⚠️ Leaflet draws each tile as <img alt="" role="presentation">: right for a screen reader, but an image without alt to a
+    // crawler (Seobility crawl 10: 13 listing pages, the map under the description). The pane is hidden from screen readers,
+    // so nothing is read twice, and each tile carries the map's name (and loses role="presentation", which an image with an alt may
+    // not carry; the hidden pane already keeps it from screen readers).
+    map.getPane('tilePane')?.setAttribute('aria-hidden', 'true')
+    tileLayerRef.current.on('tileloadstart', (e: { tile: HTMLImageElement }) => {
+      e.tile.alt = tileAltRef.current
+      e.tile.removeAttribute('role')
+    })
     map.on('click', () => { closeCard(); closeBuildingCardRef.current() }) // tap the map background → close both cards
     // Keep the card glued to its pin while the map pans/zooms.
     map.on('move zoom', () => {

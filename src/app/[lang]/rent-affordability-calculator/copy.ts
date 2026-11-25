@@ -18,7 +18,7 @@ export const META: { title: Copy; description: Copy } = {
 export const EXAMPLE = { pay: 25_000_000, rent: 8_500_000 } as const
 
 export const INTRO: Copy = {
-  en: 'Divide the monthly rent by your monthly take-home pay: that is the share of your income the rent takes. On {pay} take-home pay, a rent of {rent} is {share}, leaving {left} a month. The 30% and 40% marks are optional budgeting rules of thumb, not a Vietnamese standard or rule.',
+  en: 'To check rent affordability, divide the monthly rent by your monthly take-home pay: that is the share of your income the rent takes. On {pay} take-home pay, a rent of {rent} is {share}, leaving {left} a month. The 30% and 40% marks are optional budgeting rules of thumb, not a Vietnamese standard or rule.',
   vi: 'Lấy tiền thuê nhà mỗi tháng chia cho thu nhập thực nhận mỗi tháng là biết tiền thuê chiếm bao nhiêu phần trăm thu nhập. Với thu nhập thực nhận {pay}, tiền thuê {rent} chiếm {share}, mỗi tháng còn lại {left}. Mốc 30% và 40% chỉ là cách ước lượng ngân sách để tham khảo, không phải tiêu chuẩn hay quy định ở Việt Nam.',
 }
 

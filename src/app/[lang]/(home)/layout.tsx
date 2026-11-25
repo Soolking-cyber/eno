@@ -9,8 +9,9 @@ import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-b
 import { PartnerStrip } from '@/components/marketplace/partner-strip'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
-/** The home page's name in each language, after the pilot switch's label (lang-pilot-switch.tsx). */
-const HOME_TWIN_NAME = { en: 'Home', vi: 'Trang chủ' }
+/** The home page's name in each language, after the pilot switch's label (lang-pilot-switch.tsx). ⚠️ Not "Home": that is the
+ *  furniture category's English name, so "English: Home" was one anchor for / and /c/furniture-appliances (Seobility crawl 10). */
+const HOME_TWIN_NAME = { en: 'Home page', vi: 'Trang chủ' }
 
 /**
  * ⛔ THE `/vi` PILOT'S SWITCHER AND BANNER (SEO wave B, V3b) MOUNT ONLY WHILE `/` IS A LIVE PILOT PATH —

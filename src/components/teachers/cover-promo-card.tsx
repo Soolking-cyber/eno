@@ -20,7 +20,8 @@ export function CoverPromoCard({ className }: { className?: string }) {
         <Bilingual en="Teachers: show the periods you are free and pick up one-off lessons near you." vi="Giáo viên: cho biết các buổi bạn rảnh và nhận dạy thay gần bạn." />
       </p>
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <Link href="/teachers/cover" className="font-semibold text-brand underline"><Bilingual en="How it works" vi="Cách hoạt động" /></Link>
+        {/* What it is for follows for screen readers and crawlers: "How it works" is also the footer's link to /guide (Seobility crawl 10). */}
+        <Link href="/teachers/cover" className="font-semibold text-brand underline"><Bilingual en="How it works" vi="Cách hoạt động" /><span className="sr-only">: <Bilingual en="cover lessons" vi="dạy thay" /></span></Link>
         {/* `/` is the English-pinned home — LocalizedLink sends a Vietnamese reader to its `/vi` twin. */}
         <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="font-semibold text-brand underline"><Bilingual en="Schools: find a cover teacher" vi="Trường học: tìm giáo viên dạy thay" /></LocalizedLink>
       </p>

@@ -90,7 +90,7 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             <strong>Phí chuyển đổi</strong> ở hình thức thẻ, thu một lần theo phần trăm đơn hàng.{' '}
-            <strong>Phí hồ sơ</strong> ở hình thức công ty tài chính. <strong>Bảo hiểm khoản vay</strong>{' '}
+            <span className="font-bold">Phí hồ sơ</span> ở hình thức công ty tài chính. <span className="font-bold">Bảo hiểm khoản vay</span>{' '}
             &mdash; thường được giới thiệu là bắt buộc, đôi khi không; hãy hỏi rõ và hỏi số tiền cụ
             thể. <strong>Phí tất toán trước hạn</strong> là khoản hay gây bất ngờ nhất: trả hết sớm có
             thể bị tính phí theo phần trăm dư nợ, nên trả sớm chưa chắc tiết kiệm như bạn nghĩ.

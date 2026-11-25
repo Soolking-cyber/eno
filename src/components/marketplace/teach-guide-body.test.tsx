@@ -46,6 +46,22 @@ describe('teach guide body', () => {
     expect(body).toMatch(/<span class="font-semibold text-foreground">bachelor&#x27;s degree or higher plus at least 2 years of relevant work experience<\/span>/)
     expect(body).not.toMatch(/<strong[^>]*>bachelor/)
   })
+  it('a phrase is <strong> once per page: again, in the key points or the body, it is drawn the same as a span (Seobility "duplicate bold")', () => {
+    const twice = teachGuideSchema.parse({
+      ...guide,
+      keyPoints: ['Ask for it **in writing**.', guide.keyPoints[1], guide.keyPoints[2]],
+      sections: [{ ...guide.sections[0], blocks: [{ type: 'p', text: 'Get the deposit terms **In Writing** and **Tay Ho Ward** first, then **Tay Ho Ward** again.' }] }, guide.sections[1], guide.sections[2]],
+    })
+    const live = (href: string) => isLiveHref(href) // this render's own clock, as on a page
+    const out = html(<><TeachKeyPoints g={twice} isLiveHref={live} />{teachGuideSections(twice, live).map((s) => <section key={s.id}>{s.body}</section>)}</>)
+    expect(out.match(/<strong[^>]*>in writing<\/strong>/gi)).toHaveLength(1)
+    expect(out).toMatch(/<span class="font-semibold text-foreground">In Writing<\/span>/)
+    expect(out.match(/<strong[^>]*>Tay Ho Ward<\/strong>/g)).toHaveLength(1)
+    expect(out.match(/<span class="font-semibold text-foreground">Tay Ho Ward<\/span>/g)).toHaveLength(1)
+    // Another render (another clock) starts afresh.
+    const again = html(<TeachKeyPoints g={twice} isLiveHref={(href) => isLiveHref(href)} />)
+    expect(again).toMatch(/<strong[^>]*>in writing<\/strong>/)
+  })
   it('links a live guide and prints an unreleased one as its text', () => {
     expect(points).toContain('href="/teach-in-vietnam/live-guide"')
     expect(points).not.toContain('later-guide')

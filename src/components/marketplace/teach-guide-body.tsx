@@ -44,6 +44,19 @@ function plainLength(tokens: InlineToken[]): number {
   return n
 }
 
+/** The visible text of some inline tokens, for comparing two bold runs. */
+function plainText(tokens: InlineToken[]): string {
+  return tokens.map((t) => (t.t === 'text' ? t.v : t.t === 'money' ? t.text : t.t === 'bold' ? plainText(t.children) : t.label)).join('')
+}
+
+/**
+ * The bold phrases one guide page has already drawn as <strong>, keyed by that render's `isLiveHref` (both pages build it per
+ * render, and the key points and the sections share it), so the entry goes when the render does.
+ * ⛔ SO `isLiveHref` IS MADE PER RENDER — it closes over that request's clock (`now`) anyway. A stable function (module-level,
+ * `cache()`d) would carry the set into the next request and draw every later page's bold as spans.
+ */
+const STRONG_SEEN = new WeakMap<(href: string) => boolean, Set<string>>()
+
 function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en'): React.ReactNode[] {
   return tokens.map((t, i) => {
     if (t.t === 'text') return t.v
@@ -54,9 +67,16 @@ function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boole
       // ⛔ A WHOLE CLAUSE IN BOLD IS STYLE, NOT A KEY PHRASE (Seobility crawl 9: "bold text too long" on 20 guides — runs of 74–119
       // characters such as "bachelor's degree or higher plus at least 2 years of relevant work experience"). Past BOLD_MAX it is
       // drawn the same, as a span: <strong> stays for the short phrases a reader scans for.
-      return plainLength(t.children) > BOLD_MAX
-        ? <span key={i} className="font-semibold text-foreground">{inner}</span>
-        : <strong key={i} className="font-semibold text-foreground">{inner}</strong>
+      // ⛔ AND ONCE PER PAGE (Seobility crawl 10: "duplicate bold" on 31 guides — "Tay Ho Ward", "in writing" twice). A phrase
+      // already strong on this page is drawn the same again, as a span.
+      const key = plainText(t.children).trim().toLowerCase()
+      let seen = STRONG_SEEN.get(isLiveHref)
+      if (!seen) STRONG_SEEN.set(isLiveHref, (seen = new Set()))
+      const strong = plainLength(t.children) <= BOLD_MAX && !seen.has(key)
+      if (strong) seen.add(key)
+      return strong
+        ? <strong key={i} className="font-semibold text-foreground">{inner}</strong>
+        : <span key={i} className="font-semibold text-foreground">{inner}</span>
     }
     if (!t.external) return isLiveHref(t.href) ? <HereLink key={i} href={t.href}>{t.label}</HereLink> : t.label
     if (OWN_HOST.test(t.href))

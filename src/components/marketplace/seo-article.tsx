@@ -147,7 +147,8 @@ export type ArticleContent = {
    *
    * ⚠️ RECIPROCAL OR NOTHING: Google ignores a one-way alternate. If A names B, B must name A.
    */
-  alternate?: { lang: 'en' | 'vi'; href: string }
+  /** `name`: the pair's own title, for its "Tiếng Việt" link (ViPairLink); without it, the guide registries are asked. */
+  alternate?: { lang: 'en' | 'vi'; href: string; name?: string }
   sections: ArticleSection[]
   related?: { href: string; label: string; blurb: string }[]
   faqs: { q: string; a: string }[]
@@ -719,7 +720,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             </p>
             {!content.crossSitePromo && <p className="text-xs leading-relaxed">{chrome.affiliation}</p>}
           </div>
-          {content.alternate?.lang === 'vi' && <ViPairLink href={content.alternate.href} />}
+          {content.alternate?.lang === 'vi' && <ViPairLink href={content.alternate.href} name={content.alternate.name} />}
         </ArticleText>
       </main>
 
@@ -736,9 +737,9 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
  * that is not a pilot, stays on this URL, while the pair is another article at its own address.
  * The pair's own title follows for screen readers and crawlers: "Tiếng Việt" alone would be one anchor for 19 targets.
  */
-function ViPairLink({ href }: { href: string }) {
+function ViPairLink({ href, name: given }: { href: string; name?: string }) {
   const slug = href.replace(/^\//, '')
-  const name = [...PHONE_GUIDES, ...EXPAT_GUIDES, ...MARKETPLACE_GUIDES].find((g) => g.slug === slug)?.label
+  const name = given ?? [...PHONE_GUIDES, ...EXPAT_GUIDES, ...MARKETPLACE_GUIDES].find((g) => g.slug === slug)?.label
   return (
     <div className="max-sm:sr-only max-sm:focus-within:not-sr-only">
       <div className="mt-8 flex justify-end">

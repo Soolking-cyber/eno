@@ -255,7 +255,7 @@ const CONTENT: ArticleContent = {
               {({ all, used, usedElectronics, rentals }) =>
                 all && used && usedElectronics && rentals ? (
                   <>
-                    Trong <strong>{all.count} tin đang hoạt động</strong> hiện có,{' '}
+                    Trong <span className="font-bold">{all.count} tin đang hoạt động</span> hiện có,{' '}
                     <HereLink href="/c/furniture-appliances">đồ gia dụng và nội thất cũ</HereLink> có{' '}
                     <strong>{used.count} tin</strong>, đồ điện tử cũ có{' '}
                     <strong>{usedElectronics.count} tin</strong>, và{' '}

@@ -17,7 +17,7 @@ export const META: { title: Copy; description: Copy } = {
 export const EXAMPLE = { rent: 12_000_000, depositMonths: 2, advanceMonths: 1, agentFee: 2_000_000, setup: 5_000_000 } as const
 
 export const INTRO: Copy = {
-  en: 'Cash needed at signing = deposit + rent paid in advance + agent fee + setup costs. For a {rent} home with 2 months’ deposit, 1 month paid in advance, a {fee} agent fee and {setup} of setup costs, that is {total}; after that the rent is {rent} a month, from month {first}. Use the figures your contract states.',
+  en: 'Move-in cost, the cash needed at signing = deposit + rent paid in advance + agent fee + setup costs. For a {rent} home with 2 months’ deposit, 1 month paid in advance, a {fee} agent fee and {setup} of setup costs, that is {total}; after that the rent is {rent} a month, from month {first}. Use the figures your contract states.',
   vi: 'Tiền cần có khi ký = tiền cọc + tiền thuê trả trước + phí môi giới + chi phí ban đầu. Với căn {rent}/tháng, cọc 2 tháng, trả trước 1 tháng, phí môi giới {fee} và {setup} chi phí ban đầu, bạn cần {total} khi ký; sau đó mỗi tháng trả {rent}, bắt đầu từ tháng thứ {first}. Hãy dùng đúng con số ghi trong hợp đồng.',
 }
 

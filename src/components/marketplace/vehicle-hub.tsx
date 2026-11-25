@@ -92,10 +92,12 @@ function summaryText(s: PriceSummary, per: string, lang: Lang): React.ReactNode 
       ? <>chỉ có {count(s.n, lang)} xe — quá ít để tính giá tiêu biểu</>
       : <>only {count(s.n, lang)} listed — too few to summarise</>
   }
+  // A range is bold as a span, not <strong>: two rows (per day, per month) or two kinds of bike often share an end, and the
+  // same amount strong twice is "duplicate bold" to Seobility (crawl 10). The median keeps <strong>: it is the figure to scan for.
   if (s.kind === 'range') {
     return lang === 'vi'
-      ? <>từ <strong>{money(s.min, lang)}</strong> đến <strong>{money(s.max, lang)}</strong>/{per} ({count(s.n, lang)} xe; chưa đủ {BAND_MIN} xe để tính trung vị)</>
-      : <>from <strong>{money(s.min, lang)}</strong> to <strong>{money(s.max, lang)}</strong> a {per} ({count(s.n, lang)} listed; under {BAND_MIN}, so no median)</>
+      ? <>từ <span className="font-bold">{money(s.min, lang)}</span> đến <span className="font-bold">{money(s.max, lang)}</span>/{per} ({count(s.n, lang)} xe; chưa đủ {BAND_MIN} xe để tính trung vị)</>
+      : <>from <span className="font-bold">{money(s.min, lang)}</span> to <span className="font-bold">{money(s.max, lang)}</span> a {per} ({count(s.n, lang)} listed; under {BAND_MIN}, so no median)</>
   }
   return lang === 'vi'
     ? <>trung vị <strong>{money(s.median, lang)}/{per}</strong>; một nửa số xe nằm trong khoảng {money(s.p25, lang)}–{money(s.p75, lang)} ({count(s.n, lang)} xe)</>

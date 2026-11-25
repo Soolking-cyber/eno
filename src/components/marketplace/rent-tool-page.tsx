@@ -216,7 +216,8 @@ export function ToolPageShell({ lang, path, h1, intro, introValues, calculator, 
             ))}
           </ul>
         </section>
-        {path && <ViTwinLink path={path} lang={lang} />}
+        {/* The twin's own name follows "Tiếng Việt" for screen readers and crawlers: alone it was one anchor for every tool (Seobility crawl 10). */}
+        {path && <ViTwinLink path={path} lang={lang} name={h1.vi} />}
       </main>
       <Footer />
     </div>

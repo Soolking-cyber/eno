@@ -211,7 +211,7 @@ export function LibraryGuide({ slug, lang }: { slug: string; lang: Lang }) {
     canonical: guidePath(entry),
     lang,
     ...guideDates(entry),
-    ...(pair && isGuideLive(pair, now) ? { alternate: { lang: pair.lang, href: guidePath(pair) } } : {}),
+    ...(pair && isGuideLive(pair, now) ? { alternate: { lang: pair.lang, href: guidePath(pair), name: guideLabel(pair) } } : {}),
     breadcrumb: [
       { label: SITE_NAME, href: '/' },
       { label: HUB[lang].crumb, href: HUB[lang].path },

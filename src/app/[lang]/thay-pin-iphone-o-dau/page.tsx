@@ -127,7 +127,7 @@ const CONTENT: ArticleContent = {
             Từ iOS 15 và 16 trở đi, viên pin không được ghép với máy sẽ làm hiện &ldquo;Thông báo
             quan trọng về pin&rdquo;, và màn hình Tình trạng pin ngừng hiển thị Dung lượng tối đa:
             chỗ đáng lẽ là phần trăm sẽ ghi <strong>Bộ phận không xác định</strong>. Từ iPhone 15 trở
-            lên còn một nơi nữa để xem &mdash; <strong>Cài đặt › Cài đặt chung › Giới thiệu</strong>{' '}
+            lên còn một nơi nữa để xem &mdash; <span className="font-bold">Cài đặt › Cài đặt chung › Giới thiệu</span>{' '}
             có mục Lịch sử linh kiện và dịch vụ, ghi rõ pin là <em>Bộ phận chính hãng của Apple</em>{' '}
             hay <em>Bộ phận không xác định</em>.
           </P>
