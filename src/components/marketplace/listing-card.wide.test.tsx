@@ -209,6 +209,8 @@ describe('ListingCard wide — the photo', () => {
     expect(collage, 'the collage').not.toBeNull()
     expect(tokens(collage)).toContain('sm:hidden')
     expect(collage.querySelectorAll('img')).toHaveLength(2)
+    // Every tile described as the strip's slides are: an empty alt counts as missing for Seobility (crawl 6, 2026-11-25).
+    expect([...collage.querySelectorAll('img')].map((i) => i.getAttribute('alt'))).toEqual([expect.stringMatching(/ — 1\/2$/), expect.stringMatching(/ — 2\/2$/)])
     expect(tokens(c.querySelector('[data-card-strip]'))).toContain('max-sm:hidden')
     expect(tokens(c.querySelector('[data-rail-media]'))).toContain('max-sm:aspect-auto')
     const pips = c.querySelector('[data-rail-media] > div.card-pips')!

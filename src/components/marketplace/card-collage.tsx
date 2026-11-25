@@ -49,8 +49,9 @@ export function CardCollage({ images, title, sizes, firstEager }: {
           >
             <Image
               src={src}
-              // One described photo, as the strip's first slide is ("title — 1/N"); the rest are the same listing's, decorative.
-              alt={k === 0 ? (images.length > 1 ? `${title} — 1/${images.length}` : title) : ''}
+              // Every tile described as the strip's slides are ("title — 2/N", listing-card.tsx). They were '' past the first, and
+              // Seobility counts an empty alt as missing: the collage put +14 pages on its "image alt" list (crawl 6, 2026-11-25).
+              alt={images.length > 1 ? `${title} — ${t.i + 1}/${images.length}` : title}
               fill
               sizes={k === 0 ? sizes : `${Math.ceil(t.w * 100)}vw`}
               className="object-cover"
