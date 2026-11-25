@@ -62,9 +62,8 @@ describe('/robots.txt', () => {
       'Disallow: /reports',
       'Disallow: /unsubscribe',
       '',
-      'User-agent: ImagesiftBot',
+      // Diffbot and ImagesiftBot left this group 2026-11-25 (owner, after Seobility's AI-bot check): they read the public pages.
       'User-agent: img2dataset',
-      'User-agent: Diffbot',
       'User-agent: Omgilibot',
       'Disallow: /',
       '',

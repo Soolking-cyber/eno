@@ -143,3 +143,18 @@ export function mayBeVietnamese(text: string): boolean {
  * keeps the translate path for an English reader even beside a Vietnamese column.
  */
 export const VI_PASSAGE_LABEL = '(Vietnamese):'
+
+/**
+ * Is a listing TITLE shown to an English reader as a translation (its `titleI18n.en`) rather than as written? Yes when it is
+ * in a non-English script — unless it is the English slot of a bilingual row: a title beside a DIFFERENT titleVi is the
+ * English column even when one letter ("Tây Thạnh Ward", ạ) reads Vietnamese (listing-content.tsx localizedPlan says why).
+ * ONE rule for both sides: the card's render (localizedPlan) and the server's embed (translate.ts localizeListingTitles,
+ * Seobility 2026-11-25 "text blocks invisible to AI bots") — if they drifted, the HTML would carry a dead `en`, or a
+ * Vietnamese title an English page's crawler reads.
+ */
+export function titleShownTranslatedInEnglish(title: string, titleVi: string | null | undefined): boolean {
+  const src = detectContentLang(title)
+  if (!src) return false
+  const same = (s: string) => s.normalize('NFC').replace(/\r\n?/g, '\n').trim()
+  return !(src === 'vi' && !!titleVi && same(titleVi) !== same(title))
+}

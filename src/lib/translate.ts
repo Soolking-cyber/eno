@@ -1,7 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { db } from './db'
-import { detectContentLang, longestUndiacritickedRun } from './detect-lang'
+import { detectContentLang, longestUndiacritickedRun, titleShownTranslatedInEnglish } from './detect-lang'
 import { LANGS, type Lang } from './i18n/langs'
 import { rateLimit } from '@/lib/ratelimit'
 import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-local'
@@ -849,21 +849,29 @@ export async function cachedTranslations(texts: string[]): Promise<Record<string
  * Attach `titleI18n` (pre-warmed title translations) to a list of cards so they render in the
  * visitor's language with no client fetch/flash. `onlyLang` (from the request's `lang` cookie)
  * embeds JUST that language to keep the hot feed payload tiny; omit it on ISR/SSR pages
- * (language-neutral) to embed every language. en/vi are never embedded — the source title and
- * `titleVi` already cover them, so the dominant VN traffic adds zero query/payload.
+ * (language-neutral) to embed every language. `vi` is never embedded: `titleVi` or the source covers it.
+ * ⛔ `en` IS EMBEDDED FOR A TITLE NOT WRITTEN IN ENGLISH (Seobility, 2026-11-25: "4 text blocks invisible to AI bots"
+ * on /). The rule here was "the source title covers English", which holds only for an English source: a seller's
+ * "Căn Hộ 1 Phòng Ngủ Ngay Landmark 81" reached the English page's HTML in Vietnamese and turned English in the browser
+ * (listing-content.tsx useMachineEn), so a crawler that runs no script read Vietnamese where a reader read English.
+ * The card's own test decides it (detect-lang titleShownTranslatedInEnglish, shared with listing-content.tsx localizedPlan).
  */
-export async function localizeListingTitles<T extends { title: string }>(
+export async function localizeListingTitles<T extends { title: string; titleVi?: string | null }>(
   listings: T[],
   onlyLang?: string,
 ): Promise<(T & { titleI18n?: Record<string, string> })[]> {
-  if (!listings.length || onlyLang === 'en' || onlyLang === 'vi') return listings
-  const map = await cachedTranslations(listings.map((l) => l.title))
+  if (!listings.length || onlyLang === 'vi') return listings
+  const takesEn = (l: T) => titleShownTranslatedInEnglish(l.title, l.titleVi)
+  const asked = onlyLang === 'en' ? listings.filter(takesEn) : listings
+  if (!asked.length) return listings
+  const map = await cachedTranslations(asked.map((l) => l.title))
   return listings.map((l) => {
     const m = map[l.title]
     if (!m) return l
+    const en = takesEn(l)
     const rest: Record<string, string> = {}
-    if (onlyLang) { if (m[onlyLang]) rest[onlyLang] = m[onlyLang] }
-    else for (const k in m) { if (k !== 'en' && k !== 'vi') rest[k] = m[k] }
+    if (onlyLang) { if (m[onlyLang] && (onlyLang !== 'en' || en)) rest[onlyLang] = m[onlyLang] }
+    else for (const k in m) { if (k !== 'vi' && (k !== 'en' || en)) rest[k] = m[k] }
     return Object.keys(rest).length ? { ...l, titleI18n: rest } : l
   })
 }

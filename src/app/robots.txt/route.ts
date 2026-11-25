@@ -124,7 +124,9 @@ Disallow: /unsubscribe
 
 # Pure-scraper and dataset crawlers that ingest our content (incl. listing photos) but send no traffic back — blocked
 # entirely. ⛔ CCBot and Bytespider are NOT here since 2026-11-17 (owner: "allow these too"): with GPTBot, ClaudeBot and
-# Meta-ExternalAgent they fall under "User-agent: *" — public pages, ai-train=yes. AI *search / answer* crawlers
+# Meta-ExternalAgent they fall under "User-agent: *" — public pages, ai-train=yes. ⛔ Nor Diffbot (its Knowledge Graph feeds
+# AI answers) and ImagesiftBot since 2026-11-25 (Seobility's AI-bot check, "AI Bots Blocked: Diffbot, ImagesiftBot"; the
+# owner: "also address these") — the same decision as CCBot's. AI *search / answer* crawlers
 # (OAI-SearchBot, Claude-SearchBot, ChatGPT-User, PerplexityBot, Applebot, Bingbot, and Meta/social
 # link-preview bots) are intentionally NOT listed here, so they fall under
 # "User-agent: *" above and keep indexing public pages — ${SITE_NAME} stays
@@ -134,9 +136,7 @@ Disallow: /unsubscribe
 # Google's documentation it governs Gemini model TRAINING as well as grounding in
 # Gemini Apps and Vertex AI, and does not affect inclusion in Google Search. Both
 # uses are allowed, as ai-train=yes says.
-User-agent: ImagesiftBot
 User-agent: img2dataset
-User-agent: Diffbot
 User-agent: Omgilibot
 Disallow: /
 

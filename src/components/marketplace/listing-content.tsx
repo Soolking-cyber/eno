@@ -3,7 +3,7 @@
 import { cloneElement, isValidElement, useEffect, useId, useState } from 'react'
 import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
-import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
+import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese, titleShownTranslatedInEnglish } from '@/lib/detect-lang'
 import { trCache, translateText, waitForTranslation } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
 import { inlineText, richTextGroups } from '@/lib/rich-text-blocks'
@@ -106,10 +106,11 @@ export function localizedPlan(
     const srcLang = detectContentLang(text)
     // Only the Vietnamese answer can be a false positive (one letter decides it); a Hangul, Han or
     // Cyrillic text really is in that script, so it keeps the translate path whatever sits beside it.
-    const englishSlot = srcLang === 'vi' && !!vi && sameText(vi) !== sameText(text)
+    // ⛔ The rule is shared with the server's embed (detect-lang titleShownTranslatedInEnglish): it decides which titles
+    // reach an English page's HTML already in English.
     embedded =
       lang === 'en'
-        ? (srcLang && !englishSlot ? (i18n?.en || null) : text)
+        ? (titleShownTranslatedInEnglish(text, vi) ? (i18n?.en || null) : text)
         : lang === 'vi'
           ? (vi || (srcLang === 'vi' ? text : i18n?.vi || null))
           : (i18n?.[lang] || null)
