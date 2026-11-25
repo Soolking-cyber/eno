@@ -42,8 +42,19 @@ export const JEV_AD_CALIBRATION: { measuredOn: string; model: string; samples: n
  */
 export function adReviewKey(geminiModel: string): string {
   const t = JEV_AD_THRESHOLDS
-  return `${JEV_AD_MODEL}+${geminiModel}@${JEV_AD_CALIBRATION?.measuredOn ?? 'provisional'}:t${t.banned}/${t.claim}/${t.permit}`
+  return `${JEV_AD_MODEL}+${geminiModel}@${JEV_AD_CALIBRATION?.measuredOn ?? 'provisional'}:t${t.banned}/${t.claim}/${t.permit}:q${jevQuestionsHash()}`
 }
+/** What Jev is asked, as a short hash (FNV-1a over the questions and the state's template): a reworded question or a new
+ *  way of quoting the ad is a new review key, so no verdict given under the old wording is reused. Pure, no crypto. */
+export const JEV_STATE_VERSION = 'state-v2:quoted-landing'
+function fnv1a(s: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0 }
+  return h.toString(16).padStart(8, '0')
+}
+/** (Computed on first use: AD_QUESTIONS is declared further down.) */
+let questionsHash: string | null = null
+export const jevQuestionsHash = () => (questionsHash ??= fnv1a(JSON.stringify([JEV_STATE_VERSION, AD_QUESTIONS])))
 export const isProvisionalReview = (reviewModel: string) => reviewModel.includes('@provisional')
 export const provisionalReviewAllowed = () => process.env.AD_REVIEW_ALLOW_PROVISIONAL === '1'
 /** May a creative reviewed under `reviewModel` be priced, booked or served here? */
@@ -112,8 +123,9 @@ export function jevAdState(w: AdWords): string {
     `Landing page: https://${line(w.landingHost, 253)}`,
     // Where its redirects ended, when that is somewhere else (an innocent address that forwards to a casino).
     ...(w.landingFinalHost && w.landingFinalHost !== w.landingHost ? [`Landing page after redirects: https://${line(w.landingFinalHost, 253)}`] : []),
-    `Landing page title: ${line(w.landingTitle, 200)}`,
-    `Landing page description: ${line(w.landingDescription, 300)}`,
+    // ⛔ Quoted as data: the advertiser wrote these, and an instruction in a <title> must not read as one.
+    `Landing page title (quoted, written by the advertiser): ${JSON.stringify(line(w.landingTitle, 200))}`,
+    `Landing page description (quoted, written by the advertiser): ${JSON.stringify(line(w.landingDescription, 300))}`,
   ].join('\n')
 }
 

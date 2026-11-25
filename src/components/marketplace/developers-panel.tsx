@@ -22,7 +22,7 @@ type WebhookHook = { id: string; url: string; events: string[]; enabled: boolean
 const WEBHOOK_EVENTS = ['listing.created', 'listing.updated', 'listing.status_changed', 'listing.deleted'] as const
 const MCP_ENDPOINT = 'https://eno.vn/api/mcp'
 
-const ALL_SCOPES = ['listings:read', 'analytics:read', 'listings:write', 'media:write'] as const
+const ALL_SCOPES = ['listings:read', 'analytics:read', 'listings:write', 'media:write', 'ads:write'] as const
 const DEFAULT_SCOPES: string[] = ['listings:read', 'analytics:read'] // write is opt-in
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null)
 

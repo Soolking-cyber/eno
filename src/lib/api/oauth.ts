@@ -130,7 +130,9 @@ function issuerAccepted(iss: string, now: number): boolean {
  * it means a partner mints a token that appears to carry a permission, and the failure surfaces as
  * a 403 from a route they were told they could call.
  */
-export const OAUTH_SCOPES = ['listings:read', 'listings:write', 'analytics:read', 'media:write'] as const
+// `ads:write` (2026-11-25): submit an ad creative for review and buy its run (POST /api/v1/ads with `creative` or
+// `creativeId`, MCP create_ad). Opt-in like media:write: never in DEFAULT_SIGN_IN_SCOPES or an MCP connect's default ask.
+export const OAUTH_SCOPES = ['listings:read', 'listings:write', 'analytics:read', 'media:write', 'ads:write'] as const
 
 /**
  * Scopes ONLY a person's sign-in can grant, and ONLY the MCP server enforces (2026-11-17, agent messaging): read the

@@ -2,8 +2,9 @@ import 'server-only'
 import { z } from 'zod'
 import { AD_MAX_HOURS, adHours, adPriceAtomicFor, x402Config, usdcText } from '@/lib/x402/config'
 import { MCP_META_PAYMENT, MCP_META_RESPONSE } from '@/lib/x402/wire'
-import { adOffer, adPaymentRequired } from '@/lib/ads/offer'
-import { bookAd, checkAdListing, shopAds } from '@/lib/ads/book'
+import { adOffer, adPaymentRequired, AD_POLICY_URL } from '@/lib/ads/offer'
+import { AD_CREATIVE_MAX_HOURS, bookAd, checkAdListing, shopAds } from '@/lib/ads/book'
+import { reviewCreative, type ReviewView } from '@/lib/ads/creative-review'
 import { adView, bookFailureMessage, PENDING_MESSAGE } from '@/lib/ads/answer'
 import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type ToolAnnotations } from './tool-types'
 
@@ -15,6 +16,10 @@ import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type 
  *                     call answers PaymentRequired as an error result; the same call with params._meta["x402/payment"]
  *                     pays, and its result carries _meta["x402/payment-response"];
  *   list_ads       — the shop's ads with impressions, taps and the listing's views and contacts during each ad.
+ * And since 2026-11-25 (owner: "enable any type of ads except the restricted ones by vietnamese law, jev should check
+ * before they pay"): create_ad — the shop's OWN ad (a picture, a headline in any language, its https page) in the one
+ * standard placement, the feed card, REVIEWED before any payment request (src/lib/ads/creative-review.ts): a refusal is
+ * answered as the review (reasons, nothing to pay), an approval as the x402 payment request. Scope ads:write.
  * The money path is src/lib/ads/book.ts, the same one POST /api/v1/ads takes.
  */
 const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -62,6 +67,21 @@ const STATS_OUT = z.strictObject({
   tx_hash: z.string().nullable().describe('The payment\'s transaction; null until known'),
 })
 
+const REVIEW_OUT = z.strictObject({
+  status: z.enum(['approved', 'refused', 'removed']).describe('"approved": it can be paid for; "refused": it broke a rule (see reasons); "removed": eno took it down'),
+  creative_id: z.string().nullable().describe('The reviewed creative, to pay for again with creativeId; null when a field was invalid (nothing stored)'),
+  reasons: z.array(z.strictObject({
+    code: z.string().describe('A stable reason code, such as banned_gambling or image_too_small'),
+    en: z.string().describe('The reason in English'),
+    vi: z.string().describe('The reason in Vietnamese'),
+  })).describe('Why it was refused; empty when approved'),
+  permit_classes: z.array(z.string()).describe('Permit classes it falls in, such as cosmetics or finance: allowed, and recorded for eno\'s reviewers'),
+  reused: z.boolean().describe('True when this is the stored verdict for the same content within 24 hours (no new review)'),
+  reviewed_at: z.string().nullable().describe('When it was reviewed (ISO 8601); null when nothing was stored'),
+})
+/** The review as create_ad states it (an unstored refusal has no creative and no date). */
+const reviewOut = (v: ReviewView): z.infer<typeof REVIEW_OUT> => ({ ...v, status: v.status === 'approved' ? 'approved' : v.status === 'removed' ? 'removed' : 'refused' })
+
 const OFFER_OUT = z.strictObject({
   available: z.boolean().describe('Whether ads are on sale now; when false, promote_listing refuses and the price fields are null'),
   price_usdc: z.string().nullable().describe('The price of one week (168 hours) in USDC, as a decimal string such as "3.76"; null when not on sale'),
@@ -75,6 +95,13 @@ const OFFER_OUT = z.strictObject({
   placements: z.array(z.string()).describe('Where the ad is shown, one short sentence each: it comes first there, labelled "Ad"'),
   public_listings: z.number().describe('How many listings are public on the marketplace now: the pool the ad stands out from'),
   running_ads: z.number().describe('How many ads are running now; running ads take turns in the one ad slot'),
+  creative_ads: z.strictObject({
+    placement: z.string().describe('Where your own ad (create_ad) shows, in one sentence'),
+    max_hours: z.number().describe('The longest a creative ad runs, in hours'),
+    refused: z.array(z.string()).describe('What the review refuses, one line per class: banned goods and services, and Art. 8 claims'),
+    permit_classes_allowed: z.array(z.string()).describe('Classes that need a sector permit in Vietnam and are allowed; give permitRef when you have one'),
+    policy_url: z.string().describe('The advertising policy, in English and Vietnamese'),
+  }).describe('Your own ad in the feed card (create_ad): the spec, the rules and the policy'),
   listing: z.strictObject({
     id: z.string().describe('The listing you asked about'),
     eligible: z.boolean().describe('Whether promote_listing will accept it'),
@@ -82,17 +109,17 @@ const OFFER_OUT = z.strictObject({
   }).nullable().describe('The listing you passed as listingId, checked; null when you passed none'),
 })
 
-const LISTING_ID = z.string().describe('The id of one of this shop\'s live listings, from list_listings')
+const LISTING_ID = z.string().describe('A live listing of this shop (list_listings)')
 // A plain number, bounded by the server (adHours), as this server's other numeric inputs are: the reviewers flag schema bounds.
 // Its prose says what to pass, never the bounds again: Manufact flagged "a whole number from 1 to 2160" as validation
 // repeated (2026-11-24); get_ad_offer's `max_hours` states the longest.
-const HOURS = z.number().optional().describe('How many hours the ad runs: 24 a day, 168 a week (when left out); get_ad_offer prices any length')
+const HOURS = z.number().optional().describe('Hours it runs; 168 when left out')
 
 export const AD_TOOLS: McpTool[] = [
   {
     name: 'get_ad_offer',
     title: 'Get the ad offer',
-    description: 'Read what a paid ad on this marketplace costs and where it shows, before buying one with promote_listing. An ad puts one of this shop\'s live listings first, labelled "Ad / Quảng cáo", in matching results, the home feed and the similar-listings row, for the whole hours you choose (a week by default), priced pro rata. Pass `listingId` to check that listing can be advertised, and `hours` to price that length.\n\nReturns `available`, `price_usdc` (a week), `price_usdc_per_hour`, `price_usdc_for_hours`, `min_hours`, `max_hours`, `price_vnd_reference`, `network`, `duration_days`, `placements`, `public_listings`, `running_ads` and `listing` (`id`, `eligible`, `reason`).',
+    description: 'Price an ad: a listing first in results (promote_listing) or your own feed-card ad (create_ad). `listingId` checks a listing; `hours` prices a length.\n\nReturns `price_usdc_for_hours`, `max_hours`, `creative_ads`, `listing`.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     input: z.object({ listingId: LISTING_ID.optional(), hours: HOURS }),
@@ -120,6 +147,13 @@ export const AD_TOOLS: McpTool[] = [
         placements: offer.placements.map((p) => p.text),
         public_listings: offer.audience.public_listings,
         running_ads: offer.audience.running_ads,
+        creative_ads: {
+          placement: offer.creative_ads.placement.text,
+          max_hours: offer.creative_ads.placement.max_hours,
+          refused: [...offer.creative_ads.restrictions.refused, ...offer.creative_ads.restrictions.claims_refused].map((r) => r.text),
+          permit_classes_allowed: offer.creative_ads.restrictions.permit_classes_allowed.map((r) => r.class),
+          policy_url: offer.creative_ads.policy_url,
+        },
         listing,
       }
     },
@@ -127,7 +161,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'promote_listing',
     title: 'Buy an ad for a listing',
-    description: 'Buy an ad for one of this shop\'s live listings for `hours` (a week when left out), paid in USDC over x402. The first call returns the payment request (an error result holding the x402 PaymentRequired); sign it with an x402 client and call again with the same `listingId` and `hours` and the payment in `_meta["x402/payment"]`. Check the listing and the price with get_ad_offer first. A second ad for the same listing starts when the first ends.\n\nReturns `ad` (`id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `tx_hash`, `network`, `amount_atomic`) and `message`; the paid result also carries `_meta["x402/payment-response"]`.',
+    description: 'Buy an ad for one of this shop\'s live listings, paid in USDC over x402. The first call returns the payment request as an error result; sign it and call again with the same arguments and `_meta["x402/payment"]`.\n\nReturns `ad` and `message`.',
     scope: 'listings:write',
     annotations: PAID_WRITE,
     input: z.object({ listingId: LISTING_ID, hours: HOURS }),
@@ -165,9 +199,71 @@ export const AD_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'create_ad',
+    title: 'Create your own ad',
+    description: 'Your own ad as the feed\'s first card, reviewed before payment: refused → `review` with reasons; approved → an x402 payment request; repeat the call with `_meta["x402/payment"]`.\n\nReturns `review`, `ad`, `message`.',
+    scope: 'ads:write',
+    annotations: PAID_WRITE,
+    // ⚠️ The ad's fields are ONE object whose properties carry no prose of their own: every word here is paid for in the
+    // tools/list budget (tool-list-budget.test.ts). The limits are stated once, in the object's description.
+    input: z.object({
+      // Every field optional in the SCHEMA (the review names what is missing, review-reasons.ts): no `required` list to pay for.
+      creative: z.object({
+        advertiserName: z.string().describe('Name on the card, ≤40'),
+        legalName: z.string().describe('Registered legal name'),
+        taxCode: z.string().describe('Tax code (MST)'),
+        headline: z.string().describe('≤60, any language'),
+        body: z.string().describe('≤120, optional'),
+        imageUrl: z.string().describe('https, ≥600 px, square'),
+        clickUrl: z.string().describe('https landing page'),
+        permitRef: z.string().describe('Permit number, optional'),
+      }).partial().describe('The ad'),
+      hours: HOURS,
+    }),
+    output: z.strictObject({
+      review: REVIEW_OUT.describe('The review: approved, refused (with the reasons) or removed'),
+      ad: AD_OUT.nullable().describe('The ad bought; null until it is paid, and when the review refused it'),
+      message: z.string().nullable().describe('What to tell the person: why it was refused, or what to do while the payment is confirmed'),
+    }),
+    handler: async (auth, args, ctx) => {
+      const cfg = x402Config()
+      if (!cfg) throw new ToolError('ads_unavailable', 'Ads are not on sale right now.')
+      const hours = adHours(args.hours === undefined ? AD_CREATIVE_MAX_HOURS : args.hours)
+      if (hours == null || hours > AD_CREATIVE_MAX_HOURS) throw new ToolError('invalid_input', `hours must be a whole number from 1 to ${AD_CREATIVE_MAX_HOURS}.`)
+      if (!auth.sellerId) throw new ToolError('shop_required', 'Ads are bought by a shop: connect with a shop account.')
+      // The same fields again (the paid call) find the stored verdict: one review, never a second bill (creative-review.ts).
+      const outcome = await reviewCreative(auth.sellerId, args.creative)
+      if (outcome.kind === 'refused') {
+        return { review: reviewOut(outcome.view), ad: null, message: `Not approved, so nothing to pay: ${outcome.view.reasons.map((r) => r.en).join(' ')} See ${AD_POLICY_URL}` }
+      }
+      if (outcome.kind !== 'approved') {
+        if (outcome.kind === 'limited') throw new ToolError('review_limit', 'This shop has asked for too many ad reviews today. Try again tomorrow.')
+        throw new ToolError('review_unavailable', 'The review could not run just now; nothing can be paid for. Try again in a few minutes.')
+      }
+      const review = reviewOut(outcome.view)
+      const creativeId = outcome.creative.id
+      const payment = ctx?.meta?.[MCP_META_PAYMENT]
+      if (payment === undefined) throw new ToolPaymentRequired(adPaymentRequired(cfg, 'mcp', `Payment required to run approved ad creative ${creativeId} for ${hours} hours`, hours, 'creative'))
+      const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, creativeId, rawPayload: payment, via: 'mcp', hours })
+      switch (out.kind) {
+        case 'booked':
+          return new ToolResultWithMeta({ review, ad: { ...adView(out.ad), status: asAdStatus(AD_STATUS_ANY, out.ad.status) }, message: null }, { [MCP_META_RESPONSE]: out.settlement })
+        case 'pending':
+          return { review, ad: { ...adView(out.ad), status: asAdStatus(AD_STATUS_ANY, out.ad.status) }, message: PENDING_MESSAGE }
+        case 'payment_invalid':
+        case 'payment_failed':
+          throw new ToolPaymentRequired(adPaymentRequired(cfg, 'mcp', bookFailureMessage(out), hours, 'creative'))
+        case 'refused':
+          throw new ToolError(out.code, out.message)
+        case 'unavailable':
+          throw new ToolError('payment_unavailable', out.message)
+      }
+    },
+  },
+  {
     name: 'list_ads',
     title: 'List this shop\'s ads',
-    description: 'List this shop\'s ads, newest first, with impressions and taps during its run and the listing\'s views and contacts over its days. Ads whose payment was refused are not listed. Use it when the seller asks whether an ad is running or how it did; get_ad_offer prices a new one and promote_listing buys it.\n\nReturns `ads`, each with `id`, `listing_id`, `status`, `hours`, `starts_at`, `ends_at`, `impressions`, `clicks`, `listing_views`, `listing_contacts`, `amount_usdc_atomic`, `network` and `tx_hash`.',
+    description: 'List this shop\'s ads, newest first, with impressions and clicks; get_ad_stats has one ad\'s full figures.\n\nReturns `ads` (`id`, `listing_id`, `creative_id`, `status`, `impressions`, `clicks`).',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     input: z.object({}),

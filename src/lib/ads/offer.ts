@@ -5,6 +5,10 @@ import { buildFeedFilters } from '@/app/api/listings/feed-query'
 import { AD_DAYS, AD_MAX_HOURS, AD_PRICE_VND, AD_WEEK_HOURS, adPriceAtomicFor, adRequirements, usdcText, type X402Config } from '@/lib/x402/config'
 import { X402_VERSION, type PaymentRequired } from '@/lib/x402/wire'
 import { logError } from '@/lib/log'
+import { AD_FIELD_LIMITS, AD_IMAGE_ASPECT, AD_IMAGE_MAX_BYTES, AD_IMAGE_MIN_EDGE } from './creative-review'
+import { AD_CREATIVE_MAX_HOURS } from './book'
+import { AD_QUESTIONS, AD_QUESTION_KEYS, PERMIT_CLASSES } from './review-jev'
+import { REVIEW_REASONS } from './review-reasons'
 
 /**
  * ── The ad offer, as x402 states it (PaymentRequired) and as a plain answer (GET /api/v1/ads/offer, MCP get_ad_offer).
@@ -16,6 +20,44 @@ import { logError } from '@/lib/log'
 export const SITE_ORIGIN = new URL(OAUTH_ISSUER).origin
 export const AD_RESOURCE_URL = `${SITE_ORIGIN}/api/v1/ads`
 export const MCP_URL = `${SITE_ORIGIN}/api/mcp`
+export const AD_POLICY_URL = `${SITE_ORIGIN}/advertising-policy`
+/** The approved creative's id on its 402 (POST /api/v1/ads): the x402 body stays exactly the PaymentRequired. */
+export const HEADER_CREATIVE_ID = 'Eno-Ad-Creative-Id'
+export const AD_LABEL = 'Quảng cáo · Ad'
+/**
+ * ── THE ONE STANDARD PLACEMENT FOR ANY ADVERTISER (owner 2026-11-25: "have to have standardized places where they show
+ * up"): the feed card — the first card on page 1 of the home feed, category and search results, in the grid view. The
+ * spec every surface states (GET /api/v1/ads/offer, MCP get_ad_offer, /advertising-policy) comes from these numbers, the
+ * ones the review enforces (creative-review.ts).
+ */
+export const FEED_CARD_PLACEMENT = {
+  id: 'feed_card',
+  text: 'The first card on page 1 of the home feed, category and search results (grid view), the same size as the listing cards around it.',
+  label: AD_LABEL,
+  image: { min_px: AD_IMAGE_MIN_EDGE, aspect_min: AD_IMAGE_ASPECT.min, aspect_max: AD_IMAGE_ASPECT.max, max_bytes: AD_IMAGE_MAX_BYTES, formats: ['image/jpeg', 'image/png', 'image/webp'], shown: 'square, cropped to fill' },
+  headline_max: AD_FIELD_LIMITS.headline,
+  body_max: AD_FIELD_LIMITS.body,
+  advertiser_name_max: AD_FIELD_LIMITS.advertiserName,
+  languages: 'Any. Each viewer reads the headline and text in their own language (machine translation, cached); the advertiser name and the picture are shown as they are.',
+  landing: 'Your own https page. The whole card is one link to it, opened in a new tab (rel="sponsored").',
+  max_hours: AD_CREATIVE_MAX_HOURS,
+} as const
+
+/** What the review refuses and what it allows (review-jev.ts), as plain words: one line per class. */
+export function adRestrictions() {
+  const sentence = (k: (typeof AD_QUESTION_KEYS)[number]) => {
+    const q = AD_QUESTIONS[k] as { refusal?: keyof typeof REVIEW_REASONS }
+    return q.refusal ? REVIEW_REASONS[q.refusal].en : AD_QUESTIONS[k].instructions.replace(/^This ad promotes /, '').replace(/\.$/, '')
+  }
+  return {
+    refused: AD_QUESTION_KEYS.filter((k) => AD_QUESTIONS[k].family === 'banned').map((k) => ({ class: k, text: sentence(k) })),
+    claims_refused: AD_QUESTION_KEYS.filter((k) => AD_QUESTIONS[k].family === 'claim').map((k) => ({ class: k, text: sentence(k) })),
+    // ⛔ Allowed since 2026-11-25 (owner: "permit categories are now allowed"); recorded on the creative, never refused.
+    permit_classes_allowed: PERMIT_CLASSES.map((k) => ({ class: k, text: sentence(k) })),
+    permit_ref: `Optional (≤ ${AD_FIELD_LIMITS.permitRef} characters): for a permit class, your ad-content confirmation or licence number. Recorded with the ad and shown to eno's reviewers.`,
+  }
+}
+
 export const AD_PLACEMENTS = [
   { id: 'search', text: 'first in matching search and category results' },
   { id: 'home', text: 'first in the home page feed' },
@@ -23,10 +65,10 @@ export const AD_PLACEMENTS = [
 ] as const
 
 const DESCRIPTION =
-  `A paid placement for one listing of your eno.vn shop (eno.vn: Vietnam's marketplace for expats), for any whole number ` +
-  `of hours from 1 to ${AD_MAX_HOURS} (default ${AD_WEEK_HOURS}, a week), priced pro rata. The listing is shown first, labelled "Ad", in matching search and category ` +
-  'results, the home feed and the similar-listings row. Requires a signed-in eno.vn shop (Bearer token with scope ' +
-  'listings:write); the listing must be yours and live. Two purchases for one listing run back to back.'
+  `A paid placement on eno.vn (Vietnam's marketplace for expats) for 1 to ${AD_MAX_HOURS} hours, priced pro rata from a ` +
+  'weekly price: one of your shop\'s live listings shown first, labelled "Ad", in matching results, the home feed and ' +
+  'similar listings (scope listings:write), or your own ad (a picture, a headline and your https page) in the feed card ' +
+  `for up to ${AD_CREATIVE_MAX_HOURS} hours, reviewed before any payment (scope ads:write). Requires a signed-in eno.vn shop.`
 
 const LISTING_ID_SCHEMA = { type: 'string', description: 'The id of one of your live listings (list_listings or GET /api/v1/listings)', minLength: 1, maxLength: 64 }
 const HOURS_SCHEMA = { type: 'integer', minimum: 1, maximum: AD_MAX_HOURS, description: `How many hours the ad runs: 1 (a cheap way to try it), 24 a day, 168 a week (default), 720 thirty days; the price is the weekly price pro rata` }
@@ -97,7 +139,9 @@ function bazaar(transport: 'http' | 'mcp', hours: number) {
   }
 }
 
-export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', error?: string, hours: number = AD_WEEK_HOURS): PaymentRequired {
+/** `kind: 'creative'` (an approved creative's 402) carries no Bazaar entry: discovery describes the listing call, which a
+ *  client can make in one go; a creative needs its review first. */
+export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', error?: string, hours: number = AD_WEEK_HOURS, kind: 'listing' | 'creative' = 'listing'): PaymentRequired {
   return {
     x402Version: X402_VERSION,
     ...(error ? { error } : {}),
@@ -110,7 +154,7 @@ export function adPaymentRequired(cfg: X402Config, transport: 'http' | 'mcp', er
       iconUrl: `${SITE_ORIGIN}/icon-512.png`,
     },
     accepts: [adRequirements(cfg, hours)],
-    extensions: { bazaar: bazaar(transport, hours) },
+    ...(kind === 'listing' ? { extensions: { bazaar: bazaar(transport, hours) } } : {}),
   }
 }
 
@@ -148,6 +192,15 @@ export type AdOffer = {
   label: string
   requires: string
   how_to_buy: { http: string; mcp: string }
+  /** Any lawful advertiser (2026-11-25): the one standard placement, what is refused, and the review-then-pay flow. */
+  creative_ads: {
+    placement: typeof FEED_CARD_PLACEMENT
+    restrictions: ReturnType<typeof adRestrictions>
+    requires: string
+    flow: { http: string[]; mcp: string }
+    charged: string
+    policy_url: string
+  }
   audience: AdAudience
 }
 
@@ -170,6 +223,21 @@ export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
     how_to_buy: {
       http: `POST ${AD_RESOURCE_URL} with {"listingId": "…", "hours": 1 to ${AD_MAX_HOURS}}: the first answer is 402 with PAYMENT-REQUIRED (x402 v2, scheme exact, USDC); repeat it with PAYMENT-SIGNATURE and your Bearer token.`,
       mcp: `promote_listing on ${MCP_URL} (listingId, hours 1 to ${AD_MAX_HOURS}): the first result asks for payment (x402 MCP transport); call it again with _meta["x402/payment"].`,
+    },
+    creative_ads: {
+      placement: FEED_CARD_PLACEMENT,
+      restrictions: adRestrictions(),
+      requires: 'A signed-in eno.vn shop with scope ads:write (never granted by default: ask for it), and the advertiser\'s registered legal name and tax code (MST).',
+      flow: {
+        http: [
+          `1. Review: POST ${AD_RESOURCE_URL} with {"creative": {"advertiserName", "legalName", "taxCode", "headline", "body"?, "imageUrl", "clickUrl", "permitRef"?}, "hours": 1 to ${AD_CREATIVE_MAX_HOURS}} and your Bearer token. eno checks it before any price is offered.`,
+          '2. Refused: 422 with `review.reasons` (a code and an English and Vietnamese sentence each); nothing to pay. Change the ad and submit it again.',
+          '3. Approved: 402 with PAYMENT-REQUIRED (x402 v2) and the creative id in Eno-Ad-Creative-Id. Repeat the same request (or {"creativeId", "hours"}) with PAYMENT-SIGNATURE to pay; it runs from the moment the payment settles.',
+        ],
+        mcp: `create_ad on ${MCP_URL}: the same review, then the x402 payment request; call it again with _meta["x402/payment"]. get_ad_stats reads its figures.`,
+      },
+      charged: 'Charged when the payment settles, then the ad runs. eno may remove an ad that breaks the law or this policy; a removal is refunded pro rata on request.',
+      policy_url: AD_POLICY_URL,
     },
     audience: await adAudience(),
   }

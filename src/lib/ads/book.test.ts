@@ -62,6 +62,8 @@ const { bookAd, reconcileAd, reconcileOpenAds } = await import('./book')
 const { x402Config, adRequirements } = await import('@/lib/x402/config')
 
 const PAY_TO = '0x209693Bc6afc0C5328bA36FaF03C514EF312287C'
+/** A calibrated review's key (review-jev.ts adReviewKey). */
+const REVIEWED = 'jev-1.14.0+gemini-4-hydrogen@2026-11-26:t0.5/0.6/0.5'
 const cfg = x402Config({ X402_PAY_TO: PAY_TO, X402_NETWORK: 'eip155:84532', X402_FACILITATOR_URL: 'https://x402.org/facilitator' } as unknown as NodeJS.ProcessEnv)!
 const TX = `0x${'c'.repeat(64)}`
 
@@ -104,7 +106,7 @@ beforeEach(() => {
   h.live = 1
   h.chain = { found: false }
   h.used = false
-  h.creatives = [{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a' }]
+  h.creatives = [{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a', reviewModel: REVIEWED, reviewedAt: new Date() }]
   h.locks = []
 })
 
@@ -335,7 +337,7 @@ describe('bookAd — a creative ad', () => {
 
   it('a refused, removed, unknown or other shop\'s creative is refused BEFORE the facilitator (nothing charged)', async () => {
     for (const [patch, code] of [[{ status: 'refused' }, 'creative_refused'], [{ status: 'removed' }, 'creative_removed'], [{ sellerId: 's2' }, 'not_found']] as const) {
-      h.creatives = [{ ...{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a' }, ...patch }]
+      h.creatives = [{ ...{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a', reviewModel: REVIEWED, reviewedAt: new Date() }, ...patch }]
       const { f, calls } = facilitator(OK)
       const r = await bookCreative(payload(), f)
       expect(r).toMatchObject({ kind: 'refused', code })
@@ -345,6 +347,20 @@ describe('bookAd — a creative ad', () => {
     expect(await bookCreative(payload(), f, 'nope')).toMatchObject({ kind: 'refused', code: 'not_found' })
     expect(calls).toEqual([])
     expect(h.ads).toEqual([])
+  })
+
+  it('⛔ a provisional approval (a preview on the live database) is never booked where the switch is off', async () => {
+    h.creatives = [{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a', reviewModel: 'jev-1.14.0+gemini-4-hydrogen@provisional:t0.5/0.6/0.5', reviewedAt: new Date() }]
+    const { f, calls } = facilitator(OK)
+    expect(await bookCreative(payload(), f)).toMatchObject({ kind: 'refused', code: 'creative_review_stale' })
+    expect(calls).toEqual([])
+  })
+
+  it('an approval older than a week is not booked on: the creative is reviewed again first', async () => {
+    h.creatives[0]!.reviewedAt = new Date(Date.now() - 8 * 86_400_000)
+    const { f, calls } = facilitator(OK)
+    expect(await bookCreative(payload(), f)).toMatchObject({ kind: 'refused', code: 'creative_review_stale' })
+    expect(calls).toEqual([])
   })
 
   it('runs at most 168 hours: 169 is refused before anything is called', async () => {
@@ -385,14 +401,14 @@ describe('bookAd — a creative ad', () => {
     const again = facilitator(OK)
     expect(await bookCreative(payload(), again.f)).toMatchObject({ kind: 'booked', replay: true })
     expect(again.calls).toEqual([])
-    h.creatives.push({ id: 'cr2', sellerId: 's1', status: 'approved', contentHash: 'hash-b' })
+    h.creatives.push({ id: 'cr2', sellerId: 's1', status: 'approved', contentHash: 'hash-b', reviewModel: REVIEWED, reviewedAt: new Date() })
     expect(await bookCreative(payload(), facilitator(OK).f, 'cr2')).toMatchObject({ kind: 'refused', code: 'payment_already_used' })
     expect(await book(payload(), facilitator(OK).f)).toMatchObject({ kind: 'refused', code: 'payment_already_used' })
   })
 
   it('a late retry after the content was reviewed again (a new creative id, the SAME content and shop) still finds its ad', async () => {
     await bookCreative(payload(), facilitator(OK).f)
-    h.creatives.push({ id: 'cr1b', sellerId: 's1', status: 'approved', contentHash: 'hash-a' })
+    h.creatives.push({ id: 'cr1b', sellerId: 's1', status: 'approved', contentHash: 'hash-a', reviewModel: REVIEWED, reviewedAt: new Date() })
     expect(await bookCreative(payload(), facilitator(OK).f, 'cr1b')).toMatchObject({ kind: 'booked', replay: true })
   })
 

@@ -17,6 +17,8 @@ if (!key) {
   process.exit(1)
 }
 
+// No top-level await: the package is CommonJS (no "type": "module"), so tsx runs this as CJS.
+async function main(): Promise<void> {
 const scores = new Map<string, Record<AdQuestionKey, number>>()
 for (const s of REVIEW_SAMPLES) {
   const res = await fetch('https://api.typesafe.ai/v1/systemone', {
@@ -50,3 +52,5 @@ for (const k of AD_QUESTION_KEYS) {
 }
 console.log(bad ? `\n${bad} class(es) not separated at the pinned thresholds — re-pin JEV_AD_THRESHOLDS (${JEV_AD_MODEL}).` : `\nEvery class separated at the pinned thresholds (${JEV_AD_MODEL}).`)
 process.exitCode = bad ? 1 : 0
+}
+main().catch((e: unknown) => { console.error(e); process.exitCode = 1 })

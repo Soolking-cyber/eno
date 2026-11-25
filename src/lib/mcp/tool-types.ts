@@ -17,7 +17,7 @@ export type McpTool = {
   /** Short display label (MCP `Tool.title`): Claude's directory requires one on every tool. */
   title: string
   description: string
-  scope: 'listings:read' | 'listings:write' | 'analytics:read' | 'media:write' | 'messages:read' | 'messages:write'
+  scope: 'listings:read' | 'listings:write' | 'analytics:read' | 'media:write' | 'ads:write' | 'messages:read' | 'messages:write'
   annotations: ToolAnnotations
   input: z.ZodType
   /** The result object's shape (see OUTPUT SCHEMAS in tools.ts). */

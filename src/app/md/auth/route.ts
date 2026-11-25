@@ -54,6 +54,7 @@ const SCOPE_NOTES = {
   'listings:write': 'Create, edit, delete and re-status listings; bulk-import; sync a catalogue; register and remove webhooks.',
   'analytics:read': 'Read shop-level totals and per-listing daily views and leads.',
   'media:write': 'Upload an image to first-party storage and get back a URL to put in a listing\'s images[]. Attaching it to a listing is a listings:write call.',
+  'ads:write': 'Submit an ad creative (a picture, a headline and a landing page) for eno\'s review, and buy its run in the feed over x402 once approved. Never granted by default: ask for it.',
   'messages:read': 'Sign-in only, MCP only, any account (no shop needed: asked alone, it connects the person, not a shop): read the person\'s conversations (the inbox and each thread\'s messages and offers). Reading never marks a thread as read.',
   'messages:write': 'Sign-in only, MCP only: message a seller about a listing, reply, make or counter an offer, and decline an offer, in the person\'s name; each message is marked as written by an AI assistant. An offer it makes is the person\'s: the other side may accept it. Accepting an offer stays with the person, in the app.',
 } satisfies Record<(typeof SIGN_IN_SCOPES)[number], string>

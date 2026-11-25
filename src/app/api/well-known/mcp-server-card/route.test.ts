@@ -203,7 +203,7 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     const meta = doc._meta['vn.eno/commerce'] as { scopes: string[]; protectedResourceMetadata: string; authorizationServer: string }
     // Not a retyped list — SIGN_IN_SCOPES: the API's scopes plus the sign-in-only messaging pair (2026-11-17), the same
     // constant the authorization server and the MCP server's RFC 9728 document publish, and `tool.scope` is checked against.
-    expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write', 'messages:read', 'messages:write'])
+    expect(meta.scopes).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write', 'ads:write', 'messages:read', 'messages:write'])
     // The MCP server's own RFC 9728 document — the URL its 401 challenge names — not the REST API's.
     expect(meta.protectedResourceMetadata).toBe('https://eno.vn/.well-known/oauth-protected-resource/api/mcp')
     expect(meta.authorizationServer).toBe('https://eno.vn')

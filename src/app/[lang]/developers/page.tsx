@@ -35,7 +35,7 @@ import { TOOLS } from '@/lib/mcp/tools'
 
 export const metadata: Metadata = withShare({
   title: `${API_TITLE_NAME}: developer documentation | ${SITE_NAME}`,
-  description: `${API_NAME} — manage your shop programmatically over REST or MCP. Bearer keys or OAuth 2.0 client credentials, four scopes, OpenAPI 3.1 spec.`,
+  description: `${API_NAME} — manage your shop programmatically over REST or MCP. Bearer keys or OAuth 2.0 client credentials, five scopes, OpenAPI 3.1 spec.`,
   alternates: { canonical: '/developers' },
 })
 

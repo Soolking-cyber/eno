@@ -105,10 +105,19 @@ vi.mock('@/lib/x402/config', () => ({
   adPriceAtomicFor: () => '22381',
 }))
 vi.mock('@/lib/ads/offer', () => ({
-  adOffer: async () => ({ available: true, price: { usdc: '3.76', amount_atomic: '3760000', asset: '0x2', network: 'eip155:8453', network_name: 'Base', pay_to: '0x1' }, price_vnd_reference: 99000, duration_days: 7, placements: [{ id: 'search', text: 'first in matching search results' }], label: 'Ad', requires: '', how_to_buy: { http: '', mcp: '' }, audience: { public_listings: 10, by_category: [], running_ads: 1 } }),
+  adOffer: async () => ({ available: true, price: { usdc: '3.76', amount_atomic: '3760000', asset: '0x2', network: 'eip155:8453', network_name: 'Base', pay_to: '0x1' }, price_vnd_reference: 99000, duration_days: 7, placements: [{ id: 'search', text: 'first in matching search results' }], label: 'Ad', requires: '', how_to_buy: { http: '', mcp: '' }, audience: { public_listings: 10, by_category: [], running_ads: 1 },
+    creative_ads: { placement: { text: 'The first card of the feed.', max_hours: 168 }, restrictions: { refused: [{ class: 'gambling', text: 'Gambling cannot be advertised.' }], claims_refused: [{ class: 'superlative', text: '"Best" needs proof.' }], permit_classes_allowed: [{ class: 'cosmetics', text: 'cosmetics' }], permit_ref: '' }, requires: '', flow: { http: [], mcp: '' }, charged: '', policy_url: 'https://eno.vn/advertising-policy' } }),
   adPaymentRequired: () => ({ x402Version: 2, accepts: [] }),
+  AD_POLICY_URL: 'https://eno.vn/advertising-policy',
+}))
+const REVIEW = { status: 'approved', creative_id: 'cr1', reasons: [], permit_classes: ['cosmetics'], reused: false, reviewed_at: now.toISOString() }
+vi.mock('@/lib/ads/creative-review', () => ({
+  reviewCreative: async () => ({ kind: 'approved', creative: { id: 'cr1' }, view: REVIEW }),
+  storedReview: async () => REVIEW,
 }))
 vi.mock('@/lib/ads/book', () => ({
+  AD_CREATIVE_MAX_HOURS: 168,
+  checkAdCreative: async () => ({ ok: true, creative: { id: 'cr1', contentHash: 'h' } }),
   checkAdListing: async () => ({ ok: true, listing: { id: 'l1', title: 't', categorySlug: 'electronics', subcategorySlug: null } }),
   bookAd: async () => ({ kind: 'booked', ad: AD_ROW, settlement: { success: true, transaction: AD_ROW.txHash, network: 'eip155:8453' }, replay: false }),
   shopAds: async () => [{ id: 'ad1', listing_id: 'l1', creative_id: null, status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, amount_usdc_atomic: '3760000', network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
@@ -117,8 +126,8 @@ vi.mock('@/lib/ads/book', () => ({
 const { TOOLS } = await import('./tools')
 const { ToolResultWithMeta } = await import('./tool-types')
 /** Only promote_listing reads the call's `_meta` (the x402 payment): it is passed one, so its PAID answer is what is checked. */
-const CTX: Record<string, { meta: Record<string, unknown> }> = { promote_listing: { meta: { 'x402/payment': { x402Version: 2 } } } }
-const AUTH = { keyId: 'k1', sellerId: 's1', profileId: 'p1', scopes: new Set(['listings:read', 'listings:write', 'analytics:read']) } as never
+const CTX: Record<string, { meta: Record<string, unknown> }> = { promote_listing: { meta: { 'x402/payment': { x402Version: 2 } } }, create_ad: { meta: { 'x402/payment': { x402Version: 2 } } } }
+const AUTH = { keyId: 'k1', sellerId: 's1', profileId: 'p1', scopes: new Set(['listings:read', 'listings:write', 'analytics:read', 'ads:write']) } as never
 
 const ARGS: Record<string, Row> = {
   get_shop: {},
@@ -143,6 +152,7 @@ const ARGS: Record<string, Row> = {
   decline_offer: { conversation_id: 'cv1', message_id: 'm2' },
   get_ad_offer: { listingId: 'l1', hours: 24 },
   promote_listing: { listingId: 'l1', hours: 1 },
+  create_ad: { creative: { advertiserName: 'Bean', legalName: 'Bean Co', taxCode: '0312345678', headline: 'Fresh coffee', imageUrl: 'https://cdn.example/a.jpg', clickUrl: 'https://bean.vn' }, hours: 24 },
   list_ads: {},
 }
 

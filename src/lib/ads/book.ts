@@ -8,6 +8,7 @@ import { AD_WEEK_HOURS, adRequirements, type X402Config } from '@/lib/x402/confi
 import { facilitatorSettle, facilitatorVerify } from '@/lib/x402/facilitator'
 import { authorizationUsed, findAuthorizationPayment } from '@/lib/x402/chain'
 import { CREATIVE_REMOVED_PAID, UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
+import { reviewCountsHere } from './review-jev'
 import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRequirements, type SettlementResponse } from '@/lib/x402/wire'
 
 /**
@@ -35,6 +36,8 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
 /** The longest creative ad (owner 2026-11-25, the brief's one standard placement: up to 168 hours). */
 export const AD_CREATIVE_MAX_HOURS = AD_WEEK_HOURS
+/** How long an approval can be booked on (checkAdCreative): a week, then the creative is reviewed again. */
+export const AD_APPROVAL_VALID_MS = 7 * 86_400_000
 
 /** What a booking advertises: exactly one of the two. */
 export type AdTarget = { listingId: string; creativeId?: undefined } | { creativeId: string; listingId?: undefined }
@@ -104,14 +107,20 @@ export type AdCreativeCheck =
   | { ok: true; creative: { id: string; contentHash: string } }
   | { ok: false; status: 403 | 404 | 409; code: string; message: string }
 
-/** The caller's own creative, approved by the review and not removed by eno. */
+/** The caller's own creative, approved by the review and not removed by eno — by a review that counts here (a preview's
+ *  provisional approval never does where AD_REVIEW_ALLOW_PROVISIONAL is off: review-jev.ts reviewCountsHere). */
 export async function checkAdCreative(creativeId: string, sellerId: string): Promise<AdCreativeCheck> {
   if (!sellerId) return { ok: false, status: 403, code: 'shop_required', message: 'Ads are bought by a shop: connect with a shop account.' }
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(creativeId)) return { ok: false, status: 404, code: 'not_found', message: 'Ad creative not found in this shop.' }
-  const c = await db.adCreative.findUnique({ where: { id: creativeId }, select: { id: true, sellerId: true, status: true, contentHash: true } })
+  const c = await db.adCreative.findUnique({ where: { id: creativeId }, select: { id: true, sellerId: true, status: true, contentHash: true, reviewModel: true, reviewedAt: true } })
   if (!c || c.sellerId !== sellerId) return { ok: false, status: 404, code: 'not_found', message: 'Ad creative not found in this shop.' }
   if (c.status === 'removed') return { ok: false, status: 409, code: 'creative_removed', message: 'eno removed this ad creative; it can no longer run.' }
   if (c.status !== 'approved') return { ok: false, status: 409, code: 'creative_refused', message: 'This ad creative did not pass the review; change it and submit it again.' }
+  // ⛔ An approval is good for a week of bookings (commit gate, opus): the landing page is only read at the review, so a
+  // creative bought again and again must be looked at again — submitting the same fields reviews it afresh.
+  if (!reviewCountsHere(c.reviewModel) || Date.now() - c.reviewedAt.getTime() > AD_APPROVAL_VALID_MS) {
+    return { ok: false, status: 409, code: 'creative_review_stale', message: 'This ad creative\'s review is too old or does not count here; submit it again for a new review.' }
+  }
   return { ok: true, creative: { id: c.id, contentHash: c.contentHash } }
 }
 
@@ -124,8 +133,8 @@ async function activate(rowId: string, txHash: string, settlement: SettlementRes
     const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true, listingId: true, creativeId: true, sellerId: true } })
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${adLockKey(row)}))`
     if (row.creativeId) {
-      const c = await tx.adCreative.findUnique({ where: { id: row.creativeId }, select: { status: true, sellerId: true } })
-      if (!c || c.status !== 'approved' || c.sellerId !== row.sellerId) {
+      const c = await tx.adCreative.findUnique({ where: { id: row.creativeId }, select: { status: true, sellerId: true, reviewModel: true } })
+      if (!c || c.status !== 'approved' || c.sellerId !== row.sellerId || !reviewCountsHere(c.reviewModel)) {
         // Loud: money moved for an ad that will not run — the owner refunds it by hand (the advertising policy says so).
         logError(new Error('ads: paid for a creative that can no longer run'), { op: 'ads.creative-removed-paid', adId: rowId, creativeId: row.creativeId })
         await tx.listingAd.updateMany({

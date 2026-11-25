@@ -400,6 +400,7 @@ const OAUTH_SCOPE_DESCRIPTIONS = {
   'listings:write': 'Create, edit, delete, bulk-import and sync listings; set availability; edit the storefront profile; register and remove webhooks.',
   'analytics:read': 'Read shop-level and per-listing view/lead analytics.',
   'media:write': 'Upload images and receive a first-party URL to use in a listing.',
+  'ads:write': 'Submit an ad creative for review and buy its run in the feed (x402). Never granted by default.',
 } as const satisfies Record<(typeof OAUTH_SCOPES)[number], string>
 
 // Machine-readable OpenAPI 3.1 description of the partner API, for client codegen + tooling.
@@ -1045,6 +1046,34 @@ export const SPEC = {
           id: { type: 'string' }, listing_id: { type: ['string', 'null'] }, creative_id: { type: ['string', 'null'] }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           tx_hash: { type: ['string', 'null'] }, network: { type: 'string', example: 'eip155:8453' }, amount_atomic: { type: 'string', example: '3760000' },
+        },
+      },
+      AdCreativeInput: {
+        type: 'object',
+        description: 'Your own ad for the feed card (owner 2026-11-25): reviewed before any price is offered. Any language; each viewer reads the headline and text in their own (machine translation). Rules: /advertising-policy and `creative_ads` in getAdOffer.',
+        required: ['advertiserName', 'legalName', 'taxCode', 'headline', 'imageUrl', 'clickUrl'],
+        properties: {
+          advertiserName: { type: 'string', minLength: 2, maxLength: 40, description: 'The name shown on the card.' },
+          legalName: { type: 'string', minLength: 2, maxLength: 120, description: 'The advertiser\'s registered legal name (recorded).' },
+          taxCode: { type: 'string', description: 'The advertiser\'s tax code (MST): 10 digits, or 13 written 10-3.', example: '0312345678' },
+          headline: { type: 'string', minLength: 2, maxLength: 60, description: 'Any language.' },
+          body: { type: 'string', maxLength: 120, description: 'Optional line under the headline. Any language.' },
+          imageUrl: { type: 'string', format: 'uri', description: 'https; JPEG, PNG or WebP; at least 600×600; width/height 0.8–1.25; at most 5 MB. eno stores its own copy of the reviewed picture.' },
+          clickUrl: { type: 'string', format: 'uri', description: 'Your https landing page (a web page, not a download). The whole card links to it, rel="sponsored".' },
+          permitRef: { type: 'string', maxLength: 80, description: 'Optional: your ad-content confirmation or licence number for a permit class (medicines, cosmetics, finance …).' },
+        },
+      },
+      AdReview: {
+        type: 'object',
+        description: 'The review of a creative. `reasons`: a stable `code` plus one English and one Vietnamese sentence each.',
+        required: ['status', 'creative_id', 'reasons', 'permit_classes', 'reused', 'reviewed_at'],
+        properties: {
+          status: { type: 'string', enum: ['approved', 'refused', 'removed', 'unavailable', 'limited'] },
+          creative_id: { type: ['string', 'null'] },
+          reasons: { type: 'array', items: { type: 'object', required: ['code', 'en', 'vi'], properties: { code: { type: 'string', example: 'banned_gambling' }, en: { type: 'string' }, vi: { type: 'string' } } } },
+          permit_classes: { type: 'array', items: { type: 'string' }, description: 'Permit classes it falls in: allowed, recorded for eno\'s reviewers.' },
+          reused: { type: 'boolean', description: 'The stored verdict for the same content within 24 h (no new review).' },
+          reviewed_at: { type: ['string', 'null'], format: 'date-time' },
         },
       },
       AdStats: {
@@ -1697,8 +1726,10 @@ export const SPEC = {
     '/ads': {
       post: {
         operationId: 'buyAd',
-        summary: 'Buy an ad for one of your listings, 1 hour to 90 days (x402)',
+        summary: 'Buy an ad: one of your listings (1 h to 90 days) or your own reviewed creative (1 to 168 h), over x402',
         description: [
+          'Three bodies: `{listingId, hours}` (one of your live listings, shown first in matching results; scope listings:write), `{creative, hours}` (your own ad in the feed card, REVIEWED FIRST; scope ads:write) or `{creativeId, hours}` (an approved creative of yours).',
+          'A creative is authenticated first, then reviewed (the same content within 24 h reuses its verdict): refused → 422 with `review.reasons` and nothing to pay; the review unavailable → 503; approved → 402 with the creative id in `Eno-Ad-Creative-Id`.',
           'Paid over x402 v2 (HTTP transport, scheme `exact`, USDC). Without a `PAYMENT-SIGNATURE` header the answer is 402 with `PAYMENT-REQUIRED` (base64 JSON PaymentRequired; the body is the same object) — no credential needed to read the price.',
           'Sign the payment with an x402 client and repeat the request with `PAYMENT-SIGNATURE` and your Bearer credential (scope listings:write). The listing must be yours and live; it is checked before any money moves.',
           'Repeating the same payment returns the same ad (200) and never charges twice. A 202 means the payment was sent and its confirmation is being looked up: repeat the same request later. Two ads for one listing run back to back.',
@@ -1709,18 +1740,23 @@ export const SPEC = {
         ],
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', required: ['listingId'], properties: { listingId: { type: 'string', description: 'One of your live listings.' }, hours: { type: 'integer', minimum: 1, maximum: 2160, default: 168, description: 'How many hours the ad runs: 1 to try it, 24 a day, 168 a week (default), 720 thirty days. Priced pro rata from the weekly price.' } } } } },
+          content: { 'application/json': { schema: { oneOf: [
+            { type: 'object', required: ['listingId'], properties: { listingId: { type: 'string', description: 'One of your live listings.' }, hours: { type: 'integer', minimum: 1, maximum: 2160, default: 168, description: 'How many hours the ad runs: 1 to try it, 24 a day, 168 a week (default), 720 thirty days. Priced pro rata from the weekly price.' } } },
+            { type: 'object', required: ['creative'], properties: { creative: schemaRef('AdCreativeInput'), hours: { type: 'integer', minimum: 1, maximum: 168, default: 168, description: 'How many hours it runs in the feed card. Priced pro rata from the weekly price.' } } },
+            { type: 'object', required: ['creativeId'], properties: { creativeId: { type: 'string', description: 'An approved creative of yours (Eno-Ad-Creative-Id).' }, hours: { type: 'integer', minimum: 1, maximum: 168, default: 168 } } },
+          ] } } },
         },
         responses: {
           '201': ok('Paid: the ad, with `PAYMENT-RESPONSE` (base64 JSON SettlementResponse).', { type: 'object', required: ['ad'], properties: { ad: schemaRef('Ad') } }),
           '200': ok('The same payment again: the ad it bought.', { type: 'object', required: ['ad'], properties: { ad: schemaRef('Ad') } }),
           '202': ok('Payment sent, confirmation not yet found: repeat the same request later.', { type: 'object', required: ['ad', 'message'], properties: { ad: schemaRef('Ad'), message: { type: 'string' } } }),
-          '402': { description: 'Payment required, or the payment was refused (nothing charged): `PAYMENT-REQUIRED` says what to pay, and `error` why the last one failed.' },
+          '402': { description: 'Payment required, or the payment was refused (nothing charged): `PAYMENT-REQUIRED` says what to pay, and `error` why the last one failed. For a creative, only once it is approved; `Eno-Ad-Creative-Id` names it.' },
+          '422': { description: 'The creative did not pass the review; nothing to pay. `error.code` is `ad_refused`.', content: { 'application/json': { schema: { type: 'object', required: ['error', 'review'], properties: { error: schemaRef('Error'), review: schemaRef('AdReview') } } } } },
           ...authFailures(),
           '400': fail('No `listingId`.', ['invalid_input']),
           '404': fail('Not a listing of this shop.', ['not_found']),
-          '409': fail('This payment was already used for another ad.', ['payment_already_used']),
-          '503': fail('Ads are not on sale, or the payment service did not answer (nothing charged).', ['ads_unavailable', 'payment_unavailable']),
+          '409': fail('This payment was already used for another ad, or the creative was refused or removed.', ['payment_already_used', 'creative_refused', 'creative_removed', 'creative_review_stale', 'payment_under_review']),
+          '503': fail('Ads are not on sale, the payment service did not answer, or the creative review could not run (nothing charged).', ['ads_unavailable', 'payment_unavailable', 'review_unavailable']),
         },
       },
       get: {

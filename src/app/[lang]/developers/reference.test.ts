@@ -117,13 +117,13 @@ describe('/developers reference — services edition (eno.forum)', () => {
 })
 
 describe('/developers reference — invariants that hold on both editions', () => {
-  it('documents exactly the four scopes the token endpoint enforces', async () => {
+  it('documents exactly the scopes the token endpoint enforces', async () => {
     // Not a retyped list: this is OAUTH_SCOPES, the same constant both .well-known documents
     // advertise and the token endpoint validates `scope=` against. Production confirms it —
     // /.well-known/oauth-authorization-server returns this array verbatim on both hosts.
     for (const edition of ['marketplace', 'services'] as const) {
       const m = await load(edition, undefined)
-      expect([...m.SCOPES]).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write'])
+      expect([...m.SCOPES]).toEqual(['listings:read', 'listings:write', 'analytics:read', 'media:write', 'ads:write'])
     }
   })
 

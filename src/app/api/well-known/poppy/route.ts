@@ -23,6 +23,8 @@ const SCOPES: Record<(typeof SIGN_IN_SCOPES)[number], string> = {
   'analytics:read': SCOPE_TEXT['analytics:read'].en,
   // Not on the consent page's list (the sign-in does not ask for it by default): the OpenAPI document's words.
   'media:write': 'Upload images and receive a first-party URL to use in a listing',
+  // Not on the consent page's default list either: the OpenAPI document's words.
+  'ads:write': 'Submit an ad creative for review and buy its run in the feed',
   'messages:read': SCOPE_TEXT['messages:read'].en,
   'messages:write': SCOPE_TEXT['messages:write'].en,
 }
@@ -32,6 +34,8 @@ const HINTS: Record<(typeof SIGN_IN_SCOPES)[number], { changes: 'none' | 'revers
   'listings:write': { changes: 'irreversible', personal_data: false },
   'analytics:read': { changes: 'none', personal_data: false },
   'media:write': { changes: 'reversible', personal_data: false },
+  // A paid run cannot be taken back by the agent.
+  'ads:write': { changes: 'irreversible', personal_data: false },
   'messages:read': { changes: 'none', personal_data: true },
   // A sent message cannot be unsent, and an offer binds the person if accepted.
   'messages:write': { changes: 'irreversible', personal_data: true },

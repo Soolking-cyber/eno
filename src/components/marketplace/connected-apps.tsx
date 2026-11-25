@@ -16,6 +16,7 @@ function can(tr: (en: string, vi: string) => string, scope: string): string {
     case 'listings:write': return tr('manage your listings', 'quản lý tin đăng')
     case 'analytics:read': return tr('see your shop’s views and leads', 'xem lượt xem và liên hệ')
     case 'media:write': return tr('upload photos', 'tải ảnh lên')
+    case 'ads:write': return tr('submit and buy ads', 'gửi và mua quảng cáo')
     case 'messages:read': return tr('read your chats', 'đọc tin nhắn')
     case 'messages:write': return tr('send messages and offers for you', 'gửi tin nhắn và trả giá thay bạn')
     default: return scope

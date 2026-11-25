@@ -60,7 +60,7 @@ export const API_TITLE_NAME = 'eno Partner API'
 export const SUPPORT_EMAIL = COMPANY.email
 
 /**
- * The four scopes, from the constant the token endpoint enforces and both .well-known documents
+ * The scopes (five since ads:write, 2026-11-25), from the constant the token endpoint enforces and both .well-known documents
  * advertise. Retyping them here is how a fifth scope ships undocumented, or a renamed one keeps
  * being documented after it stops working.
  */
