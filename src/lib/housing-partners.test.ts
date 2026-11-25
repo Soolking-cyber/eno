@@ -18,8 +18,8 @@ const rec = (o: Partial<HousingRecord> = {}): HousingRecord => ({
 })
 
 describe('the roster', () => {
-  it('three agencies, valid handles, eno-held logins', () => {
-    expect(HOUSING_PARTNERS.map((p) => p.handle)).toEqual(['alphahousing', 'housingsaigon', 'cvr'])
+  it('four agencies, valid handles, eno-held logins', () => {
+    expect(HOUSING_PARTNERS.map((p) => p.handle)).toEqual(['alphahousing', 'housingsaigon', 'cvr', 'jhouse'])
     for (const p of HOUSING_PARTNERS) {
       expect(validateHandle(p.handle)).toBeNull()
       expect(p.email).toBe(`support+${p.handle}@eno.vn`)
@@ -238,5 +238,93 @@ describe('CVR (Đà Nẵng)', () => {
     expect(looksVietnamese('A bright villa near Hội An old town and the Thu Bồn river, five minutes from An Bàng beach by bicycle.')).toBe(false)
     expect(looksVietnamese('Căn hộ ở Thảo Điền, Thủ Đức, gần Tây Hồ — Thảo Điền, Thủ Đức, Tây Hồ, Thảo Điền for rent near the river and the park and the school.')).toBe(true)
     expect(looksVietnamese('Villa cho thuê dài hạn, gồm 4 tầng với 8 phòng ngủ, phù hợp cho gia đình đông người.')).toBe(true)
+  })
+})
+
+describe('JHouse (Ho Chi Minh City): rents stated in đồng, no post date, upcoming units', () => {
+  const jh = housingPartner('jhouse')!
+  const jrec = (o: Partial<HousingRecord> = {}): HousingRecord => rec({
+    id: 'H03482', link: 'https://jhouse.vn/property/masteri-thao-dien-district-2-2br-city-view-t1-3209', date: null, listOrder: 3,
+    title: 'Fully Furnished 2BR Apartment for Rent at Masteri Thao Dien', priceUsd: null, priceVnd: 18_000_000, status: 'available',
+    beds: 2, baths: 2, areaM2: 74, district: 'Quận 2', building: 'Masteri Thảo Điền',
+    description: ['Located on the 32nd floor, this 74 m² apartment features 2 bedrooms.', 'Minimum lease: 12 months.', 'Deposit: 2 months of rent.'],
+    ...o,
+  })
+  const ok = (r: HousingRecord) => {
+    const m = mapHousingRecord(jh, r, OPTS)
+    if (!m.ok) throw new Error(`refused: ${m.reason} ${m.detail}`)
+    return m
+  }
+
+  it('is an HCMC agency with an eno-held login', () => {
+    expect(jh).toMatchObject({ handle: 'jhouse', name: 'JHouse', email: 'support+jhouse@eno.vn', city: 'hcmc', research: 'jhouse' })
+    expect(jh.statesDong).toBeFalsy()
+  })
+
+  it('the stated đồng rent IS the price — never converted, and no "approximate" line', () => {
+    const m = ok(jrec())
+    expect(m.row.price).toBe(18_000_000)
+    expect(m.row.description).toContain('- Rent: 18,000,000 đ a month')
+    expect(m.row.description).not.toMatch(/US dollar|approximate/)
+    // The rate does not move it.
+    expect(mapHousingRecord(jh, jrec(), { ...OPTS, vndPerUsd: 40_000 })).toMatchObject({ ok: true, row: { price: 18_000_000 } })
+  })
+
+  it('no post date: posted at the import time, a minute apart in the agency\'s own order — never a printed date', () => {
+    const newest = ok(jrec({ listOrder: 0 })).postedAt.getTime()
+    const older = ok(jrec({ listOrder: 3 })).postedAt.getTime()
+    expect(newest).toBe(OPTS.now)
+    expect(newest - older).toBe(3 * 60_000)
+    const d = ok(jrec()).row.description
+    expect(d).toContain('Listed by JHouse. Message JHouse here on eno to check availability and book a viewing.')
+    expect(d).not.toMatch(/Listed by JHouse on/)
+  })
+
+  it('⛔ no date and no order is still held (noDate), as is a negative or fractional order', () => {
+    for (const listOrder of [undefined, -1, 1.5]) {
+      expect(mapHousingRecord(jh, jrec({ listOrder }), OPTS)).toMatchObject({ ok: false, kind: 'hold', reason: 'noDate' })
+    }
+  })
+
+  it('an upcoming unit says when it is free, right after the first line; a malformed day holds it', () => {
+    const d = ok(jrec({ status: 'upcoming', availableFrom: '2026-12-17' })).row.description
+    const [first, second] = d.split('\n\n')
+    expect(first).toMatch(/^Apartment for rent at /)
+    expect(second).toBe('Available from 17 December 2026.')
+    expect(mapHousingRecord(jh, jrec({ status: 'upcoming', availableFrom: '17/12/2026' }), OPTS)).toMatchObject({ ok: false, reason: 'availableFrom' })
+    expect(ok(jrec()).row.description).not.toMatch(/Available from/)
+  })
+
+  it('⛔ a move-in day must be a real calendar day — never rolled over — and is printed only while it is still ahead', () => {
+    for (const bad of ['2026-02-30', '2026-13-01', '2026-00-10']) {
+      expect(mapHousingRecord(jh, jrec({ status: 'upcoming', availableFrom: bad }), OPTS)).toMatchObject({ ok: false, reason: 'availableFrom' })
+    }
+    // OPTS.now is 2026-11-22 07:00 in Vietnam: that day and earlier say nothing (the unit is free now); the next day does.
+    for (const past of ['2026-11-01', '2026-11-22']) expect(ok(jrec({ status: 'upcoming', availableFrom: past })).row.description).not.toMatch(/Available from/)
+    expect(ok(jrec({ status: 'upcoming', availableFrom: '2026-11-23' })).row.description).toContain('Available from 23 November 2026.')
+  })
+
+  it('a record whose date key is missing altogether is ordered like one with date null', () => {
+    const r = jrec({ listOrder: 2 }) as Partial<HousingRecord>
+    delete r.date
+    expect(mapHousingRecord(jh, r as HousingRecord, OPTS)).toMatchObject({ ok: true, postedAt: new Date(OPTS.now - 2 * 60_000) })
+  })
+
+  it('a rented unit is still dropped; no price at all is dropped', () => {
+    expect(mapHousingRecord(jh, jrec({ status: 'rented' }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'rented' })
+    expect(mapHousingRecord(jh, jrec({ priceVnd: null }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'noMonthlyPrice' })
+    expect(mapHousingRecord(jh, jrec({ priceVnd: 0 }), OPTS)).toMatchObject({ ok: false, kind: 'drop', reason: 'noMonthlyPrice' })
+  })
+
+  it('files "Quận 2" under District 2, in Ho Chi Minh City', () => {
+    const m = ok(jrec())
+    expect(m.row).toMatchObject({ city: 'Hồ Chí Minh', district: 'Quận 2', subcategorySlug: 'apartment-rental' })
+    expect(m.row.title).toMatch(/^2-bedroom apartment, 74 m² · .*District 2$/)
+  })
+
+  it('the dollar partners are unchanged: a US$ card still converts and says so', () => {
+    const m = mapHousingRecord(hs, rec(), OPTS)
+    expect(m.ok && m.row.price).toBe(23_000_000)
+    expect(m.ok && m.row.description).toMatch(/approximate/)
   })
 })

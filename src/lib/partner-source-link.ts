@@ -31,6 +31,7 @@ export const PARTNER_SOURCES: Readonly<Record<string, PartnerSource>> = {
   alphahousing: { hosts: ['alphahousing.vn'], home: 'https://alphahousing.vn/' },
   housingsaigon: { hosts: ['housingsgn.com'], home: 'https://housingsgn.com/' },
   cvr: { hosts: ['cvr.com.vn'], home: 'https://cvr.com.vn/' },
+  jhouse: { hosts: ['jhouse.vn'], home: 'https://jhouse.vn/' },
   saigoncribs: { hosts: ['saigoncribs.com'], home: 'https://saigoncribs.com/' },
   // Cars (cars[src].pageUrl in the import research)
   karplus: { hosts: ['karplus.vn'], home: 'https://karplus.vn/' },

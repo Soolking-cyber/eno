@@ -294,6 +294,20 @@ const PARTNERS = {
     avatarColor: '#a61d18',
     dailyReminderOptIn: false,
   },
+  // ── HO CHI MINH CITY RENTAL AGENCY (owner, 2026-11-25: "https://jhouse.vn/ import their latest listings as a partner").
+  // An eno-held login like the other agencies; scripts/import-housing-partners.ts writes its listings once.
+  jhouse: {
+    email: 'support+jhouse@eno.vn',
+    handle: 'jhouse',
+    name: 'JHouse',
+    // ⚠️ NULL ON PURPOSE: its site prints only "© 2026 J.House." — no registered company name or tax code (read 2026-11-25).
+    legalName: null,
+    bio: 'Rental agency in Ho Chi Minh City: furnished apartments, serviced apartments and villas for expats in Thảo Điền, Thủ Thiêm, District 1, Bình Thạnh and more. Message JHouse here on eno to check availability and book a viewing. eno introduces JHouse; the tenancy is arranged with them.',
+    avatarUrl: null,
+    // The indigo of their wordmark.
+    avatarColor: '#403090',
+    dailyReminderOptIn: false,
+  },
   saigonscootercentre: {
     email: 'support+saigonscootercentre@eno.vn',
     handle: 'saigonscootercentre',

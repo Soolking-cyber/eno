@@ -43,7 +43,7 @@ import { HANOI_DISTRICTS } from './teachers/district-hanoi'
 import { formatMoneyFull } from './vnd'
 import { REVER_BUILDINGS, type ReverBuilding } from '../generated/rever-buildings'
 
-export type HousingPartnerHandle = 'alphahousing' | 'housingsaigon' | 'cvr'
+export type HousingPartnerHandle = 'alphahousing' | 'housingsaigon' | 'cvr' | 'jhouse'
 
 export type HousingPartner = {
   handle: HousingPartnerHandle
@@ -77,6 +77,14 @@ export const HOUSING_PARTNERS: readonly HousingPartner[] = [
     handle: 'cvr', name: 'Central Vietnam Realty', email: 'support+cvr@eno.vn', city: 'danang', research: 'cvr', terms: [], statesDong: true,
     address: '333 Chuong Duong Street, Ngu Hanh Son, Da Nang',
   },
+  {
+    // JHOUSE (jhouse.vn, Ho Chi Minh City), owner 2026-11-25: "import their latest listings as a partner" → its newest
+    // live units (coded H03000 or later, available or upcoming). It states rents in đồng (`priceVnd`), publishes no post
+    // date (`listOrder`), and each unit states its own lease, deposit and pets — no shared terms. The office its contact
+    // page prints (read 2026-11-25).
+    handle: 'jhouse', name: 'JHouse', email: 'support+jhouse@eno.vn', city: 'hcmc', research: 'jhouse', terms: [],
+    address: '20 Phan Liem, Tan Dinh Ward, Ho Chi Minh City',
+  },
 ]
 export const housingPartner = (handle: string) => HOUSING_PARTNERS.find((p) => p.handle === handle)
 
@@ -85,9 +93,22 @@ export type HousingRecord = {
   /** The agency's post id (a WordPress number; CVR's own uuid). */
   id: number | string
   link: string
-  date: string
+  /** The post's date; null when the agency publishes none (JHouse) — then `listOrder` orders the rows. */
+  date: string | null
   title: string
   priceUsd: number | null
+  /**
+   * The monthly rent in đồng as the agency states it (JHouse). When set it IS the price: no dollar conversion, and no
+   * "approximate" line.
+   */
+  priceVnd?: number | null
+  /** An upcoming unit's move-in day (YYYY-MM-DD), printed after the first line. */
+  availableFrom?: string | null
+  /**
+   * With no post date: the agency's own order, 0 = its newest. Only spaces the rows' posted time a minute apart so the
+   * newest ranks first; never printed as a date.
+   */
+  listOrder?: number
   unit: string | null
   status: string | null
   beds: number | null
@@ -350,21 +371,31 @@ export function mapHousingRecord(p: HousingPartner, r: HousingRecord, opts: Hous
   // A sale filed among the rentals ("… FOR SALE", not "for sale or rent"), or — for an office or shop — a business
   // transfer ("Lease / Transfer", "Café for Transfer"); a home's "airport transfer" is a perk, not a sale.
   if (/\bfor sale\b(?!\s*(?:or|\/|&|and)\s*(?:for\s+)?rent)|sang nhượng/i.test(r.title) || (!isHome(r) && /\btransfer\b/i.test(r.title))) return drop('notForRent', r.title)
-  if (!r.priceUsd || r.unit !== 'month') return drop('noMonthlyPrice', `price ${r.priceUsd ?? '(none)'} / ${r.unit ?? '(none)'}`)
-  if (r.priceUsd < USD_MONTHLY_BAND.min || r.priceUsd > 20_000) return hold('priceBand', `US$${r.priceUsd} a month`)
+  const statedVnd = typeof r.priceVnd === 'number' && Number.isFinite(r.priceVnd) && r.priceVnd > 0 ? Math.round(r.priceVnd) : null
+  if ((!r.priceUsd && !statedVnd) || r.unit !== 'month') return drop('noMonthlyPrice', `price ${statedVnd ?? r.priceUsd ?? '(none)'} / ${r.unit ?? '(none)'}`)
+  if (!statedVnd && r.priceUsd && (r.priceUsd < USD_MONTHLY_BAND.min || r.priceUsd > 20_000)) return hold('priceBand', `US$${r.priceUsd} a month`)
   // A whole residential building let to an operator is not a home to rent.
   if (isHome(r) && (/\bapartment building\b|\b\d+-unit\b|\b(?:whole|entire) building\b/i.test(r.title) || (r.beds ?? 0) > 8)) return hold('wholeBuilding', r.title)
   // The agency's own title says how many bedrooms ("HIGH-FLOOR 3-BEDROOM APARTMENT"); a bedroom field that disagrees
   // would print a wrong count in the title eno composes.
   const titleBeds = isHome(r) ? /\b(\d{1,2})\s?-?\s?(?:bed(?:room)?s?|br|bdr|pn)\b/i.exec(r.title) : null
   if (titleBeds && r.beds != null && Number(titleBeds[1]) !== r.beds) return hold('bedsConflict', `title "${titleBeds[0]}" vs ${r.beds} bedroom(s)`)
-  const vnd = usdToVnd(r.priceUsd, opts.vndPerUsd)
-  const conflict = rentConflict(p, r, opts.vndPerUsd)
+  const vnd = statedVnd ?? usdToVnd(r.priceUsd ?? 0, opts.vndPerUsd)
+  const conflict = statedVnd ? null : rentConflict(p, r, opts.vndPerUsd)
   if (conflict) return hold('priceConflict', `US$${r.priceUsd} (${dong(vnd)}) vs the text's ${conflict.map(dong).join(' / ')}`)
   if (vnd < VND_BAND.min || vnd > VND_BAND.max) return hold('vndBand', `${vnd} đ`)
   if (looksVietnamese(r.description.join(' '))) return hold('notEnglish', r.title)
-  const postedAt = nhatotPostedAt(wpDateMs(r.date), opts.now)
-  if (!postedAt) return hold('noDate', `posted "${r.date}"`)
+  // No post date (JHouse): import time, a minute apart in the agency's own order — never a date it did not state.
+  const postedAt = r.date == null && typeof r.listOrder === 'number' && Number.isInteger(r.listOrder) && r.listOrder >= 0
+    ? new Date(opts.now - r.listOrder * 60_000)
+    : nhatotPostedAt(wpDateMs(r.date ?? null), opts.now)
+  if (!postedAt) return hold('noDate', `posted "${r.date ?? '(none)'}"`)
+  // A real calendar day (round-trip: "2026-02-30" is refused, not rolled over), printed only while it is still ahead —
+  // the row is never rewritten, so a day already past would read wrong for good.
+  const moveIn = r.availableFrom ? calendarDayMs(r.availableFrom) : null
+  if (r.availableFrom && moveIn === null) return hold('availableFrom', `"${r.availableFrom}"`)
+  const todayInVietnam = Math.floor((opts.now + 7 * 3_600_000) / 86_400_000) * 86_400_000
+  const availableFrom = moveIn !== null && moveIn > todayInVietnam ? `Available from ${listedDay(r.availableFrom!)}.` : null
   const place = housingPlace(p, r, opts.buildings)
   if (!place) return hold('noPlace', `district "${r.district ?? '(none)'}"${r.districtTax?.length ? `, tags ${r.districtTax.join(' / ')}` : ''}`)
 
@@ -395,11 +426,14 @@ export function mapHousingRecord(p: HousingPartner, r: HousingRecord, opts: Hous
   // A list item joins the line before it with one newline (one list); every other line is its own paragraph.
   const joinBody = (lines: string[]) => lines.map((l, i) => (i && l.startsWith('- ') ? `\n${l}` : `${i ? '\n\n' : ''}${l}`)).join('')
   const compose = (lines: string[]) => [
-    intro,
+    availableFrom ? `${intro}\n\n${availableFrom}` : intro,
     ...(lines.length ? [joinBody(lines)] : []),
     ...(feats.length ? [`# Features\n${feats.join(' · ')}`] : []),
-    `# Price\n- Rent: ${dong(vnd)} a month\n${p.terms.map((t) => `- ${t}\n`).join('')}- Prices the agency sets in US dollars are shown in đồng at ${rate} per US dollar, so they are approximate.`,
-    `Listed by ${p.name} on ${listedDay(r.date)}. Message ${p.name} here on eno to check availability and book a viewing.`,
+    // A rent the agency states in đồng is shown as stated — no rate, no "approximate" line.
+    statedVnd
+      ? `# Price\n- Rent: ${dong(vnd)} a month${p.terms.map((t) => `\n- ${t}`).join('')}`
+      : `# Price\n- Rent: ${dong(vnd)} a month\n${p.terms.map((t) => `- ${t}\n`).join('')}- Prices the agency sets in US dollars are shown in đồng at ${rate} per US dollar, so they are approximate.`,
+    `Listed by ${p.name}${r.date ? ` on ${listedDay(r.date)}` : ''}. Message ${p.name} here on eno to check availability and book a viewing.`,
   ].join('\n\n')
   let lines = body
   let description = compose(lines)
@@ -440,6 +474,14 @@ export function mapHousingRecord(p: HousingPartner, r: HousingRecord, opts: Hous
         n.aisle === 'office-rental' ? 'office commercial space shop văn phòng mặt bằng cho thuê' : n.aisle === 'house-rental' ? 'villa house biệt thự nhà nguyên căn' : r.kind === 'serviced' ? 'serviced apartment căn hộ dịch vụ' : 'apartment căn hộ chung cư']),
     },
   }
+}
+
+/** "YYYY-MM-DD" → that day's UTC midnight in ms, or null unless it is a real calendar day (no "2026-02-30" roll-over). */
+export function calendarDayMs(s: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return null
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return new Date(ms).toISOString().slice(0, 10) === s ? ms : null
 }
 
 export type HousingSeller = { id: string; ownerId: string | null; ownerEmail: string | null; officialPartner: boolean; trustScore: number }

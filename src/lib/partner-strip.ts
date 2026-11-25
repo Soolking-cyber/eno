@@ -97,6 +97,8 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   // HAGA Smartech (owner, 2026-11-25; src/lib/haga-partner.ts): repairs and used devices in An Khánh (Thảo Điền). Its own
   // userfile/config/Logo.png, the "HAGA Smartech" wordmark only (the "Smart service, always!" line cut: unreadable at strip height).
   { handle: 'hagasmartech', name: 'HAGA Smartech', logo: { src: '/partners/hagasmartech.webp', width: 1023, height: 96 }, label: { en: 'Repairs', vi: 'Sửa chữa' }, size: 'wide' },
+  // JHouse (owner, 2026-11-25; Ho Chi Minh City): jhouse.vn's own /images/jhouse-logo-current.png, trimmed.
+  { handle: 'jhouse', name: 'JHouse', logo: { src: '/partners/jhouse.webp', width: 300, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

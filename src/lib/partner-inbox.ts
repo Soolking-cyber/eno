@@ -41,6 +41,8 @@ export const PARTNER_INBOX_HANDLES = [
   'cvr',
   // HAGA Smartech (owner, 2026-11-25; src/lib/haga-partner.ts): repairs and used devices, official, chat-only, an eno-held login.
   'hagasmartech',
+  // JHouse (owner, 2026-11-25; src/lib/housing-partners.ts): official, chat-only, an eno-held login.
+  'jhouse',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

@@ -1,16 +1,18 @@
 /**
  * eno's housing agency partners (src/lib/housing-partners.ts) → their own storefronts: Alpha Housing's Hà Nội rentals,
- * Housing Saigon's Ho Chi Minh City rentals and CVR's Đà Nẵng / Hội An rentals (2026-11-23), created ONCE.
+ * Housing Saigon's Ho Chi Minh City rentals, CVR's Đà Nẵng / Hội An rentals (2026-11-23) and JHouse's Ho Chi Minh City
+ * rentals (2026-11-25), created ONCE.
  *
  * What is written and why: src/lib/housing-partners.ts. This file is the I/O around it, after scripts/import-moto-partners.ts.
  *
  *   DRY (reads the research and the DB read-only; writes nothing, uploads nothing):
  *     set -a; . ~/eno.vn/.env; set +a; npx tsx scripts/import-housing-partners.ts all
  *   WRITE (journal first):
- *     … scripts/import-housing-partners.ts <alphahousing|housingsaigon|cvr|all> --journal-dir <durable dir> --identity-gate on|off --apply
+ *     … scripts/import-housing-partners.ts <alphahousing|housingsaigon|cvr|jhouse|all> --journal-dir <durable dir> --identity-gate on|off --apply
  *   --research-dir <dir>  overrides every partner's research root (<research>/data.json, photos/<id>/NN.ext,
  *                         photo-verdicts.json, raw/logo/logo.{png,webp,jpg}). Defaults: RESEARCH_ROOT below —
- *                         ~/eno-housing-partners-2026-11-22 for Alpha and Housing Saigon, ~/eno-cvr-partner-2026-11-23 for CVR.
+ *                         ~/eno-housing-partners-2026-11-22 for Alpha and Housing Saigon, ~/eno-cvr-partner-2026-11-23 for CVR,
+ *                         ~/eno-jhouse-partner-2026-11-25 for JHouse.
  *
  * ⛔ CREATE-ONLY, AND NOT A JOB: a listing whose row exists is SKIPPED, whatever it now says; nothing schedules this file.
  * ⛔ PHOTOS: only those photo-verdicts.json keeps (photo-check.mjs: decode + size floor, OCR for a phone, link or email,
@@ -56,6 +58,7 @@ const RESEARCH_ROOT: Record<HousingPartner['handle'], string> = {
   alphahousing: join(homedir(), 'eno-housing-partners-2026-11-22'),
   housingsaigon: join(homedir(), 'eno-housing-partners-2026-11-22'),
   cvr: join(homedir(), 'eno-cvr-partner-2026-11-23'),
+  jhouse: join(homedir(), 'eno-jhouse-partner-2026-11-25'),
 }
 const researchOf = (p: HousingPartner) => resolve(str('--research-dir') ?? RESEARCH_ROOT[p.handle], p.research)
 if (!WHICH || (WHICH !== 'all' && !HOUSING_PARTNERS.some((p) => p.handle === WHICH))) {

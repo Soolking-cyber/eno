@@ -143,6 +143,7 @@ const HOUSING_PARTNER_SELLER_IDS: readonly string[] = [
   'd03f6c20-48b4-4db9-b09d-85b201e20e3b', // Alpha Housing
   'f784ec38-25a9-47a3-9f77-55ec5aa66104', // Housing Saigon
   '4d4a7189-ab10-4e05-8bcb-04cabefc7179', // Central Vietnam Realty (CVR)
+  '7ca4af19-7d16-47c0-ad75-c8ea3861bf25', // JHouse (2026-11-25)
 ]
 
 export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {
