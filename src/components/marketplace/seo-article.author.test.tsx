@@ -1,6 +1,6 @@
 /**
  * The byline under every article (owner 2026-11-26): the author of the ARTICLE's language — English Shanazar Babakulyyev (COO),
- * Vietnamese Nguyễn Quốc Lập (CEO), with the photo from eno's partner page — printed under the article and declared as the Article's
+ * Vietnamese Nguyễn Quốc Lập (Chuyên viên Marketing — partner.eno.vn's Vietnamese for Marketing Executive), with the photo from eno's partner page — printed under the article and declared as the Article's
  * JSON-LD author (a Person working for the site's Organization). A hub (`byline: false`) has neither. Stand-ins for the chrome and the
  * database reads, as in seo-article.approved.test.tsx.
  */
@@ -62,13 +62,14 @@ describe('SeoArticle — the author byline', () => {
     expect(html.indexOf('Section one')).toBeLessThan(html.indexOf('aria-label="Written by"'))
   })
 
-  it('a Vietnamese article — by its own language, not the visitor\'s — is Nguyễn Quốc Lập, CEO', async () => {
+  it('a Vietnamese article — by its own language, not the visitor\'s — is Nguyễn Quốc Lập, Chuyên viên Marketing', async () => {
     const { html, article } = await render({ ...BASE, lang: 'vi', canonical: '/huong-dan/a-guide' })
     expect(html).toMatch(/<section aria-label="Tác giả"[^>]*>/)
     expect(html).toContain('Nguyễn Quốc Lập')
-    expect(html).toContain('CEO, eno.vn')
+    expect(html).toContain('Chuyên viên Marketing, eno.vn')
+    expect(html).not.toContain('CEO')
     expect(html).not.toContain('Shanazar Babakulyyev')
-    expect(article.author).toMatchObject({ '@type': 'Person', name: 'Nguyễn Quốc Lập', jobTitle: 'CEO', image: 'https://eno.vn/team/nguyen-quoc-lap.webp' })
+    expect(article.author).toMatchObject({ '@type': 'Person', name: 'Nguyễn Quốc Lập', jobTitle: 'Chuyên viên Marketing', image: 'https://eno.vn/team/nguyen-quoc-lap.webp' })
   })
 
   it('a hub (byline: false) prints no byline and keeps the Organization as author', async () => {

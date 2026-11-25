@@ -419,7 +419,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
    * matter — is the entity behind these pages.
    *
    * `author` is a PERSON since 2026-11-26 (owner: "under each blog content write author … for authority"): the byline of the
-   * article's language — English Shanazar Babakulyyev (COO), Vietnamese Nguyễn Quốc Lập (CEO), src/lib/article-authors.ts — the
+   * article's language — English Shanazar Babakulyyev (COO), Vietnamese Nguyễn Quốc Lập (Chuyên viên Marketing), src/lib/article-authors.ts — the
    * same name the page prints under the article, working for the site's Organization node. A hub (`byline: false`) keeps the
    * Organization: it is a list, not a piece someone wrote.
    *
