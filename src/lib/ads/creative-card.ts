@@ -16,8 +16,6 @@ export type AdCreativeCardData = {
   clickUrl: string
 }
 
-/** The disclosure the card carries, the same in every language (owner 2026-11-25: "Quảng cáo · Ad"). */
-export const AD_CREATIVE_LABEL = 'Quảng cáo · Ad'
 
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length > 0 && v.length <= max
 const https = (v: unknown): v is string => {

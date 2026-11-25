@@ -23,7 +23,9 @@ export const MCP_URL = `${SITE_ORIGIN}/api/mcp`
 export const AD_POLICY_URL = `${SITE_ORIGIN}/advertising-policy`
 /** The approved creative's id on its 402 (POST /api/v1/ads): the x402 body stays exactly the PaymentRequired. */
 export const HEADER_CREATIVE_ID = 'Eno-Ad-Creative-Id'
-export const AD_LABEL = 'Quảng cáo · Ad'
+/** The card's disclosure: ONE word, in the viewer's own language (owner 2026-11-25: "just quang cao or ad … in their respected
+ *  language no need for both") — the listing ads' own tr('Ad', 'Quảng cáo'); other languages get the app's translation of it. */
+export const AD_LABEL = { en: 'Ad', vi: 'Quảng cáo', shown: "one word, in the viewer's language" } as const
 /**
  * ── THE ONE STANDARD PLACEMENT FOR ANY ADVERTISER (owner 2026-11-25: "have to have standardized places where they show
  * up"): the feed card — the first card on page 1 of the home feed, category and search results, in the grid view. The

@@ -467,7 +467,7 @@ A2A-Version: 1.0
                 <Code>{`curl ${BASE}/ads/offer`}</Code>
               </Endpoint>
 
-              <Endpoint method="POST" path="/ads" desc="Your own ad in the feed card (the first card of the home feed, category and search results, labelled “Quảng cáo · Ad”), 1 to 168 hours. eno reviews it BEFORE any price is offered: refused → 422 with review.reasons (nothing to pay); approved → 402 with PAYMENT-REQUIRED and Eno-Ad-Creative-Id; repeat with PAYMENT-SIGNATURE to pay. A listing ad is the same call with {listingId, hours}.">
+              <Endpoint method="POST" path="/ads" desc="Your own ad in the feed card (the first card of the home feed, category and search results, labelled “Ad” in the viewer’s language), 1 to 168 hours. eno reviews it BEFORE any price is offered: refused → 422 with review.reasons (nothing to pay); approved → 402 with PAYMENT-REQUIRED and Eno-Ad-Creative-Id; repeat with PAYMENT-SIGNATURE to pay. A listing ad is the same call with {listingId, hours}.">
                 <Code>{`curl -X POST ${BASE}/ads \\
   -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
   -d '{"creative":{"advertiserName":"Saigon Bean","legalName":"Saigon Bean Co., Ltd",

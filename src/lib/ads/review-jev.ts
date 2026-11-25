@@ -19,10 +19,11 @@ import type { ReviewReasonCode } from './review-reasons'
  *            now allowed"): the classes a creative falls in are RECORDED (`scores.permitClasses`) and shown to admins with
  *            the optional `permitRef`; they never refuse an ad.
  *
- * ⛔ THE MODEL IS PINNED (JEV_AD_MODEL) AND THE THRESHOLDS BELONG TO IT. ⚠️ PROVISIONAL (2026-11-25): set before any live
- * measurement — no Jev key was available where this was written. scripts/ad-review-calibrate.ts runs the hand-made
- * samples (creative-review.fixture.ts) against the live model and prints each class's scores; re-pin these from its
- * output (lawful samples must sit below, unlawful above) before ads go on sale. A reworded question needs a new run.
+ * ⛔ THE MODEL IS PINNED (JEV_AD_MODEL) AND THE THRESHOLDS BELONG TO IT. MEASURED 2026-11-25 on the live model (36 hand-made
+ * samples, creative-review.fixture.ts, scripts/ad-review-calibrate.ts run inside the production container): EVERY banned and
+ * claim class had a labelled sample (visa_legal: evisa 0.98); every labelled unlawful sample ≥ 0.87, every lawful sample ≤ 0.07 except one claim score of 0.15 (laundry-vi, misleading) — wide margins
+ * on both sides of 0.5 / 0.6. Not measured (no labelled sample): medicine, pesticides, veterinary, fertiliser, household
+ * insecticide — PERMIT classes, which only tag an ad. A new model, a reworded question or a new threshold needs a new run.
  */
 export const JEV_AD_MODEL = 'jev-1.14.0'
 export const JEV_AD_THRESHOLDS = { banned: 0.5, claim: 0.6, permit: 0.5 } as const
@@ -32,7 +33,7 @@ export const JEV_AD_THRESHOLDS = { banned: 0.5, claim: 0.6, permit: 0.5 } as con
  * AD_REVIEW_ALLOW_PROVISIONAL=1 lifts it for a local preview only). Set it with the thresholds, e.g.
  * `{ measuredOn: '2026-11-26', model: 'jev-1.14.0', samples: 30 }`.
  */
-export const JEV_AD_CALIBRATION: { measuredOn: string; model: string; samples: number } | null = null
+export const JEV_AD_CALIBRATION: { measuredOn: string; model: string; samples: number } | null = { measuredOn: '2026-11-25', model: 'jev-1.14.0', samples: 36 }
 
 /**
  * The review's identity: the pinned models, the calibration (or `provisional`) and the thresholds. Stored on every creative

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * THE CREATIVE AD CARD (owner 2026-11-25): the whole card is one link to the advertiser's own https page in a new tab,
- * marked paid (`rel="sponsored"`, no opener, no referrer), labelled "Quảng cáo · Ad" in every language, counted by
+ * marked paid (`rel="sponsored"`, no opener, no referrer), labelled "Ad" / "Quảng cáo" in the viewer's language (never both), counted by
  * <AdBeacons> through `data-ad-id`; the headline in the viewer's language through the listing titles' own path.
  */
 import React from 'react'
@@ -14,6 +14,7 @@ vi.mock('next/image', () => ({
 }))
 const h = vi.hoisted(() => ({ lang: 'en' }))
 // The listing titles' own localisation: the embedded translation for the viewer's language, else the text as written.
+vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ tr: (en: string, vi: string) => (h.lang === 'vi' ? vi : en) }) }))
 vi.mock('./listing-content', () => ({ useLocalized: (text: string, _vi: unknown, i18n: Record<string, string> | null) => i18n?.[h.lang] ?? text }))
 
 import { AdCreativeCard } from './ad-creative-card'
@@ -39,11 +40,18 @@ describe('AdCreativeCard', () => {
     expect(a.querySelectorAll('a, button')).toHaveLength(0)
   })
 
-  it('labelled "Quảng cáo · Ad", with the advertiser\'s name as written, in the accessible name too', () => {
-    const { container, getByText } = render(<AdCreativeCard ad={AD} />)
-    expect(container.querySelector('[data-ad-marker]')!.textContent).toBe('Quảng cáo · Ad')
-    expect(getByText('Saigon Bean')).toBeTruthy()
-    expect(container.querySelector('a')!.getAttribute('aria-label')).toBe('Quảng cáo · Ad: Fresh roasted coffee every morning — Saigon Bean')
+  it('labelled in the viewer\'s language only — "Ad" in English, "Quảng cáo" in Vietnamese — the advertiser\'s name as written, in the accessible name too', () => {
+    h.lang = 'en'
+    const en = render(<AdCreativeCard ad={AD} />)
+    expect(en.container.querySelector('[data-ad-marker]')!.textContent).toBe('Ad')
+    expect(en.getByText('Saigon Bean')).toBeTruthy()
+    expect(en.container.querySelector('a')!.getAttribute('aria-label')).toBe('Ad: Fresh roasted coffee every morning — Saigon Bean')
+    cleanup()
+    h.lang = 'vi'
+    const vi = render(<AdCreativeCard ad={AD} />)
+    expect(vi.container.querySelector('[data-ad-marker]')!.textContent).toBe('Quảng cáo')
+    expect(vi.container.querySelector('a')!.getAttribute('aria-label')).toBe('Quảng cáo: Cà phê rang xay mỗi sáng — Saigon Bean')
+    h.lang = 'en'
   })
 
   it('the headline in the viewer\'s language when the store has it, else as the advertiser wrote it; the picture untouched', () => {

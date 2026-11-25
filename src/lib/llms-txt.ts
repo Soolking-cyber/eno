@@ -124,7 +124,7 @@ const DEVELOPER_SECTION = `## For developers and agents
   get_ad_stats on the MCP server, or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). Two
   kinds: one of the shop's public listings shown first, labelled "Ad", in matching search and category results, the home
   feed and similar listings, for 1 hour up to 90 days at the weekly price pro rata; or the shop's OWN ad (a square
-  picture, a headline in any language and its https page) in the feed card, labelled "Quảng cáo · Ad", for up to 168
+  picture, a headline in any language and its https page) in the feed card, labelled "Ad" in the viewer's language, for up to 168
   hours — reviewed BEFORE any payment (scope ads:write): refused → 422 with reasons and nothing to pay. Ads for what
   Vietnamese law forbids advertising are refused; the rules are in the
   [advertising policy](${SITE_ORIGIN}/advertising-policy). An ad's figures (viewable impressions, clicks, CTR, reach,

@@ -122,8 +122,7 @@ beforeEach(async () => {
   h.removed = []
   h.createFails = false
   process.env.TYPESAFE_API_KEY = 'test-key'
-  // The thresholds are provisional (JEV_AD_CALIBRATION null): a preview's switch lets the review run here.
-  process.env.AD_REVIEW_ALLOW_PROVISIONAL = '1'
+  delete process.env.AD_REVIEW_ALLOW_PROVISIONAL
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     expect(url).toBe('https://api.typesafe.ai/v1/systemone')
     h.jevCalls++
@@ -331,8 +330,8 @@ describe('the verdict: the calibration samples through the review (Jev mocked to
       sellerId: 's1', headline: FIELDS.headline, body: FIELDS.body, sourceLang: 'vi', permitRef: 'XNQC 123/2026', status: 'approved',
       landingHost: 'shop.example.com', reasons: [],
     })
-    // The review key names both judges with their thresholds, and the calibration (provisional here).
-    expect(h.creatives[0]!.reviewModel).toMatch(/^jev-1\.14\.0\+gemini-4-hydrogen#0\.5:v2:[0-9a-f]{8}@provisional:t0\.5\/0\.6\/0\.5:q[0-9a-f]{8}$/)
+    // The review key names both judges with their thresholds, and the calibration (measured 2026-11-25).
+    expect(h.creatives[0]!.reviewModel).toMatch(/^jev-1\.14\.0\+gemini-4-hydrogen#0\.5:v2:[0-9a-f]{8}@2026-11-25:t0\.5\/0\.6\/0\.5:q[0-9a-f]{8}$/)
     expect(h.creatives[0]!.scores.permitClasses).toEqual([])
     expect(h.warmed).toEqual([[FIELDS.headline, FIELDS.body]])
     expect(review.sourceLangOf('요가 첫 수업 무료')).toBe('ko')
@@ -340,14 +339,21 @@ describe('the verdict: the calibration samples through the review (Jev mocked to
   })
 })
 
-describe('⛔ not on sale while the thresholds are unmeasured (JEV_AD_CALIBRATION null)', () => {
-  it('a provisional approval (a preview on the live database) is NEVER reused where the switch is off', async () => {
+describe('⛔ calibrated (JEV_AD_CALIBRATION, measured 2026-11-25): on sale with no preview switch; a provisional verdict never counts', () => {
+  it('the review runs and approves with AD_REVIEW_ALLOW_PROVISIONAL unset, under the measured review key', async () => {
+    const { JEV_AD_CALIBRATION } = await import('./review-jev')
+    expect(JEV_AD_CALIBRATION).toEqual({ measuredOn: '2026-11-25', model: 'jev-1.14.0', samples: 36 })
     expect((await reviewCreative('s1', FIELDS)).kind).toBe('approved')
-    delete process.env.AD_REVIEW_ALLOW_PROVISIONAL
-    expect(await reviewCreative('s1', FIELDS)).toMatchObject({ kind: 'unavailable' })
+    expect(h.creatives[0]!.reviewModel).toContain('@2026-11-25:')
+  })
+  it('an approval a preview made under the provisional key is NEVER reused where the switch is off — the ad is reviewed again', async () => {
     const { reviewCountsHere } = await import('./review-jev')
-    expect(reviewCountsHere(h.creatives[0]!.reviewModel)).toBe(false)
-    expect(reviewCountsHere('jev-1.14.0+gemini-4-hydrogen@2026-11-26:t0.5/0.6/0.5')).toBe(true)
+    expect(reviewCountsHere('jev-1.14.0+gemini-4-hydrogen@provisional:t0.5/0.6/0.5:qabc')).toBe(false)
+    expect(reviewCountsHere('jev-1.14.0+gemini-4-hydrogen@2026-11-25:t0.5/0.6/0.5:qabc')).toBe(true)
+    await reviewCreative('s1', FIELDS)
+    h.creatives[0]!.reviewModel = h.creatives[0]!.reviewModel.replace('@2026-11-25:', '@provisional:')
+    expect(await reviewCreative('s1', FIELDS)).toMatchObject({ kind: 'approved', view: { reused: false } })
+    expect(h.jevCalls).toBe(2)
   })
   it('a verdict from another review key (a re-pin, a new model) is not reused', async () => {
     await reviewCreative('s1', FIELDS)
@@ -355,13 +361,19 @@ describe('⛔ not on sale while the thresholds are unmeasured (JEV_AD_CALIBRATIO
     expect(await reviewCreative('s1', FIELDS)).toMatchObject({ kind: 'approved', view: { reused: false } })
     expect(h.jevCalls).toBe(2)
   })
-
-  it('answers review_unavailable without fetching or calling anything, unless a preview says AD_REVIEW_ALLOW_PROVISIONAL=1', async () => {
-    delete process.env.AD_REVIEW_ALLOW_PROVISIONAL
-    expect(await reviewCreative('s1', FIELDS)).toMatchObject({ kind: 'unavailable', view: { reasons: [{ code: 'review_unavailable' }] } })
-    expect(h.jevCalls).toBe(0)
-    expect(h.budgets).toEqual([])
-    expect(h.creatives).toEqual([])
+  it('⛔ were the calibration set back to null (a new model, a re-pin): review_unavailable — nothing fetched, called or stored', async () => {
+    vi.resetModules()
+    vi.doMock('./review-jev', async (orig) => ({ ...(await orig<typeof import('./review-jev')>()), JEV_AD_CALIBRATION: null }))
+    try {
+      const { reviewCreative: uncalibrated } = await import('./creative-review')
+      expect(await uncalibrated('s1', FIELDS)).toMatchObject({ kind: 'unavailable', view: { reasons: [{ code: 'review_unavailable' }] } })
+      expect(h.jevCalls).toBe(0)
+      expect(h.budgets).toEqual([])
+      expect(h.creatives).toEqual([])
+    } finally {
+      vi.doUnmock('./review-jev')
+      vi.resetModules()
+    }
   })
 })
 

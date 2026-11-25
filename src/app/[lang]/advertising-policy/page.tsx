@@ -7,7 +7,6 @@ import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { COMPANY } from '@/lib/site-legal'
 import { AD_QUESTIONS, AD_QUESTION_KEYS, PERMIT_CLASSES } from '@/lib/ads/review-jev'
 import { REVIEW_REASONS } from '@/lib/ads/review-reasons'
-import { AD_CREATIVE_LABEL } from '@/lib/ads/creative-card'
 import { AD_FIELD_LIMITS, AD_IMAGE_ASPECT, AD_IMAGE_MIN_EDGE } from '@/lib/ads/creative-review'
 import { AD_CREATIVE_MAX_HOURS } from '@/lib/ads/book'
 
@@ -37,8 +36,8 @@ const INTRO = P(
 
 const PLACEMENT: Pair[] = [
   P(
-    `Your own ad appears in one standard place: the first card on page one of the home feed, category and search results, in the grid view, the same size as the listing cards around it. It is labelled "${AD_CREATIVE_LABEL}" in every language.`,
-    `Quảng cáo của bạn hiển thị ở một vị trí chuẩn duy nhất: thẻ đầu tiên của trang một trên bảng tin trang chủ, trang danh mục và kết quả tìm kiếm, ở chế độ lưới, cùng kích thước với các thẻ tin đăng xung quanh. Quảng cáo luôn được gắn nhãn "${AD_CREATIVE_LABEL}" ở mọi ngôn ngữ.`,
+    `Your own ad appears in one standard place: the first card on page one of the home feed, category and search results, in the grid view, the same size as the listing cards around it. It is labelled "Ad" in the reader's own language ("Quảng cáo" in Vietnamese).`,
+    `Quảng cáo của bạn hiển thị ở một vị trí chuẩn duy nhất: thẻ đầu tiên của trang một trên bảng tin trang chủ, trang danh mục và kết quả tìm kiếm, ở chế độ lưới, cùng kích thước với các thẻ tin đăng xung quanh. Quảng cáo luôn được gắn nhãn "Quảng cáo" bằng ngôn ngữ của người xem ("Ad" trong tiếng Anh).`,
   ),
   P(
     `The whole card links to your own https web page, opened in a new tab and marked as a paid link. One purchase runs for 1 to ${AD_CREATIVE_MAX_HOURS} hours; ads running at the same time take turns in the slot.`,

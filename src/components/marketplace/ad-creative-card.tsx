@@ -3,7 +3,8 @@
 import Image from 'next/image'
 import { useLocalized } from '@/components/marketplace/listing-content'
 import { Badge } from '@/components/ui/badge'
-import { AD_CREATIVE_LABEL, type AdCreativeCardData } from '@/lib/ads/creative-card'
+import { useLanguage } from '@/context/language-context'
+import type { AdCreativeCardData } from '@/lib/ads/creative-card'
 
 /**
  * ── AN ADVERTISER'S OWN AD, AS THE FEED'S FIRST CARD (owner 2026-11-25: "any type of ads … standardized places where they
@@ -13,13 +14,15 @@ import { AD_CREATIVE_LABEL, type AdCreativeCardData } from '@/lib/ads/creative-c
  *     (Google's paid-link rule; no referrer, no window.opener);
  *   · `data-ad-id` lets <AdBeacons> count it (a viewable impression; click and auxclick);
  *   · the same square, edge-grid photo as the listing cards around it (`card-root` / `card-media` / `card-img`: the edge
- *     grid takes their corner off, globals.css), the label "Quảng cáo · Ad" in every language (the disclosure the law asks
+ *     grid takes their corner off, globals.css), the label in the viewer's language — "Ad" / "Quảng cáo", the listing ads' own tr() (owner 2026-11-25: "just quang cao or ad … in their respected language no need for both") (the disclosure the law asks
  *     for), the advertiser's name as written;
  *   · the headline and line in the viewer's language through the listing titles' own path (useLocalized: the embedded
  *     translation, else the client's cached one), the picture untouched — its language is the advertiser's choice.
  * Base UI is not involved: a link and a picture are not a control (the ad's Badge is the ui primitive).
  */
 export function AdCreativeCard({ ad }: { ad: AdCreativeCardData }) {
+  const { tr } = useLanguage()
+  const label = tr('Ad', 'Quảng cáo')
   const headline = useLocalized(ad.headline, null, ad.headlineI18n ?? null)
   const body = useLocalized(ad.body ?? '', null, ad.bodyI18n ?? null, 'description')
   return (
@@ -29,7 +32,7 @@ export function AdCreativeCard({ ad }: { ad: AdCreativeCardData }) {
         target="_blank"
         rel="sponsored noopener noreferrer"
         data-ad-id={ad.adId}
-        aria-label={`${AD_CREATIVE_LABEL}: ${headline} — ${ad.advertiserName}`}
+        aria-label={`${label}: ${headline} — ${ad.advertiserName}`}
         className="group rounded-media corner-round card-root focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <div className="plate-lg media-hairline aspect-square rounded-media corner-round card-media">
@@ -39,7 +42,7 @@ export function AdCreativeCard({ ad }: { ad: AdCreativeCardData }) {
           <p className="line-clamp-2 text-t-card font-semibold text-foreground">{headline}</p>
           {ad.body ? <p className="line-clamp-2 text-t-meta text-muted-foreground">{body}</p> : null}
           <p className="flex min-w-0 items-center gap-1.5 text-t-meta text-muted-foreground">
-            <Badge variant="neutral" size="sm" data-ad-marker="" className="shrink-0">{AD_CREATIVE_LABEL}</Badge>
+            <Badge variant="neutral" size="sm" data-ad-marker="" className="shrink-0">{label}</Badge>
             <span className="truncate">{ad.advertiserName}</span>
           </p>
         </div>
