@@ -2783,6 +2783,8 @@ export function ListingsExplorer({
       // This client draws a creative ad (AdCreativeCard): the feed may pick one for page 1 (src/lib/ads/serve.ts). On every
       // page, so every page of one result set shares one shape of URL; the server reads it on page 1 only.
       params.set('adc', '1')
+      // The creative ads' private test (src/lib/ads/creative-gate.ts): a page opened with `adpreview=1` asks for the preview.
+      if (new URLSearchParams(window.location.search).get('adpreview') === '1') params.set('adpreview', '1')
         /**
          * Drill-in to one BUILDING. Applied server-side by `buildFeedFilters`, the same builder
          * /api/listings/buildings uses for its counts — so the pin that says 157 and the list it

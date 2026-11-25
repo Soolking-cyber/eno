@@ -12,6 +12,7 @@ import { adPaymentRequired, HEADER_CREATIVE_ID } from '@/lib/ads/offer'
 import { AD_CREATIVE_MAX_HOURS, bookAd, checkAdCreative, shopAds, type BookResult } from '@/lib/ads/book'
 import { adView, bookFailureMessage, PENDING_MESSAGE } from '@/lib/ads/answer'
 import { reviewCreative, type ReviewView } from '@/lib/ads/creative-review'
+import { CREATIVE_ADS_NOT_OPEN, creativeAdsAllowed } from '@/lib/ads/creative-gate'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ export const dynamic = 'force-dynamic'
  *    one — then reviewed (or its stored verdict reused): refused → 422 with the reasons and NEVER a 402 (nothing to pay);
  *    the review unavailable → 503; approved → the 402 (Eno-Ad-Creative-Id names it), and with PAYMENT-SIGNATURE the same
  *    book.ts path, which checks the creative again before the facilitator is asked anything.
+ * ⛔ WHILE CREATIVE ADS ARE IN THEIR PRIVATE TEST (ADS_CREATIVE_OPEN unset, src/lib/ads/creative-gate.ts) a creative is an
+ *    admin's only: anyone else's {creative} / {creativeId} is 403 creative_ads_not_open right after the credential.
  * GET /api/v1/ads — the shop's ads with their figures (scope analytics:read).
  */
 const BUY_RATE_PER_IP = 30
@@ -94,6 +97,8 @@ async function creativeAd(req: NextRequest, cfg: X402Config, p: { creative?: unk
   const auth: ApiAuth = r.auth
   if (!auth.sellerId) return apiError(403, 'shop_required', 'Ads are bought by a shop: connect with a shop account.', r.rate)
   try {
+    // ⛔ The private test (creative-gate.ts): before any review (no model call) and before any 402.
+    if (!(await creativeAdsAllowed(auth.profileId))) return apiError(CREATIVE_ADS_NOT_OPEN.status, CREATIVE_ADS_NOT_OPEN.code, CREATIVE_ADS_NOT_OPEN.message, r.rate)
     let creativeId = p.creativeId
     if (p.creative !== undefined) {
       const outcome = await reviewCreative(auth.sellerId, p.creative)
@@ -109,7 +114,7 @@ async function creativeAd(req: NextRequest, cfg: X402Config, p: { creative?: unk
     if (!signature) return paymentRequired(`Payment required to run approved ad creative ${creativeId} for ${hours} hours`, null, hours, creativeId)
     const payload = decodeHeader(signature)
     if (payload == null) return paymentRequired('invalid_payload', null, hours, creativeId)
-    const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, creativeId, rawPayload: payload, via: 'http', hours })
+    const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, profileId: auth.profileId, creativeId, rawPayload: payload, via: 'http', hours })
     return bookingAnswer(out, r.rate, hours, creativeId)
   } catch (e) {
     return failed(e, r.rate)

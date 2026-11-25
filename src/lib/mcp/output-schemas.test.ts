@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 /**
  * Every tool's answer fits its own outputSchema (src/lib/mcp/tools.ts, 2026-11-13).
@@ -106,7 +106,7 @@ vi.mock('@/lib/x402/config', () => ({
 }))
 vi.mock('@/lib/ads/offer', () => ({
   adOffer: async () => ({ available: true, price: { usdc: '3.76', amount_atomic: '3760000', asset: '0x2', network: 'eip155:8453', network_name: 'Base', pay_to: '0x1' }, price_vnd_reference: 99000, duration_days: 7, placements: [{ id: 'search', text: 'first in matching search results' }], label: 'Ad', requires: '', how_to_buy: { http: '', mcp: '' }, audience: { public_listings: 10, by_category: [], running_ads: 1 },
-    creative_ads: { placement: { text: 'The first card of the feed.', max_hours: 168 }, restrictions: { refused: [{ class: 'gambling', text: 'Gambling cannot be advertised.' }], claims_refused: [{ class: 'superlative', text: '"Best" needs proof.' }], permit_classes_allowed: [{ class: 'cosmetics', text: 'cosmetics' }], permit_ref: '' }, requires: '', flow: { http: [], mcp: '' }, charged: '', policy_url: 'https://eno.vn/advertising-policy' } }),
+    creative_ads: { status: 'testing', note: 'Your own ads are in a private test; sales open to every shop after that test.', placement: { text: 'The first card of the feed.', max_hours: 168 }, restrictions: { refused: [{ class: 'gambling', text: 'Gambling cannot be advertised.' }], claims_refused: [{ class: 'superlative', text: '"Best" needs proof.' }], permit_classes_allowed: [{ class: 'cosmetics', text: 'cosmetics' }], permit_ref: '' }, requires: '', flow: { http: [], mcp: '' }, charged: '', policy_url: 'https://eno.vn/advertising-policy' } }),
   adPaymentRequired: () => ({ x402Version: 2, accepts: [] }),
   AD_POLICY_URL: 'https://eno.vn/advertising-policy',
 }))
@@ -131,6 +131,9 @@ vi.mock('@/lib/ads/book', () => ({
   shopAds: async () => [{ id: 'ad1', listing_id: 'l1', creative_id: null, status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, amount_usdc_atomic: '3760000', network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
 }))
 
+// create_ad's PAID answer is what is checked: creative ads open to every shop, as after their private test (creative-gate.ts).
+beforeAll(() => { vi.stubEnv('ADS_CREATIVE_OPEN', '1') })
+afterAll(() => vi.unstubAllEnvs())
 const { TOOLS } = await import('./tools')
 const { ToolResultWithMeta } = await import('./tool-types')
 /** Only promote_listing reads the call's `_meta` (the x402 payment): it is passed one, so its PAID answer is what is checked. */

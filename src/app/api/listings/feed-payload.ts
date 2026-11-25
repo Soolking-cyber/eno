@@ -405,6 +405,8 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
         null,
       )
     : null
+  // The private test's preview (src/lib/ads/creative-gate.ts): a feed that may carry a creative nobody else is shown.
+  const adPreview = searchParams.get('adpreview') === '1'
   const [organicListings, related, pick] = await Promise.all([
     // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
     // key varies with the payload — the cookie-read variant poisoned the shared edge
@@ -416,9 +418,10 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
     relatedPromise,
     // ⛔ A PAID AD matches `feedWhere`, this request's own final filter (src/lib/ads/serve.ts) — first page only. A creative
     // ad (any advertiser's, 2026-11-25) is a candidate only when the request opts in with `adc=1` (the explorer, which
-    // draws it as one card before the grid): every other reader of this payload gets listing ads only, as before.
+    // draws it as one card before the grid): every other reader of this payload gets listing ads only, as before. While
+    // creative ads are in their private test (src/lib/ads/creative-gate.ts), only with `adpreview=1` too.
     opts.ads && adEligibleRequest(searchParams, offset, false)
-      ? pickAd(feedWhere, searchParams.get('lang') || undefined, now, { creatives: searchParams.get('adc') === '1' })
+      ? pickAd(feedWhere, searchParams.get('lang') || undefined, now, { creatives: searchParams.get('adc') === '1', preview: adPreview })
       : Promise.resolve({ listing: null, creative: null }),
   ])
   const answerListings = withAd(organicListings, pick.listing)
@@ -455,7 +458,8 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
     // App Store gate `app-ai-notice`): the edge keys on the URL alone, so caching it would hand that answer to browsers.
     // ⛔ …AND A PAYLOAD THAT CARRIES A CREATIVE AD IS KEPT 45 s AT THE EDGE, WITH NO STALE PERIOD: with the 15 s ad set
     // (serve.ts) an ad eno removes stops showing within a minute.
-    cacheControl: aiSkipped ? 'private, no-store' : pick.creative ? 'public, max-age=15, s-maxage=45' : 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
+    // ⛔ …AND A PREVIEW (`adpreview=1`, the creative ads' private test) IS NEVER KEPT AT THE EDGE, picked creative or not.
+    cacheControl: aiSkipped || adPreview ? 'private, no-store' : pick.creative ? 'public, max-age=15, s-maxage=45' : 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
     histogram: false,
   }
 }

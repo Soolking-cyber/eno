@@ -7,6 +7,7 @@ import { logError } from '@/lib/log'
 import type { SerializedListingCard } from '@/lib/types'
 import type { AdCreativeCardData } from './creative-card'
 import { reviewCountsHere } from './review-jev'
+import { creativeAdsOpen } from './creative-gate'
 
 /**
  * ── Serving paid ads (owner 2026-11-23: one ad in category + search results, the home feed and the similar-listings row;
@@ -17,7 +18,8 @@ import { reviewCountsHere } from './review-jev'
  *     marker — and `adId`; its organic copy on that page is dropped, and later pages lose it to the explorer's own id
  *     dedupe (seenIdsRef), so no card is drawn twice.
  *   · A CREATIVE AD (creative-card.ts) matches every feed, and is a candidate ONLY when the request opts in (`adc=1`, which
- *     the explorer sends): it travels as the payload's separate `adCreative`, never inside `listings[]`.
+ *     the explorer sends): it travels as the payload's separate `adCreative`, never inside `listings[]`. While creative ads
+ *     are in their private test (creative-gate.ts), only a request that also carries `adpreview=1` may get one.
  * ⛔ ONE PICK, UNIFORM, among the running listing ads that match the request's own final filter (`feedWhere`: category,
  * words, district, the edition scope that keeps the e-Visa desk off eno.vn, hidden shops, the home feed's in-app
  * narrowing) AND the running creative ads when opted in. Never on a storefront (`seller`), an id list, `featured`, a
@@ -125,9 +127,12 @@ export type AdPick = { listing: SerializedListingCard | null; creative: AdCreati
 /**
  * One ad for this request, or none: a uniform pick among the running listing ads that match it and — with `creatives`
  * (the request's `adc=1`) — every running creative ad.
+ * ⛔ WHILE CREATIVE ADS ARE IN THEIR PRIVATE TEST (creative-gate.ts) a creative is a candidate only with `preview` (the
+ * request's `adpreview=1`, whose response feed-payload.ts marks `private, no-store`); without it, listing ads only.
  */
-export async function pickAd(feedWhere: Prisma.ListingWhereInput, lang: string | undefined, now = new Date(), opts: { creatives?: boolean } = {}): Promise<AdPick> {
+export async function pickAd(feedWhere: Prisma.ListingWhereInput, lang: string | undefined, now = new Date(), opts: { creatives?: boolean; preview?: boolean } = {}): Promise<AdPick> {
   const none: AdPick = { listing: null, creative: null }
+  const creatives = !!opts.creatives && (!!opts.preview || creativeAdsOpen())
   try {
     const set = await adSet(now)
     const running = set.ads.filter((a) => isRunning(a, set, now))
@@ -139,7 +144,7 @@ export async function pickAd(feedWhere: Prisma.ListingWhereInput, lang: string |
     const byListing = new Map(matching.map((l) => [l.id, l]))
     // ⛔ UNIFORM, NOT FEWEST-IMPRESSIONS-FIRST (gate review 2026-11-23): impressions come from unauthenticated beacons, so a
     // rotation steered by them could be rigged to push a rival's ad out. Every candidate has the same chance.
-    const candidates = running.filter((a) => (a.listingId ? byListing.has(a.listingId) : !!opts.creatives))
+    const candidates = running.filter((a) => (a.listingId ? byListing.has(a.listingId) : creatives))
     if (!candidates.length) return none
     const pick = candidates[Math.floor(Math.random() * candidates.length)]!
     if (pick.listingId) {

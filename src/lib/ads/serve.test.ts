@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Serving paid ads (src/lib/ads/serve.ts): which requests may carry one, that a listing ad is intersected with the
@@ -36,6 +36,8 @@ const CREATIVE = { id: 'cr1', status: 'approved', advertiserName: 'Bean', headli
 beforeEach(() => {
   __resetAdServeCache()
   delete process.env.AD_REVIEW_ALLOW_PROVISIONAL
+  // Creative ads open to everyone, as after the private test (creative-gate.ts); the test itself has its own describe.
+  vi.stubEnv('ADS_CREATIVE_OPEN', '1')
   h.ads = [{ id: 'ad1', listingId: 'l1', creativeId: null, ...RUN }, { id: 'ad2', listingId: 'l9', creativeId: null, ...RUN }]
   h.listings = [{ id: 'l1' }]
   h.creatives = [CREATIVE]
@@ -43,6 +45,7 @@ beforeEach(() => {
   h.translations = {}
   h.translationReads = 0
 })
+afterEach(() => vi.unstubAllEnvs())
 
 describe('adEligibleRequest', () => {
   it('first page of a public feed only: never a later page, a histogram, a storefront, an id list, featured or ads=0', () => {
@@ -129,6 +132,46 @@ describe('pickAd — creative ads', () => {
     expect(h.translationReads).toBe(2)
     // No language asked: the advertiser's words as written (the client translates).
     expect((await pickAd({}, undefined, NOW, { creatives: true })).creative!.headlineI18n).toBeUndefined()
+  })
+})
+
+/** The private test (creative-gate.ts, ADS_CREATIVE_OPEN unset): a creative only for a feed request with `adpreview=1`. */
+describe('pickAd — creative ads in their private test', () => {
+  beforeEach(() => {
+    vi.stubEnv('ADS_CREATIVE_OPEN', '')
+    h.ads = [{ id: 'ad1', listingId: 'l1', creativeId: null, ...RUN }, { id: 'ad7', listingId: null, creativeId: 'cr1', ...RUN }]
+  })
+  const picks = async (opts: { creatives?: boolean; preview?: boolean }) => {
+    const seen = new Set<string>()
+    const rnd = vi.spyOn(Math, 'random')
+    for (const x of [0.1, 0.9]) {
+      rnd.mockReturnValueOnce(x)
+      const r = await pickAd({}, undefined, NOW, opts)
+      seen.add(r.listing ? `listing:${r.listing.adId}` : r.creative ? `creative:${r.creative.adId}` : 'none')
+    }
+    rnd.mockRestore()
+    return seen
+  }
+
+  it('⛔ closed, without the preview: never a creative — the listing ad alone, opted in (adc=1) or not', async () => {
+    expect(await picks({ creatives: true })).toEqual(new Set(['listing:ad1']))
+    expect(await picks({})).toEqual(new Set(['listing:ad1']))
+    h.ads = [{ id: 'ad7', listingId: null, creativeId: 'cr1', ...RUN }]
+    __resetAdServeCache()
+    expect(await pickAd({}, undefined, NOW, { creatives: true })).toEqual({ listing: null, creative: null })
+  })
+
+  it('closed, with the preview (adpreview=1) and the opt-in: the creative takes its turn as when open', async () => {
+    expect(await picks({ creatives: true, preview: true })).toEqual(new Set(['listing:ad1', 'creative:ad7']))
+  })
+
+  it('the preview alone is no opt-in: a client that draws no creative card (no adc=1) still gets listing ads only', async () => {
+    expect(await picks({ preview: true })).toEqual(new Set(['listing:ad1']))
+  })
+
+  it('open (ADS_CREATIVE_OPEN=1): the creative without any preview', async () => {
+    vi.stubEnv('ADS_CREATIVE_OPEN', '1')
+    expect(await picks({ creatives: true })).toEqual(new Set(['listing:ad1', 'creative:ad7']))
   })
 })
 

@@ -9,6 +9,7 @@ import { AD_FIELD_LIMITS, AD_IMAGE_ASPECT, AD_IMAGE_MAX_BYTES, AD_IMAGE_MIN_EDGE
 import { AD_CREATIVE_MAX_HOURS } from './book'
 import { AD_QUESTIONS, AD_QUESTION_KEYS, PERMIT_CLASSES } from './review-jev'
 import { REVIEW_REASONS } from './review-reasons'
+import { CREATIVE_ADS_TESTING_NOTE, creativeAdsOpen } from './creative-gate'
 
 /**
  * ── The ad offer, as x402 states it (PaymentRequired) and as a plain answer (GET /api/v1/ads/offer, MCP get_ad_offer).
@@ -196,6 +197,10 @@ export type AdOffer = {
   how_to_buy: { http: string; mcp: string }
   /** Any lawful advertiser (2026-11-25): the one standard placement, what is refused, and the review-then-pay flow. */
   creative_ads: {
+    /** 'testing' while the private test runs (creative-gate.ts ADS_CREATIVE_OPEN): only eno's admins can buy one. */
+    status: 'open' | 'testing'
+    /** While testing, one sentence saying when sales open; null when open. */
+    note: string | null
     placement: typeof FEED_CARD_PLACEMENT
     restrictions: ReturnType<typeof adRestrictions>
     requires: string
@@ -208,6 +213,7 @@ export type AdOffer = {
 
 export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
   const r = cfg ? adRequirements(cfg) : null
+  const open = creativeAdsOpen()
   return {
     available: !!cfg,
     price: cfg && r ? { usdc: usdcText(r.amount), amount_atomic: r.amount, asset: r.asset, network: r.network, network_name: cfg.networkLabel, pay_to: r.payTo } : null,
@@ -227,6 +233,8 @@ export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
       mcp: `promote_listing on ${MCP_URL} (listingId, hours 1 to ${AD_MAX_HOURS}): the first result asks for payment (x402 MCP transport); call it again with _meta["x402/payment"].`,
     },
     creative_ads: {
+      status: open ? 'open' : 'testing',
+      note: open ? null : CREATIVE_ADS_TESTING_NOTE,
       placement: FEED_CARD_PLACEMENT,
       restrictions: adRestrictions(),
       requires: 'A signed-in eno.vn shop with scope ads:write (never granted by default: ask for it), and the advertiser\'s registered legal name and tax code (MST).',

@@ -9,6 +9,7 @@ import { facilitatorSettle, facilitatorVerify } from '@/lib/x402/facilitator'
 import { authorizationUsed, findAuthorizationPayment } from '@/lib/x402/chain'
 import { CREATIVE_REMOVED_PAID, UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
 import { reviewCountsHere } from './review-jev'
+import { CREATIVE_ADS_NOT_OPEN, creativeAdsAllowed } from './creative-gate'
 import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRequirements, type SettlementResponse } from '@/lib/x402/wire'
 
 /**
@@ -31,7 +32,8 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
  * ⛔ A CREATIVE IS RE-CHECKED AT EVERY STEP THAT COULD START IT: before verify (approved, not removed, this shop's), and
  * again inside activate's lock — a creative eno removed while the payment was settling (or found on chain later by
  * reconcileAd) never goes live: the paid row goes to `review` for a manual pro-rata refund (CREATIVE_REMOVED_PAID).
- * Creative ads run at most AD_CREATIVE_MAX_HOURS (a week).
+ * Creative ads run at most AD_CREATIVE_MAX_HOURS (a week). While they are in their private test (creative-gate.ts), a new
+ * creative booking is an admin's only, checked with the target before verify.
  */
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
 /** The longest creative ad (owner 2026-11-25, the brief's one standard placement: up to 168 hours). */
@@ -288,6 +290,9 @@ export async function bookAd(p: {
   cfg: X402Config
   keyId: string
   sellerId: string
+  /** The credential's person (ApiAuth.profileId): while creative ads are in their private test (creative-gate.ts) a
+   *  creative is booked only for an admin — absent, it is refused. A listing ad does not read it. */
+  profileId?: string
   /** Exactly one of the two: a listing of this shop, or an approved creative of this shop. */
   listingId?: string
   creativeId?: string
@@ -319,7 +324,12 @@ export async function bookAd(p: {
   const payload: PaymentPayload = checked.payload
   const auth = payload.payload.authorization
 
-  // The target, BEFORE the facilitator is asked anything: a refused one never touches money.
+  // The target, BEFORE the facilitator is asked anything: a refused one never touches money. A creative while the private
+  // test runs: an admin's only (creative-gate.ts) — the route and create_ad refuse first, this is so a payment cannot.
+  // (After the replay lookup above: a payment already recorded keeps its own outcome.)
+  if (target.creativeId !== undefined && !(await creativeAdsAllowed(p.profileId))) {
+    return { kind: 'refused', status: CREATIVE_ADS_NOT_OPEN.status, code: CREATIVE_ADS_NOT_OPEN.code, message: CREATIVE_ADS_NOT_OPEN.message }
+  }
   const targetCheck = target.creativeId !== undefined ? await checkAdCreative(target.creativeId, p.sellerId) : await checkAdListing(target.listingId, p.sellerId)
   if (!targetCheck.ok) return { kind: 'refused', status: targetCheck.status, code: targetCheck.code, message: targetCheck.message }
 

@@ -6,6 +6,7 @@ import { adOffer, adPaymentRequired, AD_POLICY_URL } from '@/lib/ads/offer'
 import { AD_CREATIVE_MAX_HOURS, bookAd, checkAdListing, shopAds } from '@/lib/ads/book'
 import { reviewCreative, type ReviewView } from '@/lib/ads/creative-review'
 import { shopAdFigures } from '@/lib/ads/stats'
+import { CREATIVE_ADS_NOT_OPEN, creativeAdsAllowed } from '@/lib/ads/creative-gate'
 import { adView, bookFailureMessage, PENDING_MESSAGE } from '@/lib/ads/answer'
 import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type ToolAnnotations } from './tool-types'
 
@@ -129,6 +130,8 @@ const OFFER_OUT = z.strictObject({
   public_listings: z.number().describe('How many listings are public on the marketplace now: the pool the ad stands out from'),
   running_ads: z.number().describe('How many ads are running now; running ads take turns in the one ad slot'),
   creative_ads: z.strictObject({
+    status: z.enum(['open', 'testing']).describe('"open": any shop can buy one with create_ad; "testing": a private test runs first, create_ad refuses until it opens'),
+    note: z.string().nullable().describe('While testing, one sentence to pass on: when sales open; null when open'),
     placement: z.string().describe('Where your own ad (create_ad) shows, in one sentence'),
     max_hours: z.number().describe('The longest a creative ad runs, in hours'),
     refused: z.array(z.string()).describe('What the review refuses, one line per class: banned goods and services, and Art. 8 claims'),
@@ -181,6 +184,8 @@ export const AD_TOOLS: McpTool[] = [
         public_listings: offer.audience.public_listings,
         running_ads: offer.audience.running_ads,
         creative_ads: {
+          status: offer.creative_ads.status,
+          note: offer.creative_ads.note,
           placement: offer.creative_ads.placement.text,
           max_hours: offer.creative_ads.placement.max_hours,
           refused: [...offer.creative_ads.restrictions.refused, ...offer.creative_ads.restrictions.claims_refused].map((r) => r.text),
@@ -264,6 +269,8 @@ export const AD_TOOLS: McpTool[] = [
       const hours = adHours(args.hours === undefined ? AD_CREATIVE_MAX_HOURS : args.hours)
       if (hours == null || hours > AD_CREATIVE_MAX_HOURS) throw new ToolError('invalid_input', `hours must be a whole number from 1 to ${AD_CREATIVE_MAX_HOURS}.`)
       if (!auth.sellerId) throw new ToolError('shop_required', 'Ads are bought by a shop: connect with a shop account.')
+      // ⛔ The private test (src/lib/ads/creative-gate.ts): an admin's only, before any review (no model call) or payment request.
+      if (!(await creativeAdsAllowed(auth.profileId))) throw new ToolError(CREATIVE_ADS_NOT_OPEN.code, CREATIVE_ADS_NOT_OPEN.message)
       // The same fields again (the paid call) find the stored verdict: one review, never a second bill (creative-review.ts).
       const outcome = await reviewCreative(auth.sellerId, args.creative)
       if (outcome.kind === 'refused') {
@@ -277,7 +284,7 @@ export const AD_TOOLS: McpTool[] = [
       const creativeId = outcome.creative.id
       const payment = ctx?.meta?.[MCP_META_PAYMENT]
       if (payment === undefined) throw new ToolPaymentRequired(adPaymentRequired(cfg, 'mcp', `Payment required to run approved ad creative ${creativeId} for ${hours} hours`, hours, 'creative'))
-      const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, creativeId, rawPayload: payment, via: 'mcp', hours })
+      const out = await bookAd({ cfg, keyId: auth.keyId, sellerId: auth.sellerId, profileId: auth.profileId, creativeId, rawPayload: payment, via: 'mcp', hours })
       switch (out.kind) {
         case 'booked':
           return new ToolResultWithMeta({ review, ad: { ...adView(out.ad), status: asAdStatus(AD_STATUS_ANY, out.ad.status) }, message: null }, { [MCP_META_RESPONSE]: out.settlement })

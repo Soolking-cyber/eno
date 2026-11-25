@@ -1740,6 +1740,14 @@ export const SPEC = {
               label: { type: 'string' },
               requires: { type: 'string' },
               how_to_buy: { type: 'object', properties: { http: { type: 'string' }, mcp: { type: 'string' } } },
+              creative_ads: {
+                type: 'object',
+                description: 'Your own ad in the feed card: its spec, what the review refuses, and the review → 402 → pay flow.',
+                properties: {
+                  status: { type: 'string', enum: ['open', 'testing'], description: '`testing` while a private test runs first: buyAd refuses a creative with 403 `creative_ads_not_open` until it is `open`.' },
+                  note: { type: ['string', 'null'], description: 'While testing, one sentence saying when sales open; null when open.' },
+                },
+              },
               audience: { type: 'object', properties: { public_listings: { type: 'integer' }, by_category: { type: 'array', items: { type: 'object', properties: { category: { type: 'string' }, listings: { type: 'integer' } } } }, running_ads: { type: 'integer' } } },
             },
           }),
@@ -1752,7 +1760,7 @@ export const SPEC = {
         summary: 'Buy an ad: one of your listings (1 h to 90 days) or your own reviewed creative (1 to 168 h), over x402',
         description: [
           'Three bodies: `{listingId, hours}` (one of your live listings, shown first in matching results; scope listings:write), `{creative, hours}` (your own ad in the feed card, REVIEWED FIRST; scope ads:write) or `{creativeId, hours}` (an approved creative of yours).',
-          'A creative is authenticated first, then reviewed (the same content within 24 h reuses its verdict): refused → 422 with `review.reasons` and nothing to pay; the review unavailable → 503; approved → 402 with the creative id in `Eno-Ad-Creative-Id`.',
+          'A creative is authenticated first, then reviewed (the same content within 24 h reuses its verdict): refused → 422 with `review.reasons` and nothing to pay; the review unavailable → 503; approved → 402 with the creative id in `Eno-Ad-Creative-Id`. While creative ads are in a private test (`creative_ads.status` is `testing` in getAdOffer), a creative is refused with 403 `creative_ads_not_open` before any review or price; listing ads are on sale.',
           'Paid over x402 v2 (HTTP transport, scheme `exact`, USDC). Without a `PAYMENT-SIGNATURE` header the answer is 402 with `PAYMENT-REQUIRED` (base64 JSON PaymentRequired; the body is the same object) — no credential needed to read the price.',
           'Sign the payment with an x402 client and repeat the request with `PAYMENT-SIGNATURE` and your Bearer credential (scope listings:write). The listing must be yours and live; it is checked before any money moves.',
           'Repeating the same payment returns the same ad (200) and never charges twice. A 202 means the payment was sent and its confirmation is being looked up: repeat the same request later. Two ads for one listing run back to back.',
@@ -1777,6 +1785,11 @@ export const SPEC = {
           '422': { description: 'The creative did not pass the review; nothing to pay. `error.code` is `ad_refused`.', content: { 'application/json': { schema: { type: 'object', required: ['error', 'review'], properties: { error: schemaRef('Error'), review: schemaRef('AdReview') } } } } },
           ...authFailures(),
           '400': fail('No target, more than one (`listingId`, `creative`, `creativeId`), or `hours` out of range.', ['invalid_input']),
+          '403': fail(
+            'The credential lacks the scope (`insufficient_scope`, refused before the rate limiter: only `X-Request-Id`), it acts for no shop, the listing cannot be advertised (not live, or in an aisle held for a licence check), or creative ads are still in their private test (`creative_ads_not_open`: your own ads open soon; listing ads are on sale now).',
+            ['insufficient_scope', 'shop_required', 'not_public', 'ads_not_allowed', 'creative_ads_not_open'],
+            { challenge: true },
+          ),
           '404': fail('Not a listing of this shop.', ['not_found']),
           '409': fail('This payment was already used for another ad, or the creative was refused or removed.', ['payment_already_used', 'creative_refused', 'creative_removed', 'creative_review_stale', 'payment_under_review']),
           '503': fail('Ads are not on sale, the payment service did not answer, or the creative review could not run (nothing charged).', ['ads_unavailable', 'payment_unavailable', 'review_unavailable']),

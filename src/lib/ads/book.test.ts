@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The paid-ad money path (src/lib/ads/book.ts, owner 2026-11-23; codex plan review 2026-11-23). The facilitator is a fake
@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   used: false,
   creatives: [] as Record<string, any>[],
   locks: [] as string[],
+  profiles: { p_admin: { email: 'owner@eno.vn' }, p_shop: { email: 'shop@example.com' } } as Record<string, { email: string }>,
 }))
 const matches = (row: Ad, where: Ad): boolean => Object.entries(where).every(([k, v]) => {
   if (v && typeof v === 'object' && !(v instanceof Date)) {
@@ -49,12 +50,16 @@ vi.mock('@/lib/db', () => {
     listing: { findUnique: async () => h.listing, count: async () => h.live },
     listingDailyStat: { findFirst: async () => null },
     adCreative: { findUnique: async ({ where }: { where: Ad }) => h.creatives.find((c) => c.id === where.id) ?? null },
+    // The private test's admin lookup (creative-gate.ts): the profile's email.
+    profile: { findUnique: async ({ where }: { where: Ad }) => h.profiles[where.id] ?? null },
     $executeRaw: async (_s: TemplateStringsArray, key: string) => { h.locks.push(key); return 1 },
     $transaction: async (fn: (tx: unknown) => unknown) => fn(db),
   }
   return { db }
 })
 vi.mock('@/app/api/listings/feed-query', () => ({ buildFeedFilters: async () => ({ where: {} }) }))
+// The private test's admin check (creative-gate.ts), as ADMIN_EMAILS states it — creative-gate.test.ts runs the real one.
+vi.mock('@/lib/admin', () => ({ isAdminEmail: (e?: string | null) => !!e && (process.env.ADMIN_EMAILS ?? '').split(',').includes(e.toLowerCase()) }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {} }))
 vi.mock('@/lib/x402/chain', () => ({ findAuthorizationPayment: async () => h.chain, authorizationUsed: async () => h.used }))
 
@@ -323,8 +328,11 @@ describe('bookAd', () => {
  * stacked per creative under its own lock.
  */
 describe('bookAd — a creative ad', () => {
-  const bookCreative = (raw: unknown, f: typeof fetch, creativeId = 'cr1', hours?: number, sellerId = 's1') =>
-    bookAd({ cfg, keyId: 'k1', sellerId, creativeId, rawPayload: raw, via: 'http', fetchImpl: f, ...(hours ? { hours } : {}) })
+  const bookCreative = (raw: unknown, f: typeof fetch, creativeId = 'cr1', hours?: number, sellerId = 's1', profileId = 'p_shop') =>
+    bookAd({ cfg, keyId: 'k1', sellerId, profileId, creativeId, rawPayload: raw, via: 'http', fetchImpl: f, ...(hours ? { hours } : {}) })
+  // Open to every shop, as after the private test (creative-gate.ts); the test itself is the last describe below.
+  beforeEach(() => { vi.stubEnv('ADS_CREATIVE_OPEN', '1') })
+  afterEach(() => vi.unstubAllEnvs())
 
   it('an approved creative: verify, settle, active — the row names the creative and no listing', async () => {
     const { f, calls } = facilitator(OK)
@@ -421,5 +429,47 @@ describe('bookAd — a creative ad', () => {
     expect(Math.abs(first!.startsAt.getTime() - listingAd!.startsAt.getTime())).toBeLessThan(1000)
     expect(second!.startsAt.getTime()).toBe(first!.endsAt.getTime())
     expect(h.locks).toEqual(['listing-ad:l1', 'creative-ad:cr1', 'creative-ad:cr1'])
+  })
+})
+
+/** The private test (creative-gate.ts, ADS_CREATIVE_OPEN unset): a payment cannot book a creative for anyone but an admin. */
+describe('bookAd — a creative while creative ads are in their private test', () => {
+  beforeEach(() => {
+    vi.stubEnv('ADS_CREATIVE_OPEN', '')
+    vi.stubEnv('ADMIN_EMAILS', 'owner@eno.vn')
+  })
+  afterEach(() => vi.unstubAllEnvs())
+  const bookAs = (profileId: string | undefined, f: typeof fetch, raw: unknown = payload()) =>
+    bookAd({ cfg, keyId: 'k1', sellerId: 's1', ...(profileId ? { profileId } : {}), creativeId: 'cr1', rawPayload: raw, via: 'http', fetchImpl: f })
+
+  it('⛔ a shop that is not an admin, or no profile named: refused 403 BEFORE the facilitator, nothing written', async () => {
+    for (const who of ['p_shop', 'p_gone', undefined]) {
+      const { f, calls } = facilitator(OK)
+      expect(await bookAs(who, f)).toMatchObject({ kind: 'refused', status: 403, code: 'creative_ads_not_open' })
+      expect(calls).toEqual([])
+    }
+    expect(h.ads).toEqual([])
+  })
+
+  it('an admin books it as before', async () => {
+    const { f, calls } = facilitator(OK)
+    expect(await bookAs('p_admin', f)).toMatchObject({ kind: 'booked' })
+    expect(calls).toEqual(['verify', 'settle'])
+    expect(h.ads[0]).toMatchObject({ status: 'active', creativeId: 'cr1' })
+  })
+
+  it('a payment already recorded keeps its outcome (the replay lookup comes first): never a 403 for money that moved', async () => {
+    vi.stubEnv('ADS_CREATIVE_OPEN', '1')
+    await bookAs('p_shop', facilitator(OK).f)
+    vi.stubEnv('ADS_CREATIVE_OPEN', '')
+    const again = facilitator(OK)
+    expect(await bookAs('p_shop', again.f)).toMatchObject({ kind: 'booked', replay: true })
+    expect(again.calls).toEqual([])
+  })
+
+  it('listing ads are not affected', async () => {
+    const { f, calls } = facilitator(OK)
+    expect(await book(payload(), f)).toMatchObject({ kind: 'booked' })
+    expect(calls).toEqual(['verify', 'settle'])
   })
 })
