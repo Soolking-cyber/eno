@@ -130,7 +130,8 @@ const DEVELOPER_SECTION = `## For developers and agents
   number when it has one. Ads for what
   Vietnamese law forbids advertising are refused; the rules are in the
   [advertising policy](${SITE_ORIGIN}/advertising-policy). An ad's figures (viewable impressions, clicks, CTR, reach,
-  spend) come from \`GET /api/v1/ads/{id}/stats\` and the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
+  spend) come from \`GET /api/v1/ads/{id}/stats\` and the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).
+  People, not agents, can also pay by VietQR bank transfer in đồng, for a week, a month or a quarter, at [${SITE_ORIGIN}/dashboard/ads](${SITE_ORIGIN}/dashboard/ads).` : ''}
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.

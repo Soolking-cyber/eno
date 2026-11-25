@@ -9,6 +9,8 @@ import { AD_QUESTIONS, AD_QUESTION_KEYS, PERMIT_CLASSES } from '@/lib/ads/review
 import { REVIEW_REASONS } from '@/lib/ads/review-reasons'
 import { AD_FIELD_LIMITS, AD_IMAGE_ASPECT, AD_IMAGE_MIN_EDGE } from '@/lib/ads/creative-review'
 import { AD_CREATIVE_MAX_HOURS } from '@/lib/ads/book'
+import { BANK_ORDER_DAYS, BANK_PERIOD } from '@/lib/ads/bank-periods'
+import { formatMoneyFull } from '@/lib/vnd'
 
 export const metadata: Metadata = withShare({
   title: `Advertising policy | Chính sách quảng cáo | ${SITE_NAME}`,
@@ -40,8 +42,8 @@ const PLACEMENT: Pair[] = [
     `Quảng cáo của bạn hiển thị ở một vị trí chuẩn duy nhất: thẻ đầu tiên của trang một trên bảng tin trang chủ, trang danh mục và kết quả tìm kiếm, ở chế độ lưới, cùng kích thước với các thẻ tin đăng xung quanh. Quảng cáo luôn được gắn nhãn "Quảng cáo" bằng ngôn ngữ của người xem ("Ad" trong tiếng Anh).`,
   ),
   P(
-    `The whole card links to your own https web page, opened in a new tab and marked as a paid link. One purchase runs for 1 to ${AD_CREATIVE_MAX_HOURS} hours; ads running at the same time take turns in the slot.`,
-    `Toàn bộ thẻ dẫn đến trang web https của chính bạn, mở trong thẻ mới và được đánh dấu là liên kết trả phí. Mỗi lần mua chạy từ 1 đến ${AD_CREATIVE_MAX_HOURS} giờ; các quảng cáo chạy cùng lúc luân phiên hiển thị ở vị trí này.`,
+    `The whole card links to your own https web page, opened in a new tab and marked as a paid link. One purchase runs for 1 to ${AD_CREATIVE_MAX_HOURS} hours in USDC, or a week, a month or a quarter by bank transfer; ads running at the same time take turns in the slot.`,
+    `Toàn bộ thẻ dẫn đến trang web https của chính bạn, mở trong thẻ mới và được đánh dấu là liên kết trả phí. Mỗi lần mua chạy từ 1 đến ${AD_CREATIVE_MAX_HOURS} giờ khi thanh toán bằng USDC, hoặc một tuần, một tháng hay một quý khi chuyển khoản ngân hàng; các quảng cáo chạy cùng lúc luân phiên hiển thị ở vị trí này.`,
   ),
   P(
     'A shop can also promote one of its own live listings: it is shown first, labelled "Ad", in matching search and category results.',
@@ -111,10 +113,30 @@ const REVIEW: Pair[] = [
   ),
 ]
 
-const PAYMENT = P(
-  `Ads are paid in USDC over x402. You are charged when the payment settles, and the ad starts running then. If ${SITE_NAME} removes an ad after its payment settled but before it started, the payment is refunded by hand.`,
-  `Quảng cáo được thanh toán bằng USDC qua x402. Bạn bị trừ tiền khi giao dịch thanh toán hoàn tất, và quảng cáo bắt đầu chạy từ lúc đó. Nếu ${SITE_NAME} gỡ một quảng cáo sau khi thanh toán đã hoàn tất nhưng trước khi quảng cáo bắt đầu chạy, khoản thanh toán được hoàn lại thủ công.`,
-)
+// The bank-transfer prices and lengths are bank-periods.ts's own (the form sells at them), prices in each language's grouping.
+const price = (p: keyof typeof BANK_PERIOD, l: 'en' | 'vi') => formatMoneyFull(BANK_PERIOD[p].priceVnd, '₫', l)
+const PAYMENT: Pair[] = [
+  P(
+    `Ads are paid by VietQR bank transfer to ${SITE_NAME}'s account in đồng, from your shop's Ads page, or in USDC over x402. By bank transfer an ad runs a week (${price('week', 'en')}), a month of ${BANK_PERIOD.month.days} days (${price('month', 'en')}) or a quarter of ${BANK_PERIOD.quarter.days} days (${price('quarter', 'en')}); it starts once ${SITE_NAME} has confirmed the transfer, and an order not paid within ${BANK_ORDER_DAYS} days expires.`,
+    `Quảng cáo được thanh toán bằng chuyển khoản ngân hàng qua VietQR vào tài khoản của ${SITE_NAME} bằng đồng Việt Nam, từ trang Quảng cáo của cửa hàng, hoặc bằng USDC qua x402. Khi chuyển khoản, quảng cáo chạy một tuần (${price('week', 'vi')}), một tháng ${BANK_PERIOD.month.days} ngày (${price('month', 'vi')}) hoặc một quý ${BANK_PERIOD.quarter.days} ngày (${price('quarter', 'vi')}); quảng cáo bắt đầu khi ${SITE_NAME} đã xác nhận khoản chuyển, và đơn chưa thanh toán trong vòng ${BANK_ORDER_DAYS} ngày sẽ hết hạn.`,
+  ),
+  // What bank.ts does with money that lands where no ad can start at once: an expired or cancelled order may still be
+  // started (markBankOrderPaid); an ad that can no longer run (a listing gone, a creative eno removed) goes to review and
+  // is only ever refunded.
+  P(
+    `A transfer that reaches ${SITE_NAME} for an order that has expired or been cancelled is either used to start that ad or refunded by hand. One for an ad that can no longer run, because its listing was taken down or ${SITE_NAME} removed the ad, is refunded by hand.`,
+    `Khoản chuyển đến ${SITE_NAME} cho một đơn đã hết hạn hoặc đã hủy sẽ được dùng để bật quảng cáo đó hoặc được hoàn lại thủ công. Khoản chuyển cho một quảng cáo không thể chạy nữa, do tin đăng đã bị gỡ hoặc ${SITE_NAME} đã gỡ quảng cáo, sẽ được hoàn lại thủ công.`,
+  ),
+  P(
+    'In USDC over x402 you are charged when the payment settles, and the ad starts running then.',
+    'Khi thanh toán bằng USDC qua x402, bạn bị trừ tiền khi giao dịch thanh toán hoàn tất, và quảng cáo bắt đầu chạy từ lúc đó.',
+  ),
+  // The refund wording, unchanged.
+  P(
+    `If ${SITE_NAME} removes an ad after its payment settled but before it started, the payment is refunded by hand.`,
+    `Nếu ${SITE_NAME} gỡ một quảng cáo sau khi thanh toán đã hoàn tất nhưng trước khi quảng cáo bắt đầu chạy, khoản thanh toán được hoàn lại thủ công.`,
+  ),
+]
 
 const REMOVAL = P(
   `${SITE_NAME} may remove any ad that breaks Vietnamese law or this policy, at any time; it stops showing within about a minute. For the unused part of a removed ad's run, a pro-rata refund is made on request to ${COMPANY.email}. An ad that a competent state authority identifies as unlawful is removed within 24 hours of the request. A removed ad cannot be submitted again.`,
@@ -160,7 +182,7 @@ export default async function AdvertisingPolicyPage({ params }: { params: Promis
       </ContentSection>
       <ContentSection id="regulated" title="Regulated sectors" titleVi="Lĩnh vực có điều kiện">{para(PERMIT)}</ContentSection>
       <ContentSection id="review" title="Checked before you pay" titleVi="Kiểm duyệt trước khi thanh toán">{list(REVIEW)}</ContentSection>
-      <ContentSection id="payment" title="Payment" titleVi="Thanh toán">{para(PAYMENT)}</ContentSection>
+      <ContentSection id="payment" title="Payment" titleVi="Thanh toán">{list(PAYMENT)}</ContentSection>
       <ContentSection id="removal" title="Removal and refunds" titleVi="Gỡ quảng cáo và hoàn tiền">{para(REMOVAL)}</ContentSection>
       <ContentSection id="figures" title="Figures" titleVi="Số liệu">{para(FIGURES)}</ContentSection>
     </ContentPage>

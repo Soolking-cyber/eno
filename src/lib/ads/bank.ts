@@ -36,9 +36,11 @@ export { bankConfig, bankQr, newAdReference, AD_REFERENCE_RE, type BankConfig } 
  *   Once paid, a row's money is đồng, and every figure built on it says so (currency.ts).
  * ⛔ EXPIRY IS LAZY: an order unpaid after BANK_ORDER_DAYS reads as expired (no QR, gone from the shop's list), and the next
  *   write — the shop's next order sweeps its lapsed ones — stores status 'cancelled' with failReason 'expired'.
- * ⛔ A TRANSFER IS NEVER LOST UNDER AN UNSEEN REFERENCE: an expired order, and one the shop cancelled (it may have paid
- *   first), stay on the admin's list for 30 days and can still be marked paid — the admin, who sees the money, decides.
- *   Only eno's own Cancel closes an order for good. A listing is checked again at Mark paid: gone since the order →
+ * ⛔ A TRANSFER IS NOT LOST UNDER AN UNSEEN REFERENCE: an expired order, and one the shop cancelled (it may have paid
+ *   first), stay on the admin's list until 30 days past their week, and can still be marked paid — the admin, who sees
+ *   the money, decides. (Past that window the list drops them on purpose; one paid even later is found in the database by
+ *   its reference, `paymentId = 'bank:<reference>'`, and marked paid by its id through the same route.) Only eno's own
+ *   Cancel closes an order for good. A listing is checked again at Mark paid: gone since the order →
  *   `review`, refunded by hand.
  * ⛔ THE ACCOUNT IS SERVER ENV, NEVER NEXT_PUBLIC (bank-config.ts bankConfig): ADS_BANK_BIN (default 970416, ACB),
  *   ADS_BANK_ACCOUNT, ADS_BANK_ACCOUNT_NAME. Unset or malformed → nothing is sold: the form says so and no order is created.
