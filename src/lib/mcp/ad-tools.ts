@@ -149,7 +149,7 @@ const LISTING_ID = z.string().describe('A live listing of this shop (list_listin
 // A plain number, bounded by the server (adHours), as this server's other numeric inputs are: the reviewers flag schema bounds.
 // Its prose says what to pass, never the bounds again: Manufact flagged "a whole number from 1 to 2160" as validation
 // repeated (2026-11-24); get_ad_offer's `max_hours` states the longest.
-const HOURS = z.number().optional().describe('Hours it runs; 168 when left out')
+const HOURS = z.number().optional().describe('Hours it runs; 168 if left out')
 
 export const AD_TOOLS: McpTool[] = [
   {
@@ -249,12 +249,12 @@ export const AD_TOOLS: McpTool[] = [
       creative: z.object({
         advertiserName: z.string().describe('Name on the card, ≤40'),
         legalName: z.string().describe('Registered legal name'),
-        taxCode: z.string().describe('Tax code (MST)'),
+        taxCode: z.string().describe('MST or company no., optional'),
         headline: z.string().describe('≤60, any language'),
         body: z.string().describe('≤120, optional'),
         imageUrl: z.string().describe('https, ≥600 px, square'),
         clickUrl: z.string().describe('https landing page'),
-        permitRef: z.string().describe('Permit number, optional'),
+        permitRef: z.string().describe('Permit no., optional'),
       }).partial().describe('The ad'),
       hours: HOURS,
     }),

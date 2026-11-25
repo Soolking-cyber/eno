@@ -15,7 +15,11 @@ export const REVIEW_REASONS = {
   // ── The fields (checked before anything is fetched or paid for) ───────────────────────────────────────────────────
   creative_invalid: R('The ad is missing or not an object of fields.', 'Thiếu nội dung quảng cáo hoặc sai định dạng.'),
   legal_name_invalid: R('Give the advertiser\'s registered legal name (2 to 120 characters).', 'Hãy ghi tên pháp lý đã đăng ký của bên quảng cáo (2 đến 120 ký tự).'),
-  tax_code_invalid: R('Give the advertiser\'s tax code (MST): 10 digits, or 13 digits written 10-3.', 'Hãy ghi mã số thuế (MST) của bên quảng cáo: 10 chữ số, hoặc 13 chữ số dạng 10-3.'),
+  // Optional since 2026-11-25 (owner: "yes all allowed to advertise"): only a number given in neither shape refuses.
+  tax_code_invalid: R(
+    'The tax or company registration number is optional; when given, it must be a Vietnamese tax code (MST: 10 digits, or 13 written 10-3) or a company registration number of 3 to 40 letters, digits, spaces, dots, slashes or dashes.',
+    'Mã số thuế hoặc số đăng ký doanh nghiệp là không bắt buộc; nếu ghi, đó phải là mã số thuế Việt Nam (MST: 10 chữ số, hoặc 13 chữ số dạng 10-3) hoặc số đăng ký doanh nghiệp gồm 3 đến 40 chữ cái, chữ số, khoảng trắng, dấu chấm, dấu gạch chéo hoặc dấu gạch ngang.',
+  ),
   advertiser_name_invalid: R('Give the name shown on the ad (2 to 40 characters).', 'Hãy ghi tên hiển thị trên quảng cáo (2 đến 40 ký tự).'),
   headline_invalid: R('Write a headline of 2 to 60 characters.', 'Hãy viết tiêu đề từ 2 đến 60 ký tự.'),
   body_invalid: R('The text under the headline can be at most 120 characters.', 'Phần mô tả dưới tiêu đề tối đa 120 ký tự.'),

@@ -85,7 +85,8 @@ async function render() {
                       {live.length > 0 && <Badge variant="success">Running</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {c.advertiserName} · {c.legalName} · MST {c.taxCode}{c.permitRef ? ` · permit ${c.permitRef}` : ''}
+                      {/* The tax or registration number is optional (any advertiser, 2026-11-25): an MST or a foreign company's number. */}
+                      {c.advertiserName} · {c.legalName} · {c.taxCode ? `tax/reg. no. ${c.taxCode}` : 'no tax/reg. no.'}{c.permitRef ? ` · permit ${c.permitRef}` : ''}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {/* Only an approved ad's page is a link: a refused one's is the advertiser's URL the review rejected. */}

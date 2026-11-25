@@ -23,9 +23,12 @@ import { adReviewKey, JEV_AD_CALIBRATION, JEV_AD_MODEL, JEV_AD_THRESHOLDS, jevAd
  * not"). An advertiser (an eno shop) submits a creative for the ONE standard placement, the feed card: a square picture,
  * a headline (≤ 60) and an optional line (≤ 120) in any language, its name, its legal identity and an https landing
  * page. This decides approved or refused; only an approved creative is ever offered a price (the 402).
+ * The legal identity is the registered legal name, always, and — optional since the owner's "yes all allowed to
+ * advertise" (2026-11-25), so a company outside Vietnam can advertise — its tax code (MST) or company registration number
+ * (advertiserTaxId).
  *
  * In order, cheapest first, each step refusing with stable reasons (review-reasons.ts):
- *   1. the fields (lengths, the tax code's shape, https addresses) — nothing fetched yet;
+ *   1. the fields (lengths, the tax or registration number's shape when one is given, https addresses) — nothing fetched yet;
  *   2. the SAME content from the SAME shop within 24 h → that stored verdict (no second paid review);
  *   3. the picture, fetched ONLY through safeFetch (SSRF-guarded, every redirect re-checked), at most 5 MB (readCapped),
  *      really a JPEG/PNG/WebP (sniffImageType before any decoder), at least 600 × 600 and about square (0.8–1.25);
@@ -46,14 +49,15 @@ import { adReviewKey, JEV_AD_CALIBRATION, JEV_AD_MODEL, JEV_AD_THRESHOLDS, jevAd
  * ⛔ A REMOVED CREATIVE STAYS REMOVED: the same content from the same shop is answered `removed` at any age.
  * ⚠️ What the review cannot see: a landing page that shows the review's request a different page than a viewer
  *    (cloaking) — the request names itself (UA) on purpose — or one changed after the approval; the advertiser's legal
- *    identity is checked for its shape only (never against the shop's verified identity). An admin removes any running ad (Admin › Catalogue ›
+ *    identity is checked for its shape only (never against the shop's verified identity), and a number of any other shape
+ *    than an MST's is taken as a foreign company's registration number. An admin removes any running ad (Admin › Catalogue ›
  *    Ads). An animated picture is judged and stored as its first frame (sharp reads one page): what runs is what was judged.
  */
 export const AD_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 export const AD_IMAGE_MIN_EDGE = 600
 export const AD_IMAGE_ASPECT = { min: 0.8, max: 1.25 } as const
 export const AD_LANDING_MAX_BYTES = 256 * 1024
-export const AD_FIELD_LIMITS = { legalName: 120, advertiserName: 40, headline: 60, body: 120, permitRef: 80, url: 2048 } as const
+export const AD_FIELD_LIMITS = { legalName: 120, taxCode: 40, advertiserName: 40, headline: 60, body: 120, permitRef: 80, url: 2048 } as const
 /** Gemini's verdict on the picture and words refuses from this confidence (the listing hold needs 0.85; an ad is stricter). */
 export const AD_MODERATION_THRESHOLD = 0.5
 export const AD_REVIEW_REUSE_MS = 24 * 3_600_000
@@ -89,6 +93,7 @@ const FETCH_TIMEOUT_MS = 8_000
 const UA = 'eno.vn ad review (+https://eno.vn/advertising-policy)'
 
 export type CreativeFields = {
+  /** taxCode: an MST (10, or 10-3), a foreign company registration number, or '' when none was given (the column is NOT NULL). */
   legalName: string; taxCode: string; advertiserName: string; headline: string; body: string | null; permitRef: string | null
   imageUrl: string; clickUrl: string
 }
@@ -103,6 +108,25 @@ export function normalizeTaxCode(v: unknown): string | null {
   // Shape only (as the shop profile checks it, core/seller.ts) — but never one digit repeated (0000000000).
   const out = /^\d{10}$/.test(s) || /^\d{10}-\d{3}$/.test(s) ? s : /^\d{13}$/.test(s) ? `${s.slice(0, 10)}-${s.slice(10)}` : null
   return out && !/^(\d)\1{9}/.test(out) ? out : null
+}
+
+/**
+ * The advertiser's tax or company registration number, OPTIONAL (owner 2026-11-25: "yes all allowed to advertise" — a
+ * company outside Vietnam has no MST). '' when not given (absent, null or blank); null when given but malformed, which is
+ * the only `tax_code_invalid`.
+ *   · shaped like an MST once spaces and dots are dropped (10 digits, or 13 with or without the 10-3 dash) → the MST check
+ *     decides (normalizeTaxCode): a malformed MST such as 0000000000 is refused, never waved through as a foreign number;
+ *   · anything else → a foreign company registration number, as written (cleaned): 3 to 40 letters, digits, spaces, `.`,
+ *     `/` or `-`, with at least two different letters or digits (never "000" or "---").
+ */
+export function advertiserTaxId(v: unknown): string | null {
+  if (v == null) return ''
+  if (typeof v !== 'string') return null
+  const s = clean(v) ?? ''
+  if (!s) return ''
+  if (/^(\d{10}|\d{10}-\d{3}|\d{13})$/.test(s.replace(/[\s.]/g, ''))) return normalizeTaxCode(s)
+  if (s.length < 3 || s.length > AD_FIELD_LIMITS.taxCode || !/^[\p{L}\p{Nd} ./-]+$/u.test(s)) return null
+  return new Set(s.replace(/[^\p{L}\p{Nd}]/gu, '').toLowerCase()).size >= 2 ? s : null
 }
 
 /** An https address on a named public host (no credentials, no IP literal, no bare name); null otherwise. The address
@@ -131,8 +155,8 @@ export function parseCreative(raw: unknown): ParsedCreative {
   const within = (v: string | null, min: number, max: number) => v !== null && v.length >= min && v.length <= max
   const legalName = clean(r.legalName)
   if (!within(legalName, 2, AD_FIELD_LIMITS.legalName)) bad.push('legal_name_invalid')
-  const taxCode = normalizeTaxCode(r.taxCode)
-  if (!taxCode) bad.push('tax_code_invalid')
+  const taxCode = advertiserTaxId(r.taxCode)
+  if (taxCode === null) bad.push('tax_code_invalid')
   const advertiserName = clean(r.advertiserName)
   if (!within(advertiserName, 2, AD_FIELD_LIMITS.advertiserName)) bad.push('advertiser_name_invalid')
   const headline = clean(r.headline)

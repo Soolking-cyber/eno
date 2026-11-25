@@ -79,7 +79,7 @@ vi.mock('@/lib/translate', () => ({ warmTranslations: async (t: string[]) => { h
 vi.mock('@/lib/log', () => ({ logError: () => {}, logInfo: () => {}, logWarn: () => {} }))
 
 const review = await import('./creative-review')
-const { reviewCreative, parseCreative, landingHead, normalizeTaxCode, creativeHash } = review
+const { reviewCreative, parseCreative, landingHead, normalizeTaxCode, advertiserTaxId, creativeHash } = review
 const { AD_QUESTION_KEYS, PERMIT_CLASSES, jevAdState } = await import('./review-jev')
 const { REVIEW_SAMPLES } = await import('./creative-review.fixture')
 
@@ -137,7 +137,7 @@ beforeEach(async () => {
 describe('the fields (before anything is fetched)', () => {
   it('a lawful creative parses; every bad field is named at once', () => {
     expect(parseCreative(FIELDS)).toMatchObject({ ok: true, landingHost: 'shop.example.com' })
-    const r = parseCreative({ legalName: 'X', taxCode: '12345', advertiserName: 'A'.repeat(41), headline: 'H'.repeat(61), body: 'B'.repeat(121), permitRef: 'P'.repeat(81), imageUrl: 'http://cdn.example.com/a.jpg', clickUrl: 'https://127.0.0.1/' })
+    const r = parseCreative({ legalName: 'X', taxCode: '#1', advertiserName: 'A'.repeat(41), headline: 'H'.repeat(61), body: 'B'.repeat(121), permitRef: 'P'.repeat(81), imageUrl: 'http://cdn.example.com/a.jpg', clickUrl: 'https://127.0.0.1/' })
     expect(r.ok).toBe(false)
     expect(!r.ok && r.reasons.map((x) => x.code)).toEqual(['legal_name_invalid', 'tax_code_invalid', 'advertiser_name_invalid', 'headline_invalid', 'body_invalid', 'permit_ref_invalid', 'image_url_invalid', 'click_url_invalid'])
     expect(!r.ok && r.reasons.every((x) => x.en.length > 10 && x.vi.length > 10)).toBe(true)
@@ -162,8 +162,60 @@ describe('the fields (before anything is fetched)', () => {
     for (const bad of ['031234567', '03123456789', 'abcdefghij', '0312345678-01', '', '0000000000', '1111111111-001']) expect(normalizeTaxCode(bad)).toBeNull()
   })
 
+  // ── Any advertiser (owner 2026-11-25: "yes all allowed to advertise"): the number is optional, and a foreign one is fine.
+  it('the tax or registration number is OPTIONAL: absent, null or blank parse, stored as \'\'', () => {
+    const { taxCode: _t, ...rest } = FIELDS
+    for (const fields of [rest, { ...rest, taxCode: null }, { ...rest, taxCode: '' }, { ...rest, taxCode: '   ' }] as Record<string, unknown>[]) {
+      const p = parseCreative(fields)
+      expect(p.ok, JSON.stringify(fields.taxCode)).toBe(true)
+      expect(p.ok && p.fields.taxCode).toBe('')
+    }
+  })
+
+  it('given, a Vietnamese MST is normalized as before (10, or 10-3)', () => {
+    expect(advertiserTaxId('0312345678')).toBe('0312345678')
+    expect(advertiserTaxId('0312345678001')).toBe('0312345678-001')
+    expect(advertiserTaxId('031.234.5678')).toBe('0312345678')
+    expect(advertiserTaxId(' 0312345678-001 ')).toBe('0312345678-001')
+    expect(advertiserTaxId('0312345678 - 001')).toBe('0312345678-001')
+  })
+
+  it('given, a foreign company registration number is kept as written (cleaned): letters, digits, spaces, . / -', () => {
+    for (const [given, kept] of [
+      ['HRB 12345', 'HRB 12345'], ['201912345K', '201912345K'], ['C-123/45', 'C-123/45'], ['12345', '12345'],
+      ['  SC 123.456  ', 'SC 123.456'], ['ИНН 7707083893', 'ИНН 7707083893'], ['A1b', 'A1b'], ['X'.repeat(39) + 'Y', 'X'.repeat(39) + 'Y'],
+    ]) expect(advertiserTaxId(given), given).toBe(kept)
+    expect(parseCreative({ ...FIELDS, taxCode: 'HRB 12345' })).toMatchObject({ ok: true, fields: { taxCode: 'HRB 12345' } })
+    // ⚠️ A DELIBERATE TRADE (commit gate, opus): digits of any length but an MST's are a foreign number, so a mistyped MST of
+    // 9, 11 or 12 digits is accepted as one too. Refusing them would refuse real ones: a US EIN, a French SIREN (9), an
+    // Australian ABN (11), a Russian INN (12). Only the MST's own shapes get the MST check.
+    for (const foreign of ['12-3456789', '732829320', '51824753556', '770708389312', '031234567', '0312345678-01']) expect(advertiserTaxId(foreign), foreign).toBe(foreign)
+  })
+
+  it('⛔ given but malformed → tax_code_invalid: an MST-shaped number the MST check refuses, a bad character, too short or long, no real digits', () => {
+    for (const bad of ['0000000000', '1111111111-001', '#1', 'ab', 'A'.repeat(41), '---', '000', '1.1', 'HRB_12345', '12345!', 'acme@example.com', 12345, {}, ['0312345678']]) {
+      expect(advertiserTaxId(bad), JSON.stringify(bad)).toBeNull()
+      const p = parseCreative({ ...FIELDS, taxCode: bad })
+      expect(!p.ok && p.reasons.map((x) => x.code), JSON.stringify(bad)).toEqual(['tax_code_invalid'])
+    }
+  })
+
+  it('the content hash still covers it: none, an MST and a foreign number are three different ads; one MST written two ways is one', () => {
+    const { taxCode: _t, ...rest } = FIELDS
+    const hashOf = (taxCode: unknown) => { const p = parseCreative({ ...rest, taxCode }); if (!p.ok) throw new Error('parse'); return creativeHash(p.fields) }
+    expect(new Set([hashOf(undefined), hashOf('0312345678'), hashOf('HRB 12345')]).size).toBe(3)
+    expect(hashOf(undefined)).toBe(hashOf(''))
+    expect(hashOf('0312345678001')).toBe(hashOf('0312345678-001'))
+  })
+
+  it('an ad with no number is reviewed and stored with taxCode \'\' (the column is NOT NULL)', async () => {
+    const { taxCode: _t, ...rest } = FIELDS
+    expect((await reviewCreative('s1', rest)).kind).toBe('approved')
+    expect(h.creatives[0]).toMatchObject({ taxCode: '', legalName: FIELDS.legalName, status: 'approved' })
+  })
+
   it('a bad field refuses with no fetch, no Jev and nothing stored', async () => {
-    const r = await reviewCreative('s1', { ...FIELDS, taxCode: 'nope' })
+    const r = await reviewCreative('s1', { ...FIELDS, taxCode: 'n@pe!' })
     expect(r).toMatchObject({ kind: 'refused', creative: null, view: { status: 'refused', reasons: [{ code: 'tax_code_invalid' }] } })
     expect(h.jevCalls).toBe(0)
     expect(h.creatives).toEqual([])

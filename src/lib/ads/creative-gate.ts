@@ -14,6 +14,11 @@ import { db } from '@/lib/db'
  *     keeps a preview feed. Without it, no creative is served while closed.
  *   · THE OFFER (GET /api/v1/ads/offer, MCP get_ad_offer) says `creative_ads.status: 'testing'` with one sentence.
  * Listing ads ({listingId}, promote_listing) are not affected.
+ * ⚠️ `adpreview=1` IS A URL SWITCH, NOT AN ADMIN CHECK (the owner's brief): anyone who adds it sees the running creatives.
+ *    While closed only an admin can book a new one; a creative booked while the switch was open keeps its paid run and
+ *    shows to the preview alone until it ends (commit gate, opus) — so before closing again, look at what is running.
+ * ⚠️ OPENING IS PER EDITION: the env lives in each site's own secret (eno-root-env, eno-services-env — root CLAUDE.md, "the
+ *    trap is config"). Set it on one and the other keeps answering 'testing'.
  */
 export function creativeAdsOpen(): boolean {
   return process.env.ADS_CREATIVE_OPEN?.trim() === '1'

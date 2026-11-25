@@ -1050,12 +1050,12 @@ export const SPEC = {
       },
       AdCreativeInput: {
         type: 'object',
-        description: 'Your own ad for the feed card (owner 2026-11-25): reviewed before any price is offered. Any language; each viewer reads the headline and text in their own (machine translation). Rules: /advertising-policy and `creative_ads` in getAdOffer.',
-        required: ['advertiserName', 'legalName', 'taxCode', 'headline', 'imageUrl', 'clickUrl'],
+        description: 'Your own ad for the feed card (owner 2026-11-25): reviewed before any price is offered. Any lawful advertiser, in Vietnam or abroad. Any language; each viewer reads the headline and text in their own (machine translation). Rules: /advertising-policy and `creative_ads` in getAdOffer.',
+        required: ['advertiserName', 'legalName', 'headline', 'imageUrl', 'clickUrl'],
         properties: {
           advertiserName: { type: 'string', minLength: 2, maxLength: 40, description: 'The name shown on the card.' },
           legalName: { type: 'string', minLength: 2, maxLength: 120, description: 'The advertiser\'s registered legal name (recorded).' },
-          taxCode: { type: 'string', description: 'The advertiser\'s tax code (MST): 10 digits, or 13 written 10-3.', example: '0312345678' },
+          taxCode: { type: 'string', maxLength: 40, description: 'Optional: the advertiser\'s Vietnamese tax code (MST: 10 digits, or 13 written 10-3) or, for a company outside Vietnam, its company registration number (3 to 40 letters, digits, spaces, `.`, `/`, `-`). Leave it out when the advertiser has none; a value in neither shape is refused (`tax_code_invalid`).', example: '0312345678' },
           headline: { type: 'string', minLength: 2, maxLength: 60, description: 'Any language.' },
           body: { type: 'string', maxLength: 120, description: 'Optional line under the headline. Any language.' },
           imageUrl: { type: 'string', format: 'uri', description: 'https; JPEG, PNG or WebP; at least 600×600; width/height 0.8–1.25; at most 5 MB. eno stores its own copy of the reviewed picture.' },

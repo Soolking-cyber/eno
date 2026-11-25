@@ -237,10 +237,10 @@ export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
       note: open ? null : CREATIVE_ADS_TESTING_NOTE,
       placement: FEED_CARD_PLACEMENT,
       restrictions: adRestrictions(),
-      requires: 'A signed-in eno.vn shop with scope ads:write (never granted by default: ask for it), and the advertiser\'s registered legal name and tax code (MST).',
+      requires: 'A signed-in eno.vn shop with scope ads:write (never granted by default: ask for it), and the advertiser\'s registered legal name; its tax code (MST) or, for a company outside Vietnam, its company registration number when it has one (optional).',
       flow: {
         http: [
-          `1. Review: POST ${AD_RESOURCE_URL} with {"creative": {"advertiserName", "legalName", "taxCode", "headline", "body"?, "imageUrl", "clickUrl", "permitRef"?}, "hours": 1 to ${AD_CREATIVE_MAX_HOURS}} and your Bearer token. eno checks it before any price is offered.`,
+          `1. Review: POST ${AD_RESOURCE_URL} with {"creative": {"advertiserName", "legalName", "taxCode"?, "headline", "body"?, "imageUrl", "clickUrl", "permitRef"?}, "hours": 1 to ${AD_CREATIVE_MAX_HOURS}} and your Bearer token. eno checks it before any price is offered.`,
           '2. Refused: 422 with `review.reasons` (a code and an English and Vietnamese sentence each); nothing to pay. Change the ad and submit it again.',
           '3. Approved: 402 with PAYMENT-REQUIRED (x402 v2) and the creative id in Eno-Ad-Creative-Id. Repeat the same request (or {"creativeId", "hours"}) with PAYMENT-SIGNATURE to pay; it runs from the moment the payment settles.',
         ],

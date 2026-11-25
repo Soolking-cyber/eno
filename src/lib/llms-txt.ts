@@ -125,7 +125,9 @@ const DEVELOPER_SECTION = `## For developers and agents
   kinds: one of the shop's public listings shown first, labelled "Ad", in matching search and category results, the home
   feed and similar listings, for 1 hour up to 90 days at the weekly price pro rata; or the shop's OWN ad (a square
   picture, a headline in any language and its https page) in the feed card, labelled "Ad" in the viewer's language, for up to 168
-  hours — reviewed BEFORE any payment (scope ads:write): refused → 422 with reasons and nothing to pay. Ads for what
+  hours — reviewed BEFORE any payment (scope ads:write): refused → 422 with reasons and nothing to pay. Any lawful
+  advertiser, in Vietnam or abroad: the registered legal name always, and the tax code (MST) or company registration
+  number when it has one. Ads for what
   Vietnamese law forbids advertising are refused; the rules are in the
   [advertising policy](${SITE_ORIGIN}/advertising-policy). An ad's figures (viewable impressions, clicks, CTR, reach,
   spend) come from \`GET /api/v1/ads/{id}/stats\` and the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
