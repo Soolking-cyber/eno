@@ -31,13 +31,21 @@ describe('legal-amendment', () => {
     expect(amendmentDatesProblem({ published: '2026-10-01', inForce: '2026-09-30', immediate: true })).toMatch(/must equal published/)
   })
 
-  // ⛔ Owner, 2026-10-07 (AskUserQuestion: "When should that Terms change take effect?"): "Immediately
-  // (Recommended)". The Terms' version 3 (App Store Guideline 1.2 — D8) re-uses the record as an IMMEDIATE
-  // amendment — in force on its publication day, no window, no announcement: the 2026-10-01 precedent. It was
-  // written with the default window (in force 13/10/2026); the window tests elsewhere run on fixtures.
-  it('the Terms’ version 3 is immediate: published and in force 07/10/2026', () => {
-    expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
-    expect(AMENDED).toEqual({ publishedVi: '07/10/2026', publishedEn: '7 October 2026', inForceVi: '07/10/2026', inForceEn: '7 October 2026' })
+  // ⛔ Owner, 2026-11-25: "update legal pages no need to warn users". The Terms' version 4 (the renters' free availability
+  // check withdrawn) re-uses the record as an IMMEDIATE amendment — in force on its publication day, no window, no
+  // announcement: the 2026-10-01 and 2026-10-07 precedents. The window tests elsewhere run on fixtures.
+  it('the Terms’ version 4 is immediate: published and in force 25/11/2026', () => {
+    expect(LEGAL_AMENDMENT).toEqual({ published: '2026-11-25', inForce: '2026-11-25', immediate: true })
+    expect(AMENDED).toEqual({ publishedVi: '25/11/2026', publishedEn: '25 November 2026', inForceVi: '25/11/2026', inForceEn: '25 November 2026' })
+  })
+
+  // ⛔ Owner, 2026-10-07: "Immediately (Recommended)". The Terms' version 3 (App Store Guideline 1.2 — D8) held the record
+  // before version 4; its dates are literals in legal-archive.ts now, where its change note and the archives read them.
+  it('the Terms’ version 3 keeps its dates, as literals: published and in force 07/10/2026', async () => {
+    const { TERMS_V2_SUPERSEDED, TERMS_V2_SUPERSEDED_BY } = await import('./legal-archive')
+    expect(TERMS_V2_SUPERSEDED_BY).toEqual({ version: '3', published: '2026-10-07', inForce: '2026-10-07' })
+    expect(TERMS_V2_SUPERSEDED.inForceVi).toBe('07/10/2026')
+    expect(TERMS_V2_SUPERSEDED.inForceEn).toBe('7 October 2026')
   })
 
   // ⛔ Owner, 2026-10-01: "just change now we dont have users so its safe to implement just new terms no
@@ -69,12 +77,12 @@ describe('legal-amendment', () => {
     }
     walk('src')
     expect(readers.sort()).toEqual([
-      'src/app/[lang]/privacy/page.tsx', // "Last updated" — version 3 changed /privacy
+      'src/app/[lang]/privacy/page.tsx', // "Last updated" — versions 3 and 4 changed /privacy
       'src/app/[lang]/terms/page.tsx',
       'src/app/md/terms/route.ts',
       'src/components/marketplace/tos-change-notice.tsx', // the strip
       'src/lib/compliance/legal-amendment-notice.ts', // the bell notice
-      'src/lib/compliance/legal-archive.ts', // TERMS_V2_SUPERSEDED_BY — /terms/v2's banner
+      'src/lib/compliance/legal-archive.ts', // TERMS_V3_SUPERSEDED_BY — /terms/v3's banner
       'src/lib/site-legal.ts', // the runtime switch
     ])
   })
@@ -112,24 +120,27 @@ describe('legal-amendment', () => {
   // published, no window, no announcement. A Quy chế-only amendment: the Terms' record keeps its dates. (Version 3,
   // 05/10/2026 — owner: "apply best recommended" — was the record's previous use; its dates are literals in
   // legal-archive.ts V2_SUPERSEDED_BY now.)
-  describe('the Quy chế-only amendment (version 5, REGULATIONS_AMENDMENT)', () => {
-    it('is immediate: published and in force on one day, after version 4', async () => {
-      const { V1_SUPERSEDED_BY, V2_SUPERSEDED_BY, V3_SUPERSEDED_BY } = await import('./legal-archive')
+  // ⛔ Owner, 2026-11-25 ("update legal pages no need to warn users"): the record is the Quy chế's version 6 (Article 7's free
+  // availability check withdrawn), shipped in the same deploy as the Terms' version 4 — so it carries the same dates.
+  describe('the Quy chế’s own amendment record (version 6, REGULATIONS_AMENDMENT)', () => {
+    it('is immediate: published and in force on one day, after version 5', async () => {
+      const { V1_SUPERSEDED_BY, V2_SUPERSEDED_BY, V3_SUPERSEDED_BY, V4_SUPERSEDED_BY } = await import('./legal-archive')
       expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
       expect(REGULATIONS_AMENDMENT.inForce).toBe(REGULATIONS_AMENDMENT.published)
       expect(REGULATIONS_AMENDMENT.published > V1_SUPERSEDED_BY.published).toBe(true)
       expect(REGULATIONS_AMENDMENT.published > V2_SUPERSEDED_BY.published).toBe(true)
       expect(REGULATIONS_AMENDMENT.published > V3_SUPERSEDED_BY.published).toBe(true)
+      expect(REGULATIONS_AMENDMENT.published > V4_SUPERSEDED_BY.published).toBe(true)
       // The placeholder the deployer replaces with the real deploy day (the gate holds it there).
       expect(REGULATIONS_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     })
 
-    // Two amendments, two records, and neither carries the other's dates: the Terms' version 3 (07/10/2026) did not
-    // move this record, and version 5 does not move the Terms'.
-    it('is not the Terms’ record, and neither moved the other', () => {
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-03', inForce: '2026-11-03', immediate: true })
-      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
-      expect(REGULATIONS_AMENDMENT.published > LEGAL_AMENDMENT.published).toBe(true)
+    // Two records, one deploy: the Terms' version 4 and the Quy chế's version 6 withdrew the same promise on the same day, so
+    // the two records carry the same dates — re-dated together if the deploy slips (the gate holds each to its day).
+    it('is its own record, carrying the Terms’ version 4’s dates for the deploy they share', () => {
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-25', inForce: '2026-11-25', immediate: true })
+      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-11-25', inForce: '2026-11-25', immediate: true })
+      expect(REGULATIONS_AMENDMENT).not.toBe(LEGAL_AMENDMENT)
     })
 
     // ⚠️ The strip (tos-change-notice.tsx) and the bell notice (legal-amendment-notice.ts) read LEGAL_AMENDMENT
@@ -157,8 +168,9 @@ describe('legal-amendment', () => {
     })
 
     it('moves neither the Terms’ runtime switch nor the Quy chế’s record', () => {
-      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-03', inForce: '2026-11-03', immediate: true })
+      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-11-25', inForce: '2026-11-25', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-25', inForce: '2026-11-25', immediate: true })
+      expect(PROHIBITED_AMENDMENT.published).not.toBe(LEGAL_AMENDMENT.published)
     })
 
     // A closed list, like LEGAL_AMENDMENT's: a new reader is a decision about which amendment dates it.

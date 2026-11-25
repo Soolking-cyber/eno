@@ -77,7 +77,7 @@ export function ContactComposer({
   /**
    * Seller.officialPartner. ⛔ A PARTNER NEVER SHARES A NUMBER — `phoneForSeller` returns null for one
    * (src/lib/contact.ts) and the reveal route refuses it outright with `partner_chat_only`
-   * (src/app/api/listings/[id]/contact/route.ts) — so the default footnote, "Request their number once
+   * (src/app/api/listings/[id]/contact/route.ts) — so the default footnote, "Ask for their number once
    * they reply", promised the buyer something the server will always refuse (2026-10-01). A partner
    * gets a line that says what does happen instead. The thread page already hides its reveal strip for
    * the same reason (`sellerIsPartner`, messages/[id]/page.tsx).

@@ -17,5 +17,6 @@ export type ContactLineKind = 'plan' | 'partner' | 'person'
 export function contactLine<R>(kind: ContactLineKind, tr: (en: string, vi: string) => R): R {
   if (kind === 'plan') return tr('Free — you answer a few questions in the chat and get a day-by-day plan.', 'Miễn phí — bạn trả lời vài câu hỏi trong khung chat và nhận lịch trình theo từng ngày.')
   if (kind === 'partner') return tr('Partners answer in eno chat. No phone number is shared.', 'Đối tác trả lời qua chat trên eno. Không chia sẻ số điện thoại.')
-  return tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')
+  // Short (owner, 2026-11-25: "make it super short concise"); it said "— one number works for both Zalo and WhatsApp" too.
+  return tr('Ask for their number once they reply.', 'Xin số điện thoại sau khi họ trả lời.')
 }

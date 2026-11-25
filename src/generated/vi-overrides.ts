@@ -1116,7 +1116,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Reporting is paused on your account for now — a recent report was reviewed and found inaccurate. It re-opens automatically.": "Tính năng báo cáo tạm thời bị tạm dừng trên tài khoản của bạn — một báo cáo gần đây đã được xem xét và xác định không chính xác. Tính năng sẽ tự động mở lại.",
   "Reports you filed and cases about you. Both sides can add evidence; the {site} team decides.": "Báo cáo bạn đã gửi và khiếu nại liên quan đến bạn. Cả hai bên đều có thể gửi thêm bằng chứng; đội ngũ {site} sẽ đưa ra quyết định.",
   "Request number · Zalo / WhatsApp": "Xin số điện thoại · Zalo / WhatsApp",
-  "Request their number once they reply — one number works for both Zalo and WhatsApp.": "Xin số điện thoại ngay khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.",
   "Required": "Bắt buộc",
   "Required by Vietnamese e-commerce law. Shared with buyers on request and authorities — never shown publicly.": "Quy định bắt buộc theo luật thương mại điện tử Việt Nam. Chỉ chia sẻ với người mua khi có yêu cầu và cơ quan chức năng — không bao giờ hiển thị công khai.",
   "Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.": "Quy định bắt buộc đối với người bán theo luật thương mại điện tử Việt Nam. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua khi có yêu cầu hợp pháp. Không bao giờ hiển thị trên gian hàng của bạn.",

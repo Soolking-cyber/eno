@@ -254,6 +254,8 @@ export const AFFILIATION = {
  * Quy chế its own, {@link REGULATIONS_VERSION}.)
  *
  * ⚠️ IT IS NOT NECESSARILY THE VERSION IN FORCE, AND NOTHING THAT RECORDS AN ACCEPTANCE MAY READ IT.
+ * '4' (2026-11-25) withdraws the renters' free availability check from the `linked` section (the feature was removed —
+ * owner: "update legal pages no need to warn users"; the `changes` note lists the edit), archived version 3 at /terms/v3.
  * '3' is the App Store Guideline 1.2 amendment (decision D8: zero tolerance for objectionable content and
  * abusive users, a 24-hour review of those reports, and no chance to put it right for them — the Terms'
  * `changes` note lists each edit). '2' was the October 2026 amendment (linked listings, commission
@@ -264,9 +266,11 @@ export const AFFILIATION = {
  * before a change takes effect (Quy chế Article 15, Terms "Changes"); until that instant
  * {@link TOS_PREVIOUS_VERSION} governs, and {@link tosVersionInForce} is what says which one.
  *
- * ⛔ VERSION 3 IS IMMEDIATE (owner, 2026-10-07 — published and in force 07/10/2026): from midnight Vietnam time
- * on 07/10 tosVersionInForce() is '3' and onboarding stamps '3'; there is no window, no strip and no bell notice
- * (an amendment with a window would show version 2 until its inForce — the tests keep that path on a fixture).
+ * ⛔ VERSION 4 IS IMMEDIATE (owner, 2026-11-25 — published and in force 25/11/2026): from midnight Vietnam time
+ * on 25/11 tosVersionInForce() is '4' and onboarding stamps '4'; there is no window, no strip and no bell notice
+ * (an amendment with a window would show version 3 until its inForce — the tests keep that path on a fixture).
+ * Version 3 was immediate too (owner, 2026-10-07 — published and in force 07/10/2026); its dates are literals in
+ * legal-archive.ts (TERMS_V2_SUPERSEDED_BY) since version 4 re-used the record.
  * Version 2 had none either — an IMMEDIATE amendment (owner, 2026-10-01: "just change now we dont have users so its
  * safe to implement just new terms no need for announcement"), in force from 01/10/2026, the day it was
  * published; its dates are literals in legal-archive.ts (V1_SUPERSEDED_BY) since version 3 re-used the record.
@@ -287,10 +291,10 @@ export const AFFILIATION = {
  * backdate the in-force date to "now" to make a diff tidy — the gap is the whole point; only the owner can
  * waive it for a specific amendment, by `immediate: true`.
  */
-export const TOS_VERSION = '3'
+export const TOS_VERSION = '4'
 
 /** The version in force until {@link TOS_VERSION} takes effect. */
-export const TOS_PREVIOUS_VERSION = '2'
+export const TOS_PREVIOUS_VERSION = '3'
 
 /**
  * The NEWEST published version of the Quy chế (/regulations) — its OWN number since the Quy chế-only
@@ -299,7 +303,8 @@ export const TOS_PREVIOUS_VERSION = '2'
  * other.) '4' since 2026-10-28: Article 14's home-page rule — only listings contacted through the platform (immediate,
  * owner: "Immediately (Recommended)"); version 3 is archived at /regulations/v3. '5' since 2026-11-03: partner services and
  * their fees in Articles 1, 3, 7, 8, 10, 11 and 14 (immediate, owner: "all take effect once we deploy"); version 4 is
- * archived at /regulations/v4.
+ * archived at /regulations/v4. '6' since 2026-11-25: Article 7's free availability check withdrawn, in the same deploy as the
+ * Terms' version 4 (immediate, owner: "update legal pages no need to warn users"); version 5 is archived at /regulations/v5.
  * Published and in force on REGULATIONS_AMENDMENT's dates (src/lib/compliance/legal-amendment.ts); the
  * previous version is archived at /regulations/v{@link REGULATIONS_PREVIOUS_VERSION}.
  *
@@ -312,10 +317,10 @@ export const TOS_PREVIOUS_VERSION = '2'
  * dates into legal-archive.ts (legal-archive.test.ts says which), and set REGULATIONS_AMENDMENT's dates on
  * the DEPLOY day. If the Terms change in the same amendment, TOS_VERSION and LEGAL_AMENDMENT move too.
  */
-export const REGULATIONS_VERSION = '5'
+export const REGULATIONS_VERSION = '6'
 
 /** The Quy chế version {@link REGULATIONS_VERSION} replaced — archived, and linked from /regulations' META. */
-export const REGULATIONS_PREVIOUS_VERSION = '4'
+export const REGULATIONS_PREVIOUS_VERSION = '5'
 
 /**
  * The instant {@link TOS_VERSION} takes effect — MIDNIGHT IN VIETNAM on LEGAL_AMENDMENT.inForce,
@@ -355,7 +360,7 @@ const TOS_PUBLISHED_AT = Date.parse(`${LEGAL_AMENDMENT.published}T00:00:00+07:00
 
 /**
  * True while {@link TOS_VERSION} is published but not yet binding — the notice window, [published,
- * inForce) in Vietnam time. EMPTY for an immediate amendment — version 3's (the two instants coincide); before the publication day there is nothing published to give notice of.
+ * inForce) in Vietnam time. EMPTY for an immediate amendment — version 4's (the two instants coincide); before the publication day there is nothing published to give notice of.
  */
 export function tosInNoticeWindow(now: Date = new Date()): boolean {
   const t = now.getTime()

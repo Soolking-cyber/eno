@@ -3,7 +3,7 @@
  *
  * It was added because the page rendered a clock-derived value and, with no revalidate, Next baked
  * that value into on-disk HTML that would have outlived it. During a notice window (an amendment that has
- * one — version 3 had none: immediate, owner 2026-10-07) it renders one again: the version headlined and the "not yet in force" line read the clock
+ * one — versions 3 and 4 had none: immediate, owner 2026-10-07 and 2026-11-25) it renders one again: the version headlined and the "not yet in force" line read the clock
  * (tosVersionInForce), and revalidate is what carries the prerendered HTML past the in-force instant — at
  * most an hour late, toward the old version. Outside a window nothing here is time-dependent — but this is
  * a LEGAL page, and the class of bug is the one src/lib/edition.ts records twice over: /regulations once shipped
@@ -24,11 +24,10 @@ import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_PREVIOUS_VERSION, TOS_VERSION, tosVersionInForce } from '@/lib/site-legal'
-import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
 import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
+import { TERMS_V2_SUPERSEDED, V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V3, V3_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
 
 // ── Terms of Service — ONE file, rendered by BOTH deployments ───────────────────────────
 // eno.vn is a licensed sàn TMĐT classifieds marketplace. eno.forum is the same marketplace plus
@@ -67,12 +66,18 @@ import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/c
 // publication day, 01/10/2026, with no notice window and no announcement (owner, 2026-10-01); its text is
 // archived at /terms/v2 (src/app/[lang]/terms/v2/page.tsx).
 //
-// ⛔ THIS IS VERSION 3 (App Store Guideline 1.2, decision D8 in docs/ios-appstore-release.md): the
+// ⛔ VERSION 3 (App Store Guideline 1.2, decision D8 in docs/ios-appstore-release.md): the
 // zero-tolerance paragraph in `conduct`, the 24-hour review in `complaints`, the exception in
-// `termination`, and its note at the end of `changes`. It reaches users IMMEDIATELY — the owner's decision,
-// 2026-10-07: TOS_VERSION '3' (src/lib/site-legal.ts) and LEGAL_AMENDMENT published AND in force 07/10/2026
-// (src/lib/compliance/legal-amendment.ts), no window, no strip, no bell notice; the change note prints one date
-// (V3_NOTE below). The two-date variant (an amendment with a window) is kept and tested on a fixture.
+// `termination`, and its note in `changes`. It reached users IMMEDIATELY — the owner's decision,
+// 2026-10-07: published AND in force 07/10/2026, no window, no strip, no bell notice; its change note prints
+// one date (V3_NOTE below), a literal since version 4 re-used LEGAL_AMENDMENT. Its text is archived at /terms/v3.
+//
+// ⛔ THIS IS VERSION 4 (owner, 2026-11-25 — the renters' free availability check was removed from the product,
+// b6750b930): the `linked` section no longer offers to check whether a linked rental is still available, and its note
+// is the last of `changes` (V4_NOTE below). It reaches users IMMEDIATELY — the owner's decision, 2026-11-25: "update
+// legal pages no need to warn users": TOS_VERSION '4' (src/lib/site-legal.ts) and LEGAL_AMENDMENT published AND in
+// force 25/11/2026 (src/lib/compliance/legal-amendment.ts), no window, no strip, no bell notice; the change note prints
+// one date. The two-date variant (an amendment with a window) is kept and tested on a fixture.
 // ⛔ DEPLOY IT ONLY WITH THE `ugc-safety` REVIEW GATE ON — in the same deploy that switches it on, or a later
 // one, in BOTH env files (eno-vn.env, eno-forum.env: this page renders on both editions). The severe-term
 // filter, Report on reviews and help-centre comments, and blocking — all promised in `conduct` — exist only
@@ -112,27 +117,42 @@ const operatorPara: Para = OPERATOR_REGISTERED
       vi: `Điều khoản dịch vụ này điều chỉnh việc bạn sử dụng ${SITE_NAME} — chợ rao vặt trực tuyến dành cho người đang sinh sống, chuẩn bị chuyển đến hoặc đến thăm Việt Nam — và là thoả thuận giữa bạn với đơn vị vận hành ${SITE_NAME}. Công ty vận hành hiện đang làm thủ tục đăng ký thành lập tại Việt Nam; tên đăng ký, số giấy chứng nhận đăng ký doanh nghiệp và địa chỉ trụ sở chính sẽ được công bố tại đây và trong Quy chế hoạt động ngay khi giấy chứng nhận được cấp.`,
     }
 
-// ── VERSION 3's CHANGE NOTE — the last entry of `changes` (the notes are a log: newest last) ──────────────
-// ⚠️ EVERY EDIT VERSION 3 MAKES IS LISTED — `conduct`'s new paragraph, `complaints`' 24 hours, `termination`'s
-// exception — and nothing else changed (diff the body against /terms/v2). Its dates are LEGAL_AMENDMENT's,
-// typed once in src/lib/compliance/legal-amendment.ts, so nothing here goes stale in HTML.
-// ⚠️ TWO DATES WITH A NOTICE WINDOW (the default — the shape version 2's note had at 110295be, before the owner
-// made it immediate), ONE DATE IF THE OWNER MAKES IT IMMEDIATE (the shape of version 2's note above): the
-// record's flag picks, so that choice needs no edit here.
-// ⚠️ THE PREVIOUS WORDING IS LINKED (2026-10-01 review): during the window it is the text in force, and
-// everyone who accepts before the in-force instant is stamped version 2 — /terms/v2, permanently.
+// ── VERSION 3's CHANGE NOTE — kept as history, word for word what version 3 printed (/terms/v3) ──────────────
+// ⚠️ EVERY EDIT VERSION 3 MADE IS LISTED — `conduct`'s new paragraph, `complaints`' 24 hours, `termination`'s
+// exception — and nothing else changed (diff /terms/v3 against /terms/v2).
+// ⚠️ ITS DATE IS TERMS_V2_SUPERSEDED (src/lib/compliance/legal-archive.ts), A LITERAL 07/10/2026 — no longer
+// LEGAL_AMENDMENT, which moved on to version 4 and would re-date version 3's edits. ONE date: version 3 was published
+// and took effect the same day (immediate — owner, 2026-10-07).
 const V3_CHANGES = {
   en: 'a zero-tolerance rule for objectionable content and abusive users added to the posting rules — what may not be posted, sent or shared, severe terms filtered before they are posted, the Report control on reviews and help-centre comments, and blocking other users; reports of objectionable content or abusive users reviewed within 24 hours, other reports still acknowledged within 3 working days; and objectionable content and abuse of other users made an exception to the chance to put a breach right before suspension or termination',
   vi: 'bổ sung vào mục Quy tắc đăng tin và ứng xử nguyên tắc không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng — những nội dung không được đăng, gửi hoặc chia sẻ, việc lọc các từ ngữ nghiêm trọng trước khi nội dung được đăng, nút Báo cáo trên đánh giá và bình luận trong Trung tâm trợ giúp, và việc chặn người dùng khác; báo cáo về nội dung phản cảm hoặc người dùng có hành vi lạm dụng được xem xét trong vòng 24 giờ, các báo cáo khác vẫn được xác nhận đã tiếp nhận trong vòng 3 ngày làm việc; và nội dung phản cảm, hành vi lạm dụng người dùng khác trở thành ngoại lệ, không được dành cơ hội khắc phục trước khi bị tạm khoá hoặc chấm dứt quyền truy cập',
 }
-const V3_NOTE: Para = LEGAL_AMENDMENT.immediate
+const V3_NOTE: Para = {
+  en: `Changes in force from ${TERMS_V2_SUPERSEDED.inForceEn}: ${V3_CHANGES.en}. The previous wording (version ${V2}) is published at ${V2_PATHS.terms}.`,
+  vi: `Các thay đổi có hiệu lực từ ngày ${TERMS_V2_SUPERSEDED.inForceVi}: ${V3_CHANGES.vi}. Nội dung trước sửa đổi (phiên bản ${V2}) được lưu tại ${V2_PATHS.terms}.`,
+}
+
+// ── VERSION 4's CHANGE NOTE — the last entry of `changes` (the notes are a log: newest last) ──────────────
+// ⚠️ EVERY EDIT VERSION 4 MAKES IS LISTED — the `linked` section's availability-check paragraph, removed whole — and
+// nothing else changed (diff the body against /terms/v3). Its dates are LEGAL_AMENDMENT's, typed once in
+// src/lib/compliance/legal-amendment.ts, so nothing here goes stale in HTML.
+// ⚠️ TWO DATES WITH A NOTICE WINDOW (the default), ONE DATE IF THE OWNER MAKES IT IMMEDIATE (as for version 4 — owner,
+// 2026-11-25): the record's flag picks, so that choice needs no edit here.
+// ⚠️ THE PREVIOUS WORDING IS LINKED (2026-10-01 review): during a window it is the text in force, and everyone who
+// accepted before the in-force instant is stamped version 3 — /terms/v3, permanently.
+// "5" is the limit version 3 printed (RENTAL_CHECK_MAX_ITEMS then): history, typed as it was.
+const V4_CHANGES = {
+  en: 'the offer to check, free of charge, whether a linked rental is still available (up to 5 rentals per request) removed from the section on linked listings, together with the sentence that this help did not make us the landlord, the agent or a party to the rental — we no longer offer that check',
+  vi: 'bỏ khỏi mục Tin đăng liên kết việc chúng tôi nhận kiểm tra miễn phí xem tin cho thuê liên kết còn trống hay không (tối đa 5 tin mỗi lần), cùng câu nêu rằng việc hỗ trợ này không khiến chúng tôi trở thành chủ nhà, bên môi giới hay một bên của hợp đồng thuê — chúng tôi không còn cung cấp việc kiểm tra này',
+}
+const V4_NOTE: Para = LEGAL_AMENDMENT.immediate
   ? {
-      en: `Changes in force from ${AMENDED.inForceEn}: ${V3_CHANGES.en}. The previous wording (version ${V2}) is published at ${V2_PATHS.terms}.`,
-      vi: `Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V3_CHANGES.vi}. Nội dung trước sửa đổi (phiên bản ${V2}) được lưu tại ${V2_PATHS.terms}.`,
+      en: `Changes in force from ${AMENDED.inForceEn}: ${V4_CHANGES.en}. The previous wording (version ${V3}) is published at ${V3_PATHS.terms}.`,
+      vi: `Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V4_CHANGES.vi}. Nội dung trước sửa đổi (phiên bản ${V3}) được lưu tại ${V3_PATHS.terms}.`,
     }
   : {
-      en: `Changes published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}: ${V3_CHANGES.en}. Until ${AMENDED.inForceEn} the previous wording (version ${V2}) applies; it is published at ${V2_PATHS.terms}.`,
-      vi: `Các thay đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V3_CHANGES.vi}. Trước ngày ${AMENDED.inForceVi}, nội dung trước sửa đổi (phiên bản ${V2}) vẫn được áp dụng và được đăng tại ${V2_PATHS.terms}.`,
+      en: `Changes published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}: ${V4_CHANGES.en}. Until ${AMENDED.inForceEn} the previous wording (version ${V3}) applies; it is published at ${V3_PATHS.terms}.`,
+      vi: `Các thay đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V4_CHANGES.vi}. Trước ngày ${AMENDED.inForceVi}, nội dung trước sửa đổi (phiên bản ${V3}) vẫn được áp dụng và được đăng tại ${V3_PATHS.terms}.`,
     }
 
 const sections: Section[] = [
@@ -190,8 +210,9 @@ const sections: Section[] = [
   {
     // The canonical linked-listings regime — the same meaning as Quy chế Art 3 (/regulations#activity).
     // Every claim is a code fact: the CTA names the source (affiliate-booking.tsx CtaLabel), the shop
-    // row says "not vetted by eno.vn" (pdp-shop-link.tsx), there is no checkout, and the free rental
-    // check takes RENTAL_CHECK_MAX_ITEMS (src/lib/rental-check/shared.ts).
+    // row says "not vetted by eno.vn" (pdp-shop-link.tsx), and there is no checkout.
+    // ⛔ VERSION 4 (2026-11-25): the free rental availability check's paragraph is gone — the feature was removed
+    // (b6750b930); version 3's wording is at /terms/v3 and the edit in V4_NOTE.
     id: 'linked',
     title: 'Linked listings',
     titleVi: 'Tin đăng liên kết',
@@ -203,10 +224,6 @@ const sections: Section[] = [
       {
         en: `For a linked listing we are neither the seller nor the source site. The listing was written and priced by the seller or advertiser on the source site; we have not vetted the item, the seller or the price, and we take no payment for it. You contact the seller, apply or buy on the source site, under that site's own terms, and any deal you make is with the seller there. An item may already be sold or changed on the source site before our copy catches up.`,
         vi: `Đối với tin đăng liên kết, chúng tôi không phải người bán và cũng không phải trang nguồn. Nội dung và giá của tin do người bán hoặc người đăng tin trên trang nguồn đưa ra; chúng tôi chưa thẩm định hàng hoá, người bán hay mức giá, và không nhận bất kỳ khoản thanh toán nào cho tin đó. Bạn liên hệ người bán, ứng tuyển hoặc mua hàng trên trang nguồn theo điều khoản của chính trang đó, và mọi giao dịch của bạn là với người bán tại đó. Hàng hoá có thể đã được bán hoặc thay đổi trên trang nguồn trước khi bản sao của chúng tôi kịp cập nhật.`,
-      },
-      {
-        en: `For a linked rental you can also ask us to check whether it is still available — free, up to ${RENTAL_CHECK_MAX_ITEMS} rentals per request. That help does not make us the landlord, the agent or a party to the rental.`,
-        vi: `Với tin cho thuê liên kết, bạn có thể nhờ chúng tôi kiểm tra xem nhà còn trống hay không — miễn phí, tối đa ${RENTAL_CHECK_MAX_ITEMS} tin mỗi lần. Việc hỗ trợ này không khiến chúng tôi trở thành chủ nhà, bên môi giới hay một bên của hợp đồng thuê.`,
       },
       {
         en: `Some linked listings can earn us a commission from the shop or partner when you buy through our link. Such links are labelled as advertising, with a note that we may earn a commission; you do not pay that commission, and it changes neither the price you pay nor the order in which listings are ranked.`,
@@ -427,6 +444,7 @@ const sections: Section[] = [
         vi: `Các thay đổi có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi}: viết lại mục Ai đăng tin trên sàn để phân biệt hai loại tin đăng, và bổ sung mục Tin đăng liên kết, kể cả nơi tiếp nhận khiếu nại về loại tin này; nêu rõ việc kiểm tra tự động trước khi hiển thị và điểm uy tín chỉ áp dụng cho tin đăng trực tiếp trên sàn; huy hiệu Đối tác chính thức chỉ dành cho công ty đã ký thoả thuận, các cửa hàng khác được gắn nhãn Cửa hàng liên kết; công khai việc chúng tôi có thể nhận hoa hồng từ một số đường dẫn của đối tác và cửa hàng liên kết; mọi thay đổi về phí được công bố trước ít nhất 20 ngày, thay vì 5 ngày như trước đây; và bổ sung bản tiếng Việt của Điều khoản. Nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.terms}.`,
       },
       V3_NOTE,
+      V4_NOTE,
       {
         en: `Questions about these Terms: ${COMPANY.email}.`,
         vi: `Mọi câu hỏi về Điều khoản này xin gửi tới ${COMPANY.email}.`,

@@ -259,6 +259,11 @@
  * paragraph (heatmaps and replays of public pages, typed text hidden, off on private pages, advertising sharing refused),
  * the purposes line, the cookie row and the "runs only if" / "deleted" sentences. Microsoft was already in the
  * cross-border list. ⛔ THE PLANNED DAY: re-date it to the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-25 too, the renters' availability check removed (b6750b930; owner: "update legal pages no need to warn users"):
+ * its device-storage row goes, "the rental check" leaves the sign-in places counted, and "Messages" says the requests already
+ * sent stay in the conversation with our team until the account is deleted. That change is PART OF A LEGAL AMENDMENT — the
+ * Terms' version 4, so LEGAL_AMENDMENT.published dates it (privacy/page.tsx prints the later of the two). Both say 2026-11-25:
+ * ⛔ if the deploy slips, re-date this AND LEGAL_AMENDMENT / REGULATIONS_AMENDMENT (legal-amendment.ts) to the same day.
  */
 export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
 
@@ -269,4 +274,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-25'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '0be63e102732c053'
+export const PRIVACY_TEXT_FINGERPRINT = '679e4b8d42a49b46'

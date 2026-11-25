@@ -15,8 +15,8 @@ import { TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-
  *    of Profile.tosVersion / tosAcceptedAt, and those two columns are evidence of what a person agreed
  *    to and when (E-Transactions Law). During a notice window the newly published Terms are not yet
  *    binding, so a person onboarding then accepts the PREVIOUS version; from the in-force instant
- *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one. Version 3 has no window
- *    (immediate, in force 07/10/2026, its publication day — owner's decision, 2026-10-07), so before that
+ *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one. Version 4 has no window
+ *    (immediate, in force 25/11/2026, its publication day — owner's decision, 2026-11-25), so before that
  *    instant is the day before; the window case runs on a fixture amendment.
  */
 
@@ -238,20 +238,20 @@ describe('POST /api/profile/account-type — the Terms acceptance stamp', () => 
     expect(data.tosVersion).toBe(TOS_VERSION)
   })
 
-  // ⛔ Version 3 (App Store Guideline 1.2) is an IMMEDIATE amendment (owner, 2026-10-07: "Immediately
-  // (Recommended)"): in force from midnight Vietnam time on its publication day, so onboarding on 07/10 accepts
-  // version 3.
-  it('stamps version 3 on 07/10/2026 itself — no notice window', async () => {
-    const at = Date.parse('2026-10-07T18:00:00+07:00')
-    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-07T00:00:00+07:00'))
+  // ⛔ Version 4 (the renters' free availability check withdrawn) is an IMMEDIATE amendment (owner, 2026-11-25: "update
+  // legal pages no need to warn users"): in force from midnight Vietnam time on its publication day, so onboarding on
+  // 25/11 accepts version 4.
+  it('stamps version 4 on 25/11/2026 itself — no notice window', async () => {
+    const at = Date.parse('2026-11-25T18:00:00+07:00')
+    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-11-25T00:00:00+07:00'))
     const data = await onboardAt(at)
-    expect(data.tosVersion).toBe('3')
+    expect(data.tosVersion).toBe('4')
     expect((data.tosAcceptedAt as Date).getTime()).toBe(at)
-    // …and an account that accepted version 2 — or 1 — is re-stamped on its next onboarding.
+    // …and an account that accepted version 3 — or 2 — is re-stamped on its next onboarding.
+    h.tosVersion = '3'
+    expect((await onboardAt(at + 60_000)).tosVersion).toBe('4')
     h.tosVersion = '2'
-    expect((await onboardAt(at + 60_000)).tosVersion).toBe('3')
-    h.tosVersion = '1'
-    expect((await onboardAt(at + 120_000)).tosVersion).toBe('3')
+    expect((await onboardAt(at + 120_000)).tosVersion).toBe('4')
   })
 
   // The default for the next amendment, on a fixture with a real window (the dates 110295be shipped: published

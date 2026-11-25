@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AMENDED, LEGAL_AMENDMENT, PROHIBITED_AMENDED, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, dateEn, dateVi, type LegalAmendment } from '@/lib/compliance/legal-amendment'
 import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
-import { V1_SUPERSEDED } from '@/lib/compliance/legal-archive'
+import { TERMS_V2_SUPERSEDED, V1_SUPERSEDED } from '@/lib/compliance/legal-archive'
 import { RANKING_DISCLOSURE_UPDATED } from '@/lib/compliance/ranking-disclosure'
 import { REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION, TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-legal'
 
@@ -95,8 +95,8 @@ function withWindow() {
   })
 }
 
-/** 18:00 in Vietnam on 07/10/2026 — version 3's publication day and, as it is immediate, its in-force day. */
-const OCT_7_EVENING = Date.parse('2026-10-07T18:00:00+07:00')
+/** 18:00 in Vietnam on 25/11/2026 — version 4's publication day and, as it is immediate, its in-force day. */
+const NOV_25_EVENING = Date.parse('2026-11-25T18:00:00+07:00')
 
 /** Pin the clock (Date only) so a page that reads the version in force renders deterministically. */
 function clockAt(at: number) {
@@ -110,11 +110,12 @@ const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '
 const ENGLISH_AUTHORITATIVE = /English version of (these terms|this policy) is the authoritative/i
 
 /**
- * The Terms' version 3 AS IT WAS WRITTEN — with the default window, published 07/10 and in force 13/10/2026 —
- * before the owner made it immediate (2026-10-07). LEGAL_AMENDMENT only (the Quy chế keeps its own record): it
- * pins the window variants of /terms and /terms/v2 on version 3's own text and dates. afterEach removes it.
+ * The Terms' version 4 AS IT WOULD BE WITH THE DEFAULT WINDOW — published 25/11 and in force 01/12/2026 — had the owner
+ * not made it immediate (2026-11-25). LEGAL_AMENDMENT only (the Quy chế keeps its own record): it pins the window
+ * variants of /terms and /terms/v3 on version 4's own text and dates. afterEach removes it. (Version 3 had the same
+ * fixture, published 07/10 and in force 13/10/2026; its dates are literals now, so no record can move them.)
  */
-const V3_AS_WRITTEN = { published: '2026-10-07', inForce: '2026-10-13' } as const
+const V4_WINDOWED = { published: '2026-11-25', inForce: '2026-12-01' } as const
 
 /** A page that reads LEGAL_AMENDMENT, rendered against `record` in one language, with React's escaping undone. */
 async function renderWith(path: string, lang: 'en' | 'vi', record: LegalAmendment, edition: 'marketplace' | 'services' = 'marketplace') {
@@ -134,6 +135,9 @@ describe('/terms', () => {
   /** Version 3's change list, as its note prints it after the date(s) — one for each language. */
   const V3_CHANGES_EN = 'a zero-tolerance rule for objectionable content and abusive users added to the posting rules — what may not be posted, sent or shared, severe terms filtered before they are posted, the Report control on reviews and help-centre comments, and blocking other users; reports of objectionable content or abusive users reviewed within 24 hours, other reports still acknowledged within 3 working days; and objectionable content and abuse of other users made an exception to the chance to put a breach right before suspension or termination'
   const V3_CHANGES_VI = 'bổ sung vào mục Quy tắc đăng tin và ứng xử nguyên tắc không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng — những nội dung không được đăng, gửi hoặc chia sẻ, việc lọc các từ ngữ nghiêm trọng trước khi nội dung được đăng, nút Báo cáo trên đánh giá và bình luận trong Trung tâm trợ giúp, và việc chặn người dùng khác; báo cáo về nội dung phản cảm hoặc người dùng có hành vi lạm dụng được xem xét trong vòng 24 giờ, các báo cáo khác vẫn được xác nhận đã tiếp nhận trong vòng 3 ngày làm việc; và nội dung phản cảm, hành vi lạm dụng người dùng khác trở thành ngoại lệ, không được dành cơ hội khắc phục trước khi bị tạm khoá hoặc chấm dứt quyền truy cập'
+  /** Version 4's change list (the renters' free availability check withdrawn, owner 2026-11-25), one for each language. */
+  const V4_CHANGES_EN = 'the offer to check, free of charge, whether a linked rental is still available (up to 5 rentals per request) removed from the section on linked listings, together with the sentence that this help did not make us the landlord, the agent or a party to the rental — we no longer offer that check'
+  const V4_CHANGES_VI = 'bỏ khỏi mục Tin đăng liên kết việc chúng tôi nhận kiểm tra miễn phí xem tin cho thuê liên kết còn trống hay không (tối đa 5 tin mỗi lần), cùng câu nêu rằng việc hỗ trợ này không khiến chúng tôi trở thành chủ nhà, bên môi giới hay một bên của hợp đồng thuê — chúng tôi không còn cung cấp việc kiểm tra này'
 
   it('serves a curated Vietnamese body on the vi variant, with no "English governs" note', async () => {
     const html = await renderLang('./terms/page', 'vi')
@@ -159,7 +163,7 @@ describe('/terms', () => {
     // The pre-existing promise, kept word for word (it binds a TOS_VERSION bump), and the note's wording.
     expect(html).toContain('the version shown at the top of this page changes with them')
     // Version 2's note, kept as history with ITS date — one date: version 2 was published and took effect the
-    // same day (immediate — owner, 2026-10-01) — never LEGAL_AMENDMENT's, which is version 3's now.
+    // same day (immediate — owner, 2026-10-01) — never LEGAL_AMENDMENT's, which is version 4's now.
     expect(html).toContain('Changes in force from 1 October 2026: the section on who posts listings')
     expect(html).toContain('The previous wording (version 1) is published at /terms/v1.')
     expect(html).not.toMatch(/Changes published on 1 October|Until 1 October/)
@@ -167,47 +171,71 @@ describe('/terms', () => {
     expect(html).not.toContain('reviewed translation')
   })
 
-  // ⛔ Version 3 (App Store Guideline 1.2) is IMMEDIATE (owner, 2026-10-07: "Immediately (Recommended)"): in force
-  // from 07/10/2026, its publication day. The page headlines version 3 with no "not yet in force" line, and the
-  // change notes link both archives.
-  it('headlines version 3 from its publication day, with no "not yet in force" line, and links both archives', async () => {
-    clockAt(OCT_7_EVENING)
+  // ⛔ Version 4 (the renters' free availability check withdrawn) is IMMEDIATE (owner, 2026-11-25: "update legal pages no
+  // need to warn users"): in force from 25/11/2026, its publication day. The page headlines version 4 with no "not yet in
+  // force" line, and the change notes link all three archives.
+  it('headlines version 4 from its publication day, with no "not yet in force" line, and links every archive', async () => {
+    clockAt(NOV_25_EVENING)
     const en = text(await renderLang('./terms/page', 'en'))
-    expect(en).toContain('Last updated: 7 October 2026 · Version 3</p>')
+    expect(en).toContain('Last updated: 25 November 2026 · Version 4</p>')
     expect(en).not.toContain('The text below is version')
-    expect(en).not.toContain('Read version 2')
+    expect(en).not.toContain('Read version 3')
     const viHtml = text(await renderLang('./terms/page', 'vi'))
-    expect(viHtml).toContain('Cập nhật lần cuối: 07/10/2026 · Version 3</p>')
+    expect(viHtml).toContain('Cập nhật lần cuối: 25/11/2026 · Version 4</p>')
     expect(viHtml).not.toContain('Nội dung dưới đây là phiên bản')
-    // Version 2's note keeps its one date and its version-1 link; version 3's has one date too and links version 2.
+    // Version 2's and version 3's notes keep their one date and their links; version 4's has one date too and links
+    // version 3.
     expect(viHtml).toContain('Các thay đổi có hiệu lực từ ngày 01/10/2026:')
     expect(viHtml).toContain('Nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/terms/v1"')
     expect(viHtml).toContain('Các thay đổi có hiệu lực từ ngày 07/10/2026:')
     expect(viHtml).toContain('Nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/terms/v2"')
+    expect(viHtml).toContain('Các thay đổi có hiệu lực từ ngày 25/11/2026:')
+    expect(viHtml).toContain('Nội dung trước sửa đổi (phiên bản 3) được lưu tại <a href="/terms/v3"')
     expect(viHtml.match(/href="\/terms\/v1"/g)?.length).toBe(1)
-    // Version 3's note alone — no header link while version 3 is the version in force.
     expect(viHtml.match(/href="\/terms\/v2"/g)?.length).toBe(1)
+    // Version 4's note alone — no header link while version 4 is the version in force.
+    expect(viHtml.match(/href="\/terms\/v3"/g)?.length).toBe(1)
   })
 
-  // Version 3 AS WRITTEN (V3_AS_WRITTEN — its default window): until 13/10 the page would headline version 2 — the
-  // version in force — say which text binds, and link it.
-  it('with the window version 3 was written with, headlines version 2, says which text binds, and links both archives', async () => {
-    clockAt(OCT_7_EVENING)
-    const en = await renderWith('./terms/page', 'en', V3_AS_WRITTEN)
-    expect(en).toContain('Last updated: 7 October 2026 · Version 2</p>')
-    expect(en).toContain('The text below is version 3, published on 7 October 2026 and in force from 13 October 2026. Until then, version 2 remains in force.')
-    expect(en).toContain('<a href="/terms/v2" class="font-semibold text-accent-foreground hover:underline">Read version 2</a>')
-    const viHtml = await renderWith('./terms/page', 'vi', V3_AS_WRITTEN)
-    expect(viHtml).toContain('Cập nhật lần cuối: 07/10/2026 · Version 2</p>')
-    expect(viHtml).toContain('Nội dung dưới đây là phiên bản 3, công bố ngày 07/10/2026 và có hiệu lực từ ngày 13/10/2026. Trước ngày đó, phiên bản 2 vẫn là phiên bản đang có hiệu lực.')
-    // Version 2's note keeps its one date and its version-1 link; version 3's has both dates and links version 2.
+  // Version 4 WITH THE DEFAULT WINDOW (V4_WINDOWED): until 01/12 the page would headline version 3 — the version in
+  // force — say which text binds, and link it. Version 3's own note keeps its one literal date whatever the record says.
+  it('with a window for version 4, headlines version 3, says which text binds, and links every archive', async () => {
+    clockAt(NOV_25_EVENING)
+    const en = await renderWith('./terms/page', 'en', V4_WINDOWED)
+    expect(en).toContain('Last updated: 25 November 2026 · Version 3</p>')
+    expect(en).toContain('The text below is version 4, published on 25 November 2026 and in force from 1 December 2026. Until then, version 3 remains in force.')
+    expect(en).toContain('<a href="/terms/v3" class="font-semibold text-accent-foreground hover:underline">Read version 3</a>')
+    const viHtml = await renderWith('./terms/page', 'vi', V4_WINDOWED)
+    expect(viHtml).toContain('Cập nhật lần cuối: 25/11/2026 · Version 3</p>')
+    expect(viHtml).toContain('Nội dung dưới đây là phiên bản 4, công bố ngày 25/11/2026 và có hiệu lực từ ngày 01/12/2026. Trước ngày đó, phiên bản 3 vẫn là phiên bản đang có hiệu lực.')
+    // Version 2's and 3's notes keep their one date and links; version 4's has both dates and links version 3.
     expect(viHtml).toContain('Các thay đổi có hiệu lực từ ngày 01/10/2026:')
-    expect(viHtml).toContain('Nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/terms/v1"')
-    expect(viHtml).toContain('Các thay đổi công bố ngày 07/10/2026, có hiệu lực từ ngày 13/10/2026:')
-    expect(viHtml).toContain('Trước ngày 13/10/2026, nội dung trước sửa đổi (phiên bản 2) vẫn được áp dụng và được đăng tại <a href="/terms/v2"')
+    expect(viHtml).toContain('Các thay đổi có hiệu lực từ ngày 07/10/2026:')
+    expect(viHtml).toContain('Các thay đổi công bố ngày 25/11/2026, có hiệu lực từ ngày 01/12/2026:')
+    expect(viHtml).toContain('Trước ngày 01/12/2026, nội dung trước sửa đổi (phiên bản 3) vẫn được áp dụng và được đăng tại <a href="/terms/v3"')
     expect(viHtml.match(/href="\/terms\/v1"/g)?.length).toBe(1)
-    // The header's "Read version 2" and version 3's note.
-    expect(viHtml.match(/href="\/terms\/v2"/g)?.length).toBe(2)
+    expect(viHtml.match(/href="\/terms\/v2"/g)?.length).toBe(1)
+    // The header's "Read version 3" and version 4's note.
+    expect(viHtml.match(/href="\/terms\/v3"/g)?.length).toBe(2)
+  })
+
+  // ⛔ VERSION 4 (owner, 2026-11-25): the `linked` section no longer offers the free availability check — the feature was
+  // removed — in either language or edition; version 3's wording survives only at /terms/v3 and in the change note.
+  it('no longer offers to check whether a linked rental is still available, on both editions and in both languages', async () => {
+    const render = async (lang: 'en' | 'vi', edition: 'marketplace' | 'services') => {
+      const mod = await page<LangPage>('./terms/page', lang, edition)
+      return text(renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang }) })))
+    }
+    for (const edition of ['marketplace', 'services'] as const) {
+      const en = await render('en', edition)
+      const linked = en.match(/<section id="linked">[\s\S]*?<\/section>/)?.[0] ?? ''
+      expect(linked, edition).toContain('Every linked listing names its source site')
+      expect(linked, edition).not.toMatch(/still available|rentals per request|the landlord, the agent/)
+      const viHtml = await render('vi', edition)
+      const linkedVi = viHtml.match(/<section id="linked">[\s\S]*?<\/section>/)?.[0] ?? ''
+      expect(linkedVi, edition).toContain('Mỗi tin đăng liên kết đều ghi rõ trang nguồn')
+      expect(linkedVi, edition).not.toMatch(/còn trống|tin mỗi lần|chủ nhà, bên môi giới/)
+    }
   })
 
   it('headlines the version IN FORCE during a notice window and says which text binds (the default)', async () => {
@@ -247,31 +275,36 @@ describe('/terms', () => {
     expect(viHtml).not.toMatch(/tín nhiệm|điểm tin cậy/)
   })
 
-  // ⛔ VERSION 3's NOTE (App Store Guideline 1.2 — D8) lists every edit it makes, after version 2's (newest
-  // last), with ONE date — it is immediate (owner, 2026-10-07), the shape version 2's note has — and links the
-  // version it replaces.
-  it('logs version 3’s edits after version 2’s, with its one in-force date, in both languages', async () => {
+  // ⛔ VERSION 3's NOTE (App Store Guideline 1.2 — D8) lists every edit it made, after version 2's (newest last), with ONE
+  // date — a literal 07/10/2026 since version 4 re-used LEGAL_AMENDMENT — and links the version it replaced. VERSION 4's
+  // note follows it, with ONE date too — it is immediate (owner, 2026-11-25) — and links version 3.
+  it('logs version 3’s and version 4’s edits after version 2’s, each with its one in-force date, in both languages', async () => {
     const en = text(await renderLang('./terms/page', 'en'))
     const changes = en.match(/<section id="changes">[\s\S]*?<\/section>/)?.[0] ?? ''
     expect(changes).toContain(`Changes in force from 7 October 2026: ${V3_CHANGES_EN}. The previous wording (version 2) is published at /terms/v2.`)
+    expect(changes).toContain(`Changes in force from 25 November 2026: ${V4_CHANGES_EN}. The previous wording (version 3) is published at /terms/v3.`)
     expect(changes.indexOf('Changes in force from 1 October 2026')).toBeLessThan(changes.indexOf('Changes in force from 7 October 2026'))
-    expect(changes.indexOf('Changes in force from 7 October 2026')).toBeLessThan(changes.indexOf('Questions about these Terms'))
-    expect(changes).not.toMatch(/Changes published on|Until 7 October|13 October/)
+    expect(changes.indexOf('Changes in force from 7 October 2026')).toBeLessThan(changes.indexOf('Changes in force from 25 November 2026'))
+    expect(changes.indexOf('Changes in force from 25 November 2026')).toBeLessThan(changes.indexOf('Questions about these Terms'))
+    expect(changes).not.toMatch(/Changes published on|Until 7 October|13 October|Until 25 November/)
     const viHtml = text(await renderLang('./terms/page', 'vi'))
     expect(viHtml).toContain(`Các thay đổi có hiệu lực từ ngày 07/10/2026: ${V3_CHANGES_VI}. Nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/terms/v2"`)
+    expect(viHtml).toContain(`Các thay đổi có hiệu lực từ ngày 25/11/2026: ${V4_CHANGES_VI}. Nội dung trước sửa đổi (phiên bản 3) được lưu tại <a href="/terms/v3"`)
     expect(viHtml).not.toMatch(/Các thay đổi công bố ngày|13\/10\/2026/)
   })
 
-  // Version 3 AS WRITTEN: with its window the note carries both dates and says until when version 2 applies. The
-  // record's flag picks the shape, so the owner's choice needed no edit on this page.
-  it('with the window version 3 was written with, logs its note with both dates, in both languages', async () => {
-    const en = await renderWith('./terms/page', 'en', V3_AS_WRITTEN)
+  // Version 4 WITH THE DEFAULT WINDOW: its note carries both dates and says until when version 3 applies; version 3's note
+  // is untouched — its date is a literal. The record's flag picks the shape, so the owner's choice needed no edit here.
+  it('with a window for version 4, logs its note with both dates and leaves version 3’s alone, in both languages', async () => {
+    const en = await renderWith('./terms/page', 'en', V4_WINDOWED)
     const changes = en.match(/<section id="changes">[\s\S]*?<\/section>/)?.[0] ?? ''
-    expect(changes).toContain(`Changes published on 7 October 2026, in force from 13 October 2026: ${V3_CHANGES_EN}. Until 13 October 2026 the previous wording (version 2) applies; it is published at /terms/v2.`)
-    expect(changes.indexOf('Changes in force from 1 October 2026')).toBeLessThan(changes.indexOf('Changes published on 7 October 2026'))
-    expect(changes.indexOf('Changes published on 7 October 2026')).toBeLessThan(changes.indexOf('Questions about these Terms'))
-    const viHtml = await renderWith('./terms/page', 'vi', V3_AS_WRITTEN)
-    expect(viHtml).toContain(`Các thay đổi công bố ngày 07/10/2026, có hiệu lực từ ngày 13/10/2026: ${V3_CHANGES_VI}.`)
+    expect(changes).toContain(`Changes in force from 7 October 2026: ${V3_CHANGES_EN}. The previous wording (version 2) is published at /terms/v2.`)
+    expect(changes).toContain(`Changes published on 25 November 2026, in force from 1 December 2026: ${V4_CHANGES_EN}. Until 1 December 2026 the previous wording (version 3) applies; it is published at /terms/v3.`)
+    expect(changes.indexOf('Changes in force from 7 October 2026')).toBeLessThan(changes.indexOf('Changes published on 25 November 2026'))
+    expect(changes.indexOf('Changes published on 25 November 2026')).toBeLessThan(changes.indexOf('Questions about these Terms'))
+    const viHtml = await renderWith('./terms/page', 'vi', V4_WINDOWED)
+    expect(viHtml).toContain(`Các thay đổi công bố ngày 25/11/2026, có hiệu lực từ ngày 01/12/2026: ${V4_CHANGES_VI}.`)
+    expect(viHtml).toContain(`Các thay đổi có hiệu lực từ ngày 07/10/2026: ${V3_CHANGES_VI}.`)
   })
 })
 
@@ -320,15 +353,75 @@ describe('version 2 of the Terms, archived (/terms/v2)', () => {
     expect(vi).not.toMatch(/không khoan nhượng|24 giờ|chặn người dùng khác|07\/10\/2026|13\/10\/2026/)
   })
 
-  // Version 3 AS WRITTEN (V3_AS_WRITTEN — its default window): during it this page would be the text in force,
-  // and the banner names both dates and says so, on both editions.
-  it('names both dates, and version 2 as in force until then, with the window version 3 was written with', async () => {
+  // ⛔ Version 3's dates are LITERALS since the Terms' version 4 re-used LEGAL_AMENDMENT (legal-archive.ts
+  // TERMS_V2_SUPERSEDED_BY): whatever that record holds — here a windowed version 4 — this banner keeps its one date.
+  it('keeps its one date when LEGAL_AMENDMENT moves on — version 3’s dates are literals', async () => {
+    expect(TERMS_V2_SUPERSEDED.inForceEn).toBe('7 October 2026')
     for (const edition of ['marketplace', 'services'] as const) {
-      const en = await renderWith('./terms/v2/page', 'en', V3_AS_WRITTEN, edition)
-      expect(en, edition).toContain('This is version 2 of these Terms. Version 3, published on 7 October 2026, takes effect on 13 October 2026 and replaces it; until then, version 2 is the version in force.')
+      const en = await renderWith('./terms/v2/page', 'en', V4_WINDOWED, edition)
+      expect(en, edition).toContain('This is version 2 of these Terms. Version 3 replaced it with effect from 7 October 2026.')
+      expect(en, edition).not.toMatch(/25 November|1 December|takes effect on/)
     }
-    const vi = await renderWith('./terms/v2/page', 'vi', V3_AS_WRITTEN)
-    expect(vi).toContain('Đây là phiên bản 2 của Điều khoản dịch vụ. Phiên bản 3, công bố ngày 07/10/2026, có hiệu lực từ ngày 13/10/2026 và thay thế phiên bản này; trước ngày đó, phiên bản 2 là phiên bản đang có hiệu lực.')
+    const vi = await renderWith('./terms/v2/page', 'vi', V4_WINDOWED)
+    expect(vi).toContain('Đây là phiên bản 2 của Điều khoản dịch vụ. Phiên bản 3 thay thế phiên bản này kể từ ngày 07/10/2026.')
+  })
+})
+
+// ⛔ THE TERMS' VERSION 3 — in force from 07/10/2026 until version 4 replaced it on 25/11/2026 (immediate — owner,
+// 2026-11-25: "update legal pages no need to warn users"). Archived verbatim (terms/v3/page.tsx header), permanently, on
+// both editions: everyone stamped '3' accepted it, and /terms' change note links it.
+describe('version 3 of the Terms, archived (/terms/v3)', () => {
+  type V3Page = LangPage & { metadata: { robots?: unknown; alternates?: { canonical?: string } } }
+  async function v3(lang: 'en' | 'vi', edition: 'marketplace' | 'services' = 'marketplace') {
+    const mod = await page<V3Page>('./terms/v3/page', lang, edition)
+    return { html: text(renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang }) }))), metadata: mod.metadata }
+  }
+
+  it('says what it is, what replaced it and when — one date — and is never indexed, on both editions', async () => {
+    for (const edition of ['marketplace', 'services'] as const) {
+      const { html, metadata } = await v3('en', edition)
+      expect(html, edition).toContain(`This is version 3 of these Terms. Version 4 replaced it with effect from ${AMENDED.inForceEn}.`)
+      expect(html, edition).not.toMatch(/until then|takes effect on/)
+      expect(html, edition).toContain('<a href="/terms"')
+      // Version 3's own header and language note, as version 3 printed them.
+      expect(html, edition).toContain('Last updated: 7 October 2026 · Version 3</p>')
+      expect(html, edition).toContain('a translation prepared by eno that our lawyers are still reviewing')
+      expect(metadata.robots).toEqual({ index: false, follow: true })
+      expect(metadata.alternates?.canonical).toBe('/terms/v3')
+    }
+    const vi = (await v3('vi')).html
+    expect(vi).toContain(`Đây là phiên bản 3 của Điều khoản dịch vụ. Phiên bản 4 thay thế phiên bản này kể từ ngày ${AMENDED.inForceVi}.`)
+    expect(vi).not.toContain('trước ngày đó, phiên bản 3')
+    expect(vi).toContain('Cập nhật lần cuối: 07/10/2026 · Version 3</p>')
+  })
+
+  it('is version 3’s own text: zero tolerance, the availability check, its own change notes — in both languages', async () => {
+    // The body — everything under the banner and version 3's own header.
+    const body = (html: string) => html.slice(html.indexOf('<nav>'))
+    const en = body((await v3('en')).html)
+    expect(en).toContain('We have no tolerance for objectionable content or abusive users.')
+    expect(en).toContain('For a linked rental you can also ask us to check whether it is still available — free, up to 5 rentals per request. That help does not make us the landlord, the agent or a party to the rental.')
+    expect(en).toContain('Changes in force from 1 October 2026: the section on who posts listings')
+    expect(en).toContain('Changes in force from 7 October 2026: a zero-tolerance rule for objectionable content')
+    expect(en).toContain('The previous wording (version 2) is published at /terms/v2.')
+    expect(en).not.toMatch(/25 November|1 December|version 4|we no longer offer that check/i)
+    const vi = body((await v3('vi')).html)
+    expect(vi).toContain('Với tin cho thuê liên kết, bạn có thể nhờ chúng tôi kiểm tra xem nhà còn trống hay không — miễn phí, tối đa 5 tin mỗi lần.')
+    expect(vi).toContain('Các thay đổi có hiệu lực từ ngày 07/10/2026:')
+    expect(vi).not.toMatch(/25\/11\/2026|01\/12\/2026|phiên bản 4/)
+  })
+
+  // Version 4 WITH THE DEFAULT WINDOW (V4_WINDOWED): during it this page would be the text in force, and the banner
+  // names both dates and says so, on both editions.
+  it('names both dates, and version 3 as in force until then, with a window for version 4', async () => {
+    for (const edition of ['marketplace', 'services'] as const) {
+      const en = await renderWith('./terms/v3/page', 'en', V4_WINDOWED, edition)
+      expect(en, edition).toContain('This is version 3 of these Terms. Version 4, published on 25 November 2026, takes effect on 1 December 2026 and replaces it; until then, version 3 is the version in force.')
+      // The archived text inside keeps version 3's own dates.
+      expect(en, edition).toContain('Last updated: 7 October 2026 · Version 3</p>')
+    }
+    const vi = await renderWith('./terms/v3/page', 'vi', V4_WINDOWED)
+    expect(vi).toContain('Đây là phiên bản 3 của Điều khoản dịch vụ. Phiên bản 4, công bố ngày 25/11/2026, có hiệu lực từ ngày 01/12/2026 và thay thế phiên bản này; trước ngày đó, phiên bản 3 là phiên bản đang có hiệu lực.')
   })
 })
 
@@ -446,9 +539,10 @@ describe('/regulations', () => {
     expect(withoutLog).not.toMatch(/52\/2013|85\/2021/)
     expect(section(html, 'changelog')).toContain(V1_SUPERSEDED.inForceVi)
     expect(section(html, 'changelog')).toContain(REGULATIONS_AMENDED.inForceVi)
-    // The Terms' version 3 is a Terms-only amendment: the Quy chế carries none of its dates.
-    expect(html).not.toContain(AMENDED.publishedVi)
-    expect(html).not.toContain(AMENDED.inForceVi)
+    // The Terms' version 3 was a Terms-only amendment: the Quy chế carries none of its dates. (The Terms' version 4 shares
+    // the Quy chế's version 6 deploy, so their dates coincide by construction — that one is not tested apart.)
+    expect(TERMS_V2_SUPERSEDED.inForceVi).toBe('07/10/2026')
+    expect(html).not.toContain(TERMS_V2_SUPERSEDED.publishedVi)
     expect(html).not.toMatch(/01\/10\/2026, có hiệu lực từ ngày 06\/10/)
   })
 
@@ -510,10 +604,10 @@ describe('/regulations', () => {
       'biểu phí phải được công bố ít nhất 20 ngày trước ngày áp dụng thay vì 5 ngày',
     ]) expect(log).toContain(edit)
     expect(log).not.toContain('từ 5 lên 20')
-    // One entry per version (2, 3, 4, then 5), each in Vietnamese then English, and each list counting 1..n with no
+    // One entry per version (2, 3, 4, 5, then 6), each in Vietnamese then English, and each list counting 1..n with no
     // gap — the two languages of an entry with the same n. (The /prohibited entry is not a version and has no list.)
     const lists = entries(log).map((p) => [...p.matchAll(/\((\d+)\) /g)].map((m) => Number(m[1])))
-    expect(lists).toHaveLength(8)
+    expect(lists).toHaveLength(10)
     for (const l of lists) expect(l).toEqual(Array.from({ length: l.length }, (_, i) => i + 1))
     expect(lists[0].length).toBe(lists[1].length)
     expect(lists[2]).toEqual([1, 2, 3, 4])
@@ -522,6 +616,8 @@ describe('/regulations', () => {
     expect(lists[5]).toEqual([1, 2, 3])
     expect(lists[6]).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
     expect(lists[7]).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    expect(lists[8]).toEqual([1])
+    expect(lists[9]).toEqual([1])
   })
 
   // ⛔ /prohibited is an inseparable part of the Quy chế (Articles 9, 16) and Article 15 dates every amendment in
@@ -537,7 +633,7 @@ describe('/regulations', () => {
     // Newest last (append-only): after version 3's entry, before version 4's.
     expect(log.indexOf('(phiên bản 2)')).toBeLessThan(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá'))
     expect(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá')).toBeLessThan(log.indexOf('(phiên bản 3)'))
-    expect(REGULATIONS_VERSION).toBe('5')
+    expect(REGULATIONS_VERSION).toBe('6')
     const forum = text(section(await regs('services'), 'changelog'))
     expect(forum).not.toContain('Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời')
     expect(forum).not.toContain(PROHIBITED_AMENDED.inForceVi)
@@ -555,48 +651,73 @@ describe('/regulations', () => {
     expect(log).not.toContain('đăng ký website cung cấp dịch vụ thương mại điện tử')
   })
 
-  // ⛔ Version 5 — partner services and their fees — is IN FORCE from its publication day (owner, 2026-11-03: "all take
-  // effect once we deploy no warning"). Its date is a placeholder the deployer sets (REGULATIONS_AMENDMENT), so the tests
-  // read it rather than typing it.
-  it('META: version 5 in force from its publication day, version 4 archived, the standing sentences kept', async () => {
-    expect(REGULATIONS_VERSION).toBe('5')
-    expect(REGULATIONS_PREVIOUS_VERSION).toBe('4')
+  // ⛔ Version 6 — Article 7's free availability check withdrawn — is IN FORCE from its publication day (owner, 2026-11-25:
+  // "update legal pages no need to warn users"). Its date is a placeholder the deployer sets (REGULATIONS_AMENDMENT), so the
+  // tests read it rather than typing it.
+  it('META: version 6 in force from its publication day, version 5 archived, the standing sentences kept', async () => {
+    expect(REGULATIONS_VERSION).toBe('6')
+    expect(REGULATIONS_PREVIOUS_VERSION).toBe('5')
     const html = text(await regs())
     const head = html.slice(0, html.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 5, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v4"`)
-    expect(head).toContain(`Version 5, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v4"`)
+    expect(head).toContain(`Phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v5"`)
+    expect(head).toContain(`Version 6, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v5"`)
     expect(head).toContain('Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.')
     expect(head).toContain('The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.')
-    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|Phiên bản [234],|Version [234],/)
-    expect(head.match(/href="\/regulations\/v4"/g)?.length).toBe(2) // META, both languages
-    expect(head).not.toContain('href="/regulations/v3"')
-    // The Terms count their own versions: their version 3 (2026-10-07) is another amendment, on other dates.
-    expect(TOS_VERSION).toBe('3')
-    expect(head).not.toContain(AMENDED.inForceVi)
+    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|Phiên bản [2345],|Version [2345],/)
+    expect(head.match(/href="\/regulations\/v5"/g)?.length).toBe(2) // META, both languages
+    expect(head).not.toContain('href="/regulations/v4"')
+    // The Terms count their own versions: their version 4 is another record (LEGAL_AMENDMENT), shipped in the same deploy.
+    expect(TOS_VERSION).toBe('4')
+    expect(head).not.toMatch(/Phiên bản 4,|Version 4,/)
   })
 
-  it('Article 17: every version’s entry on its own date, newest last, version 4 archived', async () => {
+  it('Article 17: every version’s entry on its own date, newest last, version 5 archived', async () => {
     const log = text(section(await regs(), 'changelog'))
     expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 01/10/2026; nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/regulations/v1"')
     expect(log).toContain('Amendments published on and in force from 1 October 2026; the previous text (version 1) is archived at <a href="/regulations/v1"')
     expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 05/10/2026; nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/regulations/v2"')
     expect(log).toContain('Amendments published on and in force from 5 October 2026; the previous text (version 2) is archived at <a href="/regulations/v2"')
-    // Version 4's real dates — literals since version 5 re-used REGULATIONS_AMENDMENT (legal-archive.ts V3_SUPERSEDED_BY).
+    // Version 4's and version 5's real dates — literals since later versions re-used REGULATIONS_AMENDMENT
+    // (legal-archive.ts V3_SUPERSEDED_BY, V4_SUPERSEDED_BY).
     expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 29/10/2026; nội dung trước sửa đổi (phiên bản 3) được lưu tại <a href="/regulations/v3"')
     expect(log).toContain('Amendments published on and in force from 29 October 2026; the previous text (version 3) is archived at <a href="/regulations/v3"')
-    expect(log).toContain(`Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản 4) được lưu tại <a href="/regulations/v4"`)
-    expect(log).toContain(`Amendments published on and in force from ${REGULATIONS_AMENDED.inForceEn}; the previous text (version 4) is archived at <a href="/regulations/v4"`)
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 03/11/2026; nội dung trước sửa đổi (phiên bản 4) được lưu tại <a href="/regulations/v4"')
+    expect(log).toContain('Amendments published on and in force from 3 November 2026; the previous text (version 4) is archived at <a href="/regulations/v4"')
+    expect(log).toContain(`Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản 5) được lưu tại <a href="/regulations/v5"`)
+    expect(log).toContain(`Amendments published on and in force from ${REGULATIONS_AMENDED.inForceEn}; the previous text (version 5) is archived at <a href="/regulations/v5"`)
     expect(log).not.toMatch(/trước ngày đó|until that date/)
     // Version 2's entry never names its abandoned 07/10 window.
     const [v2vi, v2en] = entries(log)
     expect(`${v2vi} ${v2en}`).not.toMatch(/07\/10\/2026|7 October/)
-    for (const v of [1, 2, 3, 4]) expect(log.match(new RegExp(`href="/regulations/v${v}"`, 'g'))?.length).toBe(2)
+    for (const v of [1, 2, 3, 4, 5]) expect(log.match(new RegExp(`href="/regulations/v${v}"`, 'g'))?.length).toBe(2)
     // Newest last (append-only).
-    for (const v of [1, 2, 3]) expect(log.indexOf(`(phiên bản ${v})`)).toBeLessThan(log.indexOf(`(phiên bản ${v + 1})`))
+    for (const v of [1, 2, 3, 4]) expect(log.indexOf(`(phiên bản ${v})`)).toBeLessThan(log.indexOf(`(phiên bản ${v + 1})`))
   })
 
-  // ⛔ eno.vn ONLY: eno.forum's operator is another (pending) entity, so version 5 changes nothing in its text, and says so.
-  it('version 5 leaves eno.forum’s text as it was, and Article 17 says so', async () => {
+  // ⛔ VERSION 6 (owner, 2026-11-25): Article 7 no longer offers the free availability check — the feature was removed — on
+  // BOTH editions, and Article 17's newest entry says what it said before, each edition quoting its own old words.
+  it('Article 7 no longer offers the availability check, and Article 17’s version 6 entry says so — on both editions', async () => {
+    for (const edition of ['marketplace', 'services'] as const) {
+      const html = text(await regs(edition))
+      const a7 = section(html, 'process')
+      expect(a7, edition).toContain('Tin đăng liên kết không được tạo theo các bước trên: đơn vị vận hành đưa tin từ trang nguồn về sàn, kèm tên trang nguồn và nút đưa người mua sang trang nguồn; người mua liên hệ, ứng tuyển hoặc mua hàng trên trang nguồn.</p>')
+      expect(a7, edition).toContain('Linked listings are not created through the steps above: the operator brings them in from the source site, with the source site’s name and a button that takes the user to the source site, and the buyer contacts the seller, applies or buys on the source site.</p>')
+      expect(a7, edition).not.toMatch(/còn trống|Việc hỗ trợ này|still available|That help does not/)
+      const log = section(html, 'changelog')
+      const [v6vi, v6en] = entries(log).slice(-2)
+      expect(v6vi, edition).toContain('(1) sửa đổi đoạn về tin đăng liên kết tại Điều 7: bỏ quy định về việc hỗ trợ kiểm tra tình trạng còn trống của tin cho thuê — đơn vị vận hành không còn cung cấp việc hỗ trợ này (trước đây ghi là')
+      expect(v6vi, edition).toContain('kiểm tra tình trạng còn trống của tối đa 5 tin mỗi lần, miễn phí, câu trả lời được gửi trong mục tin nhắn của người sử dụng')
+      expect(v6en, edition).toContain('(1) amend the linked-listings paragraph of Article 7: remove the rule on help checking whether rentals are still available — the operator no longer offers that help (it previously said')
+      expect(v6en, edition).toContain('to check whether up to 5 of them are still available, free of charge, that the answer arrives in the user’s messages')
+      // Each edition quotes its own old words: "of itself" was eno.vn's alone (version 5).
+      expect(v6vi.includes('việc hỗ trợ này tự nó không khiến'), edition).toBe(edition === 'marketplace')
+      expect(v6en.includes('the help does not of itself make'), edition).toBe(edition === 'marketplace')
+      expect(v6en, edition).not.toMatch(/visa|itinerar|PayPal/i)
+    }
+  })
+
+  // ⛔ eno.vn ONLY: eno.forum's operator is another (pending) entity, so version 5 changed nothing in its text, and says so.
+  it('version 5 left eno.forum’s text as it was, and Article 17 says so', async () => {
     const forum = await regs('services')
     for (const id of ['scope', 'activity', 'process', 'fees', 'moderation', 'liability', 'ranking']) {
       const t = text(section(forum, id))
@@ -606,9 +727,10 @@ describe('/regulations', () => {
     }
     expect(text(section(forum, 'fees'))).toContain('Việc đăng tin, duyệt tin và liên hệ người bán')
     expect(text(section(forum, 'fees'))).toContain('Posting, browsing and contacting sellers')
-    expect(text(section(forum, 'process'))).toContain('Việc hỗ trợ này không khiến')
+    // Version 6 then removed Article 7's availability check on both editions (the test above).
+    expect(text(section(forum, 'process'))).not.toContain('Việc hỗ trợ này')
     const log = text(section(forum, 'changelog'))
-    expect(log).toContain(`Phiên bản 5 được công bố và có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}; nội dung tại`)
+    expect(log).toContain('Phiên bản 5 được công bố và có hiệu lực từ ngày 03/11/2026; nội dung tại')
     expect(log).toContain('không thay đổi so với phiên bản 4, được lưu tại <a href="/regulations/v4"')
     expect(log).not.toContain('Nội dung sửa đổi, bổ sung gồm: (1) bổ sung dịch vụ đối tác')
   })
@@ -761,9 +883,10 @@ describe('/regulations', () => {
     expect(section(forum, 'changelog')).toContain(`(phiên bản 2) được lưu tại <a href="/regulations/v2"`)
     expect(section(forum, 'changelog')).toContain(`(phiên bản 3) được lưu tại <a href="/regulations/v3"`)
     expect(section(forum, 'changelog')).toContain(`phiên bản 4, được lưu tại <a href="/regulations/v4"`)
+    expect(section(forum, 'changelog')).toContain(`(phiên bản 5) được lưu tại <a href="/regulations/v5"`)
     expect(section(forum, 'changelog')).toContain('bổ sung tại Điều 14 quy định về tin đăng liên hệ qua sàn')
     const head = forum.slice(0, forum.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 5, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
+    expect(head).toContain(`Phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
   })
 
   it('META with a notice window (the default): says the previous version governs until the in-force date', async () => {
@@ -1014,7 +1137,52 @@ describe('version 2 of the Quy chế, archived (/regulations/v2)', () => {
   })
 })
 
-// ⛔ THE QUY CHẾ'S VERSION 3 — in force from 05/10/2026 until version 4 (2026-10-29, Article 14's home-page rule).
+// ⛔ THE QUY CHẾ'S VERSION 5 — in force from 03/11/2026 until version 6 (2026-11-25, Article 7's availability check
+// withdrawn). Archived verbatim (regulations/v5/page.tsx header), permanently, on both editions, like the versions before it.
+describe('version 5 of the Quy chế, archived (/regulations/v5)', () => {
+  async function v5(edition: 'marketplace' | 'services') {
+    const mod = await page<{ default: () => React.ReactElement; metadata: { robots?: unknown; alternates?: { canonical?: string } } }>('./regulations/v5/page', 'en', edition)
+    return { html: text(renderToStaticMarkup(mod.default())), metadata: mod.metadata }
+  }
+  const section = (html: string, id: string) => html.match(new RegExp(`<section id="${id}">[\\s\\S]*?</section>`))?.[0] ?? ''
+
+  it('says what it is, what replaced it and when — one date — and is never indexed, on both editions', async () => {
+    const { V5_SUPERSEDED } = await import('@/lib/compliance/legal-archive')
+    expect(V5_SUPERSEDED.inForceVi).toBe(REGULATIONS_AMENDED.inForceVi)
+    for (const edition of ['marketplace', 'services'] as const) {
+      const { html, metadata } = await v5(edition)
+      expect(html, edition).toContain(`Đây là phiên bản 5 của Quy chế. Phiên bản 6 thay thế phiên bản này kể từ ngày ${V5_SUPERSEDED.inForceVi}. Bản mới nhất được đăng tại <a href="/regulations"`)
+      expect(html, edition).toContain(`This is version 5 of these Regulations. Version 6 replaced it with effect from ${V5_SUPERSEDED.inForceEn}. The latest text is published at <a href="/regulations"`)
+      expect(metadata.robots).toEqual({ index: false, follow: true })
+      expect(metadata.alternates?.canonical).toBe('/regulations/v5')
+    }
+  })
+
+  it('prints version 5’s own META, Article 7 and Article 17 — 03/11/2026, version 4 archived — and no version-6 text', async () => {
+    const { html } = await v5('marketplace')
+    const head = html.slice(0, html.indexOf('<nav>'))
+    expect(head).toContain('Phiên bản 5, có hiệu lực từ ngày 03/11/2026 (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v4"')
+    expect(head).toContain('Version 5, in force from 3 November 2026 (see Article 17). The previous version is archived at <a href="/regulations/v4"')
+    expect(section(html, 'process')).toContain('người sử dụng đã đăng nhập có thể nhờ đơn vị vận hành kiểm tra tình trạng còn trống của tối đa 5 tin mỗi lần, miễn phí')
+    expect(section(html, 'process')).toContain('Việc hỗ trợ này tự nó không khiến đơn vị vận hành trở thành bên cho thuê')
+    expect(section(html, 'process')).toContain('a signed-in user may ask the operator to check whether up to 5 of them are still available, free of charge')
+    const log = section(html, 'changelog')
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 03/11/2026; nội dung trước sửa đổi (phiên bản 4)')
+    expect(log).not.toContain('(phiên bản 5)')
+    expect(log).not.toContain('/regulations/v5')
+    expect(html).toContain('đối tác dịch vụ')
+    // eno.forum's version 5: the check without "tự nó", and its "unchanged from version 4" line.
+    const forum = (await v5('services')).html
+    expect(section(forum, 'process')).toContain('Việc hỗ trợ này không khiến đơn vị vận hành trở thành bên cho thuê')
+    expect(section(forum, 'changelog')).toContain('không thay đổi so với phiên bản 4, được lưu tại <a href="/regulations/v4"')
+  })
+
+  it('names the legal representative version 5 printed when replaced, on eno.vn', async () => {
+    expect(section((await v5('marketplace')).html, 'operator')).toContain('Người đại diện theo pháp luật: Nguyễn Quốc Lập')
+  })
+})
+
+// ⛔ THE QUY CHẾ'S VERSION 4 — in force from 29/10/2026 until version 5 (2026-11-03, partner services and their fees).
 // Archived verbatim (regulations/v4/page.tsx header), permanently, on both editions, like the versions before it.
 describe('version 4 of the Quy chế, archived (/regulations/v4)', () => {
   async function v4(edition: 'marketplace' | 'services') {
@@ -1025,7 +1193,7 @@ describe('version 4 of the Quy chế, archived (/regulations/v4)', () => {
 
   it('says what it is, what replaced it and when — one date — and is never indexed, on both editions', async () => {
     const { V4_SUPERSEDED } = await import('@/lib/compliance/legal-archive')
-    expect(V4_SUPERSEDED.inForceVi).toBe(REGULATIONS_AMENDED.inForceVi)
+    expect(V4_SUPERSEDED.inForceVi).toBe('03/11/2026') // a literal since version 6 re-used the record
     for (const edition of ['marketplace', 'services'] as const) {
       const { html, metadata } = await v4(edition)
       expect(html, edition).toContain(`Đây là phiên bản 4 của Quy chế. Phiên bản 5 thay thế phiên bản này kể từ ngày ${V4_SUPERSEDED.inForceVi}.`)
@@ -1122,11 +1290,12 @@ describe('/privacy', () => {
     expect(html).not.toContain('have filed both with the Ministry of Public Security')
     expect(html).toContain('They have not been filed yet')
     // The correction changed eno.vn's text, so its date moved with the amendment's publication — and again
-    // with the Terms' version 3 (the AI review of reports, eno.vn's partner e-Visa section): 7 October 2026.
+    // with the Terms' version 3 (the AI review of reports, eno.vn's partner e-Visa section): 7 October 2026 — and with the
+    // Terms' version 4 (the availability check's storage row and requests): 25 November 2026.
     // ⚠️ Since D12 (2026-10-08) the policy also has its OWN date for changes outside an amendment (the Sign in with
     // Apple rows, the teacher paragraph — src/lib/compliance/privacy-updated.ts) and prints the later of the two.
     expect(html).toContain(`Last updated: ${PRIVACY_LAST_UPDATED_EN}`)
-    expect(AMENDED.publishedEn).toBe('7 October 2026')
+    expect(AMENDED.publishedEn).toBe('25 November 2026')
   })
 
   it('claims no filing on eno.forum either — and its text changed too, so its date moved with it', async () => {

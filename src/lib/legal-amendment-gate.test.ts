@@ -116,30 +116,32 @@ const OCT: Dates = ['2026-10-01', '2026-10-07']
 const NOW: Dates = ['2026-10-01', '2026-10-01', true]
 
 describe('legal-amendment-gate.sh', () => {
-  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-07): the box's deployed commit carries October's LEGAL_AMENDMENT
-  // (immediate, 01/10 — prod since 86f531e1) and the Quy chế's version 3 (immediate, 05/10 — prod since its
-  // deploy); the working tree is the real module, verbatim — the Terms' version 3, IMMEDIATE (owner, 2026-10-07:
-  // "Immediately (Recommended)"). So the Quy chế's record is routine and the Terms' version 3 publishes on its
-  // own day ONLY with the owner's waiver acked: LEGAL_AMENDMENT_IMMEDIATE=2026-10-07.
+  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-11-25): the box's deployed commit carries the Terms' version 3 (immediate, 07/10 —
+  // prod since 17736e91b) and the Quy chế's version 5 (immediate, 03/11 — prod since 0ccb291a9); the working tree is the
+  // real module, verbatim — the Terms' version 4 AND the Quy chế's version 6, both IMMEDIATE and dated the same day (owner,
+  // 2026-11-25: "update legal pages no need to warn users"). So both publish on their own day ONLY with the owner's waiver
+  // acked — ONE ack, LEGAL_AMENDMENT_IMMEDIATE=2026-11-25, covers both — and /prohibited's record is routine.
   it('reads the dates and the flags the module exports, in the state the next deploy meets', () => {
     expect(LEGAL_AMENDMENT.immediate).toBe(true)
     expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
-    const prod = setRecord(SOURCE, 'LEGAL_AMENDMENT', ['2026-10-01', '2026-10-01', true])
+    const prod = setRecord(setRecord(SOURCE, 'LEGAL_AMENDMENT', ['2026-10-07', '2026-10-07', true]), 'REGULATIONS_AMENDMENT', ['2026-11-03', '2026-11-03', true])
     const at = boxSrc(SOURCE, prod)
     const day = LEGAL_AMENDMENT.published
-    expect(day).toBe('2026-10-07')
+    expect(day).toBe('2026-11-25')
     expect(LEGAL_AMENDMENT.inForce).toBe(day)
+    expect(REGULATIONS_AMENDMENT).toEqual({ published: day, inForce: day, immediate: true })
     // Without the ack it refuses: no notice window is the owner's waiver, acknowledged for its day.
     const bare = gate(at, day)
     expect(bare.status).toBe(1)
     expect(bare.out).toContain(`published AND in force ${day}, with NO notice window`)
     expect(bare.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${day} bash eno-deploy.sh`)
     const r = gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: day })
-    expect(r.status).toBe(0)
-    expect(r.out).toContain(`proceeding on LEGAL_AMENDMENT_IMMEDIATE=${day}`)
-    expect(r.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${REGULATIONS_AMENDMENT.published} (in force ${REGULATIONS_AMENDMENT.inForce}, immediate) is already live`)
-    // Neither October's date nor the late-publication ack unlocks it.
-    expect(gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-01' }).status).toBe(1)
+    expect(r.status, r.out).toBe(0)
+    expect(r.out).toContain(`publishes an IMMEDIATE legal amendment: published and in force ${day} (today)`)
+    expect(r.out).toContain(`publishes an IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published and in force ${day} (today)`)
+    expect(r.out).toContain(`/prohibited amendment (PROHIBITED_AMENDMENT) published ${PROHIBITED_AMENDMENT.published} (in force ${PROHIBITED_AMENDMENT.inForce}, immediate) is already live`)
+    // Neither version 3's date nor the late-publication ack unlocks it.
+    expect(gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-07' }).status).toBe(1)
     expect(gate(at, day, { LEGAL_AMENDMENT_ACK: day }).status).toBe(1)
     // Any other day refuses, acked or not, and says to re-date both — the day after (a false date on /terms and
     // /privacy) and the day before (a date that has not happened).
@@ -152,10 +154,11 @@ describe('legal-amendment-gate.sh', () => {
     }
     // …and once it is deployed, every later deploy is routine, with no ack.
     const live = boxSrc(SOURCE, SOURCE)
-    for (const d of [day, dayAfter, '2026-10-13', '2027-03-01']) {
+    for (const d of [day, dayAfter, '2026-12-01', '2027-03-01']) {
       const routine = gate(live, d)
       expect(routine.status, d).toBe(0)
       expect(routine.out, d).toContain(`legal amendment published ${day} (in force ${day}, immediate) is already live`)
+      expect(routine.out, d).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${day} (in force ${day}, immediate) is already live`)
     }
   })
 

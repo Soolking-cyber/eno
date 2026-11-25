@@ -34,14 +34,15 @@ afterEach(() => {
 })
 
 describe('/terms as markdown', () => {
-  // ⛔ The Terms' version 3 (App Store Guideline 1.2) is an IMMEDIATE amendment (owner, 2026-10-07: "Immediately
-  // (Recommended)"): in force from midnight Vietnam time on 07/10/2026, its publication day — no window.
-  it('names version 3 as in force since 7 October 2026 and links the version it replaced', async () => {
-    expect(TOS_VERSION).toBe('3')
-    for (const at of ['2026-10-07T00:00:00+07:00', '2026-10-07T18:00:00+07:00', '2026-10-13T00:00:00+07:00']) {
+  // ⛔ The Terms' version 4 (the renters' free availability check withdrawn) is an IMMEDIATE amendment (owner, 2026-11-25:
+  // "update legal pages no need to warn users"): in force from midnight Vietnam time on 25/11/2026, its publication day.
+  it('names version 4 as in force since 25 November 2026 and links the version it replaced', async () => {
+    expect(TOS_VERSION).toBe('4')
+    for (const at of ['2026-11-25T00:00:00+07:00', '2026-11-25T18:00:00+07:00', '2026-12-01T00:00:00+07:00']) {
       const md = await markdownAt(Date.parse(at))
-      expect(md, at).toContain(`Version in force: ${TOS_VERSION}, since 7 October 2026. The previous version, ${TOS_PREVIOUS_VERSION}, is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
-      expect(md, at).not.toMatch(/takes effect on|remains in force|13 October/)
+      expect(md, at).toContain(`Version in force: ${TOS_VERSION}, since 25 November 2026. The previous version, ${TOS_PREVIOUS_VERSION}, is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
+      expect(md, at).toContain('https://eno.vn/terms/v3.')
+      expect(md, at).not.toMatch(/takes effect on|remains in force/)
     }
   })
 

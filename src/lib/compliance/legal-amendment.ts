@@ -1,11 +1,15 @@
 // ── The amendments of the published legal texts — their dates, typed ONCE ────────────────────────
 //
 // ⚠️ THREE RECORDS SINCE 2026-10-14, because the amendments that stand did not change the same texts:
-//   · LEGAL_AMENDMENT — the Terms' newest amendment: since 2026-10-07 the Terms' VERSION 3 (App Store
-//     Guideline 1.2 — decision D8), which also dates the /privacy text that changed with it. /terms ("Last
-//     updated", the "not yet in force" line, its change note), /md/terms, /privacy, the /terms/v2 banner
-//     (through legal-archive.ts TERMS_V2_SUPERSEDED_BY), the strip and the bell notice read it, and it is
+//   · LEGAL_AMENDMENT — the Terms' newest amendment: since 2026-11-25 the Terms' VERSION 4 (the renters' free
+//     availability check withdrawn), which also dates the /privacy text that changed with it. /terms ("Last
+//     updated", the "not yet in force" line, its change note), /md/terms, /privacy, the /terms/v3 banner
+//     (through legal-archive.ts TERMS_V3_SUPERSEDED_BY), the strip and the bell notice read it, and it is
 //     the Terms' runtime switch (below).
+//     ⚠️ IT WAS THE TERMS' VERSION 3 FROM 2026-10-07 (App Store Guideline 1.2 — decision D8; published and in force
+//     07/10/2026, immediate). Re-using the record for version 4 moved those dates out of it: they are LITERALS now, in
+//     legal-archive.ts (TERMS_V2_SUPERSEDED_BY), which version 3's change note on /terms, the /terms/v2 banner and the
+//     /terms/v3 archive's header read.
 //     ⚠️ IT USED TO BE THE OCTOBER 2026 AMENDMENT (Terms version 2, /returns, /prohibited, /privacy and the
 //     Quy chế's version 2 with them — published and in force 01/10/2026, immediate). Re-using the record
 //     for version 3 moved those dates out of it: they are LITERALS now, in legal-archive.ts
@@ -14,12 +18,13 @@
 //     version-2 note in /terms' change log. A text that read LEGAL_AMENDMENT for a date version 3 did not
 //     give it would now print 7 October for an October-1 change. (/prohibited read them too until its own
 //     amendment, 2026-10-14 — PROHIBITED_AMENDMENT below.)
-//   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: since 2026-10-28 version 4 (Article 14 — the
-//     home page shows only listings contacted through the platform), which changed no other text. /regulations (META +
-//     Article 17's newest entry), the /regulations/v3 archive ("replaced from …", through legal-archive.ts
-//     V3_SUPERSEDED_BY) and /legal/ranking's date (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, tied to it
-//     for this deploy) read it. It switches nothing at runtime: Profile.tosVersion stamps the TERMS version,
-//     which this amendment did not change.
+//   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: since 2026-11-25 version 6 (Article 7 — the renters'
+//     free availability check withdrawn, in the same deploy as the Terms' version 4). /regulations (META + Article 17's
+//     newest entry) and the /regulations/v5 archive ("replaced from …", through legal-archive.ts V5_SUPERSEDED_BY) read
+//     it. It switches nothing at runtime: Profile.tosVersion stamps the TERMS version. (/legal/ranking prints its own
+//     RANKING_DISCLOSURE_UPDATED, a literal since version 5.)
+//     ⚠️ Versions 4 (29/10/2026) and 5 (03/11/2026) used this record before; their dates are LITERALS in legal-archive.ts
+//     (V3_SUPERSEDED_BY, V4_SUPERSEDED_BY).
 //     ⚠️ IT USED TO BE VERSION 3 (Article 14 — UX program 2's ranking; published and in force 05/10/2026,
 //     immediate). Re-using the record for version 4 moved those dates out of it: they are LITERALS now, in
 //     legal-archive.ts (V2_SUPERSEDED_BY), which the /regulations/v2 archive and version 3's Article 17 entry read.
@@ -61,7 +66,8 @@
 // on top of the publication-day rule. The October 2026 amendment was one, and so were the Quy chế's version 3
 // and — owner, 2026-10-07 — the Terms' version 3 (below), and — owner, 2026-10-15 — /prohibited's own amendment
 // (PROHIBITED_AMENDMENT, made immediate the day it went live with a window), and — owner, 2026-10-28 — the Quy chế's
-// version 4 (below). The next amendment drops the flag and gets its
+// version 4, and — owner, 2026-11-03 — the Quy chế's version 5, and — owner, 2026-11-25: "update legal pages no need to warn
+// users" — the Terms' version 4 and the Quy chế's version 6 (below). The next amendment drops the flag and gets its
 // 6 days again unless the owner decides otherwise for THAT amendment. Quy chế Article 15's 5-day promise stays
 // in the text for every amendment after these.
 //
@@ -78,38 +84,41 @@ export type LegalAmendment = {
 }
 
 /**
- * THE TERMS' VERSION 3 — App Store Guideline 1.2 (decision D8, docs/ios-appstore-release.md): zero tolerance
- * for objectionable content and abusive users, a 24-hour review of those reports, and no chance to put it
- * right for them (/terms `conduct`, `complaints`, `termination`; the edits are listed in its `changes` note).
- * It also dates /privacy, whose text changed in the same deploy: the moderators' AI review of reports (the
- * Google row, "Automated decisions") and eno.vn's partner e-Visa section. The Quy chế did not change —
- * REGULATIONS_AMENDMENT keeps its own dates — and neither did /returns or /prohibited (V1_SUPERSEDED_BY).
+ * THE TERMS' VERSION 4 — the renters' free availability check withdrawn (owner, 2026-11-25: the feature was removed
+ * from the product in b6750b930, then "update legal pages no need to warn users"): /terms' `linked` section loses its
+ * offer to check, free of charge, whether up to 5 linked rentals are still available, and the sentence that this help
+ * did not make us the landlord (the edit is listed in its `changes` note, V4_NOTE). It also dates /privacy, whose text
+ * changed in the same deploy: the device-storage row for the check's list and draft is gone, "the rental check" leaves
+ * the sign-in places counted, and "Messages" says where requests already sent stay. The Quy chế's Article 7 lost the
+ * same promise in the same deploy — its OWN record, REGULATIONS_AMENDMENT (version 6), carries the same dates.
+ * /returns and /prohibited did not change.
  *
- * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-07, on the record below): published AND in force 07/10/2026, from
- * midnight Vietnam time, with no notice window and no announcement — the 2026-10-01 precedent. From that
- * instant version 3 is the version in force (tosVersionInForce — onboarding stamps '3', /terms and /md/terms
- * headline version 3, and /terms' "not yet in force" line never renders); /terms' change note and the
- * /terms/v2 banner print their one-date variants on their own; <TosChangeNotice /> is NOT mounted in
- * providers.tsx (legal-amendment.test.ts holds the mount to the flag); and scripts/notify-legal-amendment.ts
- * refuses to send a bell notice. It was written with the default window (published 07/10, in force
- * 13/10/2026); the tests keep that machinery on fixtures, for the next amendment that has one.
- * ⛔ 2026-10-07 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must be the day it actually deploys
- * (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it is
- * immediate — in the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the
- * deploy gate (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-11-25, "no need to warn users"): published AND in force 25/11/2026, from
+ * midnight Vietnam time, with no notice window and no announcement — the 2026-10-01 and 2026-10-07 precedents. From that
+ * instant version 4 is the version in force (tosVersionInForce — onboarding stamps '4', /terms and /md/terms headline
+ * version 4, and /terms' "not yet in force" line never renders); /terms' change note and the /terms/v3 banner print
+ * their one-date variants on their own; <TosChangeNotice /> stays unmounted in providers.tsx (legal-amendment.test.ts
+ * holds the mount to the flag); and scripts/notify-legal-amendment.ts refuses to send a bell notice. Nothing forces
+ * a re-acceptance: an account stamped '3' keeps it, and is re-stamped only if it onboards again (tosAcceptanceStamp).
+ * ⛔ 2026-11-25 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must be the day it actually deploys
+ * (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it is immediate — here
+ * AND in REGULATIONS_AMENDMENT (the same deploy), and PRIVACY_TEXT_PUBLISHED (privacy-updated.ts) with them, in the
+ * commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy gate
+ * (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ * (Version 3 — App Store Guideline 1.2, D8 — held this record from 2026-10-07; its dates are literals in legal-archive.ts
+ * TERMS_V2_SUPERSEDED_BY since this re-use.)
  */
 export const LEGAL_AMENDMENT: LegalAmendment = {
-  published: '2026-10-07',
-  inForce: '2026-10-07',
-  // ⛔ OWNER, 2026-10-07 (AskUserQuestion: "When should that Terms change take effect?"): "Immediately
-  // (Recommended)" — in force on the deploy day, no notice window, no announcement; the 2026-10-01 precedent.
-  // It was planned with the default 6-day window (in force 13/10); this makes version 3 binding from its
-  // publication day. The deploy runs with LEGAL_AMENDMENT_IMMEDIATE=2026-10-07. Scoped to THIS amendment — do
-  // not copy it forward.
+  published: '2026-11-25',
+  inForce: '2026-11-25',
+  // ⛔ OWNER, 2026-11-25: "update legal pages no need to warn users" — in force on the deploy day, no notice window,
+  // no announcement; the 2026-10-01 and 2026-10-07 precedents. The deploy runs with LEGAL_AMENDMENT_IMMEDIATE=2026-11-25.
+  // Scoped to THIS amendment — do not copy it forward.
   immediate: true,
 }
 
 /**
+ * THE QUY CHẾ'S NEWEST AMENDMENT — VERSION 6 SINCE 2026-11-25 (the last ⛔ below). The record was first written for
  * THE QUY CHẾ'S VERSION 4 — a Quy chế-only amendment of Article 14: the home page shows only listings dealt on the
  * platform. Its default feed, its Outstanding businesses and per-category rails, and the For You rail wherever it
  * appears leave out listings whose button takes the user to another website (Article 3's linked listings and partner bookings) (src/lib/in-app-listing.ts —
@@ -118,23 +127,30 @@ export const LEGAL_AMENDMENT: LegalAmendment = {
  * amended. Version 3 (05/10/2026) is archived at /regulations/v3; its dates are literals in legal-archive.ts
  * (V2_SUPERSEDED_BY) since this record was re-used.
  *
- * /legal/ranking's "Last updated" (RANKING_DISCLOSURE_UPDATED) is tied to `published` here — the page changed in the
- * same deploy (its #home section) — so it moves with it; there is no second date to set.
+ * /legal/ranking's "Last updated" (RANKING_DISCLOSURE_UPDATED) was tied to `published` here for version 4 — the page changed
+ * in the same deploy (its #home section). It is a literal (2026-10-29) since version 5, which did not change that page, and
+ * version 6 did not either.
  *
  * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-28, AskUserQuestion: "The marketplace rules (Quy chế, Article 14)
  * currently say no home-page listing is hidden … When should it take effect?" → "Immediately (Recommended)" — in force
  * the day it is deployed, no notice banner, the 5 Oct and 15 Oct precedents). In force the day it is published, no
  * notice window, no strip, no bell notice. Scoped to THIS amendment — do not copy the flag forward.
- * ⛔ SINCE 2026-11-03 THIS RECORD IS VERSION 5 (partner services and their fees, eno.vn only; immediate, owner, 2026-11-03: "all
- * take effect once we deploy no warning"). Version 4's real dates, 29/10/2026, are literals in legal-archive.ts (V3_SUPERSEDED_BY).
- * Scoped to version 5 — do not copy the flag forward. 2026-11-03 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must
- * be the day it actually deploys (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it
- * is immediate — in the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy gate
- * (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ * ⛔ FROM 2026-11-03 THIS RECORD WAS VERSION 5 (partner services and their fees, eno.vn only; immediate, owner, 2026-11-03: "all
+ * take effect once we deploy no warning"). Version 4's real dates, 29/10/2026, are literals in legal-archive.ts (V3_SUPERSEDED_BY),
+ * and version 5's, 03/11/2026, too (V4_SUPERSEDED_BY) since the re-use below.
+ * ⛔ SINCE 2026-11-25 THIS RECORD IS VERSION 6 — Article 7 loses the free availability check (a signed-in user could ask the
+ * operator to check whether up to 5 rentals were still available; the feature was removed in b6750b930), on BOTH editions — its
+ * Article 17 entry (CHANGES_V6) says so; version 5 is archived at /regulations/v5. It ships in the same deploy as the Terms'
+ * version 4, so it carries LEGAL_AMENDMENT's own dates. Immediate, owner, 2026-11-25: "update legal pages no need to warn
+ * users". Scoped to version 6 — do not copy the flag forward. 2026-11-25 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT:
+ * `published` must be the day it actually deploys (Vietnam time). If that is another day, the deployer re-dates BOTH — to the
+ * same day, because it is immediate — here and in LEGAL_AMENDMENT, in the commit that ships it, and runs the deploy with
+ * LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy gate (legal-amendment-gate.sh) refuses any other day and any deploy without
+ * that ack.
  */
 export const REGULATIONS_AMENDMENT: LegalAmendment = {
-  published: '2026-11-03',
-  inForce: '2026-11-03',
+  published: '2026-11-25',
+  inForce: '2026-11-25',
   immediate: true,
 }
 

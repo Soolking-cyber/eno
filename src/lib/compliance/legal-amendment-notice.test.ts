@@ -61,7 +61,7 @@ describe('the amendment notice to registered users', () => {
 
   it('derives one id per account per amendment', () => {
     expect(AMENDMENT_NOTICE_ID_PREFIX).toBe(`legal-amendment-${LEGAL_AMENDMENT.published}-`)
-    expect(AMENDMENT_NOTICE_ID_PREFIX).toBe('legal-amendment-2026-10-07-')
+    expect(AMENDMENT_NOTICE_ID_PREFIX).toBe('legal-amendment-2026-11-25-')
   })
 
   it('derives the id prefix from a publication date, so a retraction can name an earlier batch', () => {
@@ -80,9 +80,10 @@ describe('the amendment notice to registered users', () => {
 
   // ⛔ Owner, 2026-10-07: "Immediately (Recommended)" — the Terms' version 3 is immediate: in force on its
   // publication day, no window, no announcement, so no bell notice at any instant (its window was 07/10–12/10).
-  it('is never sendable for the Terms’ version 3 — immediate, there is no window and nothing to announce', () => {
+  // ⛔ …and so is the Terms' version 4 (owner, 2026-11-25: "update legal pages no need to warn users").
+  it('is never sendable for the Terms’ version 4 — immediate, there is no window and nothing to announce', () => {
     expect(LEGAL_AMENDMENT.immediate).toBe(true)
-    for (const at of ['2026-10-06T23:59:59+07:00', '2026-10-07T00:00:00+07:00', '2026-10-07T18:00:00+07:00', '2026-10-12T23:59:59+07:00', '2026-10-13T00:00:00+07:00']) {
+    for (const at of ['2026-11-24T23:59:59+07:00', '2026-11-25T00:00:00+07:00', '2026-11-25T18:00:00+07:00', '2026-11-30T23:59:59+07:00', '2026-12-01T00:00:00+07:00']) {
       const r = noticeSendable(new Date(at))
       expect(r.ok, at).toBe(false)
       expect(r.ok ? '' : r.reason).toContain('nothing to announce')

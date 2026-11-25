@@ -47,18 +47,18 @@ describe('ContactComposer — the footnote under Chat now', () => {
   const footnote = (sellerIsPartner?: boolean) =>
     both(() => text(renderToString(<ContactComposer listingId="l1" currency="₫" price={100_000} negotiable={false} sellerIsPartner={sellerIsPartner} />)))
 
-  it('an ordinary seller: request their number once they reply (Zalo + WhatsApp)', () => {
+  it('an ordinary seller: ask for their number once they reply (one short line, owner 2026-11-25)', () => {
     const { en, vi } = footnote()
-    expect(en).toContain('Request their number once they reply — one number works for both Zalo and WhatsApp.')
-    expect(vi).toContain('Yêu cầu số điện thoại sau khi họ trả lời')
+    expect(en).toContain('Ask for their number once they reply.')
+    expect(vi).toContain('Xin số điện thoại sau khi họ trả lời.')
   })
 
   it('an official partner: never offers a number — the server refuses one (partner_chat_only)', () => {
     const { en, vi } = footnote(true)
     expect(en).toContain('Partners answer in eno chat. No phone number is shared.')
     expect(vi).toContain('Đối tác trả lời qua chat trên eno. Không chia sẻ số điện thoại.')
-    expect(en).not.toMatch(/Request their number|Zalo|WhatsApp/)
-    expect(vi).not.toMatch(/Yêu cầu số điện thoại|Zalo|WhatsApp/)
+    expect(en).not.toMatch(/their number|Zalo|WhatsApp/)
+    expect(vi).not.toMatch(/Xin số điện thoại|Zalo|WhatsApp/)
   })
 })
 

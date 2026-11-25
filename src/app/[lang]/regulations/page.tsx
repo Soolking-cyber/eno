@@ -17,10 +17,9 @@ import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH, REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION } from '@/lib/site-legal'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
-import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, V3, V3_PATHS, V3_SUPERSEDED, V4, V4_PATHS, V4_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
+import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, V3, V3_PATHS, V3_SUPERSEDED, V4, V4_PATHS, V4_SUPERSEDED, V5, V5_PATHS, V5_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -45,6 +44,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * LEGAL_AMENDMENT on 2026-10-07 — a Terms-only amendment that changed nothing here) — and the version numbers
  * from REGULATIONS_VERSION / REGULATIONS_PREVIOUS_VERSION (site-legal.ts), never TOS_VERSION: the Terms
  * count their own versions.
+ * ⚠️ AND TWICE IN 2026-11: version 5 (03/11/2026 — partner services and their fees, eno.vn only) and version 6 (2026-11-25 —
+ * Article 7's free availability check withdrawn, both editions, in the same deploy as the Terms' version 4), both
+ * owner-decided exceptions (`immediate`) too. Version 6's dates are REGULATIONS_AMENDMENT's (META directly, its Article 17
+ * entry through legal-archive.ts V5_SUPERSEDED); version 5's and version 4's are literals now (V4_SUPERSEDED, V3_SUPERSEDED).
  * By default `published` = the real deploy day and in force ≥ 6 calendar days later, because the 5-day
  * notice (Article 15) does not count the publication day; Article 15 still promises that notice for
  * every future amendment.
@@ -340,6 +343,20 @@ const CHANGES_V5: Para[] = [
   },
 ]
 
+/**
+ * VERSION 6's entry (owner, 2026-11-25: the renters' free availability check was removed from the product — b6750b930 — and
+ * then "update legal pages no need to warn users"). Same rule as the lists above: one item per substantive edit, saying what
+ * the text now says and what it said before. ⛔ BOTH EDITIONS: Article 7 carried the check on eno.vn and eno.forum alike, so
+ * this entry renders on both; only the "of itself" words were eno.vn's (version 5), and the quote of the old text takes the
+ * same gate. "5" is the limit version 5 printed (RENTAL_CHECK_MAX_ITEMS then): history, typed as it was.
+ */
+const CHANGES_V6: Para[] = [
+  {
+    vi: `sửa đổi đoạn về tin đăng liên kết tại Điều 7: bỏ quy định về việc hỗ trợ kiểm tra tình trạng còn trống của tin cho thuê — đơn vị vận hành không còn cung cấp việc hỗ trợ này (trước đây ghi là đối với tin cho thuê, kể cả tin đăng liên kết, người sử dụng đã đăng nhập có thể nhờ đơn vị vận hành kiểm tra tình trạng còn trống của tối đa 5 tin mỗi lần, miễn phí, câu trả lời được gửi trong mục tin nhắn của người sử dụng, và việc hỗ trợ này ${IS_MARKETPLACE ? 'tự nó ' : ''}không khiến đơn vị vận hành trở thành bên cho thuê, bên môi giới hay một bên của hợp đồng thuê)`,
+    en: `amend the linked-listings paragraph of Article 7: remove the rule on help checking whether rentals are still available — the operator no longer offers that help (it previously said that for rentals, linked ones included, a signed-in user may ask the operator to check whether up to 5 of them are still available, free of charge, that the answer arrives in the user’s messages, and that the help does not ${IS_MARKETPLACE ? 'of itself ' : ''}make the operator the landlord, the agent or a party to the tenancy)`,
+  },
+]
+
 const numbered = (changes: Para[], lang: 'vi' | 'en') => changes.map((c, i) => `(${i + 1}) ${c[lang]}`).join('; ')
 
 const ARTICLES: Article[] = [
@@ -587,10 +604,11 @@ const ARTICLES: Article[] = [
         en: `The platform creates no order, confirms no order, issues no invoice on a seller’s behalf and processes no payment between buyer and seller at any step. Invoicing, documentation and any tax arising from a transaction are the seller’s responsibility.`,
       },
       {
-        // The free rental check: POST /api/rental-check, signed-in, ≤ RENTAL_CHECK_MAX_ITEMS, answered
-        // in the requester's /messages thread (src/lib/rental-check/shared.ts header).
-        vi: `Tin đăng liên kết không được tạo theo các bước trên: đơn vị vận hành đưa tin từ trang nguồn về sàn, kèm tên trang nguồn và nút đưa người mua sang trang nguồn; người mua liên hệ, ứng tuyển hoặc mua hàng trên trang nguồn. Đối với tin cho thuê, kể cả tin đăng liên kết, người sử dụng đã đăng nhập có thể nhờ đơn vị vận hành kiểm tra tình trạng còn trống của tối đa ${RENTAL_CHECK_MAX_ITEMS} tin mỗi lần, miễn phí; câu trả lời được gửi trong mục tin nhắn của người sử dụng. Việc hỗ trợ này ${IS_MARKETPLACE ? 'tự nó ' : ''}không khiến đơn vị vận hành trở thành bên cho thuê, bên môi giới hay một bên của hợp đồng thuê.`,
-        en: `Linked listings are not created through the steps above: the operator brings them in from the source site, with the source site’s name and a button that takes the user to the source site, and the buyer contacts the seller, applies or buys on the source site. For rentals, linked ones included, a signed-in user may ask the operator to check whether up to ${RENTAL_CHECK_MAX_ITEMS} of them are still available, free of charge; the answer arrives in the user’s messages. That help does not ${IS_MARKETPLACE ? 'of itself ' : ''}make the operator the landlord, the agent or a party to the tenancy.`,
+        // ⛔ VERSION 6 (2026-11-25): the free rental availability check's sentences are gone — the feature was removed
+        // (b6750b930: no POST /api/rental-check, no /rentals/check). Version 5's wording is at /regulations/v5 and the
+        // edit in Article 17 (CHANGES_V6).
+        vi: `Tin đăng liên kết không được tạo theo các bước trên: đơn vị vận hành đưa tin từ trang nguồn về sàn, kèm tên trang nguồn và nút đưa người mua sang trang nguồn; người mua liên hệ, ứng tuyển hoặc mua hàng trên trang nguồn.`,
+        en: `Linked listings are not created through the steps above: the operator brings them in from the source site, with the source site’s name and a button that takes the user to the source site, and the buyer contacts the seller, applies or buys on the source site.`,
       },
     ],
   },
@@ -1014,7 +1032,7 @@ const ARTICLES: Article[] = [
         en: `Amendments published on and in force from ${V3_SUPERSEDED.inForceEn}; the previous text (version ${V3}) is archived at ${V3_PATHS.regulations}. They: ${numbered(CHANGES_V4, 'en')}.`,
       },
       // VERSION 5's entry (owner, 2026-11-03) — immediate: "all take effect once we deploy", so one date. Dated through
-      // V4_SUPERSEDED: REGULATIONS_AMENDMENT's dates today, a literal once a version 6 re-uses that record.
+      // V4_SUPERSEDED: a literal 03/11/2026 since version 6 re-used REGULATIONS_AMENDMENT.
       IS_MARKETPLACE
         ? {
             vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V4_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V4}) được lưu tại ${V4_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V5, 'vi')}.`,
@@ -1024,6 +1042,13 @@ const ARTICLES: Article[] = [
             vi: `Phiên bản 5 được công bố và có hiệu lực từ ngày ${V4_SUPERSEDED.inForceVi}; nội dung tại ${S} không thay đổi so với phiên bản ${V4}, được lưu tại ${V4_PATHS.regulations}.`,
             en: `Version 5 published on and in force from ${V4_SUPERSEDED.inForceEn}; the text at ${S} is unchanged from version ${V4}, archived at ${V4_PATHS.regulations}.`,
           },
+      // VERSION 6's entry (owner, 2026-11-25) — immediate: "update legal pages no need to warn users", so one date. BOTH
+      // editions (CHANGES_V6). Dated through V5_SUPERSEDED: REGULATIONS_AMENDMENT's dates today, a literal once a version 7
+      // re-uses that record (legal-archive.test.ts).
+      {
+        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V5_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V5}) được lưu tại ${V5_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V6, 'vi')}.`,
+        en: `Amendments published on and in force from ${V5_SUPERSEDED.inForceEn}; the previous text (version ${V5}) is archived at ${V5_PATHS.regulations}. They: ${numbered(CHANGES_V6, 'en')}.`,
+      },
     ],
   },
 ]
@@ -1080,8 +1105,8 @@ export default function RegulationsPage() {
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
         <div className="mt-3 max-w-[70ch] space-y-1">
-          {/* Linkified: META names where the previous version is published (/regulations/v4 since
-              version 5 — the version in force during a notice window, if an amendment has one), and
+          {/* Linkified: META names where the previous version is published (/regulations/v5 since
+              version 6 — the version in force during a notice window, if an amendment has one), and
               Article 15 promises the version in force is always one step away. */}
           <p className="text-sm text-ink-4" lang="vi">{linkifyLegal(META.vi)}</p>
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>

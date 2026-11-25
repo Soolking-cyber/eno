@@ -24,6 +24,12 @@
 // Terms-only amendment, IMMEDIATE by the owner's decision: published and in force 07/10/2026):
 // src/app/[lang]/terms/v2 — every acceptance from 01/10/2026 until that instant names version 2.
 // Permanently, like the others.
+// ⚠️ THE TERMS' VERSION 3 IS ARCHIVED SINCE THE TERMS' VERSION 4, AND THE QUY CHẾ'S VERSION 5 SINCE ITS VERSION 6 (2026-11-25 —
+// one deploy, two records: the renters' free availability check withdrawn from the Terms' `linked` section and the Quy chế's
+// Article 7, with the /privacy text that described it; IMMEDIATE by the owner's decision, "update legal pages no need to
+// warn users"): src/app/[lang]/terms/v3 — every acceptance from 07/10/2026 until version 4's in-force instant names
+// version 3 — and src/app/[lang]/regulations/v5, the Quy chế in force from 03/11/2026 until that day. Permanently, like
+// the others.
 // ⚠️ THE TWO DOCUMENTS' VERSION NUMBERS PARTED AT 2: the Terms' version 3 (TERMS_V2_SUPERSEDED_BY, LEGAL_AMENDMENT)
 // and the Quy chế's version 3 (V2_SUPERSEDED_BY, REGULATIONS_AMENDMENT) are different amendments on different
 // days. Never read one's record for the other.
@@ -37,13 +43,18 @@
 //     of every text that amendment changed and version 3 did not — /returns, the Quy chế's first Article 17
 //     entry, the version-2 note in /terms' change log — so those read V1_SUPERSEDED now (/prohibited did too,
 //     until its own amendment of 2026-10-14 — PROHIBITED_AMENDMENT dates it since);
-//   · TERMS_V2_SUPERSEDED_BY borrows LEGAL_AMENDMENT while TOS_VERSION is '3';
+//   · TERMS_V2_SUPERSEDED_BY — LITERALS since the Terms' version 4 re-used LEGAL_AMENDMENT (2026-11-25): version 3's real
+//     dates, published and in force 07/10/2026 (immediate). They also date version 3's note in /terms' change log and the
+//     header of the /terms/v3 archive;
+//   · TERMS_V3_SUPERSEDED_BY borrows LEGAL_AMENDMENT while TOS_VERSION is '4';
 //   · V2_SUPERSEDED_BY — LITERALS since the Quy chế's version 4 re-used REGULATIONS_AMENDMENT (2026-10-29): version
 //     3's real dates, published and in force 05/10/2026 (immediate). They also date version 3's Article 17 entry on
 //     the live page and in the v3 archive;
 //   · V3_SUPERSEDED_BY — LITERALS since the Quy chế's version 5 re-used REGULATIONS_AMENDMENT (2026-11-03): version 4's
 //     real dates, published and in force 29/10/2026 (immediate). They also date version 4's Article 17 entry;
-//   · V4_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '5'.
+//   · V4_SUPERSEDED_BY — LITERALS since the Quy chế's version 6 re-used REGULATIONS_AMENDMENT (2026-11-25): version 5's
+//     real dates, published and in force 03/11/2026 (immediate). They also date version 5's Article 17 entry;
+//   · V5_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '6'.
 
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT, dateEn, dateVi } from './legal-amendment'
 
@@ -88,12 +99,14 @@ export const V2_PATHS = { terms: archivedPath('terms', V2), regulations: archive
 
 /**
  * The amendment that replaced the TERMS' version 2: the Terms' version 3 (App Store Guideline 1.2 — decision
- * D8). Not V2_SUPERSEDED_BY, which is the Quy chế's. See the ⛔ above before touching LEGAL_AMENDMENT.
+ * D8), an immediate amendment (owner, 2026-10-07), published and in force 07/10/2026. Not V2_SUPERSEDED_BY, which
+ * is the Quy chế's. ⛔ LITERALS: LEGAL_AMENDMENT moved on to the Terms' version 4 (see the ⛔ above); these are the
+ * days version 3 really shipped and took effect, and they never change again.
  */
 export const TERMS_V2_SUPERSEDED_BY = {
   version: '3',
-  published: LEGAL_AMENDMENT.published,
-  inForce: LEGAL_AMENDMENT.inForce,
+  published: '2026-10-07',
+  inForce: '2026-10-07',
 } as const
 
 export const TERMS_V2_SUPERSEDED = {
@@ -122,14 +135,32 @@ export const V2_SUPERSEDED = {
   inForceEn: dateEn(V2_SUPERSEDED_BY.inForce),
 } as const
 
-/** The Quy chế's version 3 — a literal for the same reason as V1 and V2 (REGULATIONS_PREVIOUS_VERSION moves on). */
+/** Version 3's number — a literal for the same reason as V1 and V2 (TOS_PREVIOUS_VERSION and REGULATIONS_PREVIOUS_VERSION move on). */
 export const V3 = '3'
 
 /**
- * Where the Quy chế's version 3 is published. The Quy chế only: the Terms' version 3 is the Terms in force, not an
- * archive (TOS_VERSION), so there is no /terms/v3 to point at.
+ * Where version 3 of each document is published. The Terms' version 3 is archived since the Terms' version 4
+ * (2026-11-25); until then it was the Terms in force and this named the Quy chế's alone.
  */
-export const V3_PATHS = { regulations: archivedPath('regulations', V3) } as const
+export const V3_PATHS = { terms: archivedPath('terms', V3), regulations: archivedPath('regulations', V3) } as const
+
+/**
+ * The amendment that replaced the TERMS' version 3: the Terms' version 4 (the renters' free availability check withdrawn
+ * from the `linked` section; owner, 2026-11-25). Not V3_SUPERSEDED_BY, which is the Quy chế's. See the ⛔ above before
+ * touching LEGAL_AMENDMENT.
+ */
+export const TERMS_V3_SUPERSEDED_BY = {
+  version: '4',
+  published: LEGAL_AMENDMENT.published,
+  inForce: LEGAL_AMENDMENT.inForce,
+} as const
+
+export const TERMS_V3_SUPERSEDED = {
+  publishedVi: dateVi(TERMS_V3_SUPERSEDED_BY.published),
+  publishedEn: dateEn(TERMS_V3_SUPERSEDED_BY.published),
+  inForceVi: dateVi(TERMS_V3_SUPERSEDED_BY.inForce),
+  inForceEn: dateEn(TERMS_V3_SUPERSEDED_BY.inForce),
+} as const
 
 /**
  * The amendment that replaced the Quy chế's version 3: version 4 (Article 14 — the home page shows only listings
@@ -155,13 +186,14 @@ export const V4 = '4'
 export const V4_PATHS = { regulations: archivedPath('regulations', V4) } as const
 
 /**
- * The amendment that replaced the Quy chế's version 4: version 5 (partner services and their fees; owner, 2026-11-03).
- * See the ⛔ above before touching REGULATIONS_AMENDMENT.
+ * The amendment that replaced the Quy chế's version 4: version 5 (partner services and their fees; owner, 2026-11-03), an
+ * immediate amendment, published and in force 03/11/2026. ⛔ LITERALS: REGULATIONS_AMENDMENT moved on to version 6 (see the
+ * ⛔ above); these are the days version 5 really shipped and took effect, and they never change again.
  */
 export const V4_SUPERSEDED_BY = {
   version: '5',
-  published: REGULATIONS_AMENDMENT.published,
-  inForce: REGULATIONS_AMENDMENT.inForce,
+  published: '2026-11-03',
+  inForce: '2026-11-03',
 } as const
 
 export const V4_SUPERSEDED = {
@@ -169,4 +201,27 @@ export const V4_SUPERSEDED = {
   publishedEn: dateEn(V4_SUPERSEDED_BY.published),
   inForceVi: dateVi(V4_SUPERSEDED_BY.inForce),
   inForceEn: dateEn(V4_SUPERSEDED_BY.inForce),
+} as const
+
+/** The Quy chế's version 5 — a literal for the same reason as V1 to V4. */
+export const V5 = '5'
+
+/** Where the Quy chế's version 5 is published. The Quy chế only: the Terms never had a version 5. */
+export const V5_PATHS = { regulations: archivedPath('regulations', V5) } as const
+
+/**
+ * The amendment that replaced the Quy chế's version 5: version 6 (Article 7's free availability check withdrawn; owner,
+ * 2026-11-25). See the ⛔ above before touching REGULATIONS_AMENDMENT.
+ */
+export const V5_SUPERSEDED_BY = {
+  version: '6',
+  published: REGULATIONS_AMENDMENT.published,
+  inForce: REGULATIONS_AMENDMENT.inForce,
+} as const
+
+export const V5_SUPERSEDED = {
+  publishedVi: dateVi(V5_SUPERSEDED_BY.published),
+  publishedEn: dateEn(V5_SUPERSEDED_BY.published),
+  inForceVi: dateVi(V5_SUPERSEDED_BY.inForce),
+  inForceEn: dateEn(V5_SUPERSEDED_BY.inForce),
 } as const

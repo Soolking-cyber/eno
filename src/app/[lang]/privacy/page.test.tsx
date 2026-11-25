@@ -111,6 +111,29 @@ describe('/privacy — price-drop alerts for saved listings (owner, 2026-11-17: 
   })
 })
 
+// ⛔ THE RENTERS' AVAILABILITY CHECK WAS REMOVED (b6750b930; owner, 2026-11-25: "update legal pages no need to warn users" —
+// the Terms' version 4, LEGAL_AMENDMENT). Nothing writes its device list or draft any more (leftovers are deleted on page
+// load and at sign-out — sign-out-storage.ts), and its sign-in place is gone. What stays is the requests already sent:
+// cards in the person's thread with our team, which cannot be recalled, leave the inbox only when the thread is deleted
+// there, and go with the account (account-erasure.ts).
+describe('/privacy — the removed availability check', () => {
+  it('drops the device row and the sign-in place, and says where the requests already sent stay — both editions, EN and VI', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      expect(en, site).not.toMatch(/Rental availability list|The rentals you asked us to check|the rental check/)
+      expect(en, site).toContain('for each place that asks (a first save, chat, an offer, a saved search, posting,')
+      expect(en, site).toContain('If you once asked our team to check whether rentals were still available (a service we no longer offer), the request you sent — the rentals you picked, what you wrote about what you were looking for, and the Zalo, WhatsApp or email contact you gave — stays in your conversation with our team like any other message: deleting that conversation removes it from your inbox only, and it is deleted when you delete your account.')
+      cleanup()
+      const vi = await policy(site, 'vi')
+      expect(vi, site).not.toMatch(/Danh sách kiểm tra phòng trống|kiểm tra phòng trống/)
+      expect(vi, site).toContain('với từng chỗ mời đăng nhập (lần lưu tin đầu tiên, nhắn tin, trả giá, lưu tìm kiếm, đăng tin,')
+      expect(vi, site).toContain('Nếu trước đây bạn đã nhờ đội ngũ của chúng tôi kiểm tra tin cho thuê còn trống hay không (dịch vụ chúng tôi không còn cung cấp), yêu cầu bạn đã gửi')
+      expect(vi, site).toContain('xóa cuộc trò chuyện đó chỉ gỡ nó khỏi hộp thư của bạn, và yêu cầu bị xóa khi bạn xóa tài khoản.')
+      cleanup()
+    }
+  })
+})
+
 describe('/privacy — its text and its date move together (commit gate B2)', () => {
   it('⛔ the policy as rendered matches PRIVACY_TEXT_FINGERPRINT — a change to the text must decide its date', async () => {
     // The build-time switches the page reads, pinned empty (commit gate B4, opus): a shell or CI env that sets them
@@ -307,12 +330,12 @@ describe('/privacy — the facts it states match the code', () => {
   })
 
   it('⛔ on-device lifetimes promise no deletion that nothing performs — the draft TTLs apply only when the form opens again', async () => {
-    // post-draft-photos.ts checks PHOTO_TTL_MS only inside loadDraftPhotos; rental-check/store.ts applies
-    // DRAFT_TTL_MS only inside readDraft. No timer sweeps either.
+    // post-draft-photos.ts checks PHOTO_TTL_MS only inside loadDraftPhotos. No timer sweeps it. (The rental check's
+    // 7-day draft row went with the check — 2026-11-25, the Terms' version 4; its leftovers are cleared on page load.)
     const text = await policy('marketplace')
     expect(text).toContain('are also discarded the next time the form opens if they are more than 24 hours old')
     expect(text).toContain('Nothing removes them before the form is opened again')
-    expect(text).toContain('an unfinished request is discarded the next time you open the list if it is more than 7 days old')
+    expect(text).not.toContain('an unfinished request is discarded the next time you open the list')
     expect(text).not.toMatch(/after 24 hours at most|an unfinished request after 7 days/)
   })
 
