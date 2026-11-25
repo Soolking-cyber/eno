@@ -170,6 +170,15 @@ describe('the overlay sprite', () => {
     const { IMAGE_MARK_BOX } = await import('../../components/marketplace/image-mark')
     expect(IMAGE_MARK_BOX).toEqual({ w: MARK_W, h: MARK_H })
   })
+
+  it('the CSS mask (/brand/eno-mark-mask.svg, image-mark.tsx `.img-mark`) is the same path and box, standalone', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { WORDMARK_D, MARK_W, MARK_H, MARK_X, MARK_Y } = await import('./watermark-mark')
+    const svg = readFileSync('public/brand/eno-mark-mask.svg', 'utf8')
+    expect(svg).toContain(`d="${WORDMARK_D}"`)
+    expect(svg).toContain(`viewBox="${MARK_X} ${MARK_Y} ${MARK_W} ${MARK_H}"`)
+    expect(svg).not.toContain('<symbol')
+  })
 })
 
 describe('regions handed to sharp.extract', () => {

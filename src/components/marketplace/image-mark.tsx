@@ -75,16 +75,10 @@ export function ImageMark({ src, fit = 'cover', className }: { src: string | nul
   if (!mark) return null
 
   if (fit === 'cover') {
-    return (
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        viewBox={`0 0 ${IMAGE_MARK_BOX.w} ${IMAGE_MARK_BOX.h}`}
-        className={cn('pointer-events-none absolute bottom-[3%] right-[3%] z-[1] h-auto w-[20%] select-none', INK[mark.cover], className)}
-      >
-        <use href={IMAGE_MARK_SPRITE} width="100%" height="100%" />
-      </svg>
-    )
+    // ⚡ ONE EMPTY ELEMENT, THE MARK DRAWN BY CSS (`.img-mark` in globals.css: the same 20 % / 3 % / corner, a mask of the
+    // mark's path). It was an inline <svg><use> per photo, ~240 B each: 229 photos, 55 KB of /c/rentals (owner, 2026-11-25:
+    // page weight for Seobility's 500 KB limit).
+    return <span aria-hidden="true" className={cn('img-mark', INK[mark.cover], className)} />
   }
 
   const { width: W, height: H } = mark

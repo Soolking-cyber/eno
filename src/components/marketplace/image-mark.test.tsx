@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IMAGE_MARK_BOX, ImageMark, MARK_SHARE, ON_SCREEN_MARK } from './image-mark'
@@ -14,9 +15,18 @@ describe('ImageMark', () => {
     expect(ON_SCREEN_MARK).toBe(true)
     expect(MARK_SHARE).toBe(0.2)
     const { container } = render(<div className="relative"><ImageMark src={`${BASE}1794127133406-gruw9b-ild-1600x1200.webp`} /></div>)
-    const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('class')).toContain(`w-[${MARK_SHARE * 100}%]`)
-    expect(svg.getAttribute('class')).toContain('right-[3%]')
+    // A cropped photo's mark is ONE empty element drawn by `.img-mark` (globals.css, owner 2026-11-25 page weight): its
+    // width there is MARK_SHARE, 3 % from the corner.
+    const svg = container.querySelector('.img-mark')!
+    expect(svg.getAttribute('aria-hidden')).toBe('true')
+    expect(svg.childElementCount).toBe(0)
+    const css = readFileSync('src/app/globals.css', 'utf8')
+    const rule = css.slice(css.indexOf('.img-mark {'), css.indexOf('}', css.indexOf('.img-mark {')))
+    expect(rule).toContain(`width: ${MARK_SHARE * 100}%;`)
+    expect(rule).toContain('right: 3%;')
+    expect(rule).toContain('bottom: 3%;')
+    expect(rule).toContain(`aspect-ratio: ${IMAGE_MARK_BOX.w} / ${IMAGE_MARK_BOX.h};`)
+    expect(rule).toContain('mask: url(/brand/eno-mark-mask.svg)')
     // 'ild': light ink on the card's square.
     expect(svg.getAttribute('class')).toContain('text-white/60')
   })
@@ -32,10 +42,10 @@ describe('ImageMark', () => {
 
   it('a member\'s new upload gets it; a photo with its mark baked in (before 2026-11-10) never gets a second one', () => {
     const { container: a } = render(<ImageMark src={`${BASE}bulk/1794127133406-gruw9b-idd-800x600-h6d6929292b2cb0c1.webp`} />)
-    expect(a.querySelector('svg')).not.toBeNull()
+    expect(a.querySelector('.img-mark')).not.toBeNull()
     const { container: b } = render(<ImageMark src={`${BASE}1787899111917-wdme70-h07822068618be83c.webp`} />)
-    expect(b.querySelector('svg')).toBeNull()
+    expect(b.firstChild).toBeNull()
     const { container: c } = render(<ImageMark src="https://example.com/photo.webp" />)
-    expect(c.querySelector('svg')).toBeNull()
+    expect(c.firstChild).toBeNull()
   })
 })

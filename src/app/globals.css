@@ -1655,6 +1655,29 @@
 .shadow-onmedia { box-shadow: var(--shadow-onmedia); }
 /* The same job as a sharp ring, for chrome repeated on every listing card (the photo pips) — see --pip-edge. */
 .pip-edge { box-shadow: var(--pip-edge); }
+/* The eno.vn mark on a CROPPED listing photo (image-mark.tsx, fit "cover"): MARK_SHARE (20 %) of the frame's width, 3 % in
+   from its bottom-right corner, in the ink class beside it (currentColor). A CSS mask on one empty element, not an inline
+   <svg><use> per photo (owner 2026-11-25, page weight: ~240 B a photo, 55 KB of /c/rentals). The mask is the sprite's one
+   path as its own file (/brand/eno-mark-mask.svg): a mask cannot point into a <symbol>. In `components`, so a call site's
+   utility (the gallery's `bottom-7`) still wins. image-mark.test.tsx pins the width to MARK_SHARE. */
+@layer components {
+  .img-mark {
+    pointer-events: none;
+    position: absolute;
+    right: 3%;
+    bottom: 3%;
+    z-index: 1;
+    width: 20%;
+    aspect-ratio: 9132.3 / 1588.3;
+    user-select: none;
+    background-color: currentColor;
+    /* A background is dropped when printing and recoloured in forced-colors mode; the inline <svg> fill was neither. */
+    print-color-adjust: exact;
+    forced-color-adjust: none;
+    -webkit-mask: url(/brand/eno-mark-mask.svg) center / contain no-repeat;
+    mask: url(/brand/eno-mark-mask.svg) center / contain no-repeat;
+  }
+}
 /* The photo plate's edge, for a plated control that is not an `.icon-plate` glyph (the gallery's mute toggle and
    "Show all" chip) — see --shadow-plate. And the sticky action bar's lift — see --shadow-bar. */
 .shadow-plate { box-shadow: var(--shadow-plate); }
