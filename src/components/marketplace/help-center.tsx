@@ -29,16 +29,16 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { CategoryGlyphArt } from '@/components/marketplace/category-glyph'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { HelpVote } from '@/components/marketplace/help-vote'
-import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Rows, Row } from '@/components/ui/rows'
-import { formatHelpBody } from '@/components/marketplace/rich-text'
 import { useLocalized } from '@/components/marketplace/listing-content'
 import { HELP_TOPICS, splitIntoColumns } from '@/lib/help-center'
+import { localizedHref } from '@/lib/lang-pinned'
+import { answerExcerpt } from '@/lib/help-excerpt'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { HelpCenterData, HelpPost, HelpReview } from '@/lib/help-center-data'
 
@@ -170,22 +170,31 @@ const POLICY_PAGES: { href: string; en: string; vi: string; k: string }[] = [
   { href: '/contact', en: 'Contact us', vi: 'Liên hệ', k: 'contact email phone support liên hệ hỗ trợ' },
 ]
 
-// 2026-11-06 audit: the size and the chevron ink of the Answers' accordion rows (ui/accordion: text-base, muted chevron), so a
-// top question and the same question under its topic read as one kind of row; the chevron's direction still says which
-// one opens its page (right) and which one opens in place (down).
+// 2026-11-06 audit: one kind of row for a top question and an answer under its topic (text-base, muted chevron). Since
+// 2026-11-25 both open the answer's page (AnswerRow), so both chevrons point right.
+/**
+ * An answer's page in the reader's variant: `/vi/help/<id>` on the Vietnamese one (lang-pinned.ts, a phase-1 family), so the
+ * Vietnamese hub links the Vietnamese answers — they were reached only through each English page's twin link (Seobility
+ * crawl 5: /vi/help answers 5–6 clicks deep). English and the nine client-translated languages keep `/help/<id>`.
+ */
+export function helpHref(id: string, lang: string): string {
+  return localizedHref(`/help/${encodeURIComponent(id)}`, lang)
+}
+
 /** One link row on the flat canvas: the label, then a chevron on a shared right edge. */
 const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-3 text-base font-semibold text-foreground hover:text-accent-foreground'
 const ROW_CHEVRON = 'size-4 text-muted-foreground group-hover:text-accent-foreground'
 
 /** A "Top questions" row: the post's title in the reader's language, linking to its thread. */
 function TopQuestion({ post, i18n, leftOut }: { post: HelpPost; i18n?: HelpI18n; leftOut: boolean }) {
+  const { lang } = useLanguage()
   const title = useHelpText(post, post.title, i18n, 'title')
   return (
     <Row className="py-0 lg:border-t lg:border-border">
       {/* data-topic: the topic group this question is left out of while it is listed here (e2e/guest/help.spec.ts counts by it).
           Only while it IS left out (2026-11-06 gate): with no more answers than Top questions holds, every post stays in its
           group, and a data-topic on every top link made the chip test count those answers twice. */}
-      <Link href={`/help/${encodeURIComponent(post.id)}`} data-topic={leftOut ? post.community : undefined} className={ROW_LINK}>
+      <Link href={helpHref(post.id, lang)} data-topic={leftOut ? post.community : undefined} className={ROW_LINK}>
         <span className="min-w-0">{title}</span>
         <ChevronRight className={ROW_CHEVRON} aria-hidden />
       </Link>
@@ -217,44 +226,37 @@ function PolicyMatches({ pages }: { pages: typeof POLICY_PAGES }) {
   )
 }
 
-/** One FAQ answer. The question is the accordion trigger; the answer body, the upvote and
- *  the discussion link live in the panel. */
-function AnswerItem({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
-  const { tr } = useLanguage()
+/**
+ * One answer on the hub: its question, a link to its own page. The industry's help-centre shape (Zendesk, Intercom, Stripe):
+ * the hub lists articles; the article page holds the answer, its vote and its discussion (/help/[id] has all three).
+ * ⛔ NOT AN ACCORDION ANY MORE (owner, 2026-11-25: "fix it properly to industry standard regarding help articles"). Each answer
+ * was a panel with its page link inside, `hidden="until-found"` until opened, so a crawler saw /help link only the six Top
+ * questions (Seobility crawl 5: 27 links on /help, its answers 4–6 clicks deep) and the hub carried every body twice over.
+ * `data-help-answer` marks the rows for e2e/guest/help.spec.ts.
+ */
+function AnswerRow({ post, i18n, needle = '' }: { post: HelpPost; i18n?: HelpI18n; needle?: string }) {
+  const { lang } = useLanguage()
   const title = useHelpText(post, post.title, i18n, 'title')
   const body = useHelpText(post, post.body, i18n, 'description')
-
+  // While searching, a row found by its answer, not its question, shows the words that found it (help-excerpt.ts).
+  const excerpt = needle && !title.toLocaleLowerCase().includes(needle) ? answerExcerpt(body, needle) : null
   return (
-    <AccordionItem value={post.id}>
-      <AccordionTrigger>{title}</AccordionTrigger>
-      <AccordionPanel>
-        {/* Headings, paragraphs and lists, not a pre-line <p> printing "•" (C-HELP-RENDER). h4: the
-            trigger above is this answer's h3. Sub-heads are guessed only on the eno team's answers. */}
-        <div>{formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 4, links: post.official })}</div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {/* The question, then the vote that answers it (2026-11-06 audit). */}
-          <span className="text-xs text-muted-foreground">
-            {tr('Was this helpful?', 'Câu trả lời này có hữu ích không?')}
-          </span>
-          <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" />
-          <Link
-            href={`/help/${encodeURIComponent(post.id)}`}
-            className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-accent-foreground hover:underline"
-          >
-            {post.commentCount > 0
-              ? fillTemplate(tr('Discussion ({commentCount})', 'Thảo luận ({commentCount})'), 'Discussion ({commentCount})', { commentCount: String(post.commentCount) })
-              : tr('Ask a follow-up', 'Hỏi thêm')}
-            <ChevronRight className="size-3.5" aria-hidden />
-          </Link>
-        </div>
-      </AccordionPanel>
-    </AccordionItem>
+    <Row className="py-0">
+      <Link href={helpHref(post.id, lang)} data-help-answer="" className={ROW_LINK}>
+        <span className="min-w-0">
+          {title}
+          {/* A space before it, so the link's name reads "question. excerpt", not one run-on word. */}
+          {excerpt && <>{' '}<span className="mt-1 block text-sm font-normal leading-relaxed text-body">{excerpt}</span></>}
+        </span>
+        <ChevronRight className={ROW_CHEVRON} aria-hidden />
+      </Link>
+    </Row>
   )
 }
 
 /** A community question asked inside a help topic — the Reddit half of the page. */
 function QuestionCard({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const title = useHelpText(post, post.title, i18n, 'title')
 
   return (
@@ -262,7 +264,7 @@ function QuestionCard({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
       <div className="flex items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3">
         <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" className="mt-0.5" />
         <div className="min-w-0 flex-1">
-          <Link href={`/help/${encodeURIComponent(post.id)}`} className="block">
+          <Link href={helpHref(post.id, lang)} className="block">
             <p className="line-clamp-2 text-sm font-semibold text-foreground hover:text-accent-foreground">{title}</p>
           </Link>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -453,7 +455,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
   // narrowed by topic or typed a query (grouping one bucket is just noise).
   const grouped = !topic && !needle
   // 2026-11-06 audit: while Top questions shows, its posts are left out of their topic groups. The same six questions read
-  // twice within a screen, once as links to their pages and once as accordions (the info and dashboard judges both). A topic
+  // twice within a screen (the info and dashboard judges both; then as links and as accordions, now as two links). A topic
   // chip or a search lists every answer again, and when there are no more answers than Top questions holds, none is left
   // out. Opening a top question in place instead was declined in batch 26: it breaks Back and starves the view count that
   // ranks the list.
@@ -476,8 +478,8 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
   // A plain `lg:grid-cols-2` lays the groups out row by row, so each row grows to its
   // tallest cell and a short topic leaves a visible hole beside a long one — with
   // 3-question "Getting started" next to 6-question "Buying & offers" the gap was most
-  // of a screen. CSS `columns-2` fixes the packing but can slice an accordion across the
-  // column break as panels open. Packing the groups ourselves gives independent columns
+  // of a screen. CSS `columns-2` fixes the packing but can slice a topic across the
+  // column break. Packing the groups ourselves gives independent columns
   // with neither problem.
   //
   // The algorithm and every measured number behind it live in `splitIntoColumns` (and
@@ -584,7 +586,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
         // max-w-3xl, like every other list of links to read: at the page's full width the chevron sat
         // ~900px from a 300px question (the note on MORE_LINKS measured the same failure).
         // 2026-11-06 audit: from lg the list takes the Answers' two columns (gap-x-12) instead, so each chevron ends a ~540px
-        // column as the accordion rows' do and no empty half sits beside six rows. Each row then draws its own top rule
+        // column as the answer rows' do and no empty half sits beside six rows. Each row then draws its own top rule
         // (lg:divide-y-0), so the rules break at the gutter the way the Answers' do; below lg it stays one column.
         <section className="mt-8 max-w-3xl lg:max-w-none" aria-labelledby="help-top-title">
           <h2 id="help-top-title" className="h-section text-foreground">
@@ -653,22 +655,22 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
                       <HelpTopicIcon slug={group.topic.slug} className="size-4" />
                       {tr(group.topic.name, group.topic.nameVi)}
                     </h3>
-                    <Accordion className="mt-1">
+                    <Rows className="mt-1">
                       {group.posts.map((post) => (
-                        <AnswerItem key={post.id} post={post} i18n={i18n} />
+                        <AnswerRow key={post.id} post={post} i18n={i18n} />
                       ))}
-                    </Accordion>
+                    </Rows>
                   </section>
                 ))}
               </div>
             ))}
           </div>
         ) : (
-          <Accordion className="mt-3">
+          <Rows className="mt-3">
             {answers.map((post) => (
-              <AnswerItem key={post.id} post={post} i18n={i18n} />
+              <AnswerRow key={post.id} post={post} i18n={i18n} needle={needle} />
             ))}
-          </Accordion>
+          </Rows>
         )}
       </section>
 

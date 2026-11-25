@@ -9,7 +9,7 @@ import { ArrowLeft, CheckCircle2, ChevronRight, MessageCircle, ShieldCheck } fro
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
-import { HelpTopicIcon } from '@/components/marketplace/help-center'
+import { HelpTopicIcon, helpHref } from '@/components/marketplace/help-center'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { ReportContentButton } from '@/components/marketplace/report-content-button'
 import { OBJECTIONABLE_CONTENT, objectionableCopy } from '@/lib/ugc-copy'
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { formatArticleDate } from '@/lib/dates'
 import { helpModifiedAt } from '@/lib/help-modified'
 import { helpTopic } from '@/lib/help-center'
+import { localizedHref } from '@/lib/lang-pinned'
 import type { HelpPost } from '@/lib/help-center-data'
 
 /** Server-read translations of one string, target language → text (translate.ts cachedTranslations). */
@@ -85,12 +86,14 @@ function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?
 }
 
 function RelatedRow({ item }: { item: RelatedHelp }) {
+  const { lang } = useLanguage()
   // 'english': related answers are official ones only (loadRelatedHelp filters `official: true`).
   const title = useLocalized(item.title, null, item.i18n, 'english')
   return (
     <Row className="py-0">
       <Link
-        href={`/help/${encodeURIComponent(item.id)}`}
+        // The reader's variant, as the hub's rows (help-center.tsx helpHref): /vi/help/<id> on the Vietnamese page.
+        href={helpHref(item.id, lang)}
         className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-3 text-sm font-semibold text-foreground hover:text-accent-foreground"
       >
         <span className="min-w-0">{title}</span>
@@ -218,7 +221,7 @@ export function HelpThreadClient({
           on the article's own title, so the page's text carries its heading; one line, truncated, no new row. */}
       <nav aria-label={tr('Breadcrumb', 'Đường dẫn')} className="flex min-w-0 items-center gap-1.5 text-sm">
         <Link
-          href="/help"
+          href={localizedHref('/help', lang)}
           className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-accent-foreground hover:underline"
         >
           <ArrowLeft className="size-4" aria-hidden />
@@ -231,7 +234,7 @@ export function HelpThreadClient({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {topic && (
           <Link
-            href="/help"
+            href={localizedHref('/help', lang)}
             className="press inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-semibold text-body hover:bg-muted"
           >
             {/* Same renderer as the /help chips (14px at chip scale) so the topic's

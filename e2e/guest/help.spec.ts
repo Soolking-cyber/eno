@@ -13,15 +13,11 @@ async function openHelp(page: Page, path = '/help') {
   await page.locator('[data-help-center][data-hydrated="true"]').waitFor({ state: 'attached' })
 }
 
-// ⛔ THE ANSWERS ARE THE ACCORDION TRIGGERS INSIDE <main>, NOT EVERY TRIGGER ON THE PAGE. Since the
-// footer became an accordion on phones (footer.tsx — its link groups are ui/accordion items at every
-// width, the headers only hidden from `sm` up), every page carries FIVE more
-// `[data-slot="accordion-trigger"]`s in #app-footer, outside <main>. A page-wide count then mixes
-// footer furniture into the answer list: the topic-chip test's exact equality broke on it, and
-// "more than 5 answers" would be met by the footer alone on an empty Help Center. /help renders its
-// <HelpCenter> as the only child of <main> and the <Footer> after it, so <main> is exactly the
-// help page's own content.
-const answerTriggers = (page: Page) => page.locator('main [data-slot="accordion-trigger"]')
+// THE ANSWERS ARE LINK ROWS, EACH TO ITS OWN PAGE (owner, 2026-11-25: "fix it properly to industry standard regarding help
+// articles"). The hub lists articles; the answer, its vote and its discussion are on /help/<id>. They were accordion triggers,
+// whose page link sat in a `hidden="until-found"` panel a crawler never followed. `data-help-answer` marks the rows (the Top
+// questions above them are links too, but carry no such mark), and <main> keeps the footer's own links out of the count.
+const answerRows = (page: Page) => page.locator('main a[data-help-answer]')
 
 // Guest coverage for the Help Center. Before this, NO spec touched /help in either app —
 // so the FAQ could silently stop rendering (an empty answers query, a broken seed, a
@@ -38,25 +34,22 @@ test.describe('Guest · help center', () => {
 
     // The seeded answers must actually arrive from the database. An empty Help Center
     // still renders its chrome, so assert on the answer list, not the page shell.
-    const answers = answerTriggers(page)
+    const answers = answerRows(page)
     expect(await answers.count()).toBeGreaterThan(5)
   })
 
-  test('an answer expands to reveal its body', async ({ page }) => {
+  test('an answer is a link to its own page, and nothing on the hub is hidden until found', async ({ page }) => {
     await openHelp(page)
-    const first = answerTriggers(page).first()
-    const question = (await first.textContent())?.trim() ?? ''
-    expect(question.length).toBeGreaterThan(0)
-
-    await first.click()
-    // Base UI marks the open trigger; the panel is the sibling that carries the answer.
-    await expect(first).toHaveAttribute('data-panel-open', '')
-    await expect(page.locator('main [data-slot="accordion-panel"]').first()).toBeVisible()
+    const first = answerRows(page).first()
+    expect(((await first.textContent()) ?? '').trim().length).toBeGreaterThan(0)
+    await expect(first).toHaveAttribute('href', /^\/help\/[^/]+$/)
+    await expect(page.locator('main [data-slot="accordion-trigger"]')).toHaveCount(0)
+    await expect(page.locator('main [hidden="until-found"]')).toHaveCount(0)
   })
 
   test('search narrows the answer list', async ({ page }) => {
     await openHelp(page)
-    const answers = answerTriggers(page)
+    const answers = answerRows(page)
     const before = await answers.count()
 
     await page.getByRole('searchbox', { name: /search the help center/i }).fill('zzzznomatch')
@@ -68,7 +61,7 @@ test.describe('Guest · help center', () => {
 
   test('a topic chip filters to that topic', async ({ page }) => {
     await openHelp(page)
-    const answers = answerTriggers(page)
+    const answers = answerRows(page)
     const before = await answers.count()
 
     // "Shorter but non-empty" is true of ANY filter, including a wrong one. The real
@@ -84,7 +77,7 @@ test.describe('Guest · help center', () => {
     // plus the top questions that name it (data-topic, which a top-question link carries only while its post is left out of
     // its group: with no more answers than Top questions holds, none is, and the group already counts them; 2026-11-06 gate).
     const featured = await page.locator('section[aria-labelledby="help-top-title"] a[data-topic="vietnam-travel"]').count()
-    const expected = (await group.locator('[data-slot="accordion-trigger"]').count()) + featured
+    const expected = (await group.locator('a[data-help-answer]').count()) + featured
     expect(expected).toBeGreaterThan(0)
 
     const chip = page.getByRole('button', { name: /Vietnam travel/i })
@@ -98,14 +91,11 @@ test.describe('Guest · help center', () => {
     // Its navigation alone may take up to 25 s under load (below), inside the suite's 30 s per test.
     test.setTimeout(60_000)
     await openHelp(page)
-    const trigger = answerTriggers(page).first()
+    const row = answerRows(page).first()
     // Capture the question we clicked, so we can prove the thread that opens is THAT one.
-    const question = ((await trigger.textContent()) ?? '').trim()
+    const question = ((await row.textContent()) ?? '').trim()
     expect(question.length).toBeGreaterThan(0)
-    await trigger.click()
-    const thread = page.getByRole('link', { name: /Ask a follow-up|Discussion/i }).first()
-    await expect(thread).toBeVisible()
-    await thread.click()
+    await row.click()
     // ⚠️ ONE TAP, A LONGER WAIT (2026-11-08): under the full suite at eight workers against eno.vn the URL was still /help
     // 10 s after the tap, while the test passed 20 of 20 alone and the thread page answers in ~0.2 s: a client transition
     // starved of CPU. Not a retried tap: one that a visitor's first tap would not survive must stay red (review r-e2e).
