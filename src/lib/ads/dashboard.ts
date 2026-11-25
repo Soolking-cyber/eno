@@ -21,8 +21,9 @@ export async function dashboardAds(sellerId: string, now = new Date()): Promise<
   const creativeIds = [...new Set(ads.flatMap((a) => (a.creativeId ? [a.creativeId] : [])))]
   const listingIds = [...new Set(ads.flatMap((a) => (a.listingId ? [a.listingId] : [])))]
   const [rows, creatives, listings] = await Promise.all([
-    // Up to 50 ads × a week of hours; older hours of a long listing ad stay in its own GET /api/v1/ads/{id}/stats.
-    db.adStat.findMany({ where: { adId: { in: ids }, bucket: { gte: new Date(now.getTime() - 14 * 86_400_000) } }, orderBy: { bucket: 'asc' }, take: 20_000 }),
+    // Up to 50 ads × two weeks of hours (16,800 rows at most); older hours of a long listing ad stay in its own
+    // GET /api/v1/ads/{id}/stats. Newest first, so a cap ever reached drops the OLDEST hours; adFigures sorts them.
+    db.adStat.findMany({ where: { adId: { in: ids }, bucket: { gte: new Date(now.getTime() - 14 * 86_400_000) } }, orderBy: { bucket: 'desc' }, take: 20_000 }),
     creativeIds.length ? db.adCreative.findMany({ where: { id: { in: creativeIds }, sellerId }, select: { id: true, headline: true, advertiserName: true, imageUrl: true, status: true } }) : Promise.resolve([]),
     // edition-lint-allow: the titles of the caller's own advertised listings (the ad rows are sellerId-scoped above); nothing public.
     listingIds.length ? db.listing.findMany({ where: { id: { in: listingIds }, sellerId }, select: { id: true, title: true } }) : Promise.resolve([] as { id: string; title: string }[]),

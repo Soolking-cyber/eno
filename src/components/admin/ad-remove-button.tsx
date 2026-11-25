@@ -21,11 +21,11 @@ export function AdRemoveButton({ creativeId, headline }: { creativeId: string; h
     setBusy(true)
     try {
       const res = await fetch('/api/admin/ads/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ creativeId, reason }) })
-      const d = (await res.json().catch(() => null)) as { error?: string; refunds?: { adId: string; unused_usdc: string }[]; alreadyRemoved?: boolean } | null
+      const d = (await res.json().catch(() => null)) as { error?: string; refunds?: { adId: string; unused_usdc: string; settled: boolean }[]; alreadyRemoved?: boolean } | null
       if (!res.ok) { toast.error(`Could not remove: ${d?.error ?? `HTTP ${res.status}`}.`); return }
       const owed = (d?.refunds ?? []).filter((r) => r.unused_usdc !== '0')
       // (A payment not confirmed yet is listed whole: refund it only if it settles.)
-      toast.success(d?.alreadyRemoved ? 'It was already removed.' : `Removed “${headline}”.${owed.length ? ` Unused, to refund on request: ${owed.map((r) => `${r.unused_usdc} USDC (${r.adId})`).join(', ')}.` : ''}`)
+      toast.success(d?.alreadyRemoved ? 'It was already removed.' : `Removed “${headline}”.${owed.length ? ` Unused, to refund on request: ${owed.map((r) => `${r.unused_usdc} USDC (${r.adId}${r.settled ? '' : ', only if its payment settles'})`).join(', ')}.` : ''}`)
       router.refresh()
     } catch {
       toast.error('Could not reach the server — check the connection and try again.')

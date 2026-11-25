@@ -50,10 +50,28 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** The hourly series as bars: the last 48 hours that have figures, oldest first. */
+const HOUR = 3_600_000
+/** The last 48 CONSECUTIVE hours of the run (an hour with nothing counted is a zero bar, never a missing one, so the bars
+ *  are evenly spaced in time), up to its end or now — `now` the SERVER's time (the figures' `updated_at`), never this
+ *  device's clock. */
+function lastHours(ad: DashboardAd, now: number): DashboardAd['hourly'] {
+  if (!ad.hourly.length) return []
+  const byHour = new Map(ad.hourly.map((h) => [Date.parse(h.hour_utc), h]))
+  const endsAt = ad.ends_at ? Date.parse(ad.ends_at) : now
+  const last = Math.floor((Math.min(now, endsAt - 1)) / HOUR) * HOUR
+  const first = Math.max(Math.floor(Date.parse(ad.hourly[0]!.hour_utc) / HOUR) * HOUR, last - 47 * HOUR)
+  const out: DashboardAd['hourly'] = []
+  for (let t = first; t <= last; t += HOUR) {
+    const ict = new Date(t + 7 * HOUR).toISOString()
+    out.push(byHour.get(t) ?? { hour_utc: new Date(t).toISOString(), hour_ict: `${ict.slice(0, 10)} ${ict.slice(11, 16)} ICT`, impressions: 0, clicks: 0, invalid: 0, reach_new: 0 })
+  }
+  return out
+}
+
+/** The hourly series as bars: the last 48 consecutive hours, oldest first. */
 function HourlyBars({ ad, metric }: { ad: DashboardAd; metric: Metric }) {
   const { tr, lang } = useLanguage()
-  const hours = ad.hourly.slice(-48)
+  const hours = lastHours(ad, Date.parse(ad.updated_at))
   const max = Math.max(1, ...hours.map((h) => h[metric]))
   const nf = new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US')
   const title = metric === 'impressions' ? tr('Viewable impressions per hour', 'Lượt hiển thị mỗi giờ') : tr('Clicks per hour', 'Lượt nhấp mỗi giờ')
@@ -107,7 +125,9 @@ function AdCard({ ad }: { ad: DashboardAd }) {
             {running ? <Badge variant="success" size="sm">{tr('Running', 'Đang chạy')}</Badge>
               : cancelled ? <Badge variant="neutral" size="sm">{tr('Cancelled', 'Đã hủy')}</Badge>
               : ad.status === 'active' ? <Badge variant="neutral" size="sm">{ad.ends_at && Date.parse(ad.ends_at) <= now ? tr('Ended', 'Đã kết thúc') : tr('Scheduled', 'Đã lên lịch')}</Badge>
+              : ad.status === 'review' ? <Badge variant="warning" size="sm">{tr('Being checked by hand: write to support', 'Đang được kiểm tra thủ công: hãy liên hệ hỗ trợ')}</Badge>
               : <Badge variant="warning" size="sm">{tr('Payment being confirmed', 'Đang xác nhận thanh toán')}</Badge>}
+            {/* Whether anything is owed is the admin's to work out (src/lib/ads/admin.ts lists it); the policy says how to ask. */}
             {ad.target?.kind === 'creative' && ad.target.status === 'removed' && <Badge variant="warning" size="sm">{tr('Removed by eno', 'Đã bị eno gỡ')}</Badge>}
             <span>{ad.target?.kind === 'creative' ? tr('Feed card', 'Thẻ trên bảng tin') : tr('Listing first in results', 'Tin đăng hiển thị đầu')}</span>
           </div>
@@ -150,8 +170,8 @@ export function AdsClient() {
       <SectionHeader title={tr('Ads', 'Quảng cáo')} />
       <p className="max-w-[60ch] text-t-meta text-muted-foreground">
         {tr(
-          'Live figures for your ads, to the advertising industry standard: an impression counts when half the ad is on screen for a second, each person once every 30 minutes; bots and other invalid traffic are left out. Updated every 10 seconds.',
-          'Số liệu trực tiếp của quảng cáo, theo chuẩn ngành quảng cáo: một lượt hiển thị được tính khi một nửa quảng cáo nằm trên màn hình trong một giây, mỗi người một lần trong 30 phút; bot và lưu lượng không hợp lệ khác không được tính. Cập nhật mỗi 10 giây.',
+          'Live figures for your ads, to the advertising industry standard: an impression counts when half the ad is on screen for a second, each browser once every 30 minutes; bots and other invalid traffic are left out. Reach and invalid traffic cover the last two weeks, the chart the last 48 hours. Updated every 10 seconds.',
+          'Số liệu trực tiếp của quảng cáo, theo chuẩn ngành quảng cáo: một lượt hiển thị được tính khi một nửa quảng cáo nằm trên màn hình trong một giây, mỗi trình duyệt một lần trong 30 phút; bot và lưu lượng không hợp lệ khác không được tính. Số người tiếp cận và lưu lượng không hợp lệ tính trong hai tuần gần nhất, biểu đồ trong 48 giờ gần nhất. Cập nhật mỗi 10 giây.',
         )}{' '}
         <a href="/advertising-policy" className="font-semibold text-accent-foreground hover:underline">{tr('Advertising policy', 'Chính sách quảng cáo')}</a>
       </p>

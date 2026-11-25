@@ -49,7 +49,7 @@ export const HANDLE_RE = /^[a-z][a-z0-9_-]{1,28}[a-z0-9]$/
 // Keep lowercase. Route additions should be mirrored here.
 const RESERVED = new Set([
   // app routes
-  'about', 'account', 'account-deletion', 'admin', 'api', 'appeal', 'auth', 'brands', 'c', 'dashboard',
+  'about', 'account', 'account-deletion', 'admin', 'advertising-policy', 'api', 'appeal', 'auth', 'brands', 'c', 'dashboard',
   'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'listing-images', 'messages', 'onboard', 'post', 'privacy',
   'prohibited', 'regulations', 'reports', 'returns', 'safety', 'saved', 'search', 'sellers',
   'register', 'signin', 'signup', 'sitemap', 'sitemaps', 'teachers', 'terms', 'trust',

@@ -53,7 +53,9 @@ describe('CaptureCard', () => {
     // `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a), keyed on the one-column rentals grid.
     // …and `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods), keyed on the goods grid — and on
     // a storefront's (UI climb r12, cook store-r12c S6: the same calm row in a shop's grid).
-    expect(src).toContain('{index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}')
+    // `shelfAfter` (2026-11-25): after the twelfth card, or the eleventh when a creative ad takes the first cell (E-ORPHAN).
+    expect(src).toContain('{index === shelfAfter && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}')
+    expect(src).toContain('const shelfAfter = showAdCreative ? FIRST_PAGE_SIZE - 2 : FIRST_PAGE_SIZE - 1')
     expect(src).not.toMatch(/<CaptureCard \/>/)
   })
 
