@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatMoneyFull } from '@/lib/vnd'
 
 /**
  * "Remove" — Admin › Catalogue › Ads (owner 2026-11-25). A written reason is required (it goes into the audit row and the
@@ -21,11 +22,13 @@ export function AdRemoveButton({ creativeId, headline }: { creativeId: string; h
     setBusy(true)
     try {
       const res = await fetch('/api/admin/ads/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ creativeId, reason }) })
-      const d = (await res.json().catch(() => null)) as { error?: string; refunds?: { adId: string; unused_usdc: string; settled: boolean }[]; alreadyRemoved?: boolean } | null
+      const d = (await res.json().catch(() => null)) as { error?: string; refunds?: { adId: string; unused_usdc?: string; unused_vnd?: number; settled: boolean }[]; alreadyRemoved?: boolean } | null
       if (!res.ok) { toast.error(`Could not remove: ${d?.error ?? `HTTP ${res.status}`}.`); return }
-      const owed = (d?.refunds ?? []).filter((r) => r.unused_usdc !== '0')
+      // Each run in its own money (src/lib/ads/currency.ts): USDC over x402, đồng by bank transfer.
+      const unused = (r: { unused_usdc?: string; unused_vnd?: number }) => (r.unused_vnd != null ? (r.unused_vnd ? formatMoneyFull(r.unused_vnd, '₫') : null) : r.unused_usdc && r.unused_usdc !== '0' ? `${r.unused_usdc} USDC` : null)
+      const owed = (d?.refunds ?? []).filter((r) => unused(r) !== null)
       // (A payment not confirmed yet is listed whole: refund it only if it settles.)
-      toast.success(d?.alreadyRemoved ? 'It was already removed.' : `Removed “${headline}”.${owed.length ? ` Unused, to refund on request: ${owed.map((r) => `${r.unused_usdc} USDC (${r.adId}${r.settled ? '' : ', only if its payment settles'})`).join(', ')}.` : ''}`)
+      toast.success(d?.alreadyRemoved ? 'It was already removed.' : `Removed “${headline}”.${owed.length ? ` Unused, to refund on request: ${owed.map((r) => `${unused(r)} (${r.adId}${r.settled ? '' : ', only if its payment settles'})`).join(', ')}.` : ''}`)
       router.refresh()
     } catch {
       toast.error('Could not reach the server — check the connection and try again.')

@@ -3,6 +3,11 @@ import { db } from '@/lib/db'
 import { logError, logInfo } from '@/lib/log'
 import { usdcText } from '@/lib/x402/config'
 import type { AdRow } from './book'
+import { adCurrency, type AdCurrency } from './currency'
+import { BANK_AWAITING, BANK_CANCELLED } from './bank-periods'
+
+/** A bank order's own statuses (bank.ts): an order, not an ad — no figures, no spend. */
+const NOT_AN_AD = new Set<string>([BANK_AWAITING, BANK_CANCELLED])
 
 /**
  * ── AN AD'S FIGURES, TO INDUSTRY STANDARD, IN REAL TIME (owner 2026-11-25: "they should have realtime stats for their ads
@@ -216,12 +221,22 @@ export type AdFigures = {
     reach: number
     /** impressions ÷ reach; null with no reach. */
     frequency: number | null
-    /** The price paid, pro rata to the part of the run that has elapsed, in USDC (decimal string). */
-    spend_usdc: string
-    paid_usdc: string
-    /** Spend per 1,000 impressions and per click, in USDC; null without any. */
+    /**
+     * ⛔ THE ROW'S OWN CURRENCY (currency.ts): an x402 ad's money is in the `_usdc` fields (decimal strings), a bank-transfer
+     * ad's in the `_vnd` fields (whole đồng); the other currency's fields are null. Never a conversion, never one read as
+     * the other.
+     */
+    currency: AdCurrency
+    /** The price paid, pro rata to the part of the run that has elapsed. */
+    spend_usdc: string | null
+    paid_usdc: string | null
+    /** Spend per 1,000 impressions and per click; null without any (or in the other currency). */
     ecpm_usdc: string | null
     ecpc_usdc: string | null
+    spend_vnd: number | null
+    paid_vnd: number | null
+    ecpm_vnd: number | null
+    ecpc_vnd: number | null
   }
   hourly: { hour_utc: string; hour_ict: string; impressions: number; clicks: number; invalid: number; reach_new: number }[]
   updated_at: string
@@ -233,7 +248,8 @@ export function ictLabel(bucket: Date): string {
   return `${t.slice(0, 10)} ${t.slice(11, 16)} ICT`
 }
 
-/** The price paid, pro rata to the elapsed part of the run, in atomic units (floor). */
+/** The price paid, pro rata to the elapsed part of the run, in the row's own smallest unit (floor): USDC atomic units for
+ *  an x402 row, whole đồng for a bank-transfer row (currency.ts). */
 export function spendAtomic(ad: Pick<AdRow, 'amount' | 'startsAt' | 'endsAt' | 'status'>, now: Date): bigint {
   if (ad.status !== 'active' || !ad.startsAt || !ad.endsAt) return BigInt(0)
   const total = ad.endsAt.getTime() - ad.startsAt.getTime()
@@ -263,6 +279,11 @@ export function adFigures(ad: AdRow, rows: HourRow[], now = new Date()): AdFigur
   const sum = { ...hourly, impressions: ad.impressions + unflushed.impressions, clicks: ad.clicks + unflushed.clicks }
   const spend = spendAtomic(ad, now)
   const round4 = (x: number) => Math.round(x * 10_000) / 10_000
+  const currency = adCurrency(ad)
+  const ecpm = sum.impressions ? (spend * BigInt(1000)) / BigInt(sum.impressions) : null
+  const ecpc = sum.clicks ? spend / BigInt(sum.clicks) : null
+  const usdc = (v: bigint | string | null) => (currency === 'USDC' && v !== null ? usdcText(v.toString()) : null)
+  const vnd = (v: bigint | string | null) => (currency === 'VND' && v !== null ? Number(v) : null)
   return {
     ad_id: ad.id,
     listing_id: ad.listingId,
@@ -277,21 +298,27 @@ export function adFigures(ad: AdRow, rows: HourRow[], now = new Date()): AdFigur
       ctr: sum.impressions ? round4(sum.clicks / sum.impressions) : null,
       reach: sum.reachNew,
       frequency: sum.reachNew ? Math.round((sum.impressions / sum.reachNew) * 100) / 100 : null,
-      spend_usdc: usdcText(spend.toString()),
-      paid_usdc: usdcText(ad.amount),
-      ecpm_usdc: sum.impressions ? usdcText(((spend * BigInt(1000)) / BigInt(sum.impressions)).toString()) : null,
-      ecpc_usdc: sum.clicks ? usdcText((spend / BigInt(sum.clicks)).toString()) : null,
+      currency,
+      spend_usdc: usdc(spend),
+      paid_usdc: usdc(ad.amount),
+      ecpm_usdc: usdc(ecpm),
+      ecpc_usdc: usdc(ecpc),
+      spend_vnd: vnd(spend),
+      paid_vnd: vnd(ad.amount),
+      ecpm_vnd: vnd(ecpm),
+      ecpc_vnd: vnd(ecpc),
     },
     hourly: hours.map(([b, d]) => ({ hour_utc: new Date(b).toISOString(), hour_ict: ictLabel(new Date(b)), impressions: d.impressions, clicks: d.clicks, invalid: d.invalid, reach_new: d.reachNew })),
     updated_at: now.toISOString(),
   }
 }
 
-/** One of the shop's ads with its figures, or null when it is not this shop's (the caller answers 404). */
+/** One of the shop's ads with its figures, or null when it is not this shop's (the caller answers 404) — or is no ad yet:
+ *  a bank order awaiting its transfer, or cancelled (bank.ts), has no figures; the dashboard lists it as an order. */
 export async function shopAdFigures(adId: string, sellerId: string, now = new Date()): Promise<AdFigures | null> {
   if (!sellerId || !/^[A-Za-z0-9_-]{1,64}$/.test(adId)) return null
   const ad = await db.listingAd.findUnique({ where: { id: adId } })
-  if (!ad || ad.sellerId !== sellerId) return null
+  if (!ad || ad.sellerId !== sellerId || NOT_AN_AD.has(ad.status)) return null
   // A run is at most 90 days: 2,160 hours.
   const rows = await db.adStat.findMany({ where: { adId }, orderBy: { bucket: 'asc' }, take: 2_200 })
   return adFigures(ad, rows, now)

@@ -7,6 +7,8 @@ import { invalidateAdServeCache } from './serve'
 import { removeAdImage } from './creative-review'
 import { spendAtomic } from './stats'
 import { adLockKey } from './book'
+import { adCurrency } from './currency'
+import { BANK_AWAITING, BANK_CANCELLED } from './bank-periods'
 
 /**
  * ── ENO TAKES AN AD DOWN (owner 2026-11-25; the advertising policy's "Removal and refunds"). One creative, for good:
@@ -22,8 +24,9 @@ import { adLockKey } from './book'
  * A removed creative is never served, booked or activated again, and the same content is answered `removed` at any age.
  */
 /** `settled: false` — a payment not confirmed yet (pending / unknown / under review): if it settles, the run never starts
- *  (book.ts activate sends it to review) and the whole price is the refund. */
-export type RemovedAd = { adId: string; paid_usdc: string; unused_usdc: string; settled: boolean }
+ *  (book.ts activate sends it to review) and the whole price is the refund. ⛔ In the run's OWN currency (currency.ts): an
+ *  x402 run's in USDC, a bank-transfer run's in whole đồng. */
+export type RemovedAd = { adId: string; settled: boolean } & ({ paid_usdc: string; unused_usdc: string } | { paid_vnd: number; unused_vnd: number })
 
 export async function removeAdCreative(creativeId: string, admin: string, reason: string, now = new Date()): Promise<{ alreadyRemoved: boolean; refunds: RemovedAd[] } | null> {
   const result = await db.$transaction(async (tx) => {
@@ -39,13 +42,18 @@ export async function removeAdCreative(creativeId: string, admin: string, reason
     const imageUrl = c.imageUrl
     const runs = await tx.listingAd.findMany({
       where: { creativeId, OR: [{ status: 'active', endsAt: { gt: now } }, { status: { in: ['pending', 'unknown', 'review'] } }] },
-      select: { id: true, amount: true, startsAt: true, endsAt: true, status: true },
+      select: { id: true, amount: true, asset: true, startsAt: true, endsAt: true, status: true },
     })
     const refunds: RemovedAd[] = runs.map((r) => {
       const settled = r.status === 'active'
-      const used = settled ? spendAtomic(r, now) : BigInt(0)
-      return { adId: r.id, paid_usdc: usdcText(r.amount), unused_usdc: usdcText((BigInt(r.amount) - used).toString()), settled }
+      const unused = BigInt(r.amount) - (settled ? spendAtomic(r, now) : BigInt(0))
+      return adCurrency(r) === 'VND'
+        ? { adId: r.id, paid_vnd: Number(r.amount), unused_vnd: Number(unused), settled }
+        : { adId: r.id, paid_usdc: usdcText(r.amount), unused_usdc: usdcText(unused.toString()), settled }
     })
+    // A bank order of this creative still awaiting its transfer can never run now: closed, so its QR stops asking for money
+    // (bank.ts; nothing was paid — should a transfer land anyway, it is refunded by hand).
+    await tx.listingAd.updateMany({ where: { creativeId, status: BANK_AWAITING }, data: { status: BANK_CANCELLED, failReason: 'creative_removed' } })
     // A run under way ends now; a run stacked after it ends at its own start (it never runs).
     await tx.listingAd.updateMany({ where: { creativeId, status: 'active', startsAt: { lte: now }, endsAt: { gt: now } }, data: { endsAt: now } })
     await tx.$executeRaw`UPDATE "ListingAd" SET "endsAt" = "startsAt" WHERE "creativeId" = ${creativeId} AND "status" = 'active' AND "startsAt" > ${now}`

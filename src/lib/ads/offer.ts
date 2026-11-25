@@ -10,6 +10,8 @@ import { AD_CREATIVE_MAX_HOURS } from './book'
 import { AD_QUESTIONS, AD_QUESTION_KEYS, PERMIT_CLASSES } from './review-jev'
 import { REVIEW_REASONS } from './review-reasons'
 import { CREATIVE_ADS_TESTING_NOTE, creativeAdsOpen } from './creative-gate'
+import { bankConfig } from './bank-config'
+import { BANK_ORDER_DAYS, BANK_PERIOD, BANK_PERIODS, type BankPeriod } from './bank-periods'
 
 /**
  * ── The ad offer, as x402 states it (PaymentRequired) and as a plain answer (GET /api/v1/ads/offer, MCP get_ad_offer).
@@ -22,6 +24,7 @@ export const SITE_ORIGIN = new URL(OAUTH_ISSUER).origin
 export const AD_RESOURCE_URL = `${SITE_ORIGIN}/api/v1/ads`
 export const MCP_URL = `${SITE_ORIGIN}/api/mcp`
 export const AD_POLICY_URL = `${SITE_ORIGIN}/advertising-policy`
+export const AD_DASHBOARD_URL = `${SITE_ORIGIN}/dashboard/ads`
 /** The approved creative's id on its 402 (POST /api/v1/ads): the x402 body stays exactly the PaymentRequired. */
 export const HEADER_CREATIVE_ID = 'Eno-Ad-Creative-Id'
 /** The card's disclosure: ONE word, in the viewer's own language (owner 2026-11-25: "just quang cao or ad … in their respected
@@ -208,6 +211,19 @@ export type AdOffer = {
     charged: string
     policy_url: string
   }
+  /**
+   * The other way to pay (owner 2026-11-25): a VietQR bank transfer in đồng for a week, a month or a quarter, made by a
+   * PERSON signed in at /dashboard/ads (src/lib/ads/bank.ts) — never by an agent, which pays over x402. Never the account
+   * number: it is shown only on the shop's own order.
+   */
+  bank_transfer: {
+    available: boolean
+    for: string
+    url: string
+    currency: 'VND'
+    periods: { period: BankPeriod; days: number; price_vnd: number }[]
+    confirmed: string
+  }
   audience: AdAudience
 }
 
@@ -248,6 +264,14 @@ export async function adOffer(cfg: X402Config | null): Promise<AdOffer> {
       },
       charged: 'Charged when the payment settles, then the ad runs. eno may remove an ad that breaks the law or this policy; a removal is refunded pro rata on request.',
       policy_url: AD_POLICY_URL,
+    },
+    bank_transfer: {
+      available: bankConfig() !== null,
+      for: `People, signed in to their shop at ${AD_DASHBOARD_URL}: either kind of ad, paid by VietQR bank transfer to eno's account. Not for agents — an agent pays over x402 (how_to_buy).`,
+      url: AD_DASHBOARD_URL,
+      currency: 'VND',
+      periods: BANK_PERIODS.map((p) => ({ period: p, days: BANK_PERIOD[p].days, price_vnd: BANK_PERIOD[p].priceVnd })),
+      confirmed: `eno confirms each transfer by hand, and the ad starts then; an order unpaid after ${BANK_ORDER_DAYS} days expires.`,
     },
     audience: await adAudience(),
   }

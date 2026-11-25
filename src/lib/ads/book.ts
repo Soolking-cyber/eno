@@ -11,6 +11,7 @@ import { CREATIVE_REMOVED_PAID, UNPAID_CANCELLED, UNPAID_EXPIRED } from './reaso
 import { reviewCountsHere } from './review-jev'
 import { CREATIVE_ADS_NOT_OPEN, creativeAdsAllowed } from './creative-gate'
 import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRequirements, type SettlementResponse } from '@/lib/x402/wire'
+import { adCurrency } from './currency'
 
 /**
  * ── Booking a paid ad (owner 2026-11-23). The ONE path both the HTTP route (POST /api/v1/ads) and the MCP tool
@@ -32,11 +33,13 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
  * ⛔ A CREATIVE IS RE-CHECKED AT EVERY STEP THAT COULD START IT: before verify (approved, not removed, this shop's), and
  * again inside activate's lock — a creative eno removed while the payment was settling (or found on chain later by
  * reconcileAd) never goes live: the paid row goes to `review` for a manual pro-rata refund (CREATIVE_REMOVED_PAID).
- * Creative ads run at most AD_CREATIVE_MAX_HOURS (a week). While they are in their private test (creative-gate.ts), a new
+ * Creative ads bought over x402 run at most AD_CREATIVE_MAX_HOURS (a week); bought by bank transfer from the dashboard
+ * (bank.ts) they run a week, a month or a quarter. While they are in their private test (creative-gate.ts), a new
  * creative booking is an admin's only, checked with the target before verify.
  */
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
-/** The longest creative ad (owner 2026-11-25, the brief's one standard placement: up to 168 hours). */
+/** The longest creative ad bought over x402 (owner 2026-11-25, the brief's one standard placement: up to 168 hours). A
+ *  bank-transfer order (bank.ts) runs a week, a month or a quarter: that cap is the period's, not this one. */
 export const AD_CREATIVE_MAX_HOURS = AD_WEEK_HOURS
 /** How long an approval can be booked on (checkAdCreative): a week, then the creative is reviewed again. */
 export const AD_APPROVAL_VALID_MS = 7 * 86_400_000
@@ -126,27 +129,37 @@ export async function checkAdCreative(creativeId: string, sellerId: string): Pro
   return { ok: true, creative: { id: c.id, contentHash: c.contentHash } }
 }
 
-/** Settled → active: consecutive runs per target (a listing or a creative), under a transaction-scoped advisory lock.
- *  Guarded on the status, so a reconcile racing the original request activates once. A creative eno removed in the
- *  meantime is NEVER activated: the paid row goes to `review` (a manual refund), with the settlement kept. */
-async function activate(rowId: string, txHash: string, settlement: SettlementResponse): Promise<AdRow> {
+/**
+ * Paid → active: consecutive runs per target (a listing or a creative), under a transaction-scoped advisory lock. ONE path
+ * for both rails: an x402 settlement (`activate`, from pending/unknown) and a bank transfer an admin confirmed (bank.ts
+ * markBankOrderPaid, from awaiting_transfer). Guarded on `from`, so two activations racing (a reconcile and the original
+ * request; two admins pressing Mark paid) start the row once — `won` says whether THIS call did. A creative eno removed
+ * in the meantime is NEVER activated: the paid row goes to `review` (a manual refund), with what `paid` records kept.
+ */
+export async function activateRow(
+  rowId: string,
+  from: Prisma.ListingAdWhereInput,
+  paid: (row: { payloadJson: Prisma.JsonValue }) => Prisma.ListingAdUpdateManyMutationInput,
+  at?: Date,
+): Promise<{ ad: AdRow; won: boolean }> {
   return db.$transaction(async (tx) => {
-    // The target is immutable on the row, so reading it before the lock is safe.
-    const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true, listingId: true, creativeId: true, sellerId: true } })
+    // The target is immutable on the row, so reading it before the lock is safe; so is the payload (nothing rewrites it
+    // while the row is still open).
+    const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true, listingId: true, creativeId: true, sellerId: true, payloadJson: true } })
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${adLockKey(row)}))`
     if (row.creativeId) {
       const c = await tx.adCreative.findUnique({ where: { id: row.creativeId }, select: { status: true, sellerId: true, reviewModel: true } })
       if (!c || c.status !== 'approved' || c.sellerId !== row.sellerId || !reviewCountsHere(c.reviewModel)) {
         // Loud: money moved for an ad that will not run — the owner refunds it by hand (the advertising policy says so).
         logError(new Error('ads: paid for a creative that can no longer run'), { op: 'ads.creative-removed-paid', adId: rowId, creativeId: row.creativeId })
-        await tx.listingAd.updateMany({
-          where: { id: rowId, status: { in: ['pending', 'unknown'] } },
-          data: { status: 'review', txHash, settlementJson: settlement as unknown as Prisma.InputJsonValue, failReason: CREATIVE_REMOVED_PAID },
+        const r = await tx.listingAd.updateMany({
+          where: { id: rowId, ...from },
+          data: { status: 'review', ...paid(row), failReason: CREATIVE_REMOVED_PAID },
         })
-        return tx.listingAd.findUniqueOrThrow({ where: { id: rowId } })
+        return { ad: await tx.listingAd.findUniqueOrThrow({ where: { id: rowId } }), won: r.count > 0 }
       }
     }
-    const now = new Date()
+    const now = at ?? new Date()
     const last = await tx.listingAd.findFirst({
       where: { ...targetWhere(row), status: 'active', endsAt: { gt: now } },
       orderBy: { endsAt: 'desc' },
@@ -155,12 +168,18 @@ async function activate(rowId: string, txHash: string, settlement: SettlementRes
     const startsAt = last?.endsAt && last.endsAt > now ? last.endsAt : now
     // The row's own length (whole hours, as bought), stored when it was booked.
     const endsAt = new Date(startsAt.getTime() + row.durationSec * 1000)
-    await tx.listingAd.updateMany({
-      where: { id: rowId, status: { in: ['pending', 'unknown'] } },
-      data: { status: 'active', startsAt, endsAt, txHash, settlementJson: settlement as unknown as Prisma.InputJsonValue, failReason: null },
+    const r = await tx.listingAd.updateMany({
+      where: { id: rowId, ...from },
+      data: { status: 'active', startsAt, endsAt, ...paid(row), failReason: null },
     })
-    return tx.listingAd.findUniqueOrThrow({ where: { id: rowId } })
+    return { ad: await tx.listingAd.findUniqueOrThrow({ where: { id: rowId } }), won: r.count > 0 }
   })
+}
+
+/** An x402 settlement: pending/unknown → active (activateRow), the transaction and the settlement kept on the row. */
+async function activate(rowId: string, txHash: string, settlement: SettlementResponse): Promise<AdRow> {
+  const settled = { txHash, settlementJson: settlement as unknown as Prisma.InputJsonValue }
+  return (await activateRow(rowId, { status: { in: ['pending', 'unknown'] } }, () => settled)).ad
 }
 
 function storedSettlement(ad: AdRow): SettlementResponse {
@@ -421,13 +440,17 @@ export async function bookAd(p: {
 export type AdStats = {
   id: string; listing_id: string | null; creative_id: string | null; status: string; hours: number; starts_at: string | null; ends_at: string | null
   impressions: number; clicks: number; listing_views: number | null; listing_contacts: number | null
-  amount_usdc_atomic: string; network: string; tx_hash: string | null
+  /** ⛔ IN THE ROW'S OWN CURRENCY (stats.ts adCurrency): an x402 row's price in USDC atomic units, a bank-transfer row's in
+   *  whole đồng — never one read as the other (99000 đồng is not 0.099 USDC). */
+  currency: 'USDC' | 'VND'; amount_usdc_atomic: string | null; amount_vnd: number | null
+  network: string; tx_hash: string | null
 }
 
 export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | null = null): Promise<AdStats[]> {
   // A shop asking about its ads settles its own open rows first (bounded), so a lost confirmation shows up here too.
   // ⛔ LOOK-UP ONLY (resettle: false): this answers a read (list_ads is readOnlyHint), so it never asks for a settlement.
   if (cfg) await reconcileOpenAds(cfg, { sellerId, limit: 5, resettle: false }).catch((e) => logError(e, { op: 'ads.reconcile-shop' }))
+  // ⛔ A paid ad's statuses only: a bank order still awaiting its transfer, or cancelled, is no ad (bank.ts).
   const ads = await db.listingAd.findMany({
     where: { sellerId, status: { in: ['active', 'pending', 'unknown', 'review'] } },
     orderBy: { createdAt: 'desc' },
@@ -460,7 +483,10 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
       id: ad.id, listing_id: ad.listingId, creative_id: ad.creativeId, status: ad.status, hours: Math.round(ad.durationSec / 3600),
       starts_at: ad.startsAt?.toISOString() ?? null, ends_at: ad.endsAt?.toISOString() ?? null,
       impressions: ad.impressions, clicks: ad.clicks, listing_views: views, listing_contacts: contacts,
-      amount_usdc_atomic: ad.amount, network: ad.network, tx_hash: ad.txHash,
+      ...(adCurrency(ad) === 'VND'
+        ? { currency: 'VND' as const, amount_usdc_atomic: null, amount_vnd: Number(ad.amount) }
+        : { currency: 'USDC' as const, amount_usdc_atomic: ad.amount, amount_vnd: null }),
+      network: ad.network, tx_hash: ad.txHash,
     })
   }
   return out

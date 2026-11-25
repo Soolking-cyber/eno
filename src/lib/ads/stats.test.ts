@@ -153,7 +153,9 @@ describe('the figures', () => {
     expect(f.totals).toEqual({
       impressions: 1501, clicks: 25, invalid: 7, ctr: 0.0167, reach: 501, frequency: 3,
       // Half the day has run: half the price.
-      spend_usdc: '0.268571', paid_usdc: '0.537143', ecpm_usdc: '0.178928', ecpc_usdc: '0.010742',
+      currency: 'USDC', spend_usdc: '0.268571', paid_usdc: '0.537143', ecpm_usdc: '0.178928', ecpc_usdc: '0.010742',
+      // An x402 ad's money is USDC: the đồng fields (a bank-transfer ad's, bank.ts) are null.
+      spend_vnd: null, paid_vnd: null, ecpm_vnd: null, ecpc_vnd: null,
     })
     expect(f.hourly.map((x) => [x.hour_utc, x.hour_ict, x.impressions])).toEqual([
       ['2026-11-25T08:00:00.000Z', '2026-11-25 15:00 ICT', 1000],

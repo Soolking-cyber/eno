@@ -1085,14 +1085,17 @@ export const SPEC = {
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           totals: {
             type: 'object',
-            required: ['impressions', 'clicks', 'invalid', 'ctr', 'reach', 'frequency', 'spend_usdc', 'paid_usdc', 'ecpm_usdc', 'ecpc_usdc'],
+            required: ['impressions', 'clicks', 'invalid', 'ctr', 'reach', 'frequency', 'currency', 'spend_usdc', 'paid_usdc', 'ecpm_usdc', 'ecpc_usdc', 'spend_vnd', 'paid_vnd', 'ecpm_vnd', 'ecpc_vnd'],
             properties: {
               impressions: { type: 'integer' }, clicks: { type: 'integer' }, invalid: { type: 'integer' },
               ctr: { type: ['number', 'null'], description: 'clicks ÷ impressions, 0 to 1.' },
               reach: { type: 'integer', description: 'Browser sessions that saw it, each once per UTC day, summed over its days.' },
               frequency: { type: ['number', 'null'], description: 'impressions ÷ reach.' },
-              spend_usdc: { type: 'string', description: 'The price paid pro rata to the part of the run that has elapsed.' },
-              paid_usdc: { type: 'string' }, ecpm_usdc: { type: ['string', 'null'] }, ecpc_usdc: { type: ['string', 'null'] },
+              currency: { type: 'string', enum: ['USDC', 'VND'], description: 'What the ad was paid in: USDC over x402, or VND by bank transfer at /dashboard/ads. The other currency\'s money fields are null.' },
+              spend_usdc: { type: ['string', 'null'], description: 'The price paid pro rata to the part of the run that has elapsed.' },
+              paid_usdc: { type: ['string', 'null'] }, ecpm_usdc: { type: ['string', 'null'] }, ecpc_usdc: { type: ['string', 'null'] },
+              spend_vnd: { type: ['integer', 'null'], description: 'The same, in whole đồng, for an ad paid by bank transfer.' },
+              paid_vnd: { type: ['integer', 'null'] }, ecpm_vnd: { type: ['integer', 'null'] }, ecpc_vnd: { type: ['integer', 'null'] },
             },
           },
           hourly: { type: 'array', items: { type: 'object', required: ['hour_utc', 'hour_ict', 'impressions', 'clicks', 'invalid', 'reach_new'], properties: { hour_utc: { type: 'string', format: 'date-time' }, hour_ict: { type: 'string', example: '2026-11-25 15:00 ICT' }, impressions: { type: 'integer' }, clicks: { type: 'integer' }, invalid: { type: 'integer' }, reach_new: { type: 'integer' } } } },
@@ -1101,7 +1104,7 @@ export const SPEC = {
       },
       AdStats: {
         type: 'object',
-        required: ['id', 'listing_id', 'creative_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
+        required: ['id', 'listing_id', 'creative_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'currency', 'amount_usdc_atomic', 'amount_vnd', 'network', 'tx_hash'],
         properties: {
           id: { type: 'string' }, listing_id: { type: ['string', 'null'] }, creative_id: { type: ['string', 'null'] }, status: { type: 'string' }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
@@ -1109,7 +1112,9 @@ export const SPEC = {
           clicks: { type: 'integer', description: 'Taps on the ad card during its run.' },
           listing_views: { type: ['integer', 'null'], description: 'The listing\'s page views over the ad\'s days (daily snapshots); null until measurable.' },
           listing_contacts: { type: ['integer', 'null'] },
-          amount_usdc_atomic: { type: 'string' }, network: { type: 'string' }, tx_hash: { type: ['string', 'null'] },
+          currency: { type: 'string', enum: ['USDC', 'VND'] },
+          amount_usdc_atomic: { type: ['string', 'null'], description: 'Null for an ad paid in VND.' }, amount_vnd: { type: ['integer', 'null'], description: 'Null for an ad paid in USDC.' },
+          network: { type: 'string', description: 'CAIP-2, or "vietqr" for a bank transfer.' }, tx_hash: { type: ['string', 'null'] },
         },
       },
       AnalyticsSummary: {

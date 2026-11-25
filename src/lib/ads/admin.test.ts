@@ -21,6 +21,12 @@ vi.mock('@/lib/db', () => {
     listingAd: {
       findMany: async () => h.runs.filter((r) => (r.status === 'active' && r.endsAt > NOW_HOISTED.now) || ['pending', 'unknown', 'review'].includes(r.status)),
       updateMany: async ({ where, data }: { where: Row; data: Row }) => {
+        // A bank order of the creative still awaiting its transfer (bank.ts) is closed with it.
+        if (where.status === 'awaiting_transfer') {
+          const waiting = h.runs.filter((r) => r.creativeId === where.creativeId && r.status === 'awaiting_transfer')
+          waiting.forEach((r) => Object.assign(r, data))
+          return { count: waiting.length }
+        }
         const rows = h.runs.filter((r) => r.creativeId === where.creativeId && r.status === 'active' && r.startsAt <= where.startsAt.lte && r.endsAt > where.endsAt.gt)
         rows.forEach((r) => Object.assign(r, data))
         return { count: rows.length }
@@ -78,6 +84,17 @@ describe('removeAdCreative', () => {
       { adId: 'ad3', paid_usdc: '0.022381', unused_usdc: '0.022381', settled: false },
     ] })
     expect(h.audits[0]!.detail.refunds).toEqual(r!.refunds)
+  })
+
+  it('⛔ a run paid by bank transfer is refunded in đồng, never read as USDC; an order still awaiting its transfer is closed', async () => {
+    h.runs = [
+      // A month bought by bank transfer (bank.ts), a quarter of it used.
+      { id: 'ad4', creativeId: 'cr1', status: 'active', amount: '349000', asset: 'VND', startsAt: new Date('2026-11-18T00:00:00Z'), endsAt: new Date('2026-12-18T00:00:00Z') },
+      { id: 'ad5', creativeId: 'cr1', status: 'awaiting_transfer', amount: '99000', asset: 'VND', startsAt: null, endsAt: null },
+    ]
+    const r = await removeAdCreative('cr1', 'admin@eno.vn', 'Unlicensed medicine', NOW)
+    expect(r!.refunds).toEqual([{ adId: 'ad4', paid_vnd: 349_000, unused_vnd: 261_750, settled: true }])
+    expect(h.runs[1]).toMatchObject({ status: 'cancelled', failReason: 'creative_removed' })
   })
 
   it('two admins at once: one removes, the other is told it already was (one audit row, one refund list)', async () => {

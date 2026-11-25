@@ -88,6 +88,13 @@ export type SharedApiErrorCode =
  * `window_closed`), mixed with the `invalid_*` sprawl described above.
  */
 export type NicheApiErrorCode =
+  // Ads bought by VietQR bank transfer (2026-11-25, src/lib/ads/bank.ts + /api/ads/orders, /api/ads/review,
+  // /api/admin/ads/bank): the account is not configured; "My own ad" while creative ads are in their private test; the
+  // listing or creative cannot be advertised (+ `reason`, book.ts's own code); the order is no longer awaiting its transfer
+  | 'bank_unavailable'
+  | 'creative_ads_not_open'
+  | 'target_refused'
+  | 'order_closed'
   // eno Classroom (2026-10-25, src/lib/classroom + /api/classroom): the teacher's avatar, seats and invites, a learner's
   // join and consents, the practice session and its limits (week/day/test refusals also carry `nextAt`)
   | 'already_enrolled'
@@ -703,6 +710,10 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'bank_unavailable',
+  'creative_ads_not_open',
+  'target_refused',
+  'order_closed',
   'already_enrolled',
   'assent_required',
   'audio_invalid',

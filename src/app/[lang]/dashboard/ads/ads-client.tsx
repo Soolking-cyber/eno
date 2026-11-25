@@ -11,6 +11,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Tooltip } from '@/components/ui/tooltip'
 import { TriangleAlert } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import type { DashboardAd } from '@/lib/ads/dashboard'
 
 /**
@@ -106,6 +107,7 @@ function AdCard({ ad }: { ad: DashboardAd }) {
   const [metric, setMetric] = useState<Metric>('impressions')
   const nf = new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US')
   const pct = (x: number | null) => (x === null ? '—' : `${(x * 100).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 2 })}%`)
+  const vnd = (x: number | null) => (x === null ? '—' : formatMoneyFull(x, '₫', moneyLocale(lang)))
   const now = Date.now()
   const running = ad.status === 'active' && !!ad.starts_at && !!ad.ends_at && Date.parse(ad.starts_at) <= now && Date.parse(ad.ends_at) > now
   // eno's removal ends a run that had not started where it would have started: it never runs.
@@ -139,9 +141,20 @@ function AdCard({ ad }: { ad: DashboardAd }) {
         <Stat label={tr('Click-through rate', 'Tỉ lệ nhấp')} value={pct(t.ctr)} />
         <Stat label={tr('Reach', 'Số người tiếp cận')} value={nf.format(t.reach)} />
         <Stat label={tr('Frequency', 'Tần suất')} value={t.frequency === null ? '—' : t.frequency.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')} />
-        <Stat label={tr('Spent (USDC)', 'Đã chi (USDC)')} value={`${t.spend_usdc} / ${t.paid_usdc}`} />
-        <Stat label={tr('Cost per 1,000 views', 'Chi phí mỗi 1.000 lượt xem')} value={t.ecpm_usdc ?? '—'} />
-        <Stat label={tr('Cost per click', 'Chi phí mỗi lượt nhấp')} value={t.ecpc_usdc ?? '—'} />
+        {/* ⛔ In the ad's OWN money (src/lib/ads/currency.ts): đồng for an ad paid by bank transfer, USDC over x402. */}
+        {t.currency === 'VND' ? (
+          <>
+            <Stat label={tr('Spent', 'Đã chi')} value={`${vnd(t.spend_vnd)} / ${vnd(t.paid_vnd)}`} />
+            <Stat label={tr('Cost per 1,000 views', 'Chi phí mỗi 1.000 lượt xem')} value={vnd(t.ecpm_vnd)} />
+            <Stat label={tr('Cost per click', 'Chi phí mỗi lượt nhấp')} value={vnd(t.ecpc_vnd)} />
+          </>
+        ) : (
+          <>
+            <Stat label={tr('Spent (USDC)', 'Đã chi (USDC)')} value={`${t.spend_usdc ?? '—'} / ${t.paid_usdc ?? '—'}`} />
+            <Stat label={tr('Cost per 1,000 views', 'Chi phí mỗi 1.000 lượt xem')} value={t.ecpm_usdc ?? '—'} />
+            <Stat label={tr('Cost per click', 'Chi phí mỗi lượt nhấp')} value={t.ecpc_usdc ?? '—'} />
+          </>
+        )}
       </div>
       {t.invalid > 0 && (
         <p className="text-t-meta text-muted-foreground">

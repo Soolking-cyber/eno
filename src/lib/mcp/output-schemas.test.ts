@@ -118,7 +118,7 @@ vi.mock('@/lib/ads/creative-review', () => ({
 vi.mock('@/lib/ads/stats', () => ({
   shopAdFigures: async () => ({
     ad_id: 'ad1', listing_id: null, creative_id: 'cr1', status: 'active', starts_at: now.toISOString(), ends_at: now.toISOString(),
-    totals: { impressions: 10, clicks: 1, invalid: 2, ctr: 0.1, reach: 8, frequency: 1.25, spend_usdc: '0.1', paid_usdc: '0.2', ecpm_usdc: '10', ecpc_usdc: '0.1' },
+    totals: { impressions: 10, clicks: 1, invalid: 2, ctr: 0.1, reach: 8, frequency: 1.25, currency: 'USDC', spend_usdc: '0.1', paid_usdc: '0.2', ecpm_usdc: '10', ecpc_usdc: '0.1', spend_vnd: null, paid_vnd: null, ecpm_vnd: null, ecpc_vnd: null },
     hourly: [{ hour_utc: now.toISOString(), hour_ict: '2026-11-13 07:00 ICT', impressions: 10, clicks: 1, invalid: 2, reach_new: 8 }],
     updated_at: now.toISOString(),
   }),
@@ -128,7 +128,7 @@ vi.mock('@/lib/ads/book', () => ({
   checkAdCreative: async () => ({ ok: true, creative: { id: 'cr1', contentHash: 'h' } }),
   checkAdListing: async () => ({ ok: true, listing: { id: 'l1', title: 't', categorySlug: 'electronics', subcategorySlug: null } }),
   bookAd: async () => ({ kind: 'booked', ad: AD_ROW, settlement: { success: true, transaction: AD_ROW.txHash, network: 'eip155:8453' }, replay: false }),
-  shopAds: async () => [{ id: 'ad1', listing_id: 'l1', creative_id: null, status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, amount_usdc_atomic: '3760000', network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
+  shopAds: async () => [{ id: 'ad1', listing_id: 'l1', creative_id: null, status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, currency: 'USDC', amount_usdc_atomic: '3760000', amount_vnd: null, network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
 }))
 
 // create_ad's PAID answer is what is checked: creative ads open to every shop, as after their private test (creative-gate.ts).

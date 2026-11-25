@@ -12,6 +12,8 @@ export type DashboardAd = AdFigures & {
   target: { kind: 'creative'; headline: string; advertiserName: string; imageUrl: string; status: string } | { kind: 'listing'; title: string | null } | null
 }
 
+/** A paid ad's statuses. ⛔ Never a bank order's own ('awaiting_transfer', 'cancelled' — bank.ts): an order has no figures;
+ *  the page lists the awaiting ones apart (bank.ts shopBankOrders). */
 const LIVE = ['active', 'pending', 'unknown', 'review']
 
 export async function dashboardAds(sellerId: string, now = new Date()): Promise<DashboardAd[]> {
