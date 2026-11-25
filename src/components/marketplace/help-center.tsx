@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils'
 import { COMPANY } from '@/lib/site-legal'
 import { useAuth } from '@/context/auth-context'
 import { useOpenSupportThread } from '@/components/marketplace/use-open-support-thread'
+import { SITE_NAME } from '@/lib/edition'
 
 // The Help Center body — shared by the public /help page AND the dashboard "Help" tab.
 //
@@ -497,7 +498,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
   return (
     <div data-help-center data-hydrated={hydrated ? 'true' : 'false'} className="w-full">
       {/* 20 characters and more (Seobility crawl 3: "How can we help?", 16, "H1 too short"); the Vietnamese one was already 33. */}
-      <h1 className="h-display max-w-4xl text-balance text-foreground"><Bilingual en="How can we help you today?" vi="Chúng tôi có thể giúp gì cho bạn?" /></h1>
+      <h1 className="h-display max-w-4xl text-balance text-foreground"><Bilingual en="How can we help you with {site}?" vi="Chúng tôi có thể giúp gì cho bạn?" values={{ site: SITE_NAME }} /></h1>
       {/* "ask anything that is missing" JUMPS TO "Still need help?" (UI climb 2026-11-09, phone UX hunt): since the support bubble
           left phones (owner, 2026-11-08) the support chat sits at the very end of this page, two screens of answers below an
           intro that invited questions with no way to ask one. Same words, same place; the escalation itself stays last. */}

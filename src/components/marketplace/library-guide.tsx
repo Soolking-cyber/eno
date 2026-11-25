@@ -56,7 +56,8 @@ const HUB = {
   en: {
     path: GUIDE_BASE.en, crumb: 'Guides', listTitle: 'All guides', toolsTitle: 'Tools', allTools: 'All tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
     title: 'Guides to living and doing business in Vietnam',
-    description: 'Practical guides from eno.vn on renting, getting around, hiring and selling in Vietnam, checked against their sources and approved by the eno.vn team.',
+    // The H1's "doing business" in the text (Seobility crawl 9); within 155 characters.
+    description: 'Practical guides from eno.vn on renting, hiring, selling and doing business in Vietnam, checked against their sources and approved by the eno.vn team.',
     how: 'Each guide is drafted with AI from pages it cites, its key facts are checked against those pages, and a person on the eno.vn team reads and approves it before it goes live. Every guide lists its sources, the day they were last checked and the day it was approved; a guide changed after that is approved again.',
   },
   vi: {

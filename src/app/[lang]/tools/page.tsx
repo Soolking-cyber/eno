@@ -26,7 +26,8 @@ const META = {
 // Past 20 characters (Seobility crawl 4, 2026-11-25: "Tools" was an H1 too short, one word), in the <title>'s own words.
 const H1 = { en: 'Tools for renting, buying and moving', vi: 'Công cụ khi thuê, mua và chuyển nhà' }
 const INTRO = {
-  en: 'Each tool works on the figures you type and nothing else: nothing is stored or sent, and none of them assumes what is usual.',
+  // "These tools": the H1's "Tools" is in the text (Seobility crawl 9, H1 words not in the page's text).
+  en: 'These tools work on the figures you type and nothing else: nothing is stored or sent, and none of them assumes what is usual.',
   vi: 'Mỗi công cụ chỉ tính từ số liệu bạn nhập: không lưu hay gửi đi đâu, và không giả định mức nào là phổ biến.',
 }
 
