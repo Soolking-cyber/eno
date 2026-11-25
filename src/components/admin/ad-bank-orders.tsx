@@ -12,8 +12,8 @@ import { AdBankOrderActions } from '@/components/admin/ad-bank-order-actions'
  * ADS › AWAITING TRANSFER (owner 2026-11-25: ads paid by VietQR bank transfer, "ADMIN CONFIRMS"). Every order whose money has
  * not been confirmed, newest first, with what an admin matches against the bank statement: the reference, the amount,
  * the shop, what it advertises, the period and when it was made. Mark paid starts the ad (src/lib/ads/bank.ts
- * markBankOrderPaid); Cancel closes the order. Orders that lapsed in the last 30 days stay listed as Expired, so a transfer
- * that landed late can still be honoured. Server-rendered behind the Catalogue page's getAdmin(); the buttons' API re-checks
+ * markBankOrderPaid); Cancel closes the order for good. Orders that lapsed, or that the shop cancelled (it may have paid
+ * first), in the last 30 days stay listed, so a transfer that lands on one is still found by its reference. Server-rendered behind the Catalogue page's getAdmin(); the buttons' API re-checks
  * it. Admin chrome: English only.
  */
 const utc = (d: Date) => `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`
@@ -37,7 +37,8 @@ export async function AdBankOrders() {
         <h2 id="ad-bank-orders-title" className="text-base font-semibold text-foreground">Awaiting transfer</h2>
         <p className="text-sm text-muted-foreground">
           Ads paid by VietQR bank transfer. Match the reference and the amount on the bank statement, then Mark paid: the ad
-          starts now, or after the same target&apos;s running ad, and the shop is told.
+          starts now, or after the same target&apos;s running ad, and the shop is told. Expired orders and ones the shop
+          cancelled stay here for 30 days: if money arrived on one, Mark paid or refund it; Cancel closes an order for good.
         </p>
       </div>
       {orders.length === 0 ? (
@@ -51,12 +52,13 @@ export async function AdBankOrders() {
                   <span className="font-mono font-semibold text-foreground">{o.reference}</span>
                   <span className="font-semibold tabular-nums text-foreground">{formatMoneyFull(o.amountVnd, '₫')}</span>
                   {o.status === 'expired' && <Badge variant="warning">Expired</Badge>}
+                  {o.status === 'cancelled' && <Badge variant="neutral">Cancelled by the shop</Badge>}
                 </div>
                 <p className="text-foreground">
                   {o.kind === 'creative' ? 'Own ad' : 'Listing'}: {o.target ?? o.targetId} · {PERIOD[o.period]}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {o.shop ?? 'Shop'} ({o.sellerId}) · ordered {utc(o.createdAt)} · {o.status === 'expired' ? 'lapsed' : 'expires'} {utc(o.expiresAt)}
+                  {o.shop ?? 'Shop'} ({o.sellerId}) · ordered {utc(o.createdAt)}{o.status === 'awaiting_transfer' ? ` · expires ${utc(o.expiresAt)}` : o.status === 'expired' ? ` · lapsed ${utc(o.expiresAt)}` : ''}
                 </p>
                 <AdBankOrderActions adId={o.id} reference={o.reference} />
               </Card>

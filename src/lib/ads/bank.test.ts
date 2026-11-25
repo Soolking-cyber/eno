@@ -321,13 +321,13 @@ describe('expiry — lazy', () => {
     expect(h.ads[1]).toMatchObject({ status: 'awaiting_transfer' })
   })
 
-  it('⛔ the shop\'s Cancel closes even a lapsed order for good: no late transfer is honoured on it', async () => {
+  it('the shop\'s Cancel, even of a lapsed order: cancelled by the shop, no QR, off its list', async () => {
     const out = await order()
     if (!out.ok) throw new Error('no order')
     const later = new Date(NOW.getTime() + 8 * DAY)
-    expect(await cancelBankOrder(out.order.id, 's1', later)).toMatchObject({ ok: true, order: { status: 'cancelled' } })
+    expect(await cancelBankOrder(out.order.id, 's1', later)).toMatchObject({ ok: true, order: { status: 'cancelled', pay: null } })
     expect(h.ads[0]).toMatchObject({ status: 'cancelled', failReason: 'cancelled_by_shop' })
-    expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', later)).toMatchObject({ ok: false, code: 'order_closed' })
+    expect(await shopBankOrders('s1', NOW)).toEqual([])
   })
 })
 
@@ -416,7 +416,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     h.sellers.s1!.owner = { locale: 'vi' }
   })
 
-  it('a late transfer on an expired order is still honoured (lapsed, or closed by the sweep); a cancelled one is not', async () => {
+  it('a late transfer on an expired order is still honoured (lapsed, or closed by the sweep); one eno closed is not', async () => {
     const out = await order()
     const lapsedOnly = await order({ now: new Date(NOW.getTime() + 1000) })
     if (!out.ok || !lapsedOnly.ok) throw new Error('no order')
@@ -429,9 +429,19 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     h.ads.splice(0, h.ads.length)
     const two = await order()
     if (!two.ok) throw new Error('no order')
-    await cancelBankOrder(two.order.id, 's1', NOW)
+    await adminCancelBankOrder(two.order.id, 'owner@eno.vn')
     expect(await markBankOrderPaid(two.order.id, 'owner@eno.vn', NOW)).toEqual({ ok: false, status: 409, code: 'order_closed' })
     expect(h.ads[0]!.status).toBe('cancelled')
+  })
+
+  it('⛔ paid, then the shop pressed Cancel: the transfer is not lost — the admin can still Mark paid it', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    await cancelBankOrder(out.order.id, 's1', NOW)
+    expect((await adminBankOrders(NOW)).map((o) => [o.reference, o.status])).toEqual([[out.order.reference, 'cancelled']])
+    expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)).toMatchObject({ ok: true, already: false, status: 'active' })
+    await settle()
+    expect(h.notifications).toHaveLength(1)
   })
 
   it('⛔ a listing no longer live when the money lands: never active — review, for a refund by hand, and no "live" bell', async () => {
@@ -464,7 +474,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
 })
 
 describe('adminCancelBankOrder', () => {
-  it('closes an awaiting order for good; a second cancel is a no-op; a paid one is refused', async () => {
+  it('closes an awaiting or shop-cancelled order for good; a second cancel is a no-op; a paid one is refused', async () => {
     const out = await order()
     if (!out.ok) throw new Error('no order')
     expect(await adminCancelBankOrder(out.order.id, 'owner@eno.vn')).toEqual({ ok: true, already: false })
@@ -475,6 +485,13 @@ describe('adminCancelBankOrder', () => {
     if (!two.ok) throw new Error('no order')
     await markBankOrderPaid(two.order.id, 'owner@eno.vn', NOW)
     expect(await adminCancelBankOrder(two.order.id, 'owner@eno.vn')).toEqual({ ok: false, status: 409, code: 'order_closed' })
+    const three = await order()
+    if (!three.ok) throw new Error('no order')
+    await cancelBankOrder(three.order.id, 's1', NOW)
+    expect(await adminCancelBankOrder(three.order.id, 'owner@eno.vn')).toEqual({ ok: true, already: false })
+    // Who closed it, and that the shop had cancelled it first, stay on the row.
+    expect(h.ads[2]).toMatchObject({ status: 'cancelled', failReason: 'cancelled_by_eno', payloadJson: { period: 'week', cancelledBy: 'owner@eno.vn', before: 'cancelled_by_shop' } })
+    expect(await adminBankOrders(NOW)).toEqual([])
   })
 })
 
@@ -492,18 +509,25 @@ describe('the lists', () => {
     expect(await shopBankOrders('s2', NOW)).toEqual([])
   })
 
-  it('the admin\'s: awaiting and recently expired orders, with reference, kind, target, shop, period, amount and time', async () => {
+  it('the admin\'s: awaiting, recently expired and shop-cancelled orders, with reference, kind, target, shop, period, amount and time', async () => {
     await order()
     const two = await order({ kind: 'creative', creativeId: 'cr1', profileId: 'p_admin', period: 'month', now: new Date(NOW.getTime() + 1000) })
     const gone = await order({ now: new Date(NOW.getTime() + 2000) })
-    if (!two.ok || !gone.ok) throw new Error('no order')
+    const closed = await order({ now: new Date(NOW.getTime() + 3000) })
+    if (!two.ok || !gone.ok || !closed.ok) throw new Error('no order')
     await cancelBankOrder(gone.order.id, 's1', NOW)
+    await adminCancelBankOrder(closed.order.id, 'owner@eno.vn')
     const list = await adminBankOrders(NOW)
+    // The orders still awaiting first (read on their own: cancelled ones can never push them off), newest first.
     expect(list.map((o) => [o.kind, o.target, o.shop, o.period, o.amountVnd, o.status])).toEqual([
       ['creative', 'Fresh coffee', 'Saigon Bean', 'month', 349_000, 'awaiting_transfer'],
       ['listing', 'Honda Vision', 'Saigon Bean', 'week', 99_000, 'awaiting_transfer'],
+      ['listing', 'Honda Vision', 'Saigon Bean', 'week', 99_000, 'cancelled'],
     ])
     expect(list[0]!.reference).toMatch(AD_REFERENCE_RE)
-    expect((await adminBankOrders(new Date(NOW.getTime() + 8 * DAY))).map((o) => o.status)).toEqual(['expired', 'expired'])
+    expect((await adminBankOrders(new Date(NOW.getTime() + 8 * DAY))).map((o) => o.status)).toEqual(['expired', 'expired', 'cancelled'])
+    // 30 days past their week, they leave the list.
+    expect(await adminBankOrders(new Date(NOW.getTime() + 36 * DAY))).toHaveLength(3)
+    expect(await adminBankOrders(new Date(NOW.getTime() + 38 * DAY))).toEqual([])
   })
 })

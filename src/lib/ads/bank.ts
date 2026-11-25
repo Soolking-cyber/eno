@@ -35,9 +35,11 @@ export { bankConfig, bankQr, newAdReference, AD_REFERENCE_RE, type BankConfig } 
  *   'active' / 'pending' / 'unknown' / 'review'; stats.ts shopAdFigures answers null for an order (bank.readers.test.ts).
  *   Once paid, a row's money is đồng, and every figure built on it says so (currency.ts).
  * ⛔ EXPIRY IS LAZY: an order unpaid after BANK_ORDER_DAYS reads as expired (no QR, gone from the shop's list), and the next
- *   write — the shop's next order sweeps its lapsed ones — stores status 'cancelled' with failReason 'expired'. An admin can
- *   still Mark paid an EXPIRED order (a transfer that landed late is honoured); one the shop or eno cancelled is closed
- *   for good. A listing is checked again at Mark paid: gone since the order → `review`, refunded by hand.
+ *   write — the shop's next order sweeps its lapsed ones — stores status 'cancelled' with failReason 'expired'.
+ * ⛔ A TRANSFER IS NEVER LOST UNDER AN UNSEEN REFERENCE: an expired order, and one the shop cancelled (it may have paid
+ *   first), stay on the admin's list for 30 days and can still be marked paid — the admin, who sees the money, decides.
+ *   Only eno's own Cancel closes an order for good. A listing is checked again at Mark paid: gone since the order →
+ *   `review`, refunded by hand.
  * ⛔ THE ACCOUNT IS SERVER ENV, NEVER NEXT_PUBLIC (bank-config.ts bankConfig): ADS_BANK_BIN (default 970416, ACB),
  *   ADS_BANK_ACCOUNT, ADS_BANK_ACCOUNT_NAME. Unset or malformed → nothing is sold: the form says so and no order is created.
  *   It reaches a browser only on the shop's own order, as the QR and the copyable details a payer needs.
@@ -48,7 +50,7 @@ export const BANK_ORDERS_PER_HOUR = 10
 export const LISTING_GONE_PAID = 'listing_not_live_after_payment'
 export const BANK_VIA = 'bank'
 export const BANK_ORDER_TTL_MS = BANK_ORDER_DAYS * 86_400_000
-/** Expired orders an admin is still shown, to honour a transfer that landed late. */
+/** Expired and shop-cancelled orders an admin is still shown, to find a transfer that landed on one anyway. */
 const ADMIN_EXPIRED_WINDOW_MS = 30 * 86_400_000
 
 // ── What the shop and the admin read ───────────────────────────────────────────────────────────────────────────────
@@ -58,8 +60,15 @@ const payloadOf = (ad: Pick<AdRow, 'payloadJson'>): OrderPayload => (ad.payloadJ
 const periodOf = (ad: Pick<AdRow, 'payloadJson'>): BankPeriod => { const p = payloadOf(ad).period; return isBankPeriod(p) ? p : 'week' }
 const expiresAt = (ad: Pick<AdRow, 'createdAt'>) => new Date(ad.createdAt.getTime() + BANK_ORDER_TTL_MS)
 const lapsed = (ad: Pick<AdRow, 'status' | 'createdAt'>, now: Date) => ad.status === BANK_AWAITING && expiresAt(ad).getTime() <= now.getTime()
-/** May an admin still start it: awaiting (lapsed or not), or closed only by its expiry. */
-const payable = (ad: Pick<AdRow, 'status' | 'failReason'>) => ad.status === BANK_AWAITING || (ad.status === BANK_CANCELLED && ad.failReason === 'expired')
+/**
+ * May an admin still start it when its money lands: awaiting (lapsed or not), closed by its expiry, or cancelled by the
+ * shop — ⛔ a shop that paid and then pressed Cancel (commit gate, opus: "scan, transfer, see it still awaiting, tap
+ * Cancel") must not leave a transfer under a reference nobody can see. The admin, who sees the money, decides: Mark paid,
+ * or refund by hand. Never one eno itself closed, or one whose creative eno removed.
+ */
+const PAYABLE_CANCELLED = ['expired', 'cancelled_by_shop']
+const payable = (ad: Pick<AdRow, 'status' | 'failReason'>) => ad.status === BANK_AWAITING || (ad.status === BANK_CANCELLED && PAYABLE_CANCELLED.includes(ad.failReason ?? ''))
+const PAYABLE_WHERE: Prisma.ListingAdWhereInput = { via: BANK_VIA, OR: [{ status: BANK_AWAITING }, { status: BANK_CANCELLED, failReason: { in: PAYABLE_CANCELLED } }] }
 
 export type BankOrderStatus = 'awaiting_transfer' | 'expired' | 'cancelled' | 'active' | 'review'
 export type BankOrderView = {
@@ -249,8 +258,8 @@ export async function createBankOrder(p: { sellerId: string | null; profileId: s
 
 export type CancelResult = { ok: true; order: BankOrderView } | { ok: false; status: 404 | 409; code: 'not_found' | 'order_closed' }
 
-/** The shop cancels its own order, only while it awaits the transfer — closed for good, even one that had lapsed: the
- *  shop said not to run it, so no late transfer is honoured on it (commit gate, opus). */
+/** The shop cancels its own order, only while it awaits the transfer: its QR is gone and it leaves the shop's list. Should
+ *  its transfer land anyway, the admin still finds it by reference and decides (Mark paid, or a refund by hand). */
 export async function cancelBankOrder(id: string, sellerId: string, now = new Date()): Promise<CancelResult> {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return { ok: false, status: 404, code: 'not_found' }
   const ad = await db.listingAd.findUnique({ where: { id } })
@@ -272,16 +281,17 @@ export type AdminBankOrder = {
   sellerId: string; shop: string | null; period: BankPeriod; amountVnd: number; createdAt: Date; expiresAt: Date
 }
 
-/** Every order awaiting its transfer, and the ones that lapsed in the last 30 days (a late transfer is still honoured). */
+/** Every order awaiting its transfer, and those that lapsed or that the shop cancelled, for 30 days past their week: a
+ *  transfer that lands on one anyway is still found by its reference here (and honoured, or refunded by hand). */
 export async function adminBankOrders(now = new Date()): Promise<AdminBankOrder[]> {
-  const rows = await db.listingAd.findMany({
-    where: {
-      via: BANK_VIA,
-      OR: [{ status: BANK_AWAITING }, { status: BANK_CANCELLED, failReason: 'expired', createdAt: { gte: new Date(now.getTime() - ADMIN_EXPIRED_WINDOW_MS) } }],
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  })
+  // One window for all: an order made within its own week plus 30 days. ⛔ THE ORDERS STILL AWAITING COME FIRST, read on
+  // their own (commit gate, opus): a shop making and cancelling orders must never push a live one off the list.
+  const since = new Date(now.getTime() - BANK_ORDER_TTL_MS - ADMIN_EXPIRED_WINDOW_MS)
+  const [open, closed] = await Promise.all([
+    db.listingAd.findMany({ where: { via: BANK_VIA, status: BANK_AWAITING, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 200 }),
+    db.listingAd.findMany({ where: { via: BANK_VIA, status: BANK_CANCELLED, failReason: { in: PAYABLE_CANCELLED }, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 100 }),
+  ])
+  const rows = [...open, ...closed]
   const [names, shops] = await Promise.all([
     targetNames(rows),
     // edition-lint-allow: admin chrome — the names of the shops these orders belong to (ids from the orders); nothing public.
@@ -322,7 +332,7 @@ export async function markBankOrderPaid(id: string, admin: string, now = new Dat
   const done = (row: AdRow, already: boolean): MarkPaidResult => ({ ok: true, already, status: row.status, startsAt: row.startsAt?.toISOString() ?? null, endsAt: row.endsAt?.toISOString() ?? null })
   if (ad.status === 'active' || ad.status === 'review') return done(ad, true)
   if (!payable(ad)) return { ok: false, status: 409, code: 'order_closed' }
-  const from: Prisma.ListingAdWhereInput = { via: BANK_VIA, OR: [{ status: BANK_AWAITING }, { status: BANK_CANCELLED, failReason: 'expired' }] }
+  const from = PAYABLE_WHERE
   const confirmed = (row: Pick<AdRow, 'payloadJson'>) => ({ payloadJson: { ...(payloadOf(row) as Record<string, unknown>), confirmedBy: admin, confirmedAt: now.toISOString() } as Prisma.InputJsonValue })
   // ⛔ A LISTING IS CHECKED AGAIN AT PAYMENT (commit gate, opus): days can pass between the order and the money (the week,
   // and a late transfer honoured after it), and the listing may have sold, been hidden or moved aisle since. Paid for an
@@ -352,18 +362,17 @@ export async function markBankOrderPaid(id: string, admin: string, now = new Dat
 
 export type AdminCancelResult = { ok: true; already: boolean } | { ok: false; status: 404 | 409; code: 'not_found' | 'order_closed' }
 
-/** Cancel — eno closes an order (no transfer will be honoured on it; one that lands anyway is refunded by hand).
- *  Idempotent: a closed order stays as it is. */
+/** Cancel — eno closes an order for good (no transfer will be honoured on it; one that lands anyway is refunded by hand),
+ *  and it leaves the admin's list. Idempotent: an order eno already closed stays as it is. */
 export async function adminCancelBankOrder(id: string, admin: string): Promise<AdminCancelResult> {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return { ok: false, status: 404, code: 'not_found' }
   const ad = await db.listingAd.findUnique({ where: { id } })
   if (!ad || ad.via !== BANK_VIA) return { ok: false, status: 404, code: 'not_found' }
-  if (ad.status === BANK_CANCELLED && ad.failReason !== 'expired') return { ok: true, already: true }
+  if (ad.status === BANK_CANCELLED && !payable(ad)) return { ok: true, already: true }
   if (!payable(ad)) return { ok: false, status: 409, code: 'order_closed' }
-  const r = await db.listingAd.updateMany({
-    where: { id, via: BANK_VIA, OR: [{ status: BANK_AWAITING }, { status: BANK_CANCELLED, failReason: 'expired' }] },
-    data: { status: BANK_CANCELLED, failReason: 'cancelled_by_eno' },
-  })
+  // Who closed it and what it was before (a shop's own cancel, an expiry) stay on the row.
+  const trail = { ...(payloadOf(ad) as Record<string, unknown>), cancelledBy: admin, cancelledAt: new Date().toISOString(), ...(ad.failReason ? { before: ad.failReason } : {}) }
+  const r = await db.listingAd.updateMany({ where: { id, ...PAYABLE_WHERE }, data: { status: BANK_CANCELLED, failReason: 'cancelled_by_eno', payloadJson: trail as Prisma.InputJsonValue } })
   if (r.count) logInfo('ads_bank_cancelled', { adId: id, admin })
   // Lost a race to a Mark paid: the order started — say so rather than "cancelled".
   if (!r.count) {

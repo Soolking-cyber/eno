@@ -29,7 +29,7 @@ const ORDER = {
   pay: { bank: 'ACB', account_name: 'CONG TY TNHH ENO', account_number: '0000000000', qr_svg: '<svg data-qr="1" aria-hidden="true"></svg>' },
 }
 
-const { AdOrderForm, OrderPay, orderErrorText } = await import('./ad-order')
+const { AdOrderForm, AwaitingOrders, OrderPay, orderErrorText } = await import('./ad-order')
 
 function mount(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -160,6 +160,36 @@ describe('Create an ad', () => {
     await flush()
     expect(screen.queryByText('Approved. You can pay now.')).toBeNull()
     expect((screen.getByRole('button', { name: 'Get the QR' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
+
+describe('the orders awaiting their transfer', () => {
+  const LISTED = { id: 'ad1', reference: 'ENOAD 7K3F9Q', status: 'awaiting_transfer', kind: 'listing', period: 'month', amount_vnd: 349_000, created_at: ORDER.created_at, expires_at: ORDER.expires_at, target: 'Honda Vision' }
+
+  it('each shows what it advertises, the period, the amount and the reference, with Show QR', () => {
+    const onShow = vi.fn()
+    mount(<AwaitingOrders orders={[LISTED as never]} onShow={onShow} />)
+    expect(screen.getByRole('heading', { name: 'Awaiting transfer' })).toBeTruthy()
+    expect(document.body.textContent).toContain('Honda Vision')
+    expect(document.body.textContent).toContain('Month · 349,000 đ · ENOAD 7K3F9Q')
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
+    expect(onShow).toHaveBeenCalledWith('ad1')
+  })
+
+  it('⛔ Cancel asks first (a shop that already paid keeps the order), then cancels', async () => {
+    mount(<AwaitingOrders orders={[LISTED as never]} onShow={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await flush()
+    expect(screen.getByRole('alertdialog').textContent).toContain('Already sent the money? Keep the order')
+    expect(h.posts).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it' }))
+    await flush()
+    expect(h.posts).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel order' }))
+    await flush()
+    expect(h.posts.map((p) => p.url)).toEqual(['/api/ads/orders/ad1/cancel'])
   })
 })
 

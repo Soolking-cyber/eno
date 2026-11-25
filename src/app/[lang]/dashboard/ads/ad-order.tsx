@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
 import { IconButton } from '@/components/ui/icon-button'
 import { Copy } from '@/components/ui/icons'
@@ -312,8 +313,11 @@ export function AwaitingOrders({ orders, onShow }: { orders: ShopOrder[]; onShow
   const { tr, lang } = useLanguage()
   const qc = useQueryClient()
   const [cancelling, setCancelling] = useState<string | null>(null)
+  // Asked first: a shop that already sent the money must not close the order by reflex (commit gate, opus).
+  const [confirm, setConfirm] = useState<string | null>(null)
   if (!orders.length) return null
   const cancel = async (id: string) => {
+    setConfirm(null)
     setCancelling(id)
     const r = await postJson(`/api/ads/orders/${encodeURIComponent(id)}/cancel`)
     setCancelling(null)
@@ -334,12 +338,24 @@ export function AwaitingOrders({ orders, onShow }: { orders: ShopOrder[]; onShow
               </div>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="cta" onClick={() => onShow(o.id)}>{tr('Show QR', 'Xem mã QR')}</Button>
-                <Button type="button" size="sm" variant="outline" loading={cancelling === o.id} disabled={!!cancelling} onClick={() => { void cancel(o.id) }}>{tr('Cancel', 'Hủy')}</Button>
+                <Button type="button" size="sm" variant="outline" loading={cancelling === o.id} disabled={!!cancelling} onClick={() => setConfirm(o.id)}>{tr('Cancel', 'Hủy')}</Button>
               </div>
             </Card>
           </li>
         ))}
       </ul>
+      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr('Cancel this order?', 'Hủy đơn này?')}</AlertDialogTitle>
+            <AlertDialogDescription>{tr('Already sent the money? Keep the order: eno will start your ad.', 'Đã chuyển tiền rồi? Hãy giữ đơn: eno sẽ bật quảng cáo cho bạn.')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr('Keep it', 'Giữ đơn')}</AlertDialogCancel>
+            <AlertDialogAction variant="outline" onClick={() => { if (confirm) void cancel(confirm) }}>{tr('Cancel order', 'Hủy đơn')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

@@ -25,6 +25,7 @@ beforeEach(() => {
   h.fail = false
   h.orders = [
     { id: 'ad2', reference: 'ENOAD 7K3F9Q', status: 'awaiting_transfer', kind: 'creative', target: 'Fresh coffee', targetId: 'cr1', sellerId: 's1', shop: 'Saigon Bean', period: 'month', amountVnd: 349_000, createdAt: at, expiresAt: new Date('2026-12-02T03:00:00Z') },
+    { id: 'ad3', reference: 'ENOAD CCCCCC', status: 'cancelled', kind: 'listing', target: 'Honda Vision', targetId: 'l1', sellerId: 's1', shop: 'Saigon Bean', period: 'week', amountVnd: 99_000, createdAt: at, expiresAt: new Date('2026-12-02T03:00:00Z') },
     { id: 'ad1', reference: 'ENOAD ABCDEF', status: 'expired', kind: 'listing', target: 'Honda Vision', targetId: 'l1', sellerId: 's1', shop: 'Saigon Bean', period: 'week', amountVnd: 99_000, createdAt: new Date('2026-11-10T03:00:00Z'), expiresAt: new Date('2026-11-17T03:00:00Z') },
   ]
 })
@@ -33,7 +34,7 @@ describe('Admin › Ads › Awaiting transfer', () => {
   it('one card per order: reference, amount, kind and target, shop, period, created time, and its actions', async () => {
     const doc = await render()
     expect(doc.querySelector('h2')?.textContent).toBe('Awaiting transfer')
-    const [own, listing] = [...doc.querySelectorAll('li')]
+    const [own, cancelled, listing] = [...doc.querySelectorAll('li')]
     expect(own!.textContent).toContain('ENOAD 7K3F9Q')
     expect(own!.textContent).toContain('349,000 đ')
     expect(own!.textContent).toContain('Own ad: Fresh coffee · Month')
@@ -43,7 +44,13 @@ describe('Admin › Ads › Awaiting transfer', () => {
     expect(listing!.textContent).toContain('Listing: Honda Vision · Week')
     expect(listing!.textContent).toContain('99,000 đ')
     expect(listing!.textContent).toContain('Expired')
-    expect([...doc.querySelectorAll('[data-actions]')].map((b) => b.getAttribute('data-actions'))).toEqual(['ad2:ENOAD 7K3F9Q', 'ad1:ENOAD ABCDEF'])
+    // Cancelled by the shop (it may have paid first): still listed, still with Mark paid.
+    expect(cancelled!.textContent).toContain('Cancelled by the shop')
+    // No expiry date on it: it neither expires nor lapsed.
+    expect(cancelled!.textContent).not.toMatch(/expires|lapsed/)
+    expect(own!.textContent).toContain('expires 2026-12-02 03:00 UTC')
+    expect(listing!.textContent).toContain('lapsed 2026-11-17 03:00 UTC')
+    expect([...doc.querySelectorAll('[data-actions]')].map((b) => b.getAttribute('data-actions'))).toEqual(['ad2:ENOAD 7K3F9Q', 'ad3:ENOAD CCCCCC', 'ad1:ENOAD ABCDEF'])
   })
 
   it('none: says so; a failed read: says so, never a crash', async () => {
