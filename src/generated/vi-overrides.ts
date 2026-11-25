@@ -149,7 +149,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Art": "Nghệ thuật",
   "Ask Eno concierge": "Hỏi trợ lý Eno",
   "Ask Eno concierge…": "Hỏi trợ lý Eno…",
-  "Ask a follow-up": "Hỏi thêm",
   "Ask a follow-up or add what worked for you…": "Hỏi thêm hoặc chia sẻ kinh nghiệm của bạn…",
   "Ask anything — find products by chat": "Hỏi bất cứ điều gì — tìm sản phẩm qua chat",
   "Ask below and Eno concierge answers here in the chat.": "Hỏi bên dưới và trợ lý Eno sẽ trả lời ngay trong đoạn chat.",
