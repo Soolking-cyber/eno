@@ -300,6 +300,13 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
     setShowSuggestions(true)
   }
 
+  // ⛔ A TAP ON THE SEARCH BEFORE HYDRATION (2026-11-25, found by e2e chrome-phone:91, 1 run in 12 on prod): the browser focuses
+  // the field natively, but `onFocus` is not attached yet and a focus is never replayed, so the search stayed closed around a
+  // focused field, with no sign to tap again. At mount, a field that already holds focus opens the search as onFocus would.
+  useEffect(() => {
+    if (document.activeElement?.id === HEADER_SEARCH_INPUT_ID) openSuggestions()
+  }, []) // once, at mount: afterwards onFocus does it
+
   // Retract the suggestions when clicking anywhere outside the search, on Escape, or when focus
   // moves to anything outside the search form.
   useEffect(() => {

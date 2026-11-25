@@ -36,6 +36,16 @@ async function liveTeachers(page: Page): Promise<number> {
 const shelf = (page: Page) => page.locator('[data-teacher-shelf]')
 
 /**
+ * ⚠️ THE SHELF DRAWS ITS CARDS AS IT NEARS THE SCREEN, NOT IN THE SERVER HTML (owner 2026-11-22, the home page's HTML size;
+ * 8f7da222f, teacher-shelf.tsx `deferCards`, shelf.tsx useLaneGate): until then it holds skeletons. A read of its cards
+ * scrolls it in and waits for them first.
+ */
+async function drawShelf(page: Page) {
+  await shelf(page).scrollIntoViewIfNeeded()
+  await expect.poll(() => shelf(page).locator('a[data-card-link]').count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(3)
+}
+
+/**
  * The home page with its first feed page in place. The shelf sits after the TWELFTH feed card, so a feed shorter than
  * a page has none — a catalogue state, not a regression (the guest capture row has the same rule): skipped, visibly.
  */
@@ -56,6 +66,7 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
   test('sits right after the twelfth feed card, holds ≥3 profile cards, and none of the first twelve card links is in it', async ({ page }) => {
     await openHome(page)
     await expect(shelf(page)).toHaveCount(1)
+    await drawShelf(page)
     const order = await page.evaluate(() => {
       const s = document.querySelector('[data-teacher-shelf]')!
       const feed = [...document.querySelectorAll('.feed-grid > [data-feed-card]')]
@@ -125,22 +136,35 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
    * (The languages translated on view, and English for a Vietnamese-letter name, are client requests — an absence an
    * e2e cannot time; the unit test drives the card's own localizedPlan through all eleven instead.)
    */
-  test('under Korean, every card keeps the name its server HTML printed — never a translation of it', async ({ page }) => {
-    await page.addInitScript(() => { try { localStorage.setItem('lang', 'ko') } catch { /* private mode */ } })
-    const res = await openHome(page)
-    const serverHtml = await res!.text()
-    await expect(page.locator('html')).toHaveAttribute('lang', 'ko', { timeout: 20_000 })
-    const [served, shown] = await page.evaluate((html) => {
-      // Each shelf card's link and full title (the h3's `title` — the line itself may be shortened, card-title.ts).
-      const read = (root: ParentNode) => [...root.querySelectorAll('[data-teacher-shelf] [data-card-root]')].map((card) => [
-        card.querySelector('a[data-card-link]')?.getAttribute('href') ?? '',
-        card.querySelector('[role="heading"]')?.getAttribute('title') ?? '',
-      ])
-      return [read(new DOMParser().parseFromString(html, 'text/html')), read(document)]
-    }, serverHtml)
-    expect(served.length, 'shelf cards in the server HTML').toBeGreaterThanOrEqual(3)
-    expect(served.every(([href, name]) => href.startsWith('/listings/') && name !== ''), 'every served card has a link and a name').toBe(true)
-    expect(shown, 'the Korean page shows the names the server printed, card for card').toEqual(served)
+  test('under Korean, every card keeps the name the English page shows — never a translation of it', async ({ page }) => {
+    // The cards are drawn on the client since 2026-11-22 (drawShelf), so the reference is the English page's own cards,
+    // card for card, not the server HTML: a teacher's name is theirs, in every language (no machine translation).
+    const read = (p: Page) => p.evaluate(() => [...document.querySelectorAll('[data-teacher-shelf] [data-card-root]')].map((card) => [
+      card.querySelector('a[data-card-link]')?.getAttribute('href') ?? '',
+      // The h3's `title` holds the full name (the line itself may be shortened, card-title.ts).
+      card.querySelector('[role="heading"]')?.getAttribute('title') ?? '',
+    ]))
+    await openHome(page)
+    await drawShelf(page)
+    const english = await read(page)
+    expect(english.every(([href, name]) => href.startsWith('/listings/') && name !== ''), 'every card has a link and a name').toBe(true)
+    const ko = await page.context().newPage()
+    await ko.route('**/*', (r) => (r.request().method() === 'GET' ? r.continue() : r.abort()))
+    await ko.addInitScript(() => { try { localStorage.setItem('lang', 'ko') } catch { /* private mode */ } })
+    await openHome(ko)
+    await expect(ko.locator('html')).toHaveAttribute('lang', 'ko', { timeout: 20_000 })
+    await drawShelf(ko)
+    const korean = await read(ko)
+    // Every Korean card must be one the English page drew, with the same name (not merely the ones they share). ⚠️ Read-only
+    // like the whole file (the route above aborts POSTs, as `beforeEach` does): it guards the names the client draws from the
+    // server's data; the translate endpoint itself is a POST and never runs here.
+    const named = new Map(english.map(([href, name]) => [href, name]))
+    expect(korean.length, 'the Korean shelf draws its cards').toBeGreaterThanOrEqual(3)
+    for (const [href, name] of korean) {
+      expect(named.has(href), `${href} is on the English shelf too`).toBe(true)
+      expect(name, href).toBe(named.get(href))
+    }
+    await ko.close()
   })
 
   test('after hydration: gone on a search and on a category, still there under a sort', async ({ page }) => {

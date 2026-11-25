@@ -29,7 +29,14 @@ test.describe('Guest · content pages hydrate without errors', () => {
     test(`${path} carries the layout's JSON-LD once`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'load' })
       await page.waitForTimeout(2000)
-      await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(2)
+      // Three since 5e920f05f (2026-11-17): OnlineBusiness (#organization), its plain "Organization" alias for answer engines,
+      // and WebSite ([lang]/layout.tsx). "Once" is the point: no block is duplicated by hydration, so every one is distinct.
+      const blocks = page.locator('script[type="application/ld+json"]')
+      await expect(blocks.first()).toBeAttached()
+      // EXACTLY the layout's three blocks, each once, by @type: these pages add none of their own, so any other block or a
+      // hydration duplicate (whose text may differ) fails. JSON.stringify keeps an array @type or a missing one visible.
+      const types = (await blocks.allTextContents()).map((t) => JSON.stringify((JSON.parse(t) as { '@type'?: unknown })['@type'] ?? null))
+      expect(types.sort()).toEqual(['"OnlineBusiness"', '"Organization"', '"WebSite"'])
     })
   }
 })

@@ -53,6 +53,12 @@ async function open(page: Page, path: string, lang: 'en' | 'vi', baseURL: string
 
 for (const lang of ['en', 'vi'] as const) {
   test.describe(`Guest · phone chrome (${lang})`, () => {
+    // ⛔ THE BROWSER'S OWN LANGUAGE, not only the header (2026-11-25): with Accept-Language vi but navigator.language en-US (the
+    // project default) the app reconciled to English and RELOADED the page ~1.6 s in, so every vi test raced a reload into an
+    // English page ("execution context was destroyed", vi only). A real Vietnamese browser (vi-VN) loads once and stays vi. Not a
+    // user state: the app reads navigator.languages, and a real Chrome derives it AND Accept-Language from one content-language
+    // setting, so only a test that sets the header alone can split them.
+    test.use({ locale: lang === 'vi' ? 'vi-VN' : 'en-US' })
     test.beforeEach(async ({}, testInfo) => {
       test.skip(testInfo.project.name !== 'guest-mobile', 'phone chrome')
     })
@@ -103,8 +109,10 @@ for (const lang of ['en', 'vi'] as const) {
         expect(await tileLook(page)).toEqual({ top: '2px', bottom: '2px', radius: '9999px', fill: 'rgb(243, 243, 243)', outline: 'none', ringColour: false, shadow: 'none', rim: '0px' })
         // A tap types (on a phone: the open search, the mark stepped out): the tile fills its whole 44px box, inside a 2px ring
         // in the focus colour (--ring), so the Clear ✕ keeps 5px of grey all round.
+        // ⛔ ONE tap, whenever it lands: a tap before hydration focuses the field natively, and the header then opens the search
+        // at mount (header.tsx, 2026-11-25: it was 1 failure in 12 runs on prod, a real phone bug, not a flaky test).
         await page.locator('#app-header input[name="q"]').tap()
-        await expect.poll(() => tileLook(page)).toMatchObject({ top: '0px', bottom: '0px', outline: 'solid 2px', ringColour: true })
+        await expect.poll(() => tileLook(page), { timeout: 15_000 }).toMatchObject({ top: '0px', bottom: '0px', outline: 'solid 2px', ringColour: true })
         // ⛔ Submitting closes the search with the field still focused: the tile goes back to 40px on the mark's lines (the 44px
         // fill follows the open search, never focus — review, 2026-11-17); the ring stays while it is focused.
         await page.locator('#app-header input[name="q"]').fill('iphone')

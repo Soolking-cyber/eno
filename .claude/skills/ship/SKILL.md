@@ -242,20 +242,20 @@ the erasure bound). `purge_everything` evicted every chunk, font and image varia
 E2E_BASE=https://eno.vn npx playwright test --project=guest-desktop --project=guest-mobile
 ```
 
-⚠️ **NO GUEST SUITE AGAINST eno.forum SINCE ITS PUBLIC PAGES WERE RETIRED (owner, 2026-11-03).** `www.eno.forum` and
-the old forum paths 301 to eno.vn (`https://www.eno.forum/visa` → `https://eno.vn/visa`), and the apex is the Reach hub
-behind its sign-in. Pointed at `www.eno.forum`, the suite follows every redirect into eno.vn and asserts forum-edition
-behaviour there: ~20 failures on every deploy that mean nothing (2026-11-07 and 11-08, both green on eno.vn). The forum
-container is still built and health-checked by `eno-deploy.sh`; what the public sees is the redirect, so check that:
+⚠️ **NO GUEST SUITE AGAINST eno.forum SINCE ITS PUBLIC PAGES WERE RETIRED (owner, 2026-11-03).** Since 2026-11-22 every
+`www.eno.forum` path 301s to the APEX, `https://eno.forum<path>`, which is the Reach hub (not eno.vn as this step said until
+2026-11-25; `eno-deploy.sh` step 9 checks the same: "www.eno.forum/privacy goes to eno.forum", "eno.forum/privacy is answered
+by Reach"). Pointed at `www.eno.forum`, the suite would assert forum-edition behaviour on Reach: failures that mean nothing.
+The forum container is still built and health-checked by `eno-deploy.sh`; what the public sees is the redirect, so check that:
 
 ```bash
-# Silent and exit 0 when all are right (a permanent redirect, 301 or 308, to the same path on eno.vn); otherwise it names
-# the wrong one and exits 1.
-fail=0; for p in / /visa /itinerary /listings; do r=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "https://www.eno.forum$p"); case "$r" in "301 https://eno.vn$p"|"308 https://eno.vn$p") ;; *) echo "FORUM REDIRECT WRONG: $p -> $r"; fail=1 ;; esac; done; [ $fail -eq 0 ]
+# Silent and exit 0 when all are right (a permanent redirect, 301 or 308, to the same path on the eno.forum apex); otherwise it
+# names the wrong one and exits 1.
+fail=0; for p in / /visa /itinerary /listings; do r=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "https://www.eno.forum$p"); case "$r" in "301 https://eno.forum$p"|"308 https://eno.forum$p") ;; *) echo "FORUM REDIRECT WRONG: $p -> $r"; fail=1 ;; esac; done; [ $fail -eq 0 ]
 ```
 
-⛔ The `/visa` and `/itinerary` redirects land on eno.vn's, which MUST 404 — the boundary check below is what makes this redirect
-safe, so never skip it. The apex's Reach hub is not this deploy: it ships and is checked with Reach's own box update.
+⛔ eno.vn's own `/visa` and `/itinerary` MUST 404: the boundary check below, never skipped. The apex's Reach hub is not this
+deploy: it ships and is checked with Reach's own box update.
 
 ⚠️ The eno.vn suite has no known failures: any red is a regression (e2e/known-failures.md). On 2026-11-08 the last five
 reds were test drift and were fixed (a hidden first icon, the one-ask-per-visit prompt rule, a hidden duplicate option,
