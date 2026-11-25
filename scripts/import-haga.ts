@@ -210,7 +210,7 @@ async function main() {
     } finally {
       // ⛔ Ids cleared only after the queue took them (a re-run skips these rows).
       try {
-        await enqueuePhotoChecks(db, [...photoIds])
+        if (APPLY) await enqueuePhotoChecks(db, [...photoIds])
         photoIds.length = 0
       } catch (e) {
         console.error(`  ⛔ photo checks NOT queued for ${photoIds.join(', ')} — queue them by hand (src/lib/listing-photo-queue.ts)`)
