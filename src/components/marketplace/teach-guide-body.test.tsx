@@ -25,7 +25,7 @@ const guide = teachGuideSchema.parse({
   ],
   sections: [
     { id: 'one', title: 'One', blocks: [{ type: 'callout', tone: 'warning', title: 'Six months', text: 'File in time.' }] },
-    { id: 'two', title: 'Two', blocks: [{ type: 'p', text: 'Text.' }] },
+    { id: 'two', title: 'Two', blocks: [{ type: 'p', text: 'A **short phrase** and a **bachelor\'s degree or higher plus at least 2 years of relevant work experience** here.' }] },
     { id: 'three', title: 'Three', blocks: [{ type: 'p', text: 'Text.' }] },
   ],
   faqs: [],
@@ -41,6 +41,11 @@ const body = html(<>{teachGuideSections(guide, isLiveHref).map((s) => <section k
 const nextStep = html(<TeachNextStep />)
 
 describe('teach guide body', () => {
+  it('a short bold phrase is <strong>; a whole clause past BOLD_MAX is drawn the same as a span (Seobility "bold text too long")', () => {
+    expect(body).toMatch(/<strong[^>]*>short phrase<\/strong>/)
+    expect(body).toMatch(/<span class="font-semibold text-foreground">bachelor&#x27;s degree or higher plus at least 2 years of relevant work experience<\/span>/)
+    expect(body).not.toMatch(/<strong[^>]*>bachelor/)
+  })
   it('links a live guide and prints an unreleased one as its text', () => {
     expect(points).toContain('href="/teach-in-vietnam/live-guide"')
     expect(points).not.toContain('later-guide')

@@ -34,12 +34,30 @@ function Inline({ src, isLiveHref, lang = 'en' }: { src: string; isLiveHref: (hr
   return <>{renderTokens(parseInline(src, lang), isLiveHref, lang)}</>
 }
 
+/** Longest run kept as <strong>: Seobility flags bold text past ~70 characters (74 was flagged, the longest unflagged 42). */
+export const BOLD_MAX = 70
+
+/** The visible characters of some inline tokens (a bold run's own text, links and money included). */
+function plainLength(tokens: InlineToken[]): number {
+  let n = 0
+  for (const t of tokens) n += t.t === 'text' ? t.v.length : t.t === 'money' ? t.text.length : t.t === 'bold' ? plainLength(t.children) : t.label.length
+  return n
+}
+
 function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en'): React.ReactNode[] {
   return tokens.map((t, i) => {
     if (t.t === 'text') return t.v
     // Money never breaks across a line: "25,000,000 đ" split after the comma reads as two numbers.
     if (t.t === 'money') return <span key={i} className="whitespace-nowrap">{t.text}</span>
-    if (t.t === 'bold') return <strong key={i} className="font-semibold text-foreground">{renderTokens(t.children, isLiveHref, lang)}</strong>
+    if (t.t === 'bold') {
+      const inner = renderTokens(t.children, isLiveHref, lang)
+      // ⛔ A WHOLE CLAUSE IN BOLD IS STYLE, NOT A KEY PHRASE (Seobility crawl 9: "bold text too long" on 20 guides — runs of 74–119
+      // characters such as "bachelor's degree or higher plus at least 2 years of relevant work experience"). Past BOLD_MAX it is
+      // drawn the same, as a span: <strong> stays for the short phrases a reader scans for.
+      return plainLength(t.children) > BOLD_MAX
+        ? <span key={i} className="font-semibold text-foreground">{inner}</span>
+        : <strong key={i} className="font-semibold text-foreground">{inner}</strong>
+    }
     if (!t.external) return isLiveHref(t.href) ? <HereLink key={i} href={t.href}>{t.label}</HereLink> : t.label
     if (OWN_HOST.test(t.href))
       return (
