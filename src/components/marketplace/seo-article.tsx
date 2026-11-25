@@ -8,6 +8,9 @@ import { AFFILIATION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_LINKS } from '@/lib/cross-site-links'
 import { formatArticleDate } from '@/lib/dates'
 import { pinnedVariant } from '@/lib/lang-pinned'
+import { EXPAT_GUIDES, MARKETPLACE_GUIDES } from '@/lib/expat-guides'
+import { PHONE_GUIDES } from '@/lib/phone-guides'
+import { LANGUAGES } from '@/lib/languages'
 import { Header } from './header'
 import { Footer } from './footer'
 import { keepReading } from './seo-article-related'
@@ -691,10 +694,34 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             </p>
             {!content.crossSitePromo && <p className="text-xs leading-relaxed">{chrome.affiliation}</p>}
           </div>
+          {content.alternate?.lang === 'vi' && <ViPairLink href={content.alternate.href} />}
         </ArticleText>
       </main>
 
       <Footer />
+    </div>
+  )
+}
+
+/**
+ * "Tiếng Việt" at the end of an English article that has a Vietnamese pair (owner, 2026-11-25, "1 ok": hub links for the pages
+ * Seobility's crawl 6 found 4–5 clicks deep). The pair was named by hreflang alone, which a crawler does not walk: the 18
+ * Vietnamese phone guides were reached only through each other. The look and the phone rule are vi-twin-link.tsx's (the
+ * owner's 2026-11-24 "Add the link"); a PLAIN link, not LangPilotLink — that one switches the UI language and, on a page
+ * that is not a pilot, stays on this URL, while the pair is another article at its own address.
+ * The pair's own title follows for screen readers and crawlers: "Tiếng Việt" alone would be one anchor for 19 targets.
+ */
+function ViPairLink({ href }: { href: string }) {
+  const slug = href.replace(/^\//, '')
+  const name = [...PHONE_GUIDES, ...EXPAT_GUIDES, ...MARKETPLACE_GUIDES].find((g) => g.slug === slug)?.label
+  return (
+    <div className="max-sm:sr-only max-sm:focus-within:not-sr-only">
+      <div className="mt-8 flex justify-end">
+        <Link href={href} hrefLang="vi-VN" lang="vi" className="relative tap-44 text-xs font-semibold text-accent-foreground hover:underline">
+          {LANGUAGES.find((l) => l.code === 'vi')!.native}
+          {name ? <span className="sr-only">: {name}</span> : null}
+        </Link>
+      </div>
     </div>
   )
 }

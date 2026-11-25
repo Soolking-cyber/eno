@@ -117,8 +117,10 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // choosing step waits for the ids. For a visitor without personalisation signals (every first
       // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
       // what they see, not a first paint that hydration replaces.
+      // Its titles carry their translations like the feed's (Seobility, 2026-11-25: a Vietnamese seller's title on this rail
+      // reached the English HTML untranslated — "text invisible to AI bots" — and the MT languages had none either).
       trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) })
-        .then((rows) => rows.slice(0, HOME_TRENDING_TAKE))
+        .then((rows) => localizeListingTitles(rows.slice(0, HOME_TRENDING_TAKE), onlyTitleLang))
         .catch(() => []),
       // The "Find a teacher" shelf after the feed's first page (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
       // first cards, minus the owner's demo. Same fail-soft as the rails: a failed read is a page without the shelf. (A

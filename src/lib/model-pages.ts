@@ -174,6 +174,18 @@ export async function submittableModelPages(): Promise<{ slug: string; lastmod: 
     .sort((a, b) => (a.slug < b.slug ? -1 : 1))
 }
 
+/**
+ * The model pages /brands links, by name (owner, 2026-11-25, "1 ok": hub links — Seobility crawl 6 found /gia pages 4 clicks
+ * deep, reached only through a PDP's "Typical asking price" and the /price twin link). The pages pages.xml submits, no more.
+ */
+export async function linkedModelPages(): Promise<{ slug: string; name: string }[]> {
+  const index = await modelPageIndex()
+  return (await submittableModelPages())
+    // One memoised index behind both reads; a slug it no longer holds is skipped, never the whole list.
+    .flatMap((p) => { const e = index.bySlug.get(p.slug); return e ? [{ slug: p.slug, name: e.name }] : [] })
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+}
+
 /** The PDP's link: the model's page when this live sale listing sits on its home shelf and the page claims a band. */
 export async function modelPageSlugFor(l: {
   brandSlug: string | null; model: string | null; categorySlug: string; subcategorySlug: string | null; listingType: string; status: string

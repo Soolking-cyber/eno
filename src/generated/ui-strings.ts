@@ -2915,6 +2915,7 @@ export const UI_STRINGS: string[] = [
   "Price: high to low",
   "Price: low to high",
   "Priced in a currency other than đồng",
+  "Prices by model",
   "Pricing",
   "Printers",
   "Privacy",

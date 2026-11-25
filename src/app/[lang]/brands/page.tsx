@@ -18,6 +18,9 @@ import { brandIconPath } from '@/lib/brand-icons'
 import { brandLogoFit, brandLogoUrl } from '@/lib/brand-logo-url'
 import { listedBrands, liveBrandCounts } from '@/lib/live-brands'
 import { localizedHref } from '@/lib/lang-pinned'
+import { linkedModelPages } from '@/lib/model-pages'
+import { logError } from '@/lib/log'
+import { ModelPriceLinks } from './model-price-links'
 
 // The wall lists only brands with LIVE listings (live-brands.ts), so the description names no category it may not hold.
 const METADATA: Metadata = {
@@ -80,6 +83,8 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
   // Each brand's link carries its category, the URL the explorer would end on (brand-category.ts; Seobility, 2026-11-23: a bare
   // ?brand= is rewritten after load, a link to a redirect for a crawler that runs JavaScript). A failed read is the bare links.
   const categories = await dominantCategories(brands.map((b) => b.slug)).catch(() => new Map<string, string>())
+  // The model price pages, linked under the wall (model-price-links.tsx). Logged and fail-soft: a failed read is the wall alone.
+  const modelPages = await linkedModelPages().catch((e) => { logError(e, { op: 'brands.modelPages' }); return [] })
   const items = brands.map((b) => {
     const iconPath = brandIconPath(b)
     return { ...b, iconPath, iconUrl: brandLogoUrl(b), fit: brandLogoFit(iconPath), href: brandHref(b.slug, categories.get(b.slug)) }
@@ -171,6 +176,8 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
             ))}
           </div>
         )}
+
+        <ModelPriceLinks pages={modelPages} lang={lang === 'vi' ? 'vi' : 'en'} />
       </main>
       <Footer />
     </div>

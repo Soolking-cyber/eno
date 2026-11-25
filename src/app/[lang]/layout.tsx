@@ -305,6 +305,13 @@ const MYLEAD_VERIFICATION = IS_SERVICES ? null : "0278b78162cad9a93d0071ce2c5cc8
  */
 const PINTEREST_VERIFICATION = IS_SERVICES ? null : "eb401aba4319c3406a643d5aff061606";
 
+/**
+ * Seobility project verification (owner, 2026-11-25: "max out crawl settings in seobility to crawl as fast as possible" —
+ * parallel crawlers need a verified project; Project settings → Verification, option B). ⛔ eno.vn ONLY, per site like the
+ * tags above; a public ownership proof, not a secret.
+ */
+const SEOBILITY_VERIFICATION = IS_SERVICES ? null : "e35970af5979c8fa2b1410606defbeb0";
+
 // The sitewide <title> (SITE_TITLE) and the marketplace's card line live in src/lib/site-title.ts.
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
@@ -315,6 +322,7 @@ export const metadata: Metadata = {
       "facebook-domain-verification": FACEBOOK_DOMAIN_VERIFICATION,
       ...(MYLEAD_VERIFICATION ? { "mylead-verification": MYLEAD_VERIFICATION } : {}),
       ...(PINTEREST_VERIFICATION ? { "p:domain_verify": PINTEREST_VERIFICATION } : {}),
+      ...(SEOBILITY_VERIFICATION ? { seobility: SEOBILITY_VERIFICATION } : {}),
     },
   },
   title: SITE_TITLE,
