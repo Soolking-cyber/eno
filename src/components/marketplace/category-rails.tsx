@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronRight } from '@/components/ui/icons'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
@@ -207,7 +207,6 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
   lost?: boolean
 }) {
   const { tr } = useLanguage()
-  const router = useRouter()
   const lane = look === 'lane'
   const cardW = lane ? LANE_CARD_W : RAIL_CARD_W
   // The scroller ref is shared: the hook drives the ← / → arrows AND the lazy-mount IntersectionObserver. `watch`: the
@@ -265,17 +264,7 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
       <div className="relative">
         <div ref={scrollerRef} className={lane ? LANE_SCROLLER : RAIL_SCROLLER}>
           {show && whole
-            ? listings.map((l) => (
-                <div key={l.id} data-sid={l.sellerId} className={cardW}>
-                  <ListingCard
-                    listing={l}
-                    onOpen={(x) => router.push(`/listings/${x.id}`)}
-                    onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
-                    lane={lane}
-                    sizes={lane ? LANE_CARD_SIZES : undefined}
-                  />
-                </div>
-              ))
+            ? <LaneCards listings={listings} lane={lane} cardW={cardW} />
             : // Same-size skeletons hold the row height until it mounts (no images, no shift).
               // ⚡ `skeleton-still` (owner, 2026-11-19): the colour without the sweep, like shelf.tsx's held places. Measured on
               // the live home page (Playwright, 4x CPU, slow 4G, 8-run interleaved medians): stopping these placeholders'
@@ -289,6 +278,27 @@ export function CategoryLane({ cat, listings, onCategory, look = 'rail', lead = 
     </section>
   )
 }
+
+/**
+ * A lane's cards, MEMOIZED APART FROM THE LANE (2026-11-25, phone home profile). The lane's own state is its scroll arrows
+ * (canLeft / canRight / arrowTop, measured after mount) and its gate. With the cards mapped inline, every one of those updates
+ * re-rendered all its cards: their onOpen / onLocate closures were new each time, so ListingCard's memo never held, and that
+ * happened in the sync commits right after hydration. Here the closures are rebuilt only when the cards themselves change.
+ */
+const LaneCards = memo(function LaneCards({ listings, lane, cardW }: { listings: readonly SerializedListingCard[]; lane: boolean; cardW: string }) {
+  const router = useRouter()
+  return listings.map((l) => (
+    <div key={l.id} data-sid={l.sellerId} className={cardW}>
+      <ListingCard
+        listing={l}
+        onOpen={(x) => router.push(`/listings/${x.id}`)}
+        onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+        lane={lane}
+        sizes={lane ? LANE_CARD_SIZES : undefined}
+      />
+    </div>
+  ))
+})
 
 /** "Browse by category" — one horizontal rail per category, the owner's lead order then live demand (the server's order),
  *  below the For You + Outstanding businesses rails under the desktop feed. `lanes`: visibleCategoryRails() of the

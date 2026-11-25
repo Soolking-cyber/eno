@@ -87,6 +87,24 @@ const decide = (p: boolean, a: boolean, d: boolean) =>
   setConsent({ p, a, d }, { surface: 'banner', action: 'save', locale: 'en' })
 
 describe('reading', () => {
+  it('⚡ the read memo is never stale: a change to the cookie or the stored copy in the same tick is read at once', () => {
+    // One frozen second: the memo also keys on the second, and a tick between two reads would make a new answer (gate).
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 10, 25, 4, 0, 0))
+    setConsent({ p: true, a: false, d: false }, { surface: 'banner', action: 'save', locale: 'en' })
+    expect(readConsent()).toMatchObject({ p: true, a: false })
+    expect(readConsent()).toBe(readConsent()) // the same inputs: the same answer, not a new resolve
+    // Another host or tab writes the cookie directly (not through this module), in the same tick.
+    const other = decodeURIComponent(cookie('eno-consent-v2')!).replace(/^v2\.100\./, 'v2.110.') // the same answer, analytics on
+    clearAllCookies()
+    expect(readConsent(), 'the cookie gone, the stored copy still answers').toMatchObject({ p: true })
+    localStorage.clear()
+    expect(readConsent(), 'nothing left').toBeNull()
+    expect(other.startsWith('v2.110.')).toBe(true)
+    document.cookie = `eno-consent-v2=${encodeURIComponent(other)}; path=/`
+    expect(readConsent()).toMatchObject({ p: true, a: true, d: false })
+    now.mockRestore()
+  })
+
   it('nothing stored → not answered, and NOTHING is allowed (silence is not consent)', () => {
     expect(readConsent()).toBeNull()
     expect(consentAnswered()).toBe(false)

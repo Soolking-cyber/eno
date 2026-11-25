@@ -12,7 +12,14 @@
 import * as React from 'react'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as ReactDOM from 'react-dom'
 import { renderToString } from 'react-dom/server'
+
+// `preload` recorded, then the real one (the server render's preloads, asserted above and below, still go through it).
+vi.mock('react-dom', async (importOriginal) => {
+  const real = await importOriginal<typeof import('react-dom')>()
+  return { ...real, preload: vi.fn((...args: Parameters<typeof real.preload>) => real.preload(...args)) }
+})
 
 vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: 'en', tr: (en: string) => en }),
@@ -214,21 +221,35 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
     await band.done()
   })
 
-  it("the feed copy's own logos turn eager once it is on screen, so a logo scrolled in by hand is already fetched", async () => {
+  // The feed copy warms its logos by PRELOADING them (each at its own srcset), never by turning its <img>s eager: that switch
+  // cost ~5 ms per image on a phone right after hydration (2026-11-25). Its own preloads are the ones with no `media`.
+  const feedPreloads = (spy: { mock: { calls: unknown[][] } }) =>
+    spy.mock.calls.filter(([, o]) => !(o as { media?: string }).media).map(([href, o]) => [href, (o as { imageSrcSet?: string }).imageSrcSet])
+  const wantPreloads = () => stripPartners().map((p) => [p.logo.src, partnerLogoSrcSet(p)])
+
+  it("the feed copy preloads its own logos once it is on screen, so a logo scrolled in by hand is already fetched; its images stay lazy", async () => {
+    const spy = vi.mocked(ReactDOM.preload); spy.mockClear()
     atWidth(390)
     const band = await mount('feed')
     const imgs = [...band.host.querySelectorAll('img')]
-    expect(imgs.map((img) => [img.getAttribute('src'), img.getAttribute('loading')])).toEqual(logos().map((src) => [src, 'eager']))
+    expect(imgs.map((img) => [img.getAttribute('src'), img.getAttribute('loading')])).toEqual(logos().map((src) => [src, 'lazy']))
+    expect(feedPreloads(spy)).toEqual(wantPreloads())
     await band.done()
   })
 
-  it("a desktop's hidden feed copy stays lazy and fetches nothing (desktop unchanged), and turns eager once the window is narrowed to a phone", async () => {
+  it("a desktop's hidden feed copy stays lazy and fetches nothing (desktop unchanged), and preloads once the window is narrowed to a phone", async () => {
+    const spy = vi.mocked(ReactDOM.preload); spy.mockClear()
     const win = atWidth(1280)
     const band = await mount('feed')
     const loading = () => [...band.host.querySelectorAll('img')].map((img) => img.getAttribute('loading'))
     expect(loading()).toEqual(logos().map(() => 'lazy'))
+    expect(feedPreloads(spy)).toEqual([])
     await band.act(async () => { win.set(390) })
-    expect(loading()).toEqual(logos().map(() => 'eager'))
+    expect(loading()).toEqual(logos().map(() => 'lazy'))
+    expect(feedPreloads(spy)).toEqual(wantPreloads())
+    await band.act(async () => { win.set(1280) })
+    await band.act(async () => { win.set(390) })
+    expect(feedPreloads(spy), 'once per mount').toEqual(wantPreloads())
     await band.done()
   })
 
@@ -252,9 +273,8 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
           await act(async () => { root = hydrateRoot(host, <PartnerStrip placement={placement} />, { onRecoverableError: (e) => recovered.push(e) }) })
           // Hydrated in place: the server's img nodes were adopted, not thrown away for a client render.
           expect(served.every((img) => host.contains(img))).toBe(true)
-          // On a phone the feed copy's served logos themselves turn eager after hydration; everything else stays lazy.
-          const want = width < 640 && placement === 'feed' ? 'eager' : 'lazy'
-          expect(served.map((img) => img.getAttribute('loading'))).toEqual(served.map(() => want))
+          // Every served logo stays lazy after hydration: the phone's feed copy warms its logos by preloading them (above).
+          expect(served.map((img) => img.getAttribute('loading'))).toEqual(served.map(() => 'lazy'))
           await act(async () => { root!.unmount() })
           host.remove()
         }

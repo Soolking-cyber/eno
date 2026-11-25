@@ -1,15 +1,16 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
-import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
+import { FaqItem } from '@/components/marketplace/home-faq-item'
 import { FOUNDER_QUOTE, HOME_ABOUT, type AboutText } from '@/lib/home-about'
 import { HOME_FAQ_HEADING, homeFaqJsonLd, homeQuestionsArticleJsonLd } from '@/lib/home-faq'
 import { jsonLdText } from '@/lib/home-item-lists'
 
 /**
- * The home page's questions, at the end of the page: ONE accordion of seven (owner 2026-11-19, "show less without losing
- * scores"; src/lib/home-faq.ts and home-about.ts have the rules), with the FAQPage JSON-LD built from the same answers.
- * Closed, the block is seven question rows. Each question is an H2 (Base UI renders the header; `headerRender` makes it an h2,
- * not the primitive's h3) and opens on its direct answer. ui/accordion is `hiddenUntilFound`, so every closed answer stays in
- * the SSR HTML: crawlers, answer engines and find-in-page read all of it, and the browser opens the one that holds a match.
+ * The home page's questions, at the end of the page (owner 2026-11-19, "show less without losing scores"; src/lib/home-faq.ts
+ * and home-about.ts have the rules), with the FAQPage JSON-LD built from the same answers. Closed, the block is one row per
+ * question. Each question is an H2 and opens on its direct answer. Every closed answer stays in the SSR HTML: crawlers, answer
+ * engines and find-in-page read all of it, and the browser opens the one that holds a match.
+ * ⛔ EACH ROW IS home-faq-item.tsx, NOT ui/accordion, SINCE 2026-11-25 (measured: Base UI's accordion was the largest part of
+ * the phone home's worst long task). Why each alternative was ruled out is written there.
  */
 const Para = ({ parts, className }: { parts: readonly AboutText[]; className: string }) => (
   <p className={className}>
@@ -37,14 +38,11 @@ export function HomeFaqJsonLd({ lang, webPageId }: { lang: string; webPageId: st
   )
 }
 
-/** One question row: the H2 trigger and its answer (the first carries the founder's quote). */
-function FaqItem({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean }) {
+/** One question row: the H2 and its answer (the first carries the founder's quote). The answer wrapper is the accordion panel's. */
+function Question({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean }) {
   return (
-    <AccordionItem value={s.id}>
-      <AccordionTrigger headerRender={<h2 id={`about-${s.id}`} />} className="py-2.5 text-sm">
-        <Bilingual en={s.q.en} vi={s.q.vi} />
-      </AccordionTrigger>
-      <AccordionPanel>
+    <FaqItem id={s.id} question={<Bilingual en={s.q.en} vi={s.q.vi} />}>
+      <div className="pb-4 text-sm leading-relaxed text-body">
         <div className="pb-3">
           <Para parts={s.open} className="text-sm leading-relaxed text-foreground" />
           {s.more.map((p) => (
@@ -61,14 +59,14 @@ function FaqItem({ s, first }: { s: (typeof HOME_ABOUT)[number]; first: boolean 
             </blockquote>
           ) : null}
         </div>
-      </AccordionPanel>
-    </AccordionItem>
+      </div>
+    </FaqItem>
   )
 }
 
 /**
  * ⛔ TWO COLUMNS, COMPACT (owner, 2026-11-24: "make it 2 rows faq more compact"): from `sm` the questions run in two columns,
- * each its OWN accordion — one grid of items would leave a hole beside an opened answer, and CSS columns would move questions
+ * each its OWN list — one grid of items would leave a hole beside an opened answer, and CSS columns would move questions
  * between columns as one opens. The first half (rounded up) on the left, in order; on a phone the halves stack into the same
  * single list (the left half's last row keeps its rule, so the seam reads as any other). Rows 40px (py-2.5), not 44.
  */
@@ -80,12 +78,12 @@ export function HomeFaq() {
         <Bilingual en={HOME_FAQ_HEADING.en} vi={HOME_FAQ_HEADING.vi} />
       </p>
       <div className="mt-1 sm:grid sm:grid-cols-2 sm:items-start sm:gap-x-8">
-        <Accordion multiple className="max-sm:[&>*:last-child]:border-b">
-          {HOME_ABOUT.slice(0, half).map((s, i) => <FaqItem key={s.id} s={s} first={i === 0} />)}
-        </Accordion>
-        <Accordion multiple>
-          {HOME_ABOUT.slice(half).map((s) => <FaqItem key={s.id} s={s} first={false} />)}
-        </Accordion>
+        <div className="w-full max-sm:[&>*:last-child]:border-b">
+          {HOME_ABOUT.slice(0, half).map((s, i) => <Question key={s.id} s={s} first={i === 0} />)}
+        </div>
+        <div className="w-full">
+          {HOME_ABOUT.slice(half).map((s) => <Question key={s.id} s={s} first={false} />)}
+        </div>
       </div>
     </section>
   )

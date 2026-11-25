@@ -48,7 +48,15 @@ export type { ConsentAnswer, ConsentFlags, ConsentPurpose } from './consent-valu
  */
 function cookieValue(name: string): string | null {
   if (typeof document === 'undefined') return null
-  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return cookieFrom(document.cookie, name)
+}
+
+const COOKIE_RES = new Map<string, RegExp>()
+/** One cookie's value out of a `document.cookie` string (each name's RegExp built once). */
+function cookieFrom(cookies: string, name: string): string | null {
+  let re = COOKIE_RES.get(name)
+  if (!re) { re = new RegExp(`(?:^|; )${name}=([^;]*)`); COOKIE_RES.set(name, re) }
+  const m = cookies.match(re)
   if (!m) return null
   try { return decodeURIComponent(m[1]) } catch { return m[1] }
 }
@@ -78,18 +86,36 @@ export function isNativeContext(): boolean {
   return inAppSheetDocument()
 }
 
+/**
+ * The last answer and exactly what it was resolved from. ⚡ 2026-11-25, measured on the phone home: right after hydration
+ * about a dozen effects (for-you, recently-viewed, analytics, the consent runtime, attribution, the card) each called this.
+ * Every call made three document.cookie reads, three new RegExps and a fresh resolve: 55 ms of self time in the page's
+ * worst long task at 4× CPU. Now one cookie read and the two localStorage reads, and the previous answer is reused only when
+ * every input is identical: the same cookie string, the same two stored values, the same second. So it can never be stale.
+ */
+let lastRead: { cookies: string; v2Local: string | null; legacyLocal: string | null; now: number; answer: ConsentAnswer | null } | null = null
+
 /** The stored answer on this device, or null when the visitor has not answered (or it expired). */
 export function readConsent(): ConsentAnswer | null {
   if (typeof window === 'undefined') return null
-  return resolveConsent(
+  let cookies = ''
+  try { cookies = document.cookie } catch { /* sandboxed document: no cookies */ }
+  const v2Local = localGet(CONSENT_V2_KEY)
+  const legacyLocal = localGet(LEGACY_LOCAL_KEY)
+  const now = nowS()
+  const l = lastRead
+  if (l && l.cookies === cookies && l.v2Local === v2Local && l.legacyLocal === legacyLocal && l.now === now) return l.answer
+  const answer = resolveConsent(
     {
-      v2Cookie: cookieValue(CONSENT_V2_KEY),
-      v2Local: localGet(CONSENT_V2_KEY),
+      v2Cookie: cookieFrom(cookies, CONSENT_V2_KEY),
+      v2Local,
       // v1's own read order: shared cookie, localStorage, host-only cookie.
-      legacy: [cookieValue(LEGACY_SHARED_KEY), localGet(LEGACY_LOCAL_KEY), cookieValue(LEGACY_LOCAL_KEY)],
+      legacy: [cookieFrom(cookies, LEGACY_SHARED_KEY), legacyLocal, cookieFrom(cookies, LEGACY_LOCAL_KEY)],
     },
-    nowS(),
+    now,
   )
+  lastRead = { cookies, v2Local, legacyLocal, now, answer }
+  return answer
 }
 
 /** Has the visitor answered (including a legacy refusal)? Drives whether the card auto-opens. */

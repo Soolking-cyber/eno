@@ -75,7 +75,7 @@ const SM_UP = '(min-width: 40rem)'
  * undirected home feed" and its hairline above and below: on a phone the home page's lanes lead (listings-explorer.tsx, the
  * `data-home-lanes` block), and Partners is one of them — a `t-h2` heading like every lane ("Partners" / "Đối tác", the word
  * the band always carried) over a still rail of tiles, one per partner, white with the chips' hairline at the photo radius.
- * The 2026-11-14 still band is kept whole: one roster, no loop, no Pause, no fade, scrolled by hand, its logos eager once on
+ * The 2026-11-14 still band is kept whole: one roster, no loop, no Pause, no fade, scrolled by hand, its logos fetched once on
  * screen, `data-partner-band`.
  * ⛔ BEFORE THE SECOND CATEGORY LANE, THREE WHOLE TILES, THE MARK OVER ITS WORD (owner-approved 2026-11-15 (build 7), cook r07
  * home; it reverses r04's place after that lane and its 220×56 tiles with the logo beside the word): the lane splits
@@ -100,19 +100,25 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // original here and its 1x file again for the <img>.
   if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP, fetchPriority: 'high', imageSrcSet: partnerLogoSrcSet(p) })
   const [looping, setLooping] = useState(false)
-  // The feed copy's own row turns eager once it is on screen (why: PartnerItem). Sticky, and false on the server and in
-  // hydration, so the served row is adopted as it is.
-  const [warm, setWarm] = useState(false)
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const mq = typeof window.matchMedia === 'function' ? window.matchMedia(SM_UP) : null
+    let warmed = false
     const sync = () => {
       // Whether this copy is on screen at this width.
       const shown = mq ? (placement === 'feed') !== mq.matches : true
       // ⛔ The feed copy never loops (owner, 2026-11-14: "8 still band"), and its scroll is the visitor's: never reset.
       // A desktop's hidden feed copy is never shown, so it stays lazy and fetches nothing.
-      if (placement === 'feed') { if (shown) setWarm(true); return }
+      // ⚡ ON SCREEN, ITS LOGOS ARE PRELOADED, NOT TURNED EAGER (2026-11-25, phone home profile). Switching 20 <img>s from
+      // `loading="lazy"` to "eager" after hydration cost ~5 ms per image at 4× CPU (100 ms), measured per setAttribute, all
+      // inside the commit right after hydration, plus a re-render of every PartnerItem. A preload per logo (its own srcset,
+      // so it is the file the <img> picks) fetches the same bytes with no attribute change. A logo scrolled in by hand is then
+      // read from the cache. Once per mount.
+      if (placement === 'feed') {
+        if (shown && !warmed) { warmed = true; for (const p of stripPartners()) preload(p.logo.src, { as: 'image', imageSrcSet: partnerLogoSrcSet(p) }) }
+        return
+      }
       // Back to 0 before the loop runs again, as after a pause: a scroll left behind by hand while this copy was the
       // still row would offset the resumed -50% loop (commit review).
       if (shown && viewport.current) viewport.current.scrollLeft = 0
@@ -136,7 +142,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // very first roster is the real one.
   const copies = looping ? REPEAT * 2 : 1
   const items = Array.from({ length: copies }, (_, copy) =>
-    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} eager={warm} label={label(p)} tile={feed} />))
+    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} tile={feed} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
     <section
@@ -201,22 +207,22 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
  *     Cache-Control; a throwaway profile shows a second, cache-less fetch that visitors do not make).
  *     ⛔ NOT A `<picture>` over a blank image (the first version): WebKit then downloaded every logo twice.
  *   · `top`, the repeats: they exist only while this copy loops, which is only from `sm` up: plain eager `<img>`s.
- *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"` on the server's
- *     row, and never preloaded. It has no repeats since it holds still (owner, 2026-11-14: "8 still band"); instead its
- *     own row turns EAGER once hydrated with the copy on screen (`eager`, PartnerStrip's `warm`). That fetches every
- *     logo right after hydration, as the eager repeats did, so a logo the visitor scrolls in by hand is not an empty
- *     tile in a browser that lazy-loads a scroller's clipped part with no margin. A desktop's hidden feed copy is never
- *     on screen, so it stays lazy and fetches nothing. The ⚠️ on preloads above still holds: the switch happens only on
- *     the client, and React writes no preload for a client-rendered image.
+ *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"`, always, and no
+ *     server preload. It has no repeats since it holds still (owner, 2026-11-14: "8 still band"); instead, once hydrated
+ *     with the copy on screen, PartnerStrip PRELOADS every logo from the client (its own srcset, so the file each <img>
+ *     picks). That fetches every logo right after hydration, as the eager repeats did, so a logo the visitor scrolls in
+ *     by hand is not an empty tile in a browser that lazy-loads a scroller's clipped part with no margin. Until 2026-11-25
+ *     the row itself turned eager instead, which cost ~5 ms per <img> attribute switch on a phone (PartnerStrip's
+ *     effect). A desktop's hidden feed copy is never on screen, so it preloads nothing and fetches nothing.
  */
-function PartnerItem({ partner: p, repeat, eager, label, tile }: { partner: StripPartner; repeat: boolean; eager: boolean; label: string; /** The phone lane's tile: its word 14/18 bold in body ink under the mark (build 7), never cut. */ tile: boolean }) {
+function PartnerItem({ partner: p, repeat, label, tile }: { partner: StripPartner; repeat: boolean; label: string; /** The phone lane's tile: its word 14/18 bold in body ink under the mark (build 7), never cut. */ tile: boolean }) {
   const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={stripHref(p)} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          <img src={p.logo.src} srcSet={partnerLogoSrcSet(p)} loading={repeat ? undefined : eager ? 'eager' : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
+          <img src={p.logo.src} srcSet={partnerLogoSrcSet(p)} loading={repeat ? undefined : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
         <span className={tile ? 'whitespace-nowrap text-sm leading-4.5 font-bold text-body' : 'text-xs font-medium text-ink-4'}>{label}</span>
       </Link>
