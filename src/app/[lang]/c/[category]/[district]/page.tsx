@@ -427,8 +427,11 @@ export default async function CategoryDistrictPage({ params }: Props) {
                 breadcrumb two lines up. A link — this page is a subset — in the resting look: the place beside it keeps the only
                 applied one (two blue chips side by side blurred which is applied, the Map-chip judges). No `homes`: /c is the
                 whole city. */}
-            <Badge size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}`, lang)} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+            <Badge size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}`, lang)} prefetch={false} />} className="relative shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
               <Tr text="All" />
+              {/* "All" names its category for screen readers and crawlers: the same "Tất cả" linked /vi/c/rentals and /vi/c/services
+                  (Seobility crawl 7, identical anchor text). Likewise each place below. */}
+              <span className="sr-only"> — <Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></span>
             </Badge>
             {/* 2026-11-06 audit: this page's own place leads the row in the applied look. The row named only the other areas,
                 so nothing on it said where the reader is. Not a link: it is this page (`aria-current`), as /c's "All" is there. It follows
@@ -437,8 +440,9 @@ export default async function CategoryDistrictPage({ params }: Props) {
               <PlaceName en={place.en} vi={place.vi} />
             </Badge>
             {otherDistricts.map((d) => (
-              <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+              <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="relative shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <PlaceName en={d.label.en} vi={d.label.vi} />
+                <span className="sr-only"> — <Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></span>
               </Badge>
             ))}
           </AreaChipsRow>

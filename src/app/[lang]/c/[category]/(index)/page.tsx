@@ -72,6 +72,9 @@ const OTHER_CATEGORY_CHIP = cn(PILL_BOX, PILL_REST, 'py-1.5 hover:bg-accent hove
  * control. Its hover only exists where these are hidden (from sm the "By area" row shows instead).
  */
 const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')
+/** A place chip in the strip: `relative` holds its sr-only category inside the scroller (a 1px box left to an outer ancestor
+ *  would widen the page on a phone). Not on the Map chip, whose float positions it. */
+const STRIP_PLACE_CHIP = cn(STRIP_CHIP, 'relative')
 /**
  * ⛔ …AND THE MAP CHIP FLOATS ONCE THE HEAD IS GONE (owner-approved 2026-11-15 (build 8), cook r08 rentals — map-float.ts): the
  * strip chip in the head, and past the list header the ink pill bottom centre over the tab bar, riding it. The same link.
@@ -471,9 +474,12 @@ export default async function CategoryPage({ params }: Props) {
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
           {districts.map((d) => (
-            <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+            <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className="relative shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
               {/* English place names on English pages ("District 2", not "Quận 2"). */}
               <PlaceName en={d.label.en} vi={d.label.vi} />
+              {/* The category after the place, for screen readers and crawlers: "Binh Thanh District" alone was one anchor for
+                  /c/rentals/binh-thanh AND /c/services/binh-thanh (Seobility crawl 7, identical anchor text). */}
+              <span className="sr-only"> — <Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></span>
             </Badge>
           ))}
         </AreaChipsRow>
@@ -563,8 +569,9 @@ export default async function CategoryPage({ params }: Props) {
                   <>
                     <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} className={STRIP_MAP_CHIP} glyphClassName="size-4.5" />
                     {districts.map((d) => (
-                      <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className={STRIP_CHIP}>
+                      <Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className={STRIP_PLACE_CHIP}>
                         <PlaceName en={d.label.en} vi={d.label.vi} />
+                        <span className="sr-only"> — <Bilingual en={cat.name} vi={cat.nameVi || cat.name} /></span>
                       </Badge>
                     ))}
                   </>

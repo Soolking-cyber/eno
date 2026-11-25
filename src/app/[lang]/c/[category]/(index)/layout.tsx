@@ -159,7 +159,7 @@ export default async function CategoryIndexLayout({
             readers without JavaScript keep the link, CS-3 V3b-4), now at the end of the page; on a phone the
             Account sheet's Language row, on a desktop the header's language button (owner, same day), and the footer's
             picker switch to the twin as well (setLang → pinnedPair). */}
-        {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
+        {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} name={{ en: cat.name, vi: cat.nameVi || cat.name }} /></div>}
         {/* Every other category with a /vi twin: English → Vietnamese only, hidden below sm (vi-twin-link.tsx; owner, 2026-11-24). */}
         {!piloted && <ViTwinLinkFromParams path={`/c/${cat.slug}`} params={params} name={cat.nameVi || cat.name} />}
       </main>

@@ -271,6 +271,8 @@ function ListingCardImpl({
    * the storefronts too.
    */
   const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
+  // The card link's text carries the price after the title (see the card link below): two listings a seller titled alike are two anchors.
+  const linkPrice = !isTeacher && listing.price > 0 ? formatMoneyFull(listing.price, listing.currency, moneyLocale(lang)) : null
   // The goods phone card (`look`, the prop's note): only a goods card on a goods surface, never a teacher, wide or lane card.
   const goods = look === 'goods' && !isTeacher && !wide && !lane && listing.listingType !== 'job' && isGoodsCategory(listing.category?.slug)
   // The field tile (the goods card's, or a listing page shelf's `look="tile"`): the photo on the grey, no ring, below sm.
@@ -803,8 +805,11 @@ function ListingCardImpl({
         className="rounded-media corner-round card-link"
       >
         {/* The link's words in its text, not only in aria-label (Seobility, 2026-11-23, counted these as empty links on 24 pages).
-            The aria-label still names it for assistive tech; sr-only paints nothing. */}
-        <span className="sr-only">{lineTitle}</span>
+            The aria-label still names it for assistive tech; sr-only paints nothing.
+            ⛔ THE PRICE FOLLOWS THE TITLE HERE (Seobility crawl 7, 2026-11-25: "identical anchor text for different pages" — 82
+            titles a seller gave to several listings, the check that weighs most in Structure). Text only: the aria-label above
+            still names the link by its title alone, so a screen reader hears nothing new. */}
+        <span className="sr-only">{lineTitle}{linkPrice ? <> — {linkPrice}</> : null}</span>
       </a>
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded

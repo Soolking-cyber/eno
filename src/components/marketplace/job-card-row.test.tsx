@@ -100,6 +100,8 @@ describe('the card', () => {
     expect(h3.className).not.toMatch(/line-clamp|truncate/)
     expect(h3.className.split(' ')).toContain('text-t-h3')
     expect(c.querySelector('a[data-row-link]')!.getAttribute('aria-label')).toBe('Primary PE Teacher — Nord Anglia Education')
+    // …and its text says the same, so a crawler does not read an empty link (Seobility crawl 7).
+    expect(c.querySelector('a[data-row-link]')!.textContent).toBe('Primary PE Teacher — Nord Anglia Education')
   })
 
   it('the meta line: place · posted · type, wrapping, never truncated', () => {

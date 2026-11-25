@@ -77,7 +77,7 @@ function readCookie(name: string): string | null {
 
 export function LangSuggestionBanner() {
   const { setLang } = useLanguage()
-  const [shown, setShown] = useState<ReturnType<typeof bannerFor>>(null)
+  const [shown, setShown] = useState<(NonNullable<ReturnType<typeof bannerFor>> & { name: string }) | null>(null)
   const clearance = useConsentClearance()
 
   useEffect(() => {
@@ -89,7 +89,10 @@ export function LangSuggestionBanner() {
     // ⛔ NEVER IN THE APPS: their start page FOLLOWS to the twin instead, in the pre-paint script, before any launch
     // link or push tap is routed (src/lib/app-home-language.ts — following from a mount effect raced them).
     if (isNativeAppClient()) return
-    setShown(b ? { ...b, href: b.href + window.location.search } : null)
+    // The page's own heading after the link's words, for screen readers and crawlers: "View in English" alone was one anchor for
+    // / and /c/furniture-appliances (Seobility crawl 7, identical anchor text; it renders JavaScript).
+    const heading = document.querySelector('main h1')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    setShown(b ? { ...b, href: b.href + window.location.search, name: heading } : null)
   }, [])
 
   if (!shown) return null
@@ -110,6 +113,8 @@ export function LangSuggestionBanner() {
           {copy.text}{' '}
           <a href={shown.href} hrefLang={copy.hrefLang} onClick={go} className="font-semibold text-accent-foreground hover:underline">
             {copy.link}
+            {/* The heading is in THIS page's language, the other one from the banner's. */}
+            {shown.name ? <span className="sr-only" lang={shown.target === 'en' ? 'vi' : 'en'}>: {shown.name}</span> : null}
           </a>
         </p>
         <CloseButton size="sm" type="button" label={copy.dismiss} onClick={dismiss} />

@@ -50,7 +50,7 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
             negotiating URL (vi-twin-link.tsx). Hidden below sm, still in the HTML, like ViTwinLink. */}
         <div className="max-sm:sr-only max-sm:focus-within:not-sr-only">
           <div className="mt-8 flex justify-end">
-            <LangPilotLink href={modelPagePath(slug, other)} target={other} hrefLang={other === 'vi' ? 'vi-VN' : 'en'} label={LANGUAGES.find((l) => l.code === other)!.native} />
+            <LangPilotLink href={modelPagePath(slug, other)} target={other} hrefLang={other === 'vi' ? 'vi-VN' : 'en'} label={LANGUAGES.find((l) => l.code === other)!.native} name={entry.name} />
           </div>
         </div>
       </main>

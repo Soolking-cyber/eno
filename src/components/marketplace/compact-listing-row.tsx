@@ -187,7 +187,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         draggable={false}
         onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
         className="absolute inset-0 z-[1] rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
+      >
+        {/* The link's words in its text too, as the card link (listing-card.tsx): with only an aria-label a crawler reads an empty
+            link (Seobility crawl 7, "empty links" to three job listings). The aria-label still names it; sr-only paints nothing. */}
+        <span className="sr-only">{displayTitle}</span>
+      </a>
       {/* Thumbnail — SQUARE, small enough that the row reads as one line.
           ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE
           APP (owner, 2026-08-12: "make sure all product images are square"). Every other surface

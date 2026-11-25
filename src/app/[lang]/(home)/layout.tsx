@@ -9,6 +9,9 @@ import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-b
 import { PartnerStrip } from '@/components/marketplace/partner-strip'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
+/** The home page's name in each language, after the pilot switch's label (lang-pilot-switch.tsx). */
+const HOME_TWIN_NAME = { en: 'Home', vi: 'Trang chủ' }
+
 /**
  * ⛔ THE `/vi` PILOT'S SWITCHER AND BANNER (SEO wave B, V3b) MOUNT ONLY WHILE `/` IS A LIVE PILOT PATH —
  * never today (VI_PREFIX_PATHS is empty until V5), so this layout's HTML is unchanged. The switcher reads
@@ -94,7 +97,7 @@ export default function HomeLayout({ children, params }: { children: React.React
             HTML and the accessibility tree (crawlers, screen readers), and `focus-within:not-sr-only` draws it again while a keyboard
             is on it (WCAG 2.4.7: no invisible focus) — on an OUTER wrapper, because `not-sr-only` also zeroes padding and the row keeps
             its own on the inner one; from sm it is drawn where it was. */}
-        {PILOTED && <div className="max-sm:sr-only max-sm:focus-within:not-sr-only"><div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} /></div></div>}
+        {PILOTED && <div className="max-sm:sr-only max-sm:focus-within:not-sr-only"><div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} name={HOME_TWIN_NAME} /></div></div>}
       </main>
       {PILOTED && <LangSuggestionBanner />}
       <Footer />

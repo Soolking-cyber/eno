@@ -109,7 +109,11 @@ export const JobCardRow = memo(function JobCardRow({ listing: l, onOpen, onPrefe
         draggable={false}
         onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
         className="absolute inset-0 z-[1] rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
+      >
+        {/* The link's words in its text too, as the card link (listing-card.tsx): with only an aria-label a crawler reads an empty
+            link (Seobility crawl 7, "empty links" to three job listings). The aria-label still names it; sr-only paints nothing. */}
+        <span className="sr-only">{displayTitle}</span>
+      </a>
       <h3 className="col-start-1 row-start-1 min-w-0 text-t-h3 text-foreground [overflow-wrap:anywhere] group-hover:underline">{lineTitle}</h3>
       <FavoriteHeart id={l.id} className="relative z-[2] col-start-2 row-start-1 -my-2.5 size-11" />
       {slotLine && (

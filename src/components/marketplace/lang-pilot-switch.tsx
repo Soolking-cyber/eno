@@ -21,7 +21,9 @@ import { LangPilotLink } from './lang-pilot-link'
  * ⚠️ ASYNC ONLY TO READ `params` (resolved before render): the layouts pass the promise through so that
  * their own code awaits nothing new (crawler-visible-html-contract.test.ts).
  */
-export async function LangPilotSwitch({ path, params }: { path: string; params: Promise<{ lang: string }> }) {
+/** `name`: the page's name in each language; the twin's follows the label for screen readers and crawlers (lang-pilot-link.tsx —
+ *  "Tiếng Việt" alone was one anchor for /vi and /vi/c/furniture-appliances, Seobility crawl 7). */
+export async function LangPilotSwitch({ path, params, name }: { path: string; params: Promise<{ lang: string }>; name?: { en: string; vi: string } }) {
   if (!VI_PILOT.live.includes(path)) return null
   const { lang } = await params
   const onVi = lang === 'vi'
@@ -32,6 +34,7 @@ export async function LangPilotSwitch({ path, params }: { path: string; params: 
       target={target}
       hrefLang={onVi ? 'en' : 'vi-VN'}
       label={LANGUAGES.find((l) => l.code === target)!.native}
+      name={name?.[target]}
     />
   )
 }

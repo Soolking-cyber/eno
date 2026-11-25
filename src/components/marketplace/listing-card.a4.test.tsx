@@ -119,6 +119,16 @@ describe('ListingCard — the one-line title', () => {
     expect(c.querySelector('[data-card-link]')!.hasAttribute('aria-describedby')).toBe(false)
   })
 
+  it('the card link\'s TEXT is the title and the price (two listings a seller titled alike are two anchors); its name stays the title', () => {
+    const c = card({ sellerId: 'cm-member-seller' })
+    const link = c.querySelector('[data-card-link]')!
+    // In the reader's money format (this suite renders Vietnamese: dots).
+    expect(link.textContent).toBe(`${link.getAttribute('aria-label')} — 12.000.000 đ`)
+    // No price, no suffix (a job with none, "Contact"): the text is the title alone.
+    const job = card({ sellerId: 'cm-member-seller', category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0 }).querySelector('[data-card-link]')!
+    expect(job.textContent).toBe(job.getAttribute('aria-label'))
+  })
+
   it("never shortens a member's own rental title", () => {
     const c = card({ sellerId: 'cm-member-seller', titleVi: 'Cho thuê xe máy giá rẻ', seller: { trustScore: 80, isBusiness: false, officialPartner: false } })
     expect(c.querySelector('[role="heading"]')!.textContent).toBe('Cho thuê xe máy giá rẻ')

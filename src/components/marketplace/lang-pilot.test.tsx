@@ -92,6 +92,15 @@ describe('<LangSuggestionBanner>', () => {
     expect(screen.getByRole('button', { name: 'Đóng' })).toBeTruthy()
   })
 
+  it('names the page after the link\'s words, for crawlers and screen readers (Seobility crawl 7: one "View in English" for two pages)', () => {
+    at('/')
+    const main = document.createElement('main'); main.innerHTML = '<h1>Free classifieds in Vietnam</h1>'; document.body.appendChild(main)
+    try {
+      render(<LanguageProvider initialLang="en"><LangSuggestionBanner /></LanguageProvider>)
+      expect(screen.getByRole('link', { name: 'Xem bản tiếng Việt: Free classifieds in Vietnam' }).getAttribute('href')).toBe('/vi')
+    } finally { main.remove() }
+  })
+
   it('one tap goes to the twin and stores the choice', () => {
     at('/')
     render(<LanguageProvider initialLang="en"><LangSuggestionBanner /></LanguageProvider>)
@@ -161,6 +170,12 @@ describe('<LangPilotSwitch> (CS-3 V3b-4, V3b-5)', () => {
   it('on /vi: "English" to the plain path, hreflang en', async () => {
     expect(await props('/c/furniture-appliances', 'vi')).toEqual({ href: '/c/furniture-appliances', target: 'en', hrefLang: 'en', label: 'English' })
   })
+  it('names the twin after the label in the TARGET\'s language (Seobility crawl 7: "Tiếng Việt" alone was one anchor for two pages)', async () => {
+    const name = { en: 'Furniture & appliances', vi: 'Nội thất & gia dụng' }
+    const el = async (lang: string) => ((await LangPilotSwitch({ path: '/c/furniture-appliances', params: Promise.resolve({ lang }), name })) as { props: Record<string, string> }).props
+    expect((await el('en')).name).toBe('Nội thất & gia dụng')
+    expect((await el('vi')).name).toBe('Furniture & appliances')
+  })
   it('renders nothing outside the live list (no link to a /vi 404 from /c/rentals), or with the lists off', async () => {
     expect(await props('/c/rentals', 'en')).toBeNull()
     pilot.on = false
@@ -200,6 +215,11 @@ describe('localizedHref at each link site (source contract)', () => {
     expect(s).toMatch(/const url = twin\?\.canonical \?\? `\$\{hostUrl\}\/c\/\$\{cat\.slug\}`/)
     expect(s).toMatch(/alternates: twin \?\? \{ canonical: url \}/)
     expect(s).toMatch(/pageShare\(\{ title, description, url \}\)/)
+  })
+  it('every area chip and "All" names its category for crawlers (Seobility crawl 7: "Binh Thanh District" linked rentals AND services)', () => {
+    const chip = /<span className="sr-only"> — <Bilingual en=\{cat\.name\} vi=\{cat\.nameVi \|\| cat\.name\} \/><\/span>/g
+    expect(src('src/app/[lang]/c/[category]/(index)/page.tsx').match(chip)).toHaveLength(2)
+    expect(src('src/app/[lang]/c/[category]/[district]/page.tsx').match(chip)).toHaveLength(2)
   })
   it('district chips keep the reader\'s language: on /vi they link the /vi twin (phase-1 families, 2026-11-19)', () => {
     expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`, pageLang\(lang\)\)\} prefetch=\{false\} \/>/)
