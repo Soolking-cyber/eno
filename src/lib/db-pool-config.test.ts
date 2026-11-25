@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { poolConfig, SERVER_POOL_MAX } from './db-pool-config'
+import { poolCap, poolConfig, SERVER_POOL_MAX } from './db-pool-config'
 
 /**
  * The pg.Pool options src/lib/db.ts builds (speed plan item 9). What these pin: Next's running server bounds every
@@ -10,6 +10,27 @@ import { poolConfig, SERVER_POOL_MAX } from './db-pool-config'
  * pooler never receives the statement_timeout startup parameter it would reject.
  */
 const DIRECT = 'postgresql://app:secret@db.internal:5432/postgres'
+
+describe('ENO_DB_POOL_MAX — a local run against the live database only ever gets a SMALLER pool (2026-11-25)', () => {
+  it('lowers the server pool, the build pool and a script pool, and keeps every other option', () => {
+    expect(poolConfig({ url: DIRECT, build: false, server: true, cap: '3' })).toEqual({ connectionString: DIRECT, max: 3, statement_timeout: 30_000 })
+    expect(poolConfig({ url: DIRECT, build: true, server: false, cap: '2' })).toEqual({ connectionString: DIRECT, max: 2 })
+    expect(poolConfig({ url: DIRECT, build: false, server: false, cap: '3' })).toEqual({ connectionString: DIRECT, max: 3 })
+  })
+  it('never raises one: a cap above a pool leaves it as it is', () => {
+    expect(poolConfig({ url: DIRECT, build: true, server: false, cap: '10' })).toMatchObject({ max: 3 })
+    expect(poolConfig({ url: DIRECT, build: false, server: true, cap: '20' })).toMatchObject({ max: 20 })
+  })
+  it('unset, empty or not a whole number from 1 to SERVER_POOL_MAX: ignored (production never sets it)', () => {
+    for (const raw of [undefined, '', ' ', '0', '-1', '2.5', 'abc', '21', '1e3']) expect(poolCap(raw), String(raw)).toBeNull()
+    expect(poolConfig({ url: DIRECT, build: false, server: true, cap: '50' })).toEqual({ connectionString: DIRECT, max: 20, statement_timeout: 30_000 })
+    expect(poolConfig({ url: DIRECT, build: false, server: true })).toEqual({ connectionString: DIRECT, max: 20, statement_timeout: 30_000 })
+  })
+  it('db.ts passes the variable in', async () => {
+    const src = readFileSync(join(process.cwd(), 'src/lib/db.ts'), 'utf8')
+    expect(src).toContain('cap: process.env.ENO_DB_POOL_MAX')
+  })
+})
 
 describe('poolConfig', () => {
   it("Next's server: 30 s per statement, 20 connections — and no cap on the wait for a connection", () => {
@@ -43,7 +64,9 @@ describe('src/lib/db.ts says at boot whether the limits are on', () => {
   const src = readFileSync(join(__dirname, 'db.ts'), 'utf8')
   it('prints `[db] pool limits` once on every server boot', () => {
     // Every server boot says it — a pooled URL too, where there is no statement limit to report.
-    expect(src).toMatch(/if \(isServer\) console\.info\(`\[db\] pool limits: statement_timeout=\$\{'statement_timeout' in config \? config\.statement_timeout : 'none \(pooled\)'\} max=\$\{config\.max\}`\)/)
+    expect(src).toMatch(/if \(isServer\) console\.info\(`\[db\] pool limits: statement_timeout=\$\{'statement_timeout' in config \? config\.statement_timeout : 'none \(pooled\)'\} max=\$\{config\.max\}\$\{poolCap\(process\.env\.ENO_DB_POOL_MAX\) === null \? '' : ' \(CAPPED by ENO_DB_POOL_MAX[^']*'\}`\)/)
+    // A cap that reached a server says so, so a stray value in a production env is seen at the next boot (gate review).
+    expect(src).toContain('(CAPPED by ENO_DB_POOL_MAX')
   })
   it('reads NEXT_RUNTIME as the literal Next substitutes, and never logs the connection string', () => {
     expect(src).toMatch(/const isServer = process\.env\.NEXT_RUNTIME === 'nodejs' && !isBuild/)

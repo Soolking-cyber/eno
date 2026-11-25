@@ -96,6 +96,10 @@ const env = {
   // loopback request host.
   NEXT_PUBLIC_LOCAL_AUTH: '1',
   LOCAL_AUTH: '1',
+  // ⛔ A SMALL DATABASE POOL BY DEFAULT (2026-11-25): a preview talks to the LIVE database through the tunnel, and each
+  // server's full 20-connection pool crowds the live apps' budget (src/lib/db-pool-config.ts ENO_DB_POOL_MAX — a local A/B
+  // that restarted previews caused 14 minutes of 500s). An explicit value still wins.
+  ENO_DB_POOL_MAX: process.env.ENO_DB_POOL_MAX || '5',
 }
 
 // ⚠️ FREE THE PORT BEFORE THE BUILD, NOT BEFORE THE BIND. A clean build takes minutes, and a

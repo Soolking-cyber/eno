@@ -29,14 +29,31 @@
  * further. A pooled URL keeps the same client-side cap (the pooler multiplexes behind it).
  */
 export const SERVER_POOL_MAX = 20
+/** pg's own default when nothing sets `max`. */
+const PG_DEFAULT_MAX = 10
 
-export function poolConfig({ url, build, server }: { url: string | undefined; build: boolean; server: boolean }) {
+/**
+ * ⛔ `ENO_DB_POOL_MAX` ONLY EVER LOWERS THE POOL — for a LOCAL server, build or script that talks to the live database
+ * through the SSH tunnel. On 2026-11-25 a local Lighthouse A/B restarted local production servers ~24 times, each with the
+ * full 20-connection pool. Postgres then turned away the live app's own connections for ~14 minutes (500s on /vi and on
+ * listings): the budget above has no room for a third app. Set it (e.g. 3) for any local run; production never sets it.
+ * A value that is not a whole number from 1 to SERVER_POOL_MAX is ignored, so it can never raise a pool.
+ */
+export function poolCap(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === '') return null
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 1 && n <= SERVER_POOL_MAX ? n : null
+}
+
+export function poolConfig({ url, build, server, cap }: { url: string | undefined; build: boolean; server: boolean; cap?: string }) {
   const pooled = !!url && (/:6543(?:[/?]|$)/.test(url) || /[?&]pgbouncer=true(?:&|$)/.test(url))
+  // The build's own pool wins if both flags were ever set (db.ts makes them exclusive).
+  const base = build ? 3 : server ? SERVER_POOL_MAX : undefined
+  const c = poolCap(cap)
+  const max = c === null ? base : Math.min(base ?? PG_DEFAULT_MAX, c)
   return {
     connectionString: url,
-    ...(build ? { max: 3 } : {}),
-    // The build's own pool wins if both flags were ever set (db.ts makes them exclusive).
-    ...(server && !build ? { max: SERVER_POOL_MAX } : {}),
+    ...(max !== undefined ? { max } : {}),
     ...(server && !pooled ? { statement_timeout: 30_000 } : {}),
   }
 }

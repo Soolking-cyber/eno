@@ -1,7 +1,7 @@
 import { PrismaClient } from '@/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
-import { poolConfig } from '@/lib/db-pool-config'
+import { poolCap, poolConfig } from '@/lib/db-pool-config'
 
 // Prisma 7: the Rust query engine is gone — the client talks to Postgres through a
 // driver adapter (node-postgres, unnamed prepared statements). On the VN box DATABASE_URL
@@ -36,11 +36,11 @@ const isServer = process.env.NEXT_RUNTIME === 'nodejs' && !isBuild
  * ⚠️ The build keeps the config form: its workers exit when done, and a pool the adapter does not own is never ended.
  */
 function makeAdapter(): { adapter: PrismaPg; pool: Pool | null } {
-  const config = poolConfig({ url: process.env.DATABASE_URL, build: isBuild, server: isServer })
+  const config = poolConfig({ url: process.env.DATABASE_URL, build: isBuild, server: isServer, cap: process.env.ENO_DB_POOL_MAX })
   if (isBuild) return { adapter: new PrismaPg(config), pool: null }
   const pool = new Pool(config)
   // The one proof the server limits are on (see db-pool-config.ts): printed once, never the connection string.
-  if (isServer) console.info(`[db] pool limits: statement_timeout=${'statement_timeout' in config ? config.statement_timeout : 'none (pooled)'} max=${config.max}`)
+  if (isServer) console.info(`[db] pool limits: statement_timeout=${'statement_timeout' in config ? config.statement_timeout : 'none (pooled)'} max=${config.max}${poolCap(process.env.ENO_DB_POOL_MAX) === null ? '' : ' (CAPPED by ENO_DB_POOL_MAX — a local run; never set in production)'}`)
   // ⛔ An EventEmitter 'error' with no listener throws — an idle client dropped by Supavisor would take the process
   // down. The adapter attaches its own listener when it first connects; this one is there from the start.
   pool.on('error', (e) => console.error('[db] idle pg client error', e instanceof Error ? e.message : e))
