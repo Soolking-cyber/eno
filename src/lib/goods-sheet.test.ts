@@ -14,7 +14,7 @@ const CSS = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
 
 const base = {
   goodsSheet: true, affiliate: false, job: false, booking: false, commission: false, discountCode: false, productStep: false,
-  price: 12_000_000, negotiable: false, visa: false, iosHide: false, tripDesk: false, rentalCheck: false,
+  price: 12_000_000, negotiable: false, visa: false, iosHide: false, tripDesk: false,
 }
 
 describe('isGoodsSheet', () => {
@@ -44,8 +44,8 @@ describe('pinsAction — one control and one line, or nothing pinned', () => {
     expect(pinsAction({ ...link, discountCode: true })).toBe(false)
     expect(pinsAction({ ...link, productStep: true })).toBe(false)
   })
-  it('never a job, an e-visa page, an iOS-hidden contact, the trip desk, an availability check, or a page off the goods sheet', () => {
-    for (const k of ['job', 'visa', 'iosHide', 'rentalCheck'] as const) {
+  it('never a job, an e-visa page, an iOS-hidden contact, the trip desk, or a page off the goods sheet', () => {
+    for (const k of ['job', 'visa', 'iosHide'] as const) {
       expect(pinsAction({ ...base, [k]: true }), k).toBe(false)
       expect(pinsAction({ ...base, affiliate: true, [k]: true }), `${k} (link)`).toBe(false)
     }
@@ -60,7 +60,6 @@ describe('pinsAction — one control and one line, or nothing pinned', () => {
       'visa: isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug),',
       'iosHide: iosHideContact,',
       'tripDesk: isTripProduct,',
-      "rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',",
     ]) expect(PAGE).toContain(s)
   })
 })

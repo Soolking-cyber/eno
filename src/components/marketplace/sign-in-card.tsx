@@ -54,8 +54,7 @@ export function SignInCard({
   listingImage?: string | null
   sellerName?: string
   /**
-   * What signing in is for, when the gate is not a listing (the availability check: "free, and the
-   * eno team replies in Messages"). A context line, never a title — the title stays the site's own.
+   * What signing in is for, when the gate is not a listing. A context line, never a title — the title stays the site's own.
    */
   note?: string
   /**

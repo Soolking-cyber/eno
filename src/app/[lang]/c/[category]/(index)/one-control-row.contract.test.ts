@@ -38,11 +38,11 @@ describe('the layout: the H1 and the check line stand down on a rentals phone', 
     )
   })
 
-  it('it no longer paints the short phone line, and the rentals check line is max-sm:hidden in a box-less wrapper', () => {
+  // The rentals' free-check line (max-sm:hidden in a box-less wrapper here) went with the availability check, 2026-11-25.
+  it('it no longer paints the short phone line, and the lede links are the teachers\' door alone', () => {
     expect(layout).not.toMatch(/RentalsHeadingShort|rentalsHeadlineHasShortForm/)
-    expect(layout).toContain(
-      "{cat.slug === 'rentals' ? <div className=\"max-sm:hidden\"><CategoryLedeLinks slug={cat.slug} /></div> : <CategoryLedeLinks slug={cat.slug} />}",
-    )
+    expect(layout).toContain('        <CategoryLedeLinks slug={cat.slug} />\n')
+    expect(layout).not.toContain("cat.slug === 'rentals' ? <div className=\"max-sm:hidden\"><CategoryLedeLinks")
   })
 
   it('it still awaits no count (crawler contract) and knows nothing of the heading count', () => {
@@ -69,9 +69,8 @@ describe('the page: the phone heading line, the gates, the strip', () => {
       String.raw`<RentalsPhoneHeading headline=\{headline\} name=\{cat\.name\} nameVi=\{cat\.nameVi\} className="min-w-0 flex-1 truncate py-0\.5 text-t-display text-foreground" \/>\s*`,
       String.raw`\{rentalsStrip && <HeadingCount seed=\{\{ total: ([^}]+) \}\} \/>\}\s*`,
       String.raw`<\/div>\s*`,
-      // ⛔ Build 7 (owner-approved 2026-11-15, cook r07 rentals): under the heading only with no row; with the row it is the
-      // list's own header under it (`listHead`, below).
-      String.raw`\{!rentalsStrip && <CategoryLedeLinks slug=\{cat\.slug\} \/>\}\s*<\/div>\s*\)\}\s*`,
+      // (The free-check line under the heading went with the availability check, 2026-11-25.)
+      String.raw`<\/div>\s*\)\}\s*`,
       String.raw`\{LEDE_PLACEMENT === 'page' && `,
     ].join('')))
     expect(page).toMatch(/<\/CountScope>\s*\)\s*\}\s*$/)
@@ -124,9 +123,9 @@ describe('the page: the phone heading line, the gates, the strip', () => {
     expect(block).toContain('<Badge key={d.slug} size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}/${d.slug}`, pageLang(lang))} prefetch={false} />} className={STRIP_CHIP}>')
     expect(block).toContain('<PlaceName en={d.label.en} vi={d.label.vi} />')
     // (/c/jobs' `phoneHead` sits between `phoneWide` and `sortable` since 2026-11-14, owner-approved, cook r06 jobs.)
-    // …then the free-check line as the list's own header under the row (owner-approved 2026-11-15 (build 7), cook r07 rentals).
-    expect(block).toMatch(/\) : null,\s*(?:\/\/[^\n]*\n\s*)*listHead: <CategoryLedeLinks slug=\{cat\.slug\} className="min-h-6" \/>,\s*\} : undefined\}\s*phoneWide=\{cat\.slug === 'rentals'\}\s*(?:\/\/[^\n]*\n\s*)*phoneHead=\{jobsPhoneHead \? \{[^]*?\} : undefined\}\s*$/)
-    expect(page.match(/<CategoryLedeLinks /g)).toHaveLength(2)
+    // (The free-check line that followed as the list's own header, `listHead`, went with the availability check, 2026-11-25.)
+    expect(block).toMatch(/\) : null,\s*\} : undefined\}\s*(?:\/\/[^\n]*\n\s*)*phoneWide=\{cat\.slug === 'rentals'\}\s*(?:\/\/[^\n]*\n\s*)*phoneHead=\{jobsPhoneHead \? \{[^]*?\} : undefined\}\s*$/)
+    expect(page).not.toMatch(/<CategoryLedeLinks |listHead/)
     // The strip chip is the browse chip with Filters' resting look (one chip style, owner 2026-10-18).
     expect(page).toContain("const STRIP_CHIP = cn(PILL_BOX, PILL_REST, 'gap-1.5 py-0 hover:bg-accent hover:text-accent-foreground')")
     expect(page).toContain('const STRIP_MAP_CHIP = cn(STRIP_CHIP, MAP_FLOAT)')

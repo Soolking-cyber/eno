@@ -30,7 +30,6 @@ import { localizedHref } from '@/lib/lang-pinned'
 import { langAlternatesFor } from '@/lib/lang-alternates'
 import { HCMC_SHORT, crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { AreaChipsRow } from '../(index)/area-chips-row'
-import { CategoryLedeLinks } from '../(index)/category-lede-block'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -417,12 +416,6 @@ export default async function CategoryDistrictPage({ params }: Props) {
               title's "HCMC" nowhere in the text of 43 district pages ("title words not in the body"). */}
           {headline ? <RentalsDistrictHeading headline={headline} place={data.inHcmc ? { en: `${searchPlace.en}, ${HCMC_SHORT.en}`, vi: `${searchPlace.vi}, ${HCMC_SHORT.vi}` } : searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
         </h1>
-        {/* ⛔ THE CHECK THE DESCRIPTION PROMISES IS ON THE PAGE (D1, v3): "Pick up to N and eno checks
-            availability for free" is in the meta description, so the hint that says how is here, in the
-            HTML with JavaScript off — rentals pages only, as on /c/rentals.
-            ⚠️ /c/rentals' OWN LINE, WITH ITS LINK (2026-11-06 audit): one line on a phone with "Check availability" beside it
-            (owner, 2026-10-18 — category-lede-block.tsx). Here a phone read "Free check, up to 5 rentals" with nothing to tap. */}
-        {rentals && <CategoryLedeLinks slug={cat.slug} />}
         {/* Map and bedrooms at the top (rentals-03), scoped to this page. Filters rides the sort strip's end below, as on /c
             (2026-11-06 audit: on a phone Filters, Map and the bedroom chips took two rows over the grid); the row keeps it only
             where there is no strip to carry it (`sortable` is off at one listing). */}

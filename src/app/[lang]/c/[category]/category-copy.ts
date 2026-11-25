@@ -1,6 +1,5 @@
 import type { DistrictChip } from '@/lib/district-canonical'
 import { SITE_NAME } from '@/lib/edition'
-import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { formatInteger } from '@/lib/vnd'
@@ -195,8 +194,8 @@ export function rentalsMetadata(
   const title = firstThatFits([`${HEADLINE_TITLE[headline][lang]} | ${siteName}`, HEADLINE_TITLE[headline][lang]])
   /**
    * ⛔ WITH HOMES, THE DESCRIPTION COUNTS HOMES (SEO wave B, D1b; CS-2 D1b-1): it listed "2,270
-   * offices" and ended on "a partner property portal" (peer finding 2a). Now: homes, their kinds, the
-   * free check (RENTAL_CHECK_MAX_ITEMS), then D-f's sentence over the linked tier of the HOMES (review:
+   * offices" and ended on "a partner property portal" (peer finding 2a). Now: homes, their kinds, then
+   * D-f's sentence over the linked tier of the HOMES (review:
    * the offices' tier said nothing about them; CS-2 D1b-3 had it over places). The
    * robots decision keeps reading the total; the title keeps H1b's cached variant.
    */
@@ -583,23 +582,15 @@ const DISTRICT_RENTALS_TITLE: Record<DistrictRentalsHeadline, Record<PageLang, s
 /** ", HCMC" / ", TP.HCM" — the short city the rentals titles and descriptions use (CS-2 conventions). */
 export const HCMC_SHORT = { en: 'HCMC', vi: 'TP.HCM' } as const
 
-/**
- * "Pick up to N and eno checks availability for free." — N is RENTAL_CHECK_MAX_ITEMS, the limit the
- * route enforces, never a typed 5 (plan v4, fix 7). "eno", not a domain: both editions run the check.
- */
-export const rentalCheckSentence = (lang: PageLang): string =>
-  lang === 'vi'
-    ? `Chọn tối đa ${RENTAL_CHECK_MAX_ITEMS} căn, eno kiểm tra phòng trống miễn phí.`
-    : `Pick up to ${RENTAL_CHECK_MAX_ITEMS} and eno checks availability for free.`
-
 /** "{a} apartments, {h} houses and {r} rooms" — only kinds with stock; English singular at 1. */
 export function homeKindsList(kinds: RentalsFacts['kinds'], lang: PageLang): string {
   return joinList(kinds.map((k) => `${formatCountFull(k.count, lang)} ${rentalKindNoun(k.slug, k.count, lang)}`), lang)
 }
 
 /**
- * The homes description (CS-2 D1-7 / D1b-1): count, place, kinds, the free check, then D-f's
- * sentence. Before that sentence it fits 160 characters in the longest case (category-copy.test.ts).
+ * The homes description (CS-2 D1-7 / D1b-1): count, place, kinds, then D-f's sentence. Before that sentence it fits 160
+ * characters in the longest case (category-copy.test.ts). (It also promised the free availability check until that feature was
+ * removed on 2026-11-25.)
  * `city` is the ", HCMC" suffix or ''.
  */
 export function homesDescription(h: HomeFacts, place: { en: string; vi: string }, city: Record<PageLang, string>, linked: LinkedTier, lang: PageLang): string {
@@ -607,8 +598,8 @@ export function homesDescription(h: HomeFacts, place: { en: string; vi: string }
   const tail = rentalsLinkedSentence(linked, h.total, lang)
   const head =
     lang === 'vi'
-      ? `${n} chỗ ở cho thuê tại ${place.vi}${city.vi} — ${homeKindsList(h.kinds, 'vi')}. ${rentalCheckSentence('vi')}`
-      : `${n} ${h.total === 1 ? 'home' : 'homes'} for rent in ${place.en}${city.en} — ${homeKindsList(h.kinds, 'en')}. ${rentalCheckSentence('en')}`
+      ? `${n} chỗ ở cho thuê tại ${place.vi}${city.vi} — ${homeKindsList(h.kinds, 'vi')}.`
+      : `${n} ${h.total === 1 ? 'home' : 'homes'} for rent in ${place.en}${city.en} — ${homeKindsList(h.kinds, 'en')}.`
   return tail ? `${head} ${tail}` : head
 }
 
@@ -672,7 +663,7 @@ export function districtLinkedSentence(
 export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: string): { title: string; description: string } {
   /**
    * ⛔ RENTALS WITH HOMES: "Apartments & Houses for Rent in District 7 (Phu My Hung), HCMC" (D-a),
-   * and a description that counts homes, never names an office, and states the free check (D1, v3).
+   * and a description that counts homes and never names an office (D1, v3; its free-check sentence went 2026-11-25).
    * With no apartment the title keeps today's wording below; with no home at all, so does the
    * description (the page then lists every rental).
    */

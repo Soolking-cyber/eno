@@ -67,7 +67,6 @@ vi.mock('@/components/marketplace/owner-edit-button', () => ({ OwnerEditButton: 
 vi.mock('./partner-badge', () => ({ PartnerBadge: () => <span data-partner-chip="" /> }))
 vi.mock('./image-mark', () => ({ ImageMark: () => null }))
 vi.mock('./card-badges', () => ({ CardBadges: () => null }))
-vi.mock('./rental-check-toggle', () => ({ RentalCheckToggle: () => null }))
 vi.mock('./category-icons', () => ({ CategoryIcon: () => null }))
 vi.mock('@/lib/quick-contact', () => ({ stashQuickCompose: () => false }))
 

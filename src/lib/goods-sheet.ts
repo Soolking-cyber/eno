@@ -47,8 +47,7 @@ export function isGoodsSheet({ noGallery, rentalSheet, factsLine }: { noGallery:
  *     commission (its disclosure must stay under the button — owner 2026-10-01), no discount code (a panel) and no product
  *     step (AffiliateProductStep, a second control); or
  *   · (b) Chat now on a fixed-price or unpriced listing (ContactComposer without the offer panel), when the page is not an
- *     e-visa product or slot (its action follows its disclaimer, `data-no-pin`), not iOS-hidden, not the trip desk, and has
- *     no availability check (RentalCheckToggle).
+ *     e-visa product or slot (its action follows its disclaimer, `data-no-pin`), not iOS-hidden and not the trip desk.
  * Pure and tested (goods-sheet.test.ts); the one predicate to switch off to unpin every GOODS page. ⛔ It still answers
  * false on a home to rent (not the goods sheet): since owner-approved 2026-11-15 (build 7), cook r07 "rental", the rental sheet
  * pins too — its own predicate, src/lib/rental-sheet.ts pinsRentalAction (Chat now alone, the price beside it), ORed with this
@@ -67,9 +66,8 @@ export function pinsAction(p: {
   visa: boolean
   iosHide: boolean
   tripDesk: boolean
-  rentalCheck: boolean
 }): boolean {
-  if (!p.goodsSheet || p.job || p.visa || p.iosHide || p.rentalCheck) return false
+  if (!p.goodsSheet || p.job || p.visa || p.iosHide) return false
   if (p.affiliate) return !p.booking && !p.commission && !p.discountCode && !p.productStep
   const canOffer = p.price > 0 && p.negotiable
   return !canOffer && !p.tripDesk

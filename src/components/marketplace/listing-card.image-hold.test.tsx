@@ -37,7 +37,6 @@ vi.mock('@/components/marketplace/owner-edit-button', () => ({ OwnerEditButton: 
 vi.mock('./partner-badge', () => ({ PartnerBadge: () => null }))
 vi.mock('./image-mark', () => ({ ImageMark: () => null }))
 vi.mock('./card-badges', () => ({ CardBadges: () => null }))
-vi.mock('./rental-check-toggle', () => ({ RentalCheckToggle: () => null }))
 vi.mock('./price', () => ({
   Price: ({ price, jobMeta, approxClassName, fabAvoid }: { price: number; jobMeta?: string | null; approxClassName?: string; fabAvoid?: boolean }) => (
     <span data-price="" data-fab-avoid-prop={String(!!fabAvoid)} data-approx-class={approxClassName ?? ''} data-job-meta={jobMeta === undefined ? 'undefined' : jobMeta === null ? 'null' : jobMeta}>{price}</span>

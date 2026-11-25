@@ -17,7 +17,6 @@ import type { SerializedListingCard, SerializedCategory, BuildingPin } from '@/l
 import { categoryHasMap, mapPinRows } from './map-pin-rows'
 import { MAP_FLOAT_HOST, mapFloatHost } from './map-float'
 import { useScrolledPast } from '@/hooks/use-scrolled-past'
-import { useRentalBasketCount } from '@/lib/rental-check/store'
 // ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
 // Prisma chain; a value import here would drag it into the client bundle (or fail the build).
 // `import type` is erased at compile, so this costs nothing at runtime.
@@ -691,7 +690,6 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
   const floatMap = !!floatMapAfter && showMap
   const away = useScrolledPast(floatMapAfter, floatMap)
   const hidden = useSyncExternalStore(barsHidden?.subscribe ?? NO_BARS_SUBSCRIBE, barsHidden?.get ?? NO_BARS_HIDDEN, NO_BARS_HIDDEN)
-  const basket = useRentalBasketCount() > 0
   const [videoProbeReady, setVideoProbeReady] = useState(false)
   useEffect(() => {
     const arm = () => setVideoProbeReady(true)
@@ -719,7 +717,7 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
         {/* The floated Map's host (`floatMapAfter`): `max-sm:contents`, its toggles all `max-sm:hidden` until the Map one floats
             out, fixed, over the tab bar — so it adds nothing to the row. The circle only exists below `sm`. */}
         {floatMap && (
-          <div {...mapFloatHost(away, hidden, basket)} className={cn(MAP_FLOAT_HOST, 'max-sm:contents')}>
+          <div {...mapFloatHost(away, hidden)} className={cn(MAP_FLOAT_HOST, 'max-sm:contents')}>
             <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} floatMap />
           </div>
         )}
@@ -731,7 +729,7 @@ function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams, circle =
       {/* `floatMap`: `max-sm:contents` instead of `max-sm:hidden` — the box keeps no box of its own on a phone (the cluster's
           gap and widths are what they were), its toggles step down one by one in ViewToggles, and its data attribute keys the
           floated Map's classes. From sm it is the same flex row. */}
-      <div {...(floatMap ? mapFloatHost(away, hidden, basket) : {})} className={cn('flex items-center gap-1', floatMap ? cn(MAP_FLOAT_HOST, 'max-sm:contents') : 'max-sm:hidden')}>
+      <div {...(floatMap ? mapFloatHost(away, hidden) : {})} className={cn('flex items-center gap-1', floatMap ? cn(MAP_FLOAT_HOST, 'max-sm:contents') : 'max-sm:hidden')}>
         <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} floatMap={floatMap} />
       </div>
       <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} className="sm:hidden" />

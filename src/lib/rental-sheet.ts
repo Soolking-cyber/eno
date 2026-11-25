@@ -1,4 +1,4 @@
-import { rentalCheckApplies } from '@/lib/rental-check/shared'
+import { VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
 
 /**
  * ⛔ THE RENTAL SHEET — A HOME TO RENT, ON A PHONE (owner-approved 2026-11-14, cook r05 "rental-c": "after this cook round
@@ -24,9 +24,17 @@ import { rentalCheckApplies } from '@/lib/rental-check/shared'
  */
 
 /**
- * Every rentals listing that is a PLACE — apartment, house, room, office, homestay, hotel or short stay, and a row with no
- * mapped type — the availability check's own gate (rentalCheckApplies: the rentals category minus vehicle hire), never a job
- * (a job filed in rentals), and only with a gallery (the sheet rides over the photo).
+ * A rentals listing that is a PLACE — the rentals category minus vehicle hire (cars, motorbikes, bicycles, e-bikes: rental-places.ts
+ * VEHICLE_RENTAL_SUBCATS). A null subcategory is a place (an unmapped row is still a home). This was the renters' availability
+ * check's gate (rentalCheckApplies) until that feature was removed on 2026-11-25; the sheet and the rent facts kept the rule.
+ */
+export function isHomeRental(categorySlug: string | null | undefined, subcategorySlug: string | null | undefined): boolean {
+  return categorySlug === 'rentals' && !(subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug))
+}
+
+/**
+ * Every rentals listing that is a PLACE (isHomeRental), never a job (a job filed in rentals), and only with a gallery (the
+ * sheet rides over the photo).
  */
 export function isRentalSheet({ noGallery, categorySlug, subcategorySlug, listingType }: {
   noGallery: boolean
@@ -34,7 +42,7 @@ export function isRentalSheet({ noGallery, categorySlug, subcategorySlug, listin
   subcategorySlug: string | null | undefined
   listingType: string | null | undefined
 }): boolean {
-  return !noGallery && listingType !== 'job' && rentalCheckApplies(categorySlug, subcategorySlug)
+  return !noGallery && listingType !== 'job' && isHomeRental(categorySlug, subcategorySlug)
 }
 
 /**
@@ -42,8 +50,9 @@ export function isRentalSheet({ noGallery, categorySlug, subcategorySlug, listin
  * to these pages the goods sheet's one bottom tier — src/lib/goods-sheet.ts pinsAction, globals.css the bottom-tier block —
  * and with it reverses here the tab-nav-stays-on-the-PDP rulings, as that block records). Only where `#contact` is Chat now
  * and its one line, so the tier can hold the price beside it: a seller's own listing (never a partner link: its source line
- * is a second control) with no offer panel (a fixed or unpriced price), no availability check (RentalCheckToggle: a second
- * control and its line), not an e-visa page, not iOS-hidden, not the trip desk. Every other rental keeps the in-flow block
+ * is a second control) with no offer panel (a fixed or unpriced price), not an e-visa page, not iOS-hidden, not the trip desk.
+ * (Until 2026-11-25 the renters' availability check — a second control and its line — kept every home off the pin; the
+ * feature was removed that day, so a home to rent from a member now pins like any other single-action page.) Every other rental keeps the in-flow block
  * and the mirror bar (pdp-action-bar.tsx). Pure and tested (rental-sheet.test.ts).
  */
 export function pinsRentalAction(p: {
@@ -54,9 +63,8 @@ export function pinsRentalAction(p: {
   visa: boolean
   iosHide: boolean
   tripDesk: boolean
-  rentalCheck: boolean
 }): boolean {
-  if (!p.rentalSheet || p.affiliate || p.visa || p.iosHide || p.tripDesk || p.rentalCheck) return false
+  if (!p.rentalSheet || p.affiliate || p.visa || p.iosHide || p.tripDesk) return false
   return !(p.price > 0 && p.negotiable)
 }
 

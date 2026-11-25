@@ -194,7 +194,7 @@ export function PdpActionBar({
    * price's own "≈ $" takes that line (the page passes it as a block). ⛔ ONLY THE TITLE: a 'buy' link's "Source: <shop>" and
    * an 'apply' link's caption are never hidden — they name where the short action goes. Since owner-approved 2026-11-15
    * (build 7) a rental that pins its action never shows this bar below md (`pinned`): its tier carries the head's full price
-   * beside Chat now; this look stays for a rental that keeps the in-flow block (an offer panel, the availability check).
+   * beside Chat now; this look stays for a rental that keeps the in-flow block (an offer panel).
    */
   titleCaption?: 'always' | 'md'
   /**

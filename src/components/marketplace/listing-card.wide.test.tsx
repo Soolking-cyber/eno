@@ -6,9 +6,9 @@
  *   · ⛔ since build 8 (owner-approved 2026-11-15, cook r08 rentals) the body is ONE column of three lines on every card (card-text.ts
  *     WIDE_BODY): the price row (28px, WIDE_PRICE_ROW), the title, the info line — no slot after the price any more;
  *   · the photo's top is one band (`data-photo-top`, a grid): status top-left — the badge, and a non-sponsored partner's "Official
- *     partner" plate (owner-approved 2026-11-15 (build 7), cook r07 rentals) — and the availability check top-right as the
- *     labelled chip, beside the heart, on every card it applies to; the plate takes the band's second row under the check's;
- *     the copy each replaces steps down below `sm` only;
+ *     partner" plate (owner-approved 2026-11-15 (build 7), cook r07 rentals) — the plate taking the band's second row; the copy
+ *     it replaces steps down below `sm` only. (The availability-check chip that sat top-right went with the feature, 2026-11-25:
+ *     no card carries one now.);
  *   · the figure is 22/28 (WIDE_PRICE) and its unit 16 regular ink-3 (WIDE_UNIT) on a phone;
  *   · the title is the body role in ink; the info line 14/20 shows the freshness; the pips show; the heart's plate grows;
  *   · without `wide` the card renders none of it (the two-up card is untouched).
@@ -52,9 +52,6 @@ vi.mock('./partner-badge', () => ({
 }))
 vi.mock('./image-mark', () => ({ ImageMark: () => null }))
 vi.mock('./card-badges', () => ({ CardBadges: ({ className }: { className?: string }) => <span data-card-badges="" className={className} /> }))
-vi.mock('./rental-check-toggle', () => ({
-  RentalCheckToggle: ({ variant, className }: { variant: string; className?: string }) => <button type="button" data-rental-check-toggle={variant} className={className} />,
-}))
 vi.mock('./price', () => ({
   Price: ({ price, className, approxClassName, unitClassName }: { price: number; className?: string; approxClassName?: string; unitClassName?: string }) => (
     <span data-price="" data-class={className ?? ''} data-approx-class={approxClassName ?? ''} data-unit-class={unitClassName ?? ''}>{price}</span>
@@ -132,14 +129,12 @@ describe('ListingCard wide — the text block', () => {
     expect(WIDE_PRICE_ROW.split(' ').every((t) => t.startsWith('max-sm:'))).toBe(true)
   })
 
-  it('a home the check applies to: the labelled chip on the photo\'s top band (col 2, sm:hidden), the photo\'s glyph copy max-sm:hidden', () => {
+  // The renters' availability check was removed on 2026-11-25: a home keeps its band (so the badge keeps clear of the heart),
+  // with the badge alone in it.
+  it('a home (no partner): no availability check anywhere; the band holds the badge alone', () => {
     const c = card()
-    const chip = band(c)!.querySelector('[data-rental-check-toggle]')!
-    expect(chip.getAttribute('data-rental-check-toggle')).toBe('chip')
-    expect(tokens(chip)).toEqual(expect.arrayContaining(['pointer-events-auto', 'col-start-2', 'sm:hidden']))
-    const photoCopy = [...c.querySelectorAll('[data-rail-media] [data-rental-check-toggle]')].find((t) => !band(c)!.contains(t))!
-    expect(photoCopy.getAttribute('data-rental-check-toggle')).toBe('card')
-    expect(tokens(photoCopy)).toContain('max-sm:hidden')
+    expect(c.querySelector('[data-rental-check-toggle]')).toBeNull()
+    expect([...band(c)!.children].map((k) => k.getAttribute('data-card-badges') != null ? 'badge' : k.tagName)).toEqual(['badge'])
   })
 
   // ⛔ Since build 7 (owner-approved 2026-11-15, cook r07 rentals): trust is the photo's plate.
@@ -155,21 +150,22 @@ describe('ListingCard wide — the text block', () => {
     expect(tokens(name)).toContain('max-sm:hidden')
   })
 
-  it('a partner the check applies to: status left, the check right, the plate the band\'s next row (DOM: badge, check, plate)', () => {
+  it('a partner home: status left, the plate the band\'s next row (DOM: badge, plate), no check', () => {
     const c = card({ urgent: true, seller: { trustScore: 90, isBusiness: true, officialPartner: true } })
     const kids = [...band(c)!.children]
-    expect(kids.map((k) => k.getAttribute('data-card-badges') != null ? 'badge' : k.getAttribute('data-rental-check-toggle') ?? k.getAttribute('data-partner-badge'))).toEqual(['badge', 'chip', 'photo'])
+    expect(kids.map((k) => k.getAttribute('data-card-badges') != null ? 'badge' : k.getAttribute('data-partner-badge'))).toEqual(['badge', 'photo'])
+    expect(c.querySelector('[data-rental-check-toggle]')).toBeNull()
     expect(tokens(body(c).lastElementChild!.querySelector('[data-partner-badge="plate"]')!.parentElement)).toEqual(expect.arrayContaining(['contents', 'max-sm:hidden']))
   })
 
-  it('the band is ONE grid on the photo: the badge\'s column gives way to the check, inset to the 12px edge and 12px left of the heart on a phone; from sm the badge\'s old box', () => {
+  it('the band is ONE grid on the photo: inset to the 12px edge and 12px left of the heart on a phone; from sm the badge\'s old box', () => {
     const c = card({ urgent: true, seller: { trustScore: 90, isBusiness: true, officialPartner: true } })
     const b = band(c)!
     expect(tokens(b)).toEqual(expect.arrayContaining(['pointer-events-none', 'absolute', 'grid', 'grid-cols-[minmax(0,1fr)_auto]', 'items-start', 'gap-y-2.5', 'left-2', 'right-11', 'top-2', 'max-sm:left-3', 'max-sm:right-15', 'max-sm:top-3', 'max-sm:gap-x-2']))
     // From sm a column gap would narrow the badge: phone-only.
     expect(tokens(b)).not.toContain('gap-x-2')
     expect(tokens(b.firstElementChild)).toContain('max-w-full')
-    // No check and no plate (a sponsored car hire): no band, the badge alone, as on every card.
+    // No plate (a sponsored car hire): no band, the badge alone, as on every card.
     cleanup()
     const plain = card({ subcategorySlug: 'car-rental', isSponsored: true, seller: { trustScore: 90, isBusiness: true, officialPartner: true } })
     expect(band(plain)).toBeNull()
@@ -230,12 +226,11 @@ describe('ListingCard without `wide` — the two-up card is untouched', () => {
     expect(c.querySelector('[data-price]')!.getAttribute('data-class')).toBe('text-t-price')
   })
 
-  it('no photo band and no slot, the photo chip as before, pips phone-hidden, the time sm-only, no wide class anywhere', () => {
+  it('no photo band and no slot, no check chip (removed 2026-11-25), pips phone-hidden, the time sm-only, no wide class anywhere', () => {
     const c = card({}, false)
     expect(c.querySelector('[data-trust-slot]')).toBeNull()
     expect(band(c)).toBeNull()
-    expect(c.querySelectorAll('[data-rental-check-toggle]')).toHaveLength(1)
-    expect(tokens(c.querySelector('[data-rail-media] [data-rental-check-toggle]'))).not.toContain('max-sm:hidden')
+    expect(c.querySelectorAll('[data-rental-check-toggle]')).toHaveLength(0)
     expect(tokens(c.querySelector('[data-rail-media] > div.card-pips'))).toContain('max-sm:hidden')
     const html = c.innerHTML
     for (const t of [...WIDE_BODY.split(' '), ...WIDE_TITLE.split(' '), ...WIDE_PRICE_ROW.split(' '), 'max-sm:size-11', 'max-sm:size-6', 'max-sm:inline', 'max-sm:left-3', 'max-sm:right-15']) {

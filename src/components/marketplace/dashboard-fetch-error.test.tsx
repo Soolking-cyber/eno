@@ -19,8 +19,6 @@ const h = vi.hoisted(() => ({
   localSignOut: vi.fn(async (_opts?: unknown) => { h.order.push('localSignOut'); h.authUser = null }),
   clearStorage: vi.fn(() => { h.order.push('clearStorage') }),
   clearPhotos: vi.fn(async () => { h.order.push('clearPhotos') }),
-  clearBasket: vi.fn(() => { h.order.push('clearBasket') }),
-  clearDraft: vi.fn(() => { h.order.push('clearDraft') }),
 }))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: h.replace, push: vi.fn(), prefetch: vi.fn() }) }))
@@ -29,7 +27,6 @@ vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en',
 vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth: { signOut: h.localSignOut } }) }))
 vi.mock('@/lib/sign-out-storage', () => ({ clearAccountDeviceStorage: h.clearStorage }))
 vi.mock('@/lib/post-draft-photos', () => ({ clearDraftPhotos: h.clearPhotos }))
-vi.mock('@/lib/rental-check/store', () => ({ clearBasket: h.clearBasket, clearDraft: h.clearDraft }))
 
 import { DashboardFetchError, SIGN_OUT_FALLBACK_MS, documentNav } from './dashboard-fetch-error'
 
@@ -48,7 +45,7 @@ beforeEach(() => {
   h.authUser = { id: 'u1' }
   h.userAtNavigation = undefined
   h.order = []
-  for (const f of [h.replace, h.signOut, h.localSignOut, h.clearStorage, h.clearPhotos, h.clearBasket, h.clearDraft]) f.mockClear()
+  for (const f of [h.replace, h.signOut, h.localSignOut, h.clearStorage, h.clearPhotos]) f.mockClear()
   h.signOut.mockImplementation(async () => { h.order.push('signOut'); h.authUser = null })
   h.localSignOut.mockImplementation(async () => { h.order.push('localSignOut'); h.authUser = null })
 })
@@ -76,7 +73,7 @@ describe('Sign in again (401)', () => {
     expect(h.localSignOut).toHaveBeenCalledWith({ scope: 'local' })
     // Every cleanup step finished BEFORE the navigation — none is left running behind it.
     const nav = h.order.indexOf('replace /signin?next=/dashboard/settings')
-    for (const step of ['signOut', 'localSignOut', 'clearStorage', 'clearPhotos', 'clearBasket', 'clearDraft']) {
+    for (const step of ['signOut', 'localSignOut', 'clearStorage', 'clearPhotos']) {
       expect(h.order.indexOf(step), step).toBeGreaterThan(-1)
       expect(h.order.indexOf(step), step).toBeLessThan(nav)
     }
@@ -100,7 +97,7 @@ describe('Sign in again (401)', () => {
     expect(document.cookie).toMatch(/lang=vi/) // nothing else is touched
     // The device cleanup still ran, before the navigation.
     const nav = h.order.indexOf('document /signin?next=/dashboard/settings')
-    for (const step of ['clearStorage', 'clearPhotos', 'clearBasket', 'clearDraft']) expect(h.order.indexOf(step), step).toBeLessThan(nav)
+    for (const step of ['clearStorage', 'clearPhotos']) expect(h.order.indexOf(step), step).toBeLessThan(nav)
   })
 
   it('a cleanup that HANGS never hangs the navigation: at the deadline, the cookie path takes over', async () => {

@@ -43,7 +43,7 @@ function clearSupabaseAuthCookies(): void {
  * ⛔ A LOCAL-SCOPE SIGN-OUT. The 401 says THIS browser's session was refused; supabase-js's default 'global'
  * scope would revoke the session on EVERY device — so a false 401 would sign the person out everywhere.
  * ⛔ WITH THE APP'S DEVICE CLEANUP (auth-context signOut: Web Push teardown, clearAccountDeviceStorage, the
- * /post draft photos, the rental basket): a session that expired on a SHARED device may be followed by a
+ * /post draft photos): a session that expired on a SHARED device may be followed by a
  * different person signing in, who must not inherit the previous account's caches and unkeyed drafts.
  * ⚠️ /signin MUST BE REACHABLE: it bounces anyone the auth context still calls signed in straight back to
  * `next` — the screen that sent them. So the session is gone BEFORE navigating, on every path:
@@ -51,7 +51,7 @@ function clearSupabaseAuthCookies(): void {
  *     navigation;
  *   · if it FAILS part-way (it can throw before it clears anything — its client chunk would not load), the
  *     FALLBACK runs what needs no network: a local sign-out (its SIGNED_OUT event clears the context's user),
- *     this device's per-account data, and the draft-photo and basket cleanup — AWAITED, under one deadline
+ *     this device's per-account data (the removed rental basket's leftovers included), and the draft-photo cleanup — AWAITED, under one deadline
  *     (SIGN_OUT_FALLBACK_MS), so it can neither be cut short by the navigation nor hang it. (Push teardown
  *     runs first inside signOut, in its own try, so it is behind us by the time the client import can throw.)
  *   · if the local sign-out fails TOO (or is still running at the deadline), nothing in this page can clear
@@ -80,7 +80,6 @@ export function useSignInAgain(next: string): () => Promise<void> {
     clearAccountDeviceStorage()
     const lazyCleanup = Promise.allSettled([
       import('@/lib/post-draft-photos').then((m) => m.clearDraftPhotos()),
-      import('@/lib/rental-check/store').then((m) => { m.clearBasket(); m.clearDraft() }),
     ])
     const localOk = await Promise.race([
       Promise.all([localSignOut, lazyCleanup]).then(([ok]) => ok),

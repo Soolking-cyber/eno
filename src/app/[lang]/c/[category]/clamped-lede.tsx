@@ -57,7 +57,7 @@ export function ClampedLede({ children, className }: { children: React.ReactNode
         {children}
       </p>
       {/* `bare` + `size="none"`: a text link's look, the primitive's focus ring and press.
-          ⛔ NO `tap-44` (gate, 2026-10-18): on /c/rentals the "Check availability" row sits 10px below this one, and two
+          ⛔ NO `tap-44` (gate, 2026-10-18): on /c/rentals the "Check availability" row sat 10px below this one (removed 2026-11-25), and two
           44px extenders on 20px text overlapped by 14px — the LATER one won, so a tap on the bottom of "Show more" left
           the page (measured with elementFromPoint at 390 and 360, EN and VI). The visible box carries the size instead
           (touch-targets.test.tsx's rule): `py-1` makes it 28px, the negative margins give the 4px back so nothing

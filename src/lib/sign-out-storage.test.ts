@@ -7,6 +7,7 @@ import {
   SIGN_OUT_SESSION_KEYS,
   SIGN_OUT_SESSION_PREFIXES,
   clearAccountDeviceStorage,
+  clearRetiredDeviceKeys,
 } from './sign-out-storage'
 import { COMPOSE_KEY } from './quick-contact'
 
@@ -41,13 +42,14 @@ describe('sign-out keys match the code that writes them', () => {
     ['eno-listing-draft', 'src/components/marketplace/post-wizard.tsx', /'eno-listing-draft'/],
     ['eno:ai_chat_v1', 'src/app/[lang]/messages/ai/page.tsx', /STORE_KEY = 'eno:ai_chat_v1'/],
     ['eno.teacherDraft.v1', 'src/components/teachers/teacher-form.tsx', /DRAFT_KEY = 'eno\.teacherDraft\.v1'/],
-    ['eno:rental-check', 'src/lib/rental-check/store.ts', /BASKET_KEY = 'eno:rental-check:v1'[\s\S]*DRAFT_KEY = 'eno:rental-check-draft:v1'[\s\S]*HINT_KEY = 'eno:rental-check:hinted'/],
   ])('%s is what %s writes', (key, file, pattern) => {
     expect(src(file)).toMatch(pattern)
     expect([...SIGN_OUT_LOCAL_KEYS, ...SIGN_OUT_LOCAL_PREFIXES]).toContain(key)
   })
 
-  it('the rental basket hint (sessionStorage) is covered too', () => {
+  // The renters' availability check is gone (2026-11-25) but its keys are still on devices that used it: still removed.
+  it('the removed rental basket\'s leftovers (local and session) are still covered', () => {
+    expect(SIGN_OUT_LOCAL_PREFIXES).toContain('eno:rental-check')
     expect(SIGN_OUT_SESSION_PREFIXES).toContain('eno:rental-check')
   })
 
@@ -89,5 +91,25 @@ describe('clearAccountDeviceStorage', () => {
   it('never throws when storage is blocked', () => {
     const blocked = { get length(): number { throw new Error('SecurityError') }, removeItem: () => { throw new Error('SecurityError') } } as unknown as Storage
     expect(() => clearAccountDeviceStorage(blocked, blocked)).not.toThrow()
+  })
+})
+
+// The removed renters' availability check (2026-11-25): its basket, draft (a typed phone or email) and hint are cleared on
+// every page load, signed in or not — and nothing else is touched.
+describe('clearRetiredDeviceKeys', () => {
+  it('removes every eno:rental-check* key from both stores and leaves the rest', () => {
+    const ls = memoryStorage({ 'eno:rental-check:v1': '{}', 'eno:rental-check-draft:v1': '{"contact":"84901234567"}', 'eno-notifs': '[]', 'eno:favorites:acct': '[]' })
+    const ss = memoryStorage({ 'eno:rental-check:hinted': '1', 'eno-compose': '{}' })
+    clearRetiredDeviceKeys(ls, ss)
+    expect(ls.getItem('eno:rental-check:v1')).toBeNull()
+    expect(ls.getItem('eno:rental-check-draft:v1')).toBeNull()
+    expect(ss.getItem('eno:rental-check:hinted')).toBeNull()
+    expect(ls.getItem('eno-notifs')).toBe('[]')
+    expect(ls.getItem('eno:favorites:acct')).toBe('[]')
+    expect(ss.getItem('eno-compose')).toBe('{}')
+  })
+  it('AuthProvider runs it once per page load', () => {
+    const src = readFileSync(join(process.cwd(), 'src/context/auth-context.tsx'), 'utf8')
+    expect(src).toContain('useEffect(() => { clearRetiredDeviceKeys() }, [])')
   })
 })

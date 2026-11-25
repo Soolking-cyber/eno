@@ -34,7 +34,9 @@ export const SIGN_OUT_LOCAL_KEYS: readonly string[] = [
 export const SIGN_OUT_LOCAL_PREFIXES: readonly string[] = [
   'eno-thr2:', //              per-thread caches — src/context/chat-context.tsx THREAD_PREFIX
   'eno-thr:', //               the pre-v2 thread caches
-  'eno:rental-check', //       availability basket + its request draft — src/lib/rental-check/store.ts
+  // The renters' availability basket + its request draft (the feature was removed 2026-11-25): no code writes these any more,
+  // but a device that used it still holds them, the draft with a phone or email in it, so sign-out keeps removing them.
+  'eno:rental-check', //       eno:rental-check:v1, eno:rental-check-draft:v1
 ]
 
 /**
@@ -53,9 +55,9 @@ export const SIGN_OUT_SESSION_KEYS: readonly string[] = [
   'eno.teacherDraft.v1', //    src/components/teachers/teacher-form.tsx DRAFT_KEY
 ]
 
-/** sessionStorage key PREFIXES (the basket's first-add hint). */
+/** sessionStorage key PREFIXES (the removed basket's first-add hint, left on devices that used it). */
 export const SIGN_OUT_SESSION_PREFIXES: readonly string[] = [
-  'eno:rental-check', //       HINT_KEY — src/lib/rental-check/store.ts
+  'eno:rental-check', //       eno:rental-check:hinted
 ]
 
 function keysOf(store: Storage): string[] {
@@ -89,4 +91,20 @@ export function clearAccountDeviceStorage(local?: Storage, session?: Storage): v
   try { ss ??= typeof sessionStorage === 'undefined' ? undefined : sessionStorage } catch { ss = undefined }
   clearFrom(ls, SIGN_OUT_LOCAL_KEYS, SIGN_OUT_LOCAL_PREFIXES)
   clearFrom(ss, SIGN_OUT_SESSION_KEYS, SIGN_OUT_SESSION_PREFIXES)
+}
+
+/**
+ * The removed renters' availability check's leftovers (2026-11-25): its basket and request draft in localStorage (the draft
+ * holds the phone number or email a guest typed) and its first-add hint in sessionStorage. Nothing writes them any more and
+ * nothing read their 7-day expiry, so a guest who never signs in would keep them for good: AuthProvider runs this once per
+ * page load. The same prefix stays in the sign-out lists above. Never throws.
+ */
+export const RETIRED_DEVICE_PREFIX = 'eno:rental-check'
+export function clearRetiredDeviceKeys(local?: Storage, session?: Storage): void {
+  let ls = local
+  let ss = session
+  try { ls ??= typeof localStorage === 'undefined' ? undefined : localStorage } catch { ls = undefined }
+  try { ss ??= typeof sessionStorage === 'undefined' ? undefined : sessionStorage } catch { ss = undefined }
+  clearFrom(ls, [], [RETIRED_DEVICE_PREFIX])
+  clearFrom(ss, [], [RETIRED_DEVICE_PREFIX])
 }

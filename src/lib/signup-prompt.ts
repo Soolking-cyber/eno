@@ -263,7 +263,8 @@ export const parseContextClass = (v: unknown): string => (contextParts(v) ? (v a
  * table and so auth-context can name it.
  *   first_save   — the note after a guest's first heart (save-signup-sheet.tsx)
  *   chat / offer — a listing's contact: the PDP composer, a card's or a list row's quick action
- *   rental_check — the free availability check's send (/rentals/check)
+ *   rental_check — the renters' free availability check's send (/rentals/check); the feature was removed 2026-11-25, and the
+ *                  gate stays in this list only so the report still reads the counts it stored
  *   save_search  — saving a search for alerts (use-explorer.ts)
  *   post         — the listing wizard (/post: Publish, AI autofill)
  *   teacher      — the teacher profile form (/teachers/join, /teachers/edit — 2026-10-16): its Sign in after step 1,

@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useScrolledPast } from '@/hooks/use-scrolled-past'
 import { useStuck } from '@/hooks/use-stuck'
-import { useRentalBasketCount } from '@/lib/rental-check/store'
 import { MAP_FLOAT_HOST, mapFloatHost } from './map-float'
 import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
@@ -74,8 +73,8 @@ const FILLED_PILL_OPEN = 'max-sm:data-popup-open:border-transparent max-sm:data-
  * ⛔ `mapFloatAfter` — THE MAP FLOATS ONCE THE HEAD IS GONE (owner-approved 2026-11-15 (build 8), cook r08 rentals; /c/rentals,
  * map-float.ts has the whole rule): this strip is the Map link's host. Once the element it names (the list's own header, the
  * last of the page's head) is past the top of the screen, the strip says so (`data-map-float`, "shown" or "hidden" with the
- * header's own hide signal, above) and the link's MAP_FLOAT classes take it out of the row as the ink pill over the tab bar;
- * the rental-check basket's pill lifts it. The strip itself does not move or change: its children are the page's server
+ * header's own hide signal, above) and the link's MAP_FLOAT classes take it out of the row as the ink pill over the tab bar.
+ * The strip itself does not move or change: its children are the page's server
  * markup, handed in, so this state re-renders the strip's div alone.
  * ⛔ A GOODS CATEGORY'S ROW STAYS PINNED like /c/rentals' (owner-approved 2026-11-15 (build 8), cook r08 goods — the caller passes
  * `stayPinned` for `look="goods"`; it reverses there the 08-12 "IT LEAVES WITH THE HEADER").
@@ -95,7 +94,6 @@ function PinnedStrip({ children, stayPinned = false, className, mapFloatAfter }:
 }) {
   const headerHidden = useHideOnScroll()
   const away = useScrolledPast(mapFloatAfter, !!mapFloatAfter)
-  const basket = useRentalBasketCount() > 0
   const rootRef = useRef<HTMLDivElement>(null)
   const stuck = useStuck(rootRef)
   return (
@@ -105,7 +103,7 @@ function PinnedStrip({ children, stayPinned = false, className, mapFloatAfter }:
       data-stay-pinned={stayPinned || undefined}
       data-pills="filled"
       data-stuck={stuck || undefined}
-      {...mapFloatHost(away, headerHidden, basket)}
+      {...mapFloatHost(away, headerHidden)}
       className={cn(
         'sticky z-30 bg-background transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         headerHidden
@@ -201,13 +199,10 @@ export function SellerListings({
    *   a 30-chip row its 1px box would widen the page).
    * Without it, nothing changes: every other category, the district pages and the storefronts keep the wrapping row with
    * the count at its end.
-   * · `listHead` — ⛔ THE LIST'S OWN HEADER UNDER THE ROW (owner-approved 2026-11-15 (build 7), cook r07 rentals: /c/rentals'
-   *   free-check line, category-lede-block.tsx CategoryLedeLinks): below sm it renders right AFTER the pinned strip, 12px
-   *   under its hairline and 16px over the grid, so the page's name stands alone above the row. Server markup handed in
-   *   (rendered by the page, like `chips`), in the DOM where it shows: no client move, no shift. `sm:hidden`; from sm the
-   *   layout's copy of the line stays above the strip.
+   * (It also took a `listHead`, /c/rentals' free-check line under the row, until the renters' availability check was removed,
+   * owner 2026-11-25; the empty `data-list-head` marker that line's box used to be still anchors the floating Map link.)
    */
-  phoneOneRow?: { chips: ReactNode; listHead?: ReactNode }
+  phoneOneRow?: { chips: ReactNode }
   /**
    * ⛔ ONE COLUMN OF LARGE SQUARE CARDS BELOW sm (owner-approved 2026-11-14, cook r06 rentals-a — /c/rentals only, (index)/page.tsx):
    * the grid is LISTING_GRID_WIDE, every card `wide` (its text block flush under a 366px photo, the trust slot at the price
@@ -498,7 +493,7 @@ export function SellerListings({
   // `phoneHead` announces the count the same way (`phoneOneRow`'s sr-only live copy) and prints none (the prop's note).
   const liveCopy = oneRow || !!phoneHead
   useLayoutEffect(() => (oneRow ? () => publishCount(null) : undefined), [oneRow, publishCount])
-  // /c/rentals' list header (`phoneOneRow.listHead`): the pinned strip floats its Map link once this is past the top (build 8).
+  // /c/rentals' list-head marker (below): the pinned strip floats its Map link once it is past the top (build 8).
   const listHeadRef = useRef<HTMLDivElement>(null)
 
   // ⚠️ IN SERVER MODE AN EMPTY `listings` IS NOT AN EMPTY SHOP. The seller may simply have nothing
@@ -775,10 +770,12 @@ export function SellerListings({
       {/* `mapFloatAfter` (build 8, PinnedStrip's note): /c/rentals' phone row floats its Map link once the list header below has
           scrolled past the top — only with that header, and only on the wide one-row page that draws it. */}
       {/* A goods category's row stays pinned too (build 8); every pinned row is filled (PinnedStrip, 2026-11-16). */}
-      {sortable && (pinStrip ? <PinnedStrip stayPinned={(phoneWide && oneRow) || goods} mapFloatAfter={phoneWide && oneRow && phoneOneRow?.listHead != null ? listHeadRef : undefined} className={phoneHead ? 'max-sm:hidden' : undefined}>{sortStrip}</PinnedStrip> : phoneHead ? <div className="max-sm:hidden">{sortStrip}</div> : sortStrip)}
-      {/* `phoneOneRow.listHead` (build 7): the list's own header, right under the row on a phone. `-mt-1` against the strip's 16px
-          (space-y-4 spaces with margin-block-END, and the two margins collapse to 12px); the grid follows at this root's 16. */}
-      {sortable && phoneOneRow?.listHead != null && <div ref={listHeadRef} data-list-head="" className="-mt-1 sm:hidden">{phoneOneRow.listHead}</div>}
+      {sortable && (pinStrip ? <PinnedStrip stayPinned={(phoneWide && oneRow) || goods} mapFloatAfter={phoneWide && oneRow ? listHeadRef : undefined} className={phoneHead ? 'max-sm:hidden' : undefined}>{sortStrip}</PinnedStrip> : phoneHead ? <div className="max-sm:hidden">{sortStrip}</div> : sortStrip)}
+      {/* The list-head MARKER on the wide one-row page (build 8): an empty box right under the row on a phone, which the pinned
+          strip watches to float its Map link once the page's head is past the top. It held /c/rentals' free-check line until the
+          renters' availability check was removed (2026-11-25); empty, its margins collapse into the strip's 16px, so the grid
+          sits where it would with no marker at all. */}
+      {sortable && phoneWide && oneRow && <div ref={listHeadRef} data-list-head="" aria-hidden className="sm:hidden" />}
       {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */

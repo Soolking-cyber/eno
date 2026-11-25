@@ -6,14 +6,16 @@ import { test, expect } from '../helpers'
  * LISTING_GRID_WIDE, listing-card.tsx `wide`). /c/rentals and the rentals feed (/?category=rentals), below sm:
  *   · each card is the content width with a SQUARE photo — bigger than the two-up card, never smaller (owner, 2026-11-14);
  *   · ⛔ since build 8 (owner-approved 2026-11-15, cook r08 rentals) the text block is three lines in one order on every card — the
- *     28px price row, the title, the info line — and the photo's top is one band: status top-left, the labelled check plate
- *     top-right 12px left of the heart; no price line ever overflows its card, in English or Vietnamese;
+ *     28px price row, the title, the info line — and the photo's top is one band: status top-left, the heart top-right (the
+ *     availability-check plate beside it went with the feature, 2026-11-25); no price line ever overflows its card, in English
+ *     or Vietnamese;
  *   · build 8: past the list header the page's own Map control floats as one ink pill, bottom centre, 16px over the tab bar,
  *     while the bar shows — and fades with it while the reader scrolls down;
  *   · ⛔ since build 7 (owner-approved 2026-11-15, cook r07 rentals): a partner's "Official partner" is the white plate on the
  *     photo's top-left — one visible partner mark per card — and the figure is 22px;
  *   · /c/rentals' heading is the display line with its count after it — the total, "5,344 listings" — its one control row
- *     reaches the screen edges, and the free-check line is the list's header 12px under that row;
+ *     reaches the screen edges, and the first card sits 16px under that row (the free-check line between them went with the
+ *     renters' availability check, 2026-11-25);
  *   · the page never scrolls sideways.
  * From sm the grid is the 3/4-column grid it was (the desktop half below). Skips on an empty catalogue only.
  */
@@ -28,9 +30,6 @@ test.describe('Guest · rental results on a phone are one column of large square
       const photo = root.querySelector<HTMLElement>('[data-rail-media]')!.getBoundingClientRect()
       const body = root.lastElementChild as HTMLElement
       const priceRow = body.firstElementChild as HTMLElement
-      const band = root.querySelector<HTMLElement>('[data-rail-media] [data-photo-top]')
-      const check = band?.querySelector<HTMLElement>('[data-rental-check-toggle]') ?? null
-      const heart = root.querySelector<HTMLElement>('[data-rail-media] button[aria-label="Save listing"], [data-rail-media] button[aria-label="Lưu tin"]')
       const shown = (e: Element) => (e as HTMLElement).offsetParent !== null || getComputedStyle(e).position === 'fixed'
       // Every visible "Official partner" mark on the card (role=img + its name, the plate's and the info line's alike).
       const marks = [...root.querySelectorAll<HTMLElement>('[role="img"]')].filter((e) => /^(?:Official partner|Đối tác chính thức)$/.test(e.getAttribute('aria-label') ?? '') && shown(e))
@@ -44,23 +43,18 @@ test.describe('Guest · rental results on a phone are one column of large square
         lines: [...body.children].filter((c) => (c as HTMLElement).getBoundingClientRect().height > 0).length,
         slot: !!body.querySelector('[data-trust-slot]'),
         priceRowH: priceRow.getBoundingClientRect().height,
-        check: check && check.offsetParent !== null ? (() => {
-          const c = check.getBoundingClientRect(), hb = heart!.getBoundingClientRect()
-          // The heart's plate is 36px, centred in its 44px box.
-          return { h: c.height, dy: c.top - photo.top, toHeart: (hb.left + (hb.width - 36) / 2) - c.right, overflows: check.scrollWidth > check.clientWidth + 1 }
-        })() : null,
         partnerMarks: marks.length,
         plate: pr ? { dx: pr.left - photo.left, dy: pr.top - photo.top, h: pr.height } : null,
         // A figure only: a word price ("Contact for price") keeps 17/22.
         figurePx: figure && /\d/.test(figure.textContent ?? '') ? parseFloat(getComputedStyle(figure).fontSize) : null,
-        // One visible check toggle per card at most (the photo's copy is display:none below sm).
-        toggles: [...root.querySelectorAll<HTMLElement>('[data-rental-check-toggle]')].filter((t) => t.offsetParent !== null).length,
+        // The renters' availability check was removed (2026-11-25): no card carries its toggle any more.
+        toggles: root.querySelectorAll('[data-rental-check-toggle]').length,
       }
     }))
   }
 
   for (const [name, path] of [['/c/rentals', '/c/rentals'], ['the rentals feed', '/?category=rentals']] as const) {
-    test(`${name}: square cards the content width, three lines in one order, the check on the photo, no price overflow, no sideways scroll`, async ({ page }) => {
+    test(`${name}: square cards the content width, three lines in one order, no check toggle, no price overflow, no sideways scroll`, async ({ page }) => {
       await page.goto(path)
       await page.locator('main [data-card-root]').first().waitFor({ timeout: 20_000 }).catch(() => {})
       const cards = await cardsOf(page)
@@ -74,21 +68,13 @@ test.describe('Guest · rental results on a phone are one column of large square
         expect(c.slot, 'no slot after the price (build 8)').toBe(false)
         expect(c.lines, 'price · title · info line').toBe(3)
         expect(Math.round(c.priceRowH), 'the price row is 28px on every card').toBe(28)
-        if (c.check) {
-          expect(Math.round(c.check.h), 'the check plate is 36px').toBe(36)
-          expect(Math.abs(c.check.dy - 12), 'the check sits on the 12px top edge').toBeLessThanOrEqual(1)
-          expect(Math.abs(c.check.toHeart - 12), 'the check ends 12px left of the heart\'s plate').toBeLessThanOrEqual(1)
-          expect(c.check.overflows).toBe(false)
-        }
-        expect(c.toggles).toBeLessThanOrEqual(1)
+        expect(c.toggles, 'no availability-check toggle (removed 2026-11-25)').toBe(0)
         expect(c.partnerMarks, 'one visible partner mark per card').toBeLessThanOrEqual(1)
         if (c.partnerMarks === 1) {
           expect(c.plate, 'the partner mark is the photo plate').not.toBeNull()
           expect(Math.abs(c.plate!.dx - 12)).toBeLessThanOrEqual(1)
           expect(c.plate!.dy).toBeGreaterThanOrEqual(11)
           expect(Math.round(c.plate!.h)).toBe(28)
-          // Under the check's 36px row when the card has one (build 8): 12 + 36 + 10.
-          if (c.check) expect(Math.abs(c.plate!.dy - 58)).toBeLessThanOrEqual(1)
         }
         if (c.figurePx != null) expect(c.figurePx, 'the figure is 22px').toBe(22)
       }
@@ -111,23 +97,22 @@ test.describe('Guest · rental results on a phone are one column of large square
     expect(Math.abs(geo.tabsRight - geo.w)).toBeLessThanOrEqual(0.5)
     // The total in words, never "48 of 5,344" (build 7).
     await expect(count).toHaveText(/^[\d.,]+ (?:listings?|tin đăng)$/)
-    // The free-check line: the list's own header, 12px under the row's hairline, before the first card.
+    // The list-head marker: empty since the free-check line went with the renters' availability check (2026-11-25), right
+    // after the strip, and the first card 16px under the strip as on any one-row page.
     const head = await page.locator('[data-list-head]').evaluate((el) => {
       const strip = el.previousElementSibling as HTMLElement
       const card = document.querySelector<HTMLElement>('main [data-card-root]')!
       return {
         afterStrip: strip.hasAttribute('data-pinned-strip'),
-        gap: el.getBoundingClientRect().top - strip.getBoundingClientRect().bottom,
         h: el.getBoundingClientRect().height,
-        toCard: card.getBoundingClientRect().top - el.getBoundingClientRect().bottom,
-        link: !!el.querySelector('a[href="/rentals/check"]'),
+        stripToCard: card.getBoundingClientRect().top - strip.getBoundingClientRect().bottom,
+        link: !!document.querySelector('main a[href="/rentals/check"]'),
       }
     })
     expect(head.afterStrip).toBe(true)
-    expect(Math.abs(head.gap - 12)).toBeLessThanOrEqual(1)
-    expect(Math.round(head.h)).toBe(24)
-    expect(Math.abs(head.toCard - 16)).toBeLessThanOrEqual(1)
-    expect(head.link).toBe(true)
+    expect(head.h).toBe(0)
+    expect(Math.abs(head.stripToCard - 16)).toBeLessThanOrEqual(1)
+    expect(head.link).toBe(false)
   })
 
   /**
@@ -182,7 +167,7 @@ test.describe('Guest · rental results on a phone are one column of large square
   })
 })
 
-test('desktop: /c/rentals keeps its multi-column grid and the photo chip', async ({ page }, testInfo) => {
+test('desktop: /c/rentals keeps its multi-column grid', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'guest-desktop', 'desktop-only')
   await page.goto('/c/rentals')
   const tops = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('main [data-card-root]')].slice(0, 4).map((r) => Math.round(r.getBoundingClientRect().top)))
@@ -190,6 +175,6 @@ test('desktop: /c/rentals keeps its multi-column grid and the photo chip', async
   // The first four cards share one row from lg.
   expect(new Set(tops).size).toBe(1)
   expect(await page.locator('main [data-trust-slot]').count()).toBe(0)
-  // No floated Map from sm, and the band's phone check is display:none.
-  expect(await page.locator('main [data-photo-top] [data-rental-check-toggle]').filter({ visible: true }).count()).toBe(0)
+  // No availability-check toggle anywhere (removed 2026-11-25).
+  expect(await page.locator('main [data-rental-check-toggle]').count()).toBe(0)
 })

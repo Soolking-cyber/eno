@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 
 /**
  * ⛔ THE FLOATING MAP PILL (owner-approved 2026-11-15 (build 8), cook r08 rentals — /c/rentals and the rentals feed, below `sm`).
@@ -27,7 +26,6 @@ import type { CSSProperties } from 'react'
  *   · `z-sticky`, page chrome: over the cards, UNDER the popup scrims (40) and every overlay (50), so an open sheet or select
  *     dims it with the page — no per-popup stand-down (the document-level `:has()` those would need is banned, design-lint).
  *     Gone while the keyboard is up (`html.kb-open`, the tab bar's own rule), the voice concierge is open, or in the app sheet;
- *   · the rental-check basket's pill (back-to-top.tsx, bottom-left above the bar) lifts it 5rem (`--map-float-lift`).
  * ⚠️ THE ONE MOVE IT COSTS: on /c/rentals the link leaves the pinned row, so the district chips after it close up by one chip as
  * the head scrolls away and open again when it comes back — measured on a static probe at 390×844, 0.0017 of layout shift per
  * crossing (the pill itself, fixed, scores nothing). On the feed the toggle was `display:none` on a phone, so nothing moves.
@@ -41,7 +39,7 @@ export const MAP_FLOAT = [
   'max-sm:group-data-[map-float]/mapfloat:inset-x-0',
   'max-sm:group-data-[map-float]/mapfloat:mx-auto',
   'max-sm:group-data-[map-float]/mapfloat:w-fit',
-  'max-sm:group-data-[map-float]/mapfloat:bottom-[calc(4.5rem+var(--tabbar-inset)+var(--map-float-lift,0rem))]',
+  'max-sm:group-data-[map-float]/mapfloat:bottom-[calc(4.5rem+var(--tabbar-inset))]',
   'max-sm:group-data-[map-float]/mapfloat:z-sticky',
   'max-sm:group-data-[map-float]/mapfloat:inline-flex',
   'max-sm:group-data-[map-float]/mapfloat:items-center',
@@ -89,13 +87,11 @@ export const MAP_FLOAT = [
 export const MAP_FLOAT_LABEL = 'hidden max-sm:group-data-[map-float]/mapfloat:inline'
 
 /**
- * The host's attributes: `data-map-float` once the head is `away` ("hidden" while the bars are, "shown" otherwise), and the
- * basket pill's lift while it shows. Nothing until then, so the server HTML and the first client render are the same.
+ * The host's attributes: `data-map-float` once the head is `away` ("hidden" while the bars are, "shown" otherwise). Nothing
+ * until then, so the server HTML and the first client render are the same. (It also lifted the pill 5rem over the renters'
+ * availability-check basket pill until that feature was removed, 2026-11-25.)
  */
-export function mapFloatHost(away: boolean, barsHidden: boolean, basket: boolean): { 'data-map-float'?: 'shown' | 'hidden'; style?: CSSProperties } {
+export function mapFloatHost(away: boolean, barsHidden: boolean): { 'data-map-float'?: 'shown' | 'hidden' } {
   if (!away) return {}
-  return {
-    'data-map-float': barsHidden ? 'hidden' : 'shown',
-    style: basket ? ({ '--map-float-lift': '5rem' } as CSSProperties) : undefined,
-  }
+  return { 'data-map-float': barsHidden ? 'hidden' : 'shown' }
 }

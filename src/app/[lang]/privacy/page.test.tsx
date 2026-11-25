@@ -1058,7 +1058,7 @@ describe('/privacy — round-2 corrections hold', () => {
     expect(vi).toBeTruthy()
     const src = join(__dirname, '..', '..', '..')
     const files = [
-      'components/marketplace/sign-in-form.tsx', 'app/[lang]/onboard/onboard-client.tsx', 'app/[lang]/rentals/check/rental-check-view.tsx',
+      'components/marketplace/sign-in-form.tsx', 'app/[lang]/onboard/onboard-client.tsx',
       'components/teachers/teacher-form.tsx', 'components/teachers/steps/finish-step.tsx',
     ]
     for (const f of files) {

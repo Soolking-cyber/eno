@@ -2,20 +2,16 @@ import { safeNextPath } from '@/lib/url'
 
 // ── Finish the action after sign-in (UX3 J5, 2026-10-05) ─────────────────────────────────────────
 //
-// Before this, only the rental availability check and Publish picked up where a guest left off. A
+// Before this, only the rental availability check (removed 2026-11-25) and Publish picked up where a guest left off. A
 // guest who signed in from "Chat now", an offer or "Save search" landed back on the page (after
 // /onboard, after a full Google round trip) and had to find the button and press it again.
 //
-// ⛔ THIS IS THE RENTAL CHECK'S RESUME PATTERN, SHARED — not a second one (rental-check-view.tsx and
-// src/lib/rental-check/store.ts): the same 15-minute window (INTENT_TTL_MS), the same client-minted id
+// ⛔ THIS WAS THE RENTAL CHECK'S RESUME PATTERN, SHARED — not a second one (that check was removed on 2026-11-25; this
+// pattern stays for every other gate): a 15-minute window (INTENT_TTL_MS), a client-minted id
 // as the idempotency key, the same "honour it once, only when the user AND their profile are loaded"
 // gate (`user && identityLoaded && accountType` — a new account is sent to /onboard first, and acting
 // before that decides would race the redirect), and the same fallback: an intent that cannot be trusted
 // is never acted on, the visitor gets one tap instead.
-// ⚠️ THE WINDOW IS RESTATED HERE, NOT IMPORTED — and pending-intent.test.ts fails if the two ever differ.
-// auth-context imports this module on EVERY page, and it lazy-imports the rental store (with its phone
-// and rental-places dependencies) precisely to keep that out of the root bundle; a static import here
-// would have undone that for one number.
 //
 // HOW IT IS BOUND, so an abandoned or forged intent never acts:
 //   · written by the gate when it opens the sign-in (sessionStorage — this tab only, gone when it
@@ -31,10 +27,10 @@ import { safeNextPath } from '@/lib/url'
 // composer's offer with the amount; a chat shows the opener ready to send with one tap — NEVER sent by
 // itself (auto-send is the owner's open question C26, as for Publish).
 
-/** The rental check's resume window (rental-check/store.ts INTENT_TTL_MS) — held equal by the test. */
+/** The resume window: fifteen minutes (pending-intent.test.ts pins it). */
 export const INTENT_TTL_MS = 15 * 60 * 1000
 
-/** A client-minted id, as the rental check mints its `clientRequestId` (newClientRequestId). */
+/** A client-minted id (the idempotency key). */
 function newNonce(): string {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()

@@ -518,19 +518,21 @@ describe('phoneOneRow (/c/rentals, decision 5)', () => {
     expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).not.toContain('max-sm:hidden')
   })
 
-  // ⛔ The list's own header under the row (owner-approved 2026-11-15 (build 7), cook r07 rentals: /c/rentals' free-check line).
-  it('listHead: right after the pinned strip, before the grid, phones only, pulled to 12px under the row', () => {
+  // The list-head MARKER on the wide one-row page: it held /c/rentals' free-check line (build 7) until the renters' availability
+  // check was removed (2026-11-25); empty now, it stays as the box the floating Map watches (map-float.test).
+  it('the list-head marker: wide one-row page only, empty, right after the strip and before the grid, phones only', () => {
     // (Unpinned here: PinnedStrip's scroll hook needs the app router. The page pins it; the order is the same either way.)
-    render(rentals({ phoneOneRow: { chips: CHIPS, listHead: <p data-check-line="" /> } }))
+    render(rentals({ phoneWide: true }))
     const head = document.querySelector('[data-list-head]')!
-    expect(head.querySelector('[data-check-line]')).not.toBeNull()
-    expect(tokens(head)).toEqual(['-mt-1', 'sm:hidden'])
+    expect(head.childNodes).toHaveLength(0)
+    expect(tokens(head)).toEqual(['sm:hidden'])
+    expect(head.getAttribute('aria-hidden')).toBe('true')
     expect(head.previousElementSibling).toBe(strip())
     const grid = screen.getAllByTestId('card')[0]
     expect(!!(head.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
-  it('no listHead: nothing is drawn between the strip and the grid', () => {
+  it('no marker on the two-up grid: nothing is drawn between the strip and the grid', () => {
     render(rentals())
     expect(document.querySelector('[data-list-head]')).toBeNull()
   })

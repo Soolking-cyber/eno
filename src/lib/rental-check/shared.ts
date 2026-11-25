@@ -1,61 +1,19 @@
 /**
- * THE RENTAL AVAILABILITY CHECK — THE CONTRACT BOTH HALVES BUILD AGAINST.
+ * THE RENTAL AVAILABILITY CHECK'S CARD CONTRACT — READ-ONLY SINCE 2026-11-25.
  *
- * A person collects up to five rentals, adds what they need and one way to reach them, and presses
- * "Check these for me". The request becomes a card in a real conversation with the eno team, who
- * check the listings with the landlords for free and answer in /messages.
+ * The renters' availability check (a person collected up to five rentals and pressed "Check these for me"; the eno team
+ * checked them with the landlords and answered in /messages) was removed on 2026-11-25 (owner: "remove the check availability
+ * feature entirely"). What stays is what the requests already in people's threads need to keep reading as the card they were:
+ * the card's shape (messages.ts re-validates it strictly on read) and the contact link the operator taps
+ * (availability-request-card.tsx). Nothing here can send a request any more.
  *
- * ⚠️ PURE AND CLIENT-SAFE, ON PURPOSE. The basket, the checkout page and the thread card import
- * this file in the browser, and the route, the message gate and the card schema import it on the
- * server. That only works while it imports nothing but the phone normaliser — one server-only
- * import here and every client component that touches the basket becomes a build error. The phone
- * module is the one dependency, and it is the right one: it is the SAME normaliser the OTP router
- * uses, so the number a person types is read identically in the form and in the route.
- *
- * ⚠️ THE EXPORT LIST IS THE CONTRACT. The client half was written against exactly these names and
- * shapes; adding a field to a body or a meta here without the other side is a silent drift, because
- * the meta is re-validated STRICTLY on the server (an unknown key is a reject, not a pass-through).
+ * ⚠️ PURE AND CLIENT-SAFE, ON PURPOSE: the thread card imports this file in the browser. Its one dependency is the phone
+ * normaliser — the SAME one the OTP router uses, so a stored number reads identically everywhere.
  */
 import { isVietnamesePhone, normalizePhoneForRouting } from '../phone'
-import { VEHICLE_RENTAL_SUBCATS } from '../rental-places'
 
-export const RENTAL_CHECK_PATH = '/rentals/check'
-export const RENTAL_CHECK_API = '/api/rental-check'
 export const RENTAL_CHECK_MAX_ITEMS = 5
 export const RENTAL_CHECK_MAX_REQUIREMENTS = 1000
-export const RENTAL_CHECK_CATEGORY_SLUG = 'rentals'
-/**
- * ⛔ VEHICLE HIRE IS NOT CHECKED (2026-10-01). The rentals category also holds cars, motorbikes, bicycles
- * and e-bikes (taxonomy.ts, the rentals subcategories — vehicle hire is the tail of that list), and the
- * availability check is a HOUSING service: its copy promises a free check "to find your next home", and
- * the strip beside it tells the reader to meet the landlord or agent. On a car it was nonsense. The list
- * IS rental-places.ts's VEHICLE_RENTAL_SUBCATS (the hubs' places/vehicles split), so the two cannot drift;
- * that module's only Prisma import is `import type`, erased at build, so a client bundle pays nothing.
- */
-export const RENTAL_CHECK_EXCLUDED_SUBCATS: readonly string[] = VEHICLE_RENTAL_SUBCATS
-/**
- * ⛔ A CHAT-ONLY PARTNER ANSWERS ITS OWN LISTINGS (GoPlus partnership, owner 2026-10-19: "users should message that
- * account to ask for availability"). An OFFICIAL PARTNER WITH AN OWNER ACCOUNT is reached in eno chat — it shares no
- * phone (the contact route answers 403 partner_chat_only) and holds the room's real status itself — so eno's team
- * checking the same room in parallel would put a second, slower answer between the renter and the one that has the
- * keys. Three facts every surface already holds, never a seller id:
- *  · `officialPartner` — Seller.officialPartner, the per-seller switch only scripts/set-official-partner.mjs flips;
- *  · `hasOwner` — the storefront has an owner account (Seller.ownerId), i.e. someone to read the chat;
- *  · `linksOut` — the ROW links out (affiliateUrl): such a row has nobody to chat to and never shows the partner flag
- *    (linked-seller.ts partnerShown), so it keeps the check like any other rental.
- * The server half is the same rule in SQL (desk.ts resolveCheckableRentals), so a crafted body cannot add one.
- */
-export function isChatOnlyPartner(s: { officialPartner: boolean | null | undefined; hasOwner: boolean; linksOut?: boolean }): boolean {
-  return s.officialPartner === true && s.hasOwner && !s.linksOut
-}
-
-/** Does the availability check apply to a listing in this category/subcategory? THE gate for every
- *  RentalCheckToggle mount (card, map popup, PDP) and for the toggle itself. A null subcategory is a
- *  place (an unmapped Rever row is still a home — rental-places.ts RENTAL_PLACES). `chatOnlyPartner`
- *  (isChatOnlyPartner above) takes it away from a partner that answers availability in its own chat. */
-export function rentalCheckApplies(categorySlug: string | null | undefined, subcategorySlug: string | null | undefined, chatOnlyPartner = false): boolean {
-  return !chatOnlyPartner && categorySlug === RENTAL_CHECK_CATEGORY_SLUG && !(subcategorySlug && RENTAL_CHECK_EXCLUDED_SUBCATS.includes(subcategorySlug))
-}
 export const RENTAL_CHECK_CHANNELS = ['zalo', 'whatsapp', 'email'] as const
 export type RentalCheckChannel = typeof RENTAL_CHECK_CHANNELS[number]
 /** A Listing id — cuid or seed id. No spaces and no punctuation, so it can carry no free text. */
@@ -132,27 +90,7 @@ export function rentalContactHref(channel: RentalCheckChannel, value: string): s
   return `mailto:${v}`
 }
 
-export type RentalCheckRequestBody = {
-  /** 1..5 unique after dedupe, each RENTAL_CHECK_ID_RE. */
-  listingIds: string[]
-  /** ≤1000 after trim; control characters stripped, \n kept; default ''. */
-  requirements?: string
-  /** Raw as typed — the server normalises. */
-  contact: { channel: RentalCheckChannel; value: string }
-  /** RENTAL_CHECK_REQUEST_ID_RE; one per logical submit, reused on every retry. */
-  clientRequestId: string
-  lang?: 'en' | 'vi'
-}
-
-export type RentalCheckOk = { conversationId: string; messageId: string; threadCreated: boolean; listingIds: string[] }
-
-export type RentalCheckErrorBody =
-  | { error: 'bad_request' } | { error: 'auth_required' } | { error: 'rate_limited' }
-  | { error: 'invalid_contact'; reason: RentalContactProblem }
-  | { error: 'listings_unavailable'; unavailable: string[] }
-  | { error: 'send_in_flight' } | { error: 'desk_unavailable' } | { error: 'internal_error' }
-
-/** One rental as the card shows it — snapshotted SERVER-SIDE from the database at send time. */
+/** One rental as the card shows it — snapshotted SERVER-SIDE from the database when it was sent. */
 export type AvailabilityRequestItem = {
   id: string
   title: string

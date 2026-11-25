@@ -105,8 +105,8 @@ export const CARD_LINE_PX = { price: 22, title: 20, meta: 18 } as const
  * grid card above. Merged onto CARD_BODY / TITLE_LINE / CARD_META with cn().
  *   body   ⛔ ONE COLUMN, THREE LINES, ONE ORDER ON EVERY CARD (owner-approved 2026-11-15 (build 8), cook r08 rentals — it
  *          reverses the r06/r07 two-column grid whose row 1 shared the price with the trust slot): price, title, place · age.
- *          The availability check left the text block for the photo's top-right corner (listing-card.tsx `wide`), so the
- *          block is CARD_BODY's own flex column: flush with the photo (it sits on the 12px gutter), 12px under it, the
+ *          The availability check left the text block for the photo's top-right corner (and the card itself on 2026-11-25), so
+ *          the block is CARD_BODY's own flex column: flush with the photo (it sits on the 12px gutter), 12px under it, the
  *          body's 2px between lines.
  *   row 1  28px at least (WIDE_PRICE_ROW — the figure's own line box), so a word price's 22px line sits in the same row as a
  *          figure's and every wide card's text block is one height. It was 36 while the chip shared it (r06/r07).

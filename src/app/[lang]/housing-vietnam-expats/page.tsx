@@ -37,9 +37,8 @@ export const revalidate = 3600
  * is WHERE one is shown, which no storefront state can make false.
  * ⛔ AND IT NEVER SAYS A LINKED RENTAL IS HANDLED AT ITS SOURCE. The owner removed "enquiries and
  * viewings are handled there, not by eno" from the importers on 2026-09-25
- * (src/lib/import-viewing-disclaimer.ts): the eno team checks availability, free, on ANY rental —
- * the check button on every card and listing page (rental-check-toggle.tsx). An FAQ answering "does
- * eno check the rentals?" with "not the linked ones" contradicted that button in FAQPage markup.
+ * (src/lib/import-viewing-disclaimer.ts), when the eno team still checked availability, free, on any rental. That check was
+ * removed on 2026-11-25 (owner), and with it every line here that promised it (the intro and two FAQ answers).
  *
  * ⚠️ HO CHI MINH CITY IS THE PAGE'S SUBJECT, NOT A COUNT IT ASSERTS. The prose describes the city's
  * rental districts, which is true whatever is listed; the one sentence that says "every rental here is
@@ -85,9 +84,9 @@ const AREAS_LEAD = 'Rentals by district:'
 const CONTENT: SeoContent = {
   eyebrow: 'Housing · Ho Chi Minh City',
   h1: 'Expat Housing in Vietnam: Renting in Ho Chi Minh City',
-  // The scope and the free check, then the homes (2026-11-06 audit: on a phone this lede filled the first screen and the rail began
+  // The scope, then the homes (2026-11-06 audit: on a phone this lede filled the first screen and the rail began
   // at its foot). How a linked listing differs from one posted here is said in "What you’ll find" and the FAQ below.
-  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. On any rental here, the eno team will check availability for you, free.`,
+  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms.`,
   // ⚠️ `rentals`, not `house-rentals` — that slug does not exist and never did on this taxonomy.
   // Both CTAs on this page fed `/c/house-rentals`, which renders the not-found boundary, and the
   // listing strip queried a category slug matching nothing so it was permanently empty. A rename
@@ -115,7 +114,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'What you’ll find',
-      body: `Apartments, houses, rooms and offices for rent — serviced and unserviced, furnished and unfurnished, from monthly stays to yearly leases. Each listing shows the asking price, the district and photos. A listing linked from another listing site says where it is listed, and its button opens the original posting. A listing posted directly on ${SITE_NAME} can be messaged in-app. On either kind, the check button asks the eno team to check availability for you, free.`,
+      body: `Apartments, houses, rooms and offices for rent — serviced and unserviced, furnished and unfurnished, from monthly stays to yearly leases. Each listing shows the asking price, the district and photos. A listing linked from another listing site says where it is listed, and its button opens the original posting. A listing posted directly on ${SITE_NAME} can be messaged in-app.`,
     },
     {
       title: 'Before you pay anything',
@@ -130,11 +129,11 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'How do I contact a landlord or agent?',
-      a: `It depends on where the listing comes from. A listing linked from another listing site says where it is listed, and its button opens the original posting on that site, where you can reach the landlord or agent. A listing posted directly on ${SITE_NAME} has a Message button for in-app chat; you can ask for a phone number or Zalo once the other side replies. On any rental you can also tap the check button, and the eno team checks availability for you, free.`,
+      a: `It depends on where the listing comes from. A listing linked from another listing site says where it is listed, and its button opens the original posting on that site, where you can reach the landlord or agent. A listing posted directly on ${SITE_NAME} has a Message button for in-app chat; you can ask for a phone number or Zalo once the other side replies.`,
     },
     {
       q: `Does ${SITE_NAME} check the rentals listed here?`,
-      a: `It checks availability on request, free: tap the check button on up to 5 rentals and the eno team checks them for you. It does not vet the linked listings themselves — those are the source sites’ own postings. A seller’s public trust score, where one is shown, is built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
+      a: `It does not vet the linked listings — those are the source sites’ own postings. A seller’s public trust score, where one is shown, is built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
     },
   ],
 }

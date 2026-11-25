@@ -323,7 +323,7 @@ export function withShare(m: Metadata & { title: string; description: string }, 
 }
 
 const SITE_SUFFIX = ` | ${SITE_NAME}`
-/** The brand both editions share ("eno", rentalCheckSentence's word): what a <title> says where it would otherwise name the domain. */
+/** The brand both editions share ("eno"): what a <title> says where it would otherwise name the domain. */
 const SITE_BRAND = 'eno'
 
 /**

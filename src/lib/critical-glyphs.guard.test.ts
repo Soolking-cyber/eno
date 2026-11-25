@@ -74,7 +74,6 @@ describe('the 404 page stays inside the core sprite', () => {
  */
 const ON_ARRIVAL = [
   'src/components/marketplace/listing-card.tsx',
-  'src/components/marketplace/rental-check-toggle.tsx',
   'src/components/marketplace/affiliate-booking.tsx',
   'src/components/marketplace/mobile-nav.tsx',
   'src/components/marketplace/header.tsx',

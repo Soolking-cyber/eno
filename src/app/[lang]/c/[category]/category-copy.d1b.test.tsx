@@ -6,10 +6,9 @@ import { renderToString } from 'react-dom/server'
 
 /**
  * SEO wave B, D1b: /c/rentals' description, lede and preview all count HOMES — one number — name no
- * office, state the free check, and close on D-f's sentence (CS-2 D1b-1…7, approved 2026-09-30).
- * ⛔ THE CHECK'S LIMIT IS MOCKED TO 7 so a typed "5" cannot pass by coincidence (plan v4, fix 7).
+ * office, and close on D-f's sentence (CS-2 D1b-1…7, approved 2026-09-30). (They stated the free availability check too until
+ * the feature was removed on 2026-11-25: never again.)
  */
-vi.mock('@/lib/rental-check/shared', () => ({ RENTAL_CHECK_MAX_ITEMS: 7 }))
 
 import { LanguageProvider } from '@/context/language-context'
 import { RENTALS_LINKED_SENTENCE, homeFacts, rentalKinds, rentalsHeadline, rentalsMetadata, type RentalsFacts } from './category-copy'
@@ -36,18 +35,18 @@ const firstNumber = (s: string) => s.match(/^[\d.,]+/)?.[0].replace(/[.,]/g, '')
 describe('/c/rentals description (CS-2 D1b-1)', () => {
   it('English, whole', () => {
     expect(meta(LIVE, 'en').description).toBe(
-      '22,663 homes for rent in Ho Chi Minh City — 14,043 apartments, 5,331 houses and 3,289 rooms. Pick up to 7 and eno checks availability for free. Every listing links to its original ad on another listing site.',
+      '22,663 homes for rent in Ho Chi Minh City — 14,043 apartments, 5,331 houses and 3,289 rooms. Every listing links to its original ad on another listing site.',
     )
   })
   it('Vietnamese, whole', () => {
     expect(meta(LIVE, 'vi').description).toBe(
-      '22.663 chỗ ở cho thuê tại TP. Hồ Chí Minh — 14.043 căn hộ, 5.331 nhà và 3.289 phòng trọ. Chọn tối đa 7 căn, eno kiểm tra phòng trống miễn phí. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
+      '22.663 chỗ ở cho thuê tại TP. Hồ Chí Minh — 14.043 căn hộ, 5.331 nhà và 3.289 phòng trọ. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
     )
   })
-  it.each(['en', 'vi'] as const)('%s: no office word, the check from the constant, homes = the three kinds, "Vietnam" off HCMC', (lang) => {
+  it.each(['en', 'vi'] as const)('%s: no office word, no check, homes = the three kinds, "Vietnam" off HCMC', (lang) => {
     const d = meta(LIVE, lang).description
     expect(d).not.toMatch(OFFICE_WORD)
-    expect(d).toContain(lang === 'vi' ? 'tối đa 7 căn' : 'up to 7 ')
+    expect(d).not.toMatch(/availability|phòng trống|tối đa|up to/i)
     expect(Number(firstNumber(d))).toBe(14043 + 5331 + 3289)
     expect(meta({ ...LIVE, allHcmc: false }, lang).description).toMatch(lang === 'vi' ? /tại Việt Nam — / : /in Vietnam — /)
     expect(d).not.toMatch(/partner|đối tác/i)
@@ -82,7 +81,8 @@ describe('the linked sentence speaks of the homes', () => {
     expect(meta(f, lang).description.endsWith(RENTALS_LINKED_SENTENCE.some[lang])).toBe(true)
     expect(lede(f, lang)).toContain(RENTALS_LINKED_SENTENCE.some[lang])
     const none = { ...LIVE, linked: 'most' as const, homesLinked: 'none' as const }
-    expect(meta(none, lang).description).toMatch(lang === 'vi' ? /miễn phí\.$/ : /for free\.$/)
+    // With no linked homes the description ends on its kinds list (the check sentence that closed it went 2026-11-25).
+    expect(meta(none, lang).description).toMatch(lang === 'vi' ? /phòng trọ\.$/ : /rooms\.$/)
     expect(lede(none, lang)).not.toContain(RENTALS_LINKED_SENTENCE.most[lang])
   })
 })

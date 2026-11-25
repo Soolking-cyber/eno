@@ -144,9 +144,8 @@ export default async function CategoryIndexLayout({
                   (Seobility, 2026-11-23: "Jobs in Vietnam" was under the 20 characters an h1 should have). */}
               <span className="sr-only"> <Bilingual en={`on ${SITE_NAME}`} vi={`trên ${SITE_NAME}`} /></span></>}
         </h1>
-        {/* The wrapper only takes it off a phone (the page's copy speaks there); with no box of its own, the line's `mt-2`
-            collapses through it, so from sm nothing moves. */}
-        {cat.slug === 'rentals' ? <div className="max-sm:hidden"><CategoryLedeLinks slug={cat.slug} /></div> : <CategoryLedeLinks slug={cat.slug} />}
+        {/* The schools' cover-lessons door (teachers only; the rentals' free-check line went with the feature, 2026-11-25). */}
+        <CategoryLedeLinks slug={cat.slug} />
         {children}
         {/* ⚠️ THE LEDE COMES AFTER THE GRID IN THE DOM, NOT ONLY ON SCREEN: the products come first (owner, 2026-10-18; Facebook and Airbnb open on
             goods), and it holds links, so painting it low with `order` would send a keyboard user below the listings and back (WCAG 2.4.3).

@@ -13,7 +13,6 @@ import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { CardBadges } from './card-badges'
 import { IdentityVerifiedMark } from './identity-verified-mark'
-import { RentalCheckToggle } from './rental-check-toggle'
 import { CardCollage } from './card-collage'
 import Image, { getImageProps } from 'next/image'
 import { preload } from 'react-dom'
@@ -21,8 +20,8 @@ import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
-import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { Badge as UiBadge } from '@/components/ui/badge'
+import { isHomeRental } from '@/lib/rental-sheet'
 import { formatMoneyFull, moneyLocale, dropPercent, cardCompactAbove } from '@/lib/vnd'
 import { LISTING_CARD_SIZES } from './listing-grid'
 import { CategoryIcon } from './category-icons'
@@ -138,12 +137,10 @@ type Props = {
    *   · ⛔ ONE FIXED TEXT ORDER ON EVERY CARD, AND THE ACTIONS ON THE PHOTO (owner-approved 2026-11-15 (build 8), cook r08 rentals —
    *     it reverses the r06/r07 "PRICE LINE is a 36px row … ONE SLOT (`data-trust-slot`) at its end … empty, it still holds the
    *     36px row"): the block is three lines, price · title · place and age, the price row 28px (card-text.ts WIDE_PRICE_ROW)
-   *     whether or not the card can be checked. The PHOTO'S TOP is one band (`data-photo-top`, below): STATUS top-left — the
-   *     Urgent / price-drop badge, and a non-sponsored partner's "Official partner" plate (partner-badge.tsx `onPhoto`, since
-   *     build 7) — and the ACTIONS top-right: the availability check as the labelled white plate (rental-check-toggle.tsx
-   *     `chip`) 12px left of the save heart, on every card it applies to. ⛔ EACH MEANING STILL HAS ONE PLACE (build 7): the
-   *     photo's glyph-only check (`card`, bottom-right) and the info line's partner mark step down below `sm`, so each width
-   *     has one of each;
+   *     on every card. The PHOTO'S TOP is one band (`data-photo-top`, below): STATUS top-left — the Urgent / price-drop
+   *     badge, and a non-sponsored partner's "Official partner" plate (partner-badge.tsx `onPhoto`, since build 7) — and the
+   *     save heart top-right (the availability-check plate beside it went with the feature, owner 2026-11-25). ⛔ EACH
+   *     MEANING STILL HAS ONE PLACE (build 7): the info line's partner mark steps down below `sm`, so each width has one;
    *   · ⛔ the FIGURE 22/28 bold ink (owner-approved 2026-11-15 (build 7), cook r07 rentals — card-text.ts WIDE_PRICE; it
    *     reverses "ONE size at every width" here), its "/mo" / "/ tháng" 16 regular ink-3 (WIDE_UNIT), the ≈$ 14/20 muted;
    *   · the title in the body role, 16/24 in ink; the info line 14/20 muted, with the freshness the desktop card already
@@ -567,7 +564,6 @@ function ListingCardImpl({
    * the photo below `sm`, wherever the info line would show the partner shield (a non-sponsored partner, check or not); it
    * also tells that line to step its own partner mark down below `sm`, so the phone has one.
    */
-  const checkApplies = rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true)
   // `partnerMark`: the shield is drawn at all — not on a card inside its own shop's grid (`ownShop`, owner 2026-11-16).
   const partnerMark = listing.seller.officialPartner && !listing.isSponsored && !ownShop
   const photoPartner = wide && partnerMark
@@ -580,9 +576,11 @@ function ListingCardImpl({
   // `(width < 40rem)` is Tailwind v4's `max-sm` exactly (rem follows the browser's default size), so this agrees with the CSS
   // that shows the collage for every reader, a 20px default font included (commit gate, opus).
   const collageShown = () => collage && typeof window !== 'undefined' && window.matchMedia('(width < 40rem)').matches
-  // The wide card's photo band (build 8): its top-left status and its top-right check in one grid — only when there is a check
-  // or a plate to place; otherwise the badge alone, as on every card.
-  const photoTop = wide && (photoPartner || checkApplies)
+  // The wide card's photo band (build 8): its top-left status and the partner plate in one grid — on a home (isHomeRental) or
+  // where there is a plate to place; otherwise the badge alone, as on every card. Its top-right availability-check chip went
+  // with the feature (owner 2026-11-25: "remove the check availability feature entirely"), but a home keeps the band, so its
+  // badge keeps ending 12px clear of the heart's plate (`max-sm:right-15`) exactly as before.
+  const photoTop = wide && (photoPartner || isHomeRental(listing.category?.slug, listing.subcategorySlug))
   /**
    * SECONDARY — title, ONE line (FIRST on a teacher card: the body note below). `truncate` rather than `line-clamp-1`: a
    * single-line clamp still reserves the second line's leading in some engines, and one line is the spec. The full title
@@ -1291,8 +1289,7 @@ function ListingCardImpl({
             photo: only white plates"): the heart and the hover actions the `plate-host` disc (globals.css), the one
             top-left badge and the video / saved chips the `.photo-badge` pill (card-badges.tsx, CardStatusChips), the
             eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `pip-edge` (they are
-            `sm`-and-up only now, below — and on the wide phone card), and the rental-check chip the same white plate
-            (rental-check-toggle.tsx, since 2026-11-14). Do not bring a full-width band back for one corner glyph. */}
+            `sm`-and-up only now, below — and on the wide phone card). Do not bring a full-width band back for one corner glyph. */}
 
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
@@ -1318,23 +1315,17 @@ function ListingCardImpl({
             (`pointer-events-none`): a tap on it opens the listing.
             ⛔ THE PHOTO'S TOP IS ONE BAND (`photoTop`, owner-approved 2026-11-15 (build 8), cook r08 rentals — the `wide` prop's
             note): status top-left, actions top-right, laid out by one grid so nothing is a guessed offset and nothing can meet.
-              row 1  the top-left badge (col 1, `minmax(0,1fr)`: its label ellipsises before it reaches the check — it never runs
-                     under it, in any language at any width) · the availability check (col 2, `auto`), the labelled white plate
-                     whose right edge sits 12px left of the heart's 36px plate (`max-sm:right-15`: the heart's plate ends 48px in);
-              row 2  the partner plate, the band's whole width, 10px under row 1 — so 10px under a badge (48px down, as build 7),
-                     and 58px down under the check's 36px row where there is one (the two would meet: measured in Open Runde on a
-                     366px photo, "Official partner" ends 147px in and the English check starts at 135; Vietnamese, 166 and 111).
+              row 1  the top-left badge (col 1, `minmax(0,1fr)`), its right edge 12px left of the heart's 36px plate below `sm`
+                     (`max-sm:right-15`: the heart's plate ends 48px in);
+              row 2  the partner plate, the band's whole width, 10px under row 1 — so 10px under a badge (48px down, as build 7).
                      Alone, it takes row 1 at the 12px inset.
-            Measured (Chromium and WebKit, 320–430, EN and VI): the check is 171px (EN) / 195px (VI), 12px clear of the heart's
-            plate at every width; an Urgent badge beside it is whole from 360 in English and from 390 in Vietnamese, and below
-            that ellipsises ("Bán g…") with 8px to spare — never under the check.
-            `items-start`: the badge keeps its 12px top on every card. From `sm` the check and the plate are `sm:hidden`
-            (display:none — not grid items), the column gap is phone-only, and the band is the badge's old box: `left-2 top-2`
+            (Col 2 held the renters' availability-check chip until the feature was removed, owner 2026-11-25; it is empty now.)
+            `items-start`: the badge keeps its 12px top on every card. From `sm` the plate is `sm:hidden`
+            (display:none — not a grid item), the column gap is phone-only, and the band is the badge's old box: `left-2 top-2`
             and 44px off the right edge, i.e. the `max-w-[calc(100%-3.25rem)]` it had. */}
         {photoTop ? (
           <span data-photo-top="" className="pointer-events-none absolute left-2 right-11 top-2 z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start justify-items-start gap-y-2.5 max-sm:left-3 max-sm:right-15 max-sm:top-3 max-sm:gap-x-2">
             <CardBadges listing={listing} className="max-w-full" />
-            {checkApplies && <RentalCheckToggle variant="chip" listing={listing} className="pointer-events-auto col-start-2 sm:hidden" />}
             {photoPartner && <PartnerBadge asLink={false} onPhoto className="col-span-2 sm:hidden" />}
           </span>
         ) : (
@@ -1350,20 +1341,6 @@ function ListingCardImpl({
             goods — the `look` prop's note): one row, so the plates never meet. */}
         <CardStatusChips listing={listing} wide={wide} lane={lane} ad={goods && listing.isSponsored === true} />
 
-        {/* ⚠️ THE AVAILABILITY-CHECK CHIP (owner, 2026-09-25) — rentals only, bottom-right, the one free
-            corner (badges and heart own the top, the status chips the bottom-left, the pips the centre).
-            It is a <button>, so `has-[button:active]:scale-100` on the root keeps a press on it from
-            also pressing the card, and it stops propagation like the heart so it never opens the
-            listing. ⚠️ IT SITS BEFORE THE OFFER OVERLAY IN THE TREE ON PURPOSE: both are z-10, so the
-            overlay's click-away layer paints over the chip while a quick offer is open. The component
-            renders nothing for a non-rental or for the viewer's own listing. */}
-        {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): the check is a HOUSING service ("meet the landlord or
-            agent"), so a car or motorbike card must not offer it — rentalCheckApplies owns the rule. */}
-        {/* ⛔ …EXCEPT ON THE WIDE PHONE CARD (owner-approved 2026-11-14, cook r06 rentals-a): below `sm` the check is the labelled chip
-            — at the photo's top-right beside the heart since build 8 (owner-approved 2026-11-15, cook r08 rentals; the band
-            above), at the price line's end before it — so this copy is `max-sm:hidden` there — display:none, out of the
-            accessibility tree and the tab order — and from `sm` it is this chip, as before. */}
-        {checkApplies && <RentalCheckToggle variant="card" listing={listing} className={wide ? 'max-sm:hidden' : undefined} />}
 
         {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
             horizontally OUT of the save heart (top-right), sliding LEFT into place
@@ -1674,8 +1651,8 @@ function ListingCardImpl({
         {goods ? priceRow(cn(PRICE_ROW, 'max-sm:hidden')) : priceRow(cn(PRICE_ROW, wide && WIDE_PRICE_ROW))}
 
         {/* ⛔ NO SLOT AFTER THE WIDE CARD'S PRICE ANY MORE (owner-approved 2026-11-15 (build 8), cook r08 rentals — it reverses the
-            r06/r07 `data-trust-slot`, "empty, it still holds the 36px row"): the check is the photo's top-right plate (the band
-            above), so the text block is price · title · place and age on every card, the price row 28px (WIDE_PRICE_ROW).
+            r06/r07 `data-trust-slot`, "empty, it still holds the 36px row"): the text block is price · title · place and age on
+            every card, the price row 28px (WIDE_PRICE_ROW).
             ⛔ No trust number comes back here (2026-11-10). */}
 
         {/* THE PROOF LINE — teacher cards only (owner, 2026-11-12 "build 2"; round-8 A/B test 4). NAME → rate → THIS → the info

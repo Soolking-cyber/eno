@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { INTENT_TTL_MS as RENTAL_CHECK_TTL } from '@/lib/rental-check/store'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
 import {
   INTENT_KEY,
@@ -50,9 +49,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('pending-intent — the rental check’s window and id, shared (not a second pattern)', () => {
-  it('⛔ the same 15-minute window as the rental check', () => {
-    expect(INTENT_TTL_MS).toBe(RENTAL_CHECK_TTL)
+describe('pending-intent — the window', () => {
+  it('⛔ fifteen minutes (the removed rental check’s window, which this pattern was taken from)', () => {
     expect(INTENT_TTL_MS).toBe(15 * 60 * 1000)
   })
 })

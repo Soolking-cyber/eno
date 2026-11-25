@@ -27,7 +27,6 @@ const MUTATES = /export\s+(?:const|async\s+function|function)\s+(?:POST|PUT|PATC
 /** Doors a seat cannot reach a teacher through — each with the reason. */
 const EXEMPT: Record<string, string> = {
   'src/app/api/auth/send-sms/route.ts': 'the sign-in code copied into an ADMIN\'s own support thread — nobody on the other side',
-  'src/app/api/rental-check/route.ts': 'the rental desk\'s availability card — the other side is eno\'s rental operator, never a teacher',
   'src/app/api/teachers/share/route.ts': 'the TEACHER sharing their own contact in a school\'s thread — the actor is the teacher, and a seat never has a teacher profile (teachers/publish.ts TeacherReviewSeatError)',
   'src/app/api/teachers/video-share/route.ts': 'the TEACHER sending their own intro video to a school — as teachers/share',
   'src/app/api/trips/help/route.svc.ts': 'the forum\'s trip desk thread — the other side is eno\'s desk',

@@ -730,7 +730,7 @@
   --plate-fill: rgb(255 255 255 / 0.95);
   --plate-fill-hover: #ffffff;
   --on-plate: #141414;
-  /* A plated control once selected (the card's "Check availability" once added): the selected grey, theme-invariant like the
+  /* A plated control once selected (first the card's "Check availability" once added, removed 2026-11-25): the selected grey, theme-invariant like the
      plate (owner, 2026-11-17: "Grey everywhere" — it was the ink fill). --on-plate on it is 12.7:1. */
   --plate-selected: #d6d6d6;
   --destructive: #b91c1c;

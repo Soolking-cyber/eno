@@ -60,15 +60,10 @@ describe('the first screen', () => {
     expect(s.indexOf('<LangPilotSwitch')).toBeLessThan(s.indexOf('</main>'))
   })
 
-  it('/c rentals: the availability promise is one line on a phone, with its link to the check', () => {
+  // The renters' availability check was removed on 2026-11-25: its one-line promise and its link left the rentals' first screen.
+  it('/c rentals: no availability promise and no link to the removed check', () => {
     const s = code('src/app/[lang]/c/[category]/(index)/category-lede-block.tsx')
-    expect(s).toMatch(/<RentalCheckHint className="[^"]*max-sm:\[&>span\]:truncate[^"]*" \/>/)
-    expect(s).toMatch(/<Link href=\{RENTAL_CHECK_PATH\} prefetch=\{false\} className="[^"]*\bsm:hidden"/)
-    // ⛔ A 44px target since 2026-11-14 (owner-approved, cook r06 rentals-a): it was its visible box (`-my-1 py-1`) while
-    // "Show more" sat 10px above (gate, 2026-10-18); the lede left that space with H1b, so the extender has room now.
-    const link = s.match(/<Link href=\{RENTAL_CHECK_PATH\} prefetch=\{false\} className="([^"]*)"/)![1].split(/\s+/)
-    expect(link).toEqual(expect.arrayContaining(['relative', 'tap-44', 'font-bold']))
-    expect(link).not.toContain('-my-1')
+    expect(s).not.toMatch(/RentalCheckHint|RENTAL_CHECK_PATH|Check availability/)
   })
 
   it('/c: the strip\'s Filters is the browse chip, and so is every "Other categories" chip', () => {

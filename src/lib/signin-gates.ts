@@ -50,7 +50,6 @@ export function classifyGate(o: {
 }): SignInGate {
   if (o.prompt) return 'timed'
   if (o.explicit && isSignInGate(o.explicit)) return o.explicit
-  if (pathIs(o.pathname, '/rentals/check')) return 'rental_check'
   if (pathIs(o.pathname, '/post')) return 'post'
   // The teacher profile form (2026-10-16): its own Sign in, the arrival's, the CV reader's — and the header's there too.
   if (pathIs(o.pathname, '/teachers/join') || pathIs(o.pathname, '/teachers/edit')) return 'teacher'

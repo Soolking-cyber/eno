@@ -291,13 +291,12 @@ describe('/llms.txt on the marketplace', () => {
       expect(body).toContain('links to the original posting')
     })
 
-    // ⛔ The owner removed "enquiries and viewings are handled there, not by eno" on 2026-09-25: the
-    // eno team checks availability on any rental, linked or not, and a linked listing has its own page.
-    it('never says a linked listing is handled at, or opens on, its source', async () => {
+    // ⛔ The owner removed "enquiries and viewings are handled there, not by eno" on 2026-09-25, and a linked listing has its
+    // own page. (The renters' availability check this file also stated was removed on 2026-11-25: it is never claimed again.)
+    it('never says a linked listing is handled at, or opens on, its source — nor claims the removed availability check', async () => {
       const body = await bodyOf()
       expect(body).not.toMatch(/enquiries go there|answered on the site|opens? on the site (it|they) came from/)
-      // Not "free" here: the fee-flag test below forbids the word, and agents need the fact, not the price.
-      expect(body).toContain('the eno team checks availability on request')
+      expect(body).not.toMatch(/checks availability|availability check/i)
     })
 
     it('claims no price on every listing, and dates its counts', async () => {

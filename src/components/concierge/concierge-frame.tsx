@@ -126,7 +126,6 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
     // could drop the wording that matters, in a machine translation too); the same facts.
     // ⛔ "CURRENTLY" AND "ON A SALE" STAY (the Operating Regulations' price article: free now, any price announced ahead).
     tr('Browsing, posting and messaging on eno are currently free, with no commission on a sale.', 'Xem tin, đăng tin và nhắn tin trên eno hiện đều miễn phí, không thu hoa hồng khi bán.'),
-    tr('Pick up to 5 rentals and tap Check these for me: eno asks the landlords, free.', 'Chọn tối đa 5 căn rồi bấm Kiểm tra giúp tôi: eno hỏi chủ nhà giúp bạn, miễn phí.'),
     tr("The HCMC Rent Index shows each district's median asking rent, updated daily.", 'Chỉ số giá thuê TP.HCM: giá chào thuê trung vị từng quận, cập nhật mỗi ngày.'),
     tr('See schools rated by teachers at eno.vn/schools.', 'Xem các trường được giáo viên đánh giá tại eno.vn/schools.'),
     tr('eno works in 11 languages, and chats are translated for you.', 'eno có 11 ngôn ngữ, và tin nhắn được dịch tự động cho bạn.'),

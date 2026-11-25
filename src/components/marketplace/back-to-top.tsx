@@ -12,11 +12,9 @@ import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { isBrowseSurface } from '@/lib/browse-surface'
-import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
-import { useRentalBasketCount } from '@/lib/rental-check/store'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, PILL_OBSTACLES, pillCovers, planClearance, tapBox, TAP_FLOOR, YIELDED, type Box, type ClearancePlan, type Obstacle, type ScrollDir } from '@/lib/fab-clearance'
+import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, TAP_FLOOR, YIELDED, type Box, type ClearancePlan, type Obstacle, type ScrollDir } from '@/lib/fab-clearance'
 
 /** The chevron stays away until the reader is this far down — near the top there is nothing to go back to. */
 const CHEVRON_AFTER_Y = 700
@@ -109,7 +107,7 @@ export function BackToTop() {
    * storefront, /brands: exactly the pages Explore lights for (src/lib/browse-surface.ts, `/vi` twins included).
    * They stay on /dashboard*, /help* and every other page, and on a desktop everywhere (the /messages exit below is
    * unchanged). Help stays one tap away on a phone: the guest Account sheet's "Help center" row, the signed-in
-   * dashboard menu's, and the footer's. The rental-check pill is not a floater — it is the basket's own feedback.
+   * dashboard menu's, and the footer's.
    * ⛔ ONE EXCEPTION, NOT IN THIS CLUSTER (owner-approved 2026-11-15 (build 8), cook r08 rentals): on /c/rentals and the rentals
    * feed the page's own Map control floats as one ink pill, bottom centre, once the head has scrolled away — only while the tab
    * bar shows (it rides the bar, so it is never over the cards while the reader scrolls down them), at `z-sticky` under every
@@ -122,38 +120,11 @@ export function BackToTop() {
   const chevronYields = standDown || plan.chevron
   const supportYields = standDown || plan.support
   const column = useRef<HTMLDivElement>(null)
-  /**
-   * ⛔ THE PHONE PILL YIELDS AT REST, LIKE THE CHEVRON AND THE SUPPORT MARK (rentals-04). It sits
-   * bottom-left (owner, 2026-09-25 — the placement is unchanged) over the left card column, where it
-   * covered the very hearts and "check availability" toggles it exists to collect. At rest, when its box
-   * meets one (PILL_OBSTACLES, src/lib/fab-clearance.ts), it fades and takes no pointer (YIELDED) until
-   * the page moves again — the same `holding` hand-back as the column's controls.
-   * ⚠️ ITS OWN APPEARANCE IS NOT A REST, ON PURPOSE: the pill pops in as the feedback for an add, so it is
-   * not re-planned the moment it mounts (that would be a zoom-in followed at once by a fade-out). It is
-   * judged at the next rest like everything else.
-   */
-  const pillWrap = useRef<HTMLDivElement>(null)
-  const [pillYields, setPillYields] = useState(false)
-  /**
-   * ⛔ A BASKET CHANGE HANDS THE PILL BACK. Without it a yield outlived its pill: rest on a heart
-   * (yielded), take the last rental out without scrolling (the pill unmounts, `pillYields` stays true),
-   * add another — and the new pill mounted already faded, so the add showed no pill at all. Any add or
-   * removal is feedback; the next rest judges.
-   * ⚠️ REACT'S "PREVIOUS VALUE IN STATE" PATTERN (react.dev, "Storing information from previous renders"),
-   * not a ref written during render: the guarded setState re-renders this component at once, before
-   * the children commit, and nothing reads a mutable value mid-render.
-   */
-  const basketCount = useRentalBasketCount()
-  const [seenBasket, setSeenBasket] = useState(basketCount)
-  if (seenBasket !== basketCount) {
-    setSeenBasket(basketCount)
-    if (pillYields) setPillYields(false)
-  }
   // Whether anything is currently yielded or stood down — read by the scroll listener, which must
   // hand the controls back the moment the page moves without re-subscribing on every plan.
   const holding = useRef(false)
   const kick = useRef<() => void>(() => {})
-  useEffect(() => { holding.current = standDown || plan.chevron || plan.support || pillYields }, [standDown, plan, pillYields])
+  useEffect(() => { holding.current = standDown || plan.chevron || plan.support }, [standDown, plan])
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
@@ -217,28 +188,7 @@ export function BackToTop() {
     if (!mounted) return
     let timer: ReturnType<typeof setTimeout> | undefined
     let raf = 0
-    const solvePill = () => {
-      // Only the phone mount has a wrapper (desktop keeps the pill in the column, under its own plan).
-      const pill = pillWrap.current?.querySelector<HTMLElement>('[data-rental-check-pill]')
-      if (!pill) { setPillYields(false); return }
-      const r = pill.getBoundingClientRect()
-      if (r.width === 0 || r.height === 0) { setPillYields(false); return }
-      // A yield is a fade in place, so the box measured here is where the pill IS whether or not it is
-      // currently yielded — answers cannot oscillate between rests.
-      const reach = TAP_FLOOR / 2
-      const obstacles: Box[] = []
-      for (const el of Array.from(document.querySelectorAll<HTMLElement>(PILL_OBSTACLES))) {
-        const b = el.getBoundingClientRect()
-        // < 4px is `sr-only`; anything a tap floor away above or below cannot meet the pill.
-        if (b.width < 4 || b.height < 4 || b.bottom < r.top - reach || b.top > r.bottom + reach) continue
-        // Inert or invisible (an ancestor's fade included) is nothing a finger is aiming at.
-        if (el.closest('[inert]') || hiddenByAncestor(el)) continue
-        obstacles.push(tapBox(b))
-      }
-      setPillYields(pillCovers(r, obstacles))
-    }
     const solve = () => {
-      solvePill()
       const col = column.current
       if (!col) return
       // What is meant to be on screen: the chevron only while shown (its box is 0 where native iOS
@@ -300,7 +250,7 @@ export function BackToTop() {
     // A yield or a stand-down lasts until the page MOVES, not until the next rest: a reader scrolling up
     // to find the chevron must see it come back as they scroll, exactly as it would anywhere else.
     const onScroll = () => {
-      if (holding.current) { holding.current = false; setPlan((p) => ({ ...p, standDown: false, chevron: false, support: false })); setPillYields(false) }
+      if (holding.current) { holding.current = false; setPlan((p) => ({ ...p, standDown: false, chevron: false, support: false })) }
       atRest()
     }
     // ⚠️ `scrollend` ANSWERS AT ONCE where it exists: the gap between a fling stopping and the plan
@@ -348,42 +298,6 @@ export function BackToTop() {
 
   return createPortal(
     <>
-      {/* ⚠️ PHONES: THE RENTAL-CHECK PILL SITS BOTTOM-LEFT, JUST ABOVE THE NAV (owner, 2026-09-25: "move this
-          on mobile above the bottom navbar but not covering icons on the right"). In the right-hand column it
-          stacked over the chevron and support mark and covered the right edge. It shares this component's
-          rules rather than re-deriving them: the same nav clearance, the same `lift` over a data-fab-clear
-          bar (the PDP contact bar), the same modal and account-panel stand-downs, and /messages exits above.
-          Desktop (lg+) keeps it in the column. */}
-      {!desktop && (<div
-        ref={pillWrap}
-        className={cn(
-          // Width-capped so even the longer Vietnamese label on a 320px phone stops short of the right-hand
-          // column: 16px gutter + 44px chevron/support column + 16px edge + 12px gap = 5.5rem.
-          'pointer-events-none fixed left-4 z-fab max-w-[calc(100vw-5.5rem)]',
-          '[body:has([data-slot=dialog-content])_&]:hidden',
-          '[body:has([data-slot=sheet-content])_&]:hidden',
-          '[body:has([data-slot=alert-dialog-content])_&]:hidden',
-          // The popup stand-downs — see the ⚠️ MATCH THE POPUP SLOTS note on the column below.
-          '[body:has(.overlay-scrim:not([hidden],[data-closed]))_&]:hidden',
-          '[body:has([data-slot=popover-content]:not([data-closed]))_&]:hidden',
-          '[body:has([data-slot=select-content]:not([data-closed]))_&]:hidden',
-          '[body:has([data-slot=combobox-content]:not([data-closed]))_&]:hidden',
-          '[body:has([data-slot=dropdown-menu-content]:not([data-closed]))_&]:hidden',
-          '[html.kb-open_&]:hidden',
-          // The voice concierge's floating window owns this corner while it is open (concierge-host.tsx sets the attribute).
-          '[html[data-concierge]_&]:hidden',
-          '[html.app-sheet_&]:hidden', // a page inside the app's page sheet (src/lib/app-sheet.ts)
-          'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
-          'transition-[bottom] duration-300 motion-reduce:transition-none',
-          panelOpen && 'hidden',
-        )}
-        style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
-      >
-        {/* YIELDED only, no transition class: ui/button's own transition list already carries `opacity`,
-            and a `transition-opacity` here would REPLACE that list through tailwind-merge (the press scale
-            would lose its spring). */}
-        <RentalCheckPill className={pillYields ? YIELDED : undefined} />
-      </div>)}
       <div
         ref={column}
         className={cn(
@@ -395,10 +309,8 @@ export function BackToTop() {
           // or opened Contact support on the laptop and rental pages. An invisible layer must not take
           // input; the controls opt back in individually (the chevron only while shown, the support
           // mark via its className). The 10px gap between the two stops being a dead strip too.
-          // ⚠️ `items-end`, NOT `items-center`, SINCE THE RENTAL-CHECK PILL JOINED (2026-09-25). The pill is
-          // wider than the 44px column the two glyphs define, and centring it would push it past the
-          // right edge. Right-aligning changes nothing for the chevron and the support mark: both are
-          // exactly 44px wide, so their boxes land where they did.
+          // `items-end`: the column once held a wider pill (the removed rental-check basket's); both glyphs are exactly 44px
+          // wide, so right-aligning and centring land them in the same place.
           'pointer-events-none fixed z-fab flex flex-col items-end gap-2.5',
           // ⛔ THE OWNER'S "NO FLOATERS" REACHES THE CLEAN /<handle> STOREFRONT TOO (`floatersOff` above). browse-surface.ts cannot
           // tell a one-segment path from /about without ~50 KB of registries, so the page says what it is and CSS stands down.
@@ -465,14 +377,6 @@ export function BackToTop() {
         // rides on top of it as a translate.
         style={{ ...(lift ? { bottom: lift + 12 } : {}), translate: rise ? `0 ${-rise}px` : undefined, transitionTimingFunction: 'var(--ease-spring)' }}
       >
-        {/* The availability-check basket's pill — FIRST, so it stacks above the chevron's reserved slot
-            and inherits every rule this column carries (nav clearance, the data-fab-clear lift, the
-            modal and panel stand-downs, the /messages exit). Renders nothing while the basket is empty.
-            It carries its own `pointer-events-auto`. */}
-        {/* Desktop only — phones get the bottom-left one above. ONE mount chosen by `desktop`, never a CSS-hidden
-            twin: two [data-rental-check-pill] nodes would make a query or a test pick the invisible one. */}
-        {desktop && <RentalCheckPill />}
-
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved

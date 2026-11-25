@@ -18,7 +18,7 @@ import { MoreTeachers, TEACHER_LINKS_MAX, teachersPastGrid } from '../teacher-li
 import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
-import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
+import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT, ledePlacementFor } from './lede-placement'
 import { isGoodsCategory } from '@/lib/goods-surface'
 import { guidesForCategory } from '@/lib/category-guides'
@@ -432,16 +432,14 @@ export default async function CategoryPage({ params }: Props) {
           the same baseline (heading-count.tsx), DOM order = visual order. `py-0.5`: `truncate` clips at the padding box, and
           2px each side keeps a Vietnamese stacked mark whole.
           ⛔ THE NAME ALONE (owner-approved 2026-11-15 (build 7), cook r07 rentals): the count is the scope's total in words,
-          "5,344 listings" (heading-count.tsx `headingCountText`; the seed is that total alone), and while the row renders the
-          check line is not here — it is the list's own header UNDER the row (SellerListings `phoneOneRow.listHead`, below;
-          category-lede-block.tsx says why). With no row it stays under the heading, as before. */}
+          "5,344 listings" (heading-count.tsx `headingCountText`; the seed is that total alone). (The free availability-check line
+          that sat under the row went with the feature, owner 2026-11-25.) */}
       {cat.slug === 'rentals' && (
         <div className="sm:hidden">
           <div className="flex items-baseline gap-3">
             <RentalsPhoneHeading headline={headline} name={cat.name} nameVi={cat.nameVi} className="min-w-0 flex-1 truncate py-0.5 text-t-display text-foreground" />
             {rentalsStrip && <HeadingCount seed={{ total: homes?.total ?? rentals?.total ?? total }} />}
           </div>
-          {!rentalsStrip && <CategoryLedeLinks slug={cat.slug} />}
         </div>
       )}
       {/* The lede renders here, under the skeleton, only if LEDE_PLACEMENT says 'page'; since H1b it says
@@ -571,9 +569,6 @@ export default async function CategoryPage({ params }: Props) {
                     ))}
                   </>
                 ) : null,
-                // The free-check line under the row, as the list's own header (owner-approved 2026-11-15 (build 7), cook r07 rentals —
-                // category-lede-block.tsx CategoryLedeLinks; the heading block above leaves it out while the row renders).
-                listHead: <CategoryLedeLinks slug={cat.slug} className="min-h-6" />,
               } : undefined}
               // ⛔ /c/rentals ON A PHONE: ONE COLUMN OF LARGE SQUARE CARDS, and the one row stays pinned (owner-approved 2026-11-14,
               // cook r06 rentals-a — listing-grid.ts LISTING_GRID_WIDE, seller-listings.tsx `phoneWide`). Below sm only; the

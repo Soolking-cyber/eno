@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
-import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
+import { clearAccountDeviceStorage, clearRetiredDeviceKeys } from '@/lib/sign-out-storage'
 import { createSignOutFlush } from '@/lib/api/acting-account'
 // The replayable "a Supabase client exists" signal — NEVER `@/lib/supabase/browser` statically (that is the 66 KB chunk).
 import { onClientCreated } from '@/lib/supabase/client-signal'
@@ -82,8 +82,7 @@ export type SignInContext = {
   listingImage?: string | null
   sellerName?: string
   /**
-   * One line saying what signing in is FOR, when the gate is not a listing — the availability check
-   * says the send is free and the reply lands in Messages. Rendered as the card's context line under
+   * One line saying what signing in is FOR, when the gate is not a listing. Rendered as the card's context line under
    * the title; with a listing in hand it replaces the generic "Free · takes 20 seconds" line.
    */
   note?: string
@@ -345,6 +344,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading) announceSignedInAccount(user?.id ?? null)
   }, [loading, user?.id])
+  // The removed rental check's basket and draft (a typed phone or email) on a device that used it: gone on the first page load.
+  useEffect(() => { clearRetiredDeviceKeys() }, [])
   // The shops this account's blocks hide from every feed (src/lib/hidden-sellers.ts) — synced once auth has settled, and
   // cleared on sign-out, so another account's list never stands on this device. Inert without `ugc-safety`.
   useEffect(() => {
@@ -841,7 +842,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setIdentity(null)
     // Clear the per-account device data (inbox + thread caches, saved, dashboard, notifications, the
-    // AI chat, the /post and teacher drafts, the rental availability basket) so the next account on
+    // AI chat, the /post and teacher drafts, the removed rental basket's leftovers) so the next account on
     // this device starts clean. ⛔ THE KEY LIST LIVES IN src/lib/sign-out-storage.ts, held to each
     // owner's source by its test: this used to remove `eno-convos` / `eno-thr:*` long after the chat
     // caches had moved to `eno-convos-v2` / `eno-thr2:*`, so the inbox survived every sign-out.
@@ -851,9 +852,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // back, photos included. Lazy: the modules are only needed at sign-out, not in every page's bundle.
     clearAccountDeviceStorage()
     void import('@/lib/post-draft-photos').then((m) => m.clearDraftPhotos()).catch(() => {})
-    // The basket's in-memory copy is the tab's source of truth (rental-check/store.ts), so removing
-    // its keys alone would leave the pill and the cards showing the old basket until a reload.
-    void import('@/lib/rental-check/store').then((m) => { m.clearBasket(); m.clearDraft() }).catch(() => {})
     // ⛔ "ALL DEVICES" MUST NOT LOOK DONE WHEN IT WAS NOT, AND THIS IS LAST ON PURPOSE. When the server refuses, supabase-js (auth-js 2.111
     // `_signOut`) STILL removes this browser's session and returns `{ error }`, measured in a real browser: so this device is signed
     // out and must be cleaned like any other, and what failed is the OTHER devices, which only the caller can tell the person.

@@ -47,7 +47,6 @@ vi.mock('@/components/marketplace/owner-edit-button', () => ({ OwnerEditButton: 
 vi.mock('./partner-badge', () => ({ PartnerBadge: () => <span data-partner-chip="" /> }))
 vi.mock('./image-mark', () => ({ ImageMark: () => null }))
 vi.mock('./card-badges', () => ({ CardBadges: () => null }))
-vi.mock('./rental-check-toggle', () => ({ RentalCheckToggle: () => null }))
 vi.mock('./price', () => ({
   Price: ({ price, compact, compactAbove }: { price: number; compact?: boolean; compactAbove?: number }) => (
     <span data-price={price} data-compact={compact ? '' : undefined} data-compact-above={compactAbove}>{price}</span>

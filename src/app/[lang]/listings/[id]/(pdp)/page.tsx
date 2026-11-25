@@ -82,8 +82,6 @@ import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-not
 import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { collapseRepeatedName, collapseRepeatedNames } from '@/lib/location-text'
-import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
-import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
@@ -692,16 +690,9 @@ export default async function ListingPage({ params }: Props) {
   // seller — it has every scalar column, unlike the serialized shape — and passed to the
   // shop link; the serialized seller deliberately doesn't carry the identity fields.
   const sellerBusinessVerified = listing.seller.isBusiness && isBusinessVerified(rawListing.seller)
-  /**
-   * A partner that answers availability in its OWN chat (GoPlus partnership, owner 2026-10-19: "users should message
-   * that account to ask for availability") — rental-check/shared.ts isChatOnlyPartner: the partner flag AS THIS PAGE
-   * SHOWS IT (serialize.ts partnerShown — a row that links out never counts) and an owner account to read the chat. Such
-   * a listing offers no eno availability check (below); the basket and the route refuse one as well.
-   */
   // Who a Block on this page reaches: the shop itself when nobody blockable runs it (no owner, or the eno team) — only the
   // dialog's words depend on it (src/lib/user-blocks.ts isShopOnlyBlock). No query while ugc-safety is off.
   const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(rawListing.seller.ownerId) : false
-  const chatOnlyPartner = isChatOnlyPartner({ officialPartner: listing.seller.officialPartner, hasOwner: rawListing.seller.ownerId != null })
   // The storefront's own address when it has one: /sellers/<id> redirects there (sellers/[id]/page.tsx).
   const sellerHref = rawListing.seller.handle ? `/${rawListing.seller.handle.handle}` : `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
@@ -1080,7 +1071,6 @@ export default async function ListingPage({ params }: Props) {
     visa: isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug),
     iosHide: iosHideContact,
     tripDesk: isTripProduct,
-    rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',
   }) || pinsRentalAction({
     rentalSheet,
     affiliate: !!affiliateUrl,
@@ -1089,7 +1079,6 @@ export default async function ListingPage({ params }: Props) {
     visa: isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug),
     iosHide: iosHideContact,
     tripDesk: isTripProduct,
-    rentalCheck: rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active',
   })
   // Whether Seller information draws anything (it renders nothing with no row): the counsel panel joins it only then.
   const sellerInfoShown = !!sellerInfo && (sellerInfo.kind === 'business'
@@ -2017,34 +2006,6 @@ export default async function ListingPage({ params }: Props) {
                     /></IosAppHidden>
                     </>}
                 {iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}
-                {/* The availability check (owner, 2026-09-25): add this rental to the basket the eno team
-                    checks for free. Under whichever contact block rendered above — a partner rental still
-                    gets the check. `status === 'active'` is already true here (sold returned early), and
-                    it is repeated so this line does not depend on that. ⚠️ A NARROW PROP, NOT `listing`:
-                    this is a client component, so whatever it is handed is serialised into the page's
-                    RSC payload a second time, description and all. */}
-                {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): a car or motorbike PDP showed this housing check —
-                    rentalCheckApplies is the one gate (src/lib/rental-check/shared.ts). ⛔ NOR ON A CHAT-ONLY
-                    PARTNER'S LISTING (2026-10-19, `chatOnlyPartner` above): the button AND its "Free service" line
-                    go — the partner answers availability in its own chat, the CTA above. */}
-                {rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active' && (
-                  <RentalCheckToggle
-                    variant="pdp"
-                    listing={{
-                      id: listing.id,
-                      sellerId: listing.sellerId,
-                      subcategorySlug: rawListing.subcategorySlug,
-                      seller: { chatOnlyPartner },
-                      title: listing.title,
-                      titleVi: listing.titleVi,
-                      images: listing.images.slice(0, 1),
-                      price: listing.price,
-                      currency: listing.currency,
-                      priceUnit: listing.priceUnit,
-                      category: { slug: rawListing.category.slug },
-                    }}
-                  />
-                )}
               </ContactBlock>
 
               {/* Market price: BELOW the CTA on phones (`order-6` ties with #contact, and DOM order then

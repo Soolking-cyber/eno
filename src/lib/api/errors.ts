@@ -222,8 +222,6 @@ export type NicheApiErrorCode =
   | 'contact_in_text'
   | 'cooldown'
   | 'decode_failed'
-  // POST /api/rental-check — the operator address resolves to no profile; never open a thread nobody reads.
-  | 'desk_unavailable'
   | 'empty_file'
   // GET /api/cron/indexnow (SEO wave B, I4): 502 the engine refused the ping (400/403/422), 409 the
   // mass-removal guard tripped, 503 a sitemap source failed. Read by the operator via eno-cron.sh.
@@ -282,8 +280,6 @@ export type NicheApiErrorCode =
   | 'invalid_itinerary'
   | 'invalid_kind'
   | 'invalid_locale'
-  // POST /api/rental-check — carries `reason` (a RentalContactProblem) beside the code.
-  | 'invalid_contact'
   | 'invalid_media_path'
   | 'invalid_payload'
   | 'invalid_post'
@@ -302,8 +298,6 @@ export type NicheApiErrorCode =
   | 'limit_reached'
   | 'listing_not_found'
   | 'listing_unavailable'
-  // POST /api/rental-check — carries `unavailable: string[]` beside the code; nothing was written.
-  | 'listings_unavailable'
   | 'listing_selection_mismatch'
   | 'migration_pending'
   | 'missing_coords'
@@ -838,7 +832,6 @@ const ALL = [
   'contact_in_text',
   'cooldown',
   'decode_failed',
-  'desk_unavailable',
   'empty',
   'empty_file',
   'failed',
@@ -875,7 +868,6 @@ const ALL = [
   'invalid_input',
   'invalid_kind',
   'invalid_locale',
-  'invalid_contact',
   'invalid_media_path',
   'invalid_post',
   'invalid_report',
@@ -891,7 +883,6 @@ const ALL = [
   'limit_reached',
   'listing_not_found',
   'listing_unavailable',
-  'listings_unavailable',
   'migration_pending',
   'missing_coords',
   'missing_fields',

@@ -522,9 +522,9 @@ describe('rentals district copy (D1)', () => {
     expect(text(lang, <OtherRentalsLink n={1} href="/x" />)).toBe(lang === 'vi' ? 'Ngoài ra còn 1 văn phòng, mặt bằng cho thuê' : 'Also here: 1 office or shopfront')
   })
 
-  it('the district page renders the availability hint on rentals only, as the /c/rentals line with its link', () => {
+  // The renters' availability check was removed on 2026-11-25: the district page no longer renders its hint.
+  it('the district page renders no availability hint (the check was removed)', () => {
     const src = readFileSync('src/app/[lang]/c/[category]/[district]/page.tsx', 'utf8')
-    expect(src).toMatch(/\{rentals && <CategoryLedeLinks slug=\{cat\.slug\} \/>\}/)
-    expect(src).toMatch(/const rentals = cat\.slug === 'rentals'/)
+    expect(src).not.toMatch(/CategoryLedeLinks|RentalCheckHint|Check availability/)
   })
 })

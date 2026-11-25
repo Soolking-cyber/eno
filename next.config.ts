@@ -1025,6 +1025,12 @@ const nextConfig: NextConfig = {
       // 301 rather than nothing, so that indexed URL and any bookmark land on the real storefront
       // instead of a 404. Keep it: removing it later re-breaks an external link we know exists.
       { source: '/eno_vietnam', destination: '/eno_visa', permanent: true },
+      // /rentals/check was the renters' free availability check (the basket, 2026-09-25), removed 2026-11-25 (owner:
+      // "remove the check availability feature entirely"). Its links lived in the rentals ledes, cards and a few guides; a
+      // bookmark or a cached guide lands on the rentals instead of a 404. Both languages: /vi/... is the Vietnamese twin.
+      // 307 (`permanent: false`), not 308: a browser caches a 308 for good, and this path is the owner's to reuse.
+      { source: '/rentals/check', destination: '/c/rentals', permanent: false },
+      { source: '/vi/rentals/check', destination: '/vi/c/rentals', permanent: false },
       /**
        * `/travel` → `/vietnam-evisa`, SERVICES EDITION ONLY.
        *

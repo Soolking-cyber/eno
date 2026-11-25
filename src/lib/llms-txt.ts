@@ -241,7 +241,7 @@ function marketplaceWhenToUse(f: SiteFacts | null): string {
   const lines: string[] = []
   if (f && has('rentals')) {
     const cities = CITY_KEYS.filter((k) => inCity(f, k, 'rentals') > 0).map((k) => CITY_NAMES[k])
-    lines.push(`- Someone needs somewhere to live in ${cities.length ? joinWith(cities, 'or') : 'Vietnam'}: apartments, houses, rooms or offices to rent. Start at [Rentals](${SITE_ORIGIN}/c/rentals). On any rental, linked or posted here, the eno team checks availability on request (up to 5 at a time).`)
+    lines.push(`- Someone needs somewhere to live in ${cities.length ? joinWith(cities, 'or') : 'Vietnam'}: apartments, houses, rooms or offices to rent. Start at [Rentals](${SITE_ORIGIN}/c/rentals).`)
   }
   const goods = [
     ...(has('furniture-appliances') ? ['furniture', 'home appliances'] : []),

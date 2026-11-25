@@ -38,14 +38,14 @@ describe('isRentalSheet — every rentals listing that is a place, with a photo'
 })
 
 describe('pinsRentalAction — the tier only where #contact is Chat now and its one line', () => {
-  const chat = { rentalSheet: true, affiliate: false, price: 3_800_000, negotiable: false, visa: false, iosHide: false, tripDesk: false, rentalCheck: false }
-  it('a chat-only partner\'s fixed-price room pins; so does an unpriced one', () => {
+  const chat = { rentalSheet: true, affiliate: false, price: 3_800_000, negotiable: false, visa: false, iosHide: false, tripDesk: false }
+  // Since 2026-11-25 (the renters' availability check removed) a member's home pins like a partner's.
+  it('a fixed-price room pins; so does an unpriced one', () => {
     expect(pinsRentalAction(chat)).toBe(true)
     expect(pinsRentalAction({ ...chat, price: 0, negotiable: true })).toBe(true)
   })
-  it('never with a second control: the offer panel, the availability check, a partner link and its source line', () => {
+  it('never with a second control: the offer panel, a partner link and its source line', () => {
     expect(pinsRentalAction({ ...chat, negotiable: true })).toBe(false)
-    expect(pinsRentalAction({ ...chat, rentalCheck: true })).toBe(false)
     expect(pinsRentalAction({ ...chat, affiliate: true })).toBe(false)
   })
   it('never off the sheet, on an e-visa page, iOS-hidden or on the trip desk', () => {

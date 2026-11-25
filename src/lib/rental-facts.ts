@@ -18,7 +18,7 @@
 
 import { facetsFor } from '@/lib/taxonomy'
 import { facetValues } from '@/lib/facet-tokens'
-import { rentalCheckApplies } from '@/lib/rental-check/shared'
+import { isHomeRental } from '@/lib/rental-sheet'
 
 /** An authored label pair — `{ label, labelVi }`, which scripts/gen-ui-strings.mjs harvests for the nine MT languages. */
 export type LabelPair = { label: string; labelVi: string }
@@ -143,12 +143,12 @@ export const ELECTRICITY_ESTIMATED = 'electricityEstimated'
 export const RENTAL_FACT_KEYS: readonly string[] = [...COSTS.map((c) => c.key), 'waterUnit', ELECTRICITY_ESTIMATED, 'maxTenants', 'floor', 'availableFrom']
 
 /**
- * Do these sections apply to this listing at all? A PLACE rental (the availability check's own gate — never vehicle hire,
+ * Do these sections apply to this listing at all? A PLACE rental (rental-sheet.ts isHomeRental — never vehicle hire,
  * whose prices are per day and whose "deposit" is a different thing) priced in đồng: every amount below is printed
  * as đồng, so a listing quoted in another currency gets none of it and keeps its generic rows.
  */
 export function rentalFactsApply(l: { categorySlug: string | null | undefined; subcategorySlug: string | null | undefined; listingType: string | null | undefined; currency: string | null | undefined }): boolean {
-  return l.listingType === 'rent' && (l.currency === '₫' || l.currency === 'VND') && rentalCheckApplies(l.categorySlug, l.subcategorySlug)
+  return l.listingType === 'rent' && (l.currency === '₫' || l.currency === 'VND') && isHomeRental(l.categorySlug, l.subcategorySlug)
 }
 
 /** `estimated`: the amount is a guess (ELECTRICITY_ESTIMATED) — the page prints "≈" before it and "estimate" after it. */

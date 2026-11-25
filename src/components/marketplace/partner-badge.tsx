@@ -52,8 +52,8 @@ export function PartnerBadge({ size = 'sm', className, asLink = true, onPhoto = 
    * ⛔ THE PHOTO PLATE — the wide rental card's partner mark on a phone only (owner-approved 2026-11-15 (build 7), cook r07
    * rentals: "trust sits on the photo's top-left as a white 'Official partner' plate, like a host badge"; listing-card.tsx
    * `wide`). It replaces the 2026-11-14 words beside the shield in the price line's trust slot (cook r06 rentals-a, the
-   * `labelled` variant): that slot now holds only the action, the availability check, so a meaning never alternates with a
-   * button in one place. It still reverses, on that card, "THE PLATE ITSELF SHOWS ONLY P" / "ICON ONLY SINCE 2026-09-30"
+   * `labelled` variant): that slot then held only the availability check (removed 2026-11-25), so a meaning never alternated
+   * with a button in one place. It still reverses, on that card, "THE PLATE ITSELF SHOWS ONLY P" / "ICON ONLY SINCE 2026-09-30"
    * below: on a 366px photo "Official partner" in words is the one trust fact the card has room to SAY.
    * The shell's photo badge (globals.css `.photo-badge`: the white plate, ink 700 13/16, its soft lift) 28px tall, the green
    * shield at 16px before the words. Display only: the card passes `asLink={false}` and the plate is `pointer-events-none`

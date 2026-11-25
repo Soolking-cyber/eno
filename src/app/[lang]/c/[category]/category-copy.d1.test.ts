@@ -2,11 +2,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 
 /**
- * SEO wave B, D1: rentals district pages count HOMES in their title and description, name the free
- * availability check, and use D-f's neutral sentence (CS-2, approved 2026-09-30).
- * ⛔ THE CHECK'S LIMIT IS MOCKED TO 7 so a typed "5" cannot pass by coincidence (plan v4, fix 7).
+ * SEO wave B, D1: rentals district pages count HOMES in their title and description and use D-f's neutral sentence (CS-2,
+ * approved 2026-09-30). (They also named the free availability check until the feature was removed on 2026-11-25: never again.)
  */
-vi.mock('@/lib/rental-check/shared', () => ({ RENTAL_CHECK_MAX_ITEMS: 7 }))
 
 import {
   RENTAL_KINDS, RENTALS_LINKED_SENTENCE, RENTALS_PLACE_LABEL, districtMetadata, homeFacts, listsHomesOnly, rentalsPlaceLabel, type DistrictFacts,
@@ -93,24 +91,24 @@ describe('the search labels (D-d)', () => {
 })
 
 describe('the homes description (CS-2 D1-7)', () => {
-  it.each(['en', 'vi'] as const)('%s: opens with the homes count, names no office, states the check from the constant', (lang) => {
+  it.each(['en', 'vi'] as const)('%s: opens with the homes count, names no office, and no longer promises a check', (lang) => {
     const d = districtMetadata(facts(D7_STOCK), lang, 'eno.vn').description
     expect(d).not.toMatch(OFFICE_WORD)
-    expect(d).toContain(lang === 'vi' ? 'tối đa 7 căn' : 'up to 7 ')
+    expect(d).not.toMatch(/availability|phòng trống|tối đa|up to/i)
     expect(d).toMatch(lang === 'vi' ? /^2\.359 chỗ ở cho thuê tại Quận 7 \(Phú Mỹ Hưng\), TP\.HCM — / : /^2,359 homes for rent in District 7 \(Phu My Hung\), HCMC — /)
     expect(d.endsWith(RENTALS_LINKED_SENTENCE.all[lang])).toBe(true)
   })
   it('English, whole', () => {
     expect(districtMetadata(facts(D7_STOCK), 'en', 'eno.vn').description).toBe(
-      '2,359 homes for rent in District 7 (Phu My Hung), HCMC — 1,877 apartments, 277 houses, 196 rooms and 9 homestays. Pick up to 7 and eno checks availability for free. Every listing links to its original ad on another listing site.',
+      '2,359 homes for rent in District 7 (Phu My Hung), HCMC — 1,877 apartments, 277 houses, 196 rooms and 9 homestays. Every listing links to its original ad on another listing site.',
     )
     expect(districtMetadata(facts(D7_STOCK), 'vi', 'eno.vn').description).toBe(
-      '2.359 chỗ ở cho thuê tại Quận 7 (Phú Mỹ Hưng), TP.HCM — 1.877 căn hộ, 277 nhà, 196 phòng trọ và 9 homestay. Chọn tối đa 7 căn, eno kiểm tra phòng trống miễn phí. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
+      '2.359 chỗ ở cho thuê tại Quận 7 (Phú Mỹ Hưng), TP.HCM — 1.877 căn hộ, 277 nhà, 196 phòng trọ và 9 homestay. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.',
     )
   })
   it('lists only kinds with stock, singular at one, and no linked sentence when nothing is linked', () => {
     const d = districtMetadata(facts({ 'apartment-rental': 1 }, { homesLinked: 'none' }), 'en', 'eno.vn').description
-    expect(d).toBe('1 home for rent in District 7 (Phu My Hung), HCMC — 1 apartment. Pick up to 7 and eno checks availability for free.')
+    expect(d).toBe('1 home for rent in District 7 (Phu My Hung), HCMC — 1 apartment.')
   })
   it('fits 160 characters before the linked sentence in the longest case (District 7, five-digit counts)', () => {
     const big = facts({ 'apartment-rental': 33333, 'house-rental': 33333, 'room-rental': 33333 }, { homesLinked: 'none' })
@@ -129,10 +127,9 @@ describe('the homes description (CS-2 D1-7)', () => {
   })
 })
 
-describe('no typed limit', () => {
-  it('category-copy.ts writes the check limit from the constant only', () => {
+describe('no check sentence', () => {
+  it('category-copy.ts no longer writes the removed availability check', () => {
     const src = readFileSync('src/app/[lang]/c/[category]/category-copy.ts', 'utf8')
-    expect(src).not.toMatch(/up to \d/)
-    expect(src).not.toMatch(/tối đa \d/)
+    expect(src).not.toMatch(/checks availability|kiểm tra phòng trống|RENTAL_CHECK_MAX_ITEMS/)
   })
 })

@@ -196,8 +196,8 @@ const ALL_SECTIONS: readonly AboutSection[] = [
         vi: 'Người nước ngoài có thể ký hợp đồng thuê nhà ở Việt Nam: thuê nhà là một hợp đồng thông thường giữa bạn và chủ nhà.',
       },
       {
-        en: 'On eno.vn you browse apartments, houses, rooms and serviced flats in Ho Chi Minh City by district, and the eno team checks availability on up to five you pick, free.',
-        vi: 'Trên eno.vn, bạn xem căn hộ, nhà nguyên căn, phòng và căn hộ dịch vụ tại TP.HCM theo từng quận, và đội ngũ eno kiểm tra phòng trống cho tối đa năm tin bạn chọn, miễn phí.',
+        en: 'On eno.vn you browse apartments, houses, rooms and serviced flats in Ho Chi Minh City by district, and save the ones you like.',
+        vi: 'Trên eno.vn, bạn xem căn hộ, nhà nguyên căn, phòng và căn hộ dịch vụ tại TP.HCM theo từng quận, và lưu lại những tin bạn thích.',
       },
     ],
     more: [

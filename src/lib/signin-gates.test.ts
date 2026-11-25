@@ -44,8 +44,9 @@ describe('classifyGate — which gate asked', () => {
     expect(classifyGate({ ...base, explicit: 'save_search' })).toBe('save_search')
   })
 
-  it('the rental check and the post wizard are recognised by their page', () => {
-    expect(classifyGate({ ...base, pathname: '/rentals/check' })).toBe('rental_check')
+  // /rentals/check (the renters' availability check) was removed on 2026-11-25: its path is an ordinary one now.
+  it('the post wizard is recognised by its page; the removed rental check is not', () => {
+    expect(classifyGate({ ...base, pathname: '/rentals/check' })).toBe('other')
     expect(classifyGate({ ...base, pathname: '/post' })).toBe('post')
     expect(classifyGate({ ...base, pathname: '/post/details' })).toBe('post')
     expect(classifyGate({ ...base, pathname: '/postcards' })).toBe('other')

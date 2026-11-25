@@ -36,7 +36,6 @@ vi.mock('@/hooks/use-dashboard', () => ({ useDashboard: (view?: 'summary') => ({
 vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth: { signOut: h.localSignOut } }) }))
 vi.mock('@/lib/sign-out-storage', () => ({ clearAccountDeviceStorage: h.clearStorage }))
 vi.mock('@/lib/post-draft-photos', () => ({ clearDraftPhotos: async () => {} }))
-vi.mock('@/lib/rental-check/store', () => ({ clearBasket: () => {}, clearDraft: () => {} }))
 vi.mock('@/components/marketplace/dashboard-listing-row', () => ({ DashboardListingRow: () => <div data-row /> }))
 vi.mock('@/components/marketplace/section-header', () => ({ SectionHeader: () => null }))
 

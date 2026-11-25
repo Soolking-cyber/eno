@@ -52,8 +52,8 @@ const d = (n: number) => formatMoneyFull(n, '₫', 'en')
  * to a sentence with no number in it. The same paragraph now says that many listings are linked from
  * partner portals — measured 2026-09-27, 100 of 100 sampled rentals carried a partner link to the
  * source, which is what a reader needs to know before messaging anyone. It does NOT say the enquiry
- * is handled there: the owner removed that line on 2026-09-25 (src/lib/import-viewing-disclaimer.ts)
- * because the eno team checks availability on any rental.
+ * is handled there: the owner removed that line on 2026-09-25 (src/lib/import-viewing-disclaimer.ts), when the eno team
+ * still checked availability on any rental (that check was removed on 2026-11-25).
  */
 const CONTENT: ArticleContent = {
   eyebrow: 'Guide',
@@ -111,8 +111,7 @@ const CONTENT: ArticleContent = {
               }
             </LiveCounts>{' '}
             Many rental listings here are linked from other property listing sites: they say where they are
-            listed, and their button opens the original posting. On any rental here, the check button
-            asks the eno team to check availability for you, free.
+            listed, and their button opens the original posting.
           </P>
         </>
       ),

@@ -48,7 +48,7 @@ describe('SendOpts.alongside', () => {
     expect(h.batches).toEqual([['message.create', 'conversation.update']])
   })
   it('is refused for a card kind (an interactive transaction a batch write cannot join)', async () => {
-    await expect(insertMessage(convo, 'school-1', '', { kind: 'availability_request', alongside: [grant as never] } as never)).rejects.toThrow('message_alongside_not_allowed')
+    await expect(insertMessage(convo, 'school-1', '', { kind: 'visa_step', alongside: [grant as never] } as never)).rejects.toThrow('message_alongside_not_allowed')
     expect(h.batches).toEqual([])
   })
 })

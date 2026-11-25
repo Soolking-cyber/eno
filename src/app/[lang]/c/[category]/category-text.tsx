@@ -105,8 +105,8 @@ export function RentalsPhoneHeading({ headline, name, nameVi, className }: { hea
  *
  * ⚠️ IT SAYS WHERE THE LISTING OPENS, NOT WHO HANDLES THE ENQUIRY. The importers' "enquiries and
  * viewings are handled there, not by eno" line was removed on the owner's word (2026-09-25,
- * import-viewing-disclaimer.ts) because the free availability check covers these rentals too —
- * the RentalCheckHint right under this paragraph.
+ * import-viewing-disclaimer.ts) because the free availability check covered these rentals too. That check was removed on
+ * 2026-11-25 (owner); the line was not brought back without the owner's word.
  */
 export function RentalsLede({ total, allHcmc, kinds, linked, vehicles, homes, homesLinked }: Pick<RentalsFacts, 'total' | 'allHcmc' | 'kinds' | 'linked' | 'vehicles' | 'homes' | 'homesLinked'>) {
   const { lang, tr } = useLanguage()

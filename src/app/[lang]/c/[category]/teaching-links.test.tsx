@@ -158,7 +158,7 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
       expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeGreaterThan(-1)
       expect(layout.indexOf('<CategoryLedeLinks slug={cat.slug} />')).toBeLessThan(layout.search(/^\s*\{children\}$/m))
       const block = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/category-lede-block.tsx'), 'utf8')
-      expect(block).toMatch(/\{cat\.slug === 'teachers' && <TeacherCoverLink className="mt-2 text-sm text-muted-foreground" \/>\}/)
+      expect(block).toMatch(/slug === 'teachers' \? <TeacherCoverLink className="mt-2 text-sm text-muted-foreground" \/> : null/)
     })
     it('every link on those lines is underlined at rest — a link in a run of text, never colour alone (WCAG 1.4.1)', () => {
       for (const node of [<TeachingJobsLink key="j" count={3} href="/x" />, <TeachGuideLink key="g" />]) {
