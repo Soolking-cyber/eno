@@ -8,6 +8,7 @@ import { TriangleAlert } from '@/components/ui/icons'
 import { storedPermitClasses, storedReasons } from '@/lib/ads/creative-review'
 import { isProvisionalReview } from '@/lib/ads/review-jev'
 import { AdRemoveButton } from '@/components/admin/ad-remove-button'
+import { AdBankOrders } from '@/components/admin/ad-bank-orders'
 
 /**
  * ADS (owner 2026-11-25: any lawful advertiser, reviewed before payment; eno may remove an unlawful ad) — every creative an
@@ -19,6 +20,17 @@ import { AdRemoveButton } from '@/components/admin/ad-remove-button'
 const TAKE = 200
 
 export async function AdCreatives() {
+  // The bank-transfer orders awaiting an admin's Mark paid come first (ad-bank-orders.tsx): money waiting on a person.
+  const [orders, creatives] = await Promise.all([AdBankOrders(), creativeList()])
+  return (
+    <div className="space-y-8">
+      {orders}
+      {creatives}
+    </div>
+  )
+}
+
+async function creativeList() {
   try {
     return await render()
   } catch (e) {

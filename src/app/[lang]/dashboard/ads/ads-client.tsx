@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLanguage } from '@/context/language-context'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Badge } from '@/components/ui/badge'
@@ -13,11 +13,16 @@ import { TriangleAlert } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import type { DashboardAd } from '@/lib/ads/dashboard'
+import type { BankOrderView, ShopOrder } from '@/lib/ads/bank'
+import { Button } from '@/components/ui/button'
+import { AdOrderForm, AwaitingOrders, OrderQrDialog } from './ad-order'
 
 /**
  * /dashboard/ads — the shop's ads with their LIVE figures (owner 2026-11-25: "realtime stats for their ads views clicks etc
  * all to industry standard"). Polls GET /api/ads/mine every 10 s, the cadence the counts are written at (src/lib/ads/stats.ts);
  * the figures already include what the server counted and has not written yet.
+ * "Create an ad" (./ad-order.tsx, owner 2026-11-25) buys one by VietQR bank transfer: the order's QR, and the orders still
+ * awaiting their transfer above the ads, each with its QR to re-open and Cancel (src/lib/ads/bank.ts).
  * The hourly chart is ONE series (the dataviz rule: one hue, no legend — the heading names it), thin bars 2px apart rising
  * from the baseline, a hover hint per bar (ui/tooltip), and the same numbers as a table for a screen reader.
  */
@@ -30,7 +35,7 @@ class AdsFetchError extends Error {
 function useAds() {
   return useQuery({
     queryKey: ['dashboard-ads'],
-    queryFn: async (): Promise<{ ads: DashboardAd[]; updated_at: string }> => {
+    queryFn: async (): Promise<{ ads: DashboardAd[]; orders?: ShopOrder[]; updated_at: string }> => {
       const res = await fetch('/api/ads/mine', { cache: 'no-store' })
       if (!res.ok) throw new AdsFetchError(res.status)
       return res.json()
@@ -176,11 +181,25 @@ function AdCard({ ad }: { ad: DashboardAd }) {
 
 export function AdsClient() {
   const { tr } = useLanguage()
+  const qc = useQueryClient()
   const { data, isLoading, isError, error } = useAds()
   const signedOut = error instanceof AdsFetchError && error.status === 401
+  // "Create an ad" (bank transfer, ./ad-order.tsx): the form, then the new order's QR; a listed order's QR by its id.
+  const [creating, setCreating] = useState(false)
+  const [ordered, setOrdered] = useState<BankOrderView | null>(null)
+  const [showId, setShowId] = useState<string | null>(null)
+  const orders = data?.orders ?? []
   return (
     <div className="space-y-4">
-      <SectionHeader title={tr('Ads', 'Quảng cáo')} />
+      <SectionHeader
+        title={tr('Ads', 'Quảng cáo')}
+        // Only once the page knows who is here (the list loaded): never offered to someone signed out or mid-load.
+        action={data ? <Button type="button" variant="cta" size="sm" aria-expanded={creating} onClick={() => setCreating((c) => !c)}>{tr('Create an ad', 'Tạo quảng cáo')}</Button> : undefined}
+      />
+      {creating && (
+        <AdOrderForm onOrdered={(o) => { setCreating(false); setOrdered(o); void qc.invalidateQueries({ queryKey: ['dashboard-ads'] }) }} />
+      )}
+      <OrderQrDialog order={ordered} id={showId} onClose={() => { setOrdered(null); setShowId(null) }} />
       <p className="max-w-[60ch] text-t-meta text-muted-foreground">
         {tr(
           'Live figures for your ads, to the advertising industry standard: an impression counts when half the ad is on screen for a second, each browser once every 30 minutes; bots and other invalid traffic are left out. Reach and invalid traffic cover the last two weeks, the chart the last 48 hours. Updated every 10 seconds.',
@@ -194,15 +213,20 @@ export function AdsClient() {
         <EmptyState title={tr('Sign in to see your ads', 'Đăng nhập để xem quảng cáo của bạn')} />
       ) : isError ? (
         <EmptyState variant="fault" icon={TriangleAlert} title={tr('The figures could not be loaded.', 'Không tải được số liệu.')} subtitle={tr('They will try again in a few seconds.', 'Hệ thống sẽ thử lại sau vài giây.')} />
-      ) : !data?.ads.length ? (
+      ) : !data?.ads.length && !orders.length ? (
         <EmptyState
           title={tr('No ads yet', 'Chưa có quảng cáo')}
-          subtitle={tr('Ads are bought by your shop through the API or an AI agent (MCP), and appear here with their figures.', 'Quảng cáo được cửa hàng mua qua API hoặc trợ lý AI (MCP), và hiển thị ở đây cùng số liệu.')}
+          subtitle={tr('Create one here, or buy one through the API or an AI agent. It appears here with its figures.', 'Tạo quảng cáo tại đây, hoặc mua qua API hay trợ lý AI. Quảng cáo hiển thị ở đây cùng số liệu.')}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {data.ads.map((ad) => <AdCard key={ad.ad_id} ad={ad} />)}
-        </div>
+        <>
+          <AwaitingOrders orders={orders} onShow={setShowId} />
+          {!!data?.ads.length && (
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {data.ads.map((ad) => <AdCard key={ad.ad_id} ad={ad} />)}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
