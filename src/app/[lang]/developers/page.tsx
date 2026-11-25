@@ -176,7 +176,7 @@ export default function DevelopersPage() {
                 keeps a TAB_TO_ROUTE map for bookmarked links — but it costs the reader a redirect and
                 documents a legacy shape as the current one. The section pages became real routes in the
                 nav-rail change; this link had not followed. */}
-            Create a key in your <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section
+            Create a key in your <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section
             (business accounts). The full secret is shown once — store it safely. Send it as a Bearer token on every request:
           </p>
           <div className="mt-3"><Code whole>{`Authorization: Bearer eno_live_…`}</Code></div>

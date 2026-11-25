@@ -98,7 +98,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
             <li>
               • <strong className="text-foreground">The key:</strong> create one in your{' '}
-              <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section (business
+              <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section (business
               accounts). <strong className="text-foreground">A key is live from the moment it is issued</strong> (the API sandbox&apos;s test keys do not open this server).
             </li>
             <li>

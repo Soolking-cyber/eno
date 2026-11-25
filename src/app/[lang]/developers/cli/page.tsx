@@ -42,7 +42,7 @@ export default function CliPage() {
           <h2 className="h-section text-foreground">Install and connect</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             No install needed: <C>npx</C> fetches it from npm (Node 18 or later; no dependencies). Set your API key, from your{' '}
-            <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section, in the
+            <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section, in the
             environment:
           </p>
           {/* ⛔ The CLI defaults to https://eno.vn; on any other edition the setup names this site's own origin, or a forum

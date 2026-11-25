@@ -9,6 +9,7 @@ import { trustScoreColor } from '@/lib/trust-score'
 import { TRUST_SHIELD } from '@/generated/ui-art-shields'
 import { cn } from '@/lib/utils'
 import { ShieldVerifiedGlyph } from '@/components/marketplace/shield-verified-glyph'
+import { useSiteHref } from '@/components/marketplace/site-href'
 
 type Props = {
   score: number
@@ -60,6 +61,9 @@ const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; t
  * and restricted stay quiet (tinted text) — shine is earned.
  */
 export function TrustScore({ score, size = 'sm', showLabel = false, variant = 'shield', href, className }: Props) {
+  // On a shop's own host "/trust" is that host's path, which 301s to eno.vn (Seobility crawl 9: 20 links to redirects from shop
+  // hosts); useSiteHref names the canonical site there and changes nothing on it.
+  const siteHref = useSiteHref()
   const { tr } = useLanguage()
   const { color, label, labelVi, band } = trustScoreColor(score)
   const n = Math.round(score)
@@ -84,7 +88,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const wrap = (node: React.ReactNode) => href
     // prefetch={false}: a trust badge renders on EVERY card in the feed, so auto-prefetch would
     // warm the same /trust explainer once per visible card. It is a rarely-followed footnote link.
-    ? <Tooltip content={hint} side="top"><Link href={href} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-[0.96]">{node}</Link></Tooltip>
+    ? <Tooltip content={hint} side="top"><Link href={siteHref(href)} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-[0.96]">{node}</Link></Tooltip>
     : <>{node}</>
 
   if (variant === 'mini') {
