@@ -1414,7 +1414,9 @@ model JobAdSighting {
 /// lost can be matched to the chain afterwards (src/lib/ads/book.ts reconcile) — a paid ad is never just forgotten.
 model ListingAd {
   id               String    @id @default(cuid())
-  listingId        String
+  /// The advertised listing, or null for a creative ad (`creativeId`, owner 2026-11-25). Exactly one of the two is set:
+  /// the CHECK `ListingAd_one_target` (scripts/listing-ad-ddl.mjs) holds it in the database.
+  listingId        String?
   sellerId         String
   /// The ApiKey (an API key or a sign-in grant) the purchase was made with.
   bookedByKeyId    String
@@ -1449,11 +1451,78 @@ model ListingAd {
   /// How long it runs once paid: 604800 (7 days) or 3600 (1 hour, owner 2026-11-23 "add hourly rate so agents can test it
   /// out"). Added after the table shipped (scripts/listing-ad-ddl.mjs ADD COLUMN), so it is the last column.
   durationSec      Int       @default(604800)
+  /// The AdCreative a creative ad shows (owner 2026-11-25: "enable any type of ads except the restricted ones by
+  /// vietnamese law"), or null for a listing ad. Added after the table shipped, so it is the last column.
+  creativeId       String?
 
   @@index([status, endsAt])
   @@index([listingId, status])
   @@index([sellerId, createdAt])
   @@index([txHash])
+  @@index([creativeId, status])
+}
+
+/// AN ADVERTISER'S AD, AS REVIEWED BEFORE ANY PAYMENT (owner 2026-11-25: "jev should check before they pay whether ad is
+/// appropriate or not … standardized places where they show up"). One standard placement: the feed card (src/lib/ads).
+/// ⛔ IMMUTABLE: new words, a new picture or a new landing page is a NEW creative with its own review; a ListingAd row
+/// references one approved creative. `status` is 'approved' | 'refused' | 'removed' (eno took a running ad down:
+/// removedAt + removedReason; it stops serving within a minute). The advertiser is an eno shop (`sellerId`), and its legal
+/// identity (legalName, taxCode — Vietnam's MST) is recorded as the Advertising Law asks of a publisher.
+/// `imageUrl` is eno's own copy (the listings bucket, `ads/`), stored ONLY for an approved creative: a refused picture is
+/// never kept on eno's storage, so it is '' there. `reasons` = [{code, en, vi}], `scores` = the model answers the verdict
+/// read plus `permitClasses` (the permit classes the words fall in — allowed since 2026-11-25, shown to admins as a badge),
+/// `reviewModel` the pinned models. Written by scripts/listing-ad-ddl.mjs: no foreign keys, RLS on, API roles revoked.
+model AdCreative {
+  id              String    @id @default(cuid())
+  sellerId        String
+  legalName       String
+  taxCode         String
+  advertiserName  String
+  /// The ad's words, in whatever language the advertiser wrote them (owner 2026-11-25: "any language"); each viewer reads
+  /// them in their own language through the listing titles' translation store (src/lib/ads/serve.ts). Never translated:
+  /// advertiserName, legalName, the picture.
+  headline        String
+  body            String?
+  /// The detected language of headline + body (src/lib/detect-lang.ts): a script's code, 'vi', or 'und' for Latin text
+  /// it cannot name.
+  sourceLang      String
+  /// Optional: the advertiser's ad-content confirmation or licence number for a permit class (medicines, cosmetics,
+  /// finance …) — recorded and shown to eno's admins, never required (owner 2026-11-25).
+  permitRef       String?
+  imageUrl        String
+  clickUrl        String
+  landingHost     String
+  /// sha256 of the submitted fields (the image by its submitted URL): the same content from the same shop within 24 h
+  /// gets the stored verdict, never a second paid review.
+  contentHash     String
+  status          String
+  reasons         Json
+  scores          Json
+  reviewModel     String
+  reviewedAt      DateTime
+  removedAt       DateTime?
+  removedReason   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([sellerId, contentHash, createdAt])
+  @@index([status, createdAt])
+}
+
+/// An ad's figures per UTC hour (owner 2026-11-25: "realtime stats for their ads views clicks etc all to industry
+/// standard"). Counted in process memory and flushed every 10 s as one upsert per ad-hour (src/lib/ads/stats.ts) — never a
+/// row per event. `impressions` = viewable (≥ 50 % on screen for ≥ 1 s), `clicks` = click + auxclick, each once per browser
+/// session per ad per 30 minutes; `invalid` = general invalid traffic (known bots, prefetch, an ad not running, the per-IP
+/// cap), never counted as valid; `reachNew` = sessions seen for the first time that UTC day.
+model AdStat {
+  adId        String
+  bucket      DateTime
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  invalid     Int      @default(0)
+  reachNew    Int      @default(0)
+
+  @@id([adId, bucket])
 }
 
 /// TEACHER JOB DMs (owner, 2026-10-20: "send related jobs cover lessons to our teachers in chat inside eno.vn from the admin

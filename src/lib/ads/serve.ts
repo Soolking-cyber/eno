@@ -20,16 +20,16 @@ import type { SerializedListingCard } from '@/lib/types'
  * Fail-soft: any error here serves the organic page.
  */
 const ACTIVE_TTL_MS = 60_000
-let activeCache: { at: number; ads: { id: string; listingId: string; impressions: number }[] } | null = null
+let activeCache: { at: number; ads: { id: string; listingId: string | null; impressions: number }[] } | null = null
 
 /** Test seam. */
 export function __resetAdServeCache(): void { activeCache = null }
 
-async function activeAds(now: Date): Promise<{ id: string; listingId: string; impressions: number }[]> {
+async function activeAds(now: Date): Promise<{ id: string; listingId: string | null; impressions: number }[]> {
   if (activeCache && now.getTime() - activeCache.at < ACTIVE_TTL_MS) {
     return activeCache.ads
   }
-  let ads: { id: string; listingId: string; impressions: number; endsAt: Date | null }[]
+  let ads: { id: string; listingId: string | null; impressions: number; endsAt: Date | null }[]
   try {
     ads = await db.listingAd.findMany({
       where: { status: 'active', startsAt: { lte: now }, endsAt: { gt: now } },
@@ -69,14 +69,16 @@ export async function pickAd(feedWhere: Prisma.ListingWhereInput, lang: string |
   try {
     const ads = await activeAds(now)
     if (!ads.length) return null
-    const ids = [...new Set(ads.map((a) => a.listingId))]
+    // ⛔ Never a null into `id: { in }`: a creative ad has no listing.
+    const ids = [...new Set(ads.flatMap((a) => (a.listingId ? [a.listingId] : [])))]
+    if (!ids.length) return null
     // edition-lint-allow: `feedWhere` is the request's own resolveFeedFilters `where`, which already ANDs marketplaceListingScope().
     const matching = await db.listing.findMany({ where: { AND: [feedWhere, { id: { in: ids } }] }, select: LISTING_CARD_SELECT })
     if (!matching.length) return null
     const byListing = new Map(matching.map((l) => [l.id, l]))
     // ⛔ UNIFORM, NOT FEWEST-IMPRESSIONS-FIRST (gate review 2026-11-23): impressions come from unauthenticated beacons, so a
     // rotation steered by them could be rigged to push a rival's ad out. Every matching running ad has the same chance.
-    const candidates = ads.filter((a) => byListing.has(a.listingId))
+    const candidates = ads.filter((a): a is typeof a & { listingId: string } => !!a.listingId && byListing.has(a.listingId))
     const pick = candidates[Math.floor(Math.random() * candidates.length)]
     const [card] = await localizeListingTitles([serializeListingCard(byListing.get(pick.listingId)!)], lang)
     return { ...card, isSponsored: true, adId: pick.id }

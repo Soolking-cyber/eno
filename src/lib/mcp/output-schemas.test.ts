@@ -96,7 +96,7 @@ vi.mock('@/app/api/conversations/[id]/messages/route', () => ({ POST: async () =
 vi.mock('@/app/api/conversations/[id]/offer/route', () => ({ POST: async () => json({ ok: true }) }))
 
 // The paid-ad tools (ad-tools.ts): the offer, the booking core and the x402 config, as their own types declare them.
-const AD_ROW = { id: 'ad1', listingId: 'l1', status: 'active', durationSec: 3600, startsAt: now, endsAt: now, txHash: '0x' + 'a'.repeat(64), network: 'eip155:8453', amount: '22381' }
+const AD_ROW = { id: 'ad1', listingId: 'l1', creativeId: null, status: 'active', durationSec: 3600, startsAt: now, endsAt: now, txHash: '0x' + 'a'.repeat(64), network: 'eip155:8453', amount: '22381' }
 vi.mock('@/lib/x402/config', () => ({
   x402Config: () => ({ network: 'eip155:8453', networkLabel: 'Base', payTo: '0x' + '1'.repeat(40), facilitatorUrl: 'https://x402.org/facilitator', cdp: null, adPriceAtomic: '3760000', asset: '0x' + '2'.repeat(40), extra: { name: 'USD Coin', version: '2' } }),
   usdcText: () => '3.76',
@@ -111,7 +111,7 @@ vi.mock('@/lib/ads/offer', () => ({
 vi.mock('@/lib/ads/book', () => ({
   checkAdListing: async () => ({ ok: true, listing: { id: 'l1', title: 't', categorySlug: 'electronics', subcategorySlug: null } }),
   bookAd: async () => ({ kind: 'booked', ad: AD_ROW, settlement: { success: true, transaction: AD_ROW.txHash, network: 'eip155:8453' }, replay: false }),
-  shopAds: async () => [{ id: 'ad1', listing_id: 'l1', status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, amount_usdc_atomic: '3760000', network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
+  shopAds: async () => [{ id: 'ad1', listing_id: 'l1', creative_id: null, status: 'active', hours: 1, starts_at: now.toISOString(), ends_at: now.toISOString(), impressions: 3, clicks: 1, listing_views: 5, listing_contacts: null, amount_usdc_atomic: '3760000', network: 'eip155:8453', tx_hash: AD_ROW.txHash }],
 }))
 
 const { TOOLS } = await import('./tools')

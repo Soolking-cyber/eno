@@ -34,7 +34,8 @@ const asAdStatus = <E extends z.ZodEnum>(e: E, v: string): z.infer<E> => (e.opti
 
 const AD_OUT = z.strictObject({
   id: z.string().describe('The ad\'s id, as list_ads shows it'),
-  listing_id: z.string().describe('The advertised listing'),
+  listing_id: z.string().nullable().describe('The advertised listing; null for a creative ad (create_ad)'),
+  creative_id: z.string().nullable().describe('The ad creative it shows (create_ad); null for a listing ad'),
   status: AD_STATUS_ANY.describe('"active": paid, shown between starts_at and ends_at; "pending" or "unknown": payment sent, confirmation not yet found, it starts once found (call promote_listing again with the same payment to check); "review": being checked by hand; "failed": the payment did not go through, so the ad will not run'),
   hours: z.number().describe('How many hours it runs, as bought'),
   starts_at: z.string().nullable().describe('When it starts being shown (ISO 8601); a second ad for the same listing starts when the first ends. Null until paid'),
@@ -46,7 +47,8 @@ const AD_OUT = z.strictObject({
 
 const STATS_OUT = z.strictObject({
   id: z.string().describe('The ad\'s id'),
-  listing_id: z.string().describe('The advertised listing'),
+  listing_id: z.string().nullable().describe('The advertised listing; null for a creative ad'),
+  creative_id: z.string().nullable().describe('The ad creative it shows; null for a listing ad'),
   status: AD_STATUS.describe('"active" (running or booked), "pending" or "unknown" (payment not yet confirmed, see promote_listing) or "review" (being checked by hand)'),
   hours: z.number().describe('How many hours it runs, as bought'),
   starts_at: z.string().nullable().describe('When it started or starts (ISO 8601); null until paid'),

@@ -7,7 +7,7 @@ import { logError, logWarn } from '@/lib/log'
 import { AD_WEEK_HOURS, adRequirements, type X402Config } from '@/lib/x402/config'
 import { facilitatorSettle, facilitatorVerify } from '@/lib/x402/facilitator'
 import { authorizationUsed, findAuthorizationPayment } from '@/lib/x402/chain'
-import { UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
+import { CREATIVE_REMOVED_PAID, UNPAID_CANCELLED, UNPAID_EXPIRED } from './reasons'
 import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRequirements, type SettlementResponse } from '@/lib/x402/wire'
 
 /**
@@ -22,8 +22,35 @@ import { checkPayload, paymentPayloadSchema, type PaymentPayload, type PaymentRe
  *      two different payments for one listing get consecutive weeks, never overlapping ones.
  * ⛔ A SETTLEMENT WHOSE ANSWER IS LOST IS NEVER SHOWN AND NEVER FORGOTTEN: the row stays `unknown`, the chain is asked
  * (x402/chain.ts), and a retry of the same payload, or `reconcileAd`, activates it once the transfer is found.
+ *
+ * ── TWO KINDS OF TARGET (owner 2026-11-25: "enable any type of ads except the restricted ones by vietnamese law"). A row
+ * advertises EITHER one of the shop's listings (`listingId`) OR one approved AdCreative of the shop (`creativeId`) — never
+ * both, never neither (the CHECK ListingAd_one_target). Everything keyed on "the ad's target" reads `targetOf(row)`:
+ * the lock and the back-to-back stacking are per listing or per creative, and a replayed payment must name the same one.
+ * ⛔ A CREATIVE IS RE-CHECKED AT EVERY STEP THAT COULD START IT: before verify (approved, not removed, this shop's), and
+ * again inside activate's lock — a creative eno removed while the payment was settling (or found on chain later by
+ * reconcileAd) never goes live: the paid row goes to `review` for a manual pro-rata refund (CREATIVE_REMOVED_PAID).
+ * Creative ads run at most AD_CREATIVE_MAX_HOURS (a week).
  */
 export const AD_EXCLUDED_SUBCATEGORIES: readonly string[] = ['visa-legal', 'legal-permits']
+/** The longest creative ad (owner 2026-11-25, the brief's one standard placement: up to 168 hours). */
+export const AD_CREATIVE_MAX_HOURS = AD_WEEK_HOURS
+
+/** What a booking advertises: exactly one of the two. */
+export type AdTarget = { listingId: string; creativeId?: undefined } | { creativeId: string; listingId?: undefined }
+type TargetCols = { listingId: string | null; creativeId: string | null }
+/** The row's own target as a `where` on its own column — never `{ listingId: null }`, which would match every creative ad. */
+function targetWhere(t: TargetCols): Prisma.ListingAdWhereInput {
+  if (t.listingId) return { listingId: t.listingId }
+  if (t.creativeId) return { creativeId: t.creativeId }
+  throw new Error('ads: a row with no target')
+}
+/** The advisory lock a target's activations take: a listing's and a creative's can never collide. */
+export function adLockKey(t: TargetCols): string {
+  if (t.listingId) return `listing-ad:${t.listingId}`
+  if (t.creativeId) return `creative-ad:${t.creativeId}`
+  throw new Error('ads: a row with no target')
+}
 
 /**
  * A settle refusal the BUYER is told about as a refusal (402): the facilitator's own verification codes (x402 v2 §9 —
@@ -43,7 +70,7 @@ export type BookResult =
   | { kind: 'pending'; ad: AdRow }
   | { kind: 'payment_invalid'; reason: string }
   | { kind: 'payment_failed'; reason: string; settlement: SettlementResponse | null }
-  | { kind: 'refused'; status: 400 | 403 | 404 | 409; code: string; message: string }
+  | { kind: 'refused'; status: 400 | 403 | 404 | 409 | 422; code: string; message: string }
   | { kind: 'unavailable'; message: string }
 
 export function paymentIdOf(network: string, asset: string, from: string, nonce: string): string {
@@ -73,20 +100,49 @@ export async function checkAdListing(listingId: string, sellerId: string): Promi
   return { ok: true, listing: { id: row.id, title: row.title, categorySlug: row.category.slug, subcategorySlug: row.subcategorySlug } }
 }
 
-/** Settled → active: consecutive weeks per listing, under a transaction-scoped advisory lock. Guarded on the status, so a
- *  reconcile racing the original request activates once. */
-async function activate(rowId: string, listingId: string, txHash: string, settlement: SettlementResponse): Promise<AdRow> {
+export type AdCreativeCheck =
+  | { ok: true; creative: { id: string; contentHash: string } }
+  | { ok: false; status: 403 | 404 | 409; code: string; message: string }
+
+/** The caller's own creative, approved by the review and not removed by eno. */
+export async function checkAdCreative(creativeId: string, sellerId: string): Promise<AdCreativeCheck> {
+  if (!sellerId) return { ok: false, status: 403, code: 'shop_required', message: 'Ads are bought by a shop: connect with a shop account.' }
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(creativeId)) return { ok: false, status: 404, code: 'not_found', message: 'Ad creative not found in this shop.' }
+  const c = await db.adCreative.findUnique({ where: { id: creativeId }, select: { id: true, sellerId: true, status: true, contentHash: true } })
+  if (!c || c.sellerId !== sellerId) return { ok: false, status: 404, code: 'not_found', message: 'Ad creative not found in this shop.' }
+  if (c.status === 'removed') return { ok: false, status: 409, code: 'creative_removed', message: 'eno removed this ad creative; it can no longer run.' }
+  if (c.status !== 'approved') return { ok: false, status: 409, code: 'creative_refused', message: 'This ad creative did not pass the review; change it and submit it again.' }
+  return { ok: true, creative: { id: c.id, contentHash: c.contentHash } }
+}
+
+/** Settled → active: consecutive runs per target (a listing or a creative), under a transaction-scoped advisory lock.
+ *  Guarded on the status, so a reconcile racing the original request activates once. A creative eno removed in the
+ *  meantime is NEVER activated: the paid row goes to `review` (a manual refund), with the settlement kept. */
+async function activate(rowId: string, txHash: string, settlement: SettlementResponse): Promise<AdRow> {
   return db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`listing-ad:${listingId}`}))`
+    // The target is immutable on the row, so reading it before the lock is safe.
+    const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true, listingId: true, creativeId: true, sellerId: true } })
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${adLockKey(row)}))`
+    if (row.creativeId) {
+      const c = await tx.adCreative.findUnique({ where: { id: row.creativeId }, select: { status: true, sellerId: true } })
+      if (!c || c.status !== 'approved' || c.sellerId !== row.sellerId) {
+        // Loud: money moved for an ad that will not run — the owner refunds it by hand (the advertising policy says so).
+        logError(new Error('ads: paid for a creative that can no longer run'), { op: 'ads.creative-removed-paid', adId: rowId, creativeId: row.creativeId })
+        await tx.listingAd.updateMany({
+          where: { id: rowId, status: { in: ['pending', 'unknown'] } },
+          data: { status: 'review', txHash, settlementJson: settlement as unknown as Prisma.InputJsonValue, failReason: CREATIVE_REMOVED_PAID },
+        })
+        return tx.listingAd.findUniqueOrThrow({ where: { id: rowId } })
+      }
+    }
     const now = new Date()
     const last = await tx.listingAd.findFirst({
-      where: { listingId, status: 'active', endsAt: { gt: now } },
+      where: { ...targetWhere(row), status: 'active', endsAt: { gt: now } },
       orderBy: { endsAt: 'desc' },
       select: { endsAt: true },
     })
     const startsAt = last?.endsAt && last.endsAt > now ? last.endsAt : now
     // The row's own length (whole hours, as bought), stored when it was booked.
-    const row = await tx.listingAd.findUniqueOrThrow({ where: { id: rowId }, select: { durationSec: true } })
     const endsAt = new Date(startsAt.getTime() + row.durationSec * 1000)
     await tx.listingAd.updateMany({
       where: { id: rowId, status: { in: ['pending', 'unknown'] } },
@@ -133,7 +189,7 @@ export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof 
   const validBefore = Number(ad.authValidBefore)
   try {
     const hit = await findAuthorizationPayment(ours, { from: ad.authFrom, nonce: ad.authNonce, amount: ad.amount, since: ad.createdAt, validBefore }, fetchImpl)
-    if (hit.found) return await activate(ad.id, ad.listingId, hit.txHash, { success: true, transaction: hit.txHash, network: ad.network, payer: ad.authFrom })
+    if (hit.found) return await activate(ad.id, hit.txHash, { success: true, transaction: hit.txHash, network: ad.network, payer: ad.authFrom })
     const nowSec = now.getTime() / 1000
     if (nowSec > validBefore + EXPIRY_GRACE_S) {
       if (await authorizationUsed(ours, { from: ad.authFrom, nonce: ad.authNonce }, fetchImpl)) {
@@ -162,7 +218,7 @@ export async function reconcileAd(cfg: X402Config, ad: AdRow, fetchImpl: typeof 
     if (!parsed.success) return ad
     // Re-settling uses the facilitator named by the CURRENT config (the key lives there) with the row's own offer.
     const settled = await facilitatorSettle(cfg, parsed.data, ours, fetchImpl)
-    if (settled.kind === 'settled') return await activate(ad.id, ad.listingId, settled.response.transaction, settled.response)
+    if (settled.kind === 'settled') return await activate(ad.id, settled.response.transaction, settled.response)
     await db.listingAd.updateMany({ where: { id: ad.id, status: { in: ['pending', 'unknown'] } }, data: { status: 'unknown', failReason: (settled.kind === 'refused' ? settled.reason : settled.detail).slice(0, 200) } })
     return db.listingAd.findUniqueOrThrow({ where: { id: ad.id } })
   } catch (e) {
@@ -195,8 +251,18 @@ function reviewAnswer(ad: AdRow): BookResult {
   return { kind: 'refused', status: 409, code: 'payment_under_review', message: `This payment is being checked by hand. Write to support@eno.vn with the ad id ${ad.id}.` }
 }
 
-async function outcomeOf(cfg: X402Config, ad: AdRow, listingId: string, sellerId: string, fetchImpl: typeof fetch): Promise<BookResult> {
-  if (ad.listingId !== listingId || ad.sellerId !== sellerId) {
+/** Whether a payment's row advertises what this request names. A creative reviewed again (after its 24 h reuse window) is
+ *  a new row with the SAME content from the SAME shop: that is still the same ad, so an honest late retry finds it. */
+async function sameTarget(ad: AdRow, target: AdTarget): Promise<boolean> {
+  if (target.creativeId === undefined) return ad.listingId === target.listingId
+  if (!ad.creativeId) return false
+  if (ad.creativeId === target.creativeId) return true
+  const [a, b] = await Promise.all([ad.creativeId, target.creativeId].map((id) => db.adCreative.findUnique({ where: { id }, select: { sellerId: true, contentHash: true } })))
+  return !!a && !!b && a.sellerId === b.sellerId && a.contentHash === b.contentHash
+}
+
+async function outcomeOf(cfg: X402Config, ad: AdRow, target: AdTarget, sellerId: string, fetchImpl: typeof fetch): Promise<BookResult> {
+  if (ad.sellerId !== sellerId || !(await sameTarget(ad, target))) {
     return { kind: 'refused', status: 409, code: 'payment_already_used', message: 'This payment was already used for another ad.' }
   }
   if (ad.status === 'active') return { kind: 'booked', ad, settlement: storedSettlement(ad), replay: true }
@@ -213,7 +279,9 @@ export async function bookAd(p: {
   cfg: X402Config
   keyId: string
   sellerId: string
-  listingId: string
+  /** Exactly one of the two: a listing of this shop, or an approved creative of this shop. */
+  listingId?: string
+  creativeId?: string
   rawPayload: unknown
   via: 'http' | 'mcp'
   /** Whole hours, 1..AD_MAX_HOURS (default a week; callers validate with adHours): the price the payment must match, and
@@ -223,6 +291,9 @@ export async function bookAd(p: {
 }): Promise<BookResult> {
   const hours = p.hours ?? AD_WEEK_HOURS
   const fetchImpl = p.fetchImpl ?? fetch
+  if (!!p.listingId === !!p.creativeId) return { kind: 'refused', status: 400, code: 'invalid_input', message: 'Name either a listingId or a creative, not both.' }
+  const target: AdTarget = p.listingId ? { listingId: p.listingId } : { creativeId: p.creativeId! }
+  if (target.creativeId !== undefined && hours > AD_CREATIVE_MAX_HOURS) return { kind: 'refused', status: 400, code: 'invalid_input', message: `A creative ad runs 1 to ${AD_CREATIVE_MAX_HOURS} hours.` }
   // ⛔ THE SAME PAYMENT FINDS ITS ROW BEFORE IT IS CHECKED AGAINST TODAY'S OFFER (gate review 2026-11-23): a price, wallet or
   // network changed since must not stop an already-paid ad from being recovered. The id comes from the payload's own
   // network, asset, sender and nonce — what a new booking below must also match.
@@ -231,7 +302,7 @@ export async function bookAd(p: {
   const a = shape.data.payload.authorization
   const paymentId = paymentIdOf(shape.data.accepted.network, shape.data.accepted.asset, a.from, a.nonce)
   const existing = await db.listingAd.findUnique({ where: { paymentId } })
-  if (existing) return outcomeOf(p.cfg, existing, p.listingId, p.sellerId, fetchImpl)
+  if (existing) return outcomeOf(p.cfg, existing, target, p.sellerId, fetchImpl)
 
   const ours = adRequirements(p.cfg, hours)
   const checked = checkPayload(p.rawPayload, ours)
@@ -239,8 +310,9 @@ export async function bookAd(p: {
   const payload: PaymentPayload = checked.payload
   const auth = payload.payload.authorization
 
-  const listing = await checkAdListing(p.listingId, p.sellerId)
-  if (!listing.ok) return { kind: 'refused', status: listing.status, code: listing.code, message: listing.message }
+  // The target, BEFORE the facilitator is asked anything: a refused one never touches money.
+  const targetCheck = target.creativeId !== undefined ? await checkAdCreative(target.creativeId, p.sellerId) : await checkAdListing(target.listingId, p.sellerId)
+  if (!targetCheck.ok) return { kind: 'refused', status: targetCheck.status, code: targetCheck.code, message: targetCheck.message }
 
   const verified = await facilitatorVerify(p.cfg, payload, ours, fetchImpl)
   if (verified.kind === 'invalid') return { kind: 'payment_invalid', reason: verified.reason }
@@ -253,7 +325,8 @@ export async function bookAd(p: {
   try {
     row = await db.listingAd.create({
       data: {
-        listingId: p.listingId,
+        listingId: target.listingId ?? null,
+        creativeId: target.creativeId ?? null,
         sellerId: p.sellerId,
         bookedByKeyId: p.keyId,
         via: p.via,
@@ -275,7 +348,7 @@ export async function bookAd(p: {
     // A parallel request with the same authorization got there first: answer with its outcome.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
       const raced = await db.listingAd.findUnique({ where: { paymentId } })
-      if (raced) return outcomeOf(p.cfg, raced, p.listingId, p.sellerId, fetchImpl)
+      if (raced) return outcomeOf(p.cfg, raced, target, p.sellerId, fetchImpl)
     }
     throw e
   }
@@ -302,6 +375,7 @@ export async function bookAd(p: {
     const fresh = await db.listingAd.findUniqueOrThrow({ where: { id: row.id } })
     const after = await reconcileAd(p.cfg, fresh, fetchImpl)
     if (after.status === 'active') return { kind: 'booked', ad: after, settlement: storedSettlement(after), replay: false }
+    if (after.status === 'review') return reviewAnswer(after)
     return { kind: 'pending', ad: after }
   }
 
@@ -309,7 +383,9 @@ export async function bookAd(p: {
   // with the whole authorization, and a retry of the same payload (or reconcileAd) finds the transfer on chain.
   for (let attempt = 1; ; attempt++) {
     try {
-      const ad = await activate(row.id, p.listingId, settled.response.transaction, settled.response)
+      const ad = await activate(row.id, settled.response.transaction, settled.response)
+      // A creative removed while this payment settled: paid, not running — the buyer is told to write to support.
+      if (ad.status === 'review') return reviewAnswer(ad)
       return { kind: 'booked', ad, settlement: settled.response, replay: false }
     } catch (e) {
       if (attempt >= 3) {
@@ -324,7 +400,7 @@ export async function bookAd(p: {
 /** What an ad has done: exact impressions and taps (counted only inside its window — /api/ads/[id]/event), and the
  *  listing's own views and contacts over the ad's days, from the daily snapshots (src/lib/listing-analytics.ts). */
 export type AdStats = {
-  id: string; listing_id: string; status: string; hours: number; starts_at: string | null; ends_at: string | null
+  id: string; listing_id: string | null; creative_id: string | null; status: string; hours: number; starts_at: string | null; ends_at: string | null
   impressions: number; clicks: number; listing_views: number | null; listing_contacts: number | null
   amount_usdc_atomic: string; network: string; tx_hash: string | null
 }
@@ -344,7 +420,8 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
     let views: number | null = null
     let contacts: number | null = null
     // Daily snapshots cannot resolve an ad shorter than a day: its listing figures stay null (impressions/taps are exact).
-    if (ad.status === 'active' && ad.startsAt && ad.startsAt <= now && ad.durationSec >= 86_400) {
+    // A listing ad only: a creative ad has no listing of its own (its own figures are impressions and clicks, stats.ts).
+    if (ad.listingId && ad.status === 'active' && ad.startsAt && ad.startsAt <= now && ad.durationSec >= 86_400) {
       const startDay = new Date(ad.startsAt); startDay.setUTCHours(0, 0, 0, 0)
       const base = await db.listingDailyStat.findFirst({ where: { listingId: ad.listingId, day: { lt: startDay } }, orderBy: { day: 'desc' }, select: { views: true, leads: true } })
       let end: { views: number; leads: number } | null = null
@@ -361,7 +438,7 @@ export async function shopAds(sellerId: string, limit = 50, cfg: X402Config | nu
       }
     }
     out.push({
-      id: ad.id, listing_id: ad.listingId, status: ad.status, hours: Math.round(ad.durationSec / 3600),
+      id: ad.id, listing_id: ad.listingId, creative_id: ad.creativeId, status: ad.status, hours: Math.round(ad.durationSec / 3600),
       starts_at: ad.startsAt?.toISOString() ?? null, ends_at: ad.endsAt?.toISOString() ?? null,
       impressions: ad.impressions, clicks: ad.clicks, listing_views: views, listing_contacts: contacts,
       amount_usdc_atomic: ad.amount, network: ad.network, tx_hash: ad.txHash,

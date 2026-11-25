@@ -1039,19 +1039,19 @@ export const SPEC = {
       },
       Ad: {
         type: 'object',
-        description: 'A paid ad (x402). `status`: active (paid; shown from starts_at to ends_at), pending or unknown (payment sent, confirmation not yet found).',
-        required: ['id', 'listing_id', 'status', 'hours', 'starts_at', 'ends_at', 'tx_hash', 'network', 'amount_atomic'],
+        description: 'A paid ad (x402): one of your listings (`listing_id`) or one approved ad creative (`creative_id`), never both. `status`: active (paid; shown from starts_at to ends_at), pending or unknown (payment sent, confirmation not yet found).',
+        required: ['id', 'listing_id', 'creative_id', 'status', 'hours', 'starts_at', 'ends_at', 'tx_hash', 'network', 'amount_atomic'],
         properties: {
-          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] }, hours: { type: 'integer' },
+          id: { type: 'string' }, listing_id: { type: ['string', 'null'] }, creative_id: { type: ['string', 'null'] }, status: { type: 'string', enum: ['active', 'pending', 'unknown'] }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           tx_hash: { type: ['string', 'null'] }, network: { type: 'string', example: 'eip155:8453' }, amount_atomic: { type: 'string', example: '3760000' },
         },
       },
       AdStats: {
         type: 'object',
-        required: ['id', 'listing_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
+        required: ['id', 'listing_id', 'creative_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
         properties: {
-          id: { type: 'string' }, listing_id: { type: 'string' }, status: { type: 'string' }, hours: { type: 'integer' },
+          id: { type: 'string' }, listing_id: { type: ['string', 'null'] }, creative_id: { type: ['string', 'null'] }, status: { type: 'string' }, hours: { type: 'integer' },
           starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
           impressions: { type: 'integer', description: 'Times the ad card was at least half on screen for a second during its run.' },
           clicks: { type: 'integer', description: 'Taps on the ad card during its run.' },

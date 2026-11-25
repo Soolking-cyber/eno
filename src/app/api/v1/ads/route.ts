@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (e) {
     // Before scripts/listing-ad-ddl.mjs has run on this database: not on sale — and nothing was verified or settled yet.
-    if (e instanceof Error && /42P01|"ListingAd" does not exist/.test(e.message)) return apiError(503, 'ads_unavailable', 'Ads are not on sale right now.', r.rate)
+    // 42703: a column this revision reads (ListingAd.creativeId) that the DDL has not added yet — the same answer.
+    if (e instanceof Error && /42P01|42703|"ListingAd" does not exist|"AdCreative" does not exist|column .* does not exist/.test(e.message)) return apiError(503, 'ads_unavailable', 'Ads are not on sale right now.', r.rate)
     logError(e, { op: 'ads.buy' })
     return apiError(500, 'internal', 'Something went wrong. If you were charged, repeat the same request with the same payment: it is matched, never charged twice.', r.rate)
   }

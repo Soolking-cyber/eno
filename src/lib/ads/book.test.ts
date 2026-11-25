@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   live: 1,
   chain: { found: false } as { found: boolean; txHash?: string; cancelled?: boolean },
   used: false,
+  creatives: [] as Record<string, any>[],
+  locks: [] as string[],
 }))
 const matches = (row: Ad, where: Ad): boolean => Object.entries(where).every(([k, v]) => {
   if (v && typeof v === 'object' && !(v instanceof Date)) {
@@ -46,7 +48,8 @@ vi.mock('@/lib/db', () => {
     listingAd,
     listing: { findUnique: async () => h.listing, count: async () => h.live },
     listingDailyStat: { findFirst: async () => null },
-    $executeRaw: async () => 1,
+    adCreative: { findUnique: async ({ where }: { where: Ad }) => h.creatives.find((c) => c.id === where.id) ?? null },
+    $executeRaw: async (_s: TemplateStringsArray, key: string) => { h.locks.push(key); return 1 },
     $transaction: async (fn: (tx: unknown) => unknown) => fn(db),
   }
   return { db }
@@ -101,6 +104,8 @@ beforeEach(() => {
   h.live = 1
   h.chain = { found: false }
   h.used = false
+  h.creatives = [{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a' }]
+  h.locks = []
 })
 
 describe('bookAd', () => {
@@ -309,3 +314,96 @@ describe('bookAd', () => {
   })
 })
 
+
+/**
+ * The creative path (owner 2026-11-25: any lawful advertiser, reviewed before payment). A row advertises one approved
+ * AdCreative of the shop instead of a listing: re-checked before verify and again inside activate, capped at 168 hours, and
+ * stacked per creative under its own lock.
+ */
+describe('bookAd — a creative ad', () => {
+  const bookCreative = (raw: unknown, f: typeof fetch, creativeId = 'cr1', hours?: number, sellerId = 's1') =>
+    bookAd({ cfg, keyId: 'k1', sellerId, creativeId, rawPayload: raw, via: 'http', fetchImpl: f, ...(hours ? { hours } : {}) })
+
+  it('an approved creative: verify, settle, active — the row names the creative and no listing', async () => {
+    const { f, calls } = facilitator(OK)
+    const r = await bookCreative(payload(), f)
+    expect(calls).toEqual(['verify', 'settle'])
+    expect(r.kind).toBe('booked')
+    expect(h.ads[0]).toMatchObject({ status: 'active', listingId: null, creativeId: 'cr1', sellerId: 's1' })
+    expect(h.locks).toEqual(['creative-ad:cr1'])
+  })
+
+  it('a refused, removed, unknown or other shop\'s creative is refused BEFORE the facilitator (nothing charged)', async () => {
+    for (const [patch, code] of [[{ status: 'refused' }, 'creative_refused'], [{ status: 'removed' }, 'creative_removed'], [{ sellerId: 's2' }, 'not_found']] as const) {
+      h.creatives = [{ ...{ id: 'cr1', sellerId: 's1', status: 'approved', contentHash: 'hash-a' }, ...patch }]
+      const { f, calls } = facilitator(OK)
+      const r = await bookCreative(payload(), f)
+      expect(r).toMatchObject({ kind: 'refused', code })
+      expect(calls).toEqual([])
+    }
+    const { f, calls } = facilitator(OK)
+    expect(await bookCreative(payload(), f, 'nope')).toMatchObject({ kind: 'refused', code: 'not_found' })
+    expect(calls).toEqual([])
+    expect(h.ads).toEqual([])
+  })
+
+  it('runs at most 168 hours: 169 is refused before anything is called', async () => {
+    const { f, calls } = facilitator(OK, 169)
+    expect(await bookCreative(payload(), f, 'cr1', 169)).toMatchObject({ kind: 'refused', status: 400, code: 'invalid_input' })
+    expect(calls).toEqual([])
+  })
+
+  it('names exactly one target: both or neither is refused', async () => {
+    const { f, calls } = facilitator(OK)
+    expect(await bookAd({ cfg, keyId: 'k1', sellerId: 's1', listingId: 'l1', creativeId: 'cr1', rawPayload: payload(), via: 'http', fetchImpl: f })).toMatchObject({ kind: 'refused', code: 'invalid_input' })
+    expect(await bookAd({ cfg, keyId: 'k1', sellerId: 's1', rawPayload: payload(), via: 'http', fetchImpl: f })).toMatchObject({ kind: 'refused', code: 'invalid_input' })
+    expect(calls).toEqual([])
+  })
+
+  it('⛔ a creative eno removed WHILE the payment settled never goes live: the paid row goes to review (manual refund)', async () => {
+    const { f: inner } = facilitator(OK)
+    const f = (async (url: URL | string, init?: RequestInit) => {
+      if (String(url).endsWith('/settle')) h.creatives[0]!.status = 'removed'
+      return inner(url, init)
+    }) as typeof fetch
+    const r = await bookCreative(payload(), f)
+    expect(r).toMatchObject({ kind: 'refused', code: 'payment_under_review' })
+    expect(h.ads[0]).toMatchObject({ status: 'review', failReason: 'creative_removed_after_payment', txHash: TX, startsAt: null })
+  })
+
+  it('a lost settlement found on chain later for a creative removed meanwhile: reconcile never activates it', async () => {
+    const r = await bookCreative(payload(), facilitator({ ...OK, settle: 'throw' }).f)
+    expect(r.kind).toBe('pending')
+    h.creatives[0]!.status = 'removed'
+    h.chain = { found: true, txHash: TX }
+    const after = await reconcileAd(cfg, h.ads[0] as never, fetch, new Date())
+    expect(after).toMatchObject({ status: 'review', failReason: 'creative_removed_after_payment' })
+  })
+
+  it('the same payment again finds its ad; the same payment for another creative or for a listing is refused', async () => {
+    await bookCreative(payload(), facilitator(OK).f)
+    const again = facilitator(OK)
+    expect(await bookCreative(payload(), again.f)).toMatchObject({ kind: 'booked', replay: true })
+    expect(again.calls).toEqual([])
+    h.creatives.push({ id: 'cr2', sellerId: 's1', status: 'approved', contentHash: 'hash-b' })
+    expect(await bookCreative(payload(), facilitator(OK).f, 'cr2')).toMatchObject({ kind: 'refused', code: 'payment_already_used' })
+    expect(await book(payload(), facilitator(OK).f)).toMatchObject({ kind: 'refused', code: 'payment_already_used' })
+  })
+
+  it('a late retry after the content was reviewed again (a new creative id, the SAME content and shop) still finds its ad', async () => {
+    await bookCreative(payload(), facilitator(OK).f)
+    h.creatives.push({ id: 'cr1b', sellerId: 's1', status: 'approved', contentHash: 'hash-a' })
+    expect(await bookCreative(payload(), facilitator(OK).f, 'cr1b')).toMatchObject({ kind: 'booked', replay: true })
+  })
+
+  it('two payments for one creative run back to back; a listing ad running meanwhile does not delay it', async () => {
+    await book(payload('a1'), facilitator(OK).f)
+    await bookCreative(payload('b1'), facilitator(OK).f)
+    await bookCreative(payload('b2'), facilitator(OK).f)
+    const [listingAd, first, second] = h.ads
+    expect(listingAd).toMatchObject({ listingId: 'l1', creativeId: null })
+    expect(Math.abs(first!.startsAt.getTime() - listingAd!.startsAt.getTime())).toBeLessThan(1000)
+    expect(second!.startsAt.getTime()).toBe(first!.endsAt.getTime())
+    expect(h.locks).toEqual(['listing-ad:l1', 'creative-ad:cr1', 'creative-ad:cr1'])
+  })
+})
