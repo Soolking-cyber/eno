@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { detectChatLang, foreignTo, threadLanguage } from '@/lib/chat-lang'
+import { isFixedChatText } from '@/lib/chat-phrases'
 import {
   CHAT_TRANSLATION_CONSENT_EVENT,
   chatTranslationAskFirst,
@@ -86,9 +87,10 @@ function safeSet(key: string, value: string) {
 // the API carries kind:'text' — the original `!m.kind` test was true only for optimistic
 // client rows, which are always `mine`. That one predicate silently made the whole feature
 // a no-op: nothing was ever translatable. Undefined is still allowed for local rows.
-function isTranslatable(m: ChatMsg): boolean {
+function isTranslatable(m: ChatMsg, myLang: string): boolean {
   const plain = !m.kind || m.kind === 'text'
-  return !m.mine && plain && !!m.body.trim() && !m.pending && !m.failed && !m.deleted
+  // A line eno wrote is shown in the reader's own half by the thread, never machine-translated (src/lib/chat-phrases.ts).
+  return !m.mine && plain && !!m.body.trim() && !m.pending && !m.failed && !m.deleted && !isFixedChatText(m.body, myLang)
 }
 
 export function useChatTranslation(opts: {
@@ -122,7 +124,7 @@ export function useChatTranslation(opts: {
     const ids = new Set<string>()
     const bodies: string[] = []
     for (const m of messages) {
-      if (!isTranslatable(m)) continue
+      if (!isTranslatable(m, myLang)) continue
       bodies.push(m.body)
       if (foreignTo(detectChatLang(m.body).lang, myLang)) ids.add(m.id)
     }
@@ -227,7 +229,7 @@ export function useChatTranslation(opts: {
     // Which incoming plain-text messages still need a translation into myLang?
     const wanted: string[] = []
     for (const m of messages) {
-      if (!isTranslatable(m)) continue
+      if (!isTranslatable(m, myLang)) continue
       const key = cacheKey(m.id)
       if (attemptedRef.current.has(key) || inflightRef.current.has(key)) continue
       // Only a line that reads as another language is asked about: one in my language, a greeting both of us know,
@@ -313,7 +315,7 @@ export function useChatTranslation(opts: {
   // The one-time notice shows where the strip would be, and only while a translation WOULD apply: a
   // conversation the person already unticked asks nothing until they tick it again, and a thread with no
   // incoming message yet has nothing to translate, so it asks nothing yet either (opus, review of this change).
-  const needsNotice = awaitingConsent && enabled && messages.some(isTranslatable)
+  const needsNotice = awaitingConsent && enabled && messages.some((m) => isTranslatable(m, myLang))
   // The "Translate messages" strip. Before permission it would show a TICKED box for a translation that has not been
   // allowed, so while awaiting an answer it shows only for a thread the person had unticked (ticking it then asks);
   // otherwise the notice — or, in a thread with nothing incoming yet, nothing — stands in its place (codex, review of

@@ -2,6 +2,7 @@
 // thread as the school, and a ring for the teacher (within notify.ts's caps). A request unlocks NOTHING by itself — the
 // teacher sends (video-share), or does not.
 import { after } from 'next/server'
+import { TEACHER_VIDEO_ASK_LINE } from '@/lib/teachers/thread-lines'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
@@ -50,7 +51,7 @@ export const POST = route(
       (guard) => insertMessage(
         { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId },
         profile.id,
-        '🎬 Bạn có thể gửi video giới thiệu không? · Could you send your intro video?',
+        TEACHER_VIDEO_ASK_LINE,
         { alongside: [...guard, db.teacherVideoShare.upsert({ where: { conversationId }, create: { conversationId, requestedAt: now }, update: { requestedAt: now } })] },
       ),
     )

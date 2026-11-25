@@ -1,4 +1,5 @@
 import 'server-only'
+import { TEACHER_JOBS_BODY, TEACHER_JOBS_TITLE, composite } from '@/lib/teachers/alert-copy'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
@@ -127,8 +128,11 @@ export function abortReason(e: unknown): 'duplicate' | 'held' | null {
  * Persisted copy is a bilingual composite (notify.ts's idiom: stored server-side, where tr() cannot run; the bell
  * machine-translates the 'teacher_jobs' type for the other languages — notification-text.ts MACHINE_TRANSLATABLE).
  */
-const RING_TITLE = 'Việc làm phù hợp với bạn · Jobs that match your profile'
-const RING_BODY = 'Alex · eno.vn đã gửi cho bạn việc làm mới. · Alex from eno.vn sent you new jobs.'
+// The bell row keeps the "VI · EN" composite; the push goes in the teacher's language (push.ts).
+const RING_TITLE_PAIR = TEACHER_JOBS_TITLE
+const RING_BODY_PAIR = TEACHER_JOBS_BODY
+const RING_TITLE = composite(RING_TITLE_PAIR)
+const RING_BODY = composite(RING_BODY_PAIR)
 
 /** One bell + web push per job message, at most two a day (one jobs, one cover). Best-effort, after the commit. */
 async function ringTeacher(teacherProfileId: string, conversationId: string): Promise<void> {
@@ -136,7 +140,7 @@ async function ringTeacher(teacherProfileId: string, conversationId: string): Pr
     const cap = await rateLimit('teacher-jobs-notify', teacherProfileId, 2, '1 d')
     if (!cap.success) return
     await db.notification.create({ data: { recipientId: teacherProfileId, type: 'teacher_jobs', title: RING_TITLE, body: RING_BODY, conversationId } })
-    await sendPushToProfile(teacherProfileId, { title: RING_TITLE, body: RING_BODY, url: `/messages/${conversationId}`, tag: `convo-${conversationId}` })
+    await sendPushToProfile(teacherProfileId, { title: RING_TITLE_PAIR, body: RING_BODY_PAIR, url: `/messages/${conversationId}`, tag: `convo-${conversationId}` })
   } catch (e) {
     console.error('[job-dms] ring', e)
   }

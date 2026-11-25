@@ -1,6 +1,7 @@
 // The teacher's "Send my intro video" in one conversation — and its revocation (owner, 2026-10-07: "hide and send upon
 // request"). ⛔ ITS OWN GRANT (TeacherVideoShare): it never unlocks the phone, email or CV, nor they it.
 import { NextResponse } from 'next/server'
+import { TEACHER_VIDEO_SENT_LINE, TEACHER_VIDEO_STOPPED_LINE } from '@/lib/teachers/thread-lines'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
@@ -50,7 +51,7 @@ export const POST = route(
       // ⚠️ Accepted residual: a Send racing a REPLACEMENT saved in another tab (milliseconds apart) can land after that
       // save's revoke and so grant the new video — the teacher's own act of sending, to a school they chose; a save that
       // lands after this send revokes it as usual.
-      await insertMessage(convo, profile.id, '🎬 Đã gửi video giới thiệu · Sent my intro video', {
+      await insertMessage(convo, profile.id, TEACHER_VIDEO_SENT_LINE, {
         alongside: [db.teacherVideoShare.upsert({ where: { conversationId }, create: { conversationId, sharedAt: now, revokedAt: null }, update: { sharedAt: now, revokedAt: null } })],
       })
     } else {
@@ -58,7 +59,7 @@ export const POST = route(
       // moment the watch route mints no new link (one already handed out plays until it expires, ≤ 10 minutes — the strip
       // tells the teacher). The line is best-effort: a school not told yet sees the stop on its next read.
       await db.teacherVideoShare.upsert({ where: { conversationId }, create: { conversationId, revokedAt: now }, update: { revokedAt: now } })
-      await insertMessage(convo, profile.id, '🎬 Đã ngừng chia sẻ video giới thiệu · Stopped sharing my intro video')
+      await insertMessage(convo, profile.id, TEACHER_VIDEO_STOPPED_LINE)
         .catch((err) => logError(err, { op: 'teachers.video_stop_line' }))
     }
     return { ok: true, shared: share }

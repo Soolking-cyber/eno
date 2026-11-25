@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { localizeLineHead, localizeSystemLine } from '@/lib/chat-lines'
 import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, TrendingDown, ShieldCheck, Handshake, GraduationCap } from "@/components/ui/icons"
 import { STROKE_NAV } from '@/lib/icon-tokens'
@@ -35,6 +36,19 @@ import { moneyLocale } from '@/lib/vnd'
  *  be bottom up card style like the filter card"): the filter card titled "Notifications", with Mark all
  *  read / Clear all beside the title and the list filling the body. The panel's own header row is a
  *  `PopoverHeader`, which the sheet drops (it draws its own). */
+/**
+ * A row's body. A line eno wrote (an offer answer, a missed call, a teacher alert — src/lib/chat-phrases.ts) shows the
+ * reader's own half, never both and never a machine's (owner 2026-11-25: "each person in their languages"); anything
+ * else keeps the as-written / <Tr> rule below.
+ */
+function bellBody(type: string, url: string | null | undefined, body: string, lang: string): React.ReactNode {
+  // The amount is regrouped on the stored line first (localizeOfferLine reads its bilingual opening), then halved. An
+  // offer row is shown as written (never translated), so its head alone is swapped and the offerer's note kept.
+  const own = type === 'offer' ? localizeLineHead(localizeOfferLine(body, moneyLocale(lang)), lang) : localizeSystemLine(body, lang)
+  if (own !== null) return own
+  return notificationTextAsWritten(type, url, 'body') ? (type === 'offer' ? localizeOfferLine(body, moneyLocale(lang)) : body) : <Tr text={body} />
+}
+
 export function NotificationBell({ quiet = false }: {
   /**
    * The home route's phone header (owner-approved 2026-11-15 (build 8), cook r08 home — header.tsx `homeRoute`): below `sm`
@@ -248,7 +262,7 @@ export function NotificationBell({ quiet = false }: {
                           body is the offerer's own note and an availability request's names the person asking, so they —
                           and any type not on the list — are shown AS WRITTEN, title and body, on both sites. <Tr> would
                           send them to /api/translate (Microsoft) and the shared Translation cache. src/lib/notification-text.ts. */}
-                      {n.body && <p className={cn('text-xs', n.type === 'system' || n.type === 'verification' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{notificationTextAsWritten(n.type, n.url, 'body') ? (n.type === 'offer' ? localizeOfferLine(n.body, moneyLocale(lang)) : n.body) : <Tr text={n.body} />}</p>}
+                      {n.body && <p className={cn('text-xs', n.type === 'system' || n.type === 'verification' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{bellBody(n.type, n.url, n.body, lang)}</p>}
                     </div>
                   </Link>
                   {/* Delete — reveals on hover (desktop); always visible on touch.

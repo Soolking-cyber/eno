@@ -4,6 +4,7 @@ import { db } from './db'
 import { sendNativePushToProfile } from './native-push'
 import { badgeCountFor } from './unread'
 import { logError } from '@/lib/log'
+import { pickLocale } from './admin-macros'
 
 // Configure VAPID once per process. If the keys aren't set (e.g. local dev
 // without push configured), sending becomes a safe no-op rather than throwing.
@@ -26,6 +27,25 @@ if (PUBLIC && PRIVATE) {
 export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number; silent?: boolean; ring?: boolean }
 
 /**
+ * ⛔ A PUSH OF ENO'S OWN WORDS GOES IN THE RECIPIENT'S LANGUAGE (owner, 2026-11-25: "each person in their languages all auto
+ * messages"): a caller passes both halves and the recipient's Profile.locale picks one — never "Cuộc gọi đến · Incoming
+ * call" on a lock screen. A plain string is sent as it is (a name, a caller that already chose the language).
+ */
+export type PushText = string | { vi: string; en: string }
+export type PushInput = Omit<PushPayload, 'title' | 'body'> & { title: PushText; body?: PushText }
+
+async function inRecipientLanguage(profileId: string, p: PushInput): Promise<PushPayload> {
+  if (typeof p.title === 'string' && (p.body === undefined || typeof p.body === 'string')) return p as PushPayload
+  const row = await db.profile.findUnique({ where: { id: profileId }, select: { locale: true } }).catch(() => null)
+  // No stored language (or the read failed): both halves, as every push read before — a Vietnamese reader whose language
+  // was never saved must not lose Vietnamese on the lock screen (commit gate, 2026-11-25).
+  const known = !!row?.locale
+  const vi = pickLocale(row?.locale) === 'vi'
+  const pick = (t: PushText) => (typeof t === 'string' ? t : !known ? `${t.vi} · ${t.en}` : vi ? t.vi : t.en)
+  return { ...p, title: pick(p.title), body: p.body === undefined ? undefined : pick(p.body) }
+}
+
+/**
  * How the push SERVICE carries one message (RFC 8030), separate from what the notification says. `urgency` 'high' is
  * delivered through a phone's doze; `ttlSec` drops it once it is pointless (a ring past its timeout); a `topic` (≤32
  * base64url chars) REPLACES a still-undelivered message with the same topic — a call's "answered" sent while its ring is
@@ -40,7 +60,8 @@ export type PushDelivery = { urgency?: 'very-low' | 'low' | 'normal' | 'high'; t
  * swallowed per-subscription so one bad endpoint never aborts the rest.
  * Returns the number of successful deliveries.
  */
-export async function sendPushToProfile(profileId: string, payload: PushPayload, delivery: PushDelivery = {}): Promise<number> {
+export async function sendPushToProfile(profileId: string, input: PushInput, delivery: PushDelivery = {}): Promise<number> {
+  const payload = await inRecipientLanguage(profileId, input)
   // Fan out to NATIVE (Capacitor) devices too — a no-op until FCM/APNs is configured (see
   // native-push.ts). Fire-and-forget so it never changes web-push latency or the return value,
   // and so it still fires even when web push (VAPID) isn't configured.

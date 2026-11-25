@@ -1,4 +1,6 @@
 import 'server-only'
+import { localizeLineHead } from './chat-lines'
+import { pickLocale } from './admin-macros'
 import { after } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@/generated/prisma/client'
@@ -1119,7 +1121,9 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       // person, so its amount is grouped for them now.
       after(() => sendPushToProfile(recipientId, {
         title: senderName,
-        body: cutText(localizeOfferLine(notifText, moneyLocale(recipient?.locale ?? 'en')), 140),
+        // The recipient's half of "Trả giá · Offered" (owner 2026-11-25: each person in their language).
+        // The recipient's half; no stored language keeps both, as before (push.ts's rule).
+        body: cutText((recipient?.locale ? localizeLineHead(localizeOfferLine(notifText, moneyLocale(recipient.locale)), pickLocale(recipient.locale)) : null) ?? localizeOfferLine(notifText, moneyLocale(recipient?.locale ?? 'en')), 140),
         url: `/messages/${convo.id}`,
         tag: `convo-${convo.id}`,
       }))
@@ -1334,7 +1338,9 @@ export async function actOnOffer(
     await db.notification.create({
       data: { recipientId: offer.senderProfileId, type: 'offer', title: actorName, body: text, actorName, conversationId: convo.id, listingId: convo.listingId },
     })
-    const pushText = localizeOfferLine(text, moneyLocale(offerer?.locale ?? 'en'))
+    // The offerer's half of "✅ Đã chấp nhận · Offer accepted — …" (src/lib/chat-phrases.ts).
+    const grouped = localizeOfferLine(text, moneyLocale(offerer?.locale ?? 'en'))
+    const pushText = (offerer?.locale ? localizeLineHead(grouped, pickLocale(offerer.locale)) : null) ?? grouped
     after(() => sendPushToProfile(offer.senderProfileId, { title: actorName, body: pushText, url: `/messages/${convo.id}`, tag: `convo-${convo.id}` }))
   } catch (e) {
     console.error('[messages] offer-action notify', e)

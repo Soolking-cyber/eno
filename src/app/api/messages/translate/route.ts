@@ -10,6 +10,7 @@ import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { detectChatLang, foreignTo } from '@/lib/chat-lang'
 import { restoreViMarks } from '@/lib/vi-restore'
 import { phrasebook } from '@/lib/chat-phrasebook'
+import { localizeChatText } from '@/lib/chat-phrases'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -98,6 +99,10 @@ function chatPlan(body: string, target: Lang): Plan | null {
   // named by the detector itself.
   const source = detected === 'latin' ? 'en' : detected === 'zh' ? 'zh-Hans' : detected
   if (!LANGS.includes(source as Lang)) return null
+  // A line eno wrote (a one-tap chip or opener, a system line) answers with eno's own words, never a model's
+  // (src/lib/chat-phrases.ts: "Chào bạn! Món này còn không?" came back "Is this dish still available?", 2026-11-25).
+  const eno = target === 'vi' || target === 'en' ? localizeChatText(body, target) : null
+  if (eno !== null) return { send: body, source, fixed: eno }
   const fixed = phrasebook(body, source, target)
   if (fixed) return { send: body, source, fixed }
   return { send: source === 'vi' && marks !== 'full' ? restoreViMarks(body) : body, source }

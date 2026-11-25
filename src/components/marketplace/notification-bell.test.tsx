@@ -21,6 +21,8 @@ const IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWeb
 const NAME = 'Sam Lee'
 const OFFER_NOTE = 'Is the price still open? I can pick it up tonight near Thao Dien'
 const OFFER_WITH_AMOUNT = 'Trả giá · Offered 4.500.000 ₫ — Could you do 4.5M if I collect it myself?'
+// What a Vietnamese bell shows: eno's words in the reader's half, the offerer's note as written (src/lib/chat-phrases.ts).
+const OFFER_WITH_AMOUNT_SHOWN = 'Trả giá 4.500.000 ₫ — Could you do 4.5M if I collect it myself?'
 const AVAILABILITY = `${NAME} · 2 căn / 2 rentals · eno.vn`
 const AVAILABILITY_FORUM = `${NAME} · 1 căn / 1 rental · eno.forum`
 const UNKNOWN_BODY = 'Meet me at the Thao Dien cafe at six, my number is in the chat'
@@ -102,7 +104,7 @@ function expectPrivateTextAsWritten() {
   const sent = sentForTranslation()
   // Nothing that names the person or carries their words left for translation — title or body.
   expect(sent.filter((t) => t.includes(NAME) || t.includes('Thao Dien') || t.includes('4.5M') || t.includes('B1234567') || t.includes('0312345678'))).toEqual([])
-  for (const privateText of [OFFER_NOTE, OFFER_WITH_AMOUNT, AVAILABILITY, AVAILABILITY_FORUM, UNKNOWN_BODY, VERIFICATION_NOTE, LEGACY_NOTE]) {
+  for (const privateText of [OFFER_NOTE, OFFER_WITH_AMOUNT_SHOWN, AVAILABILITY, AVAILABILITY_FORUM, UNKNOWN_BODY, VERIFICATION_NOTE, LEGACY_NOTE]) {
     expect(screen.getByText(privateText)).toBeTruthy()
   }
   // The unknown type's title (a name) is shown as stored too.
@@ -118,8 +120,9 @@ describe('notification bell — the answer to an offer', () => {
     await openBellInVietnamese()
     expect(screen.getByText('Đã chấp nhận trả giá')).toBeTruthy()
     expect(screen.getByText('Đã từ chối trả giá')).toBeTruthy()
-    expect(screen.getByText('✅ Đã chấp nhận · Offer accepted — 3.000.000 đ')).toBeTruthy()
-    expect(screen.getByText('❌ Đã từ chối · Offer declined — 950.000 đ')).toBeTruthy()
+    // The reader's half only (owner 2026-11-25: each person in their language).
+    expect(screen.getByText('✅ Đã chấp nhận — 3.000.000 đ')).toBeTruthy()
+    expect(screen.getByText('❌ Đã từ chối — 950.000 đ')).toBeTruthy()
     // A new offer keeps its headline.
     expect(screen.getAllByText('Đề nghị mới')).toHaveLength(2)
   }, 20_000) // openBellInVietnamese waits up to 10 s for the translation batch; the first case also pays the cold render

@@ -27,6 +27,7 @@ vi.mock('@/lib/push', () => ({
 vi.mock('./session', () => ({ RING_TIMEOUT_S: 45, loadCall: async () => (h.liveState ? { state: h.liveState } : null) }))
 vi.mock('./relay', () => ({ revokeRelayCredential: async (_p: string, handle: string | null) => { h.revoked.push(handle) } }))
 
+const { halvesOf } = await import('@/lib/chat-phrases')
 const { ANSWERED_TEXT, RING_OVER_TEXT, callNotificationTag, callPushTopic, replaceRingPush, sendRingPush, writeCallRecord, writeCallRequest } = await import('./cards')
 const { afterCallEnded } = await import('./finish')
 const row = (o: Record<string, unknown> = {}) => ({
@@ -81,20 +82,20 @@ describe('the ring on the lock screen', () => {
     await replaceRingPush(row(), RING_OVER_TEXT, false)
     await replaceRingPush(row({ caller_id: null }), RING_OVER_TEXT, true)
     expect(h.pushes.map(({ delivery: _d, ...p }) => p)).toEqual([
-      { to: 'b', title: 'Lan', body: ANSWERED_TEXT, url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
-      { to: 'b', title: 'eno', body: RING_OVER_TEXT, url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
-      { to: 'b', title: 'eno', body: RING_OVER_TEXT, url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
+      { to: 'b', title: 'Lan', body: halvesOf(ANSWERED_TEXT), url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
+      { to: 'b', title: 'eno', body: halvesOf(RING_OVER_TEXT), url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
+      { to: 'b', title: 'eno', body: halvesOf(RING_OVER_TEXT), url: '/messages/c1', tag: callNotificationTag('call-1'), silent: true },
     ])
   })
 
   it('every ring that ends is replaced exactly once: by the missed-call push, else by "call ended" (blocked: unnamed)', async () => {
     const tags = () => h.pushes.map((p) => [p.title, p.body, p.silent === true])
     await afterCallEnded(row(), 'missed')
-    expect(tags()).toEqual([['Lan', 'Cuộc gọi nhỡ · Missed call', false]])
+    expect(tags()).toEqual([['Lan', { vi: 'Cuộc gọi nhỡ', en: 'Missed call' }, false]]) // the callee's half is picked in push.ts
     for (const [reason, title] of [['declined', 'Lan'], ['kill_switch', 'Lan'], ['blocked', 'eno']] as const) {
       h.pushes = []
       await afterCallEnded(row(), reason)
-      expect(tags()).toEqual([[title, RING_OVER_TEXT, true]])
+      expect(tags()).toEqual([[title, halvesOf(RING_OVER_TEXT), true]])
     }
     // A call that ended after it was answered has no ring left to replace (the accept replaced it).
     h.pushes = []
@@ -107,7 +108,7 @@ describe('the ring on the lock screen', () => {
   it('an erased caller (id taken off the row): no record, and the callee\'s ring is replaced without a name', async () => {
     await afterCallEnded(row({ caller_id: null }), 'hangup')
     expect(h.inserted).toEqual([])
-    expect(h.pushes).toMatchObject([{ to: 'b', title: 'eno', body: RING_OVER_TEXT, silent: true }])
+    expect(h.pushes).toMatchObject([{ to: 'b', title: 'eno', body: halvesOf(RING_OVER_TEXT), silent: true }])
   })
 })
 

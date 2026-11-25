@@ -187,7 +187,7 @@ export async function notifyPriceDrop(listingId: string, fromPrice: number, toPr
     for (const rid of recipients) {
       if (quiet && saverSet.has(rid)) continue // planPriceDropAlert's rule: a drop can't wait, so a saver's row is written and only the buzz is skipped
       try {
-        await sendPushToProfile(rid, { title: 'Giảm giá · Price drop', body, url: `/listings/${listingId}`, tag: `price-drop-${listingId}` })
+        await sendPushToProfile(rid, { title: { vi: 'Giảm giá', en: 'Price drop' }, body, url: `/listings/${listingId}`, tag: `price-drop-${listingId}` })
       } catch { /* push is optional */ }
     }
   } catch (e) {

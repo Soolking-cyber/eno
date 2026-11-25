@@ -779,3 +779,7 @@ export function sellerSilence(input: SilenceInput, now: number): SellerSilence |
 export function silenceLine(days: number, tr: TrFn): string {
   return withToken(SILENCE_COPY.line, DAYS_TOKEN, String(days), tr)
 }
+
+/** Every opener sentence a buyer can send with one tap (the offers excluded: they carry a price), for
+ *  src/lib/chat-phrases.ts — the thread shows each reader the half in their own language, never a machine's. */
+export const OPENER_TEXTS: readonly Bilingual[] = [...Object.values(COMMITMENT_COPY), ...Object.values(QUESTION_COPY)].map((c) => c.text)

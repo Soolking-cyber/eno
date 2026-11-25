@@ -30,6 +30,7 @@ import { haptic } from '@/lib/haptics'
 import { localizeOfferLine } from '@/lib/offer-lines'
 import { isDealLineKind, localizeDealLine, type ServiceDealKind } from '@/lib/service-deal'
 import { isPartnerBuyMessage, localizePartnerWelcome } from '@/lib/partner-welcome-line'
+import { localizeChatText, localizeSystemLine } from '@/lib/chat-phrases'
 import { containsPhoneNumber } from '@/lib/phone'
 import { PartnerPhoneChip } from '@/components/marketplace/partner-phone-chip'
 import { PartnerBuyButton } from '@/components/marketplace/partner-buy-button'
@@ -3348,7 +3349,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                    shows the translation — so Copy handed over text the user could not read and had
                    not asked for. Same expression the bubble renders from. */
                 onCopy: m.body
-                  ? () => copyMessage((translate.translationFor(m.id) && !revealOriginal.has(m.id) ? translate.translationFor(m.id) : m.body) || m.body)
+                  ? () => copyMessage((m.mine ? localizeSystemLine : localizeChatText)(localizeOfferLine(m.body, locale), lang) ?? ((translate.translationFor(m.id) && !revealOriginal.has(m.id) ? translate.translationFor(m.id) : m.body) || m.body))
                   : undefined,
                 onDelete: m.mine && (m.kind ?? 'text') === 'text' ? () => deleteMessage(m.id) : undefined,
                 onReport: !m.mine ? () => setReportFor(m.id) : undefined,
@@ -3680,11 +3681,17 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // language and never machine-translated — the stored body already carries both.
                   // The partner welcome (src/lib/partner-welcome-line.ts) is the same class: a fixed bilingual line, the viewer's half.
                   const dealLine = isDealLineKind(m.kind)
-                  const welcomeLine = m.kind === 'partner_welcome' || m.kind === 'partner_buy'
-                  const translated = dealLine || welcomeLine ? null : translate.translationFor(m.id)
+                  // ⛔ Every other line eno wrote — the partner welcome, "Buy now", an accepted or declined offer, a call, a
+                  // teacher's share, a one-tap chip or opener — reads in the viewer's own language and is never
+                  // machine-translated (src/lib/chat-phrases.ts; owner 2026-11-25, "each person in their languages").
+                  // The amount is regrouped on the stored line first (localizeOfferLine reads its bilingual opening).
+                  // The partner welcome and "Buy now" keep their kind guard: never translated, the viewer's half (any language).
+                  const partnerLine = m.kind === 'partner_welcome' || m.kind === 'partner_buy'
+                  const fixed = dealLine ? null : partnerLine ? localizePartnerWelcome(m.body, lang) : (m.mine ? localizeSystemLine : localizeChatText)(localizeOfferLine(m.body, locale), lang)
+                  const translated = dealLine || fixed !== null ? null : translate.translationFor(m.id)
                   // An accepted / declined offer line is stored with English grouping; it reads "3.000.000 đ" for a
                   // Vietnamese reader, like the offer card above it (localizeOfferLine; any other text is unchanged).
-                  const shown = dealLine ? localizeDealLine(m.body, lang) : welcomeLine ? localizePartnerWelcome(m.body, lang) : translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
+                  const shown = dealLine ? localizeDealLine(m.body, lang) : fixed !== null ? fixed : translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
                   // `quote` and `meta` are siblings of the text INSIDE the bubble. The child stays a
                   // bare string so ContactChips' scanner still runs — it only fires for a string
                   // child, and wrapping the text to add the timestamp would have silently disabled

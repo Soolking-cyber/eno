@@ -1,4 +1,5 @@
 import 'server-only'
+import { TEACHER_MESSAGE_BODY, TEACHER_MESSAGE_TITLE, composite } from '@/lib/teachers/alert-copy'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { sendPushToProfile } from '@/lib/push'
@@ -36,8 +37,11 @@ export function isQuietGap(previous: Date | string | null | undefined, now: Date
  */
 // Names no kind of sender: since the DM ladder (owner, 2026-10-13) any signed-in account may message a teacher, so the
 // alert says only that a message came about the teacher profile.
-const TITLE = 'Bạn có tin nhắn mới về hồ sơ giáo viên · New message about your teacher profile'
-const BODY = 'Mở để trả lời — có thể là lời mời dạy thay. · Open to reply — it may be a cover-lesson request.'
+// The bell row keeps the "VI · EN" composite (notification-text.ts); the push goes in the teacher's language (push.ts).
+const TITLE_PAIR = TEACHER_MESSAGE_TITLE
+const BODY_PAIR = TEACHER_MESSAGE_BODY
+const TITLE = composite(TITLE_PAIR)
+const BODY = composite(BODY_PAIR)
 
 /** Best-effort and fail-quiet: a notification must never fail the message that caused it. */
 export async function notifyTeacherOfSchoolMessage(args: { teacherProfileId: string; conversationId: string; listingId: string | null }): Promise<void> {
@@ -55,7 +59,7 @@ export async function notifyTeacherOfSchoolMessage(args: { teacherProfileId: str
     await db.notification.create({
       data: { recipientId: args.teacherProfileId, type: 'teacher_message', title: TITLE, body: BODY, conversationId: args.conversationId, listingId: args.listingId },
     })
-    await sendPushToProfile(args.teacherProfileId, { title: TITLE, body: BODY, url: `/messages/${args.conversationId}`, tag: `convo-${args.conversationId}` })
+    await sendPushToProfile(args.teacherProfileId, { title: TITLE_PAIR, body: BODY_PAIR, url: `/messages/${args.conversationId}`, tag: `convo-${args.conversationId}` })
   } catch (e) {
     console.error('[teachers] notify', e)
   }

@@ -6,6 +6,8 @@ import { sendPushToProfile } from '@/lib/push'
 import { maskEmailHandle } from '@/lib/utils'
 import { cutText } from '@/lib/feed-text'
 import { logError } from '@/lib/log'
+import { ANSWERED_TEXT, CALL_DONE_LINE, CALL_FAILED_LINE, CALL_MISSED_LINE, CALL_REQUEST_TEXT, MISSED_TEXT, RING_OVER_TEXT, RING_TEXT } from '../card-text'
+import { halvesOf } from '@/lib/chat-lines'
 import type { CallEndReason } from '../types'
 import { RING_TIMEOUT_S, loadCall, type CallSessionRow, type EndedCallRow } from './session'
 
@@ -47,17 +49,14 @@ export function formatCallDuration(totalSec: number): string {
  * placed video-capable may never turn a camera on, so the record never says "video" — just the call and its length.
  */
 export function callCardText(outcome: CallOutcome, durationSec: number): string {
-  if (outcome === 'completed') return `📞 Cuộc gọi · Call · ${formatCallDuration(durationSec)}`
-  if (outcome === 'missed') return '📞 Cuộc gọi nhỡ · Missed call'
-  return "📞 Cuộc gọi không kết nối được · Call didn't connect"
+  if (outcome === 'completed') return `${CALL_DONE_LINE} · ${formatCallDuration(durationSec)}`
+  if (outcome === 'missed') return CALL_MISSED_LINE
+  return CALL_FAILED_LINE
 }
 
-export const CALL_REQUEST_TEXT = '📞 Muốn gọi cho bạn · Would like to call you'
+export { CALL_REQUEST_TEXT }
 /** The lock-screen ring — one kind of call (the camera, where allowed, is inside it), so never "video". */
-export const RING_TEXT = 'Cuộc gọi đến · Incoming call'
-const MISSED_TEXT = 'Cuộc gọi nhỡ · Missed call'
-export const ANSWERED_TEXT = 'Đã trả lời · Answered'
-export const RING_OVER_TEXT = 'Cuộc gọi đã kết thúc · Call ended'
+export { RING_TEXT, ANSWERED_TEXT, RING_OVER_TEXT }
 
 /** The tag every notification about one call shares, so the missed-call push replaces the ringing one. */
 export const callNotificationTag = (callId: string) => `call-${callId}`
@@ -97,7 +96,7 @@ export async function sendRingPush(row: Pick<CallSessionRow, 'id' | 'conversatio
     if ((await loadCall(row.id))?.state !== 'ringing') return
     await sendPushToProfile(row.callee_id, {
       title: await displayName(row.caller_id),
-      body: RING_TEXT,
+      body: halvesOf(RING_TEXT),
       url: `/messages/${row.conversation_id}?call=${row.id}`,
       tag: callNotificationTag(row.id),
       ring: true,
@@ -117,7 +116,7 @@ export async function replaceRingPush(row: Pick<CallSessionRow, 'id' | 'conversa
   try {
     await sendPushToProfile(row.callee_id, {
       title: named && row.caller_id ? await displayName(row.caller_id) : 'eno',
-      body,
+      body: / · /.test(body) ? halvesOf(body) : body, // ANSWERED_TEXT / RING_OVER_TEXT in the callee's language; never a throw
       url: `/messages/${row.conversation_id}`,
       tag: callNotificationTag(row.id),
       silent: true,
@@ -158,7 +157,7 @@ export async function writeCallRecord(before: EndedCallRow, reason: CallEndReaso
     })
     await sendPushToProfile(before.callee_id, {
       title: callerName,
-      body: MISSED_TEXT,
+      body: halvesOf(MISSED_TEXT),
       url: `/messages/${before.conversation_id}`,
       tag: callNotificationTag(before.id),
     }, { topic: callPushTopic(before.id), urgency: 'high' }) // it replaces a ring on the lock screen: through doze too
@@ -183,7 +182,7 @@ export async function writeCallRequest(conversationId: string, requesterId: stri
     await db.notification.create({
       data: { recipientId, type: 'call_request', title: name, body: cutText(CALL_REQUEST_TEXT, 140), actorName: name, conversationId },
     })
-    await sendPushToProfile(recipientId, { title: name, body: CALL_REQUEST_TEXT, url: `/messages/${conversationId}`, tag: `convo-${conversationId}` })
+    await sendPushToProfile(recipientId, { title: name, body: halvesOf(CALL_REQUEST_TEXT), url: `/messages/${conversationId}`, tag: `convo-${conversationId}` })
   } catch (e) {
     logError(e, { op: 'calls.writeCallRequest', conversationId })
   }

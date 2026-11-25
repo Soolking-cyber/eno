@@ -2,6 +2,7 @@
 // { conversationId, share: boolean, phone?: boolean } — `phone: true` when the tapped label named the phone; the answer
 // { ok, shared, phoneShared } is the share as it now stands (TeacherContactShare.phoneShared, gate review 2026-10-09).
 import { route, ApiError } from '@/lib/api/handler'
+import { TEACHER_SHARED_LINE, TEACHER_SHARED_PHONE_LINE, TEACHER_SHARE_STOPPED_LINE } from '@/lib/teachers/thread-lines'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
 import { logError } from '@/lib/log'
@@ -60,8 +61,8 @@ export const POST = route(
       // school then cannot see is a broken promise. Read off the very flag /api/teachers/contact serves the phone by, so
       // the line and what the school sees never disagree (gate review, 2026-10-09). An added phone re-announces in full.
       const line = phoneShared
-        ? '📇 Đã chia sẻ số điện thoại, email và CV · Shared my phone, email and CV'
-        : '📇 Đã chia sẻ email và CV · Shared my email and CV'
+        ? TEACHER_SHARED_PHONE_LINE
+        : TEACHER_SHARED_LINE
       // ⛔ `phoneShared` ON BOTH create AND update: a re-share re-stamps what ITS tap handed over — never a row's leftover.
       await insertMessage(convo, profile.id, line, {
         alongside: [db.teacherContactShare.upsert({ where: { conversationId }, create: { conversationId, sharedAt: now, revokedAt: null, phoneShared }, update: { sharedAt: now, revokedAt: null, phoneShared } })],
@@ -70,7 +71,7 @@ export const POST = route(
       // ⛔ A REVOKE NEVER DEPENDS ON ITS LINE: it commits first, on its own; the line is best-effort (gate review, 2026-10-07).
       // A row it creates says "no phone", never the column's backfill default (TRUE); a re-share re-stamps it anyway.
       await db.teacherContactShare.upsert({ where: { conversationId }, create: { conversationId, sharedAt: now, revokedAt: now, phoneShared: false }, update: { revokedAt: now } })
-      await insertMessage(convo, profile.id, '🔒 Đã ngừng chia sẻ liên hệ · Stopped sharing my contact details')
+      await insertMessage(convo, profile.id, TEACHER_SHARE_STOPPED_LINE)
         .catch((err) => logError(err, { op: 'teachers.contact_revoke_line' }))
     }
     return { ok: true, shared: share, phoneShared }
