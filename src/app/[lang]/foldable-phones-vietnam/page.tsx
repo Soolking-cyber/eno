@@ -82,8 +82,8 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Ask the retailer: <strong>what does an out-of-warranty inner-screen replacement cost, and
-            can it be done in Vietnam or does the unit ship abroad?</strong> Get the answer before
+            Ask the retailer: <span className="font-bold">what does an out-of-warranty inner-screen replacement cost, and
+            can it be done in Vietnam or does the unit ship abroad?</span> Get the answer before
             buying, not after. On a first-generation device the answer is often that it ships, which
             means weeks without the phone on top of the repair bill.
           </P>

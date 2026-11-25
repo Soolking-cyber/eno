@@ -154,7 +154,7 @@ const CONTENT: ArticleContent = {
             </li>
             <li>Unpair an Apple Watch, which has to be done from the phone that is still signed in.</li>
             <li>
-              <strong>Deregister banking, e-wallet and authenticator apps from inside each app</strong>,
+              <span className="font-bold">Deregister banking, e-wallet and authenticator apps from inside each app</span>,
               not by deleting them. Several of them bind to the device and the phone number together,
               and re-registering from a new handset can mean a counter visit.
             </li>

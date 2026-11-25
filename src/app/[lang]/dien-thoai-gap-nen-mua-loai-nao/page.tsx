@@ -81,8 +81,8 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Hỏi cửa hàng: <strong>thay màn trong hết bảo hành tốn bao nhiêu, và sửa được trong nước
-            hay phải gửi đi nước ngoài?</strong> Hỏi trước khi mua chứ không phải lúc máy đã hỏng. Với
+            Hỏi cửa hàng: <span className="font-bold">thay màn trong hết bảo hành tốn bao nhiêu, và sửa được trong nước
+            hay phải gửi đi nước ngoài?</span> Hỏi trước khi mua chứ không phải lúc máy đã hỏng. Với
             máy đời đầu, câu trả lời thường là phải gửi đi &mdash; nghĩa là mất máy vài tuần, cộng
             thêm tiền sửa.
           </P>

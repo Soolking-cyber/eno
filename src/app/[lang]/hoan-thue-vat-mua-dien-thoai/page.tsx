@@ -83,8 +83,8 @@ const CONTENT: ArticleContent = {
           <P>
             Đây mới là tình huống thường gặp với người Việt: mua máy cho con đang du học, cho bạn
             nước ngoài, hoặc cho người thân là Việt kiều sắp quay lại nước ngoài. Nguyên tắc gói trong một câu,
-            nhưng làm sai là mất trắng phần hoàn thuế: <strong>hóa đơn kiêm tờ khai hoàn thuế phải
-            mang đúng họ tên và số hộ chiếu của người sẽ xuất cảnh</strong>, và phải được lập ngay
+            nhưng làm sai là mất trắng phần hoàn thuế: <span className="font-bold">hóa đơn kiêm tờ khai hoàn thuế phải
+            mang đúng họ tên và số hộ chiếu của người sẽ xuất cảnh</span>, và phải được lập ngay
             tại quầy lúc thanh toán.
           </P>
           <P>

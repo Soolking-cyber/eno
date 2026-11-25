@@ -141,7 +141,7 @@ const CONTENT: ArticleContent = {
             </li>
             <li>Hủy ghép Apple Watch, phải làm từ chiếc iPhone còn đang đăng nhập.</li>
             <li>
-              <strong>Hủy đăng ký thiết bị trong từng app ngân hàng, ví điện tử, app chữ ký số</strong>{' '}
+              <span className="font-bold">Hủy đăng ký thiết bị trong từng app ngân hàng, ví điện tử, app chữ ký số</span>{' '}
               &mdash; vào trong app để hủy chứ không phải chỉ gỡ app. Nhiều app gắn với cả thiết bị
               lẫn số điện thoại, đăng ký lại từ máy khác có khi phải ra quầy.
             </li>
