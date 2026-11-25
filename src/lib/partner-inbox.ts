@@ -39,6 +39,8 @@ export const PARTNER_INBOX_HANDLES = [
   'alphahousing', 'housingsaigon',
   // Central Vietnam Realty (owner, 2026-11-23; src/lib/housing-partners.ts): official, chat-only, an eno-held login.
   'cvr',
+  // HAGA Smartech (owner, 2026-11-25; src/lib/haga-partner.ts): repairs and used devices, official, chat-only, an eno-held login.
+  'hagasmartech',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

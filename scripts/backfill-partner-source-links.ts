@@ -19,6 +19,8 @@
  *     cars[src].pageUrl for each car(src, slug) in src/lib/car-partners.ts;
  *   · Saigon Cribs: ~/eno-saigoncribs-2026-11-18/data.json [{ id, url }], keyed saigoncribsExternalId(id);
  *   · The Extra Mile: theextramile.co/motorbikes/<slug>/ — only when raw/bike-urls.txt lists that exact address;
+ *   · HAGA Smartech: ~/eno-haga-partner-2026-11-25/data.json records[].url for a used device; its repair list
+ *     (/dich-vu-sua-chua/) for a grouped repair listing;
  *   · everything else (one-page partners, a listing the partner posted itself, a page the research lacks): the partner's
  *     `home` page in PARTNER_SOURCES.
  * A row already holding a link that is NOT this partner's own page is never touched (reported as `foreign`).
@@ -32,6 +34,7 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { CAR_PARTNERS } from '../src/lib/car-partners'
 import { journalDirProblem } from '../src/lib/honeycomb-listing'
 import { HOUSING_PARTNERS, housingExternalId } from '../src/lib/housing-partners'
+import { HAGA, HAGA_EXTERNAL_PREFIX, SERVICE_GROUPS } from '../src/lib/haga-partner'
 import { EXTRA_MILE_BIKES } from '../src/lib/moto-partners'
 import { PARTNER_SOURCES, partnerSourceUrlOk } from '../src/lib/partner-source-link'
 import { saigoncribsExternalId } from '../src/lib/saigoncribs-listing'
@@ -73,6 +76,12 @@ function researchPages(): Map<string, Map<string, string>> {
   if (wanted.includes('saigoncribs')) {
     const d = readJson(join(H, 'eno-saigoncribs-2026-11-18', 'data.json')) as { id: number; url?: string }[]
     for (const r of d) put('saigoncribs', saigoncribsExternalId(r.id), r.url)
+  }
+  if (wanted.includes('hagasmartech')) {
+    // HAGA Smartech (scripts/import-haga.ts): a used device's own page; a grouped repair listing → HAGA's repair list, where its prices were read.
+    const d = readJson(join(H, 'eno-haga-partner-2026-11-25', 'data.json')) as { records?: { slug: string; url: string; kind: string }[] }
+    for (const r of d.records ?? []) if (r.kind === 'used') put('hagasmartech', `${HAGA_EXTERNAL_PREFIX}${r.slug.replace(/\.html$/, '')}`, r.url)
+    for (const g of SERVICE_GROUPS) put('hagasmartech', `${HAGA_EXTERNAL_PREFIX}service-${g.key}`, `${HAGA.site}/dich-vu-sua-chua/`)
   }
   if (wanted.includes('theextramile')) {
     const listed = new Set(readFileSync(join(H, 'eno-moto-partners-2026-11-22', 'extramile', 'raw', 'bike-urls.txt'), 'utf8').split('\n').map((l) => l.trim()).filter(Boolean))

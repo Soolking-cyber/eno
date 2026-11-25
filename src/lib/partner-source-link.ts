@@ -42,6 +42,7 @@ export const PARTNER_SOURCES: Readonly<Record<string, PartnerSource>> = {
   // Motorbikes
   theextramile: { hosts: ['theextramile.co'], home: 'https://theextramile.co/motorbikes/' },
   saigonscootercentre: { hosts: ['saigonscootercentre.com'], home: 'https://saigonscootercentre.com/ssc-rentals/' },
+  hagasmartech: { hosts: ['hagasmartech.com'], home: 'https://hagasmartech.com/' },
   blvck: { hosts: ['thuexemaysaigon.vn'], home: 'https://thuexemaysaigon.vn/' },
   // Services
   saigonmoving: { hosts: ['saigonmoving.com'], home: 'https://saigonmoving.com/bang-gia.htm' },

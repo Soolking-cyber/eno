@@ -306,6 +306,21 @@ const PARTNERS = {
     avatarColor: '#111111',
     dailyReminderOptIn: false,
   },
+  // ── PHONE AND LAPTOP REPAIR + USED DEVICES (owner, 2026-11-25: "https://hagasmartech.com/ import them as a partner the 2nd
+  // hand items and available services with clear descriptions and prices"). An eno-held login like the other partners;
+  // scripts/import-haga.ts writes its used devices and grouped repair services once (src/lib/haga-partner.ts).
+  hagasmartech: {
+    email: 'support+hagasmartech@eno.vn',
+    handle: 'hagasmartech',
+    name: 'HAGA Smartech',
+    // Its contact page, as printed: "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ HAGA SMARTECH", tax code 0313399047 (read 2026-11-25).
+    legalName: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ HAGA SMARTECH',
+    bio: 'Phone and laptop repair and used Apple and Windows devices in An Khánh (Thảo Điền), Ho Chi Minh City: iPhone, Samsung and MacBook repairs at published prices, and checked pre-owned iPhones, MacBooks and laptops with a shop warranty. English-speaking staff. Message HAGA Smartech here on eno to check a price or a device. eno introduces HAGA Smartech; the repair or sale is with them.',
+    avatarUrl: null,
+    // The near-black of the HAGA wordmark (its yellow "Smartech" under white initials would be unreadable).
+    avatarColor: '#111111',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

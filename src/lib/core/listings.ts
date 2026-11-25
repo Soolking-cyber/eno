@@ -46,7 +46,7 @@ import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
 import { assertSellerMayPublish, sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { assertListingGuard } from '@/lib/listing-guard'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type IdentityBlockCode, type JobTextBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, isOnePhotoImport, PublishBlockedError, type IdentityBlockCode, type JobTextBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
 import { isHiringPost, jobTextDetail, jobTextProblem, type JobTextField } from '@/lib/job-listing'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
@@ -745,7 +745,7 @@ export async function updateListingCore(
       // Read-only here (the wizard cannot edit them), but load-bearing: the folded search blob
       // below must keep BOTH languages or an edit deletes the Vietnamese half of the index.
       titleVi: true, descriptionVi: true,
-      // `fb:<id>`: an imported listing keeps its one-photo bar on edit (assertEnoughAngles `imported`).
+      // `fb:<id>` / `hagasmartech:<id>`: an imported listing keeps its one-photo bar on edit (publish-guard isOnePhotoImport).
       externalId: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
@@ -957,7 +957,7 @@ export async function updateListingCore(
     try {
       // The listing's OWN category — an edit cannot move a listing between categories,
       // so this is the same bar create used, and a 1-photo service listing stays editable.
-      assertEnoughAngles(images, current.category.slug, { imported: current.externalId?.startsWith('fb:') ?? false })
+      assertEnoughAngles(images, current.category.slug, { imported: isOnePhotoImport(current.externalId) })
       // A photo two reads refused — the new ones and (writes on only) those already on it, less this listing's overrides.
       if (opts.photoRefusal !== false) await assertNoRefusedPhotos(images, { category: current.category.slug, subcategory: current.subcategorySlug, sellerId: current.sellerId, listingId, existing: current.images })
     } catch (e) {

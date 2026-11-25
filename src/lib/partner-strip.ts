@@ -94,6 +94,9 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'housingsaigon', name: 'Housing Saigon', logo: { src: '/partners/housingsaigon.webp', width: 282, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'wide' },
   // Central Vietnam Realty (owner, 2026-11-23; Đà Nẵng): cvr.com.vn's own /images/icons/logo.svg, rendered and trimmed.
   { handle: 'cvr', name: 'Central Vietnam Realty', logo: { src: '/partners/cvr.webp', width: 89, height: 96 }, label: { en: 'Homes', vi: 'Nhà ở' }, size: 'square' },
+  // HAGA Smartech (owner, 2026-11-25; src/lib/haga-partner.ts): repairs and used devices in An Khánh (Thảo Điền). Its own
+  // userfile/config/Logo.png, the "HAGA Smartech" wordmark only (the "Smart service, always!" line cut: unreadable at strip height).
+  { handle: 'hagasmartech', name: 'HAGA Smartech', logo: { src: '/partners/hagasmartech.webp', width: 1023, height: 96 }, label: { en: 'Repairs', vi: 'Sửa chữa' }, size: 'wide' },
 ]
 
 /** Where a strip entry links: an eno-run partner's storefront by id, every other partner by its handle. */

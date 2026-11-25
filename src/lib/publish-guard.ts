@@ -579,6 +579,17 @@ export function assertHasLocation(input: { district?: string | null; lat?: numbe
   throw new PublishBlockedError('location_required')
 }
 
+/**
+ * The imported rows an EDIT holds to one photo, not the category's three, by their `externalId` prefix:
+ *  · `fb:` — Import from Facebook (owner, 2026-11-06: "3 images rule dont apply to fb import");
+ *  · `hagasmartech:` — HAGA Smartech's used devices and repair services (owner, 2026-11-25: "List used with the stock
+ *    photo" — one manufacturer image per device, src/lib/haga-partner.ts HAGA_EXTERNAL_PREFIX, held equal by its test).
+ * A prefix here is an owner's decision for that source, never a convenience: anything else keeps the category's bar.
+ */
+export const ONE_PHOTO_IMPORT_PREFIXES = ['fb:', 'hagasmartech:'] as const
+export const isOnePhotoImport = (externalId: string | null | undefined): boolean =>
+  !!externalId && ONE_PHOTO_IMPORT_PREFIXES.some((p) => externalId.startsWith(p))
+
 /** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min), or nothing
  *  at all where minPhotosFor is 0 (jobs) — the
  *  same photo uploaded N times still counts as one angle. Shared by CREATE and EDIT so an edit
