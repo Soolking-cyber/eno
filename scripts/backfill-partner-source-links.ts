@@ -14,7 +14,7 @@
  * ⛔ RE-RUN IT AFTER EVERY PARTNER IMPORT — it only adds or refreshes links of THIS partner's own pages, so it is safe to repeat.
  *
  * Where each page comes from (the import research the importers read; paths are their defaults):
- *   · housing (Alpha, Housing Saigon, CVR): <research>/data.json records[].link, keyed housingExternalId(p, id);
+ *   · housing (Alpha, Housing Saigon, CVR, JHouse): <research>/data.json records[].link, keyed housingExternalId(p, id);
  *   · cars (KarPlus, Carbi, An Khánh, Quê Hương, An Bình): ~/eno-car-partners-2026-11-17/<research>/data.json
  *     cars[src].pageUrl for each car(src, slug) in src/lib/car-partners.ts;
  *   · Saigon Cribs: ~/eno-saigoncribs-2026-11-18/data.json [{ id, url }], keyed saigoncribsExternalId(id);
@@ -60,6 +60,7 @@ function researchPages(): Map<string, Map<string, string>> {
   }
   const HOUSING_ROOT: Record<string, string> = {
     alphahousing: join(H, 'eno-housing-partners-2026-11-22'), housingsaigon: join(H, 'eno-housing-partners-2026-11-22'), cvr: join(H, 'eno-cvr-partner-2026-11-23'),
+    jhouse: join(H, 'eno-jhouse-partner-2026-11-25'),
   }
   for (const p of HOUSING_PARTNERS) {
     if (!wanted.includes(p.handle)) continue
