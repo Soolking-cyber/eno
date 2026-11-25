@@ -159,8 +159,13 @@ test.describe('Guest · homepage', () => {
       const band = page.locator('[data-partner-band]:visible')
       await band.scrollIntoViewIfNeeded()
       await expect(band).toBeVisible()
-      // Hydrated: the still row's own logos turn eager once it is on screen, so nothing below reads the server's row alone.
-      await expect(band.locator('img').first()).toHaveAttribute('loading', 'eager', { timeout: 15_000 })
+      // Hydrated: once the still row is on screen its logos are PRELOADED, and the <img>s stay lazy (2026-11-25, partner-strip.tsx:
+      // flipping twenty `loading` attributes after hydration cost ~5 ms each at 4× CPU). So nothing below reads the server's row alone.
+      const firstLogo = await band.locator('img').first().getAttribute('src')
+      expect(firstLogo).toBeTruthy()
+      await expect.poll(() => page.evaluate((src) => [...document.querySelectorAll('link[rel="preload"][as="image"]:not([media])')]
+        .some((l) => l.getAttribute('href') === src || (l.getAttribute('imagesrcset') ?? '').includes(src)), firstLogo!), { timeout: 15_000 }).toBe(true)
+      await expect(band.locator('img').first()).toHaveAttribute('loading', 'lazy')
       await expect(band.locator('.partner-strip-track')).not.toHaveAttribute('data-loop')
       await expect(band.locator('.partner-strip-pause')).toHaveCount(0)
       const viewport = band.locator('.partner-strip-viewport')

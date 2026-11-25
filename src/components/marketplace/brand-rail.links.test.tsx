@@ -16,6 +16,10 @@ HTMLElement.prototype.scrollTo = () => {}
 
 import { BrandRail } from './brand-rail'
 
+// The arrow appears once useScrollArrows measures, a frame after mount (its mount sync runs in requestAnimationFrame since
+// 2026-11-25), so the wait is generous: under a loaded machine jsdom's frame timer can pass findBy's default 1 s (4 s: under Vitest's 5 s test timeout).
+const ARROW_WAIT = { timeout: 4000 }
+
 const hrefFor = (p: Record<string, string> | null) => (p ? `/?${new URLSearchParams(Object.entries(p).filter(([, v]) => v && v !== 'all'))}` : '/')
 
 beforeEach(() => {
@@ -77,7 +81,7 @@ describe('BrandRail chips are links', () => {
     })))
     const user = userEvent.setup()
     const { onPickModel } = rail({ activeModel: 'all' })
-    const more = await screen.findByRole('button', { name: /More/ })
+    const more = await screen.findByRole('button', { name: /More/ }, ARROW_WAIT)
     await user.click(more)
     const row = await screen.findByRole('menuitem', { name: /M12/ })
     expect(row.tagName).toBe('A')
@@ -148,7 +152,7 @@ describe('BrandRail — the well\'s grey ladder', () => {
     })))
     const user = userEvent.setup()
     rail({ activeModel: 'all' })
-    const more = await screen.findByRole('button', { name: /More/ })
+    const more = await screen.findByRole('button', { name: /More/ }, ARROW_WAIT)
     expect(tokens(more)).toEqual(expect.arrayContaining(['rounded-full', 'icon-own-ink', 'text-body', 'hover:bg-secondary']))
     for (const gone of [...BLUE, 'rounded-lg', 'bg-background']) expect(tokens(more), gone).not.toContain(gone)
 

@@ -31,6 +31,10 @@ import userEvent from '@testing-library/user-event'
 import { SortStrip, ViewPickReserve, ViewSwitch, ViewToggles, createHeaderHiddenSignal } from './explorer-toolbar'
 import { CategoryRail } from './category-rail'
 
+// The arrow appears once useScrollArrows measures, a frame after mount (its mount sync runs in requestAnimationFrame since
+// 2026-11-25), so the wait is generous: under a loaded machine jsdom's frame timer can pass findBy's default 1 s (4 s: under Vitest's 5 s test timeout).
+const ARROW_WAIT = { timeout: 4000 }
+
 /** Every scroller overflows: 300px wide, 1000px of content — so each row has more to its right. */
 let scrollBy: ReturnType<typeof vi.fn>
 beforeEach(() => {
@@ -56,7 +60,7 @@ const strip = (sort: Parameters<typeof SortStrip>[0]['sort'], priceLabel: 'price
 describe('NAV-4: the phone "›" is a real button that scrolls its row', () => {
   it('on the sort/filter strip: named "More", a 44px target, and it pages the row by 85% (the desktop arrows\' step)', async () => {
     render(strip('newest'))
-    const more = await screen.findByRole('button', { name: 'More' })
+    const more = await screen.findByRole('button', { name: 'More' }, ARROW_WAIT)
     expect(more.className).toContain('tap-44') // the IconButton's 44px hit area around the unchanged 32px disc
     expect(more.className).toContain('sm:hidden')
     expect(more.className).not.toContain('pointer-events-none')
@@ -70,7 +74,7 @@ describe('NAV-4: the phone "›" is a real button that scrolls its row', () => {
       { id: 'c2', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'tv', verifiedCount: 5 },
     ] as unknown as SerializedCategory[]
     render(<CategoryRail categories={cats} activeCategory="all" activeSubcategory="all" subcategoryCounts={{}} onCategory={() => {}} onSubcategory={() => {}} />)
-    const more = await screen.findByRole('button', { name: 'More' })
+    const more = await screen.findByRole('button', { name: 'More' }, ARROW_WAIT)
     expect(more.className).toContain('pc:hidden')
     expect(more.className).toContain('tap-44')
     fireEvent.click(more)
@@ -80,7 +84,7 @@ describe('NAV-4: the phone "›" is a real button that scrolls its row', () => {
   it('reads "Xem thêm" in Vietnamese', async () => {
     h.vi = true
     render(strip('newest'))
-    expect(await screen.findByRole('button', { name: 'Xem thêm' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Xem thêm' }, ARROW_WAIT)).toBeTruthy()
   })
 })
 

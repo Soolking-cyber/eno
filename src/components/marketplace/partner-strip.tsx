@@ -88,6 +88,8 @@ const SM_UP = '(min-width: 40rem)'
  * whole tiles fill the text column and nothing of the fourth shows (the blind critics marked that cut tile broken); each
  * tile is raised like the category pills (globals.css `.partner-strip-feed`). The still band itself is unchanged.
  */
+// The feed copy's preload key (see its effect): any string; `sizes` does nothing for an x-descriptor srcset.
+const FEED_PRELOAD_SIZES = '1px'
 // ⚡ Memoized (phone home, 2026-11-25): its one prop is a constant, and it re-rendered its 20 logos with every explorer render.
 export const PartnerStrip = memo(function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
@@ -116,8 +118,13 @@ export const PartnerStrip = memo(function PartnerStrip({ placement = 'top' }: { 
       // inside the commit right after hydration, plus a re-render of every PartnerItem. A preload per logo (its own srcset,
       // so it is the file the <img> picks) fetches the same bytes with no attribute change. A logo scrolled in by hand is then
       // read from the cache. Once per mount.
+      // ⛔ `imageSizes` IS WHAT MAKES IT A SECOND PRELOAD (found 2026-11-25 by the e2e): React keys an image preload by its
+      // srcset (+ imagesizes when it is a string), and the top copy has already preloaded these very srcsets with
+      // `media="(min-width: 40rem)"`, so without it this call was deduplicated into that one and a phone fetched nothing.
+      // The srcsets are x-descriptors, which a browser picks by pixel density and for which `sizes` has no effect, so the
+      // value changes the key and nothing else.
       if (placement === 'feed') {
-        if (shown && !warmed) { warmed = true; for (const p of stripPartners()) preload(p.logo.src, { as: 'image', imageSrcSet: partnerLogoSrcSet(p) }) }
+        if (shown && !warmed) { warmed = true; for (const p of stripPartners()) preload(p.logo.src, { as: 'image', imageSrcSet: partnerLogoSrcSet(p), imageSizes: FEED_PRELOAD_SIZES }) }
         return
       }
       // Back to 0 before the loop runs again, as after a pause: a scroll left behind by hand while this copy was the

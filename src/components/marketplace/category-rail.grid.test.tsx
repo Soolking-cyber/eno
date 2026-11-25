@@ -7,6 +7,10 @@ import { LanguageProvider } from '@/context/language-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { CategoryRail } from './category-rail'
 
+// The arrow appears once useScrollArrows measures, a frame after mount (its mount sync runs in requestAnimationFrame since
+// 2026-11-25), so the wait is generous: under a loaded machine jsdom's frame timer can pass findBy's default 1 s (4 s: under Vitest's 5 s test timeout).
+const ARROW_WAIT = { timeout: 4000 }
+
 /**
  * THE RAIL'S SHAPE — the three things a screenshot of the real home page cannot check, because the
  * real rail always has plenty of tiles and its own edition's categories.
@@ -194,7 +198,7 @@ describe('<CategoryRail> grid shape', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => 1000 })
     try {
       renderRail(cats(10))
-      const more = await screen.findByRole('button', { name: 'More' })
+      const more = await screen.findByRole('button', { name: 'More' }, ARROW_WAIT)
       expect(more.className.split(/\s+/)).toEqual(expect.arrayContaining(['max-sm:hidden', 'pc:hidden']))
     } finally {
       delete (HTMLElement.prototype as unknown as { clientWidth?: unknown }).clientWidth
@@ -276,7 +280,7 @@ describe('<CategoryRail> grid shape', () => {
     }
     try {
       renderRail(cats(10))
-      const more = await screen.findByRole('button', { name: 'More' })
+      const more = await screen.findByRole('button', { name: 'More' }, ARROW_WAIT)
       // 300px of scroller over 100px children: the edge falls exactly between the 3rd and 4th — nothing clipped.
       await vi.waitFor(() => expect(more.className.split(/\s+/)).not.toContain('max-sm:hidden'))
       expect(more.className.split(/\s+/)).toContain('pc:hidden')
@@ -568,7 +572,7 @@ describe('<CategoryRail pills> — the home page\'s phone row', () => {
     HTMLElement.prototype.scrollBy = scrollBy as unknown as typeof HTMLElement.prototype.scrollBy
     try {
       renderPills(true)
-      const more = await screen.findByRole('button', { name: 'More' })
+      const more = await screen.findByRole('button', { name: 'More' }, ARROW_WAIT)
       expect(tokens(more)).not.toContain('max-sm:hidden')
       expect(tokens(more)).toEqual(expect.arrayContaining(['max-sm:right-3', 'max-sm:top-1/2', 'max-sm:size-10', 'max-sm:border-0', 'max-sm:bg-tint', 'max-sm:text-foreground', 'pc:hidden']))
       // The lanes' arrow below 640px, the rail's chevron above it.

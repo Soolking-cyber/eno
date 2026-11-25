@@ -234,6 +234,14 @@ describe('a phone never fetches the top copy, and a desktop preloads it ahead of
     const imgs = [...band.host.querySelectorAll('img')]
     expect(imgs.map((img) => [img.getAttribute('src'), img.getAttribute('loading')])).toEqual(logos().map((src) => [src, 'lazy']))
     expect(feedPreloads(spy)).toEqual(wantPreloads())
+    // ⛔ With `imageSizes`, so React keys it apart from the top copy's sm-up preload of the same srcset (else it is dropped).
+    // jsdom does not reproduce that dedupe; a real browser does (e2e/guest/home.spec.ts, the partner band).
+    const free = spy.mock.calls.filter(([, o]) => !(o as { media?: string }).media)
+    expect(free).toHaveLength(stripPartners().length)
+    expect(free.every(([, o]) => typeof (o as { imageSizes?: unknown }).imageSizes === 'string')).toBe(true)
+    // …which is harmless ONLY for x-descriptor srcsets (`sizes` then picks nothing): a `w` srcset would make the preload and the
+    // <img> choose different files, two downloads per logo.
+    for (const p of stripPartners()) expect(partnerLogoSrcSet(p), p.logo.src).toMatch(/^\S+ \d+(\.\d+)?x(, \S+ \d+(\.\d+)?x)*$/)
     await band.done()
   })
 
