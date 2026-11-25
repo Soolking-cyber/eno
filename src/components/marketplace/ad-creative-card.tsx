@@ -36,7 +36,7 @@ export function AdCreativeCard({ ad }: { ad: AdCreativeCardData }) {
         className="group rounded-media corner-round card-root focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <div className="plate-lg media-hairline aspect-square rounded-media corner-round card-media">
-          <Image src={ad.imageUrl} alt="" fill sizes="(min-width: 1280px) 300px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" className="object-cover card-img" />
+          <Image src={ad.imageUrl} alt={headline} fill sizes="(min-width: 1280px) 300px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw" className="object-cover card-img" />
         </div>
         <div className="flex min-w-0 flex-col gap-0.5 pt-2">
           <p className="line-clamp-2 text-t-card font-semibold text-foreground">{headline}</p>

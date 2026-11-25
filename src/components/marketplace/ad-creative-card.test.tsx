@@ -73,6 +73,13 @@ describe('AdCreativeCard', () => {
   })
 })
 
+describe('AdCreativeCard picture', () => {
+  it('carries the headline as its alt (never empty: site audits count an empty alt as missing)', () => {
+    const { container } = render(<AdCreativeCard ad={AD} />)
+    expect(container.querySelector('img')!.getAttribute('alt')).toBe('Fresh roasted coffee every morning')
+  })
+})
+
 describe('isAdCreativeCardData (the feed field, checked before anything draws it)', () => {
   it('https picture and link, short words — anything else is no card', () => {
     expect(isAdCreativeCardData(AD)).toBe(true)
