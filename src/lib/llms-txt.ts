@@ -120,10 +120,15 @@ const DEVELOPER_SECTION = `## For developers and agents
   (list_conversations, get_conversation, contact_seller, send_message, decline_offer) need messages:read or
   messages:write, which only a person's sign-in grants: an agent messages sellers, replies and makes or counters offers in
   that person's name, every message it sends shows as written by an AI assistant, and accepting an offer stays with the person.${!IS_SERVICES ? `
-- Paid ads, bought by an agent for its shop over x402 (USDC): get_ad_offer, promote_listing and list_ads on the MCP server,
-  or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). One of the shop's public listings is
-  shown first, labelled "Ad", in matching search and category results, the home feed and similar listings, for 1 hour up to
-  90 days at the weekly price pro rata; the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
+- Paid ads, bought by an agent for its shop over x402 (USDC): get_ad_offer, promote_listing, create_ad, list_ads and
+  get_ad_stats on the MCP server, or \`POST ${SITE_ORIGIN}/api/v1/ads\` (402 + PAYMENT-REQUIRED, then PAYMENT-SIGNATURE). Two
+  kinds: one of the shop's public listings shown first, labelled "Ad", in matching search and category results, the home
+  feed and similar listings, for 1 hour up to 90 days at the weekly price pro rata; or the shop's OWN ad (a square
+  picture, a headline in any language and its https page) in the feed card, labelled "Quảng cáo · Ad", for up to 168
+  hours — reviewed BEFORE any payment (scope ads:write): refused → 422 with reasons and nothing to pay. Ads for what
+  Vietnamese law forbids advertising are refused; the rules are in the
+  [advertising policy](${SITE_ORIGIN}/advertising-policy). An ad's figures (viewable impressions, clicks, CTR, reach,
+  spend) come from \`GET /api/v1/ads/{id}/stats\` and the public offer is at [${SITE_ORIGIN}/api/v1/ads/offer](${SITE_ORIGIN}/api/v1/ads/offer).` : ''}
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.
@@ -135,7 +140,7 @@ const DEVELOPER_SECTION = `## For developers and agents
   from one at ${SITE_ORIGIN}/api/v1/oauth/token (OAuth 2.0 client credentials); test keys never work there.
   An agent without a live key can read the spec, the OAuth metadata and the service status and use the
   sandbox, but cannot call anything that touches a shop.
-- Scopes: listings:read, listings:write, analytics:read, media:write. One key acts for one shop
+- Scopes: listings:read, listings:write, analytics:read, media:write, ads:write. One key acts for one shop
   and only ever sees that shop's data.
 - Keys are issued in the account dashboard, under Developers, to business accounts.`
 

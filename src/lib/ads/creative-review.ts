@@ -80,7 +80,9 @@ These apply because this is an ADVERTISEMENT (judge the PHOTO on its own: words 
 - ad_symbols: Vietnam's national flag or emblem, a portrait of a national leader, or a map of Vietnam`
 /** Gemini as this review uses it — the model, its threshold and the ad rules' own hash — so a change to any of them is a new
  *  review key (adReviewKey) and no verdict given under the old one is reused. */
-const GEMINI_REVIEW = `${GEMINI_MODEL}#${AD_MODERATION_THRESHOLD}:${crypto.createHash('sha256').update(AD_IMAGE_RULES).digest('hex').slice(0, 8)}`
+/** Bump with any change to what Gemini is shown besides the rules (the description's wording, the quoted landing text). */
+const GEMINI_PROMPT_VERSION = 'v2'
+const GEMINI_REVIEW = `${GEMINI_MODEL}#${AD_MODERATION_THRESHOLD}:${GEMINI_PROMPT_VERSION}:${crypto.createHash('sha256').update(AD_IMAGE_RULES).digest('hex').slice(0, 8)}`
 /** Gemini's whole call (the picture and the words). Past it the review is not judged: unavailable, never approved. */
 const GEMINI_DEADLINE_MS = 20_000
 const FETCH_TIMEOUT_MS = 8_000

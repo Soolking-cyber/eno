@@ -3,14 +3,33 @@
 import { useEffect } from 'react'
 
 /**
- * ── Counts paid ads seen and tapped (owner 2026-11-23, src/lib/ads). A card the feed served as an ad carries
- * `data-ad-id` (listing-card.tsx); this finds such cards wherever they are drawn and tells /api/ads/[id]/event:
- *   t=i  the card was at least half on screen for a second;  t=c  it was tapped.
- * Once per ad per kind per PAGE (the URL: a client navigation is a new page, the root layout is not), and the server
- * adds its own per-visitor limit and counts only while the ad runs. Starts when the browser is idle, renders nothing,
- * sends no cookie of its own and nothing but the ad id and the kind.
+ * ── Counts paid ads seen and clicked (owner 2026-11-23, src/lib/ads; to industry standard since 2026-11-25). A card the
+ * feed served as an ad carries `data-ad-id` (listing-card.tsx, ad-creative-card.tsx); this finds such cards wherever they
+ * are drawn and tells /api/ads/[id]/event:
+ *   t=i  a VIEWABLE impression (IAB/MRC display): at least half the card on screen for one continuous second;
+ *   t=c  a click — `click` or `auxclick` (a middle click opening it in a new tab).
+ * Once per ad per kind per PAGE (the URL: a client navigation is a new page, the root layout is not), with `s`, a random
+ * id this tab keeps in sessionStorage for its session: the server counts each (session, ad, kind) once per 30 minutes
+ * (src/lib/ads/stats.ts) — per session, not per IP, since one carrier NAT is thousands of phones. No storage, no id: the
+ * server falls back to the address. Starts when the browser is idle, renders nothing, sends no cookie of its own and
+ * nothing but the ad id, the kind and that id.
  */
 const SEEN_MS = 1000
+const SESSION_KEY = 'eno.adsid'
+
+/** This tab's session id for ad counting (sessionStorage): random, never linked to the account. Null when storage is off. */
+function sessionId(): string | null {
+  try {
+    const have = sessionStorage.getItem(SESSION_KEY)
+    if (have && /^[A-Za-z0-9_-]{16,64}$/.test(have)) return have
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    const id = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    sessionStorage.setItem(SESSION_KEY, id)
+    return id
+  } catch {
+    return null
+  }
+}
 
 export function AdBeacons() {
   useEffect(() => {
@@ -19,11 +38,12 @@ export function AdBeacons() {
     const observed = new WeakSet<Element>()
     const timers = new Map<Element, number>()
     const page = () => `${location.pathname}${location.search}`
+    const sid = sessionId()
     const send = (id: string, t: 'i' | 'c') => {
       const key = `${t}|${id}|${page()}`
       if (sent.has(key)) return
       sent.add(key)
-      try { navigator.sendBeacon(`/api/ads/${encodeURIComponent(id)}/event`, JSON.stringify({ t })) } catch { /* best effort */ }
+      try { navigator.sendBeacon(`/api/ads/${encodeURIComponent(id)}/event`, JSON.stringify(sid ? { t, s: sid } : { t })) } catch { /* best effort */ }
     }
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
@@ -51,6 +71,8 @@ export function AdBeacons() {
       pending = window.setTimeout(() => { pending = 0; scan() }, 400)
     })
     const onClick = (ev: MouseEvent) => {
+      // auxclick: only the middle button (a new tab); a right click opens a menu, not the ad.
+      if (ev.type === 'auxclick' && ev.button !== 1) return
       const card = (ev.target as Element | null)?.closest?.('[data-ad-id]') as HTMLElement | null
       if (card?.dataset.adId) send(card.dataset.adId, 'c')
     }
@@ -62,12 +84,14 @@ export function AdBeacons() {
       mo.observe(document.body, { childList: true, subtree: true })
     })
     document.addEventListener('click', onClick, true)
+    document.addEventListener('auxclick', onClick, true)
     return () => {
       if (started) mo.disconnect()
       io.disconnect()
       if (pending) clearTimeout(pending)
       timers.forEach((t) => clearTimeout(t))
       document.removeEventListener('click', onClick, true)
+      document.removeEventListener('auxclick', onClick, true)
     }
   }, [])
   return null

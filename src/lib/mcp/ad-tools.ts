@@ -5,6 +5,7 @@ import { MCP_META_PAYMENT, MCP_META_RESPONSE } from '@/lib/x402/wire'
 import { adOffer, adPaymentRequired, AD_POLICY_URL } from '@/lib/ads/offer'
 import { AD_CREATIVE_MAX_HOURS, bookAd, checkAdListing, shopAds } from '@/lib/ads/book'
 import { reviewCreative, type ReviewView } from '@/lib/ads/creative-review'
+import { shopAdFigures } from '@/lib/ads/stats'
 import { adView, bookFailureMessage, PENDING_MESSAGE } from '@/lib/ads/answer'
 import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type ToolAnnotations } from './tool-types'
 
@@ -15,7 +16,8 @@ import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type 
  *   promote_listing — buys a 7-day ad for one of the shop's listings over x402 (specs/transports-v2/mcp.md): the first
  *                     call answers PaymentRequired as an error result; the same call with params._meta["x402/payment"]
  *                     pays, and its result carries _meta["x402/payment-response"];
- *   list_ads       — the shop's ads with impressions, taps and the listing's views and contacts during each ad.
+ *   list_ads       — the shop's ads with impressions, taps and the listing's views and contacts during each ad;
+ *   get_ad_stats   — one ad's figures LIVE, to industry standard (src/lib/ads/stats.ts).
  * And since 2026-11-25 (owner: "enable any type of ads except the restricted ones by vietnamese law, jev should check
  * before they pay"): create_ad — the shop's OWN ad (a picture, a headline in any language, its https page) in the one
  * standard placement, the feed card, REVIEWED before any payment request (src/lib/ads/creative-review.ts): a refusal is
@@ -82,6 +84,37 @@ const REVIEW_OUT = z.strictObject({
 /** The review as create_ad states it (an unstored refusal has no creative and no date). */
 const reviewOut = (v: ReviewView): z.infer<typeof REVIEW_OUT> => ({ ...v, status: v.status === 'approved' ? 'approved' : v.status === 'removed' ? 'removed' : 'refused' })
 
+const n = (d: string) => z.number().describe(d)
+const FIGURES_OUT = z.strictObject({
+  ad_id: z.string().describe('The ad'),
+  listing_id: z.string().nullable().describe('The advertised listing; null for a creative ad'),
+  creative_id: z.string().nullable().describe('The creative it shows; null for a listing ad'),
+  status: AD_STATUS_ANY.describe('As in list_ads: "active" when paid'),
+  starts_at: z.string().nullable().describe('When it started or starts (ISO 8601)'),
+  ends_at: z.string().nullable().describe('When it ends or ended (ISO 8601)'),
+  totals: z.strictObject({
+    impressions: n('Viewable impressions: at least half the card on screen for one second, once per browser session per 30 minutes'),
+    clicks: n('Clicks and middle clicks on the card, once per browser session per 30 minutes'),
+    invalid: n('Invalid traffic left out of the figures: bots, prefetches, events outside the run, the per-address cap'),
+    ctr: z.number().nullable().describe('clicks ÷ impressions (0 to 1); null before any impression'),
+    reach: n('Browser sessions that saw it, each once per UTC day'),
+    frequency: z.number().nullable().describe('impressions ÷ reach; null before any reach'),
+    spend_usdc: z.string().describe('The price paid, pro rata to the part of the run that has elapsed, in USDC'),
+    paid_usdc: z.string().describe('The whole price paid, in USDC'),
+    ecpm_usdc: z.string().nullable().describe('Spend per 1,000 impressions, in USDC; null before any impression'),
+    ecpc_usdc: z.string().nullable().describe('Spend per click, in USDC; null before any click'),
+  }).describe('The whole run so far'),
+  hourly: z.array(z.strictObject({
+    hour_utc: z.string().describe('The hour, UTC (ISO 8601)'),
+    hour_ict: z.string().describe('The same hour in Vietnam, such as "2026-11-25 15:00 ICT"'),
+    impressions: n('Viewable impressions that hour'),
+    clicks: n('Clicks that hour'),
+    invalid: n('Invalid events that hour'),
+    reach_new: n('Sessions seen for the first time that UTC day, in that hour'),
+  })).describe('Hour by hour, oldest first; hours with no event are left out'),
+  updated_at: z.string().describe('When these figures were read (ISO 8601): live to the last few seconds'),
+})
+
 const OFFER_OUT = z.strictObject({
   available: z.boolean().describe('Whether ads are on sale now; when false, promote_listing refuses and the price fields are null'),
   price_usdc: z.string().nullable().describe('The price of one week (168 hours) in USDC, as a decimal string such as "3.76"; null when not on sale'),
@@ -119,7 +152,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'get_ad_offer',
     title: 'Get the ad offer',
-    description: 'Price an ad: a listing first in results (promote_listing) or your own feed-card ad (create_ad). `listingId` checks a listing; `hours` prices a length.\n\nReturns `price_usdc_for_hours`, `max_hours`, `creative_ads`, `listing`.',
+    description: 'Price an ad: a listing first in results (promote_listing) or your own feed-card ad (create_ad). `listingId` checks a listing; `hours` prices it.\n\nReturns `price_usdc_for_hours`, `creative_ads`, `listing`.',
     scope: 'listings:read',
     annotations: READ_ONLY,
     input: z.object({ listingId: LISTING_ID.optional(), hours: HOURS }),
@@ -161,7 +194,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'promote_listing',
     title: 'Buy an ad for a listing',
-    description: 'Buy an ad for one of this shop\'s live listings, paid in USDC over x402. The first call returns the payment request as an error result; sign it and call again with the same arguments and `_meta["x402/payment"]`.\n\nReturns `ad` and `message`.',
+    description: 'Buy an ad for one of this shop\'s live listings in USDC over x402: the first call returns the payment request as an error; call again with the same arguments and `_meta["x402/payment"]`.\n\nReturns `ad` and `message`.',
     scope: 'listings:write',
     annotations: PAID_WRITE,
     input: z.object({ listingId: LISTING_ID, hours: HOURS }),
@@ -201,7 +234,7 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'create_ad',
     title: 'Create your own ad',
-    description: 'Your own ad as the feed\'s first card, reviewed before payment: refused → `review` with reasons; approved → an x402 payment request; repeat the call with `_meta["x402/payment"]`.\n\nReturns `review`, `ad`, `message`.',
+    description: 'Your own ad as the feed\'s first card, reviewed before payment: refused → `review` with reasons; approved → an x402 payment request; repeat it with `_meta["x402/payment"]`.\n\nReturns `review`, `ad`, `message`.',
     scope: 'ads:write',
     annotations: PAID_WRITE,
     // ⚠️ The ad's fields are ONE object whose properties carry no prose of their own: every word here is paid for in the
@@ -261,9 +294,23 @@ export const AD_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'get_ad_stats',
+    title: 'Get ad figures',
+    description: 'One ad\'s live figures: impressions, clicks, CTR, reach, spend, eCPM, eCPC, hourly.\n\nReturns `totals` and `hourly`.',
+    scope: 'analytics:read',
+    annotations: READ_ONLY,
+    input: z.object({ adId: z.string().describe('From list_ads') }),
+    output: FIGURES_OUT,
+    handler: async (auth, args) => {
+      const f = await shopAdFigures(String(args.adId || '').trim(), auth.sellerId)
+      if (!f) throw new ToolError('not_found', 'Ad not found in this shop.')
+      return { ...f, status: asAdStatus(AD_STATUS_ANY, f.status) }
+    },
+  },
+  {
     name: 'list_ads',
     title: 'List this shop\'s ads',
-    description: 'List this shop\'s ads, newest first, with impressions and clicks; get_ad_stats has one ad\'s full figures.\n\nReturns `ads` (`id`, `listing_id`, `creative_id`, `status`, `impressions`, `clicks`).',
+    description: 'This shop\'s ads, newest first, with impressions and clicks.\n\nReturns `ads` (`id`, `listing_id`, `creative_id`, `status`, `impressions`, `clicks`).',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     input: z.object({}),

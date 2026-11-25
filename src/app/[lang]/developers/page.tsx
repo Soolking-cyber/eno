@@ -458,6 +458,35 @@ A2A-Version: 1.0
   "next_cursor": "eyJ…" | null }`}</Code>
           </Endpoint>
 
+          {/* ⛔ eno.vn only, like llms.txt's paragraph: the ad routes answer on both editions, but only eno.vn sells them. */}
+          {!IS_SERVICES && (
+            <>
+              <h3 className="pt-4 text-base font-semibold text-foreground">Ads (x402, USDC) — scopes: listings:write (a listing) / ads:write (your own ad) / analytics:read (figures)</h3>
+
+              <Endpoint method="GET" path="/ads/offer" desc="The public offer, no credential: the price (any whole number of hours, pro rata from the weekly price), the placements, the feed card's spec, what the review refuses, and the review → 402 → pay flow.">
+                <Code>{`curl ${BASE}/ads/offer`}</Code>
+              </Endpoint>
+
+              <Endpoint method="POST" path="/ads" desc="Your own ad in the feed card (the first card of the home feed, category and search results, labelled “Quảng cáo · Ad”), 1 to 168 hours. eno reviews it BEFORE any price is offered: refused → 422 with review.reasons (nothing to pay); approved → 402 with PAYMENT-REQUIRED and Eno-Ad-Creative-Id; repeat with PAYMENT-SIGNATURE to pay. A listing ad is the same call with {listingId, hours}.">
+                <Code>{`curl -X POST ${BASE}/ads \\
+  -H "Authorization: Bearer eno_live_…" -H "Content-Type: application/json" \\
+  -d '{"creative":{"advertiserName":"Saigon Bean","legalName":"Saigon Bean Co., Ltd",
+       "taxCode":"0312345678","headline":"Cà phê rang xay mỗi sáng",
+       "imageUrl":"https://your-cdn/ad.jpg","clickUrl":"https://your-site/"},"hours":24}'`}</Code>
+                <Code>{`422 { "error": { "code": "ad_refused" },
+      "review": { "status": "refused", "reasons": [ { "code", "en", "vi" } ] } }
+402 PAYMENT-REQUIRED: …   Eno-Ad-Creative-Id: cm…`}</Code>
+              </Endpoint>
+
+              <Endpoint method="GET" path="/ads/{id}/stats" desc="One ad's figures, live: viewable impressions (≥ 50 % on screen for 1 s), clicks, CTR, invalid traffic, reach, frequency, spend pro rata, eCPM, eCPC and the hourly series. Scope: analytics:read.">
+                <Code>{`curl ${BASE}/ads/AD_ID/stats -H "Authorization: Bearer eno_live_…"`}</Code>
+                <Code>{`{ "stats": { "totals": { "impressions", "clicks", "ctr", "reach",
+  "frequency", "spend_usdc", "ecpm_usdc", "ecpc_usdc", … },
+  "hourly": [ { "hour_utc", "hour_ict", "impressions", "clicks" }, … ] } }`}</Code>
+              </Endpoint>
+            </>
+          )}
+
           <h3 className="pt-4 text-base font-semibold text-foreground">Webhooks — scope: listings:write (register) / listings:read (list)</h3>
 
           <Endpoint method="POST" path="/webhooks" desc="Register an HTTPS endpoint to receive SIGNED listing events (listing.created / .updated / .status_changed / .deleted), or pass events:'*' for all. The signing secret is returned ONCE — store it. Up to 10 endpoints per shop. The url must be a public HTTPS address.">

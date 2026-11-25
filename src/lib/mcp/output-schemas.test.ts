@@ -115,6 +115,14 @@ vi.mock('@/lib/ads/creative-review', () => ({
   reviewCreative: async () => ({ kind: 'approved', creative: { id: 'cr1' }, view: REVIEW }),
   storedReview: async () => REVIEW,
 }))
+vi.mock('@/lib/ads/stats', () => ({
+  shopAdFigures: async () => ({
+    ad_id: 'ad1', listing_id: null, creative_id: 'cr1', status: 'active', starts_at: now.toISOString(), ends_at: now.toISOString(),
+    totals: { impressions: 10, clicks: 1, invalid: 2, ctr: 0.1, reach: 8, frequency: 1.25, spend_usdc: '0.1', paid_usdc: '0.2', ecpm_usdc: '10', ecpc_usdc: '0.1' },
+    hourly: [{ hour_utc: now.toISOString(), hour_ict: '2026-11-13 07:00 ICT', impressions: 10, clicks: 1, invalid: 2, reach_new: 8 }],
+    updated_at: now.toISOString(),
+  }),
+}))
 vi.mock('@/lib/ads/book', () => ({
   AD_CREATIVE_MAX_HOURS: 168,
   checkAdCreative: async () => ({ ok: true, creative: { id: 'cr1', contentHash: 'h' } }),
@@ -154,6 +162,7 @@ const ARGS: Record<string, Row> = {
   promote_listing: { listingId: 'l1', hours: 1 },
   create_ad: { creative: { advertiserName: 'Bean', legalName: 'Bean Co', taxCode: '0312345678', headline: 'Fresh coffee', imageUrl: 'https://cdn.example/a.jpg', clickUrl: 'https://bean.vn' }, hours: 24 },
   list_ads: {},
+  get_ad_stats: { adId: 'ad1' },
 }
 
 describe('every MCP tool answers in the shape its outputSchema declares', () => {

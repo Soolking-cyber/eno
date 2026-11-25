@@ -332,7 +332,7 @@ describe('the verdict: the calibration samples through the review (Jev mocked to
       landingHost: 'shop.example.com', reasons: [],
     })
     // The review key names both judges with their thresholds, and the calibration (provisional here).
-    expect(h.creatives[0]!.reviewModel).toMatch(/^jev-1\.14\.0\+gemini-4-hydrogen#0\.5:[0-9a-f]{8}@provisional:t0\.5\/0\.6\/0\.5:q[0-9a-f]{8}$/)
+    expect(h.creatives[0]!.reviewModel).toMatch(/^jev-1\.14\.0\+gemini-4-hydrogen#0\.5:v2:[0-9a-f]{8}@provisional:t0\.5\/0\.6\/0\.5:q[0-9a-f]{8}$/)
     expect(h.creatives[0]!.scores.permitClasses).toEqual([])
     expect(h.warmed).toEqual([[FIELDS.headline, FIELDS.body]])
     expect(review.sourceLangOf('요가 첫 수업 무료')).toBe('ko')

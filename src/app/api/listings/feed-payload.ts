@@ -405,7 +405,7 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
         null,
       )
     : null
-  const [organicListings, related, ad] = await Promise.all([
+  const [organicListings, related, pick] = await Promise.all([
     // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
     // key varies with the payload — the cookie-read variant poisoned the shared edge
     // entry with whichever language hit first (audit P2).
@@ -414,10 +414,14 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
       searchParams.get('lang') || undefined,
     ),
     relatedPromise,
-    // ⛔ A PAID AD matches `feedWhere`, this request's own final filter (src/lib/ads/serve.ts) — first page only.
-    opts.ads && adEligibleRequest(searchParams, offset, false) ? pickAd(feedWhere, searchParams.get('lang') || undefined, now) : Promise.resolve(null),
+    // ⛔ A PAID AD matches `feedWhere`, this request's own final filter (src/lib/ads/serve.ts) — first page only. A creative
+    // ad (any advertiser's, 2026-11-25) is a candidate only when the request opts in with `adc=1` (the explorer, which
+    // draws it as one card before the grid): every other reader of this payload gets listing ads only, as before.
+    opts.ads && adEligibleRequest(searchParams, offset, false)
+      ? pickAd(feedWhere, searchParams.get('lang') || undefined, now, { creatives: searchParams.get('adc') === '1' })
+      : Promise.resolve({ listing: null, creative: null }),
   ])
-  const answerListings = withAd(organicListings, ad)
+  const answerListings = withAd(organicListings, pick.listing)
 
   return {
     body: {
@@ -440,13 +444,18 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
       inferredDistrict,
       // Only when there is one: an absent key is "no related rail", the explorer's Trending fallback.
       ...(related ? { related } : {}),
+      // A creative ad (src/lib/ads/creative-card.ts): its OWN field, never a row of `listings` — dedupe, map pins, onOpen
+      // and the list rows all read that array. Absent when none was picked.
+      ...(pick.creative ? { adCreative: pick.creative } : {}),
     },
     // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
     // stale-while-revalidate serves the cached feed instantly from the VN edge
     // while it refreshes behind the scenes, so cache-hits never touch Cloud Run.
     // ⚠️ EXCEPT an app's keyword-only answer to a search a browser would have had ranked by Vertex (`aiSkipped`,
     // App Store gate `app-ai-notice`): the edge keys on the URL alone, so caching it would hand that answer to browsers.
-    cacheControl: aiSkipped ? 'private, no-store' : 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
+    // ⛔ …AND A PAYLOAD THAT CARRIES A CREATIVE AD IS KEPT 45 s AT THE EDGE, WITH NO STALE PERIOD: with the 15 s ad set
+    // (serve.ts) an ad eno removes stops showing within a minute.
+    cacheControl: aiSkipped ? 'private, no-store' : pick.creative ? 'public, max-age=15, s-maxage=45' : 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
     histogram: false,
   }
 }

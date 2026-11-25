@@ -1076,6 +1076,29 @@ export const SPEC = {
           reviewed_at: { type: ['string', 'null'], format: 'date-time' },
         },
       },
+      AdFigures: {
+        type: 'object',
+        description: 'One ad\'s figures, live (counted in memory and written every 10 s; this answer includes what was not written yet). Industry standard: an impression is VIEWABLE (≥ 50 % of the card on screen for ≥ 1 s); clicks include middle clicks; each is counted once per browser session per ad per 30 minutes; invalid traffic (bots, prefetches, events outside the run, the per-address cap) is counted apart, never as valid.',
+        required: ['ad_id', 'listing_id', 'creative_id', 'status', 'starts_at', 'ends_at', 'totals', 'hourly', 'updated_at'],
+        properties: {
+          ad_id: { type: 'string' }, listing_id: { type: ['string', 'null'] }, creative_id: { type: ['string', 'null'] }, status: { type: 'string' },
+          starts_at: { type: ['string', 'null'], format: 'date-time' }, ends_at: { type: ['string', 'null'], format: 'date-time' },
+          totals: {
+            type: 'object',
+            required: ['impressions', 'clicks', 'invalid', 'ctr', 'reach', 'frequency', 'spend_usdc', 'paid_usdc', 'ecpm_usdc', 'ecpc_usdc'],
+            properties: {
+              impressions: { type: 'integer' }, clicks: { type: 'integer' }, invalid: { type: 'integer' },
+              ctr: { type: ['number', 'null'], description: 'clicks ÷ impressions, 0 to 1.' },
+              reach: { type: 'integer', description: 'Browser sessions that saw it, each once per UTC day, summed over its days.' },
+              frequency: { type: ['number', 'null'], description: 'impressions ÷ reach.' },
+              spend_usdc: { type: 'string', description: 'The price paid pro rata to the part of the run that has elapsed.' },
+              paid_usdc: { type: 'string' }, ecpm_usdc: { type: ['string', 'null'] }, ecpc_usdc: { type: ['string', 'null'] },
+            },
+          },
+          hourly: { type: 'array', items: { type: 'object', required: ['hour_utc', 'hour_ict', 'impressions', 'clicks', 'invalid', 'reach_new'], properties: { hour_utc: { type: 'string', format: 'date-time' }, hour_ict: { type: 'string', example: '2026-11-25 15:00 ICT' }, impressions: { type: 'integer' }, clicks: { type: 'integer' }, invalid: { type: 'integer' }, reach_new: { type: 'integer' } } } },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
       AdStats: {
         type: 'object',
         required: ['id', 'listing_id', 'creative_id', 'status', 'hours', 'starts_at', 'ends_at', 'impressions', 'clicks', 'listing_views', 'listing_contacts', 'amount_usdc_atomic', 'network', 'tx_hash'],
@@ -1753,7 +1776,7 @@ export const SPEC = {
           '402': { description: 'Payment required, or the payment was refused (nothing charged): `PAYMENT-REQUIRED` says what to pay, and `error` why the last one failed. For a creative, only once it is approved; `Eno-Ad-Creative-Id` names it.' },
           '422': { description: 'The creative did not pass the review; nothing to pay. `error.code` is `ad_refused`.', content: { 'application/json': { schema: { type: 'object', required: ['error', 'review'], properties: { error: schemaRef('Error'), review: schemaRef('AdReview') } } } } },
           ...authFailures(),
-          '400': fail('No `listingId`.', ['invalid_input']),
+          '400': fail('No target, more than one (`listingId`, `creative`, `creativeId`), or `hours` out of range.', ['invalid_input']),
           '404': fail('Not a listing of this shop.', ['not_found']),
           '409': fail('This payment was already used for another ad, or the creative was refused or removed.', ['payment_already_used', 'creative_refused', 'creative_removed', 'creative_review_stale', 'payment_under_review']),
           '503': fail('Ads are not on sale, the payment service did not answer, or the creative review could not run (nothing charged).', ['ads_unavailable', 'payment_unavailable', 'review_unavailable']),
@@ -1767,6 +1790,22 @@ export const SPEC = {
         responses: {
           '200': ok('Your ads.', { type: 'object', required: ['ads'], properties: { ads: { type: 'array', items: schemaRef('AdStats') } } }),
           ...authFailures(),
+        },
+      },
+    },
+    '/ads/{id}/stats': {
+      get: {
+        operationId: 'getAdStats',
+        summary: 'One ad\'s figures, live',
+        description: 'Viewable impressions, clicks, CTR, invalid traffic, reach, frequency, spend pro rata, eCPM, eCPC and the hourly series (UTC, with the hour in Vietnam). Your own ads only; never cached.',
+        security: requires('analytics:read'),
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'The ad id (POST /ads, GET /ads).' }],
+        responses: {
+          '200': ok('The figures.', { type: 'object', required: ['stats'], properties: { stats: schemaRef('AdFigures') } }),
+          ...authFailures(),
+          '404': fail('Not an ad of this shop.', ['not_found']),
+          '500': fail('Unexpected error.', ['internal']),
+          '503': fail('Before the ads tables exist.', ['ads_unavailable']),
         },
       },
     },

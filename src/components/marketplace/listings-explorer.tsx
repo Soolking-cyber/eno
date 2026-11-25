@@ -27,6 +27,8 @@ import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { CategoryTileGlyph } from './category-art'
 import { ListingCard } from './listing-card'
+import { AdCreativeCard } from './ad-creative-card'
+import { isAdCreativeCardData, type AdCreativeCardData } from '@/lib/ads/creative-card'
 import { CompactListingRowSkeleton, COMPACT_LIST_GRID, JOB_ROWS_RULED } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
 import { useIsPhone } from '@/hooks/use-is-phone'
@@ -1208,6 +1210,12 @@ export function ListingsExplorer({
   // that visitor got before this line existed. The count never disagrees with the cards beside it.
   const [totalCount, setTotalCount] = useState(startedOffSeed ? 0 : (initialTotal ?? 0))
   /**
+   * ⛔ A CREATIVE AD (owner 2026-11-25, src/lib/ads/creative-card.ts): page 1's `adCreative`, kept with page 1's rows (set in
+   * the sync effect's page-1 branch, so a later page — which carries none — never takes it away). It is its OWN field and
+   * NEVER joins `listings`: the id dedupe, the map pins, onOpen and the list rows all read that array.
+   */
+  const [adCreative, setAdCreative] = useState<AdCreativeCardData | null>(null)
+  /**
    * What the grid and list views actually render — see `restoring`. ⚠️ AND NEVER AN EMPTY DEFERRED COPY
    * BESIDE ROWS: going from no rows (a zero-result answer, a skeleton-first mount) to some, the urgent
    * render hands `useDeferredValue` the old `[]`, and the grid rendered EMPTY for that render — no cards
@@ -1284,6 +1292,15 @@ export function ListingsExplorer({
   const teacherCells = activeCategory === TEACHERS_CATEGORY_SLUG
   /** The presentation on screen: `viewMode`, except that Jobs on a phone draws its default as the list. */
   const shownView: ViewMode = jobsRows ? 'compact' : viewMode
+  /**
+   * The creative ad draws as ONE card before the grid's rows: the grid view of the marketplace only (never a storefront, the
+   * map, the list or the video view), above rows that exist. ⛔ THE FIRST PAGE STAYS TWELVE CELLS WHEN IT DRAWS (E-ORPHAN,
+   * the guest row's note below): the full-width rows that follow page one (the teacher shelf, the guest capture row) then
+   * come after the ELEVENTH listing, so the ad and eleven cards fill the three rows of four, two rows of six… and the
+   * twelfth card starts the next row, exactly as a listing ad's page-one card already does.
+   */
+  const showAdCreative = shownView === 'grid' && !sellerId && !!adCreative && drawnRows.length > 0
+  const shelfAfter = showAdCreative ? FIRST_PAGE_SIZE - 2 : FIRST_PAGE_SIZE - 1
   /**
    * ⛔ THE RENTALS FEED IS ONE COLUMN OF LARGE SQUARE CARDS ON A PHONE (owner-approved 2026-11-14, cook r06 rentals-a: "after this
    * cook round build all best options and deploy"; listing-grid.ts LISTING_GRID_WIDE). The grid view of `?category=rentals`
@@ -2765,6 +2782,9 @@ export function ListingsExplorer({
       // A worded feed opts in to the zero-result spelling correction on EVERY page (see `literalFor`):
       // the route repeats its decision per page, so page 2 of "iphnoe" is page 2 of "iphone".
       if (spellOn) params.set('spell', '1')
+      // This client draws a creative ad (AdCreativeCard): the feed may pick one for page 1 (src/lib/ads/serve.ts). On every
+      // page, so every page of one result set shares one shape of URL; the server reads it on page 1 only.
+      params.set('adc', '1')
         /**
          * Drill-in to one BUILDING. Applied server-side by `buildFeedFilters`, the same builder
          * /api/listings/buildings uses for its counts — so the pin that says 157 and the list it
@@ -3540,6 +3560,9 @@ export function ListingsExplorer({
         // the length of the request. Leave the rows (dimmed by `queryShowingStaleSet`) and the
         // count as they are until the page-1 answer lands.
         if ((listingsData.offset ?? 0) > 0) return
+        // Page 1's creative ad goes with page 1's rows (the seed and any answer without one: none).
+        const creative = (listingsData as { adCreative?: unknown }).adCreative
+        setAdCreative(isAdCreativeCardData(creative) ? creative : null)
         // Mid-restore the snapshot already holds more rows than a fresh page 1 — keep it
         // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them). Only for
         // the SAME feed: a page 1 of other filters replaces, restore or not.
@@ -6077,6 +6100,8 @@ export function ListingsExplorer({
                 /* ⛔ Every phone grid runs EDGE TO EDGE since 2026-11-24 (hub round 16 Q27; listing-grid.ts): it bleeds the whole 12px
                    gutter, so its full-width rows pad back by 12 (8 before; the wide rentals grid had no bleed, 0). */
                 <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', rentalsWide ? LISTING_GRID_WIDE : LISTING_GRID, rentalsWide ? 'max-sm:[&>.col-span-full]:px-3' : (goodsGrid || sellerId) ? 'max-sm:[&>.col-span-full:not([data-capture-panel])]:px-3' : 'max-sm:[&>.col-span-full]:px-3', goodsGrid && 'max-sm:gap-y-10')}>
+                  {/* The creative ad: one sibling BEFORE the rows, never one of them (see `showAdCreative`). */}
+                  {showAdCreative && <AdCreativeCard ad={adCreative!} />}
                   {drawnRows.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
@@ -6178,14 +6203,14 @@ export function ListingsExplorer({
                           ⛔ NEVER ABOVE THE FILTER STRIP: it led the page for one night (2026-10-28) and the owner sent it
                           back here — "why this is above the filter put it below where it belongs under recommended",
                           "under rentals" (2026-10-29). */}
-                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
+                      {index === shelfAfter && showTeacherShelf && (
                         <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} look="lane" />
                       )}
                       {/* `tight` on the rentals feed's phone (owner-approved 2026-11-14, cook r06 rentals-a): one line, the house button.
                           `panel` on the goods grid's phone (owner-approved 2026-11-15 (build 7), cook r07 goods): one field panel. */}
                       {/* ⛔ …and on a storefront's phone (UI climb r12, cook store-r12c S6): the approved calm row of /?category=electronics,
                           in place of the stacked card with its three bullets and two hairlines between a shop's own cards. */}
-                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}
+                      {index === shelfAfter && <CaptureCard jobs={jobsOnScreen} tight={rentalsWide} panel={goodsGrid || !!sellerId} />}
                       {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
                           1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
                           "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
@@ -6196,7 +6221,7 @@ export function ListingsExplorer({
                           the capture row, not before it, so `[data-teacher-shelf] + …` still lands on that row — signed
                           in, on this heading, where `border-top-width: 0` changes nothing. Never in the server HTML: the
                           seed is exactly one page. */}
-                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && index < drawnRows.length - 1 && (
+                      {index === shelfAfter && showTeacherShelf && index < drawnRows.length - 1 && (
                         <h2 className="sr-only">{homeFeedHeading}</h2>
                       )}
                     </Fragment>
