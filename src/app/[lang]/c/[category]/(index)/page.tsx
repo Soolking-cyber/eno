@@ -280,8 +280,8 @@ export default async function CategoryPage({ params }: Props) {
   // The page's own category is not a chip, so on /c/rentals Find a teacher is the third chip, not the fourth.
   const otherCats = leadFirst(otherCatRows).map((c) => ({ ...c, ...categoryEntryLabel(c) }))
   // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
-  // ⚡ PAYLOAD (speed plan item 8): /vi embeds no titleI18n (vi renders from titleVi); /en keeps all 9 MT
-  // title variants for the client-side language swap. Same slim as the home + district ISR feeds.
+  // ⚡ PAYLOAD (speed plan item 8): /vi embeds no titleI18n (vi renders from titleVi); /en embeds only `en`
+  // (translate.ts PAGE_EMBED_LANGS, owner 2026-11-25); MT readers translate client-side. Same as the home + district feeds.
   const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard), lang === 'vi' ? 'vi' : undefined)
   /**
    * ⛔ /c/teachers: EVERY LIVE PROFILE THE GRID DOES NOT SHOW, AS A PLAIN LINK UNDER IT (SEO plan §3(a) item 12;

@@ -142,7 +142,7 @@ export async function homeCategoryRails(
   // ONE translation lookup for every rail's titles (was one query per rail).
   // ⛔ THE READER'S LANGUAGE IS THE CALLER'S, NEVER THE COOKIE: the route reads it from its URL (its answer is
   // `public, s-maxage`, so a cookie-read variant would poison the shared entry — audit P2), and the home page passes the
-  // ISR entry's own (`vi` → no titleI18n at all, like the feed seed; `en` → every MT language, swapped on the client).
+  // ISR entry's own (`vi` → no titleI18n at all, like the feed seed; `en` → only `en`, PAGE_EMBED_LANGS; MT readers translate client-side).
   const present = rails.filter((r): r is NonNullable<typeof rails[number]> => !!r)
   const localizedFlat = await localizeListingTitles(present.flatMap((r) => r.listings), onlyTitleLang)
   let cursor = 0

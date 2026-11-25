@@ -142,8 +142,8 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
 
     // ⚡ PAYLOAD (speed plan item 8): on the /vi ISR entry embed NO titleI18n — a vi reader renders from
     // the row's titleVi, never titleI18n, so the 9 MT title variants are dead weight (and passing 'vi' also
-    // skips the translation query). /en keeps all 9: the 9 MT UI languages are served the /en variant and
-    // swap titles client-side. (generateStaticParams prerenders en + vi as separate entries.)
+    // skips the translation query). /en embeds only `en` (translate.ts PAGE_EMBED_LANGS, owner 2026-11-25): the 9 MT UI
+    // languages are served the /en variant and translate titles client-side. (generateStaticParams prerenders en + vi.)
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard), onlyTitleLang)
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending, teachers, categoryRails }

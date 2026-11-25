@@ -819,12 +819,13 @@ export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WA
  * client renders the visitor's language SYNCHRONOUSLY — no flash, no per-request translate,
  * and no per-language cache variants (the page stays a single ISR entry). One indexed read.
  */
-export async function cachedTranslations(texts: string[]): Promise<Record<string, Record<string, string>>> {
+export async function cachedTranslations(texts: string[], opts: { langs?: readonly string[] } = {}): Promise<Record<string, Record<string, string>>> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   if (clean.length === 0) return {}
   const byHashSource = new Map(clean.map((t) => [hash(t), t]))
   const rows = await db.translation.findMany({
-    where: { hash: { in: [...byHashSource.keys()] } },
+    // `langs`: only these targets (PAGE_EMBED_LANGS on a page render — the rest are not read, let alone shipped).
+    where: { hash: { in: [...byHashSource.keys()] }, ...(opts.langs ? { target: { in: [...opts.langs] } } : {}) },
     select: { hash: true, target: true, value: true },
   }).catch(() => [])
   const out: Record<string, Record<string, string>> = {}
@@ -838,6 +839,7 @@ export async function cachedTranslations(texts: string[]): Promise<Record<string
   // renders them with no client translation at all.
   for (const src of clean) {
     for (const l of ['en', 'vi'] as const) {
+      if (opts.langs && !opts.langs.includes(l)) continue
       const spelled = spelledPlace(src, l)
       if (spelled != null) (out[src] ||= {})[l] = spelled
     }
@@ -846,12 +848,18 @@ export async function cachedTranslations(texts: string[]): Promise<Record<string
 }
 
 /**
- * Attach `titleI18n` (pre-warmed title translations) to a list of cards so they render in the
- * visitor's language with no client fetch/flash. `onlyLang` (from the request's `lang` cookie)
- * embeds JUST that language to keep the hot feed payload tiny; omit it on ISR/SSR pages
- * (language-neutral) to embed every language. `vi` is never embedded: `titleVi` or the source covers it.
- * ⛔ `en` IS EMBEDDED FOR A TITLE NOT WRITTEN IN ENGLISH (Seobility, 2026-11-25: "4 text blocks invisible to AI bots"
- * on /). The rule here was "the source title covers English", which holds only for an English source: a seller's
+ * The languages a PAGE embeds: the two it renders on the server. ⛔ NOT THE NINE MACHINE-TRANSLATED ONES (owner, 2026-11-25,
+ * "1 yes": page weight for Seobility's 500 KB limit). They rode in every page for the few readers who switch to them — a
+ * long rental description ×11 was ~80 KB of a 486 KB listing page, the card titles ~40 KB of a category page. Those readers
+ * get theirs from the client path (useLocalized → useTr), a moment after the page draws, from the same cache.
+ */
+export const PAGE_EMBED_LANGS = ['en', 'vi'] as const
+
+/**
+ * Attach `titleI18n` (pre-warmed title translations) to a list of cards so they render in the reader's language with no
+ * client fetch. `onlyLang` (an API answer for one reader: the `lang` param or cookie) embeds just that language. Without it
+ * (a page render) only `en` is embedded (PAGE_EMBED_LANGS: `vi` is covered by `titleVi` or the source).
+ * ⛔ `en` FOR A TITLE NOT WRITTEN IN ENGLISH (Seobility, 2026-11-25: "4 text blocks invisible to AI bots" on /): a seller's
  * "Căn Hộ 1 Phòng Ngủ Ngay Landmark 81" reached the English page's HTML in Vietnamese and turned English in the browser
  * (listing-content.tsx useMachineEn), so a crawler that runs no script read Vietnamese where a reader read English.
  * The card's own test decides it (detect-lang titleShownTranslatedInEnglish, shared with listing-content.tsx localizedPlan).
@@ -861,17 +869,14 @@ export async function localizeListingTitles<T extends { title: string; titleVi?:
   onlyLang?: string,
 ): Promise<(T & { titleI18n?: Record<string, string> })[]> {
   if (!listings.length || onlyLang === 'vi') return listings
+  const lang = onlyLang ?? 'en'
   const takesEn = (l: T) => titleShownTranslatedInEnglish(l.title, l.titleVi)
-  const asked = onlyLang === 'en' ? listings.filter(takesEn) : listings
+  const asked = lang === 'en' ? listings.filter(takesEn) : listings
   if (!asked.length) return listings
-  const map = await cachedTranslations(asked.map((l) => l.title))
+  const map = await cachedTranslations(asked.map((l) => l.title), { langs: [lang] })
   return listings.map((l) => {
-    const m = map[l.title]
-    if (!m) return l
-    const en = takesEn(l)
-    const rest: Record<string, string> = {}
-    if (onlyLang) { if (m[onlyLang] && (onlyLang !== 'en' || en)) rest[onlyLang] = m[onlyLang] }
-    else for (const k in m) { if (k !== 'vi' && (k !== 'en' || en)) rest[k] = m[k] }
-    return Object.keys(rest).length ? { ...l, titleI18n: rest } : l
+    const value = map[l.title]?.[lang]
+    if (!value || (lang === 'en' && !takesEn(l))) return l
+    return { ...l, titleI18n: { [lang]: value } }
   })
 }

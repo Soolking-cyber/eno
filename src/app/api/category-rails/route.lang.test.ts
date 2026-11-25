@@ -6,7 +6,9 @@ import { LANGS } from '@/lib/i18n/langs'
  *
  * Measured 2026-11-10: every card carried `titleI18n` in nine machine-translated languages (30% of the raw answer), to a
  * reader who needs one, or none. The language comes from the URL, never a cookie: the answer is publicly cached.
- * ⚠️ WITHOUT `lang` THE ANSWER IS UNCHANGED (every language): a page loaded before the client sent it still asks that way.
+ * ⚠️ WITHOUT `lang` THE ANSWER IS THE PAGE'S EMBED (owner, 2026-11-25, translate.ts PAGE_EMBED_LANGS): `en` for a title not
+ * written in English and no machine-translated language (it was every language until then). A page loaded before the client
+ * sent `lang` asks that way; its machine-translated reader translates client-side, as every page's reader now does.
  *
  * The real translator (`localizeListingTitles`) runs here, over a mocked translation cache, so these are the bytes a reader gets.
  * ⚠️ DATA SAFETY — the database and the edition scope are mocked by name.
@@ -75,18 +77,19 @@ describe('GET /api/category-rails — the reader’s language', () => {
     expect(h.translationReads).toBe(1)
   })
 
-  it('no lang: every machine-translated language, as before (a page loaded before the client sent it)', async () => {
+  it('no lang: no machine-translated language (owner 2026-11-25) — these English titles carry nothing and cost no read', async () => {
     for (const query of ['', '?lang=']) {
+      h.translationReads = 0
       const all = await cards(query)
       expect(all).toHaveLength(16)
-      for (const c of all) expect(Object.keys(c.titleI18n ?? {}).sort()).toEqual([...MT].sort())
+      for (const c of all) for (const mt of MT) expect(c.titleI18n?.[mt], mt).toBeUndefined()
+      expect(h.translationReads).toBe(0)
     }
   })
 
-  it('the same titles reach a Korean reader either way', async () => {
-    const everything = await cards('')
-    const korean = await cards('?lang=ko')
-    expect(korean.map((c) => c.titleI18n?.ko)).toEqual(everything.map((c) => c.titleI18n?.ko))
+  it('a Korean reader gets Korean titles by asking with lang=ko; without it, the client translates them', async () => {
+    for (const c of await cards('?lang=ko')) expect(c.titleI18n?.ko).toBeTruthy()
+    for (const c of await cards('')) expect(c.titleI18n?.ko).toBeUndefined()
   })
 })
 
@@ -106,12 +109,13 @@ async function answer(query: string): Promise<{ status: number; cache: string | 
 describe('GET /api/category-rails — lang is one of the site’s codes, or it is no lang', () => {
   it.each([
     ['xx'], ['ko-KR'], ['zh'], ['english'], ['constructor'], ['__proto__'], ['toString'], [' '], ['en-GB'], ['k'.repeat(40)],
-  ])('lang=%j answers exactly like no lang (the every-language answer)', async (lang) => {
+  ])('lang=%j answers exactly like no lang', async (lang) => {
     const none = await answer('')
     const made = await answer(`?lang=${encodeURIComponent(lang)}`)
     expect(made).toEqual(none)
     expect(none.status).toBe(200)
-    expect(none.reads).toBe(1)
+    // English titles: the no-lang answer reads nothing (only a non-English title's `en` is embedded, PAGE_EMBED_LANGS).
+    expect(none.reads).toBe(0)
   })
 
   it('an empty lang answers exactly like no lang', async () => {

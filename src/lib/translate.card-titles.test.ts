@@ -16,10 +16,11 @@ const sha1 = (t: string) => crypto.createHash('sha1').update(t).digest('hex')
 vi.mock('./db', () => ({
   db: {
     translation: {
-      findMany: async (args: { where?: { hash?: { in?: string[] } } }) => {
+      findMany: async (args: { where?: { hash?: { in?: string[] }; target?: { in?: string[] } } }) => {
         state.reads++
         const hashes = args?.where?.hash?.in ?? []
-        return state.rows.filter((r) => hashes.includes(r.hash))
+        const targets = args?.where?.target?.in
+        return state.rows.filter((r) => hashes.includes(r.hash) && (!targets || targets.includes(r.target)))
       },
     },
   },
@@ -54,11 +55,17 @@ const cards = () => [
 ]
 
 describe('localizeListingTitles embeds English for a title not written in English', () => {
-  it('every-language entry (/en ISR): en beside the others for the Vietnamese title; never vi; none for an English one', async () => {
+  it('a page render (/en ISR): only en, for the Vietnamese title — no machine-translated language (owner 2026-11-25), never vi', async () => {
     const [a, b, c] = await localizeListingTitles(cards())
-    expect(a.titleI18n).toEqual({ en: EN_OF_VI, ko: '랜드마크 81 원룸' })
-    expect(b.titleI18n).toEqual({ ko: '방 1개 아파트' })
+    expect(a.titleI18n).toEqual({ en: EN_OF_VI })
+    expect(b.titleI18n).toBeUndefined()
     expect(c.titleI18n).toBeUndefined()
+  })
+
+  it('an API answer for one machine-translated reader (onlyLang ko): that language, for every title', async () => {
+    const [a, b] = await localizeListingTitles(cards(), 'ko')
+    expect(a.titleI18n).toEqual({ ko: '랜드마크 81 원룸' })
+    expect(b.titleI18n).toEqual({ ko: '방 1개 아파트' })
   })
 
   it('onlyLang en (a feed for an English reader): just the en of the Vietnamese title, one read', async () => {

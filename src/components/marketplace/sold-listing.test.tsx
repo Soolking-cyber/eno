@@ -134,9 +134,13 @@ describe('SoldListing', () => {
     const t = container.querySelector('[data-localized-title]') as HTMLElement
     expect(t.dataset.vi).toBe('Xe đạp đua')
     expect(JSON.parse(t.dataset.i18n!)).toEqual({ ko: '로드 바이크' })
-    // …which the page fetches beside the seller's other stock, as the live PDP embeds them.
+    // …which the page fetches beside the seller's other stock, as the live PDP embeds them — English and Vietnamese only since
+    // 2026-11-25 (translate.ts PAGE_EMBED_LANGS, owner): a machine-translated reader's title comes from the client path.
     const PAGE = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'), 'utf8')
-    expect(PAGE).toContain('cachedTranslations([sold.title]),')
+    expect(PAGE).toContain('cachedTranslations([sold.title], { langs: PAGE_EMBED_LANGS }),')
+    // The listing's own text and the gone page too: without `langs` the ~80 KB nine-language description comes back.
+    expect(PAGE).toContain('cachedTranslations([listing.title, listing.description, listing.location], { langs: PAGE_EMBED_LANGS }),')
+    expect(PAGE).toContain('cachedTranslations([gone.title], { langs: PAGE_EMBED_LANGS }),')
     expect(PAGE).toContain('titleI18n={soldI18n[sold.title] ?? null}')
   })
 

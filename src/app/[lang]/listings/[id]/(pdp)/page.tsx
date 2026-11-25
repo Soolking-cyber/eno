@@ -62,7 +62,7 @@ import { conditionChoice } from '@/lib/listing-condition'
 import { LocalizedTitle, LocalizedTitleHeading, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
-import { cachedTranslations } from '@/lib/translate'
+import { cachedTranslations, PAGE_EMBED_LANGS } from '@/lib/translate'
 import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
 import { cn } from '@/lib/utils'
 import { pdpSafetyNoteKind } from '@/lib/pdp-safety-note'
@@ -410,7 +410,7 @@ export default async function ListingPage({ params }: Props) {
       const gone = goneListingView(rawListing)
       const [brand, goneI18n] = await Promise.all([
         gone.brandSlug ? db.brand.findUnique({ where: { slug: gone.brandSlug }, select: { name: true } }) : Promise.resolve(null),
-        cachedTranslations([gone.title]),
+        cachedTranslations([gone.title], { langs: PAGE_EMBED_LANGS }),
       ])
       return <GoneListing listing={gone} searchQuery={goneSearchQuery(gone, brand?.name ?? null, pageVariant)} lang={pageVariant} titleI18n={goneI18n[gone.title] ?? null} />
     }
@@ -425,7 +425,7 @@ export default async function ListingPage({ params }: Props) {
     // the reader's language in the server HTML (A10-SOLD), not machine-translated after paint.
     const [moreFromSeller, soldI18n] = await Promise.all([
       sameSellerListings(sold.sellerId, sold.id, 10),
-      cachedTranslations([sold.title]),
+      cachedTranslations([sold.title], { langs: PAGE_EMBED_LANGS }),
     ])
     return (
       <SoldListing
@@ -620,7 +620,8 @@ export default async function ListingPage({ params }: Props) {
   // responsiveness bucket (Seller.responseRate defaults to 100 and lies without it).
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000
   const [i18n, brand, ownerEnforcement, reviewsPreview, moreFromSeller, convoCount90, priceBand, partnerListingCount, modelSlug, areaRent, brandCategory] = await Promise.all([
-    cachedTranslations([listing.title, listing.description, listing.location]),
+    // English and Vietnamese only (PAGE_EMBED_LANGS, owner 2026-11-25): a machine-translated reader's text comes from the client path.
+    cachedTranslations([listing.title, listing.description, listing.location], { langs: PAGE_EMBED_LANGS }),
     listing.brandSlug
       ? db.brand.findUnique({ where: { slug: listing.brandSlug }, select: { name: true, iconSlug: true, logoPath: true } })
       : Promise.resolve(null),
