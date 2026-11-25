@@ -249,7 +249,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
             </span>
           ))}
         </p>
-        <ViTwinLink path="/hcmc-rent-index" lang={lang} />
+        <ViTwinLink path="/hcmc-rent-index" lang={lang} name="Chỉ số giá thuê nhà TP. Hồ Chí Minh" />
       </main>
       <Footer />
     </div>

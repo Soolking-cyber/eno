@@ -54,13 +54,13 @@ function load(slug: string, lang: Lang, now: Date) {
 /** Each language's list of its guides, in its own words, so no guide is reachable from the sitemap alone. A 404 until that language has one: an empty hub is a thin URL. */
 const HUB = {
   en: {
-    path: GUIDE_BASE.en, crumb: 'Guides', home: 'Home', listTitle: 'All guides', toolsTitle: 'Tools', allTools: 'All tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
+    path: GUIDE_BASE.en, crumb: 'Guides', listTitle: 'All guides', toolsTitle: 'Tools', allTools: 'All tools', howTitle: 'How these are made', other: 'Hướng dẫn bằng tiếng Việt',
     title: 'Guides to living and doing business in Vietnam',
     description: 'Practical guides from eno.vn on renting, getting around, hiring and selling in Vietnam, checked against their sources and approved by the eno.vn team.',
     how: 'Each guide is drafted with AI from pages it cites, its key facts are checked against those pages, and a person on the eno.vn team reads and approves it before it goes live. Every guide lists its sources, the day they were last checked and the day it was approved; a guide changed after that is approved again.',
   },
   vi: {
-    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', home: 'Trang chủ', listTitle: 'Tất cả bài hướng dẫn', toolsTitle: 'Công cụ', allTools: 'Tất cả công cụ', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
+    path: GUIDE_BASE.vi, crumb: 'Hướng dẫn', listTitle: 'Tất cả bài hướng dẫn', toolsTitle: 'Công cụ', allTools: 'Tất cả công cụ', howTitle: 'Cách các bài này được viết', other: 'Guides in English',
     title: 'Hướng dẫn về cuộc sống và kinh doanh ở Việt Nam',
     description: 'Hướng dẫn thực tế từ eno.vn về thuê nhà, đi lại, tuyển dụng và bán hàng ở Việt Nam, được kiểm tra với nguồn và do đội ngũ eno.vn duyệt trước khi đăng.',
     how: 'Mỗi bài được AI soạn từ các trang mà bài trích dẫn, các thông tin chính được đối chiếu với chính các trang đó, rồi một người trong đội ngũ eno.vn đọc và duyệt trước khi đăng. Mỗi bài đều ghi nguồn, ngày kiểm tra nguồn gần nhất và ngày được duyệt; bài sửa sau đó phải được duyệt lại.',
@@ -90,15 +90,7 @@ export function rentToolsHubSection(lang: Lang): ArticleSection[] {
       body: (
         <Rows bordered className="max-w-[60ch]">
           {RENT_TOOL_SLUGS.map((s) => (
-            <Row key={s} className="py-0">
-              <Link href={rentToolPath(s, lang)} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
-                <span className="min-w-0">
-                  <span className="block text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">{RENT_TOOLS[s].label[lang]}</span>
-                  <span className="mt-1 block text-base leading-relaxed text-body">{RENT_TOOLS[s].blurb[lang]}</span>
-                </span>
-                <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-              </Link>
-            </Row>
+            <TitleRow key={s} href={rentToolPath(s, lang)} label={RENT_TOOLS[s].label[lang]} blurb={RENT_TOOLS[s].blurb[lang]} />
           ))}
           {/* Then the hub of every tool, the ones eno Reach writes included (/tools). */}
           <Row className="py-0">
@@ -111,6 +103,28 @@ export function rentToolsHubSection(lang: Lang): ArticleSection[] {
       ),
     },
   ]
+}
+
+/**
+ * A hub row: the title on a line, what it answers under it, a hairline between, the whole row the click.
+ * ⛔ THE LINK IS THE TITLE, STRETCHED OVER THE ROW by its ::after (seo-article.tsx's "Keep reading", the same reason): the
+ * whole row as one <a> made its anchor text the title AND the blurb, 200–240 characters (Seobility crawl 5, "anchor text
+ * too long", every guide /guides and /huong-dan list). The row still takes the click, the hover and the focus ring.
+ */
+function TitleRow({ href, label, blurb }: { href: string; label: string; blurb: string }) {
+  return (
+    <Row className="py-0">
+      <div className="group relative grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+        <span className="min-w-0">
+          <span className="block text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">
+            <Link href={href} className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">{label}</Link>
+          </span>
+          <span className="mt-1 block text-base leading-relaxed text-body">{blurb}</span>
+        </span>
+        <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+      </div>
+    </Row>
+  )
 }
 
 export function LibraryHub({ lang }: { lang: Lang }) {
@@ -130,15 +144,7 @@ export function LibraryHub({ lang }: { lang: Lang }) {
         <>
           <Rows bordered className="max-w-[60ch]">
             {guides.map((e) => (
-              <Row key={e.slug} className="py-0">
-                <Link href={guidePath(e)} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
-                  <span className="min-w-0">
-                    <span className="block text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">{guideLabel(e)}</span>
-                    <span className="mt-1 block text-base leading-relaxed text-body">{guideBlurb(e)}</span>
-                  </span>
-                  <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-                </Link>
-              </Row>
+              <TitleRow key={e.slug} href={guidePath(e)} label={guideLabel(e)} blurb={guideBlurb(e)} />
             ))}
           </Rows>
           {hubGuides(otherLang, now).length > 0 && <P><HereLink href={HUB[otherLang].path}>{hub.other}</HereLink></P>}
@@ -151,7 +157,8 @@ export function LibraryHub({ lang }: { lang: Lang }) {
   const dates = guides.map((e) => guideDates(e).published).sort()
   const content: ArticleContent = {
     eyebrow: hub.crumb, h1: hub.title, intro: hub.description, canonical: hub.path, lang, published: dates[0], updated: dates[dates.length - 1],
-    breadcrumb: [{ label: hub.home, href: '/' }, { label: hub.crumb, href: hub.path }],
+    // The site's name, not "Home" (NAV-10; Seobility crawl 5: "Home" also names the furniture category's tile).
+    breadcrumb: [{ label: SITE_NAME, href: '/' }, { label: hub.crumb, href: hub.path }],
     sections, faqs: [],
   }
   return <SeoArticle content={content} />
@@ -203,7 +210,7 @@ export function LibraryGuide({ slug, lang }: { slug: string; lang: Lang }) {
     ...guideDates(entry),
     ...(pair && isGuideLive(pair, now) ? { alternate: { lang: pair.lang, href: guidePath(pair) } } : {}),
     breadcrumb: [
-      { label: lang === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
+      { label: SITE_NAME, href: '/' },
       { label: HUB[lang].crumb, href: HUB[lang].path },
       { label: guide.h1, href: guidePath(entry) },
     ],

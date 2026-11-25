@@ -33,6 +33,10 @@ describe('board and review copy', () => {
     expect(board).not.toContain("tr('Top rated', 'Được đánh giá cao')")
   })
 
+  it('a row\'s "N open jobs" link names its school, hidden (Seobility crawl 5: "1 open job" was one link text for five schools)', () => {
+    expect(board).toMatch(/open jobs'[^\n]*\n\s*\{\/\*[^\n]*\*\/\}\n\s*<span className="sr-only"> — \{row\.name\}<\/span>\n\s*<\/Link>/)
+  })
+
   it('the first star is named "1 star"', () => {
     expect(prompt).toMatch(/n === 1 \? tr\('1 star', '1 sao'\)/)
   })

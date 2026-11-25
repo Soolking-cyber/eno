@@ -30,7 +30,7 @@ describe('the listing page safety line on an employer\'s own job', () => {
     LANG = 'en'
     const en = strip('jobs')
     expect(en).toContain('Never pay a fee or a deposit to get a job — eno never asks for one. Meet the employer at the workplace before you start.')
-    expect(en).toContain('Safety guide')
+    expect(en).toContain('Safety tips')
     expect(en).not.toMatch(/inspect, then pay|Safe trading guide/)
     // The ID-documents and training-fee advice ride the strip on a job now — the listing page's bottom note is gone (2026-11-06 audit).
     expect(en).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
@@ -47,18 +47,18 @@ describe('the listing page safety line on an employer\'s own job', () => {
     const other = text(renderToString(<SafetyStrip categorySlug="services" job />))
     expect(other).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
     expect(other).toContain('Never pay a fee or a deposit to get a job')
-    expect(other).toContain('Safety guide')
+    expect(other).toContain('Safety tips')
     expect(other).not.toContain('Safe trading guide')
     expect(text(renderToString(<SafetyStrip categorySlug="services" />))).not.toContain('ID documents')
   })
 
-  it('a LINKED job (the affiliate-job strip) reads "Safety guide" too, never the trading guide', () => {
+  it('a LINKED job (the affiliate-job strip) reads "Safety tips" too, never the trading guide', () => {
     LANG = 'en'
     const linked = text(renderToString(<SafetyStrip categorySlug="jobs" variant="affiliate-job" />))
     expect(linked).toContain('Apply only on the original posting')
     // …and the bottom note's training-fee and ID advice, which this line never named (2026-11-06 review).
     expect(linked).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
-    expect(linked).toContain('Safety guide')
+    expect(linked).toContain('Safety tips')
     expect(linked).not.toContain('Safe trading guide')
   })
 

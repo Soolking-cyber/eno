@@ -16,18 +16,19 @@ import { LangPilotLink } from './lang-pilot-link'
  * Synchronous for a page that holds `lang` already (a synchronous render, renderToString in tests, can draw it);
  * ViTwinLinkFromParams for a layout or page that passes the `params` promise through (its own code awaits nothing new).
  */
-export function ViTwinLink({ path, lang }: { path: string; lang: string }) {
+/** `name`: the twin's Vietnamese name (its h1), after the label for screen readers and crawlers (lang-pilot-link.tsx). */
+export function ViTwinLink({ path, lang, name }: { path: string; lang: string; name?: string }) {
   if (lang !== 'en' || VI_PILOT.live.includes(path) || !hasViTwin(path)) return null
   return (
     <div className="max-sm:sr-only max-sm:focus-within:not-sr-only">
       <div className="mt-8 flex justify-end">
-        <LangPilotLink href={localizedHref(path, 'vi')} target="vi" hrefLang="vi-VN" label={LANGUAGES.find((l) => l.code === 'vi')!.native} />
+        <LangPilotLink href={localizedHref(path, 'vi')} target="vi" hrefLang="vi-VN" label={LANGUAGES.find((l) => l.code === 'vi')!.native} name={name} />
       </div>
     </div>
   )
 }
 
 /** ViTwinLink with the variant read from the route's `params` promise. */
-export async function ViTwinLinkFromParams({ path, params }: { path: string; params: Promise<{ lang: string }> }) {
-  return <ViTwinLink path={path} lang={(await params).lang} />
+export async function ViTwinLinkFromParams({ path, params, name }: { path: string; params: Promise<{ lang: string }>; name?: string }) {
+  return <ViTwinLink path={path} lang={(await params).lang} name={name} />
 }

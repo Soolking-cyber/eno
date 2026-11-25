@@ -161,7 +161,7 @@ export default async function HelpThreadPage({ params }: Params) {
           i18n={{ title: pickEmbedded(translations[thread.post.title], keep), body: pickEmbedded(translations[thread.post.body], keep) }}
           related={related}
         />
-        <ViTwinLinkFromParams path={`/help/${id}`} params={params} />
+        <ViTwinLinkFromParams path={`/help/${id}`} params={params} name={translations[thread.post.title]?.vi ?? thread.post.title} />
       </main>
       <Footer />
     </div>

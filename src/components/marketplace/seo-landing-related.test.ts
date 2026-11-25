@@ -75,3 +75,12 @@ describe('housing landing district links', () => {
     expect(src.match(/<Link href=\{`\/c\/rentals\//g)).toHaveLength(1)
   })
 })
+
+describe('"Keep reading" rows on a landing page (Seobility crawl 5: title + blurb in one <a> was an anchor text too long)', () => {
+  it('the link is the title alone, stretched over the row; the blurb sits outside it', () => {
+    const src = readFileSync('src/components/marketplace/seo-landing.tsx', 'utf8')
+    const block = src.slice(src.indexOf('{content.related.map('), src.indexOf('</Rows>', src.indexOf('{content.related.map(')))
+    expect(block).toMatch(/<Link href=\{r\.href\} className="[^"]*after:absolute after:inset-0[^"]*">\{r\.label\}<\/Link>/)
+    expect(block.indexOf('{r.blurb}')).toBeGreaterThan(block.indexOf('</Link>'))
+  })
+})

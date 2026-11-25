@@ -34,7 +34,8 @@ export function rentIndexMeta(index: RentIndex | null, lang: string): { title: s
       parts.length && ok
         ? `Giá thuê trung vị TP.HCM ngày ${hcmc('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}: ${parts.join(', ')}/tháng. Từng quận, từ ${count(index!.used)} tin, cập nhật mỗi ngày.`
         : 'Giá thuê nhà trung vị theo quận tại TP.HCM: căn hộ, nhà nguyên căn và phòng, tính mỗi ngày từ tin đang đăng, được tự do trích dẫn.'
-    // Within a result (Seobility crawl 4, 2026-11-25: /vi at 1,022 px of 1,000) — the figures' sentence stays whole.
+    // Within a result (Seobility crawl 4, 2026-11-25: /vi at 1,022 px of 1,000): whole sentences where they fit, else a cut
+    // at a word (the figures' sentence alone is under sentenceDescription's 120-character floor).
     return { title, description: sentenceDescription(description) }
   }
 

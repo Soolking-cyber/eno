@@ -108,6 +108,16 @@ describe('a page in the general guide library', () => {
     expect(libraryHubMetadata('vi').alternates).toEqual({ canonical: '/huong-dan' })
   })
 
+  it('a hub row\'s link is its title alone, the blurb beside it (Seobility crawl 5: title + blurb was a 200–240-character anchor)', () => {
+    const en = renderToStaticMarkup(<LibraryHub lang="en" />)
+    const anchors = [...en.matchAll(/<a\b[^>]*href="(\/guides\/[^"]+|\/rent-affordability-calculator)"[^>]*>(.*?)<\/a>/g)]
+    expect(anchors.length).toBeGreaterThan(1)
+    for (const [, href, inner] of anchors) {
+      expect(inner, href).not.toContain('<span')
+      expect(inner.length, href).toBeLessThan(100)
+    }
+  })
+
   it('each hub lists the four rent tools under Tools, in its own language and at its own language’s address', () => {
     const en = renderToStaticMarkup(<LibraryHub lang="en" />)
     expect(en).toContain('<h2>Tools</h2>')

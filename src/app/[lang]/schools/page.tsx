@@ -120,7 +120,7 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
           </aside>
         </div>
         <SchoolsMethodology />
-        <ViTwinLink path="/schools" lang={lang} />
+        <ViTwinLink path="/schools" lang={lang} name="Trường học ở Sài Gòn, do giáo viên xếp hạng" />
       </main>
       <Footer />
     </div>

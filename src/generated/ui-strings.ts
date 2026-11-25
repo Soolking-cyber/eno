@@ -3191,7 +3191,7 @@ export const UI_STRINGS: string[] = [
   "Sad",
   "Safe trading",
   "Safe trading guide",
-  "Safety guide",
+  "Safety tips",
   "Saigon",
   "Saigon schools ranked by teachers",
   "Saigon schools, ranked by teachers",

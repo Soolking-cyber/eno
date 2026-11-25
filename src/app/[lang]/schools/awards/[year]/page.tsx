@@ -69,7 +69,7 @@ export default async function SchoolAwardsYear({ params }: Props) {
             {years.map((y) => <Link key={y} href={`${AWARDS_PATH}/${y}`} className="font-semibold text-accent-foreground hover:underline">{y}</Link>)}
           </p>
         )}
-        <ViTwinLink path={`/schools/awards/${year}`} lang={lang} />
+        <ViTwinLink path={`/schools/awards/${year}`} lang={lang} name={`Giáo viên bình chọn ${page.year}`} />
       </main>
       <Footer />
     </div>

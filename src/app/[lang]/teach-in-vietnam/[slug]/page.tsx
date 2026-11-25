@@ -43,7 +43,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hit = load(slug, requestNow())
   if (!hit) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
   // The site's name only where it fits (Seobility crawl 4, 2026-11-25: 26 guides at 581–633 px of 580 with it).
-  const { title, description } = withinResult(`${hit.guide.title} | ${SITE_NAME}`, hit.guide.description)
+  const fullTitle = `${hit.guide.title} | ${SITE_NAME}`
+  const { title, description } = withinResult(fullTitle, hit.guide.description)
   const path = teachPath(slug)
   return {
     title,
@@ -52,7 +53,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
     robots: TEACH_ROBOTS,
     // The guide's own share card (share-cards.ts), not the marketplace's — og:image and, through pageShare, twitter:image.
-    ...pageShare({ title, description, url: path, type: 'article', images: [teachCardImage(slug)] }),
+    // A card is not a search result: it keeps the full title and description.
+    ...pageShare({ title: fullTitle, description: hit.guide.description, url: path, type: 'article', images: [teachCardImage(slug)] }),
   }
 }
 

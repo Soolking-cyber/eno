@@ -218,7 +218,7 @@ export default async function SchoolPageRoute({ params }: Props) {
             </p>
           </div>
         </SchoolLiveProvider>
-        <ViTwinLink path={`/schools/${slug}`} lang={lang} />
+        <ViTwinLink path={`/schools/${slug}`} lang={lang} name={school.name} />
       </main>
       <Footer />
     </div>

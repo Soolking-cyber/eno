@@ -20,6 +20,11 @@ describe('ViTwinLink', () => {
     expect(html('/c/rentals/d2', 'en')).toContain('href="/vi/c/rentals/d2"')
     expect(html('/tools', 'en')).toContain('href="/vi/tools"')
   })
+  it('the twin\'s own name follows the label for screen readers and crawlers only (Seobility crawl 5: one link text for six pages)', () => {
+    const named = renderToStaticMarkup(<LanguageProvider initialLang="en"><ViTwinLink path="/c/rentals" lang="en" name="Cho thuê" /></LanguageProvider>)
+    expect(named).toContain('>Tiếng Việt<span class="sr-only">: Cho thuê</span></a>')
+    expect(html('/c/rentals', 'en')).not.toContain('sr-only">:')
+  })
   it('never on the Vietnamese twin, a pilot page (it has its own switch), or a page with no twin', () => {
     expect(html('/help/help-who-can-leave-a-review', 'vi')).toBe('')
     expect(html('/', 'en')).toBe('')

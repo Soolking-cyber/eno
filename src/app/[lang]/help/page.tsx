@@ -60,7 +60,7 @@ export default async function HelpPage({ params }: { params: Promise<{ lang: str
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         <HelpCenter data={data} i18n={i18n} />
-        <ViTwinLinkFromParams path="/help" params={params} />
+        <ViTwinLinkFromParams path="/help" params={params} name="Trung tâm trợ giúp" />
       </main>
       <Footer />
     </div>

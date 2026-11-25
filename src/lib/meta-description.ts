@@ -71,7 +71,8 @@ function endsSentence(s: string, i: number): boolean {
     if (next && !(/[0-9"“(]/.test(next) || next !== next.toLowerCase())) return false
   }
   if (s[i] !== '.') return true
-  const word = s.slice(s.lastIndexOf(' ', i - 1) + 1, i).toLowerCase()
+  // The word before the stop, without an opening bracket or quote: "(TP. Hồ Chí Minh)" is not an end.
+  const word = s.slice(s.lastIndexOf(' ', i - 1) + 1, i).toLowerCase().replace(/^[("“‘'[]+/, '')
   return word.length > 1 && !NOT_AN_END.has(word)
 }
 export function sentenceDescription(s: string, max = 155): string {

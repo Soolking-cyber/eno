@@ -33,10 +33,12 @@ describe('rentIndexMeta (owner 2026-11-22: rank for "rent prices in Ho Chi Minh 
     )
   })
 
-  it('within a result (Seobility crawl 4: /vi at 1,022 px): bigger figures still fit, the figures sentence whole', () => {
+  it('within a result (Seobility crawl 4: /vi at 1,022 px): bigger figures still fit, cut at a word after the medians', () => {
+    // The medians' sentence alone (~104 characters) is under sentenceDescription's 120 floor, so this is the word cut.
     const m = rentIndexMeta({ ...index(), used: 1_234_567 }, 'vi')
     expect(fitsDescription(m.description)).toBe(true)
     expect(m.description).toContain('9.700.000 đ/tháng.')
+    expect(m.description.endsWith('…')).toBe(true)
   })
 
   it('the month and day are Ho Chi Minh City time: 17:30 UTC on 30 November is already 1 December there', () => {

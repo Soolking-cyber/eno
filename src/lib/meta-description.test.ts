@@ -111,6 +111,14 @@ describe('sentenceDescription (Seobility crawl 4, 2026-11-25: 29 guide descripti
     const eg = 'Shops quote by the day or month, e.g. this one rents a scooter for a week at the monthly rate when you ask before booking with them. A second sentence that pushes it past the limit.'
     expect(sentenceDescription(eg)).not.toBe('Shops quote by the day or month, e.g.')
   })
+  it('an abbreviation after a bracket or quote is not an end either: "(TP. Hồ Chí Minh)" (gate review)', () => {
+    // Only the cut after "(TP." fits: it was taken as a 121-character sentence.
+    const s = 'Giáo viên tiếng Anh bản ngữ dạy kèm tại nhà và trực tuyến cho trẻ em và người lớn ở mọi quận nội thành của thành phố (TP. Hồ Chí Minh) với giá theo buổi hoặc theo tháng, có lịch rảnh buổi tối và cuối tuần, xem hồ sơ, bằng cấp và đánh giá của học viên trước khi nhắn tin hẹn buổi học thử đầu tiên miễn phí'
+    const out = sentenceDescription(s)
+    expect(out).not.toMatch(/\(TP\.$/)
+    expect(out.endsWith('…')).toBe(true)
+    expect(fitsDescription(out)).toBe(true)
+  })
   it('one long sentence: cut at a word like clipDescription', () => {
     const long = 'Motorbikes and scooters for rent in Ho Chi Minh City from local rental shops with automatic or manual bikes and day and month prices worked out from live listings and how booking works.'
     const out = sentenceDescription(long)

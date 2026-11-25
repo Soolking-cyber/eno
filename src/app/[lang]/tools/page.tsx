@@ -58,7 +58,7 @@ export default async function ToolsHub({ params }: { params: Promise<{ lang: str
             </li>
           ))}
         </ul>
-        <ViTwinLink path="/tools" lang={lang} />
+        <ViTwinLink path="/tools" lang={lang} name={H1.vi} />
       </main>
       <Footer />
     </div>

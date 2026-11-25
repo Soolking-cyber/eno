@@ -258,9 +258,10 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
         {/* `flow`: the same 44px line from the 12px edge, with no hairline over it. */}
         <div className={cn('-mb-1 mt-0.5 flex items-center justify-between gap-3', quiet && 'max-md:m-0 max-md:min-h-11 max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-0 max-md:border-t max-md:border-line-strong', flow && 'max-md:-ml-7 max-md:border-t-0')}>
           <Link href="/safety" className={cn('relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60', quiet && 'max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:whitespace-nowrap max-md:font-bold')}>
-            {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name — on a linked job too
-                (2026-11-06 audit: the `affiliate-job` strip still read "Safe trading guide"). */}
-            {isJobStrip ? tr('Safety guide', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
+            {/* Nothing is TRADED on a job post, so its link is the safety page by a plain name — on a linked job too
+                (2026-11-06 audit: the `affiliate-job` strip still read "Safe trading guide"). "Safety tips", not "Safety guide":
+                a teach guide's text links "safety guide" to is-ho-chi-minh-city-safe (Seobility crawl 5: one anchor, two pages). */}
+            {isJobStrip ? tr('Safety tips', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
           </Link>
           {action}
         </div>

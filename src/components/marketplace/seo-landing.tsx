@@ -442,13 +442,18 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             <Rows bordered>
               {content.related.map((r) => (
                 <Row key={r.href} className="py-0">
-                  <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                  {/* ⛔ THE LINK IS THE TITLE, STRETCHED OVER THE ROW (seo-article.tsx's "Keep reading", the same reason): the whole
+                      row as one <a> made its anchor text the title AND the blurb (Seobility crawl 5: /housing-vietnam-expats' rows,
+                      "anchor text too long"). The row still takes the click, the hover and the focus ring. */}
+                  <div className="group relative grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
                     <span className="min-w-0">
-                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
+                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">
+                        <Link href={r.href} className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring">{r.label}</Link>
+                      </span>
                       <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
                     </span>
                     <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-                  </Link>
+                  </div>
                 </Row>
               ))}
             </Rows>

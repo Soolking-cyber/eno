@@ -162,7 +162,7 @@ export default async function CategoryIndexLayout({
             picker switch to the twin as well (setLang → pinnedPair). */}
         {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
         {/* Every other category with a /vi twin: English → Vietnamese only, hidden below sm (vi-twin-link.tsx; owner, 2026-11-24). */}
-        {!piloted && <ViTwinLinkFromParams path={`/c/${cat.slug}`} params={params} />}
+        {!piloted && <ViTwinLinkFromParams path={`/c/${cat.slug}`} params={params} name={cat.nameVi || cat.name} />}
       </main>
       {piloted && <LangSuggestionBanner />}
       <Footer />

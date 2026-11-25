@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ArticleContent } from '@/components/marketplace/seo-article'
 import { TEACH_GUIDES, isLive, teachPath } from '@/lib/teach-guides/registry'
+import { fitsDescription, fitsTitle } from '@/lib/meta-description'
 
 /**
  * A guide page's robots meta (teacher visibility plan §3a item 16, Google Discover): every live guide allows a large image
@@ -104,6 +105,24 @@ describe('a guide previews as its own share card (plan §3a item 16, share-cards
     const slug = TEACH_GUIDES[0].slug
     const el = (await page.default({ params: Promise.resolve({ lang: 'en', slug }) })) as ReactElement<{ content: ArticleContent }>
     expect(el.props.content.image).toEqual(['1200x675', '1200x900', '1200x1200'].map((s) => `/og/teach-in-vietnam/${slug}/${s}.png`))
+  })
+})
+
+describe('within a search result, the share card whole (Seobility crawl 4, 2026-11-25: 26 titles past 580 px)', () => {
+  it('every guide’s title and description fit a result; its share card keeps the full title and description', async () => {
+    for (const e of TEACH_GUIDES) {
+      const m = await metadata(e.slug, LIVE)
+      const title = String(m.title)
+      const description = String(m.description)
+      expect(fitsTitle(title), e.slug).toBe(true)
+      expect(fitsDescription(description), e.slug).toBe(true)
+      const og = m.openGraph as { title: string; description: string }
+      // The guide's title and the site's name exactly once: never doubled, never dropped.
+      expect(og.title.split(' | eno.vn'), e.slug).toEqual([expect.any(String), ''])
+      expect(og.title.startsWith(title.replace(/ \| eno\.vn$/, '')), e.slug).toBe(true)
+      expect(og.description.length, e.slug).toBeGreaterThanOrEqual(description.replace(/…$/, '').length)
+      expect(og.description.startsWith(description.replace(/…$/, '')), e.slug).toBe(true)
+    }
   })
 })
 

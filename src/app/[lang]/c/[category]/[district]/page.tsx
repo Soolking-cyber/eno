@@ -517,7 +517,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
             </Link>
           </Button>
         </div>
-        <ViTwinLink path={`/c/${cat.slug}/${district}`} lang={lang} />
+        <ViTwinLink path={`/c/${cat.slug}/${district}`} lang={lang} name={`${cat.nameVi || cat.name}, ${searchPlace.vi}`} />
       </main>
       <Footer />
     </div>

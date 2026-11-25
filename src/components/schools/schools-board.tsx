@@ -271,6 +271,8 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
               <Link href={`/schools/${row.slug}#jobs`} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
                 <Briefcase aria-hidden className="size-4" />
                 {row.jobs === 1 ? tr('1 open job', '1 việc đang tuyển') : tr('{n} open jobs', '{n} việc đang tuyển').replace('{n}', formatInteger(row.jobs, loc))}
+                {/* Whose jobs, for a screen reader's link list and a crawler (Seobility crawl 5: "1 open job" named five schools' pages). */}
+                <span className="sr-only"> — {row.name}</span>
               </Link>
             )}
             {pay && <PayRange s={pay} className="text-foreground" />}
