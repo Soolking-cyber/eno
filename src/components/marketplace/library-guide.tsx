@@ -158,6 +158,8 @@ export function LibraryHub({ lang }: { lang: Lang }) {
   const dates = guides.map((e) => guideDates(e).published).sort()
   const content: ArticleContent = {
     eyebrow: hub.crumb, h1: hub.title, intro: hub.description, canonical: hub.path, lang, published: dates[0], updated: dates[dates.length - 1],
+    // A list of guides, not a guide: no byline (each guide carries its own).
+    byline: false,
     // The site's name, not "Home" (NAV-10; Seobility crawl 5: "Home" also names the furniture category's tile).
     breadcrumb: [{ label: SITE_NAME, href: '/' }, { label: hub.crumb, href: hub.path }],
     sections, faqs: [],

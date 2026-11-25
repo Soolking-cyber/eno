@@ -480,6 +480,8 @@ export default async function TeachHubPage() {
   })
 
   const content: ArticleContent = {
+    // The library's hub, not a guide: no byline (each guide under it carries its own).
+    byline: false,
     eyebrow: 'Teach in Vietnam',
     h1: TEACH_HUB_H1,
     intro:

@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Info } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Rows, Row } from '@/components/ui/rows'
+import { Avatar } from '@/components/ui/avatar'
+import { ARTICLE_AUTHORS, authorPersonLd } from '@/lib/article-authors'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { organizationId } from '@/lib/site-identity'
 import { AFFILIATION } from '@/lib/site-legal'
@@ -104,6 +106,11 @@ export type ArticleContent = {
    * approved — a "reviewed by" nobody did is a fabrication, in the markup or on the page.
    */
   approved?: { on: string; how: string }
+  /**
+   * `false` on a hub or a landing page (the guides hub, the Teach in Vietnam hub, a vehicle hub): no byline under it, and the
+   * Organization stays the JSON-LD author. Every article carries the byline of its language (src/lib/article-authors.ts).
+   */
+  byline?: false
   /** What the article cites (its Sources list): the Article's `citation` in JSON-LD, so a machine reads the sources a reader sees. */
   citations?: { name: string; url: string }[]
   /**
@@ -411,14 +418,19 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
    * eno.forum telling Google that eno.vn — the licensed company that may not touch this subject
    * matter — is the entity behind these pages.
    *
-   * `author` is the same organisation on purpose: these are house guides, not bylined pieces, and
-   * inventing a human author would be a fabrication in structured data.
+   * `author` is a PERSON since 2026-11-26 (owner: "under each blog content write author … for authority"): the byline of the
+   * article's language — English Shanazar Babakulyyev (COO), Vietnamese Nguyễn Quốc Lập (CEO), src/lib/article-authors.ts — the
+   * same name the page prints under the article, working for the site's Organization node. A hub (`byline: false`) keeps the
+   * Organization: it is a list, not a piece someone wrote.
    *
    * ⚠️ ON THE MARKETPLACE BOTH CARRY THE LAYOUT'S Organization `@id` (src/lib/site-identity.ts), so the
    * article's publisher IS that node rather than a second, unlinked one. eno.forum's layout declares
    * no @id (the editions must not read as one entity), so there the inline node stays as it was.
    */
   const orgRef = IS_SERVICES ? {} : { '@id': organizationId(SITE_ORIGIN) }
+  // ⛔ eno.vn ONLY: the authors are the licensed company's officers, and eno.forum's guides are its visa and itinerary desk — the
+  // boundary this file's publisher comment keeps. A hub (`byline: false`) has none either.
+  const author = IS_SERVICES || content.byline === false ? null : ARTICLE_AUTHORS[articleLang]
   const articleLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -434,7 +446,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
       // Only an approval on record (`approved` above): who approved the text and when, as schema.org's WebPage says it.
       ...(content.approved ? { reviewedBy: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN }, lastReviewed: content.approved.on } : {}),
     },
-    author: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN },
+    author: author ? authorPersonLd(author, SITE_ORIGIN, SITE_NAME, orgRef) : { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN },
     publisher: { '@type': 'Organization', ...orgRef, name: SITE_NAME, url: SITE_ORIGIN, logo: `${SITE_ORIGIN}/logo.svg` },
     isAccessibleForFree: true,
     ...(content.citations?.length ? { citation: content.citations.map((c) => ({ '@type': 'CreativeWork', name: c.name, url: c.url })) } : {}),
@@ -629,6 +641,19 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           {content.afterSections}
 
           {content.cta?.repeatAtEnd && <ArticleCta cta={content.cta} className="mt-10" />}
+
+          {/* The byline, under the article (owner, 2026-11-26): the author of the ARTICLE's language, with the photo from eno's
+              partner page. The same Person is the Article's JSON-LD author above. A hub passes `byline: false`. */}
+          {author && (
+            <section aria-label={author.label} className="mt-14 flex max-w-3xl items-center gap-4 border-t border-border pt-6">
+              <Avatar name={author.name} url={author.image} alt={author.name} size="lg" />
+              <div className="min-w-0">
+                <p className="text-xs text-ink-4">{author.label}</p>
+                <p className="text-base font-bold text-foreground">{author.name}</p>
+                <p className="text-sm text-body">{`${author.jobTitle}, ${SITE_NAME}`}</p>
+              </div>
+            </section>
+          )}
 
           {related.length > 0 && (
             <section className="mt-14 max-w-3xl">

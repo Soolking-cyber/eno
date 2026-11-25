@@ -423,6 +423,8 @@ export function vehicleHubContent(data: VehicleHubData, lang: Lang, published: s
     // empty hub — with nothing live there is nothing to filter, and the page is noindex until stock returns.
     ...(data.total > 0 ? { ledeRow: <VehicleHubFilterRow kind={data.kind} facet={facet} types={types} lang={lang} /> } : {}),
     canonical: `/${slug}`,
+    // A landing page over live listings, not a written guide: no byline.
+    byline: false,
     published,
     // Ho Chi Minh City's calendar day, the same clock the printed "most recent change" uses (review, 2026-09-29).
     ...(data.lastChange ? { updated: hcmcIsoDate(data.lastChange) } : {}),
