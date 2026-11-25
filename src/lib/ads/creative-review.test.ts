@@ -178,12 +178,16 @@ describe('the fields (before anything is fetched)', () => {
     expect(advertiserTaxId('031.234.5678')).toBe('0312345678')
     expect(advertiserTaxId(' 0312345678-001 ')).toBe('0312345678-001')
     expect(advertiserTaxId('0312345678 - 001')).toBe('0312345678-001')
+    // Full-width digits (a CJK keyboard) are plain digits: the MST check still decides (commit gate, opus).
+    expect(advertiserTaxId('０３１２３４５６７８')).toBe('0312345678')
+    expect(advertiserTaxId('００００００００００')).toBeNull()
   })
 
   it('given, a foreign company registration number is kept as written (cleaned): letters, digits, spaces, . / -', () => {
     for (const [given, kept] of [
       ['HRB 12345', 'HRB 12345'], ['201912345K', '201912345K'], ['C-123/45', 'C-123/45'], ['12345', '12345'],
       ['  SC 123.456  ', 'SC 123.456'], ['ИНН 7707083893', 'ИНН 7707083893'], ['A1b', 'A1b'], ['X'.repeat(39) + 'Y', 'X'.repeat(39) + 'Y'],
+      ['ＨＲＢ\u3000１２３４５', 'HRB 12345'],
     ]) expect(advertiserTaxId(given), given).toBe(kept)
     expect(parseCreative({ ...FIELDS, taxCode: 'HRB 12345' })).toMatchObject({ ok: true, fields: { taxCode: 'HRB 12345' } })
     // ⚠️ A DELIBERATE TRADE (commit gate, opus): digits of any length but an MST's are a foreign number, so a mistyped MST of
@@ -193,7 +197,7 @@ describe('the fields (before anything is fetched)', () => {
   })
 
   it('⛔ given but malformed → tax_code_invalid: an MST-shaped number the MST check refuses, a bad character, too short or long, no real digits', () => {
-    for (const bad of ['0000000000', '1111111111-001', '#1', 'ab', 'A'.repeat(41), '---', '000', '1.1', 'HRB_12345', '12345!', 'acme@example.com', 12345, {}, ['0312345678']]) {
+    for (const bad of ['0000000000', '1111111111-001', '٠٣١٢٣٤٥٦٧٨٩', '#1', 'ab', 'A'.repeat(41), '---', '000', '1.1', 'HRB_12345', '12345!', 'acme@example.com', 12345, {}, ['0312345678']]) {
       expect(advertiserTaxId(bad), JSON.stringify(bad)).toBeNull()
       const p = parseCreative({ ...FIELDS, taxCode: bad })
       expect(!p.ok && p.reasons.map((x) => x.code), JSON.stringify(bad)).toEqual(['tax_code_invalid'])

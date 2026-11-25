@@ -113,20 +113,22 @@ export function normalizeTaxCode(v: unknown): string | null {
 /**
  * The advertiser's tax or company registration number, OPTIONAL (owner 2026-11-25: "yes all allowed to advertise" — a
  * company outside Vietnam has no MST). '' when not given (absent, null or blank); null when given but malformed, which is
- * the only `tax_code_invalid`.
- *   · shaped like an MST once spaces and dots are dropped (10 digits, or 13 with or without the 10-3 dash) → the MST check
- *     decides (normalizeTaxCode): a malformed MST such as 0000000000 is refused, never waved through as a foreign number;
- *   · anything else → a foreign company registration number, as written (cleaned): 3 to 40 letters, digits, spaces, `.`,
- *     `/` or `-`, with at least two different letters or digits (never "000" or "---").
+ * the only `tax_code_invalid`. Read as NFKC first, so full-width digits and letters (a CJK keyboard's) are plain ones.
+ *   · in an MST's own shape once spaces and dots are dropped (10 digits, or 13 with or without the 10-3 dash) → the MST
+ *     check decides (normalizeTaxCode): 0000000000 is refused, as it always was;
+ *   · anything else → a foreign company registration number, as written (cleaned): 3 to 40 letters, ASCII digits, spaces,
+ *     `.`, `/` or `-`, with at least two different letters or digits (never "000" or "---"). ⚠️ So a mistyped MST of any
+ *     other shape (9 or 11 digits, 0312-345-678, a letter added) is taken as a foreign number too: a deliberate trade, as
+ *     refusing those would refuse real ones (a US EIN, a French SIREN, an Australian ABN — creative-review.test.ts).
  */
 export function advertiserTaxId(v: unknown): string | null {
   if (v == null) return ''
   if (typeof v !== 'string') return null
-  const s = clean(v) ?? ''
+  const s = clean(v.normalize('NFKC')) ?? ''
   if (!s) return ''
   if (/^(\d{10}|\d{10}-\d{3}|\d{13})$/.test(s.replace(/[\s.]/g, ''))) return normalizeTaxCode(s)
-  if (s.length < 3 || s.length > AD_FIELD_LIMITS.taxCode || !/^[\p{L}\p{Nd} ./-]+$/u.test(s)) return null
-  return new Set(s.replace(/[^\p{L}\p{Nd}]/gu, '').toLowerCase()).size >= 2 ? s : null
+  if (s.length < 3 || s.length > AD_FIELD_LIMITS.taxCode || !/^[\p{L}0-9 ./-]+$/u.test(s)) return null
+  return new Set(s.replace(/[^\p{L}0-9]/gu, '').toLowerCase()).size >= 2 ? s : null
 }
 
 /** An https address on a named public host (no credentials, no IP literal, no bare name); null otherwise. The address

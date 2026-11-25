@@ -67,8 +67,8 @@ const CREATIVE: Pair[] = [
 // Any advertiser, in Vietnam or abroad (owner 2026-11-25: "yes all allowed to advertise"): the legal name always, the tax or
 // company registration number when there is one (creative-review.ts advertiserTaxId).
 const IDENTITY = P(
-  `Advertisers in Vietnam and abroad are welcome. Every ad records the advertiser's registered legal name and, when it has one, its tax code (MST) or company registration number, as Vietnam's Advertising Law asks of whoever publishes an ad. The advertiser is responsible for the content of its ad and of the page it links to.`,
-  'Bên quảng cáo ở Việt Nam và nước ngoài đều có thể quảng cáo. Mỗi quảng cáo đều lưu tên pháp lý đã đăng ký của bên quảng cáo và, nếu có, mã số thuế (MST) hoặc số đăng ký doanh nghiệp, theo yêu cầu của Luật Quảng cáo đối với bên phát hành quảng cáo. Bên quảng cáo chịu trách nhiệm về nội dung quảng cáo và trang mà quảng cáo dẫn đến.',
+  `Advertisers in Vietnam and abroad are welcome. Every ad records the advertiser's registered legal name, as Vietnam's Advertising Law asks of whoever publishes an ad, and its tax code (MST) or company registration number when it has one; a business registered in Vietnam should give its MST. The advertiser is responsible for the content of its ad and of the page it links to.`,
+  'Bên quảng cáo ở Việt Nam và nước ngoài đều có thể quảng cáo. Mỗi quảng cáo đều lưu tên pháp lý đã đăng ký của bên quảng cáo, theo yêu cầu của Luật Quảng cáo đối với bên phát hành quảng cáo, cùng mã số thuế (MST) hoặc số đăng ký doanh nghiệp nếu có; doanh nghiệp đăng ký tại Việt Nam nên ghi mã số thuế của mình. Bên quảng cáo chịu trách nhiệm về nội dung quảng cáo và trang mà quảng cáo dẫn đến.',
 )
 
 /** The refusing classes, in the review's own words (review-reasons.ts) — the Vietnamese is curated there. */
