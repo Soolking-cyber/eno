@@ -408,7 +408,8 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   // 'developers/mcp', 'developers/cli' AND 'developers/versioning' JOINED 2026-11-11 with the pages themselves: the MCP server's page and the
   // deprecation policy, both shared by the two editions like /developers.
   // `langUrlEntries`: of these, only /help has a `/vi` twin (a phase-1 family); the rest stay one entry each.
-  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'developers/mcp', 'developers/cli', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
+  // 'advertising-policy' JOINED 2026-11-25 with the page (both editions, beside /prohibited).
+  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'advertising-policy', 'brands', 'developers', 'developers/mcp', 'developers/cli', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
     urls.push(...langUrlEntries(hostUrl, `/${p}`))
   }
 

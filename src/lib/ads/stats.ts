@@ -97,8 +97,8 @@ export type AdEvent = {
 /** One event. 'duplicate' is not counted at all (the same session within 30 minutes); 'invalid' is counted as such. */
 export function recordAdEvent(e: AdEvent): 'valid' | 'invalid' | 'duplicate' {
   const now = e.now ?? Date.now()
-  const d = deltaFor(e.adId, hourOf(now))
-  schedule()
+  // The hour's counter only once something is counted: a duplicate writes nothing, not even a row of zeros.
+  const count = (field: keyof Delta) => { deltaFor(e.adId, hourOf(now))[field]++; schedule() }
   const who = e.sid ? `s:${e.sid}` : `ip:${e.ip}`
   const remember = (key: string) => {
     seen.delete(key) // re-inserted last, so the oldest-first trim never drops a fresh entry
@@ -106,14 +106,16 @@ export function recordAdEvent(e: AdEvent): 'valid' | 'invalid' | 'duplicate' {
     trim(seen, MAX_SEEN)
   }
   const fresh = (key: string) => { const until = seen.get(key); return until === undefined || until <= now }
-  // Invalid traffic is deduplicated too, so nobody can grow a rival's invalid figure without bound.
-  if (e.givt || !e.running) {
-    const key = `x|${who}|${e.ip}|${e.adId}|${e.kind}`
-    if (!fresh(key)) return 'duplicate'
+  // Invalid traffic is deduplicated too — by ADDRESS, not by the session id a client can mint — so nobody can grow a rival's
+  // invalid figure faster than one per address per ad per kind per 30 minutes.
+  const invalid = () => {
+    const key = `x|${e.ip}|${e.adId}|${e.kind}`
+    if (!fresh(key)) return 'duplicate' as const
     remember(key)
-    d.invalid++
-    return 'invalid'
+    count('invalid')
+    return 'invalid' as const
   }
+  if (e.givt || !e.running) return invalid()
   const key = `${who}|${e.adId}|${e.kind}`
   if (!fresh(key)) return 'duplicate'
   const ipKey = `${e.ip}|${e.adId}|${e.kind}`
@@ -122,20 +124,15 @@ export function recordAdEvent(e: AdEvent): 'valid' | 'invalid' | 'duplicate' {
     ips.set(ipKey, { n: 1, until: now + IP_WINDOW_MS })
     trim(ips, MAX_IPS)
   } else if (++ip.n > IP_CAP[e.kind]) {
-    // Past the cap: one invalid per session, like any invalid event.
-    const xKey = `x|${who}|${e.ip}|${e.adId}|${e.kind}`
-    if (!fresh(xKey)) return 'duplicate'
-    remember(xKey)
-    d.invalid++
-    return 'invalid'
+    return invalid()
   }
   remember(key)
-  if (e.kind === 'c') { d.clicks++; return 'valid' }
-  d.impressions++
+  if (e.kind === 'c') { count('clicks'); return 'valid' }
+  count('impressions')
   const dayKey = `${e.adId}|${dayOf(now)}`
   let sessions = reach.get(dayKey)
   if (!sessions) { sessions = new Set(); reach.set(dayKey, sessions) }
-  if (!sessions.has(who) && sessions.size < REACH_PER_AD_DAY) { sessions.add(who); d.reachNew++ }
+  if (!sessions.has(who) && sessions.size < REACH_PER_AD_DAY) { sessions.add(who); count('reachNew') }
   return 'valid'
 }
 
@@ -245,16 +242,25 @@ export function spendAtomic(ad: Pick<AdRow, 'amount' | 'startsAt' | 'endsAt' | '
   return (BigInt(ad.amount) * BigInt(Math.round(elapsed))) / BigInt(total)
 }
 
-/** The stored hours plus what this process has not flushed yet: the figures, live to the event. */
+/**
+ * The stored hours plus what this process has not flushed yet: the figures, live to the event. ⛔ Impressions and clicks
+ * come from the ad row's OWN running totals (ListingAd.impressions / clicks, written in the same transaction as the hours)
+ * plus the unflushed part — so a caller that passes only recent hours (the dashboard), or an ad counted before AdStat
+ * existed, still shows its whole run, and CTR, eCPM and eCPC sit on the same numbers as the spend. Invalid traffic and
+ * reach exist only per hour: their totals are the hours passed.
+ */
 export function adFigures(ad: AdRow, rows: HourRow[], now = new Date()): AdFigures {
   const byHour = new Map<number, Delta>(rows.map((r) => [r.bucket.getTime(), { impressions: r.impressions, clicks: r.clicks, invalid: r.invalid, reachNew: r.reachNew }]))
+  const unflushed = zero()
   for (const [b, d] of pendingFor(ad.id)) {
+    unflushed.impressions += d.impressions; unflushed.clicks += d.clicks
     const into = byHour.get(b) ?? zero()
     into.impressions += d.impressions; into.clicks += d.clicks; into.invalid += d.invalid; into.reachNew += d.reachNew
     byHour.set(b, into)
   }
   const hours = [...byHour].sort(([a], [b]) => a - b)
-  const sum = hours.reduce((t, [, d]) => ({ impressions: t.impressions + d.impressions, clicks: t.clicks + d.clicks, invalid: t.invalid + d.invalid, reachNew: t.reachNew + d.reachNew }), zero())
+  const hourly = hours.reduce((t, [, d]) => ({ impressions: t.impressions + d.impressions, clicks: t.clicks + d.clicks, invalid: t.invalid + d.invalid, reachNew: t.reachNew + d.reachNew }), zero())
+  const sum = { ...hourly, impressions: ad.impressions + unflushed.impressions, clicks: ad.clicks + unflushed.clicks }
   const spend = spendAtomic(ad, now)
   const round4 = (x: number) => Math.round(x * 10_000) / 10_000
   return {

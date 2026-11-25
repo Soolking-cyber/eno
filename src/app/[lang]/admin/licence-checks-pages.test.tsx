@@ -66,6 +66,8 @@ describe('Admin › Catalogue — the Licence checks tab', () => {
       ['Teacher photos', '/admin/catalogue?tab=teacher-photos', null],
       // Listing photos (2026-11-15): what the listing photo check held or removed, with the same override.
       ['Listing photos', '/admin/catalogue?tab=listing-photos', null],
+      // Ads (2026-11-25): advertisers' own ads as the review judged them, their runs, and Remove.
+      ['Ads', '/admin/catalogue?tab=ads', null],
       ['Brands', '/admin/catalogue?tab=brands', null],
     ])
     expect(doc.querySelector('[data-licence-checks]')).not.toBeNull()

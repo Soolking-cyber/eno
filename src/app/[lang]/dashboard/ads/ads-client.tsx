@@ -1,0 +1,176 @@
+'use client'
+
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useLanguage } from '@/context/language-context'
+import { SectionHeader } from '@/components/marketplace/section-header'
+import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Segmented } from '@/components/ui/segmented'
+import { Tooltip } from '@/components/ui/tooltip'
+import { TriangleAlert } from '@/components/ui/icons'
+import { cn } from '@/lib/utils'
+import type { DashboardAd } from '@/lib/ads/dashboard'
+
+/**
+ * /dashboard/ads — the shop's ads with their LIVE figures (owner 2026-11-25: "realtime stats for their ads views clicks etc
+ * all to industry standard"). Polls GET /api/ads/mine every 10 s, the cadence the counts are written at (src/lib/ads/stats.ts);
+ * the figures already include what the server counted and has not written yet.
+ * The hourly chart is ONE series (the dataviz rule: one hue, no legend — the heading names it), thin bars 2px apart rising
+ * from the baseline, a hover hint per bar (ui/tooltip), and the same numbers as a table for a screen reader.
+ */
+const POLL_MS = 10_000
+type Metric = 'impressions' | 'clicks'
+
+class AdsFetchError extends Error {
+  constructor(public status: number) { super(`ads ${status}`) }
+}
+function useAds() {
+  return useQuery({
+    queryKey: ['dashboard-ads'],
+    queryFn: async (): Promise<{ ads: DashboardAd[]; updated_at: string }> => {
+      const res = await fetch('/api/ads/mine', { cache: 'no-store' })
+      if (!res.ok) throw new AdsFetchError(res.status)
+      return res.json()
+    },
+    // Signed out: no polling and no retries — the page asks the person to sign in instead.
+    refetchInterval: (q) => (q.state.error instanceof AdsFetchError && q.state.error.status === 401 ? false : POLL_MS),
+    retry: (n, e) => !(e instanceof AdsFetchError && e.status === 401) && n < 2,
+    refetchIntervalInBackground: false,
+  })
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-t-meta text-muted-foreground">{label}</p>
+      <p className="text-t-h3 tabular-nums text-foreground">{value}</p>
+    </div>
+  )
+}
+
+/** The hourly series as bars: the last 48 hours that have figures, oldest first. */
+function HourlyBars({ ad, metric }: { ad: DashboardAd; metric: Metric }) {
+  const { tr, lang } = useLanguage()
+  const hours = ad.hourly.slice(-48)
+  const max = Math.max(1, ...hours.map((h) => h[metric]))
+  const nf = new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US')
+  const title = metric === 'impressions' ? tr('Viewable impressions per hour', 'Lượt hiển thị mỗi giờ') : tr('Clicks per hour', 'Lượt nhấp mỗi giờ')
+  if (!hours.length) return <p className="text-t-meta text-muted-foreground">{tr('No views yet. Figures appear here within seconds of the first one.', 'Chưa có lượt xem. Số liệu hiện ở đây vài giây sau lượt đầu tiên.')}</p>
+  return (
+    <figure className="space-y-2">
+      <figcaption className="text-t-meta font-semibold text-foreground">{title} <span className="font-normal text-muted-foreground">({tr('Vietnam time', 'giờ Việt Nam')})</span></figcaption>
+      <div aria-hidden className="flex h-32 items-end gap-0.5 border-b border-border">
+        {hours.map((h) => (
+          <Tooltip key={h.hour_utc} content={`${h.hour_ict} · ${nf.format(h[metric])}`}>
+            <div className="flex h-full min-w-1 flex-1 items-end">
+              <div className="w-full bg-brand" style={{ height: `${Math.max(h[metric] ? 4 : 0, (h[metric] / max) * 100)}%` }} />
+            </div>
+          </Tooltip>
+        ))}
+      </div>
+      <div aria-hidden className="flex justify-between text-t-meta text-muted-foreground">
+        <span>{hours[0]!.hour_ict.slice(5, 16)}</span>
+        <span>{hours[hours.length - 1]!.hour_ict.slice(5, 16)}</span>
+      </div>
+      <table className="sr-only">
+        <caption>{title}</caption>
+        <thead><tr><th scope="col">{tr('Hour', 'Giờ')}</th><th scope="col">{tr('Impressions', 'Lượt hiển thị')}</th><th scope="col">{tr('Clicks', 'Lượt nhấp')}</th></tr></thead>
+        <tbody>{hours.map((h) => <tr key={h.hour_utc}><td>{h.hour_ict}</td><td>{h.impressions}</td><td>{h.clicks}</td></tr>)}</tbody>
+      </table>
+    </figure>
+  )
+}
+
+function AdCard({ ad }: { ad: DashboardAd }) {
+  const { tr, lang } = useLanguage()
+  const [metric, setMetric] = useState<Metric>('impressions')
+  const nf = new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US')
+  const pct = (x: number | null) => (x === null ? '—' : `${(x * 100).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 2 })}%`)
+  const now = Date.now()
+  const running = ad.status === 'active' && !!ad.starts_at && !!ad.ends_at && Date.parse(ad.starts_at) <= now && Date.parse(ad.ends_at) > now
+  // eno's removal ends a run that had not started where it would have started: it never runs.
+  const cancelled = ad.status === 'active' && !!ad.starts_at && !!ad.ends_at && Date.parse(ad.ends_at) <= Date.parse(ad.starts_at)
+  const name = ad.target?.kind === 'creative' ? ad.target.headline : ad.target?.kind === 'listing' ? (ad.target.title ?? tr('A listing', 'Một tin đăng')) : tr('An ad', 'Một quảng cáo')
+  const t = ad.totals
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="flex min-w-0 items-start gap-3">
+        {ad.target?.kind === 'creative' && ad.target.imageUrl
+          // A plain thumbnail of eno's own copy of the reviewed picture (decorative: the headline beside it names the ad).
+          ? <img src={ad.target.imageUrl} alt="" className="size-14 shrink-0 rounded-lg bg-muted object-cover" loading="lazy" />
+          : null}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-t-card font-semibold text-foreground">{name}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-t-meta text-muted-foreground">
+            {running ? <Badge variant="success" size="sm">{tr('Running', 'Đang chạy')}</Badge>
+              : cancelled ? <Badge variant="neutral" size="sm">{tr('Cancelled', 'Đã hủy')}</Badge>
+              : ad.status === 'active' ? <Badge variant="neutral" size="sm">{ad.ends_at && Date.parse(ad.ends_at) <= now ? tr('Ended', 'Đã kết thúc') : tr('Scheduled', 'Đã lên lịch')}</Badge>
+              : <Badge variant="warning" size="sm">{tr('Payment being confirmed', 'Đang xác nhận thanh toán')}</Badge>}
+            {ad.target?.kind === 'creative' && ad.target.status === 'removed' && <Badge variant="warning" size="sm">{tr('Removed by eno', 'Đã bị eno gỡ')}</Badge>}
+            <span>{ad.target?.kind === 'creative' ? tr('Feed card', 'Thẻ trên bảng tin') : tr('Listing first in results', 'Tin đăng hiển thị đầu')}</span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label={tr('Impressions', 'Lượt hiển thị')} value={nf.format(t.impressions)} />
+        <Stat label={tr('Clicks', 'Lượt nhấp')} value={nf.format(t.clicks)} />
+        <Stat label={tr('Click-through rate', 'Tỉ lệ nhấp')} value={pct(t.ctr)} />
+        <Stat label={tr('Reach', 'Số người tiếp cận')} value={nf.format(t.reach)} />
+        <Stat label={tr('Frequency', 'Tần suất')} value={t.frequency === null ? '—' : t.frequency.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')} />
+        <Stat label={tr('Spent (USDC)', 'Đã chi (USDC)')} value={`${t.spend_usdc} / ${t.paid_usdc}`} />
+        <Stat label={tr('Cost per 1,000 views', 'Chi phí mỗi 1.000 lượt xem')} value={t.ecpm_usdc ?? '—'} />
+        <Stat label={tr('Cost per click', 'Chi phí mỗi lượt nhấp')} value={t.ecpc_usdc ?? '—'} />
+      </div>
+      {t.invalid > 0 && (
+        <p className="text-t-meta text-muted-foreground">
+          {tr('Left out as invalid traffic (bots, prefetches, outside the run): {n}', 'Không tính vì là lưu lượng không hợp lệ (bot, tải trước, ngoài thời gian chạy): {n}').replace('{n}', nf.format(t.invalid))}
+        </p>
+      )}
+      <div className="space-y-3">
+        <Segmented
+          aria-label={tr('Chart', 'Biểu đồ')}
+          value={metric}
+          onValueChange={(v) => setMetric(v as Metric)}
+          options={[{ value: 'impressions', label: tr('Impressions', 'Lượt hiển thị') }, { value: 'clicks', label: tr('Clicks', 'Lượt nhấp') }]}
+        />
+        <HourlyBars ad={ad} metric={metric} />
+      </div>
+    </Card>
+  )
+}
+
+export function AdsClient() {
+  const { tr } = useLanguage()
+  const { data, isLoading, isError, error } = useAds()
+  const signedOut = error instanceof AdsFetchError && error.status === 401
+  return (
+    <div className="space-y-4">
+      <SectionHeader title={tr('Ads', 'Quảng cáo')} />
+      <p className="max-w-[60ch] text-t-meta text-muted-foreground">
+        {tr(
+          'Live figures for your ads, to the advertising industry standard: an impression counts when half the ad is on screen for a second, each person once every 30 minutes; bots and other invalid traffic are left out. Updated every 10 seconds.',
+          'Số liệu trực tiếp của quảng cáo, theo chuẩn ngành quảng cáo: một lượt hiển thị được tính khi một nửa quảng cáo nằm trên màn hình trong một giây, mỗi người một lần trong 30 phút; bot và lưu lượng không hợp lệ khác không được tính. Cập nhật mỗi 10 giây.',
+        )}{' '}
+        <a href="/advertising-policy" className="font-semibold text-accent-foreground hover:underline">{tr('Advertising policy', 'Chính sách quảng cáo')}</a>
+      </p>
+      {isLoading ? (
+        <div className={cn('h-40 animate-pulse rounded-2xl bg-muted')} />
+      ) : signedOut ? (
+        <EmptyState title={tr('Sign in to see your ads', 'Đăng nhập để xem quảng cáo của bạn')} />
+      ) : isError ? (
+        <EmptyState variant="fault" icon={TriangleAlert} title={tr('The figures could not be loaded.', 'Không tải được số liệu.')} subtitle={tr('They will try again in a few seconds.', 'Hệ thống sẽ thử lại sau vài giây.')} />
+      ) : !data?.ads.length ? (
+        <EmptyState
+          title={tr('No ads yet', 'Chưa có quảng cáo')}
+          subtitle={tr('Ads are bought by your shop through the API or an AI agent (MCP), and appear here with their figures.', 'Quảng cáo được cửa hàng mua qua API hoặc trợ lý AI (MCP), và hiển thị ở đây cùng số liệu.')}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {data.ads.map((ad) => <AdCard key={ad.ad_id} ad={ad} />)}
+        </div>
+      )}
+    </div>
+  )
+}

@@ -8,6 +8,7 @@ import { AdminBrandsClient } from '@/components/admin/admin-brands-client'
 import { LicenceChecks, licenceGrandfatherUntilLabel } from '@/components/admin/licence-checks'
 import { TeacherPhotoChecks } from '@/components/admin/teacher-photo-checks'
 import { ListingPhotoChecks } from '@/components/admin/listing-photo-checks'
+import { AdCreatives } from '@/components/admin/ad-creatives'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Catalogue — eno.vn admin', robots: { index: false, follow: false } }
@@ -20,7 +21,8 @@ export const metadata: Metadata = { title: 'Catalogue — eno.vn admin', robots:
 // Teacher photos (owner, 2026-10-16) is the fourth: what the automatic profile-photo check refused or asked about, and
 // the "Photo is fine" override against a wrong refusal.
 // Listing photos (owner, 2026-11-15) is the fifth: listings the photo check held and photos it removed, with the same override.
-const TABS = ['listings', 'licences', 'teacher-photos', 'listing-photos', 'brands'] as const
+// Ads (owner, 2026-11-25) is the sixth: advertisers' own ads as the review judged them, their runs, and Remove.
+const TABS = ['listings', 'licences', 'teacher-photos', 'listing-photos', 'ads', 'brands'] as const
 
 export default async function AdminCataloguePage({ searchParams }: { searchParams?: Promise<{ tab?: string | string[]; status?: string | string[]; verified?: string | string[] }> }) {
   const admin = await getAdmin()
@@ -33,14 +35,14 @@ export default async function AdminCataloguePage({ searchParams }: { searchParam
   return (
     <AdminSectionShell
       title="Catalogue"
-      description={<>Signed in as {admin}. Listings to approve, hide or feature; the licence checks e-Visa and Legal &amp; permits listings wait for; the brand catalogue that powers search.</>}
+      description={<>Signed in as {admin}. Listings to approve, hide or feature; the licence checks e-Visa and Legal &amp; permits listings wait for; advertisers&apos; ads; the brand catalogue that powers search.</>}
       basePath="/admin/catalogue"
-      tabs={[{ key: 'listings', label: 'Listings' }, { key: 'licences', label: 'Licence checks' }, { key: 'teacher-photos', label: 'Teacher photos' }, { key: 'listing-photos', label: 'Listing photos' }, { key: 'brands', label: 'Brands' }]}
+      tabs={[{ key: 'listings', label: 'Listings' }, { key: 'licences', label: 'Licence checks' }, { key: 'teacher-photos', label: 'Teacher photos' }, { key: 'listing-photos', label: 'Listing photos' }, { key: 'ads', label: 'Ads' }, { key: 'brands', label: 'Brands' }]}
       active={tab}
     >
       {/* The listings console is a client component and cannot import licence-stamp.ts (node:crypto), so the
           grandfather's end date for its "No licence · until …" badge is handed down from here. */}
-      {tab === 'listings' ? <AdminListingsClient key={`${status}:${verified}`} licenceGrandfatherUntil={licenceGrandfatherUntilLabel()} initialStatus={status} initialVerified={verified} /> : tab === 'licences' ? <LicenceChecks /> : tab === 'teacher-photos' ? <TeacherPhotoChecks /> : tab === 'listing-photos' ? <ListingPhotoChecks /> : <AdminBrandsClient />}
+      {tab === 'listings' ? <AdminListingsClient key={`${status}:${verified}`} licenceGrandfatherUntil={licenceGrandfatherUntilLabel()} initialStatus={status} initialVerified={verified} /> : tab === 'licences' ? <LicenceChecks /> : tab === 'teacher-photos' ? <TeacherPhotoChecks /> : tab === 'listing-photos' ? <ListingPhotoChecks /> : tab === 'ads' ? <AdCreatives /> : <AdminBrandsClient />}
     </AdminSectionShell>
   )
 }

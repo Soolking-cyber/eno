@@ -41,6 +41,15 @@ describe('counting', () => {
     expect(p).toEqual({ impressions: 3, clicks: 1, invalid: 0, reachNew: 2 })
   })
 
+  it('a duplicate writes nothing: no hour is opened for it', async () => {
+    s.recordAdEvent(ev())
+    await s.flushAdStats(T0)
+    h.txs = []
+    expect(s.recordAdEvent(ev({ now: T0 + 1000 }))).toBe('duplicate')
+    await s.flushAdStats(T0 + 1000)
+    expect(h.txs).toEqual([])
+  })
+
   it('no session id → the address stands in for it', () => {
     expect(s.recordAdEvent(ev({ sid: null }))).toBe('valid')
     expect(s.recordAdEvent(ev({ sid: null }))).toBe('duplicate')
@@ -50,7 +59,9 @@ describe('counting', () => {
   it('GIVT — a bot, a prefetch, an ad not running — is counted as invalid, never as valid, and deduplicated too', () => {
     expect(s.recordAdEvent(ev({ givt: true }))).toBe('invalid')
     expect(s.recordAdEvent(ev({ givt: true }))).toBe('duplicate')
-    expect(s.recordAdEvent(ev({ running: false, sid: 'x' }))).toBe('invalid')
+    // A fresh session id from the same address changes nothing (the client mints those).
+    expect(s.recordAdEvent(ev({ running: false, sid: 'x' }))).toBe('duplicate')
+    expect(s.recordAdEvent(ev({ running: false, ip: '9.9.9.9' }))).toBe('invalid')
     expect(s.recordAdEvent(ev({ kind: 'c', givt: true }))).toBe('invalid')
     expect([...s.pendingFor('ad1').values()][0]).toEqual({ impressions: 0, clicks: 0, invalid: 3, reachNew: 0 })
   })
@@ -127,8 +138,9 @@ describe('the flush', () => {
 })
 
 describe('the figures', () => {
+  // The ad row's own running totals (what the flushed hours below add up to).
   const AD = {
-    id: 'ad1', listingId: null, creativeId: 'cr1', status: 'active', amount: '537143',
+    id: 'ad1', listingId: null, creativeId: 'cr1', status: 'active', amount: '537143', impressions: 1500, clicks: 25,
     startsAt: new Date('2026-11-25T00:00:00Z'), endsAt: new Date('2026-11-26T00:00:00Z'),
   } as never
   it('totals, CTR, reach, frequency, spend pro rata, eCPM and eCPC; hourly in UTC with ICT labels; unflushed counts included', () => {
@@ -149,8 +161,12 @@ describe('the figures', () => {
       ['2026-11-25T10:00:00.000Z', '2026-11-25 17:00 ICT', 1],
     ])
   })
+  it('the totals are the ad row\'s own (whole run), whatever hours are passed: only recent hours still give the full counts', () => {
+    const f = s.adFigures(AD, [{ bucket: new Date('2026-11-25T09:00:00Z'), impressions: 500, clicks: 5, invalid: 0, reachNew: 100 }], new Date('2026-11-25T12:00:00Z'))
+    expect(f.totals).toMatchObject({ impressions: 1500, clicks: 25, ctr: 0.0167 })
+  })
   it('nothing seen yet: CTR, frequency, eCPM and eCPC are null; spend never exceeds the price, never goes below 0', () => {
-    expect(s.adFigures(AD, [], new Date('2026-11-24T12:00:00Z')).totals).toMatchObject({ ctr: null, frequency: null, ecpm_usdc: null, ecpc_usdc: null, spend_usdc: '0' })
+    expect(s.adFigures({ ...(AD as object), impressions: 0, clicks: 0 } as never, [], new Date('2026-11-24T12:00:00Z')).totals).toMatchObject({ ctr: null, frequency: null, ecpm_usdc: null, ecpc_usdc: null, spend_usdc: '0' })
     expect(s.adFigures(AD, [], new Date('2026-12-30T00:00:00Z')).totals.spend_usdc).toBe('0.537143')
     expect(s.spendAtomic({ ...(AD as object), status: 'review' } as never, new Date('2026-11-25T12:00:00Z'))).toBe(BigInt(0))
   })
