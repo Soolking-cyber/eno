@@ -21,8 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     ...withinResult(
       `Thuê Xe Máy Sài Gòn: Xe Ga, Xe Số, Theo Ngày Hoặc Tháng | ${SITE_NAME}`,
-      // 802 px of 1,000 (Seobility crawl 4: the old one was 1,050).
-      'Xe máy cho thuê tại TP.HCM (Sài Gòn) từ các cửa hàng: xe ga và xe số, giá thuê theo ngày và theo tháng tính từ các tin đang có.',
+      // It opens with the page's biggest query word for word and carries the second's words, which a result can bold
+      // (Search Console, 28 days to 2026-11-26: "thuê xe máy sài gòn" 393 impressions, "thuê xe máy tphcm" 255; the old
+      // one opened "Xe máy cho thuê tại…", matching neither phrase). 759 px of 1,000 by serp-width's descriptionPx,
+      // 2026-11-26 (Seobility crawl 4: the one before last was 1,050).
+      'Thuê xe máy Sài Gòn (TP.HCM) từ các cửa hàng: xe ga và xe số, giá thuê theo ngày và theo tháng tính từ các tin đang có.',
     ),
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
