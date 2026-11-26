@@ -174,11 +174,11 @@
     },
     {
      "type": "p",
-     "text": "**Income tax** follows PIT Law 109/2025/QH15. For residents, 2026 monthly taxable income is taxed at 5% up to {{vnd:10000000}}, 10% to {{vnd:30000000}}, 20% to {{vnd:60000000}}, 30% to {{vnd:100000000}} and 35% above, after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} per registered dependant ([KPMG on the new PIT law](https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf)). Non-residents pay a flat 20% with no deductions. You are resident if you spend 183 days or more in Vietnam in a calendar year or in the 12 consecutive months from your arrival ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf))."
+     "text": "**Income tax** follows PIT Law 109/2025/QH15. For residents, 2026 monthly taxable income is taxed at 5% up to {{vnd:10000000}}, 10% to {{vnd:30000000}}, 20% to {{vnd:60000000}}, 30% to {{vnd:100000000}} and 35% above, after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} per registered dependent ([KPMG on the new PIT law](https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf)). Non-residents pay a flat 20% with no deductions. You are resident if you spend 183 days or more in Vietnam in a calendar year or in the 12 consecutive months from your arrival ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf))."
     },
     {
      "type": "table",
-     "caption": "Monthly take-home under 2026 rules, resident with no dependants unless stated: our calculation from PIT Law 109/2025/QH15 and the 9.5% employee insurance rate",
+     "caption": "Monthly take-home under 2026 rules, resident with no dependents unless stated: our calculation from PIT Law 109/2025/QH15 and the 9.5% employee insurance rate",
      "headers": [
       "Situation",
       "Gross a month",
@@ -202,7 +202,7 @@
        "About {{vnd:38700000}}"
       ],
       [
-       "12-month contract, one registered dependant",
+       "12-month contract, one registered dependent",
        "{{vnd:45000000}}",
        "{{vnd:4275000}}",
        "{{vnd:1402500}}",
@@ -251,7 +251,7 @@
     },
     {
      "type": "p",
-     "text": "Social insurance is not all lost. When your labour contract ends or your work permit expires without renewal, you can claim a lump sum of 2 months' average contribution salary for each year contributed ([Social Insurance Law 41/2024/QH15](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html)). The [personal income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam) covers residency, finalisation and dependants, and the [social and health insurance guide](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam) covers the lump-sum claim. Your employer's payroll and the tax office have the final word on your own case."
+     "text": "Social insurance is not all lost. When your labour contract ends or your work permit expires without renewal, you can claim a lump sum of 2 months' average contribution salary for each year contributed ([Social Insurance Law 41/2024/QH15](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html)). The [personal income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam) covers residency, finalisation and dependents, and the [social and health insurance guide](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam) covers the lump-sum claim. Your employer's payroll and the tax office have the final word on your own case."
     }
    ]
   },

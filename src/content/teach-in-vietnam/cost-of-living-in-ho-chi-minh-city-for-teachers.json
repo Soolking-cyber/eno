@@ -583,7 +583,7 @@
     },
     {
      "type": "table",
-     "caption": "Worked example: monthly take-home pay for a tax-resident teacher with no dependants on a labour contract of 12 months or more, 2026 rules (eno.vn calculation from the PIT Law and social insurance rates).",
+     "caption": "Worked example: monthly take-home pay for a tax-resident teacher with no dependents on a labour contract of 12 months or more, 2026 rules (eno.vn calculation from the PIT Law and social insurance rates).",
      "headers": [
       "Line",
       "Amount"
@@ -617,7 +617,7 @@
     },
     {
      "type": "p",
-     "text": "Across the advertised range, that works out at about {{vnd:30500000-44300000}} a month net. Under PIT Law 109/2025/QH15, 2026 resident brackets are 5/10/20/30/35% on monthly taxable income up to {{vnd:10000000}} / to {{vnd:30000000}} / to {{vnd:60000000}} / to {{vnd:100000000}} / above, after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} per dependant ([PIT Law summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y)). Social insurance is compulsory for foreign employees on contracts of 12 months or more: you pay 9.5% (8% pension plus 1.5% health insurance), capped at {{vnd:50600000}} a month of salary from 1 July 2026 ([Vietnam Briefing](https://www.vietnam-briefing.com/news/vietnam-raises-statutory-basic-salary-from-july-2026-implications-for-employers.html))."
+     "text": "Across the advertised range, that works out at about {{vnd:30500000-44300000}} a month net. Under PIT Law 109/2025/QH15, 2026 resident brackets are 5/10/20/30/35% on monthly taxable income up to {{vnd:10000000}} / to {{vnd:30000000}} / to {{vnd:60000000}} / to {{vnd:100000000}} / above, after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} per dependent ([PIT Law summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y)). Social insurance is compulsory for foreign employees on contracts of 12 months or more: you pay 9.5% (8% pension plus 1.5% health insurance), capped at {{vnd:50600000}} a month of salary from 1 July 2026 ([Vietnam Briefing](https://www.vietnam-briefing.com/news/vietnam-raises-statutory-basic-salary-from-july-2026-implications-for-employers.html))."
     },
     {
      "type": "p",

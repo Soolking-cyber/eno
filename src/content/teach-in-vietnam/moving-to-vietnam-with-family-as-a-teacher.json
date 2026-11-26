@@ -9,7 +9,7 @@
   "Family homes, median asking rent a month (eno.vn Rent Index, 10 October 2026): two-bedroom flat {{vnd:13000000}} city-wide, {{vnd:15000000}} in District 7 and {{vnd:20000000}} in District 2 (Thao Dien); three-plus bedrooms {{vnd:23000000}} city-wide.",
   "A full-time language-centre teacher takes home roughly {{vnd:30500000-44300000}} a month, so a three-bedroom flat in District 7 would eat more than half of a mid-range salary; a two-bedroom outside the expat hubs is what one centre salary comfortably carries.",
   "We found no reliable published international-school fees, and none of the 2026 school ads we checked mention tuition for teachers' children, so ask. School fees an employer pays for your children (kindergarten to grade 12) are **tax-free** for you.",
-  "Each registered dependant child cuts your taxable income by {{vnd:6200000}} a month, but only while you are a tax resident; non-residents pay a flat 20% with no family deductions.",
+  "Each registered dependent child cuts your taxable income by {{vnd:6200000}} a month, but only while you are a tax resident; non-residents pay a flat 20% with no family deductions.",
   "Your partner cannot work on your work permit. Working without one costs the worker a {{vnd:15000000-25000000}} fine and possible deportation (Decree 283/2026/ND-CP), and private tutoring for cash has no simple freelance route: it is paid work that needs a permit."
  ],
  "sections": [
@@ -61,7 +61,7 @@
     },
     {
      "type": "p",
-     "text": "Take 85 teaching hours at {{vnd:500000}}: {{vnd:42500000}} gross a month. On a 12-month contract, 9.5% social and health insurance ({{vnd:4037500}}) comes off first. As a tax resident with no dependants you pay about {{vnd:1800000}} in tax and take home about {{vnd:36700000}}. Register two children as dependants and taxable income falls by {{vnd:12400000}}, tax drops to about {{vnd:556000}} and take-home rises to about {{vnd:37900000}} (our calculation from the 2026 rules: [PIT Law 109/2025/QH15 summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y))."
+     "text": "Take 85 teaching hours at {{vnd:500000}}: {{vnd:42500000}} gross a month. On a 12-month contract, 9.5% social and health insurance ({{vnd:4037500}}) comes off first. As a tax resident with no dependents you pay about {{vnd:1800000}} in tax and take home about {{vnd:36700000}}. Register two children as dependents and taxable income falls by {{vnd:12400000}}, tax drops to about {{vnd:556000}} and take-home rises to about {{vnd:37900000}} (our calculation from the 2026 rules: [PIT Law 109/2025/QH15 summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y))."
     },
     {
      "type": "p",
@@ -262,7 +262,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "Under PIT Law 109/2025/QH15, a resident's 2026 salary is taxed at 5/10/20/30/35% after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} for each registered dependant ([PIT Law 109/2025/QH15 summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y)). You are resident with 183 or more days in Vietnam in a calendar year or in the 12 months from arrival, or with rental contracts totalling 183 days or more in the tax year. Non-residents pay a flat 20% with no family deductions, so in your first months confirm your status with the employer. Details are in [personal income tax for teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)."
+     "text": "Under PIT Law 109/2025/QH15, a resident's 2026 salary is taxed at 5/10/20/30/35% after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} for each registered dependent ([PIT Law 109/2025/QH15 summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y)). You are resident with 183 or more days in Vietnam in a calendar year or in the 12 months from arrival, or with rental contracts totalling 183 days or more in the tax year. Non-residents pay a flat 20% with no family deductions, so in your first months confirm your status with the employer. Details are in [personal income tax for teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)."
     },
     {
      "type": "table",
@@ -274,14 +274,14 @@
      ],
      "rows": [
       [
-       "Dependant deduction",
+       "Dependent deduction",
        "{{vnd:6200000}} a month each",
        "Children under 18 qualify; a working-age partner only if unable to work (81%+ loss of capacity) and earning no more than {{vnd:3000000}} a month"
       ],
       [
        "Education fees in Vietnam",
        "Up to {{vnd:24000000}} a year",
-       "For you and your dependants; invoices in your or the dependant's name; needs self-finalisation"
+       "For you and your dependents; invoices in your or the dependent's name; needs self-finalisation"
       ],
       [
        "Medical costs in Vietnam",
@@ -302,7 +302,7 @@
     },
     {
      "type": "p",
-     "text": "Register dependants with your employer, with documents, before 31 December of the tax year ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 48). Foreign papers such as birth certificates need an apostille if your country is a party to the Apostille Convention, which applies to Vietnam from 11 September 2026 ([Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf)), or consular legalisation if not; Germany, Austria and Czechia objected, and Thailand joins only on 28 February 2027, so their documents still need legalisation ([HCCH status table](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41)). Translations need a certified translator's signature. The housing cap is in [Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 8."
+     "text": "Register dependents with your employer, with documents, before 31 December of the tax year ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 48). Foreign papers such as birth certificates need an apostille if your country is a party to the Apostille Convention, which applies to Vietnam from 11 September 2026 ([Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf)), or consular legalisation if not; Germany, Austria and Czechia objected, and Thailand joins only on 28 February 2027, so their documents still need legalisation ([HCCH status table](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41)). Translations need a certified translator's signature. The housing cap is in [Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 8."
     }
    ]
   },
@@ -339,7 +339,7 @@
       },
       {
        "title": "What does the package give a family?",
-       "text": "Housing (provided or cash), flights for whom, medical cover for dependants, and tuition for your children: which school, which year groups, full or partial."
+       "text": "Housing (provided or cash), flights for whom, medical cover for dependents, and tuition for your children: which school, which year groups, full or partial."
       },
       {
        "title": "When and where will you teach?",
@@ -350,7 +350,7 @@
        "text": "Your employer arranges the rest of your paperwork once your work permit is issued; ask them exactly what they cover and what it costs."
       },
       {
-       "title": "Will they register your dependants for tax?",
+       "title": "Will they register your dependents for tax?",
        "text": "Confirm they will apply the {{vnd:6200000}} monthly deduction for each child, and which documents they need from you."
       }
      ]
@@ -372,7 +372,7 @@
    "a": "Many school jobs start in August (Ho Chi Minh City's public schools bring pupils back from 17 to 24 August), so apply months ahead. Avoid moving over Tet, which falls on 6 February 2027, when offices, landlords and many services close."
   },
   {
-   "q": "Can my partner be counted as a dependant for tax?",
+   "q": "Can my partner be counted as a dependent for tax?",
    "a": "Only if they are of working age and unable to work (81% or more loss of working capacity) and have little or no income, or are past working age and meet the income test. A healthy partner who is not working does not qualify."
   },
   {

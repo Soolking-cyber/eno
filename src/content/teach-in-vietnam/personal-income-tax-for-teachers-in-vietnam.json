@@ -7,8 +7,8 @@
  "intro": "Yes, foreign English teachers in Vietnam pay personal income tax, and the school normally withholds it from each payslip. If you are a tax resident (183 days or more in Vietnam in a calendar year or in 12 months from arrival, or leases adding up to 183 days), you pay 5% to 35% on salary after insurance and a monthly personal deduction. If not, you pay a flat 20% with no deductions. Residents normally finalise every year and must settle before leaving Vietnam for good.",
  "keyPoints": [
   "**Residency decides the rate**: 183 days or more in Vietnam in a calendar year or in the 12 months from your arrival, or rental contracts adding up to 183 days in the tax year (unless you can show you are tax resident elsewhere), makes you resident and taxed at 5–35% on worldwide salary. Non-residents pay a flat 20%.",
-  "For 2026 salary the new PIT Law 109/2025/QH15 applies from 1 January: five brackets (5/10/20/30/35%), a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} a month per registered dependant.",
-  "A resident on {{vnd:40000000}} a month gross with no dependants pays about {{vnd:1570000}} a month in tax after insurance (our calculation). Taxed as a non-resident, the same salary loses {{vnd:8000000}} a month.",
+  "For 2026 salary the new PIT Law 109/2025/QH15 applies from 1 January: five brackets (5/10/20/30/35%), a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} a month per registered dependent.",
+  "A resident on {{vnd:40000000}} a month gross with no dependents pays about {{vnd:1570000}} a month in tax after insurance (our calculation). Taxed as a non-resident, the same salary loses {{vnd:8000000}} a month.",
   "Casual payments of {{vnd:5000000}} or more to a resident with no labour contract, or one under 3 months, carry 10% withholding, and a teacher with a main salary cannot sign the form that stops it. A second employer also needs its own work permit for you.",
   "Overtime within legal limits, pay for untaken leave, one home-leave flight a year and children's school fees paid by the employer are tax-free. A housing allowance paid to you in cash is fully taxable.",
   "Finalise before you leave, or authorise someone to: since 1 July 2026 a foreigner with overdue tax can be stopped from leaving Vietnam, with no minimum amount."
@@ -98,7 +98,7 @@
     },
     {
      "type": "p",
-     "text": "Taxable income is your salary minus compulsory insurance, the family deductions and any other allowed deductions. Each rate applies only to the slice of income inside its band. With no dependants you pay nothing until your salary after compulsory insurance passes {{vnd:15500000}} a month ([EY on Resolution 110/2025/UBTVQH15](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax))."
+     "text": "Taxable income is your salary minus compulsory insurance, the family deductions and any other allowed deductions. Each rate applies only to the slice of income inside its band. With no dependents you pay nothing until your salary after compulsory insurance passes {{vnd:15500000}} a month ([EY on Resolution 110/2025/UBTVQH15](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax))."
     },
     {
      "type": "p",
@@ -106,7 +106,7 @@
     },
     {
      "type": "table",
-     "caption": "Tax a month on three salaries in 2026: our calculation from Law 109 Arts. 9–10, assuming no dependants, gross salary used as the insurance base, and the employee's 9.5% social and health insurance capped at {{vnd:50600000}} of salary (the cap from 1 July 2026)",
+     "caption": "Tax a month on three salaries in 2026: our calculation from Law 109 Arts. 9–10, assuming no dependents, gross salary used as the insurance base, and the employee's 9.5% social and health insurance capped at {{vnd:50600000}} of salary (the cap from 1 July 2026)",
      "headers": [
       "Gross salary a month",
       "Resident, contract of 12 months or more",
@@ -136,7 +136,7 @@
     },
     {
      "type": "p",
-     "text": "One registered dependant brings the {{vnd:40000000}} resident figure down to about {{vnd:950000}} a month. Social and health insurance are compulsory only on contracts of 12 months or more: you pay 9.5%, the employer 20.5% ([EY](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). That is why the shorter contract shows more tax but no insurance deduction. The details are in [social and health insurance for foreign teachers](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam), and what schools actually pay is in [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+     "text": "One registered dependent brings the {{vnd:40000000}} resident figure down to about {{vnd:950000}} a month. Social and health insurance are compulsory only on contracts of 12 months or more: you pay 9.5%, the employer 20.5% ([EY](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). That is why the shorter contract shows more tax but no insurance deduction. The details are in [social and health insurance for foreign teachers](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam), and what schools actually pay is in [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
     },
     {
      "type": "h3",
@@ -144,7 +144,7 @@
     },
     {
      "type": "p",
-     "text": "Tax year 2025, finalised between March and May 2026, still used the old figures: a personal deduction of {{vnd:11000000}} a month, {{vnd:4400000}} per dependant and seven brackets ([Nhà Đầu Tư on Official Letter 1296/CT-NVT](https://nhadautu.vn/luu-y-quyet-toan-thue-thu-nhap-ca-nhan-nam-2025-muc-giam-tru-va-bieu-thue-van-theo-quy-dinh-cu-d103299.html)). Anyone filing late or amending a 2025 return uses those."
+     "text": "Tax year 2025, finalised between March and May 2026, still used the old figures: a personal deduction of {{vnd:11000000}} a month, {{vnd:4400000}} per dependent and seven brackets ([Nhà Đầu Tư on Official Letter 1296/CT-NVT](https://nhadautu.vn/luu-y-quyet-toan-thue-thu-nhap-ca-nhan-nam-2025-muc-giam-tru-va-bieu-thue-van-theo-quy-dinh-cu-d103299.html)). Anyone filing late or amending a 2025 return uses those."
     },
     {
      "type": "p",
@@ -171,9 +171,9 @@
        "Counted in whole months from January, or from the month you first arrive, to the month your contract ends and you leave"
       ],
       [
-       "Each registered dependant",
+       "Each registered dependent",
        "{{vnd:6200000}} a month",
-       "Register with documents before 31 December; each dependant counts for one taxpayer only"
+       "Register with documents before 31 December; each dependent counts for one taxpayer only"
       ],
       [
        "Compulsory social and health insurance",
@@ -188,7 +188,7 @@
       [
        "Medical costs in Vietnam (within the health-insurance list)",
        "Up to {{vnd:23000000}} a year",
-       "New for 2026: itemised invoices in your or your dependant's name, not paid by insurance or the employer; you must finalise yourself"
+       "New for 2026: itemised invoices in your or your dependent's name, not paid by insurance or the employer; you must finalise yourself"
       ],
       [
        "Education or training fees in Vietnam",
@@ -199,7 +199,7 @@
     },
     {
      "type": "p",
-     "text": "Dependants are children under 18; children 18 or over who are disabled or unable to work; and children at university, college or vocational school (or 18 or over and still at high school) with no income or average income up to {{vnd:3000000}} a month. A spouse or parent of working age counts only if **both** unable to work (81% or more loss of working capacity) and within the same income limit, so a healthy partner who simply is not working does not qualify; one past working age needs only the income test (Decree 253 Arts. 47–48; [Vialto](https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law)). Bringing children or a partner? See [moving to Vietnam with a family](/teach-in-vietnam/moving-to-vietnam-with-family-as-a-teacher)."
+     "text": "Dependents are children under 18; children 18 or over who are disabled or unable to work; and children at university, college or vocational school (or 18 or over and still at high school) with no income or average income up to {{vnd:3000000}} a month. A spouse or parent of working age counts only if **both** unable to work (81% or more loss of working capacity) and within the same income limit, so a healthy partner who simply is not working does not qualify; one past working age needs only the income test (Decree 253 Arts. 47–48; [Vialto](https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law)). Bringing children or a partner? See [moving to Vietnam with a family](/teach-in-vietnam/moving-to-vietnam-with-family-as-a-teacher)."
     },
     {
      "type": "h3",
@@ -246,7 +246,7 @@
       [
        "Labour contract of 3 months or more that has you working in Vietnam 183 days or more in the tax year",
        "Progressive 5–35% each month, after deductions",
-       "Give HR your dependant papers and check each payslip"
+       "Give HR your dependent papers and check each payslip"
       ],
       [
        "Contract that has you working in Vietnam fewer than 183 days in the tax year",
@@ -339,7 +339,7 @@
      "items": [
       {
        "title": "Gather your papers",
-       "text": "Your MST and login, the tax-withheld records from every payer, your dependant registration, and invoices in your name for any health or education deduction."
+       "text": "Your MST and login, the tax-withheld records from every payer, your dependent registration, and invoices in your name for any health or education deduction."
       },
       {
        "title": "Log in to eTax",
@@ -351,7 +351,7 @@
       },
       {
        "title": "Add deductions you missed",
-       "text": "Personal-deduction months and dependants not claimed during the year can be claimed at finalisation, dependants from the month your support began (Decree 253 Art. 48)."
+       "text": "Personal-deduction months and dependents not claimed during the year can be claimed at finalisation, dependents from the month your support began (Decree 253 Art. 48)."
       },
       {
        "title": "Pay the balance or claim the refund",
