@@ -114,13 +114,14 @@ describe('apps.compose.yml · LAYA_ENGINE_URL', () => {
       return next === -1 ? rest : rest.slice(0, next)
     }
     expect(block('eno-vn')).toContain('LAYA_ENGINE_URL')
-    expect(block('eno-forum')).not.toContain('LAYA_ENGINE_URL')
+    // The services edition's eno-forum service was removed on 2026-11-26 (owner: only the marketplace is built).
+    expect(APPS).not.toMatch(/^  eno-forum:/m)
   })
 
   it.skipIf(!yamlLoad)('is set on eno-vn only — teachers live on the marketplace', () => {
     const doc = yamlLoad!(APPS) as Compose
     expect(doc.services['eno-vn'].environment?.LAYA_ENGINE_URL).toBe(expected)
-    expect(doc.services['eno-forum'].environment?.LAYA_ENGINE_URL).toBeUndefined()
+    expect(doc.services['eno-forum']).toBeUndefined()
     // The rest of eno-vn's runtime switches are untouched.
     expect(doc.services['eno-vn'].environment).toMatchObject({
       LISTING_IMAGES_INTERNAL: 'true', ENO_ISR_PG: '1', SUPABASE_INTERNAL_FETCH: 'true',

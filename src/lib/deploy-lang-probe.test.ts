@@ -32,9 +32,6 @@ type Site = {
   familiesOff?: boolean
   /** the edge Worker pins `/` and `/c/furniture-appliances` to the `en` key (V5's Worker), with a cache */
   workerPinned?: boolean
-  /** the forum apex: 308 to `www` (next.config.ts — the default), or 'none' (images from before it: the apex answers
-   *  itself), or — the failures — 308 across to eno.vn, or a temporary 302 to www */
-  forumApex?: 'www' | 'none' | 'eno.vn' | 'temporary'
 }
 
 /**
@@ -62,8 +59,8 @@ else case "$al" in [Vv][Ii]*) neg=vi ;; *) neg=en ;; esac; fi
 forum=0; case "$host" in *eno.forum) forum=1 ;; esac
 code=200 loc= lang=$neg
 if [ "$host" = www.eno.vn ]; then code=308; loc="https://eno.vn$path$q"
-elif [ "$host" = eno.forum ] && [ "@{SITE_FORUM_APEX:-www}" != none ] && [ "@{path#/api/}" = "$path" ]; then
-  code=308; case "$SITE_FORUM_APEX" in www) loc="https://www.eno.forum$path$q" ;; temporary) code=302; loc="https://www.eno.forum$path$q" ;; *) loc="https://eno.vn$path$q" ;; esac
+# eno.forum here is NOT Reach (the old services copy's apex-to-www 308), so probe()'s Reach routing checks warn.
+elif [ "$host" = eno.forum ] && [ "@{path#/api/}" = "$path" ]; then code=308; loc="https://www.eno.forum$path$q"
 elif [ "$path" = /visa ] || { [ $forum = 0 ] && [ "$path" = /itinerary ]; }; then code=404
 elif [ "$path" = /vi ] || [ "@{path#/vi/}" != "$path" ]; then
   if [ $forum = 0 ] && [ "$SITE_PILOT" = on ] && { [ "$path" = /vi ] || { [ "$path" = /vi/c/furniture-appliances ] && [ -z "@{SITE_FURNITURE_OFF:-}" ]; }; }; then
@@ -92,13 +89,12 @@ if [ -n "$fmt" ]; then fmt=@{fmt//'%{http_code}'/$code}; printf '%s' "@{fmt//'%{
 const tmp: string[] = []
 afterEach(() => { for (const d of tmp.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
-function runProbe(site: Site, mode: 'deploy' | 'rollback', forum: 'public' | 'retired' = 'public') {
+function runProbe(site: Site, mode: 'deploy' | 'rollback') {
   const d = mkdtempSync(join(tmpdir(), 'eno-probe-'))
   tmp.push(d)
   writeFileSync(join(d, 'curl'), FAKE_CURL)
   chmodSync(join(d, 'curl'), 0o755)
-  // forum_public asks nginx, which is not here: this answers for it. Its own test is in deploy-static.test.ts.
-  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\nFAMILIES_EXPECT=${FAMILIES_EXPECT}\nok(){ :; }\nwarn(){ printf '[!!] %s\\n' "$*"; }\nforum_public(){ return ${forum === 'public' ? 0 : 1}; }\n${PROBE}\n`)
+  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\nFAMILIES_EXPECT=${FAMILIES_EXPECT}\nok(){ :; }\nwarn(){ printf '[!!] %s\\n' "$*"; }\n${PROBE}\n`)
   const r = spawnSync('bash', ['-c', `set -uo pipefail; source "${d}/fn.sh"; probe ${mode === 'rollback' ? 'rollback' : ''}; echo "rc=$?"`], {
     encoding: 'utf8',
     timeout: 15_000,
@@ -112,7 +108,6 @@ function runProbe(site: Site, mode: 'deploy' | 'rollback', forum: 'public' | 're
       SITE_FURNITURE_OFF: site.furnitureOff ? '1' : '',
       SITE_FAMILIES: site.pilot === 'on' && !site.familiesOff ? 'on' : 'off',
       SITE_WORKER_PINNED: site.workerPinned ? '1' : '',
-      SITE_FORUM_APEX: site.forumApex ?? 'www',
       SITE_STATE: d,
     },
   })
@@ -145,7 +140,6 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
     expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\s+lang=vi \(cookie lang=en\)/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/\s+lang=en \(cookie lang=vi\)/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/privacy\s+lang=vi \(cookie lang=vi\)/)
-    expect(r.out).toMatch(/https:\/\/www\.eno\.forum\/\s+lang=vi \(vi-VN\)/) // the forum still adapts
     // the phase-1 families: the twin is Vietnamese for an English browser and a stored English choice; the plain URL negotiates
     expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+200/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+lang=vi \(en-US\)/)
@@ -153,7 +147,6 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
     expect(r.out).toMatch(/https:\/\/eno\.vn\/c\/rentals\s+lang=vi \(vi-VN\)/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/c\/rentals\s+lang=vi \(cookie lang=en\)/)
     expect(r.out).toMatch(/https:\/\/eno\.vn\/vi\/dashboard\s+404/) // an app page has no twin
-    expect(r.out).toMatch(/https:\/\/www\.eno\.forum\/vi\s+404/)
   })
 
   it('a deploy of the pilot FAILS when the site is not piloted, or half-piloted', () => {
@@ -208,54 +201,27 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
 })
 
 /**
- * ⛔ THE FORUM APEX MOVES ITS PAGES TO `www` (next.config.ts). The probe checked `https://eno.forum/` and its
- * `/itinerary` for a plain 200, so the first deploy carrying the redirect would have failed its own probe and rolled
- * itself back. The apex lines now accept the canonical hop — and only that one: a redirect anywhere else still fails,
- * and images from before the redirect (a rollback) still pass.
+ * eno.forum is the Reach app (2026-11-19) and the services edition is no longer built (owner, 2026-11-26), so probe() checks
+ * nothing of a forum copy — no apex hop, no /itinerary, no forum language or cookie — and only WARNS when eno.forum does not
+ * answer as Reach: box nginx owns that routing, and it is never a reason to roll back eno.vn.
  */
-describe('eno-deploy.sh probe() — a retired eno.forum', { timeout: 20_000 }, () => {
-  it('skips every check of the copy, so a site without it passes; eno.forum not answering as Reach only warns', () => {
-    const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired')
+describe('eno-deploy.sh probe() — eno.forum is Reach, the services copy is gone', { timeout: 20_000 }, () => {
+  it('checks no forum copy, so a site without one passes; eno.forum not answering as Reach only warns', () => {
+    const r = runProbe({ pilot: 'on' }, 'deploy')
     expect(r.rc).toBe('0')
     expect(r.out).not.toMatch(/eno\.forum\/itinerary/)
     expect(r.out).not.toMatch(/lang=.*eno\.forum/)
-    // eno.forum is Reach (2026-11-19): the stub's eno.forum answers are not Reach's, so both routing checks warn, and the deploy still passes.
+    expect(r.out).not.toMatch(/eno\.forum\/vi\b/)
+    // The stub's eno.forum answers are not Reach's, so both routing checks warn, and the deploy still passes.
     expect(r.out).toMatch(/\[!!\] https:\/\/eno\.forum\/privacy should be Reach's/)
     expect(r.out).toMatch(/\[!!\] https:\/\/www\.eno\.forum\/privacy should 301 to https:\/\/eno\.forum\/privacy/)
   })
   it('the licensing checks on eno.vn still run', () => {
-    expect(runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired').out).toMatch(/https:\/\/eno\.vn\/visa\s+404/)
+    expect(runProbe({ pilot: 'on' }, 'deploy').out).toMatch(/https:\/\/eno\.vn\/visa\s+404/)
   })
-})
-
-describe('eno-deploy.sh probe() — the forum apex moves to www', { timeout: 20_000 }, () => {
-  it('a deploy whose apex 308s to www passes, and the www target is checked in its place', () => {
-    const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy')
-    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+308 → https:\/\/www\.eno\.forum\//)
-    expect(r.out).toMatch(/https:\/\/eno\.forum\/itinerary\s+308 → https:\/\/www\.eno\.forum\/itinerary/)
-    expect(r.rc).toBe('0')
-  })
-
-  it('a rollback to images from before the redirect (the apex answering 200 itself) still passes', () => {
-    expect(runProbe({ pilot: 'off', forumApex: 'none' }, 'rollback').rc).toBe('0')
-  })
-
-  it('⛔ a deploy whose apex still answers 200 itself fails: the redirect is missing, the two origins are back', () => {
-    const r = runProbe({ pilot: 'on', forumApex: 'none' }, 'deploy')
-    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+200 ⛔ the apex should 308 to www/)
-    expect(r.rc).not.toBe('0')
-  })
-
-  it('⛔ a temporary redirect is not the canonical one: a 302 to www fails the apex line', () => {
-    const r = runProbe({ pilot: 'on', forumApex: 'temporary' }, 'deploy')
-    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+302 ⛔ not the permanent 308 to www/)
-    expect(r.rc).not.toBe('0')
-  })
-
-  it('⛔ an apex that redirects anywhere but its own www fails the deploy', () => {
-    const r = runProbe({ pilot: 'on', forumApex: 'eno.vn' }, 'deploy')
-    // The apex's own line (hostcheck), not langcheck's "…for this page": /itinerary on the apex is only checked there.
-    expect(r.out).toMatch(/https:\/\/eno\.forum\/itinerary\s+308 → https:\/\/eno\.vn\/itinerary ⛔ not the canonical host$/m)
-    expect(r.rc).not.toBe('0')
+  it('a rollback probes eno.vn alone too', () => {
+    const r = runProbe({ pilot: 'on' }, 'rollback')
+    expect(r.rc, r.out).toBe('0')
+    expect(r.out).not.toMatch(/lang=.*eno\.forum/)
   })
 })

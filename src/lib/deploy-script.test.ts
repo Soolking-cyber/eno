@@ -8,7 +8,8 @@ import { join } from 'node:path'
  * trap: grep -q exits at its first match, printf (still writing) dies of SIGPIPE (141), and pipefail
  * fails the pipeline. The edition gate's `if ! printf "$FMAN" | grep -qE itinerary` therefore said
  * "NO /itinerary/page" exactly when the route was FOUND early in a large manifest — five recorded
- * false rejections of a good forum image before the cause was found (2026-09-24).
+ * false rejections of a good forum image before the cause was found (2026-09-24). That gate went with the services
+ * edition on 2026-11-26 (owner: only the marketplace is built); the rule still holds for every script below.
  */
 const ROOT = join(__dirname, '..', '..')
 const SCRIPTS = ['infra/vn-node/eno-deploy.sh', 'infra/vn-node/eno-build.sh', 'infra/vn-node/eno-warmup.sh', 'infra/vn-node/legal-amendment-gate.sh']
@@ -32,10 +33,5 @@ F=$(printf '"/[lang]/itinerary/page" "app/x.js"\\n'; head -c 300000 /dev/zero | 
 if ${check}; then echo REJECT; else echo PASS; fi`], { encoding: 'utf8' }).trim()
     expect(run(`! printf '%s' "$F" | grep -qE '"(/\\[lang\\])?/itinerary/page"'`)).toBe('REJECT')
     expect(run(`! grep -qE '"(/\\[lang\\])?/itinerary/page"' <<<"$F"`)).toBe('PASS')
-  })
-
-  it('the edition gate uses the here-string form', () => {
-    const src = readFileSync(join(ROOT, 'infra/vn-node/eno-deploy.sh'), 'utf8')
-    expect(src).toMatch(/if ! grep -qE '"\(\/\\\[lang\\\]\)\?\/itinerary\/page"' <<<"\$FMAN"; then/)
   })
 })

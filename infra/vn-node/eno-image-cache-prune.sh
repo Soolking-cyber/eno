@@ -13,7 +13,7 @@
 # but keeping the directory leaves a key that is neither a hit nor absent.
 set -euo pipefail
 
-CAP_MB="${ENO_IMAGE_CACHE_CAP_MB:-4096}"    # per edition. 22GB free today; raise on the 150GB box.
+CAP_MB="${ENO_IMAGE_CACHE_CAP_MB:-4096}"    # per container. 22GB free today; raise on the 150GB box.
 # ⛔ AN AGE CEILING, AND IT IS A TAKEDOWN CONTROL, NOT HOUSEKEEPING. Before this volume existed,
 # every deploy wiped the optimizer cache, and that wipe was incidentally the ONLY thing that ever
 # stopped the origin serving an encoded copy of a photo whose source had been deleted. Persisting
@@ -34,7 +34,7 @@ MOUNT=/app/.next/cache/images
 
 log() { echo "[image-cache-prune] $*"; }
 
-# ⛔ THE SAME INTERLOCK eno-docker-prune.sh USES. A deploy recreates both containers; pruning
+# ⛔ THE SAME INTERLOCK eno-docker-prune.sh USES. A deploy recreates the app container; pruning
 # mid-swap races the newly started server as it warms. Skipping is free — the next run catches it.
 if pgrep -f 'eno-deploy\.sh' >/dev/null 2>&1; then
   log "deploy in progress — skipping"; exit 0
@@ -61,7 +61,9 @@ kb() { local v st
        case "$v" in (''|*[!0-9]*) echo "" ;; (*) echo "$v" ;; esac; }
 
 rc=0
-for ctr in eno-vn-app eno-forum-app; do
+# eno-vn-app only since 2026-11-26 (owner): the services edition (eno-forum-app) is not built or run any more — eno.forum is
+# the Reach app — and its volume is removed by hand with the container (apps.compose.yml's header).
+for ctr in eno-vn-app; do
   docker inspect "$ctr" >/dev/null 2>&1 || { log "$ctr: no such container — skipping"; continue; }
 
   # ⛔ THE SOURCE IS READ OFF THE CONTAINER, NOT GUESSED FROM A VOLUME NAME. Compose prefixes
@@ -71,7 +73,7 @@ for ctr in eno-vn-app eno-forum-app; do
   # the volume grows to the disk limit with nothing ever reporting a problem. Asking the running
   # container where its mount actually is cannot drift from whatever compose decided to call it.
   # ⚠️ `|| true` IS LOAD-BEARING: a bare command substitution under `set -e` exits the whole
-  # script if docker hiccups here, so eno-forum would never be pruned that hour — the exact
+  # script if docker hiccups here, so the cache would never be pruned that hour — the exact
   # failure kb() exists to prevent, left at this one call site until a reviewer spotted it.
   dir=$(docker inspect "$ctr" --format \
     "{{range .Mounts}}{{if eq .Destination \"$MOUNT\"}}{{.Source}}{{end}}{{end}}" 2>/dev/null) || true
