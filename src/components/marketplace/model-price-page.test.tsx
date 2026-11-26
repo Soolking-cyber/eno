@@ -72,3 +72,15 @@ describe('ModelPricePage — the other-language twin is a link (Seobility crawl 
     expect(vi).toContain('hrefLang="en"')
   })
 })
+
+describe('ModelPricePage — the maker\'s colours (Seobility crawl 11: model pages differing only in numbers read as one)', () => {
+  it('a model in model-colours.ts names its colours; one outside it keeps the general meeting paragraph', async () => {
+    const out = await html(BAND)
+    expect(out).toContain('the Apple iPhone 13 was sold in (PRODUCT)RED, Starlight, Midnight, Blue, Pink and Green')
+    expect(out).not.toContain('matches its photos and description')
+    h.page = { entry: { ...ENTRY, slug: 'apple-ipad-air', model: 'iPad Air', name: 'Apple iPad Air' }, params: {}, total: 30, band: BAND, indexable: true, listings: [] }
+    const other = renderToStaticMarkup(await ModelPricePage({ slug: 'apple-ipad-air', lang: 'en' }))
+    expect(other).toContain('matches its photos and description')
+    expect(other).not.toContain('compare the colour')
+  })
+})
