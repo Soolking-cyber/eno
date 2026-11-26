@@ -200,7 +200,7 @@ export function AdsClient() {
    * in its own empty state instead, so the button is never on screen twice. Only once the list loaded: never offered to
    * someone signed out or mid-load. Hidden while the form is open (the form has its own Cancel).
    */
-  const create = data && !empty && !creating
+  const create = data && !empty && !creating && !signedOut
     ? (className?: string) => <Button type="button" variant="cta" size="sm" className={className} onClick={() => setCreating(true)}>{tr('Create an ad', 'Tạo quảng cáo')}</Button>
     : null
   return (
@@ -220,7 +220,8 @@ export function AdsClient() {
         <div className={cn('h-40 animate-pulse rounded-2xl bg-muted')} />
       ) : signedOut ? (
         <EmptyState title={tr('Sign in to see your ads', 'Đăng nhập để xem quảng cáo của bạn')} />
-      ) : isError ? (
+      ) : isError && !data ? (
+        // Only when nothing ever loaded: a refetch that fails keeps the figures (and the button) already on screen.
         <EmptyState variant="fault" icon={TriangleAlert} title={tr('The figures could not be loaded.', 'Không tải được số liệu.')} subtitle={tr('They will try again in a few seconds.', 'Hệ thống sẽ thử lại sau vài giây.')} />
       ) : empty ? (
         // The pitch and the way in, in one place; replaced by the form while it is open.

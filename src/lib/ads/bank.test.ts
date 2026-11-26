@@ -626,6 +626,20 @@ describe('eno\'s admins hear of every order, and of "I\'ve paid" (owner 2026-11-
     expect(adminBells()).toHaveLength(1)
   })
 
+  it('both tries lose to stray writes: "busy" (try again), never "closed" for an order still open', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    const { db } = await import('@/lib/db')
+    const real = db.listingAd.updateMany
+    db.listingAd.updateMany = (async (args: never) => { h.ads[0]!.updatedAt = new Date(); return real(args) }) as typeof real
+    try {
+      expect(await markPayerPaid(out.order.id, 's1', NOW)).toEqual({ ok: false, status: 503, code: 'busy' })
+    } finally {
+      db.listingAd.updateMany = real
+    }
+    expect(h.ads[0]).toMatchObject({ status: 'awaiting_transfer' })
+  })
+
   it('a lapsed order cannot be marked paid by the shop', async () => {
     const out = await order()
     if (!out.ok) throw new Error('no order')

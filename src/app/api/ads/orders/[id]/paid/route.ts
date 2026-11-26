@@ -18,6 +18,7 @@ export const POST = route({ auth: 'userId' }, async ({ userId, params }) => {
   const out = await markPayerPaid(params.id ?? '', seller.id)
   if (!out.ok) {
     if (out.code === 'order_closed') throw new ApiError('order_closed', 409)
+    if (out.code === 'busy') throw new ApiError('busy', 503)
     throw new ApiError('not_found', 404)
   }
   return NextResponse.json({ order: out.order }, { headers: { 'Cache-Control': 'private, no-store' } })

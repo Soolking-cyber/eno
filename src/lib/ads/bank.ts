@@ -294,7 +294,7 @@ export async function cancelBankOrder(id: string, sellerId: string, now = new Da
   return { ok: true, order: orderView(await db.listingAd.findUniqueOrThrow({ where: { id } }), now) }
 }
 
-export type PayerPaidResult = { ok: true; order: BankOrderView; already: boolean } | { ok: false; status: 404 | 409; code: 'not_found' | 'order_closed' }
+export type PayerPaidResult = { ok: true; order: BankOrderView; already: boolean } | { ok: false; status: 404 | 409 | 503; code: 'not_found' | 'order_closed' | 'busy' }
 
 /**
  * "I've paid" (owner 2026-11-26: "when payment qr pops up user doesnt see paid button and admin doesnt get ad to confirm
@@ -327,7 +327,9 @@ export async function markPayerPaid(id: string, sellerId: string, now = new Date
     if (orderStatus(fresh, now) !== 'awaiting_transfer') return { ok: false, status: 409, code: 'order_closed' }
     if (payerPaidAt(fresh)) return { ok: true, order: orderView(fresh, now), already: true }
   }
-  return { ok: false, status: 409, code: 'order_closed' }
+  // Both tries lost to writes that left the order open: say "try again", never "closed" (commit gate, opus) — the shop
+  // keeps its QR, and the order stays payable.
+  return { ok: false, status: 503, code: 'busy' }
 }
 
 // ── The admin: the list, Mark paid, Cancel ─────────────────────────────────────────────────────────────────────────

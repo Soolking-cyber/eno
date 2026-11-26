@@ -273,6 +273,16 @@ describe('the QR', () => {
     expect(document.querySelector('[data-qr="1"]')).toBeNull()
   })
 
+  it('a "try again" answer keeps the QR and the button', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'busy' }), { status: 503 })))
+    mount(<OrderPay order={ORDER as never} />)
+    fireEvent.click(screen.getByRole('button', { name: 'I\'ve paid' }))
+    await flush()
+    expect(screen.getByRole('alert').textContent).toBe('Something went wrong. Try again.')
+    expect(document.querySelector('[data-qr="1"]')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'I\'ve paid' })).toBeTruthy()
+  })
+
   it('an order the shop already said it paid opens on the thanks, with no button', () => {
     mount(<OrderPay order={{ ...ORDER, payer_paid_at: '2026-11-25T03:05:00.000Z' } as never} />)
     expect(screen.getByRole('status')).toBeTruthy()
