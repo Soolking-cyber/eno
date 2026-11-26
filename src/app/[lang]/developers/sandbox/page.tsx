@@ -32,7 +32,7 @@ export default function SandboxPage() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
         <h1 className="h-display text-foreground">{API_NAME} sandbox</h1>
         <p className="mt-3 text-base leading-relaxed text-body">
-          Build and test an integration without an account and without touching real data. The sandbox lives at <C>{`${BASE}/sandbox`}</C>{' '}
+          Build and test an integration with the {API_NAME} without an account and without touching real data. The sandbox lives at <C>{`${BASE}/sandbox`}</C>{' '}
           and answers in the same shapes as the live API.
         </p>
 
@@ -64,7 +64,7 @@ curl -i -X POST ${BASE}/sandbox/exports -H "Authorization: Bearer eno_test_…"
           <h2 className="h-section text-foreground">3. Go live</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             A test key never works on the live API. A live key comes from your {SITE_NAME} shop&apos;s{' '}
-            <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link>, and it acts on
+            <Link href="/dashboard/settings?tab=developers" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link>, and it acts on
             your real shop from the first call. The full reference is on the{' '}
             <Link href={`${DOC_PATHS.developers}#sandbox`} className="font-semibold text-accent-foreground hover:underline">developer page</Link>{' '}
             and in the <a href={DOC_PATHS.openapi} className="font-semibold text-accent-foreground hover:underline">OpenAPI document</a>.

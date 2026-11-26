@@ -243,7 +243,13 @@ const MESSAGE_OUT = z.strictObject({
 const scopeRead = 'messages:read' as const
 const scopeWrite = 'messages:write' as const
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+/**
+ * ⛔ THE TWO SENDING TOOLS ARE DESTRUCTIVE (2026-11-26, an MCP annotation audit on send_message: "destructiveHint: false, but its
+ * behavior appears to cause material loss or a hard-to-reverse change"). A message reaches another person and cannot be
+ * unsent, and an offer binds the person you act for once it is accepted (SENDS below). So a client asks before each send
+ * instead of treating it as a harmless write. contact_seller sends the same message and offer, so it carries the same hint.
+ */
+const SEND = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 
 // The whole agent policy is in the server's instructions (src/app/api/mcp/route.ts); each description carries the part
 // that tool needs, in the shape of the best-scoring descriptions: what it does; its limits and refusals; Returns; Use it.
@@ -365,7 +371,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
     title: 'Message a seller about a listing',
     description: `Message the seller of a listing for the person you act for: a question, an offer in VND, or both. Use it when the person wants to ask about or bid on a listing found with search_listings; it opens or continues their conversation with that seller about it.\n\n${SENDS} Refused with a reason code: \`not_negotiable\` (an offer on a fixed-price listing), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`not_available_to_agents\` (a teacher profile, or a listing with no seller to message) and \`rate_limited\` (${AGENT_LIMITS.newThreadsPerDay} new conversations a day).\n\nReturns the \`conversation_id\`, whether it was \`created\` just now, and its \`app_url\`; get_conversation then reads the seller's reply.`,
     scope: scopeWrite,
-    annotations: WRITE,
+    annotations: SEND,
     input: z.object({
       listing_id: z.string().describe('The listing to ask about: its id from search_listings, or the end of its page address'),
       message: z.string().optional().describe('What to tell or ask the seller, in the person\'s words, e.g. "Is it still available? I can pick it up on Saturday"'),
@@ -470,7 +476,7 @@ export const MESSAGING_TOOLS: McpTool[] = [
     title: 'Send a message or offer',
     description: `Reply in a conversation for the person you act for: a message, an offer or counter-offer in VND, or both. Use it to answer the other side or to make or counter an offer; an offer sent while one is pending counters it.\n\n${SENDS} You cannot accept an offer: tell the person to accept it in the app. Refused with a reason code: \`not_negotiable\` (a fixed-price listing), \`contact_details\` (phone numbers, emails, outside links or account numbers), \`invalid_offer\` (an amount too far from the asking price, or a listing with none), \`waiting_for_reply\` (${AGENT_LIMITS.unansweredInARow} agent messages in a row with no answer) and \`rate_limited\` (${AGENT_LIMITS.offersPerConversationPerDay} offers in a conversation a day).\n\nReturns the \`message_id\`, its \`kind\` and the conversation's \`app_url\`; decline_offer turns an offer down instead.`,
     scope: scopeWrite,
-    annotations: WRITE,
+    annotations: SEND,
     input: z.object({
       conversation_id: z.string().describe('The conversation to reply in: its id (such as `cmh0q2x8f0001...`), from list_conversations or contact_seller'),
       message: z.string().optional().describe('What to say in reply, in the person\'s words, e.g. "Yes, it is. Could you do 4.5 million?"'),

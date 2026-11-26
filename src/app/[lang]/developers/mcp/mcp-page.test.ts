@@ -11,11 +11,11 @@ const PAGE = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)),
 const DEV = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8')
 
 describe('/developers/mcp', () => {
-  it('names the one server (eno Agentic Commerce, 2026-11-23) in its <h1>, keeps "<site> MCP server" in its title, canonical at its own path', () => {
-    // The title still carries "<site> MCP server": that is what a name-based search for the server matches (the scan above).
-    expect(PAGE).toContain('title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`')
-    // …and the RENDERED title keeps it: withShare's withinResult would otherwise say "eno" there (07, 2026-11-24).
-    expect(PAGE).toContain('}, undefined, { keepDomain: true })')
+  it('names the one server (eno Agentic Commerce, 2026-11-23) in its <h1>, leads its title with "eno … MCP server" (no domain), canonical at its own path', () => {
+    // The title leads with "eno … MCP server": what a name-based search for the server matches (the page's header). No domain in
+    // it (Seobility crawl 10, 2026-11-26): the lede and the description still say "<site> MCP server".
+    expect(PAGE).toContain('title: `${MCP_SERVER_TITLE}: MCP server for AI agents`')
+    expect(PAGE).toContain('The {SITE_NAME} MCP server for agentic commerce')
     expect(PAGE).toMatch(/<h1 className="h-display text-foreground">\{MCP_SERVER_TITLE\}<\/h1>/)
     expect(PAGE).toContain('alternates: { canonical: DOC_PATHS.mcp }')
   })

@@ -117,7 +117,7 @@ there is no \`identity_assertion\` block and no \`events_endpoint\`.
 ## Step 3 — Register
 
 **API keys.** Keys are issued in the dashboard, under **Developers**
-([${SITE_ORIGIN}/dashboard/dev](${SITE_ORIGIN}/dashboard/dev)), to **business** accounts. That page is
+([${SITE_ORIGIN}/dashboard/settings?tab=developers](${SITE_ORIGIN}/dashboard/settings?tab=developers)), to **business** accounts. That page is
 the only place a key is created and the only place its secret is ever shown. There is no self-serve API
 for minting keys and no application form: an account is upgraded to a business tier first, and the
 Developers section appears once it is.

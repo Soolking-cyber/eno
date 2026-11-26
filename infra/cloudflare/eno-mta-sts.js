@@ -11,9 +11,9 @@
  *
  * ⚠️ THE MX LINES MUST MATCH eno.vn's MX RECORDS — Cloudflare Email Routing, route1–3.mx.cloudflare.net (2026-11-26). Change the
  * MX and this file in the same hour, and bump the `id` in the `_mta-sts.eno.vn` TXT record whenever this policy changes.
- * ⚠️ `mode: testing` (2026-11-26): a sender that cannot verify TLS still delivers. It reports only to a TLS-RPT address, and
- * there is none yet (no `_smtp._tls.eno.vn` record: which mailbox takes the reports is the owner's call). `enforce` would
- * make such a sender refuse to deliver, so it waits for that record and a few weeks of clean reports.
+ * ⚠️ `mode: testing` (2026-11-26): a sender that cannot verify TLS still delivers, and reports it to the TLS-RPT address:
+ * TXT `_smtp._tls.eno.vn` "v=TLSRPTv1; rua=mailto:support@eno.vn" (the owner's mailbox, set 2026-11-26). `enforce` would make
+ * such a sender refuse to deliver, so it waits for a few weeks of clean reports there.
  *
  * ── THE THREE PIECES, ALL IN CLOUDFLARE (zone eno.vn 55e558b62f68a44f8177d7d98cb5369e, account c91cf27edd31b01aba677ac9e007d569) ──
  *   1. This script, as a MODULE Worker named `eno-mta-sts`, no bindings:

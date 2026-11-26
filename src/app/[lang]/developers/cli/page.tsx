@@ -31,7 +31,7 @@ export default function CliPage() {
     <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
-        <h1 className="h-display text-foreground">{SITE_NAME} CLI</h1>
+        <h1 className="h-display text-foreground">{SITE_NAME} command-line client (CLI)</h1>
         <p className="mt-3 text-base leading-relaxed text-body">
           <C>eno-vn</C> is the command-line client for the{' '}
           <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link>: manage your shop from a
@@ -42,7 +42,7 @@ export default function CliPage() {
           <h2 className="h-section text-foreground">Install and connect</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             No install needed: <C>npx</C> fetches it from npm (Node 18 or later; no dependencies). Set your API key, from your{' '}
-            <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section, in the
+            <Link href="/dashboard/settings?tab=developers" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section, in the
             environment:
           </p>
           {/* ⛔ The CLI defaults to https://eno.vn; on any other edition the setup names this site's own origin, or a forum

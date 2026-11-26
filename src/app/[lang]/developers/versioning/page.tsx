@@ -36,8 +36,8 @@ export default function VersioningPage() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
         <h1 className="h-display text-foreground">{API_NAME} versioning and deprecation</h1>
         <p className="mt-3 text-base leading-relaxed text-body">
-          How the <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link> changes, and how
-          you will know before something you use goes away.
+          The versioning policy of the <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link>: how it changes,
+          and how you will know before something you use goes away.
         </p>
 
         <section className="mt-8">

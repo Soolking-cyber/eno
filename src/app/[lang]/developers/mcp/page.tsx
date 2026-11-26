@@ -32,14 +32,15 @@ import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
  * English only, like every page under developers/ (eslint.config.mjs).
  */
 
-// ONE server since 2026-11-23 (owner: "make all into 1 … eno agentic commerce"): the title still says "<site> MCP server", which
-// is what a name-based search for it matches (the scan above).
+// ONE server since 2026-11-23 (owner: "make all into 1 … eno agentic commerce"): the title still leads with "eno … MCP server",
+// which is what a name-based search for it matches (the scan above). ⛔ NO DOMAIN IN IT since 2026-11-26 (Seobility crawl 10,
+// "title contains the domain"; the owner: fix every item): the domain is the page's own address, and the description and the
+// lede still say "<site> MCP server".
 export const metadata: Metadata = withShare({
-  title: `${MCP_SERVER_TITLE} | The ${SITE_NAME} MCP server for AI agents`,
+  title: `${MCP_SERVER_TITLE}: MCP server for AI agents`,
   description: `${MCP_SERVER_TITLE}, the ${SITE_NAME} MCP server: an AI agent searches the listings with no sign-in, and runs your storefront — listings, catalogue sync, analytics, webhooks, chat and paid ads — once you sign in with your shop or use an API key.`,
   alternates: { canonical: DOC_PATHS.mcp },
-// keepDomain: withinResult would say "eno" for the domain mid-title (Seobility "domain in title"); this one names it on purpose.
-}, undefined, { keepDomain: true })
+})
 
 const ENDPOINT = `${SITE_ORIGIN}/api/mcp`
 /** The tools that need no credential: the listing search and the docs (the old /api/mcp/search's browser GET lands on #search). */
@@ -56,7 +57,7 @@ export default function McpServerPage() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
         <h1 className="h-display text-foreground">{MCP_SERVER_TITLE}</h1>
         <p className="mt-3 text-base leading-relaxed text-body">
-          The {SITE_NAME} MCP server: one hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server
+          The {SITE_NAME} MCP server for agentic commerce: one hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server
           for AI agents that source, sell and promote on {SITE_NAME}. An agent searches the listings with no sign-in, and runs your storefront
           through the <Link href={DOC_PATHS.developers} className="font-semibold text-accent-foreground hover:underline">{API_NAME}</Link>: listings, bulk
           import, catalogue sync, analytics, webhooks, chat with buyers and sellers, and paid ads.
@@ -98,7 +99,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
             <li>
               • <strong className="text-foreground">The key:</strong> create one in your{' '}
-              <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section (business
+              <Link href="/dashboard/settings?tab=developers" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section (business
               accounts). <strong className="text-foreground">A key is live from the moment it is issued</strong> (the API sandbox&apos;s test keys do not open this server).
             </li>
             <li>
@@ -159,7 +160,8 @@ Authorization: Bearer eno_live_…`}</Code></div>
               form asks for one (docs.x.com/x-ads-api/mcp). */}
           <h3 className="mt-6 text-base font-semibold text-foreground">Grok</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            On grok.com, open <a href="https://grok.com/connectors" className="font-semibold text-accent-foreground underline">Connectors</a>, choose{' '}
+            {/* Connectors is a name, not a link: grok.com answers a crawler 403 (Seobility crawl 10, 2026-11-26). */}
+            On grok.com, open <strong className="text-foreground">Connectors</strong>, choose{' '}
             <strong className="text-foreground">Add a custom connector</strong> and fill in:
           </p>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
@@ -172,7 +174,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
           <p className="mt-2 text-sm leading-relaxed text-body">
             Press <strong className="text-foreground">Add MCP</strong>, then ask Grok to use {SITE_NAME}. Where Grok asks for an OAuth{' '}
             <strong className="text-foreground">Client ID</strong> instead, enter <C>{GROK_CLIENT_ID}</C> with no client secret and the token auth
-            method <C>none</C>, then sign in with your {SITE_NAME} shop and press <strong className="text-foreground">Allow</strong>. On Grok Business or
+            method <C>none</C>, then sign in with your {SITE_NAME} shop and press Allow. On Grok Business or
             Enterprise, a team admin adds the connector first. The search and docs tools below need only the URL, with no header.
           </p>
         </section>

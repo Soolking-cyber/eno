@@ -87,7 +87,7 @@ export default function DevelopersPage() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
         {/* No "<site> API" kicker above the h1: API_NAME already leads with the product name, and
             pure-label eyebrows are retired (owner, 2026-08-05; C-KICKERS). */}
-        <h1 className="h-display text-foreground">{API_NAME}</h1>
+        <h1 className="h-display text-foreground">{API_NAME} documentation</h1>
         {/* 2026-11-06 audit: the lede is the reference's map. Its own words link the three sections a reader comes for (the
             MCP server, the endpoints, the key), so the long page has direct routes without a contents block, which would
             bring the rail's client script to a page that must ship none (header note). 16px, the family's lede size. */}
@@ -96,7 +96,7 @@ export default function DevelopersPage() {
           <a href="#mcp" className="font-semibold text-accent-foreground hover:underline">AI agent</a>. A{' '}
           <a href="#endpoints" className="font-semibold text-accent-foreground hover:underline">REST API</a> with{' '}
           <a href="#authentication" className="font-semibold text-accent-foreground hover:underline">bearer-key auth</a>, supporting{' '}
-          <strong className="text-foreground">read and write</strong>.
+          <strong className="text-foreground">read and write</strong>. This documentation covers every endpoint, with the OpenAPI spec.
         </p>
 
         <section className="mt-8">
@@ -172,11 +172,10 @@ export default function DevelopersPage() {
             {/* 2026-11-18: the sandbox exists (src/lib/api/sandbox.ts); a live key still acts on real data from the start. */}
             <strong className="text-foreground">A key is live from the moment it is issued</strong> — to try the API first, use the{' '}
             <a href="#sandbox" className="font-semibold text-accent-foreground hover:underline">sandbox</a>.{' '}
-            {/* ⚠️ /dashboard/dev, NOT /dashboard?tab=dev. The query form still resolves — dashboard/page.tsx
-                keeps a TAB_TO_ROUTE map for bookmarked links — but it costs the reader a redirect and
-                documents a legacy shape as the current one. The section pages became real routes in the
-                nav-rail change; this link had not followed. */}
-            Create a key in your <Link href="/dashboard/dev" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section
+            {/* ⚠️ THE KEY PAGE'S OWN ADDRESS, /dashboard/settings?tab=developers (2026-11-26, Seobility crawl 10 "link to a
+                redirect"): /dashboard/dev now 307s there, and /dashboard?tab=dev before it. A redirect costs the reader a hop
+                and documents an old shape as the current one, so every /developers page links the address itself. */}
+            Create a key in your <Link href="/dashboard/settings?tab=developers" rel="nofollow" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section
             (business accounts). The full secret is shown once — store it safely. Send it as a Bearer token on every request:
           </p>
           <div className="mt-3"><Code whole>{`Authorization: Bearer eno_live_…`}</Code></div>
@@ -274,7 +273,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
           <p className="mt-3 text-sm leading-relaxed text-body">
             {/* ⚠️ NOT "so it never reaches the model" (corrected 2026-11-11): the server never asks for it, but a client can show its
                 settings to a model, and a person can paste the key into a chat. Claim only what the server controls. */}
-            Your key stays in the client&apos;s connection settings — <strong className="text-foreground">no tool takes it as an argument, so the server never asks the model for it</strong>. Keep it out of chats.
+            Your key stays in the client&apos;s connection settings — <strong className="text-foreground">no tool takes it as an argument</strong>, so the server never asks the model for it. Keep it out of chats.
             {/* ⚠️ NOT "a read-only key exposes only the read tools": tools/list answers WITHOUT a key (src/app/api/mcp/route.ts,
                 discovery is open), so every key sees every tool; the scope is enforced on tools/call. Corrected 2026-11-11. */}
             Tools are scoped exactly like the REST API: a call whose key lacks the tool&apos;s scope is refused. Available tools:
