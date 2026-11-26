@@ -45,7 +45,7 @@ import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
 import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
-import { GridDealsNote, GridLedeTail } from '@/components/marketplace/grid-about'
+import { GridDealsNote, GridLedeTail, ReportNote } from '@/components/marketplace/grid-about'
 
 /**
  * 1 day. It was 7 days ("long-tail combo, client fetches live, weekly regen is plenty") until the page's
@@ -499,7 +499,10 @@ export default async function CategoryDistrictPage({ params }: Props) {
             the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,
             where RentIndexLink renders nothing). */}
         {rentals && data.inHcmc && (rent ? <DistrictRent place={place} slug={district} cells={rent.cells} asOf={rent.asOf} /> : <RentIndexLink />)}
-        {cat.slug !== TEACHERS_CATEGORY_SLUG && total > 0 && <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body" />}
+        {cat.slug !== TEACHERS_CATEGORY_SLUG && total > 0 && <>
+          <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body" />
+          <ReportNote className="mt-2 max-w-prose text-sm leading-relaxed text-body" />
+        </>}
         </div>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">

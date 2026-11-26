@@ -1,6 +1,7 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { cn } from '@/lib/utils'
 import type { StorefrontIntro } from '@/lib/storefront-intro'
+import { ReportNote } from '@/components/marketplace/grid-about'
 
 /**
  * ⛔ "ABOUT <SHOP>" UNDER THE SHOP'S OWN GRID (owner, 2026-11-26: "Add below the cards"). Two short paragraphs of the shop's own
@@ -8,7 +9,8 @@ import type { StorefrontIntro } from '@/lib/storefront-intro'
  * 2026-11-25). Both storefront bodies draw it — seller-storefront.tsx (eno.vn/<handle>, /sellers/<id>) and s/[handle]/page.tsx
  * (<handle>.eno.vn) — right after the shop's grid, before "More from other sellers".
  *
- * WHY TWO PARAGRAPHS OF 20+ WORDS: Seobility's "Pages with only a few paragraphs" (crawl 10: 181 shop pages, the heaviest Content
+ * WHY THREE PARAGRAPHS OF 20+ WORDS (the third, ReportNote, since the short footer took the registration line off every page
+ * but home — grid-about.tsx): Seobility's "Pages with only a few paragraphs" (crawl 10: 181 shop pages, the heaviest Content
  * check) wants three blocks of about 20 words or more, and the footer's registration line is the only one a shop page had; a block
  * under ~20 words (the 9-word intro) is not counted. So each paragraph here is 20+ words in both languages for any shop name.
  * Nothing invented: the count and categories are the grid's own ("including": the most common among the rows the page loaded).
@@ -42,6 +44,7 @@ export function ShopAbout({ intro, className }: { intro: StorefrontIntro; classN
           valuesVi={valuesVi}
         />
       </p>
+      <ReportNote className="text-sm text-body" />
     </section>
   )
 }

@@ -17,7 +17,7 @@ import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
  */
 type Edition = 'marketplace' | 'services'
 
-async function renderFooter(edition: Edition, lang: 'en' | 'vi') {
+async function renderFooter(edition: Edition, lang: 'en' | 'vi', props: { companyDetails?: boolean } = {}) {
   vi.resetModules()
   vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', edition)
   // A stored choice, so the provider's mount-time reconcile keeps `lang` instead of swapping to the
@@ -40,7 +40,7 @@ async function renderFooter(edition: Edition, lang: 'en' | 'vi') {
   const { container } = render(
     <LanguageProvider initialLang={lang} initialViDict={{}}>
       <CurrencyProvider>
-        <Footer />
+        <Footer {...props} />
       </CurrencyProvider>
     </LanguageProvider>,
   )
@@ -58,6 +58,26 @@ afterEach(() => {
 })
 
 const EDITIONS: Edition[] = ['marketplace', 'services']
+
+describe('the operator disclosure — the home page only (owner, 2026-11-26: "have those only on home page other pages just short footer")', () => {
+  it('a page other than home carries the company name and none of the registration lines', async () => {
+    const { container } = await renderFooter('marketplace', 'en')
+    const text = container.textContent ?? ''
+    expect(text).toContain('Công ty TNHH ENO')
+    for (const line of ['Head office', 'Legal representative', 'Business registration no.', 'Responsible for content', 'Ministry of Industry and Trade']) {
+      expect(text, line).not.toContain(line)
+    }
+  })
+  it('the home page (companyDetails) carries every line, in both languages', async () => {
+    const en = (await renderFooter('marketplace', 'en', { companyDetails: true })).container.textContent ?? ''
+    for (const line of ['Head office', 'Legal representative', 'Business registration no.', 'Responsible for content', 'Ministry of Industry and Trade']) {
+      expect(en, line).toContain(line)
+    }
+    cleanup()
+    const viText = (await renderFooter('marketplace', 'vi', { companyDetails: true })).container.textContent ?? ''
+    expect(viText).toContain('GCN ĐKDN số')
+  })
+})
 // + the shelves the second-hand focus emptied (2026-10-03) and sports (0 live since 2026-10-02). Not /c/vehicles
 // since 2026-10-17: a shelf again (owner), holding people's listings (2 live, measured that day), so the grid links it.
 const DEAD = [

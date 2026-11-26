@@ -160,17 +160,22 @@ const LEGAL_LINK = 'transition-colors hover:text-accent-foreground max-sm:inline
 
 /**
  * `compact`: tool and form pages that are never indexed — the signed-in tools (dashboard, disputes, a teacher's own tools) and, since
- * 2026-11-07, the noindex pages a guest can reach (/saved, /rentals/check, a school's review form, /schools/suggest). The operator's legal
- * block, language, currency, legal links and Help center stay, as Decree 52 and the stores want; the link columns are for public,
- * indexed pages, and on a short tool page they outweighed the tool.
+ * 2026-11-07, the noindex pages a guest can reach (/saved, /rentals/check, a school's review form, /schools/suggest). The operator's name
+ * (its full disclosure is the home page's, `companyDetails`), language, currency, legal links and Help center stay; the link columns are
+ * for public, indexed pages, and on a short tool page they outweighed the tool.
  */
-export function Footer({ compact = false }: { compact?: boolean } = {}) {
+/**
+ * `companyDetails`: the operator's full disclosure (head office, legal representative, ERC, who answers for content, contacts, the
+ * MoIT registration). ⛔ THE HOME PAGE ONLY (owner, 2026-11-26: "have those only on home page other pages just short footer") —
+ * Decree 52/2013 Đ.29 asks for them on the site's HOME PAGE; every other page carries the company's name alone.
+ */
+export function Footer({ compact = false, companyDetails = false }: { compact?: boolean; companyDetails?: boolean } = {}) {
   const pathname = usePathname()
   if (isPostFlowPath(pathname)) return null
-  return <FooterBody compact={compact} />
+  return <FooterBody compact={compact} companyDetails={companyDetails} />
 }
 
-function FooterBody({ compact }: { compact: boolean }) {
+function FooterBody({ compact, companyDetails }: { compact: boolean; companyDetails: boolean }) {
   const { tr, lang } = useLanguage()
   // On a shop's or the teacher host, a page link names eno.vn — those hosts 301 every page but `/` there (site-href.tsx).
   const siteHref = useSiteHref()
@@ -766,6 +771,7 @@ function FooterBody({ compact }: { compact: boolean }) {
         <div className={`${compact ? '' : 'mt-12 max-sm:mt-5 '}border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:pt-4 sm:flex sm:items-start sm:justify-between sm:gap-10`}>
           <div className="min-w-0 space-y-1">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
+          {companyDetails && (<>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
               suggested as mock for now then we fill up"). They were chosen by reading what Chợ Tốt
@@ -799,6 +805,7 @@ function FooterBody({ compact }: { compact: boolean }) {
               : COMPANY.phone}
           </p>
           <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>
+          </>)}
           {/* ⛔ THE STORE LINKS COME FROM src/lib/app-store-links.ts, THE ONE MODULE THE HEADER'S "Get the
               app" CONTROL ALREADY READS. This slot used to read its own pair of empty constants in
               site-legal.ts, so while the header linked the live Play listing (versionCode 3, 2026-09-15)

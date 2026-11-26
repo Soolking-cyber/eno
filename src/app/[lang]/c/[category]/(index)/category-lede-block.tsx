@@ -4,7 +4,7 @@ import { loadLinkedCount, loadRentalsFacts, loadTopSubcategories } from '../cate
 import { linkedTier } from '../category-copy'
 import { RentalsLede } from '../category-text'
 import { ClampedLede } from '../clamped-lede'
-import { GridDealsNote, GridLedeTail } from '@/components/marketplace/grid-about'
+import { GridDealsNote, GridLedeTail, ReportNote } from '@/components/marketplace/grid-about'
 
 /**
  * The category page's lede: one measured paragraph (two lines and "Show more" on a phone —
@@ -66,7 +66,10 @@ export async function CategoryLedeBlock({ slug, placement }: {
           )}
           {about && <>{' '}<GridLedeTail /></>}
         </p>
-        {about && <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body max-sm:text-muted-foreground" />}
+        {about && <>
+          <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body max-sm:text-muted-foreground" />
+          <ReportNote className="mt-2 max-w-prose text-sm leading-relaxed text-body max-sm:text-muted-foreground" />
+        </>}
       </div>
     )
   }
@@ -86,7 +89,10 @@ export async function CategoryLedeBlock({ slug, placement }: {
         )}
         {about && <>{' '}<GridLedeTail /></>}
       </ClampedLede>
-      {about && <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body" />}
+      {about && <>
+        <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body" />
+        <ReportNote className="mt-2 max-w-prose text-sm leading-relaxed text-body" />
+      </>}
       </div>
     </>
   )

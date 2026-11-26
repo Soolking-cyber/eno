@@ -12,7 +12,7 @@ import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { storefrontIntro } from '@/lib/storefront-intro'
 import { ShopAbout } from './shop-about'
-import { GridDealsNote, GridLedeTail } from './grid-about'
+import { GridDealsNote, GridLedeTail, ReportNote } from './grid-about'
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] })
@@ -31,7 +31,7 @@ const html = (lang: 'en' | 'vi', node: React.ReactNode) => {
 const words = (s: string) => (s.match(/[\p{L}\p{N}]+(?:[.'’][\p{L}\p{N}]+)*/gu) ?? []).length
 const paragraphs = (el: HTMLElement) => [...el.querySelectorAll('p')].map((p) => (p.textContent ?? '').replace(/\s+/g, ' ').trim())
 
-describe('ShopAbout — two paragraphs of 20+ words under the shop grid', () => {
+describe('ShopAbout — three paragraphs of 20+ words under the shop grid (three since the short footer, 2026-11-26)', () => {
   const cases = {
     'one listing, no category': storefrontIntro('Mive', 1, []),
     'one listing, a category': storefrontIntro('Mive', 1, [{ category: { name: 'Rentals', nameVi: 'Cho thuê' } }]),
@@ -42,7 +42,7 @@ describe('ShopAbout — two paragraphs of 20+ words under the shop grid', () => 
     for (const lang of LANGS) {
       it(`${label} (${lang})`, () => {
         const ps = paragraphs(html(lang, <ShopAbout intro={intro!} />))
-        expect(ps).toHaveLength(2)
+        expect(ps).toHaveLength(3)
         for (const p of ps) expect(words(p), p).toBeGreaterThanOrEqual(20)
         expect(ps[0]).toContain('Mive')
         expect(ps.join(' ')).not.toMatch(/\{\w+\}/)
@@ -60,7 +60,8 @@ describe('ShopAbout — two paragraphs of 20+ words under the shop grid', () => 
   it('claims no chat, price, payment or rule-taking (affiliate-only shops have no chat; job posts have no price; imported rows were not posted here)', () => {
     for (const intro of Object.values(cases)) {
       for (const lang of LANGS) {
-        const text = paragraphs(html(lang, <ShopAbout intro={intro!} />)).join(' ')
+        // The shop's two (the third, ReportNote, is about the site's moderation, not the shop).
+        const text = paragraphs(html(lang, <ShopAbout intro={intro!} />)).slice(0, 2).join(' ')
         expect(text).not.toMatch(/(?<!\p{L})(chat|message|price|pay|payment|rules|responsible|nhắn|giá|thanh toán|quy định|trách nhiệm)(?!\p{L})/iu)
       }
     }
@@ -72,9 +73,13 @@ describe('GridLedeTail + GridDealsNote — the /c and district pages', () => {
     it(`the lede's tail alone is 20+ words, and so is the deals note (${lang})`, () => {
       const tail = (html(lang, <GridLedeTail />).textContent ?? '').trim()
       expect(words(tail), tail).toBeGreaterThanOrEqual(20)
-      const [note] = paragraphs(html(lang, <GridDealsNote />))
-      expect(words(note), note).toBeGreaterThanOrEqual(20)
-      expect(note).not.toMatch(/\{\w+\}/)
+      for (const node of [<GridDealsNote key="d" />, <ReportNote key="r" />]) {
+        const [note] = paragraphs(html(lang, node))
+        expect(words(note), note).toBeGreaterThanOrEqual(20)
+        expect(note).not.toMatch(/\{\w+\}/)
+        // Under any grid, beside linked and affiliate rows: no chat, no price, no payment by eno.
+        expect(note).not.toMatch(/(?<!\p{L})(chat|message|price|payment|nhắn|giá|thanh toán)(?!\p{L})/iu)
+      }
     })
   }
 })

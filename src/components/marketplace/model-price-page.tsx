@@ -81,8 +81,16 @@ function ModelAbout({ model, total, band, lang }: { model: string; total: number
       <p className="text-sm text-body">
         <Bilingual
           en="Every price here is what its seller asks; {site} neither sets nor checks prices. Before you buy, compare condition, specs and warranty on each listing, and ask the seller about anything unclear."
-          vi="Mỗi mức giá ở đây là giá người bán đưa ra; {site} không đặt giá và không kiểm tra giá. Trước khi mua, hãy so sánh tình trạng máy, cấu hình và bảo hành ở từng tin, và hỏi người bán về mọi điểm chưa rõ."
+          vi="Mỗi mức giá ở đây là giá người bán đưa ra; {site} không đặt giá và không kiểm tra giá. Trước khi mua, hãy so sánh tình trạng, thông số và bảo hành ở từng tin, và hỏi người bán về mọi điểm chưa rõ."
           values={values}
+        />
+      </p>
+      {/* The third (owner, 2026-11-26: "Add a 3rd paragraph" — the short footer took the counted registration line, grid-about.tsx).
+          ⚠️ Any goods shelf (modelShelfOk: fashion and furniture too), so nothing device-only — no serial numbers. */}
+      <p className="text-sm text-body">
+        <Bilingual
+          en="When you meet, check that the item matches its photos and description, and test what matters to you before you pay. Any listing that breaks the rules can be reported from its own page."
+          vi="Khi gặp, hãy kiểm tra món đồ có đúng như ảnh và mô tả không, và thử những gì bạn cần trước khi trả tiền. Tin nào vi phạm quy định đều có thể được báo cáo ngay trên trang của tin."
         />
       </p>
     </section>

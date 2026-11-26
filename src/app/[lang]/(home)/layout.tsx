@@ -101,7 +101,8 @@ export default function HomeLayout({ children, params }: { children: React.React
         {PILOTED && <div className="max-sm:sr-only max-sm:focus-within:not-sr-only"><div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} name={HOME_TWIN_NAME} /></div></div>}
       </main>
       {PILOTED && <LangSuggestionBanner />}
-      <Footer />
+      {/* The operator's full disclosure lives on the home page only (owner, 2026-11-26 — footer.tsx `companyDetails`). */}
+      <Footer companyDetails />
     </div>
   )
 }
