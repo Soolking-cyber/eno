@@ -64,19 +64,20 @@ import g59 from '@/content/guides/saigonmoving.json'
 import g60 from '@/content/guides/samsung-galaxy-s26-ultra-colors.json'
 import g61 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
 import g62 from '@/content/guides/thue-can-ho-tay-ho.json'
-import g63 from '@/content/guides/thue-nha-quan-7-phu-my-hung.json'
-import g64 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g65 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
-import g66 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
-import g67 from '@/content/guides/truong-quoc-te-tphcm.json'
-import g68 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
-import g69 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
-import g70 from '@/content/guides/used-sofa.json'
-import g71 from '@/content/guides/viec-lam-giao-vien-tieng-anh-tphcm.json'
-import g72 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
-import g73 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
-import g74 from '@/content/guides/vinpearl-theatre-ocean-city.json'
-import g75 from '@/content/guides/what-is-a-lease.json'
+import g63 from '@/content/guides/thue-chung-cu-tphcm.json'
+import g64 from '@/content/guides/thue-nha-quan-7-phu-my-hung.json'
+import g65 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g66 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g67 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
+import g68 from '@/content/guides/truong-quoc-te-tphcm.json'
+import g69 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
+import g70 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
+import g71 from '@/content/guides/used-sofa.json'
+import g72 from '@/content/guides/viec-lam-giao-vien-tieng-anh-tphcm.json'
+import g73 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
+import g74 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
+import g75 from '@/content/guides/vinpearl-theatre-ocean-city.json'
+import g76 from '@/content/guides/what-is-a-lease.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   '14-inch-vs-15-6-inch-laptop': g0,
@@ -142,17 +143,18 @@ export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'samsung-galaxy-s26-ultra-colors': g60,
   'thay-the-muaban-net-dang-tin-mien-phi': g61,
   'thue-can-ho-tay-ho': g62,
-  'thue-nha-quan-7-phu-my-hung': g63,
-  'thue-xe-dien-vinfast-tphcm': g64,
-  'thue-xe-may-sai-gon-kinh-nghiem': g65,
-  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g66,
-  'truong-quoc-te-tphcm': g67,
-  'tuyen-giao-vien-nuoc-ngoai': g68,
-  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g69,
-  'used-sofa': g70,
-  'viec-lam-giao-vien-tieng-anh-tphcm': g71,
-  'vietnam-school-leaders-english-requirements': g72,
-  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g73,
-  'vinpearl-theatre-ocean-city': g74,
-  'what-is-a-lease': g75,
+  'thue-chung-cu-tphcm': g63,
+  'thue-nha-quan-7-phu-my-hung': g64,
+  'thue-xe-dien-vinfast-tphcm': g65,
+  'thue-xe-may-sai-gon-kinh-nghiem': g66,
+  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g67,
+  'truong-quoc-te-tphcm': g68,
+  'tuyen-giao-vien-nuoc-ngoai': g69,
+  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g70,
+  'used-sofa': g71,
+  'viec-lam-giao-vien-tieng-anh-tphcm': g72,
+  'vietnam-school-leaders-english-requirements': g73,
+  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g74,
+  'vinpearl-theatre-ocean-city': g75,
+  'what-is-a-lease': g76,
 }
