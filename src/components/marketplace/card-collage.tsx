@@ -15,6 +15,9 @@ import { cn } from '@/lib/utils'
  * ⚡ The FIRST tile asks for the strip's first photo at the strip's `sizes`, so on the page's LCP card it is the very request
  * the strip's preload already made (same URL), not a second one. The other tiles are lazy.
  */
+/** A wide card's CSS width on a large phone (430px; it is 100vw there, WIDE_CARD_SIZES — the collage is phone-only, `sm:hidden`): the tiles' 1x. */
+const TILE_BASIS = 430
+
 export function CardCollage({ images, title, sizes, firstEager }: {
   images: readonly string[]
   title: string
@@ -47,18 +50,35 @@ export function CardCollage({ images, title, sizes, firstEager }: {
               height: `${((t.h / layout.height) * 100).toFixed(3)}%`,
             }}
           >
-            <Image
-              src={src}
-              // Every tile described as the strip's slides are ("title — 2/N", listing-card.tsx). They were '' past the first, and
-              // Seobility counts an empty alt as missing: the collage put +14 pages on its "image alt" list (crawl 6, 2026-11-25).
-              alt={images.length > 1 ? `${title} — ${t.i + 1}/${images.length}` : title}
-              fill
-              sizes={k === 0 ? sizes : `${Math.ceil(t.w * 100)}vw`}
-              className="object-cover"
-              quality={60}
-              unoptimized={isMockImageUrl(src)}
-              loading={k === 0 && firstEager ? 'eager' : 'lazy'}
-            />
+            {k === 0 ? (
+              <Image
+                src={src}
+                // Every tile described as the strip's slides are ("title — 2/N", listing-card.tsx). They were '' past the first, and
+                // Seobility counts an empty alt as missing: the collage put +14 pages on its "image alt" list (crawl 6, 2026-11-25).
+                alt={images.length > 1 ? `${title} — ${t.i + 1}/${images.length}` : title}
+                fill
+                sizes={sizes}
+                className="object-cover"
+                quality={60}
+                unoptimized={isMockImageUrl(src)}
+                loading={firstEager ? 'eager' : 'lazy'}
+              />
+            ) : (
+              /* ⛔ THE OTHER TILES ASK FOR A 1x/2x PAIR, NOT A `sizes` LADDER (owner, 2026-11-26: "Trims + 24 cards"). `fill` with a
+                 vw `sizes` wrote 5–6 widths per tile: 190 tiles were 305 KB of /c/rentals' 1,049 KB (Seobility flags a page over
+                 ~500 KB). The collage is phone-only (`sm:hidden`); a tile's width on a 430px phone, 1x and 2x, covers every phone
+                 (a DPR3 phone takes the 2x). */
+              <Image
+                src={src}
+                alt={images.length > 1 ? `${title} — ${t.i + 1}/${images.length}` : title}
+                width={Math.ceil(t.w * TILE_BASIS)}
+                height={Math.ceil(t.h * TILE_BASIS)}
+                className="absolute inset-0 h-full w-full object-cover"
+                quality={60}
+                unoptimized={isMockImageUrl(src)}
+                loading="lazy"
+              />
+            )}
             <ImageMark src={src} />
             {k === last && more > 0 && (
               <div aria-hidden="true" className={cn('absolute inset-0 grid place-items-center bg-black/35 text-2xl font-bold text-white tabular-nums')}>

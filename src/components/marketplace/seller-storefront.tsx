@@ -59,19 +59,21 @@ import { ShopAbout } from '@/components/marketplace/shop-about'
 // Single per-request DB read shared by generateMetadata + the page (React cache
 // dedupes), so an SEO seller page makes ONE round-trip instead of two.
 /**
- * How many listings a storefront renders inline. Enough to fill the grid and its sort tabs;
- * everything beyond it is reachable through search and the category pages, which paginate.
+ * How many listings a storefront renders inline: the grid's first page; the rest load with its Show more (SellerListings
+ * `serverScope`, a scoped /api/listings query per page).
  */
-const STOREFRONT_LISTINGS = 60
+// 24, not 60 (owner, 2026-11-26: "Trims + 24 cards" — Seobility flags a page over ~500 KB of HTML and a card costs 8–18 KB).
+const STOREFRONT_LISTINGS = 24
 /**
  * The "More on <site>" grid below a shop's own listings renders a SMALLER first page than the shop
- * does. The shop's 60 are the reason the visitor is here; these are the continuation, so 24 keeps
+ * does. The shop's own are the reason the visitor is here; these are the continuation, so a short page keeps
  * the storefront's HTML from roughly doubling for rows most visitors never scroll to.
  * ⚠️ IT IS ALSO THE pageSize FOR THAT GRID, DELIBERATELY. `loadMore` uses the rendered row count as
  * its next offset, so a first page that does not match the page size leaves a gap or an overlap at
  * the seam — the dedupe would hide the overlap and nothing would hide the gap.
  */
-export const OTHER_LISTINGS = 24
+// 12 since 2026-11-26 (24 before): the page-weight budget above.
+export const OTHER_LISTINGS = 12
 
 export const loadSeller = cache(async (id: string) => {
   /**
@@ -668,7 +670,9 @@ export async function SellerStorefront({ id }: { id: string }) {
             nothing. */}
         {teacherListings.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-foreground"><Bilingual en="Teacher profile" vi="Hồ sơ giáo viên" /></h2>
+            {/* The account's name follows for screen readers and crawlers: a teacher-only storefront's H1 is that name, and the card
+                shows the profile's own name, so it was in no text (Seobility crawl 10, "H1 words not in the text"). */}
+            <h2 className="h-section text-foreground"><Bilingual en="Teacher profile" vi="Hồ sơ giáo viên" /><span className="sr-only"> · {seller.name}</span></h2>
             <SellerListings listings={teacherListings} ownShop />
           </section>
         )}
@@ -719,8 +723,8 @@ export async function SellerStorefront({ id }: { id: string }) {
         {otherCount > 0 && (
           <section className="mt-6 space-y-4 border-t border-border pt-6 sm:mt-12 sm:pt-8">
             <h2 className="h-section text-foreground"><Bilingual en="More from other sellers" vi="Tin từ người bán khác" /></h2>
-            {/* Server-rendered like the grid above, and see OTHER_LISTINGS for why it is 24 rather
-                than 60: this is the continuation, not the reason the visitor came. */}
+            {/* Server-rendered like the grid above, and see OTHER_LISTINGS for why it is shorter than
+                the shop's own: this is the continuation, not the reason the visitor came. */}
             <SellerListings
               listings={otherListings}
               /* ⛔ NO SEARCH BOX AND NO SORT TABS ON THIS GRID. The shop's own grid above already has both,

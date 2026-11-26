@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Store } from '@/components/ui/icons'
 import { Tr } from '@/context/language-context'
 // The same grid the path-based storefront uses for this section, and the same first-page size —
-// see OTHER_LISTINGS' note there for why it is 24 and why it must equal the pageSize below.
+// see OTHER_LISTINGS' note there for its size and why it must equal the pageSize below.
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { diverseFeedWindow } from '@/lib/feed-window'
 import { diversifyBySeller } from '@/lib/feed-diversity'

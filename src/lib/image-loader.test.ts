@@ -81,7 +81,15 @@ describe('image loader', () => {
     expect(url).toContain('q=60')
     expect(url).toContain('w=640')
     expect(url.startsWith('/_next/image?url=')).toBe(true)
-    expect(url).toContain(encodeURIComponent(INTERNAL + OBJ))
+    // A listing photo reads through the short local route (2026-11-26): not the storage origin, public or internal.
+    expect(url).toBe(`/_next/image?url=${encodeURIComponent('/listing-images?key=a%2Fb-c.webp')}&w=640&q=60`)
+    expect(url).not.toContain('supabase-envoy')
+  })
+
+  it('another bucket on the storage origin still takes the internal origin (only listing photos have the short route)', async () => {
+    const { default: loader } = await load({ pub: PUBLIC, internal: INTERNAL })
+    const avatar = '/storage/v1/object/public/avatars/a/b-c.webp'
+    expect(loader({ src: PUBLIC + avatar, width: 640 })).toContain(encodeURIComponent(INTERNAL + avatar))
   })
 
   /**

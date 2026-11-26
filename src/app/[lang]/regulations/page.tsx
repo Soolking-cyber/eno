@@ -143,14 +143,17 @@ const INTRO: Para = {
 // ⚠️ REGULATIONS_*, NOT TOS_* (2026-10-05): version 3 amended the Quy chế alone, so its number and dates are
 // the Quy chế's own; TOS_VERSION is the Terms' (it reads '3' since the Terms' own, Terms-only version 3 of
 // 2026-10-07 — the same number, a different amendment).
+// The version line names the document as the H1 does (Seobility, crawl 10: the H1's "Operating" was in no text — 2026-11-26).
+// ⛔ THE ARTICLES' TABLES ARE NOT TOUCHED FOR SEOBILITY: their repeated deadline/fee cells are binding text of version 6, and
+// merging rows is an amendment (Article 17's notice), not a presentation change (commit gate 2026-11-26).
 const META: Para = REGULATIONS_AMENDMENT.immediate
   ? {
-      vi: `Phiên bản ${REGULATIONS_VERSION}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
-      en: `Version ${REGULATIONS_VERSION}, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
+      vi: `Quy chế hoạt động, phiên bản ${REGULATIONS_VERSION}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
+      en: `Operating Regulations, version ${REGULATIONS_VERSION}, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
     }
   : {
-      vi: `Phiên bản ${REGULATIONS_VERSION}, sửa đổi công bố ngày ${REGULATIONS_AMENDED.publishedVi}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17); trước ngày đó, phiên bản ${REGULATIONS_PREVIOUS_VERSION} vẫn là bản đang áp dụng và được đăng tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
-      en: `Version ${REGULATIONS_VERSION}, amended on ${REGULATIONS_AMENDED.publishedEn} with effect from ${REGULATIONS_AMENDED.inForceEn} (see Article 17); until then version ${REGULATIONS_PREVIOUS_VERSION} remains in force, and it is published at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
+      vi: `Quy chế hoạt động, phiên bản ${REGULATIONS_VERSION}, sửa đổi công bố ngày ${REGULATIONS_AMENDED.publishedVi}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17); trước ngày đó, phiên bản ${REGULATIONS_PREVIOUS_VERSION} vẫn là bản đang áp dụng và được đăng tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
+      en: `Operating Regulations, version ${REGULATIONS_VERSION}, amended on ${REGULATIONS_AMENDED.publishedEn} with effect from ${REGULATIONS_AMENDED.inForceEn} (see Article 17); until then version ${REGULATIONS_PREVIOUS_VERSION} remains in force, and it is published at ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.`,
     }
 
 /**

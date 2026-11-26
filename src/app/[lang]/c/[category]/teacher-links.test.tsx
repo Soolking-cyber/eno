@@ -99,8 +99,8 @@ const { default: CategoryPage } = await import('./(index)/page')
 const { MoreTeachers, TEACHER_LINKS_MAX, teachersPastGrid } = await import('./teacher-links')
 const { loadTeacherLinks } = await import('./category-data')
 
-/** The grid's size on /c/teachers ((index)/page.tsx PAGE_SIZE). */
-const GRID = 48
+/** The grid's size on /c/teachers ((index)/page.tsx PAGE_SIZE — 24 since 2026-11-26, the owner's "24 cards"; 48 before). */
+const GRID = 24
 
 /** `n` live teacher profiles in rank order — one seller each, as a teacher row is. Three names the card prints as stored. */
 const NAMES: Record<number, string> = { 50: 'nn***', 51: 'Nguyễn Thị Hoa', 52: `O'Brien & <Smith>` }
@@ -241,7 +241,7 @@ describe('<MoreTeachers> — a heading, then one plain followed link per profile
 
 describe('/c/teachers — a crawlable link to every live profile, in both languages', () => {
   for (const lang of ['en', 'vi'] as const) {
-    it(`${lang}: the grid's 48 cards and the list's 45 names link all 93 profiles, each exactly once`, async () => {
+    it(`${lang}: the grid's 24 cards and the list's 69 names link all 93 profiles, each exactly once`, async () => {
       const rows = teachers(93)
       const { el } = await render('teachers', lang, rows)
       expect(gridOf(el)).toEqual(asLinks(rows.slice(0, GRID)))
@@ -256,11 +256,11 @@ describe('/c/teachers — a crawlable link to every live profile, in both langua
 
   it('the list follows what the grid RENDERED: a profile the window pulled up is not listed twice, one it left out is listed', async () => {
     const rows = teachers(93)
-    // The window holds rank 70 among its first 48 and drops rank 48 below the cut.
-    const window = [...rows.slice(0, 47), rows[69], ...rows.slice(47, 59)]
+    // The window holds rank 70 among its first 24 and drops rank 24 below the cut.
+    const window = [...rows.slice(0, 23), rows[69], ...rows.slice(23, 35)]
     const { el } = await render('teachers', 'en', rows, window)
-    expect(gridOf(el)).toEqual(asLinks([...rows.slice(0, 47), rows[69]]))
-    expect(listOf(el)).toEqual(asLinks(rows.slice(47).filter((r) => r.id !== rows[69].id)))
+    expect(gridOf(el)).toEqual(asLinks([...rows.slice(0, 23), rows[69]]))
+    expect(listOf(el)).toEqual(asLinks(rows.slice(23).filter((r) => r.id !== rows[69].id)))
     const hrefs = profileHrefs(el)
     expect(new Set(hrefs).size).toBe(93)
     expect(hrefs).toHaveLength(93)
@@ -325,11 +325,12 @@ describe('/c/teachers — a crawlable link to every live profile, in both langua
     try {
       const full = await render('teachers', 'en', teachers(GRID + TEACHER_LINKS_MAX))
       expect(profileHrefs(full.el)).toHaveLength(GRID + TEACHER_LINKS_MAX)
-      const { el, html } = await render('teachers', 'en', teachers(30))
+      // A grid that holds every profile (fewer than GRID of them): no list.
+      const { el, html } = await render('teachers', 'en', teachers(GRID - 4))
       expect(warn).not.toHaveBeenCalled()
       expect(el.querySelector('[data-teacher-links]')).toBeNull()
       expect(html).not.toContain('More teachers')
-      expect(profileHrefs(el)).toHaveLength(30)
+      expect(profileHrefs(el)).toHaveLength(GRID - 4)
     } finally {
       warn.mockRestore()
     }
@@ -380,7 +381,7 @@ describe('every other category — unchanged', () => {
   it('its HTML does not depend on the teacher read at all — the read that puts the offered teachers into /c/teachers never runs here', async () => {
     for (const lang of ['en', 'vi'] as const) {
       // The offer is LIVE, not a value nothing consults: on /c/teachers the same mocked read hands the page these 93
-      // rows, and the list names every one its 48-card grid does not show.
+      // rows, and the list names every one its 24-card grid does not show.
       h.offered = teachers(93)
       const control = await render('teachers', lang, teachers(GRID))
       expect(listOf(control.el), `${lang}: the offer reaches the HTML through the read`).toEqual(asLinks(teachers(93).slice(GRID)))

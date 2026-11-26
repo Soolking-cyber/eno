@@ -659,11 +659,12 @@ describe('/regulations', () => {
     expect(REGULATIONS_PREVIOUS_VERSION).toBe('5')
     const html = text(await regs())
     const head = html.slice(0, html.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v5"`)
-    expect(head).toContain(`Version 6, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v5"`)
+    expect(head).toContain(`Quy chế hoạt động, phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v5"`)
+    expect(head).toContain(`Operating Regulations, version 6, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v5"`)
     expect(head).toContain('Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.')
     expect(head).toContain('The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.')
-    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|Phiên bản [2345],|Version [2345],/)
+    // Case-blind: the version line reads "…, phiên bản 6," / "…, version 6," since it names the document (2026-11-26).
+    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|phiên bản [2345],|version [2345],/i)
     expect(head.match(/href="\/regulations\/v5"/g)?.length).toBe(2) // META, both languages
     expect(head).not.toContain('href="/regulations/v4"')
     // The Terms count their own versions: their version 4 is another record (LEGAL_AMENDMENT), shipped in the same deploy.
@@ -886,14 +887,14 @@ describe('/regulations', () => {
     expect(section(forum, 'changelog')).toContain(`(phiên bản 5) được lưu tại <a href="/regulations/v5"`)
     expect(section(forum, 'changelog')).toContain('bổ sung tại Điều 14 quy định về tin đăng liên hệ qua sàn')
     const head = forum.slice(0, forum.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
+    expect(head).toContain(`Quy chế hoạt động, phiên bản 6, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
   })
 
   it('META with a notice window (the default): says the previous version governs until the in-force date', async () => {
     const mod = await page<{ default: () => React.ReactElement }>('./regulations/page', 'en', 'marketplace', true)
     const html = text(renderToStaticMarkup(mod.default()))
     const head = html.slice(0, html.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản ${REGULATIONS_VERSION}, sửa đổi công bố ngày 01/10/2026, có hiệu lực từ ngày 07/10/2026 (xem Điều 17); trước ngày đó, phiên bản ${REGULATIONS_PREVIOUS_VERSION} vẫn là bản đang áp dụng`)
+    expect(head).toContain(`Quy chế hoạt động, phiên bản ${REGULATIONS_VERSION}, sửa đổi công bố ngày 01/10/2026, có hiệu lực từ ngày 07/10/2026 (xem Điều 17); trước ngày đó, phiên bản ${REGULATIONS_PREVIOUS_VERSION} vẫn là bản đang áp dụng`)
     expect(head).toContain(`<a href="/regulations/v${REGULATIONS_PREVIOUS_VERSION}"`)
   })
 

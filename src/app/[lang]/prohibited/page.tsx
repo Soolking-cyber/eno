@@ -12,11 +12,21 @@ import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT } from '@/lib/compliance/legal
 import { CROSS_SITE_REL } from '@/lib/cross-site-links'
 import { PROHIBITED_SERVICES_CROSSLINK } from '@/lib/prohibited-services-copy'
 
-export const metadata: Metadata = withShare({
-  title: `Prohibited items & services | Hàng hóa & dịch vụ cấm | ${SITE_NAME}`,
-  description: `Goods and services that must not be listed on ${SITE_NAME}, per Vietnamese law and platform policy.`,
-  alternates: { canonical: '/prohibited' },
-})
+/**
+ * The title in the page's own language (2026-11-26): the bilingual "Prohibited items & services | Hàng hóa & dịch vụ cấm" put
+ * Vietnamese words on the English page that its text never uses (Seobility, crawl 10: title words not in the body). Metadata
+ * only — the list itself is unchanged.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const vi = (await params).lang === 'vi'
+  return withShare({
+    title: vi ? `Hàng hoá & dịch vụ cấm | ${SITE_NAME}` : `Prohibited items & services | ${SITE_NAME}`,
+    description: vi
+      ? `Hàng hoá và dịch vụ không được đăng trên ${SITE_NAME}, theo pháp luật Việt Nam và chính sách của sàn.`
+      : `Goods and services that must not be listed on ${SITE_NAME}, per Vietnamese law and platform policy.`,
+    alternates: { canonical: '/prohibited' },
+  })
+}
 
 // ── Prohibited goods & services (part of the Operating Regulations) ─────────────
 // Legal basis: Investment Law banned lines (as amended by Law 143/2025), Decree

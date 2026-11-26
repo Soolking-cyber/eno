@@ -33,7 +33,9 @@ export function LegalText({ en, vi, lead = false }: LegalCopy & { lead?: boolean
   const cl = detectContentLang(out)
   const head = lead ? LEAD.exec(out) : null
   const nodes = head
-    ? [<strong key="lead" className="font-semibold text-foreground">{head[1]}</strong>, ...linkifyLegal(out.slice(head[1].length))]
+    // A span, not <strong>: the same label opens paragraphs in two sections of /privacy ("Job messages for teachers:"), and the same
+    // phrase strong twice is "duplicate bold" to Seobility (crawl 10, 2026-11-26). Same weight, same words, same textContent.
+    ? [<span key="lead" className="font-semibold text-foreground">{head[1]}</span>, ...linkifyLegal(out.slice(head[1].length))]
     : linkifyLegal(out)
   return cl && cl !== lang ? <span lang={cl}>{nodes}</span> : <>{nodes}</>
 }

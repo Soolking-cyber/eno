@@ -29,6 +29,8 @@
  * Anything that is not our storage origin is returned untouched.
  */
 
+import { listingImageSource } from '@/lib/listing-image'
+
 type LoaderArgs = { src: string; width: number; quality?: number }
 
 /** The public storage origin, e.g. `https://sb.eno.vn`. Baked at build time like every other NEXT_PUBLIC_*. */
@@ -131,6 +133,12 @@ export function servedAsIs(src: string): boolean {
  */
 export default function enoImageLoader({ src, width, quality }: LoaderArgs): string {
   if (servedAsIs(src)) return src
-  const url = internalize(src)
+  // ⛔ A LISTING PHOTO GOES THROUGH /listing-images?key=…, not the storage origin (2026-11-26, the owner's "Trims + 24 cards"):
+  // `http%3A%2F%2Fsupabase-envoy%3A8000%2Fstorage%2Fv1%2Fobject%2Fpublic%2Flistings%2F` was 82 characters in every src and every
+  // srcset candidate — ~5 per image, ~240 images on /c/rentals, a fifth of a page Seobility flags over ~500 KB. The route reads
+  // the same object on the container network (LISTING_IMAGES_INTERNAL, set on both containers), so the optimizer still never
+  // leaves the box; it is the path optimizedImageUrl already uses. Any other source keeps the origin swap below.
+  const local = listingImageSource(src)
+  const url = local !== src ? local : internalize(src)
   return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=${quality ?? 60}`
 }

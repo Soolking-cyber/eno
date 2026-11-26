@@ -66,8 +66,8 @@ export async function generateStaticParams() {
   return []
 }
 
-/** Cards rendered into the HTML. Everything past it is reachable through the scoped query below. */
-const DISTRICT_PAGE_SIZE = 48
+/** Cards rendered into the HTML. Everything past it is reachable through the scoped query below. 24, not 48 (owner, 2026-11-26: "Trims + 24 cards" — Seobility flags a page over ~500 KB of HTML and a card costs 8–18 KB; the rest load as the reader scrolls). */
+const DISTRICT_PAGE_SIZE = 24
 /** Sibling "By area" chips. A category can carry hundreds of districts; a chip row cannot. */
 const SIBLING_DISTRICTS = 24
 

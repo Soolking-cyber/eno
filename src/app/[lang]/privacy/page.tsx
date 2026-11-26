@@ -99,6 +99,21 @@ const CONTACT: LegalCopy = PHONE
     }
 
 /**
+ * The closing section's way to reach us — the same contact as CONTACT, said once more in a sentence of its own: the identical
+ * paragraph printed twice was Seobility's "duplicate paragraph" (crawl 10, 2026-11-26; owner: clear it "without losing legal
+ * context"). Same address, same phone when there is one.
+ */
+const CONTACT_CLOSING: LegalCopy = PHONE
+  ? {
+      en: `Questions about this policy or your personal data: write to ${PRIVACY_EMAIL} or call ${PHONE}.`,
+      vi: `Câu hỏi về chính sách này hoặc về dữ liệu cá nhân của bạn: vui lòng gửi email tới ${PRIVACY_EMAIL} hoặc gọi ${PHONE}.`,
+    }
+  : {
+      en: `Questions about this policy or your personal data: write to ${PRIVACY_EMAIL}.`,
+      vi: `Câu hỏi về chính sách này hoặc về dữ liệu cá nhân của bạn: vui lòng gửi email tới ${PRIVACY_EMAIL}.`,
+    }
+
+/**
  * WHO ELSE RECEIVES DATA — built ONLY from integrations present in the code (2026-10-01). Each row
  * names the file that sends it. Not listed, on purpose: Supabase and Google Cloud as HOSTS (the
  * database is self-hosted on our own server since the 2026-08-23 cutover — infra/vn-node/cutover.md;
@@ -1160,7 +1175,7 @@ const SECTIONS: Section[] = [
         en: 'We may update this policy. Material changes are announced on the platform at least 5 days before they take effect, so you have time to read them and to object or withdraw consent before they apply.',
         vi: 'Chúng tôi có thể cập nhật chính sách này. Các thay đổi quan trọng được thông báo trên nền tảng ít nhất 5 ngày trước khi có hiệu lực, để bạn có thời gian đọc, phản đối hoặc rút lại sự đồng ý trước khi thay đổi được áp dụng.',
       },
-      CONTACT,
+      CONTACT_CLOSING,
     ],
   },
 ]

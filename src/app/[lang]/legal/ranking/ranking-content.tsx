@@ -61,7 +61,9 @@ function FactorList({ factors }: { factors: RankingFactor[] }) {
             {f.weightPct}%
           </span>
           <span className="min-w-0">
-            <strong className="block font-semibold text-foreground">{tr(f.labelEn, f.labelVi)}</strong>
+            {/* A label, set in the heading weight — not <strong>: the factors list renders more than once on the page, and the
+                same phrase strong twice is "duplicate bold" to Seobility (crawl 10). No word changes. */}
+            <span className="block font-semibold text-foreground">{tr(f.labelEn, f.labelVi)}</span>
             <span className="mt-0.5 block">{tr(f.explainEn, f.explainVi)}</span>
           </span>
         </li>

@@ -288,4 +288,6 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-26'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '00a3129560f3ae6a'
+// 2026-11-26 again (same day): the closing section's contact said in its own sentence (CONTACT_CLOSING, privacy/page.tsx) —
+// the identical paragraph printed twice was Seobility's duplicate paragraph; same contact details. Retaken here.
+export const PRIVACY_TEXT_FINGERPRINT = '8d3d1258804badf3'

@@ -202,7 +202,8 @@ export default async function CategoryPage({ params }: Props) {
   // category each ISR render). Independent queries run in parallel; the
   // districts come from a light separate aggregate so the "by area" chips
   // still reflect the whole category.
-  const PAGE_SIZE = 48
+  // 24 server-rendered cards, not 48 (owner, 2026-11-26: "Trims + 24 cards" — Seobility flags a page over ~500 KB of HTML and a card costs 8–18 KB; the rest load as the reader scrolls).
+  const PAGE_SIZE = 24
   /**
    * ⛔ THE FIRST PAGE IS /api/listings AT offset 0, NOT A PLAIN RANK ORDER. Sort and Show-more are
    * scoped API queries now (`serverScope` below), and under DEFAULT_FEED_SORT the API serves
