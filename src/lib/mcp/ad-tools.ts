@@ -26,8 +26,10 @@ import { ToolError, ToolPaymentRequired, ToolResultWithMeta, type McpTool, type 
  * The money path is src/lib/ads/book.ts, the same one POST /api/v1/ads takes.
  */
 const READ_ONLY: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-// Spends money and changes what the public sees; never removes anything; a repeat with a NEW payment buys another week.
-const PAID_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+// ⛔ DESTRUCTIVE (2026-11-26, OpenAI's app review on promote_listing and create_ad: "destructiveHint: false, but its behavior
+// appears to cause material loss or a hard-to-reverse change"). A settled USDC payment cannot be pulled back, and the ad then
+// shows to the public; a repeat with a NEW payment buys another run. So a client asks before each call, as it does before a send.
+const PAID_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }
 
 // The stored ListingAd.status values (book.ts writes exactly these five). An enum, not prose (Manufact 2026-11-24,
 // outputs 87/88/85: a closed set described in words reads as an undocumented string). promote_listing takes all five:
