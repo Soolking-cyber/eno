@@ -919,6 +919,7 @@ export default function RegulationsV4Page() {
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>
         </div>
       }
+      introIsSummary={false}
       intro={
         <>
           <span className="block" lang="vi">{INTRO.vi}</span>

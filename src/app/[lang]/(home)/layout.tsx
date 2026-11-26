@@ -82,6 +82,18 @@ export default function HomeLayout({ children, params }: { children: React.React
         <h1 className="sr-only">{POSTING_IS_FREE
           ? <Bilingual en={`${SITE_NAME} — free classifieds in Vietnam: homes, cars, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt miễn phí tại Việt Nam: nhà, xe, việc làm và đồ cũ cho người nước ngoài và người Việt`} />
           : <Bilingual en={`${SITE_NAME} — classifieds in Vietnam: homes, cars, jobs and used goods for expats and locals`} vi={`${SITE_NAME} — rao vặt tại Việt Nam: nhà, xe, việc làm và đồ cũ cho người nước ngoài và người Việt`} />}</h1>
+        {/* The site in one paragraph, for a screen reader and a parser, sr-only like the H1 above (aeo.js "Page Citability",
+            2026-11-26: Answer Blocks scored the home 0 of 25, since nothing in its first 8,000 characters of text is a sentence
+            of 20+ words — the feed is titles and prices). ⛔ NOT DRAWN: the owner dropped a visible intro here on 2026-11-24
+            ("why so ugly, do we really need it?") — products first. Static, nothing awaited (first-chunk rules above); "free"
+            follows POSTING_IS_FREE like the H1. It opens on a capitalised word, not SITE_NAME: the scorer only counts a
+            paragraph that starts /^[A-Z][a-z]/, and "eno.vn" does not. */}
+        <div className="sr-only">
+          <h2><Bilingual en="In brief" vi="Tóm tắt" /></h2>
+          <p>{POSTING_IS_FREE
+            ? <Bilingual en="Vietnam’s classifieds for expats and locals: apartments and rooms to rent, jobs, teachers and everyday services, cars and motorbikes, furniture, electronics and second-hand goods. Browsing and posting are free, and listings and chat are translated into your language." vi="Rao vặt tại Việt Nam cho người nước ngoài và người Việt: căn hộ và phòng cho thuê, việc làm, giáo viên và dịch vụ hằng ngày, ô tô và xe máy, nội thất, đồ điện tử và đồ cũ. Xem tin và đăng tin đều miễn phí, tin đăng và tin nhắn được dịch sang ngôn ngữ của bạn." />
+            : <Bilingual en="Vietnam’s classifieds for expats and locals: apartments and rooms to rent, jobs, teachers and everyday services, cars and motorbikes, furniture, electronics and second-hand goods. Listings and chat are translated into your language." vi="Rao vặt tại Việt Nam cho người nước ngoài và người Việt: căn hộ và phòng cho thuê, việc làm, giáo viên và dịch vụ hằng ngày, ô tô và xe máy, nội thất, đồ điện tử và đồ cũ. Tin đăng và tin nhắn được dịch sang ngôn ngữ của bạn." />}</p>
+        </div>
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {/* ⛔ THE FIRST PAINT WAITS FOR THE RESULTS ROW (speed audit, 2026-11-03). A 40 KB page arrives over several packets and the browser paints between them, so a
             phone watched the header's icons slide over, a filter chip grow from 14 px to 91 px and rows appear one by one. Everything above the feed is the first 9 KB:

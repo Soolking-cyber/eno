@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 // with `wide`. Server components, plain anchors; the one client island is the rail's
 // scroll-spy (content-rail.tsx), which renders the same links the server did.
 
-export function ContentPage({ title, titleVi, meta, intro, sections, children }: {
+export function ContentPage({ title, titleVi, meta, intro, introIsSummary = true, sections, children }: {
   // Pure-label kickers are banned (craft floor); the last caller's eyebrow was deleted
   // with the slot itself so it can't quietly come back.
   title: string
@@ -34,6 +34,8 @@ export function ContentPage({ title, titleVi, meta, intro, sections, children }:
   /** Small line under the title (e.g. "Last updated …"). */
   meta?: ReactNode
   intro?: ReactNode
+  /** false when the intro is not the page in brief (an archived version's notice), so no sr-only "In brief" sits over it. */
+  introIsSummary?: boolean
   /** lg+ left-rail anchors; omit for single-section pages. `labelVi`: see ContentSection's `titleVi`. */
   sections?: { id: string; label: string; labelVi?: string }[]
   children: ReactNode
@@ -46,6 +48,12 @@ export function ContentPage({ title, titleVi, meta, intro, sections, children }:
         <header className="border-b border-border pb-8">
           <h1 className="h-display max-w-4xl text-balance text-foreground">{titleVi ? <Bilingual en={title} vi={titleVi} /> : <Tr text={title} />}</h1>
           {meta}
+          {/* The lede is the page in brief, and says so to a screen reader and a parser (aeo.js "Page Citability",
+              2026-11-26: its Structure Quality gives a summary section 6 points where a short intro gets 3, and finds one
+              only by a line that IS "In brief" / "Summary" / "Overview"). sr-only: the hero stays title + lede, no new line
+              drawn. Only over an `intro` that summarises: /terms, /privacy and /regulations pass none (they open on their legal
+              text), and the archived /regulations/v1–v4 pass `introIsSummary={false}` (theirs is the version notice). */}
+          {intro && introIsSummary && <h2 className="sr-only"><Bilingual en="In brief" vi="Tóm tắt" /></h2>}
           {intro && <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">{intro}</p>}
         </header>
         {/**
