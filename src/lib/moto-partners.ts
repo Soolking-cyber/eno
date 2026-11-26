@@ -367,10 +367,13 @@ export type MotoPartnerRow = {
 function row(p: MotoPartner, o: {
   slug: string; title: string; titleVi: string; description: string; descriptionVi: string; price: number; period: 'monthly' | 'daily'
   periods: ('daily' | 'monthly')[]; subcategorySlug: MotoPartnerRow['subcategorySlug']; transmission: 'automatic' | 'manual' | null; words: string[]
+  /** The day price the shop lists for a bike whose card is priced by the month (the hub's day figures read it). */
+  dayPrice?: number
 }): MotoPartnerRow {
   const unit = listingMoneyFor({ categorySlug: 'rentals', listingType: 'rent', rentalPeriod: o.period })
   const attrs: Record<string, string> = { rentalPeriod: o.period }
   if (o.transmission) attrs.transmission = o.transmission
+  if (o.period === 'monthly' && o.dayPrice && o.dayPrice > 0) attrs.dayPrice = String(o.dayPrice)
   return {
     externalId: `${p.handle}:${o.slug}`,
     title: o.title, titleVi: o.titleVi,
@@ -392,6 +395,8 @@ export function stageExtraMileBike(b: ExtraMileBike, fx: Fx): MotoPartnerRow {
     slug: b.slug, title: extraMileTitle(b, 'en'), titleVi: extraMileTitle(b, 'vi'),
     description: extraMileDescription(b, fx, 'en'), descriptionVi: extraMileDescription(b, fx, 'vi'),
     price, period, periods: b.city ? ['daily', 'monthly'] : ['daily'],
+    // The bike page's own first-day price (in đồng, as the shop states it), for the hub's day figures (OpenSEO audit 2026-11-26).
+    ...(b.city ? { dayPrice: b.city.firstDay } : {}),
     subcategorySlug: b.kind === 'ebike' ? 'ebike-rental' : 'motorbike-rental', transmission: b.transmission,
     words: [b.name, b.kind === 'ebike' ? 'thuê xe điện e-scooter electric rental' : 'thuê xe máy motorbike scooter rental', ...(b.road ? ['road trip phượt'] : [])],
   })

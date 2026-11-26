@@ -23,7 +23,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!thread) return { title: `Help center | ${SITE_NAME}` }
   // The Vietnamese variant's <title> is the curated translation when the cache holds one
   // (L-CONTENT-VI) — one indexed read, the same one the page makes below.
-  const viTitle = lang === 'vi' ? (await cachedTranslations([thread.post.title]))[thread.post.title]?.vi : undefined
+  // ⚠️ AND ITS META DESCRIPTION (OpenSEO audit 2026-11-26): the Vietnamese variant carried the English body's opening as its
+  // description under a Vietnamese title, so Google showed Vietnamese searchers an English snippet. Same cache, same read.
+  const vi = lang === 'vi' ? await cachedTranslations([thread.post.title, thread.post.body]) : {}
+  const viTitle = vi[thread.post.title]?.vi
+  const viBody = vi[thread.post.body]?.vi
   // Both share cards are built by withShare() from the thread's OWN title, on either variant: a share
   // scraper sends no language, so the card must not depend on which variant it happened to hit.
   const meta = withShare({
@@ -38,7 +42,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const twin = langAlternatesFor(`/help/${id}`, lang, meta.robots)
   const head = twin ? { ...meta, alternates: twin } : meta
   // Within a result like the English one (withShare runs withinResult on it; Seobility crawl 3: 4 Vietnamese titles too long).
-  return viTitle ? { ...head, title: withinResult(`${viTitle} | ${SITE_NAME}`, '').title } : head
+  // Only the page's own description follows the variant; the share card's (og/twitter) stays English, as the title's does.
+  // Cut the way the English one is (withShare → withinResult → a whole sentence within 155 characters; commit-gate review, Opus).
+  const described = viBody ? { ...head, description: withinResult(`${viTitle ?? thread.post.title} | ${SITE_NAME}`, viBody.replace(/\s+/g, ' ').slice(0, 200)).description } : head
+  return viTitle ? { ...described, title: withinResult(`${viTitle} | ${SITE_NAME}`, '').title } : described
 }
 
 export default async function HelpThreadPage({ params }: Params) {

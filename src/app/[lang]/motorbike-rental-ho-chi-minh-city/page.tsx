@@ -3,6 +3,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
+import { bikeHubDescription } from '@/lib/vehicle-hub-meta'
 import { titleWithSite } from '@/lib/meta-description'
 
 /**
@@ -20,7 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: titleWithSite(`Motorbike Rental in Ho Chi Minh City: Scooters by Day or Month`, SITE_NAME),
     // Within a result: 899 px of 1,000 (Seobility crawl 4, 2026-11-25: the old one was 1,230).
-    description: 'Motorbikes and scooters for rent in Ho Chi Minh City (Saigon) from local shops: automatic or manual, with day and month prices from live listings.',
+    // With a price first when the page prints day figures (vehicle-hub-meta.ts bikeHubDescription, OpenSEO audit 2026-11-26).
+    description: bikeHubDescription(data, 'en', 'Motorbikes and scooters for rent in Ho Chi Minh City (Saigon) from local shops: automatic or manual, with day and month prices from live listings.'),
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.
     ...(data.total === 0 ? { robots: { index: false, follow: true } } : {}),

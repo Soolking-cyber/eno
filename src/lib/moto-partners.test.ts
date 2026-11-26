@@ -106,11 +106,13 @@ describe('the rows', () => {
   it('a city bike is priced by the month in đồng and answers both period chips; a road-only bike by the converted day', () => {
     const v = stageExtraMileBike(bike('honda-pcx-150-2019-2020'), FX)
     expect(v).toMatchObject({ externalId: 'theextramile:honda-pcx-150-2019-2020', price: 4_500_000, priceUnit: 'VND/month', subcategorySlug: 'motorbike-rental', negotiable: false, district: 'Quận 2' })
-    expect(JSON.parse(v.attributes)).toEqual({ rentalPeriod: 'monthly', transmission: 'automatic' })
+    // With the bike page's first-day price for the hub's day figures (OpenSEO audit 2026-11-26), never shown as its own row.
+    expect(JSON.parse(v.attributes)).toEqual({ rentalPeriod: 'monthly', transmission: 'automatic', dayPrice: '450000' })
     expect(v.facetTokens).toContain('monthly')
     expect(v.facetTokens).toContain('daily')
     const cb = stageExtraMileBike(bike('honda-cb500x'), FX)
     expect(cb).toMatchObject({ price: 1_580_000, priceUnit: 'VND/day' }) // 60 × 26,300 = 1,578,000 → nearest 10,000
+    expect(JSON.parse(cb.attributes).dayPrice).toBeUndefined() // its card price IS its day price
     expect(extraMilePrice(bike('honda-cb500x'), FX).convertedFromUsd).toBe(60)
   })
 

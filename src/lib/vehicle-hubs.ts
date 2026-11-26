@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
-import { carCohorts, bikeCohorts, districtCounts, periodOf, transmissionOf, seatsOf, isVinFast, type Cohort, type HubRow } from '@/lib/vehicle-hub-stats'
+import { carCohorts, bikeCohorts, districtCounts, periodOf, publishedDayPrice, shopLines, transmissionOf, seatsOf, isVinFast, trustedHubRow, type Cohort, type HubRow, type ShopLine } from '@/lib/vehicle-hub-stats'
 
 /**
  * THE DATA BEHIND ONE HCMC VEHICLE-HIRE HUB — one loader per kind, cached per render.
@@ -53,6 +53,8 @@ export type VehicleHubData = {
    * linked": the page's provenance copy is built from these counts (codex/opus review, 2026-09-29).
    */
   sources: { name: string; count: number; linkedCount: number }[]
+  /** Each shop's live rows and its lowest day and month price, most rows first (vehicle-hub-stats.ts shopLines). */
+  shops: ShopLine[]
   /** Rows that book on their source. `linked === total` is the only state the page may call "all". */
   linked: number
   /** The newest recorded change to any row: the honest "last updated" the database can support. */
@@ -62,12 +64,12 @@ export type VehicleHubData = {
 
 export const loadVehicleHub = cache(async (kind: VehicleHubKind): Promise<VehicleHubData> => {
   const where = hubWhere(kind)
-  const [rows, raw] = await Promise.all([
+  const [read, raw] = await Promise.all([
     db.listing.findMany({
       where: await scopedListingWhere(where),
       select: {
         price: true, priceUnit: true, attributes: true, title: true, district: true, updatedAt: true,
-        affiliateUrl: true, seller: { select: { name: true } },
+        affiliateUrl: true, seller: { select: { id: true, name: true, officialPartner: true, handle: { select: { handle: true } } } },
       },
     }),
     db.listing.findMany({
@@ -78,6 +80,8 @@ export const loadVehicleHub = cache(async (kind: VehicleHubKind): Promise<Vehicl
       take: HUB_GRID_SIZE,
     }),
   ])
+  // A day price counts only from a partner shop's row (vehicle-hub-stats.ts trustedHubRow); every figure below reads `rows`.
+  const rows = read.map((r) => trustedHubRow(r, r.seller.officialPartner))
 
   const hubRows: HubRow[] = rows
   const bySource = new Map<string, { count: number; linkedCount: number }>()
@@ -99,9 +103,10 @@ export const loadVehicleHub = cache(async (kind: VehicleHubKind): Promise<Vehicl
     for (const s of ['4', '5', '7', '9plus'] as const) counts[`seats-${s}`] = rows.filter((r) => seatsOf(r) === s).length
     counts.vinfast = rows.filter(isVinFast).length
   } else {
-    for (const p of ['daily', 'monthly'] as const) {
-      counts[p] = rows.filter((r) => periodOf(r) === p).length
-    }
+    // A bike counts as "by the day" when its shop lists a day price for it (publishedDayPrice), as the day figures do; the
+    // explorer's daily filter link agrees (a partner bike priced by the month carries both periods in its facet tokens).
+    counts.daily = rows.filter((r) => publishedDayPrice(r) != null).length
+    counts.monthly = rows.filter((r) => periodOf(r) === 'monthly').length
     for (const t of ['automatic', 'manual'] as const) {
       counts[t] = rows.filter((r) => transmissionOf(r) === t).length
     }
@@ -115,6 +120,8 @@ export const loadVehicleHub = cache(async (kind: VehicleHubKind): Promise<Vehicl
     // Every raw spelling, not a top-N: the hub merges spellings of one place (vehicle-hub.tsx) before it cuts.
     districts: districtCounts(hubRows, 200),
     sources: [...bySource.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.count - a.count),
+    // The shop's page: its @handle, else /sellers/<id> (the storefront link everywhere else, e.g. the listing page).
+    shops: shopLines(rows.map((r) => ({ ...r, shop: { name: r.seller.name, href: r.seller.handle ? `/${r.seller.handle.handle}` : `/sellers/${r.seller.id}`, partner: r.seller.officialPartner } }))),
     linked,
     lastChange,
     listings: await localizeListingTitles(raw.map(serializeListingCard)),

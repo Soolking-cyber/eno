@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  BAND_MIN, RANGE_MIN, bikeCohorts, carCohorts, districtCounts, isVinFast, periodOf, quantile, summarize, type HubRow,
+  BAND_MIN, RANGE_MIN, bikeCohorts, carCohorts, districtCounts, isVinFast, periodOf, publishedDayPrice, quantile, shopLines, summarize, trustedHubRow, type HubRow,
 } from './vehicle-hub-stats'
 import { MARKETPLACE_GUIDE_PATHS, marketplaceGuideAlternates, MARKETPLACE_GUIDE_SLUGS } from './expat-guides'
 import { isVehicleHireReference } from './rental-places'
@@ -158,5 +158,57 @@ describe('the hub copy names the site it is served on', () => {
     const forum = { kind: 'car' as const, lang: 'en' as const, state: 'some' as const, n: '3', from: 'Mioto', site: 'eno.forum' }
     for (const text of [hubDisclosure(forum)!, hubBooking(forum), hubIntro(forum)]) expect(text).not.toContain('eno.vn')
     expect(hubDisclosure(forum)).toContain('eno.forum')
+  })
+})
+
+describe('a day price the shop lists for a bike priced by the month (OpenSEO audit 2026-11-26)', () => {
+  const monthly = (price: number, dayPrice?: unknown, transmission: 'automatic' | 'manual' = 'automatic'): HubRow => ({
+    price, priceUnit: 'VND/month', title: 'Honda PCX 150', district: 'Quận 2',
+    attributes: JSON.stringify({ rentalPeriod: 'monthly', transmission, ...(dayPrice === undefined ? {} : { dayPrice }) }),
+  })
+
+  it('reads the listed day price; never one derived from the month, and nothing from a malformed value', () => {
+    expect(publishedDayPrice(bike(150_000, 'daily', 'automatic'))).toBe(150_000)
+    expect(publishedDayPrice(monthly(4_500_000, '450000'))).toBe(450_000)
+    expect(publishedDayPrice(monthly(4_500_000))).toBeNull()
+    for (const bad of ['', '0', '-5', '4.5e5', 'abc', 450_000, '12']) expect(publishedDayPrice(monthly(4_500_000, bad))).toBeNull()
+  })
+
+  it('counts in the day figures beside the bikes priced by the day; the month figures stay the month prices', () => {
+    const rows = [bike(100_000, 'daily', 'manual'), bike(260_000, 'daily', 'automatic'), ...[280, 300, 350, 450, 550].map((k) => monthly(k * 10_000, String(k * 1000)))]
+    const c = Object.fromEntries(bikeCohorts(rows).map((x) => [x.key, x.summary]))
+    expect(c['daily-all']).toEqual({ kind: 'range', n: 7, min: 100_000, max: 550_000 })
+    expect(c['daily-automatic']).toMatchObject({ kind: 'range', n: 6, min: 260_000 })
+    expect(c['monthly-all']).toEqual({ kind: 'range', n: 5, min: 2_800_000, max: 5_500_000 })
+    // Without a listed day price, a month row adds nothing to the day figures.
+    const plain = Object.fromEntries(bikeCohorts([bike(100_000, 'daily', 'manual'), ...[1, 2, 3, 4, 5].map(() => monthly(3_000_000))]).map((x) => [x.key, x.summary]))
+    expect(plain['daily-all']).toEqual({ kind: 'too-few', n: 1 })
+  })
+
+  it("the shops side by side: partners by name, most bikes first, each one's lowest day and month; everyone else one unnamed line, last", () => {
+    const shop = (name: string, partner: boolean) => ({ name, href: `/${name.toLowerCase()}`, partner })
+    const lines = shopLines([
+      { ...monthly(3_000_000, '300000'), shop: shop('Mile', true) },
+      { ...monthly(2_800_000, '280000'), shop: shop('Mile', true) },
+      { ...bike(1_290_000, 'daily', 'manual'), shop: shop('Mile', true) },
+      { ...bike(260_000, 'daily', 'automatic'), shop: shop('Scooter', true) },
+      { ...bike(100_000, 'daily', 'automatic'), shop: shop('A Person', false) },
+      { ...bike(120_000, 'daily', 'automatic'), shop: shop('Another Person', false) },
+    ])
+    expect(lines).toEqual([
+      { name: 'Mile', href: '/mile', count: 3, dayFrom: 280_000, monthFrom: 2_800_000 },
+      { name: 'Scooter', href: '/scooter', count: 1, dayFrom: 260_000, monthFrom: null },
+      { name: null, href: null, count: 2, dayFrom: 100_000, monthFrom: null },
+    ])
+    expect(JSON.stringify(lines)).not.toMatch(/Person/)
+  })
+
+  it('a day price counts only from a partner shop: anyone else\'s is dropped before the figures read it', () => {
+    const r = monthly(3_000_000, '1000')
+    expect(publishedDayPrice(trustedHubRow(r, false))).toBeNull()
+    expect(JSON.parse(trustedHubRow(r, false).attributes!)).toEqual({ rentalPeriod: 'monthly', transmission: 'automatic' })
+    expect(publishedDayPrice(trustedHubRow(r, true))).toBe(1000)
+    const daily = bike(150_000, 'daily', 'automatic')
+    expect(trustedHubRow(daily, false)).toBe(daily) // nothing to drop: the same row
   })
 })

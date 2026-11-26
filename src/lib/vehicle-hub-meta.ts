@@ -43,3 +43,24 @@ function phrase(s: PriceSummary | undefined, lang: 'en' | 'vi', money: (n: numbe
   if (lang === 'vi') return `khoảng ${money(s.median)}${unit}${middle ? ` (một nửa số xe ${span(s.p25, s.p75)})` : ''}`
   return `about ${money(s.median)}${unit}${middle ? ` (middle half ${span(s.p25, s.p75)})` : ''}`
 }
+
+/**
+ * The motorbike hub's meta description, a price first (OpenSEO audit 2026-11-26: every result above this page on Google's
+ * first page for "thuê xe máy sài gòn" leads with one, "từ 50k/ngày"; this one named none). The lowest day price of the day
+ * figures the page prints (vehicle-hub-stats.ts bikeCohorts `daily-all`: a range or band from RANGE_MIN bikes), so the
+ * description never states a price the page does not show; `fallback` (the page's old wording) below that.
+ * ⚠️ The Vietnamese one still opens with "Thuê xe máy Sài Gòn", the page's biggest search word for word (its page.tsx).
+ */
+export function bikeHubDescription(data: VehicleHubData, lang: 'en' | 'vi', fallback: string): string {
+  const day = data.cohorts.find((c) => c.key === 'daily-all')?.summary
+  if (!day || day.kind === 'too-few') return fallback
+  // ⛔ ONLY A FIGURE THE DAY BLOCK PRINTS (commit-gate review, Opus): a range prints its low end, so "from" it; a band prints
+  // its median and middle half, never its minimum, so "about" the median.
+  const vi = lang === 'vi'
+  const money = formatMoneyFull(day.kind === 'range' ? day.min : day.median, '₫', lang)
+  const price = day.kind === 'range' ? (vi ? `từ ${money}/ngày` : `from ${money} a day`) : (vi ? `khoảng ${money}/ngày` : `about ${money} a day`)
+  const n = new Intl.NumberFormat(vi ? 'vi-VN' : 'en-US').format(data.total)
+  return vi
+    ? `Thuê xe máy Sài Gòn (TP.HCM) ${price}: ${n} xe ga và xe số từ các cửa hàng, giá theo ngày và theo tháng từ các tin đang có.`
+    : `Motorbike rental in Ho Chi Minh City (Saigon), ${price}: ${n} scooters and bikes from local shops, day and month prices from live listings.`
+}

@@ -4,6 +4,7 @@ import { withinResult } from '@/lib/site-identity'
 import { guideDates, marketplaceGuideAlternates } from '@/lib/expat-guides'
 import { VehicleHub, VEHICLE_HUB_SLUGS } from '@/components/marketplace/vehicle-hub'
 import { loadVehicleHub } from '@/lib/vehicle-hubs'
+import { bikeHubDescription } from '@/lib/vehicle-hub-meta'
 
 /**
  * Thuê xe máy TP.HCM (Vietnamese half) — see src/components/marketplace/vehicle-hub.tsx for what this page is and why.
@@ -27,7 +28,8 @@ export async function generateMetadata(): Promise<Metadata> {
       // (Search Console, 28 days to 2026-11-26: "thuê xe máy sài gòn" 393 impressions, "thuê xe máy tphcm" 255; the old
       // one opened "Xe máy cho thuê tại…", matching neither phrase). 759 px of 1,000 by serp-width's descriptionPx,
       // 2026-11-26 (Seobility crawl 4: the one before last was 1,050).
-      'Thuê xe máy Sài Gòn (TP.HCM) từ các cửa hàng: xe ga và xe số, giá thuê theo ngày và theo tháng tính từ các tin đang có.',
+      // With a price first when the page prints day figures (vehicle-hub-meta.ts bikeHubDescription, OpenSEO audit 2026-11-26).
+      bikeHubDescription(data, 'vi', 'Thuê xe máy Sài Gòn (TP.HCM) từ các cửa hàng: xe ga và xe số, giá thuê theo ngày và theo tháng tính từ các tin đang có.'),
     ),
     alternates: marketplaceGuideAlternates(SLUG),
     // ⛔ NOTHING LIVE = NOTHING TO INDEX. Computed, so it lifts itself when stock returns.

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { SeoArticle, P, Ul, HereLink, type ArticleContent, type ArticleSection } from './seo-article'
 import { SellerListings } from './seller-listings'
 import { DISTRICTS } from './listings-explorer.constants'
-import { marketplaceGuidesExcept } from '@/lib/expat-guides'
+import { vehicleHubRelated } from '@/lib/vehicle-hub-related'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -131,6 +131,46 @@ function Grid({ data, lang }: { data: VehicleHubData; lang: Lang }) {
   )
 }
 
+/**
+ * THE SHOPS SIDE BY SIDE (OpenSEO audit 2026-11-26: Google's first page for "thuê xe máy sài gòn" is shops leading with a price,
+ * and a "top 10 shops" list; this page, with the shops' own prices, said only "too few to summarise"). Each shop's live bikes and
+ * the lowest day and month price it lists, from the same rows as the figures below it (vehicle-hub-stats.ts shopLines).
+ * ⚠️ ONE TABLE AT EVERY WIDTH, rows become blocks below md with each cell naming its column: the guides' table
+ * (teach-guide-body.tsx GuideTable), so a phone never scrolls a table sideways. A shop's name links its storefront.
+ */
+function ShopTable({ data, lang }: { data: VehicleHubData; lang: Lang }) {
+  const vi = lang === 'vi'
+  const heads = vi ? ['Cửa hàng', 'Số xe', 'Thuê ngày, từ', 'Thuê tháng, từ'] : ['Shop', 'Bikes', 'A day, from', 'A month, from']
+  const cell = (n: number | null) => (n == null ? '–' : money(n, lang))
+  return (
+    <figure className="mt-5 max-w-3xl">
+      <table className="w-full text-sm max-md:block">
+        <thead className="max-md:sr-only">
+          <tr className="text-left text-foreground">
+            {heads.map((h, i) => <th key={h} scope="col" className={`pb-2 pr-4 align-bottom font-semibold${i === 0 ? ' md:min-w-40' : ''}`}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody className="max-md:block">
+          {data.shops.map((s) => (
+            <tr key={s.href ?? 'others'} className="border-t border-border max-md:block max-md:py-3">
+              <th scope="row" className="text-left align-top font-semibold text-foreground max-md:block md:min-w-40 md:py-2 md:pr-4">
+                {s.href && s.name
+                  ? <Link href={localizedHref(s.href, lang)} prefetch={false} className="hover:underline">{s.name}</Link>
+                  : vi ? `Tin khác trên ${SITE_NAME}` : `Other posts on ${SITE_NAME}`}
+              </th>
+              {[count(s.count, lang), cell(s.dayFrom), cell(s.monthFrom)].map((v, i) => (
+                <td key={heads[i + 1]} className="align-top text-body max-md:mt-1 max-md:block md:py-2 md:pr-4">
+                  <span className="mr-1.5 text-xs font-semibold text-muted-foreground md:hidden">{heads[i + 1]}:</span>{v}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
+  )
+}
+
 /** "A", "A and B", "A, B, and C" — the linked sources only (vehicle-hub-stats.ts referenceSources). */
 function joinNames(names: string[], lang: Lang): string {
   // ⚠️ AT MOST THREE NAMES: this string is printed in the intro, the disclosure AND the booking
@@ -185,8 +225,8 @@ function provenance(data: VehicleHubData, lang: Lang): ArticleSection {
         </P> : null}
         <P>
           {lang === 'vi'
-            ? <>Cách tính giá ở trên: chỉ dùng giá niêm yết của các tin đang hiển thị; giá theo ngày và theo tháng tính riêng, không bao giờ suy ra từ nhau. Nhóm có từ {BAND_MIN} xe trở lên thì ghi trung vị và khoảng của một nửa số xe ở giữa; nhóm từ {RANGE_MIN} đến {BAND_MIN - 1} xe chỉ ghi giá thấp nhất và cao nhất; ít hơn nữa thì không ghi. Giá làm tròn tới 1.000 đ.{data.linked > 0 ? ' Một chiếc xe đăng trên hai nguồn sẽ được đếm hai lần, vì các nguồn không công bố thông tin để nhận ra điều đó.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Cửa hàng báo giá bằng đô la Mỹ được quy đổi theo tỷ giá ngày nhập, và trang của từng xe ghi rõ giá gốc.' : ''}</>
-            : <>How the prices above are worked out: only the listed prices of the listings shown here; day and month prices are kept separate and never derived from each other. A group of {BAND_MIN} or more gets a median and the range of its middle half; {RANGE_MIN} to {BAND_MIN - 1} gets only its lowest and highest price; fewer gets no figure. Prices are shown to the nearest 1,000 đ.{data.linked > 0 ? ' A vehicle listed on two sources is counted twice — the sources do not publish anything that would let us tell.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Shops that quote in US dollars are converted at the rate on the day of import, and each listing shows the shop’s own figure.' : ''}</>}
+            ? <>Cách tính giá ở trên: chỉ dùng giá niêm yết của các tin đang hiển thị; giá theo ngày và theo tháng tính riêng, không bao giờ suy ra từ nhau.{data.kind === 'motorbike' ? ' Giá theo ngày gồm cả giá một ngày mà cửa hàng niêm yết cho xe có giá trên thẻ tính theo tháng.' : ''} Nhóm có từ {BAND_MIN} xe trở lên thì ghi trung vị và khoảng của một nửa số xe ở giữa; nhóm từ {RANGE_MIN} đến {BAND_MIN - 1} xe chỉ ghi giá thấp nhất và cao nhất; ít hơn nữa thì không ghi. Giá làm tròn tới 1.000 đ.{data.linked > 0 ? ' Một chiếc xe đăng trên hai nguồn sẽ được đếm hai lần, vì các nguồn không công bố thông tin để nhận ra điều đó.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Cửa hàng báo giá bằng đô la Mỹ được quy đổi theo tỷ giá ngày nhập, và trang của từng xe ghi rõ giá gốc.' : ''}</>
+            : <>How the prices above are worked out: only the listed prices of the listings shown here; day and month prices are kept separate and never derived from each other.{data.kind === 'motorbike' ? ' The day figures include the day price a shop lists for a bike whose card shows its month price.' : ''} A group of {BAND_MIN} or more gets a median and the range of its middle half; {RANGE_MIN} to {BAND_MIN - 1} gets only its lowest and highest price; fewer gets no figure. Prices are shown to the nearest 1,000 đ.{data.linked > 0 ? ' A vehicle listed on two sources is counted twice — the sources do not publish anything that would let us tell.' : ''}{data.kind === 'motorbike' && data.linked > 0 ? ' Shops that quote in US dollars are converted at the rate on the day of import, and each listing shows the shop’s own figure.' : ''}</>}
         </P>
       </>
     ),
@@ -304,6 +344,21 @@ function bikeSections(data: VehicleHubData, lang: Lang): ArticleSection[] {
       title: vi ? 'Xe máy đang cho thuê' : 'Motorbikes available now',
       body: <Grid data={data} lang={lang} />,
     },
+    // Side by side only where there is a choice: one shop is its own storefront's table.
+    ...(data.shops.filter((s) => s.name).length >= 2 ? [{
+      id: vi ? 'so-sanh-cua-hang' : 'the-shops',
+      title: vi ? 'So sánh các cửa hàng cho thuê xe máy' : 'The rental shops, side by side',
+      body: (
+        <>
+          <ShopTable data={data} lang={lang} />
+          <P>
+            {vi
+              ? 'Giá thấp nhất mỗi cửa hàng niêm yết cho các xe đang hiển thị ở đây. Tiền cọc, giấy tờ và phí giao xe do từng cửa hàng quy định: xem trang của từng xe hoặc nhắn tin hỏi cửa hàng.'
+              : 'The lowest price each shop lists for the bikes shown here. Deposit, papers and delivery are set by each shop: see each bike’s page or message the shop.'}
+          </P>
+        </>
+      ),
+    }] : []),
     {
       id: vi ? 'gia-thue-xe-may' : 'what-it-costs',
       title: vi ? 'Thuê xe máy giá bao nhiêu' : 'What a motorbike costs to rent',
@@ -434,7 +489,8 @@ export function vehicleHubContent(data: VehicleHubData, lang: Lang, published: s
     alternate: { lang: lang === 'vi' ? 'en' : 'vi', href: `/${other}` },
     ...(disclosure ? { disclosure } : {}),
     sections: isCar ? carSections(data, lang) : bikeSections(data, lang),
-    related: marketplaceGuidesExcept(slug),
+    // The guides about renting this vehicle, then the other hub (vehicle-hub-related.ts), not every marketplace guide.
+    related: vehicleHubRelated(data.kind, lang),
     // ⛔ EMPTY ON PURPOSE: no FAQPage JSON-LD (FAQ rich results ended 2026-05-07; see the header).
     faqs: [],
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PriceSummary } from '@/lib/vehicle-hub-stats'
 import type { VehicleHubData } from '@/lib/vehicle-hubs'
-import { carHubDescription } from './vehicle-hub-meta'
+import { bikeHubDescription, carHubDescription } from './vehicle-hub-meta'
 
 const band = (median: number, p25: number, p75: number, n = 40): PriceSummary => ({ kind: 'band', n, median, p25, p75, min: p25, max: p75 })
 
@@ -60,5 +60,22 @@ describe('carHubDescription (owner 2026-11-22: answer "what does a self-drive ca
   it('no figure for all cars: the fallback, never a price the page does not show', () => {
     expect(carHubDescription(hub({ kind: 'too-few', n: 3 }, band(1_000_000, 900_000, 1_200_000)), 'en', FALLBACK)).toBe(FALLBACK)
     expect(carHubDescription({ ...hub({ kind: 'too-few', n: 0 }, { kind: 'too-few', n: 0 }), cohorts: [] }, 'vi', FALLBACK)).toBe(FALLBACK)
+  })
+})
+
+describe('bikeHubDescription — a price first, only one the page prints (OpenSEO audit 2026-11-26)', () => {
+  const bikes = (day: PriceSummary, total = 22) => ({ ...hub(day, day, total), kind: 'motorbike' as const, cohorts: [{ key: 'daily-all', summary: day }] })
+  it("opens with the page's search and the lowest day price of its day figures", () => {
+    const vi = bikeHubDescription(bikes({ kind: 'range', n: 9, min: 100_000, max: 700_000 }), 'vi', 'FALLBACK')
+    expect(vi.startsWith('Thuê xe máy Sài Gòn (TP.HCM) từ 100.000 đ/ngày: 22 xe')).toBe(true)
+    expect(bikeHubDescription(bikes({ kind: 'range', n: 9, min: 100_000, max: 700_000 }), 'en', 'FALLBACK')).toMatch(/^Motorbike rental in Ho Chi Minh City \(Saigon\), from 100,000 đ a day: 22 /)
+    // A band prints its median and middle half, never its minimum: "about" the median, not "from" a minimum the page hides.
+    const wide: PriceSummary = { kind: 'band', n: 22, median: 450_000, p25: 300_000, p75: 550_000, min: 100_000, max: 1_550_000 }
+    expect(bikeHubDescription(bikes(wide), 'vi', 'FALLBACK')).toMatch(/^Thuê xe máy Sài Gòn \(TP\.HCM\) khoảng 450\.000 đ\/ngày: /)
+    expect(bikeHubDescription(bikes(wide), 'en', 'FALLBACK')).not.toContain('100,000')
+  })
+  it('no day figure on the page, no price in the description', () => {
+    expect(bikeHubDescription(bikes({ kind: 'too-few', n: 4 }), 'vi', 'FALLBACK')).toBe('FALLBACK')
+    expect(bikeHubDescription({ ...bikes({ kind: 'too-few', n: 0 }), cohorts: [] }, 'en', 'FALLBACK')).toBe('FALLBACK')
   })
 })

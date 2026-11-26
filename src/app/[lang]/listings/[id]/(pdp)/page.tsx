@@ -757,6 +757,9 @@ export default async function ListingPage({ params }: Props) {
   // printed under its raw camelCase key — and, in the aisles, providerType (the licensed provider row says who) and
   // serviceLocation (excluded there, so it printed its raw key — taxonomy.ts).
   const hiddenAttrs = new Set<string>(PROVIDER_LICENCE_KEYS)
+  // A partner bike priced by the month carries the day price its shop lists (`dayPrice`, src/lib/vehicle-hub-stats.ts
+  // publishedDayPrice) for the hub's figures: its own text already states it ("First day: …"), so no raw "Day price" row.
+  hiddenAttrs.add('dayPrice')
   if (licenceAisle) { hiddenAttrs.add('providerType'); hiddenAttrs.add('serviceLocation') }
   if (rawListing.subcategorySlug === 'esim') hiddenAttrs.add('serviceLocation')
   if (affiliateUrl) hiddenAttrs.add('providerType')

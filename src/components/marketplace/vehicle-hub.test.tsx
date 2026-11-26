@@ -42,7 +42,7 @@ function hub(rows: HubRow[], linked: number): VehicleHubData {
   return {
     kind: 'motorbike', total: rows.length, cohorts: bikeCohorts(rows), counts, districts: [],
     sources: linked > 0 ? [{ name: 'Some Shop', count: rows.length, linkedCount: linked }] : [{ name: 'Blvck Motorbike', count: rows.length, linkedCount: 0 }],
-    linked, lastChange: new Date('2026-11-04T05:00:00Z'), listings: [],
+    linked, lastChange: new Date('2026-11-04T05:00:00Z'), listings: [], shops: [],
   }
 }
 
@@ -155,5 +155,27 @@ describe('a partly imported hub and a monthly-only one', () => {
     const feed = [...root.querySelectorAll('a')].filter((a) => a.getAttribute('href')?.includes('?'))
     expect(feed.length).toBeGreaterThan(2)
     for (const a of feed) expect(a.getAttribute('rel'), a.getAttribute('href')!).toBe('nofollow')
+  })
+})
+
+describe('the rental shops side by side (OpenSEO audit 2026-11-26)', () => {
+  const shops = [
+    { name: 'The Extra Mile', href: '/theextramile', count: 20, dayFrom: 280_000, monthFrom: 2_800_000 },
+    { name: 'Saigon Scooter Centre', href: '/saigonscootercentre', count: 1, dayFrom: 260_000, monthFrom: null },
+    { name: null, href: null, count: 1, dayFrom: 100_000, monthFrom: null },
+  ]
+  it('names each partner shop with a link to its storefront and its lowest prices; everyone else is one unnamed line', () => {
+    const root = renderHub({ ...hub(SHOP_POSTED, 0), shops }, 'vi')
+    expect(root.textContent).toContain('So sánh các cửa hàng cho thuê xe máy')
+    expect(linkTo(root, 'The Extra Mile')).toBe('/theextramile')
+    expect(root.textContent).toContain('280.000 đ')
+    expect(root.textContent).toContain('2.800.000 đ')
+    expect(root.textContent).toContain('Tin khác trên')
+    const en = renderHub({ ...hub(SHOP_POSTED, 0), shops }, 'en')
+    expect(en.textContent).toContain('The rental shops, side by side')
+    expect(en.textContent).toContain('Other posts on')
+  })
+  it('no table with fewer than two named shops', () => {
+    expect(pageText({ ...hub(SHOP_POSTED, 0), shops: [shops[0], shops[2]] }, 'en')).not.toContain('side by side')
   })
 })

@@ -27,7 +27,10 @@ const METADATA: Metadata = withShare({
 // stays the English one above on both variants.
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
   const { lang } = await params
-  const meta = lang === 'vi' ? { ...METADATA, title: `Trung tâm trợ giúp: giải đáp về mua bán | ${SITE_NAME}` } : METADATA
+  // The Vietnamese variant's description in Vietnamese too (OpenSEO audit 2026-11-26: it repeated the English one).
+  const meta = lang === 'vi'
+    ? { ...METADATA, title: `Trung tâm trợ giúp: giải đáp về mua bán | ${SITE_NAME}`, description: `Giải đáp về mua, bán, độ tin cậy, nhắn tin, trả giá và giao dịch an toàn trên ${SITE_NAME}, kèm hướng dẫn thực tế khi đi lại ở Việt Nam.` }
+    : METADATA
   const twin = langAlternatesFor('/help', lang, meta.robots)
   return twin ? { ...meta, alternates: twin } : meta
 }

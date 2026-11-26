@@ -64,6 +64,37 @@ export function periodOf(row: HubRow): RentalPeriod | null {
   return UNIT_PERIOD[row.priceUnit] ?? null
 }
 
+/**
+ * A bike's DAY price as its shop lists it: the price of a row priced by the day, or — a row priced by the month — the day rate
+ * the shop lists for that same bike (`attributes.dayPrice`, written by the importer from the shop's own page: The Extra Mile
+ * prices each city bike by the month on its card and by the first day on its page, src/lib/moto-partners.ts). Null when the
+ * shop lists no day price.
+ * ⛔ STILL NEVER DERIVED: `dayPrice` is a price the shop publishes, read off its page, not a month divided by thirty. OpenSEO
+ * audit 2026-11-26: with only the rows priced by the day counted, the motorbike hub's day block said "too few to summarise"
+ * (4 of 22 bikes) while 18 more bikes on it had a day price the shop publishes.
+ */
+export function publishedDayPrice(row: HubRow): number | null {
+  const p = periodOf(row)
+  if (p === 'daily') return row.price > 0 ? row.price : null
+  if (p !== 'monthly') return null
+  const raw = attrs(row).dayPrice
+  const n = typeof raw === 'string' && /^\d{4,9}$/.test(raw) ? Number(raw) : NaN
+  return n > 0 ? n : null
+}
+
+/**
+ * The row as the hub's day figures may read it: ⛔ `dayPrice` counts only from an official partner shop's row (commit-gate review,
+ * Opus): any seller's attributes may carry any key (core/listings.ts sanitizeAttributes), and the listing page hides this one, so a
+ * day price nobody can see on the listing would otherwise reach the hub's figures and its search snippet.
+ */
+export function trustedHubRow<R extends HubRow>(row: R, partner: boolean): R {
+  if (partner || !row.attributes || !row.attributes.includes('dayPrice')) return row
+  const a = attrs(row)
+  if (!('dayPrice' in a)) return row
+  delete a.dayPrice
+  return { ...row, attributes: JSON.stringify(a) }
+}
+
 export function seatsOf(row: HubRow): string | null {
   const s = attrs(row).seats
   return typeof s === 'string' ? s : null
@@ -145,14 +176,46 @@ export function carCohorts(rows: readonly HubRow[]): Cohort[] {
  */
 export function bikeCohorts(rows: readonly HubRow[]): Cohort[] {
   const out: Cohort[] = []
-  for (const period of ['daily', 'monthly'] as const) {
-    const inPeriod = rows.filter((r) => periodOf(r) === period)
-    out.push({ key: `${period}-all`, summary: summarize(inPeriod.map((r) => r.price)) })
-    for (const t of ['automatic', 'manual'] as const) {
-      out.push({ key: `${period}-${t}`, summary: summarize(inPeriod.filter((r) => transmissionOf(r) === t).map((r) => r.price)) })
-    }
+  // By the day: every bike with a day price its shop lists (publishedDayPrice), whichever period its card is priced in.
+  const day = (f: (r: HubRow) => boolean) => summarize(rows.filter(f).map(publishedDayPrice).filter((p): p is number => p != null))
+  out.push({ key: 'daily-all', summary: day(() => true) })
+  for (const t of ['automatic', 'manual'] as const) out.push({ key: `daily-${t}`, summary: day((r) => transmissionOf(r) === t) })
+  // By the month: the rows priced by the month, their own price. A day price is never multiplied into one.
+  const month = rows.filter((r) => periodOf(r) === 'monthly')
+  out.push({ key: 'monthly-all', summary: summarize(month.map((r) => r.price)) })
+  for (const t of ['automatic', 'manual'] as const) {
+    out.push({ key: `monthly-${t}`, summary: summarize(month.filter((r) => transmissionOf(r) === t).map((r) => r.price)) })
   }
   return out
+}
+
+/**
+ * One shop's line in a hub's shop comparison: its live vehicles and the lowest day and month price it lists. `name`/`href` null
+ * = every other poster together (see shopLines).
+ */
+export type ShopLine = { name: string | null; href: string | null; count: number; dayFrom: number | null; monthFrom: number | null }
+
+/**
+ * THE SHOPS ON A HUB, SIDE BY SIDE (OpenSEO audit 2026-11-26: Google's first page for "thuê xe máy sài gòn" is shops that lead
+ * with a price, and a "top 10 shops" list). From the same live rows as the cohorts, so the table and the figures above it never
+ * disagree: the lowest day price a shop lists (publishedDayPrice) and the lowest month price it prices a vehicle in. Most
+ * vehicles first, then by name. Rounded like the cohorts.
+ */
+export function shopLines(rows: readonly (HubRow & { shop: { name: string; href: string; partner: boolean } })[]): ShopLine[] {
+  const m = new Map<string, ShopLine>()
+  const low = (a: number | null, b: number | null) => (b == null ? a : a == null || b < a ? b : a)
+  for (const r of rows) {
+    // ⛔ ONLY A PARTNER SHOP IS NAMED (vehicle-hub-copy.ts: a person who posts a scooter is never named on this indexable page).
+    // Everyone else is one line, with no name and no link, after the shops.
+    const key = r.shop.partner ? r.shop.href : ''
+    const s = m.get(key) ?? (r.shop.partner ? { name: r.shop.name, href: r.shop.href, count: 0, dayFrom: null, monthFrom: null } : { name: null, href: null, count: 0, dayFrom: null, monthFrom: null })
+    s.count++
+    const d = publishedDayPrice(r)
+    s.dayFrom = low(s.dayFrom, d == null ? null : round1k(d))
+    s.monthFrom = low(s.monthFrom, periodOf(r) === 'monthly' && r.price > 0 ? round1k(r.price) : null)
+    m.set(key, s)
+  }
+  return [...m.values()].sort((a, b) => Number(a.name == null) - Number(b.name == null) || b.count - a.count || (a.name ?? '').localeCompare(b.name ?? ''))
 }
 
 /** Count per district, largest first, rows with no district left out (they deliver city-wide). */
