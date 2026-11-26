@@ -105,7 +105,8 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'laptop-free-dos-co-nen-mua', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '8921f572c2a89180', pair: 'freedos-laptop' },
   { slug: 'mua-tivi-4k-55-inch', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '093d9b074854652e', pair: '55-inch-4k-tv-price-vietnam' },
   { slug: 'samsung-galaxy-s26-ultra-colors', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '77c622b928d0f2c4', pair: 'mau-sac-samsung-s26-ultra' },
-  { slug: 'thue-chung-cu-tphcm', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '7f24c229b0ab1954' },
+  { slug: 'thue-chung-cu-tphcm', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '7f24c229b0ab1954', pair: 'how-to-find-an-apartment-in-ho-chi-minh-city' },
+  { slug: 'how-to-find-an-apartment-in-ho-chi-minh-city', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'ad439e22463ffab5', pair: 'thue-chung-cu-tphcm' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
