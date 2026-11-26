@@ -138,6 +138,15 @@ describe('real DASHBOARD_NAV config', () => {
     expect(resolveNavGroups(DASHBOARD_NAV, ctx()).some((g) => g.caption === 'Admin')).toBe(false)
     expect(resolveNavGroups(DASHBOARD_NAV, ctx({ isAdmin: true })).some((g) => g.caption === 'Admin')).toBe(true)
   })
+
+  it('"Ads" (/dashboard/ads, owner 2026-11-26) shows to a shop only, with no other row sharing its glyph', () => {
+    const items = (c: NavResolveCtx) => resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items)
+    expect(items(ctx()).some((i) => i.href === '/dashboard/ads')).toBe(false)
+    const shop = items(ctx({ seller: { id: 's1', handle: 'shop' } }))
+    const ads = shop.find((i) => i.href === '/dashboard/ads')
+    expect(ads?.label).toBe('Quảng cáo')
+    expect(shop.filter((i) => i.icon === ads?.icon)).toHaveLength(1)
+  })
 })
 
 describe('the "Teacher profile" row (cover lessons, 2026-10-07)', () => {

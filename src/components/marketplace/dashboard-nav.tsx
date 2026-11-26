@@ -48,7 +48,7 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES 
 import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Wallet,
   CircleHelp, Route,
-  Flag, ClipboardList, Star, Stamp, Gavel, Users, GraduationCap, Presentation, Inbox,
+  Flag, ClipboardList, Star, Stamp, Gavel, Users, GraduationCap, Presentation, Inbox, Megaphone,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
@@ -193,6 +193,12 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquare, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },
+      /**
+       * ⚠️ /dashboard/ads WAS LINKED FROM NOWHERE (owner 2026-11-26: "i dont see ads tab in dashboard") — the same trap as
+       * /dashboard/payout below. A shop's ads, their live figures, and "Create an ad" (VietQR bank transfer). `role: 'seller'`
+       * because every order needs a shop (src/lib/ads/bank.ts `no_shop`). Megaphone = advertising; no other rail row uses it.
+       */
+      { href: '/dashboard/ads', ...tr('Ads', 'Quảng cáo'), icon: Megaphone, role: 'seller' },
       /**
        * ⛔ THE ONLY DOOR BACK TO A TEACHER'S PROFILE, AND THE APPS NEED IT (2026-10-07). /teachers/edit was
        * linked from nowhere a signed-in teacher could reach in the native apps (the footer is hidden there), so a
