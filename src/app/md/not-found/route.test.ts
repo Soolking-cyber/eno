@@ -313,6 +313,23 @@ describe('OAuth protected-resource discovery — rewrite wiring', () => {
     throw new Error('no rewrite for /.well-known/oauth-protected-resource/api/mcp')
   })
 
+  it('/.well-known/oauth-protected-resource/api/mcp/chatgpt goes to its own route by path, ahead of the catch-all', async () => {
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    for (const group of [rewrites.beforeFiles, rewrites.afterFiles]) {
+      const i = group.findIndex((r) => r.source === '/.well-known/oauth-protected-resource/api/mcp/chatgpt')
+      if (i < 0) continue
+      const dest = group[i].destination
+      expect(dest).toBe('/api/well-known/oauth-protected-resource/mcp-chatgpt')
+      expect(dest).not.toContain('?')
+      expect(existsSync(join(process.cwd(), 'src/app', dest, 'route.ts'))).toBe(true)
+      const catchAll = group.findIndex((r) => r.source === '/.well-known/oauth-protected-resource/:path*')
+      expect(catchAll).toBeGreaterThan(i)
+      return
+    }
+    throw new Error('no rewrite for /.well-known/oauth-protected-resource/api/mcp/chatgpt')
+  })
+
   it('the BARE /.well-known/oauth-protected-resource goes to the origin document, ahead of the catch-all', async () => {
     // RFC 9728 §3.1: no path suffix = the resource with no path. The `:path*` catch-all also matches zero segments and
     // would answer /api/v1 (2026-11-16: isitagentready.com failed that as a resource mismatch).

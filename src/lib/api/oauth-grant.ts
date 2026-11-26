@@ -39,7 +39,10 @@ export const CODE_TTL_SECONDS = 60
 export const CONSENT_TTL_SECONDS = 600
 /** A grant row's key prefix: `oag_` + 10 hex of sha256(client_id) (the client binding) + 6 random. */
 /** The MCP server's address as a client may spell it: exact, or with one trailing slash (review 2026-11-13). */
-export const isMcpResource = (r: string) => r === MCP_RESOURCE || r === `${MCP_RESOURCE}/`
+/** The ChatGPT app's address (src/app/api/mcp/chatgpt): the same server without the ad-buying tools. A resource the
+ *  authorization server accepts; the grant and its tokens are still for MCP_RESOURCE, so one connection works at both. */
+export const MCP_CHATGPT_RESOURCE = `${MCP_RESOURCE}/chatgpt`
+export const isMcpResource = (r: string) => [MCP_RESOURCE, MCP_CHATGPT_RESOURCE].some((x) => r === x || r === `${x}/`)
 export const GRANT_PREFIX = 'oag_'
 /** The pending marker in `revokedAt`: the epoch. A real revocation always writes "now", so the two never meet. */
 export const PENDING_AT = new Date(0)

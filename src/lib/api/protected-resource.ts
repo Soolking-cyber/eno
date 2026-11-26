@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { OAUTH_ISSUER, OAUTH_SCOPES, SIGN_IN_SCOPES } from '@/lib/api/oauth'
-import { MCP_RESOURCE } from '@/lib/api/oauth-grant'
+import { MCP_CHATGPT_RESOURCE, MCP_RESOURCE } from '@/lib/api/oauth-grant'
 import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 
 /**
@@ -8,7 +8,9 @@ import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
  * must be the one it is told about). Three routes serve it — see src/app/api/well-known/oauth-protected-resource/:
  *   · origin/route.ts → the origin (https://eno.vn), for the BARE path /.well-known/oauth-protected-resource;
  *   · route.ts        → the REST API (https://eno.vn/api/v1), for every suffix but /api/mcp;
- *   · mcp/route.ts    → the MCP server (MCP_RESOURCE), for /.well-known/oauth-protected-resource/api/mcp.
+ *   · mcp/route.ts    → the MCP server (MCP_RESOURCE), for /.well-known/oauth-protected-resource/api/mcp;
+ *   · mcp-chatgpt/route.ts → the ChatGPT app's address of that server (MCP_CHATGPT_RESOURCE, without the ad-buying tools,
+ *     src/app/api/mcp/route.ts Surface), for /.well-known/oauth-protected-resource/api/mcp/chatgpt.
  * ⛔ THE BARE PATH NAMES THE ORIGIN (2026-11-16). §3.1 builds the well-known URL by inserting the resource's PATH after
  * /.well-known/oauth-protected-resource, so the document at the bare path is the one for the resource with NO path — the
  * origin. It said …/api/v1 until 2026-11-16, and isitagentready.com failed it as a resource mismatch; a strict RFC 9728
@@ -24,8 +26,9 @@ import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
  * MCP server's challenge pointed at a document naming /api/v1 and MCP clients refused to sign in. The unit test called the
  * handler with the query by hand and passed. src/app/md/not-found/route.test.ts pins the rewrite now.
  */
-export function protectedResourceResponse(which: 'origin' | 'rest' | 'mcp') {
-  const resource = which === 'mcp' ? MCP_RESOURCE : which === 'origin' ? OAUTH_ISSUER : `${OAUTH_ISSUER}/api/v1`
+export function protectedResourceResponse(which: 'origin' | 'rest' | 'mcp' | 'mcp-chatgpt') {
+  const mcp = which === 'mcp' || which === 'mcp-chatgpt'
+  const resource = which === 'mcp' ? MCP_RESOURCE : which === 'mcp-chatgpt' ? MCP_CHATGPT_RESOURCE : which === 'origin' ? OAUTH_ISSUER : `${OAUTH_ISSUER}/api/v1`
   return NextResponse.json(
     {
       // Imported, never rebuilt — issuer and resource must agree with the `iss` we mint and with
@@ -37,13 +40,13 @@ export function protectedResourceResponse(which: 'origin' | 'rest' | 'mcp') {
       authorization_servers: [OAUTH_ISSUER],
       // The scopes THIS resource enforces. The MCP server also enforces the sign-in-only messaging pair
       // (MESSAGING_SCOPES, src/lib/api/oauth.ts); the REST API and the origin document do not, so they never list it.
-      scopes_supported: which === 'mcp' ? [...SIGN_IN_SCOPES] : [...OAUTH_SCOPES],
+      scopes_supported: mcp ? [...SIGN_IN_SCOPES] : [...OAUTH_SCOPES],
       // resolveApiKey reads `Authorization: Bearer …` and NOTHING else — no `access_token` query
       // parameter, no form body. Advertising either would invite a client to put a credential in a
       // URL, where it lands in every access log and Referer header on the way.
       bearer_methods_supported: ['header'],
       // The MCP resource is the one server, eno Agentic Commerce, since 2026-11-23; the REST API keeps its name.
-      resource_name: which === 'origin' ? new URL(OAUTH_ISSUER).host : which === 'mcp' ? MCP_SERVER_TITLE : `${new URL(OAUTH_ISSUER).host} Partner API`,
+      resource_name: which === 'origin' ? new URL(OAUTH_ISSUER).host : mcp ? MCP_SERVER_TITLE : `${new URL(OAUTH_ISSUER).host} Partner API`,
       resource_documentation: `${OAUTH_ISSUER}/developers`,
     },
     {

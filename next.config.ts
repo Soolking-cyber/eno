@@ -1227,6 +1227,8 @@ const nextConfig: NextConfig = {
         // over the catch-all below. ⛔ To its own PATH, never a destination query: a route handler does not see a rewrite's
         // destination query, and the 11-14 deploy answered /api/v1 here (src/lib/api/protected-resource.ts).
         { source: "/.well-known/oauth-protected-resource/api/mcp", destination: "/api/well-known/oauth-protected-resource/mcp" },
+        // The ChatGPT app's address of the same server (src/app/api/mcp/route.ts Surface): its own document, resource = that address.
+        { source: "/.well-known/oauth-protected-resource/api/mcp/chatgpt", destination: "/api/well-known/oauth-protected-resource/mcp-chatgpt" },
         { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/well-known/oauth-protected-resource" },
         /**
          * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.
