@@ -4,6 +4,7 @@ import { loadLinkedCount, loadRentalsFacts, loadTopSubcategories } from '../cate
 import { linkedTier } from '../category-copy'
 import { RentalsLede } from '../category-text'
 import { ClampedLede } from '../clamped-lede'
+import { GridDealsNote, GridLedeTail } from '@/components/marketplace/grid-about'
 
 /**
  * The category page's lede: one measured paragraph (two lines and "Show more" on a phone —
@@ -50,6 +51,9 @@ export async function CategoryLedeBlock({ slug, placement }: {
   // Also for rentals with no place live (facts null): the generic lede then speaks, and its trust
   // claim must know the vehicle hire is all linked.
   const linkedCount = !rentals && total > 0 ? await loadLinkedCount(cat.id) : 0
+  // ⛔ The lede's closing sentence and the deals note under it (owner, 2026-11-26: "Add below the cards" — grid-about.tsx): each long
+  // enough to count as a paragraph for Seobility. Not on /c/teachers (profiles, not listings) and not on an empty category.
+  const about = cat.slug !== 'teachers' && total > 0
   // `data-category-lede` is how H2's crawler spec finds the lede, wherever it renders (ClampedLede's <p>, or the goods one below).
   if (placement === 'after-grid') {
     return (
@@ -60,7 +64,9 @@ export async function CategoryLedeBlock({ slug, placement }: {
           ) : (
             <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} linked={linkedTier(linkedCount, total)} total={total} top={await topSubcategories} />
           )}
+          {about && <>{' '}<GridLedeTail /></>}
         </p>
+        {about && <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body max-sm:text-muted-foreground" />}
       </div>
     )
   }
@@ -78,7 +84,9 @@ export async function CategoryLedeBlock({ slug, placement }: {
             <CategoryLede name={cat.name} nameVi={cat.nameVi} slug={cat.slug} linked={linkedTier(linkedCount, total)} total={total} top={await topSubcategories} />
           </>
         )}
+        {about && <>{' '}<GridLedeTail /></>}
       </ClampedLede>
+      {about && <GridDealsNote className="mt-3 max-w-prose text-sm leading-relaxed text-body" />}
       </div>
     </>
   )

@@ -42,6 +42,7 @@ import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 import { storefrontIntro } from '@/lib/storefront-intro'
+import { ShopAbout } from '@/components/marketplace/shop-about'
 
 /**
  * A SHOP'S OWN STOREFRONT — the home page, scoped to one seller.
@@ -442,19 +443,6 @@ export default async function Storefront({ params, searchParams }: Props) {
             />
           </div>
         </div>
-        {/* The shop's one line of its own facts, as on eno.vn/<handle> and /sellers/<id> (seller-storefront.tsx; owner 2026-11-25,
-            an intro on card-grid pages). `total` is the grid's own count; the categories its loaded rows'. */}
-        {intro && (
-          <p className="max-w-2xl pb-4 text-sm text-body">
-            {intro.withCats ? (intro.one
-              ? <Bilingual en="{name} has 1 listing on {site}, in {cats}." vi="{name} có 1 tin đăng trên {site}, trong mục {catsVi}." values={intro.values} />
-              : <Bilingual en="{name} has {n} listings on {site}, including {cats}." vi="{name} có {nVi} tin đăng trên {site}, gồm cả mục {catsVi}." values={intro.values} />
-            ) : (intro.one
-              ? <Bilingual en="{name} has 1 listing on {site}." vi="{name} có 1 tin đăng trên {site}." values={intro.values} />
-              : <Bilingual en="{name} has {n} listings on {site}." vi="{name} có {nVi} tin đăng trên {site}." values={intro.values} />
-            )}
-          </p>
-        )}
         {/* Seller information (owner, 2026-10-01) — the same block, from the same builder, as eno.vn/<handle>. */}
         {card.sellerInfo && <SellerInfo info={card.sellerInfo} variant="storefront" className="max-w-2xl pb-4" />}
         {total === 0 ? (
@@ -521,6 +509,8 @@ export default async function Storefront({ params, searchParams }: Props) {
           serverDirected={serverDirected}
         />
         )}
+        {/* About the shop, under its own grid, as on eno.vn/<handle> and /sellers/<id> (owner, 2026-11-26 — shop-about.tsx). */}
+        {intro && <ShopAbout intro={intro} className="mt-10" />}
 
         {/* The rest of the marketplace, BELOW this shop's own explorer.
             ⛔ ITS OWN HEADING, NEVER MERGED INTO THE EXPLORER ABOVE. That explorer is scoped to this

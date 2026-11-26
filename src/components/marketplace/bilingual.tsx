@@ -31,7 +31,7 @@ import { isMtLanguage } from '@/lib/i18n/langs'
  * It is a client component because `tr` comes from the language context; the page around it stays a
  * server component and passes the constants down as plain strings.
  */
-export function Bilingual({ en, vi, values, datesIso }: {
+export function Bilingual({ en, vi, values, valuesVi, datesIso }: {
   en: string
   vi: string
   /**
@@ -45,6 +45,13 @@ export function Bilingual({ en, vi, values, datesIso }: {
    */
   values?: Record<string, string>
   /**
+   * The Vietnamese line's own values, under the SAME placeholder names (a count grouped "1.540", a category's Vietnamese name).
+   * ⛔ Never a `{nVi}` in the vi template beside `{n}` in the English: a pair whose placeholders differ falls back to the English
+   * (safeTemplate) — the shop intro read English on every Vietnamese page that way (2026-11-25 → 26). The nine MT languages
+   * translate the English template and take `values`.
+   */
+  valuesVi?: Record<string, string>
+  /**
    * `{key}` → a plain ISO calendar date ('2026-10-01') for any value in `values` that IS a date. en and vi
    * keep the value as given (each page's authored legal form); the nine machine-translated languages get
    * the same day with their own month name instead of an English "1 October 2026" inside a translated line.
@@ -56,11 +63,13 @@ export function Bilingual({ en, vi, values, datesIso }: {
 }) {
   const { tr, lang } = useLanguage()
   const t = tr(en, vi)
-  if (!values) return <>{t}</>
+  // The Vietnamese values only with the Vietnamese line: an English fallback keeps the English values.
+  const vals = lang === 'vi' && valuesVi && t !== en ? valuesVi : values
+  if (!vals) return <>{t}</>
   const translatedLine = isMtLanguage(lang) && safeTemplate(t, en) !== en
   const filled = datesIso && translatedLine
-    ? { ...values, ...Object.fromEntries(Object.entries(datesIso).map(([k, iso]) => [k, longCalendarDate(iso, lang)])) }
-    : values
+    ? { ...vals, ...Object.fromEntries(Object.entries(datesIso).map(([k, iso]) => [k, longCalendarDate(iso, lang)])) }
+    : vals
   return <>{fillBilingual(t, en, filled)}</>
 }
 

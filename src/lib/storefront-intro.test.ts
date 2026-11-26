@@ -14,7 +14,9 @@ describe('storefrontIntro', () => {
     const rows = [cat('Rentals', 'Cho thuê'), cat('Rentals', 'Cho thuê'), cat('Services', 'Dịch vụ'), cat('Vehicles', 'Xe cộ'), cat('Services', 'Dịch vụ'), cat('Rentals', 'Cho thuê')]
     const i = storefrontIntro('Saigon Cribs', 1540, rows)!
     expect(i).toMatchObject({ one: false, withCats: true })
-    expect(i.values).toMatchObject({ name: 'Saigon Cribs', site: 'eno.vn', n: '1,540', nVi: '1.540', cats: 'Rentals and Services', catsVi: 'Cho thuê và Dịch vụ' })
+    // One placeholder set, each language's own values (a pair whose placeholders differ falls back to the English).
+    expect(i.values).toEqual({ name: 'Saigon Cribs', site: 'eno.vn', n: '1,540', cats: 'Rentals and Services' })
+    expect(i.valuesVi).toEqual({ name: 'Saigon Cribs', site: 'eno.vn', n: '1.540', cats: 'Cho thuê và Dịch vụ' })
   })
   it('one listing reads singular; no category rows, no category clause; nothing to say, nothing at all', () => {
     expect(storefrontIntro('Ana', 1, [cat('Furniture', 'Nội thất')])).toMatchObject({ one: true, withCats: true })

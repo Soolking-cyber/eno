@@ -49,6 +49,7 @@ import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 import { fillDescription } from '@/lib/meta-description'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { storefrontIntro } from '@/lib/storefront-intro'
+import { ShopAbout } from '@/components/marketplace/shop-about'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -574,23 +575,6 @@ export async function SellerStorefront({ id }: { id: string }) {
                 across unchanged; `space-y-2` is what gives the paragraphs air now that there is
                 more than one of them. */}
             {seller.bio && <RichText text={seller.bio} className="max-w-2xl space-y-2 text-sm text-body" />}
-            {intro && (
-              // ⛔ ONE LINE OF THE SHOP'S OWN FACTS (owner, 2026-11-25: "resolve my decisions with recommended" — an intro on card-grid
-              // pages). Seobility crawl 9: a shop page was a grid of short card lines and no paragraph ("only some paragraphs", the
-              // heaviest Content check) and its name only in the H1 and links ("H1 words not in the text"). Nothing invented: the
-              // count and categories are the grid's own.
-              // The four sentences are literals here, so the string harvest (gen-ui-strings) and the curated Vietnamese see them.
-              // "including": the categories are the most common among the rows this page loaded, not a census of the shop.
-              <p className="max-w-2xl text-sm text-body">
-                {intro.withCats ? (intro.one
-                  ? <Bilingual en="{name} has 1 listing on {site}, in {cats}." vi="{name} có 1 tin đăng trên {site}, trong mục {catsVi}." values={intro.values} />
-                  : <Bilingual en="{name} has {n} listings on {site}, including {cats}." vi="{name} có {nVi} tin đăng trên {site}, gồm cả mục {catsVi}." values={intro.values} />
-                ) : (intro.one
-                  ? <Bilingual en="{name} has 1 listing on {site}." vi="{name} có 1 tin đăng trên {site}." values={intro.values} />
-                  : <Bilingual en="{name} has {n} listings on {site}." vi="{name} có {nVi} tin đăng trên {site}." values={intro.values} />
-                )}
-              </p>
-            )}
           </div>
         </div>
 
@@ -713,6 +697,9 @@ export async function SellerStorefront({ id }: { id: string }) {
             />
           </section>
         )}
+
+        {/* About the shop, under its own grid (owner, 2026-11-26: "Add below the cards" — shop-about.tsx). */}
+        {intro && <ShopAbout intro={intro} className="mt-10" />}
 
         {/* The rest of the marketplace, BELOW this shop's own grid.
             ⛔ ITS OWN SECTION AND ITS OWN HEADING, NEVER APPENDED TO THE GRID ABOVE. That heading
