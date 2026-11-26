@@ -10,7 +10,7 @@ import { SEARCH_TOOLS } from '@/app/api/mcp/search/tools'
 import { DOCS_TOOLS } from '@/lib/mcp/docs-tools'
 import { DOC_PATHS } from '@/lib/api/discovery-links'
 import { API_NAME, SITE_ORIGIN, SUPPORT_EMAIL } from '../reference'
-import { MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SERVER_TITLE } from '@/lib/mcp-registry'
+import { MCP_GLAMA_URL, MCP_NPM_PACKAGE, MCP_NPM_URL, MCP_REGISTRY_NAME, MCP_REGISTRY_URL, MCP_SERVER_TITLE } from '@/lib/mcp-registry'
 import { AGENT_SKILLS_REPO_URL, AGENT_SKILLS_SH_URL } from '@/lib/agent-skills'
 import { C, Code } from '../doc-parts'
 import { GROK_CLIENT_ID } from '@/lib/api/oauth-hosted-clients'
@@ -122,6 +122,14 @@ Authorization: Bearer eno_live_…`}</Code></div>
                 • <strong className="text-foreground">MCP Registry:</strong>{' '}
                 <a href={MCP_REGISTRY_URL} className="font-mono font-semibold text-accent-foreground hover:underline">{MCP_REGISTRY_NAME}</a> — the
                 official registry entry, published under the eno.vn domain namespace.
+              </li>
+            )}
+            {/* Glama's independent score of the tool definitions and endpoint health (mcp-registry.ts MCP_GLAMA_URL). */}
+            {!IS_SERVICES && (
+              <li>
+                • <strong className="text-foreground">Glama:</strong>{' '}
+                <a href={MCP_GLAMA_URL} className="font-semibold text-accent-foreground hover:underline">{MCP_SERVER_TITLE} on Glama</a> — an
+                independent score of the tool definitions and the endpoint&apos;s health.
               </li>
             )}
             {/* eno.vn's agent-skills repo (src/lib/agent-skills.ts): linked so a scanner can tie it to this site. */}

@@ -23,5 +23,12 @@ export const MCP_REGISTRY_URL = `https://registry.modelcontextprotocol.io/v0.1/s
  * /agents.md, /developers — not only from /developers/mcp (owner 2026-11-17, "the next one that affects the score the
  * most": ora's mcp-registry-listed asks to "link the registry entry or package from your homepage or docs").
  */
+/**
+ * Glama's connector page for this server (auto-listed; it scores tool definitions and endpoint health). Linked from
+ * /developers/mcp because awesome-remote-mcp-servers prioritises entries whose site links back to their Glama listing
+ * (punkpeye, on PR #4724, 2026-11). A plain link, not Glama's badge image: no third-party image on our pages.
+ */
+export const MCP_GLAMA_URL = `https://glama.ai/mcp/connectors/${MCP_REGISTRY_NAME}`
+
 export const MCP_NPM_PACKAGE = 'eno-vn-mcp'
 export const MCP_NPM_URL = `https://www.npmjs.com/package/${MCP_NPM_PACKAGE}`
