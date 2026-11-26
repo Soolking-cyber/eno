@@ -397,11 +397,14 @@ test.describe('marketplace, against known fixtures', () => {
     await ready(page)
     const cards = page.locator('[data-card-root]')
     await expect(cards.first()).toBeVisible()
+    // One page first (24 since 2026-11-26, the owner's "24 cards"; 48 before), so the count below can only come from the click.
+    await expect(cards).toHaveCount(24)
     // Scoped to the grid: on a phone the lede has its own "Show more" (clamped-lede.tsx).
     await page.locator('[data-listings-ready="true"]').getByRole('button', { name: 'Show more' }).click()
-    await expect.poll(async () => cards.count(), { timeout: 15_000 }).toBe(96)
+    // Two pages of 24 (the page renders 24 since 2026-11-26, the owner's "24 cards"; 48 before).
+    await expect.poll(async () => cards.count(), { timeout: 15_000 }).toBe(48)
     const hrefs = await page.locator('[data-card-root] a[href^="/listings/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
-    expect(new Set(hrefs).size).toBe(96)
+    expect(new Set(hrefs).size).toBe(48)
   })
 
   // ⛔ THE DISTRICT USED TO BE DROPPED ON THE WAY OUT. "Refine in full search" linked to
