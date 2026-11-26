@@ -244,7 +244,7 @@ async function main() {
       }
     }
   } finally {
-    if (APPLY && created.length) await enqueuePhotoChecks(db, created.flatMap((r) => (r.id ? [r.id] : [])))
+    if (APPLY) await enqueuePhotoChecks(db, created.flatMap((r) => (r.id ? [r.id] : [])))
   }
   await screen.finish({ apply: APPLY })
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${JSON.stringify(counts)}`)
