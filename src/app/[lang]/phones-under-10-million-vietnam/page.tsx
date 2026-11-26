@@ -34,6 +34,7 @@ const CONTENT: ArticleContent = {
   ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/dien-thoai-duoi-10-trieu' },
+  railAfter: 'what-second-hand-buys',
   sections: [
     {
       id: 'what-new-buys',

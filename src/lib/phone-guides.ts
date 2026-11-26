@@ -56,6 +56,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   {
     slug: 'best-place-to-buy-iphone-vietnam',
     published: '2026-09-19',
+    updated: '2026-11-26',
     lang: 'en',
     pair: 'mua-iphone-o-dau-uy-tin',
     label: 'Where to buy an iPhone in Vietnam',
@@ -64,6 +65,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   {
     slug: 'mua-iphone-o-dau-uy-tin',
     published: '2026-09-19',
+    updated: '2026-11-26',
     lang: 'vi',
     pair: 'best-place-to-buy-iphone-vietnam',
     label: 'Mua iPhone ở đâu uy tín',
@@ -333,6 +335,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   {
     slug: 'phones-under-10-million-vietnam',
     published: '2026-09-19',
+    updated: '2026-11-26',
     lang: 'en',
     pair: 'dien-thoai-duoi-10-trieu',
     label: 'The best phones under 10 million đồng',
@@ -341,6 +344,7 @@ export const PHONE_GUIDES: readonly PhoneGuide[] = [
   {
     slug: 'dien-thoai-duoi-10-trieu',
     published: '2026-09-19',
+    updated: '2026-11-26',
     lang: 'vi',
     pair: 'phones-under-10-million-vietnam',
     label: 'Điện thoại dưới 10 triệu',

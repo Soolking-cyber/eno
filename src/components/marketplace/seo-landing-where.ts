@@ -39,6 +39,8 @@ export type SeoLandingTarget = {
   /** Several subcategories at once — see SeoContent.subcategoryIn. Ignored when `subcategorySlug` is set. */
   subcategoryIn?: readonly string[]
   listingType?: string
+  /** Editorial budget, exclusive, in Vietnamese đồng. */
+  underVnd?: number
   condition?: string
   brandSlug?: string
   models?: string[]
@@ -73,12 +75,13 @@ export function seoLandingWhere(content: SeoLandingTarget) {
     ...(content.brandSlug ? { brandSlug: content.brandSlug } : {}),
     ...(content.models?.length ? { model: { in: content.models } } : {}),
     /**
-     * ⚠️ ONE CURRENCY, AND ONLY ON A PRODUCT PAGE. A model-narrowed rail sorts by price ASC, so a
+     * ⚠️ ONE CURRENCY FOR MODEL PRICES AND VND BUDGETS. A model-narrowed rail sorts by price ASC, so a
      * listing priced in USD sorts above every đồng listing — $1,200 is a smaller number than
-     * 38,000,000. Scoped to `models` rather than applied everywhere because the category landing
+     * 38,000,000. Scoped to these targets because the category landing
      * pages do not sort by price and have lived happily with mixed-currency inventory.
      */
-    ...(content.models?.length ? { currency: '₫' } : {}),
+    ...(content.models?.length || content.underVnd !== undefined ? { currency: '₫' } : {}),
+    ...(content.underVnd !== undefined ? { price: { gt: 0, lt: content.underVnd } } : {}),
     ...(narrowings.length ? { AND: narrowings } : {}),
   }
 }

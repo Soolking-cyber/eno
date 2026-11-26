@@ -49,6 +49,17 @@ export function phoneGuideRail(canonical: string): PhoneGuideRail | undefined {
   const slug = canonical.replace(/^\//, '').replace(/\/$/, '')
   const guide = PHONE_GUIDES.find((g) => g.slug === slug)
   if (!guide || phoneGuideCategories(guide)[0] !== 'electronics') return undefined
+  if (slug === 'phones-under-10-million-vietnam' || slug === 'dien-thoai-duoi-10-trieu') {
+    return {
+      target: {
+        categorySlug: 'electronics', subcategorySlug: 'phones-tablets', condition: 'used',
+        listingType: 'sell', underVnd: 10_000_000, order: 'recent',
+      },
+      title: guide.lang === 'vi' ? 'Điện thoại và máy tính bảng cũ dưới 10 triệu đồng' : 'Used phones and tablets listed under 10 million đồng',
+      // The explorer’s price range compares raw amounts across currencies. This link deliberately opens all prices.
+      cta: guide.lang === 'vi' ? 'Xem điện thoại và máy tính bảng cũ ở mọi mức giá' : 'Browse used phones and tablets at all prices',
+    }
+  }
   const brand = APPLE_GUIDES.has(slug) ? 'apple' : SAMSUNG_GUIDES.has(slug) ? 'samsung' : undefined
   const copy = COPY[brand ?? 'any'][guide.lang]
   return {

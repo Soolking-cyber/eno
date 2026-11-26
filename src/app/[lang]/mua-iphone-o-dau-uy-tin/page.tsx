@@ -3,7 +3,7 @@ import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
-import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { HereLink, OfficialLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { titleWithSite } from '@/lib/meta-description'
 
 /**
@@ -25,21 +25,31 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Cẩm nang mua sắm',
   h1: 'Mua iPhone ở đâu uy tín',
   intro:
-    'Giá rẻ nhất trên kết quả tìm kiếm gần như không bao giờ đến từ nơi an toàn nhất để mua. Bài này phân biệt năm kiểu cửa hàng đang bán iPhone tại Việt Nam, khoản chênh lệch giá thực sự mua được gì, và cách kiểm tra một chiếc máy ngay tại quầy trước khi trả tiền.',
+    'Bạn có thể đặt iPhone mới trên Apple Store Việt Nam hoặc tra đại lý ủy quyền gần nhà để xem máy. Với iPhone cũ, hãy so giá đúng mẫu và dung lượng, rồi kiểm tra pin, khóa kích hoạt và điều kiện bảo hành tại quầy.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/best-place-to-buy-iphone-vietnam' },
   sections: [
     {
+      id: 'dia-chi-mua',
+      title: 'Đặt mua online hoặc tìm đại lý gần bạn',
+      body: (
+        <Ul>
+          <li><strong>Mua máy mới online.</strong> Chọn mẫu và dung lượng trên <OfficialLink href="https://www.apple.com/vn/shop/buy-iphone">Apple Store Việt Nam</OfficialLink> để có giá tham khảo. Khi so giá với cửa hàng, hỏi giá trả thẳng và điều kiện thu cũ đổi mới.</li>
+          <li><strong>Muốn xem máy tại quầy.</strong> Tra thành phố trên <OfficialLink href="https://locate.apple.com/vn/vi/sales">trang tìm đại lý ủy quyền của Apple</OfficialLink>, rồi gọi chi nhánh hỏi còn đúng màu và dung lượng bạn cần hay không.</li>
+          <li><strong>Mua máy cũ.</strong> Đối chiếu <HereLink href="/iphone-18-vietnam">giá iPhone 17 và 18 cũ theo dung lượng</HereLink>. Mở tin để xem người bán, hỏi tình trạng pin, linh kiện từng thay và thời hạn đổi trả.</li>
+        </Ul>
+      ),
+    },
+    {
       id: 'nam-kieu-cua-hang',
       title: 'Năm kiểu cửa hàng và ai hợp với kiểu nào',
       body: (
         <>
           <P>
-            <strong>Đại lý ủy quyền của Apple (AAR)</strong> chỉ bán máy chính hãng VN/A, bảo hành 12
-            tháng qua trung tâm ủy quyền. Giá thường bằng hoặc thấp hơn giá niêm yết một chút, xuất
-            hóa đơn đỏ mặc định. Đây là lựa chọn ít rủi ro nhất và cũng ít bất ngờ nhất về giá.
+            <strong>Đại lý ủy quyền của Apple (AAR)</strong> có tên trên trang tra cứu của Apple. Hỏi chi nhánh giá trả thẳng,
+            hóa đơn và chính sách đổi máy nếu phát hiện lỗi.
           </P>
           <P>
             <strong>Chuỗi bán lẻ lớn</strong> bày cả hàng VN/A lẫn hàng nhập trên cùng một kệ. Họ giảm
@@ -47,10 +57,10 @@ const CONTENT: ArticleContent = {
             hỏi. Phần lớn người Việt mua ở đây, và giá niêm yết trên web thường đúng là giá phải trả.
           </P>
           <P>
-            <strong>Cửa hàng chuyên hàng xách tay</strong> nhập máy từ Mỹ, Singapore, Nhật hoặc Hồng
-            Kông. Giá máy mới thường rẻ nhất thị trường, đổi lại bảo hành là của chính cửa hàng,
-            thường 6&ndash;12 tháng và chỉ có giá trị tại đó. Hợp lý nếu cửa hàng có địa chỉ rõ ràng
-            và bạn ở gần; rủi ro nếu bạn sắp chuyển đi nơi khác.
+            <strong>Cửa hàng chuyên hàng xách tay</strong> bán máy nhập từ thị trường khác. Hãy hỏi ai
+            tiếp nhận bảo hành và ở đâu. Apple có thể giới hạn dịch vụ bảo hành iPhone tại quốc gia
+            nơi máy được bán lần đầu theo{' '}
+            <OfficialLink href="https://www.apple.com/legal/warranty/products/ios-warranty-rest-of-apac-vietnamese.html">điều khoản bảo hành của Apple</OfficialLink>.
           </P>
           <P>
             <strong>Cửa hàng máy cũ &ndash; thu cũ đổi mới</strong> bán máy đã qua sử dụng phân loại
@@ -106,8 +116,8 @@ const CONTENT: ArticleContent = {
               này.
             </li>
             <li>
-              Đối chiếu <strong>IMEI</strong> trên máy, trên vỏ hộp và trên trang kiểm tra bảo hành
-              của Apple. Ba nơi phải trùng nhau.
+              Đối chiếu IMEI trên máy và trên hộp nếu còn. Dùng số sê-ri trong mục Giới thiệu để{' '}
+              <OfficialLink href="https://checkcoverage.apple.com/">tra cứu bảo hành Apple</OfficialLink>.
             </li>
             <li>
               <strong>Tình trạng pin</strong> (Cài đặt › Pin): máy mới phải là 100%. Máy cũ dưới 85%
@@ -156,11 +166,11 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'iPhone VN/A và xách tay khác nhau thế nào?',
-      a: 'VN/A là máy do Apple Việt Nam phân phối, bảo hành 12 tháng tại mọi trung tâm ủy quyền. Máy xách tay mang mã LL/A, ZA/A hoặc J/A, do cửa hàng tự bảo hành. Máy giống hệt nhau về phần cứng; khác nhau ở chỗ ai chịu trách nhiệm khi hỏng.',
+      a: 'VN/A là một mã vùng thường gặp ở máy phân phối cho thị trường Việt Nam. Với máy nhập, hãy hỏi nơi bán ban đầu, xem hóa đơn và xác nhận bên tiếp nhận bảo hành. Apple có thể giới hạn dịch vụ iPhone ở quốc gia nơi máy được bán lần đầu.',
     },
     {
       q: 'Làm sao biết máy có phải hàng dựng không?',
-      a: 'Kiểm tra số hiệu kiểu máy và IMEI ở ba nơi phải trùng nhau, thử Face ID, xem tình trạng pin và chụp thử cả hai camera. Máy dựng thường lỗi Face ID, pin báo bất thường hoặc IMEI không khớp vỏ hộp. Mua ở nơi cho kiểm tra thoải mái trước khi trả tiền.',
+      a: 'Kiểm tra số hiệu kiểu máy và IMEI trên máy và hộp nếu còn, thử Face ID, xem tình trạng pin và chụp thử cả hai camera. Máy dựng thường lỗi Face ID, pin báo bất thường hoặc IMEI không khớp vỏ hộp. Mua ở nơi cho kiểm tra thoải mái trước khi trả tiền.',
     },
     {
       q: 'Máy trưng bày có nên mua không?',
@@ -183,9 +193,9 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: titleWithSite(`Mua iPhone ở đâu uy tín — 5 kiểu cửa hàng và cách kiểm tra máy`, SITE_NAME),
+  title: titleWithSite(`Mua iPhone ở đâu? Apple Store, đại lý và máy cũ`, SITE_NAME),
   description:
-    'Năm kiểu cửa hàng bán iPhone tại Việt Nam, chênh lệch giá mua được gì, cách phân biệt máy VN/A, máy trưng bày và hàng dựng, và các bước kiểm tra ngay tại quầy trước khi trả tiền.',
+    'Tìm Apple Store Việt Nam, tra đại lý ủy quyền gần nhà và so giá iPhone cũ theo dung lượng. Kiểm tra số sê-ri, pin và bảo hành trước khi trả tiền.',
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 

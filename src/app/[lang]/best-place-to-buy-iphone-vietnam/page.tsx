@@ -3,7 +3,7 @@ import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
-import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { HereLink, OfficialLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
  * WHERE TO BUY AN iPHONE IN VIETNAM — the English half of the pair; the Vietnamese half is
@@ -23,23 +23,31 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'Where to buy an iPhone in Vietnam',
   intro:
-    'Vietnam has five distinct kinds of iPhone shop, and the cheapest price in a search result almost never comes from the same kind as the safest purchase. This guide explains what each kind is, what the price difference actually buys, and the one question that settles whether a shop is selling you what you think it is.',
+    'Buy a new iPhone online from Apple Vietnam or find an authorised reseller near you for pickup. For a used iPhone, compare asking prices for the same model and storage, then check the handset and warranty before paying.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-iphone-o-dau-uy-tin' },
   sections: [
     {
+      id: 'where-to-shop',
+      title: 'Where to shop online or in person',
+      body: (
+        <Ul>
+          <li><strong>New, delivered.</strong> Choose a model and storage size in the <OfficialLink href="https://www.apple.com/vn/shop/buy-iphone">Apple Store for Vietnam</OfficialLink>. Use its outright price as a reference when a shop quotes a discount tied to a trade-in.</li>
+          <li><strong>New, in person.</strong> Enter your city in <OfficialLink href="https://locate.apple.com/vn/en/sales">Apple’s authorised reseller locator</OfficialLink>. Call the branch to confirm the colour, storage and pickup price before travelling.</li>
+          <li><strong>Used.</strong> Compare <HereLink href="/iphone-18-vietnam">used iPhone 17 and 18 asking prices by storage</HereLink>. Open a listing to check the seller and condition, then ask about battery health, repairs and returns.</li>
+        </Ul>
+      ),
+    },
+    {
       id: 'five-kinds-of-shop',
       title: 'The five kinds of shop, and who each one suits',
       body: (
         <>
           <P>
-            <strong>Apple Authorised Resellers</strong> — the big chains with an Apple-branded section
-            — sell only chính hãng VN/A stock with the full Apple Vietnam warranty. Prices sit at or
-            just under Apple&rsquo;s recommended figure, they issue a red VAT invoice without being
-            asked, and a fault is handled by an authorised service centre rather than by the shop. If
-            you want the purchase to be boring, this is the boring option.
+            <strong>Apple Authorised Resellers</strong> are listed by Apple. Ask the branch for its
+            outright price, a sales invoice and its exchange terms for a faulty handset.
           </P>
           <P>
             <strong>Large independent chains</strong> carry both VN/A and imported stock side by side,
@@ -51,8 +59,7 @@ const CONTENT: ArticleContent = {
           <P>
             <strong>Specialist import shops</strong> deal mainly in xách tay — handsets brought in
             from the US, Singapore, Japan or Hong Kong. They are usually the cheapest new price in the
-            country and the warranty is the shop&rsquo;s own, typically 6 to 12 months, honoured at
-            that shop and nowhere else. Fine if the shop is established and you live nearby; a
+            country and the shop may offer its own warranty. Ask where it accepts repairs and for how long. Fine if the shop is established and you live nearby; a
             problem if you are leaving the city in a month.
           </P>
           <P>
@@ -64,7 +71,7 @@ const CONTENT: ArticleContent = {
           </P>
           <P>
             <strong>Private sellers</strong> — someone selling their own phone, on a marketplace like
-            this one. The lowest prices and no warranty at all. Everything depends on meeting in
+            this one. Ask for the original receipt so you can check any remaining coverage. Everything depends on meeting in
             person and checking the handset properly before money moves.
           </P>
         </>
@@ -77,17 +84,14 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             Ask: <em>&ldquo;Máy này là VN/A hay xách tay?&rdquo;</em> — is this a Vietnam unit or an
-            import? It is a completely ordinary question here, nobody is offended by it, and the
-            answer changes who fixes the phone when it breaks. A VN/A unit carries the Apple Vietnam
-            warranty and any authorised service centre will take it. An imported unit is warranted by
-            the shop that sold it, which is a promise only as good as that shop.
+            import? Ask for the original sales invoice and who handles repairs where you will use the phone.
+            Apple may restrict iPhone warranty service to its original country of sale. See the{' '}
+            <OfficialLink href="https://www.apple.com/legal/warranty/products/ios-warranty-rest-of-apac-english.html">Apple iPhone warranty terms</OfficialLink>.
           </P>
           <P>
-            Then verify rather than trust: open <strong>Settings › General › About</strong> and read
-            the Model Number. A VN/A unit ends in <code>VN/A</code>. <code>LL/A</code> is a US unit,
-            <code> ZA/A</code> Singapore, <code>J/A</code> Japan. The number is set at manufacture and
-            a shop cannot change it, which is why it beats any verbal assurance. Check the IMEI on
-            Apple&rsquo;s own coverage page while you are standing there.
+            Open <strong>Settings › General › About</strong> and enter the serial number on{' '}
+            <OfficialLink href="https://checkcoverage.apple.com/">Apple’s coverage checker</OfficialLink>.
+            For a used phone, check Carrier Lock and ask the seller to erase it so you can verify that Activation Lock is off.
           </P>
         </>
       ),
@@ -98,17 +102,14 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            The spread between the cheapest import and the authorised-reseller price on the same model
-            is usually a few million đồng — meaningful, but smaller than people expect once the shop
-            has discounted. What the extra buys is not the handset, which is identical, but three
-            things around it: a warranty Apple honours anywhere in the country, a VAT invoice, and
-            somebody else&rsquo;s problem if the unit is faulty out of the box.
+            Compare the outright price for the same storage, condition and model. Ask who handles a fault,
+            where you would return the phone and what paperwork the seller supplies.
           </P>
           <Ul>
-            <li>Staying more than a year, or buying for work: the VN/A warranty is worth the gap.</li>
-            <li>Visiting for a few months, comfortable with the risk and saving the difference: the import is a reasonable trade.</li>
-            <li>Buying on instalments: you will almost certainly end up on VN/A anyway, because that is what the finance companies underwrite.</li>
-            <li>Claiming the airport VAT refund on the way out: you need the red invoice, which import shops usually cannot issue.</li>
+            <li>Buying for work? Ask for an invoice in the name your employer needs.</li>
+            <li>Taking the phone home? Confirm which service centres can handle a claim there.</li>
+            <li>Paying in instalments? Compare the total repayment with the cash price.</li>
+            <li>Planning to claim a tourist VAT refund? Ask the shop if it participates before paying.</li>
           </Ul>
         </>
       ),
@@ -121,9 +122,8 @@ const CONTENT: ArticleContent = {
           <P>
             Card and bank transfer are both normal; cash is still very common and is not a red flag by
             itself. What matters is the paperwork. A <strong>hóa đơn đỏ</strong> (red VAT invoice)
-            carries the shop&rsquo;s tax code and the handset&rsquo;s IMEI, and it is what you need for
-            a company expense claim or an airport VAT refund. A handwritten receipt is not that — it
-            is proof of purchase for the shop&rsquo;s own warranty and nothing more.
+            identifies the business that sold the phone. Keep the sales invoice and ask the shop to
+            identify the handset on the receipt so you can document a warranty claim.
           </P>
           <P>
             Do not pay a deposit to hold stock at a shop you have not visited, and be wary of a price
@@ -146,10 +146,8 @@ const CONTENT: ArticleContent = {
             is underwriting you rather than the shop.
           </P>
           <P>
-            If you are leaving within 60 days, keep the red invoice and claim the VAT refund at the
-            departure terminal before check-in. It returns most of the 10% on invoices over 2,000,000 ₫
-            from a registered shop, which on a flagship is a real sum. And every Vietnamese network
-            issues eSIM, so an eSIM-only imported handset works here without a physical SIM at all.
+            If a tourist VAT refund affects your decision, ask whether the shop participates before you pay.
+            Check the paperwork in the <HereLink href="/vat-refund-phone-vietnam">Vietnam phone VAT refund guide</HereLink>.
           </P>
           <P>
             Apple Vietnam&rsquo;s prices, and what second-hand iPhones are listed for here, are on{' '}
@@ -162,15 +160,15 @@ const CONTENT: ArticleContent = {
   faqs: [
     {
       q: 'Where is the cheapest place to buy an iPhone in Vietnam?',
-      a: 'Specialist import shops selling xách tay units are normally the cheapest new price, followed by large independent chains during a promotion. The cheapest of all is a private seller, with no warranty at all. The saving over an authorised reseller is usually a few million đồng on a current flagship.',
+      a: 'Start with Apple Vietnam’s price for the storage you want. Compare each shop’s outright price with used listings in the same condition. Ask whether a discount requires a trade-in and what it would cost to replace a worn battery.',
     },
     {
       q: 'Is it safe to buy an iPhone from a small shop in Vietnam?',
-      a: 'Generally yes, and the vast majority of shops are straightforward. Reduce the remaining risk the same way locals do: check the model number in Settings › General › About, check the IMEI on Apple’s coverage page, get the warranty terms in writing, and prefer a shop with a physical address you could return to.',
+      a: 'Generally yes, and the vast majority of shops are straightforward. Reduce the remaining risk the same way locals do: read the serial number in Settings › General › About, look it up on Apple’s coverage page, get the warranty terms in writing, and prefer a shop with a physical address you could return to.',
     },
     {
       q: 'What does VN/A mean?',
-      a: 'It is the suffix on the model number of a handset distributed by Apple Vietnam. It carries the 12-month Apple Vietnam warranty that any authorised service centre will honour. LL/A is a US unit, ZA/A Singapore and J/A Japan — all imported, all warranted by the shop that sold them rather than by Apple Vietnam.',
+      a: 'VN/A is a regional part-number suffix seen on iPhones sold for Vietnam. Ask for the sales invoice and check coverage using the serial number. Apple may restrict iPhone service to the original country of sale.',
     },
     {
       q: 'Can a foreigner buy an iPhone in Vietnam on a passport?',
@@ -178,7 +176,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Should I buy an iPhone in Vietnam or bring one from home?',
-      a: 'Vietnamese retail includes 10% VAT and generally sits above US and Singapore pricing once converted, so an imported handset is genuinely cheaper. The trade is warranty: only a VN/A unit is covered by Apple Vietnam. People staying a while usually take the VN/A price; short-term visitors often do not.',
+      a: 'Compare the outright prices for the same storage, any currency conversion costs, and where you could get service after returning home. A trade-in or instalment price can make the advertised saving look larger than it is.',
     },
     {
       q: 'Do I need a Vietnamese phone number to set up an iPhone here?',
@@ -186,16 +184,16 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'What is a hóa đơn đỏ and do I need one?',
-      a: 'It is the official VAT invoice, carrying the shop’s tax code and the handset’s IMEI. You need it for a company expense claim or an airport VAT refund. For a personal purchase you can live without it, but a shop that refuses to issue one is telling you something about how it operates.',
+      a: 'It is the seller’s VAT invoice. Ask for it if you need to document a business purchase. For a tourist refund, check the shop’s participation and the required paperwork before paying.',
     },
   ],
   related: phoneGuidesIn('en', SLUG).map((g) => ({ href: `/${g.slug}`, label: g.label, blurb: g.blurb })),
 }
 
 export const metadata: Metadata = withShare({
-  title: `Where to buy an iPhone in Vietnam — the five kinds of shop | ${SITE_NAME}`,
+  title: `Where to buy an iPhone in Vietnam: new and used | ${SITE_NAME}`,
   description:
-    'The five kinds of iPhone shop in Vietnam, what the price gap between them actually buys, how to tell a VN/A unit from an import in ten seconds, and what a foreigner needs to buy one.',
+    'Find Apple Vietnam’s online store and authorised shops near you, compare used iPhone asking prices, and check warranty coverage before paying.',
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 

@@ -34,6 +34,7 @@ const CONTENT: ArticleContent = {
   ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/phones-under-10-million-vietnam' },
+  railAfter: 'may-cu-cung-tam-tien',
   sections: [
     {
       id: 'may-moi-duoi-10-trieu',

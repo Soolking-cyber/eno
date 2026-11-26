@@ -176,9 +176,9 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
           'Both Pro models start at 256GB and run to 2TB, and in Vietnam the jump between tiers costs more than it does in the US: the step from 256GB to 2TB roughly doubles the price. If you shoot a lot of ProRes video, buy the storage — there is no card slot. If you mostly use iCloud and stream, the 256GB model is the one that holds its resale value best on the second-hand market here.',
       },
       {
-        title: 'Chính hãng VN/A, and why some prices look too good',
+        title: 'How to check the warranty on an iPhone in Vietnam',
         body:
-          'A phone sold “chính hãng VN/A” is an Apple Vietnam unit: the model number ends in VN/A, it carries the 12-month Apple Vietnam warranty, and any authorised service centre will take it. Cheaper grey-market units (LL/A from the US, ZA/A from Singapore) are imported and warranted by the shop, not by Apple Vietnam — which is fine until the screen fails. Check the model number in Settings › General › About before you pay, and check the IMEI on Apple’s coverage page.',
+          'Ask the seller for the original sales invoice and the region where the phone was first sold. Apple may limit iPhone warranty service to that country. In Settings › General › About, find the serial number to check coverage with Apple. For a used unit, check battery health, Carrier Lock and any parts and service history before agreeing on a price.',
       },
       {
         title: 'Buying as a foreigner',
@@ -197,6 +197,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       { href: '/iphone-18-pro-vietnam', label: 'iPhone 18 Pro price', blurb: 'The 6.3-inch model — Apple Vietnam’s price per storage tier, and any second-hand unit listed here.' },
       { href: '/iphone-18-pro-max-vietnam', label: 'iPhone 18 Pro Max price', blurb: 'The 6.9-inch model — Apple Vietnam’s price per storage tier, and any second-hand unit listed here.' },
       { href: '/iphone-duo-vietnam', label: 'iPhone Duo price', blurb: 'Apple’s first foldable, on sale in Vietnam from 23 October 2026.' },
+      { href: '/best-place-to-buy-iphone-vietnam', label: 'Where to buy an iPhone in Vietnam', blurb: 'Find Apple’s Vietnam store, locate an authorised reseller near you, or compare a used handset with the same storage.' },
       { href: '/buying-a-used-iphone-vietnam', label: 'Buying a used iPhone in Vietnam', blurb: 'What to check before you pay for a second-hand iPhone here — the model number, the IMEI, the battery and the parts history.' },
       { href: '/c/electronics', label: 'Phones & electronics in Vietnam', blurb: 'Second-hand phones, laptops and cameras from used-goods shops and private sellers.' },
       { href: '/brands', label: 'Browse by brand', blurb: 'Apple, Samsung, Xiaomi and the rest — jump straight to a brand’s live listings.' },
@@ -221,7 +222,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       },
       {
         q: 'What does “chính hãng VN/A” mean?',
-        a: 'It is an Apple Vietnam unit with a model number ending VN/A and a 12-month Apple Vietnam warranty honoured by every authorised service centre. Imported LL/A or ZA/A handsets are usually cheaper and are warranted by the shop that sold them instead.',
+        a: 'VN/A is a regional part-number suffix seen on iPhones distributed for Vietnam. Ask to see the original invoice and use the serial number to check remaining coverage with Apple.',
       },
       {
         q: 'Can a foreigner buy an iPhone in Vietnam on a passport?',
@@ -229,7 +230,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       },
       {
         q: 'Is it cheaper to buy an iPhone 18 in Vietnam or abroad?',
-        a: 'Vietnamese prices include 10% VAT and sit above Singapore and US retail once you convert, so the saving on an imported handset is real — but so is the warranty difference: only VN/A units are covered by Apple Vietnam. Buyers who stay a while usually take the VN/A price; visitors sometimes do not.',
+        a: 'Compare outright prices for the same model and storage after currency conversion and any taxes you will pay. Check where you can get warranty service, especially if you will take the phone home.',
       },
       {
         q: 'Do the iPhone 18 Pro models work with Vietnamese eSIM?',
