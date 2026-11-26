@@ -232,7 +232,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Yes. When we checked on 19 November 2026, the [homes for rent on eno.vn](/c/rentals) included 96 Hanoi listings from [GoPlus](/goplus), an official eno.vn partner, and 25 of them were in phường Tây Hồ (Tay Ho ward). One was a 22 m² studio in Tay Ho ward at {{vnd:4800000}} a month, with a deposit of one month's rent. GoPlus answers questions about its own homes in eno.vn chat. On a home listed by an eno.vn member, press its \"Add to free availability check\" button and the eno team will check it for you."
+          "text": "Yes. When we checked on 19 November 2026, the [homes for rent on eno.vn](/c/rentals) included 96 Hanoi listings from [GoPlus](/goplus), an official eno.vn partner, and 25 of them were in phường Tây Hồ (Tay Ho ward). One was a 22 m² studio in Tay Ho ward at {{vnd:4800000}} a month, with a deposit of one month's rent. GoPlus answers questions about its own homes in eno.vn chat. To ask whether any home is still free, message the landlord, agent or partner in eno.vn chat; on a linked listing, the button opens the original posting on its source site."
         },
         {
           "type": "p",
@@ -318,5 +318,5 @@
     "where-to-live-in-ho-chi-minh-city-as-a-teacher",
     "finding-a-teaching-job-in-vietnam"
   ],
-  "lastChecked": "2026-11-19"
+  "lastChecked": "2026-11-26"
 }

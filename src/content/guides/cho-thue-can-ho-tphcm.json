@@ -10,7 +10,7 @@
     "Trong 13 quận có số liệu căn 1 phòng ngủ ngày 24/11/2026, rẻ nhất là Quận 12 ({{vnd:5800000}}), Gò Vấp ({{vnd:6600000}}) và Tân Phú ({{vnd:7000000}}). Đắt nhất có Quận 2 – Thảo Điền ({{vnd:23800000}}) và Quận 1 ({{vnd:19900000}}).",
     "Đây là giá chào trên tin đang đăng, không phải giá trong hợp đồng đã ký. Chỉ số giá thuê eno.vn ghi rõ giá chốt sau thương lượng thường thấp hơn.",
     "Tin đăng vẫn ghi tên quận cũ. Từ 1/7/2025, địa chỉ chính thức dùng tên phường, xã mới, ví dụ phường Sài Gòn đã nhận toàn bộ phường Bến Nghé cũ.",
-    "Trên trang cho thuê của eno.vn, nút \"Check availability\" nhờ đội eno kiểm tra tối đa 5 căn giúp bạn. Tin của đối tác chính thức như GoPlus thì đối tác trả lời qua chat trên eno.vn."
+    "Trên trang cho thuê của eno.vn, muốn biết căn còn trống không, hãy nhắn chủ nhà, môi giới hoặc đối tác qua chat trên eno.vn. Đối tác chính thức như GoPlus tự trả lời tin của mình ở đó. Nút của tin liên kết mở tin gốc trên trang nguồn."
   ],
   "sections": [
     {
@@ -215,7 +215,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Vào [nhà cho thuê ở TP.HCM](/c/rentals), lọc theo khu vực, sắp xếp theo giá, rồi chỉ gửi những căn thật sự muốn thuê để kiểm tra. Các nhãn dưới đây là nhãn trang hiển thị ngày 24/11/2026, bằng tiếng Anh."
+          "text": "Vào [nhà cho thuê ở TP.HCM](/c/rentals), lọc theo khu vực, sắp xếp theo giá, rồi chỉ nhắn hỏi những căn thật sự muốn thuê. Các nhãn dưới đây là nhãn trang hiển thị ngày 24/11/2026, bằng tiếng Anh."
         },
         {
           "type": "steps",
@@ -237,8 +237,8 @@
               "text": "Ghi lại diện tích, nội thất, tiền cọc và các khoản tính riêng như điện, nước, phí dịch vụ, gửi xe. Studio thường nhỏ, nên so cả diện tích chứ không chỉ giá. Tin của đối tác có nhãn \"Official partner\"."
             },
             {
-              "title": "Hỏi căn còn trống hoặc nhắn tin",
-              "text": "Thêm những căn bạn nghiêm túc cân nhắc vào \"Check availability\". Với tin của đối tác chính thức, nhắn đối tác qua chat trên eno.vn. Làm việc này trước khi hẹn xem nhà."
+              "title": "Nhắn tin hỏi căn còn trống",
+              "text": "Với những căn bạn nghiêm túc cân nhắc, nhắn chủ nhà, môi giới hoặc đối tác qua chat trên eno.vn để hỏi căn còn trống không. Với tin liên kết, nút của tin mở tin gốc trên trang nguồn. Làm việc này trước khi hẹn xem nhà."
             }
           ]
         },
@@ -256,15 +256,15 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Tùy ai đăng tin. Với đa số căn, nút \"Check availability\" nhờ đội eno kiểm tra xem căn còn trống không. Với tin riêng của đối tác chính thức như GoPlus, đối tác trả lời bạn qua chat trên eno.vn."
+          "text": "Nhắn tin cho người đăng tin, tức chủ nhà, môi giới hoặc đối tác, qua chat trên eno.vn. Với tin riêng của đối tác chính thức như GoPlus, đối tác tự trả lời bạn qua chat trên eno.vn."
         },
         {
           "type": "h3",
-          "text": "Nút Check availability hoạt động thế nào?"
+          "text": "Tin liên kết từ trang khác thì hỏi ở đâu?"
         },
         {
           "type": "p",
-          "text": "Ngày 24/11/2026, trang cho thuê ghi: chọn tối đa 5 căn và đội eno kiểm tra tình trạng trống giúp bạn, là dịch vụ miễn phí. Vì giới hạn là 5 căn, hãy dành nó cho danh sách cuối cùng, không phải mọi căn bạn thấy thích."
+          "text": "Với tin liên kết, nút của tin mở tin gốc trên trang nguồn, nơi bạn liên hệ người đăng. Trang cho thuê của eno.vn ghi rằng mọi thỏa thuận là giữa bạn và người đăng tin."
         },
         {
           "type": "h3",
@@ -339,7 +339,7 @@
     },
     {
       "q": "Làm sao biết căn hộ cho thuê trên eno.vn còn trống?",
-      "a": "Với đa số tin cho thuê căn hộ TP.HCM trên eno.vn, nút Check availability nhờ đội eno kiểm tra xem căn còn trống không. Ngày 24/11/2026, trang cho thuê mô tả đây là dịch vụ kiểm tra miễn phí cho tối đa 5 căn. Tin của đối tác chính thức của eno.vn như GoPlus thì do chính đối tác trả lời qua chat trên eno.vn."
+      "a": "Để biết căn hộ cho thuê trên eno.vn còn trống không, hãy nhắn tin cho chủ nhà, môi giới hoặc đối tác đăng tin qua chat trên eno.vn. Tin của đối tác chính thức của eno.vn như GoPlus thì do chính đối tác trả lời ở đó. Với tin liên kết từ trang khác, nút của tin mở tin gốc trên trang nguồn, nơi bạn hỏi trực tiếp người đăng. Nên hỏi trước khi hẹn xem nhà."
     },
     {
       "q": "Giá thuê căn hộ ở TP.HCM có thương lượng được không?",
@@ -373,5 +373,5 @@
     "your-first-weeks-in-ho-chi-minh-city",
     "getting-around-ho-chi-minh-city"
   ],
-  "lastChecked": "2026-11-24"
+  "lastChecked": "2026-11-26"
 }

@@ -258,7 +258,7 @@
         },
         {
           "type": "p",
-          "text": "Với nhà của GoPlus, bạn hỏi thẳng GoPlus trong khung chat eno.vn, vì GoPlus tự trả lời câu hỏi về nhà của mình. Chỉ tin do thành viên tự đăng mới có nút **Thêm vào danh sách kiểm tra miễn phí**, để đội eno kiểm tra giúp căn còn trống hay không. Dù hỏi qua kênh nào, vẫn làm đủ các bước ở phần trên trước khi đặt cọc."
+          "text": "Với nhà của GoPlus, bạn hỏi thẳng GoPlus trong khung chat eno.vn, vì GoPlus tự trả lời câu hỏi về nhà của mình. Muốn biết một căn khác còn trống không, hãy nhắn tin cho chủ nhà hoặc môi giới qua chat trên eno.vn. Với tin liên kết từ trang khác, nút của tin mở tin gốc trên trang nguồn. Dù hỏi qua kênh nào, vẫn làm đủ các bước ở phần trên trước khi đặt cọc."
         },
         {
           "type": "p",
@@ -290,7 +290,7 @@
     },
     {
       "q": "Có thuê được căn hộ Tây Hồ trên eno.vn không?",
-      "a": "Có. Ngày 19/11/2026, eno.vn có 96 tin cho thuê ở Hà Nội của GoPlus, một đối tác chính thức của eno.vn, đăng ngày 12/11/2026, trong đó 25 tin ở phường Tây Hồ, ví dụ một studio 22 m² cọc một tháng. Với nhà của GoPlus, hỏi GoPlus trong khung chat eno.vn. Chỉ tin do thành viên tự đăng có nút Thêm vào danh sách kiểm tra miễn phí để đội eno kiểm tra căn còn trống."
+      "a": "Có. Ngày 19/11/2026, eno.vn có 96 tin cho thuê ở Hà Nội của GoPlus, một đối tác chính thức của eno.vn, đăng ngày 12/11/2026, trong đó 25 tin ở phường Tây Hồ, ví dụ một studio 22 m² cọc một tháng. Với nhà của GoPlus, hỏi GoPlus trong khung chat eno.vn. Với căn khác, nhắn cho chủ nhà hoặc môi giới qua chat eno.vn để hỏi căn còn trống không; nút của tin liên kết mở tin gốc trên trang nguồn."
     },
     {
       "q": "Kinh nghiệm thuê nhà ở Tây Hồ cần kiểm tra gì trước khi ký?",
@@ -338,5 +338,5 @@
     "hanoi-vs-ho-chi-minh-city-for-teachers",
     "where-to-live-in-ho-chi-minh-city-as-a-teacher"
   ],
-  "lastChecked": "2026-11-19"
+  "lastChecked": "2026-11-26"
 }
