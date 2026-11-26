@@ -53,6 +53,7 @@ export async function AdBankOrders() {
                   <span className="font-semibold tabular-nums text-foreground">{formatMoneyFull(o.amountVnd, '₫')}</span>
                   {o.status === 'expired' && <Badge variant="warning">Expired</Badge>}
                   {o.status === 'cancelled' && <Badge variant="neutral">Cancelled by the shop</Badge>}
+                  {o.payerPaidAt && o.status === 'awaiting_transfer' && <Badge variant="warning">Shop says paid {utc(o.payerPaidAt)}</Badge>}
                 </div>
                 <p className="text-foreground">
                   {o.kind === 'creative' ? 'Own ad' : 'Listing'}: {o.target ?? o.targetId} · {PERIOD[o.period]}

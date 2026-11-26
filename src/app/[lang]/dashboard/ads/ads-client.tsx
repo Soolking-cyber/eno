@@ -7,12 +7,14 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
 import { Segmented } from '@/components/ui/segmented'
 import { Tooltip } from '@/components/ui/tooltip'
-import { TriangleAlert } from '@/components/ui/icons'
+import { Rocket, TriangleAlert } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import type { DashboardAd } from '@/lib/ads/dashboard'
+import { BANK_PERIOD } from '@/lib/ads/bank-periods'
 import type { BankOrderView, ShopOrder } from '@/lib/ads/bank'
 import { Button } from '@/components/ui/button'
 import { AdOrderForm, AwaitingOrders, OrderQrDialog } from './ad-order'
@@ -180,7 +182,7 @@ function AdCard({ ad }: { ad: DashboardAd }) {
 }
 
 export function AdsClient() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const qc = useQueryClient()
   const { data, isLoading, isError, error } = useAds()
   const signedOut = error instanceof AdsFetchError && error.status === 401
@@ -189,42 +191,64 @@ export function AdsClient() {
   const [ordered, setOrdered] = useState<BankOrderView | null>(null)
   const [showId, setShowId] = useState<string | null>(null)
   const orders = data?.orders ?? []
+  const ads = data?.ads ?? []
+  const empty = !!data && !ads.length && !orders.length
+  /**
+   * ⛔ THE BUTTON SHOWS ON EVERY SCREEN (owner 2026-11-26: "ads page is empty how can user create there"). It lived only in
+   * <SectionHeader>, which is the PHONE title bar (lg:hidden), so a computer showed no title and no way to create an ad.
+   * Now: the phone bar and the desktop <PageHeader> each carry it once the page has something to list; an empty page asks
+   * in its own empty state instead, so the button is never on screen twice. Only once the list loaded: never offered to
+   * someone signed out or mid-load. Hidden while the form is open (the form has its own Cancel).
+   */
+  const create = data && !empty && !creating
+    ? (className?: string) => <Button type="button" variant="cta" size="sm" className={className} onClick={() => setCreating(true)}>{tr('Create an ad', 'Tạo quảng cáo')}</Button>
+    : null
   return (
     <div className="space-y-4">
-      <SectionHeader
-        title={tr('Ads', 'Quảng cáo')}
-        // Only once the page knows who is here (the list loaded): never offered to someone signed out or mid-load.
-        action={data ? <Button type="button" variant="cta" size="sm" aria-expanded={creating} onClick={() => setCreating((c) => !c)}>{tr('Create an ad', 'Tạo quảng cáo')}</Button> : undefined}
-      />
+      <SectionHeader title={tr('Ads', 'Quảng cáo')} action={create?.()} />
+      {/* The desktop title row (the phone bar above is lg:hidden). On a phone its h1 stays for the outline only, and the
+          row takes no room (mb-0 against the parent's space-y). */}
+      <PageHeader title={tr('Ads', 'Quảng cáo')} titleClassName="max-lg:sr-only" className="max-lg:mb-0" actions={create ? <span className="max-lg:hidden">{create()}</span> : undefined} />
       {creating && (
-        <AdOrderForm onOrdered={(o) => { setCreating(false); setOrdered(o); void qc.invalidateQueries({ queryKey: ['dashboard-ads'] }) }} />
+        <AdOrderForm
+          onOrdered={(o) => { setCreating(false); setOrdered(o); void qc.invalidateQueries({ queryKey: ['dashboard-ads'] }) }}
+          onCancel={() => setCreating(false)}
+        />
       )}
       <OrderQrDialog order={ordered} id={showId} onClose={() => { setOrdered(null); setShowId(null) }} />
-      <p className="max-w-[60ch] text-t-meta text-muted-foreground">
-        {tr(
-          'Live figures for your ads, to the advertising industry standard: an impression counts when half the ad is on screen for a second, each browser once every 30 minutes; bots and other invalid traffic are left out. Reach and invalid traffic cover the last two weeks, the chart the last 48 hours. Updated every 10 seconds.',
-          'Số liệu trực tiếp của quảng cáo, theo chuẩn ngành quảng cáo: một lượt hiển thị được tính khi một nửa quảng cáo nằm trên màn hình trong một giây, mỗi trình duyệt một lần trong 30 phút; bot và lưu lượng không hợp lệ khác không được tính. Số người tiếp cận và lưu lượng không hợp lệ tính trong hai tuần gần nhất, biểu đồ trong 48 giờ gần nhất. Cập nhật mỗi 10 giây.',
-        )}{' '}
-        <a href="/advertising-policy" className="font-semibold text-accent-foreground hover:underline">{tr('Advertising policy', 'Chính sách quảng cáo')}</a>
-      </p>
       {isLoading ? (
         <div className={cn('h-40 animate-pulse rounded-2xl bg-muted')} />
       ) : signedOut ? (
         <EmptyState title={tr('Sign in to see your ads', 'Đăng nhập để xem quảng cáo của bạn')} />
       ) : isError ? (
         <EmptyState variant="fault" icon={TriangleAlert} title={tr('The figures could not be loaded.', 'Không tải được số liệu.')} subtitle={tr('They will try again in a few seconds.', 'Hệ thống sẽ thử lại sau vài giây.')} />
-      ) : !data?.ads.length && !orders.length ? (
-        <EmptyState
-          title={tr('No ads yet', 'Chưa có quảng cáo')}
-          subtitle={tr('Create one here, or buy one through the API or an AI agent. It appears here with its figures.', 'Tạo quảng cáo tại đây, hoặc mua qua API hay trợ lý AI. Quảng cáo hiển thị ở đây cùng số liệu.')}
-        />
+      ) : empty ? (
+        // The pitch and the way in, in one place; replaced by the form while it is open.
+        creating ? null : (
+          <EmptyState
+            icon={Rocket}
+            title={tr('Show your listing first', 'Đưa tin của bạn lên đầu')}
+            subtitle={tr('First in the home feed, its category and matching searches, marked "Ad". From {price} a week.', 'Đứng đầu bảng tin, danh mục và kết quả tìm kiếm phù hợp, gắn nhãn "Quảng cáo". Từ {price} một tuần.').replace('{price}', formatMoneyFull(BANK_PERIOD.week.priceVnd, '₫', moneyLocale(lang)).replace(/ /g, '\u00a0'))}
+            action={<Button type="button" variant="cta" onClick={() => setCreating(true)}>{tr('Create an ad', 'Tạo quảng cáo')}</Button>}
+          />
+        )
       ) : (
         <>
           <AwaitingOrders orders={orders} onShow={setShowId} />
-          {!!data?.ads.length && (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {data.ads.map((ad) => <AdCard key={ad.ad_id} ad={ad} />)}
-            </div>
+          {!!ads.length && (
+            <>
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {ads.map((ad) => <AdCard key={ad.ad_id} ad={ad} />)}
+              </div>
+              {/* How the figures are counted, under them (it was a paragraph above everything, even an empty page). */}
+              <p className="max-w-[60ch] text-t-meta text-muted-foreground">
+                {tr(
+                  'Counted to the industry standard: a view is half the ad on screen for a second, bots left out. Updates every 10 seconds.',
+                  'Đếm theo chuẩn ngành: một lượt xem là khi một nửa quảng cáo hiện trên màn hình một giây, không tính bot. Cập nhật mỗi 10 giây.',
+                )}{' '}
+                <a href="/advertising-policy" className="font-semibold text-foreground underline underline-offset-2">{tr('Advertising policy', 'Chính sách quảng cáo')}</a>
+              </p>
+            </>
           )}
         </>
       )}

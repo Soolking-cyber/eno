@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   sellers: { s1: { id: 's1', name: 'Saigon Bean', ownerId: 'p_shop', owner: { locale: 'vi' } }, s2: { id: 's2', name: 'Other', ownerId: 'p_other', owner: null } } as Record<string, Row>,
   notifications: [] as Row[],
   pushes: [] as Row[],
+  mails: [] as Row[],
   rate: new Map<string, number>(),
   rateFail: false,
   locks: [] as string[],
@@ -48,7 +49,8 @@ function matches(row: Row, where: Row | undefined): boolean {
 
 vi.mock('@/lib/db', () => {
   const listingAd = {
-    findUnique: async ({ where }: { where: Row }) => h.ads.find((a) => matches(a, where)) ?? null,
+    // A copy, as a database read is: two readers never share one object (the "I've paid" race below needs it).
+    findUnique: async ({ where }: { where: Row }) => { const a = h.ads.find((x) => matches(x, where)); return a ? { ...a } : null },
     findUniqueOrThrow: async ({ where }: { where: Row }) => { const a = h.ads.find((x) => matches(x, where)); if (!a) throw new Error('nf'); return a },
     findFirst: async ({ where }: { where: Row }) => h.ads.filter((a) => matches(a, where)).sort((a, b) => b.endsAt - a.endsAt)[0] ?? null,
     findMany: async ({ where }: { where: Row }) => h.ads.filter((a) => matches(a, where)).sort((a, b) => b.createdAt - a.createdAt),
@@ -78,7 +80,11 @@ vi.mock('@/lib/db', () => {
       findUnique: async ({ where }: { where: Row }) => h.creatives.find((c) => c.id === where.id) ?? null,
       findMany: async ({ where }: { where: Row }) => h.creatives.filter((c) => matches(c, where)),
     },
-    profile: { findUnique: async ({ where }: { where: Row }) => h.profiles[where.id] ?? null },
+    profile: {
+      findUnique: async ({ where }: { where: Row }) => h.profiles[where.id] ?? null,
+      // notifyAdmins: { OR: [{ email: { equals, mode: 'insensitive' } }] }
+      findMany: async ({ where }: { where: { OR: { email: { equals: string } }[] } }) => Object.entries(h.profiles).filter(([, p]) => where.OR.some((w) => w.email.equals.toLowerCase() === p.email.toLowerCase())).map(([id]) => ({ id })),
+    },
     seller: {
       findUnique: async ({ where }: { where: Row }) => h.sellers[where.id] ?? null,
       findMany: async ({ where }: { where: Row }) => Object.values(h.sellers).filter((s) => matches(s, where)),
@@ -90,7 +96,11 @@ vi.mock('@/lib/db', () => {
   return { db }
 })
 vi.mock('@/app/api/listings/feed-query', () => ({ buildFeedFilters: async () => ({ where: {} }) }))
-vi.mock('@/lib/admin', () => ({ isAdminEmail: (e?: string | null) => !!e && (process.env.ADMIN_EMAILS ?? '').split(',').includes(e.toLowerCase()) }))
+vi.mock('@/lib/admin', () => ({
+  isAdminEmail: (e?: string | null) => !!e && (process.env.ADMIN_EMAILS ?? '').split(',').includes(e.toLowerCase()),
+  adminEmails: () => (process.env.ADMIN_EMAILS ?? '').split(',').filter(Boolean),
+}))
+vi.mock('@/lib/mail', () => ({ sendMail: async (m: Row) => { h.mails.push(m); return true } }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {}, logInfo: () => {} }))
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: async (name: string, key: string, limit: number) => {
@@ -106,7 +116,7 @@ vi.mock('next/server', () => ({ after: (fn: () => Promise<unknown>) => { h.defer
 vi.mock('@/lib/x402/chain', () => ({ findAuthorizationPayment: async () => ({ found: false }), authorizationUsed: async () => false }))
 
 const bank = await import('./bank')
-const { bankConfig, bankQr, newAdReference, AD_REFERENCE_RE, createBankOrder, cancelBankOrder, getBankOrder, markBankOrderPaid, adminCancelBankOrder, adminBankOrders, adEligibleListings, shopBankOrders, BANK_ORDERS_PER_HOUR } = bank
+const { coverPhoto, bankConfig, bankQr, newAdReference, AD_REFERENCE_RE, createBankOrder, cancelBankOrder, getBankOrder, markBankOrderPaid, markPayerPaid, adminCancelBankOrder, adminBankOrders, adEligibleListings, shopBankOrders, BANK_ORDERS_PER_HOUR, ADMIN_ADS_URL } = bank
 const { crc16ccitt, verifyVietQrPayload, emvRecord, parseEmvTlv } = await import('@/lib/payments/vietqr')
 const { BANK_PERIOD } = await import('./bank-periods')
 
@@ -118,6 +128,8 @@ const DAY = 86_400_000
 const order = (o: Partial<Parameters<typeof createBankOrder>[0]> = {}) =>
   createBankOrder({ sellerId: 's1', profileId: 'p_shop', kind: 'listing', listingId: 'l1', period: 'week', now: NOW, ...o })
 const settle = async () => { await Promise.all(h.deferred); h.deferred = [] }
+/** The shop's own bells (the admins' order alerts are pinned on their own, below). */
+const shopBells = () => h.notifications.filter((n) => n.recipientId !== 'p_admin')
 
 beforeEach(() => {
   vi.stubEnv('ADS_BANK_ACCOUNT', FAKE_ACCOUNT)
@@ -127,7 +139,7 @@ beforeEach(() => {
   vi.stubEnv('ADMIN_EMAILS', 'owner@eno.vn')
   h.ads = []
   h.listings = [
-    { id: 'l1', title: 'Honda Vision', sellerId: 's1', status: 'active', verified: true, subcategorySlug: 'motorbikes', category: { slug: 'vehicles' } },
+    { id: 'l1', title: 'Honda Vision', images: JSON.stringify(['https://cdn.test/l1-a.jpg', 'https://cdn.test/l1-b.jpg']), sellerId: 's1', status: 'active', verified: true, subcategorySlug: 'motorbikes', category: { slug: 'vehicles' } },
     { id: 'l2', title: 'Visa help', sellerId: 's1', status: 'active', verified: true, subcategorySlug: 'visa-legal', category: { slug: 'services' } },
     { id: 'l3', title: 'Held sofa', sellerId: 's1', status: 'active', verified: true, subcategorySlug: null, category: { slug: 'furniture' } },
     { id: 'l9', title: 'Not mine', sellerId: 's2', status: 'active', verified: true, subcategorySlug: null, category: { slug: 'furniture' } },
@@ -139,6 +151,7 @@ beforeEach(() => {
   ]
   h.notifications = []
   h.pushes = []
+  h.mails = []
   h.rate = new Map()
   h.rateFail = false
   h.locks = []
@@ -396,7 +409,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     await settle()
     expect(again).toMatchObject({ ok: true, already: true, status: 'active' })
     expect(JSON.stringify(h.ads[0])).toBe(before)
-    expect(h.notifications).toHaveLength(1)
+    expect(shopBells()).toHaveLength(1)
   })
 
   it('⛔ sends the advertiser the bilingual "Your ad is live" bell, in their language', async () => {
@@ -404,15 +417,15 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     if (!out.ok) throw new Error('no order')
     await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)
     await settle()
-    expect(h.notifications).toEqual([{ recipientId: 'p_shop', type: 'system', title: 'Quảng cáo của bạn đã chạy', body: expect.stringContaining('Chúng tôi đã nhận chuyển khoản'), actorName: expect.any(String), url: '/dashboard/ads' }])
-    expect(h.pushes[0]).toMatchObject({ id: 'p_shop', title: 'Quảng cáo của bạn đã chạy', url: '/dashboard/ads' })
+    expect(shopBells()).toEqual([{ recipientId: 'p_shop', type: 'system', title: 'Quảng cáo của bạn đã chạy', body: expect.stringContaining('Chúng tôi đã nhận chuyển khoản'), actorName: expect.any(String), url: '/dashboard/ads' }])
+    expect(h.pushes.find((x) => x.id === 'p_shop')).toMatchObject({ id: 'p_shop', title: 'Quảng cáo của bạn đã chạy', url: '/dashboard/ads' })
     h.sellers.s1!.owner = { locale: 'en' }
     const two = await order()
     if (!two.ok) throw new Error('no order')
     await markBankOrderPaid(two.order.id, 'owner@eno.vn', NOW)
     await settle()
     // Stacked behind the first: paid, and says it starts when the current one ends.
-    expect(h.notifications[1]).toMatchObject({ title: 'Your ad is live', body: 'We received your transfer. It starts when your current ad ends.' })
+    expect(shopBells()[1]).toMatchObject({ title: 'Your ad is live', body: 'We received your transfer. It starts when your current ad ends.' })
     h.sellers.s1!.owner = { locale: 'vi' }
   })
 
@@ -441,7 +454,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     expect((await adminBankOrders(NOW)).map((o) => [o.reference, o.status])).toEqual([[out.order.reference, 'cancelled']])
     expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)).toMatchObject({ ok: true, already: false, status: 'active' })
     await settle()
-    expect(h.notifications).toHaveLength(1)
+    expect(shopBells()).toHaveLength(1)
   })
 
   it('⛔ a listing no longer live when the money lands: never active — review, for a refund by hand, and no "live" bell', async () => {
@@ -451,7 +464,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)).toMatchObject({ ok: true, already: false, status: 'review' })
     await settle()
     expect(h.ads[0]).toMatchObject({ status: 'review', failReason: 'listing_not_live_after_payment', startsAt: null, payloadJson: { confirmedBy: 'owner@eno.vn' } })
-    expect(h.notifications).toHaveLength(0)
+    expect(shopBells()).toHaveLength(0)
     // A second press changes nothing.
     expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)).toMatchObject({ ok: true, already: true, status: 'review' })
   })
@@ -463,7 +476,7 @@ describe('markBankOrderPaid — the admin confirms the transfer', () => {
     expect(await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)).toMatchObject({ ok: true, status: 'review' })
     await settle()
     expect(h.ads[0]).toMatchObject({ status: 'review', failReason: 'creative_removed_after_payment' })
-    expect(h.notifications).toHaveLength(0)
+    expect(shopBells()).toHaveLength(0)
   })
 
   it('not a bank order, or no such row: not found', async () => {
@@ -497,7 +510,15 @@ describe('adminCancelBankOrder', () => {
 
 describe('the lists', () => {
   it('the form\'s picker: the shop\'s own listings in the public feed, never an excluded aisle', async () => {
-    expect(await adEligibleListings('s1')).toEqual([{ id: 'l1', title: 'Honda Vision' }])
+    expect(await adEligibleListings('s1')).toEqual([{ id: 'l1', title: 'Honda Vision', photo: 'https://cdn.test/l1-a.jpg' }])
+  })
+
+  it('the picker\'s photo: the first image that is a photo — never a video file, a non-string or junk', () => {
+    expect(coverPhoto(JSON.stringify(['https://cdn.test/a.mp4', { url: 'x' }, 'https://cdn.test/b.webp']))).toBe('https://cdn.test/b.webp')
+    expect(coverPhoto(JSON.stringify(['https://cdn.test/v.MOV?t=1']))).toBeNull()
+    expect(coverPhoto('not json')).toBeNull()
+    expect(coverPhoto(null)).toBeNull()
+    expect(coverPhoto(JSON.stringify({ a: 1 }))).toBeNull()
   })
 
   it('the shop\'s awaiting orders, with what each advertises (no QR in the list)', async () => {
@@ -529,5 +550,94 @@ describe('the lists', () => {
     // 30 days past their week, they leave the list.
     expect(await adminBankOrders(new Date(NOW.getTime() + 36 * DAY))).toHaveLength(3)
     expect(await adminBankOrders(new Date(NOW.getTime() + 38 * DAY))).toEqual([])
+  })
+})
+
+describe('eno\'s admins hear of every order, and of "I\'ve paid" (owner 2026-11-26)', () => {
+  const adminBells = () => h.notifications.filter((n) => n.recipientId === 'p_admin')
+
+  it('⛔ a new order: each admin profile gets a bell and a push, each admin address an email, all pointing at Admin › Ads', async () => {
+    const out = await order({ period: 'quarter' })
+    if (!out.ok) throw new Error('no order')
+    await settle()
+    expect(ADMIN_ADS_URL).toBe('/admin/catalogue?tab=ads')
+    expect(adminBells()).toEqual([{ recipientId: 'p_admin', type: 'system', title: `New ad order ${out.order.reference}`, body: expect.stringMatching(/^899[.,]000 [đ₫] for a quarter \(listing ad\)\. .*Mark paid\.$/), actorName: expect.any(String), url: ADMIN_ADS_URL }])
+    expect(h.pushes).toEqual([expect.objectContaining({ id: 'p_admin', url: ADMIN_ADS_URL, tag: `ad-order-new-${out.order.id}` })])
+    expect(h.mails).toEqual([expect.objectContaining({ to: 'owner@eno.vn', subject: `New ad order ${out.order.reference}`, text: expect.stringContaining('/admin/catalogue?tab=ads') })])
+    // The shop is told nothing yet: its bell comes with Mark paid.
+    expect(shopBells()).toEqual([])
+  })
+
+  it('"I\'ve paid": only the shop\'s own awaiting order; recorded once, the admins told once, and it starts nothing', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    await settle()
+    h.notifications = []; h.pushes = []; h.mails = []
+    expect(await markPayerPaid(out.order.id, 's2', NOW)).toEqual({ ok: false, status: 404, code: 'not_found' })
+    const later = new Date(NOW.getTime() + 60_000)
+    const said = await markPayerPaid(out.order.id, 's1', later)
+    expect(said).toMatchObject({ ok: true, already: false, order: { status: 'awaiting_transfer', payer_paid_at: later.toISOString() } })
+    expect(h.ads[0]).toMatchObject({ status: 'awaiting_transfer', startsAt: null, payloadJson: { period: 'week', payerPaidAt: later.toISOString() } })
+    await settle()
+    expect(adminBells()).toEqual([expect.objectContaining({ title: `Shop says it paid ${out.order.reference}`, body: expect.stringContaining(`Check ACB for "${out.order.reference}"`), url: ADMIN_ADS_URL })])
+    expect(h.mails).toHaveLength(1)
+    // A second press: the same order, no second alert.
+    expect(await markPayerPaid(out.order.id, 's1', new Date(NOW.getTime() + 120_000))).toMatchObject({ ok: true, already: true, order: { payer_paid_at: later.toISOString() } })
+    await settle()
+    expect(adminBells()).toHaveLength(1)
+    // The shop's list and the admin's say so; the admin's puts it first.
+    const other = await order()
+    if (!other.ok) throw new Error('no order')
+    expect((await shopBankOrders('s1', NOW)).find((o) => o.id === out.order.id)?.payer_paid_at).toBe(later.toISOString())
+    expect((await adminBankOrders(NOW)).map((o) => [o.id, o.payerPaidAt?.toISOString() ?? null])).toEqual([[out.order.id, later.toISOString()], [other.order.id, null]])
+    // Once paid (or closed), "I've paid" has nothing left to say.
+    await markBankOrderPaid(out.order.id, 'owner@eno.vn', NOW)
+    expect(await markPayerPaid(out.order.id, 's1', NOW)).toEqual({ ok: false, status: 409, code: 'order_closed' })
+  })
+
+  it('⛔ two presses at once: recorded once, the admins alerted once (commit gate, opus)', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    await settle()
+    h.notifications = []; h.mails = []
+    const [a, b] = await Promise.all([markPayerPaid(out.order.id, 's1', NOW), markPayerPaid(out.order.id, 's1', NOW)])
+    await settle()
+    expect([a, b].map((r) => (r.ok ? r.already : r.code)).sort()).toEqual([false, true])
+    expect(adminBells()).toHaveLength(1)
+    expect(h.mails).toHaveLength(1)
+  })
+
+  it('a stray write between the read and the write: tried again, never "closed" for an order still open', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    await settle()
+    h.notifications = []
+    const { db } = await import('@/lib/db')
+    const real = db.listingAd.updateMany
+    let bumped = false
+    // The first write finds the row touched since its read (as another writer would leave it).
+    db.listingAd.updateMany = (async (args: never) => { if (!bumped) { bumped = true; h.ads[0]!.updatedAt = new Date(NOW.getTime() + 1) } return real(args) }) as typeof real
+    try {
+      expect(await markPayerPaid(out.order.id, 's1', NOW)).toMatchObject({ ok: true, already: false, order: { payer_paid_at: NOW.toISOString() } })
+    } finally {
+      db.listingAd.updateMany = real
+    }
+    await settle()
+    expect(adminBells()).toHaveLength(1)
+  })
+
+  it('a lapsed order cannot be marked paid by the shop', async () => {
+    const out = await order()
+    if (!out.ok) throw new Error('no order')
+    expect(await markPayerPaid(out.order.id, 's1', new Date(NOW.getTime() + 8 * DAY))).toEqual({ ok: false, status: 409, code: 'order_closed' })
+  })
+
+  it('no admin configured: no alert, and the order still stands', async () => {
+    vi.stubEnv('ADMIN_EMAILS', '')
+    const out = await order()
+    await settle()
+    expect(out.ok).toBe(true)
+    expect(h.notifications).toEqual([])
+    expect(h.mails).toEqual([])
   })
 })

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -12,13 +13,15 @@ import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
 import { IconButton } from '@/components/ui/icon-button'
 import { Copy } from '@/components/ui/icons'
 import { Input } from '@/components/ui/input'
+import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
 import { Segmented } from '@/components/ui/segmented'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QrFigure } from '@/components/marketplace/qr-figure'
 import { copyText } from '@/lib/copy-text'
+import { optimizedImageUrl } from '@/lib/listing-image'
+import { cn } from '@/lib/utils'
 import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
-import { BANK_ORDER_DAYS, BANK_PERIOD, BANK_PERIODS, type BankPeriod } from '@/lib/ads/bank-periods'
+import { BANK_ORDER_DAYS, BANK_PERIOD, BANK_PERIODS, isBankPeriod, type BankPeriod } from '@/lib/ads/bank-periods'
 import type { BankOrderView, ShopOrder } from '@/lib/ads/bank'
 import type { ReviewView } from '@/lib/ads/creative-review'
 
@@ -26,12 +29,12 @@ import type { ReviewView } from '@/lib/ads/creative-review'
  * ── "Create an ad" on /dashboard/ads, paid by VietQR bank transfer (owner 2026-11-25: "our acb bank account deposit via qr
  * minimal weekly monthly quarterly ad options"; src/lib/ads/bank.ts). One short flow: what to advertise (one of the shop's
  * listings, or — while creative ads are in their private test, for admins only — its own ad), the period, a free Review
- * for an own ad, then Get the QR: the order is made and its VietQR shown with the details to copy. The ad starts when eno
+ * for an own ad, then "Pay <amount>": the order is made and its VietQR shown with the details to copy. The ad starts when eno
  * confirms the transfer. Errors are sentences, never codes.
  */
 
 type Tr = (en: string, vi: string) => string
-type Options = { bank: boolean; shop: boolean; creative: boolean; listings: { id: string; title: string }[] }
+type Options = { bank: boolean; shop: boolean; creative: boolean; listings: { id: string; title: string; photo: string | null }[] }
 type Kind = 'listing' | 'creative'
 const CREATIVE_FIELDS = ['advertiserName', 'legalName', 'taxCode', 'headline', 'body', 'clickUrl', 'permitRef'] as const
 type CreativeField = (typeof CREATIVE_FIELDS)[number]
@@ -80,12 +83,25 @@ async function postJson(url: string, body?: unknown): Promise<{ ok: boolean; dat
   }
 }
 
-/** The form. `onOrdered` gets the new order (its QR is shown by the caller's <OrderQrDialog>). */
-export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) => void }) {
+/** Above this many listings the picker gets a search box (a partner shop can have up to 200 eligible). */
+const SEARCH_FROM = 8
+/** Search text without its accents and case: most people type Vietnamese unaccented ("xe may" finds "Xe máy"). */
+export const fold = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').replace(/[đĐ]/g, 'd').toLocaleLowerCase()
+
+/** One radio tile's box: hairline, the brand edge and the tint when chosen (teach-area-picker.tsx's choice tiles). */
+const TILE = 'flex w-full items-center justify-start gap-3 whitespace-normal rounded-xl border border-border p-2 text-left data-checked:border-brand data-checked:bg-tint'
+
+/**
+ * The form, one card (owner 2026-11-26: "make sure you bring quality simple ui ux for users to create ads"): the listing,
+ * picked by its photo; how long, three priced tiles; then one button that names the amount. `onOrdered` gets the new
+ * order (its QR is shown by the caller's <OrderQrDialog>); `onCancel` closes the form.
+ */
+export function AdOrderForm({ onOrdered, onCancel }: { onOrdered: (order: BankOrderView) => void; onCancel?: () => void }) {
   const { tr, lang } = useLanguage()
   const { data, isLoading, isError } = useOptions()
   const [kind, setKind] = useState<Kind>('listing')
   const [listingId, setListingId] = useState('')
+  const [query, setQuery] = useState('')
   const [period, setPeriod] = useState<BankPeriod>('week')
   const [fields, setFields] = useState<Record<CreativeField, string>>({ advertiserName: '', legalName: '', taxCode: '', headline: '', body: '', clickUrl: '', permitRef: '' })
   const [imageUrl, setImageUrl] = useState('')
@@ -101,7 +117,7 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
   // The first eligible listing is preselected: one tap fewer for a shop with one listing.
   useEffect(() => { if (!listingId && data?.listings[0]) setListingId(data.listings[0].id) }, [data, listingId])
 
-  if (isLoading) return <div className="h-40 animate-pulse rounded-2xl bg-muted" />
+  if (isLoading) return <div className="h-60 animate-pulse rounded-2xl bg-muted" />
   if (isError || !data) return <p role="alert" className="text-t-meta text-destructive">{orderErrorText(tr, undefined)}</p>
   if (!data.bank) return <p className="text-t-meta text-muted-foreground">{orderErrorText(tr, 'bank_unavailable')}</p>
   if (!data.shop) return <p className="text-t-meta text-muted-foreground">{orderErrorText(tr, 'no_shop')}</p>
@@ -111,6 +127,9 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
   const ready = creative ? !!approvedId : !!listingId
   // Any change to the ad after its review asks for a new one: what is paid for is what was reviewed.
   const edit = (k: CreativeField, v: string) => { rev.current++; setFields((f) => ({ ...f, [k]: v })); setReview(null) }
+  const q = fold(query.trim())
+  // The chosen listing stays in the list whatever the search says, so the choice never disappears from under the button.
+  const shown = q ? data.listings.filter((l) => l.id === listingId || fold(l.title).includes(q)) : data.listings
 
   const upload = async (file: File) => {
     setBusy('upload'); setError('')
@@ -158,7 +177,8 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
   )
 
   return (
-    <Card className="space-y-4 p-4">
+    // A form, not a dashboard: one readable column (2xl) rather than the full width of a computer screen.
+    <Card className="max-w-2xl space-y-5 p-4 sm:p-5">
       {data.creative && (
         <Segmented
           aria-label={tr('What to advertise', 'Quảng cáo gì')}
@@ -169,14 +189,32 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
       )}
 
       {!creative ? (
-        data.listings.length ? (
-          <Select items={Object.fromEntries(data.listings.map((l) => [l.id, l.title]))} value={listingId || null} onValueChange={(v: unknown) => { if (typeof v === 'string') setListingId(v) }}>
-            <SelectTrigger aria-label={tr('Listing', 'Tin đăng')} className="min-h-10 w-full bg-card"><SelectValue /></SelectTrigger>
-            <SelectContent>{data.listings.map((l) => <SelectItem key={l.id} value={l.id}>{l.title}</SelectItem>)}</SelectContent>
-          </Select>
-        ) : (
-          <p className="text-t-meta text-muted-foreground">{tr('You have no live listing to promote yet.', 'Bạn chưa có tin đăng đang hiển thị để quảng bá.')}</p>
-        )
+        <section aria-labelledby="ad-listing" className="space-y-2">
+          <h2 id="ad-listing" className="text-t-card font-semibold text-foreground">{tr('Listing', 'Tin đăng')}</h2>
+          {!data.listings.length ? (
+            <p className="text-t-meta text-muted-foreground">{tr('You have no live listing to promote yet.', 'Bạn chưa có tin đăng đang hiển thị để quảng bá.')}</p>
+          ) : (
+            <>
+              {data.listings.length > SEARCH_FROM && (
+                <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('Search your listings', 'Tìm tin của bạn')} aria-label={tr('Search your listings', 'Tìm tin của bạn')} />
+              )}
+              {/* p-0.5: the chosen tile's focus ring is drawn inside the scroller's edge, never clipped by it. */}
+              <RadioGroup aria-labelledby="ad-listing" value={listingId} onValueChange={setListingId} className="max-h-80 space-y-1.5 overflow-y-auto p-0.5">
+                {shown.map((l) => (
+                  <Radio key={l.id} value={l.id} className={TILE}>
+                    {/* Decorative: the title beside it names the listing. */}
+                    {l.photo
+                      ? <img src={optimizedImageUrl(l.photo, 360)} alt="" loading="lazy" className="size-12 shrink-0 rounded-media bg-muted object-cover" />
+                      : <span aria-hidden className="size-12 shrink-0 rounded-media bg-muted" />}
+                    <span className="line-clamp-2 min-w-0 flex-1 text-sm text-foreground">{l.title}</span>
+                    <RadioDot className="mr-1" />
+                  </Radio>
+                ))}
+              </RadioGroup>
+              {!shown.length && <p className="text-t-meta text-muted-foreground">{tr('No listing matches.', 'Không có tin nào khớp.')}</p>}
+            </>
+          )}
+        </section>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex items-center gap-3 sm:col-span-2">
@@ -199,12 +237,17 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
         </div>
       )}
 
-      <Segmented
-        aria-label={tr('How long', 'Thời hạn')}
-        value={period}
-        onValueChange={setPeriod}
-        options={BANK_PERIODS.map((p) => ({ value: p, label: <span className="flex flex-col leading-tight"><span>{periodLabel(tr, p)}</span><span className="tabular-nums">{money(BANK_PERIOD[p].priceVnd)}</span></span> }))}
-      />
+      <section aria-labelledby="ad-period" className="space-y-2">
+        <h2 id="ad-period" className="text-t-card font-semibold text-foreground">{tr('How long', 'Thời hạn')}</h2>
+        <RadioGroup aria-labelledby="ad-period" value={period} onValueChange={(v) => { if (isBankPeriod(v)) setPeriod(v) }} className="grid grid-cols-3 gap-2">
+          {BANK_PERIODS.map((p) => (
+            <Radio key={p} value={p} className={cn(TILE, 'flex-col items-start gap-0.5 p-3')}>
+              <span className="text-t-meta text-muted-foreground">{periodLabel(tr, p)}</span>
+              <span className="text-t-card font-semibold tabular-nums text-foreground">{money(BANK_PERIOD[p].priceVnd)}</span>
+            </Radio>
+          ))}
+        </RadioGroup>
+      </section>
 
       {creative && review && (
         review.status === 'approved'
@@ -219,15 +262,23 @@ export function AdOrderForm({ onOrdered }: { onOrdered: (order: BankOrderView) =
       )}
       {error && <p role="alert" className="text-t-meta text-destructive">{error}</p>}
 
-      <div className="flex flex-wrap gap-2">
-        {creative && !approvedId && (
-          <Button type="button" variant="outline" loading={busy === 'review'} disabled={!!busy || !imageUrl} onClick={() => { void runReview() }}>
-            {tr('Review (free)', 'Kiểm duyệt (miễn phí)')}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {creative && !approvedId && (
+            <Button type="button" variant="outline" loading={busy === 'review'} disabled={!!busy || !imageUrl} onClick={() => { void runReview() }}>
+              {tr('Review (free)', 'Kiểm duyệt (miễn phí)')}
+            </Button>
+          )}
+          <Button type="button" variant="cta" className="max-sm:w-full" loading={busy === 'order'} disabled={!!busy || !ready} onClick={() => { void order() }}>
+            {tr('Pay {amount}', 'Thanh toán {amount}').replace('{amount}', money(BANK_PERIOD[period].priceVnd))}
           </Button>
-        )}
-        <Button type="button" variant="cta" loading={busy === 'order'} disabled={!!busy || !ready} onClick={() => { void order() }}>
-          {tr('Get the QR', 'Lấy mã QR')}
-        </Button>
+          {onCancel && <Button type="button" variant="ghost" className="max-sm:w-full" disabled={busy === 'order'} onClick={onCancel}>{tr('Cancel', 'Hủy')}</Button>}
+        </div>
+        {/* The policy one tap from Pay (commit gate, opus): a shop's first purchase is made from this form. */}
+        <p className="text-t-meta text-muted-foreground">
+          {tr('By VietQR bank transfer. Your ad starts once it arrives.', 'Chuyển khoản qua VietQR. Quảng cáo bắt đầu khi nhận được tiền.')}{' '}
+          <a href="/advertising-policy" className="font-semibold text-foreground underline underline-offset-2">{tr('Advertising policy', 'Chính sách quảng cáo')}</a>
+        </p>
       </div>
     </Card>
   )
@@ -249,9 +300,20 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
   )
 }
 
-/** How to pay an order: its VietQR, and the details to type in from another phone. */
+/**
+ * How to pay an order: its VietQR, the details to type in from another phone, and "I've paid" (owner 2026-11-26: "when
+ * paymen qr pops up user doesnt see paid button"). The button tells eno's admins to look for the transfer now
+ * (bank.ts markPayerPaid); it starts nothing by itself: the ad starts when an admin confirms the money.
+ */
 export function OrderPay({ order }: { order: BankOrderView }) {
   const { tr, lang } = useLanguage()
+  const qc = useQueryClient()
+  const [said, setSaid] = useState<string | null>(order.payer_paid_at)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  // Closed while this was open (an admin's Mark paid or Cancel, or the order lapsed): the QR and the button go.
+  const [closed, setClosed] = useState(false)
+  if (closed) return <p role="alert" className="text-t-meta text-muted-foreground">{orderErrorText(tr, 'order_closed')}</p>
   if (order.status !== 'awaiting_transfer' || !order.pay) {
     const why = order.status === 'expired' ? tr('This order expired.', 'Đơn này đã hết hạn.')
       : order.status === 'cancelled' ? tr('This order was cancelled.', 'Đơn này đã bị hủy.')
@@ -260,6 +322,15 @@ export function OrderPay({ order }: { order: BankOrderView }) {
     return <p className="text-t-meta text-muted-foreground">{why}</p>
   }
   const amount = formatMoneyFull(order.amount_vnd, '₫', moneyLocale(lang))
+  const paid = async () => {
+    setBusy(true); setError('')
+    const r = await postJson(`/api/ads/orders/${encodeURIComponent(order.id)}/paid`)
+    setBusy(false)
+    if (r.ok) setSaid((r.data?.order as BankOrderView | undefined)?.payer_paid_at ?? new Date().toISOString())
+    else if (r.data?.error === 'order_closed') setClosed(true)
+    else setError(orderErrorText(tr, r.data?.error as string | undefined))
+    void qc.invalidateQueries({ queryKey: ['dashboard-ads'] })
+  }
   return (
     <div className="space-y-4">
       <QrFigure svg={order.pay.qr_svg} en="VietQR code to pay {amount}" vi="Mã VietQR để thanh toán {amount}" values={{ amount }} className="mx-auto w-fit rounded-2xl bg-white p-2" />
@@ -270,12 +341,22 @@ export function OrderPay({ order }: { order: BankOrderView }) {
         <Detail label={tr('Amount', 'Số tiền')} value={String(order.amount_vnd)} mono />
         <Detail label={tr('Transfer note (keep as is)', 'Nội dung (giữ nguyên)')} value={order.reference} mono />
       </dl>
-      <p className="text-t-meta text-muted-foreground">
-        {tr(
-          `Your ad starts as soon as eno confirms the transfer, usually within a few hours. Unpaid orders expire after ${BANK_ORDER_DAYS} days.`,
-          `Quảng cáo bắt đầu ngay khi eno xác nhận chuyển khoản, thường trong vài giờ. Đơn chưa thanh toán sẽ hết hạn sau ${BANK_ORDER_DAYS} ngày.`,
-        )}
-      </p>
+      {error && <p role="alert" className="text-t-meta text-destructive">{error}</p>}
+      {said ? (
+        <p role="status" className="text-t-meta font-semibold text-success">
+          {tr('Thanks. We\'ll check the transfer and start your ad, usually within a few hours.', 'Cảm ơn bạn. Chúng tôi sẽ kiểm tra chuyển khoản và bật quảng cáo, thường trong vài giờ.')}
+        </p>
+      ) : (
+        <>
+          <Button type="button" variant="cta" className="w-full" loading={busy} disabled={busy} onClick={() => { void paid() }}>{tr('I\'ve paid', 'Tôi đã chuyển khoản')}</Button>
+          <p className="text-t-meta text-muted-foreground">
+            {tr(
+              `Your ad starts as soon as eno confirms the transfer, usually within a few hours. Unpaid orders expire after ${BANK_ORDER_DAYS} days.`,
+              `Quảng cáo bắt đầu ngay khi eno xác nhận chuyển khoản, thường trong vài giờ. Đơn chưa thanh toán sẽ hết hạn sau ${BANK_ORDER_DAYS} ngày.`,
+            )}
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -300,7 +381,8 @@ export function OrderQrDialog({ order, id, onClose }: { order?: BankOrderView | 
     <Dialog open={!!(order || id)} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>{tr('Scan to pay', 'Quét để thanh toán')}</DialogTitle></DialogHeader>
-        {shown ? <OrderPay order={shown} />
+        {/* Keyed by the order: its "I've paid" state is the order's own, never the last one shown (commit gate, opus). */}
+        {shown ? <OrderPay key={shown.id} order={shown} />
           : fetched.isError ? <p role="alert" className="text-t-meta text-destructive">{orderErrorText(tr, undefined)}</p>
           : <div className="h-60 animate-pulse rounded-2xl bg-muted" />}
       </DialogContent>
@@ -326,14 +408,16 @@ export function AwaitingOrders({ orders, onShow }: { orders: ShopOrder[]; onShow
     void qc.invalidateQueries({ queryKey: ['dashboard-ads'] })
   }
   return (
-    <section aria-labelledby="ads-awaiting" className="space-y-2">
+    <section aria-labelledby="ads-awaiting" className="max-w-2xl space-y-2">
       <h2 id="ads-awaiting" className="text-t-card font-semibold text-foreground">{tr('Awaiting transfer', 'Chờ chuyển khoản')}</h2>
       <ul className="space-y-2">
         {orders.map((o) => (
           <li key={o.id}>
-            <Card className="flex flex-wrap items-center gap-3 p-3">
+            {/* flex-row: <Card> is a column at its base, which centred this row's text over its buttons. */}
+            <Card className="flex-row flex-wrap items-center gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-t-card font-semibold text-foreground">{o.target ?? (o.kind === 'creative' ? tr('My own ad', 'Quảng cáo riêng') : tr('A listing', 'Một tin đăng'))}</p>
+                {o.payer_paid_at && <Badge variant="neutral" size="sm" className="mt-1">{tr('Checking your transfer', 'Đang kiểm tra chuyển khoản')}</Badge>}
                 <p className="text-t-meta tabular-nums text-muted-foreground">{periodLabel(tr, o.period)} · {formatMoneyFull(o.amount_vnd, '₫', moneyLocale(lang))} · <span className="font-mono">{o.reference}</span></p>
               </div>
               <div className="flex gap-2">

@@ -8,6 +8,10 @@ import { pickLocale } from '@/lib/admin-macros'
 import { sendPushToProfile } from '@/lib/push'
 import { SITE_NAME } from '@/lib/edition'
 import { logError, logInfo } from '@/lib/log'
+import { adminEmails } from '@/lib/admin'
+import { sendMail } from '@/lib/mail'
+import { formatMoneyFull } from '@/lib/vnd'
+import { safeParse } from '@/lib/serialize'
 import { AD_EXCLUDED_SUBCATEGORIES, activateRow, checkAdCreative, checkAdListing, type AdRow } from './book'
 import { creativeAdsAllowed } from './creative-gate'
 import { invalidateAdServeCache } from './serve'
@@ -57,10 +61,12 @@ const ADMIN_EXPIRED_WINDOW_MS = 30 * 86_400_000
 
 // ── What the shop and the admin read ───────────────────────────────────────────────────────────────────────────────
 
-type OrderPayload = { period?: unknown; priceVnd?: unknown; createdBy?: unknown; confirmedBy?: unknown; confirmedAt?: unknown }
+type OrderPayload = { period?: unknown; priceVnd?: unknown; createdBy?: unknown; confirmedBy?: unknown; confirmedAt?: unknown; payerPaidAt?: unknown }
 const payloadOf = (ad: Pick<AdRow, 'payloadJson'>): OrderPayload => (ad.payloadJson && typeof ad.payloadJson === 'object' && !Array.isArray(ad.payloadJson) ? (ad.payloadJson as OrderPayload) : {})
 const periodOf = (ad: Pick<AdRow, 'payloadJson'>): BankPeriod => { const p = payloadOf(ad).period; return isBankPeriod(p) ? p : 'week' }
 const expiresAt = (ad: Pick<AdRow, 'createdAt'>) => new Date(ad.createdAt.getTime() + BANK_ORDER_TTL_MS)
+/** When the shop pressed "I've paid" (markPayerPaid), or null. Its word only: the money is confirmed by an admin's Mark paid. */
+const payerPaidAt = (ad: Pick<AdRow, 'payloadJson'>): Date | null => { const v = payloadOf(ad).payerPaidAt; return typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v) : null }
 const lapsed = (ad: Pick<AdRow, 'status' | 'createdAt'>, now: Date) => ad.status === BANK_AWAITING && expiresAt(ad).getTime() <= now.getTime()
 /**
  * May an admin still start it when its money lands: awaiting (lapsed or not), closed by its expiry, or cancelled by the
@@ -84,6 +90,8 @@ export type BankOrderView = {
   expires_at: string
   /** How to pay: only while it awaits its transfer and the account is configured. */
   pay: { bank: string; account_name: string; account_number: string; qr_svg: string } | null
+  /** When the shop said it paid ("I've paid"), or null. */
+  payer_paid_at: string | null
 }
 
 export function orderStatus(ad: Pick<AdRow, 'status' | 'createdAt' | 'failReason'>, now: Date): BankOrderStatus {
@@ -107,6 +115,7 @@ export function orderView(ad: AdRow, now: Date, cfg: BankConfig | null = bankCon
     created_at: ad.createdAt.toISOString(),
     expires_at: expiresAt(ad).toISOString(),
     pay: qr && cfg ? { bank: cfg.bankName, account_name: cfg.accountName, account_number: cfg.account, qr_svg: qr.svg } : null,
+    payer_paid_at: payerPaidAt(ad)?.toISOString() ?? null,
   }
 }
 
@@ -158,12 +167,12 @@ async function targetNames(rows: AdRow[], sellerId?: string): Promise<Map<string
  * (the very `where` checkAdListing counts against — book.ts), outside the aisles ads exclude. One feed query per category
  * the shop sells in, never one per listing. The order is checked again, one listing, by checkAdListing.
  */
-export async function adEligibleListings(sellerId: string): Promise<{ id: string; title: string }[]> {
+export async function adEligibleListings(sellerId: string): Promise<{ id: string; title: string; photo: string | null }[]> {
   // edition-lint-allow: the caller's own listings (sellerId), narrowed below by buildFeedFilters' own `where`, which ANDs
   // marketplaceListingScope() (feed-query.ts) — exactly checkAdListing's test.
   const mine = await db.listing.findMany({
     where: { sellerId, status: 'active', verified: true },
-    select: { id: true, title: true, subcategorySlug: true, category: { select: { slug: true } } },
+    select: { id: true, title: true, images: true, subcategorySlug: true, category: { select: { slug: true } } },
     orderBy: { updatedAt: 'desc' },
     take: 200,
   })
@@ -177,7 +186,15 @@ export async function adEligibleListings(sellerId: string): Promise<{ id: string
     const rows = await db.listing.findMany({ where: { AND: [where, { id: { in: ids } }] }, select: { id: true } })
     for (const r of rows) live.add(r.id)
   }
-  return candidates.filter((l) => live.has(l.id)).map((l) => ({ id: l.id, title: l.title }))
+  // The cover photo, so the picker shows each listing as the shop knows it (the client sizes it: optimizedImageUrl).
+  return candidates.filter((l) => live.has(l.id)).map((l) => ({ id: l.id, title: l.title, photo: coverPhoto(l.images) }))
+}
+
+/** The first PHOTO of a listing's `images` (a string, and not a video file a partner import may have put there), or null. */
+export function coverPhoto(images: string | null): string | null {
+  const list = safeParse<unknown[]>(images, [])
+  const first = (Array.isArray(list) ? list : []).find((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u) && !/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(u))
+  return first ?? null
 }
 
 // ── The shop makes an order, and may cancel it ─────────────────────────────────────────────────────────────────────
@@ -249,6 +266,7 @@ export async function createBankOrder(p: { sellerId: string | null; profileId: s
         },
       })
       logInfo('ads_bank_order', { adId: ad.id, sellerId, period, kind: p.kind })
+      notifyAdmins('new', ad)
       return { ok: true, order: orderView(ad, now, cfg) }
     } catch (e) {
       // A reference already used (paymentId is unique): draw another. Five collisions in a row is no accident.
@@ -276,11 +294,49 @@ export async function cancelBankOrder(id: string, sellerId: string, now = new Da
   return { ok: true, order: orderView(await db.listingAd.findUniqueOrThrow({ where: { id } }), now) }
 }
 
+export type PayerPaidResult = { ok: true; order: BankOrderView; already: boolean } | { ok: false; status: 404 | 409; code: 'not_found' | 'order_closed' }
+
+/**
+ * "I've paid" (owner 2026-11-26: "when payment qr pops up user doesnt see paid button and admin doesnt get ad to confirm
+ * payment"): the shop says its transfer is sent. It records WHEN on the order and tells eno's admins (notifyAdmins), so
+ * the order is checked against the bank statement at once. ⛔ IT STARTS NOTHING: the money is confirmed only by an admin's
+ * Mark paid, so a press with no transfer behind it costs eno nothing. Only the shop's own order, only while it awaits its
+ * transfer (not lapsed); a second press changes nothing and alerts no one again.
+ */
+export async function markPayerPaid(id: string, sellerId: string, now = new Date()): Promise<PayerPaidResult> {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return { ok: false, status: 404, code: 'not_found' }
+  // Two tries: a write that touched the row between our read and our write (and left it open, unsaid) is retried once
+  // rather than answered "closed" for an order the shop can still pay (commit gate, opus).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ad = await db.listingAd.findUnique({ where: { id } })
+    if (!ad || ad.sellerId !== sellerId || ad.via !== BANK_VIA) return { ok: false, status: 404, code: 'not_found' }
+    if (orderStatus(ad, now) !== 'awaiting_transfer') return { ok: false, status: 409, code: 'order_closed' }
+    if (payerPaidAt(ad)) return { ok: true, order: orderView(ad, now), already: true }
+    // ⛔ COMPARE-AND-SET ON updatedAt (@updatedAt, commit gate, opus): two presses at once both read "not said yet"; only
+    // the write that finds the row unchanged since its read counts, so the admins are alerted once.
+    const r = await db.listingAd.updateMany({
+      where: { id, sellerId, status: BANK_AWAITING, updatedAt: ad.updatedAt },
+      data: { payloadJson: { ...payloadOf(ad), payerPaidAt: now.toISOString() } as Prisma.InputJsonValue },
+    })
+    const fresh = await db.listingAd.findUniqueOrThrow({ where: { id } })
+    if (r.count) {
+      notifyAdmins('paid', fresh)
+      return { ok: true, order: orderView(fresh, now), already: false }
+    }
+    // Lost the race: to the shop's own other press (said, so the same answer), or to an admin's Mark paid or Cancel.
+    if (orderStatus(fresh, now) !== 'awaiting_transfer') return { ok: false, status: 409, code: 'order_closed' }
+    if (payerPaidAt(fresh)) return { ok: true, order: orderView(fresh, now), already: true }
+  }
+  return { ok: false, status: 409, code: 'order_closed' }
+}
+
 // ── The admin: the list, Mark paid, Cancel ─────────────────────────────────────────────────────────────────────────
 
 export type AdminBankOrder = {
   id: string; reference: string; status: BankOrderStatus; kind: 'listing' | 'creative'; target: string | null; targetId: string
   sellerId: string; shop: string | null; period: BankPeriod; amountVnd: number; createdAt: Date; expiresAt: Date
+  /** When the shop said it paid, or null: these come first, the order to check on the statement now. */
+  payerPaidAt: Date | null
 }
 
 /** Every order awaiting its transfer, and those that lapsed or that the shop cancelled, for 30 days past their week: a
@@ -293,7 +349,9 @@ export async function adminBankOrders(now = new Date()): Promise<AdminBankOrder[
     db.listingAd.findMany({ where: { via: BANK_VIA, status: BANK_AWAITING, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 200 }),
     db.listingAd.findMany({ where: { via: BANK_VIA, status: BANK_CANCELLED, failReason: { in: PAYABLE_CANCELLED }, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 100 }),
   ])
-  const rows = [...open, ...closed]
+  // The orders whose shop says it paid lead (newest claim first), then the rest as read.
+  const claimed = open.filter((r) => payerPaidAt(r)).sort((a, b) => payerPaidAt(b)!.getTime() - payerPaidAt(a)!.getTime())
+  const rows = [...claimed, ...open.filter((r) => !payerPaidAt(r)), ...closed]
   const [names, shops] = await Promise.all([
     targetNames(rows),
     // edition-lint-allow: admin chrome — the names of the shops these orders belong to (ids from the orders); nothing public.
@@ -313,6 +371,7 @@ export async function adminBankOrders(now = new Date()): Promise<AdminBankOrder[
     amountVnd: Number(ad.amount),
     createdAt: ad.createdAt,
     expiresAt: expiresAt(ad),
+    payerPaidAt: payerPaidAt(ad),
   }))
 }
 
@@ -412,5 +471,53 @@ function notifyAdLive(ad: AdRow, now: Date): void {
     }
   }
   // after() when a request scope exists (the admin route); straight away otherwise (tests, scripts).
+  try { after(send) } catch { void send() }
+}
+
+// ── eno's admins: a new order, and "I've paid" ──────────────────────────────────────────────────────────────────────
+
+/** Where an admin matches the transfer and presses Mark paid (Admin › Catalogue › Ads, ad-bank-orders.tsx). */
+export const ADMIN_ADS_URL = '/admin/catalogue?tab=ads'
+
+/** The admins' alert, in English (admin chrome is never localized): what to look for on the statement, and where to act. */
+export function adminOrderAlert(kind: 'new' | 'paid', ad: Pick<AdRow, 'authNonce' | 'amount' | 'payloadJson' | 'creativeId' | 'payTo'>): { title: string; body: string } {
+  const amount = formatMoneyFull(Number(ad.amount), '₫')
+  const period = { week: 'a week', month: 'a month', quarter: 'a quarter' }[periodOf(ad)]
+  const what = ad.creativeId ? 'own ad' : 'listing ad'
+  // The bank the order was made out to (payTo, bankConfig's name at the time), never a name written into the code.
+  const bank = ad.payTo || 'the bank'
+  return kind === 'new'
+    ? { title: `New ad order ${ad.authNonce}`, body: `${amount} for ${period} (${what}). When the transfer is in ${bank}, press Mark paid.` }
+    : { title: `Shop says it paid ${ad.authNonce}`, body: `${amount} for ${period} (${what}). Check ${bank} for "${ad.authNonce}", then press Mark paid.` }
+}
+
+/**
+ * ⛔ THE ADMINS HEAR OF EVERY ORDER (owner 2026-11-26: "admin doesnt get ad to confirm payment"): before this, an order
+ * waited in Admin › Catalogue › Ads with nothing telling anyone it was there. Each admin profile (Profile.email in
+ * ADMIN_EMAILS) gets a bell and a push, and each admin address an email (an admin is often signed in as a shop, not as
+ * the admin profile). Best effort, after the answer: an alert that fails never fails the shop's order.
+ */
+function notifyAdmins(kind: 'new' | 'paid', ad: AdRow): void {
+  const send = async () => {
+    try {
+      const emails = adminEmails()
+      if (!emails.length) return
+      const { title, body } = adminOrderAlert(kind, ad)
+      const tag = `ad-order-${kind}-${ad.id}`
+      // edition-lint-allow: eno's own admin profiles (ADMIN_EMAILS), their ids only, to deliver an admin alert; nothing public.
+      const admins = await db.profile.findMany({ where: { OR: emails.map((e) => ({ email: { equals: e, mode: 'insensitive' as const } })) }, select: { id: true } })
+      // Each admin, and each channel, on its own: one that fails never silences the rest (commit gate, opus).
+      for (const a of admins) {
+        await db.notification.create({ data: { recipientId: a.id, type: 'system', title, body, actorName: SITE_NAME, url: ADMIN_ADS_URL } })
+          .catch((e: unknown) => logError(e, { op: 'ads.bank.adminBell', adId: ad.id }))
+        await sendPushToProfile(a.id, { title, body, url: ADMIN_ADS_URL, tag }).catch((e: unknown) => logError(e, { op: 'ads.bank.adminPush' }))
+      }
+      const link = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').replace(/\/$/, '')}${ADMIN_ADS_URL}`
+      const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      await Promise.all(emails.map((to) => sendMail({ to, subject: title, text: `${body}\n\n${link}`, html: `<p>${esc(body)}</p><p><a href="${esc(link)}">Open Admin › Ads</a></p>` })))
+    } catch (e) {
+      logError(e, { op: 'ads.bank.notifyAdmins', adId: ad.id, kind })
+    }
+  }
   try { after(send) } catch { void send() }
 }
