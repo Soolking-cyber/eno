@@ -49,10 +49,11 @@ export default function SandboxPage() {
         <section className="mt-8">
           <h2 className="h-section text-foreground">2. Call the sandbox</h2>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
-            <li>• Sample listings and categories in the live shapes.</li>
-            <li>• Create and update calls run the live checks and store nothing.</li>
-            <li>• An export runs as an async job: <C>202 Accepted</C> with a <C>Location</C> to poll.</li>
-            <li>• Every response carries <C>X-Sandbox: true</C>.</li>
+            <li>• Six sample listings in three categories (electronics, vehicles and rentals) come with the same fields as a live listing, and <C>GET /categories</C> lists the three.</li>
+            <li>• <C>GET /listings</C> filters by <C>q</C> and <C>categorySlug</C>, and pages with <C>limit</C> (up to 100) and <C>cursor</C>, as the live list does.</li>
+            <li>• Create and update calls run the live checks, echo what passed under <C>received</C>, and store nothing: <C>stored</C> is always <C>false</C>.</li>
+            <li>• An export runs as an async job: <C>202 Accepted</C> with a <C>Location</C> to poll. The job moves from pending to running to done in about five seconds, and its id expires after an hour.</li>
+            <li>• Every response, an error included, carries <C>X-Sandbox: true</C> and <C>Cache-Control: no-store</C>.</li>
           </ul>
           <div className="mt-3"><Code>{`curl "${BASE}/sandbox/listings?q=honda" -H "Authorization: Bearer eno_test_…"
 
@@ -61,7 +62,21 @@ curl -i -X POST ${BASE}/sandbox/exports -H "Authorization: Bearer eno_test_…"
         </section>
 
         <section className="mt-8">
-          <h2 className="h-section text-foreground">3. Go live</h2>
+          <h2 className="h-section text-foreground">3. Errors and limits</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            An error comes back in the live API&apos;s form, <C>{'{ "error": { "code": …, "message": … } }'}</C>, so the error handling you write
+            against the sandbox carries over:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>• <C>401 unauthorized</C> means no key, a malformed key or one past its 24 hours. A live key sent here is refused the same way.</li>
+            <li>• <C>422</C> is a listing the live checks would refuse: <C>unknown_category</C>, <C>invalid_input</C>, or <C>no_phone_in_listing</C> for a phone number in the title or description.</li>
+            <li>• <C>404</C> and <C>405</C> mean a path or a method the sandbox does not have, and a 405 names the allowed methods in <C>Allow</C>.</li>
+            <li>• <C>429 rate_limited</C> comes after 120 requests a minute from one address, or 10 new keys an hour, and <C>Retry-After</C> says when to try again.</li>
+          </ul>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="h-section text-foreground">4. Go live</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             A test key never works on the live API. A live key comes from your {SITE_NAME} shop&apos;s{' '}
             <Link href="/dashboard/settings?tab=developers" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link>, and it acts on

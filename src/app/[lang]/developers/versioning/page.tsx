@@ -97,8 +97,22 @@ Link: <${SITE_ORIGIN}${DOC_PATHS.versioning}>; rel="deprecation"; type="text/htm
           </p>
         </section>
 
+        <section className="mt-8">
+          <h2 className="h-section text-foreground">Writing a client that keeps working</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            The policy comes down to four habits. A client that keeps them needs no change when v1 grows:
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>• Read responses into types that ignore unknown fields, and fall back to a safe default when an enumeration brings a value you have not seen.</li>
+            <li>• Keep the major version in the base URL, <C>{API_BASE}</C>, and call only the paths the OpenAPI document lists.</li>
+            <li>• Log every response that carries a <C>Deprecation</C> header, with its operation and its <C>Sunset</C> date, so a removal shows up in your own monitoring first.</li>
+            <li>• Compare <C>{`${SITE_ORIGIN}${DOC_PATHS.openapi}`}</C> with your saved copy in a build or a scheduled job. The running deployment serves it, so the difference shows every field and operation added since, and any newly marked <C>deprecated: true</C>.</li>
+          </ul>
+        </section>
+
         <p className="mt-10 border-t border-border pt-6 text-sm text-body">
-          Questions? <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-accent-foreground hover:underline">{SUPPORT_EMAIL}</a>.
+          Questions? Write to <a href={`mailto:${SUPPORT_EMAIL}`} className="font-semibold text-accent-foreground hover:underline">{SUPPORT_EMAIL}</a> and
+          quote the <C>X-Request-Id</C> header of the response you are asking about.
         </p>
       </main>
       <Footer />
