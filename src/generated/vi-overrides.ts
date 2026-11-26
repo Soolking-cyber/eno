@@ -4,6 +4,10 @@
 // Regenerate with: node scripts/gen-vi-overrides.mjs — which also TRANSLATES every gap with agy,
 // unreviewed. To only drop entries the code no longer uses: node scripts/gen-vi-overrides.mjs --prune
 export const VI_OVERRIDES: Record<string, string> = {
+  "New prices from the shops could not be read just now — they are back on the next refresh.": "Hiện chưa đọc được giá máy mới từ các cửa hàng — giá sẽ có lại ở lần cập nhật tới.",
+  "See every new and like-new listing": "Xem mọi tin máy mới và như mới",
+  "The lowest price for each storage tier among the new phones these shops list here; a price far out of line with the others, or with Apple's own price, is left out as a likely typo. The shop sells the phone: message it here and you get a Buy now button that opens the shop's own page to order. Tap a price to open the listing.": "Giá thấp nhất cho từng dung lượng trong số máy mới các cửa hàng này đăng tại đây; giá lệch xa so với các tin khác hoặc với giá của Apple bị bỏ qua vì có thể nhập nhầm. Cửa hàng là bên bán: nhắn tin cho cửa hàng tại đây và bạn sẽ nhận được nút Mua ngay mở trang của cửa hàng để đặt mua. Bấm vào giá để mở tin đăng.",
+  "We may earn a commission when you buy through the shop's Buy now button, at no extra cost to you. The price you pay is the shop's.": "Chúng tôi có thể nhận hoa hồng khi bạn mua qua nút Mua ngay của cửa hàng, bạn không phải trả thêm chi phí nào. Mức giá bạn thanh toán là giá của cửa hàng.",
   "Check that this is the app you started from:": "Hãy kiểm tra đây đúng là ứng dụng bạn đã bắt đầu:",
   "It will send you back to:": "Sau đó bạn sẽ được đưa về:",
   "Connecting an app needs a business account, where you can also disconnect it later. Switch your account to business, then start the connection again.": "Kết nối ứng dụng cần tài khoản doanh nghiệp, nơi bạn cũng có thể ngắt kết nối sau này. Hãy chuyển tài khoản sang doanh nghiệp, rồi bắt đầu kết nối lại.",

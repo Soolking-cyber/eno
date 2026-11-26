@@ -19,6 +19,8 @@ import { keepUsedRows } from '@/lib/accesstrade-restore'
 import { enoRunPartnerWhere, isEnoRunPartner } from '@/lib/eno-run-partners'
 import { movePublicLinksToStaff, upsertPurchaseLinks } from '@/lib/partner-purchase-link'
 import { importableCampaign } from '@/lib/retired-imports'
+import { NOT_NEW_APPLE } from '@/lib/new-apple'
+import { sellStaleNewApple } from '@/lib/new-apple-night'
 
 import { fetchCrawlPrices } from '@/lib/accesstrade-crawl-feed'
 
@@ -117,6 +119,11 @@ export async function affiliateNight(source: NightSource) {
   // 900 s, and 429 retries are bounded per call, not per walk. 12 min leaves the DB work its room; out of time, the walk
   // throws, counts as incomplete and retires nothing (accessTradeGet).
   const budget = { deadline: Date.now() + (source === 'crawl' ? CRAWL_BUDGET_MIN : 12) * 60_000 }
+  // The new-Apple rows' backstop (src/lib/new-apple-night.ts sellStaleNewApple): a week without a confirmed read is `sold`,
+  // whether or not their own nightly ran. Only where this night writes (the key's edition); a failure here never stops the night.
+  // Reported only when it did something (or failed): a quiet night's results stay as they were.
+  const staleNew = key ? await sellStaleNewApple().catch((e: Error) => ({ staleNewApple: 'failed' as const, error: e.message.slice(0, 120) })) : null
+  if (staleNew && staleNew.staleNewApple !== 0) results.push(staleNew)
   const campaigns = campaignsFromEnv(source === 'crawl' ? process.env.ACCESSTRADE_CRAWL_CAMPAIGNS : process.env.ACCESSTRADE_CAMPAIGNS)
   // A 200, not an error: an empty list is a configuration ("walk nothing"), and a red unit every night
   // would train everyone to ignore failed units.
@@ -213,8 +220,11 @@ export async function affiliateNight(source: NightSource) {
       // re-purges it on later nights too if every purge here failed.
       movedOuter = movedNow
       if (movedNow.length) await flushRecent(seller.id, movedNow)
+      // ⛔ NEVER A `new:` ROW (src/lib/new-apple.ts, owner 2026-11-26): the shop's new iPhone 18 / current Macs live on this same
+      // storefront and are the new-goods nightly's (src/lib/new-apple-night.ts). Seen here, `offShelf` below would send every
+      // one of them to sold, uncapped, every night — and the retire budget (activeAll) would count them as this shelf's.
       const held = ((await db.listing.findMany({
-        where: { sellerId: seller.id, externalId: { not: null } },
+        where: { sellerId: seller.id, externalId: { not: null }, ...NOT_NEW_APPLE },
         select: { id: true, externalId: true, price: true, affiliateUrl: true, status: true, condition: true, ...(enoRun ? { purchaseLink: { select: { url: true } } } : {}) },
       })) as (ExistingListing & { status: string; condition: string | null; purchaseLink?: { url: string } | null })[])
         .map((l) => (enoRun ? { ...l, affiliateUrl: l.purchaseLink?.url ?? null } : l))

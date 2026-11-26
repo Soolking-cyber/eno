@@ -78,6 +78,12 @@ declare -A SCHED=(
   # 04:31 ICT, after the datafeed run; ~27 minutes of polite reads, so a 2,700 s curl. POLICY: enabled by hand once the two
   # storefronts are pinned and ACCESSTRADE_CRAWL_CAMPAIGNS=shopdunk_web,hoanghamobile is in both editions' env.
   [affiliate-crawl]="*-*-* 21:31:00 UTC"
+  # The NEW iPhone 18 / current Macs of the same three partner shops (owner 2026-11-26: "search accesstrade shops for new iphone
+  # model affiliate products import them…"): price and stock of the `new:` rows, each from its own product page
+  # (src/lib/new-apple-night.ts). 22:31 UTC = 05:31 ICT, after the 03:01 and 04:31 nights and outside both budgets; ~3 minutes.
+  # POLICY: enabled by hand BEFORE the first import — scripts/import-new-apple.ts --apply refuses while it is off (a night with
+  # no `new:` rows is a no-op), and only on a box serving the `held` exclusion (--serving <sha>).
+  [new-apple]="*-*-* 22:31:00 UTC"
   # Availability + price refresh for the thirteen SCRAPED partner shops (owner, 2026-09-08: "a
   # daily cron to fetch availability for all partner stores and price updates for existing
   # products"). 19:00 UTC = 02:00 ICT — an hour before affiliate-prices, so the two multi-minute
@@ -280,7 +286,7 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 #   systemctl enable --now eno-cron-trustpilot-invite.timer
 # teacher-schools-ask (2026-11-20): POLICY — it messages and emails real teachers; enable after its dry run:
 #   systemctl enable --now eno-cron-teacher-schools-ask.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep listing-photos trustpilot-invite teacher-schools-ask)
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices affiliate-crawl new-apple partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep listing-photos trustpilot-invite teacher-schools-ask)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -344,12 +350,15 @@ for job in "${!SCHED[@]}"; do
   # affiliate-crawl the same way (eno.forum has no ACCESSTRADE_KEY, so its call only flushes), with a 2,700 s curl and a
   # unit timeout above it: a oneshot unit has none by default, and nothing may cut the read before its own deadline.
   [ "$job" = affiliate-crawl ] && EXTRA=$'ExecStart=-/opt/eno/bin/eno-cron.sh affiliate-crawl eno.forum 3002 300\nTimeoutStartSec=3600'
+  # new-apple the same way: eno.vn reads and writes, eno.forum's call only flushes its own cache (the route checks the edition).
+  [ "$job" = new-apple ] && EXTRA=$'ExecStart=-/opt/eno/bin/eno-cron.sh new-apple eno.forum 3002 300\nTimeoutStartSec=1800'
   # ⚠️ storage-tombstones is a `.svc.` route — it exists only in the SERVICES image (its sweep
   # reads the visa documents table). It is called on eno.forum:3002 and nowhere else.
   TARGET="$HOST_HEADER $PORT"
   [ "$job" = storage-tombstones ] && TARGET="eno.forum 3002"
   # ⚠️ affiliate-crawl reads on eno.vn with a 2,700 s curl (eno-cron.sh's 4th argument); its forum line is in EXTRA above.
   [ "$job" = affiliate-crawl ] && TARGET="eno.vn 3001 2700"
+  [ "$job" = new-apple ] && TARGET="eno.vn 3001 1200"
   # ⚠️ indexnow is eno.vn's ONLY, whatever host this installer was run for: the route 404s on the
   # services edition, and IndexNow is told about https://eno.vn URLs only.
   [ "$job" = indexnow ] && TARGET="eno.vn 3001"

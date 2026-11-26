@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { NewIphoneBlock, newIphoneOffers } from '../iphone-18-vietnam/new-offers-block'
 import { titleWithSite } from '@/lib/meta-description'
 
 /**
@@ -18,7 +19,17 @@ import { titleWithSite } from '@/lib/meta-description'
  *
  * ⚠️ NO SHOP IS NAMED AS "UY TÍN NHẤT". The marketplace lists several of these retailers and earns
  * affiliate revenue from some, so a ranking here would be an advertisement with an editorial byline.
+ * ⚠️ The "iPhone 18 trên eno.vn" block under the intro (2026-11-26, new-offers-block.tsx) is outside the article, ranks nothing
+ * (the lowest listed price per model and its shop) and carries the commission line — see the English pair's header.
  */
+/**
+ * ⚠️ ONE HOUR, SINCE 2026-11-26, for the "iPhone 18 on eno.vn" block under the intro (new-offers-block.tsx) — the cheapest new
+ * Pro, Pro Max and Duo the shops list here. The article itself is static text; the block reads live listings, so without a
+ * `revalidate` a page built before the import would never show it. With none listed (or a failed read) the block is absent and
+ * the page is the article as it always was.
+ */
+export const revalidate = 3600
+
 const SLUG = 'mua-iphone-o-dau-uy-tin'
 
 const CONTENT: ArticleContent = {
@@ -189,6 +200,8 @@ export const metadata: Metadata = withShare({
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 
-export default function MuaIPhoneODauUyTinPage() {
-  return <SeoArticle content={CONTENT} />
+export default async function MuaIPhoneODauUyTinPage() {
+  // `ledeRow` only WITH rows: an empty one would still move the phone's "On this page" row up under the lede (SeoArticle).
+  const offers = await newIphoneOffers()
+  return <SeoArticle content={offers.length ? { ...CONTENT, ledeRow: <NewIphoneBlock lang="vi" rows={offers} /> } : CONTENT} />
 }

@@ -20,7 +20,7 @@ import { LANDING_TARGET as HOUSING_TARGET } from '@/app/[lang]/housing-vietnam-e
 import { LANDING_TARGET as MOVING_SALES_TARGET } from '@/app/[lang]/moving-sales-vietnam/landing-target'
 import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-coffee-vietnam/landing-target'
 // Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
-import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, usedPriceWhere } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, newPriceWhere, usedPriceWhere } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { modelPagePath, submittableModelPages } from '@/lib/model-pages'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
@@ -464,10 +464,11 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   type Landing = { path: string; where: object; by: 'postedAt' | 'updatedAt'; gated?: boolean }
   const railLanding = (path: string, target: SeoLandingTarget, gated = false): Landing =>
     ({ path, where: seoLandingWhere(target), by: 'postedAt', gated })
-  // ⛔ THE PRICE PAGES' OWN PREDICATE (usedPriceWhere, lowest-prices.ts): second-hand only since 2026-10-03,
-  // so a new or wanted row cannot date a page that does not show it (review, 2026-10-03).
+  // ⛔ THE PRICE PAGES' OWN PREDICATES (lowest-prices.ts): second-hand rows (usedPriceWhere, since 2026-10-03) OR the three
+  // shops' new rows (newPriceWhere, since 2026-11-26) — the newest write to either table dates the page; a stranger's new or
+  // like-new unit, or a wanted row, matches neither and cannot date a page that does not show it (review, 2026-10-03).
   const priceLanding = (path: string, models: readonly string[]): Landing =>
-    ({ path, where: usedPriceWhere(models), by: 'updatedAt' })
+    ({ path, where: { OR: [usedPriceWhere(models), newPriceWhere(models)] }, by: 'updatedAt' })
   const LANDINGS: Landing[] = [
     railLanding('housing-vietnam-expats', HOUSING_TARGET),
     // Product pages, not category funnels — they rank for "iPhone 18 price Vietnam" and link into

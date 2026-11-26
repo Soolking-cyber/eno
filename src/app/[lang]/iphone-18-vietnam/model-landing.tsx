@@ -2,7 +2,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { formatMoneyFull } from '@/lib/vnd'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
-import { lowestPrices, type PriceRow } from './lowest-prices'
+import { lowestNewPrices, lowestPrices, type PriceLookup, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { modelProductLd } from './model-product-ld'
 import { onSaleYet } from './price-guard'
@@ -70,25 +70,41 @@ const floorOf = (rows: PriceRow[]) => [...rows].sort((a, b) => a.price - b.price
 /**
  * `known` false = the price read failed: Apple's price only, no claim that nothing is listed (review).
  * `now` decides whether the model is on sale in Vietnam yet (price-guard.ts `onSaleYet`).
+ * `fresh` = the NEW table's read (lowest-prices.ts `lowestNewPrices`, 2026-11-26); its default — known, no rows — is the page
+ * as it was before the new units, so a caller that reads none says nothing about them.
  */
-export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = true, now: Date = new Date()): SeoContent {
+export function modelContent(
+  cfg: ModelPageConfig, rows: PriceRow[], known = true, now: Date = new Date(),
+  fresh: PriceLookup = { rows: [], known: true },
+): SeoContent {
   const floor = floorOf(rows)
-  const product = modelProductLd(cfg, rows)
+  const newFloor = floorOf(fresh.rows)
+  // ONE AggregateOffer over BOTH tables, in the order the page prints them (model-product-ld.ts).
+  const product = modelProductLd(cfg, [...fresh.rows, ...rows])
   /**
    * ⚠️ THE CLAUSE MOVES, NOT THE PARAGRAPH. Interpolating a `null` floor as "from 0 ₫" on the page
    * that exists to answer "how much" is the failure worth guarding, and the intro has to read
    * correctly with the clause absent.
    */
   /**
-   * ⛔ SECOND-HAND ONLY (2026-10-03): the rows are used listings (lowest-prices.ts). With none, the page
-   * says so and quotes Apple's own price as Apple's — never "no retailer has listed one", which named a
-   * source the page no longer reads.
+   * ⛔ EACH TABLE SPEAKS FOR ITSELF. The used rows (2026-10-03, lowest-prices.ts): with none, the page says no second-hand
+   * shop lists one and quotes Apple's own price as Apple's — never "no retailer has listed one", which named a source the page
+   * does not read. The NEW rows (2026-11-26, three shops): with one, it leads, and Apple's price is not repeated (the shop's
+   * new price is the answer); with none, nothing is said about new units at all — the import fills them in.
    */
-  const priceClause = floor
-    ? ` The cheapest second-hand one from a shop here right now is ${money(floor.price)} for the ${floor.storage} model.`
-    : known
-      ? ` No second-hand shop lists the ${cfg.model} here yet; Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
-      : ` Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
+  const newSentence = newFloor
+    ? ` The cheapest new one from a shop here right now is ${money(newFloor.price)} for the ${newFloor.storage} model.`
+    : ''
+  const usedSentence = floor
+    ? newFloor
+      ? ` The cheapest second-hand one is ${money(floor.price)} for the ${floor.storage} model.`
+      : ` The cheapest second-hand one from a shop here right now is ${money(floor.price)} for the ${floor.storage} model.`
+    : newFloor
+      ? (known ? ' No second-hand shop lists one here yet.' : '')
+      : known
+        ? ` No second-hand shop lists the ${cfg.model} here yet; Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
+        : ` Apple Vietnam's own price starts at ${money(cfg.rrp)}.`
+  const priceClause = newSentence + usedSentence
 
   return {
     eyebrow: cfg.eyebrow,
@@ -102,14 +118,17 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = tru
        * older than any interval it advertises. The table prints the date it was actually checked,
        * which is the honest version of the same reassurance.
        */
-      (rows.length > 0
-        ? ' Every price in the table below is a live listing from a second-hand phone shop on this marketplace — each one links to the listing it was read from.'
-        : ''),
+      (fresh.rows.length > 0
+        ? ` Every price in the ${rows.length > 0 ? 'tables' : 'table'} below is a live listing from a shop on this marketplace — each one links to the listing it was read from.`
+        : rows.length > 0
+          ? ' Every price in the table below is a live listing from a second-hand phone shop on this marketplace — each one links to the listing it was read from.'
+          : ''),
     categorySlug: 'electronics',
     subcategorySlug: 'phones-tablets',
     brandSlug: 'apple',
-    // ⛔ USED, LIKE THE TABLE (review, 2026-10-03): with an any-condition rail a sealed unit from a person's
-    // shop would sit under "No second-hand iPhone 18 Pro is listed here yet", and the CTA would browse it.
+    // ⛔ USED, LIKE THE USED TABLE (review, 2026-10-03): with an any-condition rail a sealed unit from a person's
+    // shop would sit under "No second-hand iPhone 18 Pro is listed here yet", and the CTA would browse it. The new units
+    // are the three shops' alone (newAppleOfferWhere) — the rail's predicate cannot say that, so the new table is their place.
     condition: 'used',
     // ⚠️ ONE model, so the page's own rail cannot show a sibling variant the copy never mentions.
     models: [cfg.model],
@@ -165,7 +184,8 @@ export const modelMeta = (cfg: ModelPageConfig, description: string) => ({
 })
 
 export async function ModelLanding({ cfg }: { cfg: ModelPageConfig }) {
-  const { rows, known } = await lowestPrices([cfg.model])
+  const [used, fresh] = await Promise.all([lowestPrices([cfg.model]), lowestNewPrices([cfg.model])])
+  const { rows, known } = used
   /**
    * ⚠️ A DATE, NOT A TIME, AND IT COMES FROM THE RENDER. An "updated 14:05" stamp on an ISR page is
    * the hydration bug this repo has already paid for once; a date is stable for the whole
@@ -174,10 +194,13 @@ export async function ModelLanding({ cfg }: { cfg: ModelPageConfig }) {
   const updated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <SeoLanding
-      content={modelContent(cfg, rows, known)}
+      content={modelContent(cfg, rows, known, new Date(), fresh)}
       lede={
         <>
-          <PriceTable rows={rows} known={known} updated={updated} id="used-prices" heading={<Tr text="Second-hand prices on this marketplace today" />} />
+          {/* NEW ABOVE USED (2026-11-26): the shops' new units are the price most searchers mean; the table carries its own
+              disclosure line. With none it renders nothing (or its could-not-read line), and the page reads as before. */}
+          <PriceTable condition="new" rows={fresh.rows} known={fresh.known} updated={updated} id="new-prices" />
+          <PriceTable condition="used" rows={rows} known={known} updated={updated} id="used-prices" heading={<Tr text="Second-hand prices on this marketplace today" />} />
           {showAffiliateNote(rows) && <AffiliateNote />}
         </>
       }

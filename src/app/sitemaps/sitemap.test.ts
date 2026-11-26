@@ -24,7 +24,7 @@ type Row = {
   /** Only the thin-import rule reads it (`notThinImport`, src/lib/sitemap.ts). */
   description?: string
   /** The staff-only purchase link of an eno-run partner's row (partner-purchase-link.ts); absent = none. */
-  purchaseLink?: { url: string } | null
+  purchaseLink?: { url?: string; updatedAt?: Date } | null
   verified: boolean
   status: string
   updatedAt: Date
@@ -96,6 +96,8 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     if (key === 'NOT') return !matches(row, cond as Where)
     // The landing pages narrow by `category: { slug }` (seo-landing-where.ts).
     if (key === 'category') return CATEGORY_SLUGS[row.categoryId as string] === (cond as { slug: string }).slug
+    // The new-Apple rows' staff link (new-apple.ts newAppleOfferWhere: `purchaseLink: { updatedAt: { gte } }`).
+    if (key === 'purchaseLink') return !!row.purchaseLink && matches(row.purchaseLink as Record<string, unknown>, cond as Where)
     // The price pages read SHOP rows only (`seller: { ownerId: null }`, lowest-prices.ts). Owned here: the
     // person's own storefront and the desk.
     // …or a storefront eno runs: `seller: { OR: [{ ownerId: null }, …pinned pairs] }` (eno-run-partners.ts) — each arm alone.
@@ -110,8 +112,10 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
     }
     const value = row[key] ?? null
     if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
-      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string; startsWith?: string }
+      const c = cond as { in?: unknown[]; notIn?: unknown[]; not?: unknown; contains?: string; startsWith?: string; gte?: Date }
       if ('in' in c) return c.in!.includes(value)
+      // The new-Apple freshness window (new-apple.ts NEW_APPLE_FRESH_MS): `updatedAt: { gte }`.
+      if ('gte' in c) return value instanceof Date && c.gte instanceof Date && value.getTime() >= c.gte.getTime()
       if ('startsWith' in c) return typeof value === 'string' && value.startsWith(c.startsWith!)
       if ('notIn' in c) return !c.notIn!.includes(value)
       if ('not' in c) return value !== c.not
@@ -309,6 +313,7 @@ import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/ex
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import * as teachRegistry from '@/lib/teach-guides/registry'
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { NEW_APPLE_SELLER_IDS } from '@/lib/new-apple'
 import { isTeacherSurfacePath } from '@/lib/teachers/surface'
 import { RENT_TOOL_SLUGS } from '@/lib/rent-tools/registry'
 import { liveTools } from '@/lib/tools/content'
@@ -791,6 +796,38 @@ describe('the pages child: lastmod from what each page shows', () => {
     // An empty jobs rail: not submitted at all (it answers noindex).
     expect(locs(xml)).not.toContain(`${HOST}/jobs-vietnam-expats`)
     expect(locs(xml)).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
+  })
+
+  // ⛔ AND THE NEW TABLE'S ROWS SINCE 2026-11-26 (newPriceWhere, lowest-prices.ts): the three shops' `new:` units of the line.
+  it('dates the iPhone price pages by the newest write to EITHER table — never by a stranger’s new or like-new unit', async () => {
+    const d = (day: number) => new Date(Date.UTC(2026, 10, day))
+    // The new table quotes only rows the nightly confirmed in the last 72 hours (new-apple.ts NEW_APPLE_FRESH_MS): "now" is the 10th.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(d(10))
+    const NEW_IPHONE: Partial<Row> = {
+      categoryId: 'cat-electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple', currency: '₫', listingType: 'sell',
+      condition: 'new', sellerId: NEW_APPLE_SELLER_IDS[0], externalId: 'new:sd-1',
+    }
+    h.rows = [
+      row({ id: 'pro-used', ...USED_IPHONE, model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(5) }),
+      // The shops' new units: the Pro re-priced on the 9th (newer than its used row), the Pro Max only new.
+      row({ id: 'pro-new', ...NEW_IPHONE, model: 'iPhone 18 Pro', postedAt: d(1), updatedAt: d(9), purchaseLink: { updatedAt: d(9) } }),
+      row({ id: 'max-new', ...NEW_IPHONE, externalId: 'new:sd-2', model: 'iPhone 18 Pro Max', postedAt: d(1), updatedAt: d(7), purchaseLink: { updatedAt: d(7) } }),
+      // ⛔ None of these is a row either table shows: a stranger's new unit, a like-new one, a shop row outside the namespace,
+      // a new row on the accessory shelf.
+      row({ id: 'stranger-new', ...NEW_IPHONE, sellerId: 'import-seller', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(20), purchaseLink: { updatedAt: d(20) } }),
+      row({ id: 'like-new', ...NEW_IPHONE, condition: 'like_new', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(21), purchaseLink: { updatedAt: d(21) } }),
+      row({ id: 'no-prefix', ...NEW_IPHONE, externalId: 'at:123', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(22), purchaseLink: { updatedAt: d(22) } }),
+      row({ id: 'case', ...NEW_IPHONE, subcategorySlug: 'phone-cases', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(23), purchaseLink: { updatedAt: d(23) } }),
+      // …nor a shop's new unit the nightly has not confirmed for more than three days.
+      row({ id: 'stale-duo', ...NEW_IPHONE, externalId: 'new:sd-3', model: 'iPhone Duo', postedAt: d(1), updatedAt: d(6), purchaseLink: { updatedAt: d(6) } }),
+    ]
+    const xml = await (await pagesGET()).text()
+    vi.useRealTimers()
+    expect(lastmodOf(xml, `${HOST}/iphone-18-pro-vietnam`)).toBe(d(9).toISOString())
+    expect(lastmodOf(xml, `${HOST}/iphone-18-pro-max-vietnam`)).toBe(d(7).toISOString())
+    expect(lastmodOf(xml, `${HOST}/iphone-18-vietnam`)).toBe(d(9).toISOString())
+    expect(lastmodOf(xml, `${HOST}/iphone-duo-vietnam`)).toBeUndefined()
   })
 
   it('submits a gated landing once it has a listing, dated by it', async () => {
