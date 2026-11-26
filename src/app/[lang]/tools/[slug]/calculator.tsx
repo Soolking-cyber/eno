@@ -139,15 +139,17 @@ export function GeneratedToolCalculator({ spec }: { spec: ToolSpec }) {
       <div className="grid gap-4 sm:grid-cols-2">
         {reads.map(({ input, read, message }) => {
           const id = fid(input.id)
+          // No help line under the field: the page's "How it works" lists each field with its help, as the four rent tools do
+          // (Seobility crawl 10: every help text was on the page twice, a duplicate paragraph).
           const common = {
-            id, label: c(input.label), hint: c(input.help), value: text[input.id] ?? '', read, message,
+            id, label: c(input.label), value: text[input.id] ?? '', read, message,
             onChange: (v: string) => setText((s) => ({ ...s, [input.id]: v })),
             shown: phase.shown(id), onEnter: phase.onEnter(id), onLeave: phase.onLeave(id),
           }
           if (input.kind === 'money') return <MoneyField key={id} {...common} />
           if (input.kind === 'months') return <MonthsField key={id} {...common} halves />
           if (input.kind === 'choice') {
-            return <ChoiceField key={id} id={id} label={common.label} hint={common.hint} value={common.value} onChange={common.onChange} choices={(input.choices ?? []).map((ch) => ({ value: String(ch.value), label: c(ch.label) }))} />
+            return <ChoiceField key={id} id={id} label={common.label} value={common.value} onChange={common.onChange} choices={(input.choices ?? []).map((ch) => ({ value: String(ch.value), label: c(ch.label) }))} />
           }
           const decimals = DECIMALS[input.kind]
           return <NumberField key={id} {...common} message={message ?? ''} suffix={input.kind === 'percent' ? '%' : undefined} regroup={(v) => plain(v, lang, decimals)} negative={input.min < 0} />

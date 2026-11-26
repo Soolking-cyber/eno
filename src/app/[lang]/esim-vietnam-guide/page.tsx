@@ -36,7 +36,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Practical guide',
   h1: 'eSIM in Vietnam: networks, phones and getting one',
   intro:
-    'Every Vietnamese network issues eSIM, which makes an eSIM-capable phone genuinely useful here: you can keep your home number live on the physical SIM or a second profile and run a local number for banking, delivery and ride-hailing apps that will not accept a foreign number. This guide covers which networks and handsets support it, what registration requires, and the traps worth knowing before you switch.',
+    'Every Vietnamese network issues eSIM, which makes an eSIM-capable phone genuinely useful here: you can keep your home number live on the physical SIM or a second profile and run a local number for banking, delivery and ride-hailing apps that will not accept a foreign number. This guide covers the networks and the compatible handsets, what getting one registered requires, and the traps worth knowing before you switch.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

@@ -69,6 +69,8 @@ function OptionLabel({ opts, value }: { opts: readonly Opt[]; value: string }) {
   return o.labelVi ? <Bilingual en={o.label} vi={o.labelVi} /> : <Tr text={o.label} />
 }
 const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
+/** The title word for the 'stem' subject, the same in both languages (search-title.ts TITLE_SUBJECT) — see `subjectChips`. */
+const STEM_WORD = ' (STEM)'
 
 type Experience = { role: string; employer: string; city: string; from: string; to: string }
 type Certificate = { type: string; hours: number | null; provider: string; year: number | null }
@@ -218,9 +220,12 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
   })
   // "Other language" reads as the languages taught once they are named: a listed language in the reader's language
   // (storedLanguageLabel — "Tiếng Pháp", not "French"), and an old free-text value as it was typed.
+  // The "Maths & science" chip also says "STEM", for screen readers and crawlers only: the word the <title> and the h1 use for it
+  // (search-title.ts TITLE_SUBJECT — "STEM & English teacher"), which the page's text otherwise never said (Seobility crawl 10,
+  // 2026-11-26: an h1 word missing from the body on nine profiles). The chip's label is unchanged — not a taxonomy rename.
   const subjectChips: Chip[] = (tp?.subjects ?? []).flatMap((s): Chip[] => (s === 'other-language' && teachLanguages.length
     ? teachLanguages.map((l) => ({ key: `language:${l}`, node: storedLanguageLabel(l, lang) }))
-    : [{ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.subject} value={s} /> }]))
+    : [{ key: s, node: <><OptionLabel opts={TEACHER_OPTIONS.subject} value={s} />{s === 'stem' && <span className="sr-only">{STEM_WORD}</span>}</> }]))
   // Online is a PLACE since 2026-10-08 ("Can teach in"): an old row's 'online' job type is not printed as a job.
   const jobTypes = (tp?.jobTypes ?? []).filter((j) => TEACHER_OPTIONS.jobType.some((o) => o.value === j))
   // The start DAY ('YYYY-MM-DD'): the page names its month; an old row's day (any day, before 2026-10-08) still decides
@@ -280,8 +285,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
    * ⛔ THE LABEL AND THE SENTENCE PART (owner-approved 2026-11-14, cook r04 teachers — it reverses "full width under the
    * header, never beside the h1", owner 2026-10-15): "Identity verified" is a tick UNDER THE NAME, in the name's column, at
    * every width (a 72px portrait below 360px keeps that column ~156px, and the label may wrap — the ruling's worry was a
-   * 128px column); the sentence stays under the header from lg, and below lg it opens the counsel panel at the end of the
-   * page (TeacherContact `counsel`). Two server-rendered copies, CSS shows one (display:none, never `[hidden]`).
+   * 128px column); the sentence opens the counsel panel (TeacherContact `counsel`) — at every width since 2026-11-26 (owner:
+   * "One copy, contact panel"; it was also drawn under the header from lg, CSS showing one, and Seobility counted the pair).
    */
   const identitySentence = identityShown
     ? (qualsShown
@@ -418,12 +423,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               </div>
             </header>
 
-            {/* The identity sentence under the header from lg (its phone copy opens the counsel panel — `identitySentence`). */}
-            {identitySentence && (
-              <div data-identity-line="" className="max-lg:hidden">
-                <p className="text-sm text-body">{identitySentence}</p>
-              </div>
-            )}
+            {/* The identity sentence is the contact block's `counsel` at every width since 2026-11-26 (owner: "One copy, contact
+                panel" — two server copies were Seobility's duplicate paragraph); it is no longer drawn under the header. */}
 
             {/* ⛔ THE VIDEO FIRST, AT EVERY WIDTH (owner-approved 2026-11-14, cook r04 teachers — it reverses batch 69's "TEACHING
                 FACTS FIRST … before the video", 2026-11-11): a person before their facts, as Preply opens, straight under the

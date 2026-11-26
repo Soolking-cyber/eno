@@ -17,7 +17,7 @@ describe('the home questions, for speed, with nothing lost', () => {
 
   it('every question is an H2 holding its button, every answer is in the HTML (closed), and no Base UI accordion is left', () => {
     for (const s of HOME_ABOUT) {
-      expect(html).toMatch(new RegExp(`<h2 id="about-${s.id}" data-slot="disclosure-header" class="flex"><button type="button" aria-expanded="false" aria-controls="[^"]+" data-disclosure-trigger="" class="acc-trigger group/acc-trigger py-2\\.5 text-sm">`))
+      expect(html).toMatch(new RegExp(`<div role="heading" aria-level="2" id="about-${s.id}" data-slot="disclosure-header" class="flex"><button type="button" aria-expanded="false" aria-controls="[^"]+" data-disclosure-trigger="" class="acc-trigger group/acc-trigger py-2\\.5 text-sm">`))
       expect(html).toContain(s.open[0].en.slice(0, 40).replace(/&/g, '&amp;').replace(/'/g, '&#x27;').replace(/"/g, '&quot;'))
     }
     expect(html.match(/role="region" aria-labelledby="about-[^"]+" data-slot="disclosure-panel" hidden=""/g)?.length).toBe(HOME_ABOUT.length)

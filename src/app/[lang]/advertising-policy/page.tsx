@@ -12,11 +12,17 @@ import { AD_CREATIVE_MAX_HOURS } from '@/lib/ads/book'
 import { BANK_ORDER_DAYS, BANK_PERIOD } from '@/lib/ads/bank-periods'
 import { formatMoneyFull } from '@/lib/vnd'
 
-export const metadata: Metadata = withShare({
-  title: `Advertising policy | Chính sách quảng cáo | ${SITE_NAME}`,
+// One language per variant (Seobility crawl 10: the Vietnamese half of "Advertising policy | Chính sách quảng cáo" was in no text
+// on the English page). The share cards stay English on both, as on /safety: a share scraper sends no language.
+const METADATA: Metadata = withShare({
+  title: `Advertising policy | ${SITE_NAME}`,
   description: `Where ads appear on ${SITE_NAME}, what is never accepted under Vietnamese law, the review every ad passes before payment, and removal and refunds.`,
   alternates: { canonical: '/advertising-policy' },
 })
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: `Chính sách quảng cáo | ${SITE_NAME}` } : METADATA
+}
 
 // ── THE ADVERTISING POLICY (owner 2026-11-25: "enable any type of ads except the restricted ones by vietnamese law, jev
 // should check before they pay … standardized places where they show up"; permit classes allowed, any language).
@@ -171,7 +177,8 @@ export default async function AdvertisingPolicyPage({ params }: { params: Promis
   )
   const para = (p: Pair) => <p className="text-base leading-relaxed text-body">{say(p)}</p>
   return (
-    <ContentPage title="Advertising policy" titleVi="Chính sách quảng cáo" meta={<LegalLanguageNote />} intro={say(INTRO)} sections={sections}>
+    // Past 20 characters (Seobility crawl 10: "Advertising policy" was an H1 too short).
+    <ContentPage title={`Advertising policy on ${SITE_NAME}`} titleVi={`Chính sách quảng cáo trên ${SITE_NAME}`} meta={<LegalLanguageNote />} intro={say(INTRO)} sections={sections}>
       <ContentSection id="placement" title="Where ads appear" titleVi="Vị trí hiển thị">{list(PLACEMENT)}</ContentSection>
       <ContentSection id="creative" title="What an ad is made of" titleVi="Nội dung quảng cáo">{list(CREATIVE)}</ContentSection>
       <ContentSection id="identity" title="Who advertises" titleVi="Bên quảng cáo">{para(IDENTITY)}</ContentSection>

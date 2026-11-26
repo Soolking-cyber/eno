@@ -3246,7 +3246,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 )}
               </div>
               {draftLine}
-              <p className="mt-1 text-sm text-body">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
+              {/* "Free to create": the H1's "Create" in the text (Seobility crawl 10, teacher.eno.vn). */}
+              <p className="mt-1 text-sm text-body">{tr('Free to create. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Tạo miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
               {/* What Publish will ask for, said before the first answer (2026-10-17 — the bounce study's "say the video up
                   front": since the video became required on 10-16, half of those who reached the last step stopped there).
                   The CV too (owner, 2026-10-21) — a PDF, which a teacher may first have to make. Since 2026-10-22 both are

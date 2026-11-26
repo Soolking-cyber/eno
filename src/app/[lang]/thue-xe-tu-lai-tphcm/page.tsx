@@ -20,7 +20,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('car')
   return {
     // Within a result (withinResult: past 580 px, so its head — Seobility crawl 7 "title too long").
-    title: withinResult(`Thuê Xe Tự Lái TP.HCM: Giá Thuê Theo Ngày, Xe 4–7 Chỗ | ${SITE_NAME}`, '').title,
+    // No word twice and every word in the page's text (Seobility crawl 10: "Thuê" and "Xe" twice; "4–7" nowhere on the page,
+    // whose seat chips read 4, 5 and 7).
+    title: withinResult(`Thuê Xe Tự Lái TP.HCM: Giá Theo Ngày, 4, 5 Và 7 Chỗ | ${SITE_NAME}`, '').title,
     // Answer first: the day prices the page prints (src/lib/vehicle-hub-meta.ts), else the old wording.
     description: carHubDescription(data, 'vi', 'Xe ô tô tự lái cho thuê tại TP.HCM từ các cửa hàng cho thuê xe trên một trang — giá thuê theo ngày cho xe 4–5 chỗ và 7 chỗ, xe ở quận nào và cách đặt xe.'),
     alternates: marketplaceGuideAlternates(SLUG),

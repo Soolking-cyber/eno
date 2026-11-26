@@ -35,7 +35,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'Claiming the VAT refund on a phone bought in Vietnam',
   intro:
-    'Vietnam refunds most of the 10% VAT on goods a foreign passport holder carries out of the country, and a phone is one of the easiest things to claim on — high value, a serial number on the invoice, small enough for hand luggage. The scheme works. It is also narrower than people assume, and both of the usual reasons a claim fails happen long before the airport.',
+    'Vietnam refunds most of the 10% VAT on goods a foreign passport holder carries out of the country, and claiming it on a phone is about as easy as it gets — high value, a serial number on the invoice, small enough for hand luggage. The scheme works. It is also narrower than people assume, and both of the usual reasons a claim fails happen long before the airport.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

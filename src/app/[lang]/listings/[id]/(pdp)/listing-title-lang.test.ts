@@ -15,6 +15,16 @@ vi.mock('./get-listing', () => ({
 // <title> line and the search verdict read. `reads` pins that only a teacher listing reads it.
 const teacher = vi.hoisted(() => ({ row: null as Record<string, unknown> | null, reads: [] as string[] }))
 vi.mock('@/lib/teachers/page-row', () => ({ getTeacherPageRow: async (id: string) => { teacher.reads.push(id); return teacher.row } }))
+// The pre-warmed translations (src/lib/translate.ts cachedTranslations): what the <title> reads when the H1 shows a translated
+// title. `asked` records each read, so a test can pin that a title the H1 shows as written costs none.
+const mt = vi.hoisted(() => ({ map: {} as Record<string, Record<string, string>>, asked: [] as { texts: string[]; langs?: readonly string[] }[] }))
+vi.mock('@/lib/translate', async (orig) => ({
+  ...(await orig<typeof import('@/lib/translate')>()),
+  cachedTranslations: async (texts: string[], opts: { langs?: readonly string[] } = {}) => {
+    mt.asked.push({ texts, langs: opts.langs })
+    return Object.fromEntries(texts.filter((t) => mt.map[t]).map((t) => [t, mt.map[t]]))
+  },
+}))
 const { generateMetadata } = await import('./page')
 
 const base = {
@@ -86,6 +96,45 @@ describe('listing <title> by variant (V2b)', () => {
     // Since Bing's 2026-11-20 "too short": the composed line, then the site's own line (src/lib/meta-description.ts).
     expect(m.description).toBe('Sofa 3 seats — 12,000,000 đ, Furniture in District 1 on eno.forum. Free classifieds for expats and locals in Vietnam.') // the suite runs as the services edition (vitest.config.ts)
     expect(m.description).not.toMatch(/eno\.vn/)
+  })
+})
+
+/**
+ * ⛔ THE ENGLISH <title> NAMES THE LISTING AS ITS ENGLISH H1 DOES (Seobility crawl 10, 2026-11-26): a title the H1 shows translated
+ * (detect-lang titleShownTranslatedInEnglish) takes its pre-warmed `en` translation in <title> (the share card keeps the source); with no
+ * translation the H1 shows the source, and so does the <title>. An English source, the English slot of a bilingual row and a
+ * teacher's name are read as written, with no translation read at all.
+ */
+describe('the English <title> of a title the H1 shows translated', () => {
+  const VI_TITLE = 'Căn Hộ 1 Phòng Ngủ Ngay Landmark 81'
+  const EN_TITLE = '1-Bedroom Apartment Right at Landmark 81'
+  it('a Vietnamese source with an English translation: the translation in <title>; the share card keeps the seller\'s words', async () => {
+    mt.map = { [VI_TITLE]: { en: EN_TITLE } }
+    mt.asked = []
+    const m = await meta('en', { title: VI_TITLE, titleVi: null, price: 11_500_000 })
+    expect(m.title).toMatch(/^1-Bedroom Apartment Right at Landmark 81 — 11,500,000 đ/)
+    // A link-preview scraper gets the English variant: its card is the source, never a machine translation (page.tsx shareTitle).
+    expect((m.openGraph as { title: string }).title).toBe('Căn Hộ 1 Phòng Ngủ Ngay Landmark 81 — 11,500,000 đ')
+    expect((m.twitter as { title: string }).title).toBe('Căn Hộ 1 Phòng Ngủ Ngay Landmark 81 — 11,500,000 đ')
+    expect(mt.asked).toEqual([{ texts: [VI_TITLE], langs: ['en'] }])
+  })
+  it('no translation yet: the source, as the H1 shows it', async () => {
+    mt.map = {}
+    expect((await meta('en', { title: VI_TITLE, titleVi: null, price: 11_500_000 })).title).toMatch(/^Căn Hộ 1 Phòng Ngủ Ngay Landmark 81 — /)
+  })
+  it('an English source, and the English slot of a bilingual row: as written, nothing read', async () => {
+    mt.map = { 'Sofa 3 seats': { en: 'WRONG' }, 'Tây Thạnh Ward studio': { en: 'WRONG' } }
+    mt.asked = []
+    expect((await meta('en')).title).toMatch(/^Sofa 3 seats — /)
+    expect((await meta('en', { title: 'Tây Thạnh Ward studio', titleVi: 'Studio phường Tây Thạnh' })).title).toMatch(/^Tây Thạnh Ward studio — /)
+    expect(mt.asked).toEqual([])
+  })
+  it('the Vietnamese variant still reads only its own language', async () => {
+    mt.map = { 'Sofa 3 seats': { vi: 'Sofa ba chỗ' } }
+    mt.asked = []
+    expect((await meta('vi', { titleVi: null })).title).toMatch(/^Sofa ba chỗ — 12\.000\.000 đ/)
+    expect(mt.asked).toEqual([{ texts: ['Sofa 3 seats'], langs: ['vi'] }])
+    mt.map = {}
   })
 })
 

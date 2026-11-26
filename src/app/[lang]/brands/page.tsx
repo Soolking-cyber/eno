@@ -33,7 +33,7 @@ const METADATA: Metadata = {
 }
 export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
   return langMetadata(params, METADATA, {
-    title: `Mua theo thương hiệu: mọi thương hiệu đang có tin | ${SITE_NAME}`,
+    title: `Mọi thương hiệu đang có tin đăng | ${SITE_NAME}`,
     description: `Xem tin đăng theo thương hiệu trên ${SITE_NAME} — đến thẳng tin của những thương hiệu người mua tìm nhiều nhất.`,
   })
 }
@@ -115,7 +115,8 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
           <Bilingual en="Browse listings by brand" vi="Duyệt tin đăng theo thương hiệu" />
         </h1>
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          <Tr text="Jump straight to listings from the brands people search for most." />
+          {/* "live": the title's word (Seobility crawl 10, title words not in the page's text). */}
+          <Bilingual en="Jump straight to live listings from the brands people search for most." vi="Đi thẳng tới tin đăng đang có của những thương hiệu được tìm kiếm nhiều nhất." />
         </p>
 
         {/* Masthead boundary — on the content box, like the tiles under it (C1-HAIRLINE). */}

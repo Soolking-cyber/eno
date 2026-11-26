@@ -557,14 +557,15 @@ export function listsHomesOnly(homes: HomeFacts | null | undefined, total: numbe
 /**
  * Which headline a rentals district page may print (D-a): "Apartments & Houses" only while it lists
  * both, "Apartments" while it lists apartments and no house, else null — today's "Rentals in …".
- * The same rule as `rentalsHeadline` for /c/rentals.
+ * The same rule as `rentalsHeadline` for /c/rentals, but "& Houses" takes TWO houses: at one, the lede says "1 house" and the
+ * H1's "houses" was in no text on the page (Seobility crawl 10, /c/rentals/binh-thanh: 622 apartments and 1 house).
  */
 export type DistrictRentalsHeadline = 'apartments-houses' | 'apartments'
 export function districtRentalsHeadline(h: HomeFacts | null | undefined): DistrictRentalsHeadline | null {
   if (!h || h.total === 0) return null
   const has = (s: RentalKind) => h.kinds.some((k) => k.slug === s)
   if (!has('apartment-rental')) return null
-  return has('house-rental') ? 'apartments-houses' : 'apartments'
+  return (h.kinds.find((k) => k.slug === 'house-rental')?.count ?? 0) >= 2 ? 'apartments-houses' : 'apartments'
 }
 
 /**

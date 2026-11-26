@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LazyDetails } from './lazy-details'
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Info } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Rows, Row } from '@/components/ui/rows'
@@ -484,15 +485,21 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
    * of two places below: straight under the lede when the article has a lede row, else above the first section.
    */
   const phoneToc = hasToc ? (
-    <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
+    <LazyDetails
+      className="group mt-6 max-w-3xl border-y border-border lg:hidden"
+      // The list mounts on first open (lazy-details.tsx): the rail beside the article holds the same links in the HTML, and the
+      // two copies were Seobility's "duplicate paragraphs" on every long guide (crawl 10, 2026-11-26).
+      summary={
+        <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
+          <span>{chrome.onThisPage}<span className="sr-only"> · {content.sections.length}</span></span>
+          <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+        </summary>
+      }
+    >
       {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
           ink and a 20px chevron that turns on open, a wash on press; the count is for a screen reader only (a bare
           number beside the chevron read as unexplained). The links are ContentPage's 44px rows, not 20px inline
           links a thumb had to hit. */}
-      <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
-        <span>{chrome.onThisPage}<span className="sr-only"> · {content.sections.length}</span></span>
-        <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-      </summary>
       <ul className="pb-3">
         {content.sections.map((s) => (
           <li key={s.id}>
@@ -507,7 +514,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           </li>
         ))}
       </ul>
-    </details>
+    </LazyDetails>
   ) : null
 
   return (

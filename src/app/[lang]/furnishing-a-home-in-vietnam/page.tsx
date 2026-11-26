@@ -21,7 +21,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Guide',
   h1: 'Furnishing a home in Vietnam without overpaying',
   intro:
-    'Most rentals here arrive with more furniture than newcomers expect and fewer of the things they actually need. This guide covers what a landlord normally supplies, what is worth buying new, what is far better bought secondhand, and how to check a used piece before any money moves.',
+    'Most rentals here arrive with more furniture than newcomers expect and fewer of the things they actually need. This guide to furnishing without overpaying covers what a landlord normally supplies, what is worth buying new, what is far better bought secondhand, and how to check a used piece before any money moves.',
   canonical: '/furnishing-a-home-in-vietnam',
   ...guideDates('furnishing-a-home-in-vietnam'),
   sections: [

@@ -517,7 +517,9 @@ function FooterBody({ compact, companyDetails }: { compact: boolean; companyDeta
                 sighted user sees the same sentence in the same place. */}
             {/* Phone: the meta role (13/18) across the column beside the mark, no measure cap; from sm the 12px relaxed
                 line in its 220px measure, as before. */}
-            <h2 className="max-w-[220px] text-t-meta text-muted-foreground max-sm:max-w-none sm:text-xs sm:leading-relaxed">
+            {/* ⚠️ role="heading" aria-level=2 since 2026-11-26 (every reason above still holds for a screen reader): not a document
+                <h2>, so the footer stops adding headings to every page's count (Seobility's ~25 limit, crawl 10). */}
+            <p role="heading" aria-level={2} className="max-w-[220px] text-t-meta text-muted-foreground max-sm:max-w-none sm:text-xs sm:leading-relaxed">
               {/* ⛔ NOT "Vietnam's trusted marketplace for the international community" (owner, 2026-10-04):
                   the site's own title dropped "trusted" on 2026-10-01 (src/lib/site-title.ts) and this line is
                   that title, word for word, in both languages; "free" follows POSTING_IS_FREE. */}
@@ -528,7 +530,7 @@ function FooterBody({ compact, companyDetails }: { compact: boolean; companyDeta
                 : (POSTING_IS_FREE
                   ? tr('eno.vn — free classifieds for expats and locals in Vietnam.', 'eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt.')
                   : tr('eno.vn — classifieds for expats and locals in Vietnam.', 'eno.vn — rao vặt cho người nước ngoài và người Việt.'))}
-            </h2>
+            </p>
             {/* The only genuinely OFF-SITE links on the page. In the native shell a plain
                 cross-origin anchor is a HARD EXIT — Capacitor hands the URL to Safari/Chrome and
                 the user has left eno for another app. handleExternalClick keeps them in an in-app

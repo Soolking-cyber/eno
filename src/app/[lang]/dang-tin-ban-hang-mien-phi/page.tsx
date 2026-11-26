@@ -50,7 +50,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Hướng dẫn cho người bán',
   h1: 'Đăng tin bán hàng miễn phí — và làm sao để tin không thành tin rác',
   intro:
-    `Trên ${SITE_NAME}, đăng tin miễn phí ở mọi danh mục: không phí đăng, không phí theo tháng, không gói đẩy tin, không vị trí trả tiền. Nhưng miễn phí không đồng nghĩa với đăng gì cũng được. Bài này nói rõ tin phải đạt những gì mới lên sàn, bộ lọc trùng tin chạy theo tiêu chí nào, thứ hạng được tính bằng công thức ra sao, và mặt bằng giá đọc từ chính tin rao đang chạy trên sàn.`,
+    `Trên ${SITE_NAME}, đăng tin miễn phí ở mọi danh mục: không phí đăng, không phí theo tháng, không gói đẩy tin, không vị trí trả tiền. Nhưng miễn phí không đồng nghĩa với đăng gì cũng được. Bài này nói rõ tin phải đạt những điều kiện nào mới lên sàn, bộ lọc trùng tin chạy theo tiêu chí nào, thứ hạng được tính bằng công thức ra sao, và mặt bằng giá đọc từ chính tin rao đang chạy trên sàn.`,
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'vi',
@@ -358,13 +358,14 @@ const CONTENT: ArticleContent = {
 
 export const revalidate = 3600
 
+// "tin" once (Seobility crawl 10: a title word repeat); "điều kiện" is the intro's word.
 export const metadata: Metadata = fitMeta({
-  title: `Đăng tin bán hàng miễn phí — điều kiện để tin được duyệt | ${SITE_NAME}`,
+  title: `Đăng tin bán hàng miễn phí — điều kiện để được duyệt | ${SITE_NAME}`,
   description:
     `Đăng tin miễn phí ở mọi danh mục. Tin cần tối thiểu 3 ảnh khác góc, không số điện thoại trong tiêu đề, và bộ lọc trùng tin chặn đăng lại — kèm công thức xếp hạng đầy đủ.`,
   alternates: { canonical: `/${SLUG}` },
   ...pageShare({
-    title: `Đăng tin bán hàng miễn phí — điều kiện để tin được duyệt | ${SITE_NAME}`,
+    title: `Đăng tin bán hàng miễn phí — điều kiện để được duyệt | ${SITE_NAME}`,
     description:
       `Miễn phí thật, và vì sao miễn phí không có nghĩa là tin rác: điều kiện đăng, bộ lọc trùng tin, và công thức xếp hạng không mua được.`,
     type: 'article',

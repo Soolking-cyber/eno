@@ -5,8 +5,10 @@ import type { Copy, FaqEntry } from '@/components/marketplace/rent-tool-page'
  * ⛔ THE DEPOSIT IS CASH TIED UP, NEVER A COST, AND ITS RETURN IS AN ASSUMPTION, NOT A PROMISE (owner's brief, 2026-11-23).
  * "Total cost" and "cash up front" stay two separate figures everywhere.
  */
+// Seobility crawl 10: the English title was cut to "…Over a…" (past 570 px) and said "Cost" twice; the Vietnamese one's "giữa" was
+// in no text on the page. Both now fit whole, in words the page uses.
 export const META: { title: Copy; description: Copy } = {
-  title: { en: 'Rental Cost Comparison: Total Cost of 2–3 Homes Over a Lease', vi: 'So sánh tổng chi phí thuê nhà giữa các căn' },
+  title: { en: 'Rental cost comparison: two or three homes over a lease', vi: 'So sánh tổng chi phí thuê của hai hoặc ba căn' },
   description: {
     en: 'Compare two or three rentals over your lease: rent, monthly fees, utilities and commute added up and ranked cheapest first, with the deposit shown apart.',
     vi: 'So sánh hai hoặc ba căn trong suốt thời hạn thuê: cộng tiền thuê, phí, điện nước và đi lại, xếp từ rẻ nhất, tiền cọc được tách riêng.',

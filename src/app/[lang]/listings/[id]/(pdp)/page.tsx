@@ -63,7 +63,7 @@ import { LocalizedTitle, LocalizedTitleHeading, LocalizedText, ListingDescriptio
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { cachedTranslations, PAGE_EMBED_LANGS } from '@/lib/translate'
-import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
+import { detectContentLang, mayBeVietnamese, titleShownTranslatedInEnglish } from '@/lib/detect-lang'
 import { cn } from '@/lib/utils'
 import { pdpSafetyNoteKind } from '@/lib/pdp-safety-note'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
@@ -239,15 +239,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    * H1 renders (a vi job PDP's tab read "Part-time English Teacher …" over "Giáo viên tiếng Anh …"); and it
    * formats the price the Vietnamese way ("12.000.000 đ"). The meta description, the JSON-LD and the share text
    * keep the source title.
-   * The translation is read only when the H1 could show one — no titleVi, a source not already Vietnamese — and
-   * never for a teacher: that title is a person's name, which the profile shows as written. One indexed read.
+   * ⛔ THE ENGLISH VARIANT TOO (Seobility crawl 10, 2026-11-26: "Căn Hộ 1 Phòng Ngủ Ngay Landmark 81 — 11,500,000 đ" was the
+   * <title> over an H1 reading "1-Bedroom Apartment Right at Landmark 81", so no word of the title was in the page's text): a
+   * title the English H1 shows translated (detect-lang titleShownTranslatedInEnglish — localizedPlan's own rule) is named by
+   * that pre-warmed `en` translation; without one the H1 shows the source, and so does the <title>. An English source is
+   * unchanged, and so is the English share card (`shareTitle` below).
+   * The translation is read only when the H1 could show one — vi: no titleVi, a source not already Vietnamese; en: a source
+   * the English H1 translates — and never for a teacher: that title is a person's name, which the profile shows as written.
+   * One indexed read, of the variant's language only.
    */
   const vi = lang === 'vi'
-  const titleI18n = vi && !listing.titleVi && listing.listingType !== TEACHER_LISTING_TYPE && detectContentLang(listing.title) !== 'vi'
+  const titleTranslated = listing.listingType !== TEACHER_LISTING_TYPE && (vi
+    ? !listing.titleVi && detectContentLang(listing.title) !== 'vi'
+    : titleShownTranslatedInEnglish(listing.title, listing.titleVi))
+  const titleI18n = titleTranslated
     // A failed read is no reason to fail the page's metadata: the <title> then falls back to the source, as before.
-    ? (await cachedTranslations([listing.title]).catch(() => ({} as Record<string, Record<string, string>>)))[listing.title]
+    ? (await cachedTranslations([listing.title], { langs: [vi ? 'vi' : 'en'] }).catch(() => ({} as Record<string, Record<string, string>>)))[listing.title]
     : undefined
-  const titleFor = vi ? viTitle(listing.title, listing.titleVi, titleI18n) : listing.title
+  const titleFor = vi ? viTitle(listing.title, listing.titleVi, titleI18n) : titleI18n?.en || listing.title
   if (listing.status === 'sold') {
     return { title: `${titleFor} — ${vi ? 'Đã bán' : 'Sold'} | ${SITE_NAME}`, robots: { index: false, follow: true } }
   }
@@ -318,7 +327,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // The composed fallback is English on both variants (above), so its closing line is too.
     : fillDescription(fallbackDesc, [POSTING_IS_FREE && 'Free classifieds for expats and locals in Vietnam.'])
   // The fallback already carries the price — only prefix it onto a real body.
-  const ogTitle = titlePrice ? `${titleFor} — ${titlePrice}` : titleFor
+  // ⛔ THE ENGLISH SHARE CARD KEEPS THE SOURCE TITLE (2026-11-26): a link-preview scraper (Facebook, Zalo) sends no Accept-Language
+  // and gets the English variant, so an English machine translation here would be the preview a Vietnamese seller's own friends
+  // see. Only the <title> follows the English H1 (above); the Vietnamese variant's card follows its H1 as before (V2b).
+  const shareTitle = vi ? titleFor : listing.title
+  const ogTitle = titlePrice ? `${shareTitle} — ${titlePrice}` : shareTitle
   // The card's price matches its title's (review: dots in og:title, commas in og:description on vi). The
   // composed fallback sentence is English, so it keeps the English price with it.
   // ⛔ The card leads with the price, so its body is filled WITHOUT it (review, 2026-11-20: the price twice, two formats on vi).

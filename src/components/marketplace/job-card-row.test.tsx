@@ -89,13 +89,13 @@ describe('the card', () => {
 
   it('DOM order = reading and Tab order: link, role, heart, slot, meta (and the chat last)', () => {
     const own = card({ isPartnerBooking: false, price: 0 })
-    const kids = Array.from(root(own).children).map((e) => e.getAttribute('data-row-link') !== null ? 'link' : e.tagName === 'H3' ? 'role' : e.hasAttribute('data-heart') ? 'heart' : e.classList.contains('row-start-2') ? 'slot' : e.tagName === 'P' ? 'meta' : e.getAttribute('aria-label') === 'Chat with seller' ? 'chat' : '?')
+    const kids = Array.from(root(own).children).map((e) => e.getAttribute('data-row-link') !== null ? 'link' : e.getAttribute('role') === 'heading' ? 'role' : e.hasAttribute('data-heart') ? 'heart' : e.classList.contains('row-start-2') ? 'slot' : e.tagName === 'P' ? 'meta' : e.getAttribute('aria-label') === 'Chat with seller' ? 'chat' : '?')
     expect(kids).toEqual(['link', 'role', 'heart', 'slot', 'meta', 'chat'])
   })
 
-  it('the role is an h3, whole: never clamped or truncated, and the link keeps the full title as its name', () => {
+  it('the role is a level-3 heading (role=heading since 2026-11-26), whole: never clamped or truncated, and the link keeps the full title as its name', () => {
     const c = card()
-    const h3 = c.querySelector('h3')!
+    const h3 = c.querySelector('[role="heading"][aria-level="3"]')!
     expect(h3.textContent).toBe('Primary PE Teacher')
     expect(h3.className).not.toMatch(/line-clamp|truncate/)
     expect(h3.className.split(' ')).toContain('text-t-h3')
@@ -124,7 +124,7 @@ describe('the slot', () => {
     const tag = slot(c)!.querySelector('[data-price]')!.parentElement!
     expect(tag.className.split(' ')).toEqual(expect.arrayContaining(['rounded-lg', 'bg-muted', 'px-2.5', 'py-1']))
     expect(tag.firstElementChild!.className).toContain('font-bold')
-    expect(c.querySelector('h3')!.textContent).toBe('Primary PE Teacher — Nord Anglia Education')
+    expect(c.querySelector('[role="heading"]')!.textContent).toBe('Primary PE Teacher — Nord Anglia Education')
   })
 
   it('an employer\'s own job with no figure: <Price>\'s "Negotiable" in the same tag, regular body ink', () => {

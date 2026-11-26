@@ -30,7 +30,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'The best-value phones in Vietnam',
   intro:
-    'A mid-range phone in Vietnam is not a compromised flagship — in this market it is the segment the brands fight hardest over, and for most people it is the better buy. This guide explains where the mid-range genuinely wins, the three specifications that decide how a phone feels in its third year, and the one situation where last year’s flagship beats both.',
+    'A mid-range phone in Vietnam is not a compromised flagship — in this market it is the segment the brands fight hardest over, and for most people it is the best-value buy. This guide explains where the mid-range genuinely wins, the three specifications that decide how a phone feels in its third year, and the one situation where last year’s flagship beats both.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

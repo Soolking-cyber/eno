@@ -19,7 +19,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'Chính hãng VN/A vs xách tay: what the difference actually costs you',
   intro:
-    'Two identical phones sit on the same shelf in Vietnam with a few million đồng between them. The hardware is the same; what differs is who is obliged to fix it. This guide explains the model-number suffixes, who honours which warranty, how to verify a claim in ten seconds, and the cases where the cheaper imported unit is genuinely the better buy.',
+    'Two identical phones sit on the same shelf in Vietnam with a few million đồng between them. The hardware is the same; the price gap really buys one thing: who is obliged to fix it. This guide explains the model-number suffixes, who honours which warranty, how to verify a claim in ten seconds, and the cases where the cheaper imported unit is genuinely the better buy.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

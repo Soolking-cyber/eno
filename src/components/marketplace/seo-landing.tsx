@@ -495,7 +495,11 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             <div className="grid grid-cols-1 gap-x-14 gap-y-5 lg:grid-cols-2">
               {content.faqs.map((f, i) => (
                 <div key={i}>
-                  <h3 className="text-sm font-bold text-foreground">{f.q}</h3>
+                  {/* ⛔ A HEADING TO A SCREEN READER, NOT AN <h3> — SeoArticle's FAQ rule (seo-article.tsx, Seobility crawl 3): the FAQ
+                      restates the page by design, and its questions were most of the headings a crawler counted (crawl 10, 2026-11-26:
+                      /iphone-18-vietnam at 33 of ~25, nine of them these). role="heading" keeps them in a screen reader's heading
+                      list; preflight styles <p> and <h3> alike, so nothing moves. */}
+                  <p role="heading" aria-level={3} className="text-sm font-bold text-foreground">{f.q}</p>
                   <p className="mt-1 text-sm leading-relaxed text-body">{f.a}</p>
                 </div>
               ))}

@@ -459,12 +459,12 @@ describe('the counsel panel and the cover ask under the week (cook r04)', () => 
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
   })
 
-  it('the counsel opens the panel (below lg only) behind the success shield, then the note behind a lock, then the button — every word kept', () => {
+  it('the counsel opens the panel (every width since 2026-11-26) behind the success shield (below lg), then the note behind a lock, then the button — every word kept', () => {
     const COUNSEL = 'eno checked this teacher’s ID.'
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} counsel={<span>{COUNSEL}</span>} />)
     const line = screen.getByText('eno checked this teacher’s ID.').closest('[data-counsel-line]') as HTMLElement
     expect(line.getAttribute('data-counsel-line')).toBe('checked')
-    expect(line.className).toBe('flex gap-3 text-sm text-body lg:hidden')
+    expect(line.className).toBe('flex gap-3 text-sm text-body lg:block lg:text-t-meta lg:text-muted-foreground')
     const shield = line.firstElementChild!
     expect(shield.tagName.toLowerCase()).toBe('svg')
     expect(shield.getAttribute('aria-hidden')).toBe('true')

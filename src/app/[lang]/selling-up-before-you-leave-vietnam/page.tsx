@@ -19,7 +19,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Guide',
   h1: 'Selling up before you leave Vietnam',
   intro:
-    'A flat takes longer to empty than anyone plans for. Six weeks out you can price properly and sell piece by piece; six days out you are giving things away and paying someone to remove the rest. This is the order that works, and the handover details that decide whether you keep your deposit.',
+    'A flat takes longer to empty than anyone plans for. Six weeks out you can price properly and sell piece by piece; six days out you are giving things away and paying someone to remove the rest. This is a six-week plan that works, and the handover details that decide whether you keep your deposit.',
   canonical: '/selling-up-before-you-leave-vietnam',
   ...guideDates('selling-up-before-you-leave-vietnam'),
   sections: [

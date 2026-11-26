@@ -18,9 +18,11 @@ export const revalidate = 3600
 export async function generateMetadata(): Promise<Metadata> {
   const data = await loadVehicleHub('motorbike')
   // The site's name only where it fits (Seobility crawl 4, 2026-11-25: 635 px of 580 with it).
+  // "Xe" once (Seobility crawl 10: three times, a title word repeat): the bike types are the description's and the H1's.
+  // ⛔ No gearbox words here: "số sàn" is a car term and was reverted once.
   return {
     ...withinResult(
-      `Thuê Xe Máy Sài Gòn: Xe Ga, Xe Số, Theo Ngày Hoặc Tháng | ${SITE_NAME}`,
+      `Thuê Xe Máy Sài Gòn: Giá Theo Ngày Hoặc Tháng | ${SITE_NAME}`,
       // It opens with the page's biggest query word for word and carries the second's words, which a result can bold
       // (Search Console, 28 days to 2026-11-26: "thuê xe máy sài gòn" 393 impressions, "thuê xe máy tphcm" 255; the old
       // one opened "Xe máy cho thuê tại…", matching neither phrase). 759 px of 1,000 by serp-width's descriptionPx,

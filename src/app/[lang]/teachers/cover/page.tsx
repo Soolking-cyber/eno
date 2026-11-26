@@ -18,17 +18,25 @@ import { Building2, CalendarDays, Check, GraduationCap, MapPin, MessageSquare } 
 // on — the copy says "message", never "get notified instantly".
 export const revalidate = 86400
 
-// One bilingual title, the /schools convention: the page is ISR-shared by both server languages.
+// The <title> follows the `[lang]` variant the proxy served, as /schools now does (Seobility crawl 10: the bilingual
+// "Cover teachers in Vietnam · Giáo viên dạy thay" had Vietnamese words in no text of the English page). The description and
+// the share cards stay one bilingual string for both.
 const PATH = '/teachers/cover'
-const TITLE = `Cover teachers in Vietnam · Giáo viên dạy thay | ${SITE_NAME}`
+const TITLE = `Cover teachers in Vietnam | ${SITE_NAME}`
+const TITLE_VI = `Giáo viên dạy thay tại Việt Nam | ${SITE_NAME}`
+const SHARE_TITLE = `Cover teachers in Vietnam · Giáo viên dạy thay | ${SITE_NAME}`
 const DESCRIPTION = 'Teachers show the periods they are usually free, the districts they can reach and their hourly rate. Schools filter by district and free period, then message them in the app. Giáo viên dạy thay theo quận và buổi rảnh.'
 
-export const metadata: Metadata = fitMeta({
+const METADATA: Metadata = fitMeta({
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
-  ...pageShare({ title: TITLE, description: DESCRIPTION, url: PATH }),
+  ...pageShare({ title: SHARE_TITLE, description: DESCRIPTION, url: PATH }),
 })
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: TITLE_VI } : METADATA
+}
 
 // ⚠️ `/` is the English-pinned home (lang-pinned.ts): this link goes through LocalizedLink so a Vietnamese reader
 // lands on the `/vi` twin with the same filters (lang-links.ratchet.test.ts cannot see a constant — do not inline it raw).

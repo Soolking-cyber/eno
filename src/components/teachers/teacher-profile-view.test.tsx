@@ -195,7 +195,10 @@ describe('teaching details', () => {
     for (const lang of ['en', 'vi'] as const) {
       const say = (o: { label: string; labelVi: string }) => (lang === 'vi' ? o.labelVi : o.label)
       const p = await page(lang, over)
-      expect(p.row(lang === 'vi' ? 'Môn dạy' : 'Subjects')).toEqual([...subject.map(say), 'made-up-subject'])
+      // The 'stem' chip adds its title word for screen readers and crawlers only (Seobility crawl 10): the label itself is unchanged.
+      expect(p.row(lang === 'vi' ? 'Môn dạy' : 'Subjects')).toEqual([...subject.map((o) => (o.value === 'stem' ? `${say(o)} (STEM)` : say(o))), 'made-up-subject'])
+      const stemWord = [...p.el.querySelectorAll('li[data-fact] .sr-only')].map((x) => x.textContent)
+      expect(stemWord).toEqual([' (STEM)'])
       expect(p.row(lang === 'vi' ? 'Dạy lứa tuổi' : 'Teaches')).toEqual(ageGroup.map(say))
       expect(p.row(lang === 'vi' ? 'Tìm việc' : 'Looking for')).toEqual(jobType.map(say))
       const quals = [...p.el.querySelectorAll('section[aria-labelledby="t-quals"] li')].map((li) => li.textContent?.trim())
@@ -371,10 +374,10 @@ describe('the "Identity verified" line', () => {
   const SENTENCE = 'eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring.'
   /**
    * ⛔ THE LABEL AND THE SENTENCE PART (owner-approved 2026-11-14, cook r04 teachers): "Identity verified" is a tick under the
-   * name, inside the header; the sentence is drawn twice on the server — under the header from lg (`max-lg:hidden`), and as
-   * the contact block's `counsel` below lg (the end panel) — CSS shows one.
+   * name, inside the header; the sentence is the contact block's `counsel`, ONCE, at every width (owner 2026-11-26: "One copy,
+   * contact panel" — it was also under the header from lg, and Seobility counted the pair as a duplicate paragraph).
    */
-  it('shown: the tick under the name in the header, the sentence under the header (lg) and in the counsel panel (below lg)', async () => {
+  it('shown: the tick under the name in the header, the sentence once, in the counsel panel', async () => {
     h.shown = true
     const p = await page('en')
     const t = tick(p.el)!
@@ -383,40 +386,33 @@ describe('the "Identity verified" line', () => {
     expect(t.querySelectorAll('svg')).toHaveLength(1)
     // DOM order = reading order: the name, then its tick.
     expect(t.previousElementSibling?.tagName).toBe('H1')
-    const l = line(p.el)!
+    expect(line(p.el)).toBeNull()
+    const l = counsel(p.el)!
     // One sentence (owner 2026-10-15; batch 65): what was checked and what was not; the hiring advice is said once on the page.
     // The default fixture lists no qualifications, so the sentence carries the hiring advice itself.
     expect(l.textContent).toBe(SENTENCE)
     expect((l.textContent?.match(/\./g) || []).length).toBe(1)
-    expect(l.previousElementSibling?.tagName).toBe('HEADER')
-    // display:none by class below lg — never `[hidden]` (crawler-html.spec.ts).
-    expect(l.getAttribute('class')).toBe('max-lg:hidden')
-    expect(l.hasAttribute('hidden')).toBe(false)
-    expect(counsel(p.el)!.textContent).toBe(SENTENCE)
+    expect((p.el.textContent?.match(/eno checked this teacher’s ID/g) || []).length).toBe(1)
     expect(l.textContent).not.toContain('Identity verified')
   })
   it('in Vietnamese — "xác minh", never "xác thực"', async () => {
     h.shown = true
     const p = await page('vi')
     expect(tick(p.el)!.textContent).toBe('Đã xác minh danh tính')
-    const l = line(p.el)!
-    expect(l.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
-    expect(counsel(p.el)!.textContent).toBe(l.textContent)
+    expect(counsel(p.el)!.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
     expect(p.el.innerHTML).not.toContain('xác thực')
   })
   it('with a qualifications section (a degree, certificates, or both) the hiring advice is that section\'s line, said once per width', async () => {
     h.shown = true
     const CERT = [{ type: 'celta', hours: 120, provider: 'Cambridge', year: 2020 }]
-    // The page renders the sentence twice (one per width, CSS shows one), so the advice is counted outside the counsel copy.
+    // The advice is the qualifications section's line here, so it is counted outside the counsel sentence.
     const outsideCounsel = (el: HTMLElement) => { const c = el.cloneNode(true) as HTMLElement; c.querySelector('[data-test-counsel]')?.remove(); return c.textContent ?? '' }
     for (const over of [{ degreeLevel: 'phd', certificates: CERT }, { degreeLevel: 'phd' }, { certificates: CERT }]) {
       const p = await page('en', over)
-      const l = line(p.el)!
-      expect(l.textContent).toBe('eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
-      expect(counsel(p.el)!.textContent).toBe(l.textContent)
+      expect(counsel(p.el)!.textContent).toBe('eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
       expect((outsideCounsel(p.el).match(/ask to see documents/gi) || []).length).toBe(1)
       const v = await page('vi', over)
-      expect(line(v.el)!.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
+      expect(counsel(v.el)!.textContent).toBe('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
       expect((outsideCounsel(v.el).match(/hãy đề nghị xem giấy tờ/gi) || []).length).toBe(1)
     }
   })

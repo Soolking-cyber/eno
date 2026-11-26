@@ -264,8 +264,10 @@ export function TeacherContact({ listingId, name, image, cover = false, counsel 
           details are shared — and the panel ends on its own full-width "Message teacher" button (below). From lg no glyph. */}
       <div className="space-y-3 max-lg:rounded-xl max-lg:bg-tint max-lg:p-4">
         {counsel && (
-          <div data-counsel-line="checked" className="flex gap-3 text-sm text-body lg:hidden">
-            <ShieldCheck aria-hidden className="size-5 shrink-0 text-success" />
+          // ⛔ AT EVERY WIDTH SINCE 2026-11-26 (owner: "One copy, contact panel"): the sentence was also drawn under the header
+          // from lg, and the two server copies were Seobility's "duplicate paragraph". From lg it reads as the note below it does.
+          <div data-counsel-line="checked" className="flex gap-3 text-sm text-body lg:block lg:text-t-meta lg:text-muted-foreground">
+            <ShieldCheck aria-hidden className="size-5 shrink-0 text-success lg:hidden" />
             <div className="min-w-0">{counsel}</div>
           </div>
         )}

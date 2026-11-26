@@ -268,8 +268,9 @@ describe('Footer links', () => {
     const panels = container.querySelectorAll('#app-footer [data-slot=disclosure-panel]')
     expect(headers.length).toBe(5) // Explore + the four columns (Community is empty on both editions)
     expect(panels.length).toBe(5)
-    // Each group keeps a static level-3 heading for sm+ (role=heading, not an <h3> tag), and the row's header is itself an h3.
-    expect([...headers].every((h) => h.tagName === 'H3')).toBe(true)
+    // Each group keeps a static level-3 heading for sm+, and the row's header is a level-3 heading too — both role=heading,
+    // not <h3> tags since 2026-11-26 (ui/disclosure: the footer added 5 document headings to every page's count).
+    expect([...headers].every((h) => h.getAttribute('role') === 'heading' && h.getAttribute('aria-level') === '3')).toBe(true)
     for (const href of ['/c/rentals', '/help', '/about', '/post', '/hcmc-rent-index']) expect(hrefs).toContain(href)
     for (const p of panels) expect(p.querySelectorAll('a').length, p.textContent ?? '').toBeGreaterThan(0)
     // ⛔ Never `hidden` (Seobility crawl 7, 2026-11-25: it skipped every link under hidden / until-found): a phone collapses a

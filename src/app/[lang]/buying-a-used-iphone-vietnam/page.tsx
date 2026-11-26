@@ -19,7 +19,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'Buying a used iPhone in Vietnam: the ten-minute inspection',
   intro:
-    'Vietnam has one of the deepest second-hand iPhone markets anywhere, and most of it is honest. The risk is concentrated in a few specific failures — an activation-locked handset, a swapped screen, a tired battery sold as new — and every one of them is detectable in about ten minutes with the phone in your hand. This is that inspection, in the order that matters.',
+    'Vietnam has one of the deepest second-hand iPhone markets anywhere, and most of it is honest. The risk is concentrated in a few specific failures — an activation-locked handset, a swapped screen, a tired battery sold as new — and every one of them shows up in a ten-minute check with the phone in your hand. This is that inspection, in the order that matters.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

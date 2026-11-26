@@ -20,7 +20,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Comparison',
   h1: 'iPhone or Samsung in Vietnam: the three things that decide it locally',
   intro:
-    'The spec comparison is the same in every country and is not why this is a hard choice. What differs in Vietnam is resale value, where you can get the phone repaired, and how much each brand actually costs here — including the fact that Samsung builds a large share of its phones in this country. Those three settle it for most buyers.',
+    'The spec comparison is the same in every country and is not why this is a hard choice. What differs in Vietnam is resale value, where you can get the phone repaired, and how much each brand actually costs here — including the fact that Samsung builds a large share of its phones in this country. For most buyers, those three things decide it locally.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

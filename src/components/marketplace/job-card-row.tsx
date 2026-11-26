@@ -114,7 +114,10 @@ export const JobCardRow = memo(function JobCardRow({ listing: l, onOpen, onPrefe
             link (Seobility crawl 7, "empty links" to three job listings). The aria-label still names it; sr-only paints nothing. */}
         <span className="sr-only">{displayTitle}</span>
       </a>
-      <h3 className="col-start-1 row-start-1 min-w-0 text-t-h3 text-foreground [overflow-wrap:anywhere] group-hover:underline">{lineTitle}</h3>
+      {/* ⛔ A LEVEL-3 HEADING BY ROLE, NOT AN <h3> TAG (owner, 2026-11-26: "ARIA headings"): screen readers still step through the
+          roles by heading, but 48 cards made /c/jobs 58 document headings (Seobility's limit is ~25) and two imports of one job
+          a "duplicate headline". Same look, same reading order. */}
+      <div role="heading" aria-level={3} className="col-start-1 row-start-1 min-w-0 text-t-h3 text-foreground [overflow-wrap:anywhere] group-hover:underline">{lineTitle}</div>
       <FavoriteHeart id={l.id} className="relative z-[2] col-start-2 row-start-1 -my-2.5 size-11" />
       {slotLine && (
         <div className="col-span-2 row-start-2 mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pr-3">

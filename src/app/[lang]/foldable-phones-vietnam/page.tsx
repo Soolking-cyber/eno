@@ -20,7 +20,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Comparison',
   h1: 'Foldable phones in Vietnam: Apple’s first against Samsung’s seventh',
   intro:
-    'Apple’s folding iPhone Duo goes on sale in Vietnam on 23 October 2026, arriving in a category Samsung has been iterating on since 2019. This guide covers what folding phones actually cost here, what fails on them, what a repair costs when it does, and the specific reasons to wait for a second generation rather than buy a first.',
+    'Apple’s foldable iPhone Duo goes on sale in Vietnam on 23 October 2026, up against a Samsung line that has been iterating since 2019 and is now in its seventh generation. This guide covers what folding phones actually cost here, what fails on them, what a repair costs when it does, and the specific reasons to wait for a second generation rather than buy a first.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

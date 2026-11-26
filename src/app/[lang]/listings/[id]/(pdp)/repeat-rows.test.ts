@@ -58,7 +58,11 @@ describe('batch 95 — the job page says it once (owner-approved 2026-11-14, dec
     expect(PAGE.match(/h1Text\./g)).toHaveLength(3)
   })
   it('⛔ the <title>, og and share titles, the md+ crumb leaf and the Details heading keep the full title', () => {
-    expect(PAGE).toContain('const titleFor = vi ? viTitle(listing.title, listing.titleVi, titleI18n) : listing.title')
+    // The FULL title, never the role-only H1 — in the variant's language: since Seobility crawl 10 (2026-11-26) the English <title>
+    // takes the full title's `en` translation where the English H1 shows one (listing-title-lang.test.ts).
+    expect(PAGE).toContain('const titleFor = vi ? viTitle(listing.title, listing.titleVi, titleI18n) : titleI18n?.en || listing.title')
+    expect(PAGE).toContain("cachedTranslations([listing.title], { langs: [vi ? 'vi' : 'en'] })")
+    expect(PAGE).toContain('const shareTitle = vi ? titleFor : listing.title')
     expect(PAGE.match(/const displayTitle = listing\.title/g)).toHaveLength(2)
     expect(PAGE).toContain('<span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>')
     expect(PAGE).toContain('<ShareButton url={canonicalUrl} title={displayTitle} className="border border-border" />')

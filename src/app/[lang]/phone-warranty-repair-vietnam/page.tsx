@@ -32,7 +32,7 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Ownership guide',
   h1: 'Phone warranty and repair in Vietnam',
   intro:
-    'Three different organisations can put a warranty on the phone in your pocket, and only one of them is the manufacturer. This guide explains which warranty you are actually holding, who is allowed to open the device without ending it, how long each kind of repair realistically takes, and the checks that tell you whether the part a shop fitted is genuine.',
+    'Three different organisations can put a warranty on the phone in your pocket, and only one of them is the manufacturer. This guide explains which warranty you are actually holding, what it covers, who is allowed to open the device without ending it, how long each kind of repair realistically takes, and the checks that tell you whether the part a shop fitted is genuine.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',

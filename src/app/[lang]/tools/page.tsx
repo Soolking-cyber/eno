@@ -28,7 +28,8 @@ const H1 = { en: 'Tools for renting, buying and moving', vi: 'Công cụ khi thu
 const INTRO = {
   // "These tools": the H1's "Tools" is in the text (Seobility crawl 9, H1 words not in the page's text).
   en: 'These tools work on the figures you type and nothing else: nothing is stored or sent, and none of them assumes what is usual.',
-  vi: 'Mỗi công cụ chỉ tính từ số liệu bạn nhập: không lưu hay gửi đi đâu, và không giả định mức nào là phổ biến.',
+  // "tính toán": the Vietnamese title's words (Seobility crawl 10: "toán" was in no text on /vi/tools).
+  vi: 'Mỗi công cụ chỉ tính toán từ số liệu bạn nhập: không lưu hay gửi đi đâu, và không giả định mức nào là phổ biến.',
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {

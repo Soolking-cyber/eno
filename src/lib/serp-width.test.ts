@@ -30,8 +30,18 @@ describe('serp-width', () => {
   it('descriptions are Arial 14px: the same text is 0.7 of its title width', () => {
     expect(descriptionPx('Apartments for rent')).toBeCloseTo(titlePx('Apartments for rent') * 0.7, 5)
   })
+  // Seobility crawl 10 (2026-11-26): this description measured 1,208 px; at a title's 750 the table called it 975 and let it pass.
+  const KOREAN_DESC = '[통역요원 구인] 2026 베트남 안경산업 무역사절단 통역요원 모집 (비즈니스 미팅 / 현장 시찰) 안녕하세요. 국내외 전시회 및 수출상담회 운영을 전문으로 하는 브릿징 파트너스입니다. 「2026 베트남…'
+  it('a description\'s Hangul and CJK are a full em — about two Latin letters (Seobility: 1,208 px)', () => {
+    expect(KOREAN_DESC.length).toBe(114)
+    expect(Math.abs(descriptionPx(KOREAN_DESC) - 1208)).toBeLessThanOrEqual(30)
+    expect(descriptionPx('안')).toBeCloseTo(descriptionPx('ab') * (1000 / 1112), 5)
+    // A title keeps its own measured 750 (the Korean shop name above).
+    expect(titlePx('안')).toBeCloseTo(15, 5)
+  })
 })
 
+const KOREAN_DESC_LONG = '[통역요원 구인] 2026 베트남 안경산업 무역사절단 통역요원 모집 (비즈니스 미팅 / 현장 시찰) 안녕하세요. 국내외 전시회 및 수출상담회 운영을 전문으로 하는 브릿징 파트너스입니다. 「2026 베트남 안경산업 무역사절단」에 참가하는 한국 기업'
 describe('the title and description helpers hold the pixel line', () => {
   it('a 58-character capitalised title no longer passes as short', () => {
     const t = '🛵 MOTORBIKE RENTAL IN SAIGON – ONLY 100,000 VND A DAY'
@@ -54,6 +64,12 @@ describe('the title and description helpers hold the pixel line', () => {
     expect(t.endsWith('…')).toBe(true)
     const d = clipDescription('W'.repeat(10) + ' ' + 'WIDE WORDS EVERYWHERE '.repeat(10))
     expect(descriptionPx(d)).toBeLessThanOrEqual(DESCRIPTION_MAX_PX)
+  })
+  it('a Korean description is cut to the pixel line, not passed at 114 characters', () => {
+    const d = clipDescription(KOREAN_DESC_LONG)
+    expect(d.length).toBeLessThan(114)
+    expect(descriptionPx(d)).toBeLessThanOrEqual(DESCRIPTION_MAX_PX)
+    expect(d.endsWith('…')).toBe(true)
   })
   it('fillDescription skips an extra that would pass the pixel line', () => {
     const d = fillDescription('MASTERI THẢO ĐIỀN APARTMENT, DISTRICT 2', ['FULLY FURNISHED WITH BALCONY AND RIVER VIEW, WALK TO METRO STATION AND SHOPS NEARBY TODAY'], { min: 120 })

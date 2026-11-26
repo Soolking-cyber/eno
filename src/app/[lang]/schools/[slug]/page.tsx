@@ -124,7 +124,9 @@ export default async function SchoolPageRoute({ params }: Props) {
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
               <SchoolLogo slug={school.slug} logo={school.logo} name={school.name} kind={school.kind} size="lg" />
               <div className="min-w-0">
-                <h1 className="h-title text-foreground">{school.name}</h1>
+                {/* The name alone was an H1 too short (Seobility crawl 10: "YOLA", "Scotch AGS"): a crawler and a screen reader also
+                    hear what the page is, in the reviews heading's own words. */}
+                <h1 className="h-title text-foreground">{school.name}<span className="sr-only"> — <Bilingual en="reviews from teachers" vi="đánh giá từ giáo viên" /></span></h1>
                 {page.awards.length > 0 && (
                   <p className="mt-2 flex flex-wrap gap-2">{page.awards.map((a) => <AwardBadge key={a.year} year={a.year} rank={a.rank} />)}</p>
                 )}

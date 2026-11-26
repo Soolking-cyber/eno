@@ -86,11 +86,13 @@ export function DisclosureItem({ trigger, children, level = 3, headingId, lead, 
     el.addEventListener('beforematch', onMatch)
     return () => el.removeEventListener('beforematch', onMatch)
   }, [open, cssOnly])
-  const Heading = level === 2 ? 'h2' : 'h3'
+  // ⚠️ AN ARIA HEADING, NOT AN <h2>/<h3> ELEMENT (2026-11-26): still a heading at `level` for every screen reader's heading
+  // navigation (the rule above), but not one of the page's document headings — the home's 17 FAQ rows and the footer's five
+  // groups on every page pushed pages past Seobility's ~25-heading limit ("too many headings", crawl 10). Same id, same look.
   return (
     <div className={cn('border-b border-border last:border-b-0', className)}>
       {lead}
-      <Heading id={hid} data-slot="disclosure-header" className="flex">
+      <div role="heading" aria-level={level} id={hid} data-slot="disclosure-header" className="flex">
         <button
           type="button"
           aria-expanded={open}
@@ -104,7 +106,7 @@ export function DisclosureItem({ trigger, children, level = 3, headingId, lead, 
           {trigger}
           <ChevronDown aria-hidden className="acc-chevron" />
         </button>
-      </Heading>
+      </div>
       <div
         id={panelId}
         ref={panel}

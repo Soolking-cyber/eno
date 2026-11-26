@@ -19,16 +19,16 @@ const group = (names: readonly string[]) => (
 describe('ui/disclosure: a heading holding a button, and its panel (the home FAQ and the footer link groups)', () => {
   it('server HTML: the heading at its level holds the button; the closed panel is a hidden region still holding its content', () => {
     const html = renderToString(<DisclosureItem level={2} headingId="h" lead={<p>{LEAD}</p>} trigger={Q}><p>{A}</p></DisclosureItem>)
-    expect(html).toMatch(/^<div class="border-b border-border last:border-b-0"><p>Static heading<\/p><h2 id="h" data-slot="disclosure-header" class="flex"><button type="button" aria-expanded="false" aria-controls="[^"]+" data-disclosure-trigger="" class="acc-trigger group\/acc-trigger">Question/)
+    expect(html).toMatch(/^<div class="border-b border-border last:border-b-0"><p>Static heading<\/p><div role="heading" aria-level="2" id="h" data-slot="disclosure-header" class="flex"><button type="button" aria-expanded="false" aria-controls="[^"]+" data-disclosure-trigger="" class="acc-trigger group\/acc-trigger">Question/)
     expect(html).toMatch(/role="region" aria-labelledby="h" data-slot="disclosure-panel" hidden=""><p>Answer<\/p>/)
-    expect(renderToString(<DisclosureItem trigger={Q}><p>{A}</p></DisclosureItem>)).toContain('<h3 id=')
+    expect(renderToString(<DisclosureItem trigger={Q}><p>{A}</p></DisclosureItem>)).toContain('<div role="heading" aria-level="3" id=')
   })
 
   it('opens and closes on its button; closed, its panel is `hidden="until-found"`, and a find-in-page match opens it', async () => {
     const { container } = render(<DisclosureItem trigger={Q}><p>{A}</p></DisclosureItem>)
     const button = container.querySelector('button')!
     const panel = container.querySelector('[role="region"]')!
-    expect(panel.getAttribute('aria-labelledby')).toBe(container.querySelector('h3')!.id)
+    expect(panel.getAttribute('aria-labelledby')).toBe(container.querySelector('[role="heading"]')!.id)
     expect(panel.getAttribute('hidden')).toBe('until-found')
     fireEvent.click(button)
     expect(button.getAttribute('aria-expanded')).toBe('true')
