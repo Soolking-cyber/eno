@@ -1,0 +1,427 @@
+{
+  "slug": "nen-mua-dell-inspiron-hay-vostro",
+  "title": "Nên mua Dell Inspiron hay Vostro cũ? So sánh bản 3520",
+  "description": "So sánh Dell Inspiron và Vostro theo thông số của chính Dell: cổng LAN, khe khóa, Windows 11 Pro, nâng cấp RAM và SSD, và cách kiểm tra khi mua máy cũ.",
+  "h1": "Dell Inspiron hay Vostro: laptop cũ nào hợp với công việc của bạn?",
+  "eyebrow": "Mua laptop cũ",
+  "intro": "Nên chọn Dell Vostro nếu bạn cần cổng mạng LAN, khe khóa và Windows 11 Pro, còn dùng ở nhà thì chọn Inspiron, vì bản 15 inch 3520 của cả hai đều chỉ lên được tối đa 16 GB RAM. Inspiron là dòng laptop phổ thông của Dell, còn Vostro từng là dòng dành cho doanh nghiệp nhỏ. Từ tháng 1/2025, Dell bán laptop doanh nghiệp mới dưới tên Dell Pro, nên Vostro mua bây giờ gần như luôn là máy cũ.",
+  "keyPoints": [
+    "Theo bảng thông số của Dell, **Vostro 3520** có cổng mạng RJ45 dạng gập và khe khóa hình nêm. **Inspiron 15 3520** không có cả hai.",
+    "Cả hai bản 3520 đều có **hai khe RAM DDR4 SODIMM và chỉ lên được tối đa 16 GB**, nên không máy nào nâng cấp được nhiều hơn máy kia.",
+    "Cổng Type-C có DisplayPort 1.4 chỉ có trên một số cấu hình của cả hai máy. Dell cho biết máy dùng chip Intel Core thế hệ 11 không có cổng Type-C.",
+    "Vostro 3520 hỗ trợ cả Windows 11 Pro và Ubuntu 20.04, nhưng có máy bán ra với Windows 11 Home, nên hãy xem máy đang cài bản Windows nào.",
+    "Theo Dell, khách hàng Vostro hiện có vẫn giữ quyền lợi ProSupport đến khi hết hợp đồng. Trước khi trả tiền, hãy tra số service tag để xem máy cũ còn được hỗ trợ gì."
+  ],
+  "sections": [
+    {
+      "id": "inspiron-va-vostro-khac-nhau-the-nao",
+      "title": "Dell Inspiron và Vostro khác nhau thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Inspiron là dòng laptop phổ thông của Dell, dành cho gia đình và học tập. Vostro từng là dòng dành cho doanh nghiệp nhỏ.** Ở phân khúc 15 inch giá rẻ, hai dòng thường dùng chung một bộ khung cơ bản. Vostro có thêm vài tính năng cho công việc: cổng mạng dây, khe khóa chống trộm và nhiều lựa chọn hệ điều hành hơn."
+        },
+        {
+          "type": "p",
+          "text": "Vì vậy, hai máy cùng chip, cùng RAM và cùng ổ cứng sẽ chạy nhanh như nhau. Điều bạn cần xem là mình có dùng đến các tính năng thêm của Vostro hay không, và chênh lệch giá có đáng không."
+        }
+      ]
+    },
+    {
+      "id": "dell-vostro-con-ban-khong",
+      "title": "Dell Vostro có còn bán không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Dell không còn bán dòng Vostro dưới tên cũ. Tên Vostro đã được thay bằng Dell Pro từ tháng 1/2025.** Theo [trang giới thiệu các dòng máy của Dell](https://www.dell.com/en-us/dfh/lp/learn-about-Outlet-dell-laptops), kiểm tra ngày 24/11/2026, Dell chia máy tính thành ba nhóm. Nhóm “Dell” trước đây là Inspiron và XPS. Nhóm “Dell Pro” trước đây là Latitude, Vostro và OptiPlex, dành cho người cần sản phẩm chuyên nghiệp trong môi trường có bộ phận IT quản lý. Cũng theo trang này, Inspiron vẫn tiếp tục với tên dòng sản phẩm Inspiron Laptops."
+        },
+        {
+          "type": "p",
+          "text": "Vostro thì không có dòng nối tiếp mang tên cũ. [Trang cập nhật về Vostro của Dell](https://www.dell.com/en-us/lp/vostro-update) cho biết các tính năng doanh nghiệp và bảo mật của Vostro nay có trên **Dell Pro Essential**. Cửa hàng Dell Canada ghi [Vostro 3520](https://www.dell.com/en-ca/shop/15/15-3520/spd/vostro-15-3520-laptop) là đã ngừng bán và gợi ý Dell Pro 15 Essential thay thế. Tên gọi của Dell vẫn đang thay đổi: [theo TechRadar](https://www.techradar.com/computing/dell-un-retires-its-iconic-xps-brand-at-ces-2026-were-getting-back-to-our-roots), Dell đưa thương hiệu XPS trở lại tại CES 2026. Thay đổi này không ảnh hưởng đến Vostro."
+        },
+        {
+          "type": "table",
+          "caption": "Vị trí của từng dòng trong cách đặt tên mới của Dell, theo trang giới thiệu dòng máy và trang cập nhật Vostro của Dell, kiểm tra ngày 24/11/2026",
+          "headers": [
+            "Dòng máy",
+            "Dành cho",
+            "Tình trạng trên trang của Dell",
+            "Dell gọi là gì hiện nay"
+          ],
+          "rows": [
+            [
+              "Inspiron",
+              "Gia đình, học tập, công việc hằng ngày",
+              "Tiếp tục với tên Inspiron Laptops",
+              "Thuộc nhóm “Dell”"
+            ],
+            [
+              "Vostro",
+              "Doanh nghiệp nhỏ",
+              "Vostro 3520 ghi là đã ngừng bán",
+              "Tính năng chuyển sang Dell Pro Essential"
+            ],
+            [
+              "Latitude",
+              "Doanh nghiệp có IT quản lý máy",
+              "Tiếp tục với tên Latitude Laptops",
+              "Thuộc nhóm “Dell Pro”"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "so-sanh-inspiron-15-3520-va-vostro-3520",
+      "title": "So sánh Inspiron 15 3520 và Vostro 3520",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Theo bảng thông số của Dell, Inspiron 15 3520 và Vostro 3520 chỉ khác nhau ở vài điểm, và đó đều là tính năng phục vụ công việc.** RAM, cổng xuất hình, khe thẻ SD và sạc giống nhau. Vostro có thêm cổng mạng LAN và khe khóa. Cặp máy này xuất hiện nhiều trên thị trường máy cũ, nên đây là phép so sánh công bằng nhất."
+        },
+        {
+          "type": "table",
+          "caption": "Inspiron 15 3520 và Vostro 3520, theo trang Setup and Specifications của Dell, kiểm tra ngày 24/11/2026",
+          "headers": [
+            "Thông số",
+            "Inspiron 15 3520",
+            "Vostro 3520"
+          ],
+          "rows": [
+            [
+              "Cổng mạng dây (RJ45)",
+              "Không có trong bảng",
+              "Một cổng RJ45 dạng gập"
+            ],
+            [
+              "Khe cáp khóa",
+              "Không có",
+              "Một khe khóa hình nêm"
+            ],
+            [
+              "USB-A",
+              "Hai USB 3.2 Gen 1 (một trên bản Type-C) và một USB 2.0",
+              "Hai USB 3.2 Gen 1 (một trên bản Type-C) và một USB 2.0"
+            ],
+            [
+              "USB Type-C có DisplayPort 1.4",
+              "Chỉ bản Type-C",
+              "Chỉ bản Type-C"
+            ],
+            [
+              "HDMI",
+              "HDMI 1.4, tối đa 1920 x 1080 ở 60 Hz",
+              "HDMI 1.4, tối đa 1920 x 1080 ở 60 Hz"
+            ],
+            [
+              "RAM",
+              "Hai khe DDR4 SODIMM, tối đa 16 GB",
+              "Hai khe DDR4 SODIMM, tối đa 16 GB"
+            ],
+            [
+              "Thẻ nhớ và âm thanh",
+              "Khe thẻ SD, jack tai nghe",
+              "Khe thẻ SD, jack tai nghe"
+            ],
+            [
+              "Sạc",
+              "65 W, đầu tròn 4,5 mm",
+              "65 W, đầu tròn 4,5 mm"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Notebookcheck ghi bản Vostro 3520 dùng chip i3-1215U có 8 GB RAM DDR4-2666, màn hình 15,6 inch 1920 x 1080 tần số 120 Hz, pin 41 Wh và cài Windows 11 Home ([trang Vostro 3520 i3-1215U](https://www.notebookcheck.net/Dell-Vostro-3520-i3-1215U.820164.0.html)). Trên cùng trang đó, Inspiron 15 3520 bản i3-1215U được xếp vào nhóm máy cùng thông số. Còn [trang Inspiron 15 3520](https://www.notebookcheck.net/Dell-Inspiron-15-3520.729934.0.html) của Notebookcheck mô tả bản dùng chip Intel Core i5-1235U, không phải i3-1215U, và cũng ghi 8 GB DDR4-2666, màn hình 120 Hz, pin 41 Wh và Windows 11 Home. Cùng giá và cùng chip thì bạn có thể coi hai máy mạnh như nhau."
+        }
+      ]
+    },
+    {
+      "id": "cong-ket-noi-va-tinh-nang-doanh-nghiep",
+      "title": "Vostro có thêm cổng và tính năng gì cho công việc?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Vostro 3520 có thêm cổng mạng dây và khe khóa, còn Inspiron 15 3520 không có cả hai.** Ngoài hai điểm đó, các cổng ở hai bên máy giống nhau, theo bảng cổng kết nối của Dell cho [Vostro 3520](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/external-ports?guid=guid-4c4cc1ba-66a4-45f0-8dfc-6013a624ddc0&lang=en-us) và [Inspiron 15 3520](https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/external-ports-and-slots?guid=guid-b8f739cc-a41e-4ac9-b3f8-ff6d9c6d8c19&lang=en-us)."
+        },
+        {
+          "type": "h3",
+          "text": "Cổng LAN có cần cho họp online hay dạy học trực tuyến không?"
+        },
+        {
+          "type": "p",
+          "text": "Cổng LAN có ích nếu bàn làm việc đủ gần để kéo dây mạng từ router. Mạng dây giúp tránh rớt Wi-Fi ở chung cư có nhiều mạng chen nhau. Với Inspiron, bạn vẫn có thể cắm bộ chuyển USB sang LAN, nhưng bộ chuyển sẽ chiếm một cổng USB-A: bản có Type-C chỉ có hai cổng USB-A, bản không có Type-C có ba."
+        },
+        {
+          "type": "h3",
+          "text": "Có xuất ra hai màn hình được không?"
+        },
+        {
+          "type": "p",
+          "text": "Chỉ máy có cổng Type-C mới xuất được ra hai màn hình, qua HDMI 1.4 và cổng Type-C có DisplayPort 1.4. Máy không có Type-C chỉ có HDMI, tối đa 1920 x 1080 ở 60 Hz. Dell ghi rõ máy dùng chip Intel Core thế hệ 11 (Tiger Lake) không có Type-C, nên máy cũ chạy chip thế hệ 11 chỉ có HDMI."
+        },
+        {
+          "type": "h3",
+          "text": "Vostro 3520 chạy được những hệ điều hành nào?"
+        },
+        {
+          "type": "p",
+          "text": "[Trang hệ điều hành của Vostro 3520](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/operating-system?guid=guid-7b81d002-0a69-4d28-9c38-bbcdf7051010&lang=en-us) liệt kê Windows 11 Pro, Windows 11 Home, Windows 11 Pro National Academic và Ubuntu 20.04 LTS, tất cả bản 64-bit. Windows 11 Pro chỉ là một tùy chọn khi đặt máy, không phải máy nào cũng có. Hãy mở Cài đặt (Settings) và xem phiên bản Windows trước khi chốt giá."
+        }
+      ]
+    },
+    {
+      "id": "nang-cap-ram-va-ssd",
+      "title": "Có nâng cấp RAM và SSD được không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Được. Cả hai bản 3520 đều có hai khe RAM DDR4 SODIMM, nhận tối đa 16 GB, và đều thay được SSD.** Bảng bộ nhớ của Dell cho [Inspiron 15 3520](https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us) và [Vostro 3520](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us) giống hệt nhau. RAM chạy 2666 MT/s trên máy không có Type-C và 3200 MT/s trên máy có Type-C, tối thiểu 4 GB, tối đa 16 GB."
+        },
+        {
+          "type": "p",
+          "text": "Trong danh sách cấu hình Dell hỗ trợ có bản một thanh 8 GB và bản hai thanh 8 GB chạy kênh đôi. Nếu máy cũ chỉ có một thanh 8 GB, bạn có thể gắn thêm một thanh 8 GB để lên 16 GB kênh đôi. Mức 16 GB là giới hạn thật của cả hai máy, nên nếu công việc cần nhiều RAM hơn, hãy chọn một mẫu laptop khác."
+        },
+        {
+          "type": "h3",
+          "text": "Vostro 3520 dùng loại ổ cứng nào?"
+        },
+        {
+          "type": "p",
+          "text": "Theo [bảng lưu trữ của Vostro 3520](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/storage?guid=guid-df903cc2-226d-400b-9a83-1fcf31c562c2&lang=en-us), máy chỉ chứa một ổ: hoặc SSD M.2 NVMe (loại 2230 tối đa 1 TB, loại 2280 tối đa 2 TB), hoặc ổ cứng HDD SATA 2,5 inch 5400 vòng/phút tối đa 2 TB. Máy dùng pin 4 cell không hỗ trợ HDD. [Trang khe cắm bên trong](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/internal-slots?guid=guid-647a9bd6-0be5-4b27-9df1-31e3c269abed&lang=en-us) ghi một khe M.2 cho SSD và một khe M.2 2230 riêng cho card Wi-Fi."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Máy chạy HDD là máy chậm",
+          "text": "Một chiếc 3520 cũ khởi động từ ổ HDD 5400 vòng/phút sẽ chậm hơn hẳn cùng mẫu máy dùng SSD NVMe. Hãy xem loại ổ trong Task Manager trước khi mua. Nếu là HDD, hãy tính thêm tiền mua SSD M.2 để lắp vào khe M.2."
+        }
+      ]
+    },
+    {
+      "id": "chon-may-theo-cong-viec",
+      "title": "Nên chọn máy nào theo công việc của bạn?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Vostro hợp với bàn làm việc có mạng dây hoặc văn phòng dùng chung, nơi khe khóa và cổng LAN phát huy tác dụng. Inspiron hợp với việc học, soạn bài và giải trí ở nhà, nơi các tính năng đó không dùng đến.** Cùng chip, RAM và ổ cứng thì hai máy chạy như nhau, nên hãy để tính năng thêm và giá quyết định."
+        },
+        {
+          "type": "table",
+          "caption": "Chọn Inspiron 15 3520 hay Vostro 3520 theo nhu cầu, dựa trên bảng cổng và hệ điều hành của Dell",
+          "headers": [
+            "Công việc",
+            "Nên chọn",
+            "Lý do"
+          ],
+          "rows": [
+            [
+              "Họp online, dạy trực tuyến tại nhà",
+              "Vostro",
+              "Có sẵn cổng LAN để cắm dây mạng từ router"
+            ],
+            [
+              "Để máy ở văn phòng, phòng giáo viên, co-working",
+              "Vostro",
+              "Khe khóa hình nêm để gắn cáp chống trộm"
+            ],
+            [
+              "Việc văn phòng cần tính năng của Windows Pro",
+              "Vostro, nếu đã cài Pro",
+              "Windows 11 Pro là tùy chọn được hỗ trợ; xem bản đang cài"
+            ],
+            [
+              "Học tập, soạn bài, lướt web, xem phim",
+              "Máy nào rẻ hơn",
+              "Cùng RAM, cổng xuất hình và khe thẻ SD"
+            ],
+            [
+              "Dùng hai màn hình ngoài",
+              "Cả hai, nhưng phải là bản Type-C",
+              "HDMI cộng Type-C có DisplayPort 1.4"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu giới hạn 16 GB RAM hay cổng HDMI 1.4 không đủ cho bạn, Dell gợi ý Dell Pro 15 Essential là mẫu doanh nghiệp gần nhất hiện nay. Cửa hàng Dell ghi máy này có Windows 11 Pro, bàn phím số và khung máy đạt kiểm tra độ bền MIL-STD. Laptop cũ của cả hai dòng được đăng bán trong [mục Điện tử trên eno.vn](/c/electronics)."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-may-cu-truoc-khi-mua",
+      "title": "Cách kiểm tra Inspiron hoặc Vostro cũ trước khi mua",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Bắt đầu bằng số service tag: nó cho biết chính xác mẫu máy, cấu hình gốc và máy còn được hỗ trợ gì.** Trên [trang cập nhật về Vostro](https://www.dell.com/en-us/lp/vostro-update), Dell cho biết khách hàng Vostro hiện có vẫn giữ quyền lợi ProSupport đến khi hết hợp đồng, và việc đổi tên không ảnh hưởng đến bảo hành và dịch vụ của Vostro. Còn quyền lợi đó có chuyển sang người mua lại hay không thì bạn cần hỏi bộ phận hỗ trợ của Dell."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Đọc số service tag",
+              "text": "Tìm service tag trên nhãn dưới đáy máy. Nhập số này trên trang hỗ trợ của Dell để xác nhận mẫu máy, thế hệ chip và thời hạn bảo hành còn lại."
+            },
+            {
+              "title": "Đếm cổng",
+              "text": "Vostro 3520 thật có cổng RJ45 dạng gập và khe khóa hình nêm. Nếu người bán gọi là Vostro mà thiếu cả hai, hãy hỏi lại."
+            },
+            {
+              "title": "Tìm cổng Type-C",
+              "text": "Nếu cần màn hình thứ hai, hãy tìm cổng Type-C. Máy dùng chip Intel thế hệ 11 sẽ không có cổng này."
+            },
+            {
+              "title": "Kiểm tra RAM và ổ cứng",
+              "text": "Trong Task Manager, xem dung lượng RAM, số khe đang dùng, và ổ cứng là SSD hay HDD."
+            },
+            {
+              "title": "Kiểm tra bản Windows",
+              "text": "Trong Cài đặt, xem máy chạy Windows 11 Home hay Pro, và đã kích hoạt bản quyền chưa."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Giá máy cũ ở TP.HCM. Giá phụ thuộc vào chip, RAM, ổ cứng và tình trạng máy, và hôm nay chưa có nguồn nào cho một khoảng giá hợp lý. Hãy so sánh các tin đang đăng trong [mục Điện tử trên eno.vn](/c/electronics).",
+            "Các đời Inspiron hoặc Vostro khác. Cổng kết nối và giới hạn RAM thay đổi theo từng mẫu, nên hãy xem trang Setup and Specifications của đúng mẫu đó trên trang hỗ trợ của Dell.",
+            "Bảo hành hoặc ProSupport của Dell có chuyển sang người mua lại hay không. Hãy hỏi bộ phận hỗ trợ của Dell, kèm số service tag."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Dell Vostro có tốt hơn Inspiron không?",
+      "a": "Dell Vostro không mạnh hơn Inspiron khi cùng cấu hình. Theo bảng thông số của Dell, Vostro 3520 và Inspiron 15 3520 có cùng kiểu RAM, cổng xuất hình và khe thẻ SD. Vostro 3520 hơn ở các tính năng cho công việc: cổng mạng RJ45 dạng gập, khe khóa hình nêm và Windows 11 Pro là một tùy chọn được hỗ trợ. Nếu chỉ dùng ở nhà, máy nào rẻ hơn thường là lựa chọn hợp lý hơn."
+    },
+    {
+      "q": "Dell Vostro bị khai tử chưa?",
+      "a": "Dòng Dell Vostro đã được thay thế. Từ tháng 1/2025, Dell bán laptop doanh nghiệp dưới tên Dell Pro. Trang cập nhật Vostro của Dell cho biết các tính năng doanh nghiệp và bảo mật của Vostro nay có trên Dell Pro Essential, còn cửa hàng Dell ghi Vostro 3520 là đã ngừng bán. Theo Dell, khách hàng Vostro hiện có vẫn giữ quyền lợi ProSupport đến khi hết hợp đồng."
+    },
+    {
+      "q": "Dell Inspiron 15 3520 có cổng LAN không?",
+      "a": "Không. Bảng cổng kết nối của Dell cho Inspiron 15 3520 không liệt kê cổng mạng RJ45, và khe cáp khóa được ghi là không có. Vostro 3520 thì có một cổng RJ45 dạng gập và một khe khóa hình nêm. Người dùng Inspiron 15 3520 cần mạng dây có thể dùng bộ chuyển USB sang LAN, nhưng bộ chuyển sẽ chiếm một cổng USB-A: bản có Type-C chỉ có hai cổng USB-A, bản không có Type-C có ba."
+    },
+    {
+      "q": "Dell Vostro 3520 nâng cấp RAM tối đa bao nhiêu?",
+      "a": "Dell Vostro 3520 nhận tối đa 16 GB RAM DDR4 qua hai khe SODIMM, theo bảng bộ nhớ của Dell. Tốc độ RAM là 2666 MT/s trên máy không có cổng Type-C và 3200 MT/s trên máy có Type-C. Inspiron 15 3520 cũng có hai khe và cùng mức tối đa 16 GB, nên không máy nào nâng cấp được nhiều hơn máy kia."
+    },
+    {
+      "q": "Dell Vostro 3520 có lắp thêm SSD được không?",
+      "a": "Dell Vostro 3520 có một khe M.2 cho SSD NVMe loại 2230 hoặc 2280, và Dell ghi dung lượng tối đa 2 TB với loại 2280. Tuy nhiên Vostro 3520 chỉ chứa một ổ: hoặc SSD M.2, hoặc ổ cứng HDD 2,5 inch. Vì vậy máy cũ đang dùng HDD thường được thay hẳn sang SSD chứ không lắp thêm ổ thứ hai."
+    },
+    {
+      "q": "Dell Vostro có cài sẵn Windows Pro không?",
+      "a": "Không phải lúc nào cũng có. Trang hệ điều hành của Dell cho Vostro 3520 liệt kê Windows 11 Pro, Windows 11 Home, Windows 11 Pro National Academic và Ubuntu 20.04 LTS. Windows 11 Pro chỉ là một trong các tùy chọn, và Notebookcheck ghi bản Vostro 3520 i3-1215U chạy Windows 11 Home. Hãy xem phiên bản Windows trong Cài đặt trước khi mua Vostro cũ."
+    },
+    {
+      "q": "Dell Inspiron, Vostro và Latitude khác nhau thế nào?",
+      "a": "Inspiron là dòng laptop phổ thông của Dell cho gia đình và học tập, Vostro từng là dòng cho doanh nghiệp nhỏ, còn Latitude dành cho doanh nghiệp có bộ phận IT quản lý máy. Từ tháng 1/2025, Inspiron thuộc nhóm “Dell”, còn Vostro và Latitude thuộc nhóm “Dell Pro”. Theo Dell, Inspiron và Latitude vẫn tiếp tục là dòng sản phẩm, còn tính năng của Vostro chuyển sang Dell Pro Essential."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Dell laptops: new PC categories (Dell, Dell Pro, Dell Pro Max)",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-us/dfh/lp/learn-about-Outlet-dell-laptops"
+    },
+    {
+      "title": "Vostro update",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-us/lp/vostro-update"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: External ports",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/external-ports?guid=guid-4c4cc1ba-66a4-45f0-8dfc-6013a624ddc0&lang=en-us"
+    },
+    {
+      "title": "Inspiron 15 3520 Setup and Specifications: External ports and slots",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/external-ports-and-slots?guid=guid-b8f739cc-a41e-4ac9-b3f8-ff6d9c6d8c19&lang=en-us"
+    },
+    {
+      "title": "Inspiron 15 3520 Setup and Specifications: Memory",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Memory",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Storage",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/storage?guid=guid-df903cc2-226d-400b-9a83-1fcf31c562c2&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Internal slots",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/internal-slots?guid=guid-647a9bd6-0be5-4b27-9df1-31e3c269abed&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Operating system",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/operating-system?guid=guid-7b81d002-0a69-4d28-9c38-bbcdf7051010&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Laptop",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-ca/shop/15/15-3520/spd/vostro-15-3520-laptop"
+    },
+    {
+      "title": "Dell Vostro 3520, i3-1215U",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/Dell-Vostro-3520-i3-1215U.820164.0.html"
+    },
+    {
+      "title": "Dell Inspiron 15 3520",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/Dell-Inspiron-15-3520.729934.0.html"
+    },
+    {
+      "title": "Dell un-retires its iconic XPS brand at CES 2026",
+      "publisher": "TechRadar",
+      "url": "https://www.techradar.com/computing/dell-un-retires-its-iconic-xps-brand-at-ces-2026-were-getting-back-to-our-roots"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "b5cfbe93a99a62f5a9ed85539076a8d758f521c38d533087aa076b8d0de59c2f",
+      "w": 1672,
+      "h": 941,
+      "alt": "Hai máy tính xách tay minh họa đặt cạnh nhau, với đồ dùng gia đình bên trái và đồ dùng văn phòng bên phải.",
+      "caption": "Chọn Inspiron hoặc Vostro cũ cho gia đình hay công việc."
+    },
+    "figures": [
+      {
+        "id": "45542694b871ccdeb87c493b2ec41bf340104ae84a5ef4a8ed4d510153bff7d2",
+        "w": 1448,
+        "h": 1086,
+        "after": "cong-ket-noi-va-tinh-nang-doanh-nghiep",
+        "alt": "Máy tính xách tay minh họa có cổng Ethernet cạnh dây mạng và khóa cáp bảo vệ gắn bên hông.",
+        "caption": "Minh họa kết nối Ethernet có dây và khóa bảo vệ máy tính xách tay."
+      },
+      {
+        "id": "256cb47c1b588103647134e5f92ceffe961c5f42a2aac4122efd100da19c70ae",
+        "w": 1448,
+        "h": 1086,
+        "after": "kiem-tra-may-cu-truoc-khi-mua",
+        "alt": "Kính lúp phóng to bản lề máy tính xách tay, xung quanh là các biểu tượng pin, đầu cắm USB và bàn phím.",
+        "caption": "Kiểm tra máy tính xách tay cũ trước khi mua."
+      }
+    ]
+  }
+}

@@ -1,0 +1,365 @@
+{
+  "slug": "freedos-laptop",
+  "title": "Laptop with DOS, no Windows: worth it? (2026)",
+  "description": "What a DOS-only laptop leaves out, what Windows 11 setup needs, what a licence cost at Vietnamese shops in November 2026, and when the saving is worth it.",
+  "h1": "Laptops sold with DOS instead of Windows: a sensible buy or extra work?",
+  "eyebrow": "Buying a laptop",
+  "intro": "A laptop with FreeDOS comes without Windows. FreeDOS is a free, text-only DOS system, so you install Windows 11 or Linux yourself and, for Windows, pay for a licence separately. The saving is only real if the gap between the shop's two prices is bigger than the list price of a Windows 11 Home key (see the costs below), or if you will use Linux. Setting the laptop up takes an 8 GB USB stick, an internet connection and an hour or two of your time.",
+  "keyPoints": [
+    "**FreeDOS is not a free copy of Windows.** It is an open-source, DOS-compatible system from the FreeDOS Project, and it runs old DOS programs, not a browser, Zoom or Office.",
+    "On 25 November 2026, three Vietnamese retailers listed a Windows 11 Home key for one device at {{vnd:3890000-4890000}} before promotions. A FreeDOS laptop only saves you money if its price gap beats the price of the key you would actually buy.",
+    "Microsoft says you **need a licence to install Windows 11**. Downloading the installer is free, but activating Windows is not.",
+    "Windows 11 Home needs internet and a Microsoft account during first setup, plus TPM 2.0, Secure Boot, 4 GB of memory and 64 GB of storage.",
+    "Do not install Windows 10. Microsoft ended its support on 14 October 2025.",
+    "Ubuntu 26.04.1 LTS costs nothing and gets five years of free security updates. It suits a FreeDOS laptop if your work runs in a browser."
+  ],
+  "sections": [
+    {
+      "id": "what-is-a-freedos-laptop",
+      "title": "What is a FreeDOS laptop?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A FreeDOS laptop is a new laptop sold with no usable everyday operating system. The manufacturer puts FreeDOS (or nothing at all) on the drive, so the shop does not pay for a Windows licence. **FreeDOS** is an open-source, DOS-compatible operating system made by the volunteer FreeDOS Project. According to [freedos.org](https://www.freedos.org/), as of November 2026 the current release is FreeDOS 1.4, and its uses are classic DOS games, legacy business software and writing DOS programs."
+        },
+        {
+          "type": "p",
+          "text": "In practice you see a black screen with a command prompt, or the laptop's firmware setup screen. It has no web browser, Wi-Fi menu or Office. FPT Shop's explainer describes a FreeDOS laptop as one sold without any operating system installed, and suggests FreeDOS as a tool for repairing or reinstalling Windows, not for daily use."
+        },
+        {
+          "type": "p",
+          "text": "The hardware is the same as in the Windows version of the same model. Điện Máy Xanh's guide (last updated September 2023) makes the same point: the difference is the licence, not the parts. Check that the two listings really share one model code, processor, memory and storage before you compare prices."
+        }
+      ]
+    },
+    {
+      "id": "what-you-install-yourself",
+      "title": "What do you have to install yourself?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "You install the whole operating system, its drivers and your apps. For Windows 11 you also buy and enter a licence. Microsoft's [Windows 11 download page](https://www.microsoft.com/en-us/software-download/windows11) offers a Media Creation Tool that builds a bootable installer on a blank USB stick of at least 8 GB. Everything on that stick is erased. The same page states plainly that \"you first need a license to install Windows 11\"."
+        },
+        {
+          "type": "p",
+          "text": "According to that Microsoft page, as of November 2026, the Media Creation Tool creates installation media only for x64 processors. If the laptop has an Arm-based processor, the tool cannot make its installer, so ask the shop which processor the model uses before you buy."
+        },
+        {
+          "type": "h3",
+          "text": "Will the laptop run Windows 11?"
+        },
+        {
+          "type": "p",
+          "text": "Most new laptops will, but check against Microsoft's [Windows 11 specifications](https://www.microsoft.com/en-us/windows/windows-11-specifications) before you pay. The minimum is a compatible 64-bit processor with at least 2 cores at 1 GHz or faster, 4 GB of memory, 64 GB of storage, UEFI firmware with Secure Boot, TPM 2.0, DirectX 12 graphics with a WDDM 2.0 driver, and a 720p screen larger than 9 inches. Microsoft also says Windows 11 Home and Pro for personal use need an internet connection and a Microsoft account during first setup."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Get a licence first",
+              "text": "Buy a Windows 11 Home key for one device from a retailer, or use a licence you already own. A Home key will not activate Pro, and Pro will not activate Home."
+            },
+            {
+              "title": "Make the installer on another computer",
+              "text": "Run Microsoft's Media Creation Tool and write Windows 11 to a blank USB stick of 8 GB or more. The tool makes x64 installers only."
+            },
+            {
+              "title": "Download the laptop's drivers too",
+              "text": "From the manufacturer's support page for your exact model, copy the Wi-Fi or network driver to the same stick. Setup needs internet, and you do not want to be stuck without it."
+            },
+            {
+              "title": "Boot from the USB",
+              "text": "Plug the stick in, open the laptop's boot menu and choose the USB drive. If it does not appear, check in firmware setup that UEFI boot and Secure Boot are on."
+            },
+            {
+              "title": "Install, sign in and activate",
+              "text": "Delete the FreeDOS partitions when setup asks where to install, connect to Wi-Fi, sign in with a Microsoft account and enter the key. Then check Start > Settings > System > Activation."
+            },
+            {
+              "title": "Finish the setup",
+              "text": "Run Windows Update until nothing is left, install the maker's remaining drivers and utilities, then add your apps."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "A download is not a licence",
+          "text": "Microsoft's [activation page](https://support.microsoft.com/en-us/windows/activate-windows-c39005d4-95ee-b91e-b399-2820fda32227) explains that activation pairs a product key or digital licence with your laptop's hardware. A digital licence is tied to the hardware it was activated on. So a licence that came preinstalled on an old laptop cannot be assumed to move to a new one. If Windows is not activated, Settings says so and offers to sell you a licence."
+        }
+      ]
+    },
+    {
+      "id": "how-much-you-save",
+      "title": "How much does a FreeDOS laptop actually save?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "If you want Windows, the saving is the shop's price gap minus the cost of a Windows 11 Home key. On 25 November 2026, three Vietnamese retailers listed that key at {{vnd:3890000-4890000}} for one device before promotions. If a FreeDOS laptop is cheaper than its Windows twin by less than the price of the key you will buy, it costs you more once you add the key, and you still have to do the setup yourself."
+        },
+        {
+          "type": "table",
+          "caption": "Windows 11 Home licences for one device, as listed on each retailer's own page on 25 November 2026",
+          "headers": [
+            "Retailer",
+            "Product as listed",
+            "List price",
+            "Price shown on 25 November 2026",
+            "Form"
+          ],
+          "rows": [
+            [
+              "Thế Giới Di Động",
+              "Microsoft Windows 11 Home 64-bit chính hãng",
+              "{{vnd:4890000}}",
+              "{{vnd:3490000}} (sale price, valid to 30 November)",
+              "Activation key, one device, perpetual"
+            ],
+            [
+              "Meta.vn",
+              "Windows Home 11 64bit ESD KW9-00664",
+              "{{vnd:3990000}}",
+              "{{vnd:3690000}} including VAT (no end date shown)",
+              "Electronic key, one device, perpetual"
+            ],
+            [
+              "FPT Shop",
+              "Key-online Windows 11 Home 32bit/64bit FPP",
+              "{{vnd:3890000}} (only price shown)",
+              "{{vnd:3890000}}",
+              "Product key for one account on one device, perpetual"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Promotions can bring the key lower for a while, but do not build your sums on one unless it is still running the day you buy. As a dated example, Thế Giới Di Động's page showed {{vnd:3490000}} on 25 November 2026 for a sale it said ran to 30 November, against its list price of {{vnd:4890000}}."
+        },
+        {
+          "type": "p",
+          "text": "The gaps between laptop versions vary by model and shop. As an older example, Điện Máy Xanh's guide compared an Asus A456UA with the same specification at {{vnd:12490000}} with Windows 10 and {{vnd:9990000}} with no operating system. That example is years old and the model is long gone, so use it only to see how the comparison works."
+        },
+        {
+          "type": "h3",
+          "text": "When is the saving real?"
+        },
+        {
+          "type": "p",
+          "text": "The saving is real in three cases. You plan to run Linux, which costs nothing. You already hold a Windows licence you are entitled to move. Or the shop's gap is clearly bigger than the licence price above. Outside those cases, the Windows version is usually the better deal, because the licence is already activated and the shop has done the setup."
+        }
+      ]
+    },
+    {
+      "id": "should-you-buy-one",
+      "title": "Should you buy a FreeDOS laptop?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Buy one if you are comfortable installing an operating system and either want Linux or can make the numbers work for Windows. Skip it if you need the laptop working tomorrow morning for lessons or online classes and have never reinstalled Windows."
+        },
+        {
+          "type": "table",
+          "caption": "FreeDOS or Windows version: which suits which buyer (licence list prices as listed on 25 November 2026)",
+          "headers": [
+            "Your situation",
+            "Better choice",
+            "Why"
+          ],
+          "rows": [
+            [
+              "You need Windows and have no licence",
+              "Windows version, unless the gap is above the list price of the key at the shop you buy from",
+              "Before promotions a key costs {{vnd:3890000-4890000}} at the retailers checked, and you still do the setup"
+            ],
+            [
+              "Your work is all in a browser (Google Docs, online lesson platforms)",
+              "FreeDOS laptop with Ubuntu",
+              "Ubuntu costs nothing and gets five years of free security updates"
+            ],
+            [
+              "You need Microsoft Office desktop apps or Windows-only software",
+              "Windows version",
+              "You avoid buying a key and doing an install on top of the app costs"
+            ],
+            [
+              "You have a licence you are entitled to transfer, and setup experience",
+              "FreeDOS laptop",
+              "You do not pay twice for Windows"
+            ],
+            [
+              "You are leaving Vietnam within a year and will resell",
+              "Windows version",
+              "Buyers of used laptops generally expect a working, activated system"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Is Linux a realistic choice?"
+        },
+        {
+          "type": "p",
+          "text": "Linux is realistic if your apps run in a browser or have Linux versions. According to [Ubuntu's download page](https://ubuntu.com/download/desktop), as of November 2026 the current desktop release is Ubuntu 26.04.1 LTS. It comes with five years of free security and maintenance updates, and it asks for a 2 GHz dual-core processor, 6 GB of memory and 25 GB of disk space. Test it from the USB stick before installing: the live session shows whether Wi-Fi, sound and the webcam work."
+        },
+        {
+          "type": "h3",
+          "text": "What about putting Windows 10 on it?"
+        },
+        {
+          "type": "p",
+          "text": "Do not install Windows 10 on a new laptop. Microsoft's [end-of-support page](https://www.microsoft.com/en-us/windows/end-of-support) says Windows 10 support ended on 14 October 2025, with no more regular security fixes. Optional Extended Security Updates run only until 12 October 2027, and only for eligible personal devices."
+        }
+      ]
+    },
+    {
+      "id": "checks-before-you-pay",
+      "title": "What to check in the shop before you pay",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Compare like with like, and get the shop to answer your setup questions while you are still at the counter. Most problems with FreeDOS laptops come from comparing different specifications or from a key that never activates."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Same model code.** Put the FreeDOS listing and the Windows listing side by side. The processor, memory, storage and screen must match before the price gap means anything.",
+            "**Windows 11 compatibility.** Ask for TPM 2.0 and Secure Boot to be confirmed in firmware setup, and check the specification against Microsoft's minimum. Check too that the processor is x64, since the Media Creation Tool builds x64 installers only.",
+            "**Who installs, and with what.** If the shop offers to install Windows for you, ask whether a licence key is included. Then check Start > Settings > System > Activation before you leave, and keep the receipt that names the key.",
+            "**Keys from forums or very cheap sellers.** Điện Máy Xanh warns that hunting for keys on forums is slow and unsafe. Buy from a retailer whose page names the product and the licence terms.",
+            "**Warranty.** Ask whether installing your own operating system affects the shop's or the maker's warranty. Policies vary by brand and shop.",
+            "**Size and brand.** If you have not settled on a model, see [14-inch or 15.6-inch](/guides/14-inch-vs-15-6-inch-laptop) and, for a cheaper secondhand machine, [HP vs Lenovo used laptops](/guides/hp-vs-lenovo-used-laptop). Laptops listed by people in Vietnam are in [Electronics on eno.vn](/c/electronics)."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Test the network before you wipe anything",
+          "text": "Windows 11 Home will not finish first setup without internet. If the laptop's Wi-Fi is not recognised during installation, the network driver you copied to the USB stick in advance gets you past that screen."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Microsoft Office or Microsoft 365 licences: these are bought separately from Windows. Check Microsoft or the retailer for current terms.",
+            "Whether a particular Windows licence can be moved from an old laptop: this depends on how it was sold. Microsoft's activation support is the place to ask.",
+            "Brand-by-brand warranty rules for laptops on which the buyer installed the system: ask the shop and check the maker's warranty page for your model.",
+            "Selling the laptop when you leave: see [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What does FreeDOS mean on a laptop?",
+      "a": "FreeDOS on a laptop means the machine is sold without Windows. FreeDOS is an open-source, DOS-compatible operating system from the FreeDOS Project. It runs old DOS programs and games from a text prompt. A FreeDOS laptop cannot run modern apps such as a web browser, Zoom or Microsoft Office, so the buyer installs Windows 11 or a Linux system such as Ubuntu before using it for everyday work."
+    },
+    {
+      "q": "Is a FreeDOS laptop cheaper than the Windows version?",
+      "a": "A FreeDOS laptop is usually listed for less than the same model with Windows, because the shop does not pay for a Windows licence. The saving only counts if the gap is bigger than the list price of a Windows 11 Home key, which Vietnamese retailers listed on 25 November 2026 (see the costs table in this guide). Compare the exact same model, processor, memory and storage, not two laptops that look similar."
+    },
+    {
+      "q": "Can I install Windows 11 on a FreeDOS laptop?",
+      "a": "Windows 11 can be installed on most FreeDOS laptops sold today if the hardware meets Microsoft's minimum. That minimum is a compatible 64-bit processor with at least 2 cores, 4 GB of memory, 64 GB of storage, UEFI with Secure Boot, and TPM 2.0. Microsoft's Media Creation Tool builds an x64 installer on a blank USB stick of at least 8 GB. A licence is still needed to activate Windows 11."
+    },
+    {
+      "q": "Is downloading Windows 11 the same as having a licence?",
+      "a": "Downloading Windows 11 from Microsoft is not the same as owning a licence. Microsoft's download page says you first need a licence to install Windows 11. Activation pairs a product key or digital licence with the laptop's hardware. Without activation, the Activation page in Windows Settings says Windows is not activated and offers to sell a licence through the Microsoft Store."
+    },
+    {
+      "q": "Do I need internet to set up Windows 11 Home?",
+      "a": "Windows 11 Home needs an internet connection and a Microsoft account during first setup, according to Microsoft's Windows 11 specifications page. On a FreeDOS laptop, the Wi-Fi has to work during installation. If Windows does not recognise the laptop's network card, a network driver downloaded in advance from the manufacturer's support page and copied onto the installer USB stick gets setup past that screen."
+    },
+    {
+      "q": "Can I use Linux instead of Windows on a FreeDOS laptop?",
+      "a": "Linux is a practical choice for a FreeDOS laptop if your work runs in a browser. Ubuntu 26.04.1 LTS, the current desktop release on Ubuntu's download page in November 2026, costs nothing and comes with five years of free security updates. Ubuntu asks for a 2 GHz dual-core processor, 6 GB of memory and 25 GB of disk space. Try it from a USB stick before installing to check Wi-Fi and sound."
+    },
+    {
+      "q": "Should I install Windows 10 on a FreeDOS laptop?",
+      "a": "Windows 10 is a poor choice for a new FreeDOS laptop. Microsoft ended Windows 10 support on 14 October 2025, which means no more regular security fixes or technical help. Optional Extended Security Updates cover eligible personal devices only until 12 October 2027. Windows 11, or Linux if your apps allow it, is the system to install on a laptop you plan to keep for several years."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Windows 11 specifications and system requirements",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/windows/windows-11-specifications"
+    },
+    {
+      "title": "Download Windows 11",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/software-download/windows11"
+    },
+    {
+      "title": "Activate Windows",
+      "publisher": "Microsoft Support",
+      "url": "https://support.microsoft.com/en-us/windows/activate-windows-c39005d4-95ee-b91e-b399-2820fda32227"
+    },
+    {
+      "title": "Windows 10 end of support",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/windows/end-of-support"
+    },
+    {
+      "title": "The FreeDOS Project",
+      "publisher": "FreeDOS Project",
+      "url": "https://www.freedos.org/"
+    },
+    {
+      "title": "Download Ubuntu Desktop",
+      "publisher": "Canonical",
+      "url": "https://ubuntu.com/download/desktop"
+    },
+    {
+      "title": "Microsoft Windows 11 Home 64-bit chính hãng",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/phan-mem/microsoft-windows-11-home-64-bit-chinh-hang"
+    },
+    {
+      "title": "Phần mềm Microsoft Windows Home 11 64bit ESD KW9-00664",
+      "publisher": "Meta.vn",
+      "url": "https://meta.vn/phan-mem-microsoft-windows-home-11-64bit-esd-kw9-00664-p122565"
+    },
+    {
+      "title": "Key-online Windows 11 Home 32bit/64bit FPP",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/phan-mem/key-online-windows-11-home-32bit64bit-fpp"
+    },
+    {
+      "title": "Hệ điều hành FreeDOS là gì? Có gì khác biệt so với hệ điều hành Windows?",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/tin-tuc/tin-moi/doi-net-ve-he-dieu-hanh-freedos-va-su-khac-biet-so-voi-windows-122722"
+    },
+    {
+      "title": "Hệ điều hành Free DOS là gì? Có nên mua laptop Free DOS không?",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/he-dieu-hanh-free-dos-la-gi-co-nen-mua-laptop-free-dos-1547890"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "e2db3361909e81638a0dbb2f1cb507cb8a1b6b2b945799cc122bd987dbe87017",
+      "w": 1672,
+      "h": 941,
+      "alt": "A laptop with a blank screen sits beside a USB drive and coins, with puzzle pieces floating above it.",
+      "caption": "Buying a FreeDOS laptop means planning for software installation and costs."
+    },
+    "figures": [
+      {
+        "id": "d7fc507e14c6a739654342b8a1976e6a35f964b62325f9c313fe07f33dc5fbc5",
+        "w": 1448,
+        "h": 1086,
+        "after": "how-much-you-save",
+        "alt": "A level balance holds coins on one side and a blank card with a key on the other, beside a laptop.",
+        "caption": "Compare the laptop price gap with the cost of a Windows 11 Home licence."
+      }
+    ]
+  }
+}

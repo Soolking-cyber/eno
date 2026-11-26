@@ -1,7 +1,7 @@
 {
   "slug": "apartments-for-rent-ho-chi-minh-city-by-district",
   "title": "Apartments for rent in Ho Chi Minh City by district",
-  "description": "Median asking rents by district on 24 November 2026, from studio to two-bed, and how to shortlist, check availability and message landlords on eno.vn.",
+  "description": "Median asking rents by district on 24 November 2026, from studio to two-bed, and how to shortlist and message landlords on eno.vn.",
   "h1": "Apartments for rent in Ho Chi Minh City: shortlist by district and price",
   "eyebrow": "Renting in Saigon",
   "intro": "Shortlist apartments for rent in Ho Chi Minh City by district: on 24 November 2026, eno.vn's Rent Index put one-bedroom asking rents lowest in District 12 and Go Vap and highest in Thao Dien. Studios were the cheapest and most common homes, with 5,605 of the 6,755 apartments counted that day. These are asking prices, and landlords often agree lower rents.",
@@ -10,7 +10,7 @@
     "Of the 13 districts with a one-bedroom figure on 24 November 2026, District 12 ({{vnd:5800000}}), Go Vap ({{vnd:6600000}}) and Tan Phu ({{vnd:7000000}}) were the cheapest. District 2 (Thao Dien) ({{vnd:23800000}}) and District 1 ({{vnd:19900000}}) were among the dearest.",
     "The figures are asking prices from live listings, not signed leases. The Rent Index says landlords and agents often agree lower rents.",
     "Listings still use the old district names. Since July 2025, official addresses use ward names instead, such as Saigon Ward, which took in the old Ben Nghe Ward.",
-    "On eno.vn rentals, \"Check availability\" asks the eno team to check up to 5 homes for you. Listings from official partners such as GoPlus are answered by the partner in eno.vn chat."
+    "On eno.vn rentals, you ask whether a home is still free by messaging the landlord, agent or partner in eno.vn chat. Official partners such as GoPlus answer their own listings there, and a linked listing's button opens the original posting on its source site."
   ],
   "sections": [
     {
@@ -167,7 +167,7 @@
         },
         {
           "type": "p",
-          "text": "No. Since 21 October 2026 the index has counted studios and duplex rooms as a separate band, so they are left out of the one-bedroom figure. Studios set the bottom of the market. On 24 November 2026, studio medians ranged from {{vnd:3000000}} in Binh Tan to {{vnd:7200000}} in District 4. Binh Tan, Binh Chanh, Hoc Mon and Nha Be had the lowest overall apartment medians that day, but too few one-bedroom listings for a figure."
+          "text": "No. Since 21 October 2026 the index has counted studios and duplex rooms as a separate band, so they are left out of the one-bedroom figure. Studios set the bottom of the market. On 24 November 2026, studio medians ranged from {{vnd:2700000}} in Binh Chanh to {{vnd:7200000}} in District 4. Binh Tan, Binh Chanh, Hoc Mon and Nha Be had the lowest overall apartment medians that day, but too few one-bedroom listings for a figure."
         },
         {
           "type": "p",
@@ -195,7 +195,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "Go to [Ho Chi Minh City rentals](/c/rentals), narrow the list by area, sort it by price, and send only your real shortlist for a check. The labels below are the ones the page showed on 24 November 2026."
+          "text": "Go to [Ho Chi Minh City rentals](/c/rentals), narrow the list by area, sort it by price, and message the landlords on your real shortlist. The labels below are the ones the page showed on 24 November 2026."
         },
         {
           "type": "steps",
@@ -217,8 +217,8 @@
               "text": "Note the floor area, furnishing, deposit and any separate charges for electricity, water, service and parking. Studios are often small, so compare floor area as well as price."
             },
             {
-              "title": "Check availability or chat",
-              "text": "Add the homes you are serious about to \"Check availability\". On an official partner's listing, message the partner in eno.vn chat. Do this before you arrange a viewing."
+              "title": "Ask in chat whether it is free",
+              "text": "Message the landlord, agent or partner in eno.vn chat to ask whether the home is still free. On an official partner's listing, message the partner in eno.vn chat. On a linked listing, the button opens the original posting on its source site. Do this before you arrange a viewing."
             }
           ]
         },
@@ -236,15 +236,7 @@
       "blocks": [
         {
           "type": "p",
-          "text": "It depends who posted the listing. On most homes, the \"Check availability\" button asks the eno team to find out whether the home is still free. On an official partner's own listings, such as GoPlus, the partner answers you in eno.vn chat."
-        },
-        {
-          "type": "h3",
-          "text": "How does the check availability button work?"
-        },
-        {
-          "type": "p",
-          "text": "On 24 November 2026 the rentals page said: \"Pick up to 5 rentals and the eno team checks availability for you\", and the button read \"Free check, up to 5 rentals\". Because the limit is five, save it for your final shortlist, not every listing you like."
+          "text": "You ask in eno.vn chat, and who answers depends on who posted the listing. On most homes, you message the landlord or agent in eno.vn chat to ask whether the home is still free. On an official partner's own listings, such as GoPlus, the partner answers you in eno.vn chat. On a linked listing, the button opens the original posting on its source site."
         },
         {
           "type": "h3",
@@ -307,7 +299,7 @@
     },
     {
       "q": "What is the cheapest district to rent an apartment in HCMC?",
-      "a": "On 24 November 2026, District 12 had the lowest median one-bedroom asking rent in the eno.vn Rent Index, followed by Go Vap and Tan Phu. Go Vap and District 12 also had the most apartments listed, though most were studios. For any apartment type, Binh Tan, Hoc Mon and Binh Chanh had the lowest overall medians that day, but too few one-bedroom listings for a one-bedroom figure."
+      "a": "On 24 November 2026, District 12 had the lowest median one-bedroom asking rent in the eno.vn Rent Index, followed by Go Vap and Tan Phu. Go Vap and District 12 also had the most apartments listed, though most were studios. For any apartment type, Binh Tan, Hoc Mon, Nha Be and Binh Chanh had the lowest overall medians that day, but too few one-bedroom listings for a one-bedroom figure."
     },
     {
       "q": "Where is the most expensive area to rent an apartment in Ho Chi Minh City?",
@@ -315,7 +307,7 @@
     },
     {
       "q": "How do I check if an apartment for rent in HCM is still available on eno.vn?",
-      "a": "On most eno.vn rental listings in Ho Chi Minh City, the Check availability button asks the eno team to find out whether the home is still free. On 24 November 2026, the rentals page described this as a free check covering up to 5 rentals. Listings from an official eno.vn partner such as GoPlus are answered by the partner in eno.vn chat instead."
+      "a": "To check whether an apartment for rent in Ho Chi Minh City is still available on eno.vn, message the landlord, agent or partner in eno.vn chat. Listings from an official eno.vn partner such as GoPlus are answered by the partner in eno.vn chat. On a linked listing, the button opens the original posting on its source site. Ask before you arrange a viewing."
     },
     {
       "q": "Is apartment rent in Ho Chi Minh City negotiable?",
@@ -353,5 +345,5 @@
     "your-first-weeks-in-ho-chi-minh-city",
     "getting-around-ho-chi-minh-city"
   ],
-  "lastChecked": "2026-11-24"
+  "lastChecked": "2026-11-25"
 }

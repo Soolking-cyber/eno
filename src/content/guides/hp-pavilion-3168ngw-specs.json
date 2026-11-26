@@ -1,0 +1,378 @@
+{
+  "slug": "hp-pavilion-3168ngw-specs",
+  "title": "HP Pavilion 3168NGW Specs: What the Label Really Means",
+  "description": "3168NGW is an Intel Wi-Fi card, not an HP laptop model. See what the card does, how to find the real Pavilion model and which specs to check before buying used.",
+  "h1": "HP Pavilion 3168NGW specs: what the name covers and what to check before you buy",
+  "eyebrow": "Buying used electronics",
+  "intro": "There is no HP Pavilion 3168NGW laptop: 3168NGW is the label of Intel's Dual Band Wireless-AC 3168, a Wi-Fi 5 and Bluetooth 4.2 card launched in 2016 and fitted inside some HP Pavilion notebooks. A listing titled this way tells you the Wi-Fi card and nothing else. Before you compare prices, get the laptop's real product number from HP System Information or the label underneath it.",
+  "keyPoints": [
+    "**3168NGW is a Wi-Fi card.** It matches Intel's Dual Band Wireless-AC 3168 (ordering code 3168.NGWG.S), not an HP laptop model.",
+    "Intel's spec page lists the card as **Wi-Fi 5 (802.11ac), 1x1, up to 433 Mbps, Bluetooth 4.2**, launched in Q1 2016 and now discontinued.",
+    "The number that identifies the laptop is HP's **product number**. Find it with Fn + Esc (HP System Information) or on the label underneath. The PowerShell command Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name shows only the model name.",
+    "A fair price depends on the processor, RAM, storage, screen and battery of the real model. Until you know them you can't compare asking prices properly.",
+    "Check the **serial number** with HP's warranty checker before you pay. Serial number and product number are different numbers."
+  ],
+  "sections": [
+    {
+      "id": "what-is-hp-pavilion-3168ngw",
+      "title": "What is the HP Pavilion 3168NGW?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "There is no HP Pavilion 3168NGW. The name comes from **Intel's Dual Band Wireless-AC 3168**, a small Wi-Fi and Bluetooth card made by Intel. HP and other brands fitted it inside their notebooks. Intel sells the card under [ordering code 3168.NGWG.S](https://intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/ordering.html). The 3168NGW you see is that part, not a laptop."
+        },
+        {
+          "type": "p",
+          "text": "The mix-up usually starts when someone reads the name from Windows or from a sticker on the card and treats it as the laptop's model. Sellers then copy it into a listing title. A Pavilion with this card could be any of several Pavilion generations. The card says nothing about the processor, memory, storage or screen."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "A listing that gives only 3168NGW is incomplete",
+          "text": "If an ad calls the laptop a \"Pavilion 3168NGW\" and gives no other model or product number, ask the seller for a photo of the HP System Information window or the label underneath. Without that you are pricing a Wi-Fi card, not a computer."
+        }
+      ]
+    },
+    {
+      "id": "hp-pavilion-3168ngw-specification",
+      "title": "HP Pavilion 3168NGW specification: what the Wi-Fi card does",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The 3168 is an entry-level, single-antenna-stream Wi-Fi 5 card with built-in Bluetooth 4.2. It works on both 2.4 GHz and 5 GHz networks. According to Intel's product page, checked in November 2026, it launched in Q1 2016 and is now discontinued."
+        },
+        {
+          "type": "table",
+          "caption": "Intel Dual Band Wireless-AC 3168: key specifications (Intel product specifications page, checked 24 November 2026)",
+          "headers": [
+            "Specification",
+            "Intel Dual Band Wireless-AC 3168"
+          ],
+          "rows": [
+            [
+              "Wi-Fi standard",
+              "Wi-Fi 5 (802.11ac)"
+            ],
+            [
+              "Bands",
+              "2.4 GHz and 5 GHz"
+            ],
+            [
+              "Streams",
+              "1x1"
+            ],
+            [
+              "Maximum speed",
+              "433 Mbps"
+            ],
+            [
+              "Bluetooth",
+              "4.2, integrated"
+            ],
+            [
+              "Form factor",
+              "M.2 2230 (22 x 30 x 2.4 mm)"
+            ],
+            [
+              "Interfaces",
+              "Wi-Fi over PCIe, Bluetooth over USB"
+            ],
+            [
+              "Operating systems listed",
+              "Windows 11 (64-bit), Windows 10 (64-bit), Linux"
+            ],
+            [
+              "Launch and status",
+              "Q1 2016, discontinued"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Is 433 Mbps enough for a used laptop?"
+        },
+        {
+          "type": "p",
+          "text": "For browsing, video calls and streaming, 433 Mbps is enough. That is the card's theoretical top speed according to [Intel's specification page](https://www.intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/specifications.html), and real speeds are lower. Because the card is 1x1 and Wi-Fi 5, it can't use the extra speed of a newer Wi-Fi 6 router. It matters if you move large files over the home network often, and hardly at all for everyday use."
+        },
+        {
+          "type": "h3",
+          "text": "What does the card tell you about the laptop's age?"
+        },
+        {
+          "type": "p",
+          "text": "Very little. The card launched in early 2016, so the laptop was built around then or later, but it could be several years later. The real product number and the warranty record narrow the date down. The card itself doesn't."
+        }
+      ]
+    },
+    {
+      "id": "find-the-real-model",
+      "title": "How to find the real model of an HP Pavilion",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Press Fn + Esc to open HP System Information, then read the product name and product number. If that doesn't work, check the label on the bottom of the laptop. HP describes these methods in its [guide to finding your laptop model number](https://www.hp.com/hk-en/tech-takes/laptops/how-to/how-to-find-your-hp-laptop-model-number.html) (23 June 2026)."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Open HP System Information",
+              "text": "Press **Fn + Esc**. HP's own guide calls this the most reliable method on newer HP laptops. HP's [warranty-check guide](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html) also gives **Ctrl + Alt + S** for the same window."
+            },
+            {
+              "title": "Read the label",
+              "text": "Turn the laptop over. The label shows the model, the product number and the serial number. On older models with a removable battery, the label may be inside the battery compartment."
+            },
+            {
+              "title": "Use Windows if the label is worn",
+              "text": "To see the model name, open Windows PowerShell and type **Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name** ([Microsoft's Get-CimInstance reference](https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance)), or search for System Information in Windows and look at System Summary. The Windows About page may show only a generic name."
+            },
+            {
+              "title": "Write down all three numbers",
+              "text": "Note the model name (for example a Pavilion 14 or 15 series), the product number and the serial number. Ask a remote seller for a photo of the screen or label that shows them."
+            }
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Which number matters most?"
+        },
+        {
+          "type": "p",
+          "text": "The product number matters most. HP says the model number names the broad family, while the **product number identifies the exact configuration** and is the one used for drivers, warranty and support. Two laptops with the same Pavilion model name can have very different processors and memory."
+        }
+      ]
+    },
+    {
+      "id": "specs-to-verify",
+      "title": "Which specs to check on a used HP Pavilion",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Once you have the product number, check that the laptop in front of you matches it. Look at the processor, RAM, storage, screen, battery and Wi-Fi. Sellers sometimes upgrade or swap parts, which can be good or bad, so check the machine itself as well as the sticker."
+        },
+        {
+          "type": "table",
+          "caption": "What to check on a used Pavilion and where to read it",
+          "headers": [
+            "Spec",
+            "Where to check it",
+            "Why it matters for price"
+          ],
+          "rows": [
+            [
+              "Processor",
+              "Windows Settings > System > About, or Task Manager > Performance",
+              "The biggest single driver of speed and price"
+            ],
+            [
+              "RAM",
+              "Task Manager > Performance > Memory",
+              "Sticks on some models are soldered and can't be upgraded"
+            ],
+            [
+              "Storage type and size",
+              "Task Manager > Performance (SSD or HDD)",
+              "An SSD makes an older laptop feel much faster"
+            ],
+            [
+              "Screen size and resolution",
+              "Settings > System > Display",
+              "See the [14-inch vs 15.6-inch guide](/guides/14-inch-vs-15-6-inch-laptop) for the trade-off"
+            ],
+            [
+              "Battery health",
+              "Run powercfg /batteryreport in Command Prompt and compare full charge with design capacity",
+              "A worn battery is a cost you will pay soon"
+            ],
+            [
+              "Wi-Fi card",
+              "Device Manager > Network adapters",
+              "Shows whether it is the 3168 or a different card"
+            ],
+            [
+              "Warranty",
+              "HP warranty checker, by serial number",
+              "Tells you if HP still covers the laptop"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Test the Wi-Fi and Bluetooth in person",
+          "text": "Connect to a 5 GHz network and pair a phone or headphones while you are with the seller. If the 3168 card or its antenna cables are faulty, you'll find out before you pay rather than after."
+        },
+        {
+          "type": "p",
+          "text": "If you are choosing between brands, the guide to [HP vs Lenovo used laptops](/guides/hp-vs-lenovo-used-laptop) compares business lines such as EliteBook and ThinkPad with consumer models like the Pavilion."
+        }
+      ]
+    },
+    {
+      "id": "3168ngw-hp-laptop-price",
+      "title": "3168NGW HP laptop price: how to compare asking prices",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "There isn't one price for a \"3168NGW HP laptop\", because the name covers many different Pavilions. Compare asking prices only between laptops with the same or very similar product number, processor, RAM and storage. eno.vn doesn't publish a price index for laptops, so build your own comparison from live listings."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Get the product number first",
+              "text": "Use the methods above. A listing without a product number or clear photos of the specs is hard to compare."
+            },
+            {
+              "title": "Search live listings by model and specs",
+              "text": "Search for the Pavilion series and processor, not for 3168NGW. Look at current ads in the [Electronics category on eno.vn](/c/electronics) and on other marketplaces, and note several asking prices for the same configuration."
+            },
+            {
+              "title": "Adjust for condition",
+              "text": "Lower your offer for a worn battery, an HDD instead of an SSD, screen marks, missing chargers or no remaining warranty. A newer SSD or more RAM justifies a higher price."
+            },
+            {
+              "title": "Check warranty and ownership",
+              "text": "Run the serial number through HP's warranty checker and ask for the original receipt if there is one."
+            },
+            {
+              "title": "Meet and test before paying",
+              "text": "Test the laptop in a public place and pay only after the checks above. The eno.vn [safety page](/safety) covers meeting buyers and sellers."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Asking prices are what sellers hope to get, not what laptops actually sell for. Treat the middle of several like-for-like listings as your guide, not the highest one."
+        },
+        {
+          "type": "p",
+          "text": "If you are selling a Pavilion before a move, give the real product number and specs in the title. The guide to [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam) covers timing and pricing household items."
+        }
+      ]
+    },
+    {
+      "id": "check-warranty",
+      "title": "How to check the warranty on a used HP Pavilion",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Enter the laptop's serial number in HP's warranty checker. According to HP's [warranty-check guide](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html), you select your country or region, type the serial number and submit. HP points out that the serial number and the product number are different, so don't use one in place of the other."
+        },
+        {
+          "type": "p",
+          "text": "If you can't find the serial number, HP Support Assistant shows the product name, model number, serial number and warranty information when the laptop is online. A warranty record that shows a different model from the one on the desk is a reason to ask the seller questions before you buy."
+        }
+      ]
+    },
+    {
+      "id": "not-covered",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Full specifications of a particular Pavilion model: once you have the product number, HP's support site lists them.",
+            "Laptop prices in đồng: no source today gives a reliable figure for a name that covers many models, so compare live listings as described above.",
+            "Replacing or upgrading the Wi-Fi card: check compatibility for your exact product number with HP support or a repair shop before you buy a new card.",
+            "Choosing between brands: see [HP vs Lenovo used laptops](/guides/hp-vs-lenovo-used-laptop)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What is HP Pavilion 3168NGW?",
+      "a": "HP Pavilion 3168NGW is not a laptop model. The name 3168NGW refers to the Intel Dual Band Wireless-AC 3168, a Wi-Fi 5 and Bluetooth 4.2 card that Intel launched in 2016 and HP fitted inside some Pavilion notebooks. To identify the laptop itself, press Fn + Esc to open HP System Information or read the product number on the label underneath the laptop."
+    },
+    {
+      "q": "What is the price of a 3168NGW HP laptop?",
+      "a": "A 3168NGW HP laptop has no single price, because 3168NGW is the Intel Wi-Fi card fitted to many different HP Pavilion models. The price depends on the real model's processor, RAM, storage, screen, battery health and warranty. Get the HP product number first, then compare live asking prices for laptops with the same configuration."
+    },
+    {
+      "q": "How fast is the Intel 3168NGW Wi-Fi card?",
+      "a": "The Intel Dual Band Wireless-AC 3168 (3168NGW) has a maximum speed of 433 Mbps, according to Intel's specification page checked in November 2026. The card is Wi-Fi 5 (802.11ac), 1x1, works on 2.4 GHz and 5 GHz, and includes Bluetooth 4.2. Real-world speeds are lower than 433 Mbps but are enough for browsing, streaming and video calls."
+    },
+    {
+      "q": "Does the Intel Wireless-AC 3168 work with Windows 11?",
+      "a": "Yes. Intel's specification page for the Intel Dual Band Wireless-AC 3168, checked in November 2026, lists Windows 11 64-bit, Windows 10 64-bit and Linux as supported operating systems. Whether a particular HP Pavilion with the 3168 card can run Windows 11 also depends on that laptop's processor and other hardware, so check the laptop's real product number with HP."
+    },
+    {
+      "q": "How do I find the model number of my HP Pavilion laptop?",
+      "a": "The model number of an HP Pavilion laptop shows in HP System Information, which opens when you press Fn + Esc. It is also printed on the label on the bottom of the laptop, or inside the battery compartment on older models. You can also run Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name in Windows PowerShell. HP says the product number is the one to use for drivers and warranty."
+    },
+    {
+      "q": "How do I check the warranty on a used HP Pavilion?",
+      "a": "To check the warranty on a used HP Pavilion, enter its serial number in HP's online warranty checker after selecting your country or region. The serial number is printed on the label underneath the laptop and also shows in HP System Information. HP warns that the serial number and the product number are different numbers. HP Support Assistant can also show the warranty status."
+    },
+    {
+      "q": "Is the Intel 3168 Wi-Fi card still made?",
+      "a": "No. Intel lists the Dual Band Wireless-AC 3168 as discontinued, according to its product page checked in November 2026. The card launched in the first quarter of 2016 and was sold under ordering code 3168.NGWG.S. Laptops that already have the 3168 card keep working normally, and Intel's support pages for the card remain online."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Intel Dual Band Wireless-AC 3168: Product Specifications",
+      "publisher": "Intel",
+      "url": "https://www.intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/specifications.html"
+    },
+    {
+      "title": "Intel Dual Band Wireless-AC 3168: Ordering and Compliance",
+      "publisher": "Intel",
+      "url": "https://intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/ordering.html"
+    },
+    {
+      "title": "Find Your HP Laptop Model Number (4 Easy Methods + What If You Can't Find It)",
+      "publisher": "HP",
+      "url": "https://www.hp.com/hk-en/tech-takes/laptops/how-to/how-to-find-your-hp-laptop-model-number.html"
+    },
+    {
+      "title": "How to Perform an HP Warranty Check",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html"
+    },
+    {
+      "title": "Get-CimInstance (CimCmdlets)",
+      "publisher": "Microsoft",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance"
+    },
+    {
+      "title": "Windows Management Instrumentation Command-line (WMIC) removal from Windows",
+      "publisher": "Microsoft",
+      "url": "https://support.microsoft.com/en-us/kb/5067470"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "ccf52655e9577a7d01546b537a36e0cd6f2ee38c71f35485b82eb2fd0a6a1b73",
+      "w": 1672,
+      "h": 941,
+      "alt": "A flat illustration links a generic laptop to an enlarged wireless card surrounded by a circle and signal arcs.",
+      "caption": "3168NGW identifies the wireless card inside the laptop."
+    },
+    "figures": [
+      {
+        "id": "d509a69db7b1155352029bca694efa0513fee632c8495bddf530fab06562d12f",
+        "w": 1448,
+        "h": 1086,
+        "after": "find-the-real-model",
+        "alt": "An illustrated laptop shows a gear icon beside an underside view with a magnifying glass over a blank label.",
+        "caption": "Find the product number in HP System Information or on the underside label."
+      },
+      {
+        "id": "a26e26e70d3b999ca1ebfebb0f57a3836662ec7c95ebf6f63b5477971cd47c23",
+        "w": 1448,
+        "h": 1086,
+        "after": "specs-to-verify",
+        "alt": "A laptop and magnifying glass are surrounded by symbols for a processor, memory, storage and battery.",
+        "caption": "Check the laptop’s components and condition before comparing prices."
+      }
+    ]
+  }
+}

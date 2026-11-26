@@ -89,10 +89,22 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'vinpearl-theatre-ocean-city', lang: 'en', published: '2026-11-24', updated: '2026-11-26', released: '2026-11-24', reviewed: '2026-11-26', reviewedDigest: 'adf3e9857db7c0b1', pair: 'nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca' },
   { slug: 'hp-vs-lenovo-used-laptop', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '1089641c89165ddc', pair: 'nen-mua-laptop-cu-hp-hay-lenovo' },
   { slug: 'cho-thue-can-ho-tphcm', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '27240973d880f652', pair: 'apartments-for-rent-ho-chi-minh-city-by-district' },
-  { slug: 'apartments-for-rent-ho-chi-minh-city-by-district', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '747fcab97182585c', pair: 'cho-thue-can-ho-tphcm' },
+  { slug: 'apartments-for-rent-ho-chi-minh-city-by-district', lang: 'en', published: '2026-11-24', updated: '2026-11-26', released: '2026-11-24', reviewed: '2026-11-26', reviewedDigest: '68462dac155d580c', pair: 'cho-thue-can-ho-tphcm' },
   { slug: '14-inch-vs-15-6-inch-laptop', lang: 'en', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '7bec54ae612973a7', pair: 'nen-mua-laptop-14-inch-hay-15-6-inch' },
   { slug: 'nen-mua-laptop-14-inch-hay-15-6-inch', lang: 'vi', published: '2026-11-24', updated: '2026-11-26', released: '2026-11-24', reviewed: '2026-11-26', reviewedDigest: '3522b0f7b1e97805', pair: '14-inch-vs-15-6-inch-laptop' },
   { slug: 'nen-mua-laptop-cu-hp-hay-lenovo', lang: 'vi', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '23db10ad2b5ed461', pair: 'hp-vs-lenovo-used-laptop' },
+  { slug: 'mau-sac-samsung-s26-ultra', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '5346500cb1fde0b2', pair: 'samsung-galaxy-s26-ultra-colors' },
+  { slug: 'kich-thuoc-laptop-14-inch-bao-nhieu-cm', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '87f34440718c4b9b', pair: 'how-big-is-a-14-inch-laptop' },
+  { slug: 'freedos-laptop', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'dc1d7275edc2a9b8', pair: 'laptop-free-dos-co-nen-mua' },
+  { slug: 'nen-mua-dell-inspiron-hay-vostro', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '3be0cd5f4f2b1346', pair: 'dell-inspiron-vs-vostro' },
+  { slug: 'dell-inspiron-vs-vostro', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '482f01f4ed25bfe3', pair: 'nen-mua-dell-inspiron-hay-vostro' },
+  { slug: '55-inch-4k-tv-price-vietnam', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'fc0904dbd4ba8b08', pair: 'mua-tivi-4k-55-inch' },
+  { slug: 'how-big-is-a-14-inch-laptop', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'a229e81db1ea312e', pair: 'kich-thuoc-laptop-14-inch-bao-nhieu-cm' },
+  { slug: 'hp-pavilion-3168ngw-la-gi-cau-hinh-gia', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'ee7eb82741c33e7b', pair: 'hp-pavilion-3168ngw-specs' },
+  { slug: 'hp-pavilion-3168ngw-specs', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '2a1ff008897d3242', pair: 'hp-pavilion-3168ngw-la-gi-cau-hinh-gia' },
+  { slug: 'laptop-free-dos-co-nen-mua', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '8921f572c2a89180', pair: 'freedos-laptop' },
+  { slug: 'mua-tivi-4k-55-inch', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '093d9b074854652e', pair: '55-inch-4k-tv-price-vietnam' },
+  { slug: 'samsung-galaxy-s26-ultra-colors', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '77c622b928d0f2c4', pair: 'mau-sac-samsung-s26-ultra' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

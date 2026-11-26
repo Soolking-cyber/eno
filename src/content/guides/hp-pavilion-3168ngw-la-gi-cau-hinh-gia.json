@@ -1,0 +1,355 @@
+{
+  "slug": "hp-pavilion-3168ngw-la-gi-cau-hinh-gia",
+  "title": "HP Pavilion 3168NGW là gì? Cấu hình và cách xem giá",
+  "description": "3168NGW là card Wi-Fi Intel, không phải tên laptop HP. Xem thông số card, cách tìm đúng mã máy Pavilion và những gì cần kiểm tra trước khi mua máy cũ.",
+  "h1": "HP Pavilion 3168NGW: cái tên này thực ra là gì và cần kiểm tra gì trước khi mua máy cũ",
+  "eyebrow": "Mua đồ điện tử cũ",
+  "intro": "Không có laptop nào tên HP Pavilion 3168NGW: 3168NGW là ký hiệu của card Intel Dual Band Wireless-AC 3168, card Wi-Fi 5 kèm Bluetooth 4.2 ra mắt năm 2016 và được lắp trong một số máy HP Pavilion. Tin đăng ghi tên này chỉ cho bạn biết máy dùng card Wi-Fi nào. Trước khi so giá, hãy lấy mã sản phẩm thật của máy trong HP System Information hoặc trên nhãn dán dưới đáy máy.",
+  "keyPoints": [
+    "**3168NGW là card Wi-Fi, không phải mã laptop.** Đây là card Intel Dual Band Wireless-AC 3168, mã đặt hàng 3168.NGWG.S.",
+    "Theo trang thông số của Intel, card này chuẩn **Wi-Fi 5 (802.11ac), 1x1, tối đa 433 Mbps, Bluetooth 4.2**, ra mắt quý 1/2016 và đã ngừng sản xuất.",
+    "Con số xác định đúng chiếc laptop là **mã sản phẩm (product number)** của HP. Tìm bằng Fn + Esc hoặc trên nhãn dưới đáy máy. Lệnh PowerShell Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name chỉ cho biết tên mẫu máy.",
+    "Giá hợp lý phụ thuộc vào CPU, RAM, ổ cứng, màn hình và pin của đúng mẫu máy đó. Chưa biết những thứ này thì chưa so giá được.",
+    "Tra **số serial** trên trang kiểm tra bảo hành của HP trước khi trả tiền. Số serial và mã sản phẩm là hai số khác nhau."
+  ],
+  "sections": [
+    {
+      "id": "hp-pavilion-3168ngw-la-gi",
+      "title": "HP Pavilion 3168NGW là máy gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "HP Pavilion 3168NGW không phải là một mẫu laptop. Cái tên này đến từ **Intel Dual Band Wireless-AC 3168**, một card Wi-Fi và Bluetooth nhỏ do Intel sản xuất. HP và nhiều hãng khác lắp nó vào laptop của mình. Intel bán card này với [mã đặt hàng 3168.NGWG.S](https://intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/ordering.html), nên chữ 3168NGW bạn thấy chính là linh kiện đó."
+        },
+        {
+          "type": "p",
+          "text": "Thường thì người dùng đọc thấy tên này trong Windows hoặc trên tem dán của card rồi tưởng đó là tên máy. Người bán chép nguyên vào tiêu đề tin đăng. Máy Pavilion có card này có thể thuộc nhiều đời Pavilion khác nhau, còn bản thân card không nói gì về CPU, RAM, ổ cứng hay màn hình."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Tin đăng chỉ ghi 3168NGW là tin thiếu thông tin",
+          "text": "Nếu tin rao ghi \"Pavilion 3168NGW\" mà không có tên mẫu hay mã sản phẩm nào khác, hãy xin người bán ảnh chụp cửa sổ HP System Information hoặc nhãn dưới đáy máy. Không có những thông tin đó thì bạn đang định giá một chiếc card Wi-Fi, không phải một chiếc máy tính."
+        }
+      ]
+    },
+    {
+      "id": "cau-hinh-hp-pavilion-3168ngw",
+      "title": "Cấu hình 3168NGW: card Wi-Fi này làm được gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Intel 3168 là card Wi-Fi 5 phổ thông, một luồng (1x1), có sẵn Bluetooth 4.2 và chạy được cả mạng 2,4 GHz lẫn 5 GHz. Theo trang sản phẩm của Intel, kiểm tra ngày 24/11/2026, card ra mắt quý 1/2016 và đã ngừng sản xuất."
+        },
+        {
+          "type": "table",
+          "caption": "Thông số chính của Intel Dual Band Wireless-AC 3168 (theo trang thông số của Intel, kiểm tra ngày 24/11/2026)",
+          "headers": [
+            "Thông số",
+            "Intel Dual Band Wireless-AC 3168"
+          ],
+          "rows": [
+            [
+              "Chuẩn Wi-Fi",
+              "Wi-Fi 5 (802.11ac)"
+            ],
+            [
+              "Băng tần",
+              "2,4 GHz và 5 GHz"
+            ],
+            [
+              "Số luồng",
+              "1x1"
+            ],
+            [
+              "Tốc độ tối đa",
+              "433 Mbps"
+            ],
+            [
+              "Bluetooth",
+              "4.2, tích hợp"
+            ],
+            [
+              "Kích thước",
+              "M.2 2230 (22 x 30 x 2,4 mm)"
+            ],
+            [
+              "Giao tiếp",
+              "Wi-Fi qua PCIe, Bluetooth qua USB"
+            ],
+            [
+              "Hệ điều hành được liệt kê",
+              "Windows 11 (64-bit), Windows 10 (64-bit), Linux"
+            ],
+            [
+              "Ra mắt và tình trạng",
+              "Quý 1/2016, đã ngừng sản xuất"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Tốc độ 433 Mbps có đủ dùng không?"
+        },
+        {
+          "type": "p",
+          "text": "Để lướt web, họp video và xem phim thì 433 Mbps là đủ. Đây là tốc độ lý thuyết tối đa theo [trang thông số của Intel](https://www.intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/specifications.html), còn tốc độ thực tế sẽ thấp hơn. Vì là card 1x1 chuẩn Wi-Fi 5, máy không tận dụng được tốc độ của router Wi-Fi 6 đời mới. Điều này chỉ đáng lo nếu bạn hay chép file lớn qua mạng nội bộ."
+        },
+        {
+          "type": "h3",
+          "text": "Card Wi-Fi có cho biết máy đời nào không?"
+        },
+        {
+          "type": "p",
+          "text": "Card chỉ cho biết rất ít. Card ra mắt đầu năm 2016 nên máy được sản xuất từ đó trở về sau, có thể muộn hơn vài năm. Muốn biết chính xác đời máy, bạn cần mã sản phẩm thật và thông tin bảo hành."
+        }
+      ]
+    },
+    {
+      "id": "cach-xem-ma-may-hp-pavilion",
+      "title": "Cách xem mã máy laptop HP Pavilion",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nhấn Fn + Esc để mở HP System Information rồi đọc tên sản phẩm và mã sản phẩm. Nếu cách này không được, xem nhãn dán dưới đáy máy. HP hướng dẫn các cách này trong [bài tìm mã laptop HP](https://www.hp.com/hk-en/tech-takes/laptops/how-to/how-to-find-your-hp-laptop-model-number.html) đăng ngày 23/6/2026."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Mở HP System Information",
+              "text": "Nhấn **Fn + Esc**. Theo [hướng dẫn kiểm tra bảo hành của HP](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html), bạn cũng có thể giữ **Ctrl + Alt + S** để mở cửa sổ này."
+            },
+            {
+              "title": "Đọc nhãn dưới đáy máy",
+              "text": "Lật máy lại để xem nhãn ghi tên mẫu, mã sản phẩm và số serial. Ở máy đời cũ có pin tháo rời, nhãn có thể nằm trong khoang pin."
+            },
+            {
+              "title": "Dùng Windows nếu nhãn bị mờ",
+              "text": "Để xem tên mẫu máy, tìm PowerShell trong menu Start, mở lên rồi chạy lệnh **Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name**. Lệnh wmic cũ không còn chạy trên các bản Windows 11 đang được hỗ trợ, theo [thông báo của Microsoft](https://support.microsoft.com/en-gb/topic/windows-management-instrumentation-command-line-wmic-removal-from-windows-e9e83c7f-4992-477f-ba1d-96f694b8665d). Hoặc tìm System Information trong Windows và xem dòng System Model ở mục System Summary."
+            },
+            {
+              "title": "Ghi lại đủ ba số",
+              "text": "Ghi tên mẫu (ví dụ một dòng Pavilion 14 hoặc 15), mã sản phẩm và số serial. Nếu mua qua mạng, hãy xin người bán ảnh chụp màn hình hoặc nhãn có ghi các số này."
+            }
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Số nào quan trọng nhất khi mua máy cũ?"
+        },
+        {
+          "type": "p",
+          "text": "Mã sản phẩm là quan trọng nhất. Theo HP, model number chỉ cho biết dòng máy, còn **mã sản phẩm xác định đúng cấu hình** và là số dùng để tải driver, tra bảo hành và nhờ hỗ trợ. Hai máy cùng tên Pavilion có thể khác hẳn nhau về CPU và RAM."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-laptop-hp-cu",
+      "title": "Cần kiểm tra những gì khi mua laptop HP Pavilion cũ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Khi đã có mã sản phẩm, hãy kiểm tra xem chiếc máy trước mặt có khớp với mã đó không: CPU, RAM, ổ cứng, màn hình, pin và card Wi-Fi. Người bán đôi khi đã nâng cấp hoặc thay linh kiện, có thể tốt hoặc không, nên hãy kiểm tra máy thật chứ đừng chỉ đọc nhãn."
+        },
+        {
+          "type": "table",
+          "caption": "Những mục cần kiểm tra trên máy Pavilion cũ và nơi xem trong Windows",
+          "headers": [
+            "Mục",
+            "Xem ở đâu",
+            "Ảnh hưởng đến giá"
+          ],
+          "rows": [
+            [
+              "CPU",
+              "Settings > System > About, hoặc Task Manager > Performance",
+              "Yếu tố lớn nhất quyết định tốc độ và giá"
+            ],
+            [
+              "RAM",
+              "Task Manager > Performance > Memory",
+              "Một số mẫu hàn RAM trên bo mạch, không nâng cấp được"
+            ],
+            [
+              "Loại và dung lượng ổ cứng",
+              "Task Manager > Performance (SSD hay HDD)",
+              "Có SSD thì máy cũ chạy nhanh hơn rõ rệt"
+            ],
+            [
+              "Kích thước và độ phân giải màn hình",
+              "Settings > System > Display",
+              "Xem bài [nên mua laptop 14 inch hay 15.6 inch](/huong-dan/nen-mua-laptop-14-inch-hay-15-6-inch)"
+            ],
+            [
+              "Độ chai pin",
+              "Chạy lệnh powercfg /batteryreport trong Command Prompt, so dung lượng sạc đầy với dung lượng thiết kế",
+              "Pin chai là khoản bạn sẽ sớm phải chi"
+            ],
+            [
+              "Card Wi-Fi",
+              "Device Manager > Network adapters",
+              "Cho biết máy dùng card 3168 hay card khác"
+            ],
+            [
+              "Bảo hành",
+              "Trang kiểm tra bảo hành của HP, theo số serial",
+              "Cho biết HP còn bảo hành máy hay không"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Thử Wi-Fi và Bluetooth ngay tại chỗ",
+          "text": "Kết nối vào một mạng 5 GHz và ghép đôi với điện thoại hoặc tai nghe khi đang gặp người bán. Nếu card 3168 hoặc dây ăng-ten bị lỗi, bạn sẽ biết trước khi trả tiền."
+        },
+        {
+          "type": "p",
+          "text": "Nếu còn phân vân giữa các hãng, bài [nên mua laptop cũ HP hay Lenovo](/huong-dan/nen-mua-laptop-cu-hp-hay-lenovo) so sánh các dòng doanh nhân như EliteBook, ThinkPad với dòng phổ thông như Pavilion."
+        }
+      ]
+    },
+    {
+      "id": "gia-laptop-hp-3168ngw",
+      "title": "Giá laptop HP 3168NGW: so giá rao bán thế nào cho đúng?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Không có một mức giá chung cho \"laptop HP 3168NGW\", vì cái tên này gồm rất nhiều mẫu Pavilion khác nhau. Chỉ so giá giữa những máy có cùng hoặc gần giống mã sản phẩm, CPU, RAM và ổ cứng. eno.vn không công bố bảng giá laptop, nên bạn tự lập bảng so sánh từ các tin đang rao."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Lấy mã sản phẩm trước",
+              "text": "Dùng các cách ở phần trên. Tin không có mã sản phẩm hay ảnh chụp cấu hình rõ ràng thì khó so sánh."
+            },
+            {
+              "title": "Tìm tin rao theo dòng máy và cấu hình",
+              "text": "Tìm theo dòng Pavilion và tên CPU, đừng tìm theo chữ 3168NGW. Xem các tin đang đăng trong [mục Đồ điện tử trên eno.vn](/c/electronics) và các chợ khác, ghi lại vài mức giá của cùng một cấu hình."
+            },
+            {
+              "title": "Trừ giá theo tình trạng máy",
+              "text": "Trả thấp hơn nếu pin chai, dùng HDD thay vì SSD, màn hình có vết, thiếu sạc hoặc hết bảo hành. Máy đã lắp SSD mới hoặc thêm RAM thì đáng giá hơn."
+            },
+            {
+              "title": "Kiểm tra bảo hành và nguồn gốc",
+              "text": "Tra số serial trên trang bảo hành của HP và hỏi xin hóa đơn mua gốc nếu còn."
+            },
+            {
+              "title": "Gặp mặt và thử máy trước khi trả tiền",
+              "text": "Thử máy ở nơi công cộng và chỉ trả tiền sau khi đã kiểm tra xong các mục trên. Trang [an toàn khi mua bán](/safety) của eno.vn có lưu ý khi gặp người mua, người bán."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Giá rao là giá người bán mong muốn, không phải giá máy thực sự bán được. Hãy lấy mức ở giữa của vài tin cùng cấu hình làm mốc, đừng lấy mức cao nhất."
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn là người bán, hãy ghi mã sản phẩm thật và cấu hình vào tiêu đề tin thay vì chữ 3168NGW. Người mua tìm theo tên dòng máy và CPU sẽ thấy tin của bạn dễ hơn."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-bao-hanh-hp",
+      "title": "Cách kiểm tra bảo hành laptop HP Pavilion cũ",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nhập số serial của máy vào trang kiểm tra bảo hành của HP. Theo [hướng dẫn của HP](https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html), bạn chọn quốc gia hoặc khu vực, nhập số serial rồi bấm Check Warranty. HP lưu ý số serial và mã sản phẩm là hai số khác nhau, đừng nhập nhầm."
+        },
+        {
+          "type": "p",
+          "text": "Nếu không tìm thấy số serial, ứng dụng HP Support Assistant hiển thị tên sản phẩm, model, số serial và thông tin bảo hành khi máy có kết nối Internet. Nếu thông tin bảo hành ghi một mẫu máy khác với chiếc đang đặt trước mặt, hãy hỏi lại người bán trước khi mua."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Cấu hình đầy đủ của từng mẫu Pavilion: khi đã có mã sản phẩm, trang hỗ trợ của HP liệt kê thông số chi tiết.",
+            "Giá laptop bằng tiền đồng: hôm nay không có nguồn nào cho con số đáng tin cho một cái tên gồm nhiều mẫu máy, nên hãy so giá rao như hướng dẫn ở trên.",
+            "Thay hoặc nâng cấp card Wi-Fi: hỏi bộ phận hỗ trợ của HP hoặc tiệm sửa máy xem card mới có tương thích với đúng mã sản phẩm của bạn không trước khi mua.",
+            "Chọn hãng laptop: xem bài [nên mua laptop cũ HP hay Lenovo](/huong-dan/nen-mua-laptop-cu-hp-hay-lenovo)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "HP Pavilion 3168NGW là gì?",
+      "a": "HP Pavilion 3168NGW không phải tên một mẫu laptop. Chữ 3168NGW là ký hiệu của card Intel Dual Band Wireless-AC 3168, card Wi-Fi 5 kèm Bluetooth 4.2 do Intel ra mắt năm 2016 và được HP lắp trong một số máy Pavilion. Muốn biết đúng chiếc laptop, hãy nhấn Fn + Esc để mở HP System Information hoặc đọc mã sản phẩm trên nhãn dưới đáy máy."
+    },
+    {
+      "q": "Laptop HP 3168NGW giá bao nhiêu?",
+      "a": "Laptop HP 3168NGW không có một mức giá chung, vì 3168NGW là card Wi-Fi Intel lắp trong nhiều mẫu HP Pavilion khác nhau. Giá phụ thuộc vào CPU, RAM, ổ cứng, màn hình, độ chai pin và thời hạn bảo hành của đúng mẫu máy. Hãy lấy mã sản phẩm HP trước, rồi so giá rao của những máy có cùng cấu hình."
+    },
+    {
+      "q": "Card Wi-Fi Intel 3168NGW tốc độ bao nhiêu?",
+      "a": "Card Intel Dual Band Wireless-AC 3168 (3168NGW) có tốc độ tối đa 433 Mbps, theo trang thông số của Intel kiểm tra tháng 11/2026. Card chuẩn Wi-Fi 5 (802.11ac), một luồng 1x1, chạy băng tần 2,4 GHz và 5 GHz, có Bluetooth 4.2. Tốc độ thực tế thấp hơn 433 Mbps nhưng vẫn đủ để lướt web, xem phim và họp video."
+    },
+    {
+      "q": "Card Intel Wireless-AC 3168 có chạy được Windows 11 không?",
+      "a": "Có. Trang thông số của Intel cho card Intel Dual Band Wireless-AC 3168, kiểm tra tháng 11/2026, liệt kê Windows 11 64-bit, Windows 10 64-bit và Linux là các hệ điều hành được hỗ trợ. Tuy nhiên, một chiếc HP Pavilion có card 3168 có lên được Windows 11 hay không còn tùy CPU và phần cứng khác của máy, nên cần tra đúng mã sản phẩm với HP."
+    },
+    {
+      "q": "Cách xem model laptop HP Pavilion?",
+      "a": "Model laptop HP Pavilion hiển thị trong HP System Information, mở bằng cách nhấn Fn + Esc. Tên mẫu và mã sản phẩm cũng in trên nhãn dưới đáy máy, hoặc trong khoang pin ở máy đời cũ. Bạn cũng có thể chạy lệnh Get-CimInstance Win32_ComputerSystemProduct | Select-Object Name trong PowerShell. Theo HP, mã sản phẩm là số dùng để tải driver và tra bảo hành."
+    },
+    {
+      "q": "Kiểm tra bảo hành laptop HP cũ như thế nào?",
+      "a": "Để kiểm tra bảo hành laptop HP Pavilion cũ, nhập số serial của máy vào trang kiểm tra bảo hành trực tuyến của HP sau khi chọn quốc gia hoặc khu vực. Số serial in trên nhãn dưới đáy máy và hiện trong HP System Information. HP lưu ý số serial và mã sản phẩm là hai số khác nhau. Ứng dụng HP Support Assistant cũng xem được tình trạng bảo hành."
+    },
+    {
+      "q": "Card Wi-Fi Intel 3168 còn sản xuất không?",
+      "a": "Không. Theo trang sản phẩm của Intel kiểm tra tháng 11/2026, card Intel Dual Band Wireless-AC 3168 đã ngừng sản xuất. Card này ra mắt quý 1 năm 2016 và được bán với mã đặt hàng 3168.NGWG.S. Những laptop đang dùng card 3168 vẫn hoạt động bình thường, và trang thông số của card vẫn còn trên website Intel."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Intel Dual Band Wireless-AC 3168: Product Specifications",
+      "publisher": "Intel",
+      "url": "https://www.intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/specifications.html"
+    },
+    {
+      "title": "Intel Dual Band Wireless-AC 3168: Ordering and Compliance",
+      "publisher": "Intel",
+      "url": "https://intel.com/content/www/us/en/products/sku/94854/intel-dual-band-wirelessac-3168/ordering.html"
+    },
+    {
+      "title": "Find Your HP Laptop Model Number (4 Easy Methods + What If You Can't Find It)",
+      "publisher": "HP",
+      "url": "https://www.hp.com/hk-en/tech-takes/laptops/how-to/how-to-find-your-hp-laptop-model-number.html"
+    },
+    {
+      "title": "How to Perform an HP Warranty Check",
+      "publisher": "HP",
+      "url": "https://www.hp.com/gb-en/tech-takes/laptops/how-to/hp-warranty-check.html"
+    },
+    {
+      "title": "Windows Management Instrumentation Command-line (WMIC) removal from Windows",
+      "publisher": "Microsoft",
+      "url": "https://support.microsoft.com/en-gb/topic/windows-management-instrumentation-command-line-wmic-removal-from-windows-e9e83c7f-4992-477f-ba1d-96f694b8665d"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "ccf52655e9577a7d01546b537a36e0cd6f2ee38c71f35485b82eb2fd0a6a1b73",
+      "w": 1672,
+      "h": 941,
+      "alt": "Minh họa phẳng nối một máy tính xách tay với thẻ Wi-Fi phóng lớn trong vòng tròn có các cung sóng.",
+      "caption": "3168NGW là mã thẻ Wi-Fi bên trong máy tính."
+    }
+  }
+}

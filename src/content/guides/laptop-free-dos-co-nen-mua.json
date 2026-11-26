@@ -1,0 +1,357 @@
+{
+  "slug": "laptop-free-dos-co-nen-mua",
+  "title": "Laptop DOS không kèm Windows có nên mua? (2026)",
+  "description": "Laptop cài sẵn DOS thiếu gì, cài Windows 11 cần gì, key Windows 11 Home ở Thế Giới Di Động, Meta.vn, FPT Shop giá bao nhiêu (11/2026) và khi nào mua mới lợi.",
+  "h1": "Laptop bán kèm DOS thay vì Windows: mua để tiết kiệm hay tự rước thêm việc?",
+  "eyebrow": "Mua laptop",
+  "intro": "Laptop Free DOS là máy bán ra không kèm Windows, nên bạn phải tự cài Windows 11 hoặc Linux và tự mua bản quyền Windows. Máy chỉ thật sự rẻ hơn khi khoản chênh với bản cài sẵn Windows lớn hơn giá key Windows 11 Home (xem bảng giá bên dưới), hoặc khi bạn dùng Linux. Để cài, bạn cần một USB từ 8 GB, mạng internet và khoảng một đến hai tiếng.",
+  "keyPoints": [
+    "**FreeDOS không phải Windows miễn phí.** Đây là hệ điều hành mã nguồn mở tương thích DOS của dự án FreeDOS. Nó chỉ chạy được phần mềm và game DOS cũ, không chạy được trình duyệt, Zoom hay Office.",
+    "Ngày 25/11/2026, theo giá gốc chưa tính khuyến mãi, key Windows 11 Home cho một máy được ba nhà bán lẻ Việt Nam niêm yết ở mức {{vnd:3890000-4890000}}. Laptop Free DOS chỉ lợi hơn khi rẻ hơn bản Windows quá giá key bạn sẽ trả.",
+    "Theo Microsoft, **bạn phải có bản quyền thì mới cài được Windows 11**. Tải bộ cài thì không mất tiền, nhưng kích hoạt thì phải trả.",
+    "Lần thiết lập đầu tiên, Windows 11 Home đòi có internet và tài khoản Microsoft. Máy cũng phải có TPM 2.0, Secure Boot, RAM 4 GB và bộ nhớ 64 GB.",
+    "Đừng cài Windows 10, vì Microsoft đã ngừng hỗ trợ từ ngày 14/10/2025.",
+    "Ubuntu 26.04.1 LTS miễn phí và được cập nhật bảo mật 5 năm. Nếu bạn làm việc chủ yếu trên trình duyệt thì Ubuntu là lựa chọn hợp lý."
+  ],
+  "sections": [
+    {
+      "id": "laptop-free-dos-la-gi",
+      "title": "Laptop Free DOS là gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Laptop Free DOS là máy mới, bán ra không có hệ điều hành dùng được hằng ngày. Hãng chỉ cài sẵn FreeDOS hoặc để trống ổ cứng, nhờ vậy cửa hàng không phải trả tiền bản quyền Windows. **FreeDOS** là hệ điều hành mã nguồn mở, tương thích DOS, do nhóm tình nguyện viên FreeDOS Project phát triển. Theo [trang chủ FreeDOS](https://www.freedos.org/), tính đến tháng 11/2026 bản mới nhất là FreeDOS 1.4. Hệ điều hành này dùng để chơi game DOS cổ, chạy phần mềm DOS cũ và viết chương trình cho DOS."
+        },
+        {
+          "type": "p",
+          "text": "Khi bật máy, bạn chỉ thấy màn hình đen với dấu nhắc lệnh, hoặc màn hình BIOS/UEFI. Máy không có trình duyệt, không có menu Wi-Fi, cũng không có Office. Bài giải thích của [FPT Shop](https://fptshop.com.vn/tin-tuc/tin-moi/doi-net-ve-he-dieu-hanh-freedos-va-su-khac-biet-so-voi-windows-122722) gọi laptop FreeDOS là máy \"không được cài sẵn bất kì hệ điều hành nào khi bán ra, để có giá rẻ hơn\". Bài này cũng cho rằng FreeDOS hợp với việc cứu hộ, sửa lỗi hay cài lại Windows hơn là dùng hằng ngày."
+        },
+        {
+          "type": "p",
+          "text": "Phần cứng của bản Free DOS giống hệt bản cài Windows cùng mẫu. [Điện Máy Xanh](https://www.dienmayxanh.com/kinh-nghiem-hay/he-dieu-hanh-free-dos-la-gi-co-nen-mua-laptop-free-dos-1547890) (bài cập nhật ngày 24/09/2023) cũng nói vậy: hai bản chỉ khác nhau ở bản quyền, linh kiện thì như nhau. Trước khi so giá, hãy kiểm tra hai bản có cùng mã máy, CPU, RAM và ổ cứng không."
+        }
+      ]
+    },
+    {
+      "id": "phai-tu-cai-nhung-gi",
+      "title": "Mua laptop Free DOS về phải tự cài những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn phải tự cài toàn bộ hệ điều hành, driver và phần mềm. Nếu chọn Windows 11, bạn còn phải mua key và nhập key để kích hoạt. [Trang tải Windows 11 của Microsoft](https://www.microsoft.com/en-us/software-download/windows11) có công cụ Media Creation Tool để tạo USB cài đặt từ một USB trống dung lượng ít nhất 8 GB. Mọi dữ liệu trên USB đó sẽ bị xoá. Cũng trên trang này, Microsoft ghi rõ bạn \"first need a license to install Windows 11\", tức là phải có bản quyền trước rồi mới cài được Windows 11."
+        },
+        {
+          "type": "h3",
+          "text": "Laptop Free DOS có chạy được Windows 11 không?"
+        },
+        {
+          "type": "p",
+          "text": "Phần lớn laptop mới chạy được, nhưng bạn nên đối chiếu với [cấu hình tối thiểu của Windows 11](https://www.microsoft.com/en-us/windows/windows-11-specifications) trước khi trả tiền. Mức tối thiểu gồm: CPU 64-bit tương thích, ít nhất 2 nhân, xung từ 1 GHz; RAM 4 GB; bộ nhớ 64 GB; firmware UEFI có Secure Boot; TPM 2.0; card đồ hoạ hỗ trợ DirectX 12 với driver WDDM 2.0; màn hình HD 720p lớn hơn 9 inch. Microsoft cũng cho biết Windows 11 Home và Windows 11 Pro bản cá nhân cần internet và tài khoản Microsoft trong lần thiết lập đầu tiên."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Mua key trước",
+              "text": "Mua key Windows 11 Home dùng cho một máy ở nhà bán lẻ, hoặc dùng bản quyền bạn đã có. Key Home không kích hoạt được bản Pro, và key Pro cũng không kích hoạt được bản Home."
+            },
+            {
+              "title": "Tạo USB cài đặt trên một máy khác",
+              "text": "Chạy Media Creation Tool của Microsoft để ghi Windows 11 vào một USB trống từ 8 GB trở lên. Lưu ý công cụ này chỉ tạo được bộ cài cho máy dùng chip x64."
+            },
+            {
+              "title": "Tải sẵn driver mạng",
+              "text": "Vào trang hỗ trợ của hãng, tìm đúng mã máy của bạn và chép driver Wi-Fi hoặc driver mạng vào chính chiếc USB đó. Bước thiết lập cần internet, nên đừng để mình kẹt vì máy không nhận mạng."
+            },
+            {
+              "title": "Khởi động từ USB",
+              "text": "Cắm USB, mở boot menu của laptop rồi chọn ổ USB. Nếu không thấy USB trong danh sách, vào BIOS/UEFI kiểm tra xem chế độ khởi động UEFI và Secure Boot đã bật chưa."
+            },
+            {
+              "title": "Cài đặt, đăng nhập và kích hoạt",
+              "text": "Khi được hỏi cài vào đâu, hãy xoá các phân vùng FreeDOS. Sau đó kết nối Wi-Fi, đăng nhập tài khoản Microsoft và nhập key. Xong thì vào Start > Settings > System > Activation để kiểm tra."
+            },
+            {
+              "title": "Hoàn tất",
+              "text": "Chạy Windows Update cho đến khi không còn bản cập nhật nào, cài nốt driver và tiện ích của hãng, rồi mới cài phần mềm bạn cần."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Tải được Windows không có nghĩa là có bản quyền",
+          "text": "Theo [trang hỗ trợ kích hoạt của Microsoft](https://support.microsoft.com/en-us/windows/activate-windows-c39005d4-95ee-b91e-b399-2820fda32227), kích hoạt là gắn product key hoặc bản quyền số với phần cứng của máy. Bản quyền số đi theo phần cứng, vì vậy đừng mặc định rằng Windows có sẵn trên laptop cũ sẽ chuyển được sang máy mới. Nếu máy chưa kích hoạt, trang Activation sẽ báo chưa kích hoạt kèm thông báo lỗi, và có thể bạn phải mua bản quyền."
+        }
+      ]
+    },
+    {
+      "id": "tiet-kiem-duoc-bao-nhieu",
+      "title": "Mua laptop Free DOS tiết kiệm được bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu bạn cần Windows, số tiền thật sự tiết kiệm được bằng khoản chênh giữa hai bản máy trừ đi giá key Windows 11 Home. Ngày 25/11/2026, theo giá gốc chưa tính khuyến mãi, ba nhà bán lẻ dưới đây niêm yết key này ở mức {{vnd:3890000-4890000}} cho một máy. Nếu bản Free DOS chỉ rẻ hơn bản Windows chưa tới giá key bạn sẽ trả thì tính cả tiền key, bạn còn tốn hơn, chưa kể phải tự cài."
+        },
+        {
+          "type": "table",
+          "caption": "Giá key Windows 11 Home cho một máy, theo trang sản phẩm của từng nhà bán lẻ ngày 25/11/2026",
+          "headers": [
+            "Nhà bán lẻ",
+            "Tên sản phẩm",
+            "Giá",
+            "Hình thức"
+          ],
+          "rows": [
+            [
+              "[Thế Giới Di Động](https://www.thegioididong.com/phan-mem/microsoft-windows-11-home-64-bit-chinh-hang)",
+              "Microsoft Windows 11 Home 64-bit chính hãng",
+              "{{vnd:4890000}} (giá gốc). Ví dụ khuyến mãi: ngày 25/11/2026 trang bán {{vnd:3490000}}, ghi áp dụng đến 23:59 ngày 30/11",
+              "Bản quyền vĩnh viễn cho 1 thiết bị"
+            ],
+            [
+              "[Meta.vn](https://meta.vn/phan-mem-microsoft-windows-home-11-64bit-esd-kw9-00664-p122565)",
+              "Windows Home 11 64bit ESD KW9-00664",
+              "{{vnd:3690000}}, đã gồm VAT (giảm 8% từ giá gốc {{vnd:3990000}}, trang không ghi ngày kết thúc)",
+              "Key điện tử, vĩnh viễn, 1 máy"
+            ],
+            [
+              "[FPT Shop](https://fptshop.com.vn/phan-mem/key-online-windows-11-home-32bit64bit-fpp)",
+              "Key-online Windows 11 Home 32bit/64bit FPP",
+              "{{vnd:3890000}}",
+              "Một product key cho một tài khoản trên một thiết bị, vĩnh viễn"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Giá key thay đổi theo đợt khuyến mãi, nên hãy kiểm tra lại đúng ngày bạn mua. Khoản chênh giữa bản Free DOS và bản Windows cũng khác nhau tùy mẫu máy và cửa hàng. Bài của Điện Máy Xanh có một ví dụ cũ: cùng cấu hình Asus A456UA, bản cài Windows 10 giá {{vnd:12490000}}, bản không hệ điều hành giá {{vnd:9990000}}. Mẫu máy này đã ngừng bán từ lâu, nên chỉ nên dùng ví dụ này để hiểu cách tính."
+        },
+        {
+          "type": "h3",
+          "text": "Khi nào mua Free DOS mới thật sự lợi?"
+        },
+        {
+          "type": "p",
+          "text": "Có ba trường hợp mua bản Free DOS thật sự lợi: bạn định dùng Linux (không mất tiền), bạn đã có sẵn bản quyền Windows được phép chuyển sang máy khác, hoặc khoản chênh rõ ràng lớn hơn giá key ở bảng trên. Ngoài ba trường hợp đó, bản cài sẵn Windows thường đáng tiền hơn, vì Windows đã được kích hoạt và cửa hàng đã cài đặt giúp bạn."
+        }
+      ]
+    },
+    {
+      "id": "co-nen-mua-laptop-free-dos",
+      "title": "Có nên mua laptop Free DOS không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nên mua nếu bạn tự cài được hệ điều hành, và hoặc bạn muốn dùng Linux, hoặc bạn đã tính ra mua bản Free DOS rồi mua thêm key Windows vẫn rẻ hơn. Không nên mua nếu sáng mai bạn đã cần máy để học online hay làm việc mà chưa từng tự cài Windows."
+        },
+        {
+          "type": "table",
+          "caption": "Nên chọn bản Free DOS hay bản cài sẵn Windows (giá key theo niêm yết ngày 25/11/2026, theo giá gốc, chưa tính khuyến mãi)",
+          "headers": [
+            "Trường hợp của bạn",
+            "Nên chọn",
+            "Lý do"
+          ],
+          "rows": [
+            [
+              "Cần Windows nhưng chưa có bản quyền",
+              "Bản Windows, trừ khi bản Free DOS rẻ hơn quá giá key bạn sẽ mua (tới {{vnd:4890000}} theo giá gốc cao nhất ở bảng trên)",
+              "Key ở ba nhà bán lẻ đã kiểm tra có giá gốc {{vnd:3890000-4890000}}, và bạn vẫn phải tự cài"
+            ],
+            [
+              "Chỉ làm việc trên trình duyệt (Google Docs, lớp học online)",
+              "Bản Free DOS rồi cài Ubuntu",
+              "Ubuntu miễn phí và được cập nhật bảo mật 5 năm"
+            ],
+            [
+              "Cần Office bản cài trên máy hoặc phần mềm chỉ chạy trên Windows",
+              "Bản Windows",
+              "Khỏi phải mua key và tự cài, chỉ còn tiền phần mềm"
+            ],
+            [
+              "Đã có bản quyền được phép chuyển máy và biết tự cài",
+              "Bản Free DOS",
+              "Không phải trả tiền Windows hai lần"
+            ],
+            [
+              "Dự định bán lại máy sau một thời gian ngắn",
+              "Bản Windows",
+              "Người mua máy cũ thường muốn máy đã có Windows bản quyền"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Cài Linux thay Windows có ổn không?"
+        },
+        {
+          "type": "p",
+          "text": "Linux ổn nếu phần mềm bạn dùng chạy trên trình duyệt hoặc có bản cho Linux. Theo [trang tải Ubuntu](https://ubuntu.com/download/desktop), tính đến tháng 11/2026 bản desktop mới nhất là Ubuntu 26.04.1 LTS, được cập nhật bảo mật và bảo trì 5 năm. Ubuntu cần CPU hai nhân 2 GHz, RAM 6 GB và 25 GB ổ cứng trống. Nên chạy thử Ubuntu từ USB trước khi cài hẳn, để xem Wi-Fi, loa và webcam có hoạt động không."
+        },
+        {
+          "type": "h3",
+          "text": "Cài Windows 10 cho laptop Free DOS được không?"
+        },
+        {
+          "type": "p",
+          "text": "Không nên cài Windows 10 cho máy mới. Theo [trang thông báo của Microsoft](https://www.microsoft.com/en-us/windows/end-of-support), Windows 10 đã hết hỗ trợ từ ngày 14/10/2025. Chỉ những máy cá nhân có đăng ký gói Extended Security Updates (ESU) mới tiếp tục nhận bản vá bảo mật quan trọng, và chỉ đến ngày 12/10/2027."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-truoc-khi-tra-tien",
+      "title": "Cần kiểm tra gì ở cửa hàng trước khi trả tiền?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "So đúng hai bản cùng cấu hình, và hỏi cửa hàng cho rõ chuyện cài đặt ngay khi còn đứng ở quầy. Phần lớn rắc rối với laptop Free DOS đến từ việc so nhầm hai cấu hình khác nhau, hoặc mua phải key không kích hoạt được."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Cùng mã máy.** Đặt trang sản phẩm bản Free DOS và bản Windows cạnh nhau. CPU, RAM, ổ cứng và màn hình phải giống nhau thì khoản chênh giá mới có ý nghĩa.",
+            "**Tương thích Windows 11.** Nhờ nhân viên mở BIOS/UEFI để xác nhận có TPM 2.0 và Secure Boot, rồi đối chiếu cấu hình với mức tối thiểu của Microsoft.",
+            "**Ai cài, cài bằng gì.** Nếu cửa hàng nhận cài Windows giúp, hãy hỏi giá đó đã gồm key bản quyền chưa. Trước khi ra về, vào Start > Settings > System > Activation để kiểm tra, và giữ hoá đơn có ghi tên key.",
+            "**Key trôi nổi trên diễn đàn.** Điện Máy Xanh cảnh báo việc đi tìm key trên các diễn đàn, hội nhóm vừa mất thời gian vừa không an toàn. Hãy mua ở nhà bán lẻ có trang sản phẩm ghi rõ tên sản phẩm và điều kiện bản quyền.",
+            "**Bảo hành.** Hỏi rõ việc tự cài hệ điều hành có ảnh hưởng đến bảo hành của cửa hàng hoặc của hãng không, vì mỗi hãng và mỗi cửa hàng có chính sách riêng.",
+            "**Bán lại trước khi rời Việt Nam.** Nếu bạn sẽ bán máy trước khi rời Việt Nam, máy đã có Windows bản quyền thường dễ bán hơn. Cách bán đồ trước khi đi có trong [hướng dẫn bán đồ trước khi rời Việt Nam](/selling-up-before-you-leave-vietnam) (tiếng Anh).",
+            "**Kích thước và thương hiệu.** Nếu chưa chốt mẫu máy, xem thêm [nên mua laptop 14 inch hay 15.6 inch](/huong-dan/nen-mua-laptop-14-inch-hay-15-6-inch), hoặc nếu muốn máy cũ cho rẻ thì xem [nên mua laptop cũ HP hay Lenovo](/huong-dan/nen-mua-laptop-cu-hp-hay-lenovo). Laptop do người dùng ở Việt Nam rao bán có trong [mục Điện tử trên eno.vn](/c/electronics)."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Lo driver mạng trước khi xoá ổ",
+          "text": "Windows 11 Home không cho hoàn tất bước thiết lập đầu tiên nếu không có internet. Nếu lúc cài máy không nhận Wi-Fi, driver mạng bạn đã chép sẵn vào USB sẽ giúp bạn qua được bước này."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Bản quyền Microsoft Office hoặc Microsoft 365: phải mua riêng, không đi kèm Windows. Hãy xem điều kiện hiện hành trên trang của Microsoft hoặc nhà bán lẻ.",
+            "Một bản quyền Windows cụ thể có chuyển được từ máy cũ sang không: điều này tùy cách bản quyền đó được bán ra. Nên hỏi bộ phận hỗ trợ kích hoạt của Microsoft.",
+            "Quy định bảo hành của từng hãng khi người mua tự cài hệ điều hành: hãy hỏi cửa hàng và xem trang bảo hành của hãng cho đúng mẫu máy của bạn."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Laptop Free DOS là gì?",
+      "a": "Laptop Free DOS là laptop bán ra không kèm Windows, chỉ cài sẵn FreeDOS hoặc để trống ổ cứng. FreeDOS là hệ điều hành mã nguồn mở tương thích DOS của dự án FreeDOS, chỉ chạy phần mềm và game DOS cũ bằng dòng lệnh. Laptop Free DOS không dùng được trình duyệt, Zoom hay Microsoft Office, nên người mua phải tự cài Windows 11 hoặc Linux như Ubuntu thì mới dùng được hằng ngày."
+    },
+    {
+      "q": "Có nên mua laptop Free DOS không?",
+      "a": "Laptop Free DOS đáng mua khi bạn tự cài được hệ điều hành và rơi vào một trong ba trường hợp: định dùng Linux, đã có bản quyền Windows được phép chuyển máy, hoặc khoản chênh với bản cài sẵn Windows lớn hơn giá key Windows 11 Home. Nếu cần máy dùng ngay và chưa từng cài Windows, bản cài sẵn Windows thường hợp lý hơn."
+    },
+    {
+      "q": "Laptop Free DOS có rẻ hơn bản cài Windows không?",
+      "a": "Laptop Free DOS thường niêm yết rẻ hơn bản cài Windows cùng mẫu, vì cửa hàng không phải trả tiền bản quyền Windows. Khoản rẻ hơn này chỉ có lợi khi nó lớn hơn giá key Windows 11 Home mà các nhà bán lẻ Việt Nam niêm yết ngày 25/11/2026 (xem bảng giá trong bài). Hãy so đúng hai bản cùng mã máy, CPU, RAM và ổ cứng."
+    },
+    {
+      "q": "Laptop Free DOS cài Windows 11 được không?",
+      "a": "Phần lớn laptop Free DOS bán hiện nay cài được Windows 11 nếu đạt cấu hình tối thiểu của Microsoft: CPU 64-bit tương thích từ 2 nhân, RAM 4 GB, bộ nhớ 64 GB, UEFI có Secure Boot và TPM 2.0. Công cụ Media Creation Tool của Microsoft giúp tạo USB cài đặt từ một USB trống ít nhất 8 GB. Muốn kích hoạt Windows 11 thì vẫn phải có bản quyền."
+    },
+    {
+      "q": "Tải Windows 11 từ Microsoft về có phải là có bản quyền không?",
+      "a": "Tải Windows 11 từ Microsoft về không có nghĩa là đã có bản quyền. Trang tải của Microsoft ghi rõ phải có bản quyền trước rồi mới cài được Windows 11. Kích hoạt là gắn product key hoặc bản quyền số với phần cứng của máy. Nếu chưa kích hoạt, trang Activation trong Settings sẽ báo Windows chưa được kích hoạt."
+    },
+    {
+      "q": "Cài Windows 11 Home có bắt buộc phải có mạng không?",
+      "a": "Có. Theo trang cấu hình Windows 11 của Microsoft, Windows 11 Home cần internet và tài khoản Microsoft trong lần thiết lập đầu tiên. Vì vậy, khi cài cho laptop Free DOS, Wi-Fi phải hoạt động. Nếu Windows không nhận card mạng, hãy tải trước driver mạng từ trang hỗ trợ của hãng, chép vào USB cài đặt để vượt qua bước này."
+    },
+    {
+      "q": "Laptop Free DOS có nên cài Ubuntu thay Windows không?",
+      "a": "Ubuntu là lựa chọn thực tế cho laptop Free DOS nếu bạn làm việc chủ yếu trên trình duyệt. Theo trang tải Ubuntu, tháng 11/2026 bản desktop mới nhất là Ubuntu 26.04.1 LTS, miễn phí và được cập nhật bảo mật 5 năm. Ubuntu cần CPU hai nhân 2 GHz, RAM 6 GB và 25 GB ổ trống. Nên chạy thử từ USB để kiểm tra Wi-Fi và âm thanh."
+    },
+    {
+      "q": "Có nên cài Windows 10 cho laptop Free DOS không?",
+      "a": "Không nên cài Windows 10 cho laptop Free DOS mới. Microsoft đã ngừng hỗ trợ Windows 10 từ ngày 14/10/2025. Chỉ máy cá nhân có đăng ký gói Extended Security Updates mới nhận bản vá bảo mật quan trọng, và chỉ đến ngày 12/10/2027. Với máy định dùng nhiều năm, nên cài Windows 11, hoặc Linux nếu phần mềm bạn cần chạy được trên Linux."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Windows 11 specifications and system requirements",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/windows/windows-11-specifications"
+    },
+    {
+      "title": "Download Windows 11",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/software-download/windows11"
+    },
+    {
+      "title": "Activate Windows",
+      "publisher": "Microsoft Support",
+      "url": "https://support.microsoft.com/en-us/windows/activate-windows-c39005d4-95ee-b91e-b399-2820fda32227"
+    },
+    {
+      "title": "Windows 10 end of support",
+      "publisher": "Microsoft",
+      "url": "https://www.microsoft.com/en-us/windows/end-of-support"
+    },
+    {
+      "title": "The FreeDOS Project",
+      "publisher": "FreeDOS Project",
+      "url": "https://www.freedos.org/"
+    },
+    {
+      "title": "Download Ubuntu Desktop",
+      "publisher": "Canonical",
+      "url": "https://ubuntu.com/download/desktop"
+    },
+    {
+      "title": "Microsoft Windows 11 Home 64-bit chính hãng",
+      "publisher": "Thế Giới Di Động",
+      "url": "https://www.thegioididong.com/phan-mem/microsoft-windows-11-home-64-bit-chinh-hang"
+    },
+    {
+      "title": "Phần mềm Microsoft Windows Home 11 64bit ESD KW9-00664",
+      "publisher": "Meta.vn",
+      "url": "https://meta.vn/phan-mem-microsoft-windows-home-11-64bit-esd-kw9-00664-p122565"
+    },
+    {
+      "title": "Key-online Windows 11 Home 32bit/64bit FPP",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/phan-mem/key-online-windows-11-home-32bit64bit-fpp"
+    },
+    {
+      "title": "Hệ điều hành FreeDOS là gì? Có gì khác biệt so với hệ điều hành Windows?",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/tin-tuc/tin-moi/doi-net-ve-he-dieu-hanh-freedos-va-su-khac-biet-so-voi-windows-122722"
+    },
+    {
+      "title": "Hệ điều hành Free DOS là gì? Có nên mua laptop Free DOS không?",
+      "publisher": "Điện Máy Xanh",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/he-dieu-hanh-free-dos-la-gi-co-nen-mua-laptop-free-dos-1547890"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "e2db3361909e81638a0dbb2f1cb507cb8a1b6b2b945799cc122bd987dbe87017",
+      "w": 1672,
+      "h": 941,
+      "alt": "Máy tính xách tay có màn hình trống nằm cạnh USB và chồng xu, với các mảnh ghép lơ lửng phía trên.",
+      "caption": "Mua laptop FreeDOS cần tính đến việc cài hệ điều hành và chi phí."
+    },
+    "figures": [
+      {
+        "id": "d7fc507e14c6a739654342b8a1976e6a35f964b62325f9c313fe07f33dc5fbc5",
+        "w": 1448,
+        "h": 1086,
+        "after": "tiet-kiem-duoc-bao-nhieu",
+        "alt": "Cân thăng bằng đặt chồng xu ở một bên, thẻ trống và chìa khóa ở bên kia, cạnh máy tính xách tay.",
+        "caption": "So sánh chênh lệch giá laptop với chi phí bản quyền Windows 11 Home."
+      }
+    ]
+  }
+}
