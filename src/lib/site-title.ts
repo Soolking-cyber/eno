@@ -15,9 +15,12 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
 // "critical" there, on / and /vi).
 // The page's main words (owner 2026-11-24, SEO Site Checkup "use the main keyword in the title, description and an H1"): the home's
 // most common words are its cards' — homes, cars, used goods — so title, description (layout.tsx) and h1 ((home)/layout.tsx) name
-// them, and /vi's title, description and h1 the same in Vietnamese ((home)/home-metadata.ts); "classifieds in Vietnam" stays
-// (GSC 28 d: "vietnam classifieds" #6.5, "classifieds" #4.7). 61 characters on eno.vn with the flag on (the owner's wording).
-export const SITE_TITLE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} in Vietnam: homes, cars, used goods | ${SITE_NAME}`
+// them, and /vi's title, description and h1 the same in Vietnamese ((home)/home-metadata.ts).
+// ⛔ UNDER 60 CHARACTERS (owner 2026-11-26, "title under 60", after an SEO/GEO audit flagged 61): "Free classifieds in Vietnam"
+// became "Free Vietnam classifieds" (58 on eno.vn), which carries the searched phrase word for word (GSC 28 d to 2026-11-23:
+// "vietnam classifieds" #6.5, "classifieds" #4.7; compare the home's queries again from ~2026-12-24). eno.forum is Reach since
+// 11-04, so this edition's forum title (61) is never served.
+export const SITE_TITLE = `${POSTING_IS_FREE ? 'Free Vietnam classifieds' : 'Vietnam classifieds'}: homes, cars, used goods | ${SITE_NAME}`
 
 /**
  * The marketplace's short self-description, for the OG and Twitter cards. ⛔ NOT "the community keeps

@@ -69,6 +69,9 @@ const RESERVED = new Set([
   'classroom', 'classrooms',
   // The voice concierge's window page (2026-10-27).
   'concierge',
+  // mta-sts.eno.vn serves the mail policy (2026-11-26, infra/cloudflare/eno-mta-sts.js): a shop holding `mta-sts` would own that host's
+  // name and never be reachable there. Separator-free, so it covers mta-sts and mta_sts too.
+  'mtasts',
   // /teach-in-vietnam is the teacher guide library (2026-10-10). Separator-free, so one entry also
   // covers teach-in-vietnam, teach_in_vietnam and teachinvietnam (isReservedHandle folds `-`/`_`).
   'teachinvietnam',
