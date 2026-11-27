@@ -1115,7 +1115,8 @@ describe('/privacy — round-2 corrections hold', () => {
     const call = ['{tr', `('Privacy Policy', '${vi}')}`].join('')
     // Since speed plan item 7 the link's words are boxed (BoxedLink — cookie-consent.tsx says why): the label is the
     // same tr() pair, and the link itself still never prefetches.
-    expect(card).toContain(`<BoxedLink href="/privacy" label=${call} className="font-semibold text-accent-foreground" />`)
+    // The href names the apex on a shop host (useSiteHref — the banner opens there too; Seobility crawl 14, 2026-11-27).
+    expect(card).toContain(`<BoxedLink href={siteHref('/privacy')} label=${call} className="font-semibold text-accent-foreground" />`)
     expect(card).toContain('<Link href={href} prefetch={false} className={className}>')
   })
 
