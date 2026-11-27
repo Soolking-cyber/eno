@@ -762,6 +762,14 @@ describe('services › Pricing stamps the unit — on create, and on EVERY edit 
     expect(h.updates[0]).not.toHaveProperty('attributes')
   })
 
+  it('an FPT home internet plan (Internet & TV, stamped per month by scripts/import-fpt-internet.ts) keeps "/ month" through a price edit', async () => {
+    h.current = row({ subcategorySlug: 'internet-tv', listingType: 'service', price: 255_000, priceUnit: 'VND/month', attributes: JSON.stringify({ serviceLocation: 'at-customer', providerType: 'business' }) })
+    await updateListingCore('listing-1', { price: 260_000 })
+    expect(h.updates[0]).toMatchObject({ price: 260_000 })
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
+    expect(h.updates[0]).not.toHaveProperty('attributes')
+  })
+
   it('a services row with another intent (a bulk sell row) is not re-stamped', async () => {
     h.current = row({ subcategorySlug: null, listingType: 'sell', priceUnit: '' })
     await updateListingCore('listing-1', { title: 'Old bulk row' })

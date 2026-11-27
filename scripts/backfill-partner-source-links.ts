@@ -21,6 +21,8 @@
  *   · The Extra Mile: theextramile.co/motorbikes/<slug>/ — only when raw/bike-urls.txt lists that exact address;
  *   · HAGA Smartech: ~/eno-haga-partner-2026-11-25/data.json records[].url for a used device; its repair list
  *     (/dich-vu-sua-chua/) for a grouped repair listing;
+ *   · FPT Telecom: no research to read — every listing is one of its plans, so each takes its `home`, FPT's home-internet
+ *     page (src/lib/fpt-internet-partner.ts FPT.site);
  *   · everything else (one-page partners, a listing the partner posted itself, a page the research lacks): the partner's
  *     `home` page in PARTNER_SOURCES.
  * A row already holding a link that is NOT this partner's own page is never touched (reported as `foreign`).

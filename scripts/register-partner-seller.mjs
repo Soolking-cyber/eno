@@ -335,6 +335,24 @@ const PARTNERS = {
     avatarColor: '#111111',
     dailyReminderOptIn: false,
   },
+  // ── HOME INTERNET (owner, 2026-11-27: "let's import next partner services" — FPT's price sheet and service doc). An eno-held
+  // login like the other partners: customers chat here, eno's staff answer in the admin partner inbox and hand the lead to
+  // FPT. scripts/import-fpt-internet.ts writes its nine plan listings once (src/lib/fpt-internet-partner.ts).
+  fpttelecom: {
+    email: 'support+fpttelecom@eno.vn',
+    handle: 'fpttelecom',
+    name: 'FPT Telecom',
+    // ⚠️ NULL ON PURPOSE (owner's brief, 2026-11-27): the supplied sheet and doc print no registered name. FPT's own page
+    // (fpt.vn/internet, read 2026-11-27) prints "Công ty Cổ phần Viễn thông FPT" — the owner's call whether this eno-run
+    // storefront shows it.
+    legalName: null,
+    bio: 'FPT Telecom home fibre internet in Ho Chi Minh City, Hanoi and Da Nang, with FPT Play TV and security camera add-ons, offered through eno. Message here with your address and the plan you want, and eno arranges the paperwork and the installation with FPT. eno introduces FPT Telecom; the service contract is with FPT.',
+    // No logo asset: the storefront shows its initials.
+    avatarUrl: null,
+    // FPT's orange, a shade deeper than its #F26F21 so the white initials read (3.9:1, against 3.0:1).
+    avatarColor: '#D9581A',
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

@@ -10,14 +10,15 @@ import { FEED_EXCLUDED_PRICE_UNITS } from './product-feed'
  * service unit. Not asked where the price is a product's (e-Visa, eSIM); required in the wizard; absent = one-time.
  */
 describe('services › Pricing (priceBasis)', () => {
-  it('is asked on every service aisle but e-Visa and eSIM, and required there (a provider says which)', () => {
+  it('is asked on every service aisle but e-Visa, eSIM and Internet & TV, and required there (a provider says which)', () => {
     for (const sub of [null, 'cleaning', 'childcare', 'pet-services', 'repair', 'legal-permits', 'service-other']) {
       const f = askableFacetsFor('services', sub).find((x) => x.key === 'priceBasis')
       expect(f, String(sub)).toBeDefined()
       expect(isRequiredFacet(f!)).toBe(true)
       expect(f!.options.map((o) => [o.value, o.label, o.labelVi])).toEqual([['hourly', 'Hourly', 'Theo giờ'], ['one-time', 'One-time', 'Trọn gói']])
     }
-    for (const sub of ['visa-legal', 'esim']) expect(facetsFor('services', sub).some((x) => x.key === 'priceBasis'), sub).toBe(false)
+    // Internet & TV (2026-11-27): a home internet plan is billed by the month, neither hourly nor one-time.
+    for (const sub of ['visa-legal', 'esim', 'internet-tv']) expect(facetsFor('services', sub).some((x) => x.key === 'priceBasis'), sub).toBe(false)
     expect(facetsFor('electronics', null).some((x) => x.key === 'priceBasis')).toBe(false)
   })
 
@@ -41,7 +42,7 @@ describe('services › Pricing (priceBasis)', () => {
   })
 
   it('⛔ a stray hourly answer never makes a product price a rate — e-Visa, eSIM, another category', () => {
-    for (const sub of ['visa-legal', 'esim']) expect(listingMoneyFor({ categorySlug: 'services', subcategorySlug: sub, listingType: 'service', priceBasis: 'hourly' }).priceUnit, sub).toBe('VND/service')
+    for (const sub of ['visa-legal', 'esim', 'internet-tv']) expect(listingMoneyFor({ categorySlug: 'services', subcategorySlug: sub, listingType: 'service', priceBasis: 'hourly' }).priceUnit, sub).toBe('VND/service')
     expect(listingMoneyFor({ categorySlug: 'electronics', subcategorySlug: null, listingType: 'sell', priceBasis: 'hourly' }).priceUnit).toBe('VND')
     expect(listingMoneyFor({ categorySlug: 'rentals', subcategorySlug: 'motorbike-rental', listingType: 'rent', rentalPeriod: 'daily', priceBasis: 'hourly' }).priceUnit).toBe('VND/day')
   })

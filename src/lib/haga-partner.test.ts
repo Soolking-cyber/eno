@@ -112,7 +112,7 @@ describe('the storefront and the edit path', () => {
     expect(hagaSellerRefusal({ ...ok, officialPartner: false })).toMatch(/not an official partner/)
     expect(hagaSellerRefusal({ ...ok, ownerEmail: 'someone@else.com' })).toMatch(/owned by/)
   })
-  it('the edit path keeps HAGA rows at one photo (owner 2026-11-25) — and only HAGA\'s and Facebook imports', () => {
+  it('the edit path keeps HAGA rows at one photo (owner 2026-11-25) — and only the imports the owner named', () => {
     expect(ONE_PHOTO_IMPORT_PREFIXES).toContain(HAGA_EXTERNAL_PREFIX)
     expect(isOnePhotoImport(`${HAGA_EXTERNAL_PREFIX}iphone-13`)).toBe(true)
     expect(isOnePhotoImport('fb:123')).toBe(true)

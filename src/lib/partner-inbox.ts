@@ -43,6 +43,9 @@ export const PARTNER_INBOX_HANDLES = [
   'hagasmartech',
   // JHouse (owner, 2026-11-25; src/lib/housing-partners.ts): official, chat-only, an eno-held login.
   'jhouse',
+  // FPT Telecom (owner, 2026-11-27; src/lib/fpt-internet-partner.ts): home internet, official, chat-only, an eno-held login —
+  // eno's staff answer here and hand the lead to FPT.
+  'fpttelecom',
 ] as const
 const ENO_OWN_STORE = 'eno-trading'
 

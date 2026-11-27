@@ -1475,9 +1475,9 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'babysitting', 'childcare', 'trông trẻ', 'giữ trẻ', 'bảo mẫu'] },
       { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'pet sitter', 'dog walking', 'dog walker', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng', 'dắt chó', 'dắt chó đi dạo', 'trông thú cưng'] },
       // Mobile carriers' eSIMs and the plans that ride on them (scripts/import-esim.ts).
-      // ⚠️ LAST BEFORE 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS. suggestSubcategory() files a
-      // post under the subcategory whose LONGEST whole-word keyword it mentions, a tie going to the
-      // earlier one (since 2026-10-05; it was a first-match substring test in array order). Given a
+      // ⚠️ AFTER EVERY AISLE BUT 'internet-tv' AND 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS.
+      // suggestSubcategory() files a post under the subcategory whose LONGEST whole-word keyword it
+      // mentions, a tie going to the earlier one (since 2026-10-05; it was a first-match substring test in array order). Given a
       // bare 'data', 'gói cước' or 'nhà mạng' (any internet/TV package), it would pull cleaning,
       // moving and repair posts in here — and a long keyword now wins wherever it sits in the list.
       // Two reviewers caught the first cut doing that (with 'sim' and 'data' matching inside "simple"
@@ -1486,6 +1486,25 @@ export const TAXONOMY: CategoryDef[] = [
       // SIMs is illegal (ND 163/2024) — publish-guard.ts blocks it by text — and a suggester must not
       // file such a post here as if it were a normal product.
       { slug: 'esim', name: 'eSIM', nameVi: 'eSIM', icon: 'CardSim', keywords: ['esim', 'e-sim', 'gói data'] },
+      // Home internet and TV: fibre, Wi-Fi, cable and IPTV, from FPT Telecom (owner, 2026-11-27: src/lib/fpt-internet-partner.ts)
+      // and later Viettel or VNPT. AFTER eSIM, so a tie in length goes to eSIM.
+      // ⛔ NO BARE 'internet' OR 'viettel': both are longer than 'esim', and eSIM titles name them ("Viettel eSIM — new
+      // prepaid number" in data/esim-carriers.json; "eSIM … unlimited internet"), so either would pull eSIM posts in here.
+      // ⛔ NO BARE 'fpt' OR 'vnpt' EITHER (commit gate, opus 2026-11-27): a post with no other keyword ("Gia sư IELTS, sinh viên
+      // Đại học FPT") would land here. A carrier counts only beside a home-internet word. And no bare 'truyền hình': at 11
+      // letters it outranks 'sửa chữa', so "Sửa chữa tivi, đầu thu truyền hình" would leave Repair — only the TV-service
+      // phrases. No bare 'wifi' / 'wi-fi' (round 2): a post lists Wi-Fi as an amenity ("Gym membership, free wifi"), and
+      // at 4–5 letters it outranks 'gym', 'spa', 'vet' and, spelt 'wi-fi', 'esim' — only the installing phrases. Not 'gói
+      // cước' or 'nhà mạng' either (the eSIM note above). Pinned in taxonomy.services-entry.test.ts.
+      // ⚠️ A provider's OWN post here is priced like any service ('VND/service', no "/ month"): no Pricing chip says
+      // "monthly" yet. Only the FPT rows, which the importer stamps 'VND/month', print the month.
+      { slug: 'internet-tv', name: 'Internet & TV', nameVi: 'Internet & truyền hình', icon: 'Wifi', keywords: [
+        'home internet', 'internet gia đình', 'internet cáp quang', 'fibre internet', 'fiber internet', 'internet installation',
+        'lắp internet', 'lắp đặt internet', 'lắp mạng', 'lắp wifi', 'lắp đặt wifi', 'wifi gia đình', 'home wifi', 'fibre', 'fiber', 'cáp quang',
+        'broadband', 'cable tv', 'iptv', 'truyền hình cáp', 'lắp truyền hình', 'lắp đặt truyền hình', 'truyền hình fpt',
+        'truyền hình internet', 'internet và truyền hình', 'fpt telecom', 'fpt play', 'internet fpt', 'internet viettel',
+        'internet vnpt', 'mytv',
+      ] },
       { slug: 'service-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
     facets: [
@@ -1503,7 +1522,10 @@ export const TAXONOMY: CategoryDef[] = [
       // surface and JSON-LD marks HUR; 'one-time' keeps the service unit. Not asked where the price is a product's (e-Visa,
       // eSIM). Required in the wizard (a provider says which); the server reads an absent answer as one-time, which is
       // what every service was before, so old rows and API posts need nothing.
-      { key: 'priceBasis', label: 'Pricing', labelVi: 'Cách tính giá', kind: 'toggle', excludeSubcats: ['visa-legal', 'esim'], options: [
+      // Not asked in Internet & TV either: a home internet plan is billed by the MONTH, which is neither answer. FPT's rows
+      // are stored 'VND/month' (price-unit.ts MONTHLY_UNIT; src/lib/fpt-internet-partner.ts), a unit the edit path keeps
+      // (core/listings.ts SERVICE_UNITS) — and a chip here would make an edit store "One-time" beside "/ month".
+      { key: 'priceBasis', label: 'Pricing', labelVi: 'Cách tính giá', kind: 'toggle', excludeSubcats: ['visa-legal', 'esim', 'internet-tv'], options: [
         { value: 'hourly', label: 'Hourly', labelVi: 'Theo giờ' },
         { value: 'one-time', label: 'One-time', labelVi: 'Trọn gói' },
       ] },
@@ -2115,7 +2137,7 @@ export function servicePriceBasisOf(attributes: unknown): ServicePriceBasis | nu
   return v === 'hourly' || v === 'one-time' ? v : null
 }
 
-/** Whether this category/subcategory is charged by the `priceBasis` facet at all — services, but not e-Visa or eSIM. */
+/** Whether this category/subcategory is charged by the `priceBasis` facet at all — services, but not e-Visa, eSIM or Internet & TV. */
 export function servicePriceBasisApplies(categorySlug: string, subcategorySlug?: string | null): boolean {
   return facetsFor(categorySlug, subcategorySlug).some((f) => f.key === 'priceBasis')
 }

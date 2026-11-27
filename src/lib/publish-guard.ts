@@ -583,10 +583,13 @@ export function assertHasLocation(input: { district?: string | null; lat?: numbe
  * The imported rows an EDIT holds to one photo, not the category's three, by their `externalId` prefix:
  *  · `fb:` — Import from Facebook (owner, 2026-11-06: "3 images rule dont apply to fb import");
  *  · `hagasmartech:` — HAGA Smartech's used devices and repair services (owner, 2026-11-25: "List used with the stock
- *    photo" — one manufacturer image per device, src/lib/haga-partner.ts HAGA_EXTERNAL_PREFIX, held equal by its test).
+ *    photo" — one manufacturer image per device, src/lib/haga-partner.ts HAGA_EXTERNAL_PREFIX, held equal by its test);
+ *  · `fpt-internet:` — FPT Telecom's home internet plans (owner, 2026-11-27: the price sheet is "the one photo for every
+ *    listing", src/lib/fpt-internet-partner.ts FPT_EXTERNAL_PREFIX). Services already asks for one photo, so today this
+ *    only states the decision; it keeps these rows editable should the Services bar ever rise.
  * A prefix here is an owner's decision for that source, never a convenience: anything else keeps the category's bar.
  */
-export const ONE_PHOTO_IMPORT_PREFIXES = ['fb:', 'hagasmartech:'] as const
+export const ONE_PHOTO_IMPORT_PREFIXES = ['fb:', 'hagasmartech:', 'fpt-internet:'] as const
 export const isOnePhotoImport = (externalId: string | null | undefined): boolean =>
   !!externalId && ONE_PHOTO_IMPORT_PREFIXES.some((p) => externalId.startsWith(p))
 

@@ -17,8 +17,31 @@ describe('services — the aisles find the words providers use', () => {
     ['Thợ điện nước quận 7', 'repair'],
     // ⛔ "điện nước" alone is utilities, never Repair: a cleaning post that mentions them stays Cleaning.
     ['Dọn dẹp căn hộ, đã bao gồm điện nước', 'cleaning'],
+    // Internet & TV (owner, 2026-11-27): home internet words find it…
+    ['Lắp mạng FPT tại nhà, cáp quang 1 Gbps', 'internet-tv'],
+    ['Home internet installation in District 7', 'internet-tv'],
+    ['Lắp wifi Viettel cho gia đình', 'internet-tv'],
+    ['Lắp đặt truyền hình cáp và internet', 'internet-tv'],
+    ['VNPT fibre for apartments', 'internet-tv'],
+    ['Truyền hình FPT Play, lắp tại nhà', 'internet-tv'],
+    // …and never take an eSIM, a coworking desk or a cleaner that mentions Wi-Fi or a carrier in passing (taxonomy.ts note).
+    ['Viettel eSIM — new prepaid number, passport accepted in store', 'esim'],
+    ['eSIM Việt Nam – internet không giới hạn 30 ngày', 'esim'],
+    ['eSIM VinaPhone (VNPT) 30 ngày', 'esim'],
+    ['SIM FPT eSIM — new 0775 prepaid number', 'esim'],
+    ['eSIM data, phát wifi cho laptop', 'esim'],
+    ['Viettel eSIM, phát wi-fi cho laptop', 'esim'],
+    ['Gym membership, free wifi', 'fitness-pt'],
+    ['Coworking day pass with fast wifi', 'coworking'],
+    ['Dọn dẹp căn hộ, có wifi miễn phí', 'cleaning'],
+    // …nor a TV repair: only the TV-service phrases count, never a bare 'truyền hình' (commit gate, opus 2026-11-27).
+    ['Sửa chữa tivi, đầu thu truyền hình tại nhà', 'repair'],
   ])('%s → %s', (title, sub) => {
     expect(suggestSubcategory('services', title)).toBe(sub)
+  })
+  it('a bare carrier name files nothing in Internet & TV ("FPT" is also a university and a phone shop)', () => {
+    expect(suggestSubcategory('services', 'Gia sư IELTS tại nhà, sinh viên Đại học FPT')).not.toBe('internet-tv')
+    expect(suggestSubcategory('services', 'VNPT')).toBeUndefined()
   })
 })
 

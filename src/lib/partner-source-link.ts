@@ -50,6 +50,8 @@ export const PARTNER_SOURCES: Readonly<Record<string, PartnerSource>> = {
   evisasaigon: { hosts: ['evisasaigon.vn'], home: 'https://evisasaigon.vn/' },
   vietkite: { hosts: ['vietkite.com.vn'], home: 'https://vietkite.com.vn/' },
   luathoangphi: { hosts: ['luathoangphi.vn'], home: 'https://luathoangphi.vn/' },
+  // FPT's own home-internet page (200, its own canonical, read 2026-11-27): every FPT listing is a plan sold there.
+  fpttelecom: { hosts: ['fpt.vn'], home: 'https://fpt.vn/internet' },
 }
 
 /**
