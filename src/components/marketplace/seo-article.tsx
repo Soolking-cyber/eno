@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Rows, Row } from '@/components/ui/rows'
 import { Avatar } from '@/components/ui/avatar'
 import { ARTICLE_AUTHORS, authorPersonLd } from '@/lib/article-authors'
+import { AuthorProfileLink } from './author-profile-link'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { organizationId } from '@/lib/site-identity'
 import { AFFILIATION } from '@/lib/site-legal'
@@ -657,7 +658,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               <Avatar name={author.name} url={author.image} alt={author.name} size="lg" />
               <div className="min-w-0">
                 <p className="text-xs text-ink-4">{author.label}</p>
-                <p className="text-base font-bold text-foreground">{author.name}</p>
+                {/* The name links to the author's LinkedIn (owner, 2026-11-27) — the same profile is the JSON-LD Person's url/sameAs. */}
+                <p className="text-base font-bold text-foreground"><AuthorProfileLink href={author.profile} name={author.name} /></p>
                 <p className="text-sm text-body">{`${author.jobTitle}, ${SITE_NAME}`}</p>
               </div>
             </section>
