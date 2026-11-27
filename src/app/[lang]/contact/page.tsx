@@ -7,6 +7,7 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { SupportChatChip } from '@/components/marketplace/support-chat-chip'
+import { SOCIALS } from '@/lib/socials'
 
 /**
  * CONTACT — a trust-anchor page, which is a different job from a contact form.
@@ -48,6 +49,16 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 }
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
+const CHIP = 'inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted'
+
+/**
+ * The two chat lines (owner, 2026-11-27: "link telegram chat and whatsap business line 0772007921 in eno.vn footer app"), from
+ * the footer's one list. ⚠️ THEY ARE HERE BECAUSE THE APPS HIDE THE FOOTER (globals.css `html.native #app-footer`): this row is
+ * where an app user reaches us. Plain anchors, like the chat's Zalo/WhatsApp chips: in the app a link to another host goes to
+ * the system (iOS MainViewController → UIApplication.open; Android an intent), which opens WhatsApp / Telegram themselves —
+ * handleExternalClick would show their landing page in a browser sheet instead. No `nofollow`: eno's own lines, as in the footer.
+ */
+const CHAT_LINES = SOCIALS.filter((s) => s.key === 'telegram' || s.key === 'whatsapp')
 
 /**
  * ⚠️ THE UNREGISTERED BRANCH IS NOT A FORMALITY. Until the certificate is issued there is no
@@ -81,8 +92,9 @@ export default function ContactPage() {
       <ContentSection id="support" title="Get help">
         {/* This page's whole job is reaching someone, so the routes are targets to tap, not links inside a sentence. */}
         <div className="flex flex-wrap gap-3">
-          <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.email}</a>
-          {OPERATOR_REGISTERED ? <a href={`tel:${COMPANY.phone}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.phone}</a> : null}
+          <a href={`mailto:${COMPANY.email}`} className={CHIP}>{COMPANY.email}</a>
+          {OPERATOR_REGISTERED ? <a href={`tel:${COMPANY.phone}`} className={CHIP}>{COMPANY.phone}</a> : null}
+          {CHAT_LINES.map((s) => <a key={s.key} href={s.href} target="_blank" rel="noopener noreferrer" className={CHIP}>{s.label}</a>)}
           {/* The support chat, the one route with the context already in it (UI climb 2026-11-09): on a phone it was only at the
               end of Help since the bubble left phones (owner, 2026-11-08). A client island; guests sign in first. */}
           <SupportChatChip />

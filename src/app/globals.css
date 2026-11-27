@@ -5614,3 +5614,16 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
     @apply mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open/acc-trigger:rotate-180;
   }
 }
+
+/* THE REACTION BADGE LANDING (src/components/marketplace/message-reactions.tsx ReactionBadge, owner 2026-11-27: Messenger,
+   "smooth and nice"). It springs up from its corner when a reaction arrives or grows: a small overshoot, then rest.
+   One-shot (the badge is re-keyed per change); reduced motion keeps the badge and drops the bounce. */
+@keyframes reaction-pop {
+  0% { transform: scale(0.35); opacity: 0; }
+  55% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.reaction-pop { animation: reaction-pop 340ms var(--ease-spring-snappy) both; }
+@media (prefers-reduced-motion: reduce) {
+  .reaction-pop { animation: none; }
+}
