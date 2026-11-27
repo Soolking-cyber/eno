@@ -78,7 +78,10 @@ function searchRow(l: Row): z.infer<typeof LISTING_ROW> | null {
   const category = (l.category ?? null) as Row | null
   const categorySlug = category ? str(category.slug) : null
   const price = num(l.price)
-  const priceUnit = str(l.priceUnit)
+  // ⛔ AN EMPTY priceUnit IS A ONE-OFF PRICE, NOT A MISSING FIELD (2026-11-27): goods for sale store `''`, and reading it as
+  // absent dropped every such row — "iphone" answered total 559 with no listings, electronics 1 row of 3. Said "VND", the
+  // value LISTING_ROW documents for a one-off price.
+  const priceUnit = typeof l.priceUnit === 'string' ? l.priceUnit || 'VND' : null
   const listingType = LISTING_TYPE.safeParse(l.listingType)
   const postedAt = l.postedAt instanceof Date ? l.postedAt.toISOString() : str(l.postedAt)
   if (price === null || !priceUnit || !listingType.success || typeof l.negotiable !== 'boolean' || !postedAt || !categorySlug) return null
@@ -303,7 +306,7 @@ export const SEARCH_TOOLS: SearchTool[] = [
       const description = text.length > DESCRIPTION_MAX ? `${text.slice(0, DESCRIPTION_MAX)}…` : text
       const out: z.infer<typeof DETAIL_OUT> = {
         listing: {
-          id: l.id, title: offSite(l.title), description, price: l.price, price_unit: l.priceUnit, negotiable: l.negotiable, listing_type: l.listingType,
+          id: l.id, title: offSite(l.title), description, price: l.price, price_unit: l.priceUnit || 'VND', negotiable: l.negotiable, listing_type: l.listingType,
           condition: offSiteOrNull(l.condition), brand: l.brandSlug, model: offSiteOrNull(l.model), location: offSiteOrNull(l.location),
           district: offSiteOrNull(l.district), city: offSiteOrNull(l.city),
           category: l.category.slug, subcategory: l.subcategorySlug, images: firstImages(l.images, 8), posted_at: l.postedAt.toISOString(),

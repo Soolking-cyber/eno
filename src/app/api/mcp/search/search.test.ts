@@ -77,6 +77,14 @@ describe('search_listings', { timeout: 20_000 }, () => {
     expect(opts).toEqual({ noAi: true })
   })
 
+  it('⛔ a one-off price (priceUnit "") is a row with price_unit "VND", never a dropped row (2026-11-27: "iphone" gave 559, listed 0)', async () => {
+    h.feedRows = [{ ...CARD, id: 'phone', listingType: 'sell', priceUnit: '', isSponsored: false, affiliateUrl: null, category: { slug: 'electronics' }, subcategorySlug: 'phones-tablets' }]
+    const r = await call('search_listings', { q: 'iphone' })
+    const out = r.body.result.structuredContent
+    expect(out.listings).toHaveLength(1)
+    expect(out.listings[0]).toMatchObject({ id: 'phone', price_unit: 'VND', listing_type: 'sell' })
+  })
+
   it('a condition of like_new is searched as "new" (which takes in like_new rows), never dropped as an unknown value', async () => {
     for (const condition of ['like_new', ' Like_New ']) {
       h.feedCalls = []
