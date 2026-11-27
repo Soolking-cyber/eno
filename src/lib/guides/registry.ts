@@ -114,6 +114,8 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'hp-pavilion-14-ce3xxx', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '22914a9bfcab7cb2' },
   { slug: 'remote-tivi-sony', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '267bc5c6fc87ac48', pair: 'sony-tv-remote-replacement' },
   { slug: 'sony-tv-remote-replacement', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: 'c955a8e676153fbe', pair: 'remote-tivi-sony' },
+  { slug: 'iphone-mau-cam-bi-chuyen-hong', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '23c04d65403a915d', pair: 'orange-iphone-turning-pink' },
+  { slug: 'orange-iphone-turning-pink', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '5a4f8fb26709e0ed', pair: 'iphone-mau-cam-bi-chuyen-hong' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.
