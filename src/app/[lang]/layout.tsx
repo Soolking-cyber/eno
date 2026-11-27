@@ -312,6 +312,13 @@ const PINTEREST_VERIFICATION = IS_SERVICES ? null : "eb401aba4319c3406a643d5aff0
  */
 const SEOBILITY_VERIFICATION = IS_SERVICES ? null : "e35970af5979c8fa2b1410606defbeb0";
 
+/**
+ * Google AdSense site ownership (owner, 2026-11-27: "help to configure adsense" — AdSense › Sites › eno.vn, the "Meta tag"
+ * option). ⛔ eno.vn ONLY, per site like the tags above; a public ownership proof, not a secret. It loads no ad script:
+ * with /ads.txt (src/app/ads.txt/route.ts) it is what AdSense's site review reads. Showing ads is a separate step.
+ */
+const ADSENSE_ACCOUNT = IS_SERVICES ? null : "ca-pub-8024177228787683";
+
 // The sitewide <title> (SITE_TITLE) and the marketplace's card line live in src/lib/site-title.ts.
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
@@ -323,6 +330,7 @@ export const metadata: Metadata = {
       ...(MYLEAD_VERIFICATION ? { "mylead-verification": MYLEAD_VERIFICATION } : {}),
       ...(PINTEREST_VERIFICATION ? { "p:domain_verify": PINTEREST_VERIFICATION } : {}),
       ...(SEOBILITY_VERIFICATION ? { seobility: SEOBILITY_VERIFICATION } : {}),
+      ...(ADSENSE_ACCOUNT ? { "google-adsense-account": ADSENSE_ACCOUNT } : {}),
     },
   },
   title: SITE_TITLE,
