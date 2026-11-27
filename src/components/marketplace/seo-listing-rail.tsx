@@ -154,6 +154,16 @@ export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: Ra
   }
 }
 
+/**
+ * The AccessTrade shelf's commission disclosure, per language — for a shelf whose language is fixed (a guide's, `lang`). The
+ * English is also the <Tr> key for a shelf in the reader's language, and the Vietnamese is that key's curated entry in
+ * vi-overrides.ts (seo-listing-rail.browse-link.test.tsx holds the two equal).
+ */
+export const ACCESSTRADE_DISCLOSURE = {
+  en: 'Ad · Open a product and use Buy now in the shop chat. We may earn a commission through AccessTrade.',
+  vi: 'Quảng cáo · Mở sản phẩm rồi chọn Mua ngay trong cuộc trò chuyện với cửa hàng. Chúng tôi có thể nhận hoa hồng qua AccessTrade.',
+} as const
+
 /** The rail's markup: a heading, the grid of real listings (crawlable internal links), a browse link. */
 export function SeoListingGrid({
   listings,
@@ -193,9 +203,11 @@ export function SeoListingGrid({
   return (
     <section className={cn('mt-12', className)}>
       <h2 lang={lang} className={cn(heading, 'text-foreground mb-4')}>{title}</h2>
+      {/* The disclosure is in the SHELF's language, like its title: on a guide that is the article's (`lang`), so a Vietnamese
+          article never carries an English disclosure under its Vietnamese heading; without `lang` (the iPhone 18 hub), the reader's. */}
       {accessTradePhones && (
-        <p className="mb-4 text-sm text-body">
-          <Tr text="Ad · Open a product and use Buy now in the shop chat. We may earn a commission through AccessTrade." />
+        <p lang={lang} className="mb-4 text-sm text-body">
+          {lang ? ACCESSTRADE_DISCLOSURE[lang] : <Tr text="Ad · Open a product and use Buy now in the shop chat. We may earn a commission through AccessTrade." />}
         </p>
       )}
       <div className={LISTING_GRID}>

@@ -17,7 +17,7 @@ vi.mock('./price', () => ({ Price: () => <span data-price="" /> }))
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { CARD_BODY, CARD_META, TITLE_LINE } from '@/lib/card-text'
 
-const { SeoListingGrid } = await import('./seo-listing-rail')
+const { SeoListingGrid, ACCESSTRADE_DISCLOSURE } = await import('./seo-listing-rail')
 // The grid's links are LocalizedLink (A1-LANG), which reads the language context — render inside a provider.
 const { LanguageProvider } = await import('@/context/language-context')
 const wrap = (el: React.ReactElement) => renderToStaticMarkup(<LanguageProvider initialLang="en">{el}</LanguageProvider>)
@@ -67,6 +67,18 @@ describe('SeoListingGrid — the photo and the text block', () => {
       expect(html).toContain(lang === 'vi' ? 'hoa hồng qua AccessTrade' : 'commission through AccessTrade')
       expect(html).not.toContain('go.isclix.com')
     }
+  })
+  it('a shelf with its own language (a guide\'s) discloses in that language, whatever the reader\'s', () => {
+    const listing = { id: 'phone-1', title: 'iPhone 14', price: 7990000, currency: '₫', listingType: 'sell', images: [] }
+    for (const [reader, shelf] of [['en', 'vi'], ['vi', 'en']] as const) {
+      const html = renderToStaticMarkup(<LanguageProvider initialLang={reader} initialViDict={reader === 'vi' ? VI_OVERRIDES : undefined}>
+        <SeoListingGrid accessTradePhones lang={shelf} listings={[listing] as never} title="iPhone" href="/c/electronics" />
+      </LanguageProvider>)
+      expect(html, `${shelf} shelf, ${reader} reader`).toContain(`<p lang="${shelf}" class="mb-4 text-sm text-body">${ACCESSTRADE_DISCLOSURE[shelf]}</p>`)
+      expect(html).not.toContain(ACCESSTRADE_DISCLOSURE[reader])
+    }
+    // The fixed-language Vietnamese is the curated entry the reader-language path reads.
+    expect(VI_OVERRIDES[ACCESSTRADE_DISCLOSURE.en]).toBe(ACCESSTRADE_DISCLOSURE.vi)
   })
   it('one photo, covering its square — no decorative fill', () => {
     for (const type of ['rent', 'teacher']) {
