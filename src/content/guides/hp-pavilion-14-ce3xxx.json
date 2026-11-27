@@ -1,0 +1,378 @@
+{
+  "slug": "hp-pavilion-14-ce3xxx",
+  "title": "HP Pavilion Laptop 14-ce3xxx: Specs, Listings and Checks",
+  "description": "How to identify an HP Pavilion 14-ce3xxx, which Vietnamese shops still list it, the RAM and SSD slots to confirm, and how to read its battery report before you pay.",
+  "h1": "HP Pavilion 14-ce3xxx: how to identify one, find one for sale and check it before buying",
+  "eyebrow": "Used laptops",
+  "intro": "The HP Pavilion laptop 14-ce3xxx is HP's 14-inch Pavilion from 2019, with 10th-generation Intel Core i3, i5 or i7 chips, and it now sells mainly secondhand because Vietnamese retailers have stopped selling it. Before you buy one, read the exact product code on the label, confirm the RAM and SSD, and run a Windows battery report. Then check which Windows version it can take.",
+  "keyPoints": [
+    "The 14-ce3xxx family uses 10th-generation Intel Core chips (Ice Lake), such as the i3-1005G1 and i5-1035G1, with a 14-inch Full HD screen, a 41 Wh battery and a weight of about 1.6 kg.",
+    "Vietnamese versions end in **TU**, for example 14-ce3013TU or 14-ce3014TU, and also carry a separate product number such as 8QP03PA. Match both against the listing.",
+    "As of November 2026, Thegioididong marks the 14-ce3014TU as discontinued and CellphoneS shows the 14-ce3013TU as temporarily out of stock, so expect to buy one used.",
+    "The basic 14-ce3014TU came with 4 GB of RAM in **one slot**, a 16 GB maximum, an NVMe SSD and room for an extra SATA drive, so ask the seller what is fitted now.",
+    "Run `powercfg /batteryreport` and compare Full Charge Capacity with Design Capacity. Dell's guidance treats anything below 40% as a battery that needs replacing.",
+    "Windows 10 support ended on 14 October 2025, but Microsoft lists 10th-generation Core i3, i5 and i7 chips as supported for Windows 11."
+  ],
+  "sections": [
+    {
+      "id": "what-is-the-hp-pavilion-14-ce3xxx",
+      "title": "What is the HP Pavilion 14-ce3xxx?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The HP Pavilion 14-ce3xxx is a 14-inch consumer laptop made by HP. The \"xxx\" stands for the individual configuration, and every one of them uses a 10th-generation Intel Core processor. Thegioididong gives 2019 as the release year for the 14-ce3014TU, and the family shipped with Windows 10 Home."
+        },
+        {
+          "type": "p",
+          "text": "Every version shares the same basic chassis: a 14-inch Full HD (1920 x 1080) screen, a 3-cell 41 Wh battery that you cannot remove, and a weight of about 1.6 kg. What changes from one unit to the next is the processor, the RAM, the storage and, on some versions sold outside Vietnam, a separate NVIDIA graphics chip. The table below lists versions whose spec pages were read on 26 November 2026."
+        },
+        {
+          "type": "table",
+          "caption": "Known 14-ce3xxx versions and their launch specs, from retailer and review pages read on 26 November 2026",
+          "headers": [
+            "Model",
+            "Processor",
+            "RAM and storage as sold",
+            "Source"
+          ],
+          "rows": [
+            [
+              "14-ce3013TU (8QN72PA)",
+              "Core i3-1005G1, 2 cores / 4 threads",
+              "4 GB, 256 GB M.2 NVMe SSD",
+              "CellphoneS"
+            ],
+            [
+              "14-ce3014TU (8QP03PA)",
+              "Core i3-1005G1",
+              "4 GB DDR4-2666 in one slot, 256 GB NVMe SSD",
+              "Thegioididong"
+            ],
+            [
+              "14-ce3001ns (Spanish market)",
+              "Core i5-1035G1, 4 cores / 8 threads",
+              "16 GB, 1 TB SSD",
+              "Notebookcheck"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Ports on the Vietnamese 14-ce3014TU are two USB-A 3.1, one USB-C, HDMI, a wired LAN (RJ45) port and an SD card reader, according to Thegioididong. The same page lists Wi-Fi 802.11ac, Bluetooth 5.0, Bang & Olufsen speakers, a metal lid on a plastic body and no keyboard backlight. If a listing says \"backlit keyboard\" for a 14-ce3014TU, ask the seller about it. Either the keyboard has been changed or the description is wrong."
+        },
+        {
+          "type": "p",
+          "text": "If you are still choosing a screen size, see [14-inch vs 15.6-inch laptops](/guides/14-inch-vs-15-6-inch-laptop) and [how big a 14-inch laptop really is](/guides/how-big-is-a-14-inch-laptop)."
+        }
+      ]
+    },
+    {
+      "id": "how-to-identify-the-exact-model",
+      "title": "How do I confirm a laptop is really a 14-ce3xxx?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Read the model name and the product number on the laptop itself, then check that both match the listing. \"HP Pavilion 14\" alone is not enough. HP has used that name on several generations, and only the ce3 codes have 10th-generation Intel chips."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Read the label on the base",
+              "text": "Turn the laptop over and find the model name, such as 14-ce3014TU, and the product number, such as 8QP03PA. The Vietnamese retailer pages list those two together for each version."
+            },
+            {
+              "title": "Check what Windows reports",
+              "text": "Open Settings, then System, then About. The processor shown there should be a 10th-generation chip, such as an i3-1005G1 or an i5-1035G1. An 8th-generation chip means you are looking at an older Pavilion 14."
+            },
+            {
+              "title": "Compare RAM and storage with the listing",
+              "text": "The About page shows the installed RAM. Open File Explorer to check the drive size. A 14-ce3014TU sold with 8 GB has had its RAM stick replaced since it left the factory. That is fine, but ask the seller about it."
+            },
+            {
+              "title": "Match the product number to a spec page",
+              "text": "Search the product number, for example 8QP03PA, to find the original configuration. Then compare it with what the seller says the laptop has."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Check the label against the hardware",
+          "text": "A label can come from a different chassis after a repair. If the label says 14-ce3 but Windows shows an older processor, believe the processor."
+        }
+      ]
+    },
+    {
+      "id": "where-to-find-one-for-sale",
+      "title": "Where can I buy an HP Pavilion 14-ce3xxx in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Big retailers have stopped selling the 14-ce3xxx, so in practice you will buy one used, from a private seller or a secondhand laptop shop. On 26 November 2026, both major chain pages checked for this guide showed no stock."
+        },
+        {
+          "type": "table",
+          "caption": "Status of 14-ce3xxx pages at Vietnamese retailers, checked 26 November 2026",
+          "headers": [
+            "Retailer",
+            "Model",
+            "What the page showed"
+          ],
+          "rows": [
+            [
+              "Thegioididong",
+              "14-ce3014TU (8QP03PA)",
+              "Marked \"Ngưng kinh doanh\" (discontinued), with no price"
+            ],
+            [
+              "CellphoneS",
+              "14-ce3013TU (8QN72PA)",
+              "\"Tạm hết hàng\" (temporarily out of stock), listed at {{vnd:11990000}}, reduced from {{vnd:13490000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "According to CellphoneS, as of November 2026, that listed price is for a new 14-ce3013TU, which it does not have in stock. Treat it as an upper limit. A used unit from 2019 should cost clearly less, and no source read for this guide publishes used prices, so compare several current listings for the same product number."
+        },
+        {
+          "type": "p",
+          "text": "You can find secondhand laptops on eno.vn in [Electronics](/c/electronics), where you message the seller in the app. Message the seller before you meet, ask for a photo of the base label and a screenshot of the battery report described below, and read [eno.vn's safety advice](/safety) before you hand over money."
+        },
+        {
+          "type": "p",
+          "text": "If you are open to other brands, [HP vs Lenovo for a used laptop](/guides/hp-vs-lenovo-used-laptop) compares the business models that often sell at similar prices."
+        }
+      ]
+    },
+    {
+      "id": "specs-to-confirm-before-buying",
+      "title": "Which specs should I confirm with the seller?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Confirm the processor, the RAM, the storage and what is in the spare drive bay. Upgrades change a used 14-ce3xxx more than anything else does. The basic Vietnamese version left the factory with less RAM and storage than many sellers now advertise."
+        },
+        {
+          "type": "h3",
+          "text": "Can the RAM be upgraded on a 14-ce3xxx?"
+        },
+        {
+          "type": "p",
+          "text": "Yes. Thegioididong lists the 14-ce3014TU with 4 GB of DDR4-2666 in one slot and a maximum of 16 GB. The 14-ce3xxx has only one RAM slot, so getting more memory means swapping that stick for a bigger one, not adding a second. With only 4 GB, ask for an upgrade or a lower price before you buy."
+        },
+        {
+          "type": "h3",
+          "text": "Does it have room for a second drive?"
+        },
+        {
+          "type": "p",
+          "text": "On the 14-ce3014TU, yes. Thegioididong lists an NVMe PCIe SSD plus support for an extra SATA drive. Ask whether that bay is empty or already has a drive in it, and check in File Explorer that every drive the seller mentions actually shows up."
+        },
+        {
+          "type": "h3",
+          "text": "Does the 14-ce3xxx have dedicated graphics?"
+        },
+        {
+          "type": "p",
+          "text": "The Vietnamese i3 versions in the table above use integrated Intel UHD Graphics only. Notebookcheck says the integrated graphics on the i5-1035G1 version can run modern games only at low settings and low resolutions. Do not pay extra for \"gaming\" unless Device Manager shows an NVIDIA chip."
+        }
+      ]
+    },
+    {
+      "id": "how-to-check-battery-health",
+      "title": "How do I check the battery health on a 14-ce3xxx?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Generate a Windows battery report and compare the battery's Full Charge Capacity with its Design Capacity. The 14-ce3xxx battery is built in, a 3-cell 41 Wh unit according to CellphoneS and Notebookcheck, so its condition matters more than it would with a battery you could swap out."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Open Command Prompt",
+              "text": "Press the Windows key and R, type `cmd` and press Enter."
+            },
+            {
+              "title": "Create the report",
+              "text": "Type `powercfg /batteryreport`, with a space before the slash, and press Enter."
+            },
+            {
+              "title": "Open the file",
+              "text": "Go to your user folder under C:\\Users and double-click `battery-report.html` to open it in a browser."
+            },
+            {
+              "title": "Compare the two figures",
+              "text": "Under Installed batteries, divide Full Charge Capacity by Design Capacity. A 41 Wh battery that now holds 30 Wh, for example, has about 73% of its design capacity left."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "According to [Dell's guide to the powercfg battery report](https://www.dell.com/support/kbdoc/en-us/000130117), checked in November 2026, some gap between the two figures is normal, and below 40% the battery is badly worn and should be replaced. The command is part of Windows, so it works the same way on an HP."
+        },
+        {
+          "type": "p",
+          "text": "Even a battery in good condition does not last very long. Notebookcheck cites a LaptopMedia review of the 14-ce3000 that measured about 6 hours of web browsing on a new unit. Also unplug the charger during your viewing and check that the laptop stays on and the charge percentage goes down steadily."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Ask for the report before you travel",
+          "text": "An honest seller can send a screenshot of the Installed batteries section in a minute. Then run the report again yourself when you meet, because a screenshot can come from a different laptop."
+        }
+      ]
+    },
+    {
+      "id": "windows-10-and-windows-11",
+      "title": "Can a 14-ce3xxx run Windows 11?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Yes, as far as the processor goes. Microsoft's list of Windows 11 supported Intel processors includes 10th-generation Core i3, i5 and i7 chips, which covers every 14-ce3xxx. That matters, because the laptops shipped with Windows 10 Home."
+        },
+        {
+          "type": "p",
+          "text": "According to [Microsoft](https://support.microsoft.com/en-us/windows/windows-10-support-has-ended-on-october-14-2025-2ca8b313-1946-43d3-b55c-2b95b107f281), as of November 2026, Windows 10 support ended on 14 October 2025. Its consumer Extended Security Updates programme can protect a Windows 10 device until 12 October 2027. A unit still on Windows 10 is therefore not a reason to walk away, but plan to upgrade it."
+        },
+        {
+          "type": "p",
+          "text": "Microsoft's [supported processor list](https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors) covers the processor only. The rest of the hardware still has to meet Windows 11's other requirements, and the list tells you to ask the hardware maker about specific support. If the seller has installed an unlicensed copy of Windows, ask them to say so in writing, or price in a licence. [Laptops sold without Windows](/guides/freedos-laptop) explains those choices."
+        }
+      ]
+    },
+    {
+      "id": "condition-checks-in-person",
+      "title": "What should I check in person?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Test every port and the hinge, and run the laptop on battery for a while. A used laptop from 2019 most often fails at the parts people touch every day."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Ports:** plug something into both USB-A ports, the USB-C port, HDMI, the LAN port and the SD card slot listed for the 14-ce3014TU.",
+            "**Screen:** open a plain white page and then a plain black page to look for dead pixels, bright patches at the edges or a yellow tint on the Full HD panel.",
+            "**Hinge and lid:** open and close the lid several times. On the metal lid, look for dents near the hinges, and look for cracks in the plastic base.",
+            "**Keyboard and touchpad:** type every key in a text editor. A missing backlight is not a fault on the 14-ce3014TU, because that version has none.",
+            "**Wi-Fi and speakers:** connect to a hotspot, play a video and listen for crackle at full volume.",
+            "**Charger:** check that the adapter powers the laptop on its own and that the cable is not taped together."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For a comparison with another HP model code that often comes up in searches, see [what the HP Pavilion 3168NGW label means](/guides/hp-pavilion-3168ngw-specs)."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Used prices for each configuration. No source checked on 26 November 2026 publishes them, so compare current listings for the same product number in [Electronics](/c/electronics).",
+            "Repair costs and spare battery prices. These vary between repair shops, so ask for a written quote before you agree a price that depends on a repair.",
+            "HP warranty status for a particular unit. Only HP can confirm this, from the serial number.",
+            "Older Pavilion 14 models (ce0, ce1, ce2). They use earlier processors and their specs differ from the ones above."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What does 14-ce3xxx mean on an HP Pavilion laptop?",
+      "a": "The code 14-ce3xxx covers the HP Pavilion 14 family that uses 10th-generation Intel Core processors, such as the i3-1005G1 and i5-1035G1. The last three characters identify one configuration. Vietnamese versions end in TU, for example 14-ce3013TU or 14-ce3014TU. Each version also has a separate product number, such as 8QP03PA, printed on the label under the laptop."
+    },
+    {
+      "q": "Is the HP Pavilion 14-ce3xxx still sold new in Vietnam?",
+      "a": "The HP Pavilion 14-ce3xxx is hard to find new in Vietnam. On 26 November 2026, Thegioididong marked the 14-ce3014TU as discontinued and CellphoneS showed the 14-ce3013TU as temporarily out of stock. Buyers should expect to find the HP Pavilion 14-ce3xxx secondhand, from private sellers or used laptop shops, and should compare listings with the same product number."
+    },
+    {
+      "q": "How much RAM can an HP Pavilion 14-ce3xxx take?",
+      "a": "According to Thegioididong, the HP Pavilion 14-ce3014TU supports up to 16 GB of DDR4-2666 RAM. It left the factory with 4 GB in one slot, so many used units have since been upgraded. It has only one RAM slot, so before buying ask the seller what size stick is fitted and check the installed RAM under Settings, System, About."
+    },
+    {
+      "q": "How do I check the battery health of a used HP Pavilion 14-ce3xxx?",
+      "a": "To check an HP Pavilion 14-ce3xxx battery, open Command Prompt and run powercfg /batteryreport, then open battery-report.html from the user folder. Compare Full Charge Capacity with Design Capacity. Dell's guide to that report says a battery holding less than 40% of its design capacity is badly worn and should be replaced. The 14-ce3xxx battery is built in and rated at 41 Wh."
+    },
+    {
+      "q": "Can the HP Pavilion 14-ce3xxx upgrade to Windows 11?",
+      "a": "The HP Pavilion 14-ce3xxx processor meets the Windows 11 requirement, because Microsoft's supported Intel processor list includes 10th-generation Core i3, i5 and i7 chips. The laptop shipped with Windows 10 Home, and Microsoft ended Windows 10 support on 14 October 2025, with consumer Extended Security Updates available until 12 October 2027. Plan to upgrade a unit that is still on Windows 10."
+    },
+    {
+      "q": "Does the HP Pavilion 14-ce3xxx have a backlit keyboard?",
+      "a": "The Vietnamese HP Pavilion 14-ce3014TU has no keyboard backlight, according to Thegioididong's spec page. If a listing says a 14-ce3014TU has a backlit keyboard, ask the seller whether the keyboard has been replaced or whether the description is wrong. Configurations sold in other countries may differ, so check the product number on the label against its original spec page."
+    },
+    {
+      "q": "How long does the HP Pavilion 14-ce3xxx battery last?",
+      "a": "When new, the HP Pavilion 14-ce3000 managed about 6 hours of web browsing in a LaptopMedia review that Notebookcheck cites. A used HP Pavilion 14-ce3xxx from 2019 will usually last less, depending on how worn the battery is. The Windows battery report shows how much of the original 41 Wh the battery can still hold."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Windows 10 support has ended on October 14, 2025",
+      "publisher": "Microsoft",
+      "url": "https://support.microsoft.com/en-us/windows/windows-10-support-has-ended-on-october-14-2025-2ca8b313-1946-43d3-b55c-2b95b107f281"
+    },
+    {
+      "title": "Windows 11 supported Intel processors",
+      "publisher": "Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
+    },
+    {
+      "title": "Laptop HP Pavilion 14 ce3014TU i3 1005G1 (8QP03PA)",
+      "publisher": "Thegioididong",
+      "url": "https://www.thegioididong.com/laptop/hp-pavilion-14-ce3014tu-i3-8qp03pa"
+    },
+    {
+      "title": "Laptop HP Pavilion 14-CE3013TU (8QN72PA)",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/laptop-hp-pavilion-14-ce3013tu.html"
+    },
+    {
+      "title": "HP Pavilion 14-ce3001ns",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/HP-Pavilion-14-ce3001ns.451703.0.html"
+    },
+    {
+      "title": "How to Generate a Battery Report Using the POWERCFG Command",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000130117"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-26",
+  "images": {
+    "hero": {
+      "id": "af0342f57f14be663caba88e14b81ae831655ec383d5b4084a1a5ad6291168e2",
+      "w": 1672,
+      "h": 941,
+      "alt": "A flat illustration shows an open laptop surrounded by RAM, an SSD, a battery symbol and a magnified underside label.",
+      "caption": "Checks to make before buying a used HP Pavilion 14-ce3xxx."
+    },
+    "figures": [
+      {
+        "id": "aa0a02260cef130ab66a2d7da3a5013932e68f44964ef5c44c1c0d7b2b05c5fb",
+        "w": 1448,
+        "h": 1086,
+        "after": "how-to-identify-the-exact-model",
+        "alt": "A magnifying glass highlights a blank label on the underside of a stylized laptop beside a blank hanging tag.",
+        "caption": "Read the exact product code on the laptop label."
+      },
+      {
+        "id": "6c05ba84988a42219a25d0c3330de8728ec86109bf7cea8b0312bada3099834f",
+        "w": 1448,
+        "h": 1086,
+        "after": "how-to-check-battery-health",
+        "alt": "A stylized laptop sits beside an abstract report card with two battery symbols and a magnifying glass.",
+        "caption": "Use a Windows battery report to check battery health."
+      }
+    ]
+  }
+}

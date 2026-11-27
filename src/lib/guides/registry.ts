@@ -107,6 +107,13 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'samsung-galaxy-s26-ultra-colors', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '77c622b928d0f2c4', pair: 'mau-sac-samsung-s26-ultra' },
   { slug: 'thue-chung-cu-tphcm', lang: 'vi', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: '7f24c229b0ab1954', pair: 'how-to-find-an-apartment-in-ho-chi-minh-city' },
   { slug: 'how-to-find-an-apartment-in-ho-chi-minh-city', lang: 'en', published: '2026-11-26', reviewed: '2026-11-26', reviewedDigest: 'ad439e22463ffab5', pair: 'thue-chung-cu-tphcm' },
+  { slug: 'cpo-iphone-meaning', lang: 'en', published: '2026-11-27', reviewed: '2026-11-26', reviewedDigest: 'd62cd7e19fb1d364', pair: 'iphone-cpo-la-gi' },
+  { slug: 'iphone-cpo-la-gi', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-26', reviewedDigest: '34fe4a8a815f0210', pair: 'cpo-iphone-meaning' },
+  { slug: 'cac-thanh-pho-lon-viet-nam-nen-song-o-dau', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: 'b01250b0e1b9eff9', pair: 'vietnam-cities-compared' },
+  { slug: 'vietnam-cities-compared', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '3626406fda2a38f0', pair: 'cac-thanh-pho-lon-viet-nam-nen-song-o-dau' },
+  { slug: 'hp-pavilion-14-ce3xxx', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '22914a9bfcab7cb2' },
+  { slug: 'remote-tivi-sony', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '267bc5c6fc87ac48', pair: 'sony-tv-remote-replacement' },
+  { slug: 'sony-tv-remote-replacement', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: 'c955a8e676153fbe', pair: 'remote-tivi-sony' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

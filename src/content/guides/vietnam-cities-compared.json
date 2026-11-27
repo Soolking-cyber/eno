@@ -1,0 +1,398 @@
+{
+  "slug": "vietnam-cities-compared",
+  "title": "Vietnam cities compared: how to choose where to go",
+  "description": "Hanoi, Ho Chi Minh City, Da Nang, Hai Phong, Can Tho and Hue compared on size, climate, rent, daily costs and jobs, using the post-2025 map.",
+  "h1": "Vietnam cities compared: size, climate, costs, work and housing",
+  "eyebrow": "Choosing a city",
+  "intro": "Since 1 July 2025 Vietnam has six centrally-run cities: Hanoi, Ho Chi Minh City, Hai Phong, Da Nang, Can Tho and Hue. Ho Chi Minh City is the largest, at about 14 million people after its merger. For most newcomers the real choice is between Ho Chi Minh City, Hanoi and Da Nang. They differ more in climate, pace and how many jobs there are than in day-to-day prices.",
+  "keyPoints": [
+    "Vietnam went from 63 provinces to 34 in June 2025: 28 provinces and **6 centrally-run cities**. Ho Chi Minh City took in Binh Duong and Ba Ria-Vung Tau, Da Nang took in Quang Nam, Hai Phong took in Hai Duong, and Can Tho took in Soc Trang and Hau Giang.",
+    "After the merger Ho Chi Minh City has about 14 million people (VietNamNet, June 2025). Hanoi is second, with Vietnam Briefing listing 8,718,000.",
+    "Crowd-sourced prices on Numbeo (25-26 November 2026) put a one-bedroom in the centre at about {{vnd:15900000}} a month in Ho Chi Minh City and {{vnd:11200000}} in Hanoi. Outside the centre the two are close.",
+    "The climates are very different. Hanoi has four seasons and a cool winter. Ho Chi Minh City is hot all year, with rain from May to October. Da Nang and Hue get their heavy rain and typhoon risk from September to November.",
+    "Jobs and housing choice are biggest in Ho Chi Minh City and Hanoi. Smaller cities are cheaper to live in but have far fewer openings, so line up work before you choose one."
+  ],
+  "sections": [
+    {
+      "id": "largest-cities-in-vietnam",
+      "title": "Which are the largest cities in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ho Chi Minh City is the largest city in Vietnam, followed by Hanoi. After them come Hai Phong, Can Tho, Da Nang and Hue, the four other cities run directly by central government. The National Assembly created today's map on 12 June 2025, cutting Vietnam from 63 provinces to 34, and the new local governments [began work on 1 July 2025](https://en.vietnamplus.vn/vietnam-now-has-34-provincial-level-administrative-units-post320870.vnp)."
+        },
+        {
+          "type": "p",
+          "text": "According to the Viet Nam National Authority of Tourism, the six cities are now [Hanoi and Hue (unchanged), plus four merged cities](https://vietnam.travel/things-to-do/vietnam%E2%80%99s-new-provincial-system-34-names-you-should-know/). The figures below count everyone inside each city's new boundary, including rural communes, so they are not the size of the built-up area."
+        },
+        {
+          "type": "table",
+          "caption": "Vietnam's six centrally-run cities, from figures published by Vietnam Briefing (June 2025) when the merger was approved",
+          "headers": [
+            "City",
+            "What it merged with",
+            "Land area (km²)",
+            "Population"
+          ],
+          "rows": [
+            [
+              "Ho Chi Minh City",
+              "Binh Duong, Ba Ria-Vung Tau",
+              "6,772.6",
+              "13,608,800"
+            ],
+            [
+              "Hanoi",
+              "Unchanged",
+              "3,359.8",
+              "8,718,000"
+            ],
+            [
+              "Hai Phong",
+              "Hai Duong",
+              "3,194.7",
+              "4,102,700"
+            ],
+            [
+              "Can Tho",
+              "Soc Trang, Hau Giang",
+              "6,360.8",
+              "3,207,000"
+            ],
+            [
+              "Da Nang",
+              "Quang Nam",
+              "11,832.6",
+              "2,819,900"
+            ],
+            [
+              "Hue",
+              "Unchanged",
+              "4,947.1",
+              "1,236,393"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Sources give slightly different numbers. VietNamNet put Ho Chi Minh City at about 14 million and Hue at over 1.4 million in June 2025. Treat the populations as approximate. Some well-known places are no longer cities in their own right. Nha Trang is now in Khanh Hoa province and Da Lat is in Lam Dong province. Hoi An is inside the new Da Nang."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Old district names are still in use",
+          "text": "Since 1 July 2025 Vietnam no longer has districts officially, and official addresses use the new ward and commune names. People, job ads and rental listings still say \"District 1\", \"Binh Thanh\" or \"Tay Ho\", so you will see both kinds of address."
+        }
+      ]
+    },
+    {
+      "id": "what-each-city-is-like",
+      "title": "What is each Vietnam city like to live in?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ho Chi Minh City is the biggest economy, with the fastest pace and the widest choice of everything. Hanoi is the capital, older in feel and with real seasons. Da Nang is a coastal city with beaches inside the city. The others are smaller and more local, with fewer foreign residents."
+        },
+        {
+          "type": "table",
+          "caption": "How the main cities compare for a newcomer (character based on each city's size, location and climate as described in this guide's sources)",
+          "headers": [
+            "City",
+            "Region",
+            "Feel",
+            "Best suited to"
+          ],
+          "rows": [
+            [
+              "Ho Chi Minh City (Saigon)",
+              "South",
+              "Largest and most commercial. Hot all year, with dense neighbourhoods and a metro line since December 2024",
+              "The most job choice, the most housing choice, international schools"
+            ],
+            [
+              "Hanoi",
+              "North",
+              "The capital. Older streets and lakes, and a cool, drier winter",
+              "Anyone who wants seasons and a slightly slower pace with a big-city job market"
+            ],
+            [
+              "Da Nang",
+              "Centre",
+              "Coastal and spread out, with beaches inside the city and Hoi An now within its boundary",
+              "People who put the outdoors first and can accept fewer jobs"
+            ],
+            [
+              "Hai Phong",
+              "North",
+              "Port and industrial city near Hanoi",
+              "Work tied to industry and manufacturing"
+            ],
+            [
+              "Can Tho",
+              "Mekong Delta",
+              "The main city of the delta. River-based and very local",
+              "People who want a Vietnamese-speaking environment"
+            ],
+            [
+              "Hue",
+              "Centre",
+              "The former imperial capital. Smallest of the six, quiet and historic",
+              "A slow pace and a low cost of living"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Is Ho Chi Minh City or Hanoi better for a first move?"
+        },
+        {
+          "type": "p",
+          "text": "Ho Chi Minh City is usually the easier first move, because it has the most jobs, homes and services in English. Hanoi suits people who want a cooler winter and a more traditional city. For a side-by-side look at work in each, see [Hanoi vs Ho Chi Minh City (and Da Nang) for teachers](/teach-in-vietnam/hanoi-vs-ho-chi-minh-city-for-teachers)."
+        }
+      ]
+    },
+    {
+      "id": "weather-in-vietnam-cities",
+      "title": "What is the weather like in Vietnam's cities?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Vietnam has three climates. The north, including Hanoi, has four seasons. The centre, including Da Nang and Hue, has a rainy season with a risk of typhoons. The south, including Ho Chi Minh City and Can Tho, is warm all year with a wet season and a dry season. According to Vietnam Airlines' seasons guide, read in November 2026, the pattern is as follows."
+        },
+        {
+          "type": "table",
+          "caption": "Seasons by region, from Vietnam Airlines' guide to the seasons in Vietnam",
+          "headers": [
+            "Region and cities",
+            "Dry or cool months",
+            "Wet months",
+            "Watch for"
+          ],
+          "rows": [
+            [
+              "North: Hanoi, Hai Phong",
+              "Cooler, drier winter under the northeast monsoon",
+              "Hot, humid summer",
+              "Damp cold indoors in winter, as many homes have no heating"
+            ],
+            [
+              "Centre: Da Nang, Hue",
+              "January to August",
+              "September to November",
+              "Typhoons along the coast in the rainy season"
+            ],
+            [
+              "South: Ho Chi Minh City, Can Tho",
+              "December to April",
+              "May to October",
+              "Heavy late-afternoon downpours and heat all year"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If you are moving in the second half of the year, the timing matters. Arriving in Da Nang or Hue in October means flat-hunting in the heaviest rain. In Ho Chi Minh City the rain usually comes as afternoon storms rather than all-day grey."
+        }
+      ]
+    },
+    {
+      "id": "cost-of-living-in-vietnam-cities",
+      "title": "How much does it cost to live in Vietnam's cities?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Day-to-day prices are similar in Ho Chi Minh City, Hanoi and Da Nang. The big difference is the rent for a central flat, which is highest in Ho Chi Minh City. According to Numbeo, a crowd-sourced price site, as of 25-26 November 2026, typical prices are as follows."
+        },
+        {
+          "type": "table",
+          "caption": "Crowd-sourced average prices on Numbeo, Hanoi updated 26 November 2026, Ho Chi Minh City and Da Nang 25 November 2026",
+          "headers": [
+            "Item",
+            "Ho Chi Minh City",
+            "Hanoi",
+            "Da Nang"
+          ],
+          "rows": [
+            [
+              "One-bedroom, city centre (a month)",
+              "about {{vnd:15900000}}",
+              "about {{vnd:11200000}}",
+              "about {{vnd:14300000}}"
+            ],
+            [
+              "One-bedroom, outside centre (a month)",
+              "about {{vnd:7700000}}",
+              "about {{vnd:7200000}}",
+              "about {{vnd:9200000}}"
+            ],
+            [
+              "Meal, inexpensive restaurant",
+              "{{vnd:55000}}",
+              "{{vnd:52500}}",
+              "{{vnd:60000}}"
+            ],
+            [
+              "Utilities, 85 m² flat (a month)",
+              "about {{vnd:2400000}}",
+              "about {{vnd:2000000}}",
+              "about {{vnd:2000000}}"
+            ],
+            [
+              "Home broadband (a month)",
+              "about {{vnd:260000}}",
+              "about {{vnd:230000}}",
+              "about {{vnd:230000}}"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Read the Da Nang figures with care",
+          "text": "Numbeo's figures are averages of what visitors to the site enter. Its Da Nang page has fewer entries, and comments on that page say parts of it are out of date. Before you commit, check current listings for the actual neighbourhood you want."
+        },
+        {
+          "type": "p",
+          "text": "Local incomes give a sense of the price level. According to VietNamNet in June 2025, average income per person after the merger was {{vnd:89000000}} a year in Hanoi, {{vnd:86500000}} in Ho Chi Minh City and {{vnd:78600000}} in Hai Phong. A street meal is cheap anywhere. Imported food, international schools and Western-style flats cost far more, and that is where city budgets differ."
+        },
+        {
+          "type": "p",
+          "text": "For a full monthly budget in the south, see [the cost of living in Ho Chi Minh City](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers)."
+        }
+      ]
+    },
+    {
+      "id": "work-in-vietnam-cities",
+      "title": "Where are the jobs in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Most jobs open to foreigners are in Ho Chi Minh City and Hanoi, so choose the city around the work rather than the other way round. Ho Chi Minh City is the largest city and the main commercial centre, and Hanoi, as the capital, is home to ministries, embassies and many universities."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Ho Chi Minh City**: the widest range of language centres, international and bilingual schools, offices and services. eno.vn's [school directory](/schools) lists 172 employers in the city.",
+            "**Hanoi**: a large job market too, especially schools, universities, government-linked organisations and embassies.",
+            "**Da Nang, Hai Phong, Can Tho and Hue**: fewer openings and fewer foreign employers. Hai Phong's work leans towards industry, and Da Nang's towards tourism and some schools."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Whichever city you pick, any job needs a work permit, which the employer applies for. If you plan to teach, start with [finding a teaching job in Vietnam](/teach-in-vietnam/finding-a-teaching-job-in-vietnam). You can browse [current jobs on eno.vn](/jobs-vietnam-expats), where linked jobs open the employer's own posting. eno.vn has not verified the employers, and you should never pay to get a job."
+        }
+      ]
+    },
+    {
+      "id": "housing-in-vietnam-cities",
+      "title": "How do I find housing in each city?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "In every city the usual choice is a serviced flat, a flat in an apartment block, or a room in a Vietnamese house. Agents and online listings are the main way to find them. Ho Chi Minh City and Hanoi have the most listings in English, and in smaller cities you will often deal with the landlord in Vietnamese."
+        },
+        {
+          "type": "h3",
+          "text": "Where do newcomers live in Ho Chi Minh City and Hanoi?"
+        },
+        {
+          "type": "p",
+          "text": "In Ho Chi Minh City, newcomers mostly look at District 1, Binh Thanh, District 3, District 2 / Thao Dien and District 7 (Phu My Hung). The [Ho Chi Minh City districts guide](/guides/ho-chi-minh-city-districts) explains each one. eno.vn's [HCMC Rent Index](/hcmc-rent-index) shows median asking rents by district and type of home for the homes listed on eno.vn, and you can browse [homes for rent](/c/rentals). In Hanoi, many foreigners start in Tay Ho. See [renting in Tay Ho](/guides/apartment-for-rent-in-tay-ho)."
+        },
+        {
+          "type": "p",
+          "text": "For viewings, leases and the landlord's residence declaration, read [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner) and [rental deposits](/rental-deposit-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Pay rates city by city. These vary by employer and are not published for every city. For teaching, see [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam).",
+            "Living in provinces outside the six cities, such as Khanh Hoa (Nha Trang) or Lam Dong (Da Lat). Ask employers there directly.",
+            "A detailed comparison of neighbourhoods in Ho Chi Minh City. See [where to live in Ho Chi Minh City](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What are the main cities in Vietnam?",
+      "a": "The main cities in Vietnam are the six centrally-run cities: Hanoi, Ho Chi Minh City, Hai Phong, Da Nang, Can Tho and Hue. That list has applied since the provincial mergers approved in June 2025 took effect on 1 July 2025. Ho Chi Minh City and Hanoi are by far the biggest. Da Nang is the main city of central Vietnam, and Can Tho is the main city of the Mekong Delta."
+    },
+    {
+      "q": "What is the largest city in Vietnam?",
+      "a": "Ho Chi Minh City is the largest city in Vietnam by population. It has about 14 million people since it merged with Binh Duong and Ba Ria-Vung Tau in 2025, according to VietNamNet in June 2025. Hanoi, the capital, is second with about 8.7 million. By land area, Da Nang is now the largest of the six cities, because it absorbed Quang Nam province."
+    },
+    {
+      "q": "How many provinces are in Vietnam now?",
+      "a": "Vietnam now has 34 provincial-level units: 28 provinces and 6 centrally-run cities. The National Assembly approved the change on 12 June 2025, cutting the number from 63, and the new local governments began work on 1 July 2025. At the same time Vietnam dropped the district level, so addresses now run straight from province or city down to ward or commune."
+    },
+    {
+      "q": "Is Hanoi cheaper than Ho Chi Minh City?",
+      "a": "Hanoi is a little cheaper than Ho Chi Minh City, mainly for central rents. According to Numbeo's crowd-sourced data from November 2026, a one-bedroom in central Hanoi averages noticeably less than one in central Ho Chi Minh City. Outside the centre, rents in the two cities are close, and everyday costs such as cheap meals, utilities and internet are similar. The table in this guide's costs section gives the figures."
+    },
+    {
+      "q": "Which city in Vietnam is best for foreigners to live in?",
+      "a": "Ho Chi Minh City suits most foreigners moving for work, because it has the most jobs, homes and services in English. Hanoi suits people who want four seasons and a more traditional capital. Da Nang suits those who want beaches and a quieter pace and can accept fewer job openings. The best city in Vietnam usually depends on where the job is."
+    },
+    {
+      "q": "Is Da Nang a big city?",
+      "a": "Da Nang is one of Vietnam's six centrally-run cities, with about 2.8 million people inside its new boundary, according to Vietnam Briefing in June 2025. Most of those people live in Quang Nam, the province that merged into Da Nang in 2025. The urban core is much smaller than Hanoi or Ho Chi Minh City. Da Nang's boundary now includes Hoi An, and the city is the largest of the six by land area."
+    },
+    {
+      "q": "When is the rainy season in Vietnam's cities?",
+      "a": "The rainy season in Vietnam depends on the region. According to Vietnam Airlines, Ho Chi Minh City and the south get rain from May to October, usually as late-afternoon storms. Da Nang and Hue get their heaviest rain from September to November, with a risk of typhoons on the coast. Hanoi and the north have a hot, humid summer and a cooler, drier winter."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Vietnam's New Provincial System: 34 Names You Should Know",
+      "publisher": "Viet Nam National Authority of Tourism",
+      "url": "https://vietnam.travel/things-to-do/vietnam%E2%80%99s-new-provincial-system-34-names-you-should-know/"
+    },
+    {
+      "title": "Vietnam now has 34 provincial-level administrative units",
+      "publisher": "VietnamPlus (Vietnam News Agency)",
+      "url": "https://en.vietnamplus.vn/vietnam-now-has-34-provincial-level-administrative-units-post320870.vnp"
+    },
+    {
+      "title": "Vietnam's Provincial Mergers: Consolidation from 63 to 34 Provinces and Cities",
+      "publisher": "Vietnam Briefing (Dezan Shira & Associates)",
+      "url": "https://www.vietnam-briefing.com/news/vietnams-government-introduces-official-plan-for-provincial-mergers.html"
+    },
+    {
+      "title": "Which province is now the largest, smallest, richest in Vietnam",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/which-province-is-now-the-largest-smallest-richest-in-vietnam-2411398.html"
+    },
+    {
+      "title": "Seasons In Vietnam: Discover The Unique Beauty Of Each Region Through The Year",
+      "publisher": "Vietnam Airlines",
+      "url": "https://www.vietnamairlines.com/en/useful-information/travel-guide/seasons-in-vietnam"
+    },
+    {
+      "title": "Cost of Living Comparison Between Hanoi and Ho Chi Minh City",
+      "publisher": "Numbeo",
+      "url": "https://www.numbeo.com/cost-of-living/compare_cities.jsp?country1=Vietnam&city1=Hanoi&country2=Vietnam&city2=Ho+Chi+Minh+City&displayCurrency=VND"
+    },
+    {
+      "title": "Cost of Living in Da Nang",
+      "publisher": "Numbeo",
+      "url": "https://www.numbeo.com/cost-of-living/in/Da-Nang?displayCurrency=VND"
+    }
+  ],
+  "related": [
+    "hanoi-vs-ho-chi-minh-city-for-teachers",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "finding-a-teaching-job-in-vietnam",
+    "is-ho-chi-minh-city-safe"
+  ],
+  "lastChecked": "2026-11-26"
+}

@@ -1,0 +1,358 @@
+{
+  "slug": "cpo-iphone-meaning",
+  "title": "CPO iPhone meaning: what Certified Pre-Owned tells you",
+  "description": "What CPO means on an iPhone, what Apple's certification covers (battery, shell, 1-year warranty), what it leaves out, and how to check a used iPhone in Vietnam.",
+  "h1": "CPO iPhone meaning: what Certified Pre-Owned really tells you, and what it doesn't",
+  "eyebrow": "Phones and electronics",
+  "intro": "A CPO (Certified Pre-Owned) iPhone is a used or returned iPhone that was inspected, repaired and resold with a warranty. Apple's own version, Apple Certified Refurbished, comes with a new battery, a new outer shell and a one-year warranty. In Vietnam, CPO is mostly a shop's label rather than something Apple sells here, so the label tells you less than the phone itself does. Check the phone before you pay.",
+  "keyPoints": [
+    "**Apple's own programme is called Apple Certified Refurbished.** Apple says its refurbished iPhones get a new battery and outer shell, full functional testing, a new white box and its standard one-year limited warranty.",
+    "**When we checked on 26 November 2026, apple.com/vn had no refurbished store page.** Retailers FPT Shop and Viettel Store both say official CPO stock in Vietnam is scarce, so most phones sold as CPO here came in through other channels.",
+    "**Apple may restrict iPhone warranty service to the country where the phone was first sold**, according to its Asia-Pacific warranty terms. A CPO phone brought into Vietnam may only be covered by the shop's own warranty.",
+    "**The phone tells you more than the box does.** Check Settings > General > About for Parts and Service History, Settings > Battery for battery health, and make sure the phone is erased and not locked to anyone's Apple Account.",
+    "**A model number starting with F is widely reported to mean Apple refurbished it**, but Apple does not document this, so treat it as one clue among several."
+  ],
+  "sections": [
+    {
+      "id": "what-does-cpo-mean-on-an-iphone",
+      "title": "What does CPO mean on an iPhone?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "CPO stands for **Certified Pre-Owned**. It means the iPhone had an earlier life, as a returned unit, a phone with a fault, or a used phone, and that someone inspected it, repaired it and resold it with a warranty. The important question is who did the certifying, because the label is only as good as the company behind it."
+        },
+        {
+          "type": "p",
+          "text": "Apple runs its own programme, which it calls **Apple Certified Refurbished**, and sells it through the refurbished section of its online stores. Vietnamese retailers such as [FPT Shop](https://fptshop.com.vn/tin-tuc/for-gamers/iphone-cpo-la-gi-197410) and [Viettel Store](https://viettelstore.vn/tin-tuc/iphone-cpo-la-gi-co-nen-mua-khong) use \"CPO\" for phones Apple took back, refurbished and repacked in a plain white box, which they say is marked \"Apple Certified Pre-Owned\". Other sellers use the same three letters for phones they have checked themselves, with no Apple involvement at all."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "CPO is not a protected term",
+          "text": "Nothing stops a seller from calling any used iPhone \"CPO\". Viettel Store itself warns that some sellers repack used \"99%\" phones in CPO-style boxes. Read \"CPO\" as a claim to check, not a guarantee."
+        }
+      ]
+    },
+    {
+      "id": "what-apple-certified-refurbished-covers",
+      "title": "What does Apple's certification actually cover?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Apple's certification covers a new battery, a new outer shell, full testing and a one-year warranty. According to [Apple's refurbished products page](https://www.apple.com/uk/shop/refurbished/about), as of November 2026, \"refurbished iOS devices will come with new battery and outer shell\". The same page lists the rest of what you get."
+        },
+        {
+          "type": "table",
+          "caption": "What Apple says comes with an Apple Certified Refurbished iPhone (Apple refurbished products page, read 26 November 2026)",
+          "headers": [
+            "Item",
+            "What Apple says"
+          ],
+          "rows": [
+            [
+              "Battery",
+              "New battery"
+            ],
+            [
+              "Outer shell",
+              "New outer shell"
+            ],
+            [
+              "Testing",
+              "Full functional testing as part of its refurbishment process"
+            ],
+            [
+              "Parts",
+              "Genuine Apple replacement parts, as needed"
+            ],
+            [
+              "Box and contents",
+              "A new white box, with all accessories, cables and the operating system"
+            ],
+            [
+              "Warranty",
+              "Apple's standard one-year limited warranty; AppleCare can be bought on top"
+            ],
+            [
+              "Price",
+              "Up to 15% less than new, on that page"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Because the battery and shell are new, a genuine Apple refurbished iPhone should look and hold a charge like a new one. That's the main difference from an ordinary used phone, where the battery has already aged and the case shows wear."
+        }
+      ]
+    },
+    {
+      "id": "what-certification-does-not-tell-you",
+      "title": "What does CPO certification not cover?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The label doesn't tell you who certified the phone, where its warranty can be used, or what happened to it after it left the refurbisher. Those three gaps cause most of the problems with CPO phones bought in Vietnam."
+        },
+        {
+          "type": "h3",
+          "text": "Does the Apple warranty work in Vietnam?"
+        },
+        {
+          "type": "p",
+          "text": "It might not. Apple's [one-year limited warranty for the Asia-Pacific region](https://www.apple.com/legal/warranty/products/ios-warranty-rest-of-apac-english.html) says Apple may restrict warranty service for iPhone to the country where Apple or its authorised distributors first sold it. Viettel Store adds that authorised service centres in Vietnam ask for a valid purchase invoice, so a CPO phone brought in from abroad is usually repaired under the seller's own warranty, not Apple's. Ask the shop in writing who handles repairs and for how long."
+        },
+        {
+          "type": "h3",
+          "text": "Is the battery covered?"
+        },
+        {
+          "type": "p",
+          "text": "Only against defects. The same Apple warranty excludes consumable parts such as batteries that are designed to wear down over time, unless they fail because of a defect in materials or workmanship. It also excludes damage from repairs by anyone other than Apple or an Apple Authorised Service Provider, and any phone whose serial number has been removed or defaced."
+        },
+        {
+          "type": "h3",
+          "text": "Does certification say anything about later repairs?"
+        },
+        {
+          "type": "p",
+          "text": "No. Certification describes the phone on the day it was refurbished. A screen or battery swapped at a street repair stall afterwards will not show on the box, but it may show in the phone's own settings (see the checks below)."
+        }
+      ]
+    },
+    {
+      "id": "cpo-vs-used-vs-replacement",
+      "title": "Is a CPO iPhone the same as refurbished, used or a warranty replacement?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "No. Vietnamese shops sell iPhones under several labels, and each one means something different for the battery, the case and the warranty. The table below sets out how Apple and three Vietnamese retailers describe them. The retailers' descriptions are their own sales copy and don't always agree with each other."
+        },
+        {
+          "type": "table",
+          "caption": "iPhone labels you will see in Vietnam, as described by Apple, FPT Shop, Viettel Store and 24hStore (read 26 November 2026)",
+          "headers": [
+            "Label",
+            "What it is said to be",
+            "Battery and shell",
+            "Warranty, as described"
+          ],
+          "rows": [
+            [
+              "New (\"Brand New\", máy mới)",
+              "Sealed, never activated, never repaired",
+              "New",
+              "Apple's one-year warranty, in the country of sale"
+            ],
+            [
+              "Apple Certified Refurbished",
+              "Refurbished by Apple, sold on Apple's refurbished store",
+              "New battery and outer shell (Apple)",
+              "Apple's one-year limited warranty (Apple)"
+            ],
+            [
+              "CPO, as sold in Vietnamese shops",
+              "Said to be Apple-refurbished stock in a white box marked \"Apple Certified Pre-Owned\"",
+              "New, according to FPT Shop and Viettel Store",
+              "12 months from activation according to retailers; in practice often the shop's own warranty"
+            ],
+            [
+              "Refurbished / trả bảo hành",
+              "Warranty-return or replacement stock; Viettel Store says it may be only lightly refurbished",
+              "Varies by unit",
+              "24hStore says the warranty follows the phone it replaced, not a fresh year"
+            ],
+            [
+              "Used (máy cũ, \"like new 99%\")",
+              "Someone's old phone, checked by the seller",
+              "Original, already aged",
+              "The seller's own policy only"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Viettel Store puts CPO prices at about 15 to 20% below new, and warranty-return phones at about 15 to 25% below. Both figures come from its own comparison table, as of November 2026. A CPO price close to a used price is a reason to look harder at the phone."
+        }
+      ]
+    },
+    {
+      "id": "how-to-check-a-cpo-or-used-iphone",
+      "title": "How do I check a CPO or used iPhone before I pay?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Check the phone, not the box: the Parts and Service History, battery health, the model number and the Apple Account lock. Each check takes a minute with the phone in your hand and switched on."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Make sure it is erased and not locked",
+              "text": "Apple's [Activation Lock page](https://support.apple.com/en-gb/ht201365) says that before you buy from anyone other than Apple or an Apple Authorised Reseller, you should make sure the device has been erased and is no longer linked to the previous owner's account. If it opens to a Home Screen or passcode screen, it hasn't been erased. If setup asks for someone else's Apple Account, it's still linked to them. Don't take it."
+            },
+            {
+              "title": "Read the Parts and Service History",
+              "text": "On iOS 15.2 or later, go to Settings > General > About. According to [Apple's Parts and Service History page](https://support.apple.com/en-us/102658), a repaired iPhone shows a Parts and Service History section there. **Genuine** means Apple parts and processes. **Unknown** can mean a non-genuine, unverified or modified part. **Used** means the part was previously in a different iPhone. The parts it can report are the battery, display, logic board, cameras and Touch ID, depending on the model."
+            },
+            {
+              "title": "Check battery health",
+              "text": "According to [Apple's battery support page](https://support.apple.com/en-gb/106348), as of November 2026, iPhone 14 models and earlier are designed to keep 80% of their original capacity at 500 complete charge cycles, and iPhone 15 models and later at 1,000 cycles. On iPhone 15 and later, look under Settings > Battery > Battery Health, which also shows the cycle count. On iPhone 11 to 14, look under Settings > Battery > Battery Health & Charging. A phone sold with a new battery should read close to 100%."
+            },
+            {
+              "title": "Look at the model number",
+              "text": "In Settings > General > About, check the part number, which looks like MXXXX/A or FXXXX/A. Posts in [Apple's community forums](https://discussions.apple.com/thread/250397110) report that M means a new phone and F means Apple refurbished it. Apple does not document this, and Viettel Store notes that some replacement units start with N, so treat the letter as a clue, not proof."
+            },
+            {
+              "title": "Match the numbers and test the hardware",
+              "text": "The IMEI and serial number on the phone, the box and the invoice should all match. Then test the screen, Face ID or Touch ID, cameras, speaker, microphone, charging port and a call on your own SIM."
+            },
+            {
+              "title": "Get the warranty in writing",
+              "text": "Ask who repairs the phone if it fails (the shop or an Apple service centre), for how long, and what is excluded, and get it on the invoice."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "The box proves nothing",
+          "text": "A white box with \"Certified Pre-Owned\" printed on it can be copied. Viettel Store's advice is to walk away from a seller who refuses an IMEI check or avoids questions about the warranty."
+        }
+      ]
+    },
+    {
+      "id": "iphone-in-vietnam",
+      "title": "Buying an iPhone in Vietnam: where does CPO fit?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "In Vietnam, Apple sells new iPhones through its online store and authorised resellers. A CPO phone here usually comes from a phone shop that imported it, not from Apple. When we checked on 26 November 2026, [Apple's Vietnamese iPhone page](https://www.apple.com/vn/iphone/) listed new models only, and the refurbished store address on apple.com/vn returned \"not found\"."
+        },
+        {
+          "type": "h3",
+          "text": "How much is an iPhone in Vietnam?"
+        },
+        {
+          "type": "p",
+          "text": "The price depends on the model, the storage and whether the phone is new, CPO or used. Prices change too often to print here. Our guide to [buying an iPhone in Vietnam](/guides/buy-iphone-in-vietnam) compares sellers and costs, and [Is it cheaper to buy an iPhone in Vietnam?](/guides/is-it-cheaper-to-buy-iphone-in-vietnam) compares prices here with prices abroad. For CPO stock, the only guide on price is the retailer discounts in the table above."
+        },
+        {
+          "type": "h3",
+          "text": "Where can I find an iPhone near me in Ho Chi Minh City?"
+        },
+        {
+          "type": "p",
+          "text": "Authorised resellers and the large phone chains sell new iPhones, and many also sell CPO or used ones under their own warranty. Private sellers list second-hand phones in [eno.vn's Electronics category](/c/electronics). A listing there is the seller's own description, so run every check above before you pay. If you want a cheaper Android instead, see [buying a phone in Vietnam](/guides/buy-phone-in-vietnam). For a SIM or eSIM once you have the phone, see the [eSIM guide](/esim-vietnam-guide)."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Selling your old iPhone before you leave",
+          "text": "The same checks help buyers trust you: sign out of your Apple Account, erase the phone and show the battery health. Our guide to [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam) covers the rest."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "**Current iPhone prices by model and shop**: see [iPhone in Vietnam: where to buy and what it costs](/guides/buy-iphone-in-vietnam).",
+            "**Whether a particular shop's warranty will be honoured**: that depends on the shop, so get its terms on the invoice.",
+            "**Refurbished Android phones**: other brands run their own programmes on their own terms. See [cheap phones in Vietnam](/guides/cheap-phones-in-vietnam) for budget options."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "What does CPO mean on an iPhone?",
+      "a": "CPO means Certified Pre-Owned: an iPhone that was returned or used, then inspected, repaired and resold with a warranty. Apple's own version is called Apple Certified Refurbished, and Apple says those phones get a new battery, a new outer shell, full testing and a one-year limited warranty. Other sellers also use the CPO label, so a CPO iPhone is only as reliable as whoever certified it."
+    },
+    {
+      "q": "Is a CPO iPhone the same as a refurbished iPhone?",
+      "a": "A CPO iPhone and a refurbished iPhone overlap but are not always the same. Apple calls its own programme Apple Certified Refurbished, with a new battery and shell. Vietnamese retailers such as Viettel Store use CPO for Apple-refurbished stock, and use refurbished or \"trả bảo hành\" for warranty-return phones that may be only lightly refurbished. Ask the seller exactly which one they are selling."
+    },
+    {
+      "q": "How do I know if my iPhone is CPO?",
+      "a": "An iPhone's own settings are the best evidence. Settings > General > About shows Parts and Service History if the iPhone has been repaired. The battery health screen shows maximum capacity. A part number starting with F is widely reported to mean Apple refurbished the phone, though Apple does not document this. The box alone proves nothing, because CPO-style boxes can be copied."
+    },
+    {
+      "q": "Does a CPO iPhone bought in Vietnam have Apple warranty?",
+      "a": "A CPO iPhone bought in Vietnam may not have Apple warranty there. Apple's Asia-Pacific warranty says Apple may restrict iPhone warranty service to the country where the phone was first sold. Viettel Store says authorised service centres in Vietnam ask for a valid purchase invoice, so imported CPO phones are usually covered only by the shop's warranty. Get that warranty in writing."
+    },
+    {
+      "q": "How much is an iPhone in Vietnam?",
+      "a": "The price of an iPhone in Vietnam depends on the model, the storage and whether it is new, CPO or used, and prices change often. Viettel Store puts CPO iPhones at about 15 to 20% below new, as of November 2026. Apple's Vietnamese online store and authorised resellers publish current prices for new iPhones."
+    },
+    {
+      "q": "Is it safe to buy a used iPhone in Vietnam?",
+      "a": "Buying a used iPhone in Vietnam is safe enough if you check the phone itself before paying. Make sure the phone is erased and not linked to anyone's Apple Account, read Parts and Service History in Settings > General > About, check battery health, match the IMEI on the phone, box and invoice, and get the seller's warranty in writing."
+    },
+    {
+      "q": "Where can I buy an iPhone near me in Ho Chi Minh City?",
+      "a": "In Ho Chi Minh City, new iPhones are sold by Apple's Vietnamese online store, authorised resellers and the large phone chains, and many chains also sell CPO or used iPhones under their own warranty. Private sellers list second-hand iPhones on classifieds sites such as eno.vn's Electronics category. Whichever seller you use, check the phone before paying."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Apple Certified Refurbished products",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/uk/shop/refurbished/about"
+    },
+    {
+      "title": "About iPhone Parts and Service History",
+      "publisher": "Apple Support",
+      "url": "https://support.apple.com/en-us/102658"
+    },
+    {
+      "title": "About the battery and performance of iPhone 11 and later",
+      "publisher": "Apple Support",
+      "url": "https://support.apple.com/en-gb/106348"
+    },
+    {
+      "title": "Activation Lock for iPhone and iPad",
+      "publisher": "Apple Support",
+      "url": "https://support.apple.com/en-gb/ht201365"
+    },
+    {
+      "title": "Apple One (1) Year Limited Warranty (Asia Pacific)",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/legal/warranty/products/ios-warranty-rest-of-apac-english.html"
+    },
+    {
+      "title": "iPhone",
+      "publisher": "Apple (Vietnam)",
+      "url": "https://www.apple.com/vn/iphone/"
+    },
+    {
+      "title": "Iphone X model number begins with F it means it is not brand new?",
+      "publisher": "Apple Community",
+      "url": "https://discussions.apple.com/thread/250397110"
+    },
+    {
+      "title": "iPhone CPO là gì? Phân tích ưu, nhược điểm và xem liệu có nên mua hay không",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/tin-tuc/for-gamers/iphone-cpo-la-gi-197410"
+    },
+    {
+      "title": "iPhone CPO là gì? Có nên mua không",
+      "publisher": "Viettel Store",
+      "url": "https://viettelstore.vn/tin-tuc/iphone-cpo-la-gi-co-nen-mua-khong"
+    },
+    {
+      "title": "Sự thật đằng sau những chiếc iPhone CPO, iPhone trả bảo hành và iPhone Brand New",
+      "publisher": "24hStore",
+      "url": "https://24hstore.vn/cong-nghe/su-that-dang-sau-nhung-chiec-iphone-cpo-iphone-tra-bao-hanh-va-iphone-brand-new-n202"
+    }
+  ],
+  "related": [
+    "your-first-weeks-in-ho-chi-minh-city",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "leaving-vietnam-checklist-for-teachers"
+  ],
+  "lastChecked": "2026-11-26"
+}

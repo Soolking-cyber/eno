@@ -1,0 +1,404 @@
+{
+  "slug": "remote-tivi-sony",
+  "title": "Remote tivi Sony: chọn đúng mã, so giá, kiểm tra khi nhận",
+  "description": "Cách tìm mã model tivi Sony, chọn remote chính hãng, tương thích hay đa năng, giá niêm yết đọc ngày 26/11/2026 và những gì cần thử trước khi trả tiền.",
+  "h1": "Remote tivi Sony thay thế: tìm đúng mã, so giá nơi bán và kiểm tra trước khi nhận",
+  "eyebrow": "Đồ điện tử",
+  "intro": "Để mua remote tivi Sony thay thế đúng loại, bạn lấy mã model in trên tem sau tivi rồi kiểm tra 3 thứ trước khi trả tiền: remote có tivi của bạn trong danh sách tương thích, mọi nút đều ăn, và remote còn tốt. Giá chênh nhau nhiều lần giữa các nơi bán, nên hãy so ít nhất hai nơi. Remote giọng nói còn phải ghép Bluetooth với tivi, vì vậy hãy thử ngay tại chỗ.",
+  "keyPoints": [
+    "Mã model tivi (ví dụ KD55X8500C) mới là thứ quyết định remote nào dùng được. Mang theo remote cũ để đối chiếu mã, đúng như FPT Shop và Hoàng Hà Mobile khuyên.",
+    "Theo các trang bán hàng đọc ngày 26/11/2026, remote thay thế cơ bản ở Điện máy XANH có giá {{vnd:80000}}, còn remote giọng nói RMF-TX310P trên baohanhsony.vn có giá {{vnd:490000}} và đang hết hàng.",
+    "Remote đa năng hay remote tương thích giá rẻ thường chỉ làm được các chức năng cơ bản. Nút mic và Google Assistant chỉ chạy khi remote ghép Bluetooth được với tivi.",
+    "Trên các tivi Google TV như BRAVIA 6, bạn ghép remote bằng cách giữ HOME và BACK khoảng 3 giây, để remote cách tivi không quá 1 mét, theo hướng dẫn của Sony.",
+    "Trong lúc chờ remote mới, bạn có thể điều khiển tivi Sony chạy Android TV hay Google TV bằng ứng dụng Google TV trên điện thoại, miễn là hai máy dùng chung một mạng Wi-Fi.",
+    "Sony không gọi điện chào bán remote khuyến mãi. Năm 2019 Điện máy XANH đã cảnh báo về kiểu lừa này."
+  ],
+  "sections": [
+    {
+      "id": "tim-ma-model-tivi-va-remote",
+      "title": "Cách tìm mã model tivi Sony và mã remote cũ",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Mã model tivi Sony in trên tem dán ở mặt sau máy, và tivi đời mới còn hiện mã này trong phần Cài đặt. Đây là mã bạn cần để chọn remote. Hoàng Hà Mobile khuyên mang theo remote cũ đến nơi bán để đối chiếu, còn FPT Shop khuyên đưa mã model cho nhân viên bán hàng."
+        },
+        {
+          "type": "p",
+          "text": "Remote tivi Sony là bộ điều khiển Sony làm riêng cho từng dòng tivi BRAVIA. Mỗi remote chính hãng chỉ hợp với một danh sách model nhất định, và mã của remote (như RMF-TX310P hay RMT-TX300P) khác với mã của tivi. Vì vậy nên ghi lại cả hai mã."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Xem tem sau tivi",
+              "text": "Tìm tem có mã bắt đầu bằng KD, KDL, XR hoặc K, theo sau là kích thước màn hình. Ví dụ KD65X9000E. Chụp ảnh tem lại để khỏi ghi nhầm chữ cái ở cuối mã."
+            },
+            {
+              "title": "Xem trong menu nếu tem bị mờ",
+              "text": "Theo Điện máy XANH, trên Android TV Sony đời 2018 bạn bấm Home, vào Cài đặt rồi chọn Giới thiệu. Trên Smart TV Sony đời 2018 thì vào Cài đặt rồi chọn Hỗ trợ khách hàng. Tên menu có thể khác tùy đời máy."
+            },
+            {
+              "title": "Lật remote cũ",
+              "text": "Kiểm tra mặt sau và khoang pin của remote cũ để lấy mã remote. Dù remote đã hỏng, mã này vẫn là cách nhanh nhất để người bán tìm đúng hàng."
+            },
+            {
+              "title": "Đối chiếu với danh sách tương thích",
+              "text": "Trang bán remote tử tế thường liệt kê các model tivi dùng được. Ví dụ, trang RMF-TX310P trên baohanhsony.vn liệt kê khoảng 80 model, phần lớn có đuôi C, D, E, F, G. Model của bạn phải có trong danh sách đó."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Đừng chỉ nhìn chữ \"Sony\"",
+          "text": "Hai tivi cùng kích thước nhưng khác đuôi mã (ví dụ đuôi C và đuôi J) có thể cần remote khác nhau. Hãy hỏi người bán theo đúng mã đầy đủ, không hỏi theo kiểu \"remote cho Sony 55 inch\"."
+        }
+      ]
+    },
+    {
+      "id": "chon-loai-remote",
+      "title": "Nên mua remote chính hãng, remote tương thích hay remote đa năng?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu cần nút mic, Google Assistant hay các nút tắt ứng dụng, hãy mua remote chính hãng đúng mã. Nếu chỉ cần bật tắt, chỉnh âm lượng và đổi kênh, remote tương thích hoặc remote đa năng rẻ hơn nhiều là đủ. FPT Shop và Hoàng Hà Mobile đều cho biết remote đa năng có thể thiếu một số chức năng của remote gốc."
+        },
+        {
+          "type": "table",
+          "caption": "Ba loại remote thay thế cho tivi Sony, tổng hợp từ FPT Shop, Hoàng Hà Mobile và Điện máy XANH (đọc ngày 26/11/2026)",
+          "headers": [
+            "Loại remote",
+            "Hợp với ai",
+            "Điểm cần biết"
+          ],
+          "rows": [
+            [
+              "**Chính hãng đúng mã** (ví dụ RMF-TX310P)",
+              "Tivi Android TV/Google TV cần nút mic và nút ứng dụng",
+              "Đắt nhất, có danh sách model tương thích. Mẫu cũ có thể hết hàng: FPT Shop khuyên hỏi trung tâm bảo hành mẫu mới hơn mà vẫn dùng được"
+            ],
+            [
+              "**Remote tương thích** (hàng thay thế mang tên mẫu Sony)",
+              "Người cần remote nhanh, giá thấp",
+              "Nhiều trang không nói rõ có phải chính hãng không. Có tin rao ghi \"giọng nói\" nhưng lại không cần cài đặt gì"
+            ],
+            [
+              "**Remote đa năng** (ví dụ Cosano RM-SN01)",
+              "Tivi đời cũ, hoặc chỉ cần chức năng cơ bản",
+              "Theo Điện máy XANH, mẫu này dùng được với hầu hết tivi Sony nhưng chỉ ở chức năng cơ bản"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Remote ghi \"giọng nói\" giá rẻ có nói được không?"
+        },
+        {
+          "type": "p",
+          "text": "Muốn biết, bạn phải thử nút mic ngay trên tivi. Tên sản phẩm có chữ \"giọng nói\" chưa đủ để chắc chắn. Theo hướng dẫn của Sony, remote giọng nói phải ghép nối với tivi, và việc ghép coi như thất bại nếu bấm nút Google Assistant mà ô nhập giọng nói không hiện ra. Một tin rao ghi \"không cần cài đặt, dùng ngay\" cho mẫu giọng nói là dấu hiệu nên hỏi kỹ người bán xem nút mic có thật sự chạy không."
+        },
+        {
+          "type": "h3",
+          "text": "Dấu hiệu nào cho thấy remote là hàng kém chất lượng?"
+        },
+        {
+          "type": "p",
+          "text": "FPT Shop và Hoàng Hà Mobile nêu các dấu hiệu sau: hao pin nhanh, bấm nút một lúc mới thấy màn hình phản hồi, nút cứng hoặc không ăn, và hỏng sau một cú rơi nhẹ. Hai nơi này đều khuyên tránh người bán nhỏ lẻ không rõ nguồn gốc."
+        }
+      ]
+    },
+    {
+      "id": "gia-remote-tivi-sony",
+      "title": "Remote tivi Sony giá bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giá remote tivi Sony phụ thuộc vào loại remote và nơi bán. Theo các trang đọc ngày 26/11/2026, mức giá đi từ {{vnd:80000}} cho remote thay thế cơ bản đến {{vnd:490000}} cho remote giọng nói RMF-TX310P. Bảng dưới đây chỉ ghi những giá chúng tôi đọc được trực tiếp trên trang của từng nơi bán."
+        },
+        {
+          "type": "table",
+          "caption": "Giá niêm yết remote cho tivi Sony, đọc trên trang của từng nơi bán ngày 26/11/2026",
+          "headers": [
+            "Nơi bán",
+            "Sản phẩm",
+            "Giá niêm yết",
+            "Ghi chú trên trang"
+          ],
+          "rows": [
+            [
+              "[Điện máy XANH](https://www.dienmayxanh.com/dieu-khien-tivi/dieu-khien-tivi-sony-cosano-rm-sn01)",
+              "Cosano RM-SN01, remote thay thế cơ bản",
+              "{{vnd:80000}}",
+              "Giá tạm tính cho TP.HCM, bảo hành 12 tháng, tầm xa 8 m, dùng pin AAA"
+            ],
+            [
+              "[Hoàng Thịnh TV](https://hoangthinhtv.com/san-pham/remote-tv-voice-dieu-khien-tivi-sony-giong-noi-rmf-tx520p)",
+              "Remote ghi \"giọng nói RMF-TX520P\"",
+              "{{vnd:120000}}",
+              "Trang không nói là chính hãng hay tương thích và không liệt kê model tivi"
+            ],
+            [
+              "[baohanhsony.vn](https://baohanhsony.vn/phu-kien/dieu-khien-tv-tu-xa-rmf-tx310p/)",
+              "RMF-TX310P, remote giọng nói",
+              "{{vnd:490000}}",
+              "Hết hàng. Có danh sách khoảng 80 model. Trang không nêu ai vận hành website"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo Điện máy XANH, tính đến tháng 11/2026, remote Cosano RM-SN01 có giá {{vnd:80000}} ở TP.HCM. Theo Hoàng Thịnh TV, tính đến tháng 11/2026, remote ghi tên RMF-TX520P có giá {{vnd:120000}}. Theo baohanhsony.vn, tính đến tháng 11/2026, remote RMF-TX310P có giá {{vnd:490000}} và đang hết hàng."
+        },
+        {
+          "type": "p",
+          "text": "Hoàng Hà Mobile (bài ngày 15/01/2026) cho biết remote chính hãng làm riêng cho từng dòng tivi thường đắt hơn remote đa năng hoặc remote tương thích. Vì vậy, một remote \"cùng tên\" nhưng rẻ hơn hẳn nên được thử kỹ hơn, không phải nhận về là xong."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Giá trên Lazada, Shopee, TikTok Shop và các tin rao đồ cũ thay đổi hằng ngày nên chúng tôi không đưa vào bảng. Hãy xem giá trên trang người bán vào ngày bạn mua, và chụp lại trang sản phẩm có ghi mã tương thích."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-truoc-khi-nhan",
+      "title": "Kiểm tra gì trước khi nhận remote tại chỗ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn nên nhận remote ở nơi có tivi Sony để thử, tốt nhất là ngay tại nhà mình, rồi mới trả tiền. Cách này kiểm tra được cả ba điều: tương thích, nút bấm và tình trạng. Nếu người bán không đến nhà được, hãy hỏi trước xem họ có tivi Sony để thử không. Tin rao có thể ghi tên quận cũ, nhưng từ tháng 7/2025 địa chỉ chính thức đã dùng tên phường mới, nên hãy hỏi lại địa chỉ cụ thể."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Đối chiếu mã",
+              "text": "So mã in trên remote với mã người bán đã báo, và với danh sách model tương thích bạn đã chụp lại."
+            },
+            {
+              "title": "Lắp pin mới",
+              "text": "Nên dùng pin mới, vì FPT Shop cho biết pin yếu khiến remote chỉ ăn ở cự ly gần hoặc phải bấm nhiều lần. Pin yếu cũng làm việc ghép Bluetooth thất bại."
+            },
+            {
+              "title": "Thử từng nút",
+              "text": "Bấm lần lượt nguồn, âm lượng, kênh, phím điều hướng, OK, Back, Home và các nút ứng dụng. Đứng xa vài mét để thử tầm phát."
+            },
+            {
+              "title": "Ghép nối và thử mic",
+              "text": "Với remote giọng nói, ghép nối với tivi rồi bấm nút mic hoặc Google Assistant. Nếu ô nhập giọng nói hiện ra là ghép thành công."
+            },
+            {
+              "title": "Xem tình trạng vỏ",
+              "text": "Xem nắp pin có khớp không, lò xo pin có gỉ không, nút có bị mòn chữ hoặc lún không. Hỏi rõ người bán có cho đổi trả không và trong bao lâu."
+            }
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Ghép remote giọng nói với tivi Sony thế nào?"
+        },
+        {
+          "type": "p",
+          "text": "Trên tivi Google TV như BRAVIA 6, bạn giữ đồng thời HOME và BACK khoảng 3 giây, để remote cách tivi không quá 1 mét, đến khi đèn trên remote nhấp nháy. Đó là hướng dẫn trong [tài liệu trợ giúp của Sony](https://helpguide.sony.net/tv/nga4/v1/en-142/contents/TP1002508741.html). Bạn cũng có thể vào Dashboard, chọn All settings, rồi Remotes and accessories và làm theo màn hình. Sony khuyên chỉ ghép khi tivi đã khởi động xong hoàn toàn."
+        },
+        {
+          "type": "p",
+          "text": "Với các đời tivi cũ hơn, trang RMF-TX310P trên baohanhsony.vn hướng dẫn bấm HOME, vào Cài đặt, chọn Điều khiển từ xa bằng giọng nói, rồi Kích hoạt nút Mic. Hoàng Hà Mobile lưu ý remote Bluetooth có thể phải ghép lại sau khi thay pin hoặc reset tivi."
+        },
+        {
+          "type": "h3",
+          "text": "Remote mới không ăn thì lỗi ở remote hay ở tivi?"
+        },
+        {
+          "type": "p",
+          "text": "Cách dễ nhất là thử remote trên một tivi Sony khác. Theo FPT Shop, nếu remote chạy được ở tivi khác thì có thể mắt nhận tín hiệu của tivi nhà bạn đang bị che hoặc bị lỗi. FPT Shop cũng gợi ý rút điện tivi khoảng 5 đến 10 phút rồi cắm lại trước khi kết luận remote hỏng."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Sony không gọi điện bán remote",
+          "text": "Năm 2019, [Điện máy XANH](https://www.dienmayxanh.com/kinh-nghiem-hay/canh-giac-voi-chieu-tro-mua-dieu-khien-sony-voi-gi-1224679) cảnh báo có người mạo danh Sony gọi điện chào bán remote giá {{vnd:100000}} kèm bảo hành 2 năm. Sony thông báo không có chương trình khuyến mãi nào như vậy. Nếu có ai gọi điện mời mua remote \"chính hãng\", đừng chuyển khoản. Hãy tự tìm nơi bán và xem thêm các [lưu ý an toàn khi mua bán](/safety)."
+        }
+      ]
+    },
+    {
+      "id": "chua-co-remote",
+      "title": "Chưa có remote thì điều khiển tivi Sony bằng gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Nếu tivi Sony chạy Android TV hoặc Google TV, bạn có thể dùng ứng dụng Google TV trên điện thoại làm remote trong lúc chờ mua remote mới. Điện thoại và tivi phải dùng chung một mạng Wi-Fi. Với tivi đời cũ không có hệ điều hành thông minh, FPT Shop gợi ý dùng tạm các nút vật lý trên thân tivi để bật tắt, chỉnh âm lượng và đổi kênh."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Mở ứng dụng Google TV",
+              "text": "Mở ứng dụng Google TV trên điện thoại hoặc máy tính bảng Android, rồi chạm biểu tượng điều khiển từ xa ở góc dưới bên phải."
+            },
+            {
+              "title": "Tìm tivi",
+              "text": "Chạm vào mục quét tìm thiết bị ở phía trên và chọn tivi Sony của bạn."
+            },
+            {
+              "title": "Ghép nối",
+              "text": "Làm theo hướng dẫn trên cả điện thoại và tivi. Sau khi ghép, bạn dùng được cả điện thoại lẫn remote thật."
+            },
+            {
+              "title": "Nếu không thấy tivi",
+              "text": "Theo [Google](https://support.google.com/androidtv/answer/6122465?hl=vi), hãy kiểm tra hai máy có chung mạng Wi-Fi không, rồi rút điện tivi khoảng 10 giây, cắm lại và thử lại."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Muốn kiểm tra tivi vẫn bắt Wi-Fi thì cần có cách điều khiển menu, nên ứng dụng này hữu ích nhất khi tivi đã kết nối mạng từ trước. Nếu tivi chưa từng kết nối Wi-Fi, bạn phải có một remote dùng được thì mới cài đặt xong."
+        }
+      ]
+    },
+    {
+      "id": "mua-ban-remote-cu-gan-nha",
+      "title": "Tìm remote tivi Sony cũ ở gần nhà",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Remote cũ đúng mã có thể là lựa chọn hợp lý khi mẫu chính hãng đã hết hàng, như RMF-TX310P trên baohanhsony.vn ngày 26/11/2026. Hãy áp dụng đầy đủ các bước kiểm tra ở trên. Một tin rao có ảnh rõ mã ở mặt sau remote đáng tin hơn tin chỉ ghi \"remote Sony\"."
+        },
+        {
+          "type": "p",
+          "text": "Trên eno.vn, bạn có thể xem tin rao trong mục [Điện tử](/c/electronics) hoặc [đăng tin](/post) ghi rõ mã model tivi và mã remote bạn cần. Hãy nhắn với người bán qua chat trên eno.vn và hẹn thử remote trên tivi trước khi trả tiền. eno.vn không kiểm định hàng hóa hay người bán."
+        },
+        {
+          "type": "p",
+          "text": "Nếu đang cân nhắc thay luôn tivi, bạn có thể xem [giá và cách kiểm tra tivi 4K 55 inch](/huong-dan/mua-tivi-4k-55-inch). Nếu cần biết tivi có vừa kệ không, xem [kích thước tivi 42 inch](/huong-dan/kich-thuoc-tivi-42-inch)."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Giá và tình trạng hàng của Sony Store Online Việt Nam: chúng tôi không mở được trang này hôm 26/11/2026, nên hãy xem trực tiếp trên trang của Sony.",
+            "Sửa remote hỏng (thay nút cao su, sửa mạch): hãy hỏi trung tâm bảo hành hoặc thợ sửa điện tử.",
+            "Remote cho loa thanh, đầu thu hay máy chiếu Sony: chúng là sản phẩm khác, và bài này chỉ nói về remote tivi.",
+            "Remote cho tivi hãng khác: đây là bài về Sony. Hoàng Hà Mobile cũng khuyên không dùng remote Sony cho tivi hãng khác."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Remote tivi Sony giá bao nhiêu?",
+      "a": "Giá remote tivi Sony thay thế chênh lệch nhiều lần tùy loại và nơi bán. Theo các trang bán hàng đọc ngày 26/11/2026, remote thay thế cơ bản Cosano RM-SN01 ở Điện máy XANH là loại rẻ nhất. Remote giọng nói RMF-TX310P trên baohanhsony.vn đắt hơn nhiều và đang hết hàng. Giá cụ thể có trong bảng giá ở phần trên. Bạn nên so ít nhất hai nơi bán trước khi mua."
+    },
+    {
+      "q": "Làm sao biết remote tivi Sony có hợp với tivi nhà mình không?",
+      "a": "Một remote tivi Sony hợp với tivi của bạn khi mã model tivi, in trên tem sau máy, có trong danh sách tương thích của remote đó. Hãy chụp tem lại, ghi thêm mã của remote cũ, rồi so với danh sách model trên trang người bán. Cách chắc chắn nhất là bấm thử mọi nút trên chính tivi của bạn trước khi trả tiền."
+    },
+    {
+      "q": "Remote tivi Sony đời khác dùng chung được không?",
+      "a": "Remote tivi Sony của đời khác chỉ chắc chắn dùng được khi tivi của bạn có trong danh sách tương thích của remote đó. Nhiều remote có thể bật tắt và chỉnh âm lượng trên nhiều đời tivi, nhưng nút mic, Google Assistant và nút ứng dụng có thể không chạy. FPT Shop khuyên hỏi trung tâm bảo hành Sony mẫu mới hơn khi mẫu gốc đã ngừng bán."
+    },
+    {
+      "q": "Remote giọng nói Sony không nhận thì làm sao?",
+      "a": "Remote giọng nói Sony phải được ghép Bluetooth với tivi thì nút mic mới chạy. Theo hướng dẫn của Sony cho BRAVIA 6, bạn giữ đồng thời HOME và BACK khoảng 3 giây, để remote cách tivi không quá 1 mét. Nếu vẫn không được, hãy thay pin mới, vì pin yếu làm việc ghép nối thất bại. Sau đó thử lại khi tivi đã khởi động xong hoàn toàn."
+    },
+    {
+      "q": "Mất remote tivi Sony có dùng điện thoại điều khiển được không?",
+      "a": "Tivi Sony chạy Android TV hoặc Google TV có thể điều khiển bằng ứng dụng Google TV trên điện thoại. Theo Google, điện thoại và tivi phải dùng chung một mạng Wi-Fi. Bạn mở ứng dụng, chạm biểu tượng điều khiển từ xa, chọn tivi và làm theo hướng dẫn ghép nối. Tivi đời cũ không có hệ điều hành thông minh thì phải dùng các nút trên thân máy."
+    },
+    {
+      "q": "Remote đa năng có dùng được cho tivi Sony không?",
+      "a": "Remote đa năng dùng được cho tivi Sony ở các chức năng cơ bản như bật tắt, chỉnh âm lượng và đổi kênh. Theo Điện máy XANH, remote Cosano RM-SN01 dùng được với hầu hết tivi Sony nhưng chỉ ở chức năng cơ bản. FPT Shop và Hoàng Hà Mobile cho biết remote đa năng có thể thiếu một số chức năng của remote gốc, như nút giọng nói."
+    },
+    {
+      "q": "Có nên mua remote tivi Sony cũ không?",
+      "a": "Remote tivi Sony cũ đáng mua khi đúng mã và mẫu mới đã hết hàng, với điều kiện bạn được thử trước khi trả tiền. Hãy hẹn người bán ở nơi có tivi Sony, lắp pin mới, bấm thử từng nút, ghép nối và thử nút mic nếu là remote giọng nói. Kiểm tra cả nắp pin, lò xo pin và độ lún của các nút."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Pair Your Remote Control with the TV (BRAVIA 6 Help Guide)",
+      "publisher": "Sony",
+      "url": "https://helpguide.sony.net/tv/nga4/v1/en-142/contents/TP1002508741.html"
+    },
+    {
+      "title": "Dùng điện thoại làm điều khiển từ xa cho Android TV",
+      "publisher": "Google",
+      "url": "https://support.google.com/androidtv/answer/6122465?hl=vi"
+    },
+    {
+      "title": "Điều khiển Tivi LCD-LED Sony COSANO RM-SN01 Đen",
+      "publisher": "Điện máy XANH",
+      "url": "https://www.dienmayxanh.com/dieu-khien-tivi/dieu-khien-tivi-sony-cosano-rm-sn01"
+    },
+    {
+      "title": "Mua điều khiển tivi Sony chính hãng ở đâu? Nên chọn mua remote như thế nào?",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/tin-tuc/dien-may/mua-dieu-khien-tivi-sony-chinh-hang-o-dau-186484"
+    },
+    {
+      "title": "Tivi Sony không nhận remote: Nguyên nhân và cách khắc phục hiệu quả tại nhà",
+      "publisher": "FPT Shop",
+      "url": "https://fptshop.com.vn/tin-tuc/dien-may/tivi-sony-khong-nhan-remote-198460"
+    },
+    {
+      "title": "Remote tivi Sony",
+      "publisher": "Hoàng Hà Mobile",
+      "url": "https://hoanghamobile.com/tin-tuc/remote-tivi-sony-2/"
+    },
+    {
+      "title": "Cảnh giác với chiêu trò mua điều khiển Sony",
+      "publisher": "Điện máy XANH",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/canh-giac-voi-chieu-tro-mua-dieu-khien-sony-voi-gi-1224679"
+    },
+    {
+      "title": "Cách xem tên Smart tivi Sony và Android tivi Sony",
+      "publisher": "Điện máy XANH",
+      "url": "https://www.dienmayxanh.com/kinh-nghiem-hay/cach-xem-ten-smart-tivi-sony-va-android-tivi-sony-1087750"
+    },
+    {
+      "title": "Điều khiển TV Sony RMF-TX310P",
+      "publisher": "baohanhsony.vn",
+      "url": "https://baohanhsony.vn/phu-kien/dieu-khien-tv-tu-xa-rmf-tx310p/"
+    },
+    {
+      "title": "Remote TV Voice: Điều khiển Tivi Sony giọng nói RMF-TX520P",
+      "publisher": "Hoàng Thịnh TV",
+      "url": "https://hoangthinhtv.com/san-pham/remote-tv-voice-dieu-khien-tivi-sony-giong-noi-rmf-tx520p"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-26",
+  "images": {
+    "hero": {
+      "id": "23d69c632f0988dea2cdebb06db82055417d40443ce2e2a850c1e53305c6971f",
+      "w": 1672,
+      "h": 941,
+      "alt": "Ba remote minh họa đặt trước tivi, cạnh hai thẻ giá trống, kính lúp và dấu kiểm.",
+      "caption": "Chọn remote thay thế tương thích, so giá và kiểm tra tình trạng."
+    },
+    "figures": [
+      {
+        "id": "9d944e58a59d5754abac5f2355b0ec77ade88fd8ccf9fbbe1a7cccf300dfea48",
+        "w": 1448,
+        "h": 1086,
+        "after": "tim-ma-model-tivi-va-remote",
+        "alt": "Kính lúp làm nổi bật tem trống ở mặt sau tivi, bên cạnh mặt sau remote có một tem trống khác.",
+        "caption": "Vị trí tìm mã model tivi và mã remote cũ."
+      },
+      {
+        "id": "c71d8e9f48d088fbb8f16ae514797a95058151673cb1a4c1944e208d9b368fd3",
+        "w": 1448,
+        "h": 1086,
+        "after": "kiem-tra-truoc-khi-nhan",
+        "alt": "Đôi tay minh họa bấm nút remote cạnh tivi và hình khoang pin đang mở được phóng to qua kính lúp.",
+        "caption": "Thử các nút, kiểm tra tình trạng và ghép remote giọng nói với tivi trước khi trả tiền."
+      }
+    ]
+  }
+}

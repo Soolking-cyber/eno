@@ -1,0 +1,398 @@
+{
+  "slug": "cac-thanh-pho-lon-viet-nam-nen-song-o-dau",
+  "title": "Các thành phố lớn ở Việt Nam: nên sống ở đâu?",
+  "description": "So sánh Hà Nội, TP.HCM, Đà Nẵng, Hải Phòng, Cần Thơ và Huế theo dân số, khí hậu, giá thuê nhà, chi phí và việc làm, theo bản đồ hành chính mới từ 2025.",
+  "h1": "So sánh các thành phố Việt Nam: dân số, khí hậu, chi phí, việc làm và nhà ở",
+  "eyebrow": "Chọn thành phố",
+  "intro": "Từ ngày 1/7/2025, Việt Nam có 6 thành phố trực thuộc trung ương: Hà Nội, TP.HCM, Hải Phòng, Đà Nẵng, Cần Thơ và Huế, trong đó TP.HCM lớn nhất với khoảng 14 triệu dân. Với phần lớn người chuyển đến sống và làm việc, lựa chọn thực tế nằm giữa TP.HCM, Hà Nội và Đà Nẵng. Ba nơi này khác nhau chủ yếu ở khí hậu, nhịp sống và số lượng việc làm, còn giá sinh hoạt hằng ngày khá gần nhau.",
+  "keyPoints": [
+    "Ngày 12/6/2025, Quốc hội thông qua nghị quyết giảm từ 63 xuống 34 tỉnh thành: 28 tỉnh và **6 thành phố trực thuộc trung ương**. TP.HCM nhập Bình Dương và Bà Rịa - Vũng Tàu, Đà Nẵng nhập Quảng Nam, Hải Phòng nhập Hải Dương, Cần Thơ nhập Sóc Trăng và Hậu Giang.",
+    "Theo VietNamNet (tháng 6/2025), TP.HCM sau sáp nhập có khoảng 14 triệu dân. Hà Nội đứng thứ hai, với 8.718.000 người theo số liệu Vietnam Briefing công bố.",
+    "Theo Numbeo (cập nhật ngày 25-26/11/2026), căn hộ 1 phòng ngủ ở trung tâm có giá thuê trung bình khoảng {{vnd:15900000}} một tháng ở TP.HCM và {{vnd:11200000}} ở Hà Nội. Ở ngoài trung tâm, giá thuê hai nơi gần như ngang nhau.",
+    "Khí hậu khác nhau rõ rệt: Hà Nội có bốn mùa, TP.HCM nóng quanh năm và mưa từ tháng 5 đến tháng 10, còn Đà Nẵng và Huế mưa nhiều, có thể có bão từ tháng 9 đến tháng 11.",
+    "TP.HCM và Hà Nội có nhiều việc làm và nhiều lựa chọn nhà ở nhất. Các thành phố nhỏ hơn có thể dễ sống hơn nhưng ít cơ hội việc làm, nên hãy tìm được việc trước rồi mới chọn nơi ở."
+  ],
+  "sections": [
+    {
+      "id": "viet-nam-co-nhung-thanh-pho-lon-nao",
+      "title": "Việt Nam có những thành phố lớn nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thành phố lớn nhất Việt Nam là TP.HCM, sau đó đến Hà Nội. Bốn thành phố trực thuộc trung ương còn lại là Hải Phòng, Cần Thơ, Đà Nẵng và Huế. Quốc hội thông qua bản đồ hành chính hiện nay vào ngày 12/6/2025, giảm từ 63 xuống còn 34 đơn vị cấp tỉnh. Theo VietnamPlus, chính quyền các địa phương mới [được yêu cầu chính thức hoạt động từ ngày 1/7/2025](https://en.vietnamplus.vn/vietnam-now-has-34-provincial-level-administrative-units-post320870.vnp)."
+        },
+        {
+          "type": "p",
+          "text": "Theo Cục Du lịch Quốc gia Việt Nam, 6 thành phố gồm [Hà Nội và Huế (giữ nguyên) cùng 4 thành phố hình thành sau sáp nhập](https://vietnam.travel/things-to-do/vietnam%E2%80%99s-new-provincial-system-34-names-you-should-know/) là Hải Phòng, Đà Nẵng, TP.HCM và Cần Thơ. Số dân trong bảng dưới đây tính toàn bộ người sống trong địa giới mới của mỗi thành phố, kể cả các xã nông thôn, nên không phản ánh quy mô khu đô thị."
+        },
+        {
+          "type": "table",
+          "caption": "6 thành phố trực thuộc trung ương, theo số liệu Vietnam Briefing công bố khi nghị quyết sáp nhập được thông qua (tháng 6/2025)",
+          "headers": [
+            "Thành phố",
+            "Sáp nhập với",
+            "Diện tích (km²)",
+            "Dân số"
+          ],
+          "rows": [
+            [
+              "TP.HCM",
+              "Bình Dương, Bà Rịa - Vũng Tàu",
+              "6.772,6",
+              "13.608.800"
+            ],
+            [
+              "Hà Nội",
+              "Giữ nguyên",
+              "3.359,8",
+              "8.718.000"
+            ],
+            [
+              "Hải Phòng",
+              "Hải Dương",
+              "3.194,7",
+              "4.102.700"
+            ],
+            [
+              "Cần Thơ",
+              "Sóc Trăng, Hậu Giang",
+              "6.360,8",
+              "3.207.000"
+            ],
+            [
+              "Đà Nẵng",
+              "Quảng Nam",
+              "11.832,6",
+              "2.819.900"
+            ],
+            [
+              "Huế",
+              "Giữ nguyên",
+              "4.947,1",
+              "1.236.393"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Các nguồn đưa ra số liệu hơi khác nhau. Theo [VietNamNet](https://vietnamnet.vn/en/which-province-is-now-the-largest-smallest-richest-in-vietnam-2411398.html) (tháng 6/2025), TP.HCM có khoảng 14 triệu dân, còn Huế là thành phố ít dân nhất với hơn 1,4 triệu người. Vì vậy, chỉ nên xem số dân là con số gần đúng. Xét về diện tích, Đà Nẵng hiện là thành phố rộng nhất trong 6 thành phố, vì đã nhập cả tỉnh Quảng Nam."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Tên quận cũ vẫn được dùng hằng ngày",
+          "text": "Từ ngày 1/7/2025, Việt Nam bỏ cấp quận, huyện và địa chỉ chính thức dùng tên phường, xã mới. Tuy vậy, người dân, tin tuyển dụng và tin cho thuê nhà vẫn ghi “Quận 1”, “Bình Thạnh” hay “Tây Hồ”, nên bạn sẽ gặp cả hai kiểu địa chỉ."
+        }
+      ]
+    },
+    {
+      "id": "song-o-moi-thanh-pho-the-nao",
+      "title": "Sống ở mỗi thành phố Việt Nam thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "TP.HCM là thành phố đông dân nhất, nhịp sống nhanh nhất và có nhiều lựa chọn nhất về mọi mặt. Hà Nội là thủ đô, mang nét cổ kính hơn và có bốn mùa. Đà Nẵng là thành phố biển, có bãi biển ngay trong nội đô. Các thành phố còn lại nhỏ hơn, nhịp sống chậm hơn."
+        },
+        {
+          "type": "table",
+          "caption": "So sánh nhanh các thành phố chính cho người mới chuyển đến (dựa trên quy mô, vị trí và khí hậu của từng thành phố theo các nguồn trong bài)",
+          "headers": [
+            "Thành phố",
+            "Vùng",
+            "Đặc điểm",
+            "Hợp với ai"
+          ],
+          "rows": [
+            [
+              "TP.HCM (Sài Gòn)",
+              "Miền Nam",
+              "Lớn nhất, sôi động về thương mại, nóng quanh năm, có tuyến metro số 1 Bến Thành - Suối Tiên từ tháng 12/2024",
+              "Người cần nhiều lựa chọn việc làm, nhà ở và trường học nhất"
+            ],
+            [
+              "Hà Nội",
+              "Miền Bắc",
+              "Thủ đô, phố cổ và hồ, có mùa đông lạnh",
+              "Người thích bốn mùa và nhịp sống chậm hơn một chút nhưng vẫn cần thị trường việc làm lớn"
+            ],
+            [
+              "Đà Nẵng",
+              "Miền Trung",
+              "Thành phố biển, rộng, nay bao gồm cả vùng Quảng Nam cũ",
+              "Người ưu tiên biển, không khí thoáng và chấp nhận ít việc hơn"
+            ],
+            [
+              "Hải Phòng",
+              "Miền Bắc",
+              "Thành phố cảng và công nghiệp, gần Hà Nội",
+              "Người làm việc trong công nghiệp, sản xuất, logistics"
+            ],
+            [
+              "Cần Thơ",
+              "Đồng bằng sông Cửu Long",
+              "Trung tâm của miền Tây, gắn với sông nước",
+              "Người muốn sống ở miền Tây mà vẫn ở thành phố lớn"
+            ],
+            [
+              "Huế",
+              "Miền Trung",
+              "Cố đô, ít dân nhất trong 6 thành phố, yên tĩnh",
+              "Người muốn nhịp sống chậm, chi phí thấp"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Nên chọn Hà Nội hay TP.HCM khi mới chuyển đi?"
+        },
+        {
+          "type": "p",
+          "text": "TP.HCM thường là lựa chọn dễ hơn cho lần chuyển đầu tiên, vì có nhiều việc làm, nhiều nhà cho thuê và nhiều dịch vụ nhất. Hà Nội hợp với người muốn có mùa đông mát lạnh, một thành phố truyền thống hơn và thường muốn ở gần gia đình ở miền Bắc. Nếu bạn làm giáo dục, bài [so sánh Hà Nội, TP.HCM và Đà Nẵng cho giáo viên](/teach-in-vietnam/hanoi-vs-ho-chi-minh-city-for-teachers) (tiếng Anh) đi sâu hơn vào chuyện việc làm."
+        }
+      ]
+    },
+    {
+      "id": "thoi-tiet-cac-thanh-pho",
+      "title": "Thời tiết ở các thành phố Việt Nam ra sao?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Việt Nam có ba kiểu khí hậu theo vùng. Miền Bắc, gồm Hà Nội, có bốn mùa. Miền Trung, gồm Đà Nẵng và Huế, có mùa mưa kèm nguy cơ bão. Miền Nam, gồm TP.HCM và Cần Thơ, ấm quanh năm với một mùa khô và một mùa mưa. Theo bài hướng dẫn về các mùa của Vietnam Airlines, đọc ngày 26/11/2026, cụ thể như sau."
+        },
+        {
+          "type": "table",
+          "caption": "Các mùa theo vùng, theo hướng dẫn về mùa ở Việt Nam của Vietnam Airlines",
+          "headers": [
+            "Vùng và thành phố",
+            "Mùa khô hoặc dễ chịu",
+            "Mùa mưa hoặc nóng ẩm",
+            "Cần lưu ý"
+          ],
+          "rows": [
+            [
+              "Miền Bắc: Hà Nội, Hải Phòng",
+              "Bốn mùa rõ rệt; tháng 3-4 và tháng 9-11 dễ chịu nhất",
+              "Mùa hè nóng và ẩm",
+              "Mùa đông lạnh"
+            ],
+            [
+              "Miền Trung: Đà Nẵng, Huế",
+              "Tháng 1 đến tháng 8",
+              "Tháng 9 đến tháng 11",
+              "Từ tháng 9 có thể có bão, nhất là ven biển"
+            ],
+            [
+              "Miền Nam: TP.HCM, Cần Thơ",
+              "Tháng 12 đến tháng 4",
+              "Tháng 5 đến tháng 10",
+              "Mưa thường đổ vào cuối buổi chiều"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Thời điểm chuyển đến cũng đáng tính. Đến Đà Nẵng hay Huế vào tháng 10 nghĩa là bạn đi xem nhà đúng mùa mưa lớn nhất. Ở TP.HCM, mưa thường là những cơn mưa chiều rồi tạnh, ít khi âm u cả ngày."
+        }
+      ]
+    },
+    {
+      "id": "chi-phi-song-o-cac-thanh-pho",
+      "title": "Sống ở thành phố nào rẻ hơn?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Chi phí sinh hoạt hằng ngày ở TP.HCM, Hà Nội và Đà Nẵng khá gần nhau. Khác biệt lớn nhất nằm ở giá thuê căn hộ trung tâm, cao nhất ở TP.HCM. Numbeo là trang tổng hợp giá do người dùng tự nhập. Theo Numbeo, cập nhật ngày 25-26/11/2026, mức giá trung bình như sau."
+        },
+        {
+          "type": "table",
+          "caption": "Giá trung bình do người dùng nhập trên Numbeo; Hà Nội cập nhật ngày 26/11/2026, TP.HCM và Đà Nẵng ngày 25/11/2026",
+          "headers": [
+            "Khoản chi",
+            "TP.HCM",
+            "Hà Nội",
+            "Đà Nẵng"
+          ],
+          "rows": [
+            [
+              "Căn hộ 1 phòng ngủ, trung tâm (một tháng)",
+              "khoảng {{vnd:15900000}}",
+              "khoảng {{vnd:11200000}}",
+              "khoảng {{vnd:14300000}}"
+            ],
+            [
+              "Căn hộ 1 phòng ngủ, ngoài trung tâm (một tháng)",
+              "khoảng {{vnd:7700000}}",
+              "khoảng {{vnd:7200000}}",
+              "khoảng {{vnd:9200000}}"
+            ],
+            [
+              "Một bữa ở quán ăn bình dân",
+              "{{vnd:55000}}",
+              "{{vnd:52500}}",
+              "{{vnd:60000}}"
+            ],
+            [
+              "Điện, nước, rác cho căn hộ 85 m² (một tháng)",
+              "khoảng {{vnd:2400000}}",
+              "khoảng {{vnd:2000000}}",
+              "khoảng {{vnd:2000000}}"
+            ],
+            [
+              "Internet cáp quang (một tháng)",
+              "khoảng {{vnd:260000}}",
+              "khoảng {{vnd:230000}}",
+              "khoảng {{vnd:230000}}"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Đọc số liệu Đà Nẵng cẩn thận",
+          "text": "Số liệu Numbeo là trung bình của những gì người truy cập tự nhập. Trên trang Đà Nẵng, giá thuê căn hộ 1 phòng ngủ ở trung tâm dao động từ {{vnd:10000000}} đến khoảng {{vnd:28700000}}. Một số bình luận trên trang này hồi tháng 5 và tháng 7/2026 còn cho rằng dữ liệu đã cũ. Trước khi quyết định, hãy xem tin cho thuê thực tế ở đúng khu bạn định ở."
+        },
+        {
+          "type": "p",
+          "text": "Thu nhập bình quân cho thấy mặt bằng giá của từng nơi. Theo [VietNamNet](https://vietnamnet.vn/en/which-province-is-now-the-largest-smallest-richest-in-vietnam-2411398.html), tính đến tháng 6/2025, thu nhập bình quân đầu người sau sáp nhập là {{vnd:89000000}} một năm ở Hà Nội, {{vnd:86500000}} ở TP.HCM và {{vnd:78600000}} ở Hải Phòng. Ăn uống bình dân ở đâu cũng rẻ. Khoản chênh lệch thật sự giữa các thành phố nằm ở tiền thuê căn hộ trung tâm, đồ nhập khẩu và học phí trường quốc tế."
+        },
+        {
+          "type": "p",
+          "text": "Ở TP.HCM, giá thuê thay đổi nhiều theo khu vực. Bài [giá thuê nhà TP.HCM theo quận](/huong-dan/gia-thue-nha-tphcm-theo-quan) so sánh chi tiết studio, căn 1 và 2 phòng ngủ."
+        }
+      ]
+    },
+    {
+      "id": "thanh-pho-nao-nhieu-viec-lam",
+      "title": "Thành phố nào có nhiều việc làm nhất?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "TP.HCM và Hà Nội có nhiều việc làm nhất, nên hãy chọn thành phố theo công việc chứ đừng chọn thành phố rồi mới đi tìm việc. TP.HCM là thành phố đông dân nhất và là trung tâm thương mại lớn nhất cả nước. Hà Nội là thủ đô, nơi tập trung các bộ, ngành, đại sứ quán và nhiều trường đại học."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**TP.HCM**: nhiều lựa chọn nhất về văn phòng, dịch vụ, trung tâm ngoại ngữ, trường quốc tế và song ngữ. [Danh bạ trường học](/schools) của eno.vn liệt kê 172 cơ sở tuyển dụng giáo viên trong thành phố.",
+            "**Hà Nội**: thị trường việc làm cũng rất lớn, nhất là ở trường học, đại học, cơ quan nhà nước và tổ chức quốc tế.",
+            "**Đà Nẵng, Hải Phòng, Cần Thơ, Huế**: ít vị trí tuyển dụng hơn. Việc làm ở Hải Phòng nghiêng về công nghiệp và cảng biển, còn ở Đà Nẵng nghiêng về du lịch, dịch vụ."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn dạy tiếng Anh ở TP.HCM, bài [tuyển dụng giáo viên tiếng Anh TP.HCM](/huong-dan/viec-lam-giao-vien-tieng-anh-tphcm) cho biết ai đang tuyển. Bạn cũng có thể xem [việc làm trên eno.vn](/jobs-vietnam-expats). Với tin được dẫn từ nơi khác, nút ứng tuyển sẽ mở tin gốc của nhà tuyển dụng. eno.vn chưa xác minh các nhà tuyển dụng này, và bạn không bao giờ nên trả tiền để được nhận việc."
+        }
+      ]
+    },
+    {
+      "id": "tim-nha-o-cac-thanh-pho",
+      "title": "Thuê nhà ở mỗi thành phố thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ở thành phố nào, lựa chọn phổ biến cũng là căn hộ dịch vụ, căn hộ chung cư hoặc phòng trong nhà phố. Cách tìm chủ yếu là qua môi giới và tin đăng trên mạng. TP.HCM và Hà Nội có nhiều tin đăng nhất. Ở các thành phố nhỏ, bạn thường làm việc trực tiếp với chủ nhà."
+        },
+        {
+          "type": "h3",
+          "text": "Người mới đến TP.HCM và Hà Nội thường ở khu nào?"
+        },
+        {
+          "type": "p",
+          "text": "Ở TP.HCM, người mới đến thường xem nhà ở Quận 1, Bình Thạnh, Quận 3, Quận 2 / Thảo Điền và Quận 7 (Phú Mỹ Hưng). Bài [các quận TP.HCM: nên ở và thuê nhà ở đâu](/huong-dan/cac-quan-tphcm-nen-thue-nha-o-dau) giải thích từng khu. [Chỉ số giá thuê TP.HCM](/hcmc-rent-index) của eno.vn cho biết giá chào thuê trung vị theo quận và loại nhà, tính trên các tin đăng trên eno.vn. Bạn cũng có thể xem [nhà cho thuê](/c/rentals). Ở Hà Nội, nhiều người bắt đầu từ Tây Hồ, xem bài [thuê căn hộ Tây Hồ](/huong-dan/thue-can-ho-tay-ho)."
+        },
+        {
+          "type": "p",
+          "text": "Về xem nhà, ký hợp đồng và việc chủ nhà khai báo người ở thuê với chính quyền địa phương, đọc [thuê căn hộ ở Việt Nam](/renting-an-apartment-vietnam-foreigner) và [tiền đặt cọc thuê nhà](/rental-deposit-vietnam) (tiếng Anh). Để hiểu các điều khoản cơ bản, xem [hợp đồng thuê là gì](/huong-dan/hop-dong-thue-la-gi-ben-cho-thue-ben-thue)."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Mức lương theo từng thành phố, vì lương tùy nhà tuyển dụng và không được công bố đầy đủ ở mọi nơi. Với nghề dạy tiếng Anh ở TP.HCM, xem [lương giáo viên tiếng Anh TP.HCM](/huong-dan/luong-giao-vien-tieng-anh-tphcm).",
+            "Cuộc sống ở các tỉnh ngoài 6 thành phố, như Khánh Hòa hay Lâm Đồng. Hãy hỏi trực tiếp nhà tuyển dụng hoặc người đang sống ở đó.",
+            "So sánh chi tiết từng khu ở TP.HCM. Xem [các quận TP.HCM](/huong-dan/cac-quan-tphcm-nen-thue-nha-o-dau)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Việt Nam có bao nhiêu thành phố trực thuộc trung ương?",
+      "a": "Việt Nam có 6 thành phố trực thuộc trung ương: Hà Nội, TP.HCM, Hải Phòng, Đà Nẵng, Cần Thơ và Huế. Danh sách này áp dụng từ ngày 1/7/2025, sau khi Quốc hội thông qua việc sắp xếp tỉnh thành ngày 12/6/2025. Hà Nội và Huế giữ nguyên địa giới, còn TP.HCM, Hải Phòng, Đà Nẵng và Cần Thơ được hình thành từ việc sáp nhập với các tỉnh lân cận."
+    },
+    {
+      "q": "Thành phố lớn nhất Việt Nam là thành phố nào?",
+      "a": "Thành phố lớn nhất Việt Nam về dân số là TP.HCM. Theo VietNamNet (tháng 6/2025), sau khi sáp nhập Bình Dương và Bà Rịa - Vũng Tàu, TP.HCM có khoảng 14 triệu dân. Hà Nội đứng thứ hai với khoảng 8,7 triệu người. Về diện tích, Đà Nẵng hiện là thành phố rộng nhất trong 6 thành phố trực thuộc trung ương, vì đã nhập cả tỉnh Quảng Nam."
+    },
+    {
+      "q": "Việt Nam hiện có bao nhiêu tỉnh thành?",
+      "a": "Việt Nam hiện có 34 đơn vị hành chính cấp tỉnh, gồm 28 tỉnh và 6 thành phố trực thuộc trung ương. Quốc hội thông qua việc giảm từ 63 xuống 34 tỉnh thành ngày 12/6/2025, và chính quyền mới hoạt động từ ngày 1/7/2025. Cùng lúc đó, cấp quận, huyện bị bỏ, nên địa chỉ chính thức hiện chỉ còn tỉnh hoặc thành phố, rồi đến phường hoặc xã."
+    },
+    {
+      "q": "Sống ở Hà Nội có rẻ hơn TP.HCM không?",
+      "a": "Sống ở Hà Nội rẻ hơn TP.HCM một chút, chủ yếu ở tiền thuê căn hộ trung tâm. Theo số liệu Numbeo cập nhật tháng 11/2026, căn hộ 1 phòng ngủ ở trung tâm Hà Nội có giá thuê trung bình thấp hơn đáng kể so với trung tâm TP.HCM. Ở ngoài trung tâm, giá thuê hai thành phố khá gần nhau, và tiền ăn bình dân, điện nước, internet cũng tương đương."
+    },
+    {
+      "q": "Nên sống ở thành phố nào ở Việt Nam?",
+      "a": "Thành phố nên sống ở Việt Nam thường phụ thuộc vào nơi bạn có việc làm. TP.HCM hợp với người cần nhiều lựa chọn việc làm, nhà ở và dịch vụ nhất. Hà Nội hợp với người thích bốn mùa và không khí thủ đô truyền thống. Đà Nẵng hợp với người muốn sống gần biển, nhịp sống chậm hơn và chấp nhận ít cơ hội việc làm hơn."
+    },
+    {
+      "q": "Đà Nẵng có phải thành phố lớn không?",
+      "a": "Đà Nẵng là một trong 6 thành phố trực thuộc trung ương của Việt Nam, với khoảng 2,8 triệu dân trong địa giới mới, theo Vietnam Briefing (tháng 6/2025). Phần lớn số dân này sống ở vùng Quảng Nam cũ, tỉnh đã nhập vào Đà Nẵng năm 2025. Khu đô thị trung tâm của Đà Nẵng nhỏ hơn nhiều so với Hà Nội hay TP.HCM, dù Đà Nẵng rộng nhất về diện tích."
+    },
+    {
+      "q": "Mùa mưa ở các thành phố Việt Nam vào tháng mấy?",
+      "a": "Mùa mưa ở Việt Nam khác nhau theo vùng. Theo Vietnam Airlines, TP.HCM và miền Nam mưa từ tháng 5 đến tháng 10, thường vào cuối buổi chiều. Đà Nẵng và Huế mưa từ tháng 9 đến tháng 11, kèm nguy cơ bão ở vùng ven biển. Hà Nội và miền Bắc có bốn mùa, với mùa hè nóng ẩm và mùa đông lạnh."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Vietnam's New Provincial System: 34 Names You Should Know",
+      "publisher": "Cục Du lịch Quốc gia Việt Nam (Viet Nam National Authority of Tourism)",
+      "url": "https://vietnam.travel/things-to-do/vietnam%E2%80%99s-new-provincial-system-34-names-you-should-know/"
+    },
+    {
+      "title": "Vietnam now has 34 provincial-level administrative units",
+      "publisher": "VietnamPlus (Thông tấn xã Việt Nam)",
+      "url": "https://en.vietnamplus.vn/vietnam-now-has-34-provincial-level-administrative-units-post320870.vnp"
+    },
+    {
+      "title": "Vietnam's Provincial Mergers: Consolidation from 63 to 34 Provinces and Cities",
+      "publisher": "Vietnam Briefing (Dezan Shira & Associates)",
+      "url": "https://www.vietnam-briefing.com/news/vietnams-government-introduces-official-plan-for-provincial-mergers.html"
+    },
+    {
+      "title": "Which province is now the largest, smallest, richest in Vietnam",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/en/which-province-is-now-the-largest-smallest-richest-in-vietnam-2411398.html"
+    },
+    {
+      "title": "Seasons In Vietnam: Discover The Unique Beauty Of Each Region Through The Year",
+      "publisher": "Vietnam Airlines",
+      "url": "https://www.vietnamairlines.com/en/useful-information/travel-guide/seasons-in-vietnam"
+    },
+    {
+      "title": "Cost of Living Comparison Between Hanoi and Ho Chi Minh City",
+      "publisher": "Numbeo",
+      "url": "https://www.numbeo.com/cost-of-living/compare_cities.jsp?country1=Vietnam&city1=Hanoi&country2=Vietnam&city2=Ho+Chi+Minh+City&displayCurrency=VND"
+    },
+    {
+      "title": "Cost of Living in Da Nang",
+      "publisher": "Numbeo",
+      "url": "https://www.numbeo.com/cost-of-living/in/Da-Nang?displayCurrency=VND"
+    }
+  ],
+  "related": [
+    "hanoi-vs-ho-chi-minh-city-for-teachers",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "getting-around-ho-chi-minh-city",
+    "is-ho-chi-minh-city-safe"
+  ],
+  "lastChecked": "2026-11-26"
+}
