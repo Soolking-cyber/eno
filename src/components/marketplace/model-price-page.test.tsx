@@ -7,11 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * sentence prints as on any grid: a sighted reader must still see a total next to 24 cards and "Show more".
  * The page's data and its chrome are stand-ins: only the line and the prop handed to the grid are under test.
  */
-const h = vi.hoisted(() => ({ page: null as unknown }))
+const h = vi.hoisted(() => ({ page: null as unknown, linked: [] as { slug: string; name: string }[] | Error }))
 
 vi.mock('@/lib/model-pages', async (importOriginal) => ({
-  // The real path builder: the twin link's address is the one the routes serve.
+  // The real path builders: the twin link's and the hub's addresses are the ones the routes serve.
   modelPagePath: (await importOriginal<typeof import('@/lib/model-pages')>()).modelPagePath,
+  modelHubPath: (await importOriginal<typeof import('@/lib/model-pages')>()).modelHubPath,
+  linkedModelPages: async () => { if (h.linked instanceof Error) throw h.linked; return h.linked },
   MODEL_PAGE_SIZE: 24,
   loadModelPage: async () => h.page,
   modelPageMetadata: () => ({}),
@@ -31,7 +33,8 @@ vi.mock('@/components/marketplace/seller-listings', () => ({
   SellerListings: ({ quietCount }: { quietCount?: boolean | 'always' }) => <div data-quiet={String(quietCount)} />,
 }))
 
-const { ModelPricePage } = await import('./model-price-page')
+const { ModelPriceHub, ModelPricePage, modelPriceHubMetadata } = await import('./model-price-page')
+const { SITE_NAME } = await import('@/lib/edition')
 
 const ENTRY = {
   slug: 'apple-iphone-13', brandSlug: 'apple', brandName: 'Apple', model: 'iPhone 13', name: 'Apple iPhone 13',
@@ -43,7 +46,7 @@ const html = async (band: unknown) => {
   return renderToStaticMarkup(await ModelPricePage({ slug: 'apple-iphone-13', lang: 'en' }))
 }
 
-beforeEach(() => { h.page = null })
+beforeEach(() => { h.page = null; h.linked = [] })
 
 describe('ModelPricePage — the count sentence', () => {
   it('with the claim, the line prints the count and the grid only announces its own', async () => {
@@ -82,5 +85,46 @@ describe('ModelPricePage — the maker\'s colours (Seobility crawl 11: model pag
     const other = renderToStaticMarkup(await ModelPricePage({ slug: 'apple-ipad-air', lang: 'en' }))
     expect(other).toContain('matches its photos and description')
     expect(other).not.toContain('compare the colour')
+  })
+})
+
+/**
+ * THE HUBS, /gia AND /price (2026-11-27): an h1, one line, then every linked model page at the hub's own address — the list
+ * /brands shows, without its heading (the h1 is the heading) or a link back to itself. Nothing to list is a 404, and a failed
+ * read throws (ISR keeps the last good HTML).
+ */
+describe('ModelPriceHub — /gia and /price', () => {
+  const PAGES = [{ slug: 'apple-iphone-13', name: 'Apple iPhone 13' }, { slug: 'honda-wave-alpha', name: 'Honda Wave Alpha' }]
+  const hrefs = (out: string) => [...out.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1])
+
+  it('lists every linked page at its language\'s address, under one h1 and one line', async () => {
+    h.linked = PAGES
+    const vi = renderToStaticMarkup(await ModelPriceHub({ lang: 'vi' }))
+    expect(hrefs(vi)).toEqual(['/gia/apple-iphone-13', '/gia/honda-wave-alpha'])
+    expect(vi.match(/<h1/g)).toHaveLength(1)
+    expect(vi.match(/<p /g)).toHaveLength(1)
+    expect(vi).not.toMatch(/<h2|<section/)
+    expect(hrefs(renderToStaticMarkup(await ModelPriceHub({ lang: 'en' })))).toEqual(['/price/apple-iphone-13', '/price/honda-wave-alpha'])
+  })
+
+  it('⛔ nothing to list is a 404, never an empty page; a failed read throws', async () => {
+    await expect(ModelPriceHub({ lang: 'vi' })).rejects.toThrow('notFound')
+    h.linked = new Error('index read failed')
+    await expect(ModelPriceHub({ lang: 'vi' })).rejects.toThrow('index read failed')
+    await expect(modelPriceHubMetadata('vi')).rejects.toThrow('index read failed')
+  })
+
+  it('metadata: self-canonical, the /gia ↔ /price hreflang pair, x-default English; noindex "Not found" when empty', async () => {
+    h.linked = PAGES
+    const languages = { en: '/price', 'vi-VN': '/gia', 'x-default': '/price' }
+    const vi = await modelPriceHubMetadata('vi')
+    expect(vi.alternates).toEqual({ canonical: '/gia', languages })
+    expect(vi.title).toBe(`Giá theo mẫu tại Việt Nam | ${SITE_NAME}`)
+    expect(vi.robots).toBeUndefined()
+    const en = await modelPriceHubMetadata('en')
+    expect(en.alternates).toEqual({ canonical: '/price', languages })
+    expect(en.title).toBe(`Prices by model in Vietnam | ${SITE_NAME}`)
+    h.linked = []
+    expect(await modelPriceHubMetadata('en')).toMatchObject({ robots: { index: false } })
   })
 })

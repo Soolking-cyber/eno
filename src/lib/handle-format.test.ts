@@ -97,7 +97,7 @@ describe('validateHandle', () => {
     for (const h of ['rentals', 'rent-als', 'rent_als']) expect(validateHandle(h), h).toBe('reserved')
   })
 
-  /** Same blind spot: `gia/` and `price/` hold only `[slug]/` (the model price pages), so the route-tree test skips them. */
+  /** The model price pages' parents — pinned by name since before their hubs (2026-11-27), when the route-tree test could not see them. */
   it('reserves `gia` and `price`, the model price pages\' parents, in every spelling', () => {
     for (const h of ['gia', 'price', 'g-i-a', 'pri_ce']) expect(validateHandle(h), h).toBe('reserved')
   })

@@ -71,7 +71,14 @@ describe('pinnedRoute', () => {
   it('pins a model price page by its address: /gia/<slug> vi, /price/<slug> en', () => {
     expect(pinnedRoute('/gia/apple-iphone-13')).toEqual({ variant: 'vi', internalPath: '/gia/apple-iphone-13' })
     expect(pinnedRoute('/price/apple-iphone-13')).toEqual({ variant: 'en', internalPath: '/price/apple-iphone-13' })
-    for (const p of ['/gia', '/gia/', '/gia/X', '/gia/a/b', '/price', '/price/', '/price/a--b', '/price/-a']) expect(pinnedRoute(p), p).toBeNull()
+    for (const p of ['/gia/', '/gia/X', '/gia/a/b', '/giax', '/price/', '/price/a--b', '/price/-a', '/prices', '/vi/gia', '/vi/price']) expect(pinnedRoute(p), p).toBeNull()
+  })
+
+  it('pins the model price hubs (2026-11-27): /gia vi, /price en — on every list, the pilot on or off', () => {
+    for (const lists of [VI_PILOT, VI_PILOT_MARKETPLACE]) {
+      expect(pinnedRoute('/gia', lists)).toEqual({ variant: 'vi', internalPath: '/gia' })
+      expect(pinnedRoute('/price', lists)).toEqual({ variant: 'en', internalPath: '/price' })
+    }
   })
 })
 
@@ -88,13 +95,20 @@ describe('pinnedPair', () => {
     expect(pinnedPair('/gia/apple-iphone-13')).toBe('/price/apple-iphone-13')
     expect(pinnedPair('/price/apple-iphone-13')).toBe('/gia/apple-iphone-13')
     expect(pinnedPair('/gia/X')).toBeNull()
-    expect(pinnedPair('/gia')).toBeNull()
+    expect(pinnedPair('/gia/')).toBeNull()
+    expect(pinnedPair('/giax')).toBeNull()
+  })
+
+  it('pairs the two hubs: /gia ↔ /price', () => {
+    expect(pinnedPair('/gia')).toBe('/price')
+    expect(pinnedPair('/price')).toBe('/gia')
   })
 
   it('localizedHref leaves a model price page as it is', () => {
     for (const v of ['vi', 'en']) {
       expect(localizedHref('/gia/apple-iphone-13', v, ON)).toBe('/gia/apple-iphone-13')
       expect(localizedHref('/price/apple-iphone-13', v, ON)).toBe('/price/apple-iphone-13')
+      for (const hub of ['/gia', '/price']) expect(localizedHref(hub, v, VI_PILOT_MARKETPLACE), hub).toBe(hub)
     }
   })
 })
