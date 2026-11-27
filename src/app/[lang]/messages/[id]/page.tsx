@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type RefObject } from 'react'
 import { TeacherThreadStrip, type TeacherVideoFlags } from '@/components/teachers/teacher-thread-strip'
-import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
+import { BubbleChrome, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
+import { PRIMARY_REACTION } from '@/lib/reactions'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -570,16 +571,15 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
    * hovered. `pointerleave` fires mid-flight, the bar goes `pointer-events-none` and opacity-0, and
    * the click lands on nothing. A stepped mouse traverse showed the bar closing every time.
    *
-   * ⚠️ THE CANCEL LIVES ON THE WRAPPER, NOT THE BUBBLE. The bar, the action row and the glyph are
-   * all DOM descendants of the wrapper even though they are painted outside its box, so entering any
-   * of them fires `pointerenter` on the wrapper — which is exactly the signal "the pointer is still
-   * with this message". The bubble keeps the OPEN, the wrapper keeps the KEEP-OPEN, and the glyph
-   * overrides with an immediate close of its own.
+   * ⚠️ THE CANCEL LIVES ON THE WRAPPER, NOT THE BUBBLE. The toolbar, the bar on it and the reaction
+   * badge are all DOM descendants of the wrapper even though they are painted outside its box, so
+   * entering any of them fires `pointerover` on the wrapper — which is exactly the signal "the pointer
+   * is still with this message". The bubble keeps the OPEN, the wrapper keeps the KEEP-OPEN.
    */
   /**
-   * The quick-action row's target — a SECOND layer with a SECOND trigger. Owner, 2026-08-16, from
-   * the Zalo reference: the emoji bar belongs to the faded glyph, the action row belongs to the
-   * bubble. One shared boolean could not express that, and trying to made the bar unreachable.
+   * The quick-action row's target — a SECOND layer with a SECOND trigger: the toolbar belongs to the
+   * bubble's hover, the emoji bar to the toolbar's React button (since 2026-11-27; it was a faded heart
+   * on every bubble). One shared boolean could not express that, and trying to made the bar unreachable.
    */
   const [actionsFor, setActionsFor] = useState<string | null>(null)
 
@@ -743,8 +743,14 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
     // ⚠️ TOUCH GETS BOTH LAYERS AT ONCE. There is no hover to separate them on a phone, and a
     // long-press that revealed only reactions would leave reply/copy/delete/report unreachable
     // there entirely.
-    (messageId: string) => longPressHandlers(() => { setPickerFor(messageId); setActionsFor(messageId) }),
-    [],
+    // DOUBLE-TAP ❤️ (owner 2026-11-27, Messenger): the quick heart on a phone. It only ADDS: armed only on a message
+    // that can take a reaction (chromeLive — never a pending, failed or recalled one) and that carries none of yours yet,
+    // so it never un-hearts and never swaps your 😂 for ❤️ (commit gate, opus). The badge's picker changes or removes it.
+    (messageId: string, canHeart: boolean) => longPressHandlers(
+      () => { setPickerFor(messageId); setActionsFor(messageId) },
+      canHeart ? () => { void toggleReaction(messageId, PRIMARY_REACTION) } : undefined,
+    ),
+    [toggleReaction],
   )
 
   // Live translation of the COUNTERPART's messages into the viewer's language. Server does
@@ -3371,18 +3377,18 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     scroll maths needs one predictable box per message. */}
                 <div
                   data-mid={m.id}
-                  /* ⚠️ `pb-4` IS GEOMETRY, NOT RHYTHM. The glyph AND the reaction tallies share a
-                     line that hangs ~70% below the bubble's bottom edge — ~16px for a pill — and the
-                     scroller's gap between messages is only 8px. Without this they would overlap the
-                     message underneath and steal its taps. If the +70% offset or the pill height
+                  /* ⚠️ `pb-4` IS GEOMETRY, NOT RHYTHM. The reaction badge (ReactionBadge, owner 2026-11-27) hangs 16px
+                     below the bubble's bottom edge, and the scroller's gap between messages is only 8px. Without this
+                     it would overlap the message underneath and steal its taps. Kept on EVERY row, reacted or not, so a
+                     reaction landing never shifts the thread ("stay in place"). If `-bottom-4` or the badge's height
                      changes in message-reactions.tsx, this changes with it. */
                   className={`flex flex-col pb-4 ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
                 >
                 {/* ⛔ THE `relative` WRAPPER IS WHAT THE FLOATING CHROME MEASURES AGAINST. BubbleChrome
                     is `absolute inset-0`, so it takes the size of THIS box — and as a flex child of
                     an items-start/items-end column, this box shrinks to exactly the bubble's width.
-                    Move the chrome outside it and the glyph anchors to the full thread width
-                    instead, landing in the gutter on every short message. */}
+                    Move the chrome outside it and the reaction badge anchors to the full thread
+                    width instead, landing in the gutter on every short message. */}
                 {/**
                   * ⛔ THE WRAPPER CARRIES THE WIDTH, NOT THE BUBBLE — and this cost a rendered-page
                   * measurement to find. BubbleChrome('sunk') is `absolute inset-0`, so it needs a
@@ -3422,23 +3428,24 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   * then "hover on the defaulet faded emoji no popup … give chance for user to use
                   * default without tricky popup opening".
                   *
-                  * Both fall out of one structural choice: this box wraps ONLY the bubble, and the
-                  * quick-react glyph is a SIBLING of it (inside BubbleChrome), not a child. So
-                  * hovering the empty gutter beside a short message does nothing, and moving the
-                  * pointer onto the glyph fires `pointerleave` here — the bar closes and the glyph
-                  * becomes clickable, which is exactly the escape the owner asked for.
+                  * This box wraps ONLY the bubble, and the chrome (toolbar, bar, reaction badge) is a
+                  * SIBLING of it inside BubbleChrome, not a child — so hovering the empty gutter beside
+                  * a short message does nothing. (The faded one-tap heart the second quote is about was
+                  * removed on 2026-11-27 for the Messenger badge; the toolbar's React button replaced it.)
                   *
                   * ⚠️ LONG-PRESS MOVED HERE FOR THE SAME REASON. Pressing the empty space beside a
                   * message is not a gesture aimed at that message.
                   */}
                 <ChatCardMetaProvider meta={isShellCard ? metaNode : null}>
                 <div
-                  {...longPressProps(m.id)}
+                  {...longPressProps(m.id, chromeLive && !(m.reactions ?? []).some((r) => r.mine))}
+                  /* `touch-manipulation`: double-tap is ❤️ on this bubble, so it must not ALSO zoom the page in a phone
+                     browser (pan and pinch-zoom still work — only double-tap zoom is given up, and only here). */
+                  className="touch-manipulation"
                   /* ⚠️ Mouse only. On touch, `pointerenter` fires on tap and would open the bar on
                      every message anyone poked — which is what long-press exists to avoid. */
-                  /* ⚠️ THE BUBBLE OWNS THE ACTION ROW, NOT THE EMOJI BAR. The bar belongs to the
-                     faded glyph and opens from there (see BubbleChrome) — which is what removed the
-                     unreachable-gap bug, because the pointer is already on its anchor. */
+                  /* ⚠️ THE BUBBLE OWNS THE TOOLBAR; THE EMOJI BAR OPENS FROM THE TOOLBAR'S React BUTTON (see
+                     BubbleChrome), a descendant of it, so the pointer never crosses a gap to reach it. */
                   onPointerEnter={(e) => {
                     if (e.pointerType !== 'mouse') return
                     cancelChromeClose(m.id)
@@ -3450,7 +3457,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     scheduleActionsOpen(m.id)
                   }}
                   /* Leaving the BUBBLE only schedules the close — the wrapper above cancels it if
-                     the pointer is on its way to the action row or the glyph. */
+                     the pointer is on its way to the toolbar or the badge. */
                   onPointerLeave={(e) => {
                     if (e.pointerType !== 'mouse' || pickerLocked) return
                     scheduleChromeClose(m.id)
@@ -3715,21 +3722,23 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 })()}
                 </div>
                 </ChatCardMetaProvider>
-                {/* THE FLOATING CHROME: quick-react glyph sunk into the bubble's bottom-right edge,
-                    emoji bar above the bubble, actions row below it. A SIBLING of the hover target
-                    above — see the note there — and inside the `relative` wrapper so every offset
-                    measures the bubble rather than the thread's full width.
+                {/* THE FLOATING CHROME: the reaction badge on the bubble's inner bottom corner, the desktop toolbar
+                    (React + actions) beside it, the touch card above it. A SIBLING of the hover target above — see
+                    the note there — and inside the `relative` wrapper so every offset measures the bubble rather
+                    than the thread's full width.
                     ⚠️ NOT ON A PENDING, FAILED OR RECALLED MESSAGE — see chromeLive. */}
                 {chromeLive && (
                   <BubbleChrome
                     barOpen={pickerFor === m.id}
-                    onBarOpenChange={(next) => setPickerFor(next ? m.id : null)}
+                    /* ⛔ A CLOSE ONLY EVER CLOSES THIS MESSAGE (commit gate, opus): the toolbar closes on blur, and focus
+                       leaving message A for message B's Reply would otherwise null the state B had just opened — the
+                       click then lands on a toolbar going `pointer-events-none`. */
+                    onBarOpenChange={(next) => setPickerFor((cur) => (next ? m.id : cur === m.id ? null : cur))}
                     actionsOpen={actionsFor === m.id}
-                    onActionsOpenChange={(next) => setActionsFor(next ? m.id : null)}
+                    onActionsOpenChange={(next) => setActionsFor((cur) => (next ? m.id : cur === m.id ? null : cur))}
                     align={m.mine ? 'end' : 'start'}
                     measuredTop={thread.topReactions}
                     reactions={m.reactions ?? []}
-                    onToggle={(emoji) => toggleReaction(m.id, emoji)}
                     onPick={(emoji) => toggleReaction(m.id, emoji)}
                     onRemove={(emoji) => toggleReaction(m.id, emoji)}
                     myReaction={(m.reactions ?? []).find((r) => r.mine)?.emoji ?? null}
@@ -3760,11 +3769,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   </button>
                 )}
                   {/**
-                   * ⚠️ THE TALLIES ARE NO LONGER RENDERED HERE. Owner, 2026-08-16: "emojis
-                   * themselves land in the same row of the default emoji line the 30% onto bubble".
-                   * They now sit on the bubble's bottom edge beside the faded glyph, inside
-                   * BubbleChrome — which is why this row carries `pb-4` rather than reserving
-                   * height for them here.
+                   * ⚠️ THE REACTIONS ARE NOT RENDERED HERE. They are one badge on the bubble's inner
+                   * bottom corner (ReactionBadge inside BubbleChrome, owner 2026-11-27) — which is why
+                   * this row carries `pb-4` rather than reserving height for them here.
                    */}
                 </div>
                 {/* ⚠️ NOT ON A LISTING-LESS THREAD: there the counterpart is eno staff, and an operator

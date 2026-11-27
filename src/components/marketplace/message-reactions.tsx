@@ -7,10 +7,10 @@ import { useLanguage } from '@/context/language-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Copy, Trash2, Flag, Undo2, Heart } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
-import { hapticTap } from '@/lib/haptics'
+import { hapticLongPress, hapticSelection, hapticTap } from '@/lib/haptics'
 import { prefersReducedMotion } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
-import { PRIMARY_REACTION, REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
+import { REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
 
 /**
  * CHAT MESSAGE REACTIONS — the Zalo tap-back, on eno.vn's terms.
@@ -103,92 +103,114 @@ function usePointerCoarse(): boolean {
 }
 
 /**
- * The row of tallies under a bubble. Renders nothing at all when there are no reactions — an empty
- * element here would add a gap to every message in the thread.
+ * THE REACTION BADGE — ONE PILL ON THE BUBBLE'S CORNER, THE MESSENGER WAY.
+ *
+ * ⛔ OWNER, 2026-11-27, REPLACING THE 2026-08 "TALLIES ON THE GLYPH'S LINE" DESIGN: "in messages the like system is janky
+ * and ugly currently lets implement this type of system where like stay in place not next to similar to fb messenger one
+ * smooth and nice intergration with all haptics", with a Messenger screenshot: the reaction sits IN ONE PILL hanging off
+ * the bubble's bottom corner (a light pill with a ring the colour of the page), never strung beside a resting heart.
+ *
+ *   · ON THE INNER CORNER: bottom-right of an incoming bubble (the screenshot), bottom-left of an outgoing one, so it
+ *     never sits against the screen edge. It overlaps the bubble's edge by 8px and hangs 16px below it (the row's pb-4).
+ *   · Up to three emoji (the server sorts by count), then the TOTAL when more than one person reacted.
+ *   · Pressing it opens the same picker a long-press does (with the ✕ to take yours back) — one way to change a reaction.
+ *   · When the reactions change, the pill pops (`.reaction-pop`) and the emoji that was just added plays its animation
+ *     ONCE — the owner's 2026-08-16 "play animation when emoji pressed" kept, for whoever added it. One player at a time.
+ * ⚠️ PLAIN UNICODE AT REST (the perf rule in the header): LottieEmoji paints the character and only plays on change.
  */
-export function ReactionPills({
+/** When a badge last started an emoji animation, thread-wide; see ReactionBadge's effect. */
+let lastBadgePlayAt = 0
+const BADGE_PLAY_GAP_MS = 600
+
+export function ReactionBadge({
   reactions,
-  onToggle,
-  className,
-  burstEmoji = null,
+  align,
+  onOpen,
 }: {
   reactions: MessageReaction[]
-  onToggle: (emoji: string) => void
-  className?: string
-  /**
-   * An emoji whose tally should play RIGHT NOW, set by whoever caused the reaction from outside
-   * this component — the bar and the one-tap heart both do.
-   *
-   * ⛔ THE ANIMATION BELONGS TO THE TALLY, NOT THE BUTTON THAT SENT IT. Owner, 2026-08-16, pointing
-   * at a tally: "this should be animation not the grey button animation". The grey one-tap mark is
-   * meant to recede; the thing worth animating is the reaction that actually landed on the message.
-   */
-  burstEmoji?: string | null
+  /** Which side of the thread the bubble sits on: 'start' = theirs (badge bottom-right), 'end' = mine (bottom-left). */
+  align: 'start' | 'end'
+  /** Opens the picker for this message. */
+  onOpen: () => void
 }) {
   const { tr } = useLanguage()
+  const total = reactions.reduce((n, r) => n + r.count, 0)
+  const sig = reactions.map((r) => `${r.emoji}:${r.count}`).join(',')
+  // The counts as last seen, to tell which emoji just ARRIVED (or grew) — that one plays. Never on first paint: a thread
+  // opening on fifty reacted messages must not light up like a slot machine.
+  const seen = React.useRef<Map<string, number> | null>(null)
+  const [pop, setPop] = React.useState(0)
   /**
-   * WHICH TALLY IS MID-ANIMATION. Owner, 2026-08-16: "play animation when emoji pressed thats whole
-   * purpose why we got dotlottie files make it super interactive fun to use".
-   *
-   * ⛔ ONE AT A TIME, AND ONLY ON PRESS — the perf rule at the top of this file has not changed. A
-   * busy thread shows dozens of tallies, and dozens of concurrent Lottie players drops frames on the
-   * mid-range Androids most of this audience uses. So a tally is a static glyph until someone taps
-   * it, plays once, and goes back to being static.
+   * THE POP REPLAYS IN PLACE. Re-keying the button to restart the animation unmounted it, and a keyboard user resting on
+   * the badge lost focus to <body> whenever the other side reacted (commit gate, opus). The class is taken off, the box
+   * reflowed, and the class put back: the same node, the animation from frame one. Never on first paint.
    */
+  const popEl = React.useRef<HTMLButtonElement | null>(null)
+  React.useEffect(() => {
+    const el = popEl.current
+    if (!pop || !el) return
+    el.classList.remove('reaction-pop')
+    void el.offsetWidth
+    el.classList.add('reaction-pop')
+  }, [pop])
   const [playing, setPlaying] = React.useState<string | null>(null)
   const playTimer = React.useRef<number | null>(null)
   React.useEffect(() => () => { if (playTimer.current !== null) window.clearTimeout(playTimer.current) }, [])
-  const burst = React.useCallback((emoji: string) => {
+  React.useEffect(() => {
+    const now = new Map(reactions.map((r) => [r.emoji, r.count] as const))
+    const before = seen.current
+    seen.current = now
+    if (!before) return
+    const grew = reactions.find((r) => r.count > (before.get(r.emoji) ?? 0))
+    if (!grew) return
+    setPop((n) => n + 1)
+    // ONE PLAYER ACROSS THE THREAD (commit gate, opus): a reconnect that brings reactions on many messages at once pops
+    // every badge (cheap CSS) but animates only the first emoji — dozens of concurrent Lottie players is the
+    // dropped-frames machine the header warns about.
+    const at = Date.now()
+    if (at - lastBadgePlayAt < BADGE_PLAY_GAP_MS) return
+    lastBadgePlayAt = at
     if (playTimer.current !== null) window.clearTimeout(playTimer.current)
-    setPlaying(emoji)
-    // Long enough for the longest animation in the pack, short enough that a player is never left
-    // running behind a thread the reader has scrolled away from.
+    setPlaying(grew.emoji)
+    // Long enough for the longest animation in the pack; the player never outlives a thread scrolled past.
     playTimer.current = window.setTimeout(() => { playTimer.current = null; setPlaying(null) }, 2000)
-  }, [])
+  }, [sig])
 
-  // A reaction sent from the bar or the one-tap mark plays here, on the tally it produced.
-  React.useEffect(() => { if (burstEmoji) burst(burstEmoji) }, [burstEmoji, burst])
-
-  if (!reactions.length) return null
-
+  if (!total) return null
+  const shown = reactions.slice(0, 3)
+  // Spoken: each reaction by name, YOURS marked (the old per-emoji aria-pressed said that), and what pressing does.
+  const yours = tr('yours', 'của bạn')
+  const names = reactions.map((r) => {
+    const e = reactionFor(r.emoji)
+    const n = `${e ? tr(e.label, e.labelVi) : r.emoji}${r.count > 1 ? ` ${r.count}` : ''}`
+    return r.mine ? `${n} (${yours})` : n
+  }).join(', ')
+  const mine = reactions.some((r) => r.mine)
   return (
-    <div className={cn('mt-1 flex flex-wrap gap-1', className)}>
-      {reactions.map((r) => {
-        const entry = reactionFor(r.emoji)
-        const name = entry ? tr(entry.label, entry.labelVi) : r.emoji
-        return (
-          <button
-            key={r.emoji}
-            type="button"
-            onClick={() => { burst(r.emoji); onToggle(r.emoji) }}
-            aria-pressed={r.mine}
-            aria-label={fillTemplate(tr('{name}, {count}', '{name}, {count}'), '{name}, {count}', { name: String(name), count: String(r.count) })}
-            className={cn(
-              // ⛔ NO PILL, NO BORDER, NO FILL. Owner, 2026-08-16: "around gray default emoji leave
-              // the circle but when pressed activated emojis to the left of it no circles". A
-              // reacted emoji is already the loud thing on the line — it is in full colour beside a
-              // desaturated glyph — so a ring around it only competed with the one circle that is
-              // meant to read as a control.
-              // ⚠️ The COUNT still needs to be legible, and `mine` still needs to be visible at a
-              // glance; that now comes from the ink alone (§5's brand pair without its container).
-              // ⚠️ SIZED TO THE BAR, NOT TO THE TEXT AROUND IT. Owner, 2026-08-17: "make emojis
-              // and default selector larger like 30-50% larger same size like in the bar". A tally
-              // that renders smaller than the glyph you pressed to create it reads as a different,
-              // lesser object; matching the bar's 22px makes the two obviously the same thing.
-              'press flex items-center gap-0.5 rounded-full px-0.5 text-sm tabular-nums transition-transform hover:scale-110',
-              r.mine ? 'text-brand' : 'text-body',
-            )}
-          >
-            {/* Renders the plain glyph until this one is pressed, then plays the animation once —
-                LottieEmoji paints the Unicode character first and always, so there is no blank
-                frame and no fetch on a thread nobody has interacted with. */}
-            <LottieEmoji emoji={r.emoji} play={playing === r.emoji} size={22} />
-            {/* One reaction needs no "1" beside it — the glyph already says it. */}
-            {r.count > 1 && <span aria-hidden="true">{r.count}</span>}
-          </button>
-        )
-      })}
-    </div>
+    <button
+      ref={popEl}
+      type="button"
+      onClick={onOpen}
+      aria-label={mine
+        ? fillTemplate(tr('Reactions: {list}. Change your reaction', 'Biểu cảm: {list}. Đổi biểu cảm của bạn'), 'Reactions: {list}. Change your reaction', { list: names })
+        : fillTemplate(tr('Reactions: {list}. Add yours', 'Biểu cảm: {list}. Thêm biểu cảm của bạn'), 'Reactions: {list}. Add yours', { list: names })}
+      className={cn(
+        // -bottom-4 on a 24px pill: 8px over the bubble — inside its own bottom padding, never over its text, its time
+        // or a card's buttons (commit gate, opus) — and 16px below, which the row's pb-4 holds.
+        'press pointer-events-auto absolute -bottom-4 z-10 flex h-6 items-center gap-px rounded-full bg-tint px-1 shadow-sm ring-2 ring-background',
+        /**
+         * ⛔ IT GROWS TOWARD THE MIDDLE OF THE THREAD, NEVER TOWARD THE SCREEN EDGE (commit gate, opus). Pinned `left-2` on a
+         * short outgoing "Ok" against the right wall, a two-emoji badge grew rightward past the bubble and off the screen.
+         * So its INNER end sits 2rem in from the bubble's inner corner and it extends from there toward the centre: one
+         * emoji rests on the corner, more spill into the open middle.
+         */
+        align === 'end' ? 'right-[calc(100%-2rem)] origin-bottom-right' : 'left-[calc(100%-2rem)] origin-bottom-left',
+      )}
+    >
+      {shown.map((r) => <LottieEmoji key={r.emoji} emoji={r.emoji} play={playing === r.emoji} size={16} />)}
+      {/* One reaction needs no "1" — the glyph already says it. */}
+      {total > 1 && <span aria-hidden="true" className="pl-0.5 pr-0.5 text-2xs font-semibold tabular-nums text-body">{total}</span>}
+    </button>
   )
 }
 
@@ -239,7 +261,6 @@ export function BubbleChrome({
   onPick,
   onRemove,
   reactions,
-  onToggle,
   myReaction = null,
   measuredTop = [],
   barOpen,
@@ -253,9 +274,8 @@ export function BubbleChrome({
   onPick: (emoji: string) => void
   /** Clear the viewer's own reaction — the "✕" the owner asked for. */
   onRemove: (emoji: string) => void
-  /** The tallies, rendered on the glyph's line. */
+  /** The reactions, drawn as one badge on the bubble's inner bottom corner (ReactionBadge). */
   reactions: MessageReaction[]
-  onToggle: (emoji: string) => void
   /** The emoji this viewer already left on this message, if any. Drives the "✕". */
   myReaction?: string | null
   measuredTop?: readonly string[]
@@ -281,14 +301,8 @@ export function BubbleChrome({
   const [hovered, setHovered] = React.useState<string | null>(null)
   const coarse = usePointerCoarse()
   const root = React.useRef<HTMLDivElement | null>(null)
-  /**
-   * The react mark itself, so the touch bar can hang off IT rather than off the bubble.
-   * See `usePointerCoarse` and the popover branch below for why that matters.
-   */
-  const markAnchor = React.useRef<HTMLDivElement | null>(null)
+  const reactButton = React.useRef<HTMLButtonElement | null>(null)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
-  /** The reaction just sent from this chrome, so its TALLY can play — see ReactionPills.burstEmoji. */
-  const [sent, setSent] = React.useState<string | null>(null)
 
   /**
    * THE OPEN DELAY. Owner: "after short delay like 500 milli seconds … meaningful delays".
@@ -343,6 +357,7 @@ export function BubbleChrome({
       if (root.current?.contains(event.target as Node | null)) return
       onBarOpenChange(false)
       onActionsOpenChange(false)
+      onLockChange?.(false)
     }
     document.addEventListener('pointerdown', onOutside, true)
     return () => document.removeEventListener('pointerdown', onOutside, true)
@@ -350,9 +365,16 @@ export function BubbleChrome({
 
   function pick(emoji: string) {
     hapticTap()
-    // Re-set through null so pressing the same emoji twice in a row still re-triggers the play.
-    setSent(null)
-    window.setTimeout(() => setSent(emoji), 0)
+    // A KEYBOARD pick must not leave focus on a button that is fading out (commit gate, opus): it goes back to React,
+    // which reopens the toolbar around it. A mouse or a finger leaves focus where it was — the toolbar just closes.
+    const active = document.activeElement as HTMLElement | null
+    let keyboard = false
+    // `:focus-visible` in matches() throws on a browser that predates it: then it is simply not a keyboard pick.
+    try { keyboard = !!active?.matches(':focus-visible') } catch { keyboard = false }
+    if (!coarse && active && root.current?.contains(active) && keyboard) {
+      window.setTimeout(() => reactButton.current?.focus(), 0)
+    }
+    // The badge plays the emoji that landed (ReactionBadge watches the counts) — nothing to hand over here.
     onPick(emoji)
     setAllOpen(false)
     onLockChange?.(false)
@@ -370,6 +392,51 @@ export function BubbleChrome({
   }
 
   React.useEffect(() => () => onLockChange?.(false), [onLockChange])
+  // A pinned bar that closes by any route (a pick, the ✕, Escape, the thread) releases the pin with it.
+  const wasOpen = React.useRef(barOpen)
+  React.useEffect(() => {
+    if (wasOpen.current && !barOpen && !allOpen) onLockChange?.(false)
+    wasOpen.current = barOpen
+  }, [barOpen, allOpen, onLockChange])
+
+  /**
+   * ⛔ THE LIFT OF THE LONG-PRESS IS NOT A TAP OUTSIDE THE CARD. Measured 2026-11-27 (Playwright, touch): the card was
+   * open while the finger was held and GONE the moment it lifted — Base UI dismisses a touch popup on the release, and the
+   * release of the very press that opened it counted as an outside press. So the card is only dismissed by a press that
+   * STARTED after it opened: a fresh pointerdown anywhere marks one, and an outside press without it is the opening
+   * gesture ending, which is ignored.
+   */
+  /**
+   * THE TOUCH CARD'S ANCHOR: THE PART OF THE BUBBLE ON SCREEN (commit gate, opus). Anchored to the whole bubble, a message
+   * taller than the screen and scrolled half away put the card above its top edge — off screen, with only the haptic to
+   * say anything happened. Clamping the anchor to the viewport keeps the card next to what the finger is on.
+   */
+  const visibleBubble = React.useCallback(() => {
+    const el = root.current
+    if (!el) return null
+    return {
+      contextElement: el,
+      getBoundingClientRect: () => {
+        const r = el.getBoundingClientRect()
+        // The VISUAL viewport: with the iOS keyboard up it is shorter than the layout one and may be offset within it.
+        const vv = window.visualViewport
+        const vTop = vv?.offsetTop ?? 0
+        const vBottom = vTop + (vv?.height ?? window.innerHeight)
+        const top = Math.min(Math.max(r.top, vTop), vBottom)
+        const bottom = Math.max(Math.min(r.bottom, vBottom), top)
+        return { x: r.left, y: top, left: r.left, right: r.right, width: r.width, top, bottom, height: bottom - top }
+      },
+    }
+  }, [])
+  const touchCardOpen = coarse && (barOpen || actionsOpen)
+  const pressedSinceOpen = React.useRef(false)
+  React.useEffect(() => {
+    if (!touchCardOpen) return
+    pressedSinceOpen.current = false
+    const mark = () => { pressedSinceOpen.current = true }
+    document.addEventListener('pointerdown', mark, true)
+    return () => document.removeEventListener('pointerdown', mark, true)
+  }, [touchCardOpen])
 
   const actionList = React.useMemo(() => {
     if (!actions) return []
@@ -395,8 +462,11 @@ export function BubbleChrome({
     <button
       key={a.key}
       type="button"
-      tabIndex={actionsOpen ? 0 : -1}
-      onClick={() => { hapticTap(); onActionsOpenChange(false); a.run() }}
+      // Reachable whenever its toolbar shows — on desktop that is also while the bar stands on it. Hidden from assistive
+      // tech otherwise, per button: aria-hidden on a `display: contents` wrapper is not honoured everywhere (commit gate).
+      tabIndex={actionsOpen || (!coarse && barOpen) ? 0 : -1}
+      aria-hidden={actionsOpen || (!coarse && barOpen) ? undefined : true}
+      onClick={() => { hapticTap(); onActionsOpenChange(false); onBarOpenChange(false); a.run() }}
       aria-label={a.label}
       title={a.label}
       className={cn(
@@ -554,233 +624,81 @@ export function BubbleChrome({
     <div ref={root} className="pointer-events-none absolute inset-0 z-20">
 
       {/**
-        * QUICK ACTIONS — BESIDE THE BUBBLE, NOT UNDER IT. Owner: "to the right of the bubble box if
-        * bubble is on the left and to the left of the bubble box if it is on the right side of the
-        * conversation". That is the INNER side in both cases, which is also the only safe one: a row
-        * hung off the outer edge would sit in the viewport margin, and on a narrow phone it would be
-        * clipped.
+        * THE DESKTOP TOOLBAR — BESIDE THE BUBBLE, ON THE INNER SIDE: React first, then reply/copy/delete/report.
+        * Owner 2026-08-16: "to the right of the bubble box if bubble is on the left and to the left of the bubble box if it
+        * is on the right side". The INNER side in both cases, the only one with a gutter.
         *
-        * ⚠️ THE STRIP BETWEEN THE BUBBLE AND THE ROW IS PART OF THE HOVER TARGET. `ml-2`/`mr-2` is
-        * 8px of nothing, and the bubble owns the hover — a pointer crossing it fires `pointerleave`
-        * and the row would vanish mid-reach. The `before:` pseudo-element spans that gap so the
-        * pointer never leaves this message's subtree. Measured, not assumed: an earlier version put
-        * the bridge inside the row and it inherited the row's width, which a pointer approaching
-        * from the bubble's centre missed entirely.
+        * ⛔ SINCE 2026-11-27 THE REACTION BAR OPENS FROM HERE, NOT FROM A HEART ON EVERY BUBBLE. The owner called the resting
+        * heart beside each message "janky and ugly" and asked for Messenger, whose desktop shows a React button beside the
+        * hovered message. The bar is a DOM DESCENDANT of this toolbar — the one rule that keeps it reachable with a mouse
+        * (a portal fires `pointerleave` on the way to it and the bar closes under the cursor; history in git).
+        *
+        * ⚠️ THE STRIP BETWEEN THE BUBBLE AND THE TOOLBAR IS PART OF THE HOVER TARGET — the `before:` bridge spans the 8px
+        * gap so the pointer never leaves this message's subtree on the way across.
+        * ⚠️ VISIBLE WHILE THE BAR IS OPEN TOO, because the bar stands on it.
+        * ⛔ MOUSE ONLY: a phone has no gutter (owner 2026-08-17); touch gets the long-press card below.
         */}
-      {actionList.length > 0 && !coarse && (
+      {!coarse && (
         <div
-          aria-hidden={!actionsOpen}
           onPointerEnter={() => clearOpenTimer()}
+          // ⛔ THE KEYBOARD WAY IN (commit gate, opus): the old heart was focusable on every bubble, and with it gone a
+          // keyboard user could not add a first reaction. React is now always in the tab order; focusing it shows the
+          // toolbar, and focus leaving this message closes it.
+          onFocus={() => { if (!actionsOpen) onActionsOpenChange(true) }}
+          // Not while the "＋" grid is open: it is a portalled popup, so focus moving into it leaves this subtree.
+          onBlur={(e) => { if (allOpen) return; if (!root.current?.contains(e.relatedTarget as Node | null)) { onActionsOpenChange(false); onBarOpenChange(false) } }}
           className={cn(
-            // ⛔ ONE PILL, NOT THREE COINS. Owner, 2026-08-16: "remove circles around these make them
-            // one pill have squircle outline around similar to bubble box". Three bordered circles
-            // read as three unrelated controls floating beside the message; one container with the
-            // bubble's own `rounded-2xl` reads as the message's own toolbar. The border, fill and
-            // shadow live here now — the buttons inside carry only their hover.
-            //
-            // ⛔ DESKTOP ONLY — `max-sm:hidden`. Beside the bubble is a POINTER placement: it needs a
-            // gutter to sit in, and the hover bridge either side of it only means anything to a
-            // mouse. On a phone there is no gutter, so this pill and the reaction bar were drawn on
-            // top of each other (owner, 2026-08-17, with a screenshot). The phone gets the stacked
-            // copy inside the glyph's anchor instead — see MOBILE ACTIONS below.
-            // Exit faster than entrance (the house close contract: open 150–200ms, close 100ms) —
-            // on the same 200ms both ways the toolbar lingered after the pointer had moved on.
+            // One pill (owner 2026-08-16: "one pill … similar to bubble box"); open 200ms, close 100ms (the house contract).
             'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate]',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
               : 'left-full ml-2 origin-left before:right-full',
-            actionsOpen
+            /**
+             * ⚠️ A NARROW WINDOW WITH A MOUSE HAS NO GUTTER (commit gate, opus): beside a long message the toolbar — now the
+             * only mouse way to a first reaction — ran off the screen. Below `sm` it stands ABOVE the bubble instead, its
+             * bridge underneath, pinned to the bubble's OUTER edge (the one against the screen wall) and growing toward the
+             * middle — so a short "Ok" against the wall and a long message both keep it on screen.
+             */
+            'max-sm:top-auto max-sm:bottom-full max-sm:mb-1.5 max-sm:translate-y-0 max-sm:before:inset-x-0 max-sm:before:inset-y-auto max-sm:before:top-full max-sm:before:h-2 max-sm:before:w-auto',
+            align === 'end'
+              ? 'max-sm:left-auto max-sm:right-0 max-sm:mr-0 max-sm:origin-bottom-right'
+              : 'max-sm:right-auto max-sm:left-0 max-sm:ml-0 max-sm:origin-bottom-left',
+            actionsOpen || barOpen
               ? 'pointer-events-auto translate-x-0 scale-100 opacity-100 duration-200'
               : cn('pointer-events-none scale-90 opacity-0 duration-100', align === 'end' ? 'translate-x-1' : '-translate-x-1'),
           )}
           style={{ transitionTimingFunction: 'var(--ease-spring)' }}
         >
-          {actionButtons}
-        </div>
-      )}
-
-      {/**
-        * THE GLYPH AND ITS BAR, IN ONE ANCHOR AT THE BUBBLE'S BOTTOM-RIGHT CORNER.
-        *
-        * ⛔ THE BAR IS A DESCENDANT OF THE ANCHOR, WHICH IS WHY IT CAN BE REACHED. Anchored to the
-        * bubble instead, a pointer moving from the glyph to the bar left the hovered element and the
-        * bar closed under it. As a descendant, `pointerleave` on the anchor never fires for that
-        * move at all — and the `before:` strip covers the 6px the two are apart.
-        *
-        * ⚠️ 30% SUNK. `translate-y-[70%]` leaves 70% of the glyph below the bubble's bottom edge,
-        * which is what the row's `pb-1.5` and the pills' `mt-3.5` are sized against.
-        */}
-      <div
-        ref={markAnchor}
-        className="pointer-events-auto absolute bottom-0 right-2 flex translate-y-[70%] items-center gap-1"
-        onPointerEnter={(e) => {
-          if (e.pointerType !== 'mouse') return
-          // Hovering the glyph is a bid for the BAR only — the actions row belongs to the bubble.
-          onActionsOpenChange(false)
-          openAfterDelay(() => onBarOpenChange(true))
-        }}
-        onPointerLeave={(e) => { if (e.pointerType === 'mouse') clearOpenTimer() }}
-      >
-        {/**
-          * THE TALLIES SHARE THE GLYPH'S LINE. Owner: "emojis themselves land in the same row of the
-          * default emoji line the 30% onto bubble if have more emojis selected the previous moves to
-          * the left and new emoji added to the right of it" — which is the Zalo screenshot exactly:
-          * the counts straddle the bubble's bottom edge, right-aligned, with the faded glyph as the
-          * last item on the line.
-          *
-          * ⚠️ THE ORDER FALLS OUT OF THE EXISTING SORT AND NEEDS NO SERVER CHANGE. Reactions come
-          * back sorted count-descending, so an emoji someone just added (count 1) lands LAST — i.e.
-          * furthest right, nearest the glyph — and an established one sits left of it. That is the
-          * "previous moves to the left" the owner described, and it is stable across renders in a
-          * way a client-side recency guess would not be.
-          *
-          * ⚠️ NOT IN THE ROW'S FLOW ANY MORE. They used to sit under the bubble and reserve their own
-          * height; here they hang off it, which is why the message row carries `pb-4`.
-          */}
-        <ReactionPills reactions={reactions} onToggle={onToggle} burstEmoji={sent} className="mt-0" />
-
-        <button
-          type="button"
-          onClick={() => pick(PRIMARY_REACTION)}
-          onFocus={() => onBarOpenChange(true)}
-          /* ⚠️ NAMES THE ACTION, NOT JUST THE GLYPH. "Heart, button" does not tell anyone what
-             pressing it does. `top` is never empty — topReactions() tops up from
-             DEFAULT_TOP_REACTIONS and a unit test asserts a full bar. */
-          aria-label={fillTemplate(tr('React with {reaction}', 'Bày tỏ {reaction}'), 'React with {reaction}', {
-            reaction: reactionFor(PRIMARY_REACTION) ? tr(reactionFor(PRIMARY_REACTION)!.label, reactionFor(PRIMARY_REACTION)!.labelVi) : PRIMARY_REACTION,
-          })}
-          className={cn(
-            // ⚠️ 26px, UP FROM 18 (+44%) — owner, 2026-08-17, same note as the tallies. At 18px
-            // this was a smudge rather than a control: it is the ONE-TAP shortcut, the most-used
-            // affordance on a message, and it was the smallest thing on the row. Its hit area was
-            // always larger than its paint; now the paint agrees with it.
-            'press flex size-[26px] shrink-0 items-center justify-center rounded-full bg-popover text-xs leading-none shadow-sm ring-1 ring-border transition-[opacity,filter,scale] duration-200 ease-out',
-            // ⛔ "OUTLINED" FOR AN EMOJI MEANS DESATURATED. There is no stroke form of a colour
-            // emoji glyph. ⚠️ 0.55, not 0.9 — measured on the rendered page, at 0.9 an 18px ❤️ is a
-            // grey smudge that stops reading as an emoji at all, which defeats showing WHICH emoji
-            // the site uses most.
-            'text-ink-4 hover:text-destructive hover:scale-110',
-            // ⚠️ IT STAYS PUT WHILE THE BAR IS OPEN. The bar now opens ABOVE it rather than over it,
-            // so there is nothing to hide from — and hiding the control the pointer is resting on is
-            // how the previous version made itself unreachable.
-            'opacity-60 hover:opacity-100',
-          )}
-        >
-          {/**
-            * ⛔ A SOLAR OUTLINE HEART, NOT THE MEASURED TOP EMOJI. Owner, 2026-08-16: "this should be
-            * only the outline in gray to not stand out use solar heart outlined". An earlier pass
-            * argued the opposite — a heart cannot express whichever glyph the tally says is most
-            * used — and the owner's answer is that the resting mark should recede, not inform. The
-            * BAR still shows the measured top five; only this one-tap shortcut is fixed.
-            *
-            * ⚠️ SO THE TAP SENDS ❤️, NOT top[0]. The icon and the action have to agree: a heart that
-            * quietly posts 😂 because that is this week's most-used glyph is the worst kind of
-            * surprise. It swaps to the full-colour animation for the moment it plays.
-            */}
-          <Heart className="size-4" aria-hidden />
-        </button>
-
-        {/**
-        {/**
-          * ⛔ TWO HOMES FOR ONE BAR, CHOSEN BY POINTER TYPE — and this is the fourth attempt at the
-          * owner's "make it screen acnostic so it wont happen". The three before it were CSS
-          * anchors, and the write-up of why they cannot work is worth keeping:
-          *
-          *  · `align`-based: a WIDE incoming card takes `left-0`, but the mark it hangs off is at
-          *    the bubble's bottom-RIGHT for incoming and outgoing alike, so the bar began near the
-          *    screen's right edge and ran off it. That was the reported bug.
-          *  · `right-0` always: fixes that, breaks the mirror — a 91px incoming bubble at the left
-          *    wall put the bar at x = -151 (measured, 390px viewport, 246px bar).
-          *  · a container query picking the better side: still fails in the MIDDLE. A 200px incoming
-          *    bubble has neither 246px to its left nor to its right, so there is no side to choose.
-          *
-          * The bar is simply wider than the space some bubbles offer, so NO bubble-relative anchor
-          * can be right. It has to be positioned against the viewport, which needs measurement —
-          * and measuring floating layers is what Base UI's positioner already does. CLAUDE.md's
-          * standing rule is that floating layers come from Base UI rather than hand-rolled
-          * positioning; three failed attempts is what ignoring it costs.
-          *
-          * ⛔ TOUCH ONLY. The mouse bar MUST stay a DOM descendant of the mark — a portal breaks
-          * `pointerleave` and the bar closes under the cursor on the way to it (see the anchor's
-          * note). Touch has no hover, so portalling is free there.
-          *
-          * ⚠️ ONE CARD, NOT TWO PILLS. The popup itself is the container, so the emoji row and the
-          * quick actions sit in one rounded surface — which is also what "pin quick actions bar
-          * below the emoji bar" asked for, and it means the collision maths runs once over the
-          * whole stack rather than twice over two layers that could disagree.
-          */}
-        {coarse ? (
-          <Popover
-            open={barOpen || actionsOpen}
-            onOpenChange={(next) => { if (!next) { onBarOpenChange(false); onActionsOpenChange(false) } }}
+          <button
+            ref={reactButton}
+            type="button"
+            aria-label={tr('React', 'Bày tỏ cảm xúc')}
+            aria-expanded={barOpen}
+            title={tr('React', 'Bày tỏ cảm xúc')}
+            // Hover settles into the bar after the house delay (owner: "meaningful delays"); a click opens it at once.
+            onPointerEnter={(e) => { if (e.pointerType === 'mouse' && !barOpen) openAfterDelay(() => onBarOpenChange(true)) }}
+            onPointerLeave={(e) => { if (e.pointerType === 'mouse') clearOpenTimer() }}
+            // OPENS, never toggles (commit gate, opus): a pointer that rests on React opens the bar after the delay, and the
+            // click that follows must not shut it. It closes on a pick, an outside press, Escape or the pointer leaving.
+            onClick={() => { clearOpenTimer(); onBarOpenChange(true) }}
+            // Open = the house grammar for a disclosure: aria-expanded turns the glyph bold, in the accent ink (globals.css).
+            className={cn('press flex size-7 items-center justify-center rounded-xl text-body transition-colors hover:bg-tint hover:text-foreground', barOpen && 'bg-tint')}
           >
-            <PopoverContent
-              anchor={markAnchor}
-              side="top"
-              align={align === 'end' ? 'end' : 'start'}
-              sideOffset={6}
-              /* ⚠️ THE ONE LINE THE WHOLE REWRITE EXISTS FOR: keep it 12px inside the viewport,
-                 whatever the bubble's width or position. */
-              collisionPadding={12}
-              /* `w-auto` beats the primitive's `w-72` through twMerge; the padding tightens the
-                 card around two rows of controls. The shadow and ring are the primitive's own and
-                 are deliberately kept — this IS a floating card. */
-              className="w-auto max-w-[calc(100vw-1.5rem)] gap-1.5 p-1.5"
-            >
-              {/**
-                * ⚠️ `barOpen &&`, NOT ALWAYS — the popup is open on `barOpen || actionsOpen`, and the
-                * two come apart in ordinary use: a long press opens both, then tapping an emoji (or
-                * the ✕, or dismissing the grid) clears `barOpen` alone. Rendered unconditionally,
-                * the emoji row then sat there VISIBLE with `tabIndex={-1}` — controls you can see,
-                * can click, and cannot reach with a keyboard. The previous attempt collapsed that
-                * row to zero height with a grid animation; a conditional is the same guarantee
-                * without the machinery, because the popup is portalled and re-measures on resize.
-                */}
-              {barOpen && (
-                <div className="flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
-                  {barContent}
-                </div>
-              )}
-              {actionList.length > 0 && actionsOpen && (
-                /**
-                 * ⚠️ THE ACTIONS SPAN THE FULL WIDTH OF THE CARD, SPLIT BY HAIRLINES — owner,
-                 * 2026-08-18: "below 3 quick actions seed acros all lenght of bar with line
-                 * between". `w-full` on the row plus `flex-1` on each child (see actionButtons)
-                 * makes three equal columns however wide the emoji row above made the card, so the
-                 * two rows always agree on width instead of the actions huddling at one end.
-                 *
-                 * ⚠️ THE HORIZONTAL RULE ONLY RENDERS WHEN THERE IS A ROW ABOVE IT. `barOpen` and
-                 * `actionsOpen` come apart in ordinary use — tapping an emoji clears `barOpen` and
-                 * leaves the actions up — and a card whose first element is a top border reads as
-                 * a fragment of something taller.
-                 *
-                 * ⚠️ `align` NO LONGER PICKS justify-start/end. With `w-full` there is nothing left
-                 * to justify: the row is exactly as wide as the card. Keeping the old ternary would
-                 * have been a no-op that looked meaningful.
-                 */
-                <div className={cn('flex w-full items-stretch', barOpen && 'border-t border-border/60 pt-1.5')}>
-                  {actionButtons}
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-        ) : (
-          /* THE MOUSE BAR — a descendant of the mark, positioned by CSS, exactly as before.
-             `aria-hidden` + `tabIndex={-1}` while closed so a collapsed bar is neither tabbable nor
-             clickable — a hidden-by-opacity control that still takes clicks is an invisible target. */
+            <Heart className="size-3.5" aria-hidden />
+          </button>
+          {actionButtons}
+
+          {/* THE MOUSE BAR — a descendant of the toolbar, rising above it; may cover the bubble (owner 2026-08-16: "its okay
+              let it cover the bubble"). `aria-hidden` + tabIndex -1 while closed: never an invisible target. */}
           <div
             aria-hidden={!barOpen}
             className={cn(
-              // Same close contract as the toolbar above: 200ms in, 100ms out.
               'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate]',
-              // ⛔ IT RISES FROM THE MARK AND MAY COVER THE BUBBLE — owner's call, 2026-08-16: "its
-              // okay let it cover the bubble". Nested in the mark's anchor it is also a DOM
-              // descendant of the control that opened it, so the pointer never leaves that subtree
-              // on the way up. The 6px bridge to the glyph below — see the anchor's note.
+              // The 6px bridge down to the toolbar, so the reach up never leaves the subtree.
               'before:absolute before:inset-x-0 before:top-full before:h-2 before:content-[""]',
-              // A mouse pointer has a gutter to hover in, so the old side rule is right HERE and
-              // only here: hang off the outer edge and grow inward.
+              // Pinned to the toolbar's outer end, growing toward the middle of the thread — beside the bubble that is over the
+              // gutter; below `sm`, where the toolbar stands on the bubble's outer edge, the same rule keeps it on screen.
               align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
               barOpen
                 ? 'pointer-events-auto translate-y-0 scale-100 opacity-100 duration-200'
@@ -790,8 +708,73 @@ export function BubbleChrome({
           >
             {barContent}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/**
+        * ⛔ TOUCH, WITHOUT A FINGER GESTURE (commit gate, opus): long-press and double-tap are pointer gestures, so VoiceOver /
+        * TalkBack (whose double-tap is a click) and an iPad with a keyboard had no way to a FIRST reaction once the resting
+        * heart was gone. This button is that way: in the accessibility tree always, on screen only while keyboard-focused,
+        * and it opens the same card a long-press does.
+        */}
+      {coarse && (
+        <button
+          type="button"
+          onClick={() => { hapticSelection(); onBarOpenChange(true); onActionsOpenChange(true) }}
+          className={cn(
+            'sr-only focus-visible:not-sr-only focus-visible:pointer-events-auto focus-visible:absolute focus-visible:-bottom-4 focus-visible:z-10 focus-visible:rounded-full focus-visible:bg-popover focus-visible:px-2 focus-visible:py-0.5 focus-visible:text-2xs focus-visible:font-semibold focus-visible:shadow-sm',
+            align === 'end' ? 'focus-visible:right-2' : 'focus-visible:left-2',
+          )}
+        >
+          {tr('React', 'Bày tỏ cảm xúc')}
+        </button>
+      )}
+
+      {/* THE REACTIONS: one badge on the bubble's inner bottom corner (see ReactionBadge). Pressing it opens the picker. */}
+      {/* ⚠️ WITH A MOUSE, A BADGE-OPENED BAR IS PINNED (commit gate, opus): the bar stands on the toolbar beside the bubble,
+          and the diagonal from the badge to it crosses gutter no bridge covers — the thread's 160ms leave-close fired on the
+          way. Locked like the "＋" grid: it closes on a pick, an outside press, or its own ✕, never on the pointer leaving. */}
+      <ReactionBadge reactions={reactions} align={align} onOpen={() => { hapticSelection(); onBarOpenChange(true); if (coarse) onActionsOpenChange(false); else onLockChange?.(true) }} />
+
+      {/**
+        * TOUCH: THE LONG-PRESS CARD — emoji row over the quick actions, in a Base UI popup kept 12px inside the viewport.
+        * ⚠️ ANCHORED TO THE BUBBLE'S VISIBLE PART (visibleBubble) since the resting heart it used to hang from is gone.
+        * Base UI measures it like any element; the bar is wider than many bubbles, so only a viewport-aware positioner can
+        * place it (the three failed CSS anchors before it are in git history).
+        * ⚠️ `barOpen &&` and `actionsOpen &&` render each row only while it is open — a visible row with tabIndex -1 is a
+        * control you can see and cannot reach.
+        */}
+      {coarse && (
+        <Popover
+          open={barOpen || actionsOpen}
+          onOpenChange={(next, details) => {
+            if (next) return
+            if (details?.reason === 'outside-press' && !pressedSinceOpen.current) return
+            onBarOpenChange(false); onActionsOpenChange(false)
+          }}
+        >
+          <PopoverContent
+            anchor={visibleBubble}
+            side="top"
+            align={align === 'end' ? 'end' : 'start'}
+            sideOffset={6}
+            collisionPadding={12}
+            className="w-auto max-w-[calc(100vw-1.5rem)] gap-1.5 p-1.5"
+          >
+            {barOpen && (
+              <div className="flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
+                {barContent}
+              </div>
+            )}
+            {actionList.length > 0 && actionsOpen && (
+              // Full width, split by hairlines (owner 2026-08-18: "seed acros all lenght of bar with line between").
+              <div className={cn('flex w-full items-stretch', barOpen && 'border-t border-border/60 pt-1.5')}>
+                {actionButtons}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   )
 }
@@ -823,6 +806,19 @@ export function BubbleChrome({
  * uncopyable forever, which is a worse bug than the one being fixed.
  */
 let pendingPress: { timer: number; x: number; y: number; el: HTMLElement; select: string; callout: string } | null = null
+
+/**
+ * DOUBLE-TAP ❤️ (owner 2026-11-27, Messenger: the one-tap heart that sat on every bubble is gone, and this is the quick
+ * reaction that replaces it on a phone). Module state for the same reason as the press: a finger is singular.
+ *   · `tap` is the touch in flight: set at pointerdown, dropped by movement past the slop or by the long-press firing.
+ *   · `lastTap` is the previous clean tap; a second on the same bubble within DOUBLE_TAP_MS and DOUBLE_TAP_PX is the double.
+ * ⛔ NEVER ON A CONTROL INSIDE THE BUBBLE: a link, a button (an offer's Accept, a card's Call) keeps its own taps.
+ */
+const DOUBLE_TAP_MS = 300
+const DOUBLE_TAP_PX = 24
+let tap: { x: number; y: number; el: HTMLElement } | null = null
+let lastTap: { t: number; x: number; y: number; el: HTMLElement } | null = null
+const INTERACTIVE = 'a,button,input,textarea,select,label,[role="button"],[role="link"],[contenteditable="true"]'
 
 /**
  * ⚠️ A HELD BUBBLE SHOWS IT IS BEING HELD. Nothing moved for the 450ms before the long-press fired, so
@@ -883,13 +879,14 @@ function cancelPress() {
  */
 export const cancelLongPress = cancelPress
 
-export function longPressHandlers(onLongPress: () => void) {
+export function longPressHandlers(onLongPress: () => void, onDoubleTap?: () => void) {
   return {
     onPointerDown: (e: React.PointerEvent) => {
       // Mouse users have hover; a long mouse-press would fight click-to-select.
       if (e.pointerType === 'mouse') return
       cancelPress()
       const el = e.currentTarget as HTMLElement
+      tap = (e.target as Element | null)?.closest?.(INTERACTIVE) ? null : { x: e.clientX, y: e.clientY, el }
       /**
        * ⛔ SELECTION IS SUPPRESSED FOR THE DURATION OF THE PRESS, AND THIS REVERSES THE RULE THAT
        * USED TO BE WRITTEN HERE. Owner, 2026-08-17: "on mobile the long press also selects the
@@ -949,16 +946,38 @@ export function longPressHandlers(onLongPress: () => void) {
            */
           const sel = window.getSelection()
           if (el && sel && sel.anchorNode && el.contains(sel.anchorNode)) sel.removeAllRanges()
-          hapticTap(18)
+          // A held press is never also a tap.
+          tap = null
+          lastTap = null
+          // The platform's own long-press texture: Android's system LONG_PRESS, the Taptic medium impact on iOS.
+          hapticLongPress()
           onLongPress()
         }, LONG_PRESS_MS),
       }
     },
     onPointerMove: (e: React.PointerEvent) => {
+      if (tap && (Math.abs(e.clientX - tap.x) > PRESS_SLOP_PX || Math.abs(e.clientY - tap.y) > PRESS_SLOP_PX)) tap = null
       if (!pendingPress) return
       if (Math.abs(e.clientX - pendingPress.x) > PRESS_SLOP_PX || Math.abs(e.clientY - pendingPress.y) > PRESS_SLOP_PX) cancelPress()
     },
-    onPointerUp: cancelPress,
-    onPointerCancel: cancelPress,
+    onPointerUp: (e: React.PointerEvent) => {
+      cancelPress()
+      const t = tap
+      tap = null
+      if (e.pointerType === 'mouse' || !onDoubleTap || !t) { lastTap = null; return }
+      const now = Date.now()
+      if (lastTap && lastTap.el === t.el && now - lastTap.t <= DOUBLE_TAP_MS && Math.abs(t.x - lastTap.x) <= DOUBLE_TAP_PX && Math.abs(t.y - lastTap.y) <= DOUBLE_TAP_PX) {
+        lastTap = null
+        // A double-tap may also start a word selection on some Android builds: a heart, never a stray highlight. Only this
+        // bubble's selection, never the composer's (the long-press rule).
+        const sel = window.getSelection()
+        if (sel && sel.anchorNode && t.el.contains(sel.anchorNode)) sel.removeAllRanges()
+        hapticTap()
+        onDoubleTap()
+        return
+      }
+      lastTap = { t: now, x: t.x, y: t.y, el: t.el }
+    },
+    onPointerCancel: () => { tap = null; cancelPress() },
   }
 }
