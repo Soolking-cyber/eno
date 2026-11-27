@@ -63,8 +63,11 @@ const STATS_OUT = z.strictObject({
   hours: z.number().describe('How many hours it runs, as bought'),
   starts_at: z.string().nullable().describe('When it started or starts (ISO 8601); null until paid'),
   ends_at: z.string().nullable().describe('When it ends or ended (ISO 8601); null until paid'),
-  impressions: z.number().describe('Times the ad card was at least half on screen for a second, during its run (at most once per visitor per 10 minutes)'),
-  clicks: z.number().describe('Taps on the ad card during its run (same limit)'),
+  // The same counters get_ad_stats reads (stats.ts: once per browser session per 30 minutes). This said "per visitor per
+  // 10 minutes" until 2026-11-27 (Manufact list_ads output 73, "align the output schema"): 10 minutes is only the
+  // per-address click cap, so the two tools contradicted each other.
+  impressions: z.number().describe('Viewable impressions during its run: at least half the card on screen for one second, once per browser session per 30 minutes'),
+  clicks: z.number().describe('Clicks on the card during its run, once per browser session per 30 minutes'),
   listing_views: z.number().nullable().describe('The listing\'s page views from the day the ad started (to its end, or now): from daily snapshots, so ad and non-ad visits together. Null when not measurable yet, and always for an ad shorter than a day'),
   listing_contacts: z.number().nullable().describe('Signed-in buyers who opened the seller\'s contact over the same days; null when not measurable yet'),
   currency: z.enum(['USDC', 'VND']).describe('What it was paid in: "USDC" over x402, or "VND" by bank transfer (bought by a person at /dashboard/ads)'),
@@ -94,7 +97,7 @@ const FIGURES_OUT = z.strictObject({
   ad_id: z.string().describe('The ad'),
   listing_id: z.string().nullable().describe('The advertised listing; null for a creative ad'),
   creative_id: z.string().nullable().describe('The creative it shows; null for a listing ad'),
-  status: AD_STATUS_ANY.describe('As in list_ads: "active" when paid'),
+  status: AD_STATUS_ANY.describe('"active": paid; "pending" or "unknown": payment not yet confirmed; "review": being checked by hand; "failed": not paid, so it will not run'),
   starts_at: z.string().nullable().describe('When it started or starts (ISO 8601)'),
   ends_at: z.string().nullable().describe('When it ends or ended (ISO 8601)'),
   totals: z.strictObject({
@@ -247,23 +250,25 @@ export const AD_TOOLS: McpTool[] = [
   },
   {
     name: 'create_ad',
-    title: 'Create your own ad',
+    title: 'Create a feed ad',
     description: 'Your own ad as the feed\'s first card, reviewed before payment: refused → `review` with reasons; approved → an x402 payment request; repeat it with `_meta["x402/payment"]`.\n\nReturns `review`, `ad`, `message`.',
     scope: 'ads:write',
     annotations: PAID_WRITE,
-    // ⚠️ The ad's fields are ONE object whose properties carry no prose of their own: every word here is paid for in the
-    // tools/list budget (tool-list-budget.test.ts). The limits are stated once, in the object's description.
+    // ⚠️ Every word here is paid for in the tools/list budget (tool-list-budget.test.ts), so each field says only what it
+    // MEANS. Its limits (lengths, https, the picture's size and shape) are the review's, not the prose's (Manufact
+    // 2026-11-27, inputs 71: "Remove validation rules … describe its meaning"): parseCreative and the image check refuse
+    // every fault at once with a bilingual reason (review-reasons.ts), before any payment request.
     input: z.object({
       // Every field optional in the SCHEMA (the review names what is missing, review-reasons.ts): no `required` list to pay for.
       creative: z.object({
-        advertiserName: z.string().describe('Name on the card, ≤40'),
+        advertiserName: z.string().describe('Brand name shown on the card'),
         legalName: z.string().describe('Registered legal name'),
-        taxCode: z.string().describe('MST or company no., optional'),
-        headline: z.string().describe('≤60, any language'),
-        body: z.string().describe('≤120, optional'),
-        imageUrl: z.string().describe('https, ≥600 px, square'),
-        clickUrl: z.string().describe('https landing page'),
-        permitRef: z.string().describe('Permit no., optional'),
+        taxCode: z.string().describe('Vietnam tax code (MST) or foreign company no.; optional'),
+        headline: z.string().describe('Main line, in any language'),
+        body: z.string().describe('Optional second line'),
+        imageUrl: z.string().describe('Public URL of the square picture'),
+        clickUrl: z.string().describe('Landing page a tap opens'),
+        permitRef: z.string().describe('Sector permit no. if the product needs one'),
       }).partial().describe('The ad'),
       hours: HOURS,
     }),
@@ -315,7 +320,7 @@ export const AD_TOOLS: McpTool[] = [
     description: 'One ad\'s live figures: impressions, clicks, CTR, reach, spend, eCPM, eCPC, hourly.\n\nReturns `totals` and `hourly`.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
-    input: z.object({ adId: z.string().describe('From list_ads') }),
+    input: z.object({ adId: z.string().describe('The ad\'s id from list_ads') }),
     output: FIGURES_OUT,
     handler: async (auth, args) => {
       const f = await shopAdFigures(String(args.adId || '').trim(), auth.sellerId)
@@ -326,7 +331,8 @@ export const AD_TOOLS: McpTool[] = [
   {
     name: 'list_ads',
     title: 'List this shop\'s ads',
-    description: 'This shop\'s ads, newest first, with impressions and clicks.\n\nReturns `ads` (`id`, `listing_id`, `creative_id`, `status`, `impressions`, `clicks`).',
+    // The whole row in one line (Manufact 2026-11-27, description 77 / output 73: it named 6 of the 16 fields it returns).
+    description: 'This shop\'s latest 50 ads, newest first, each with its status, run dates, impressions, clicks, listing views and contacts, and price paid.\n\nReturns `ads`.',
     scope: 'analytics:read',
     annotations: READ_ONLY,
     input: z.object({}),

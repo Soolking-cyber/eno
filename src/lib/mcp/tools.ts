@@ -98,7 +98,8 @@ const rowItem = listingItem.extend({
   title: z.string().describe('The headline buyers see first, as in create_listing'),
   description: z.string().optional().describe('The listing page\'s text, in the seller\'s words. Leave it out for no text'),
   district: z.string().optional().describe('Where the item is, as a district or area buyers recognise; a new listing needs it'),
-  condition: z.string().optional().describe('The item\'s condition, as create_listing takes it. Leave it out when it does not apply'),
+  // The values themselves (Manufact 11-27 on bulk's condition: "Clarify units, where to obtain this value, or conventions").
+  condition: z.string().optional().describe('The item\'s condition: "new", "like_new" or "used". Leave it out when it does not apply'),
   images: z.array(z.string()).optional().describe('Photos as public image URLs, in display order, as create_listing takes them'),
   externalId: z.string().optional().describe('Your own id for the row, such as a SKU, echoed back in the results'),
 })
@@ -715,10 +716,11 @@ export const TOOLS: McpTool[] = [
       }).nullable().describe('Set when the account may not publish new listings right now: new rows were refused, edits still applied; null otherwise'),
     }).describe('Counts of created, updated, retired and failed rows, and a result per row'),
     input: z.object({
-      mode: z.string().optional().describe(`partial (when left out): your listings missing from this payload stay as they are. full: each active one whose externalId you did not send is hidden, so eno mirrors your catalogue; only for one that fits in one call, since separate full calls hide each other's rows`),
+      // The tool's description already says what full hides; this says when to pick which (shorter for the ora budget, 11-27).
+      mode: z.string().optional().describe(`partial (when left out) leaves listings you did not send alone; full hides them, so eno mirrors your catalogue. Use full only for a catalogue that fits in one call: separate full calls hide each other's rows`),
       listings: z.array(rowItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
-        status: z.string().optional().describe('active, sold or hidden: puts an existing listing on sale, marks it sold, or hides it. Leave it out to keep its status; a new row ignores it and goes live as a new listing'),
+        status: z.string().optional().describe('active, sold or hidden: puts the listing on sale, marks it sold or hides it. Leave it out to keep its status; a new row ignores it'),
       })).describe('Your catalogue rows, matched to listings by externalId; a known row keeps the fields you leave out'),
     }),
     handler: async (auth, args) => {

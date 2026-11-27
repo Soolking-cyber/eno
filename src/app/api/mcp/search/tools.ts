@@ -229,7 +229,7 @@ export const SEARCH_TOOLS: SearchTool[] = [
       price_max: z.number().optional().describe('The highest price in VND, e.g. 15000000 for 15 million (for a rental, the monthly rent). Leave it out for no upper bound'),
       sort: z.enum(['best', 'recent', 'price-low', 'price-high']).optional().describe('"best" (when left out) weighs relevance and freshness, "recent" puts the newest first, "price-low" and "price-high" sort by price'),
       lang: z.enum(['en', 'vi']).optional().describe('The language for titles where a translation exists: "en" (when left out) or "vi"; use the person\'s language'),
-      limit: z.number().optional().describe('How many listings to return in this call. Leave it out for a normal-size page of 10; the server caps a larger number'),
+      limit: z.number().optional().describe('How many listings to return; 10 when left out. The server caps a larger number'),
       offset: z.number().optional().describe('Where to continue: the `next_offset` of the previous page. Leave it out for the first page'),
     }),
     output: z.strictObject({

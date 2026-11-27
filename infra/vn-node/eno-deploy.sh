@@ -1270,8 +1270,27 @@ say "15. Manufact leaderboard (advisory): rescan eno Agentic Commerce after ever
 #   pbpaste | ssh … 'umask 077; cat > /opt/eno/secrets/manufact-api-key'
 # never in the repo, an env file or argv: the header reaches curl on stdin (cf_purge's rule above). Warn-only, like
 # steps 12–14 — nothing here can fail or roll back this deploy.
+# ⛔ WARM THE ENDPOINT FIRST (2026-11-27). The scan's first check is an MCP handshake with a 10 s limit, and a rescan started
+# straight after a swap met a cold container: "MCP connection timed out after 10000ms" (scan 14:43:46Z, after 3b6da46b1),
+# which blanked the WHOLE score (quality null) until the next scan; 11-24 had the same. So: an initialize every 5 s, up to
+# 12 tries, until two in a row answer 200 within 3 s; if it never warms, the rescan is skipped — the previous score stands
+# — and the line says how to start one by hand.
 MANUFACT_KEY_FILE=/opt/eno/secrets/manufact-api-key
+mf_warm=0
 if [ -s "$MANUFACT_KEY_FILE" ]; then
+  mf_init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"eno-deploy-warmup","version":"1"}}}'
+  mf_last=''
+  for _ in $(seq 1 12); do
+    mf_last=$(curl -s -o /dev/null --max-time 10 -w '%{http_code} %{time_total}' -X POST "https://eno.vn/api/mcp" \
+      -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data "$mf_init" || true)
+    if [ "${mf_last%% *}" = 200 ] && awk -v t="${mf_last#* }" 'BEGIN { exit !(t < 3) }'; then mf_warm=$((mf_warm + 1)); else mf_warm=0; fi
+    [ "$mf_warm" -ge 2 ] && break
+    sleep 5
+  done
+fi
+if [ -s "$MANUFACT_KEY_FILE" ] && [ "$mf_warm" -lt 2 ]; then
+  warn "Manufact rescan: skipped — /api/mcp did not answer an MCP initialize within 3 s twice in a row (last: ${mf_last:-none}); the previous score stands. Rescan by hand once it is fast: the POST in step 15 of this script"
+elif [ -s "$MANUFACT_KEY_FILE" ]; then
   mf_key=$(tr -d '[:space:]' < "$MANUFACT_KEY_FILE")
   mf_key=${mf_key//\\/\\\\}   # curl config quoting: backslashes first, then quotes
   mf_out=$(curl -sS --connect-timeout 5 --max-time 20 --config - -X POST "https://cloud.manufact.com/api/v1/public/catalog" \
