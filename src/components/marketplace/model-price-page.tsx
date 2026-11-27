@@ -95,8 +95,13 @@ export async function ModelPriceHub({ lang }: { lang: ModelPageLang }) {
         <h1 className="h-display text-foreground">
           <Bilingual en="Prices by model in Vietnam" vi="Giá theo mẫu tại Việt Nam" />
         </h1>
-        <p className="mt-2 text-base text-body">
-          <Bilingual en="Typical asking prices for each model, from live listings." vi="Giá rao phổ biến của từng mẫu, từ tin đăng đang có." />
+        {/* One paragraph Seobility counts (~20+ words; crawl 14, 2026-11-27: "no text blocks" on /price and /gia, owner "yes"):
+            what a model page holds, no figures (the hub's rule above). */}
+        <p className="mt-2 max-w-prose text-base text-body">
+          <Bilingual
+            en="Typical asking prices for each model, from live listings. Each model's page lists its listings cheapest first and, where there are enough prices to compare, shows the middle half of them as the typical range."
+            vi="Giá rao phổ biến của từng mẫu, từ tin đăng đang có. Trang của mỗi mẫu liệt kê tin đăng từ giá thấp nhất và, khi có đủ mức giá để so sánh, hiển thị nửa giữa của chúng làm khoảng giá phổ biến."
+          />
         </p>
         <ModelPriceLinks pages={pages} lang={lang} hub />
       </main>

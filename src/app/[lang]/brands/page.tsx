@@ -115,8 +115,12 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
           <Bilingual en="Browse listings by brand" vi="Duyệt tin đăng theo thương hiệu" />
         </h1>
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          {/* "live": the title's word (Seobility crawl 10, title words not in the page's text). */}
-          <Bilingual en="Jump straight to live listings from the brands people search for most." vi="Đi thẳng tới tin đăng đang có của những thương hiệu được tìm kiếm nhiều nhất." />
+          {/* "live": the title's word (Seobility crawl 10, title words not in the page's text). The second sentence makes it a
+              paragraph Seobility counts (crawl 14, 2026-11-27: "no text blocks", owner "yes") and says what the page holds. */}
+          <Bilingual
+            en="Jump straight to live listings from the brands people search for most. Each brand opens its live listings across all categories, and the models with their own price page are listed under the brands."
+            vi="Đi thẳng tới tin đăng đang có của những thương hiệu được tìm kiếm nhiều nhất. Mỗi thương hiệu mở ra các tin đăng đang có của thương hiệu đó ở mọi danh mục, và các mẫu có trang giá riêng được liệt kê bên dưới."
+          />
         </p>
 
         {/* Masthead boundary — on the content box, like the tiles under it (C1-HAIRLINE). */}

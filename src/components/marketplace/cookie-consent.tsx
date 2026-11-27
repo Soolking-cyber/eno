@@ -14,6 +14,7 @@ import {
   type ConsentFlags,
 } from '@/lib/consent'
 import { Mascot } from './mascot'
+import { useSiteHref } from './site-href'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { setConsentClearance } from '@/lib/consent-clearance'
 import { cn } from '@/lib/utils'
@@ -243,6 +244,9 @@ const BUSY_POLL_MS = 250
  *  opens directly. */
 export function CookieConsent() {
   const { tr, lang } = useLanguage()
+  // The Privacy Policy link names eno.vn's own address: the banner opens on a shop host too (theextramile.eno.vn), where a
+  // bare `/privacy` is a 301 to the apex — Seobility crawl 14 (2026-11-27) listed it among "internal links to redirects".
+  const siteHref = useSiteHref()
   // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
   const popupRef = useRef<HTMLDivElement>(null)
   /**
@@ -793,7 +797,7 @@ export function CookieConsent() {
                       'Can we use cookies for listing suggestions, analytics (Google Analytics, Microsoft Clarity) and ad measurement (Meta, TikTok, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
                       'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics, Microsoft Clarity) và đo lường quảng cáo (Meta, TikTok, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
-                  tail={<BoxedLink href="/privacy" label={tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')} className="font-semibold text-accent-foreground" />}
+                  tail={<BoxedLink href={siteHref('/privacy')} label={tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')} className="font-semibold text-accent-foreground" />}
                 />
               </p>
               </div>
