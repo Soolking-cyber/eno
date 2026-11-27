@@ -6,7 +6,9 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
-import { MODEL_PAGE_SIZE, loadModelPage, modelPageMetadata, modelPagePath, modelProductLd, type ModelPageLang } from '@/lib/model-pages'
+import { MODEL_PAGE_SIZE, linkedModelPages, loadModelPage, modelHubPath, modelPageMetadata, modelPagePath, modelProductLd, type ModelPageLang } from '@/lib/model-pages'
+import { pageShare } from '@/lib/site-identity'
+import { ModelPriceLinks } from '@/app/[lang]/brands/model-price-links'
 import { LANGUAGES } from '@/lib/languages'
 import { LangPilotLink } from './lang-pilot-link'
 import { compactVndRange, formatInteger } from '@/lib/vnd'
@@ -56,6 +58,47 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
             <LangPilotLink href={modelPagePath(slug, other)} target={other} hrefLang={other === 'vi' ? 'vi-VN' : 'en'} label={LANGUAGES.find((l) => l.code === other)!.native} name={entry.name} />
           </div>
         </div>
+      </main>
+      <Footer />
+    </div>
+  )
+}
+
+/**
+ * ⛔ THE HUBS, /gia (Vietnamese) AND /price (English) — 2026-11-27, for Cốc Cốc (it favours Vietnamese pages and found the
+ * /gia pages only through a listing): every model page /brands links (`linkedModelPages`, exactly what pages.xml submits),
+ * as /brands lists them. An h1, one line, the names — no figures (they go stale with the ISR window; each page has its own).
+ * ⛔ NOTHING TO LIST IS A 404, never an empty page (LibraryHub's rule): pages.xml submits the hubs only while the list is
+ * non-empty. A failed read THROWS (no catch), so ISR keeps the last good HTML rather than caching an empty hub or a 404.
+ */
+export async function modelPriceHubMetadata(lang: ModelPageLang): Promise<Metadata> {
+  if (!(await linkedModelPages()).length) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
+  const vi = lang === 'vi'
+  const title = vi ? `Giá theo mẫu tại Việt Nam | ${SITE_NAME}` : `Prices by model in Vietnam | ${SITE_NAME}`
+  const description = vi ? `Giá rao phổ biến của từng mẫu, từ tin đăng đang có trên ${SITE_NAME}.` : `Typical asking prices for each model, from live listings on ${SITE_NAME}.`
+  const canonical = modelHubPath(lang)
+  const en = modelHubPath('en')
+  return {
+    title, description,
+    alternates: { canonical, languages: { en, 'vi-VN': modelHubPath('vi'), 'x-default': en } },
+    ...pageShare({ title, description, url: canonical }),
+  }
+}
+
+export async function ModelPriceHub({ lang }: { lang: ModelPageLang }) {
+  const pages = await linkedModelPages()
+  if (!pages.length) notFound()
+  return (
+    <div className="flex min-h-page flex-col blob-bg">
+      <Header />
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+        <h1 className="h-display text-foreground">
+          <Bilingual en="Prices by model in Vietnam" vi="Giá theo mẫu tại Việt Nam" />
+        </h1>
+        <p className="mt-2 text-base text-body">
+          <Bilingual en="Typical asking prices for each model, from live listings." vi="Giá rao phổ biến của từng mẫu, từ tin đăng đang có." />
+        </p>
+        <ModelPriceLinks pages={pages} lang={lang} hub />
       </main>
       <Footer />
     </div>

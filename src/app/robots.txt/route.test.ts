@@ -67,6 +67,8 @@ describe('/robots.txt', () => {
       'User-agent: Omgilibot',
       'Disallow: /',
       '',
+      // The Vietnamese pages first (2026-11-27, owner — for Cốc Cốc, which reads sitemaps only from here): a subset of pages.xml.
+      'Sitemap: https://eno.vn/sitemaps/vi.xml',
       'Sitemap: https://eno.vn/sitemap.xml',
       // The page sitemap, named directly (2026-10-18): a crawler that reads the index need not open it.
       'Sitemap: https://eno.vn/sitemaps/pages.xml',
@@ -74,6 +76,11 @@ describe('/robots.txt', () => {
       // not know. The Schema Map is linked from /llms.txt (src/lib/llms-txt.ts).
       '',
     ])
+  })
+
+  it('names three sitemaps, the Vietnamese one first (2026-11-27)', async () => {
+    const sitemaps = (await bodyOf()).split('\n').filter((l) => /^Sitemap:/i.test(l))
+    expect(sitemaps).toEqual(['Sitemap: https://eno.vn/sitemaps/vi.xml', 'Sitemap: https://eno.vn/sitemap.xml', 'Sitemap: https://eno.vn/sitemaps/pages.xml'])
   })
 
   it('no longer makes the three false claims', async () => {
@@ -95,6 +102,7 @@ describe('/robots.txt', () => {
     vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
     const body = await bodyOf()
+    expect(body).toContain('Sitemap: https://www.eno.forum/sitemaps/vi.xml')
     expect(body).toContain('Sitemap: https://www.eno.forum/sitemap.xml')
     expect(body).toContain('Sitemap: https://www.eno.forum/sitemaps/pages.xml')
     expect(body).not.toMatch(/^schemamap:/im)

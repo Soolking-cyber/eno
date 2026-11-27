@@ -28,7 +28,7 @@
  * which is true of eno.vn, of eno.forum and of the profiles themselves.
  */
 export type Social = {
-  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'linkedin' | 'youtube' | 'tiktok' | 'github'
+  key: 'facebook' | 'facebook-group' | 'instagram' | 'threads' | 'reddit' | 'x' | 'linkedin' | 'youtube' | 'tiktok' | 'github' | 'telegram' | 'whatsapp'
   /** Accessible name, as "ENO on <channel>" is built in the footer. */
   label: string
   labelVi: string
@@ -38,7 +38,9 @@ export type Social = {
   /**
    * `rel="me"` — an identity claim a consumer may follow back to verify the account is ours. True of
    * a profile we own; NOT of the community group, which is a place our members post, not an identity
-   * of eno (a reviewer's catch).
+   * of eno (a reviewer's catch), and NOT of the two chat lines (Telegram, WhatsApp): they are ways to
+   * message eno, and `me` also puts a URL in sameAs (site-identity.ts), which carries the Telegram
+   * CHANNEL instead and never a wa.me link.
    */
   me?: boolean
 }
@@ -65,6 +67,10 @@ export const SOCIALS: Social[] = [
   // sameAs alone was not). It holds only the agent-skills repo (src/lib/agent-skills.ts). ⛔ Never the personal account
   // that holds the site's source. Moved here from site-identity.ts ENTITY_PROFILES, so sameAs is unchanged.
   { key: 'github', label: 'GitHub', labelVi: 'GitHub', href: 'https://github.com/eno-vn', me: true },
+  // Owner, 2026-11-27: "link telegram chat and whatsap business line 0772007921". The chat account (t.me/eno_vn resolved
+  // to eno.vn on +84 772 007 921) and the WhatsApp Business line on the same number (wa.me 302s to api.whatsapp.com).
+  { key: 'telegram', label: 'Telegram', labelVi: 'Telegram', href: 'https://t.me/eno_vn' },
+  { key: 'whatsapp', label: 'WhatsApp', labelVi: 'WhatsApp', href: 'https://wa.me/84772007921' },
 ]
 
 /**

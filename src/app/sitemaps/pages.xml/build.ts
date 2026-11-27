@@ -22,7 +22,7 @@ import { LANDING_TARGET as COFFEE_TARGET } from '@/app/[lang]/wholesale-green-co
 // Read only: the model lists the iPhone pages price, so the sitemap dates the rows those pages show.
 import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, newPriceWhere, usedPriceWhere } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
-import { modelPagePath, submittableModelPages } from '@/lib/model-pages'
+import { linkedModelPages, modelHubPath, modelPagePath, submittableModelPages } from '@/lib/model-pages'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import type { RentIndex } from '@/lib/rent-index'
 import { TEACHER_COST_INDEX_PATH, editionPageLastmod, editionPath, seriesLastmod } from '@/lib/teacher-cost-index'
@@ -670,7 +670,15 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    * band claims a market AND that PRICE_STAT_MIN_SAMPLE of OUR OWN listings stand behind, dated by our own rows — never
    * a page of someone else's catalogue. A page under that is indexable but unsubmitted (I-g: noindex only after 14 days).
    * ⚠️ NO .catch: a failed read fails this build, so the last good pages.xml stays and IndexNow pings no removals.
+   * Their hubs first (2026-11-27), /gia and /price: submitted exactly while they list a page — the read they render
+   * (`linkedModelPages`, the same memoised index), since an empty hub is a 404. No lastmod: a list of names, like the static pages.
+   * ⚠️ THE PREDICATE IS SHARED, NOT THE CLOCK (the gated landings' trade, above): this file rebuilds daily, a hub hourly, so a
+   * hub whose last page lost its claim can stay submitted as a 404 until the next rebuild — rare (23 pages live 2026-11-27, and
+   * every one would have to drop at once) and self-correcting.
    */
+  if ((await linkedModelPages()).length) {
+    for (const l of ['vi', 'en'] as const) urls.push(`  <url><loc>${hostUrl}${modelHubPath(l)}</loc></url>\n`)
+  }
   for (const p of await submittableModelPages()) {
     for (const l of ['vi', 'en'] as const) urls.push(`  <url><loc>${hostUrl}${modelPagePath(p.slug, l)}</loc>${lm(p.lastmod ?? undefined)}</url>\n`)
   }

@@ -243,7 +243,13 @@ vi.mock('@/lib/model-pages', () => ({
     if (h.failModelPages) throw new Error('model pages read failed')
     return h.modelPages
   },
+  // What the hubs list (/gia, /price — the same memoised index in the real module): the submittable pages, by name.
+  linkedModelPages: async () => {
+    if (h.failModelPages) throw new Error('model pages read failed')
+    return h.modelPages.map((p) => ({ slug: p.slug, name: p.slug }))
+  },
   modelPagePath: (slug: string, lang: string) => (lang === 'vi' ? `/gia/${slug}` : `/price/${slug}`),
+  modelHubPath: (lang: string) => (lang === 'vi' ? '/gia' : '/price'),
 }))
 
 /** The newest value of each asked-for date field over `rows`, folded into `acc`. */
@@ -302,10 +308,12 @@ import { GET as indexGET } from '@/app/sitemap.xml/route'
 import { sitemapIndexChildren } from '@/app/sitemap.xml/build'
 import { GET as pagesGET } from '@/app/sitemaps/pages.xml/route'
 import { GET as childGET } from '@/app/sitemaps/[file]/route'
+import { GET as viGET } from '@/app/sitemaps/vi.xml/route'
+import { viSitemapEntries } from '@/app/sitemaps/vi.xml/build'
 import { buildPagesSitemap, RENT_FROZEN_PATHS, RentIndexUnavailable } from '@/app/sitemaps/pages.xml/build'
 import { collectSitemaps } from '@/app/api/cron/indexnow/collect'
 import { LISTINGS_PER_SITEMAP, langUrlEntries, listingSitemapCount, parseListingSitemapFile, sitemapViLists } from '@/lib/sitemap'
-import { VI_PILOT_MARKETPLACE, hasViTwin } from '@/lib/lang-pinned'
+import { FIXED_LANG, VI_PILOT_MARKETPLACE, hasViTwin, pinnedVariant } from '@/lib/lang-pinned'
 import { MIN_INDEXABLE_LISTINGS } from '@/lib/index-floor'
 import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
 import { storefrontCanonical } from '@/lib/storefront'
@@ -1029,8 +1037,15 @@ describe('the model price pages in the pages child (src/lib/model-pages.ts, rule
     expect(xml).toContain(`<loc>${HOST}/price/honda-wave-alpha</loc></url>`)
   })
 
-  it('submits none when there are none', async () => {
-    expect(locs(await (await pagesGET()).text()).filter((l) => /\/(gia|price)\//.test(l))).toEqual([])
+  it('submits none when there are none — and no hub, which 404s then', async () => {
+    expect(locs(await (await pagesGET()).text()).filter((l) => /\/(gia|price)(\/|$)/.test(l))).toEqual([])
+  })
+
+  it('submits the two hubs (2026-11-27), undated, right before the pages, while there is a page to list', async () => {
+    h.modelPages = [{ slug: 'apple-iphone-13', lastmod: new Date('2026-11-10T00:00:00Z') }]
+    const xml = await (await pagesGET()).text()
+    expect(xml).toContain(`  <url><loc>${HOST}/gia</loc></url>\n  <url><loc>${HOST}/price</loc></url>\n  <url><loc>${HOST}/gia/apple-iphone-13</loc>`)
+    for (const hub of ['/gia', '/price']) expect(locs(xml).filter((l) => l === `${HOST}${hub}`), hub).toHaveLength(1)
   })
 
   it('⛔ a failed read rejects the build (the last good copy stays; IndexNow pings no removals)', async () => {
@@ -1587,5 +1602,108 @@ describe('the /vi twins in the sitemaps (phase 1, 2026-11-19)', () => {
     const retired = { ...VI_PILOT_MARKETPLACE, families: [], retiredFamilies: VI_PILOT_MARKETPLACE.families }
     expect(one('/c/rentals', retired)).toHaveLength(1)
     expect(one('/c/rentals', { live: [], retired: [] })).toHaveLength(1)
+  })
+})
+
+/**
+ * ⛔ /sitemaps/vi.xml (2026-11-27, for Cốc Cốc): EXACTLY THE ENTRIES OF pages.xml WHOSE URL RENDERS VIETNAMESE FOR EVERYONE —
+ * the proxy's own resolver (`pinnedVariant`) decides, and every line is pages.xml's own, byte for byte. Never a URL of its
+ * own: no page it lists can answer noindex, 404 or a redirect unless pages.xml's would.
+ */
+describe('/sitemaps/vi.xml: the Vietnamese pages of pages.xml', () => {
+  const many = (n: number, prefix: string, over: Partial<Row>) => Array.from({ length: n }, (_, i) => row({ id: `${prefix}-${i}`, ...over }))
+  const urlEntries = (xml: string) => [...xml.matchAll(/ {2}<url>[\s\S]*?<\/url>\n/g)].map((m) => m[0])
+  const path = (u: string) => new URL(u).pathname
+  const seed = () => {
+    h.rows = [
+      ...many(10, 'fash', { sellerId: 'old-shop', categoryId: 'cat-fashion', district: 'Quận 1' }),
+      row({ id: 'sub-1', sellerId: 'sub-shop', categoryId: 'cat-electronics' }),
+      row({ id: 'own-1', categoryId: 'cat-electronics' }),
+    ]
+    h.help = [{ id: 'how-to-post', editedAt: null, createdAt: new Date('2026-07-21T00:00:00Z'), updatedAt: new Date('2026-09-29T00:00:00Z') }]
+    h.schools = [{ slug: 'ila-vietnam', status: 'active', reviews: 1, jobs: 0, lastmod: new Date('2026-10-02T03:00:00Z') }]
+    h.modelPages = [{ slug: 'apple-iphone-13', lastmod: new Date('2026-11-10T00:00:00Z') }]
+  }
+
+  it('holds exactly the pages.xml entries that render Vietnamese for everyone, byte for byte and in order', async () => {
+    seed()
+    const pages = urlEntries(await (await pagesGET()).text())
+    const res = await viGET()
+    expect(res.headers.get('content-type')).toContain('application/xml')
+    const xml = await res.text()
+    expect(xml).toMatch(/^<\?xml[^>]*\?>\s*<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9" xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml">/)
+    const vi = urlEntries(xml)
+    expect(vi).toEqual(pages.filter((e) => pinnedVariant(path(locs(e)[0]), VI_PILOT_MARKETPLACE) === 'vi'))
+    expect(vi.length).toBeGreaterThan(10)
+    for (const e of vi) expect(pages, e).toContain(e)
+  })
+
+  it('names the /vi twins, the Vietnamese guides, /gia and its pages — and no English or negotiating URL', async () => {
+    seed()
+    const got = locs(await (await viGET()).text()).map(path)
+    const combo = got.find((p) => p.startsWith('/vi/c/fashion-beauty/'))
+    expect(combo, 'the fixture submits one fashion district page').toBeDefined()
+    for (const p of ['/vi/c/fashion-beauty', '/vi/c/electronics', '/vi/help', '/vi/help/how-to-post', '/vi/schools', '/vi/schools/ila-vietnam', '/vi/hcmc-rent-index', '/vi/tools', '/gia', '/gia/apple-iphone-13']) {
+      expect(got, p).toContain(p)
+    }
+    // Every Vietnamese registry guide pages.xml submits (phone guides, marketplace guides, the vehicle hubs).
+    const pagesLocs = locs(await (await pagesGET()).text()).map(path)
+    const viGuides = Object.entries(FIXED_LANG).filter(([, v]) => v.lang === 'vi').map(([slug]) => `/${slug}`)
+    expect(viGuides.filter((g) => pagesLocs.includes(g)).length).toBeGreaterThan(20)
+    for (const g of viGuides.filter((x) => pagesLocs.includes(x))) expect(got, g).toContain(g)
+    for (const p of got) expect(pinnedVariant(p, VI_PILOT_MARKETPLACE), p).toBe('vi')
+    // Not the home page or its /vi twin (V-c keeps /vi out of pages.xml), no English address, no negotiating plain URL.
+    for (const p of ['/', '/vi', '/price', '/price/apple-iphone-13', '/c/fashion-beauty', '/help', '/schools', '/about', '/old_shop', '/guides', '/secondhand-furniture-ho-chi-minh-city']) {
+      expect(got, p).not.toContain(p)
+    }
+    expect(got.some((p) => p.startsWith('/listings/'))).toBe(false)
+    expect(new Set(got).size).toBe(got.length)
+  })
+
+  it('keeps each /vi twin\'s alternates and lastmod as pages.xml wrote them', async () => {
+    seed()
+    const xml = await (await viGET()).text()
+    const links = `<xhtml:link rel="alternate" hreflang="en" href="${HOST}/help/how-to-post"/><xhtml:link rel="alternate" hreflang="vi-VN" href="${HOST}/vi/help/how-to-post"/><xhtml:link rel="alternate" hreflang="x-default" href="${HOST}/help/how-to-post"/>`
+    expect(xml).toContain(`  <url><loc>${HOST}/vi/help/how-to-post</loc><lastmod>2026-07-21T00:00:00.000Z</lastmod>${links}</url>\n`)
+    expect(xml).toContain(`  <url><loc>${HOST}/gia/apple-iphone-13</loc><lastmod>2026-11-10T00:00:00.000Z</lastmod></url>\n`)
+  })
+
+  it('no hub without a model page to list (it 404s then)', async () => {
+    seed()
+    h.modelPages = []
+    expect(locs(await (await viGET()).text()).map(path).filter((p) => /^\/gia(\/|$)/.test(p))).toEqual([])
+  })
+
+  it('⛔ rethrows like pages.xml: an unknown rent snapshot or a failed read keeps the last good copy, never a partial file', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    seed()
+    h.rent = { known: false }
+    await expect(viGET()).rejects.toThrow(RentIndexUnavailable)
+    h.rent = snap()
+    h.failModelPages = true
+    await expect(viGET()).rejects.toThrow(/model pages read failed/)
+    quiet.mockRestore()
+  })
+
+  it('on eno.forum (no /vi twins) only the pinned Vietnamese addresses qualify', async () => {
+    seed()
+    h.services = true
+    const got = locs(await (await viGET()).text()).map(path)
+    expect(got.some((p) => /^\/vi(\/|$)/.test(p))).toBe(false)
+    expect(got).toContain('/gia/apple-iphone-13')
+    expect(got).toContain('/mua-iphone-o-dau-uy-tin')
+  })
+
+  it('drops an entry on another host or with no parseable <loc>', () => {
+    const e = (loc: string) => `  <url><loc>${loc}</loc></url>\n`
+    expect(viSitemapEntries([e(`${HOST}/gia/x`), e('https://subshop.eno.vn/gia/x'), e('not a url'), '  <url></url>\n'], HOST, VI_PILOT_MARKETPLACE))
+      .toEqual([e(`${HOST}/gia/x`)])
+  })
+
+  it('is not a child of /sitemap.xml, so the IndexNow cron never reads it', async () => {
+    seed()
+    expect((await sitemapIndexChildren()).locs.some((l) => l.endsWith('/vi.xml'))).toBe(false)
+    expect((await collectSitemaps()).children.map((c) => c.path)).not.toContain('/sitemaps/vi.xml')
+    expect(parseListingSitemapFile('vi.xml')).toBeNull()
   })
 })

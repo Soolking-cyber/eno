@@ -27,10 +27,13 @@ import { SITE_NAME } from '@/lib/edition'
  * 2026-11-19). The Schema Map stays at /schemamap.xml, linked from /llms.txt. Re-add the line only once Lighthouse knows
  * the directive, as it learned content-signal in 13.2.
  *
- * ⚠️ TWO SITEMAP LINES SINCE 2026-10-18 (teacher visibility plan): /sitemap.xml (an index then; one flat urlset while the
- * site is small since 2026-11-18, src/app/sitemap.xml/build.ts), and the page sitemap it lists — which holds
- * the guides, the hub and every landing. Measured in Cloudflare's sampled logs over 7 days: Claude-SearchBot fetched
+ * ⚠️ THREE SITEMAP LINES SINCE 2026-11-27. Two since 2026-10-18 (teacher visibility plan): /sitemap.xml (an index then; one
+ * flat urlset while the site is small since 2026-11-18, src/app/sitemap.xml/build.ts), and the page sitemap it lists — which
+ * holds the guides, the hub and every landing. Measured in Cloudflare's sampled logs over 7 days: Claude-SearchBot fetched
  * /sitemap.xml 93 times and /sitemaps/pages.xml never. Google's robots.txt spec allows several Sitemap lines.
+ * ⛔ /sitemaps/vi.xml FIRST (2026-11-27, owner): the Vietnamese pages of pages.xml (src/app/sitemaps/vi.xml/build.ts) for
+ * Cốc Cốc, which reads a sitemap only from these lines and crawls a few hundred pages a day — it had indexed 1,262 English
+ * listing pages and 4 of the 40 Vietnamese guides. Every URL in it is also in the two after it.
  */
 
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
@@ -162,6 +165,8 @@ Disallow: /
 # file that governs how the entire site is crawled. The well-known URI at
 # ${SITE_ORIGIN}/.well-known/ai-catalog.json is the primary mechanism, it already works, and every
 # ARD client checks it. Do not re-add this for a score.
+# The Vietnamese pages first: every URL in this one is also in the two below.
+Sitemap: ${SITE_ORIGIN}/sitemaps/vi.xml
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
 # The page sitemap is also named directly: /sitemap.xml lists every URL itself while the site is small, and becomes an index of its children once it is not.
 Sitemap: ${SITE_ORIGIN}/sitemaps/pages.xml

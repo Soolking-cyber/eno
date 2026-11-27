@@ -72,6 +72,11 @@ export function modelPagePath(slug: string, lang: ModelPageLang): string {
   return lang === 'vi' ? `/gia/${slug}` : `/price/${slug}`
 }
 
+/** The hub that lists every linked model page (2026-11-27): /gia in Vietnamese, /price in English — each pinned to its language (lang-pinned.ts). */
+export function modelHubPath(lang: ModelPageLang): string {
+  return lang === 'vi' ? '/gia' : '/price'
+}
+
 /** Every stored spelling of a canonical model — feed-query.ts's `?model=` rule. */
 export function modelSpellings(brandSlug: string, canon: string): string[] {
   return [canon, ...Object.entries(aliasesFor(brandSlug)).filter(([, c]) => c === canon).map(([raw]) => raw)]

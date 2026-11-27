@@ -232,6 +232,23 @@ describe('Footer links', () => {
     expect(container.querySelector('a[href="https://www.linkedin.com/company/eno-vn/"]')?.getAttribute('aria-label')).toBe('ENO on LinkedIn')
   })
 
+  // Owner, 2026-11-27: "link telegram chat and whatsap business line 0772007921". Contact lines, so no rel="me".
+  it('links the Telegram chat and the WhatsApp Business line, labelled in both languages', async () => {
+    const want = { 'https://t.me/eno_vn': ['ENO on Telegram', 'ENO trên Telegram'], 'https://wa.me/84772007921': ['ENO on WhatsApp', 'ENO trên WhatsApp'] }
+    for (const [i, lang] of (['en', 'vi'] as const).entries()) {
+      const { container } = await renderFooter('marketplace', lang)
+      for (const [href, labels] of Object.entries(want)) {
+        const a = container.querySelector(`a[href="${href}"]`)
+        expect(a, href).not.toBeNull()
+        expect(a?.getAttribute('aria-label'), href).toBe(labels[i])
+        expect(a?.getAttribute('target'), href).toBe('_blank')
+        expect(a?.getAttribute('rel'), href).toBe('noopener noreferrer')
+        expect(a?.querySelector('svg[aria-hidden="true"]'), href).not.toBeNull()
+      }
+      cleanup()
+    }
+  })
+
   it('labels the LinkedIn mark in Vietnamese on a Vietnamese page', async () => {
     const { container } = await renderFooter('marketplace', 'vi')
     expect(container.querySelector('a[href="https://www.linkedin.com/company/eno-vn/"]')?.getAttribute('aria-label')).toBe('ENO trên LinkedIn')

@@ -252,9 +252,10 @@ export function pinnedRoute(pathname: string, lists: ViPilot = VI_PILOT): Pinned
   // The general guide library (src/lib/guides): the address says the language, so no list comes with it.
   if (/^\/guides(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'en', internalPath: pathname }
   if (/^\/huong-dan(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'vi', internalPath: pathname }
-  // A model price page (src/lib/model-pages.ts): /gia/<slug> is Vietnamese, /price/<slug> English. No hub at either.
-  if (/^\/gia\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(pathname)) return { variant: 'vi', internalPath: pathname }
-  if (/^\/price\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(pathname)) return { variant: 'en', internalPath: pathname }
+  // A model price page (src/lib/model-pages.ts): /gia/<slug> is Vietnamese, /price/<slug> English — and each address's hub
+  // (2026-11-27, the list of model pages): /gia Vietnamese, /price English.
+  if (/^\/gia(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'vi', internalPath: pathname }
+  if (/^\/price(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'en', internalPath: pathname }
   const slug = pathname.slice(1)
   if (!slug || !Object.hasOwn(FIXED_LANG, slug)) return null
   return { variant: FIXED_LANG[slug].lang, internalPath: pathname }
@@ -277,9 +278,9 @@ export function pinnedPair(pathname: string, lists: ViPilot = VI_PILOT): string 
   if (plain !== null) return hasViTwin(plain, lists) ? plain : null
   if (lists.live.includes(pathname)) return viTwin(pathname)
   if (!pinnedVariant(pathname, lists)) return null
-  // A model price page's twin is the same slug at the other language's address.
-  const model = /^\/(gia|price)\/(.+)$/.exec(pathname)
-  if (model) return `/${model[1] === 'gia' ? 'price' : 'gia'}/${model[2]}`
+  // A model price page's twin is the same slug at the other language's address; the hub's is the other hub.
+  const model = /^\/(gia|price)(\/.+)?$/.exec(pathname)
+  if (model) return `/${model[1] === 'gia' ? 'price' : 'gia'}${model[2] ?? ''}`
   // A library guide is pinned by its address, not by this list. Its other language, if it has one, is in the article's own hreflang.
   if (!Object.hasOwn(FIXED_LANG, pathname.slice(1))) return null
   const pair = FIXED_LANG[pathname.slice(1)].pair

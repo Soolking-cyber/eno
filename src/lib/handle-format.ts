@@ -77,8 +77,9 @@ const RESERVED = new Set([
   'teachinvietnam',
   // /guides and /huong-dan are the general guide library (2026-11-04, src/lib/guides).
   'guides', 'huongdan',
-  // /gia/<slug> and /price/<slug> are the model price pages (2026-11-17, src/lib/model-pages.ts). Pinned by name in
-  // handle-format.test.ts: neither segment has a page of its own, so the route-tree test cannot see them.
+  // /gia/<slug> and /price/<slug> are the model price pages (2026-11-17, src/lib/model-pages.ts), and since 2026-11-27 /gia
+  // and /price are their hubs. Pinned by name in handle-format.test.ts too (from before the hubs, when neither segment had a
+  // page of its own and the route-tree test could not see them).
   'gia', 'price',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
