@@ -70,6 +70,7 @@ import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
 import { ViewToggles, ViewSwitch, ViewPickReserve, SortStrip, createHeaderHiddenSignal, type HeaderHiddenSignal } from './explorer-toolbar'
 import { rowsContinue } from './grid-run'
+import { keepCardsInPlace } from '@/lib/feed-stable'
 import { PhoneFilterChips, ResultLine, ResultsTitle, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
@@ -2862,7 +2863,23 @@ export function ListingsExplorer({
   // cache is empty, so useQuery adopts initialData and `listingsData.listings` IS the
   // initialListings reference.
   const adoptedCacheRef = useRef(false)
+  /** One-shot: the mount that starts on the seed lays its first live page-1 answer over the drawn cards (sync effect, below). */
+  const stabiliseSeedRef = useRef(!startedOffSeed)
+  /**
+   * ⛔ NOT THE COLD LOAD'S OWN BACKGROUND REVALIDATION (CLS, 2026-11-27). This adoption is for a cache that ALREADY answers at
+   * mount (Back — before paint, so no frame of the seed shows). It also fired ~3 s into a cold load, when the live answer to
+   * the SEED'S OWN feed arrived while the rows were still the seed's reference — and swapped in the live order AFTER paint,
+   * every card sliding, before the sync effect could lay it over the drawn cards (src/lib/feed-stable.ts). So that one
+   * answer — after the first commit, stamped for the feed the seed's rows belong to (`rowsSigRef`, set by the seed's own
+   * pass), while the one-shot is armed — is left to the sync effect. Every other adoption (a cache at mount, another feed's
+   * answer over untouched seed rows) is unchanged.
+   */
+  const firstRenderRef = useRef(true)
+  useEffect(() => { firstRenderRef.current = false }, [])
+  const seedRevalidation = !firstRenderRef.current && stabiliseSeedRef.current && !queryShowingStaleSet &&
+    rowsSigRef.current !== undefined && (listingsData as { fetchedFor?: { sig?: string } } | undefined)?.fetchedFor?.sig === rowsSigRef.current
   if (
+    !seedRevalidation &&
     !adoptedCacheRef.current && listingsData && page === 1 &&
     listings === initialListings && listingsData.listings !== initialListings
   ) {
@@ -3577,15 +3594,26 @@ export function ListingsExplorer({
         // (seenIdsRef/maxOffsetRef were set by the restore effect; don't reset them). Only for
         // the SAME feed: a page 1 of other filters replaces, restore or not.
         const keepRestored = restoredScrollRef.current != null && !otherFeed
+        /**
+         * ⛔ THE FIRST LIVE ANSWER OVER THE SEED IS LAID OVER THE DRAWN CARDS, NOT IN PLACE OF THEM (CLS, 2026-11-27 —
+         * src/lib/feed-stable.ts has the measurements). Once per mount: the first page-1 answer that is not the seed itself
+         * (`initialData` is the seed's own reference and never passes the queryFn), for the SAME feed, outside a restore.
+         * A filter change (`otherFeed`), a later refetch and every page after keep the answer's own order, as before.
+         */
+        const fresh = listingsData.listings as SerializedListingCard[]
+        const overSeed = stabiliseSeedRef.current && !otherFeed && !keepRestored && fresh !== initialListings
+        if (fresh !== initialListings) stabiliseSeedRef.current = false
+        const lateCreative = overSeed && isAdCreativeCardData(creative)
         setListings((prev) => {
           if (keepRestored && prev.length > listingsData.listings.length) return prev
-          seenIdsRef.current = new Set(listingsData.listings.map((l: SerializedListingCard) => l.id))
+          const rows = overSeed && prev.length > 0 && prev !== fresh ? keepCardsInPlace(prev, fresh, { leadingSlot: lateCreative }) : fresh
+          seenIdsRef.current = new Set(rows.map((l: SerializedListingCard) => l.id))
           maxOffsetRef.current = 0
           // Set WITH the rows, in the same updater as the two refs above, so the rows and their
           // provenance can never be observed apart. Idempotent if React replays the updater; not
           // reached on the keep-restored bail-out, whose rows keep the snapshot's provenance.
           rowsSigRef.current = payloadSig
-          return listingsData.listings
+          return rows
         })
         setReachedEnd(false) // a fresh feed (filter change / reload) — paging is open again
       } else if (otherFeed) {
