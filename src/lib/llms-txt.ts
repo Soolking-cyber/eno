@@ -93,7 +93,11 @@ const DEVELOPER_SECTION = `## For developers and agents
 - [Docs MCP server](${SITE_ORIGIN}/api/mcp/docs/server-card): \`${SITE_ORIGIN}/api/mcp/docs\`, a separate read-only server for
   an agent that only needs this site's documentation, open to any MCP client with no key: search_docs and get_doc.
 - [A2A agent](${SITE_ORIGIN}/.well-known/agent-card.json): \`${SITE_ORIGIN}/api/a2a\`, an Agent2Agent (JSON-RPC, A2A 1.0
-  and 0.3) agent open to any A2A client with no key: the same listing search, listing details and categories. Read-only.
+  and 0.3) agent open to any A2A client with no key: the same listing search, listing details and categories. Read-only.${!IS_SERVICES ? `
+- [Search for agents](${SITE_ORIGIN}/.well-known/search?q=studio%20district%201): a GET with the query in \`q\`, a search
+  over every public page of this site (listings, guides, categories) that answers in Markdown passages with their source
+  URLs, no key. When its monthly allowance is used up it redirects (307) to this site's own search at \`/api/agent-search\`,
+  which answers the same way and names the MCP server above.` : ''}
 - [eno-vn CLI](${SITE_ORIGIN}/developers/cli) — the command-line client on npm (${SITE_ORIGIN === 'https://eno.vn' ? '' : `\`export ENO_BASE_URL=${SITE_ORIGIN}\` then `}\`npx eno-vn status\`): listings,
   catalogue sync, photos, analytics and webhooks from a terminal or a script; one API call per command (--all
   follows every page).
