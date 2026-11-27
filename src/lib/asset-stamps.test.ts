@@ -61,6 +61,19 @@ describe('content stamps on immutable static assets', () => {
     ).toEqual([])
   })
 
+  it('/logo-mark-40.svg — the same drawing as /logo-mark.svg at a 40px intrinsic size, every reference stamped', () => {
+    // Owner 2026-11-27 (SEO Site Checkup "Responsive Image Test"): the header and footer draw the mark at 36–40px, so they
+    // load this copy. Redraw logo-mark.svg → regenerate it:
+    //   sed 's/width="512" height="512"/width="40" height="40"/' public/logo-mark.svg > public/logo-mark-40.svg
+    const big = readFileSync('public/logo-mark.svg', 'utf8')
+    const small = readFileSync('public/logo-mark-40.svg', 'utf8')
+    expect(small.replace('width="40" height="40"', ''), 'logo-mark-40.svg drifted from logo-mark.svg').toBe(big.replace('width="512" height="512"', ''))
+    const expected = stamp(readFileSync('public/logo-mark-40.svg'))
+    const hits = stampsFor('/logo-mark-40.svg')
+    expect(hits.length).toBeGreaterThanOrEqual(2)
+    expect(hits.filter(h => h.stamp !== expected).map(h => h.file)).toEqual([])
+  })
+
   it('/mascots/*.svg — MASCOTS_V matches the concatenated hash of all nine files', () => {
     // ⚠️ MUST match the recipe written into mascot.tsx's comment EXACTLY:
     //   cat public/mascots/*.svg | shasum -a 256 | cut -c1-8

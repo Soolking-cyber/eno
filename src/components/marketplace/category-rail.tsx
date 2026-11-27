@@ -633,6 +633,10 @@ export function CategoryRail({
       pills && PILL_GLYPH_BOX,
     )
   const glyphSize = (big: boolean) => cn(big ? 'h-13 w-13 max-sm:h-10 max-sm:w-10 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12', pills && PILL_GLYPH)
+  // The SAME widths as glyphSize, as a `sizes` string, so the art is fetched at the size it is drawn (owner 2026-11-27,
+  // SEO Site Checkup "Responsive Image Test": the 184px renders were drawn at 26–52px). ⚠️ Change one, change the other:
+  // phone 40px (PILL_GLYPH 26px), sm 52px big / 40px, md+ 48px.
+  const glyphSizes = (big: boolean) => `(max-width: 639px) ${pills ? 26 : 40}px, (max-width: 767px) ${big ? 52 : 40}px, 48px`
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -931,7 +935,7 @@ export function CategoryRail({
               children: (
                 <>
                   <span className={glyphBox(bigTile[at], isActive)}>
-                    <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
+                    <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} sizes={glyphSizes(bigTile[at])} selected={isActive} />
                   </span>
                   <span className={nameCls(isActive)}><TileLabel en={label.name} vi={label.nameVi} /></span>
                 </>
@@ -1113,7 +1117,7 @@ export function CategoryRail({
                     {/* Sized by ITS OWN index like every other tile, never a hardcoded box — an intent
                         tile on the first screen is as big as a category tile there. */}
                     <span className={glyphBox(bigTile[shortcutCount + categories.length + i], active)}>
-                      <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} selected={active} />
+                      <CategoryTileGlyph slug={s.type} icon={s.icon} className={cn(iconCls(active), glyphSize(bigTile[shortcutCount + categories.length + i]))} sizes={glyphSizes(bigTile[shortcutCount + categories.length + i])} selected={active} />
                     </span>
                     <span className={nameCls(active)}><TileLabel en={s.name} vi={s.nameVi} /></span>
                   </>

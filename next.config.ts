@@ -382,7 +382,7 @@ const acceptsMarkdown = () => [
 // a 1.8 MB model every window downloads, its portrait, HeadAudio's worklet and model): each URL carries its sha256 stamp
 // there, and src/lib/asset-stamps.test.ts pins each stamp to the bytes.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|avatar/.*|headaudio/.*|logo-mark\\.svg|logo-dotvn\\.svg|logo-dotforum\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|avatar/.*|headaudio/.*|logo-mark\\.svg|logo-mark-40\\.svg|logo-dotvn\\.svg|logo-dotforum\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
 
 /**
  * ⛔ A BUILD ON A MAC IS A LOAD ON THE PRODUCTION DATABASE (2026-11-02). The tunnel's 127.0.0.1:5433 is prod Postgres, and each prerender worker holds up to 3

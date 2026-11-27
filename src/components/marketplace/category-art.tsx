@@ -1,4 +1,4 @@
-import { categoryTileArtPath } from '@/lib/category-art'
+import { categoryArtSrcSet, categoryTileArtPath } from '@/lib/category-art'
 import { CATEGORY_GLYPH_SLUGS } from '@/generated/icon-paths'
 import { cn } from '@/lib/utils'
 import { CategoryIcon } from './category-icons'
@@ -75,10 +75,15 @@ export function CategoryArt({
    */
   selected: _selected = false,
   className,
+  sizes,
 }: {
   slug: string
   selected?: boolean
   className?: string
+  /** The width it is drawn at per breakpoint (e.g. the home rail's "(max-width: 639px) 26px, 48px"). Given → the
+   *  browser picks a 48–184px copy (scripts/gen-category-art-sizes.mjs); omitted → the 184px file, as before (owner
+   *  2026-11-27, SEO Site Checkup "Responsive Image Test"). Only callers that know their size should pass it. */
+  sizes?: string
 }) {
   const src = categoryTileArtPath(slug)
   // ⚠️ A slug with no artwork returns null rather than a broken image; CategoryTileGlyph below
@@ -93,6 +98,8 @@ export function CategoryArt({
       aria-hidden
       width={184}
       height={184}
+      srcSetOf={sizes ? categoryArtSrcSet : undefined}
+      sizes={sizes}
       draggable={false}
       /* ⚠️ `fetchPriority="low"` AND `decoding="async"`, because this went from zero requests to
          NINETEEN. They are small and same-origin, but eager full-priority fetches on the home page
@@ -148,14 +155,17 @@ export function CategoryTileGlyph({
   icon,
   selected = false,
   className,
+  sizes,
 }: {
   slug: string
   icon: string
   selected?: boolean
   className?: string
+  /** Passed to the artwork only (see CategoryArt); the lucide fallback is an inline SVG. */
+  sizes?: string
 }) {
   return CATEGORY_GLYPH_SLUGS.has(slug) ? (
-    <CategoryArt slug={slug} selected={selected} className={className} />
+    <CategoryArt slug={slug} selected={selected} className={className} sizes={sizes} />
   ) : (
     <CategoryIcon name={icon} selected={selected} className={className} />
   )

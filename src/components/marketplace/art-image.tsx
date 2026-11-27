@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils'
 export function ArtImage({
   src,
   className,
+  srcSetOf,
+  sizes,
   ...rest
 }: {
   /** The WEBP path — `avifOf` derives the twin. Keeping webp as the argument means every caller's
@@ -34,14 +36,21 @@ export function ArtImage({
    *  forgotten. */
   src: string
   className?: string
-} & Omit<React.ComponentProps<'img'>, 'src' | 'className'>) {
+  /** OPT-IN responsive copies (owner 2026-11-27, SEO Site Checkup "Responsive Image Test"): turns a path into a
+   *  width-descriptor `srcset` (e.g. `categoryArtSrcSet`). Used only together with `sizes`; a caller passing neither
+   *  keeps the single full-size file, so nothing that draws the art large can be handed a small copy. */
+  srcSetOf?: (path: string) => string
+  /** The CSS width the art is drawn at, per breakpoint — the browser picks the copy from it and the screen density. */
+  sizes?: string
+} & Omit<React.ComponentProps<'img'>, 'src' | 'className' | 'srcSet' | 'sizes'>) {
+  const responsive = srcSetOf && sizes ? { sizes } : null
   return (
     <picture className="contents">
-      <source type="image/avif" srcSet={avifOf(src)} />
+      <source type="image/avif" srcSet={responsive ? srcSetOf!(avifOf(src)) : avifOf(src)} {...responsive} />
       {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size static assets from our own
           origin; next/image would add a proxy hop and a layout wrapper, and cannot emit this
           AVIF-with-WebP-fallback pair for a non-responsive 20px glyph. */}
-      <img src={src} className={cn(className)} {...rest} />
+      <img src={src} srcSet={responsive ? srcSetOf!(src) : undefined} sizes={responsive?.sizes} className={cn(className)} {...rest} />
     </picture>
   )
 }

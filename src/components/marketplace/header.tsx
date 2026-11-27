@@ -890,7 +890,11 @@ export function Header({ postBar = false }: { postBar?: boolean } = {}) {
               left"): the search field is a second tile of the mark's shape there, 40px on the mark's top and bottom lines
               (globals.css `search-tile`). It reverses r05's 36px mark beside a 44px raised pill (owner-approved 2026-11-14),
               which made the pill the header's one loud object. Resized, never redrawn. */}
-          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-10 w-10" />
+          {/* ⚠️ /logo-mark-40.svg: the same drawing with a 40px intrinsic size (SEO Site Checkup "Responsive Image Test", owner
+              2026-11-27, counted the 512px file drawn at 40px as oversized). Vector, so it is as crisp at any density; the
+              512px file stays for the manifest, the service worker and the larger call sites. asset-stamps.test.ts keeps
+              the two drawings identical and pins this stamp. */}
+          <img src="/logo-mark-40.svg?v=48ffcc4e" alt={SITE_NAME} width={40} height={40} className="h-10 w-10" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never
