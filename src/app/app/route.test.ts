@@ -45,5 +45,7 @@ describe('/app sends each device to its own store (App Store live since 2026-11-
     expect(html).toContain('href="https://apps.apple.com/vn/app/eno-marketplace/id6819638569"')
     expect(html).toContain('href="https://play.google.com/store/apps/details?id=eno.vn"')
     expect(html).not.toMatch(/coming soon/i)
+    // A description (Bing site scan 2026-11-27), from the copy's own lines.
+    expect(html).toContain('<meta name="description" content="Get the eno app: Open this page on your phone, or pick your store (Google Play, App Store).">')
   })
 })

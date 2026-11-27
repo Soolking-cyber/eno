@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { firstThatFits } from '@/lib/meta-description'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
@@ -33,7 +34,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { lang, year } = await params
   const page = await load(year)
   if (!page) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
-  const title = `Teachers' Choice ${page.year}: where teachers recommend working in Saigon | ${SITE_NAME}`
+  // Within a result's width (Bing site scan 2026-11-27: 74 characters against its 70): the long form while it fits.
+  const title = firstThatFits([
+    `Teachers' Choice ${page.year}: where teachers recommend working in Saigon | ${SITE_NAME}`,
+    `Teachers' Choice ${page.year}: where to teach in Saigon | ${SITE_NAME}`,
+  ])
   const description = page.state === 'final'
     ? `The schools, English centres and recruiters in Ho Chi Minh City that identity-verified teachers recommended in ${page.year}, with the votes and reviews behind each.`
     : page.state === 'open'
