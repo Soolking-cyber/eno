@@ -98,6 +98,9 @@ export const ENTITY_PROFILES: readonly string[] = [
   // Vietnam storefront because it always carries the app (src/lib/app-store-links.ts).
   'https://apps.apple.com/vn/developer/eno-company-limited/id6819638571',
   'https://play.google.com/store/apps/developer?id=Eno+Company+Limited',
+  // eno.vn's public Telegram channel (2026-11-27; its page, read that day, is titled "eno.vn — rao vặt Việt Nam" and links
+  // https://eno.vn). sameAs only: the footer's Telegram mark is the chat account, a contact line, not a profile.
+  'https://t.me/enovietnam',
 ]
 
 /**

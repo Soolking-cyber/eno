@@ -28,10 +28,10 @@ describe('SOCIALS', () => {
     expect(new Set(SOCIALS.map((s) => s.key)).size).toBe(SOCIALS.length)
   })
 
-  // rel="me" is an identity claim: the community group is a place our members post, not eno itself.
-  it('claims identity for profiles and not for the group', () => {
-    expect(SOCIALS.find((s) => s.key === 'facebook-group')?.me).toBeUndefined()
-    expect(SOCIALS.filter((s) => s.me).length).toBe(SOCIALS.length - 1)
+  // rel="me" is an identity claim: the community group is a place our members post, not eno itself, and the two chat lines
+  // are ways to message eno (and `me` would put wa.me in sameAs).
+  it('claims identity for profiles and not for the group or the chat lines', () => {
+    expect(SOCIALS.filter((s) => !s.me).map((s) => s.key)).toEqual(['facebook-group', 'telegram', 'whatsapp'])
   })
 
   // Owner pasted it with `?viewAsMember=true` (the admin's view toggle). A query string on an identity

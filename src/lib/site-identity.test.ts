@@ -21,10 +21,14 @@ import { SITE_NAME } from './edition'
 afterEach(() => { vi.unstubAllEnvs() })
 
 describe('the Organization entity fields', () => {
-  it('sameAs is every profile eno OWNS — the nine socials (GitHub org included) plus the entity profiles, never the community group', () => {
+  it('sameAs is every profile eno OWNS — the nine socials (GitHub org included) plus the entity profiles, never the community group or a chat line', () => {
     const f = marketplaceOrganizationFields('https://eno.vn')
     expect(f.sameAs).toEqual([...SOCIALS.filter((s) => s.me).map((s) => s.href), ...ENTITY_PROFILES])
-    expect(f.sameAs).toHaveLength(13)
+    expect(f.sameAs).toHaveLength(14)
+    // The public Telegram channel; the footer's chat account and the WhatsApp line are contact routes, not profiles.
+    expect(f.sameAs).toContain('https://t.me/enovietnam')
+    expect(f.sameAs.filter((u) => u.startsWith('https://t.me/'))).toEqual(['https://t.me/enovietnam'])
+    expect(f.sameAs.some((u) => /wa\.me|whatsapp/i.test(u))).toBe(false)
     // Both app stores' developer pages: the publisher there is ENO Company Limited, the operator.
     expect(f.sameAs).toContain('https://apps.apple.com/vn/developer/eno-company-limited/id6819638571')
     expect(f.sameAs).toContain('https://play.google.com/store/apps/developer?id=Eno+Company+Limited')
