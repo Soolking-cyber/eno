@@ -14,6 +14,7 @@ vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) =
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (x: unknown) => x }))
 // The tile's price needs the currency context; the tests below look only at where it sits, so it is a stand-in span.
 vi.mock('./price', () => ({ Price: () => <span data-price="" /> }))
+import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { CARD_BODY, CARD_META, TITLE_LINE } from '@/lib/card-text'
 
 const { SeoListingGrid } = await import('./seo-listing-rail')
@@ -56,6 +57,17 @@ describe('SeoListingGrid — the photo and the text block', () => {
     const doc = new DOMParser().parseFromString(wrap(<SeoListingGrid listings={[l] as never} title="Homes" cta="Browse" href="/c/rentals" />), 'text/html')
     return { imgs: doc.querySelectorAll('img'), photo: doc.querySelector('img')!, doc }
   }
+  it('links a promoted phone to its public product page and discloses commission in the guide language', () => {
+    const listing = { id: 'phone-1', title: 'iPhone 14', price: 7990000, currency: '₫', listingType: 'sell', images: [] }
+    for (const lang of ['en', 'vi'] as const) {
+      const html = renderToStaticMarkup(<LanguageProvider initialLang={lang} initialViDict={lang === 'vi' ? VI_OVERRIDES : undefined}>
+        <SeoListingGrid accessTradePhones listings={[listing] as never} title="iPhone" href="/c/electronics" />
+      </LanguageProvider>)
+      expect(browse(html, '/listings/phone-1')).not.toBeNull()
+      expect(html).toContain(lang === 'vi' ? 'hoa hồng qua AccessTrade' : 'commission through AccessTrade')
+      expect(html).not.toContain('go.isclix.com')
+    }
+  })
   it('one photo, covering its square — no decorative fill', () => {
     for (const type of ['rent', 'teacher']) {
       const { imgs, photo } = tile(type)

@@ -4,6 +4,7 @@ import { Tr } from '@/context/language-context'
 import { pageShare, fitMeta } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatMoneyFull } from '@/lib/vnd'
+import { loadSeoRail, SeoListingGrid } from '@/components/marketplace/seo-listing-rail'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestPrices, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
@@ -263,7 +264,14 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
 }
 
 export default async function IPhone18VietnamPage() {
-  const [phones, phones17, duo] = await Promise.all([lowestPrices(), lowestPrices(IPHONE_17_MODELS), lowestPrices([IPHONE_DUO_MODEL])])
+  const [phones, phones17, duo, partnerPhones] = await Promise.all([
+    lowestPrices(), lowestPrices(IPHONE_17_MODELS), lowestPrices([IPHONE_DUO_MODEL]),
+    loadSeoRail({
+      categorySlug: 'electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple',
+      condition: 'used', listingType: 'sell', models: [...IPHONE_18_MODELS, ...IPHONE_17_MODELS],
+      accessTradePhones: true, order: 'recent',
+    }),
+  ])
   const rows = phones.rows
   const rows17 = phones17.rows
   const duoRows = duo.rows
@@ -276,6 +284,11 @@ export default async function IPhone18VietnamPage() {
   return (
     <SeoLanding
       content={content(rows, rows17, phones.known && phones17.known)}
+      inventory={partnerPhones.listings.length ? {
+        known: true,
+        count: partnerPhones.listings.length,
+        node: <SeoListingGrid listings={partnerPhones.listings} accessTradePhones title={<Tr text="Used iPhones from partner shops" />} href="/c/electronics" />,
+      } : undefined}
       lede={
         <>
           {/* ⛔ NO EMPTY TABLE AND NO SILENCE EITHER: with no second-hand iPhone 18 yet, one line says so —

@@ -19,26 +19,29 @@ import { titleWithSite } from '@/lib/meta-description'
  * ⚠️ NO SHOP IS NAMED AS "UY TÍN NHẤT". The marketplace lists several of these retailers and earns
  * affiliate revenue from some, so a ranking here would be an advertisement with an editorial byline.
  */
+export const revalidate = 3600
+
 const SLUG = 'mua-iphone-o-dau-uy-tin'
 
 const CONTENT: ArticleContent = {
   eyebrow: 'Cẩm nang mua sắm',
   h1: 'Mua iPhone ở đâu uy tín',
   intro:
-    'Bạn có thể đặt iPhone mới trên Apple Store Việt Nam hoặc tra đại lý ủy quyền gần nhà để xem máy. Với iPhone cũ, hãy so giá đúng mẫu và dung lượng, rồi kiểm tra pin, khóa kích hoạt và điều kiện bảo hành tại quầy.',
+    'Khi mua iPhone cũ, hãy so giá đúng mẫu và dung lượng rồi kiểm tra pin và bảo hành. Nếu muốn mua máy mới, bạn có thể tra đại lý ủy quyền của Apple gần nhà.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/best-place-to-buy-iphone-vietnam' },
+  railAfter: 'dia-chi-mua',
   sections: [
     {
       id: 'dia-chi-mua',
       title: 'Đặt mua online hoặc tìm đại lý gần bạn',
       body: (
         <Ul>
-          <li><strong>Mua máy mới online.</strong> Chọn mẫu và dung lượng trên <OfficialLink href="https://www.apple.com/vn/shop/buy-iphone">Apple Store Việt Nam</OfficialLink> để có giá tham khảo. Khi so giá với cửa hàng, hỏi giá trả thẳng và điều kiện thu cũ đổi mới.</li>
+          <li><strong>Mua máy cũ.</strong> Làm theo <HereLink href="/kinh-nghiem-mua-iphone-cu">hướng dẫn kiểm tra iPhone cũ</HereLink> để xem pin, lịch sử sửa chữa và Khóa kích hoạt trước khi mua.</li>
           <li><strong>Muốn xem máy tại quầy.</strong> Tra thành phố trên <OfficialLink href="https://locate.apple.com/vn/vi/sales">trang tìm đại lý ủy quyền của Apple</OfficialLink>, rồi gọi chi nhánh hỏi còn đúng màu và dung lượng bạn cần hay không.</li>
-          <li><strong>Mua máy cũ.</strong> Đối chiếu <HereLink href="/iphone-18-vietnam">giá iPhone 17 và 18 cũ theo dung lượng</HereLink>. Mở tin để xem người bán, hỏi tình trạng pin, linh kiện từng thay và thời hạn đổi trả.</li>
+          <li><strong>So sánh giá.</strong> Đối chiếu <HereLink href="/iphone-18-vietnam">giá iPhone 17 và 18 cũ theo dung lượng</HereLink>. Mở tin để xem người bán, hỏi tình trạng pin, linh kiện từng thay và thời hạn đổi trả.</li>
         </Ul>
       ),
     },
@@ -193,9 +196,9 @@ const CONTENT: ArticleContent = {
 }
 
 export const metadata: Metadata = withShare({
-  title: titleWithSite(`Mua iPhone ở đâu? Apple Store, đại lý và máy cũ`, SITE_NAME),
+  title: titleWithSite(`Mua iPhone ở đâu? Đại lý ủy quyền và iPhone cũ`, SITE_NAME),
   description:
-    'Tìm Apple Store Việt Nam, tra đại lý ủy quyền gần nhà và so giá iPhone cũ theo dung lượng. Kiểm tra số sê-ri, pin và bảo hành trước khi trả tiền.',
+    'So sánh giá iPhone cũ theo dung lượng, xem cách mua từ cửa hàng đối tác, tìm đại lý ủy quyền và kiểm tra bảo hành trước khi mua.',
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 

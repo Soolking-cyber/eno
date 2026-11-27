@@ -17,26 +17,29 @@ import { HereLink, OfficialLink, P, SeoArticle, Ul, type ArticleContent } from '
  * an editorial byline. Naming what each KIND of shop is good and bad at is the honest version, and
  * it is also the version that survives a retailer changing its prices next month.
  */
+export const revalidate = 3600
+
 const SLUG = 'best-place-to-buy-iphone-vietnam'
 
 const CONTENT: ArticleContent = {
   eyebrow: 'Buying guide',
   h1: 'Where to buy an iPhone in Vietnam',
   intro:
-    'Buy a new iPhone online from Apple Vietnam or find an authorised reseller near you for pickup. For a used iPhone, compare asking prices for the same model and storage, then check the handset and warranty before paying.',
+    'When buying a used iPhone, compare prices for the same model and storage and check the warranty. For a new phone, use Apple’s locator to find an authorised shop near you.',
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/mua-iphone-o-dau-uy-tin' },
+  railAfter: 'where-to-shop',
   sections: [
     {
       id: 'where-to-shop',
       title: 'Where to shop online or in person',
       body: (
         <Ul>
-          <li><strong>New, delivered.</strong> Choose a model and storage size in the <OfficialLink href="https://www.apple.com/vn/shop/buy-iphone">Apple Store for Vietnam</OfficialLink>. Use its outright price as a reference when a shop quotes a discount tied to a trade-in.</li>
+          <li><strong>Used iPhones.</strong> Use the <HereLink href="/buying-a-used-iphone-vietnam">used iPhone inspection guide</HereLink> to check the battery, repairs and Activation Lock before ordering.</li>
           <li><strong>New, in person.</strong> Enter your city in <OfficialLink href="https://locate.apple.com/vn/en/sales">Apple’s authorised reseller locator</OfficialLink>. Call the branch to confirm the colour, storage and pickup price before travelling.</li>
-          <li><strong>Used.</strong> Compare <HereLink href="/iphone-18-vietnam">used iPhone 17 and 18 asking prices by storage</HereLink>. Open a listing to check the seller and condition, then ask about battery health, repairs and returns.</li>
+          <li><strong>Compare prices.</strong> Check <HereLink href="/iphone-18-vietnam">used iPhone 17 and 18 asking prices by storage</HereLink>. Open a listing to check the seller and condition, then ask about battery health, repairs and returns.</li>
         </Ul>
       ),
     },
@@ -193,7 +196,7 @@ const CONTENT: ArticleContent = {
 export const metadata: Metadata = withShare({
   title: `Where to buy an iPhone in Vietnam: new and used | ${SITE_NAME}`,
   description:
-    'Find Apple Vietnam’s online store and authorised shops near you, compare used iPhone asking prices, and check warranty coverage before paying.',
+    'Compare used iPhone asking prices, see how to order from a partner shop, find an authorised reseller and check warranty coverage before paying.',
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 

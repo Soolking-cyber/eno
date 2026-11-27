@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Tr } from '@/context/language-context'
 import Image from 'next/image'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
@@ -156,6 +157,7 @@ export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: Ra
 /** The rail's markup: a heading, the grid of real listings (crawlable internal links), a browse link. */
 export function SeoListingGrid({
   listings,
+  accessTradePhones,
   title,
   cta,
   href,
@@ -166,7 +168,8 @@ export function SeoListingGrid({
   lang,
 }: {
   listings: RailListing[]
-  title: string
+  accessTradePhones?: boolean
+  title: React.ReactNode
   /** The one CTA over `href`. Unused when `links` is given. */
   cta?: string
   href: string
@@ -190,6 +193,11 @@ export function SeoListingGrid({
   return (
     <section className={cn('mt-12', className)}>
       <h2 lang={lang} className={cn(heading, 'text-foreground mb-4')}>{title}</h2>
+      {accessTradePhones && (
+        <p className="mb-4 text-sm text-body">
+          <Tr text="Ad · Open a product and use Buy now in the shop chat. We may earn a commission through AccessTrade." />
+        </p>
+      )}
       <div className={LISTING_GRID}>
         {listings.map((l) => (
           <Link key={l.id} data-sid={l.sellerId} href={`/listings/${l.id}`} className="group flex flex-col">
@@ -272,7 +280,7 @@ export async function SeoListingRail({
   target,
   title,
   cta,
-  minCount = 4,
+  minCount = target.accessTradePhones ? 1 : 4,
   className,
   heading,
   browseLink,
@@ -292,5 +300,5 @@ export async function SeoListingRail({
   if (listings.length < minCount) return null
   // An explicit browseLink.href wins (a language-pinned guide hands over its own localized URL — A11); otherwise the
   // plain URL, which SeoListingGrid's LocalizedLink CTA turns into the reader's language (A1-LANG).
-  return <SeoListingGrid listings={listings} title={title} cta={cta} href={browseLink?.href ?? seoBrowseHref(target)} className={className} heading={heading} browseLink={browseLink} lang={lang} />
+  return <SeoListingGrid listings={listings} accessTradePhones={target.accessTradePhones} title={title} cta={cta} href={browseLink?.href ?? seoBrowseHref(target)} className={className} heading={heading} browseLink={browseLink} lang={lang} />
 }

@@ -53,11 +53,21 @@ export function phoneGuideRail(canonical: string): PhoneGuideRail | undefined {
     return {
       target: {
         categorySlug: 'electronics', subcategorySlug: 'phones-tablets', condition: 'used',
-        listingType: 'sell', underVnd: 10_000_000, order: 'recent',
+        listingType: 'sell', accessTradePhones: true, underVnd: 10_000_000, order: 'recent',
       },
-      title: guide.lang === 'vi' ? 'Điện thoại và máy tính bảng cũ dưới 10 triệu đồng' : 'Used phones and tablets listed under 10 million đồng',
+      title: guide.lang === 'vi' ? 'Điện thoại và máy tính bảng cũ dưới 10 triệu đồng từ cửa hàng đối tác' : 'Partner offers under 10 million đồng for used phones and tablets',
       // The explorer’s price range compares raw amounts across currencies. This link deliberately opens all prices.
       cta: guide.lang === 'vi' ? 'Xem điện thoại và máy tính bảng cũ ở mọi mức giá' : 'Browse used phones and tablets at all prices',
+    }
+  }
+  if (slug === 'best-place-to-buy-iphone-vietnam' || slug === 'mua-iphone-o-dau-uy-tin') {
+    return {
+      target: {
+        categorySlug: 'electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple',
+        condition: 'used', listingType: 'sell', accessTradePhones: true, order: 'recent',
+      },
+      title: guide.lang === 'vi' ? 'iPhone cũ từ cửa hàng đối tác' : 'Used iPhones from partner shops',
+      cta: guide.lang === 'vi' ? 'Xem thêm thiết bị Apple cũ' : 'Browse more used Apple devices',
     }
   }
   const brand = APPLE_GUIDES.has(slug) ? 'apple' : SAMSUNG_GUIDES.has(slug) ? 'samsung' : undefined

@@ -23,6 +23,8 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * tiếp. Cũng không xếp hạng hay gọi tên cửa hàng nào là "uy tín nhất" — sàn có liên kết doanh thu với
  * một số nhà bán lẻ, nên một bảng xếp hạng ở đây là quảng cáo đội lốt bài viết.
  */
+export const revalidate = 3600
+
 const SLUG = 'dien-thoai-duoi-10-trieu'
 
 const CONTENT: ArticleContent = {

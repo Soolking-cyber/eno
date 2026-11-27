@@ -18,7 +18,7 @@ describe('phoneGuideRail — the second-hand rail under the phone guides', () =>
   it.each(['/phones-under-10-million-vietnam', '/dien-thoai-duoi-10-trieu'])('limits the shelf on %s to priced second-hand goods below the budget', (path) => {
     const { target } = phoneGuideRail(path)!
     expect(seoLandingWhere(target)).toMatchObject({
-      AND: [conditionWhere('used')], price: { gt: 0, lt: 10_000_000 }, currency: '₫', listingType: 'sell',
+      AND: expect.arrayContaining([conditionWhere('used')]), price: { gt: 0, lt: 10_000_000 }, currency: '₫', listingType: 'sell',
       subcategorySlug: 'phones-tablets', status: 'active', verified: true,
     })
     const browse = new URL(seoBrowseHref(target), 'https://eno.vn')
@@ -29,6 +29,16 @@ describe('phoneGuideRail — the second-hand rail under the phone guides', () =>
     expect(insertAfter).toBeTruthy()
     expect(article).toContain(`id: '${insertAfter}'`)
     expect(seoLandingWhere(phoneGuideRail('/buying-a-used-iphone-vietnam')!.target)).not.toHaveProperty('price')
+  })
+
+  it.each(['best-place-to-buy-iphone-vietnam', 'mua-iphone-o-dau-uy-tin', 'phones-under-10-million-vietnam', 'dien-thoai-duoi-10-trieu'])('selects only products with an AccessTrade checkout on %s', (slug) => {
+    const target = phoneGuideRail(slug)!.target
+    const filters = seoLandingWhere(target).AND
+    expect(filters).toContainEqual(expect.objectContaining({
+      seller: { OR: expect.arrayContaining([expect.objectContaining({ officialPartner: true })]) },
+      purchaseLink: { is: { OR: expect.arrayContaining([{ url: { startsWith: 'https://go.isclix.com/' } }]) } },
+    }))
+    if (target.brandSlug === 'apple') expect(filters).toContainEqual({ model: { startsWith: 'iPhone', mode: 'insensitive' } })
   })
 
   it('the eSIM pair (primary shelf: services) gets none, nor does a page that is not a phone guide', () => {

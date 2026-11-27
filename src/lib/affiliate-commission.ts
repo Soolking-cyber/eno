@@ -24,6 +24,12 @@
  */
 const COMMISSION_HOSTS = new Set(['go.isclix.com', 'shorten.asia', 'click.accesstrade.vn'])
 
+/** HTTPS tracker prefixes for inventory selection. Match the host boundary before the path. */
+export const commissionUrlPrefixes = [...COMMISSION_HOSTS].flatMap((host) => [
+  `https://${host}/`,
+  `https://www.${host}/`,
+])
+
 /** True when this outbound link is a commission-bearing (AccessTrade) tracker link. Null/garbage → false. */
 export function isCommissionLink(url: string | null | undefined): boolean {
   if (!url) return false

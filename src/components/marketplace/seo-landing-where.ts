@@ -1,3 +1,5 @@
+import { commissionUrlPrefixes } from '@/lib/affiliate-commission'
+import { enoRunPartnerWhere } from '@/lib/eno-run-partners'
 import { conditionWhere } from '@/lib/listing-condition'
 
 /**
@@ -41,6 +43,7 @@ export type SeoLandingTarget = {
   listingType?: string
   /** Editorial budget, exclusive, in Vietnamese đồng. */
   underVnd?: number
+  accessTradePhones?: boolean
   condition?: string
   brandSlug?: string
   models?: string[]
@@ -52,6 +55,16 @@ export function seoLandingWhere(content: SeoLandingTarget) {
 
   const condition = conditionWhere(content.condition)
   if (condition) narrowings.push(condition)
+
+  if (content.accessTradePhones) {
+    // Check the purchase link in the predicate only. Product cards receive public listing data.
+    narrowings.push({
+      seller: { OR: enoRunPartnerWhere() },
+      purchaseLink: { is: { OR: commissionUrlPrefixes.map((startsWith) => ({ url: { startsWith } })) } },
+      price: { gt: 0 },
+    })
+    if (content.brandSlug === 'apple') narrowings.push({ model: { startsWith: 'iPhone', mode: 'insensitive' } })
+  }
 
   if (content.attributes) {
     // One `contains` per attribute rather than one over the whole object: key order inside the

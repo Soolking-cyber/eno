@@ -4,6 +4,8 @@
 // Regenerate with: node scripts/gen-vi-overrides.mjs — which also TRANSLATES every gap with agy,
 // unreviewed. To only drop entries the code no longer uses: node scripts/gen-vi-overrides.mjs --prune
 export const VI_OVERRIDES: Record<string, string> = {
+  "Used iPhones from partner shops": "iPhone cũ từ cửa hàng đối tác",
+  "Ad · Open a product and use Buy now in the shop chat. We may earn a commission through AccessTrade.": "Quảng cáo · Mở sản phẩm rồi chọn Mua ngay trong cuộc trò chuyện với cửa hàng. Chúng tôi có thể nhận hoa hồng qua AccessTrade.",
   "Check that this is the app you started from:": "Hãy kiểm tra đây đúng là ứng dụng bạn đã bắt đầu:",
   "It will send you back to:": "Sau đó bạn sẽ được đưa về:",
   "Connecting an app needs a business account, where you can also disconnect it later. Switch your account to business, then start the connection again.": "Kết nối ứng dụng cần tài khoản doanh nghiệp, nơi bạn cũng có thể ngắt kết nối sau này. Hãy chuyển tài khoản sang doanh nghiệp, rồi bắt đầu kết nối lại.",

@@ -23,6 +23,8 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  * marketplace lists several retailers and earns affiliate revenue from some, so a ranking here would
  * be an advertisement wearing an editorial byline.
  */
+export const revalidate = 3600
+
 const SLUG = 'phones-under-10-million-vietnam'
 
 const CONTENT: ArticleContent = {
