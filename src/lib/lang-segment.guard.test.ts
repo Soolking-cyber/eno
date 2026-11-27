@@ -37,7 +37,8 @@ describe('the [lang] segment', () => {
     // `webmcp.js` is the WebMCP script's route handler (src/lib/webmcp-script.ts) — dotted, so the matcher skips it too.
     // `ask` is NLWeb's POST /ask handler (src/app/ask/route.ts) — excluded from the matcher by name, like `app`.
     // `schemamap.xml` and `schema-feed.jsonl` are dotted route handlers like robots.txt: the NLWeb Schema Feeds pair (owner, 2026-11-18).
-    const ALLOWED = new Set(['[lang]', 'api', 'app', 'ask', 'md', 'llms.txt', 'webmcp.js', 'openapi.json', 'robots.txt', 'sitemap.xml', 'schemamap.xml', 'schema-feed.jsonl', 'feed.xml', 'sitemaps', 'hcmc-rent-index.csv', 'hcmc-teacher-cost-pay-index.csv',
+    // `ads.txt` is AdSense's sellers file (src/app/ads.txt/route.ts, owner 2026-11-27) — a dotted route handler like robots.txt.
+    const ALLOWED = new Set(['[lang]', 'api', 'app', 'ask', 'md', 'llms.txt', 'ads.txt', 'webmcp.js', 'openapi.json', 'robots.txt', 'sitemap.xml', 'schemamap.xml', 'schema-feed.jsonl', 'feed.xml', 'sitemaps', 'hcmc-rent-index.csv', 'hcmc-teacher-cost-pay-index.csv',
       'manifest.ts', 'icon.svg', 'apple-icon.png', 'favicon.ico', 'global-error.tsx', 'globals.css', 'listing-images', 'og'])
     const extra = readdirSync('src/app').filter((n) => !ALLOWED.has(n))
     // A new root entry either belongs under [lang] (a page) or must be excluded in proxy.ts's matcher.
